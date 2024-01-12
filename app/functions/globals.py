@@ -2779,6 +2779,25 @@ def clean_up_redis():
                     except:
                         GLOBALS.redisClient.delete(key)
 
+            # Manage uploads here
+            elif any(name in key for name in ['upload_ping']):
+                survey_id = key.split('_')[-1]
+
+                if survey_id == 'None':
+                    GLOBALS.redisClient.delete(key)
+                    GLOBALS.redisClient.delete('upload_user_'+str(survey_id))
+                else:
+                    try:
+                        timestamp = GLOBALS.redisClient.get(key)
+                        if timestamp:
+                            timestamp = datetime.fromtimestamp(float(timestamp.decode()))
+                            if datetime.utcnow() - timestamp > timedelta(minutes=10):
+                                GLOBALS.redisClient.delete('upload_ping_'+str(survey_id))
+                                GLOBALS.redisClient.delete('upload_user_'+str(survey_id))
+                    except:
+                        GLOBALS.redisClient.delete(key)
+                        GLOBALS.redisClient.delete('upload_user_'+str(survey_id))
+
     except Exception as exc:
         app.logger.info(' ')
         app.logger.info('!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!')

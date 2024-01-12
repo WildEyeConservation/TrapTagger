@@ -1156,6 +1156,8 @@ def updateSurveyStatus(survey_id, status):
             survey.status = status
             db.session.commit()
             if status == 'Import Queued':
+                GLOBALS.redisClient.delete('upload_ping_'+str(survey_id))
+                GLOBALS.redisClient.delete('upload_user_'+str(survey_id))
                 import_survey.delay(s3Folder=survey.name,surveyName=survey.name,tag=survey.trapgroup_code,organisation_id=survey.organisation_id,correctTimestamps=survey.correct_timestamps,classifier=survey.classifier.name)
     
     return json.dumps('')
@@ -1451,6 +1453,10 @@ def createNewSurvey():
 
                 # Add permissions
                 setup_new_survey_permissions.delay(survey_id=newSurvey_id, organisation_id=organisation_id, user_id=current_user.id, permission=permission, annotation=annotation, detailed_access=detailed_access)
+
+                # Checkout the upload
+                GLOBALS.redisClient.set('upload_ping_'+str(newSurvey_id),datetime.utcnow().timestamp())
+                GLOBALS.redisClient.set('upload_user_'+str(newSurvey_id),current_user.id)
             else:
                 import_survey.delay(s3Folder=newSurveyS3Folder,surveyName=surveyName,tag=newSurveyTGCode,organisation_id=organisation_id,correctTimestamps=correctTimestamps,classifier=classifier,user_id=current_user.id,permission=permission,annotation=annotation,detailed_access=detailed_access)
     
@@ -8415,27 +8421,26 @@ def getClassifierInfo():
 @login_required
 def get_presigned_url():
     """Returns a presigned URL in order to upload a file directly to S3."""
-    if Config.DEBUGGING: print('Getting presigned')
-    # if current_user.admin:
-    #     return  GLOBALS.s3UploadClient.generate_presigned_url(ClientMethod='put_object',
-    #                                                             Params={'Bucket': Config.BUCKET,
-    #                                                                     'Key': current_user.folder + '/' + request.json['filename'].strip('/'),
-    #                                                                     'ContentType': request.json['contentType'],
-    #                                                                     'Body' : ''})
-    # else:
-    #     return 'error'
 
-    organisation = db.session.query(Organisation).join(Survey).filter(Survey.id==request.json['survey_id']).first()
-    if organisation:
-        userPermissions = db.session.query(UserPermissions).filter(UserPermissions.organisation_id==organisation.id).filter(UserPermissions.user_id==current_user.id).first()
-        if userPermissions and userPermissions.create:
-            
-            return  GLOBALS.s3UploadClient.generate_presigned_url(ClientMethod='put_object',
-                                                                    Params={'Bucket': Config.BUCKET,
-                                                                            'Key': organisation.folder + '/' + request.json['filename'].strip('/'),
-                                                                            'ContentType': request.json['contentType'],
-                                                                            'Body' : ''},
-                                                                    ExpiresIn=604800) # 7 days (the maximum)
+    if Config.DEBUGGING: print('Getting presigned URL')
+    
+    try:
+        survey_id = request.json['survey_id']
+        organisation_id, organisation_folder, survey_status = db.session.query(Organisation.id,Organisation.folder,Survey.status).join(Survey).filter(Survey.id==survey_id).first()
+        if organisation_id and (survey_status=='Uploading'):
+            userPermissions = db.session.query(UserPermissions).filter(UserPermissions.organisation_id==organisation_id).filter(UserPermissions.user_id==current_user.id).first()
+            if userPermissions and userPermissions.create:
+                upload_user = GLOBALS.redisClient.get('upload_user_'+str(survey_id))
+                if upload_user and (int(upload_user.decode())==current_user.id):
+                    GLOBALS.redisClient.set('upload_ping_'+str(survey_id),datetime.utcnow().timestamp())
+                    return  GLOBALS.s3UploadClient.generate_presigned_url(ClientMethod='put_object',
+                                                                            Params={'Bucket': Config.BUCKET,
+                                                                                    'Key': organisation_folder + '/' + request.json['filename'].strip('/'),
+                                                                                    'ContentType': request.json['contentType'],
+                                                                                    'Body' : ''},
+                                                                            ExpiresIn=604800) # 7 days (the maximum)
+    except:
+        pass
         
     return 'error'
 
@@ -8444,34 +8449,50 @@ def get_presigned_url():
 def check_upload_files():
     """Checks a list of images to see if they have already been uploaded."""
 
-    files = request.json['filenames']
-    survey_id = request.json['survey_id']
-    already_uploaded = []
+    try:
+        files = request.json['filenames']
+        survey_id = request.json['survey_id']
+        already_uploaded = []
 
-    organisation = db.session.query(Organisation).join(Survey).filter(Survey.id==survey_id).first()
-    userPermissions = db.session.query(UserPermissions).filter(UserPermissions.organisation_id==organisation.id).filter(UserPermissions.user_id==current_user.id).first()
-    if organisation and userPermissions and userPermissions.create:
-        for file in files:
-            result = checkFile(file,organisation.folder)
-            if result:
-                already_uploaded.append(result)
+        organisation_id, organisation_folder, survey_status = db.session.query(Organisation.id,Organisation.folder,Survey.status).join(Survey).filter(Survey.id==survey_id).first()
+        if organisation_id and (survey_status=='Uploading'):
+            userPermissions = db.session.query(UserPermissions).filter(UserPermissions.organisation_id==organisation_id).filter(UserPermissions.user_id==current_user.id).first()
+            if userPermissions and userPermissions.create:
+                upload_user = GLOBALS.redisClient.get('upload_user_'+str(survey_id))
+                if upload_user and (int(upload_user.decode())==current_user.id):
+                    GLOBALS.redisClient.set('upload_ping_'+str(survey_id),datetime.utcnow().timestamp())
+                    for file in files:
+                        result = checkFile(file,organisation_folder)
+                        if result:
+                            already_uploaded.append(result)
+                    return json.dumps(already_uploaded)
+    except:
+        pass
 
-    # already_uploaded = []
-    # for file in files:
-    #     result = checkFile(file,current_user.folder)
-    #     if result:
-    #         already_uploaded.append(result)
+    return json.dumps('error')
+
+@app.route('/fileHandler/check_upload_available', methods=['POST'])
+@login_required
+def check_upload_available():
+    """Checks whether an upload is available for a particular task (ie. that no other user has an upload in progress for that survey)."""
+
+    try:
+        survey_id = request.json['survey_id']
+        organisation_id, survey_status = db.session.query(Organisation.id,Survey.status).join(Survey).filter(Survey.id==survey_id).first()
+        if organisation_id and (survey_status=='Uploading'):
+            userPermissions = db.session.query(UserPermissions).filter(UserPermissions.organisation_id==organisation_id).filter(UserPermissions.user_id==current_user.id).first()
+            if userPermissions and userPermissions.create:
+                check = GLOBALS.redisClient.get('upload_user_'+str(survey_id))
+                if check and (int(check)!=current_user.id):
+                    return json.dumps('unavailable')
+                else:
+                    GLOBALS.redisClient.set('upload_ping_'+str(survey_id),datetime.utcnow().timestamp())
+                    GLOBALS.redisClient.set('upload_user_'+str(survey_id),current_user.id)
+                    return json.dumps('available')
+    except:
+        pass
     
-    # results = []
-    # pool = Pool(processes=4)
-    # for file in files:
-    #     results.append(pool.apply_async(checkFile,(file,current_user.folder)))
-    # pool.close()
-    # pool.join()
-
-    # already_uploaded = [result for result in [result.get() for result in results] if result!=None]
-
-    return json.dumps(already_uploaded)
+    return json.dumps('error')
 
 @app.route('/fileHandler/get_image_info', methods=['POST'])
 @login_required

@@ -440,7 +440,7 @@ function buildSurveys(survey,disableSurvey) {
     
             btnResume = document.createElement('button')
             btnResume.setAttribute("class","btn btn-primary btn-sm")
-            btnResume.setAttribute('onclick','selectFiles(true,'+survey.id+',"'+survey.name+'")')
+            btnResume.setAttribute('onclick','checkUploadAvailable('+survey.id+',"'+survey.name+'")')
             btnResume.innerHTML = 'Resume Upload'
             if (uploadID && (uploadID != survey.id)) {
                 btnResume.disabled = true

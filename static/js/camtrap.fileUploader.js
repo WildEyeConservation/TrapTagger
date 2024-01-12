@@ -275,3 +275,38 @@ function updateUploadProgress(value,total) {
         uploadWorker.postMessage({'func': 'buildUploadProgress', 'args': null});
     }
 }
+
+async function checkUploadAvailable(survey_id,survey_name) {
+    if (uploadID && (uploadID != survey_id)) {
+        document.getElementById('modalAlertHeader').innerHTML = 'Alert'
+        document.getElementById('modalAlertBody').innerHTML = 'You already have an upload running in this tab. If you wish to upload to a second survey simultaneously, please do so in another tab.'
+        modalAlert.modal({keyboard: true});
+    } else {
+        var response = await fetch('/fileHandler/check_upload_available', {
+            method: 'post',
+            headers: {
+                accept: 'application/json',
+                'content-type': 'application/json',
+            },
+            body: JSON.stringify({
+                survey_id: survey_id
+            }),
+        }).then((response) => {
+            if (!response.ok) {
+                throw new Error(response.statusText)
+            } else {
+                return response.json()
+            }
+        }).catch( (error) => {
+            // pass
+        })
+    
+        if (response=='available') {
+            selectFiles(true,survey_id,survey_name)
+        } else {
+            document.getElementById('modalAlertHeader').innerHTML = 'Alert'
+            document.getElementById('modalAlertBody').innerHTML = 'This survey is currently being uploaded to by another user. Please try again later.'
+            modalAlert.modal({keyboard: true});
+        }
+    }
+}
