@@ -3332,7 +3332,12 @@ def getWorkerStats():
 
         for task in tasks:
             if worker_id:
-                workers = [db.session.query(User).get(worker_id)]
+                if int(worker_id) == current_user.id:
+                    workers = [db.session.query(User).get(worker_id)]
+                elif checkSurveyPermission(current_user.id,survey.id,'admin'):
+                    workers = [db.session.query(User).get(worker_id)]
+                else:
+                    workers = []
             else:
                 childWorker = alias(User)
                 workers = db.session.query(User)\
@@ -3367,9 +3372,9 @@ def getWorkerStats():
                 reply.append(info)
 
         if worker_id:
-            headings = {'batchCount': 'Batches Campleted', 'taggingTime': 'Tagging Time (h)'}
+            headings = {'batchCount': 'Batches Completed', 'taggingTime': 'Tagging Time (h)'}
         else:
-            headings = {'username': 'User', 'batchCount': 'Batches Campleted', 'taggingTime': 'Tagging Time (h)'}
+            headings = {'username': 'User', 'batchCount': 'Batches Completed', 'taggingTime': 'Tagging Time (h)'}
 
         return json.dumps({'headings': headings, 'data': reply})
 
@@ -6921,13 +6926,20 @@ def getWorkerSurveys():
     '''Returns a list of survey names and IDs, owned by the current user, worked on by the specified worker.'''
     
     worker_id = request.args.get('worker_id',None)
-    if worker_id:
+    if worker_id and current_user.id == int(worker_id):
         surveys = surveyPermissionsSQ(db.session.query(Survey.id, Survey.name)\
                             .join(Task)\
                             .join(Turkcode)\
                             .join(User)\
                             .filter(User.parent_id==worker_id)\
                             ,current_user.id,'worker').distinct().all()
+    elif worker_id and current_user.id != int(worker_id):
+        surveys = surveyPermissionsSQ(db.session.query(Survey.id, Survey.name)\
+                            .join(Task)\
+                            .join(Turkcode)\
+                            .join(User)\
+                            .filter(User.parent_id==worker_id)\
+                            ,current_user.id,'admin').distinct().all()
     
     return json.dumps(surveys)
 
