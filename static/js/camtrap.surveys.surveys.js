@@ -422,7 +422,7 @@ function buildSurveys(survey,disableSurvey) {
         addImagesBtn = null
         addTaskBtn = null
         
-        if (uploading) {
+        if (survey.id==uploadID) {
             uploadWorker.postMessage({'func': 'buildUploadProgress', 'args': null});
             disableSurvey = true
         } else {
@@ -442,7 +442,7 @@ function buildSurveys(survey,disableSurvey) {
             btnResume.setAttribute("class","btn btn-primary btn-sm")
             btnResume.setAttribute('onclick','checkUploadAvailable('+survey.id+',"'+survey.name+'")')
             btnResume.innerHTML = 'Resume Upload'
-            if (uploadID && (uploadID != survey.id)) {
+            if (uploadID) {
                 btnResume.disabled = true
             }
             col2.appendChild(btnResume)

@@ -1099,16 +1099,23 @@ def deleteSurvey(survey_id):
         userPermissions = db.session.query(UserPermissions).filter(UserPermissions.organisation_id==survey.organisation_id).filter(UserPermissions.user_id==current_user.id).first()
 
         if userPermissions and userPermissions.delete:
-            tasks = db.session.query(Task).filter(Task.survey_id==survey_id).all()
+
+            if survey.status.lower() == 'uploading':
+                upload_user = GLOBALS.redisClient.get('upload_user_'+str(survey_id))
+                if upload_user and int(upload_user.decode())!=current_user.id:
+                    status = 'error'
+                    message = 'The survey is currently being uploaded to by another user.'
 
             #Check that survey is not in use
-            if (survey.status.lower() in Config.SURVEY_READY_STATUSES) or (survey.status.lower() == 'uploading'):
-                pass
-            else:
-                status = 'error'
-                message = 'The survey is currently being uploaded to. Please cancel this before deleting it.'
+            if status != 'error':
+                if (survey.status.lower() in Config.SURVEY_READY_STATUSES) or (survey.status.lower() == 'uploading'):
+                    pass
+                else:
+                    status = 'error'
+                    message = 'The survey is currently in use. Please try again later.'
 
             if status != 'error':
+                tasks = db.session.query(Task).filter(Task.survey_id==survey_id).all()
                 for task in tasks:
                     if task.status.lower() not in Config.TASK_READY_STATUSES:
                         status = 'error'
