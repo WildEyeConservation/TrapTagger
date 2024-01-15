@@ -615,11 +615,11 @@ def create_task_dataframe(task_id,detection_count_levels,label_levels,url_levels
     if individual_levels: del df['individual']
 
     #Add image counts
-    df['capture_image_count'] = df.groupby('unique_capture')['unique_capture'].transform('count')
-    df['cluster_image_count'] = df.groupby('cluster')['cluster'].transform('count')
-    df['camera_image_count'] = df.groupby('camera')['camera'].transform('count')
-    df['trapgroup_image_count'] = df.groupby('trapgroup')['trapgroup'].transform('count')
-    df['survey_image_count'] = df.groupby('survey')['survey'].transform('count')
+    df['capture_image_count'] = df.groupby('unique_capture')['id'].transform('nunique')
+    df['cluster_image_count'] = df.groupby('cluster')['id'].transform('nunique')
+    df['camera_image_count'] = df.groupby('camera')['id'].transform('nunique')
+    df['trapgroup_image_count'] = df.groupby('trapgroup')['id'].transform('nunique')
+    df['survey_image_count'] = df.groupby('survey')['id'].transform('nunique')
 
     # df.sort_values(by=['survey', 'trapgroup', 'camera', 'timestamp'], inplace=True, ascending=True)
 
