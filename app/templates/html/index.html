@@ -230,7 +230,7 @@ limitations under the License. -->
             <div class="modal-body">
 
                 <p id="modalMaskText" align="justify">
-                    You are about to mask the area you have drawn. All detections in the masked area will be ignored. Are you sure you want to continue?
+                    You are about to mask the areas you have drawn on the current image. This will filter out all detections in the masked areas for this camera. Do you wish to continue?
                 </p>
 
             </div>
@@ -240,7 +240,7 @@ limitations under the License. -->
                     data-dismiss='modal'>Cancel</button>
                 </div>
                 <div class='col-lg-3'>
-                    <button id='btnMask' type='button' class='btn btn-primary btn-block' onclick=maskArea()>Mask</button>
+                    <button id='btnMask' type='button' class='btn btn-primary btn-block' onclick=submitMasks()>Mask</button>
                 </div>
             </div>
         </div>

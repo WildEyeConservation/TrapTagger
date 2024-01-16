@@ -98,6 +98,7 @@ const nextImageBtn = document.querySelector('#nextImage');
 const prevImageBtn = document.querySelector('#prevImage');
 const clusterPositionCircles = document.getElementById('clusterPosition')
 const modalNothingKnock = $('#modalNothingKnock');
+const modalMaskArea = $('#modalMaskArea');
 
 var waitModalMap = null
 var classificationCheckData = {'overwrite':false,'data':[]}
@@ -130,6 +131,7 @@ var mapDivs = {'map1': 'mapDiv', 'map2': 'mapdiv2'}
 var splides = {'map1': 'splide', 'map2': 'splide2'}     
 var maskCheckData = {}
 var globalMasks = {"map1": []}
+var maskMode = false
 
 var colours = {
     'rgba(67,115,98,1)': false,
@@ -1272,6 +1274,10 @@ function updateDebugInfo(mapID = 'map1',updateLabels = true) {
             }
         } 
     }
+
+    if (isStaticCheck) {
+        document.getElementById('debugImage').innerHTML =  clusters[mapID][clusterIndex[mapID]].images[imageIndex[mapID]].url.split('/').slice(1).join('/');
+    }
 }
 
 
@@ -1568,7 +1574,7 @@ function assignLabel(label,mapID = 'map1'){
     if (label != EMPTY_HOTKEY_ID && !editingEnabled) {
         if (multipleStatus && ((nothingLabel==label)||(downLabel==label)||(RFDLabel==label)||(skipLabel==label)||(maskLabel==label))) {
             //ignore nothing, skip and knocked down labels in multi
-        } else if ([RFDLabel,downLabel,maskLabel].includes(parseInt(label)) && !modalNothingKnock.is(':visible')) {
+        } else if ([RFDLabel,downLabel].includes(parseInt(label)) && !modalNothingKnock.is(':visible')) {
             // confirmation modal for nothing and knockdowns
             if (label==RFDLabel) {
                 if (isReviewing) {
@@ -1578,13 +1584,6 @@ function assignLabel(label,mapID = 'map1'){
                 }
             } else if (label==downLabel) {
                 document.getElementById('modalNothingKnockText').innerHTML = 'You are about to mark the current camera as knocked down. This will filter out all images from this camera from this timestamp onward.<br><br><i>If you wish to continue, press the "Q" hotkey again.</i><br><br><i>Otherwise press "Esc" or label the cluster as anything else.</i>'
-            } else if (label==maskLabel) {
-                updateMasks(mapID)
-                if (globalMasks[mapID].length==0) {
-                    document.getElementById('modalNothingKnockText').innerHTML = 'You have not drawn any masks on the current image. Please draw a mask before masking the current image.<br><br><i>Press "Esc" to close this message.</i>'
-                } else {
-                    document.getElementById('modalNothingKnockText').innerHTML = 'You are about to mask the areas you have drawn on the current image. This will filter out all detections in the masked areas for this camera.<br><br><i>If you wish to continue, press the "/" hotkey again.</i><br><br><i>Otherwise press "Esc" or label the cluster as anything else.</i>'
-                }    
             }
             modalNothingKnock.modal({keyboard: true}) //{backdrop: 'static', keyboard: false});
         } else if (label==wrongLabel) {
@@ -1594,6 +1593,10 @@ function assignLabel(label,mapID = 'map1'){
         } else if (wrongStatus && (label in globalKeys) && (label != tempTaggingLevel)) {
             tempTaggingLevel = label
             initKeys(globalKeys[tempTaggingLevel])
+        } else if (label==maskLabel && !maskMode) {
+            maskMode = true
+            getKeys()
+            initMaskMode(mapID)
         } else if ((finishedDisplaying[mapID] == true) && (!modalActive) && (modalActive2 == false) && (clusters[mapID][clusterIndex[mapID]].id != '-99') && (clusters[mapID][clusterIndex[mapID]].id != '-101') && (clusters[mapID][clusterIndex[mapID]].id != '-782')) {
     
             if (taggingLevel=='-3') {
@@ -1818,6 +1821,10 @@ function assignLabel(label,mapID = 'map1'){
                         knockdown(mapID)
                     } else if (label==maskLabel) {
                         maskArea(mapID)
+                    } else if (label=='cancel_mask') {
+                        cancelMask(mapID)
+                    } else if (label=='submit_mask') {
+                        modalMaskArea.modal({keyboard: true}) 
                     } else {
                         var checkVar = 0
                         if ((!taggingLevel.includes('-2'))&&((label==unknownLabel)||(label==nothingLabel)||(label==RFDLabel)||clusters[mapID][clusterIndex[mapID]].required.length>1)) {
@@ -2369,33 +2376,6 @@ function prepMap(mapID = 'map1') {
                                     weight:3,
                                     contextmenu: false,
                                 }
-                            
-                                if (drawControl != null) {
-                                    drawControl.remove()
-                                }
-                            
-                                drawControl = new L.Control.Draw({
-                                    draw: {
-                                        polygon: {
-                                            shapeOptions: maskRectOptions,
-                                            allowIntersection: false,
-                                        },
-                                        polyline: false,
-                                        circle: false,
-                                        circlemarker: false,
-                                        marker: false,
-                                        rectangle: {
-                                            shapeOptions: maskRectOptions,
-                                            showArea: false
-                                        }
-                                    },
-                                    edit: {
-                                        featureGroup: drawnMaskItems[wrapMapID],
-                                    }
-                                });
-                                map[mapID].addControl(drawControl);
-                                drawControl._toolbars.draw._toolbarContainer.children[0].title = 'Mask Area'
-                                drawControl._toolbars.draw._toolbarContainer.children[1].title = 'Mask Area'
 
                                 taggingMapPrep(wrapMapID)
 

@@ -11815,7 +11815,7 @@ def maskArea():
 
     taggingLevel = current_user.turkcode[0].task.tagging_level
 
-    if (taggingLevel == '-1') or (taggingLevel == '0'):      
+    if (taggingLevel == '-1') or (taggingLevel == '0') or int(taggingLevel) > 0:
         cluster = db.session.query(Cluster).get(cluster_id)
         if cluster:
             task_id = cluster.task_id

@@ -28,8 +28,6 @@ var maskLayer = {'map1': null}
 var clusterIdList = []
 // const modalNote = $('#modalNote');
 
-const modalMaskArea = $('#modalMaskArea');
-
 function loadNewCluster(mapID = 'map1') {
     /** Requests the next back of clusters from the server. */
     if (!waitingForClusters[mapID]) {
@@ -222,6 +220,63 @@ function getKeys() {
             hotkeys[27] = 'reject_classification' //r
             hotkeys[24] = 'other_classification' //o
             hotkeys[36] = 'overwrite_classification' //space
+
+            var xhttp = new XMLHttpRequest();
+            xhttp.open("GET", '/initKeys', true);
+            xhttp.onreadystatechange =
+                function () {
+                    if (this.readyState == 4 && this.status == 278) {
+                        window.location.replace(JSON.parse(this.responseText)['redirect'])
+                    } else if (this.readyState == 4 && this.status == 200) {
+                        globalKeys = JSON.parse(this.responseText);
+                    }
+                }
+            xhttp.send();
+
+
+        } else if (isTagging && maskMode && (taggingLevel == '-1' || parseInt(taggingLevel) > 0)) {
+            multipleStatus = false
+            selectBtns = document.getElementById('selectBtns')
+
+            while(selectBtns.firstChild){
+                selectBtns.removeChild(selectBtns.firstChild);
+            }
+
+            while(divBtns.firstChild){
+                divBtns.removeChild(divBtns.firstChild);
+            }
+
+            var newbtn = document.createElement('button');
+            newbtn.classList.add('btn');
+            newbtn.classList.add('btn-primary');
+            newbtn.innerHTML = 'Submit Masks (S)';
+            newbtn.setAttribute("id", 1);
+            newbtn.classList.add('btn-block');
+            newbtn.classList.add('btn-sm');
+            newbtn.setAttribute("style", "margin-top: 3px; margin-bottom: 3px");
+            newbtn.addEventListener('click', (evt)=>{
+                assignLabel('submit_mask');
+            });
+
+            divBtns.appendChild(newbtn);
+
+            var newbtn = document.createElement('button');
+            newbtn.classList.add('btn');
+            newbtn.classList.add('btn-primary');
+            newbtn.innerHTML = 'Cancel (C)';
+            newbtn.setAttribute("id", 2);
+            newbtn.classList.add('btn-block');
+            newbtn.classList.add('btn-sm');
+            newbtn.setAttribute("style", "margin-top: 3px; margin-bottom: 3px");
+            newbtn.addEventListener('click', (evt)=>{
+                assignLabel('cancel_mask');
+            });
+
+            divBtns.appendChild(newbtn);
+
+            hotkeys = Array(38).fill(EMPTY_HOTKEY_ID)
+            hotkeys[28] = 'submit_mask' //s
+            hotkeys[12] = 'cancel_mask' //c
 
             var xhttp = new XMLHttpRequest();
             xhttp.open("GET", '/initKeys', true);
@@ -482,8 +537,6 @@ function taggingMapPrep(mapID = 'map1') {
             drawnMaskItems[mapID].addLayer(newLayer);  
         }
 
-        // modalMaskArea.modal({keyboard: true}) 
-
     });
 
 }
@@ -524,10 +577,30 @@ function maskArea(mapID = 'map1') {
             clusterIndex[mapID] += 1
             imageIndex[mapID] = 0
 
+            if (drawnMaskItems[mapID] != null) {
+                drawnMaskItems[mapID].eachLayer(function (layer) {
+                    drawnMaskItems[mapID].removeLayer(layer);
+                });
+            }
+            
+            if (drawControl != null) {
+                drawControl.remove()
+            }
+        
+            updateMasks(mapID)
+        
+            maskMode = false
+            multipleStatus = false
+            getKeys()
+
             nextCluster()
         }
         else if (globalMasks[mapID][0] == -1) {
             document.getElementById('modalAlertText').innerHTML = 'The area you have masked is too small or too large. Please try again.'
+            modalAlert.modal({keyboard: true});
+        }
+        else {
+            document.getElementById('modalAlertText').innerHTML = 'You have no masked areas. Please draw a mask and try again or cancel if you do not wish to mask this image.'
             modalAlert.modal({keyboard: true});
         }
     }
@@ -567,3 +640,62 @@ function updateMasks(mapID = 'map1') {
     }
 }
 
+function initMaskMode(mapID='map1'){
+    /** Initialises the map for masking. */
+    if (isTagging && (taggingLevel == '-1' || parseInt(taggingLevel) > 0)) {
+
+        if (drawControl != null) {
+            drawControl.remove()
+        }
+
+        drawControl = new L.Control.Draw({
+            draw: {
+                polygon: {
+                    shapeOptions: maskRectOptions,
+                    allowIntersection: false,
+                },
+                polyline: false,
+                circle: false,
+                circlemarker: false,
+                marker: false,
+                rectangle: {
+                    shapeOptions: maskRectOptions,
+                    showArea: false
+                }
+            },
+            edit: {
+                featureGroup: drawnMaskItems[mapID],
+            }
+        });
+        map[mapID].addControl(drawControl);
+        drawControl._toolbars.draw._toolbarContainer.children[0].title = 'Mask Area'
+        drawControl._toolbars.draw._toolbarContainer.children[1].title = 'Mask Area'
+
+    }
+}
+
+function cancelMask(mapID = 'map1') {
+    /** Cancels the current mask. */
+    if (drawnMaskItems[mapID] != null) {
+        drawnMaskItems[mapID].eachLayer(function (layer) {
+            drawnMaskItems[mapID].removeLayer(layer);
+        });
+    }
+    
+    if (drawControl != null) {
+        drawControl.remove()
+    }
+
+    updateMasks(mapID)
+
+    maskMode = false
+    multipleStatus = false
+    getKeys()
+}
+
+function submitMasks(mapID = 'map1') {
+    /** Submits the current masks. */
+    updateMasks(mapID)
+    assignLabel(maskLabel)
+    modalMaskArea.modal('hide')
+}

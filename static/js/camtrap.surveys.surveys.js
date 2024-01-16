@@ -3452,7 +3452,7 @@ function addImagesSendRequest(formData) {
                     } else if (tabActiveEditSurvey=='baseEditClassifierTab') {
                         document.getElementById('modalAlertBody').innerHTML = 'Your survey is now being re-classified. This may take a while.'
                     } else if (tabActiveEditSurvey=='baseEditMasksTab') {
-                        document.getElementById('modalAlertBody').innerHTML = 'Your masks are being updated. Please note that this may take a while.' //TODO: ADD MORE INFO HERE ABOUT WHAT HAPPENS TO THE DATA
+                        document.getElementById('modalAlertBody').innerHTML = 'Your masks are being updated. You may be required to annotate some images again if there are detections that are no longer masked. Please note that this may take a while.'
                     } else if ((document.getElementById('addCoordinatesManualMethod')!=null)&&(document.getElementById('addCoordinatesManualMethod').checked)) {
                         document.getElementById('modalAlertBody').innerHTML = 'Your coordinates are being updated.'
                     } else if (document.getElementById('smallDetectionsCheckbox')!=null) {
@@ -4323,7 +4323,6 @@ function maskEditPrep() {
 
     map.on("draw:editstop", function(e) {
         editingEnabled = false
-        console.log('edit')
         updateMasks()
     })
 
@@ -4333,7 +4332,6 @@ function maskEditPrep() {
 
     map.on("draw:deletestop", function(e) {
         editingEnabled = false
-        console.log('delete')
         updateMasks()
     })
 
@@ -4430,7 +4428,7 @@ function getMaskCameras(){
         if (this.readyState == 4 && this.status == 200) {
             reply = JSON.parse(this.responseText);
             cameraIDs = reply
-            console.log(cameraIDs)
+            // console.log(cameraIDs)
 
             if (cameraIDs.length>0) {
                 document.getElementById('btnPrevCamera').hidden = false

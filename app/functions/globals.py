@@ -3153,8 +3153,10 @@ def mask_area(self, cluster_id, task_id, masks):
 
                 poly_area = db.session.query(func.ST_Area(func.ST_GeomFromText(poly_string))).first()[0]
                 if poly_area > Config.MIN_MASK_AREA and poly_area < Config.MAX_MASK_AREA:
-                    new_mask = Mask(shape=poly_string,camera_id=camera.id,checked=False)
-                    db.session.add(new_mask)
+                    check = db.session.query(Mask).filter(Mask.shape==poly_string).filter(Mask.camera_id==camera.id).first()
+                    if not check:
+                        new_mask = Mask(shape=poly_string,camera_id=camera.id,checked=False)
+                        db.session.add(new_mask)
             db.session.commit()
 
             # Mask detections
