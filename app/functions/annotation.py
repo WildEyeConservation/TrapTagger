@@ -979,8 +979,6 @@ def fetch_clusters(taggingLevel,task_id,isBounding,trapgroup_id,session,limit=No
                             Tag.id,
                             Tag.description,
                             Individual.id,
-                            Video.id,
-                            Video.filename,
                             Detection.source,
                             Detection.score,
                             Detection.status,
@@ -988,7 +986,9 @@ def fetch_clusters(taggingLevel,task_id,isBounding,trapgroup_id,session,limit=No
                             Cluster.user_id,
                             Trapgroup.tag,
                             Trapgroup.latitude,
-                            Trapgroup.longitude
+                            Trapgroup.longitude,
+                            Video.id,
+                            Video.filename
                         )\
                         .join(Image, Cluster.images) \
                         .outerjoin(requiredimagestable,requiredimagestable.c.cluster_id==Cluster.id)\
@@ -996,7 +996,7 @@ def fetch_clusters(taggingLevel,task_id,isBounding,trapgroup_id,session,limit=No
                         .join(Trapgroup) \
                         .outerjoin(Video)\
                         .outerjoin(Detection) \
-                        .join(Labelgroup)\
+                        .outerjoin(Labelgroup)\
                         .outerjoin(Label,Labelgroup.labels)\
                         .outerjoin(Tag,Labelgroup.tags)\
                         .outerjoin(Individual,Detection.individuals)\
@@ -1037,7 +1037,7 @@ def fetch_clusters(taggingLevel,task_id,isBounding,trapgroup_id,session,limit=No
                         .outerjoin(requiredimagestable,requiredimagestable.c.cluster_id==Cluster.id)\
                         .join(Camera) \
                         .outerjoin(Detection) \
-                        .join(Labelgroup)\
+                        .outerjoin(Labelgroup)\
                         .outerjoin(Label,Labelgroup.labels)\
                         .outerjoin(Tag,Labelgroup.tags)\
                         .outerjoin(Individual,Detection.individuals)\
@@ -1046,10 +1046,10 @@ def fetch_clusters(taggingLevel,task_id,isBounding,trapgroup_id,session,limit=No
                         .filter(Cluster.examined==False)
         
         # This need to be ordered by Cluster ID otherwise the a max request will drop random info
-        clusters = rDets(clusters.filter(Labelgroup.task_id == task_id) \
+        clusters = clusters.filter(Labelgroup.task_id == task_id) \
                         .filter(Cluster.task_id == task_id) \
                         .order_by(desc(Cluster.classification), Cluster.id)\
-                        ).distinct().limit(25000).all()
+                        .distinct().limit(25000).all()
 
         if len(clusters) == 25000:
             max_request = True
@@ -1076,7 +1076,7 @@ def fetch_clusters(taggingLevel,task_id,isBounding,trapgroup_id,session,limit=No
                 }
                 if id: 
                     clusterInfo[row[0]]['videos'] = {}
-                    user_id = row[-4]
+                    user_id = row[26]
                     if user_id:
                         user = session.query(User.username,User.parent_id).filter(User.id==user_id).first()
                         if user and user[1]:
@@ -1088,11 +1088,9 @@ def fetch_clusters(taggingLevel,task_id,isBounding,trapgroup_id,session,limit=No
                     else:
                         clusterInfo[row[0]]['user'] = 'AI'
                     
-                    clusterInfo[row[0]]['site_tag'] = row[-3]
-                    clusterInfo[row[0]]['latitude'] = row[-2]
-                    clusterInfo[row[0]]['longitude'] = row[-1]
-
-
+                    clusterInfo[row[0]]['site_tag'] = row[27]
+                    clusterInfo[row[0]]['latitude'] = row[28]
+                    clusterInfo[row[0]]['longitude'] = row[29]
 
             # Handle images
             if row[2] and (row[2] not in clusterInfo[row[0]]['images'].keys()):
@@ -1110,24 +1108,24 @@ def fetch_clusters(taggingLevel,task_id,isBounding,trapgroup_id,session,limit=No
 
             # Handle detections
             if row[9] and (row[9] not in clusterInfo[row[0]]['images'][row[2]]['detections'].keys()):
-                # if (row[-2] not in ['deleted','hidden']) and (row[15]==False) and (row[-3]>Config.DETECTOR_THRESHOLDS[row[-4]]):
-                clusterInfo[row[0]]['images'][row[2]]['detections'][row[9]] = {
-                    'id': row[9],
-                    'top': row[10],
-                    'bottom': row[11],
-                    'left': row[12],
-                    'right': row[13],
-                    'category': row[14],
-                    'individuals': [],
-                    'static': row[15],
-                    'labels': []
-                }
+                if (row[24] not in ['deleted','hidden']) and (row[15]==False) and (row[23]>Config.DETECTOR_THRESHOLDS[row[22]]):
+                    clusterInfo[row[0]]['images'][row[2]]['detections'][row[9]] = {
+                        'id': row[9],
+                        'top': row[10],
+                        'bottom': row[11],
+                        'left': row[12],
+                        'right': row[13],
+                        'category': row[14],
+                        'individuals': [],
+                        'static': row[15],
+                        'labels': []
+                    }
 
             # Handle video
-            if id and row[22] and (row[22] not in clusterInfo[row[0]]['videos'].keys()):
-                clusterInfo[row[0]]['videos'][row[22]] = {
-                    'id': row[22],
-                    'url': row[7].split('/_video_images_')[0] + '/' + row[23],
+            if id and row[30] and (row[30] not in clusterInfo[row[0]]['videos'].keys()):
+                clusterInfo[row[0]]['videos'][row[30]] = {
+                    'id': row[30],
+                    'url': row[7].split('/_video_images_')[0] + '/' + row[31],
                     'timestamp': numify_timestamp(row[4]),
                     'camera': row[6],
                     'rating': 1,
@@ -1149,7 +1147,7 @@ def fetch_clusters(taggingLevel,task_id,isBounding,trapgroup_id,session,limit=No
                     clusterInfo[row[0]]['images'][row[2]]['detections'][row[9]]['labels'].append(row[17])
                 
                 # Handle individuals
-                if row[-1] and row[21] and (row[21] not in clusterInfo[row[0]]['images'][row[2]]['detections'][row[9]]['individuals']) and (row[-1]==task_id):
+                if row[25] and row[21] and (row[21] not in clusterInfo[row[0]]['images'][row[2]]['detections'][row[9]]['individuals']) and (row[25]==task_id):
                     clusterInfo[row[0]]['images'][row[2]]['detections'][row[9]]['individuals'].append(row[21])
 
         if '-3' in taggingLevel:
