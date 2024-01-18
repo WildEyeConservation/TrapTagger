@@ -1462,11 +1462,12 @@ def createNewSurvey():
                 classifier = db.session.query(Classifier).filter(Classifier.name==classifier).first()
                 newSurvey = Survey(name=surveyName, description=newSurveyDescription, trapgroup_code=newSurveyTGCode, organisation_id=organisation_id, status='Uploading', correct_timestamps=correctTimestamps, classifier_id=classifier.id)
                 db.session.add(newSurvey)
-                db.session.commit()
-                newSurvey_id = newSurvey.id
 
                 # Add permissions
-                setup_new_survey_permissions.delay(survey_id=newSurvey_id, organisation_id=organisation_id, user_id=current_user.id, permission=permission, annotation=annotation, detailed_access=detailed_access)
+                setup_new_survey_permissions(survey=newSurvey, organisation_id=organisation_id, user_id=current_user.id, permission=permission, annotation=annotation, detailed_access=detailed_access)
+
+                db.session.commit()
+                newSurvey_id = newSurvey.id
 
                 # Checkout the upload
                 GLOBALS.redisClient.set('upload_ping_'+str(newSurvey_id),datetime.utcnow().timestamp())

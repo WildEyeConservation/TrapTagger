@@ -2095,7 +2095,7 @@ def import_folder(s3Folder, tag, name, sourceBucket,destinationBucket,organisati
 
     # If permissions have been supplied, we need to set them up here
     if user_id:
-        setup_new_survey_permissions(survey_id=survey, organisation_id=organisation_id, user_id=user_id, permission=permission, annotation=annotation, detailed_access=detailed_access, localsession=localsession)
+        setup_new_survey_permissions(survey=survey, organisation_id=organisation_id, user_id=user_id, permission=permission, annotation=annotation, detailed_access=detailed_access)
     
     localsession.commit()
     sid=survey.id
