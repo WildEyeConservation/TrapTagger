@@ -480,6 +480,19 @@ def delete_survey(self,survey_id):
                 message = 'Could not delete trap groups.'
                 app.logger.info('Failed to delete Trapgroups')
 
+        #Delete empty sitegroups
+        if status != 'error':
+            try:
+                sitegroups = db.session.query(Sitegroup).filter(~Sitegroup.trapgroups.any()).all()
+                for sitegroup in sitegroups:
+                        db.session.delete(sitegroup)
+                db.session.commit()
+                app.logger.info('Sitegroups deleted successfully.')
+            except:
+                status = 'error'
+                message = 'Could not delete sitegroups.'
+                app.logger.info('Failed to delete sitegroups.')
+
         #Delete survey shares
         if status != 'error':
             try:
