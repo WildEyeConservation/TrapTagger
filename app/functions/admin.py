@@ -465,10 +465,14 @@ def delete_survey(self,survey_id):
         #Delete trapgroups
         if status != 'error':
             try:
-                db.session.query(Trapgroup).filter(Trapgroup.survey_id==survey_id).delete(synchronize_session=False)
+                # db.session.query(Trapgroup).filter(Trapgroup.survey_id==survey_id).delete(synchronize_session=False)
                 # for chunk in chunker(trapgroups,1000):
                 #     for trapgroup in chunk:
                 #         db.session.delete(trapgroup)
+                trapgroups = db.session.query(Trapgroup).filter(Trapgroup.survey_id==survey_id).all()
+                for trapgroup in trapgroups:
+                    trapgroup.sitegroups = []
+                    db.session.delete(trapgroup)
                 db.session.commit()
                 app.logger.info('Trapgroups deleted successfully.')
             except:
