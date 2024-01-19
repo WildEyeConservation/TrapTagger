@@ -21,8 +21,8 @@ isIDing = false
 isStaticCheck = true
 
 var clusterIdList = []
-var cameraIDs = []
-var cameraReadAheadIndex = 0
+var staticgroupIDs = []
+var staticgroupReadAheadIndex = 0
 
 const divSelector = document.querySelector('#divSelector');
 // const modalAllFineCheck = $('#modalAllFineCheck');
@@ -31,11 +31,11 @@ const divSelector = document.querySelector('#divSelector');
 
 function loadNewCluster(mapID = 'map1') {
     /** Requests the next back of clusters from the server. */
-    if (cameraReadAheadIndex < cameraIDs.length) {
-        if (cameraReadAheadIndex == cameraIDs.length-1) {
-            lastCamera = true
+    if (staticgroupReadAheadIndex < staticgroupIDs.length) {
+        if (staticgroupReadAheadIndex == staticgroupIDs.length-1) {
+            lastStaticGroup = true
         } else {
-            lastCamera = false
+            lastStaticGroup = false
         }
         waitingForClusters[mapID] = true
         var newID = Math.floor(Math.random() * 100000) + 1;
@@ -50,14 +50,14 @@ function loadNewCluster(mapID = 'map1') {
                     } else if (this.readyState == 4 && this.status == 200) {
                         waitingForClusters[mapID] = false
                         info = JSON.parse(this.responseText);
-                        // console.log(info)
+                        console.log(info)
 
                         if (info.static_detections.length == 1 && info.static_detections[0].id == '-101') {
                             window.location.replace("surveys")
                         }
 
                         if (clusterRequests[mapID].includes(parseInt(info.id))) {
-                            if (lastCamera) {
+                            if (lastStaticGroup) {
                                 info.static_detections.push({'id': '-101'})
                             }
 
@@ -98,7 +98,7 @@ function loadNewCluster(mapID = 'map1') {
                         }                
                     }
                 };
-            xhttp.open("GET", '/getStaticDetections/' + selectedSurvey + '/' + newID + '?camera_id=' + cameraIDs[cameraReadAheadIndex++]);
+            xhttp.open("GET", '/getStaticDetections/' + selectedSurvey + '/' + newID + '?staticgroup_id=' + staticgroupIDs[staticgroupReadAheadIndex++]);
             xhttp.send();
         }
     }
@@ -114,15 +114,16 @@ function handleStatic(staticCheck, mapID = 'map1') {
             static_status = 'reject_static'
         }
 
-        detection_ids = []
-        for (var j=0; j<clusters[mapID][clusterIndex[mapID]].images[0].detections.length; j++) {
-            detection_ids.push(clusters[mapID][clusterIndex[mapID]].images[0].detections[j].id)
-        }
+        // detection_ids = []
+        // for (var j=0; j<clusters[mapID][clusterIndex[mapID]].images[0].detections.length; j++) {
+        //     detection_ids.push(clusters[mapID][clusterIndex[mapID]].images[0].detections[j].id)
+        // }
 
         var formData = new FormData();
-        formData.append('detection_ids', JSON.stringify(detection_ids));
+        // formData.append('detection_ids', JSON.stringify(detection_ids));
         formData.append('static_status', JSON.stringify(static_status));
         formData.append('survey_id', JSON.stringify(selectedSurvey));
+        formData.append('staticgroup_id', JSON.stringify(clusters[mapID][clusterIndex[mapID]].id));
         var xhttp = new XMLHttpRequest();
         xhttp.onreadystatechange =
         function(wrapClusterIndex,wrapMapID){
@@ -143,19 +144,19 @@ function handleStatic(staticCheck, mapID = 'map1') {
     }
 }
 
-function getCameraIDs(mapID = 'map1'){
+function getStaticGroupIDs(mapID = 'map1'){
     /** Gets a list of cluster IDs to be explored for the current combination of task and label. */
     var xhttp = new XMLHttpRequest();
     xhttp.onreadystatechange =
         function () {
             if (this.readyState == 4 && this.status == 200) {
                 clusters[mapID]=[]
-                cameraReadAheadIndex = 0
+                staticgroupReadAheadIndex = 0
                 clusterIndex[mapID] = 0
                 imageIndex[mapID] = 0
-                cameraIDs = JSON.parse(this.responseText);
+                staticgroupIDs = JSON.parse(this.responseText);
 
-                if (cameraIDs.length == 0) {
+                if (staticgroupIDs.length == 0) {
                     window.location.replace("surveys")
                 }
                 else{
@@ -165,7 +166,7 @@ function getCameraIDs(mapID = 'map1'){
                 }
             }
         };
-    xhttp.open("GET", '/getStaticCameraIDs/' + selectedSurvey);
+    xhttp.open("GET", '/getStaticGroupIDs/' + selectedSurvey);
     xhttp.send();
 }
 

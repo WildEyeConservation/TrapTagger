@@ -223,6 +223,7 @@ class Detection(db.Model):
     classification = db.Column(db.String(64), index=True)
     class_score = db.Column(db.Float, index=True)
     labelgroups = db.relationship('Labelgroup', backref='detection', lazy=True)
+    staticgroup_id = db.Column(db.Integer, db.ForeignKey('staticgroup.id'), index=True)
 
     def __repr__(self):
         return '<Detection of class {} on image {}>'.format(self.category, self.image_id)
@@ -586,6 +587,14 @@ class Mask(db.Model):
 
     def __repr__(self):
         return '<Mask {}>'.format(self.id)
+
+class Staticgroup(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    status = db.Column(db.String(10), index=True) # accepted/rejected/unknown
+    detections = db.relationship('Detection', backref='staticgroup', lazy=True)
+
+    def __repr__(self):
+        return '<Staticgroup {}>'.format(self.id)
     
 db.Index('ix_det_srce_scre_stc_stat_class_classcre', Detection.source, Detection.score, Detection.static, Detection.status, Detection.classification, Detection.class_score)
 db.Index('ix_cluster_examined_task', Cluster.examined, Cluster.task_id)

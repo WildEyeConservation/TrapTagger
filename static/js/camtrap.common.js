@@ -2625,7 +2625,7 @@ function onload (){
         clusterIndex['map1'] = 0
         imageIndex['map1'] = 0
         // loadNewCluster()
-        getCameraIDs()
+        getStaticGroupIDs()
     }
 
     // if (document.location.href.includes('task')) {

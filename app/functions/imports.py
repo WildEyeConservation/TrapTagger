@@ -709,16 +709,16 @@ def cluster_survey(survey_id,queue='parallel',force=False,trapgroup_ids=None):
 @celery.task(bind=True,max_retries=5)
 def processCameraStaticDetections(self,camera_id,imcount):
     '''Checks all the detections associated with a given camera ID to see if they are static or not.'''
-    #TODO: WIth new static detection check this might become more lenient
     try:
         ###### Single query approach
         queryTemplate1="""
             SELECT 
                     id1 AS detectionID,
-                    COUNT(*) AS matchCount
+                    GROUP_CONCAT(id2) AS matchIDs
             FROM
                 (SELECT 
                     det1.id AS id1,
+                    det2.id AS id2,
                     GREATEST(LEAST(det1.right, det2.right) - GREATEST(det1.left, det2.left), 0) * 
                     GREATEST(LEAST(det1.bottom, det2.bottom) - GREATEST(det1.top, det2.top), 0) AS intersection,
                     (det1.right - det1.left) * (det1.bottom - det1.top) AS area1,
@@ -734,16 +734,18 @@ def processCameraStaticDetections(self,camera_id,imcount):
                     AND image2.id = det2.image_id
                     AND image1.id != image2.id 
                 WHERE
-                    ({})
+                    ({}) AND ({})
                     AND image1.camera_id = {}
                     AND image1.id IN ({})
                     AND image2.id IN ({})
                     ) AS sq1
             WHERE
                 area1 < 0.1
-                    AND sq1.intersection / (sq1.area1 + sq1.area2 - sq1.intersection) > 0.7 GROUP BY id1
+                AND area2 < 0.1
+                AND sq1.intersection / (sq1.area1 + sq1.area2 - sq1.intersection) > 0.65 GROUP BY id1
         """
-
+        # Og - area<0.1 and iou > 0.7
+        #TODO: STILL NEED TO TESTING ON DIFFERENT DATASETS TO DETERMINe THERESHOLDS
         detections = [r[0] for r in db.session.query(Detection.id)\
                                             .join(Image)\
                                             .filter(Image.camera_id==camera_id)\
@@ -752,32 +754,71 @@ def processCameraStaticDetections(self,camera_id,imcount):
                                             .distinct().all()]
 
         static_detections = []
+        static_groups = []
         max_grouping = 7000
         for chunk in chunker(detections,max_grouping):
             if (len(chunk)<max_grouping) and (len(detections)>max_grouping):
                 chunk = detections[-max_grouping:]
             images = db.session.query(Image).join(Detection).filter(Detection.id.in_(chunk)).distinct().all()
             im_ids = ','.join([str(r.id) for r in images])
-            for det_id,matchcount in db.session.execute(queryTemplate1.format('OR'.join([ ' (det1.source = "{}" AND det1.score > {}) '.format(model,Config.DETECTOR_THRESHOLDS[model]) for model in Config.DETECTOR_THRESHOLDS]),camera_id,im_ids,im_ids)):
-                if matchcount>3 and matchcount/imcount>0.3:
-                    static_detections.append(det_id)
-                    # detection = db.session.query(Detection).get(det_id)
-                    # detection.static = True
-            # db.session.commit()
+            for det_id,matchids in db.session.execute(queryTemplate1.format('OR'.join([ ' (det1.source = "{}" AND det1.score > {}) '.format(model,Config.DETECTOR_THRESHOLDS[model]) for model in Config.DETECTOR_THRESHOLDS]),'OR'.join([ ' (det2.source = "{}" AND det2.score > {}) '.format(model,Config.DETECTOR_THRESHOLDS[model]) for model in Config.DETECTOR_THRESHOLDS]),camera_id,im_ids,im_ids)):
+                match_ids = [int(r) for r in matchids.split(',')]
+                matchcount = len(match_ids)
+                #TODO: CHECK THIS THRESHOLD (og matchcount>3 and matchcount/imcount>0.3)
+                if matchcount>3 and matchcount/imcount>0.1 and det_id not in static_detections:
+                    match_ids.append(det_id)
+                    static_detections.extend(match_ids)
+                    static_groups.append(match_ids)
 
-        detections = db.session.query(Detection).filter(Detection.id.in_(static_detections)).all()
-        for detection in detections:
-            detection.static = True
+        for group in static_groups:
+            # Check if staticgroup exists with any of the detections
+            detections = db.session.query(Detection).filter(Detection.id.in_(group)).all()
+            staticgroups = db.session.query(Staticgroup).filter(Staticgroup.detections.any(Detection.id.in_(group))).all()
+            if staticgroups:
+                if len(staticgroups) == 1:
+                    # Add detections to the existing static group if there is only one and the detections are not already in the group
+                    staticgroup = staticgroups[0]
+                    group_detections = list(set(staticgroup.detections + detections))
+                    staticgroup.detections = group_detections
+                    if staticgroup.status == 'rejected':
+                        for detection in group_detections:
+                            detection.static = False
+                    else:
+                        for detection in group_detections:
+                            detection.static = True
+                else:
+                    # Create a new static group if there are multiple static groups (with all detections)
+                    group_detections = []
+                    for sg in staticgroups:
+                        group_detections.extend(sg.detections)
+                        db.session.delete(sg)
+                    group_detections = list(set(group_detections + detections))
+                    new_group = Staticgroup(status='unknown',detections=group_detections)
+                    db.session.add(new_group)
+                    for detection in group_detections:
+                        detection.static = True
+            else:
+                staticgroup = Staticgroup(status='unknown', detections=detections)
+                db.session.add(staticgroup)
+                for detection in detections:
+                    detection.static = True
 
+        static_detections = list(set(static_detections))
         sq = db.session.query(Detection).filter(Detection.id.in_(static_detections)).subquery()
         other_detections = db.session.query(Detection)\
-                                    .outerjoin(sq,sq.c.id==Detection.id)\
                                     .join(Image)\
+                                    .outerjoin(sq,sq.c.id==Detection.id)\
                                     .filter(Image.camera_id==camera_id)\
                                     .filter(sq.c.id==None)\
                                     .all()
         for detection in other_detections:
             detection.static = False
+            detection.staticgroup = None
+
+        # Get empty static groups and delete them
+        staticgroups = db.session.query(Staticgroup).filter(~Staticgroup.detections.any()).all()
+        for staticgroup in staticgroups:
+            db.session.delete(staticgroup)
 
         db.session.commit()
 
@@ -3348,6 +3389,8 @@ def import_survey(self,s3Folder,surveyName,tag,organisation_id,correctTimestamps
         survey.status='Calculating Scores'
         db.session.commit()
         updateSurveyDetectionRatings(survey_id=survey_id)
+
+        # TODO: Maybe add update_masks in improt survey if it basically edits a survey so that the masks are applied if a camera is updated ? 
         
         task_ids = [r[0] for r in db.session.query(Task.id).filter(Task.survey_id==survey_id).filter(Task.name!='default').all()]
         for task_id in task_ids:

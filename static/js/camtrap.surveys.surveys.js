@@ -254,6 +254,11 @@ var camera_ids = []
 var cameraReadAheadIndex = 0
 var cameraIDs = []
 var finishedDisplaying = true
+var staticgroupIndex = 0
+var staticgroupIDs = []
+var staticgroupReadAheadIndex = 0
+var staticgroups = []
+var staticgroup_ids = []
 
 function buildSurveys(survey,disableSurvey) {
     /**
@@ -2188,6 +2193,12 @@ function clearEditSurveyModal() {
     while(addImagesEditMasksDiv.firstChild){
         addImagesEditMasksDiv.removeChild(addImagesEditMasksDiv.firstChild);
     }
+
+    addImagesStaticDiv = document.getElementById('addImagesStaticDiv')
+    while(addImagesStaticDiv.firstChild){
+        addImagesStaticDiv.removeChild(addImagesStaticDiv.firstChild);
+    }
+
 }
 
 function buildAdvancedOptions() {
@@ -3448,6 +3459,17 @@ document.getElementById('btnAddImages').addEventListener('click', ()=>{
                 }
                 formData.append("masks", JSON.stringify(mask_dict))
             }
+            else if (tabActiveEditSurvey=='baseStaticTab') {
+                staticgroup_data = []
+                for (let i=0;i<staticgroups.length;i++) {
+                    staticgroup_data.push({
+                        'id': staticgroups[i].id,
+                        'status': staticgroups[i].staticgroup_status
+                    })
+                }
+                formData.append("staticgroups", JSON.stringify(staticgroup_data))
+                
+            }
 
             addImagesSendRequest(formData)
         }
@@ -3537,6 +3559,8 @@ function addImagesSendRequest(formData) {
                         document.getElementById('modalAlertBody').innerHTML = 'Your survey is now being re-classified. This may take a while.'
                     } else if (tabActiveEditSurvey=='baseEditMasksTab') {
                         document.getElementById('modalAlertBody').innerHTML = 'Your masks are being updated. You may be required to annotate some images again if there are detections that are no longer masked. Please note that this may take a while.'
+                    } else if (tabActiveEditSurvey=='baseStaticTab') {
+                        document.getElementById('modalAlertBody').innerHTML = 'Your static detections are being updated. You may be required to annotate again if there are detections that are no longer static. Please note that this may take a while.'
                     } else if ((document.getElementById('addCoordinatesManualMethod')!=null)&&(document.getElementById('addCoordinatesManualMethod').checked)) {
                         document.getElementById('modalAlertBody').innerHTML = 'Your coordinates are being updated.'
                     } else if (document.getElementById('smallDetectionsCheckbox')!=null) {
@@ -3890,6 +3914,9 @@ function changeEditSurveyTab(evt, tabName) {
     else if (tabName == 'baseEditMasksTab') {
         openEditMasks()
     }
+    else if (tabName == 'baseStaticTab'){
+        openStaticDetections()
+    }
 }
 
 function openEditMasks() {
@@ -4101,8 +4128,8 @@ function getMasks() {
     }
 }
 
-function prepMapMasks(image) {
-    /** Initialises the Leaflet image map for the individual ID modal. */
+function prepMapMS(image) {
+    /** Initialises the Leaflet image map for the edit survey modal. */
 
     if (bucketName != null) {
         mapReady = false
@@ -4182,19 +4209,21 @@ function prepMapMasks(image) {
                 map.panInsideBounds(bounds, { animate: false });
             });
     
-            drawnItems = new L.FeatureGroup();
-            map.addLayer(drawnItems);
-
-            drawnMaskItems = new L.FeatureGroup();
-            map.addLayer(drawnMaskItems);
-    
             map.on('zoomstart', function() {
                 if (!fullRes) {
-                    activeImage.setUrl("https://"+bucketName+".s3.amazonaws.com/" + modifyToCompURL(cameras[cameraIndex].images[imageIndex].url))
+                    if (tabActiveEditSurvey=='baseEditMasksTab') {
+                        activeImage.setUrl("https://"+bucketName+".s3.amazonaws.com/" + modifyToCompURL(cameras[cameraIndex].images[imageIndex].url))
+                    }
+                    else if (tabActiveEditSurvey=='baseStaticTab') {
+                        activeImage.setUrl("https://"+bucketName+".s3.amazonaws.com/" + modifyToCompURL(staticgroups[staticgroupIndex].images[imageIndex].url))
+                    }
                     fullRes = true  
                 }
             });    
-    
+
+            drawnItems = new L.FeatureGroup();
+            map.addLayer(drawnItems);
+
             rectOptions = {
                 color: "rgba(223,105,26,1)",
                 fill: true,
@@ -4203,44 +4232,51 @@ function prepMapMasks(image) {
                 weight:3,
                 contextmenu: false,
             }  
-            
-            maskRectOptions = {
-                color: "rgba(91,192,222,1)",
-                fill: true,
-                fillOpacity: 0.0,
-                opacity: 0.8,
-                weight:3,
-                contextmenu: false,
-            }
-        
-            if (drawControl != null) {
-                drawControl.remove()
-            }
-        
-            drawControl = new L.Control.Draw({
-                draw: {
-                    polygon: {
-                        shapeOptions: maskRectOptions,
-                        allowIntersection: false,
-                    },
-                    polyline: false,
-                    circle: false,
-                    circlemarker: false,
-                    marker: false,
-                    rectangle: {
-                        shapeOptions: maskRectOptions,
-                        showArea: false
-                    }
-                },
-                edit: {
-                    featureGroup: drawnMaskItems,
-                }
-            });
-            map.addControl(drawControl);
-            drawControl._toolbars.draw._toolbarContainer.children[0].title = 'Draw a mask'
-            drawControl._toolbars.draw._toolbarContainer.children[1].title = 'Draw a mask'
 
-            maskEditPrep()
+            if (tabActiveEditSurvey=='baseEditMasksTab') {
+                drawnMaskItems = new L.FeatureGroup();
+                map.addLayer(drawnMaskItems);
+            
+    
+
+                maskRectOptions = {
+                    color: "rgba(91,192,222,1)",
+                    fill: true,
+                    fillOpacity: 0.0,
+                    opacity: 0.8,
+                    weight:3,
+                    contextmenu: false,
+                }
+        
+                if (drawControl != null) {
+                    drawControl.remove()
+                }
+            
+                drawControl = new L.Control.Draw({
+                    draw: {
+                        polygon: {
+                            shapeOptions: maskRectOptions,
+                            allowIntersection: false,
+                        },
+                        polyline: false,
+                        circle: false,
+                        circlemarker: false,
+                        marker: false,
+                        rectangle: {
+                            shapeOptions: maskRectOptions,
+                            showArea: false
+                        }
+                    },
+                    edit: {
+                        featureGroup: drawnMaskItems,
+                    }
+                });
+                map.addControl(drawControl);
+                drawControl._toolbars.draw._toolbarContainer.children[0].title = 'Draw a mask'
+                drawControl._toolbars.draw._toolbarContainer.children[1].title = 'Draw a mask'
+
+                maskEditPrep()
+            }
 
             mapReady = true
         };
@@ -4251,32 +4287,49 @@ function prepMapMasks(image) {
 function addDetections() {
     /** Adds the detections to the map. */
 
-    if (addedDetections == false) {
-        drawnItems.clearLayers()
-        drawnMaskItems.clearLayers()
-        map.setZoom(map.getMinZoom())
+    if (tabActiveEditSurvey=='baseEditMasksTab') {
+        if (addedDetections == false) {
+            drawnItems.clearLayers()
+            drawnMaskItems.clearLayers()
+            map.setZoom(map.getMinZoom())
 
-        // Draw detections
-        for(var i=0;i<cameras[cameraIndex].images[imageIndex].detections.length;i++){
-            var detection = cameras[cameraIndex].images[imageIndex].detections[i]
-            rect = L.rectangle([[detection.top*mapHeight,detection.left*mapWidth],[detection.bottom*mapHeight,detection.right*mapWidth]], rectOptions)
-            drawnItems.addLayer(rect)
-        }
-
-        // Draw masks
-        for(var i=0;i<cameras[cameraIndex].masks.length;i++){
-            var mask = cameras[cameraIndex].masks[i]
-            var coords = mask['coords']
-            poly_coords = []
-            for(var j=0;j<coords.length;j++){
-                poly_coords.push([coords[j][1]*mapHeight,coords[j][0]*mapWidth])
+            // Draw detections
+            for(var i=0;i<cameras[cameraIndex].images[imageIndex].detections.length;i++){
+                var detection = cameras[cameraIndex].images[imageIndex].detections[i]
+                rect = L.rectangle([[detection.top*mapHeight,detection.left*mapWidth],[detection.bottom*mapHeight,detection.right*mapWidth]], rectOptions)
+                drawnItems.addLayer(rect)
             }
-            poly = L.polygon(poly_coords, maskRectOptions)
-            drawnMaskItems.addLayer(poly)
-            leafletMaskIDs[mask.id] = poly._leaflet_id
-        }
 
-        addedDetections = true
+            // Draw masks
+            for(var i=0;i<cameras[cameraIndex].masks.length;i++){
+                var mask = cameras[cameraIndex].masks[i]
+                var coords = mask['coords']
+                poly_coords = []
+                for(var j=0;j<coords.length;j++){
+                    poly_coords.push([coords[j][1]*mapHeight,coords[j][0]*mapWidth])
+                }
+                poly = L.polygon(poly_coords, maskRectOptions)
+                drawnMaskItems.addLayer(poly)
+                leafletMaskIDs[mask.id] = poly._leaflet_id
+            }
+
+            addedDetections = true
+        }
+    }
+    else if (tabActiveEditSurvey=='baseStaticTab') {
+        if (addedDetections == false) {
+            drawnItems.clearLayers()
+            map.setZoom(map.getMinZoom())
+
+            // Draw detections
+            for(var i=0;i<staticgroups[staticgroupIndex].images[imageIndex].detections.length;i++){
+                var detection = staticgroups[staticgroupIndex].images[imageIndex].detections[i]
+                rect = L.rectangle([[detection.top*mapHeight,detection.left*mapWidth],[detection.bottom*mapHeight,detection.right*mapWidth]], rectOptions)
+                drawnItems.addLayer(rect)
+            }
+
+            addedDetections = true
+        }
     }
     
 }
@@ -4299,7 +4352,7 @@ function updateMaskMap() {
         activeImage.setUrl("https://"+bucketName+".s3.amazonaws.com/" + modifyToCompURL(cameras[cameraIndex].images[imageIndex].url))
     }
     else{
-        prepMapMasks(cameras[cameraIndex].images[imageIndex])
+        prepMapMS(cameras[cameraIndex].images[imageIndex])
     }
 
     updateButtons()
@@ -4383,9 +4436,17 @@ function updateMaskMap() {
 
 function updateImageIndex(index) {
     /** Updates the image index. */
-    if (index >= 0 && index < cameras[cameraIndex].images.length && !editingEnabled && finishedDisplaying) {
-        imageIndex = index
-        updateMaskMap()
+    if (tabActiveEditSurvey=='baseEditMasksTab') {
+        if (index >= 0 && index < cameras[cameraIndex].images.length && !editingEnabled && finishedDisplaying) {
+            imageIndex = index
+            updateMaskMap()
+        }
+    }
+    else if (tabActiveEditSurvey=='baseStaticTab'){
+        if (index >= 0 && index < staticgroups[staticgroupIndex].images.length && finishedDisplaying) {
+            imageIndex = index
+            updateStaticMap()
+        }
     }
 }
 
@@ -4539,29 +4600,494 @@ function getMaskCameras(){
 }
 
 function updateButtons() {
-    /** Updates the buttons on the edit masks modal. */
-    if (imageIndex==0) {
-        document.getElementById('btnPrevImage').disabled = true
+    /** Updates the buttons on the edit survey modal. */
+    if (tabActiveEditSurvey=='baseEditMasksTab') {
+        if (imageIndex==0) {
+            document.getElementById('btnPrevImage').disabled = true
+        }
+        else{
+            document.getElementById('btnPrevImage').disabled = false
+        }
+        if (imageIndex==cameras[cameraIndex].images.length-1) {
+            document.getElementById('btnNextImage').disabled = true
+        }
+        else{
+            document.getElementById('btnNextImage').disabled = false
+        }
+        if (cameraIndex==0) {
+            document.getElementById('btnPrevCamera').disabled = true
+        }
+        else{
+            document.getElementById('btnPrevCamera').disabled = false
+        }
+        if (cameraIndex==cameras.length-1) {
+            document.getElementById('btnNextCamera').disabled = true
+        }
+        else{
+            document.getElementById('btnNextCamera').disabled = false
+        }
+    }
+    else if (tabActiveEditSurvey=='baseStaticTab'){
+        if (imageIndex==0) {
+            document.getElementById('btnPrevImage').disabled = true
+        }
+        else{
+            document.getElementById('btnPrevImage').disabled = false
+        }
+        if (imageIndex==staticgroups[staticgroupIndex].images.length-1) {
+            document.getElementById('btnNextImage').disabled = true
+        }
+        else{
+            document.getElementById('btnNextImage').disabled = false
+        }
+        if (staticgroupIndex==0) {
+            document.getElementById('btnPrevGroup').disabled = true
+        }
+        else{
+            document.getElementById('btnPrevGroup').disabled = false
+        }
+        if (staticgroupIndex==staticgroups.length-1) {
+            document.getElementById('btnNextGroup').disabled = true
+        }
+        else{
+            document.getElementById('btnNextGroup').disabled = false
+        }
+    }
+}
+
+function openStaticDetections() {
+    /** Listens for and initialises the edit masks form on the edit survey modal when the radio button is selected. */
+    if (tabActiveEditSurvey=='baseStaticTab') {
+        staticgroupIndex = 0
+        imageIndex = 0
+        leafletMaskIDs = {}
+        if (map){
+            map.remove()
+        }
+        map = null
+        staticgroupIDs = []
+        staticgroupReadAheadIndex = 0
+        staticgroups = []
+        staticgroup_ids = []
+        finishedDisplaying = true
+        clearEditSurveyModal()
+        buildViewStatic()
+        getStaticGroups()
+    }
+}
+
+
+function buildViewStatic() {
+    /** Builds the view static layout on the edit survey modal. */
+
+    var addImagesStaticDiv = document.getElementById('addImagesStaticDiv')
+
+    while(addImagesStaticDiv.firstChild){
+        addImagesStaticDiv.removeChild(addImagesStaticDiv.firstChild);
+    }
+
+    var row = document.createElement('div')
+    row.classList.add('row')
+    addImagesStaticDiv.appendChild(row)
+
+    var col1 = document.createElement('div')
+    col1.classList.add('col-lg-2')
+    row.appendChild(col1)
+
+    var col2 = document.createElement('div')
+    col2.classList.add('col-lg-8')
+    col2.setAttribute('style','text-align: center;')
+    row.appendChild(col2)
+
+    var col3 = document.createElement('div')
+    col3.classList.add('col-lg-2')
+    row.appendChild(col3)
+
+    var h6 = document.createElement('h6')
+    h6.id = 'mapTitle'
+    h6.innerHTML = 'Loading...'
+    col2.appendChild(h6)
+
+    var row = document.createElement('div')
+    row.classList.add('row')
+    addImagesStaticDiv.appendChild(row)
+
+    var col1 = document.createElement('div')
+    col1.classList.add('col-lg-2')
+    row.appendChild(col1)
+
+    var col2 = document.createElement('div')
+    col2.classList.add('col-lg-8')
+    col2.setAttribute('style','text-align: center;')
+    row.appendChild(col2)
+
+    var col3 = document.createElement('div')
+    col3.classList.add('col-lg-2')
+    row.appendChild(col3)
+
+    var center = document.createElement('center')
+    col2.appendChild(center)
+
+    var mapDiv = document.createElement('div')
+    mapDiv.id = 'mapDiv'
+    mapDiv.style.height = '700px'
+    center.appendChild(mapDiv)
+
+    var rowDiv = document.createElement('div');
+    rowDiv.classList.add('row');
+    col3.appendChild(rowDiv);
+
+    var colDiv1 = document.createElement('div');
+    colDiv1.classList.add('col-lg-5', 'd-flex', 'align-items-center', 'justify-content-left');
+    colDiv1.style.paddingRight = '0px'
+    rowDiv.appendChild(colDiv1);
+
+    var colDiv2 = document.createElement('div');
+    colDiv2.classList.add('col-lg-7')
+    colDiv2.style.paddingLeft = '0px'
+    rowDiv.appendChild(colDiv2);
+
+    var h6 = document.createElement('h6')
+    h6.innerHTML = 'Static: '
+    h6.style.margin = '0px'
+    colDiv1.appendChild(h6)
+
+    var toggleDiv = document.createElement('div');
+    toggleDiv.classList.add('justify-content-left');
+    toggleDiv.style.verticalAlign = 'middle';
+    colDiv2.appendChild(toggleDiv);
+
+    var toggle = document.createElement('label');
+    toggle.classList.add('switch');
+    toggleDiv.appendChild(toggle);
+
+    var checkbox = document.createElement('input');
+    checkbox.setAttribute("type", "checkbox");
+    checkbox.id = 'staticToggle';
+    // checkbox.disabled = true
+    toggle.appendChild(checkbox);
+
+    var slider = document.createElement('span');
+    slider.classList.add('slider');
+    slider.classList.add('round');
+    toggle.appendChild(slider);
+
+    document.getElementById('staticToggle').addEventListener('change', ()=>{
+        if (document.getElementById('staticToggle').checked) {
+            staticgroups[staticgroupIndex].staticgroup_status = 'accepted'
+        }
+        else{
+            staticgroups[staticgroupIndex].staticgroup_status = 'rejected'
+        }
+    });
+    
+    var row = document.createElement('div')
+    row.classList.add('row')
+    addImagesStaticDiv.appendChild(row)
+
+    var col1 = document.createElement('div')
+    col1.classList.add('col-lg-1')
+    row.appendChild(col1)
+
+    var col2 = document.createElement('div')
+    col2.classList.add('col-lg-10')
+    col2.setAttribute('style','text-align: center;')
+    row.appendChild(col2)
+
+    var col3 = document.createElement('div')
+    col3.classList.add('col-lg-1')
+    row.appendChild(col3)
+
+    var rowDiv = document.createElement('div');
+    rowDiv.classList.add('row');
+    col2.appendChild(rowDiv);
+
+    var colDiv = document.createElement('div');
+    colDiv.classList.add('col-lg-12', 'd-flex', 'align-items-center', 'justify-content-center');
+    rowDiv.appendChild(colDiv);
+
+    var clusterDiv = document.createElement('div');
+    clusterDiv.id = 'clusterPosition';
+    colDiv.appendChild(clusterDiv);
+
+    var paginationUl = document.createElement('ul');
+    paginationUl.classList.add('pagination');
+    paginationUl.id = 'paginationCircles';
+    paginationUl.style.margin = '10px';
+    colDiv.appendChild(paginationUl);
+
+    // col2.appendChild(document.createElement('br'))
+
+    var row = document.createElement('div')
+    row.classList.add('row')
+    col2.appendChild(row)
+
+    var col1 = document.createElement('div')
+    col1.classList.add('col-lg-3')
+    row.appendChild(col1)
+
+    var col2 = document.createElement('div')
+    col2.classList.add('col-lg-3')
+    row.appendChild(col2)
+
+    var col3 = document.createElement('div')
+    col3.classList.add('col-lg-3')
+    row.appendChild(col3)
+
+    var col4 = document.createElement('div')
+    col4.classList.add('col-lg-3')
+    row.appendChild(col4)
+
+    var button = document.createElement('button')
+    button.classList.add('btn')
+    button.classList.add('btn-primary')
+    button.classList.add('btn-block')
+    button.id = 'btnPrevGroup'
+    button.innerHTML = '<span style="font-size:100%">&#x276e;&#x276e;</span> Previous Group'
+    button.disabled = true
+    col1.appendChild(button)
+
+    var button = document.createElement('button')
+    button.classList.add('btn')
+    button.classList.add('btn-primary')
+    button.classList.add('btn-block')
+    button.id = 'btnPrevImage'
+    button.innerHTML = '<span style="font-size:100%">&#x276e;</span> Previous Image'
+    button.disabled = true
+    col2.appendChild(button)
+
+    var button = document.createElement('button')
+    button.classList.add('btn')
+    button.classList.add('btn-primary')
+    button.classList.add('btn-block')
+    button.id = 'btnNextImage'
+    button.innerHTML = 'Next Image <span style="font-size:100%">&#x276f;</span>'
+    button.disabled = true
+    col3.appendChild(button)
+
+    var button = document.createElement('button')
+    button.classList.add('btn')
+    button.classList.add('btn-primary')
+    button.classList.add('btn-block')
+    button.id = 'btnNextGroup'
+    button.innerHTML = 'Next Group <span style="font-size:100%">&#x276f;&#x276f;</span>'
+    button.disabled = true
+    col4.appendChild(button)
+
+    document.getElementById('btnPrevGroup').addEventListener('click', ()=>{
+        if (staticgroupIndex>0 && finishedDisplaying) {
+            staticgroupIndex -= 1
+            imageIndex = 0
+            updateStaticMap()
+        }
+    });
+
+    document.getElementById('btnPrevImage').addEventListener('click', ()=>{
+        if (imageIndex>0 && finishedDisplaying) {
+            imageIndex -= 1
+            updateStaticMap()
+        }
+    });
+
+    document.getElementById('btnNextImage').addEventListener('click', ()=>{
+        if (imageIndex<staticgroups[staticgroupIndex].images.length-1 && finishedDisplaying) {
+            imageIndex += 1
+            updateStaticMap()
+        }
+    });
+
+    document.getElementById('btnNextGroup').addEventListener('click', ()=>{
+        if (staticgroupIndex<staticgroups.length-1 && finishedDisplaying) {
+            staticgroupIndex += 1
+            imageIndex = 0
+            updateStaticMap()
+            if (staticgroupIndex > staticgroups.length - 3){
+                getStaticDetections()
+            }
+        }
+    });
+
+    document.getElementById('btnPrevGroup').hidden = true
+    document.getElementById('btnPrevImage').hidden = true
+    document.getElementById('btnNextImage').hidden = true
+    document.getElementById('btnNextGroup').hidden = true
+
+}
+
+function getStaticGroups(){
+    /* Gets the static groups for the current survey */
+
+    var xhttp = new XMLHttpRequest();
+    xhttp.onreadystatechange =
+    function(){
+        if (this.readyState == 4 && this.status == 200) {
+            reply = JSON.parse(this.responseText);
+            staticgroupIDs = reply
+            console.log(staticgroupIDs)
+
+            if (staticgroupIDs.length>0) {
+                document.getElementById('btnPrevGroup').hidden = false
+                document.getElementById('btnPrevImage').hidden = false
+                document.getElementById('btnNextImage').hidden = false
+                document.getElementById('btnNextGroup').hidden = false
+                
+                for (var i=0; i<3; i++) {
+                    getStaticDetections()
+                }  
+            }
+            else{
+                addImagesStaticDiv = document.getElementById('addImagesStaticDiv')
+                while(addImagesStaticDiv.firstChild){
+                    addImagesStaticDiv.removeChild(addImagesStaticDiv.firstChild);
+                }
+
+                var row = document.createElement('div')
+                row.classList.add('row')
+                addImagesStaticDiv.appendChild(row)
+
+                var col1 = document.createElement('div')
+                col1.classList.add('col-lg-12', 'd-flex', 'align-items-center', 'justify-content-center')
+                row.appendChild(col1)
+
+                var h6 = document.createElement('h6')
+                h6.innerHTML = 'You have no static detections to view.'
+                col1.appendChild(h6)
+            }
+        }
+    }
+    xhttp.open("GET", '/getStaticGroupIDs/'+selectedSurvey + '?edit=true');
+    xhttp.send();
+}
+
+function getStaticDetections() {
+
+    if (staticgroupReadAheadIndex < staticgroupIDs.length) {
+        var xhttp = new XMLHttpRequest();
+        xhttp.onreadystatechange =
+        function(){
+            if (this.readyState == 4 && this.status == 200) {
+                reply = JSON.parse(this.responseText);  
+                new_groups = reply.static_detections
+                console.log(new_groups)
+
+                for (var i=0; i<new_groups.length; i++) {
+                    if (staticgroup_ids.indexOf(new_groups[i].id) == -1) {
+                        staticgroup_ids.push(new_groups[i].id)
+                        staticgroups.push(new_groups[i])
+                    }
+                }
+
+                if (staticgroups.length - 1 == staticgroupIndex) {
+                    updateStaticMap()
+                }
+                updateButtons()
+            }
+        }
+        xhttp.open("GET", '/getStaticDetections/' + selectedSurvey + '/' + 0 + '?staticgroup_id=' + staticgroupIDs[staticgroupReadAheadIndex++] + '&edit=true');
+        xhttp.send();
+    }
+
+}
+
+function updateStaticMap() {
+    /** Updates the static map after an action has been performed. */
+
+    finishedDisplaying = false
+    document.getElementById('mapTitle').innerHTML = staticgroups[staticgroupIndex].images[imageIndex].url.split('/').slice(1).join('/')
+    if (staticgroups[staticgroupIndex].staticgroup_status == 'rejected') {
+        document.getElementById('staticToggle').checked = false
+    }
+    else if (staticgroups[staticgroupIndex].staticgroup_status == 'accepted') {
+        document.getElementById('staticToggle').checked = true
+    }
+    else if (staticgroups[staticgroupIndex].staticgroup_status == 'unknown') {
+        console.log('here')
+        document.getElementById('staticToggle').checked = true
+        staticgroups[staticgroupIndex].staticgroup_status = 'accepted'
+    }
+
+    if (map != null) {
+        activeImage.setUrl("https://"+bucketName+".s3.amazonaws.com/" + modifyToCompURL(staticgroups[staticgroupIndex].images[imageIndex].url))
     }
     else{
-        document.getElementById('btnPrevImage').disabled = false
+        prepMapMS(staticgroups[staticgroupIndex].images[imageIndex])
     }
-    if (imageIndex==cameras[cameraIndex].images.length-1) {
-        document.getElementById('btnNextImage').disabled = true
+
+    updateButtons()
+
+    if (document.getElementById('clusterPosition') != null) {
+
+        cirNum = staticgroups[staticgroupIndex].images.length
+        circlesIndex = imageIndex
+        
+        var beginIndex = 0
+        var endIndex = cirNum
+        var multiple = false
+        if (cirNum > 10) {
+            multiple =  true
+            beginIndex = Math.max(0,circlesIndex-2)
+            if (beginIndex < 2) {
+                beginIndex = 0
+                endIndex = 5
+            }
+            else {
+                endIndex = Math.min(cirNum,circlesIndex+3)
+                if (endIndex > cirNum-2) {
+                    endIndex = cirNum
+                    beginIndex = cirNum - 5
+                }
+            }
+        }
+
+        paginationCircles = document.getElementById('paginationCircles')
+        while (paginationCircles.firstChild) {
+            paginationCircles.removeChild(paginationCircles.firstChild);
+        }
+
+
+        if (multiple && beginIndex != 0 && circlesIndex > 2) {
+            first = document.createElement('li')
+            first.setAttribute('onclick','updateImageIndex(0)')
+            first.style.fontSize = '60%'
+            first.innerHTML = '1'
+            paginationCircles.append(first)
+        
+            more = document.createElement('li')
+            more.setAttribute('class','disabled')
+            more.style.fontSize = '60%'
+            more.innerHTML = '...'
+            paginationCircles.append(more)
+        }
+
+
+        for (let i=beginIndex;i<endIndex;i++) {
+            li = document.createElement('li')
+            li.innerHTML = (i+1).toString()
+            li.setAttribute('onclick','updateImageIndex('+(i).toString()+')')
+            li.style.fontSize = '60%'
+            paginationCircles.append(li)
+
+            if (i == circlesIndex) {
+                li.setAttribute('class','active')
+            } else {
+                li.setAttribute('class','')
+            }
+        }
+
+        if (multiple && endIndex != cirNum && circlesIndex < cirNum-3) {
+            more = document.createElement('li')
+            more.setAttribute('class','disabled')
+            more.innerHTML = '...'
+            more.style.fontSize = '60%'
+            paginationCircles.append(more)
+
+            last_index = cirNum - 1
+            last = document.createElement('li')
+            last.setAttribute('onclick','updateImageIndex('+(last_index).toString()+')')
+            last.innerHTML = (last_index+1).toString()
+            last.style.fontSize = '60%'
+            paginationCircles.append(last)
+        }
     }
-    else{
-        document.getElementById('btnNextImage').disabled = false
-    }
-    if (cameraIndex==0) {
-        document.getElementById('btnPrevCamera').disabled = true
-    }
-    else{
-        document.getElementById('btnPrevCamera').disabled = false
-    }
-    if (cameraIndex==cameras.length-1) {
-        document.getElementById('btnNextCamera').disabled = true
-    }
-    else{
-        document.getElementById('btnNextCamera').disabled = false
-    }
+
 }

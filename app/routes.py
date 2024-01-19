@@ -1889,6 +1889,11 @@ def editSurvey():
             if len(removed_masks)>0 or len(added_masks)>0 or len(edited_masks)>0:
                 update_masks.delay(survey_id=survey.id,removed_masks=removed_masks,added_masks=added_masks,edited_masks=edited_masks)
 
+        elif 'staticgroups' in request.form:
+            staticgroups = ast.literal_eval(request.form['staticgroups'])
+            if len(staticgroups)>0:
+                update_staticgroups.delay(survey_id=survey.id,staticgroups=staticgroups)
+
         elif 'kml' in request.files:
             uploaded_file = request.files['kml']
 
@@ -12590,19 +12595,13 @@ def staticDetectionCheck(survey_id):
     static_check = False
     if current_user and current_user.is_authenticated:
         if checkSurveyPermission(current_user.id,survey_id,'write'):
-
-            detections = db.session.query(Detection).join(Labelgroup).join(Image).join(Camera).join(Trapgroup).filter(Trapgroup.survey_id==survey_id).filter(Detection.static==True).filter(Labelgroup.checked==False).count()
-
-            if detections == 0:
-                return json.dumps({'static_check': False})
+            sg_count = db.session.query(Staticgroup).join(Detection).join(Labelgroup).join(Image).join(Camera).join(Trapgroup).filter(Trapgroup.survey_id==survey_id).filter(Detection.static==True).filter(Staticgroup.status=='unknown').count()
+            if sg_count == 0:
+                static_check = False
             else:
-                return json.dumps({'static_check': True})
-
-
-            #TODO ADD CHECK TO DB AND HERE 
+                static_check = True
 
     return json.dumps({'static_check': static_check})
-
 
 @app.route('/checkStaticDetections')
 @login_required
@@ -12618,12 +12617,6 @@ def checkStaticDetections():
             survey_id = request.args.get('survey', None)
             survey = db.session.query(Survey).get(survey_id)
             if survey and checkSurveyPermission(current_user.id,survey.id,'write') and survey.status.lower() in Config.SURVEY_READY_STATUSES:
-                # Initialise the static detections
-                labelgroups = db.session.query(Labelgroup).join(Detection).join(Image).join(Camera).join(Trapgroup).filter(Trapgroup.survey_id==survey_id).filter(Detection.static==True).all()
-                for labelgroup in labelgroups:
-                    labelgroup.checked = False
-                db.session.commit()
-
                 return render_template('html/static_detections.html', title='Static Detections', helpFile='static_detections', bucket=Config.BUCKET, version=Config.VERSION)
             else:
                 return redirect(url_for('surveys'))
@@ -12650,9 +12643,13 @@ def getStaticDetections(survey_id, reqID):
 
     survey = db.session.query(Survey).get(survey_id)
     if survey and checkSurveyPermission(current_user.id,survey.id,'write'):
-        survey.status = 'Static Detection Analysis'
-        db.session.commit()
-        camera_id = request.args.get('camera_id', None)
+        if int(reqID) != 0:
+            if survey.status != 'Static Detection Analysis':
+                survey.status = 'Static Detection Analysis'
+                db.session.commit()
+        # camera_id = request.args.get('camera_id', None)
+        staticgroup_id = request.args.get('staticgroup_id', None)
+        edit = request.args.get('edit', False, type=bool)
 
         detectionClusters = db.session.query(
                                     Detection.id,
@@ -12664,19 +12661,26 @@ def getStaticDetections(survey_id, reqID):
                                     Image.filename,
                                     Camera.id,
                                     Camera.path,
-                                    Trapgroup.id
+                                    Trapgroup.id,
+                                    Staticgroup.id,
+                                    Staticgroup.status,
+                                    Detection.static
                                 )\
                                 .join(Image, Image.id==Detection.image_id)\
                                 .join(Camera, Camera.id==Image.camera_id)\
                                 .join(Trapgroup, Trapgroup.id==Camera.trapgroup_id)\
-                                .join(Labelgroup)\
-                                .filter(Detection.static==True)\
+                                .join(Staticgroup)\
                                 .filter(Trapgroup.survey_id==survey_id)\
-                                .filter(Labelgroup.checked==False)\
-                                .order_by(Camera.id,Image.corrected_timestamp,Detection.id)
+                                .order_by(Staticgroup.id,Image.corrected_timestamp,Detection.id)
                                     
-        if camera_id:
-            detectionClusters = detectionClusters.filter(Camera.id==camera_id)
+        # if camera_id:
+        #     detectionClusters = detectionClusters.filter(Camera.id==camera_id)
+
+        if staticgroup_id:
+            detectionClusters = detectionClusters.filter(Staticgroup.id==staticgroup_id)
+
+        if not edit:
+            detectionClusters = detectionClusters.filter(Detection.static==True).filter(Staticgroup.status=='unknown')
 
         detectionClusters = detectionClusters.distinct().all()
 
@@ -12686,98 +12690,59 @@ def getStaticDetections(survey_id, reqID):
                 db.session.commit()
             return json.dumps({'static_detections': [{'id': -101}], 'id': reqID})
 
-        det_processed = []
+        staticgroup_detections = {}
+        for d in detectionClusters:
+            if d[10] in staticgroup_detections:
+                staticgroup_detections[d[10]].append({
+                    'id': d[0],
+                    'top': d[1],
+                    'bottom': d[2],
+                    'left': d[3],
+                    'right': d[4],
+                    'static': d[12]
+                })
+            else:
+                staticgroup_detections[d[10]] = [{
+                    'id': d[0],
+                    'top': d[1],
+                    'bottom': d[2],
+                    'left': d[3],
+                    'right': d[4],
+                    'static': d[12]
+                }]
+
         static_detections = []
-        det_keys = {}
-        for det in detectionClusters:
-            if det[0] in det_processed:
-                continue
-            det_shape = 'POLYGON((' + str(det[3]) + ' ' + str(det[1]) + ', ' + str(det[3]) + ' ' + str(det[2]) + ', ' + str(det[4]) + ' ' + str(det[2]) + ', ' + str(det[4]) + ' ' + str(det[1]) + ', ' + str(det[3]) + ' ' + str(det[1]) + '))'
-            subquery = db.session.query(Detection.id,
-                func.ST_Intersection(
-                    func.ST_GeomFromText(
-                        func.concat('POLYGON((', Detection.left, ' ', Detection.top, ', ', Detection.left, ' ', Detection.bottom, ', ', Detection.right, ' ', Detection.bottom, ', ', Detection.right, ' ', Detection.top, ', ', Detection.left, ' ', Detection.top, '))'),
-                        32734
-                    ),
-                    func.ST_GeomFromText(
-                        det_shape,
-                        32734
-                    ) 
-                ).label('intersection')
-            ).subquery()
-            subquery2 = db.session.query(Detection.id,                
-                func.ST_Union(
-                    func.ST_GeomFromText(
-                        func.concat('POLYGON((', Detection.left, ' ', Detection.top, ', ', Detection.left, ' ', Detection.bottom, ', ', Detection.right, ' ', Detection.bottom, ', ', Detection.right, ' ', Detection.top, ', ', Detection.left, ' ', Detection.top, '))'),
-                        32734
-                    ),
-                    func.ST_GeomFromText(
-                        det_shape,
-                        32734
-                    ) 
-                ).label('union')
-            ).subquery()
-            result = db.session.query(Detection.id)\
-                            .join(Image)\
-                            .join(Camera)\
-                            .outerjoin(subquery, Detection.id == subquery.c.id)\
-                            .outerjoin(subquery2, Detection.id == subquery2.c.id)\
-                            .filter(func.ST_AsText(subquery.c.intersection) != 'GEOMETRYCOLLECTION EMPTY')\
-                            .filter(Detection.id == subquery.c.id)\
-                            .filter(Detection.static==True)\
-                            .filter(Camera.id == det[7])\
-                            .filter(Detection.id != det[0])\
-                            .filter(or_(
-                                and_(func.ST_AsText(subquery.c.intersection).contains('GEOMETRYCOLLECTION'), (func.ST_Area(func.ST_GeometryN(subquery.c.intersection,1))/func.ST_Area(subquery2.c.union)) > 0.65),
-                                and_(~func.ST_AsText(subquery.c.intersection).contains('GEOMETRYCOLLECTION'),(func.ST_Area(subquery.c.intersection)/func.ST_Area(subquery2.c.union)) > 0.65)
-                            ))\
-                            .distinct().all()
-            group = [r[0] for r in result]
-            det_processed.append(det[0])
-            det_processed.extend(group)
-            det_ids = [det[0]]
-            det_ids.extend(group)
-            image_dets = []
-            for d in detectionClusters:
-                if d[0] in det_ids:
-                    image_dets.append({
-                        'id': d[0],
-                        'top': d[1],
-                        'bottom': d[2],
-                        'left': d[3],
-                        'right': d[4],
-                        'static': True
-                    })
-            for data in detectionClusters: 
-                if data[0] in det_ids:
-                    if det_keys.get(det[0]) == None:
-                        static_detections.append({
-                            'id': det[0],
-                            'images': [{	
-                                'id': data[5],
-                                'url': data[8]+'/'+data[6],
-                                'detections': image_dets
-                            }],
-                            'labels': ['None'],
-                            'label_ids': ['0'],
-                            'tags': ['None'],
-                            'tag_ids': ['0'],
-                            'required': [],
-                            'classification': [],
-                            'groundTruth': [],
-                            'trapGroup': data[9],
-                            'camera': data[7],
-                            'camera_path': data[8]
-                        })
-                        det_keys[det[0]] = len(static_detections)-1
-                    else:
-                        image_exists = any(d['id'] == data[5] for d in static_detections[det_keys[det[0]]]['images'])
-                        if not image_exists:
-                            static_detections[det_keys[det[0]]]['images'].append({
-                                'id': data[5],
-                                'url': data[8]+'/'+data[6],
-                                'detections': image_dets
-                            })
+        staticgroup_keys = {}
+        for data in detectionClusters: 
+            if data[10] not in staticgroup_keys:
+                static_detections.append({
+                    'id': data[10],
+                    'images': [{	
+                        'id': data[5],
+                        'url': data[8]+'/'+data[6],
+                        'detections': staticgroup_detections[data[10]]
+                    }],
+                    'labels': ['None'],
+                    'label_ids': ['0'],
+                    'tags': ['None'],
+                    'tag_ids': ['0'],
+                    'required': [],
+                    'classification': [],
+                    'groundTruth': [],
+                    'trapGroup': data[9],
+                    'camera': data[7],
+                    'camera_path': data[8],
+                    'staticgroup_status': data[11]
+                })
+
+                staticgroup_keys[data[10]] = len(static_detections)-1
+
+            else:
+                static_detections[staticgroup_keys[data[10]]]['images'].append({
+                    'id': data[5],
+                    'url': data[8]+'/'+data[6],
+                    'detections': staticgroup_detections[data[10]]
+                })
 
         return json.dumps({'static_detections': static_detections, 'id': reqID})
     else:
@@ -12788,25 +12753,25 @@ def getStaticDetections(survey_id, reqID):
 def assignStatic():
     #TODO: CHECK/UPDATE THIS (static)
     survey_id = ast.literal_eval(request.form['survey_id'])
-    detection_ids = ast.literal_eval(request.form['detection_ids'])
+    # detection_ids = ast.literal_eval(request.form['detection_ids'])
+    staticgroup_id = ast.literal_eval(request.form['staticgroup_id'])
     static_status = ast.literal_eval(request.form['static_status'])
 
-    if Config.DEBUGGING: app.logger.info('Assign static detections for survey {}, detections: {}, action: {}'.format(survey_id,detection_ids,static_status))
+    if Config.DEBUGGING: app.logger.info('Assign static detections for survey {}, sitegroup: {}, action: {}'.format(survey_id,staticgroup_id,static_status))
 
     survey = db.session.query(Survey).get(survey_id)
     if survey and checkSurveyPermission(current_user.id,survey.id,'write'):
-        survey.status = 'Static Detection Analysis'
-        db.session.commit()
+        if survey.status != 'Static Detection Analysis':
+            survey.status = 'Static Detection Analysis'
+            db.session.commit()
 
         images = []
         if static_status == 'accept_static':
-            detections = db.session.query(Detection).filter(Detection.id.in_(detection_ids)).all()
-            for detection in detections:
+            staticgroup = db.session.query(Staticgroup).get(staticgroup_id)
+            staticgroup.status = 'accepted'
+            for detection in staticgroup.detections:
                 detection.static = True
                 detection.source = 'user'
-                labelgroups = db.session.query(Labelgroup).filter(Labelgroup.detection_id==detection.id).all()
-                for labelgroup in labelgroups:
-                    labelgroup.checked = True
                 images.append(detection.image)
 
                 if Config.DEBUGGING: app.logger.info('Detection {} marked as static'.format(detection.id))
@@ -12814,13 +12779,11 @@ def assignStatic():
             db.session.commit()
 
         elif static_status == 'reject_static':
-            detections = db.session.query(Detection).filter(Detection.id.in_(detection_ids)).all()
-            for detection in detections:
+            staticgroup = db.session.query(Staticgroup).get(staticgroup_id)
+            staticgroup.status = 'rejected'
+            for detection in staticgroup.detections:
                 detection.static = False
                 detection.source = 'user'
-                labelgroups = db.session.query(Labelgroup).filter(Labelgroup.detection_id==detection.id).all()
-                for labelgroup in labelgroups:
-                    labelgroup.checked = False
                 images.append(detection.image)
 
                 if Config.DEBUGGING: app.logger.info('Detection {} marked as not static'.format(detection.id))
@@ -12946,31 +12909,32 @@ def getMaskCameras(survey_id):
 
     return json.dumps(camera_ids)
 
-@app.route('/getStaticCameraIDs/<survey_id>')
+@app.route('/getStaticGroupIDs/<survey_id>')
 @login_required
-def getStaticCameraIDs(survey_id):
-    ''' Gets all the camera ids that have static detections in a survey '''
-    camera_ids = []
+def getStaticGroupIDs(survey_id):
+    ''' Gets all the staticgroup ids that have static detections in a survey '''
+    staticgroup_ids = []
     survey = db.session.query(Survey).get(survey_id)
+    edit = request.args.get('edit', False, type=bool)
     if survey and checkSurveyPermission(current_user.id,survey.id,'write'):
-        cameras = db.session.query(Camera.id)\
-                                .join(Image)\
+        staticgroups = db.session.query(Staticgroup.id)\
                                 .join(Detection)\
-                                .join(Labelgroup)\
+                                .join(Image)\
+                                .join(Camera)\
                                 .join(Trapgroup)\
-                                .filter(Detection.static==True)\
                                 .filter(Trapgroup.survey_id==survey_id)\
-                                .filter(Labelgroup.checked==False)\
-                                .distinct().all()
+        
+        if not edit:
+            staticgroups = staticgroups.filter(Detection.static==True).filter(Staticgroup.status=='unknown')
 
-        camera_ids = [c[0] for c in cameras]
+        staticgroup_ids = [s[0] for s in staticgroups.distinct().all()]
 
-    return json.dumps(camera_ids)
+    return json.dumps(staticgroup_ids)
 
 @app.route('/finishStaticDetectionCheck/<survey_id>')
 @login_required
 def finishStaticDetectionCheck(survey_id):
-    ''' Gets all the camera ids that have static detections in a survey '''
+    ''' Finishes the static detection check for a survey '''
 
     survey = db.session.query(Survey).get(survey_id)
     if survey and checkSurveyPermission(current_user.id,survey.id,'write'):
