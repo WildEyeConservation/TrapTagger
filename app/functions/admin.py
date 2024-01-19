@@ -49,6 +49,18 @@ def delete_task(self,task_id):
 
     try:
         app.logger.info('Deleting task {}'.format(task_id))
+
+        earth_ranger_ids = db.session.query(ERangerID).join(Cluster).filter(Cluster.task_id==task_id).all()
+        try:
+            for earth_ranger_id in earth_ranger_ids:
+                db.session.delete(earth_ranger_ids)
+            db.session.commit()
+            app.logger.info('Earth Ranger IDs deleted successfully.')
+        except:
+            status = 'error'
+            message = 'Could not delete Earth Ranger IDs.'
+            app.logger.info('Failed to delete Earth Ranger IDs.')
+
         clusters = db.session.query(Cluster).filter(Cluster.task_id==task_id).all()
 
         try:

@@ -358,6 +358,7 @@ class Cluster(db.Model):
     required_images = db.relationship('Image', secondary=requiredimagestable, lazy=True, backref=db.backref('required_for', lazy=True))
     tags = db.relationship('Tag', secondary=tags, lazy=True, backref=db.backref('clusters', lazy=True))
     labels = db.relationship('Label', secondary=labelstable, lazy=True, backref=db.backref('clusters', lazy=True))
+    earth_ranger_ids = db.relationship('ERangerID', backref='cluster', lazy=True)
 
     def __repr__(self):
         return '<Cluster {}>'.format(self.id)
@@ -575,6 +576,14 @@ class SurveyShare(db.Model):
 
     def __repr__(self):
         return '<A survey share for survey {} to organisation {}>'.format(self.survey_id,self.organisation_id)
+
+class ERangerID(db.Model):
+    id = db.Column(db.String(64), primary_key=True)
+    api_key = db.Column(db.String(32), index=True)
+    cluster_id = db.Column(db.Integer, db.ForeignKey('cluster.id'), index=True, unique=False)
+
+    def __repr__(self):
+        return '<Earth Ranger ID object for cluster {}>'.format(self.cluster_id)
     
 db.Index('ix_det_srce_scre_stc_stat_class_classcre', Detection.source, Detection.score, Detection.static, Detection.status, Detection.classification, Detection.class_score)
 db.Index('ix_cluster_examined_task', Cluster.examined, Cluster.task_id)
