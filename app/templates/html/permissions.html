@@ -51,17 +51,37 @@ limitations under the License. -->
                     <h5 style="margin-bottom: 2px">Your Permissions</h5>
                     <div style="font-size: 80%; margin-bottom: 2px"><i> View your permissions for the organisations you are a part of.</i></div>
                     <div id="defaultPermissionsDiv"></div>
+                    <div class="row">
+                        <div class="col-lg-1">
+                            <button type='button' class='btn btn-info btn-block' id='btnPrevYourPermissions' hidden>Previous</button>
+                        </div>
+                        <div class = "col-lg-10"></div>
+                        <div class="col-lg-1">
+                            <button type='button' class='btn btn-info btn-block' id='btnNextYourPermissions' hidden>Next</button>
+                        </div>
+                    </div>  
                     <br>
-                    <h5 style="margin-bottom: 2px">Detailed Permissions</h5>
-                    <div style="font-size: 80%; margin-bottom: 2px"><i> View your detailed permissions for specific surveys.</i></div>
+                    <h5 style="margin-bottom: 2px">Permission Exceptions</h5>
+                    <div style="font-size: 80%; margin-bottom: 2px"><i> View your survey-level permission exceptions.</i></div>
                     <div id="detailedPermissionsDiv"></div>
+                    <div style="width: 70%;">
+                        <div class="row">
+                            <div class="col-lg-2" style="padding-right: 6.5%;">
+                                <button type='button' class='btn btn-info btn-block' id='btnPrevExceptions' hidden>Previous</button>
+                            </div>
+                            <div class = "col-lg-8"></div>
+                            <div class="col-lg-2" style="padding-left: 6.5%;">
+                                <button type='button' class='btn btn-info btn-block' id='btnNextExceptions' hidden>Next</button>
+                            </div>
+                        </div> 
+                    </div>
                     <br>
                 </div>
                 
                 <div id="baseUserTab" class="tabcontent">
                     <h5 style="margin-bottom: 2px">Users</h5>
-                    <div style="font-size: 80%; margin-bottom: 2px"><i>Edit the permissions of the users in your organization.Users can have default read or write access for all surveys. Users can also be given specific read and write access to surveys.
-                        Read access allows the user to view the survey and its results. Write access allows the user full control over the survey except for deleting the survey.</i>
+                    <div style="font-size: 80%; margin-bottom: 2px"><i>Manage the permissions of the members of your organisation. Users can be given a default level of access to your surveys 
+                        along with specific exceptions on a survey-by-survey basis.</i>
                     </div>
                     <br>
                     <div id="usersDiv"></div>
@@ -71,7 +91,7 @@ limitations under the License. -->
 
                 <div id="baseDataSharingTab" class="tabcontent">
                     <h5 style="margin-bottom: 2px">Shared Surveys</h5>
-                    <div style="font-size: 80%; margin-bottom: 2px"><i>Edit the surveys as well as their permissions that have been shared to other organizations.</i></div>
+                    <div style="font-size: 80%; margin-bottom: 2px"><i>Manage the surveys you have shared with other organisations.</i></div>
                     <br>
                     <div id="dataSharingDiv"></div>
                     <br>
@@ -80,7 +100,7 @@ limitations under the License. -->
 
                 <div id="baseDataReceivedTab" class="tabcontent">
                     <h5 style="margin-bottom: 2px">Received Surveys</h5>
-                    <div style="font-size: 80%; margin-bottom: 2px"><i>View the surveys that have been shared with your organization.</i></div>
+                    <div style="font-size: 80%; margin-bottom: 2px"><i>Manage the surveys that have been shared with you.</i></div>
                     <br>
                     <div id="receivedDataDiv"></div>
                     <br>
@@ -119,7 +139,7 @@ limitations under the License. -->
         <div class="modal-content">
             <div class="modal-header">
               <div class='col-lg-10' style="padding: 0px">
-                  <h4 id='modalDetailedAccessTitle'  class="modal-title">Detailed Access</h4>
+                  <h4 id='modalDetailedAccessTitle'  class="modal-title">Permission Exceptions</h4>
               </div>
               <div class='col-lg-1' style="padding: 0px">
                   <button class='btn btn-primary btn-sm pull-right' onclick="helpOpen('detailed_access')">Help</button>
@@ -199,7 +219,7 @@ limitations under the License. -->
                 </div>
                 <div class="modal-body">
                     <p align="justify" id="confirmationText">
-                        You are about to give this user admin access. The user will have full write access for all surveys in the organisation. All previous detailed exceptions will be removed.
+                        You are about to give this user admin access. The user will have full write access for all surveys in the organisation. All previous permission exceptions will be removed.
                         This will also allow the user to add and remove users from the organisation as well as edit the permissions of the users in the organisation. They will also be allowed to 
                         share and receive surveys from other organisations. Do you wish to continue?
                     </p>

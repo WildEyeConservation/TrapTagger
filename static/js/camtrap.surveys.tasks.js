@@ -95,7 +95,12 @@ function buildTaskProgress(taskDiv,newTaskDiv,survey,task,progressType) {
     if (survey.access=='write' || survey.access=='admin') {
         stopTaskBtn.disabled = false
     } else {
-        stopTaskBtn.disabled = true
+        if (survey.access=='read' && progressType=='downloading') {
+            stopTaskBtn.disabled = false
+        }   
+        else {
+            stopTaskBtn.disabled = true
+        }
     }
 
     if (progressType=='launched') {
@@ -176,7 +181,7 @@ function buildTask(taskDiv, task, disableSurvey, survey) {
 
     if ((task.status=='PROGRESS')) {
         buildTaskProgress(taskDiv,newTaskDiv,survey,task,'launched')
-    } else if (currentDownloads.includes(survey.name)&&currentDownloadTasks.includes(task.name)) {
+    } else if (currentDownloads.includes(survey.id)&&currentDownloadTasks.includes(task.name)) {
         taskStatusElement.innerHTML = 'Downloading'
         buildTaskProgress(taskDiv,newTaskDiv,survey,task,'downloading')
     } else {

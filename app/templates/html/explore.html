@@ -28,23 +28,81 @@ limitations under the License. -->
             <div class="col-lg-2" style="padding: 0px"></div>
             <div class="col-lg-8" style="padding: 0px">
                 <div class='card' style="font-size:80%">
-                    <div class='card-body'>
-                        <div id="debugLabels" style="margin-top: 0px;"></div>
 
-                        <div id="classifierLabels" style="margin-top: 5px;"></div>
+                    <div class="card-header" style="padding-top: 4px; padding-bottom: 4px;">
+                        <h4 style="margin-bottom: 0px; padding-top: 0px; padding-bottom: 0px;">Information</h4>
+                    </div>
 
-                        <div id="annotatorLabel" style="margin-top: 5px;"></div>
-
-                        <div id="siteLabel" style="margin-top: 5px;"></div>
-
-                        <div id="debugCoords" style="margin-top: 5px;"></div>
-
-                        <div id="imageTimestamp" style="margin-top: 5px;"></div>
-
-                        <div id="debugImage" style="margin-top: 5px; ; word-break: break-all;"></div>
+                    <div class='card-body' style="margin-top: 0px; margin-bottom: 0px; padding-top: 8px;">
                         
-                        <div style="margin-top: 5px;">Cluster Note:</div>
-                        <textarea id="noteboxExp" rows="3" cols="35"  maxlength="512" style="width:100% ; outline-color: #DF691A;"></textarea>
+                        <div class="row" style="margin-left: 4px; margin-right: 4px;">
+                            <div class="col-lg-4" style="padding: 0px">
+                                <div style="margin-top: 0px;">Labels: </div>
+                            </div>
+                            <div class="col-lg-8" style="padding: 0px">
+                                <div id="debugLabels" style="margin-top: 0px;text-align: right;"></div>
+                            </div>
+                        </div>
+
+                        <div class="row" style="margin-left: 4px; margin-right: 4px;">
+                            <div class="col-lg-4" style="padding: 0px">
+                                <div style="margin-top: 0px;">Tags: </div>
+                            </div>
+                            <div class="col-lg-8" style="padding: 0px">
+                                <div id="classifierLabels" style="margin-top: 0px;text-align: right;"></div>
+                            </div>
+                        </div>
+                        
+                        <div class="row" style="margin-left: 4px; margin-right: 4px;">
+                            <div class="col-lg-4" style="padding: 0px">
+                                <div style="margin-top: 0px;">Annotator: </div>
+                            </div>
+                            <div class="col-lg-8" style="padding: 0px">
+                                <div id="annotatorLabel" style="margin-top: 0px;text-align: right;"></div>
+                            </div>
+                        </div>
+
+                        <div class="row" style="margin-left: 4px; margin-right: 4px;">
+                            <div class="col-lg-4" style="padding: 0px">
+                                <div style="margin-top: 0px;">Site: </div>
+                            </div>
+                            <div class="col-lg-8" style="padding: 0px">
+                                <div id="siteLabel" style="margin-top: 0px;text-align: right;"></div>
+                            </div>
+                        </div>
+
+                        <div class="row" style="margin-left: 4px; margin-right: 4px;">
+                            <div class="col-lg-4" style="padding: 0px">
+                                <div style="margin-top: 0px;">Coordinates: </div>
+                            </div>
+                            <div class="col-lg-8" style="padding: 0px">
+                                <div id="debugCoords" style="margin-top: 0px;text-align: right;"></div>
+                            </div>
+                        </div>
+
+                        <div class="row" style="margin-left: 4px; margin-right: 4px;">
+                            <div class="col-lg-4" style="padding: 0px">
+                                <div style="margin-top: 0px;">Timestamp: </div>
+                            </div>
+                            <div class="col-lg-8" style="padding: 0px">
+                                <div id="imageTimestamp" style="margin-top: 0px;text-align: right;"></div>
+                            </div>
+                        </div>
+
+                        <div class="row" style="margin-left: 4px; margin-right: 4px;">
+                            <div class="col-lg-4" style="padding: 0px">
+                                <div style="margin-top: 0px;">Path: </div>
+                            </div>
+                            <div class="col-lg-8" style="padding: 0px">
+                                <div id="debugImage" style="margin-top: 0px;text-align: right;"></div>
+                            </div>
+                        </div>
+
+                        <div class="row" style="margin-left: 4px; margin-right: 4px;">
+                            <div style="margin-top: 5px;">Cluster Notes:</div>
+                            <textarea id="noteboxExp" rows="3" cols="35"  maxlength="512" style="width:100% ; outline-color: #DF691A;"></textarea>
+                        </div>
+                        
                     </div>
                 </div>
             </div>
@@ -55,12 +113,12 @@ limitations under the License. -->
             <div class="col-lg-2" style="padding: 0px"></div>
             <div class="col-lg-8" style="padding: 0px">
                 <div class='card' style="font-size:80%">
-                    <div class='card-body'>
-                        <label for="annotationLevel" style="margin: 0;">Annotation Type:</label>
-                        <select id="annotationLevel" class="form-control" disabled>
-                            <option value="-1" selected>Species Labelling</option>
-                            <option value="-2">Informational Tagging</option>
-                        </select>
+
+                    <div class="card-header" style="padding-top: 4px; padding-bottom: 4px;">
+                        <h4 style="margin-bottom: 0px; padding-top: 0px; padding-bottom: 0px;">Filters</h4>
+                    </div>
+
+                    <div class='card-body' style="margin-top: 0px; margin-bottom: 0px; padding-top: 8px;">
 
                         <label for="divSelector" style="margin-top: 5px; margin-bottom: 0px;">Species:</label>
                         <select id="divSelector" class="form-control"></select>
@@ -74,8 +132,8 @@ limitations under the License. -->
                         <label for="divAnnotatorSelector" style="margin-top: 5px; margin-bottom: 0px;">Annotator:</label>
                         <select id="divAnnotatorSelector" class="form-control"></select>
 
-                        <div id="l2" style="margin-top: 5px;">Search Notes:</div>
-                        <input type="text" id="noteboxExpSearch" name="noteboxExpSearch" style="width:100%" class="form-control">
+                        <div id="l2" style="margin-top: 5px;">Notes:</div>
+                        <input type="text" id="noteboxExpSearch" name="noteboxExpSearch" style="width:100%" class="form-control" placeholder="Search">
                         <div id="notif1" style="color: #DF691A; font-size: 80%;"></div>
                         <div class="custom-control custom-checkbox">
                             <input type="checkbox" class="custom-control-input" id="onlyNotesCheckbox" name="onlyNotesCheckbox"> 
@@ -139,6 +197,13 @@ limitations under the License. -->
             <div class="col-lg-8" style="padding: 0px">
                 <div class='card' style="font-size:80%">
                     <div class='card-body'>
+
+                        <label for="annotationLevel" style="margin: 0;">Annotation Type:</label>
+                        <select id="annotationLevel" class="form-control" disabled>
+                            <option value="-1" selected>Species Labelling</option>
+                            <option value="-2">Informational Tagging</option>
+                        </select>
+
                         <div class="control-group">
                             <div id="divBtns"></div>
                         </div>

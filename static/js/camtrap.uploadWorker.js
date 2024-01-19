@@ -219,6 +219,7 @@ async function checkFinishedUpload() {
 
         resetUploadStatusVariables()
         console.log('Upload Complete')
+        postMessage({'func': 'reloadPage', 'args': null})
     } else {
         if (!checkingFiles&&(proposedQueue.length!=0)) {
             checkFileBatch()

@@ -518,7 +518,7 @@ def getAllIndividuals():
             reply.append({
                             'id': individual.id,
                             'name': individual.name,
-                            'url': image.camera.path + '/' + image.filename
+                            'url': (image.camera.path + '/' + image.filename).replace('+','%2B')
                         })
 
     next = individuals.next_num if individuals.has_next else None
@@ -1124,16 +1124,23 @@ def deleteSurvey(survey_id):
         userPermissions = db.session.query(UserPermissions).filter(UserPermissions.organisation_id==survey.organisation_id).filter(UserPermissions.user_id==current_user.id).first()
 
         if userPermissions and userPermissions.delete:
-            tasks = db.session.query(Task).filter(Task.survey_id==survey_id).all()
+
+            if survey.status.lower() == 'uploading':
+                upload_user = GLOBALS.redisClient.get('upload_user_'+str(survey_id))
+                if upload_user and int(upload_user.decode())!=current_user.id:
+                    status = 'error'
+                    message = 'The survey is currently being uploaded to by another user.'
 
             #Check that survey is not in use
-            if (survey.status.lower() in Config.SURVEY_READY_STATUSES) or (survey.status.lower() == 'uploading'):
-                pass
-            else:
-                status = 'error'
-                message = 'The survey is currently being uploaded to. Please cancel this before deleting it.'
+            if status != 'error':
+                if (survey.status.lower() in Config.SURVEY_READY_STATUSES) or (survey.status.lower() == 'uploading'):
+                    pass
+                else:
+                    status = 'error'
+                    message = 'The survey is currently in use. Please try again later.'
 
             if status != 'error':
+                tasks = db.session.query(Task).filter(Task.survey_id==survey_id).all()
                 for task in tasks:
                     if task.status.lower() not in Config.TASK_READY_STATUSES:
                         status = 'error'
@@ -1178,11 +1185,20 @@ def updateSurveyStatus(survey_id, status):
         userPermissions = db.session.query(UserPermissions).filter(UserPermissions.organisation_id==survey.organisation_id).filter(UserPermissions.user_id==current_user.id).first()
 
         if userPermissions and userPermissions.create:
-            survey.status = status
-            db.session.commit()
+
             if status == 'Import Queued':
-                import_survey.delay(s3Folder=survey.name,surveyName=survey.name,tag=survey.trapgroup_code,organisation_id=survey.organisation_id,correctTimestamps=survey.correct_timestamps,classifier=survey.classifier.name)
-    
+                if survey.status == 'Uploading':
+                    survey.status = status
+                    db.session.commit()
+                    GLOBALS.redisClient.delete('upload_ping_'+str(survey_id))
+                    GLOBALS.redisClient.delete('upload_user_'+str(survey_id))
+                    import_survey.delay(s3Folder=survey.name,surveyName=survey.name,tag=survey.trapgroup_code,organisation_id=survey.organisation_id,correctTimestamps=survey.correct_timestamps,classifier=survey.classifier.name)
+                else:
+                    return json.dumps('error')
+            else:
+                survey.status = status
+                db.session.commit()
+
     return json.dumps('')
 
 @app.route('/checkSightingEditStatus', methods=['POST'])
@@ -1330,7 +1346,7 @@ def imageViewer():
             return render_template("html/block.html",text="You do not have permission to view this item.", helpFile='block', version=Config.VERSION)
 
         images = [{'id': image.id,
-                'url': image.camera.path + '/' + image.filename,
+                'url': (image.camera.path + '/' + image.filename).replace('+','%2B'),
                 'detections': [{'id': detection.id,
                                         'top': detection.top,
                                         'bottom': detection.bottom,
@@ -1387,6 +1403,8 @@ def createNewSurvey():
     status = 'success'
     message = ''
     organisation_id = request.form['organisation_id']
+    newSurvey_id = 0
+    surveyName = ''
 
     organisation = db.session.query(Organisation).get(organisation_id)
     userPermissions = db.session.query(UserPermissions).filter(UserPermissions.user_id==current_user.id).filter(UserPermissions.organisation_id==organisation_id).first()
@@ -1451,10 +1469,10 @@ def createNewSurvey():
                 status = 'error'
                 message = 'Coordinates file must have a name.' 
 
-        test = db.session.query(Survey).filter(Survey.organisation_id==organisation_id).filter(Survey.status=='Uploading').first()
-        if test and (newSurveyS3Folder=='none'):
-            status = 'error'
-            message = 'You already have an upload in progress. You must either finish that, or delete it in order to start a new one.' 
+        # test = db.session.query(Survey).filter(Survey.organisation_id==organisation_id).filter(Survey.status=='Uploading').first()
+        # if test and (newSurveyS3Folder=='none'):
+        #     status = 'error'
+        #     message = 'You already have an upload in progress. You must either finish that, or delete it in order to start a new one.' 
 
         if status == 'success':
 
@@ -1470,57 +1488,18 @@ def createNewSurvey():
                 newSurvey = Survey(name=surveyName, description=newSurveyDescription, trapgroup_code=newSurveyTGCode, organisation_id=organisation_id, status='Uploading', correct_timestamps=correctTimestamps, classifier_id=classifier.id)
                 db.session.add(newSurvey)
                 db.session.commit()
+                newSurvey_id = newSurvey.id
+
+                # Add permissions
+                setup_new_survey_permissions.delay(survey_id=newSurvey_id, organisation_id=organisation_id, user_id=current_user.id, permission=permission, annotation=annotation, detailed_access=detailed_access)
+
+                # Checkout the upload
+                GLOBALS.redisClient.set('upload_ping_'+str(newSurvey_id),datetime.utcnow().timestamp())
+                GLOBALS.redisClient.set('upload_user_'+str(newSurvey_id),current_user.id)
             else:
-                import_survey.delay(s3Folder=newSurveyS3Folder,surveyName=surveyName,tag=newSurveyTGCode,organisation_id=organisation_id,correctTimestamps=correctTimestamps,classifier=classifier)
-
-            # Add permissions
-            survey_id = db.session.query(Survey.id).filter(Survey.name==surveyName).first()[0]
-            exclude_user_ids = [current_user.id]
-            if detailed_access:
-                user_query = db.session.query(User.id, UserPermissions.default).join(UserPermissions).filter(UserPermissions.organisation_id==organisation_id).filter(UserPermissions.default!='admin').filter(~User.id.in_(exclude_user_ids)).distinct().all()
-                user_default = {r[0]:r[1] for r in user_query}
-                for access in detailed_access:
-                    exclude_user_ids.append(access['user_id'])
-                    annotation_access = True if access['annotation']=='1' else False
-                    if user_default[access['user_id']] != 'admin':
-                        if user_default[access['user_id']] == 'worker': 
-                            newDetailedException = SurveyPermissionException(user_id=access['user_id'], survey_id=survey_id, permission='worker', annotation=annotation_access)
-                        else:
-                            newDetailedException = SurveyPermissionException(user_id=access['user_id'], survey_id=survey_id, permission=access['permission'], annotation=annotation_access)
-                        db.session.add(newDetailedException)
-
-            if permission != 'default' and annotation != 'default':
-                user_query = db.session.query(User.id, UserPermissions.default).join(UserPermissions).filter(UserPermissions.organisation_id==organisation_id).filter(UserPermissions.default!='admin').filter(~User.id.in_(exclude_user_ids)).distinct().all()
-                user_ids = [r[0] for r in user_query]
-                user_permissions = [r[1] for r in user_query]   
-                annotation_access = True if annotation== '1' else False
-                for user_id in user_ids:
-                    if user_permissions[i] == 'worker':
-                        newException = SurveyPermissionException(user_id=user_id, survey_id=survey_id, permission='worker', annotation=annotation_access)
-                    else:
-                        newException = SurveyPermissionException(user_id=user_id, survey_id=survey_id, permission=permission, annotation=annotation_access)
-                    db.session.add(newException)
-            elif permission != 'default':
-                user_query = db.session.query(User.id, UserPermissions.default, UserPermissions.annotation).join(UserPermissions).filter(UserPermissions.organisation_id==organisation_id).filter(UserPermissions.default!='admin').filter(~User.id.in_(exclude_user_ids)).distinct().all()
-                user_ids = [r[0] for r in user_query]
-                user_permissions = [r[1] for r in user_query]   
-                user_annotations = [r[2] for r in user_query]
-                for i in range(len(user_ids)):
-                    if user_permissions[i] != 'worker':
-                        newException = SurveyPermissionException(user_id=user_ids[i], survey_id=survey_id, permission=permission, annotation=user_annotations[i])
-                        db.session.add(newException)
-            elif annotation != 'default':
-                user_query = db.session.query(User.id, UserPermissions.default).join(UserPermissions).filter(UserPermissions.organisation_id==organisation_id).filter(UserPermissions.default!='admin').filter(~User.id.in_(exclude_user_ids)).distinct().all()
-                user_ids = [r[0] for r in user_query]
-                user_permissions = [r[1] for r in user_query]
-                annotation_access = True if annotation== '1' else False
-                for i in range(len(user_ids)):
-                    newException = SurveyPermissionException(user_id=user_ids[i], survey_id=survey_id, permission=user_permissions[i], annotation=annotation_access)
-                    db.session.add(newException)
-                    
-            db.session.commit()
+                import_survey.delay(s3Folder=newSurveyS3Folder,surveyName=surveyName,tag=newSurveyTGCode,organisation_id=organisation_id,correctTimestamps=correctTimestamps,classifier=classifier,user_id=current_user.id,permission=permission,annotation=annotation,detailed_access=detailed_access)
     
-        return json.dumps({'status': status, 'message': message})
+        return json.dumps({'status': status, 'message': message, 'newSurvey_id': newSurvey_id, 'surveyName':surveyName})
     else:
         return json.dumps({'status': 'error', 'message': 'You do not have permission to create surveys for this organisation.'})
 
@@ -1963,7 +1942,6 @@ def editSurvey():
 @app.route('/TTWorkerSignup', methods=['GET', 'POST'])
 def TTWorkerSignup():
     '''Returns the form for worker signup, and handles its submission.'''
-    # TODO: DOUBLE CHECK THIS FUNCTION
     if current_user.is_authenticated:
         if current_user.username=='Dashboard':
             return redirect(url_for('dashboard'))
@@ -2002,7 +1980,6 @@ def TTWorkerSignup():
 @app.route('/newWorkerAccount/<token>')
 def newWorkerAccount(token):
     '''Handles the worker-account registration token.'''
-    # TODO: DOUBLE CHECK THIS FUNCTION
     try:
         info = jwt.decode(token, app.config['SECRET_KEY'], algorithms=['HS256'])
     except:
@@ -2014,8 +1991,12 @@ def newWorkerAccount(token):
 
         if username.lower() not in Config.DISALLOWED_USERNAMES:
             check = db.session.query(User).filter(or_(User.username==username,User.email==email)).first()
-
-            if check==None:
+            folder = username.lower().replace(' ','-').replace('_','-')
+            org_check = db.session.query(Organisation).filter(or_(func.lower(Organisation.name)==username.lower(), Organisation.folder==folder)).first()
+            disallowed_chars = '"[@!#$%^&*()<>?/\|}{~:]' + "'"
+            disallowed = any(r in disallowed_chars for r in username)
+            
+            if check==None and org_check==None and not disallowed and len(username)<=64:
                 password = info['password']
                 user = User(username=username, email=email, admin=False)
                 user.set_password(password)
@@ -2871,7 +2852,6 @@ def dotask(username):
 @app.route('/createAccount/<token>')
 def createAccount(token):
     '''Creates a new account based on the recieved token.'''
-    # TODO: DOUBLE CHECK THIS FUNCTION
     try:
         info = jwt.decode(token, app.config['SECRET_KEY'], algorithms=['HS256'])
     except:
@@ -3111,7 +3091,6 @@ def jobs():
 @app.route('/TTRegisterAdmin ', methods=['GET', 'POST'])
 def TTRegisterAdmin():
     '''Renders the admin account registration page.'''
-    # TODO: DOUBLE CHECK THIS FUNCTION
     logout = request.args.get('logout', None)
     if current_user.is_authenticated:
         if current_user.admin:
@@ -3386,7 +3365,12 @@ def getWorkerStats():
 
         for task in tasks:
             if worker_id:
-                workers = [db.session.query(User).get(worker_id)]
+                if int(worker_id) == current_user.id:
+                    workers = [db.session.query(User).get(worker_id)]
+                elif checkSurveyPermission(current_user.id,survey.id,'admin'):
+                    workers = [db.session.query(User).get(worker_id)]
+                else:
+                    workers = []
             else:
                 childWorker = alias(User)
                 workers = db.session.query(User)\
@@ -3421,9 +3405,9 @@ def getWorkerStats():
                 reply.append(info)
 
         if worker_id:
-            headings = {'batchCount': 'Batches Campleted', 'taggingTime': 'Tagging Time (h)'}
+            headings = {'batchCount': 'Batches Completed', 'taggingTime': 'Tagging Time (h)'}
         else:
-            headings = {'username': 'User', 'batchCount': 'Batches Campleted', 'taggingTime': 'Tagging Time (h)'}
+            headings = {'username': 'User', 'batchCount': 'Batches Completed', 'taggingTime': 'Tagging Time (h)'}
 
         return json.dumps({'headings': headings, 'data': reply})
 
@@ -3477,21 +3461,16 @@ def getHomeSurveys():
                                 SurveyPermissionException.permission,
                                 ShareUserPermissions.c.user_id,
                                 ShareUserPermissions.c.default,
-                                SurveyShare.permission
+                                SurveyShare.permission,
+                                UserPermissions.create
                             ).outerjoin(Task,Task.survey_id==Survey.id)\
                             .outerjoin(siteSQ,siteSQ.c.id==Survey.id)\
                             .outerjoin(completeJobsSQ,completeJobsSQ.c.id==Task.id)\
                             .filter(or_(Task.id==None,~Task.name.contains('_o_l_d_'))),current_user.id,'read', ShareUserPermissions)
 
     # uploading/downloading surveys always need to be on the page
-    if current_downloads != '':
-        compulsory_surveys = survey_base_query.filter(or_(
-            Survey.status=='Uploading',
-            Survey.name.in_(re.split('[,]',current_downloads))
-        ))
-    else:
-        compulsory_surveys = survey_base_query.filter(Survey.status=='Uploading')
-    compulsory_surveys = compulsory_surveys.all()
+    compulsory_surveys = survey_base_query.filter(Survey.status=='Uploading').all()
+    if current_downloads != '': compulsory_surveys.extend(survey_base_query.filter(Survey.id.in_(re.split('[,]',current_downloads))).all())
 
     # digest survey data
     survey_data = {}
@@ -3544,18 +3523,20 @@ def getHomeSurveys():
             up_uid=item[18]
             up_default=item[19]
             up_delete=item[20]
+            up_create=item[26]
             exception_uid=item[21]
             exception_permission=item[22]
             sup_uid=item[23]
             sup_default=item[24]
             share_permission=item[25]
             if item[0] not in survey_permissions.keys():
-                survey_permissions[item[0]] = {'exception': None, 'share_level': None, 'default': None, 'share_default': None, 'delete': False}
+                survey_permissions[item[0]] = {'exception': None, 'share_level': None, 'default': None, 'share_default': None, 'delete': False, 'create': False}
             if exception_permission and (exception_uid==current_user.id): survey_permissions[item[0]]['exception']=exception_permission
             if up_default and (up_uid==current_user.id): survey_permissions[item[0]]['default']=up_default
             if sup_default and (sup_uid==current_user.id) and (permission_order.index(sup_default) > permission_order.index(survey_permissions[item[0]]['share_default'])): survey_permissions[item[0]]['share_default']=sup_default
             if share_permission and (sup_uid==current_user.id): survey_permissions[item[0]]['share_level']=share_permission
             if up_delete and (up_uid==current_user.id): survey_permissions[item[0]]['delete']=up_delete
+            if up_create and (up_uid==current_user.id): survey_permissions[item[0]]['create']=up_create
 
     for survey_id in survey_permissions:
         if survey_permissions[survey_id]['exception']:
@@ -3571,6 +3552,10 @@ def getHomeSurveys():
             survey_data[survey_id]['delete'] = True
         else:
             survey_data[survey_id]['delete'] = False
+        if survey_permissions[survey_id]['create']:
+            survey_data[survey_id]['create'] = True
+        else:
+            survey_data[survey_id]['create'] = False
 
     # add all the searches to the base query
     searches = re.split('[ ,]',search)
@@ -3597,6 +3582,8 @@ def getHomeSurveys():
         survey_base_query = survey_base_query.order_by(desc(Survey.id))
 
     count = 5-len(survey_data)
+    if count <=0: count = 1
+    
     if count > 0:
         surveys = survey_base_query.all()
 
@@ -3651,18 +3638,20 @@ def getHomeSurveys():
                 up_uid=item[18]
                 up_default=item[19]
                 up_delete=item[20]
+                up_create=item[26]
                 exception_uid=item[21]
                 exception_permission=item[22]
                 sup_uid=item[23]
                 sup_default=item[24]
                 share_permission=item[25]
                 if item[0] not in survey_permissions.keys():
-                    survey_permissions[item[0]] = {'exception': None, 'share_level': None, 'default': None, 'share_default': None, 'delete': False}
+                    survey_permissions[item[0]] = {'exception': None, 'share_level': None, 'default': None, 'share_default': None, 'delete': False, 'create': False}
                 if exception_permission and (exception_uid==current_user.id): survey_permissions[item[0]]['exception']=exception_permission
                 if up_default and (up_uid==current_user.id): survey_permissions[item[0]]['default']=up_default
                 if sup_default and (sup_uid==current_user.id) and (permission_order.index(sup_default) > permission_order.index(survey_permissions[item[0]]['share_default'])): survey_permissions[item[0]]['share_default']=sup_default
                 if share_permission and (sup_uid==current_user.id): survey_permissions[item[0]]['share_level']=share_permission
                 if up_delete and (up_uid==current_user.id): survey_permissions[item[0]]['delete']=up_delete
+                if up_create and (up_uid==current_user.id): survey_permissions[item[0]]['create']=up_create
 
         for survey_id in survey_permissions:
             if survey_permissions[survey_id]['exception']:
@@ -3678,6 +3667,10 @@ def getHomeSurveys():
                 survey_data2[survey_id]['delete'] = True
             else:
                 survey_data2[survey_id]['delete'] = False
+            if survey_permissions[survey_id]['create']:
+                survey_data2[survey_id]['create'] = True
+            else:
+                survey_data2[survey_id]['create'] = False
 
         survey_ids = [survey_id for survey_id in survey_data2.keys() if survey_id not in survey_data.keys()]
 
@@ -3767,7 +3760,8 @@ def getJobs():
                                 completeJobsSQ.c.count,
                                 Survey.name,
                                 Task.init_complete,
-                                Task.is_bounding
+                                Task.is_bounding,
+                                Organisation.name
                             ).join(Survey,Task.survey_id==Survey.id)\
                             .outerjoin(completeJobsSQ,completeJobsSQ.c.id==Task.id),current_user.id)
                             # .join(User,Survey.user_id==User.id)\
@@ -3856,7 +3850,8 @@ def getJobs():
                         'total': item[2],
                         'remaining': clusters_remaining,
                         'jobsAvailable': jobsAvailable,
-                        'jobsCompleted': item[5]}
+                        'jobsCompleted': item[5],
+                        'organisation': item[9]}
 
             if taskInfo['total'] and taskInfo['remaining']:
                 taskInfo['completed'] = taskInfo['total'] - taskInfo['remaining']
@@ -4711,7 +4706,7 @@ def undoPreviousSuggestion(individual_1,individual_2):
             images = []
             for image in sortedImages:
                 output = {'id': image.id,
-                        'url': image.camera.path + '/' + image.filename,
+                        'url': (image.camera.path + '/' + image.filename).replace('+','%2B'),
                         'timestamp': numify_timestamp(image.corrected_timestamp),
                         'camera': image.camera_id,
                         'rating': image.detection_rating,
@@ -5737,7 +5732,7 @@ def getImage():
     # if image and (current_user == image.camera.trapgroup.survey.user):
     if image and checkSurveyPermission(current_user.id,image.camera.trapgroup.survey_id,'read'):
         images = [{'id': image.id,
-                'url': image.camera.path + '/' + image.filename,
+                'url': (image.camera.path + '/' + image.filename).replace('+','%2B'),
                 'rating': image.detection_rating,
                 'detections': [{'top': detection.top,
                                 'bottom': detection.bottom,
@@ -5912,7 +5907,7 @@ def getKnockCluster(task_id, knockedstatus, clusterID, index, imageIndex, T_inde
 
         if sortedImages != None:
             images = [{'id': image.id,
-                    'url': image.camera.path + '/' + image.filename,
+                    'url': (image.camera.path + '/' + image.filename).replace('+','%2B'),
                     'rating': image.detection_rating,
                     'detections': [{'top': detection.top,
                                     'bottom': detection.bottom,
@@ -6066,6 +6061,11 @@ def getClustersBySpecies(task_id, species, tag_id, trapgroup_id, annotator_id):
         else:
             notes = None
 
+        if 'notesOnly' in request.form:
+            notesOnly = ast.literal_eval(request.form['notesOnly'])
+        else:
+            notesOnly = None
+
         if 'startDate' in request.form:
             startDate = ast.literal_eval(request.form['startDate'])
         else:
@@ -6081,12 +6081,13 @@ def getClustersBySpecies(task_id, species, tag_id, trapgroup_id, annotator_id):
         clusters = db.session.query(Cluster.id) \
                             .filter(Cluster.task_id == int(task_id))\
                             .join(Image,Cluster.images)\
-                            .join(Detection)\
-                            .join(Labelgroup)\
-                            .filter(Labelgroup.task==task)\
-                            .filter(or_(and_(Detection.source==model,Detection.score>Config.DETECTOR_THRESHOLDS[model]) for model in Config.DETECTOR_THRESHOLDS))\
-                            .filter(Detection.static==False)\
-                            .filter(~Detection.status.in_(Config.DET_IGNORE_STATUSES))
+                            .outerjoin(Detection)\
+                            .outerjoin(Labelgroup)\
+                            .outerjoin(Label,Labelgroup.labels)\
+                            .filter(Labelgroup.task==task)
+
+        # If they ask for the nothing clusters, we want to serve the empty clusters too
+        if str(species) != str(GLOBALS.nothing_id): clusters = rDets(clusters)
 
         if (species != '0'):
             label_ids = [int(species)]
@@ -6101,7 +6102,11 @@ def getClustersBySpecies(task_id, species, tag_id, trapgroup_id, annotator_id):
                             label_ids.append(lab.id)
                 parent_labels = temp_labels
 
-            clusters = clusters.filter(Labelgroup.labels.any(Label.id.in_(label_ids)))
+            if str(species) != str(GLOBALS.nothing_id):
+                clusters = clusters.filter(Label.id.in_(label_ids))
+            else:
+                # If they ask for nothing clusters, include the clusters with no labels
+                clusters = clusters.filter(or_(Label.id.in_(label_ids),Label.id==None,Detection.id==None))
 
         if tag_id != '0':
             tag = db.session.query(Tag).get(int(tag_id))
@@ -6111,7 +6116,7 @@ def getClustersBySpecies(task_id, species, tag_id, trapgroup_id, annotator_id):
             clusters = clusters.join(Camera).join(Trapgroup).filter(Trapgroup.id==trapgroup_id)
 
         if annotator_id != '0':
-            clusters = clusters.join(User).filter(or_(User.id==annotator_id,User.parent_id==annotator_id))
+            clusters = clusters.join(User, User.id==Cluster.user_id).filter(or_(User.id==annotator_id,User.parent_id==annotator_id))
 
         if startDate:
             clusters = clusters.filter(Image.corrected_timestamp>=startDate)
@@ -6119,13 +6124,13 @@ def getClustersBySpecies(task_id, species, tag_id, trapgroup_id, annotator_id):
         if endDate:
             clusters = clusters.filter(Image.corrected_timestamp<=endDate)
 
+        if notesOnly:
+            clusters = clusters.filter(and_(Cluster.notes!='',Cluster.notes!=None))
+
         if notes:
-            if (notes==True) or (notes.lower() == 'true'):
-                clusters = clusters.filter(and_(Cluster.notes!='',Cluster.notes!=None))
-            else:
-                searches = re.split('[ ,]',notes)
-                for search in searches:
-                    clusters = clusters.filter(Cluster.notes.contains(search))
+            searches = re.split('[ ,]',notes)
+            for search in searches:
+                clusters = clusters.filter(Cluster.notes.contains(search))
 
         clusters = [r[0] for r in clusters.order_by(Image.corrected_timestamp).distinct(Cluster.id).all()]
         if Config.DEBUGGING: app.logger.info(clusters[:50])
@@ -6994,15 +6999,22 @@ def getWorkerSurveys():
     '''Returns a list of survey names and IDs, owned by the current user, worked on by the specified worker.'''
     
     worker_id = request.args.get('worker_id',None)
-    if worker_id:
+    if worker_id and current_user.id == int(worker_id):
         surveys = surveyPermissionsSQ(db.session.query(Survey.id, Survey.name)\
                             .join(Task)\
                             .join(Turkcode)\
                             .join(User)\
                             .filter(User.parent_id==worker_id)\
                             ,current_user.id,'worker').distinct().all()
+    elif worker_id and current_user.id != int(worker_id):
+        surveys = surveyPermissionsSQ(db.session.query(Survey.id, Survey.name)\
+                            .join(Task)\
+                            .join(Turkcode)\
+                            .join(User)\
+                            .filter(User.parent_id==worker_id)\
+                            ,current_user.id,'admin').distinct().all()
 
-        surveys = [tuple(row) for row in surveys]
+    surveys = [tuple(row) for row in surveys]
     
     return json.dumps(surveys)
 
@@ -7787,6 +7799,7 @@ def generateCSV():
             start_date = None
             end_date = None
             column_translations = {}
+            collapseVideo = True
         else:
             selectedTasks = [int(r) for r in ast.literal_eval(request.form['selectedTasks'])]
             level = ast.literal_eval(request.form['level'])
@@ -7800,6 +7813,11 @@ def generateCSV():
             end_date = ast.literal_eval(request.form['end_date'])
             if end_date == '': end_date = None
             column_translations = ast.literal_eval(request.form['column_translations'])
+
+            if request.form['collapseVideo'].lower() == 'true':
+                collapseVideo = True
+            else:
+                collapseVideo = False
 
     except:
         return json.dumps({'status':'error',  'message': None})
@@ -7836,8 +7854,8 @@ def generateCSV():
     else:
         queue='default'
 
-    app.logger.info('Calling generate_csv: {}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {}'.format(selectedTasks, level, columns, custom_columns, label_type, includes, excludes, start_date, end_date, column_translations, current_user.username))
-    generate_csv.apply_async(kwargs={'selectedTasks':selectedTasks, 'selectedLevel':level, 'requestedColumns':columns, 'custom_columns':custom_columns, 'label_type':label_type, 'includes':includes, 'excludes':excludes, 'startDate':start_date, 'endDate':end_date, 'column_translations': column_translations, 'user_name': current_user.username}, queue=queue)
+    app.logger.info('Calling generate_csv: {}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {}'.format(selectedTasks, level, columns, custom_columns, label_type, includes, excludes, start_date, end_date, column_translations,current_user.username))
+    generate_csv.apply_async(kwargs={'selectedTasks':selectedTasks, 'selectedLevel':level, 'requestedColumns':columns, 'custom_columns':custom_columns, 'label_type':label_type, 'includes':includes, 'excludes':excludes, 'startDate':start_date, 'endDate':end_date, 'column_translations': column_translations, 'collapseVideo':collapseVideo, 'user_name': current_user.username}, queue=queue)
 
     return json.dumps({'status':'success', 'message': None})
 
@@ -8212,30 +8230,32 @@ def checkNotifications():
 @login_required
 def dashboard():
     '''Renders dashboard where the stats of the platform can be explored.'''
-    # TODO: DASHBOARD STILL NEED TO BE UPDATED
+
     if not current_user.is_authenticated:
         return redirect(url_for('login_page'))
     else:
         if current_user.username=='Dashboard':
             organisations = db.session.query(Organisation).filter(~Organisation.name.in_(Config.ADMIN_USERS)).distinct().all()
+            users = db.session.query(User).filter(~User.username.in_(Config.ADMIN_USERS)).filter(User.admin==True).distinct().all()
             image_count=0
             for organisation in organisations:
                 image_count+=organisation.image_count
             
             sq = db.session.query(Organisation.id.label('organisation_id'),func.sum(Survey.image_count).label('count')).join(Survey).group_by(Organisation.id).subquery()
-            active_users = db.session.query(Organisation)\
+            active_organisations = db.session.query(Organisation)\
                                     .join(Survey)\
                                     .join(Task)\
                                     .join(sq,sq.c.organisation_id==Organisation.id)\
                                     .filter(Task.init_complete==True)\
                                     .filter(sq.c.count>10000)\
-                                    .filter(~User.username.in_(Config.ADMIN_USERS))\
+                                    .filter(~Organisation.name.in_(Config.ADMIN_USERS))\
                                     .distinct().count()
             
             latest_statistic = db.session.query(Statistic).filter(Statistic.user_count!=None).order_by(Statistic.timestamp.desc()).first()
             users_added_this_month = len(users)-latest_statistic.user_count
+            organisations_added_this_month = len(organisations)-latest_statistic.organisation_count
             images_imported_this_month = image_count-latest_statistic.image_count
-            active_users_this_month = active_users-latest_statistic.active_user_count
+            active_organisations_this_month = active_organisations-latest_statistic.active_organisation_count
 
             image_count = str(round((image_count/1000000),2))+'M'
             images_imported_this_month = str(round((images_imported_this_month/1000000),2))+'M'
@@ -8244,32 +8264,49 @@ def dashboard():
             endDate = datetime.utcnow()+timedelta(days=1)
             costs = get_AWS_costs(startDate,endDate)
 
-            unique_logins_24h = db.session.query(User).filter(User.last_ping>datetime.utcnow()-timedelta(days=1)).filter(User.email!=None).count()
-            unique_admin_logins_24h = db.session.query(Organisation).join(UserPermissions).join(User).filter(User.last_ping>datetime.utcnow()-timedelta(days=1)).filter(UserPermissions.default.in_(['write','read','hidden'])).count()
-            unique_logins_this_month = db.session.query(User).filter(User.last_ping>startDate).filter(User.email!=None).count()
-            unique_admin_logins_this_month = db.session.query(Organisation).join(UserPermissions).join(User).filter(User.last_ping>startDate).filter(UserPermissions.default.in_(['write','read','hidden'])).count()
+            unique_logins_24h = db.session.query(User).filter(User.last_ping>datetime.utcnow()-timedelta(days=1)).filter(User.email!=None).filter(~User.username.in_(Config.ADMIN_USERS)).count()
+            unique_admin_logins_24h = db.session.query(User).filter(User.last_ping>datetime.utcnow()-timedelta(days=1)).filter(User.admin==True).filter(~User.username.in_(Config.ADMIN_USERS)).count()
+            unique_organisation_logins_24h = db.session.query(Organisation)\
+                                                .join(UserPermissions)\
+                                                .join(User,UserPermissions.user_id==User.id)\
+                                                .filter(User.last_ping>datetime.utcnow()-timedelta(days=1))\
+                                                .filter(~Organisation.name.in_(Config.ADMIN_USERS))\
+                                                .filter(User.admin==True).count()
+            
+            unique_logins_this_month = db.session.query(User).filter(User.last_ping>startDate).filter(User.email!=None).filter(~User.username.in_(Config.ADMIN_USERS)).count()
+            unique_admin_logins_this_month = db.session.query(User).filter(User.last_ping>startDate).filter(User.admin==True).filter(~User.username.in_(Config.ADMIN_USERS)).count()
+            unique_organisation_logins_this_month = db.session.query(Organisation)\
+                                                .join(UserPermissions)\
+                                                .join(User,UserPermissions.user_id==User.id)\
+                                                .filter(User.last_ping>startDate)\
+                                                .filter(~Organisation.name.in_(Config.ADMIN_USERS))\
+                                                .filter(User.admin==True).count()
 
             # Need to add an hour to the start date so as to not grab the first statistic of the month which covers the last day of the previous month
             average_logins = 0
             average_admin_logins = 0
+            average_organisation_logins = 0
             statistics = db.session.query(Statistic).filter(Statistic.timestamp>(startDate+timedelta(hours=1))).all()
             if statistics:
                 for statistic in statistics:
                     average_logins+=statistic.unique_daily_logins
                     average_admin_logins+=statistic.unique_daily_admin_logins
+                    average_organisation_logins+=statistic.unique_daily_organisation_logins
                 average_logins = round(average_logins/len(statistics),2)
                 average_admin_logins = round(average_admin_logins/len(statistics),2)
+                average_organisation_logins = round(average_organisation_logins/len(statistics),2)
 
             factor = monthrange(datetime.utcnow().year,datetime.utcnow().month)[1]/datetime.utcnow().day
             
             return render_template('html/dashboard.html', title='Dashboard', helpFile='dashboard',
                         version=Config.VERSION,
                         user_count = len(users),
+                        organisation_count = len(organisations),
                         image_count = image_count,
                         users_added_this_month = users_added_this_month,
                         images_imported_this_month = images_imported_this_month,
-                        active_users_this_month = active_users_this_month,
-                        active_users = active_users,
+                        active_organisations_this_month = active_organisations_this_month,
+                        active_organisations = active_organisations,
                         last_months_server_cost = latest_statistic.server_cost,
                         last_months_storage_cost = latest_statistic.storage_cost,
                         last_months_db_cost = latest_statistic.db_cost,
@@ -8290,8 +8327,14 @@ def dashboard():
                         average_admin_logins = average_admin_logins,
                         unique_monthly_logins = int(latest_statistic.unique_monthly_logins),
                         unique_monthly_admin_logins = int(latest_statistic.unique_monthly_admin_logins),
+                        unique_monthly_organisation_logins = int(latest_statistic.unique_monthly_organisation_logins),
                         average_daily_logins = latest_statistic.average_daily_logins,
-                        average_daily_admin_logins = latest_statistic.average_daily_admin_logins
+                        average_daily_admin_logins = latest_statistic.average_daily_admin_logins,
+                        average_daily_organisation_logins = latest_statistic.average_daily_organisation_logins,
+                        unique_organisation_logins_24h = unique_organisation_logins_24h,
+                        unique_organisation_logins_this_month = unique_organisation_logins_this_month,
+                        average_organisation_logins = average_organisation_logins,
+                        organisations_added_this_month = organisations_added_this_month
             )
         else:
             if current_user.admin:
@@ -8318,7 +8361,7 @@ def getDashboardTrends():
         trend = request.form['trend']
         period = request.form['period']
 
-        if trend in ['unique_daily_logins','unique_daily_admin_logins']:
+        if trend in ['unique_daily_logins','unique_daily_admin_logins','unique_daily_organisation_logins']:
             # Daily stats
             if period=='max':
                 period = 365
@@ -8485,28 +8528,26 @@ def getClassifierInfo():
 @login_required
 def get_presigned_url():
     """Returns a presigned URL in order to upload a file directly to S3."""
-    if Config.DEBUGGING: print('Getting presigned')
-    # if current_user.admin:
-    #     return  GLOBALS.s3UploadClient.generate_presigned_url(ClientMethod='put_object',
-    #                                                             Params={'Bucket': Config.BUCKET,
-    #                                                                     'Key': current_user.folder + '/' + request.json['filename'].strip('/'),
-    #                                                                     'ContentType': request.json['contentType'],
-    #                                                                     'Body' : ''})
-    # else:
-    #     return 'error'
 
-    #TODO: Updated permissions for now but uploader needs updating
-    organisation = db.session.query(Organisation).join(Survey).filter(Survey.id==request.json['survey_id']).first()
-    if organisation:
-        userPermissions = db.session.query(UserPermissions).filter(UserPermissions.organisation_id==organisation.id).filter(UserPermissions.user_id==current_user.id).first()
-        if userPermissions and userPermissions.create:
-            
-            return  GLOBALS.s3UploadClient.generate_presigned_url(ClientMethod='put_object',
-                                                                    Params={'Bucket': Config.BUCKET,
-                                                                            'Key': organisation.folder + '/' + request.json['filename'].strip('/'),
-                                                                            'ContentType': request.json['contentType'],
-                                                                            'Body' : ''},
-                                                                    ExpiresIn=604800) # 7 days (the maximum)
+    if Config.DEBUGGING: print('Getting presigned URL')
+    
+    try:
+        survey_id = request.json['survey_id']
+        organisation_id, organisation_folder, survey_status = db.session.query(Organisation.id,Organisation.folder,Survey.status).join(Survey).filter(Survey.id==survey_id).first()
+        if organisation_id and (survey_status=='Uploading'):
+            userPermissions = db.session.query(UserPermissions).filter(UserPermissions.organisation_id==organisation_id).filter(UserPermissions.user_id==current_user.id).first()
+            if userPermissions and userPermissions.create:
+                upload_user = GLOBALS.redisClient.get('upload_user_'+str(survey_id))
+                if upload_user and (int(upload_user.decode())==current_user.id):
+                    GLOBALS.redisClient.set('upload_ping_'+str(survey_id),datetime.utcnow().timestamp())
+                    return  GLOBALS.s3UploadClient.generate_presigned_url(ClientMethod='put_object',
+                                                                            Params={'Bucket': Config.BUCKET,
+                                                                                    'Key': organisation_folder + '/' + request.json['filename'].strip('/'),
+                                                                                    'ContentType': request.json['contentType'],
+                                                                                    'Body' : ''},
+                                                                            ExpiresIn=604800) # 7 days (the maximum)
+    except:
+        pass
         
     return 'error'
 
@@ -8514,35 +8555,51 @@ def get_presigned_url():
 @login_required
 def check_upload_files():
     """Checks a list of images to see if they have already been uploaded."""
-     #TODO: Updated permissions for now but uploader needs updating
-    files = request.json['filenames']
-    survey_id = request.json['survey_id']
-    already_uploaded = []
 
-    organisation = db.session.query(Organisation).join(Survey).filter(Survey.id==survey_id).first()
-    userPermissions = db.session.query(UserPermissions).filter(UserPermissions.organisation_id==organisation.id).filter(UserPermissions.user_id==current_user.id).first()
-    if organisation and userPermissions and userPermissions.create:
-        for file in files:
-            result = checkFile(file,organisation.folder)
-            if result:
-                already_uploaded.append(result)
+    try:
+        files = request.json['filenames']
+        survey_id = request.json['survey_id']
+        already_uploaded = []
 
-    # already_uploaded = []
-    # for file in files:
-    #     result = checkFile(file,current_user.folder)
-    #     if result:
-    #         already_uploaded.append(result)
+        organisation_id, organisation_folder, survey_status = db.session.query(Organisation.id,Organisation.folder,Survey.status).join(Survey).filter(Survey.id==survey_id).first()
+        if organisation_id and (survey_status=='Uploading'):
+            userPermissions = db.session.query(UserPermissions).filter(UserPermissions.organisation_id==organisation_id).filter(UserPermissions.user_id==current_user.id).first()
+            if userPermissions and userPermissions.create:
+                upload_user = GLOBALS.redisClient.get('upload_user_'+str(survey_id))
+                if upload_user and (int(upload_user.decode())==current_user.id):
+                    GLOBALS.redisClient.set('upload_ping_'+str(survey_id),datetime.utcnow().timestamp())
+                    for file in files:
+                        result = checkFile(file,organisation_folder)
+                        if result:
+                            already_uploaded.append(result)
+                    return json.dumps(already_uploaded)
+    except:
+        pass
+
+    return json.dumps('error')
+
+@app.route('/fileHandler/check_upload_available', methods=['POST'])
+@login_required
+def check_upload_available():
+    """Checks whether an upload is available for a particular task (ie. that no other user has an upload in progress for that survey)."""
+
+    try:
+        survey_id = request.json['survey_id']
+        organisation_id, survey_status = db.session.query(Organisation.id,Survey.status).join(Survey).filter(Survey.id==survey_id).first()
+        if organisation_id and (survey_status=='Uploading'):
+            userPermissions = db.session.query(UserPermissions).filter(UserPermissions.organisation_id==organisation_id).filter(UserPermissions.user_id==current_user.id).first()
+            if userPermissions and userPermissions.create:
+                check = GLOBALS.redisClient.get('upload_user_'+str(survey_id))
+                if check and (int(check)!=current_user.id):
+                    return json.dumps('unavailable')
+                else:
+                    GLOBALS.redisClient.set('upload_ping_'+str(survey_id),datetime.utcnow().timestamp())
+                    GLOBALS.redisClient.set('upload_user_'+str(survey_id),current_user.id)
+                    return json.dumps('available')
+    except:
+        pass
     
-    # results = []
-    # pool = Pool(processes=4)
-    # for file in files:
-    #     results.append(pool.apply_async(checkFile,(file,current_user.folder)))
-    # pool.close()
-    # pool.join()
-
-    # already_uploaded = [result for result in [result.get() for result in results] if result!=None]
-
-    return json.dumps(already_uploaded)
+    return json.dumps('error')
 
 @app.route('/fileHandler/get_image_info', methods=['POST'])
 @login_required
@@ -8555,6 +8612,8 @@ def get_image_info():
     task = db.session.query(Task).get(task_id)
     # if task and (task.survey.user==current_user):
     if task and checkSurveyPermission(current_user.id,task.survey_id,'read'):
+        GLOBALS.redisClient.set('download_ping_'+str(task_id),datetime.utcnow().timestamp())
+        
         individual_sorted = request.json['individual_sorted']
         species_sorted = request.json['species_sorted']
         flat_structure = request.json['flat_structure']
@@ -8619,6 +8678,8 @@ def get_required_files():
     task = db.session.query(Task).get(task_id)
     # if task and (task.survey.user==current_user):
     if task and checkSurveyPermission(current_user.id,task.survey_id,'read'):
+        GLOBALS.redisClient.set('download_ping_'+str(task_id),datetime.utcnow().timestamp())
+
         individual_sorted = request.json['individual_sorted']
         species_sorted = request.json['species_sorted']
         flat_structure = request.json['flat_structure']
@@ -8792,7 +8853,7 @@ def get_required_files():
                 file_ids.append(video.id)
                 pathSplit  = video.camera.path.split('/',1)
                 path = pathSplit[0] + '-comp/' + pathSplit[1].split('_video_images_')[0] + video.filename.split('.')[0] + '.mp4'
-                reply.append({'url':'https://'+Config.BUCKET+'.s3.amazonaws.com/'+ path,'paths':videoPaths,'labels':videoLabels})
+                reply.append({'url':'https://'+Config.BUCKET+'.s3.amazonaws.com/'+ path.replace('+','%2B'),'paths':videoPaths,'labels':videoLabels})
             db.session.commit()
 
         else:
@@ -8800,7 +8861,7 @@ def get_required_files():
                 imagePaths, imageLabels, imageTags = get_image_paths_and_labels(image,task,individual_sorted,species_sorted,flat_structure,labels,include_empties)
                 imageLabels.extend(imageTags)
                 file_ids.append(image.id)
-                reply.append({'url':'https://'+Config.BUCKET+'.s3.amazonaws.com/'+image.camera.path+'/'+image.filename,'paths':imagePaths,'labels':imageLabels})
+                reply.append({'url':'https://'+Config.BUCKET+'.s3.amazonaws.com/'+(image.camera.path+'/'+image.filename).replace('+','%2B'),'paths':imagePaths,'labels':imageLabels})
             db.session.commit()
 
     return json.dumps({'ids':file_ids,'requiredFiles':reply})
@@ -8814,6 +8875,8 @@ def set_download_status():
     task = db.session.query(Task).get(task_id)
     # if task and (task.survey.user==current_user):
     if task and checkSurveyPermission(current_user.id,task.survey_id,'read'):
+        GLOBALS.redisClient.set('download_ping_'+str(task_id),datetime.utcnow().timestamp())
+
         include_empties = request.json['include_empties']
         labels = request.json['species']
         include_video = request.json['include_video']
@@ -8861,6 +8924,8 @@ def check_download_initialised():
     reply = {'status': 'ready'}
     # if task and (task.survey.user==current_user):
     if task and checkSurveyPermission(current_user.id,task.survey_id,'read'):
+        GLOBALS.redisClient.set('download_ping_'+str(task_id),datetime.utcnow().timestamp())
+
         filesToDownload = GLOBALS.redisClient.get(str(task.id)+'_filesToDownload')
         if filesToDownload:
             filesToDownload = int(filesToDownload.decode())
@@ -8878,20 +8943,25 @@ def mark_images_downloaded():
     """Marks the specified images or videos as downloaded."""
 
     include_video = request.json['include_video']
+    task_id = request.json['task_id']
     if include_video:
         video_ids = request.json['image_ids']
-        video = db.session.query(Video).get(video_ids[0])
-        # if video and (video.camera.trapgroup.survey.user==current_user):
-        if video and checkSurveyPermission(current_user.id,video.camera.trapgroup.survey_id,'read'):
+        survey_id = db.session.query(Survey.id).join(Trapgroup).join(Camera).join(Video).filter(Video.id==video_ids[0]).first()[0]
+
+        if survey_id and checkSurveyPermission(current_user.id,survey_id,'read'):
+            GLOBALS.redisClient.set('download_ping_'+str(task_id),datetime.utcnow().timestamp())
+            
             videos = db.session.query(Video).filter(Video.id.in_(video_ids)).distinct().all()
             for video in videos:
                 video.downloaded = True
             db.session.commit()
     else:
         image_ids = request.json['image_ids']
-        image = db.session.query(Image).get(image_ids[0])
-        # if image and (image.camera.trapgroup.survey.user==current_user):
-        if image and checkSurveyPermission(current_user.id,image.camera.trapgroup.survey_id,'read'):
+        survey_id = db.session.query(Survey.id).join(Trapgroup).join(Camera).join(Image).filter(Image.id==image_ids[0]).first()[0]
+
+        if survey_id and checkSurveyPermission(current_user.id,survey_id,'read'):
+            GLOBALS.redisClient.set('download_ping_'+str(task_id),datetime.utcnow().timestamp())
+
             images = db.session.query(Image).filter(Image.id.in_(image_ids)).distinct().all()
             for image in images:
                 image.downloaded = True
@@ -8908,9 +8978,24 @@ def download_complete():
     task = db.session.query(Task).get(task_id)
     # if task and (task.survey.user==current_user):
     if task and checkSurveyPermission(current_user.id,task.survey_id,'read'):
-        resetImageDownloadStatus.delay(task_id=task_id,then_set=False,labels=None,include_empties=None, include_frames=True)
-        resetVideoDownloadStatus.delay(task_id=task_id,then_set=False,labels=None,include_empties=None, include_frames=True)
+        manageDownload(task_id)
         return json.dumps('success')
+    
+    return json.dumps('error')
+
+@app.route('/fileHandler/check_download_available', methods=['POST'])
+@login_required
+def check_download_available():
+    """Checks whether a download is available for a particular task (ie. that no other user has a download in progress for that survey)."""
+
+    task_id = request.json['task_id']
+    task = db.session.query(Task).get(task_id)
+    if task and checkSurveyPermission(current_user.id,task.survey_id,'read'):
+        check = db.session.query(Trapgroup.id).join(Camera).join(Image).outerjoin(Video).filter(Trapgroup.survey_id==task.survey_id).filter(or_(Image.downloaded==True,Video.downloaded==True)).first()
+        if check:
+            return json.dumps('unavailable')
+        else:
+            return json.dumps('available')
     
     return json.dumps('error')
 
@@ -9794,7 +9879,6 @@ def getGroups():
     survey_ids = []
     task_ids = ast.literal_eval(request.form['task_ids'])
     if current_user and current_user.is_authenticated:
-        #TODO: This will return all groups where the user has read permission on at least one site. It should require read permission on all. NOTE: Fixed it but just double check
         if task_ids:
             if task_ids[0] == '0':
                 survey_ids = [r[0] for r in surveyPermissionsSQ(db.session.query(Survey.id),current_user.id,'read').distinct().all()]
@@ -9945,7 +10029,7 @@ def getSurveysAndTasksForResults():
 @login_required
 def getActivityPattern():
     ''' Get the activity pattern for a species '''
-    # TODO: need to look at all the permissions for these stats endpoints NOTE: Complete WorkR Server sstill needs to be updated at end
+    # TODO: WorkR Server sstill needs to be updated at end
     if 'task_ids' in request.form:
         task_ids = ast.literal_eval(request.form['task_ids'])
         species = ast.literal_eval(request.form['species'])
@@ -10826,7 +10910,7 @@ def savePermissions():
                 db.session.add(notif)
 
             if org_msg != '':
-                org_admins = [r[0] for r in db.session.query(User.id).join(UserPermissions).filter(UserPermissions.organisation_id==organisation_id).filter(UserPermissions.default=='admin').distinct().all()]
+                org_admins = [r[0] for r in db.session.query(User.id).join(UserPermissions).filter(UserPermissions.organisation_id==organisation_id).filter(UserPermissions.default=='admin').filter(User.id!=user_id).distinct().all()]    
                 for org_admin in org_admins:
                     notif = Notification(user_id=org_admin, contents=org_msg, seen=False)
                     db.session.add(notif)
@@ -10881,19 +10965,20 @@ def getDetailedAccess(user_id, org_id):
 @app.route('/saveDetailedAccess', methods=['POST'])
 @login_required
 def saveDetailedAccess():
+    '''Saves the submitted permission exceptions.'''
 
     user_id = ast.literal_eval(request.form['user_id'])
     org_id = ast.literal_eval(request.form['organisation_id'])
     detailed_access = ast.literal_eval(request.form['detailed_access'])
 
-    app.logger.info('User {} Detailed Access {}.'.format(user_id, detailed_access))
+    if Config.DEBUGGING: app.logger.info('User {} permission exception {}.'.format(user_id, detailed_access))
 
     status = 'FAILURE'
-    message = 'Unable to save detailed access.'
+    message = 'Unable to save permission exception.'
 
     permission_levels = [None, 'worker', 'hidden', 'read', 'write', 'admin']	
 
-    if current_user and current_user.is_authenticated and checkDefaultAdminPermission(current_user.id,org_id):
+    if current_user and current_user.is_authenticated and checkDefaultAdminPermission(current_user.id,org_id) and not checkDefaultAdminPermission(user_id,org_id):
         new_access = detailed_access['new']
         edited_access = detailed_access['edit']
         deleted_access = detailed_access['delete']
@@ -10933,18 +11018,20 @@ def saveDetailedAccess():
                         access['permission'] = shareCheck.permission
                     access['annotation'] = False
 
-            survey_permission = SurveyPermissionException(user_id=user_id, survey_id=access['survey_id'], permission=access['permission'], annotation=access['annotation'])
-            db.session.add(survey_permission)
+            existCheck = db.session.query(SurveyPermissionException).filter(SurveyPermissionException.survey_id==access['survey_id']).filter(SurveyPermissionException.user_id==user_id).first()
+            if not existCheck:
+                survey_permission = SurveyPermissionException(user_id=user_id, survey_id=access['survey_id'], permission=access['permission'], annotation=access['annotation'])
+                db.session.add(survey_permission)
 
         org_name = db.session.query(Organisation.name).filter(Organisation.id==org_id).first()[0]
         user_name = db.session.query(User.username).filter(User.id==user_id).first()[0]
 
-        user_msg = '<p> Your detailed access permissions for organisation {} have been updated.</p>'.format(org_name)
+        user_msg = '<p> Your permission exceptions for organisation {} have been updated.</p>'.format(org_name)
         notif = Notification(user_id=user_id, contents=user_msg, seen=False)
         db.session.add(notif)
 
         org_admins = [r[0] for r in db.session.query(User.id).join(UserPermissions).filter(UserPermissions.organisation_id==org_id).filter(UserPermissions.default=='admin').distinct().all()]
-        org_msg = '<p> The detailed access permissions for user {} have been updated for organisation {}.</p>'.format(user_name, org_name)
+        org_msg = '<p> The permission exceptions for user {} have been updated for organisation {}.</p>'.format(user_name, org_name)
         for org_admin in org_admins:
             notif = Notification(user_id=org_admin, contents=org_msg, seen=False)
             db.session.add(notif)
@@ -11234,13 +11321,14 @@ def shareSurveys():
                     db.session.commit()
 
                     status = 'SUCCESS'
-                    message = 'Notification sent to organisation. You will be notified when the organisation has accepted the survey share.'
+                    message = 'A notification has been sent to the organisation. You will be notified once they have accepted the survey share.'
     except:
         pass
 
     return json.dumps({'status':status, 'message': message})
 
 @app.route('/acceptSurveyShare/<token>/<action>')
+@login_required
 def acceptSurveyShare(token, action):
     ''' Accepts or declines a survey share '''
     try:
@@ -11297,6 +11385,7 @@ def acceptSurveyShare(token, action):
     return redirect(url_for('surveys'))
 
 @app.route('/cancelSurveyShare/<token>')
+@login_required
 def cancelSurveyShare(token):
     ''' Cancels a survey share '''
     try:
@@ -11523,7 +11612,7 @@ def markNotificationSeen(id):
     status = 'FAILURE'
     message = 'Unable to mark notification as seen.'
 
-    if current_user and current_user.is_authenticated:
+    if current_user and current_user.is_authenticated and current_user.parent_id == None:
         notification = db.session.query(Notification).get(id)
         if notification:
             if notification.user_id == current_user.id:
@@ -11659,6 +11748,14 @@ def getPermissions():
     ''' Gets all the permissions for the current user'''
     permissions = []
     exceptions = []
+    next_permissions = None
+    prev_permissions = None
+    next_exceptions = None
+    prev_exceptions = None
+
+    page_permissions = request.args.get('pm_page', 1, type=int)
+    page_exceptions = request.args.get('exc_page', 1, type=int)
+
     if current_user and current_user.is_authenticated:
         user_permissions = db.session.query(
                                         UserPermissions.id,
@@ -11672,9 +11769,9 @@ def getPermissions():
                                     .join(Organisation)\
                                     .filter(UserPermissions.user_id==current_user.id)\
                                     .order_by(Organisation.name)\
-                                    .distinct().all()
+                                    .distinct().paginate(page_permissions, 4, False)
 
-        for user_permission in user_permissions:
+        for user_permission in user_permissions.items:
             permissions.append({
                 'id': user_permission[0],
                 'organisation': user_permission[5],
@@ -11693,10 +11790,11 @@ def getPermissions():
                                     )\
                                     .join(Survey)\
                                     .filter(SurveyPermissionException.user_id==current_user.id)\
+                                    .filter(~and_(or_(SurveyPermissionException.permission=='hidden',SurveyPermissionException.permission=='worker'),SurveyPermissionException.annotation==False))\
                                     .order_by(Survey.name)\
-                                    .distinct().all()
+                                    .distinct().paginate(page_exceptions, 4, False)
         
-        for user_exception in user_exceptions:
+        for user_exception in user_exceptions.items:
             exceptions.append({
                 'id': user_exception[0],
                 'survey': user_exception[3],
@@ -11704,7 +11802,12 @@ def getPermissions():
                 'annotation': user_exception[2]
             })
 
-    return json.dumps({'exceptions': exceptions, 'permissions': permissions})
+        next_permissions = user_permissions.next_num if user_permissions.has_next else None
+        prev_permissions = user_permissions.prev_num if user_permissions.has_prev else None
+        next_exceptions = user_exceptions.next_num if user_exceptions.has_next else None
+        prev_exceptions = user_exceptions.prev_num if user_exceptions.has_prev else None
+
+    return json.dumps({'exceptions': exceptions, 'permissions': permissions, 'next_permissions': next_permissions, 'prev_permissions': prev_permissions, 'next_exceptions': next_exceptions, 'prev_exceptions': prev_exceptions})
 
 @app.route('/getAccountInfo')
 @login_required
@@ -11734,13 +11837,17 @@ def getAccountInfo():
         else:
             info['cloud_access'] = False
 
+        if current_user.root_organisation:
+            info['root'] = True
+        else:
+            info['root'] = False
+
     return json.dumps(info)
 
 @app.route('/saveAccountInfo', methods=['POST'])
 @login_required
 def saveAccountInfo():
     ''' Saves the current user's account information '''
-    #TODO: DOUBLE CHECK THIS
     username = ast.literal_eval(request.form['username'])
     email = ast.literal_eval(request.form['email'])
 
@@ -11750,26 +11857,41 @@ def saveAccountInfo():
     if current_user and current_user.is_authenticated:
         if current_user.username != username:
             check = db.session.query(User).filter(User.username==username).first()
-            if check:
-                return json.dumps({'status': 'FAILURE', 'message': 'Username already exists.'})
+            folder = username.lower().replace(' ','-').replace('_','-')
+            if current_user.root_organisation:
+                org_check = db.session.query(Organisation).filter(or_(func.lower(Organisation.name)==username.lower(), Organisation.folder==folder)).filter(Organisation.id!=current_user.root_organisation.id).first()
             else:
+                org_check = db.session.query(Organisation).filter(or_(func.lower(Organisation.name)==username.lower(), Organisation.folder==folder)).first()
+            disallowed_chars = '"[@!#$%^&*()<>?/\|}{~:]' + "'"
+            disallowed = any(r in disallowed_chars for r in username)
+
+            if not check and not org_check and not disallowed and username.lower() not in Config.DISALLOWED_USERNAMES and len(username) > 0 and len(username) < 64:
                 current_user.username = username
+                if current_user.root_organisation:
+                    current_user.root_organisation.name = username
+
                 db.session.commit()
                 status = 'SUCCESS'
                 message = 'Username updated successfully.'
+            else:
+                return json.dumps({'status': 'FAILURE', 'message': 'Please use a different username.'})
 
         if current_user.email != email:
-            email_token = jwt.encode({'email': email, 'user_id': current_user.id}, app.config['SECRET_KEY'], algorithm='HS256')
-            url = 'https://'+Config.DNS+'/confirmEmail/'+email_token
-            
-            send_email('[TrapTagger] Email Verification',
-            sender=app.config['ADMINS'][0],
-            recipients=[email],
-            text_body=render_template('email/emailVerification.txt',username=current_user.username, url=url),
-            html_body=render_template('email/emailVerification.html',username=current_user.username, url=url))
+            check = db.session.query(User).filter(User.email==email).first()
+            if check:
+                return json.dumps({'status': 'FAILURE', 'message': 'Please use a different email address.'})
+            else:
+                email_token = jwt.encode({'email': email, 'user_id': current_user.id, 'exp': (datetime.utcnow()-datetime(1970,1,1)+timedelta(minutes=30)).total_seconds()}, app.config['SECRET_KEY'], algorithm='HS256')
+                url = 'https://'+Config.DNS+'/confirmEmail/'+email_token
+                
+                send_email('[TrapTagger] Email Verification',
+                sender=app.config['ADMINS'][0],
+                recipients=[email],
+                text_body=render_template('email/emailVerification.txt',username=current_user.username, url=url),
+                html_body=render_template('email/emailVerification.html',username=current_user.username, url=url))
 
-            status = 'PENDING'
-            message += ' Email confirmation sent to new email address.'
+                status = 'PENDING'
+                message += ' Email confirmation sent to new email address.'
 
     else:
         status = 'FAILURE'
@@ -11778,24 +11900,566 @@ def saveAccountInfo():
     return json.dumps({'status': status, 'message': message})
 
 @app.route('/confirmEmail/<token>')
+@login_required
 def confirmEmail(token):
     ''' Confirms the current user's email address '''
-    #TODO: DOUBLE CHECK THIS
     try:
         data = jwt.decode(token, app.config['SECRET_KEY'], algorithms=['HS256'])
         email = data['email']
         user_id = data['user_id']
-
-        if current_user and current_user.is_authenticated and current_user.id == user_id:
-            current_user.email = email
-            db.session.commit()
-            flash('Email address confirmed successfully.')
+        expiry = data['exp']
+        current_time = (datetime.utcnow()-datetime(1970,1,1)).total_seconds()
+        if current_time<expiry:
+            user = db.session.query(User).get(user_id)
+            email_check = db.session.query(User).filter(User.email==email).first()
+            if current_user and current_user.is_authenticated and current_user.id == user_id:
+                if user and user.email != email and not email_check:
+                    user.email = email
+                    db.session.commit()
+                    flash('Email address changed successfully.')
+                else:
+                    flash('Unable to confirm email address.')
+            else:
+                flash('Please login and click the link to confirm email address.')
         else:
-            flash('Unable to confirm email address.')
+            flash('Token expired. Please make a new email-change request.')
     except:
         flash('Unable to confirm email address.')
 
     return redirect(url_for('settings'))
+
+@app.route('/clearNotifications')
+@login_required
+def clearNotifications():
+    ''' Clears all the notifications for the current user '''
+    status = 'FAILURE'
+    if current_user and current_user.is_authenticated and current_user.parent_id == None:
+        notifications = db.session.query(Notification).filter(Notification.user_id==current_user.id).filter(Notification.seen==False).all()
+        for notification in notifications:
+            notification.seen = True
+        db.session.commit()
+        status = 'SUCCESS'
+
+    return json.dumps({'status': status})
+
+@app.route('/maskArea', methods=['POST'])
+@login_required
+def maskArea():
+    ''' Masks an area for a camera '''
+    #TODO: THIS STILL NEEDS UPDATING/CHECKING 
+    cluster_id = ast.literal_eval(request.form['cluster_id'])
+    image_id = ast.literal_eval(request.form['image_id'])
+    masks = ast.literal_eval(request.form['masks'])
+
+    if Config.DEBUGGING: app.logger.info('Cluster {} Image {} Masked Areas {}'.format(cluster_id,image_id,masks))
+
+    image = db.session.query(Image).get(image_id)
+
+    if not (image and (checkSurveyPermission(current_user.id,image.camera.trapgroup.survey_id,'write') or checkAnnotationPermission(current_user.parent_id,current_user.turkcode[0].task.id))):
+        return {'redirect': url_for('done')}, 278
+
+    taggingLevel = current_user.turkcode[0].task.tagging_level
+
+    if (taggingLevel == '-1') or (taggingLevel == '0') or int(taggingLevel) > 0:
+        cluster = db.session.query(Cluster).get(cluster_id)
+        if cluster:
+            task_id = cluster.task_id
+
+            trapgroup = db.session.query(Trapgroup) \
+                            .join(Camera) \
+                            .join(Image) \
+                            .filter(Image.id == image_id).first()
+
+            if not trapgroup:
+                return {'redirect': url_for('done')}, 278
+
+
+            num_cluster = db.session.query(Cluster).filter(Cluster.user_id == current_user.id).count()
+            if (num_cluster < db.session.query(Task).get(task_id).size or current_user.admin):
+
+                if GLOBALS.redisClient.get('clusters_allocated_'+str(current_user.id))==None: GLOBALS.redisClient.set('clusters_allocated_'+str(current_user.id),0)
+
+                GLOBALS.redisClient.set('clusters_allocated_'+str(current_user.id),num_cluster)
+
+                trapgroup.processing = True
+                trapgroup.active = False
+                trapgroup.user_id = None
+
+                db.session.commit()
+
+                mask_area.apply_async(kwargs={'cluster_id': cluster_id, 'task_id': task_id, 'masks': masks})
+
+    if (not current_user.admin) and (not GLOBALS.redisClient.sismember('active_jobs_'+str(current_user.turkcode[0].task_id),current_user.username)):
+        return {'redirect': url_for('done')}, 278
+    else:
+        return ""
+
+# @app.route('/reviewMask', methods=['POST'])
+# @login_required
+# def reviewMask():
+#     ''' Accept/Reject masked detection ''' 
+#     # NOTE: This is not currently used (is for check masked sightings)
+#     mask_data = ast.literal_eval(request.form['data'])
+
+#     num = db.session.query(Cluster).filter(Cluster.user_id==current_user.id).count()
+#     turkcode = current_user.turkcode[0]
+#     num2 = turkcode.task.size + turkcode.task.test_size
+
+#     cluster_id = mask_data['cluster_id']
+#     image_ids = mask_data['image_ids']
+#     detection_ids = mask_data['detection_ids']
+#     mask = mask_data['mask']
+
+#     if Config.DEBUGGING: app.logger.info('Review mask for cluster {}, images: {}, detections: {}, action: {}'.format(cluster_id,image_ids,detection_ids,mask))
+
+#     cluster = db.session.query(Cluster).get(cluster_id)
+#     if cluster and (checkAnnotationPermission(current_user.parent_id,cluster.task_id) or checkSurveyPermission(current_user.id,cluster.task.survey_id,'write')):
+#         if (current_user.admin) or (GLOBALS.redisClient.sismember('active_jobs_'+str(current_user.turkcode[0].task_id),current_user.username)):
+#             if (num < cluster.task.size) or (current_user.admin):
+#                 num += 1
+        
+#                 detections = db.session.query(Detection).join(Image).filter(Image.id.in_(image_ids)).filter(Detection.id.in_(detection_ids)).all()
+#                 for detection in detections:
+#                     if mask == 'accept':
+#                         detection.status = 'masked'
+#                         detection.source = 'user'
+
+#                         # labelgroups = db.session.query(Labelgroup).filter(Labelgroup.detection_id==detection.id).filter(Labelgroup.task_id==cluster.task_id).all()
+#                         labelgroups = db.session.query(Labelgroup).filter(Labelgroup.detection_id==detection.id).all()
+#                         for labelgroup in labelgroups:
+#                             labelgroup.labels = cluster.labels
+#                             labelgroup.checked = True
+
+#                         if Config.DEBUGGING: app.logger.info('Detection {} mask accepted'.format(detection.id))
+
+#                     elif mask == 'reject':
+#                         detection.status = 'active'
+#                         detection.source = 'user'
+
+#                         # labelgroups = db.session.query(Labelgroup).filter(Labelgroup.detection_id==detection.id).filter(Labelgroup.task_id==cluster.task_id).all()
+#                         labelgroups = db.session.query(Labelgroup).filter(Labelgroup.detection_id==detection.id).all()
+#                         for labelgroup in labelgroups:
+#                             labelgroup.labels = cluster.labels
+#                             labelgroup.checked = False
+
+#                         if Config.DEBUGGING: app.logger.info('Detection {} mask rejected'.format(detection.id))
+
+#                 db.session.commit()
+
+#                 images = db.session.query(Image).filter(Image.id.in_(image_ids)).all()
+#                 for image in images:
+#                     image.detection_rating = detection_rating(image)
+#                 db.session.commit()
+
+#                 cluster.user_id = current_user.id
+#                 cluster.examined = True
+#                 cluster.timestamp = datetime.utcnow()
+#                 db.session.commit()
+
+#         if (not current_user.admin) and (not GLOBALS.redisClient.sismember('active_jobs_'+str(current_user.turkcode[0].task_id),current_user.username)):
+#             return {'redirect': url_for('done')}, 278
+#         else:
+#             return json.dumps({'progress':(num, num2)})
+#     else:
+#         return {'redirect': url_for('done')}, 278
+
+@app.route('/staticDetectionCheck/<survey_id>')
+@login_required
+def staticDetectionCheck(survey_id):
+    ''' Checks if a static detection check has been done for this survey ''' 
+    #TODO: CHECK/UPDATE THIS (static)
+    static_check = False
+    if current_user and current_user.is_authenticated:
+        if checkSurveyPermission(current_user.id,survey_id,'write'):
+
+            detections = db.session.query(Detection).join(Labelgroup).join(Image).join(Camera).join(Trapgroup).filter(Trapgroup.survey_id==survey_id).filter(Detection.static==True).filter(Labelgroup.checked==False).count()
+
+            if detections == 0:
+                return json.dumps({'static_check': False})
+            else:
+                return json.dumps({'static_check': True})
+
+
+            #TODO ADD CHECK TO DB AND HERE 
+
+    return json.dumps({'static_check': static_check})
+
+
+@app.route('/checkStaticDetections')
+@login_required
+def checkStaticDetections():
+    '''Renders the static detections analysis page for the specified survey.'''
+    #TODO: CHECK/UPDATE THIS (static)
+    if not current_user.is_authenticated:
+        return redirect(url_for('login_page'))
+    else:
+        if current_user.admin:
+            if current_user.username=='Dashboard': return redirect(url_for('dashboard'))
+            if not current_user.permissions: return redirect(url_for('landing'))
+            survey_id = request.args.get('survey', None)
+            survey = db.session.query(Survey).get(survey_id)
+            if survey and checkSurveyPermission(current_user.id,survey.id,'write') and survey.status.lower() in Config.SURVEY_READY_STATUSES:
+                # Initialise the static detections
+                labelgroups = db.session.query(Labelgroup).join(Detection).join(Image).join(Camera).join(Trapgroup).filter(Trapgroup.survey_id==survey_id).filter(Detection.static==True).all()
+                for labelgroup in labelgroups:
+                    labelgroup.checked = False
+                db.session.commit()
+
+                return render_template('html/static_detections.html', title='Static Detections', helpFile='static_detections', bucket=Config.BUCKET, version=Config.VERSION)
+            else:
+                return redirect(url_for('surveys'))
+        else:
+            if current_user.parent_id == None:
+                return redirect(url_for('jobs'))
+            else:
+                if current_user.turkcode[0].task.is_bounding:
+                    return redirect(url_for('sightings'))
+                elif '-4' in current_user.turkcode[0].task.tagging_level:
+                    return redirect(url_for('clusterID'))
+                elif '-5' in current_user.turkcode[0].task.tagging_level:
+                    return redirect(url_for('individualID'))
+                else:
+                    return redirect(url_for('index'))
+
+
+
+@app.route('/getStaticDetections/<survey_id>/<reqID>')
+@login_required
+def getStaticDetections(survey_id, reqID):
+    #TODO: CHECK/UPDATE THIS (static)
+    if Config.DEBUGGING: app.logger.info('Get static detections for survey {}'.format(survey_id))
+
+    survey = db.session.query(Survey).get(survey_id)
+    if survey and checkSurveyPermission(current_user.id,survey.id,'write'):
+        survey.status = 'Static Detection Analysis'
+        db.session.commit()
+        camera_id = request.args.get('camera_id', None)
+
+        detectionClusters = db.session.query(
+                                    Detection.id,
+                                    Detection.top,
+                                    Detection.bottom,
+                                    Detection.left,
+                                    Detection.right,
+                                    Image.id,
+                                    Image.filename,
+                                    Camera.id,
+                                    Camera.path,
+                                    Trapgroup.id
+                                )\
+                                .join(Image, Image.id==Detection.image_id)\
+                                .join(Camera, Camera.id==Image.camera_id)\
+                                .join(Trapgroup, Trapgroup.id==Camera.trapgroup_id)\
+                                .join(Labelgroup)\
+                                .filter(Detection.static==True)\
+                                .filter(Trapgroup.survey_id==survey_id)\
+                                .filter(Labelgroup.checked==False)\
+                                .order_by(Camera.id,Image.corrected_timestamp,Detection.id)
+                                    
+        if camera_id:
+            detectionClusters = detectionClusters.filter(Camera.id==camera_id)
+
+        detectionClusters = detectionClusters.distinct().all()
+
+        if len(detectionClusters) == 0:
+            if survey.status == 'Static Detection Analysis':
+                survey.status = 'Ready'
+                db.session.commit()
+            return json.dumps({'static_detections': [{'id': -101}], 'id': reqID})
+
+        det_processed = []
+        static_detections = []
+        det_keys = {}
+        for det in detectionClusters:
+            if det[0] in det_processed:
+                continue
+            det_shape = 'POLYGON((' + str(det[3]) + ' ' + str(det[1]) + ', ' + str(det[3]) + ' ' + str(det[2]) + ', ' + str(det[4]) + ' ' + str(det[2]) + ', ' + str(det[4]) + ' ' + str(det[1]) + ', ' + str(det[3]) + ' ' + str(det[1]) + '))'
+            subquery = db.session.query(Detection.id,
+                func.ST_Intersection(
+                    func.ST_GeomFromText(
+                        func.concat('POLYGON((', Detection.left, ' ', Detection.top, ', ', Detection.left, ' ', Detection.bottom, ', ', Detection.right, ' ', Detection.bottom, ', ', Detection.right, ' ', Detection.top, ', ', Detection.left, ' ', Detection.top, '))'),
+                        32734
+                    ),
+                    func.ST_GeomFromText(
+                        det_shape,
+                        32734
+                    ) 
+                ).label('intersection')
+            ).subquery()
+            subquery2 = db.session.query(Detection.id,                
+                func.ST_Union(
+                    func.ST_GeomFromText(
+                        func.concat('POLYGON((', Detection.left, ' ', Detection.top, ', ', Detection.left, ' ', Detection.bottom, ', ', Detection.right, ' ', Detection.bottom, ', ', Detection.right, ' ', Detection.top, ', ', Detection.left, ' ', Detection.top, '))'),
+                        32734
+                    ),
+                    func.ST_GeomFromText(
+                        det_shape,
+                        32734
+                    ) 
+                ).label('union')
+            ).subquery()
+            result = db.session.query(Detection.id)\
+                            .join(Image)\
+                            .join(Camera)\
+                            .outerjoin(subquery, Detection.id == subquery.c.id)\
+                            .outerjoin(subquery2, Detection.id == subquery2.c.id)\
+                            .filter(func.ST_AsText(subquery.c.intersection) != 'GEOMETRYCOLLECTION EMPTY')\
+                            .filter(Detection.id == subquery.c.id)\
+                            .filter(Detection.static==True)\
+                            .filter(Camera.id == det[7])\
+                            .filter(Detection.id != det[0])\
+                            .filter(or_(
+                                and_(func.ST_AsText(subquery.c.intersection).contains('GEOMETRYCOLLECTION'), (func.ST_Area(func.ST_GeometryN(subquery.c.intersection,1))/func.ST_Area(subquery2.c.union)) > 0.65),
+                                and_(~func.ST_AsText(subquery.c.intersection).contains('GEOMETRYCOLLECTION'),(func.ST_Area(subquery.c.intersection)/func.ST_Area(subquery2.c.union)) > 0.65)
+                            ))\
+                            .distinct().all()
+            group = [r[0] for r in result]
+            det_processed.append(det[0])
+            det_processed.extend(group)
+            det_ids = [det[0]]
+            det_ids.extend(group)
+            image_dets = []
+            for d in detectionClusters:
+                if d[0] in det_ids:
+                    image_dets.append({
+                        'id': d[0],
+                        'top': d[1],
+                        'bottom': d[2],
+                        'left': d[3],
+                        'right': d[4],
+                        'static': True
+                    })
+            for data in detectionClusters: 
+                if data[0] in det_ids:
+                    if det_keys.get(det[0]) == None:
+                        static_detections.append({
+                            'id': det[0],
+                            'images': [{	
+                                'id': data[5],
+                                'url': data[8]+'/'+data[6],
+                                'detections': image_dets
+                            }],
+                            'labels': ['None'],
+                            'label_ids': ['0'],
+                            'tags': ['None'],
+                            'tag_ids': ['0'],
+                            'required': [],
+                            'classification': [],
+                            'groundTruth': [],
+                            'trapGroup': data[9],
+                            'camera': data[7],
+                            'camera_path': data[8]
+                        })
+                        det_keys[det[0]] = len(static_detections)-1
+                    else:
+                        image_exists = any(d['id'] == data[5] for d in static_detections[det_keys[det[0]]]['images'])
+                        if not image_exists:
+                            static_detections[det_keys[det[0]]]['images'].append({
+                                'id': data[5],
+                                'url': data[8]+'/'+data[6],
+                                'detections': image_dets
+                            })
+
+        return json.dumps({'static_detections': static_detections, 'id': reqID})
+    else:
+        return {'redirect': url_for('surveys')}, 278
+
+@app.route('/assignStatic', methods=['POST'])
+@login_required
+def assignStatic():
+    #TODO: CHECK/UPDATE THIS (static)
+    survey_id = ast.literal_eval(request.form['survey_id'])
+    detection_ids = ast.literal_eval(request.form['detection_ids'])
+    static_status = ast.literal_eval(request.form['static_status'])
+
+    if Config.DEBUGGING: app.logger.info('Assign static detections for survey {}, detections: {}, action: {}'.format(survey_id,detection_ids,static_status))
+
+    survey = db.session.query(Survey).get(survey_id)
+    if survey and checkSurveyPermission(current_user.id,survey.id,'write'):
+        survey.status = 'Static Detection Analysis'
+        db.session.commit()
+
+        images = []
+        if static_status == 'accept_static':
+            detections = db.session.query(Detection).filter(Detection.id.in_(detection_ids)).all()
+            for detection in detections:
+                detection.static = True
+                detection.source = 'user'
+                labelgroups = db.session.query(Labelgroup).filter(Labelgroup.detection_id==detection.id).all()
+                for labelgroup in labelgroups:
+                    labelgroup.checked = True
+                images.append(detection.image)
+
+                if Config.DEBUGGING: app.logger.info('Detection {} marked as static'.format(detection.id))
+
+            db.session.commit()
+
+        elif static_status == 'reject_static':
+            detections = db.session.query(Detection).filter(Detection.id.in_(detection_ids)).all()
+            for detection in detections:
+                detection.static = False
+                detection.source = 'user'
+                labelgroups = db.session.query(Labelgroup).filter(Labelgroup.detection_id==detection.id).all()
+                for labelgroup in labelgroups:
+                    labelgroup.checked = False
+                images.append(detection.image)
+
+                if Config.DEBUGGING: app.logger.info('Detection {} marked as not static'.format(detection.id))
+
+            db.session.commit()
+
+        
+        for image in images:
+            image.detection_rating = detection_rating(image)
+        db.session.commit()
+
+        return json.dumps({'status': 'SUCCESS', 'message': ''})
+    else:
+        return {'redirect': url_for('surveys')}, 278
+
+
+@app.route('/getSurveyMasks/<survey_id>')
+@login_required
+def getSurveyMasks(survey_id):
+    ''' Gets all the masks for a survey '''
+
+    survey = db.session.query(Survey).get(survey_id)
+    if survey and checkSurveyPermission(current_user.id,survey.id,'write'):
+        camera_id = request.args.get('camera_id', None)
+        mask_data = db.session.query(
+                                    Detection.id,
+                                    Detection.top,
+                                    Detection.bottom,
+                                    Detection.left,
+                                    Detection.right,
+                                    Image.id,
+                                    Image.filename,
+                                    Camera.id,
+                                    Camera.path,
+                                    Mask.id,
+                                    func.ST_AsGeoJSON(Mask.shape)
+                                )\
+                                .join(Image, Image.id==Detection.image_id)\
+                                .join(Camera, Camera.id==Image.camera_id)\
+                                .join(Mask, Mask.camera_id==Camera.id)\
+                                .join(Trapgroup, Trapgroup.id==Camera.trapgroup_id)\
+                                .filter(Trapgroup.survey_id==survey_id)\
+                                .filter(Detection.status=='masked')\
+                                .filter(or_(and_(Detection.source==model,Detection.score>Config.DETECTOR_THRESHOLDS[model]) for model in Config.DETECTOR_THRESHOLDS))\
+                                .filter(Detection.static==False)\
+                                .filter(Mask.checked==False)\
+                                .order_by(Camera.id,Image.corrected_timestamp)
+                                
+        if camera_id:
+            mask_data = mask_data.filter(Camera.id==camera_id)
+
+        mask_data = mask_data.distinct().all()
+
+        masks = []
+        cam_keys = {}
+        for data in mask_data:
+            if data[7] not in cam_keys:
+                cam_keys[data[7]] = len(masks)
+                masks.append({
+                    'id': data[7],
+                    'images': [{
+                        'id': data[5],
+                        'url': data[8]+'/'+data[6],
+                        'detections': [{
+                            'id': data[0],
+                            'top': data[1],
+                            'bottom': data[2],
+                            'left': data[3],
+                            'right': data[4]
+                        }]
+                    }],
+                    'masks': [{
+                        'id': data[9],
+                        'coords': json.loads(data[10])['coordinates'][0]
+                    }],
+                    'camera_path': data[8]
+                })
+            else:
+                cam_idx = cam_keys[data[7]]
+                image_exists = any(d['id'] == data[5] for d in masks[cam_idx]['images'])
+                if not image_exists:
+                    masks[cam_idx]['images'].append({
+                        'id': data[5],
+                        'url': data[8]+'/'+data[6],
+                        'detections': [{
+                            'id': data[0],
+                            'top': data[1],
+                            'bottom': data[2],
+                            'left': data[3],
+                            'right': data[4]
+                        }]
+                    })
+                else:
+                    image_idx = next((i for i, d in enumerate(masks[cam_idx]['images']) if d['id'] == data[5]), None)
+                    detection_exists = any(d['id'] == data[0] for d in masks[cam_idx]['images'][image_idx]['detections'])
+                    if not detection_exists:
+                        masks[cam_idx]['images'][image_idx]['detections'].append({
+                            'id': data[0],
+                            'top': data[1],
+                            'bottom': data[2],
+                            'left': data[3],
+                            'right': data[4]
+                        })
+
+                mask_exists  = any(m['id'] == data[9] for m in masks[cam_idx]['masks'])
+                if not mask_exists:
+                    masks[cam_idx]['masks'].append({
+                        'id': data[9],
+                        'coords': json.loads(data[10])['coordinates'][0]
+                    })
+
+        return json.dumps({'masks': masks})
+
+@app.route('/getMaskCameras/<survey_id>')
+@login_required
+def getMaskCameras(survey_id):
+    ''' Gets all the camera ids that have masks in a survey '''
+    camera_ids = []
+    survey = db.session.query(Survey).get(survey_id)
+    if survey and checkSurveyPermission(current_user.id,survey.id,'write'):
+        cameras = db.session.query(Mask.camera_id).join(Camera).join(Trapgroup).filter(Trapgroup.survey_id==survey_id).distinct().all()
+        camera_ids = [c[0] for c in cameras]
+
+    return json.dumps(camera_ids)
+
+@app.route('/getStaticCameraIDs/<survey_id>')
+@login_required
+def getStaticCameraIDs(survey_id):
+    ''' Gets all the camera ids that have static detections in a survey '''
+    camera_ids = []
+    survey = db.session.query(Survey).get(survey_id)
+    if survey and checkSurveyPermission(current_user.id,survey.id,'write'):
+        cameras = db.session.query(Camera.id)\
+                                .join(Image)\
+                                .join(Detection)\
+                                .join(Labelgroup)\
+                                .join(Trapgroup)\
+                                .filter(Detection.static==True)\
+                                .filter(Trapgroup.survey_id==survey_id)\
+                                .filter(Labelgroup.checked==False)\
+                                .distinct().all()
+
+        camera_ids = [c[0] for c in cameras]
+
+    return json.dumps(camera_ids)
+
+@app.route('/finishStaticDetectionCheck/<survey_id>')
+@login_required
+def finishStaticDetectionCheck(survey_id):
+    ''' Gets all the camera ids that have static detections in a survey '''
+
+    survey = db.session.query(Survey).get(survey_id)
+    if survey and checkSurveyPermission(current_user.id,survey.id,'write'):
+        survey.status = "Processing"
+        db.session.commit()
+        wrapUpStaticDetectionCheck.delay(survey_id)
+
+    return json.dumps('success')
 
 @app.route('/maskArea', methods=['POST'])
 @login_required

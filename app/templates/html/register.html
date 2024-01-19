@@ -16,14 +16,14 @@ limitations under the License. -->
 {% block app_content %}
 <br>
 <div class='row'>
-    <div class='col-lg-4'></div>
-    <div class='col-lg-4'>
+    <div class='col-lg-3'></div>
+    <div class='col-lg-6'>
       <div class="card" style='min-height:400px'>
 
         <div class='card-header' style="margin-top: 0px; margin-bottom: 0px">
           <div class='row' style="margin-top: 0px; margin-bottom: 0px">
             <div class='col-lg-12' align='center'>
-                <h1>TrapTagger Registration</h1>
+                <h1>Register a New Organisation</h1>
             </div>
           </div>
         </div>
@@ -36,9 +36,15 @@ limitations under the License. -->
                 this allows us to continue providing this free service going forward.
             </p>
 
-            <br>
+            <!-- <p align="justify" style="font-size: 80%; color: #DF691A"><i>
+                *Please note that we are closed for the southern-hemisphere summer holidays from the 8th of December. All new registrations will be 
+                dealt with when we return to the office from the 2nd of January onwards. We apologise for any inconvenience.
+            </i></p> -->
+
+            <!-- <br> -->
             <div class="row">
-                <div class="col-lg-12">
+                <div class="col-lg-2"></div>
+                <div class="col-lg-8">
                     <form action="" method="post" id='formEnquire'>
                         {{enquiryForm.hidden_tag() }}
                         {{ enquiryForm.info() }}
@@ -86,6 +92,7 @@ limitations under the License. -->
                         </div>
                     </form>
                 </div>
+                <div class="col-lg-2"></div>
             </div>
             <br>
             
@@ -99,7 +106,7 @@ limitations under the License. -->
 
       </div>
     </div>
-    <div class='col-lg-4'></div>
+    <div class='col-lg-3'></div>
 </div>
 <br>
 

@@ -649,18 +649,21 @@ def calculate_individual_similarities(self,task_id,species,user_ids):
 
         app.logger.info('Individual similarities are being calculated for {} individuals'.format(len(individuals1)))
 
-        # This is a hack - do not touch
-        # Without this, the first individual in the list is not processed
-        if individuals1: calculate_individual_similarity(individuals1[0],[],session)
+        total_individual_count = len(individuals2)
 
-        # pool = Pool(processes=4)
-        for individual1 in individuals1:
-            if individual1 in individuals2: individuals2.remove(individual1)
-            if individuals2:
-                # pool.apply_async(calculate_individual_similarity,(individual1,individuals2.copy()))
-                calculate_individual_similarity(individual1,individuals2,session)
-        # pool.close()
-        # pool.join()
+        if total_individual_count > 1:
+            # This is a hack - do not touch
+            # Without this, the first individual in the list is not processed
+            if individuals1: calculate_individual_similarity(individuals1[0],[],session)
+
+            # pool = Pool(processes=4)
+            for individual1 in individuals1:
+                if individual1 in individuals2: individuals2.remove(individual1)
+                if individuals2:
+                    # pool.apply_async(calculate_individual_similarity,(individual1,individuals2.copy()))
+                    calculate_individual_similarity(individual1,individuals2,session)
+            # pool.close()
+            # pool.join()
 
         endTime = time.time()
         app.logger.info("All individual similarities completed in {}".format(endTime - OverallStartTime))
@@ -687,7 +690,7 @@ def calculate_individual_similarities(self,task_id,species,user_ids):
 
             if Config.DEBUGGING: app.logger.info("incompleteIndividuals: {}".format(incompleteIndividuals))    
 
-            if (incompleteIndividuals == 0) or (task.status=='Stopped'):
+            if (incompleteIndividuals == 0) or (task.status=='Stopped') or (total_individual_count==1):
                 task.survey.status = 'Ready'
                 session.commit()
         else:

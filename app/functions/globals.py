@@ -2760,7 +2760,7 @@ def clean_up_redis():
                         GLOBALS.redisClient.delete(key)
 
             # clusters_remaining = int(GLOBALS.redisClient.get('clusters_remaining_'+str(item[0])).decode())
-            if any(name in key for name in ['clusters_remaining_']):
+            elif any(name in key for name in ['clusters_remaining_']):
                 task_id = key.split('_')[-1]
 
                 if task_id == 'None':
@@ -2769,6 +2769,41 @@ def clean_up_redis():
                     task = db.session.query(Task).get(int(task_id))
                     if (task==None) or (task.status not in ['PROGRESS']):
                         GLOBALS.redisClient.delete(key)
+
+            # Manage downloads here
+            elif any(name in key for name in ['download_ping']):
+                task_id = key.split('_')[-1]
+
+                if task_id == 'None':
+                    GLOBALS.redisClient.delete(key)
+                else:
+                    try:
+                        timestamp = GLOBALS.redisClient.get(key)
+                        if timestamp:
+                            timestamp = datetime.fromtimestamp(float(timestamp.decode()))
+                            if datetime.utcnow() - timestamp > timedelta(minutes=10):
+                                manageDownload(task_id)
+                    except:
+                        GLOBALS.redisClient.delete(key)
+
+            # Manage uploads here
+            elif any(name in key for name in ['upload_ping']):
+                survey_id = key.split('_')[-1]
+
+                if survey_id == 'None':
+                    GLOBALS.redisClient.delete(key)
+                    GLOBALS.redisClient.delete('upload_user_'+str(survey_id))
+                else:
+                    try:
+                        timestamp = GLOBALS.redisClient.get(key)
+                        if timestamp:
+                            timestamp = datetime.fromtimestamp(float(timestamp.decode()))
+                            if datetime.utcnow() - timestamp > timedelta(minutes=10):
+                                GLOBALS.redisClient.delete('upload_ping_'+str(survey_id))
+                                GLOBALS.redisClient.delete('upload_user_'+str(survey_id))
+                    except:
+                        GLOBALS.redisClient.delete(key)
+                        GLOBALS.redisClient.delete('upload_user_'+str(survey_id))
 
     except Exception as exc:
         app.logger.info(' ')
@@ -3344,4 +3379,311 @@ def update_masks(self,survey_id,removed_masks,added_masks,edited_masks):
     finally:
         db.session.remove()
     
+    return True
+
+@celery.task(bind=True,max_retries=5,ignore_result=True)
+def setup_new_survey_permissions(self,survey_id,organisation_id,user_id,permission,annotation,detailed_access,localsession=None):
+    '''Sets up the user permissions for a new survey.'''
+
+    try:
+        if localsession:
+            celeryTask = False
+            survey = survey_id
+        else:
+            celeryTask = True
+            localsession = db.session()
+            survey = localsession.query(Survey).get(survey_id)
+
+        user_permission = localsession.query(UserPermissions.default, UserPermissions.annotation).filter(UserPermissions.user_id==user_id).filter(UserPermissions.organisation_id==organisation_id).first()
+        if user_permission[0] != 'admin' and user_permission[0] != 'worker':
+            surveyException = SurveyPermissionException(user_id=user_id, survey=survey, permission='write', annotation=user_permission[1])
+            localsession.add(surveyException)
+
+        exclude_user_ids = [user_id]
+        if detailed_access:
+            user_query = localsession.query(User.id, UserPermissions.default).join(UserPermissions).filter(UserPermissions.organisation_id==organisation_id).filter(UserPermissions.default!='admin').filter(~User.id.in_(exclude_user_ids)).distinct().all()
+            user_default = {r[0]:r[1] for r in user_query}
+            for access in detailed_access:
+                exclude_user_ids.append(access['user_id'])
+                annotation_access = True if access['annotation']=='1' else False
+                if user_default[access['user_id']] != 'admin':
+                    if user_default[access['user_id']] == 'worker': 
+                        newDetailedException = SurveyPermissionException(user_id=access['user_id'], survey=survey, permission='worker', annotation=annotation_access)
+                    else:
+                        newDetailedException = SurveyPermissionException(user_id=access['user_id'], survey=survey, permission=access['permission'], annotation=annotation_access)
+                    localsession.add(newDetailedException)
+
+        if permission != 'default' and annotation != 'default':
+            user_query = localsession.query(User.id, UserPermissions.default).join(UserPermissions).filter(UserPermissions.organisation_id==organisation_id).filter(UserPermissions.default!='admin').filter(~User.id.in_(exclude_user_ids)).distinct().all()
+            user_ids = [r[0] for r in user_query]
+            user_permissions = [r[1] for r in user_query]   
+            annotation_access = True if annotation== '1' else False
+            for i in range(len(user_ids)):
+                if user_permissions[i] == 'worker':
+                    newException = SurveyPermissionException(user_id=user_ids[i], survey=survey, permission='worker', annotation=annotation_access)
+                else:
+                    newException = SurveyPermissionException(user_id=user_ids[i], survey=survey, permission=permission, annotation=annotation_access)
+                localsession.add(newException)
+
+        elif permission != 'default':
+            user_query = localsession.query(User.id, UserPermissions.default, UserPermissions.annotation).join(UserPermissions).filter(UserPermissions.organisation_id==organisation_id).filter(UserPermissions.default!='admin').filter(~User.id.in_(exclude_user_ids)).distinct().all()
+            user_ids = [r[0] for r in user_query]
+            user_permissions = [r[1] for r in user_query]   
+            user_annotations = [r[2] for r in user_query]
+            for i in range(len(user_ids)):
+                if user_permissions[i] != 'worker':
+                    newException = SurveyPermissionException(user_id=user_ids[i], survey=survey, permission=permission, annotation=user_annotations[i])
+                    localsession.add(newException)
+
+        elif annotation != 'default':
+            user_query = localsession.query(User.id, UserPermissions.default).join(UserPermissions).filter(UserPermissions.organisation_id==organisation_id).filter(UserPermissions.default!='admin').filter(~User.id.in_(exclude_user_ids)).distinct().all()
+            user_ids = [r[0] for r in user_query]
+            user_permissions = [r[1] for r in user_query]
+            annotation_access = True if annotation== '1' else False
+            for i in range(len(user_ids)):
+                newException = SurveyPermissionException(user_id=user_ids[i], survey=survey, permission=user_permissions[i], annotation=annotation_access)
+                localsession.add(newException)
+                
+        if celeryTask: localsession.commit()
+
+    except Exception as exc:
+        app.logger.info(' ')
+        app.logger.info('!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!')
+        app.logger.info(traceback.format_exc())
+        app.logger.info('!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!')
+        app.logger.info(' ')
+        self.retry(exc=exc, countdown= retryTime(self.request.retries))
+
+    finally:
+        if celeryTask: localsession.remove()
+
+    return True
+
+def manageDownload(task_id):
+    '''Kicks off the necessary download cleanup for the specified task after the download has been abandoned.'''
+
+    resetImageDownloadStatus.delay(task_id=task_id,then_set=False,labels=None,include_empties=None, include_frames=True)
+    resetVideoDownloadStatus.delay(task_id=task_id,then_set=False,labels=None,include_empties=None, include_frames=True)
+    GLOBALS.redisClient.delete('download_ping_'+str(task_id))
+    
+    return True
+
+@celery.task(bind=True,max_retries=5,ignore_result=True)
+def resetImageDownloadStatus(self,task_id,then_set,labels,include_empties, include_frames):
+    '''Resets the image downloaded status to the default not-downloaded state'''
+    
+    try:
+        task = db.session.query(Task).get(task_id)
+        if task.status=='Preparing Download': return True
+        task.status = 'Processing'
+        db.session.commit()
+
+        images = db.session.query(Image)\
+                        .join(Camera)\
+                        .join(Trapgroup)\
+                        .filter(Trapgroup.survey==task.survey)\
+                        .filter(Image.downloaded!=False)\
+                        .all()
+
+        # for chunk in chunker(images,10000):
+        for image in images:
+            image.downloaded = False
+        db.session.commit()
+
+        if then_set:
+            setImageDownloadStatus.delay(task_id=task_id,labels=labels,include_empties=include_empties, include_video=False, include_frames=include_frames)
+        else:
+            GLOBALS.redisClient.delete(str(task.id)+'_filesToDownload')
+            task.status = 'Ready'
+            db.session.commit()
+
+    except Exception as exc:
+        app.logger.info(' ')
+        app.logger.info('!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!')
+        app.logger.info(traceback.format_exc())
+        app.logger.info('!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!')
+        app.logger.info(' ')
+        self.retry(exc=exc, countdown= retryTime(self.request.retries))
+
+    finally:
+        db.session.remove()
+
+    return True
+
+@celery.task(bind=True,max_retries=5,ignore_result=True)
+def resetVideoDownloadStatus(self,task_id,then_set,labels,include_empties, include_frames):
+    '''Resets the video downloaded status to the default not-downloaded state'''
+    
+    try:
+        task = db.session.query(Task).get(task_id)
+        if task.status=='Preparing Download': return True
+        task.status = 'Processing'
+        db.session.commit()
+
+        videos = db.session.query(Video)\
+                        .join(Camera)\
+                        .join(Trapgroup)\
+                        .filter(Trapgroup.survey==task.survey)\
+                        .filter(Video.downloaded!=False)\
+                        .all()
+        
+        for video in videos:
+            video.downloaded = False
+        db.session.commit()
+
+        if then_set:
+            setImageDownloadStatus.delay(task_id=task_id,labels=labels,include_empties=include_empties, include_video=True, include_frames=include_frames)
+        else:
+            GLOBALS.redisClient.delete(str(task.id)+'_filesToDownload')
+            task.status = 'Ready'
+            db.session.commit()
+
+    except Exception as exc:
+        app.logger.info(' ')
+        app.logger.info('!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!')
+        app.logger.info(traceback.format_exc())
+        app.logger.info('!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!')
+        app.logger.info(' ')
+        self.retry(exc=exc, countdown= retryTime(self.request.retries))
+
+    finally:
+        db.session.remove()
+
+    return True
+
+@celery.task(bind=True,max_retries=5,ignore_result=True)
+def setImageDownloadStatus(self,task_id,labels,include_empties, include_video, include_frames):
+    '''Sets the download status of images for a particular task to let the fileHandler know what images to serve the client.'''
+
+    try:
+        task = db.session.query(Task).get(task_id)
+        task.status='Preparing Download'
+        db.session.commit()
+
+        if ('0' in labels) or (labels==[]):
+            labels = [r.id for r in task.labels]
+            labels.append(GLOBALS.vhl_id)
+            labels.append(GLOBALS.knocked_id)
+            labels.append(GLOBALS.unknown_id)
+        labels = [int(r) for r in labels]
+
+        if include_frames:
+            wantedImages = db.session.query(Image)\
+                            .join(Detection)\
+                            .join(Labelgroup)\
+                            .outerjoin(Label,Labelgroup.labels)\
+                            .filter(Labelgroup.task_id==task_id)    
+        else:
+            wantedImages = db.session.query(Image)\
+                            .join(Camera)\
+                            .outerjoin(Video)\
+                            .join(Detection)\
+                            .join(Labelgroup)\
+                            .outerjoin(Label,Labelgroup.labels)\
+                            .filter(Labelgroup.task_id==task_id)\
+                            .filter(Video.id==None)
+                            
+
+        if include_video:
+            wantedVideos = db.session.query(Video)\
+                            .join(Camera)\
+                            .join(Image)\
+                            .join(Detection)\
+                            .join(Labelgroup)\
+                            .outerjoin(Label,Labelgroup.labels)\
+                            .filter(Labelgroup.task_id==task_id)               
+        
+        if include_empties:
+            if GLOBALS.nothing_id not in labels: labels.append(GLOBALS.nothing_id)
+
+            # Include non-desired labelled images without detections
+            rDetImages = rDets(db.session.query(Image.id.label('image_id'))\
+                            .join(Detection)\
+                            .join(Camera)\
+                            .join(Trapgroup)\
+                            .filter(Trapgroup.survey==task.survey))\
+                            .subquery()
+            
+            wantedImages = wantedImages.outerjoin(rDetImages,rDetImages.c.image_id==Image.id)\
+                            .filter(or_(\
+                                Label.id.in_(labels),\
+                                ~Labelgroup.labels.any(),\
+                                rDetImages.c.image_id==None
+                            ))
+
+            if include_video:
+                wantedVideos = wantedVideos.outerjoin(rDetImages,rDetImages.c.image_id==Image.id)\
+                            .filter(or_(\
+                                Label.id.in_(labels),\
+                                ~Labelgroup.labels.any(),\
+                                rDetImages.c.image_id==None
+                            ))
+        else:
+            wantedImages = rDets(wantedImages.filter(Label.id.in_(labels)))
+            if include_video:
+                wantedVideos = rDets(wantedVideos.filter(Label.id.in_(labels)))
+
+        wantedImages = wantedImages.distinct().all()
+
+        allImages = db.session.query(Image)\
+                            .join(Camera)\
+                            .join(Trapgroup)\
+                            .filter(Trapgroup.survey==task.survey)\
+                            .distinct().all()
+
+        if include_video:
+            wantedVideos = wantedVideos.distinct().all()
+
+            allVideos = db.session.query(Video)\
+                            .join(Camera)\
+                            .join(Image)\
+                            .join(Trapgroup)\
+                            .filter(Trapgroup.survey==task.survey)\
+                            .distinct().all()
+        else:
+            wantedVideos = []
+            allVideos = []
+
+        # Get total count
+        filesToDownload = len(wantedImages) + len(wantedVideos)	
+        if Config.DEBUGGING: app.logger.info('Files to download: '+str(filesToDownload))
+
+        GLOBALS.redisClient.set(str(task.id)+'_filesToDownload',filesToDownload)
+
+        unwantedImages = list(set(allImages) - set(wantedImages))
+
+        # for chunk in chunker(unwantedImages,10000):
+        for image in unwantedImages:
+            image.downloaded = True
+        db.session.commit()
+
+        unwantedVideos = list(set(allVideos) - set(wantedVideos))
+
+        for chunk in chunker(unwantedVideos,10000):
+            for video in chunk:
+                video.downloaded = True
+            db.session.commit()
+
+        task.status = 'Ready'
+        db.session.commit()
+
+        test=db.session.query(Image).join(Camera).join(Trapgroup).filter(Trapgroup.survey==task.survey).filter(Image.downloaded==False).distinct().count()
+        testVideo=db.session.query(Video).join(Camera).join(Image).join(Trapgroup).filter(Trapgroup.survey==task.survey).filter(Video.downloaded==False).distinct().count()
+        if test==0:
+            resetImageDownloadStatus(task_id,False,None,None,True)
+
+        if testVideo==0:
+            resetVideoDownloadStatus(task_id,False,None,None,True)
+
+    except Exception as exc:
+        app.logger.info(' ')
+        app.logger.info('!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!')
+        app.logger.info(traceback.format_exc())
+        app.logger.info('!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!')
+        app.logger.info(' ')
+        self.retry(exc=exc, countdown= retryTime(self.request.retries))
+
+    finally:
+        db.session.remove()
+
     return True

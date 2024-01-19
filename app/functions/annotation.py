@@ -20,7 +20,7 @@ from app.functions.globals import taggingLevelSQ, addChildLabels, resolve_abando
                                     updateTaskCompletionStatus, updateLabelCompletionStatus, updateIndividualIdStatus, retryTime, chunker, \
                                     getClusterClassifications, checkForIdWork, numify_timestamp, rDets, prep_required_images, updateAllStatuses
 from app.functions.individualID import calculate_detection_similarities, generateUniqueName, cleanUpIndividuals, calculate_individual_similarities
-from app.functions.results import resetImageDownloadStatus, resetVideoDownloadStatus
+# from app.functions.results import resetImageDownloadStatus, resetVideoDownloadStatus
 import GLOBALS
 from sqlalchemy.sql import func, distinct, or_, alias, and_
 from sqlalchemy import desc
@@ -404,9 +404,14 @@ def wrapUpTask(self,task_id):
                                             .filter(Individual.species==species)\
                                             .filter(Individual.name!='unidentifiable')\
                                             .filter(IndSimilarity.score==None)\
-                                            .distinct().count() 
+                                            .distinct().count()
+            total_individual_count = db.session.query(Individual)\
+                                            .filter(Individual.tasks.contains(task))\
+                                            .filter(Individual.species==species)\
+                                            .filter(Individual.name!='unidentifiable')\
+                                            .count()
             if Config.DEBUGGING: app.logger.info('There are {} incomplete individuals for wrapTask'.format(incompleteIndividuals))
-            if incompleteIndividuals == 0:
+            if (incompleteIndividuals == 0) or (total_individual_count<2):
                 task.survey.status = 'Ready'
 
         elif '-5' in task.tagging_level:
@@ -1005,8 +1010,6 @@ def fetch_clusters(taggingLevel,task_id,isBounding,trapgroup_id,session,limit=No
                             Tag.id,
                             Tag.description,
                             Individual.id,
-                            Video.id,
-                            Video.filename,
                             Detection.source,
                             Detection.score,
                             Detection.status,
@@ -1014,7 +1017,9 @@ def fetch_clusters(taggingLevel,task_id,isBounding,trapgroup_id,session,limit=No
                             Cluster.user_id,
                             Trapgroup.tag,
                             Trapgroup.latitude,
-                            Trapgroup.longitude
+                            Trapgroup.longitude,
+                            Video.id,
+                            Video.filename
                         )\
                         .join(Image, Cluster.images) \
                         .outerjoin(requiredimagestable,requiredimagestable.c.cluster_id==Cluster.id)\
@@ -1022,7 +1027,7 @@ def fetch_clusters(taggingLevel,task_id,isBounding,trapgroup_id,session,limit=No
                         .join(Trapgroup) \
                         .outerjoin(Video)\
                         .outerjoin(Detection) \
-                        .join(Labelgroup)\
+                        .outerjoin(Labelgroup)\
                         .outerjoin(Label,Labelgroup.labels)\
                         .outerjoin(Tag,Labelgroup.tags)\
                         .outerjoin(Individual,Detection.individuals)\
@@ -1063,7 +1068,7 @@ def fetch_clusters(taggingLevel,task_id,isBounding,trapgroup_id,session,limit=No
                         .outerjoin(requiredimagestable,requiredimagestable.c.cluster_id==Cluster.id)\
                         .join(Camera) \
                         .outerjoin(Detection) \
-                        .join(Labelgroup)\
+                        .outerjoin(Labelgroup)\
                         .outerjoin(Label,Labelgroup.labels)\
                         .outerjoin(Tag,Labelgroup.tags)\
                         .outerjoin(Individual,Detection.individuals)\
@@ -1082,10 +1087,10 @@ def fetch_clusters(taggingLevel,task_id,isBounding,trapgroup_id,session,limit=No
         #                     .distinct().limit(25000).all()
 
         # This need to be ordered by Cluster ID otherwise the a max request will drop random info
-        clusters = rDets(clusters.filter(Labelgroup.task_id == task_id) \
+        clusters = clusters.filter(Labelgroup.task_id == task_id) \
                         .filter(Cluster.task_id == task_id) \
                         .order_by(desc(Cluster.classification), Cluster.id)\
-                        ).distinct().limit(25000).all()
+                        .distinct().limit(25000).all()
 
         if len(clusters) == 25000:
             max_request = True
@@ -1112,7 +1117,7 @@ def fetch_clusters(taggingLevel,task_id,isBounding,trapgroup_id,session,limit=No
                 }
                 if id: 
                     clusterInfo[row[0]]['videos'] = {}
-                    user_id = row[-4]
+                    user_id = row[26]
                     if user_id:
                         user = session.query(User.username,User.parent_id).filter(User.id==user_id).first()
                         if user and user[1]:
@@ -1124,11 +1129,9 @@ def fetch_clusters(taggingLevel,task_id,isBounding,trapgroup_id,session,limit=No
                     else:
                         clusterInfo[row[0]]['user'] = 'AI'
                     
-                    clusterInfo[row[0]]['site_tag'] = row[-3]
-                    clusterInfo[row[0]]['latitude'] = row[-2]
-                    clusterInfo[row[0]]['longitude'] = row[-1]
-
-
+                    clusterInfo[row[0]]['site_tag'] = row[27]
+                    clusterInfo[row[0]]['latitude'] = row[28]
+                    clusterInfo[row[0]]['longitude'] = row[29]
 
             # Handle images
             if row[2] and (row[2] not in clusterInfo[row[0]]['images'].keys()):
@@ -1146,24 +1149,24 @@ def fetch_clusters(taggingLevel,task_id,isBounding,trapgroup_id,session,limit=No
 
             # Handle detections
             if row[9] and (row[9] not in clusterInfo[row[0]]['images'][row[2]]['detections'].keys()):
-                # if (row[-2] not in Config.DET_IGNORE_STATUSES) and (row[15]==False) and (row[-3]>Config.DETECTOR_THRESHOLDS[row[-4]]):
-                clusterInfo[row[0]]['images'][row[2]]['detections'][row[9]] = {
-                    'id': row[9],
-                    'top': row[10],
-                    'bottom': row[11],
-                    'left': row[12],
-                    'right': row[13],
-                    'category': row[14],
-                    'individuals': [],
-                    'static': row[15],
-                    'labels': []
-                }
+                if (row[24] not in ['deleted','hidden']) and (row[15]==False) and (row[23]>Config.DETECTOR_THRESHOLDS[row[22]]):
+                    clusterInfo[row[0]]['images'][row[2]]['detections'][row[9]] = {
+                        'id': row[9],
+                        'top': row[10],
+                        'bottom': row[11],
+                        'left': row[12],
+                        'right': row[13],
+                        'category': row[14],
+                        'individuals': [],
+                        'static': row[15],
+                        'labels': []
+                    }
 
             # Handle video
-            if id and row[22] and (row[22] not in clusterInfo[row[0]]['videos'].keys()):
-                clusterInfo[row[0]]['videos'][row[22]] = {
-                    'id': row[22],
-                    'url': row[7].split('/_video_images_')[0] + '/' + row[23],
+            if id and row[30] and (row[30] not in clusterInfo[row[0]]['videos'].keys()):
+                clusterInfo[row[0]]['videos'][row[30]] = {
+                    'id': row[30],
+                    'url': row[7].split('/_video_images_')[0] + '/' + row[31],
                     'timestamp': numify_timestamp(row[4]),
                     'camera': row[6],
                     'rating': 1,
@@ -1185,7 +1188,7 @@ def fetch_clusters(taggingLevel,task_id,isBounding,trapgroup_id,session,limit=No
                     clusterInfo[row[0]]['images'][row[2]]['detections'][row[9]]['labels'].append(row[17])
                 
                 # Handle individuals
-                if row[-1] and row[21] and (row[21] not in clusterInfo[row[0]]['images'][row[2]]['detections'][row[9]]['individuals']) and (row[-1]==task_id):
+                if row[25] and row[21] and (row[21] not in clusterInfo[row[0]]['images'][row[2]]['detections'][row[9]]['individuals']) and (row[25]==task_id):
                     clusterInfo[row[0]]['images'][row[2]]['detections'][row[9]]['individuals'].append(row[21])
 
         if '-3' in taggingLevel:
@@ -1829,56 +1832,56 @@ def translate_cluster_for_client(clusterInfo,reqId,limit,isBounding,taggingLevel
 
 #     return reply
 
-@celery.task(ignore_result=True)
-def manageDownloads():
-    '''Celery task for managing image download statuses - cleans up abandoned downloads.'''
+# @celery.task(ignore_result=True)
+# def manageDownloads():
+#     '''Celery task for managing image download statuses - cleans up abandoned downloads.'''
 
-    try:
-        startTime = datetime.utcnow()
+#     try:
+#         startTime = datetime.utcnow()
 
-        tasks = [r[0] for r in db.session.query(Task.id)\
-                            .join(Survey)\
-                            .join(Organisation)\
-                            .outerjoin(UserPermissions)\
-                            .outerjoin(User,User.id==UserPermissions.user_id)\
-                            .join(Trapgroup)\
-                            .join(Camera)\
-                            .join(Image)\
-                            .filter(Image.downloaded==True)\
-                            .filter(User.last_ping>(datetime.utcnow()-timedelta(minutes=15)))\
-                            .filter(~Task.status.in_(['Processing','Preparing Download']))\
-                            .distinct().all()]
+#         tasks = [r[0] for r in db.session.query(Task.id)\
+#                             .join(Survey)\
+#                             .join(Organisation)\
+#                             .outerjoin(UserPermissions)\
+#                             .outerjoin(User,User.id==UserPermissions.user_id)\
+#                             .join(Trapgroup, Trapgroup.survey_id==Survey.id)\
+#                             .join(Camera)\
+#                             .join(Image)\
+#                             .filter(Image.downloaded==True)\
+#                             .filter(User.last_ping>(datetime.utcnow()-timedelta(minutes=15)))\
+#                             .filter(~Task.status.in_(['Processing','Preparing Download']))\
+#                             .distinct().all()]
         
-        for task in tasks:
-            resetImageDownloadStatus.delay(task_id=task,then_set=False,labels=None,include_empties=None, include_frames=True)
+#         for task in tasks:
+#             resetImageDownloadStatus.delay(task_id=task,then_set=False,labels=None,include_empties=None, include_frames=True)
 
-        tasks = [r[0] for r in db.session.query(Task.id)\
-                            .join(Survey)\
-                            .join(Organisation)\
-                            .outerjoin(UserPermissions)\
-                            .outerjoin(User,User.id==UserPermissions.user_id)\
-                            .join(Trapgroup)\
-                            .join(Camera)\
-                            .join(Video)\
-                            .filter(Video.downloaded==True)\
-                            .filter(User.last_ping>(datetime.utcnow()-timedelta(minutes=15)))\
-                            .filter(~Task.status.in_(['Processing','Preparing Download']))\
-                            .distinct().all()]
+#         tasks = [r[0] for r in db.session.query(Task.id)\
+#                             .join(Survey)\
+#                             .join(Organisation)\
+#                             .outerjoin(UserPermissions)\
+#                             .outerjoin(User,User.id==UserPermissions.user_id)\
+#                             .join(Trapgroup, Trapgroup.survey_id==Survey.id)\
+#                             .join(Camera)\
+#                             .join(Video)\
+#                             .filter(Video.downloaded==True)\
+#                             .filter(User.last_ping>(datetime.utcnow()-timedelta(minutes=15)))\
+#                             .filter(~Task.status.in_(['Processing','Preparing Download']))\
+#                             .distinct().all()]
         
-        for task in tasks:
-            resetVideoDownloadStatus.delay(task_id=task,then_set=False,labels=None,include_empties=None, include_frames=True)
+#         for task in tasks:
+#             resetVideoDownloadStatus.delay(task_id=task,then_set=False,labels=None,include_empties=None, include_frames=True)
 
-    except Exception as exc:
-        app.logger.info(' ')
-        app.logger.info('!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!')
-        app.logger.info(traceback.format_exc())
-        app.logger.info('!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!')
-        app.logger.info(' ')
+#     except Exception as exc:
+#         app.logger.info(' ')
+#         app.logger.info('!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!')
+#         app.logger.info(traceback.format_exc())
+#         app.logger.info('!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!')
+#         app.logger.info(' ')
 
-    finally:
-        db.session.remove()
-        countdown = 120 - (datetime.utcnow()-startTime).total_seconds()
-        if countdown < 0: countdown=0
-        manageDownloads.apply_async(queue='priority', priority=0, countdown=countdown)
+#     finally:
+#         db.session.remove()
+#         countdown = 120 - (datetime.utcnow()-startTime).total_seconds()
+#         if countdown < 0: countdown=0
+#         manageDownloads.apply_async(queue='priority', priority=0, countdown=countdown)
         
-    return True
+#     return True

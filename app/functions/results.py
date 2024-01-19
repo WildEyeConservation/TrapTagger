@@ -16,7 +16,7 @@ limitations under the License.
 
 from app import app, db, celery
 from app.models import *
-from app.functions.globals import retryTime, list_all, chunker, batch_crops, rDets, randomString, stringify_timestamp, getChildList
+from app.functions.globals import retryTime, list_all, chunker, batch_crops, rDets, randomString, stringify_timestamp, getChildList, resetImageDownloadStatus, resetVideoDownloadStatus
 import GLOBALS
 from sqlalchemy.sql import alias, func, or_, and_, distinct
 import re
@@ -311,10 +311,12 @@ def prepareComparison(self,translations,groundTruth,task_id1,task_id2,user_id):
 
     return True
 
-def create_full_path(path,filename):
+def create_full_path(path,filename,collapseVideo,videoName):
     '''Helper function for create_task_dataframe that returns the concatonated input.'''
-    return '/'.join(path.split('/')[1:])+'/'+filename
-
+    if collapseVideo and videoName:
+        return path.split('_video_images_')[0]+videoName
+    else:
+        return '/'.join(path.split('/')[1:])+'/'+filename
 
 def drop_nones(label_set):
     '''Helper function for create_task_dataframe that removes the None label from a list of labels if necessary.'''
@@ -322,7 +324,14 @@ def drop_nones(label_set):
         label_set.remove('None')
     return label_set
 
-def create_task_dataframe(task_id,detection_count_levels,label_levels,url_levels,individual_levels,tag_levels,include,exclude,trapgroup_id,startDate,endDate):
+def generate_url(rootUrl,level_name,video_name,collapseVideo,x_level,x_cluster):
+    ''' Helper function for create_task_dataframe that collapses the urls generated for videos based on the collapseVideo argument.'''
+    if collapseVideo and (video_name != 'None') and (level_name in ['image','capture']):
+        return rootUrl + 'cluster&id=' + str(x_cluster)
+    else:
+        return rootUrl + level_name + '&id=' + str(x_level)
+
+def create_task_dataframe(task_id,detection_count_levels,label_levels,url_levels,individual_levels,tag_levels,include,exclude,trapgroup_id,startDate,endDate,collapseVideo):
     '''
     Returns an all-encompassing dataframe for a task, subject to the parameter selections.
 
@@ -338,6 +347,7 @@ def create_task_dataframe(task_id,detection_count_levels,label_levels,url_levels
             trapgroup_id (int): The trapgroup id to filter on
             startDate (datetime): The start date to filter on
             endDate (datetime): The end date to filter on
+            collapseVideo (bool): Collapses video frames into a single entry if True
 
         Returns:
             df (pd.dataframe): task dataframe
@@ -362,6 +372,7 @@ def create_task_dataframe(task_id,detection_count_levels,label_levels,url_levels
                 Tag.description.label('tag'), \
                 Camera.id.label('camera'), \
                 Camera.path.label('file_path'), \
+                Video.filename.label('video_name'), \
                 Trapgroup.id.label('trapgroup_id'), \
                 Trapgroup.tag.label('trapgroup'), \
                 Trapgroup.latitude.label('latitude'), \
@@ -376,6 +387,7 @@ def create_task_dataframe(task_id,detection_count_levels,label_levels,url_levels
                 .join(Label,Labelgroup.labels,isouter=True) \
                 .join(Tag,Labelgroup.tags,isouter=True) \
                 .join(Camera,Image.camera_id==Camera.id) \
+                .join(Video,Camera.videos,isouter=True) \
                 .join(Trapgroup,Camera.trapgroup_id==Trapgroup.id) \
                 .join(Survey,Trapgroup.survey_id==Survey.id) \
                 .filter(Cluster.task_id==task_id) \
@@ -448,6 +460,7 @@ def create_task_dataframe(task_id,detection_count_levels,label_levels,url_levels
                         Cluster.id.label('cluster'), \
                         Camera.id.label('camera'), \
                         Camera.path.label('file_path'), \
+                        Video.filename.label('video_name'), \
                         Trapgroup.id.label('trapgroup_id'), \
                         Trapgroup.tag.label('trapgroup'), \
                         Trapgroup.latitude.label('latitude'), \
@@ -459,6 +472,7 @@ def create_task_dataframe(task_id,detection_count_levels,label_levels,url_levels
                         .join(Image,Cluster.images) \
                         .join(Detection,Detection.image_id==Image.id) \
                         .join(Camera,Image.camera_id==Camera.id) \
+                        .join(Video,Camera.videos,isouter=True) \
                         .join(Trapgroup,Camera.trapgroup_id==Trapgroup.id) \
                         .join(Survey,Trapgroup.survey_id==Survey.id) \
                         .outerjoin(sq,sq.c.id==Image.id)\
@@ -503,7 +517,7 @@ def create_task_dataframe(task_id,detection_count_levels,label_levels,url_levels
         return df
 
     #Combine file paths
-    df['image'] = df.apply(lambda x: create_full_path(x.file_path, x.image_name), axis=1)
+    df['image'] = df.apply(lambda x: create_full_path(x.file_path, x.image_name, collapseVideo, x.video_name), axis=1)
 
     #Remove nulls
     df.fillna('None', inplace=True)
@@ -585,8 +599,7 @@ def create_task_dataframe(task_id,detection_count_levels,label_levels,url_levels
             level = 'trapgroup_id'
         elif level=='survey':
             level = 'survey_id'
-        levelRootUrl = rootUrl + level_name + '&id='
-        df[level_name+'_url'] = df.apply(lambda x: levelRootUrl+str(x[level]), axis=1)
+        df[level_name+'_url'] = df.apply(lambda x: generate_url(rootUrl,level_name,x['video_name'],collapseVideo,x[level],x['cluster']), axis=1)
 
     # Rename image_id column as id for access to unique IDs
     df.rename(columns={'image_id':'id'},inplace=True)
@@ -602,11 +615,11 @@ def create_task_dataframe(task_id,detection_count_levels,label_levels,url_levels
     if individual_levels: del df['individual']
 
     #Add image counts
-    df['capture_image_count'] = df.groupby('unique_capture')['unique_capture'].transform('count')
-    df['cluster_image_count'] = df.groupby('cluster')['cluster'].transform('count')
-    df['camera_image_count'] = df.groupby('camera')['camera'].transform('count')
-    df['trapgroup_image_count'] = df.groupby('trapgroup')['trapgroup'].transform('count')
-    df['survey_image_count'] = df.groupby('survey')['survey'].transform('count')
+    df['capture_image_count'] = df.groupby('unique_capture')['id'].transform('nunique')
+    df['cluster_image_count'] = df.groupby('cluster')['id'].transform('nunique')
+    df['camera_image_count'] = df.groupby('camera')['id'].transform('nunique')
+    df['trapgroup_image_count'] = df.groupby('trapgroup')['id'].transform('nunique')
+    df['survey_image_count'] = df.groupby('survey')['id'].transform('nunique')
 
     # df.sort_values(by=['survey', 'trapgroup', 'camera', 'timestamp'], inplace=True, ascending=True)
 
@@ -680,7 +693,7 @@ def combine_list(list):
     return reply
 
 @celery.task(bind=True,max_retries=1,ignore_result=True)
-def generate_csv(self,selectedTasks, selectedLevel, requestedColumns, custom_columns, label_type, includes, excludes, startDate, endDate, column_translations, user_name):
+def generate_csv(self,selectedTasks, selectedLevel, requestedColumns, custom_columns, label_type, includes, excludes, startDate, endDate, column_translations, collapseVideo, user_name):
     '''
     Celery task for generating a csv file. Locally saves a csv file for the requested tasks, with the requested column and row information.
 
@@ -694,6 +707,8 @@ def generate_csv(self,selectedTasks, selectedLevel, requestedColumns, custom_col
             excludes (list): List of label names that should excluded
             startDate (dateTime): The start date for the data to be included in the csv
             endDate (dateTime): The end date for the data to be included in the csv
+            collapseVideo (bool): Collapses video frames into a single entry if True
+            user_name (str): The name of the user that has requested the csv
     '''
     
     try:
@@ -978,14 +993,14 @@ def generate_csv(self,selectedTasks, selectedLevel, requestedColumns, custom_col
 
             # Trapgroup-by-trapgroup is inefficient - only do it when necessary (there are RAM issues with large surveys)
             # trapgroups = [None]
-            if task.survey.image_count<375000:
+            if task.survey.image_count<300000:
                 trapgroups = [None]
             else:
                 trapgroups = [tg.id for tg in task.survey.trapgroups]
             
             for trapgroup_id in trapgroups:
                 requestedColumns = originalRequestedColumns.copy()
-                outputDF = create_task_dataframe(task_id,detection_count_levels,label_levels,url_levels,individual_levels,tag_levels,include,exclude,trapgroup_id,startDate,endDate)
+                outputDF = create_task_dataframe(task_id,detection_count_levels,label_levels,url_levels,individual_levels,tag_levels,include,exclude,trapgroup_id,startDate,endDate,collapseVideo)
 
                 # if outputDF is not None:
                 #     outputDF = pd.concat([outputDF, df], ignore_index=True)
@@ -2322,223 +2337,6 @@ def generate_coco(self,task_id,user_name):
 
         # Schedule deletion
         deleteFile.apply_async(kwargs={'fileName': fileName}, countdown=3600)
-
-    except Exception as exc:
-        app.logger.info(' ')
-        app.logger.info('!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!')
-        app.logger.info(traceback.format_exc())
-        app.logger.info('!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!')
-        app.logger.info(' ')
-        self.retry(exc=exc, countdown= retryTime(self.request.retries))
-
-    finally:
-        db.session.remove()
-
-    return True
-
-@celery.task(bind=True,max_retries=5,ignore_result=True)
-def setImageDownloadStatus(self,task_id,labels,include_empties, include_video, include_frames):
-    try:
-        task = db.session.query(Task).get(task_id)
-        task.status='Preparing Download'
-        db.session.commit()
-
-        if ('0' in labels) or (labels==[]):
-            labels = [r.id for r in task.labels]
-            labels.append(GLOBALS.vhl_id)
-            labels.append(GLOBALS.knocked_id)
-            labels.append(GLOBALS.unknown_id)
-        labels = [int(r) for r in labels]
-
-        if include_frames:
-            wantedImages = db.session.query(Image)\
-                            .join(Detection)\
-                            .join(Labelgroup)\
-                            .outerjoin(Label,Labelgroup.labels)\
-                            .filter(Labelgroup.task_id==task_id)    
-        else:
-            wantedImages = db.session.query(Image)\
-                            .join(Camera)\
-                            .outerjoin(Video)\
-                            .join(Detection)\
-                            .join(Labelgroup)\
-                            .outerjoin(Label,Labelgroup.labels)\
-                            .filter(Labelgroup.task_id==task_id)\
-                            .filter(Video.id==None)
-                            
-
-        if include_video:
-            wantedVideos = db.session.query(Video)\
-                            .join(Camera)\
-                            .join(Image)\
-                            .join(Detection)\
-                            .join(Labelgroup)\
-                            .outerjoin(Label,Labelgroup.labels)\
-                            .filter(Labelgroup.task_id==task_id)               
-        
-        if include_empties:
-            if GLOBALS.nothing_id not in labels: labels.append(GLOBALS.nothing_id)
-
-            # Include non-desired labelled images without detections
-            rDetImages = rDets(db.session.query(Image.id.label('image_id'))\
-                            .join(Detection)\
-                            .join(Camera)\
-                            .join(Trapgroup)\
-                            .filter(Trapgroup.survey==task.survey))\
-                            .subquery()
-            
-            wantedImages = wantedImages.outerjoin(rDetImages,rDetImages.c.image_id==Image.id)\
-                            .filter(or_(\
-                                Label.id.in_(labels),\
-                                ~Labelgroup.labels.any(),\
-                                rDetImages.c.image_id==None
-                            ))
-
-            if include_video:
-                wantedVideos = wantedVideos.outerjoin(rDetImages,rDetImages.c.image_id==Image.id)\
-                            .filter(or_(\
-                                Label.id.in_(labels),\
-                                ~Labelgroup.labels.any(),\
-                                rDetImages.c.image_id==None
-                            ))
-        else:
-            wantedImages = rDets(wantedImages.filter(Label.id.in_(labels)))
-            if include_video:
-                wantedVideos = rDets(wantedVideos.filter(Label.id.in_(labels)))
-
-        wantedImages = wantedImages.distinct().all()
-
-        allImages = db.session.query(Image)\
-                            .join(Camera)\
-                            .join(Trapgroup)\
-                            .filter(Trapgroup.survey==task.survey)\
-                            .distinct().all()
-
-        if include_video:
-            wantedVideos = wantedVideos.distinct().all()
-
-            allVideos = db.session.query(Video)\
-                            .join(Camera)\
-                            .join(Image)\
-                            .join(Trapgroup)\
-                            .filter(Trapgroup.survey==task.survey)\
-                            .distinct().all()
-        else:
-            wantedVideos = []
-            allVideos = []
-
-        # Get total count
-        filesToDownload = len(wantedImages) + len(wantedVideos)	
-        if Config.DEBUGGING: app.logger.info('Files to download: '+str(filesToDownload))
-
-        GLOBALS.redisClient.set(str(task.id)+'_filesToDownload',filesToDownload)
-
-        unwantedImages = list(set(allImages) - set(wantedImages))
-
-        # for chunk in chunker(unwantedImages,10000):
-        for image in unwantedImages:
-            image.downloaded = True
-        db.session.commit()
-
-        unwantedVideos = list(set(allVideos) - set(wantedVideos))
-
-        for chunk in chunker(unwantedVideos,10000):
-            for video in chunk:
-                video.downloaded = True
-            db.session.commit()
-
-        task.status = 'Ready'
-        db.session.commit()
-
-        test=db.session.query(Image).join(Camera).join(Trapgroup).filter(Trapgroup.survey==task.survey).filter(Image.downloaded==False).distinct().count()
-        testVideo=db.session.query(Video).join(Camera).join(Image).join(Trapgroup).filter(Trapgroup.survey==task.survey).filter(Video.downloaded==False).distinct().count()
-        if test==0:
-            resetImageDownloadStatus(task_id,False,None,None,True)
-
-        if testVideo==0:
-            resetVideoDownloadStatus(task_id,False,None,None,True)
-
-    except Exception as exc:
-        app.logger.info(' ')
-        app.logger.info('!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!')
-        app.logger.info(traceback.format_exc())
-        app.logger.info('!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!')
-        app.logger.info(' ')
-        self.retry(exc=exc, countdown= retryTime(self.request.retries))
-
-    finally:
-        db.session.remove()
-
-    return True
-
-@celery.task(bind=True,max_retries=5,ignore_result=True)
-def resetImageDownloadStatus(self,task_id,then_set,labels,include_empties, include_frames):
-    
-    try:
-        task = db.session.query(Task).get(task_id)
-        if task.status=='Preparing Download': return True
-        task.status = 'Processing'
-        db.session.commit()
-
-        images = db.session.query(Image)\
-                        .join(Camera)\
-                        .join(Trapgroup)\
-                        .filter(Trapgroup.survey==task.survey)\
-                        .filter(Image.downloaded!=False)\
-                        .all()
-
-        # for chunk in chunker(images,10000):
-        for image in images:
-            image.downloaded = False
-        db.session.commit()
-
-        if then_set:
-            setImageDownloadStatus.delay(task_id=task_id,labels=labels,include_empties=include_empties, include_video=False, include_frames=include_frames)
-        else:
-            GLOBALS.redisClient.delete(str(task.id)+'_filesToDownload')
-            task.status = 'Ready'
-            db.session.commit()
-
-    except Exception as exc:
-        app.logger.info(' ')
-        app.logger.info('!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!')
-        app.logger.info(traceback.format_exc())
-        app.logger.info('!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!')
-        app.logger.info(' ')
-        self.retry(exc=exc, countdown= retryTime(self.request.retries))
-
-    finally:
-        db.session.remove()
-
-    return True
-
-
-@celery.task(bind=True,max_retries=5,ignore_result=True)
-def resetVideoDownloadStatus(self,task_id,then_set,labels,include_empties, include_frames):
-    
-    try:
-        task = db.session.query(Task).get(task_id)
-        if task.status=='Preparing Download': return True
-        task.status = 'Processing'
-        db.session.commit()
-
-        videos = db.session.query(Video)\
-                        .join(Camera)\
-                        .join(Trapgroup)\
-                        .filter(Trapgroup.survey==task.survey)\
-                        .filter(Video.downloaded!=False)\
-                        .all()
-        
-        for video in videos:
-            video.downloaded = False
-        db.session.commit()
-
-        if then_set:
-            setImageDownloadStatus.delay(task_id=task_id,labels=labels,include_empties=include_empties, include_video=True, include_frames=include_frames)
-        else:
-            GLOBALS.redisClient.delete(str(task.id)+'_filesToDownload')
-            task.status = 'Ready'
-            db.session.commit()
 
     except Exception as exc:
         app.logger.info(' ')

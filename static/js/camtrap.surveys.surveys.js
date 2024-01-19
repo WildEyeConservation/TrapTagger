@@ -439,12 +439,12 @@ function buildSurveys(survey,disableSurvey) {
     surveyListDiv.appendChild(newSurveyDiv) 
 
     if (survey.status.toLowerCase()=='uploading') {
-        uploadID = survey.id
-        surveyName = survey.name
+        // uploadID = survey.id
+        // surveyName = survey.name
         addImagesBtn = null
         addTaskBtn = null
         
-        if (uploading) {
+        if (survey.id==uploadID) {
             uploadWorker.postMessage({'func': 'buildUploadProgress', 'args': null});
             disableSurvey = true
         } else {
@@ -462,8 +462,11 @@ function buildSurveys(survey,disableSurvey) {
     
             btnResume = document.createElement('button')
             btnResume.setAttribute("class","btn btn-primary btn-sm")
-            btnResume.setAttribute('onclick','selectFiles(true)')
+            btnResume.setAttribute('onclick','checkUploadAvailable('+survey.id+',"'+survey.name+'")')
             btnResume.innerHTML = 'Resume Upload'
+            if (uploadID) {
+                btnResume.disabled = true
+            }
             col2.appendChild(btnResume)
         }
     } else {
@@ -536,11 +539,16 @@ function buildSurveys(survey,disableSurvey) {
             if (addTaskBtn) {
                 addImagesBtn.disabled = true
                 addTaskBtn.disabled = true
-                deleteSurveyBtn.disabled = true
             }
+            deleteSurveyBtn.disabled = true
 
             if (survey.status.toLowerCase()=='uploading' && !uploading) {
-                btnResume.disabled = true
+                if (survey.create) {
+                    btnResume.disabled = false
+                }
+                else {
+                    btnResume.disabled = true
+                }
             }
         }
         else if (survey.access == 'write' || survey.access == 'admin'){
@@ -550,7 +558,12 @@ function buildSurveys(survey,disableSurvey) {
             }
 
             if  (survey.status.toLowerCase()=='uploading' && !uploading) {
-                btnResume.disabled = false
+                if (survey.create) {
+                    btnResume.disabled = false
+                }
+                else {
+                    btnResume.disabled = true
+                }
             }
 
             if (survey.delete){
@@ -564,14 +577,18 @@ function buildSurveys(survey,disableSurvey) {
             if (addTaskBtn) {
                 addImagesBtn.disabled = true
                 addTaskBtn.disabled = true
-                deleteSurveyBtn.disabled = true
             }
+            deleteSurveyBtn.disabled = true
 
             if (survey.status.toLowerCase()=='uploading' && !uploading) {
-                btnResume.disabled = true
+                if (survey.create) {
+                    btnResume.disabled = false
+                }
+                else {
+                    btnResume.disabled = true
+                }
             }
         }
-
     }
 }
 
@@ -600,11 +617,11 @@ function updatePage(url){
         if (this.readyState == 4 && this.status == 200) {
             reply = JSON.parse(this.responseText);
             // console.log(reply)
-            if (reply.surveys[0] && reply.surveys[0].status.toLowerCase()=='uploading') {
-                document.getElementById('btnNewSurvey').disabled = true
-            } else {
-                document.getElementById('btnNewSurvey').disabled = false
-            }
+            // if (reply.surveys[0] && reply.surveys[0].status.toLowerCase()=='uploading') {
+            //     document.getElementById('btnNewSurvey').disabled = true
+            // } else {
+            //     document.getElementById('btnNewSurvey').disabled = false
+            // }
 
             surveyListDiv = document.getElementById('surveyListDiv'); 
             while(surveyListDiv.firstChild){
@@ -628,7 +645,7 @@ function updatePage(url){
                         taskProcessing = true
                     }
                 }
-                if (disabledSurveyStatuses.includes(reply.surveys[i].status.toLowerCase())||(currentDownloads.includes(reply.surveys[i].name))) {
+                if (disabledSurveyStatuses.includes(reply.surveys[i].status.toLowerCase())||(currentDownloads.includes(reply.surveys[i].id))) {
                     disableSurvey = true
                     taskProcessing = true
                 }
@@ -713,7 +730,13 @@ function removeSurveyDeleteListeners() {
 
 btnNewSurvey.addEventListener('click', ()=>{
     /** Event listener that opens the new survey modal. */
-    modalNewSurvey.modal({keyboard: true});
+    if (uploading) {
+        document.getElementById('modalAlertHeader').innerHTML = "Alert"
+        document.getElementById('modalAlertBody').innerHTML = "If you wish to add an additional survey, please wait for the current upload to complete, or open a new tab."
+        modalAlert.modal({keyboard: true});
+    } else {
+        modalNewSurvey.modal({keyboard: true});
+    }
 });
 
 function updateSurveys(surveyElement) {
@@ -771,11 +794,18 @@ function resetNewSurveyPage() {
     document.getElementById('S3BucketUpload').checked = false
     document.getElementById('BrowserUpload').checked = true
     document.getElementById('newSurveyCheckbox').checked = false
+    document.getElementById('detailedAccessSurveyCb').checked = false
+    document.getElementById('detailedAccessSurveyDiv').hidden = true
 
     // document.getElementById('kmlFileUploadText').value = ''
     // document.getElementById('kmlFileUpload').value = ''
 
     document.getElementById('newSurveyTGInfo').innerHTML = ''
+
+    clearSelect(document.getElementById('newSurveyOrg'))
+    document.getElementById('newSurveyPermission').value = 'default'
+    document.getElementById('newSurveyAnnotation').value = 'default'
+    
 
     speciesClassifierDiv = document.querySelector('#speciesClassifierDiv')
     while(speciesClassifierDiv.firstChild){
@@ -790,6 +820,11 @@ function resetNewSurveyPage() {
     newSurveyTgBuilder = document.querySelector('#newSurveyTgBuilder')
     while(newSurveyTgBuilder.firstChild){
         newSurveyTgBuilder.removeChild(newSurveyTgBuilder.firstChild);
+    }
+
+    surveyPermissionsDiv = document.querySelector('#surveyPermissionsDiv')
+    while(surveyPermissionsDiv.firstChild){
+        surveyPermissionsDiv.removeChild(surveyPermissionsDiv.firstChild);
     }
 }
 
@@ -943,8 +978,26 @@ function pingTgCheck() {
                 tgCheckCode = null
                 checkingTGC = false
                 checkingTrapgroupCode = false
-                
-            } else {
+
+            }
+            else if (tgCode.endsWith('.*') || tgCode.endsWith('.+') || tgCode.endsWith('.*[0-9]+') || tgCode.endsWith('.+[0-9]+' )) {
+                error_message = 'Your site identifier is invalid. Please try again or contact us for assistance.'
+
+                infoDiv.innerHTML = error_message
+
+                var formData = new FormData()
+                formData.append("revoke_id", tgCheckID)
+                var xhttp = new XMLHttpRequest();
+                xhttp.open("POST", '/checkTrapgroupCode');
+                xhttp.send(formData);
+
+                tgCheckFolder = null
+                tgCheckCode = null
+                checkingTGC = false
+                checkingTrapgroupCode = false
+
+            }
+            else {
 
                 if (document.getElementById('addImagesTGCode')!=null) {
                     if ((!document.getElementById('addImagesCheckbox').checked)&&(tgCode!='')) {
@@ -1058,21 +1111,26 @@ function checkTrapgroupCode() {
     if (browserChecked) {
         pathDisplay = document.getElementById('pathDisplay')
         if ((tgCode!='')&&(pathDisplay.options.length>0)) {
-            infoDiv.innerHTML = 'Checking...'
-            pattern = new RegExp(tgCode)
-    
-            tgs = []
-            for (let i=2;i<pathDisplay.options.length;i++) {
-                matches = pathDisplay.options[i].text.match(pattern)
-                if (matches!=null) {
-                    tg = matches[0]
-                    if (!tgs.includes(tg)) {
-                        tgs.push(tg)
+            if (tgCode.endsWith('.*') || tgCode.endsWith('.+') || tgCode.endsWith('.*[0-9]+') || tgCode.endsWith('.+[0-9]+' )) {
+                error_message = 'Your site identifier is invalid. Please try again or contact us for assistance.'
+                infoDiv.innerHTML = error_message
+            } else {
+                infoDiv.innerHTML = 'Checking...'
+                pattern = new RegExp(tgCode)
+                
+                tgs = []
+                for (let i=2;i<pathDisplay.options.length;i++) {
+                    matches = pathDisplay.options[i].text.match(pattern)
+                    if (matches!=null) {
+                        tg = matches[0]
+                        if (!tgs.includes(tg)) {
+                            tgs.push(tg)
+                        }
                     }
                 }
-            }
 
-            infoDiv.innerHTML = tgs.length.toString() + ' sites found: ' + tgs.join(', ')
+                infoDiv.innerHTML = tgs.length.toString() + ' sites found: ' + tgs.join(', ')
+            }
         }
     } else if (folderChecked) {
         S3FolderInput = document.getElementById('S3FolderInput')
@@ -1176,7 +1234,18 @@ function updateTgCode() {
         document.getElementById('newSurveyTGCode').value = tgCode
     }
 
-    checkTrapgroupCode()
+    if (tgCode.endsWith('.*') || tgCode.endsWith('.+') || tgCode.endsWith('.*[0-9]+') || tgCode.endsWith('.+[0-9]+' )) {
+        error_message = 'Your site identifier is invalid. Please try again or contact us for assistance.'
+        if (document.getElementById('addImagesTGCode')!=null) {
+            document.getElementById('addImagesErrors').innerHTML = error_message
+        }
+        else {
+            document.getElementById('newSurveyErrors').innerHTML = error_message
+        }
+    } else {
+        checkTrapgroupCode()
+    }
+    
 }
 
 function buildTgBuilderRow() {
@@ -1532,8 +1601,6 @@ function buildAddIms() {
     div.setAttribute('id','addImagesFormDiv')
     addImagesAddImsDiv.appendChild(div)
 
-    buildBrowserUpload('addImagesFormDiv')
-
     $("#S3BucketAdd").change( function() {
         S3BucketAdd = document.getElementById('S3BucketAdd')
         if (S3BucketAdd.checked) {
@@ -1630,6 +1697,8 @@ function buildAddIms() {
             }    
         }
     })
+
+    buildBrowserUpload('addImagesFormDiv')
 }
 
 function buildCameras(camera_url='/getCameraStamps') {
@@ -2959,7 +3028,7 @@ document.getElementById('btnSaveSurvey').addEventListener('click', ()=>{
 
     if (newSurveyAnnotation == ''){
         legalPermission = false
-        document.getElementById('newSurveyErrors').innerHTML = 'Please select a job access level.'
+        document.getElementById('newSurveyErrors').innerHTML = 'Please select an annotation access level.'
     }
 
     var detailed_access = []
@@ -2967,7 +3036,7 @@ document.getElementById('btnSaveSurvey').addEventListener('click', ()=>{
         // Get all selectors 
         var surveyUserPermissions =  document.querySelectorAll('[id^=surveyUserPermission-]')
         if (surveyUserPermissions.length==0) {
-            document.getElementById('newSurveyErrors').innerHTML = 'You must select at least one user to give detailed access to.'
+            document.getElementById('newSurveyErrors').innerHTML = 'You must select at least one user to set permission exceptions for.'
             legalPermission = false
         } else {
             var dup_users = []
@@ -2979,7 +3048,7 @@ document.getElementById('btnSaveSurvey').addEventListener('click', ()=>{
                     var user_permission = default_access[document.getElementById('detailedAccessSurvey-'+id_num).value].toLowerCase()
                     var annotation = document.getElementById('detailedJobAccessSurvey-'+id_num).checked
                     detailed_access.push({
-                        'user_id': user_id,
+                        'user_id': parseInt(user_id),
                         'permission': user_permission,
                         'annotation': annotation ? '1' : '0'
                     })
@@ -2997,6 +3066,13 @@ document.getElementById('btnSaveSurvey').addEventListener('click', ()=>{
     if (newSurveyTGCode == '') {
         legalTGCode = false
         document.getElementById('newSurveyErrors').innerHTML = 'The site identifier field cannot be empty.'
+    }
+    else{
+        if (newSurveyTGCode.endsWith('.*') || newSurveyTGCode.endsWith('.+') || newSurveyTGCode.endsWith('.*[0-9]+') || newSurveyTGCode.endsWith('.+[0-9]+' )) {
+            legalTGCode = false
+            error_message = 'Your site identifier is invalid. Please try again or send an email for assistance.'
+            document.getElementById('newSurveyErrors').innerHTML = error_message 
+        }   
     }
     
     legalInput = false
@@ -3092,6 +3168,9 @@ function submitNewSurvey(formData) {
             if (reply.status=='success') {
 
                 if (document.getElementById('BrowserUpload').checked == true) {
+                    uploadID = reply.newSurvey_id
+                    surveyName = reply.surveyName
+
                     uploading = true
                     updatePage(current_page)
                     // uploading = true
@@ -3190,6 +3269,11 @@ document.getElementById('btnAddImages').addEventListener('click', ()=>{
             legalTGCode = false
             document.getElementById('addImagesErrors').innerHTML = 'The site identifier cannot contain slashes.'
         }
+        else if (addImagesTGCode.endsWith('.*') || addImagesTGCode.endsWith('.+') || addImagesTGCode.endsWith('.*[0-9]+') || addImagesTGCode.endsWith('.+[0-9]+' )) {
+            legalTGCode = false
+            error_message = 'Your site identifier is invalid. Please try again or contact us for assistance.'
+            document.getElementById('addImagesErrors').innerHTML = error_message 
+        }   
         
         legalInput = false
         if (document.getElementById('S3BucketAdd').checked == true) {
@@ -3723,7 +3807,7 @@ function buildSurveyPermissionRow(){
     col_3.innerText = default_access[3];
     row.appendChild(col_3)
 
-    // Job Access
+    // Annotation Access
     var toggleDiv = document.createElement('div');
     toggleDiv.classList.add('text-center');
     toggleDiv.style.verticalAlign = 'middle';

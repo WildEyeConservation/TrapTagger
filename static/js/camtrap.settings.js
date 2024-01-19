@@ -16,7 +16,9 @@ var globalLabels = []
 var globalOrganisations = []
 var globalERIntegrations = []
 var tabActive = 'baseAccountTab'
+var isRoot = false
 
+const modalConfirmChange = $('#modalConfirmChange')
 
 function getLabels(){
     /** Function for getting the labels from the database. */
@@ -269,7 +271,12 @@ function saveSettings(){
     /** Function for saving settings to the database. */
 
     if (tabActive == 'baseAccountTab'){
-        saveAccountInfo()
+        if (isRoot){
+            modalConfirmChange.modal({keyboard: true});
+        }
+        else {
+            saveAccountInfo()
+        }
     }
     else if (tabActive == 'baseIntegrationsTab'){
         saveIntegrations()
@@ -295,7 +302,7 @@ function saveIntegrations(){
         function(){
             if (this.readyState == 4 && this.status == 200) {
                 reply = JSON.parse(this.responseText);
-                console.log(reply)
+                // console.log(reply)
                 document.getElementById('settingsErrors').innerHTML = reply.message
 
                 if (reply.status == 'SUCCESS'){
@@ -457,7 +464,7 @@ function loadIntegrations(){
     function(){
         if (this.readyState == 4 && this.status == 200) {
             reply = JSON.parse(this.responseText);
-            console.log(reply)
+            // console.log(reply)
             var integrations = reply.integrations
             for (let i = 0; i < integrations.length; i++){
                 buildIntegrationSelect()
@@ -515,7 +522,7 @@ function getAccountInfo(){
     function(){
         if (this.readyState == 4 && this.status == 200) {
             reply = JSON.parse(this.responseText);
-            console.log(reply)
+            // console.log(reply)
             document.getElementById('username').value = reply.username
             document.getElementById('email').value = reply.email
 
@@ -532,6 +539,13 @@ function getAccountInfo(){
             }
             else{
                 document.getElementById('settingsPageTabs').hidden = true
+            }
+
+            if (reply.root){
+                isRoot = true
+            }
+            else{
+                isRoot = false
             }
         }
     }
@@ -614,7 +628,7 @@ function saveAccountInfo(){
         function(){
             if (this.readyState == 4 && this.status == 200) {
                 reply = JSON.parse(this.responseText);
-                console.log(reply)
+                // console.log(reply)
                 accountErrors.innerHTML = reply.message
                 if (reply.status == 'SUCCESS'){
                     getAccountInfo()
@@ -625,6 +639,12 @@ function saveAccountInfo(){
         xhttp.send(formData);
     }
 }
+
+$('#btnConfirmChange').on('click', function() {
+    /** Event listener for the confirm change button. */
+    modalConfirmChange.modal('hide');
+    saveAccountInfo()
+});
 
 function onload(){
     /**Function for initialising the page on load.*/

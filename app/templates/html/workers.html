@@ -25,17 +25,21 @@ limitations under the License. -->
             <div class='col-lg-4'>
                 <h3>Your Annotation Statistics</h3>
             </div>
-            <div class='col-lg-4'>
+
+            {% if current_user.admin == true %}
+              <div class='col-lg-4'>
                 <input type="text" class="form-control" placeholder="Search" id="workerSearch"></input>
-            </div>
-            <div class='col-lg-2'></div>
-            <div class='col-lg-2'>
-                <select name='orderSelect' id='orderSelect' class='form-control'>
-                    <option value="1">Alphabetical</option>
-                    <option value="2">Reverse Alphabetical</option>
-                    <option value="3">Join Date</option>
-                </select>
-            </div>
+              </div>
+              <div class='col-lg-2'></div>
+              <div class='col-lg-2'>
+                  <select name='orderSelect' id='orderSelect' class='form-control'>
+                      <option value="1">Alphabetical</option>
+                      <option value="2">Reverse Alphabetical</option>
+                      <option value="3">Join Date</option>
+                  </select>
+              </div>
+            {% endif %}
+
           </div>
         </div>
 

@@ -36,6 +36,13 @@ uploadWorker.onmessage = function(evt){
     } else if (evt.data.func=='uploadStart') {
         uploading = true
         uploadStart = Date.now()
+    } else if (evt.data.func=='reloadPage') {
+        surveyName = null
+        uploadID = null
+        uploadStart = null
+        retrying = false
+        uploading= false
+        updatePage(generate_url())
     }
 };
 
@@ -151,8 +158,12 @@ function updatePathDisplay(folders,filecount) {
     }
 }
 
-async function selectFiles(resuming=false) {
+async function selectFiles(resuming=false,survey_id=null,survey_name=null) {
     /** Allows a user to select a folder, and then passes the handle to the web work to process */
+    if (resuming) {
+        uploadID = survey_id
+        surveyName = survey_name
+    }
     resetUploadStatusVariables()
     dirHandle = await window.showDirectoryPicker();
     uploadWorker.postMessage({'func': 'selectFiles', 'args': [dirHandle,resuming,surveyName,uploadID]});
@@ -234,7 +245,8 @@ function pauseUpload() {
     uppy.cancelAll()
     resetUploadStatusVariables()
     uploadWorker.postMessage({'func': 'resetUploadStatusVariables', 'args': null});
-    updatePage(current_page)
+    // updatePage(current_page)
+    location.reload()
 }
 
 function getTimeRemaining(value,total) {
@@ -262,5 +274,40 @@ function updateUploadProgress(value,total) {
         document.getElementById('uploadTimeRemDiv').innerHTML = 'Time Remaining: ' + getTimeRemaining(value,total)
     } else if (uploading) {
         uploadWorker.postMessage({'func': 'buildUploadProgress', 'args': null});
+    }
+}
+
+async function checkUploadAvailable(survey_id,survey_name) {
+    if (uploadID && (uploadID != survey_id)) {
+        document.getElementById('modalAlertHeader').innerHTML = 'Alert'
+        document.getElementById('modalAlertBody').innerHTML = 'You already have an upload running in this tab. If you wish to upload to a second survey simultaneously, please do so in another tab.'
+        modalAlert.modal({keyboard: true});
+    } else {
+        var response = await fetch('/fileHandler/check_upload_available', {
+            method: 'post',
+            headers: {
+                accept: 'application/json',
+                'content-type': 'application/json',
+            },
+            body: JSON.stringify({
+                survey_id: survey_id
+            }),
+        }).then((response) => {
+            if (!response.ok) {
+                throw new Error(response.statusText)
+            } else {
+                return response.json()
+            }
+        }).catch( (error) => {
+            // pass
+        })
+    
+        if (response=='available') {
+            selectFiles(true,survey_id,survey_name)
+        } else {
+            document.getElementById('modalAlertHeader').innerHTML = 'Alert'
+            document.getElementById('modalAlertBody').innerHTML = 'This survey is currently being uploaded to by another user. Please try again later.'
+            modalAlert.modal({keyboard: true});
+        }
     }
 }

@@ -478,10 +478,14 @@ def delete_survey(self,survey_id):
         #Delete trapgroups
         if status != 'error':
             try:
-                db.session.query(Trapgroup).filter(Trapgroup.survey_id==survey_id).delete(synchronize_session=False)
+                # db.session.query(Trapgroup).filter(Trapgroup.survey_id==survey_id).delete(synchronize_session=False)
                 # for chunk in chunker(trapgroups,1000):
                 #     for trapgroup in chunk:
                 #         db.session.delete(trapgroup)
+                trapgroups = db.session.query(Trapgroup).filter(Trapgroup.survey_id==survey_id).all()
+                for trapgroup in trapgroups:
+                    trapgroup.sitegroups = []
+                    db.session.delete(trapgroup)
                 db.session.commit()
                 app.logger.info('Trapgroups deleted successfully.')
             except:
@@ -489,7 +493,19 @@ def delete_survey(self,survey_id):
                 message = 'Could not delete trap groups.'
                 app.logger.info('Failed to delete Trapgroups')
 
-        #TODO: DOuble check this
+        #Delete empty sitegroups
+        if status != 'error':
+            try:
+                sitegroups = db.session.query(Sitegroup).filter(~Sitegroup.trapgroups.any()).all()
+                for sitegroup in sitegroups:
+                        db.session.delete(sitegroup)
+                db.session.commit()
+                app.logger.info('Sitegroups deleted successfully.')
+            except:
+                status = 'error'
+                message = 'Could not delete sitegroups.'
+                app.logger.info('Failed to delete sitegroups.')
+
         #Delete survey shares
         if status != 'error':
             try:
@@ -1847,7 +1863,7 @@ def get_AWS_costs(startDate,endDate):
 @celery.task(bind=True,max_retries=5,ignore_result=True)
 def updateStatistics(self):
     '''Updates the site statistics in the database for dashboard reference purposes.'''
-    # TODO: DASHBOARD FUNCTIONS STILL NEED TO BE UPDATED
+
     try:
         check = db.session.query(Statistic)\
                         .filter(extract('year',Statistic.timestamp)==datetime.utcnow().year)\
@@ -1862,26 +1878,38 @@ def updateStatistics(self):
             # Daily stats
             statistic.unique_daily_logins = db.session.query(User)\
                                                 .filter(User.last_ping>(datetime.utcnow().replace(hour=0,minute=0,second=0,microsecond=0)-timedelta(days=1)))\
+                                                .filter(~User.username.in_(Config.ADMIN_USERS))\
                                                 .filter(User.email!=None).count()
+
             statistic.unique_daily_admin_logins = db.session.query(User)\
                                                 .filter(User.last_ping>(datetime.utcnow().replace(hour=0,minute=0,second=0,microsecond=0)-timedelta(days=1)))\
+                                                .filter(~User.username.in_(Config.ADMIN_USERS))\
+                                                .filter(User.admin==True).count()
+            
+            statistic.unique_daily_organisation_logins = db.session.query(Organisation)\
+                                                .join(UserPermissions)\
+                                                .join(User,UserPermissions.user_id==User.id)\
+                                                .filter(User.last_ping>(datetime.utcnow().replace(hour=0,minute=0,second=0,microsecond=0)-timedelta(days=1)))\
+                                                .filter(~Organisation.name.in_(Config.ADMIN_USERS))\
                                                 .filter(User.admin==True).count()
 
             #Monthly stats
             if datetime.utcnow().day==1:
-                users = db.session.query(User).filter(~User.username.in_(['Admin','WildEye','Dashboard'])).filter(User.admin==True).distinct().all()
+                organisations = db.session.query(Organisation).filter(~Organisation.name.in_(Config.ADMIN_USERS)).distinct().all()
+                users = db.session.query(User).filter(~User.username.in_(Config.ADMIN_USERS)).filter(User.admin==True).distinct().all()
                 image_count=0
-                for user in users:
-                    for survey in user.surveys:
+                for organisation in organisations:
+                    for survey in organisation.surveys:
                         image_count+=survey.image_count
 
-                sq = db.session.query(User.id.label('user_id'),func.sum(Survey.image_count).label('count')).join(Survey).group_by(User.id).subquery()
-                active_user_count = db.session.query(User)\
+                sq = db.session.query(Organisation.id.label('organisation_id'),func.sum(Survey.image_count).label('count')).join(Survey).group_by(Organisation.id).subquery()
+                active_organisation_count = db.session.query(Organisation)\
                                         .join(Survey)\
                                         .join(Task)\
-                                        .join(sq,sq.c.user_id==User.id)\
+                                        .join(sq,sq.c.organisation_id==Organisation.id)\
                                         .filter(Task.init_complete==True)\
                                         .filter(sq.c.count>10000)\
+                                        .filter(~Organisation.name.in_(Config.ADMIN_USERS))\
                                         .distinct().count()
 
                 # AWS Costs
@@ -1892,25 +1920,37 @@ def updateStatistics(self):
                 # Average daily logins (need the plus 1 hour here so as to not include the last day of the previous month)
                 average_daily_logins = 0
                 average_daily_admin_logins = 0
+                average_daily_organisation_logins = 0
                 statistics = db.session.query(Statistic).filter(Statistic.timestamp>(startDate+timedelta(hours=1))).all()
                 if statistics:
                     for stat in statistics:
                         average_daily_logins += stat.unique_daily_logins
                         average_daily_admin_logins += stat.unique_daily_admin_logins
+                        average_daily_organisation_logins += stat.unique_daily_organisation_logins
                     average_daily_logins = round(average_daily_logins/len(statistics),2)
                     average_daily_admin_logins = round(average_daily_admin_logins/len(statistics),2)
+                    average_daily_organisation_logins = round(average_daily_organisation_logins/len(statistics),2)
 
                 # Unique monthly logins
                 unique_monthly_logins = db.session.query(User)\
                                                     .filter(User.last_ping>startDate)\
+                                                    .filter(~User.username.in_(Config.ADMIN_USERS))\
                                                     .filter(User.email!=None).count()
                 unique_monthly_admin_logins = db.session.query(User)\
                                                     .filter(User.last_ping>startDate)\
+                                                    .filter(~User.username.in_(Config.ADMIN_USERS))\
+                                                    .filter(User.admin==True).count()
+                unique_monthly_organisation_logins = db.session.query(Organisation)\
+                                                    .join(UserPermissions)\
+                                                    .join(User,UserPermissions.user_id==User.id)\
+                                                    .filter(User.last_ping>startDate)\
+                                                    .filter(~Organisation.name.in_(Config.ADMIN_USERS))\
                                                     .filter(User.admin==True).count()
 
                 # Update DB object
                 statistic.user_count=len(users),
-                statistic.active_user_count=active_user_count,
+                statistic.organisation_count = len(organisation)
+                statistic.active_organisation_count=active_organisation_count,
                 statistic.image_count=image_count,
                 statistic.server_cost=costs['Amazon Elastic Compute Cloud - Compute'],
                 statistic.storage_cost=costs['Amazon Simple Storage Service'],
@@ -1918,16 +1958,18 @@ def updateStatistics(self):
                 statistic.total_cost=costs['Total']
                 statistic.average_daily_logins = average_daily_logins
                 statistic.average_daily_admin_logins = average_daily_admin_logins
+                statistic.average_daily_organisation_logins = average_daily_organisation_logins
                 statistic.unique_monthly_logins = unique_monthly_logins
                 statistic.unique_monthly_admin_logins = unique_monthly_admin_logins
+                statistic.unique_monthly_organisation_logins = unique_monthly_organisation_logins
 
-                # Update user image counts
-                data = db.session.query(User,func.sum(Survey.image_count)).join(Survey).filter(User.admin==True).group_by(User.id).all()
+                # Update organisation image counts
+                data = db.session.query(Organisation,func.sum(Survey.image_count)).join(Survey).group_by(Organisation.id).all()
                 for item in data:
-                    user = item[0]
+                    organisation = item[0]
                     count = int(item[1])
-                    user.previous_image_count = user.image_count
-                    user.image_count = count
+                    organisation.previous_image_count = organisation.image_count
+                    organisation.image_count = count
 
             db.session.commit()
 

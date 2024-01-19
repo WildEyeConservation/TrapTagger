@@ -48,61 +48,88 @@ async function initiateDownload() {
     // Select the download folder & get access
 
     if (currentDownloads.length==0) {
-
         document.getElementById('btnDownloadStart').disabled = true
-        species_sorted = document.getElementById('speciesSorted').checked
-        individual_sorted = document.getElementById('individualSorted').checked
-        flat_structure = document.getElementById('flatStructure').checked
-        include_empties = document.getElementById('emptyInclude').checked
-        delete_items = document.getElementById('deleteTrue').checked
-        if(document.getElementById('videoTrue').checked ) {
-            include_video = true
-            include_frames = false	
-        }
-        else if(document.getElementById('videoFramesTrue').checked) {
-            include_video = false
-            include_frames = true
-        }
-        else if (document.getElementById('videoAndFramesTrue').checked) {
-            include_video = true
-            include_frames = true
-        }
-        else {
-            include_video = false
-            include_frames = false
-        }
 
-        species = []
-        downloadSpecies = document.querySelectorAll('[id^=downloadSpecies-]');
-        for (let i=0;i<downloadSpecies.length;i++) {
-            species.push(downloadSpecies[i].options[downloadSpecies[i].selectedIndex].value)
-        }
-
-        try {
-            var topLevelHandle = await window.showDirectoryPicker({
-                writable: true //ask for write permission
-            });
-        
-            await verifyPermission(topLevelHandle)
-        
-            checkingDownload = false
-            if (!currentDownloadTasks.includes(taskName)) {
-                currentDownloadTasks.push(taskName)
-                currentDownloads.push(surveyName)
+        var response = await fetch('/fileHandler/check_download_available', {
+            method: 'post',
+            headers: {
+                accept: 'application/json',
+                'content-type': 'application/json',
+            },
+            body: JSON.stringify({
+                task_id: selectedTask
+            }),
+        }).then((response) => {
+            if (!response.ok) {
+                throw new Error(response.statusText)
+            } else {
+                return response.json()
             }
+        }).catch( (error) => {
+            // pass
+        })
 
-            globalDownloaded = 0
-            globalToDownload = 0
-            global_count_initialised = false
-        
-            downloadWorker.postMessage({'func': 'startDownload', 'args': [topLevelHandle,selectedTask,surveyName,taskName,species,species_sorted,individual_sorted,flat_structure,include_empties,delete_items, include_video, include_frames]})
-        
-        } catch {
-            document.getElementById('btnDownloadStart').disabled = false
+        if (response=='available') {
+            species_sorted = document.getElementById('speciesSorted').checked
+            individual_sorted = document.getElementById('individualSorted').checked
+            flat_structure = document.getElementById('flatStructure').checked
+            include_empties = document.getElementById('emptyInclude').checked
+            delete_items = document.getElementById('deleteTrue').checked
+            if(document.getElementById('videoTrue').checked ) {
+                include_video = true
+                include_frames = false	
+            }
+            else if(document.getElementById('videoFramesTrue').checked) {
+                include_video = false
+                include_frames = true
+            }
+            else if (document.getElementById('videoAndFramesTrue').checked) {
+                include_video = true
+                include_frames = true
+            }
+            else {
+                include_video = false
+                include_frames = false
+            }
+    
+            species = []
+            downloadSpecies = document.querySelectorAll('[id^=downloadSpecies-]');
+            for (let i=0;i<downloadSpecies.length;i++) {
+                species.push(downloadSpecies[i].options[downloadSpecies[i].selectedIndex].value)
+            }
+    
+            try {
+                var topLevelHandle = await window.showDirectoryPicker({
+                    writable: true //ask for write permission
+                });
+            
+                await verifyPermission(topLevelHandle)
+            
+                checkingDownload = false
+                if (!currentDownloadTasks.includes(taskName)) {
+                    currentDownloadTasks.push(taskName)
+                    currentDownloads.push(selectedSurvey)
+                }
+    
+                globalDownloaded = 0
+                globalToDownload = 0
+                global_count_initialised = false
+            
+                downloadWorker.postMessage({'func': 'startDownload', 'args': [topLevelHandle,selectedTask,surveyName,taskName,species,species_sorted,individual_sorted,flat_structure,include_empties,delete_items, include_video, include_frames, selectedSurvey]})
+            
+            } catch {
+                document.getElementById('btnDownloadStart').disabled = false
+            }
+        } else {
+            document.getElementById('modalAlertHeader').innerHTML = 'Alert'
+            document.getElementById('modalAlertBody').innerHTML = 'This survey is currently being downloaded. Please try again later.'
+            modalDownload.modal('hide')
+            modalAlert.modal({keyboard: true});
         }
+
     } else {
         document.getElementById('modalAlertHeader').innerHTML = 'Alert'
-        document.getElementById('modalAlertBody').innerHTML = 'You already have a download in progress. Please wait for that to complete before initiating a new one.'
+        document.getElementById('modalAlertBody').innerHTML = 'You already have a download in progress. Please wait for that to complete before initiating a new one, or open a new tab.'
         modalDownload.modal('hide')
         modalAlert.modal({keyboard: true});
     }
