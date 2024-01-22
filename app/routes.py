@@ -6823,7 +6823,9 @@ def assignLabel(clusterID):
         if (not current_user_admin) and (not GLOBALS.redisClient.sismember('active_jobs_'+str(task_id),current_user_username)):
             return {'redirect': url_for('done')}, 278
         else:
-            return json.dumps({'progress': (num, num2), 'reAllocated': reAllocated, 'newClusters': newClusters, 'classifications': classifications})
+            response = {'progress': (num, num2), 'reAllocated': reAllocated, 'newClusters': newClusters, 'classifications': classifications}
+            if explore: response['username'] = current_user_username
+            return json.dumps(response)
 
     except:
         return json.dumps('error')
