@@ -35,7 +35,7 @@ class Config(object):
     SKY_CONST = 0.33
     DETECTOR = 'MDv5b'
     VAT=1.15
-    ADMIN_USERS = ['Admin','WildEye','Dashboard']
+    ADMIN_USERS = ['Admin','WildEye','Dashboard','Wild Parks','Nicholas','Marguerite']
     AWS_S3_UPLOAD_ACCESS_KEY_ID = os.environ.get('AWS_S3_UPLOAD_ACCESS_KEY_ID')
     AWS_S3_UPLOAD_SECRET_ACCESS_KEY = os.environ.get('AWS_S3_UPLOAD_SECRET_ACCESS_KEY')
     MONKEY_PATCH = os.environ.get('MONKEY_PATCH')
