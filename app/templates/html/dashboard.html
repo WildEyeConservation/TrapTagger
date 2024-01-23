@@ -101,6 +101,16 @@ limitations under the License. -->
                     <td style="font-size: 100%; padding-left: 3px; padding-right: 3px;">{{ image_count }}</td>
                     <td style="font-size: 100%; padding-left: 3px; padding-right: 3px;">{{ images_imported_this_month }}</td>
                   </tr>
+                  <tr>
+                    <th scope="row">Videos Processed</th>
+                    <td style="font-size: 100%; padding-left: 3px; padding-right: 3px;">{{ video_count }}</td>
+                    <td style="font-size: 100%; padding-left: 3px; padding-right: 3px;">{{ videos_imported_this_month }}</td>
+                  </tr>
+                  <tr>
+                    <th scope="row">Frames Processed</th>
+                    <td style="font-size: 100%; padding-left: 3px; padding-right: 3px;">{{ frame_count }}</td>
+                    <td style="font-size: 100%; padding-left: 3px; padding-right: 3px;">{{ frames_imported_this_month }}</td>
+                  </tr>
                 </tbody>
               </table>
               <div><i>Note: Active organisations have at least one fully-annotated survey, and a total of more than 10k images.</i></div>
@@ -215,6 +225,8 @@ limitations under the License. -->
                 <option value="organisation_count">Total Organisations</option>
                 <option value="user_count">Admin Users</option>
                 <option value="image_count">Images</option>
+                <option value="video_count">Videos</option>
+                <option value="frame_count">Frames</option>
                 <option value="total_cost">Total Monthly Cost</option>
                 <option value="server_cost">Monthly Server Cost</option>
                 <option value="storage_cost">Monthly Image-Storage Cost</option>
@@ -255,6 +267,10 @@ limitations under the License. -->
                     <option value="total">Total Images Imported</option>
                     <option value="this_month">Images Imported This Month</option>
                     <option value="last_month">Images Imported Last Month</option>
+                    <option value="videos_this_month">Videos Imported This Month</option>
+                    <option value="videos_last_month">Videos Imported Last Month</option>
+                    <option value="frames_this_month">Frames Imported This Month</option>
+                    <option value="frames_last_month">Frames Imported Last Month</option>
                   </select>
                 </div>
                 <div class="col-lg-3">
@@ -272,11 +288,15 @@ limitations under the License. -->
                   <tr>
                     <th scope="col" style="border-bottom: 1px solid white">Account</th>
                     <th scope="col" style="border-bottom: 1px solid white">Affiliation</th>
+                    <th scope="col" style="border-bottom: 1px solid white">Regions</th>
                     <th scope="col" style="border-bottom: 1px solid white">Surveys</th>
                     <th scope="col" style="border-bottom: 1px solid white">Total Images</th>
                     <th scope="col" style="border-bottom: 1px solid white">Images Imported This Month</th>
                     <th scope="col" style="border-bottom: 1px solid white">Images Imported Last Month</th>
-                    <th scope="col" style="border-bottom: 1px solid white">Regions</th>
+                    <th scope="col" style="border-bottom: 1px solid white">Videos Imported This Month</th>
+                    <th scope="col" style="border-bottom: 1px solid white">Videos Imported Last Month</th>
+                    <th scope="col" style="border-bottom: 1px solid white">Frames Imported This Month</th>
+                    <th scope="col" style="border-bottom: 1px solid white">Frames Imported Last Month</th>
                   </tr>
                 </thead>
                 <tbody class="table-matrix stripe" id="userInfoTableBody"></tbody>
