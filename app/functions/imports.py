@@ -2058,6 +2058,7 @@ def remove_duplicate_images(survey_id):
     #delete any empty trapgroups
     trapgroups = db.session.query(Trapgroup).filter(~Trapgroup.cameras.any()).filter(Trapgroup.survey_id==survey_id).all()
     for trapgroup in trapgroups:
+        trapgroup.sitegroups = []
         db.session.delete(trapgroup)
     # db.session.commit()
 

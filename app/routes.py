@@ -7716,7 +7716,7 @@ def generateCSV():
             selectedTasks = [int(ast.literal_eval(request.form['preformatted']))]
             level = 'image'
             columns = ['trapgroup', 'latitude', 'longitude', 'timestamp', 'image_labels', 'image_sighting_count', 'image_url']
-            custom_columns = {selectedTasks[0]:{}}
+            custom_columns = {str(selectedTasks[0]):{}}
             label_type = 'column'
             includes = []
             excludes = []
