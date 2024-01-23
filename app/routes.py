@@ -6043,12 +6043,13 @@ def getClustersBySpecies(task_id, species, tag_id, trapgroup_id, annotator_id):
         clusters = db.session.query(Cluster.id) \
                             .filter(Cluster.task_id == int(task_id))\
                             .join(Image,Cluster.images)\
-                            .join(Detection)\
-                            .join(Labelgroup)\
-                            .filter(Labelgroup.task==task)\
-                            .filter(or_(and_(Detection.source==model,Detection.score>Config.DETECTOR_THRESHOLDS[model]) for model in Config.DETECTOR_THRESHOLDS))\
-                            .filter(Detection.static==False)\
-                            .filter(~Detection.status.in_(['deleted','hidden']))
+                            .outerjoin(Detection)\
+                            .outerjoin(Labelgroup)\
+                            .outerjoin(Label,Labelgroup.labels)\
+                            .filter(Labelgroup.task==task)
+
+        # If they ask for the nothing clusters, we want to serve the empty clusters too
+        if str(species) != str(GLOBALS.nothing_id): clusters = rDets(clusters)
 
         if (species != '0'):
             label_ids = [int(species)]
@@ -6063,7 +6064,11 @@ def getClustersBySpecies(task_id, species, tag_id, trapgroup_id, annotator_id):
                             label_ids.append(lab.id)
                 parent_labels = temp_labels
 
-            clusters = clusters.filter(Labelgroup.labels.any(Label.id.in_(label_ids)))
+            if str(species) != str(GLOBALS.nothing_id):
+                clusters = clusters.filter(Label.id.in_(label_ids))
+            else:
+                # If they ask for nothing clusters, include the clusters with no labels
+                clusters = clusters.filter(or_(Label.id.in_(label_ids),Label.id==None,Detection.id==None))
 
         if tag_id != '0':
             tag = db.session.query(Tag).get(int(tag_id))
@@ -7713,7 +7718,7 @@ def generateCSV():
             selectedTasks = [int(ast.literal_eval(request.form['preformatted']))]
             level = 'image'
             columns = ['trapgroup', 'latitude', 'longitude', 'timestamp', 'image_labels', 'image_sighting_count', 'image_url']
-            custom_columns = {selectedTasks[0]:{}}
+            custom_columns = {str(selectedTasks[0]):{}}
             label_type = 'column'
             includes = []
             excludes = []
