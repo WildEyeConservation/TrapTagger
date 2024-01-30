@@ -1902,13 +1902,13 @@ def updateStatistics(self):
                 video_count=int(db.session.query(func.sum(Survey.video_count)).join(Organisation).filter(~Organisation.name.in_(Config.ADMIN_USERS)).first()[0])
                 frame_count=int(db.session.query(func.sum(Survey.frame_count)).join(Organisation).filter(~Organisation.name.in_(Config.ADMIN_USERS)).first()[0])
 
-                sq = db.session.query(Organisation.id.label('organisation_id'),func.sum(Survey.image_count).label('count')).join(Survey).group_by(Organisation.id).subquery()
+                sq = db.session.query(Organisation.id.label('organisation_id'),func.sum(Survey.image_count).label('image_count'),func.sum(Survey.frame_count).label('frame_count')).join(Survey).group_by(Organisation.id).subquery()
                 active_organisation_count = db.session.query(Organisation)\
                                         .join(Survey)\
                                         .join(Task)\
                                         .join(sq,sq.c.organisation_id==Organisation.id)\
                                         .filter(Task.init_complete==True)\
-                                        .filter(sq.c.count>10000)\
+                                        .filter((sq.c.image_count+sq.c.frame_count)>10000)\
                                         .filter(~Organisation.name.in_(Config.ADMIN_USERS))\
                                         .distinct().count()
 
