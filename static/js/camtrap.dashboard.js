@@ -162,6 +162,16 @@ function getUserInfo(url=null) {
 
                     td=document.createElement('td')
                     td.setAttribute('style','font-size: 100%; padding-left: 3px; padding-right: 3px;')
+                    td.innerHTML = reply.data[i]['videos']
+                    tr.appendChild(td)
+
+                    td=document.createElement('td')
+                    td.setAttribute('style','font-size: 100%; padding-left: 3px; padding-right: 3px;')
+                    td.innerHTML = reply.data[i]['frames']
+                    tr.appendChild(td)
+
+                    td=document.createElement('td')
+                    td.setAttribute('style','font-size: 100%; padding-left: 3px; padding-right: 3px;')
                     td.innerHTML = reply.data[i]['images_this_month']
                     tr.appendChild(td)
 

@@ -8344,6 +8344,7 @@ def getActiveUserData():
                                 Organisation.id.label('organisation_id'),
                                 func.sum(Survey.image_count).label('count'),
                                 func.sum(Survey.frame_count).label('frame_count'),
+                                func.sum(Survey.video_count).label('video_count'),
                                 (func.sum(Survey.image_count)-Organisation.image_count).label('this_month'),
                                 (Organisation.image_count-Organisation.previous_image_count).label('last_month'),
                                 (func.sum(Survey.video_count)-Organisation.video_count).label('videos_this_month'),
@@ -8354,7 +8355,7 @@ def getActiveUserData():
                             .join(Survey)\
                             .group_by(Organisation.id).subquery()
 
-        active_users = db.session.query(Organisation,sq.c.count,sq.c.this_month,sq.c.last_month,sq.c.videos_this_month,sq.c.videos_last_month,sq.c.frames_this_month,sq.c.frames_last_month)\
+        active_users = db.session.query(Organisation,sq.c.count,sq.c.this_month,sq.c.last_month,sq.c.videos_this_month,sq.c.videos_last_month,sq.c.frames_this_month,sq.c.frames_last_month,sq.c.frame_count,sq.c.video_count)\
                                 .join(sq,sq.c.organisation_id==Organisation.id)\
                                 .filter(~Organisation.name.in_(Config.ADMIN_USERS))
 
@@ -8391,6 +8392,8 @@ def getActiveUserData():
             videos_last_month = int(item[5])
             frames_this_month = int(item[6])
             frames_last_month = int(item[7])
+            frame_count = int(item[8])
+            video_count = int(item[9])
             # image_count=int(db.session.query(sq.c.count).filter(sq.c.user_id==user.id).first()[0])
 
             reply.append({
@@ -8398,7 +8401,9 @@ def getActiveUserData():
                 'affiliation':          organisation.affiliation,
                 'surveys':              len(organisation.surveys[:]),
                 'images':               format_count(image_count),
-                'images_this_month':    format_count(images_this_month),
+                'videos':               format_count(video_count),
+                'frames':               format_count(image_count),
+                'images_this_month':    format_count(frames_this_month),
                 'images_last_month':    format_count(images_last_month),
                 'videos_this_month':    format_count(videos_this_month),
                 'videos_last_month':    format_count(videos_last_month),
