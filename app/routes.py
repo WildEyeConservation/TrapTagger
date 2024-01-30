@@ -8343,6 +8343,7 @@ def getActiveUserData():
         sq = db.session.query(
                                 Organisation.id.label('organisation_id'),
                                 func.sum(Survey.image_count).label('count'),
+                                func.sum(Survey.frame_count).label('frame_count'),
                                 (func.sum(Survey.image_count)-Organisation.image_count).label('this_month'),
                                 (Organisation.image_count-Organisation.previous_image_count).label('last_month'),
                                 (func.sum(Survey.video_count)-Organisation.video_count).label('videos_this_month'),
@@ -8361,7 +8362,7 @@ def getActiveUserData():
             active_users = active_users.join(Survey)\
                                 .join(Task)\
                                 .filter(Task.init_complete==True)\
-                                .filter(sq.c.count>10000)
+                                .filter((sq.c.count+sq.c.frame_count)>10000)
         
         if order=='total':
             active_users = active_users.order_by(sq.c.count.desc())
