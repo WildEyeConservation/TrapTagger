@@ -3474,3 +3474,19 @@ def setImageDownloadStatus(self,task_id,labels,include_empties, include_video, i
         db.session.remove()
 
     return True
+
+def checkUploadUser(user_id,survey_id):
+    '''Checks if the upload is checked out by the specified user. If the survey is available, then the upload is checked out.'''
+    
+    upload_user = GLOBALS.redisClient.get('upload_user_'+str(survey_id))
+    
+    if upload_user==None:
+        GLOBALS.redisClient.set('upload_user_'+str(survey_id),user_id)
+        GLOBALS.redisClient.set('upload_ping_'+str(survey_id),datetime.utcnow().timestamp())
+        return True
+    else:   
+        if int(upload_user.decode())==user_id:
+            GLOBALS.redisClient.set('upload_ping_'+str(survey_id),datetime.utcnow().timestamp())
+            return True
+    
+    return False

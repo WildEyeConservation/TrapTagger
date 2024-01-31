@@ -1101,8 +1101,7 @@ def deleteSurvey(survey_id):
         if userPermissions and userPermissions.delete:
 
             if survey.status.lower() == 'uploading':
-                upload_user = GLOBALS.redisClient.get('upload_user_'+str(survey_id))
-                if upload_user and int(upload_user.decode())!=current_user.id:
+                if not checkUploadUser(current_user.id,survey_id):
                     status = 'error'
                     message = 'The survey is currently being uploaded to by another user.'
 
@@ -1470,8 +1469,7 @@ def createNewSurvey():
                 newSurvey_id = newSurvey.id
 
                 # Checkout the upload
-                GLOBALS.redisClient.set('upload_ping_'+str(newSurvey_id),datetime.utcnow().timestamp())
-                GLOBALS.redisClient.set('upload_user_'+str(newSurvey_id),current_user.id)
+                checkUploadUser(current_user.id,newSurvey_id)
             else:
                 import_survey.delay(s3Folder=newSurveyS3Folder,surveyName=surveyName,tag=newSurveyTGCode,organisation_id=organisation_id,correctTimestamps=correctTimestamps,classifier=classifier,user_id=current_user.id,permission=permission,annotation=annotation,detailed_access=detailed_access)
     
@@ -8503,9 +8501,7 @@ def get_presigned_url():
         if organisation_id and (survey_status=='Uploading'):
             userPermissions = db.session.query(UserPermissions).filter(UserPermissions.organisation_id==organisation_id).filter(UserPermissions.user_id==current_user.id).first()
             if userPermissions and userPermissions.create:
-                upload_user = GLOBALS.redisClient.get('upload_user_'+str(survey_id))
-                if upload_user and (int(upload_user.decode())==current_user.id):
-                    GLOBALS.redisClient.set('upload_ping_'+str(survey_id),datetime.utcnow().timestamp())
+                if checkUploadUser(current_user.id,survey_id):
                     return  GLOBALS.s3UploadClient.generate_presigned_url(ClientMethod='put_object',
                                                                             Params={'Bucket': Config.BUCKET,
                                                                                     'Key': organisation_folder + '/' + request.json['filename'].strip('/'),
@@ -8531,9 +8527,7 @@ def check_upload_files():
         if organisation_id and (survey_status=='Uploading'):
             userPermissions = db.session.query(UserPermissions).filter(UserPermissions.organisation_id==organisation_id).filter(UserPermissions.user_id==current_user.id).first()
             if userPermissions and userPermissions.create:
-                upload_user = GLOBALS.redisClient.get('upload_user_'+str(survey_id))
-                if upload_user and (int(upload_user.decode())==current_user.id):
-                    GLOBALS.redisClient.set('upload_ping_'+str(survey_id),datetime.utcnow().timestamp())
+                if checkUploadUser(current_user.id,survey_id):
                     for file in files:
                         result = checkFile(file,organisation_folder)
                         if result:
@@ -8555,13 +8549,10 @@ def check_upload_available():
         if organisation_id and (survey_status=='Uploading'):
             userPermissions = db.session.query(UserPermissions).filter(UserPermissions.organisation_id==organisation_id).filter(UserPermissions.user_id==current_user.id).first()
             if userPermissions and userPermissions.create:
-                check = GLOBALS.redisClient.get('upload_user_'+str(survey_id))
-                if check and (int(check)!=current_user.id):
-                    return json.dumps('unavailable')
-                else:
-                    GLOBALS.redisClient.set('upload_ping_'+str(survey_id),datetime.utcnow().timestamp())
-                    GLOBALS.redisClient.set('upload_user_'+str(survey_id),current_user.id)
+                if checkUploadUser(current_user.id,survey_id):
                     return json.dumps('available')
+                else:
+                    return json.dumps('unavailable')
     except:
         pass
     
