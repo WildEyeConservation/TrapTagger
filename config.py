@@ -20,7 +20,7 @@ basedir = os.path.abspath(os.path.dirname(__file__))
 
 class Config(object):
     LOAD_TESTING = False
-    DEBUGGING = True
+    DEBUGGING = False
     MAINTENANCE = False
     INITIAL_SETUP = False
     VERSION = 25
