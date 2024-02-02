@@ -115,7 +115,7 @@ function buildUserTable(users) {
         userTable.classList.add('table')
         userTable.classList.add('table-bordered')
         userTable.classList.add('table-striped')
-        userTable.classList.add('table-hover')
+        // userTable.classList.add('table-hover')
         userTable.style.borderCollapse = 'collapse';
         usersDiv.appendChild(userTable);
     
@@ -181,6 +181,7 @@ function buildUserTable(users) {
     
         for (let i = 0; i < users.length; i++) {
             var userTableBody = document.createElement('tbody');
+            userTableBody.classList.add('permissions')
             userTable.appendChild(userTableBody);
     
             user_permissions = users[i].user_permissions
@@ -672,7 +673,7 @@ function buildSharedDataTable(sharedData) {
         dataSharingTable.classList.add('table')
         dataSharingTable.classList.add('table-bordered')
         dataSharingTable.classList.add('table-striped')
-        dataSharingTable.classList.add('table-hover')
+        // dataSharingTable.classList.add('table-hover')
         dataSharingTable.style.borderCollapse = 'collapse';
         dataSharingDiv.appendChild(dataSharingTable);
     
@@ -723,6 +724,7 @@ function buildSharedDataTable(sharedData) {
         for (let i = 0; i < sharedData.length; i++) {
             var surveys = sharedData[i].surveys
             var dataSharingTableBody = document.createElement('tbody');
+            dataSharingTableBody.classList.add('permissions')
             dataSharingTable.appendChild(dataSharingTableBody);
     
             for (let j = 0; j < surveys.length; j++) {
@@ -1092,7 +1094,7 @@ function buildReceivedDataTable(receivedData) {
         receivedDataTable.classList.add('table')
         receivedDataTable.classList.add('table-bordered')
         receivedDataTable.classList.add('table-striped')
-        receivedDataTable.classList.add('table-hover')
+        // receivedDataTable.classList.add('table-hover')
         receivedDataTable.style.borderCollapse = 'collapse';
         receivedDataDiv.appendChild(receivedDataTable);
     
@@ -1140,6 +1142,7 @@ function buildReceivedDataTable(receivedData) {
     
         for (let i = 0; i < receivedData.length; i++) {
             var receivedDataTableBody = document.createElement('tbody');
+            receivedDataTableBody.classList.add('permissions')
             receivedDataTable.appendChild(receivedDataTableBody);
             
             surveys = receivedData[i].surveys

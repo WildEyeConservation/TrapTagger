@@ -20,7 +20,7 @@ basedir = os.path.abspath(os.path.dirname(__file__))
 
 class Config(object):
     LOAD_TESTING = False
-    DEBUGGING = False
+    DEBUGGING = True
     MAINTENANCE = False
     INITIAL_SETUP = False
     VERSION = 25
@@ -121,6 +121,12 @@ class Config(object):
     # Mask Area Config
     MIN_MASK_AREA = 0.001
     MAX_MASK_AREA = 0.3
+
+    # Static Detection Config
+    STATIC_AREA = 0.1
+    STATIC_IOU = 0.65
+    STATIC_MATCHCOUNT = 3
+    STATIC_PERCENTAGE = 0.1
 
     # Time in seconds allowed for a worker to finish setting up beforte being checked for idleness
     SETUP_PERIOD = {
@@ -400,7 +406,7 @@ class Config(object):
         '1':{'name': 'Image', 'columns': ['Name', 'ID', 'Species Count', 'Labels', 'Sighting Count', 'Tags', 'Timestamp', 'URL', 'Individuals', 'Original Timestamp']},
         '2':{'name': 'Capture', 'columns': ['Number', 'ID', 'Species Count', 'Labels', 'Sighting Count', 'Tags', 'Timestamp', 'Image Count', 'URL', 'Individuals']},
         '3':{'name': 'Cluster', 'columns': ['ID', 'Species Count', 'Labels', 'Sighting Count', 'Tags', 'Timestamp', 'Notes', 'Image Count', 'URL', 'Individuals']},
-        '4':{'name': 'Camera', 'columns': ['ID', 'Species Count', 'Labels', 'Tags', 'Animal Count', 'Image Count', 'URL', 'Individuals']},
+        '4':{'name': 'Camera', 'columns': ['Name', 'Species Count', 'Labels', 'Tags', 'Animal Count', 'Image Count', 'URL', 'Individuals']},
         '5':{'name': 'Site', 'columns': ['Name', 'Species Count', 'Labels', 'Tags', 'Latitude', 'Longitude', 'Altitude', 'Animal Count', 'Image Count', 'URL', 'Individuals']},
         '6':{'name': 'Survey', 'columns': ['Name', 'Species Count', 'Labels', 'Tags', 'Description', 'Animal Count', 'Image Count', 'URL', 'Individuals']},
         '7':{'name': 'Custom', 'columns': []}

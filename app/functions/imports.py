@@ -707,7 +707,7 @@ def cluster_survey(survey_id,queue='parallel',force=False,trapgroup_ids=None):
 #     return True
     
 @celery.task(bind=True,max_retries=5)
-def processCameraStaticDetections(self,camera_id,imcount):
+def processCameraStaticDetections(self,cameragroup_id):
     '''Checks all the detections associated with a given camera ID to see if they are static or not.'''
     try:
         ###### Single query approach
@@ -728,30 +728,105 @@ def processCameraStaticDetections(self,camera_id,imcount):
                     JOIN detection AS det2
                     JOIN image AS image1
                     JOIN image AS image2
+                    JOIN camera AS camera1
+                    JOIN camera AS camera2
                 ON 
-                    image1.camera_id = image2.camera_id
+                    camera1.cameragroup_id = camera2.cameragroup_id
+                    AND camera1.id = image1.camera_id
+                    AND camera2.id = image2.camera_id
                     AND image1.id = det1.image_id
                     AND image2.id = det2.image_id
                     AND image1.id != image2.id 
                 WHERE
                     ({}) AND ({})
-                    AND image1.camera_id = {}
+                    AND camera1.cameragroup_id = {}
                     AND image1.id IN ({})
-                    AND image2.id IN ({})
                     ) AS sq1
             WHERE
-                area1 < 0.1
-                AND area2 < 0.1
-                AND sq1.intersection / (sq1.area1 + sq1.area2 - sq1.intersection) > 0.65 GROUP BY id1
+                area1 < {}
+                AND area2 < {}
+                AND sq1.intersection / (sq1.area1 + sq1.area2 - sq1.intersection) > {} GROUP BY id1
         """
         # Og - area<0.1 and iou > 0.7
-        #TODO: STILL NEED TO TESTING ON DIFFERENT DATASETS TO DETERMINe THERESHOLDS
+        #TODO: STILL NEED TO TESTING ON DIFFERENT DATASETS TO DETERMINE THERESHOLDS
+
+        imcount = db.session.query(Image).join(Camera).filter(Camera.cameragroup_id==cameragroup_id).filter(~Camera.path.contains('_video_images_')).distinct().count()
+        vidcount = db.session.query(Video).join(Camera).filter(Camera.cameragroup_id==cameragroup_id).distinct().count()
+
         detections = [r[0] for r in db.session.query(Detection.id)\
                                             .join(Image)\
-                                            .filter(Image.camera_id==camera_id)\
+                                            .join(Camera)\
+                                            .filter(Camera.cameragroup_id==cameragroup_id)\
                                             .filter(or_(and_(Detection.source==model,Detection.score>Config.DETECTOR_THRESHOLDS[model]) for model in Config.DETECTOR_THRESHOLDS))\
                                             .order_by(Image.corrected_timestamp)\
                                             .distinct().all()]
+
+        # For videos, we want to get the image with the most detections and use that as the base for the static detections
+        if vidcount>0:
+            # sq = db.session.query(Image.id, func.count(Detection.id).label('detcount'))\
+            #                 .join(Detection)\
+            #                 .join(Camera)\
+            #                 .filter(Camera.cameragroup_id==cameragroup_id)\
+            #                 .filter(Camera.path.contains('_video_images_'))\
+            #                 .filter(or_(and_(Detection.source==model,Detection.score>Config.DETECTOR_THRESHOLDS[model]) for model in Config.DETECTOR_THRESHOLDS))\
+            #                 .group_by(Image.id)\
+            #                 .subquery()
+
+            # sq1 = db.session.query(Video.id, func.max(sq.c.detcount).label('maxcount'))\
+            #                 .join(Camera, Camera.id==Video.camera_id)\
+            #                 .join(Image, Image.camera_id==Camera.id)\
+            #                 .join(sq, sq.c.id==Image.id)\
+            #                 .filter(Camera.cameragroup_id==cameragroup_id)\
+            #                 .group_by(Video.id)\
+            #                 .subquery()
+
+            # sq2 = db.session.query(Image.id, sq1.c.maxcount, Video.id)\
+            #                 .join(Camera, Camera.id==Image.camera_id)\
+            #                 .join(Video, Video.camera_id==Camera.id)\
+            #                 .join(sq, sq.c.id==Image.id)\
+            #                 .join(sq1, sq1.c.maxcount==sq.c.detcount)\
+            #                 .filter(Camera.cameragroup_id==cameragroup_id)\
+            #                 .filter(Video.id==sq1.c.id)\
+            #                 .group_by(Video.id)\
+            #                 .subquery()
+
+            # video_detections = [r[0] for r in db.session.query(Detection.id)\
+            #                                     .join(Image)\
+            #                                     .join(sq2, sq2.c.id==Image.id)\
+            #                                     .join(Camera)\
+            #                                     .filter(Camera.cameragroup_id==cameragroup_id)\
+            #                                     .filter(Camera.path.contains('_video_images_'))\
+            #                                     .filter(or_(and_(Detection.source==model,Detection.score>Config.DETECTOR_THRESHOLDS[model]) for model in Config.DETECTOR_THRESHOLDS))\
+            #                                     .order_by(Image.corrected_timestamp)\
+            #                                     .distinct().all()]
+                            
+            # # Add detections from videos to the detections list
+            # detections.extend(video_detections)       
+            # imcount = imcount + vidcount      
+
+            # For Video use the first image in the video
+            sq = db.session.query(Video.id, Image.id.label('image_id'), Image.filename)\
+                            .join(Camera, Camera.id==Video.camera_id)\
+                            .join(Image, Image.camera_id==Camera.id)\
+                            .join(Detection, Detection.image_id==Image.id)\
+                            .filter(Camera.cameragroup_id==cameragroup_id)\
+                            .filter(Camera.path.contains('_video_images_'))\
+                            .filter(or_(and_(Detection.source==model,Detection.score>Config.DETECTOR_THRESHOLDS[model]) for model in Config.DETECTOR_THRESHOLDS))\
+                            .group_by(Video.id)\
+                            .subquery()
+                            
+            video_detections = [r[0] for r in db.session.query(Detection.id)\
+                                                .join(Image)\
+                                                .join(sq, sq.c.image_id==Image.id)\
+                                                .join(Camera)\
+                                                .filter(Camera.cameragroup_id==cameragroup_id)\
+                                                .filter(Camera.path.contains('_video_images_'))\
+                                                .filter(or_(and_(Detection.source==model,Detection.score>Config.DETECTOR_THRESHOLDS[model]) for model in Config.DETECTOR_THRESHOLDS))\
+                                                .distinct().all()]
+
+            # Add detections from videos to the detections list
+            detections.extend(video_detections)
+            imcount = imcount + vidcount
 
         static_detections = []
         static_groups = []
@@ -761,11 +836,11 @@ def processCameraStaticDetections(self,camera_id,imcount):
                 chunk = detections[-max_grouping:]
             images = db.session.query(Image).join(Detection).filter(Detection.id.in_(chunk)).distinct().all()
             im_ids = ','.join([str(r.id) for r in images])
-            for det_id,matchids in db.session.execute(queryTemplate1.format('OR'.join([ ' (det1.source = "{}" AND det1.score > {}) '.format(model,Config.DETECTOR_THRESHOLDS[model]) for model in Config.DETECTOR_THRESHOLDS]),'OR'.join([ ' (det2.source = "{}" AND det2.score > {}) '.format(model,Config.DETECTOR_THRESHOLDS[model]) for model in Config.DETECTOR_THRESHOLDS]),camera_id,im_ids,im_ids)):
+            for det_id,matchids in db.session.execute(queryTemplate1.format('OR'.join([ ' (det1.source = "{}" AND det1.score > {}) '.format(model,Config.DETECTOR_THRESHOLDS[model]) for model in Config.DETECTOR_THRESHOLDS]),'OR'.join([ ' (det2.source = "{}" AND det2.score > {}) '.format(model,Config.DETECTOR_THRESHOLDS[model]) for model in Config.DETECTOR_THRESHOLDS]),cameragroup_id,im_ids,Config.STATIC_AREA,Config.STATIC_AREA,Config.STATIC_IOU)):
                 match_ids = [int(r) for r in matchids.split(',')]
                 matchcount = len(match_ids)
                 #TODO: CHECK THIS THRESHOLD (og matchcount>3 and matchcount/imcount>0.3)
-                if matchcount>3 and matchcount/imcount>0.1 and det_id not in static_detections:
+                if matchcount>Config.STATIC_MATCHCOUNT and matchcount/imcount>Config.STATIC_PERCENTAGE and det_id not in static_detections:
                     match_ids.append(det_id)
                     static_detections.extend(match_ids)
                     static_groups.append(match_ids)
@@ -807,8 +882,9 @@ def processCameraStaticDetections(self,camera_id,imcount):
         sq = db.session.query(Detection).filter(Detection.id.in_(static_detections)).subquery()
         other_detections = db.session.query(Detection)\
                                     .join(Image)\
+                                    .join(Camera)\
                                     .outerjoin(sq,sq.c.id==Detection.id)\
-                                    .filter(Image.camera_id==camera_id)\
+                                    .filter(Camera.cameragroup_id==cameragroup_id)\
                                     .filter(sq.c.id==None)\
                                     .all()
         for detection in other_detections:
@@ -819,6 +895,64 @@ def processCameraStaticDetections(self,camera_id,imcount):
         staticgroups = db.session.query(Staticgroup).filter(~Staticgroup.detections.any()).all()
         for staticgroup in staticgroups:
             db.session.delete(staticgroup)
+
+        db.session.commit()
+
+
+        ##### Update Masked Detections ########
+        detections = db.session.query(Detection)\
+                                .join(Image)\
+                                .join(Camera)\
+                                .join(Cameragroup)\
+                                .join(Mask)\
+                                .filter(Mask.cameragroup_id==cameragroup_id)\
+                                .filter(or_(and_(Detection.source==model,Detection.score>Config.DETECTOR_THRESHOLDS[model]) for model in Config.DETECTOR_THRESHOLDS))\
+                                .filter(~Detection.status.in_(Config.DET_IGNORE_STATUSES))\
+                                .filter(Detection.static==False)\
+                                .filter(and_(
+                                    func.ST_Intersects(func.ST_GeomFromText(func.concat('POINT(', Detection.left, ' ', Detection.top, ')'), 32734), Mask.shape),
+                                    func.ST_Intersects(func.ST_GeomFromText(func.concat('POINT(', Detection.left, ' ', Detection.bottom, ')'), 32734), Mask.shape),
+                                    func.ST_Intersects(func.ST_GeomFromText(func.concat('POINT(', Detection.right,' ', Detection.bottom, ')'), 32734), Mask.shape),
+                                    func.ST_Intersects(func.ST_GeomFromText(func.concat('POINT(', Detection.right,' ', Detection.top,  ')'), 32734), Mask.shape),
+                                ))\
+                                .distinct().all()
+        
+        for detection in detections:
+            detection.status = 'masked'
+
+        db.session.commit()
+
+        # Unmask detections
+        masked_detections = db.session.query(Detection)\
+                                .join(Image)\
+                                .join(Camera)\
+                                .join(Cameragroup)\
+                                .join(Mask)\
+                                .filter(Mask.cameragroup_id==cameragroup_id)\
+                                .filter(or_(and_(Detection.source==model,Detection.score>Config.DETECTOR_THRESHOLDS[model]) for model in Config.DETECTOR_THRESHOLDS))\
+                                .filter(Detection.status=='masked')\
+                                .filter(Detection.static==False)\
+                                .filter(and_(
+                                    func.ST_Intersects(func.ST_GeomFromText(func.concat('POINT(', Detection.left, ' ', Detection.top, ')'), 32734), Mask.shape),
+                                    func.ST_Intersects(func.ST_GeomFromText(func.concat('POINT(', Detection.left, ' ', Detection.bottom, ')'), 32734), Mask.shape),
+                                    func.ST_Intersects(func.ST_GeomFromText(func.concat('POINT(', Detection.right,' ', Detection.bottom, ')'), 32734), Mask.shape),
+                                    func.ST_Intersects(func.ST_GeomFromText(func.concat('POINT(', Detection.right,' ', Detection.top,  ')'), 32734), Mask.shape),
+                                ))\
+                                .subquery()
+
+        unmasked_detections = db.session.query(Detection)\
+                                .join(Image)\
+                                .join(Camera)\
+                                .outerjoin(masked_detections, masked_detections.c.id==Detection.id)\
+                                .filter(Camera.cameragroup_id==cameragroup_id)\
+                                .filter(or_(and_(Detection.source==model,Detection.score>Config.DETECTOR_THRESHOLDS[model]) for model in Config.DETECTOR_THRESHOLDS))\
+                                .filter(Detection.status=='masked')\
+                                .filter(Detection.static==False)\
+                                .filter(masked_detections.c.id==None)\
+                                .distinct().all()
+
+        for detection in unmasked_detections:
+            detection.status = 'active'
 
         db.session.commit()
 
@@ -865,9 +999,14 @@ def processStaticDetections(survey_id):
     #     detection.static = False
     # db.session.commit()
 
+    # Process static detections
+    # results = []
+    # for imcount, cameragroup_id in db.session.query(func.count(distinct(Image.id)), Camera.cameragroup_id).join('camera', 'trapgroup').filter(Trapgroup.survey_id == survey_id).group_by(Camera.cameragroup_id):
+    #     results.append(processCameraStaticDetections.apply_async(kwargs={'cameragroup_id':cameragroup_id,'imcount':imcount},queue='parallel'))
+
     results = []
-    for camera_id, imcount in db.session.query(Image.camera_id, func.count(distinct(Image.id))).join('camera', 'trapgroup').outerjoin(Video).filter(Video.id==None).filter(Trapgroup.survey_id == survey_id).group_by(Image.camera_id):
-        results.append(processCameraStaticDetections.apply_async(kwargs={'camera_id':camera_id,'imcount':imcount},queue='parallel'))
+    for cameragroup_id in db.session.query(Cameragroup.id).join('camera', 'trapgroup').filter(Trapgroup.survey_id == survey_id).distinct():
+        results.append(processCameraStaticDetections.apply_async(kwargs={'cameragroup_id':cameragroup_id},queue='parallel'))
     
     #Wait for processing to complete
     db.session.remove()
@@ -3317,7 +3456,7 @@ def correct_timestamps(survey_id,setup_time=31):
 
 
 @celery.task(bind=True,max_retries=5,ignore_result=True)
-def import_survey(self,s3Folder,surveyName,tag,organisation_id,correctTimestamps,classifier,user_id=None,permission=None,annotation=None,detailed_access=None):
+def import_survey(self,s3Folder,surveyName,tag,organisation_id,correctTimestamps,classifier,cam_code,user_id=None,permission=None,annotation=None,detailed_access=None):
     '''
     Celery task for the importing of surveys. Includes all necessary processes such as animal detection, species classification etc. Handles added images cleanly.
 
@@ -3362,6 +3501,12 @@ def import_survey(self,s3Folder,surveyName,tag,organisation_id,correctTimestamps
         if not skip:
             task_id=cluster_survey(survey_id)
             survey = db.session.query(Survey).get(survey_id)
+
+        survey.status='Processing Cameras'
+        survey.camera_code = cam_code
+        db.session.commit()
+        processCameras(survey_id,cam_code)
+        survey = db.session.query(Survey).get(survey_id)
         
         survey.status='Removing Static Detections'
         db.session.commit()
@@ -3390,7 +3535,6 @@ def import_survey(self,s3Folder,surveyName,tag,organisation_id,correctTimestamps
         db.session.commit()
         updateSurveyDetectionRatings(survey_id=survey_id)
 
-        # TODO: Maybe add update_masks in improt survey if it basically edits a survey so that the masks are applied if a camera is updated ? 
         
         task_ids = [r[0] for r in db.session.query(Task.id).filter(Task.survey_id==survey_id).filter(Task.name!='default').all()]
         for task_id in task_ids:
@@ -4142,6 +4286,99 @@ def pipelineLILA2(self,dets_filename,images_filename,survey_name,tgcode_str,sour
         app.logger.info('!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!')
         app.logger.info(' ')
 
+    finally:
+        db.session.remove()
+
+    return True
+
+def processCameras(survey_id, camera_code, queue='parallel'):
+    ''' Processes all cameras in a survey without a cameragroup, extracting the camera code from the path and creating a cameragroup for each unique code.'''
+    trapgroup_ids = [r[0] for r in db.session.query(Trapgroup.id).filter(Trapgroup.survey_id==survey_id).all()]
+
+    results = []
+    for trapgroup_id in trapgroup_ids:
+        results.append(group_cameras.apply_async(kwargs={'trapgroup_id':trapgroup_id, 'camera_code': camera_code},queue=queue))
+
+    #Wait for processing to complete
+    db.session.remove()
+    GLOBALS.lock.acquire()
+    with allow_join_result():
+        for result in results:
+            try:
+                result.get()
+            except Exception:
+                app.logger.info(' ')
+                app.logger.info('!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!')
+                app.logger.info(traceback.format_exc())
+                app.logger.info('!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!')
+                app.logger.info(' ')
+            result.forget()
+    GLOBALS.lock.release()
+
+    return True
+
+@celery.task(bind=True,max_retries=5)
+def group_cameras(self,trapgroup_id,camera_code):
+    ''' Groups cameras into cameragroups based on the camera code (Camera identifier or Bottom-level Folder)'''
+    try:
+        cameras = db.session.query(Camera).filter(Camera.trapgroup_id==trapgroup_id).filter(Camera.cameragroup_id==None).all()
+        camera_name = None
+        for camera in cameras:
+            if camera_code:
+                # Identifier
+                camera_code = re.compile(camera_code)
+                tags = camera_code.findall(camera.path)
+                camera_name = tags[0] if tags else None
+            else:
+                # Folder
+                if '_video_images_' in camera.path:
+                    # If video, use the folder above the video_images folder
+                    camera_name = camera.path.split('/_video_images_')[0].split('/')[-1]
+                else:
+                    camera_name = camera.path.split('/')[-1]
+            if camera_name:
+                if not camera.cameragroup:
+                    existing_cameragroups = db.session.query(Cameragroup).join(Camera).filter(Camera.trapgroup_id==trapgroup_id).filter(Cameragroup.name==camera_name).all()
+                    if existing_cameragroups:
+                        if len(existing_cameragroups) == 1:
+                            existing_cameragroup = existing_cameragroups[0]
+                            existing_cameragroup.cameras.append(camera)
+                        else:
+                            all_cameras = []
+                            all_masks = []
+                            for existing_cameragroup in existing_cameragroups:
+                                all_cameras.extend(existing_cameragroup.cameras)
+                                all_masks.extend(existing_cameragroup.masks)
+                                db.session.delete(existing_cameragroup)
+                            all_cameras.append(camera)
+                            all_cameras = list(set(all_cameras))
+                            camera_group = Cameragroup(name=camera_name,cameras=all_cameras,masks=all_masks)
+                            db.session.add(camera_group)
+                    else:
+                        camera_group = Cameragroup(name=camera_name,cameras=[camera],masks=[])
+                        db.session.add(camera_group)
+
+        # Find empty cameragroups
+        empty_cameragroups = db.session.query(Cameragroup).filter(~Cameragroup.cameras.any()).all()
+        for empty_cameragroup in empty_cameragroups:
+            empty_cameragroup.masks = []
+            db.session.delete(empty_cameragroup)
+
+        # Find masks without a cameragroup
+        masks = db.session.query(Mask).filter(Mask.cameragroup_id==None).all()
+        for mask in masks:
+            db.session.delete(mask)
+
+        db.session.commit()
+
+    except Exception as exc:
+        app.logger.info(' ')
+        app.logger.info('!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!')
+        app.logger.info(traceback.format_exc())
+        app.logger.info('!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!')
+        app.logger.info(' ')
+        self.retry(exc=exc, countdown= retryTime(self.request.retries))
+    
     finally:
         db.session.remove()
 

@@ -330,6 +330,7 @@ def launchTask():
         if any(level in taggingLevel for level in ['-4','-2']):
             tags = db.session.query(Tag.description,Tag.hotkey,Tag.id).filter(Tag.task==task).order_by(Tag.description).all()
             checkAndRelease.apply_async(kwargs={'task_id': task.id},countdown=300, queue='priority', priority=9)
+            tags = [tuple(row) for row in tags]
             return json.dumps({'status': 'tags', 'tags': tags})
 
         elif len(untranslated) == 0:
@@ -767,29 +768,49 @@ def getCameraStamps():
     prev_url = None
     page = request.args.get('page', 1, type=int)
     survey_id = request.args.get('survey_id', None, type=int)
+    level = request.args.get('level', 'folder', type=str)
     # order = request.args.get('order', 5, type=int)
     # search = request.args.get('search', '', type=str)
 
     survey = db.session.query(Survey).get(survey_id)
-
     if survey and checkSurveyPermission(current_user.id,survey_id,'read'):
+        if level == 'folder':
+            data = db.session.query(Trapgroup.tag, Camera.id, Camera.path, func.min(Image.timestamp), func.min(Image.corrected_timestamp))\
+                                .join(Camera, Camera.trapgroup_id==Trapgroup.id)\
+                                .join(Image)\
+                                .filter(Trapgroup.survey_id==survey_id)\
+                                .filter(~Camera.path.contains('_video_images_'))\
+                                .filter(Image.timestamp!=None)\
+                                .group_by(Trapgroup.id, Camera.id)\
+                                .order_by(Trapgroup.tag)\
+                                .paginate(page, 10, False)
 
-        data = db.session.query(Trapgroup.tag, Camera.id, Camera.path, func.min(Image.timestamp), func.min(Image.corrected_timestamp))\
-                            .join(Camera, Camera.trapgroup_id==Trapgroup.id)\
-                            .join(Image)\
-                            .filter(Trapgroup.survey_id==survey_id)\
-                            .filter(~Camera.path.contains('_video_images_'))\
-                            .filter(Image.timestamp!=None)\
-                            .group_by(Trapgroup.id, Camera.id)\
-                            .order_by(Trapgroup.tag)\
-                            .distinct()\
-                            .paginate(page, 10, False)
+        elif level == 'camera':
+            subquery = db.session.query(Cameragroup.id,func.min(Image.corrected_timestamp).label('min_timestamp'))\
+                                .join(Camera, Camera.cameragroup_id==Cameragroup.id)\
+                                .join(Image, Image.camera_id==Camera.id)\
+                                .join(Trapgroup, Trapgroup.id==Camera.trapgroup_id)\
+                                .filter(Trapgroup.survey_id==survey_id)\
+                                .filter(~Camera.path.contains('_video_images_'))\
+                                .filter(Image.timestamp!=None)\
+                                .group_by(Cameragroup.id)\
+                                .subquery()
+
+            data = db.session.query(Trapgroup.tag, Cameragroup.id, Cameragroup.name, Image.timestamp, Image.corrected_timestamp)\
+                                .join(Camera, Camera.trapgroup_id==Trapgroup.id)\
+                                .join(Cameragroup, Cameragroup.id==Camera.cameragroup_id)\
+                                .join(Image)\
+                                .join(subquery, and_(subquery.c.id == Cameragroup.id, subquery.c.min_timestamp == Image.corrected_timestamp))\
+                                .group_by(Trapgroup.id, Cameragroup.id)\
+                                .order_by(Trapgroup.tag)\
+                                .paginate(page, 10, False)
+
 
         temp_results = {}
         for row in data.items:
             if row[0] not in temp_results.keys():
                 temp_results[row[0]] = []
-            temp_results[row[0]].append({    'id': row[1],
+            temp_results[row[0]].append({   'id': row[1],
                                             'folder': row[2],
                                             'timestamp': stringify_timestamp(row[3]),
                                             'corrected_timestamp': stringify_timestamp(row[4])})
@@ -1192,7 +1213,7 @@ def updateSurveyStatus(survey_id, status):
                     db.session.commit()
                     GLOBALS.redisClient.delete('upload_ping_'+str(survey_id))
                     GLOBALS.redisClient.delete('upload_user_'+str(survey_id))
-                    import_survey.delay(s3Folder=survey.name,surveyName=survey.name,tag=survey.trapgroup_code,organisation_id=survey.organisation_id,correctTimestamps=survey.correct_timestamps,classifier=survey.classifier.name)
+                    import_survey.delay(s3Folder=survey.name,surveyName=survey.name,tag=survey.trapgroup_code,organisation_id=survey.organisation_id,correctTimestamps=survey.correct_timestamps,classifier=survey.classifier.name,cam_code=survey.camera_code)
                 else:
                     return json.dumps('error')
             else:
@@ -1309,11 +1330,19 @@ def imageViewer():
                 reqImages = db.session.query(Image).filter(Image.clusters.contains(cluster)).order_by(Image.corrected_timestamp).distinct().all()
 
         elif view_type=='camera':
-            camera = db.session.query(Camera).get(int(id_no))
-            # if camera and ((camera.trapgroup.survey.user==current_user) or (current_user.id==admin.id)):
-            if camera and checkSurveyPermission(current_user.id,camera.trapgroup.survey_id,'read'):
+            #TODO: Update for cameragroup
+            # camera = db.session.query(Camera).get(int(id_no))
+            # # if camera and ((camera.trapgroup.survey.user==current_user) or (current_user.id==admin.id)):
+            # if camera and checkSurveyPermission(current_user.id,camera.trapgroup.survey_id,'read'):
+            #     reqImages = db.session.query(Image)\
+            #                     .filter(Image.camera==camera)\
+            #                     .order_by(Image.corrected_timestamp)\
+            #                     .distinct().all()
+            cameragroup = db.session.query(Cameragroup).get(int(id_no))
+            if cameragroup and checkSurveyPermission(current_user.id,cameragroup.cameras[0].trapgroup.survey_id,'read'):
                 reqImages = db.session.query(Image)\
-                                .filter(Image.camera==camera)\
+                                .join(Camera)\
+                                .filter(Camera.cameragroup_id==cameragroup.id)\
                                 .order_by(Image.corrected_timestamp)\
                                 .distinct().all()
 
@@ -1419,6 +1448,8 @@ def createNewSurvey():
         classifier = request.form['classifier']
         permission = request.form['permission']
         annotation = request.form['annotation']
+        newSurveyCamCode = request.form['newSurveyCamCode']
+        camCheckbox = request.form['camCheckbox']
         if 'detailed_access' in request.form:
             detailed_access = ast.literal_eval(request.form['detailed_access'])
         else:
@@ -1432,6 +1463,12 @@ def createNewSurvey():
 
         if checkbox=='false':
             newSurveyTGCode = newSurveyTGCode+'[0-9]+'
+
+        if camCheckbox=='false' and newSurveyCamCode != 'None':
+            newSurveyCamCode = newSurveyCamCode+'[0-9]+'
+
+        if newSurveyCamCode == 'None':
+            newSurveyCamCode = None
 
         if correctTimestamps=='true':
             correctTimestamps=True
@@ -1485,7 +1522,7 @@ def createNewSurvey():
             if newSurveyS3Folder=='none':
                 # Browser upload
                 classifier = db.session.query(Classifier).filter(Classifier.name==classifier).first()
-                newSurvey = Survey(name=surveyName, description=newSurveyDescription, trapgroup_code=newSurveyTGCode, organisation_id=organisation_id, status='Uploading', correct_timestamps=correctTimestamps, classifier_id=classifier.id)
+                newSurvey = Survey(name=surveyName, description=newSurveyDescription, trapgroup_code=newSurveyTGCode, organisation_id=organisation_id, status='Uploading', correct_timestamps=correctTimestamps, classifier_id=classifier.id, camera_code=newSurveyCamCode)
                 db.session.add(newSurvey)
                 db.session.commit()
                 newSurvey_id = newSurvey.id
@@ -1497,7 +1534,7 @@ def createNewSurvey():
                 GLOBALS.redisClient.set('upload_ping_'+str(newSurvey_id),datetime.utcnow().timestamp())
                 GLOBALS.redisClient.set('upload_user_'+str(newSurvey_id),current_user.id)
             else:
-                import_survey.delay(s3Folder=newSurveyS3Folder,surveyName=surveyName,tag=newSurveyTGCode,organisation_id=organisation_id,correctTimestamps=correctTimestamps,classifier=classifier,user_id=current_user.id,permission=permission,annotation=annotation,detailed_access=detailed_access)
+                import_survey.delay(s3Folder=newSurveyS3Folder,surveyName=surveyName,tag=newSurveyTGCode,organisation_id=organisation_id,correctTimestamps=correctTimestamps,classifier=classifier,cam_code=newSurveyCamCode,user_id=current_user.id,permission=permission,annotation=annotation,detailed_access=detailed_access)
     
         return json.dumps({'status': status, 'message': message, 'newSurvey_id': newSurvey_id, 'surveyName':surveyName})
     else:
@@ -1710,7 +1747,8 @@ def checkTrapgroupCode():
             if task_id == 'none':
                 tgCode = request.form['tgCode']
                 folder = request.form['folder']
-                task = findTrapgroupTags.apply_async(kwargs={'tgCode':tgCode,'folder':folder,'organisation_id':organisation_id,'surveyName':surveyName})
+                camCode = request.form['camCode']
+                task = findTrapgroupTags.apply_async(kwargs={'tgCode':tgCode,'folder':folder,'organisation_id':organisation_id,'surveyName':surveyName,'camCode':camCode})
                 task_id = task.id
                 status = 'PENDING'
             else:
@@ -1875,7 +1913,8 @@ def editSurvey():
             survey.status = 'Processing'
             db.session.commit()
             timestamps = ast.literal_eval(request.form['timestamps'])
-            changeTimestamps.delay(survey_id=survey.id,timestamps=timestamps)
+            timestamp_level = ast.literal_eval(request.form['timestamp_level'])
+            changeTimestamps.delay(survey_id=survey.id,timestamps=timestamps,level=timestamp_level)
         
         elif 'coordData' in request.form:
             coordData = ast.literal_eval(request.form['coordData'])
@@ -1887,11 +1926,15 @@ def editSurvey():
             added_masks = masks['added']
             edited_masks = masks['edited']
             if len(removed_masks)>0 or len(added_masks)>0 or len(edited_masks)>0:
+                survey.status = 'Processing'
+                db.session.commit() 
                 update_masks.delay(survey_id=survey.id,removed_masks=removed_masks,added_masks=added_masks,edited_masks=edited_masks)
 
         elif 'staticgroups' in request.form:
             staticgroups = ast.literal_eval(request.form['staticgroups'])
             if len(staticgroups)>0:
+                survey.status = 'Processing'
+                db.session.commit()     
                 update_staticgroups.delay(survey_id=survey.id,staticgroups=staticgroups)
 
         elif 'kml' in request.files:
@@ -1920,16 +1963,27 @@ def editSurvey():
                 newSurveyTGCode = request.form['newSurveyTGCode']
                 newSurveyS3Folder = request.form['newSurveyS3Folder']
                 checkbox = request.form['checkbox']
+                newSurveyCamCode = request.form['newSurveyCamCode']
+                camCheckbox = request.form['camCheckbox']
 
-                if newSurveyTGCode!=' ':
+                if newSurveyTGCode!=' ' and newSurveyCamCode!=' ':
                     if checkbox=='false':
                         newSurveyTGCode = newSurveyTGCode+'[0-9]+'
 
+                    if camCheckbox=='false' and newSurveyCamCode!='None':
+                        newSurveyCamCode = newSurveyCamCode+'[0-9]+'
+
                     survey.trapgroup_code=newSurveyTGCode
+                    if newSurveyCamCode!='None':
+                        survey.camera_code=newSurveyCamCode
+                    else:
+                        survey.camera_code=None
+                        newSurveyCamCode=None
+
                     db.session.commit()
                     
                     if newSurveyS3Folder!='none':
-                        import_survey.delay(s3Folder=newSurveyS3Folder,surveyName=survey.name,tag=newSurveyTGCode,organisation_id=survey.organisation_id,correctTimestamps=survey.correct_timestamps,classifier=None)
+                        import_survey.delay(s3Folder=newSurveyS3Folder,surveyName=survey.name,tag=newSurveyTGCode,organisation_id=survey.organisation_id,correctTimestamps=survey.correct_timestamps,classifier=None,cam_code=newSurveyCamCode)
                     else:
                         survey.status = 'Uploading'
                         db.session.commit()
@@ -12288,7 +12342,7 @@ def getSurveyMasks(survey_id):
 
     survey = db.session.query(Survey).get(survey_id)
     if survey and checkSurveyPermission(current_user.id,survey.id,'write'):
-        camera_id = request.args.get('camera_id', None)
+        cameragroup_id = request.args.get('cameragroup_id', None)
         mask_data = db.session.query(
                                     Detection.id,
                                     Detection.top,
@@ -12297,14 +12351,16 @@ def getSurveyMasks(survey_id):
                                     Detection.right,
                                     Image.id,
                                     Image.filename,
-                                    Camera.id,
                                     Camera.path,
+                                    Cameragroup.id,
+                                    Cameragroup.name,
                                     Mask.id,
                                     func.ST_AsGeoJSON(Mask.shape)
                                 )\
                                 .join(Image, Image.id==Detection.image_id)\
                                 .join(Camera, Camera.id==Image.camera_id)\
-                                .join(Mask, Mask.camera_id==Camera.id)\
+                                .join(Cameragroup, Cameragroup.id==Camera.cameragroup_id)\
+                                .join(Mask, Mask.cameragroup_id==Cameragroup.id)\
                                 .join(Trapgroup, Trapgroup.id==Camera.trapgroup_id)\
                                 .filter(Trapgroup.survey_id==survey_id)\
                                 .filter(Detection.status=='masked')\
@@ -12313,21 +12369,21 @@ def getSurveyMasks(survey_id):
                                 .filter(Mask.checked==False)\
                                 .order_by(Camera.id,Image.corrected_timestamp)
                                 
-        if camera_id:
-            mask_data = mask_data.filter(Camera.id==camera_id)
+        if cameragroup_id:
+            mask_data = mask_data.filter(Cameragroup.id==cameragroup_id)
 
         mask_data = mask_data.distinct().all()
 
         masks = []
         cam_keys = {}
         for data in mask_data:
-            if data[7] not in cam_keys:
-                cam_keys[data[7]] = len(masks)
+            if data[8] not in cam_keys:
+                cam_keys[data[8]] = len(masks)
                 masks.append({
-                    'id': data[7],
+                    'id': data[8],
                     'images': [{
                         'id': data[5],
-                        'url': data[8]+'/'+data[6],
+                        'url': data[7]+'/'+data[6],
                         'detections': [{
                             'id': data[0],
                             'top': data[1],
@@ -12337,18 +12393,19 @@ def getSurveyMasks(survey_id):
                         }]
                     }],
                     'masks': [{
-                        'id': data[9],
-                        'coords': json.loads(data[10])['coordinates'][0]
+                        'id': data[10],
+                        'coords': json.loads(data[11])['coordinates'][0]
                     }],
-                    'camera_path': data[8]
+                    'camera_path': data[7],
+                    'cameragroup_name': data[9]
                 })
             else:
-                cam_idx = cam_keys[data[7]]
+                cam_idx = cam_keys[data[8]]
                 image_exists = any(d['id'] == data[5] for d in masks[cam_idx]['images'])
                 if not image_exists:
                     masks[cam_idx]['images'].append({
                         'id': data[5],
-                        'url': data[8]+'/'+data[6],
+                        'url': data[7]+'/'+data[6],
                         'detections': [{
                             'id': data[0],
                             'top': data[1],
@@ -12369,26 +12426,26 @@ def getSurveyMasks(survey_id):
                             'right': data[4]
                         })
 
-                mask_exists  = any(m['id'] == data[9] for m in masks[cam_idx]['masks'])
+                mask_exists  = any(m['id'] == data[10] for m in masks[cam_idx]['masks'])
                 if not mask_exists:
                     masks[cam_idx]['masks'].append({
-                        'id': data[9],
-                        'coords': json.loads(data[10])['coordinates'][0]
+                        'id': data[10],
+                        'coords': json.loads(data[11])['coordinates'][0]
                     })
 
         return json.dumps({'masks': masks})
 
-@app.route('/getMaskCameras/<survey_id>')
+@app.route('/getMaskCameragroups/<survey_id>')
 @login_required
 def getMaskCameras(survey_id):
-    ''' Gets all the camera ids that have masks in a survey '''
-    camera_ids = []
+    ''' Gets all the cameragroup ids that have masks in a survey '''
+    cameragroup_ids = []
     survey = db.session.query(Survey).get(survey_id)
     if survey and checkSurveyPermission(current_user.id,survey.id,'write'):
-        cameras = db.session.query(Mask.camera_id).join(Camera).join(Trapgroup).filter(Trapgroup.survey_id==survey_id).distinct().all()
-        camera_ids = [c[0] for c in cameras]
+        cameragroups = db.session.query(Mask.cameragroup_id).join(Cameragroup).join(Camera).join(Trapgroup).filter(Trapgroup.survey_id==survey_id).distinct().all()
+        cameragroup_ids = [c[0] for c in cameragroups]
 
-    return json.dumps(camera_ids)
+    return json.dumps(cameragroup_ids)
 
 @app.route('/getStaticGroupIDs/<survey_id>')
 @login_required
@@ -12424,3 +12481,95 @@ def finishStaticDetectionCheck(survey_id):
         wrapUpStaticDetectionCheck.delay(survey_id)
 
     return json.dumps('success')
+
+@app.route('/getSurveyStructure')
+@login_required
+def getSurveyStructure():
+    '''Returns a dictionary of the survey's structure (Sites, Cameras, Folders, Image count, Video count, and Frame Count)'''
+    
+    structure = []
+    next_url = None
+    prev_url = None
+    page = request.args.get('page', 1, type=int)
+    survey_id = request.args.get('survey_id', None, type=int)
+    survey = db.session.query(Survey).get(survey_id)
+
+    if survey and checkSurveyPermission(current_user.id,survey_id,'read'):
+        video_subquery = db.session.query(Cameragroup.id, func.SUBSTRING_INDEX(Camera.path, '/_video_images_',1).label('video_path'), func.count(distinct(Image.id)).label('frame_count'), func.count(distinct(Video.id)).label('vid_count'))\
+                            .join(Camera, Camera.cameragroup_id==Cameragroup.id)\
+                            .join(Image, Image.camera_id==Camera.id)\
+                            .join(Video, Video.camera_id==Camera.id)\
+                            .join(Trapgroup, Trapgroup.id==Camera.trapgroup_id)\
+                            .filter(Trapgroup.survey_id==survey_id)\
+                            .filter(Camera.path.contains('_video_images_'))\
+                            .group_by(Cameragroup.id, func.SUBSTRING_INDEX(Camera.path, '/_video_images_',1))\
+                            .subquery()
+
+        image_subquery = db.session.query(Cameragroup.id, Camera.path.label('image_path'), func.count(distinct(Image.id)).label('image_count'))\
+                            .join(Camera, Camera.cameragroup_id==Cameragroup.id)\
+                            .join(Image, Image.camera_id==Camera.id)\
+                            .join(Trapgroup, Trapgroup.id==Camera.trapgroup_id)\
+                            .filter(Trapgroup.survey_id==survey_id)\
+                            .filter(~Camera.path.contains('_video_images_'))\
+                            .group_by(Cameragroup.id, Camera.id)\
+                            .subquery()
+
+        data = db.session.query(Trapgroup.id, Trapgroup.tag, Cameragroup.id, Cameragroup.name, image_subquery.c.image_path, video_subquery.c.video_path, image_subquery.c.image_count, video_subquery.c.vid_count, video_subquery.c.frame_count)\
+                            .join(Camera, Camera.trapgroup_id==Trapgroup.id)\
+                            .join(Cameragroup, Cameragroup.id==Camera.cameragroup_id)\
+                            .outerjoin(image_subquery, image_subquery.c.id==Cameragroup.id)\
+                            .outerjoin(video_subquery, video_subquery.c.id==Cameragroup.id)\
+                            .filter(Trapgroup.survey_id==survey_id)\
+                            .order_by(Trapgroup.tag, Cameragroup.name)\
+                            .distinct().paginate(page, 10, False)       
+        
+        site_keys = {}
+        camera_keys = {}
+        for d in data.items:
+            if d[0] not in site_keys:
+                site_keys[d[0]] = len(structure)
+                camera_keys[d[2]] = 0
+                structure.append({
+                    'id': d[0],
+                    'site' : d[1],
+                    'nr_folders': 1, 
+                    'cameras': [{
+                            'id': d[2],
+                            'name': d[3],
+                            'folders': [{
+                                'path': d[4] if d[4] else d[5],
+                                'image_count': d[6] if d[6] else 0,
+                                'video_count': d[7] if d[7] else 0,
+                                'frame_count': d[8] if d[8] else 0
+                            }]
+                        }]
+                })
+            else:
+                site_idx = site_keys[d[0]]
+                structure[site_idx]['nr_folders'] += 1
+                if d[2] not in camera_keys:
+                    camera_keys[d[2]] = len(structure[site_idx]['cameras'])
+                    structure[site_idx]['cameras'].append({
+                        'id': d[2],
+                        'name': d[3],
+                        'folders': [{
+                            'path': d[4] if d[4] else d[5],
+                            'image_count': d[6] if d[6] else 0,
+                            'video_count': d[7] if d[7] else 0,
+                            'frame_count': d[8] if d[8] else 0
+                        }]
+                    })
+                else:
+                    camera_idx = camera_keys[d[2]]
+                    structure[site_idx]['cameras'][camera_idx]['folders'].append({
+                        'path': d[4] if d[4] else d[5],
+                        'image_count': d[6] if d[6] else 0,
+                        'video_count': d[7] if d[7] else 0,
+                        'frame_count': d[8] if d[8] else 0
+                    })
+
+
+        next_url = url_for('getSurveyStructure', page=data.next_num, survey_id=survey_id) if data.has_next else None
+        prev_url = url_for('getSurveyStructure', page=data.prev_num, survey_id=survey_id) if data.has_prev else None
+
+    return json.dumps({'survey': survey_id, 'structure': structure, 'next_url':next_url, 'prev_url':prev_url})

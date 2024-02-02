@@ -108,6 +108,19 @@ var prev_classifier_url
 var currentDownloads = []
 var currentDownloadTasks = []
 var checkingTGC = false
+var checkingCameraCode = false
+var checkingCamC = false
+var camCheckID = null
+var camCheckFolder = null
+var camCheckCode = null
+var next_structure_url = null 
+var prev_structure_url = null
+var cameragroup_corrected_timestamps = {}
+var cameragroup_original_timestamps = {}
+var globalSurveyStructure = {}
+var globalStructureCounts = {'sites':0,'cameras':0}
+var structure_page = 1
+var tags_per_page = 10
 
 var s3 = null
 var stopFlag = true
@@ -795,6 +808,7 @@ function resetNewSurveyPage() {
     document.getElementById('newSurveyDescription').value = ''
     document.getElementById('newSurveyTGCode').value = ''
     document.getElementById('newSurveyErrors').innerHTML = ''
+    document.getElementById('newSurveyCamCode').value = ''
 
     document.getElementById('S3BucketUpload').checked = false
     document.getElementById('BrowserUpload').checked = true
@@ -802,10 +816,18 @@ function resetNewSurveyPage() {
     document.getElementById('detailedAccessSurveyCb').checked = false
     document.getElementById('detailedAccessSurveyDiv').hidden = true
 
+    document.getElementById('camAdvancedCheckbox').checked = false
+    document.getElementById('camRegExp').checked = false 
+    document.getElementById('camBotLvlFolder').checked = true
+    document.getElementById('camSameAsSite').checked = false
+    document.getElementById('camIdDiv').hidden = true
+    document.getElementById('camOptionDesc').innerHTML = '<i>Each bottom-level folder in your dataset will be considered a different camera.</i>'
+
     // document.getElementById('kmlFileUploadText').value = ''
     // document.getElementById('kmlFileUpload').value = ''
 
-    document.getElementById('newSurveyTGInfo').innerHTML = ''
+    // document.getElementById('newSurveyTGInfo').innerHTML = ''
+    document.getElementById('newSurveyStructureDiv').innerHTML = ''
 
     clearSelect(document.getElementById('newSurveyOrg'))
     document.getElementById('newSurveyPermission').value = 'default'
@@ -825,6 +847,11 @@ function resetNewSurveyPage() {
     newSurveyTgBuilder = document.querySelector('#newSurveyTgBuilder')
     while(newSurveyTgBuilder.firstChild){
         newSurveyTgBuilder.removeChild(newSurveyTgBuilder.firstChild);
+    }
+
+    newSurveyCamBuilder = document.querySelector('#newSurveyCamBuilder')
+    while(newSurveyCamBuilder.firstChild){
+        newSurveyCamBuilder.removeChild(newSurveyCamBuilder.firstChild);
     }
 
     surveyPermissionsDiv = document.querySelector('#surveyPermissionsDiv')
@@ -947,11 +974,23 @@ function buildBrowserUpload(divID) {
         $("#addImagesCheckbox").change( function() {
             checkTrapgroupCode()
         })
+        $("#addImagesCamCode").change( function() {
+            checkTrapgroupCode()
+        })
+        $("#addImagesCamCheckbox").change( function() {
+            checkTrapgroupCode()
+        })
     } else {
         $("#newSurveyTGCode").change( function() {
             checkTrapgroupCode()
         })
         $("#newSurveyCheckbox").change( function() {
+            checkTrapgroupCode()
+        })
+        $("#newSurveyCamCode").change( function() {
+            checkTrapgroupCode()
+        })
+        $("#camAdvancedCheckbox").change( function() {
             checkTrapgroupCode()
         })
     }
@@ -966,11 +1005,41 @@ function pingTgCheck() {
 
             if (document.getElementById('addImagesTGCode')!=null) {
                 tgCode = document.getElementById('addImagesTGCode').value
+                infoDiv = document.getElementById('addImagesStructureDiv')
+                camRegExp = document.getElementById('camRegExpES').checked
+                camSameAsSite = document.getElementById('camSameAsSiteES').checked
+                camBotLvlFolder = document.getElementById('camBotLvlFolderES').checked
+                camAdvanced = document.getElementById('addImagesCamCheckbox').checked
+                if (camRegExp) {
+                    camCode = document.getElementById('addImagesCamCode').value
+                    if (!camAdvanced&&camCode!='') {
+                        camCode += '[0-9]+'
+                    }
+                } else if (camSameAsSite) {
+                    camCode = tgCode
+                } else if (camBotLvlFolder) {
+                    camCode = 'None'
+                }
             } else {
                 tgCode = document.getElementById('newSurveyTGCode').value
+                infoDiv = document.getElementById('newSurveyStructureDiv')
+                camRegExp = document.getElementById('camRegExp').checked
+                camSameAsSite = document.getElementById('camSameAsSite').checked
+                camBotLvlFolder = document.getElementById('camBotLvlFolder').checked
+                camAdvanced = document.getElementById('camAdvancedCheckbox').checked
+                if (camRegExp) {
+                    camCode = document.getElementById('newSurveyCamCode').value
+                    if (!camAdvanced&&camCode!='') {
+                        camCode += '[0-9]+'
+                    }
+                } else if (camSameAsSite) {
+                    camCode = tgCode
+                } else if (camBotLvlFolder) {
+                    camCode = 'None'
+                }
             }
 
-            if ((tgCode=='')||(folder=='')) {
+            if ((tgCode=='')||(folder=='')||(camCode=='')) {
                 infoDiv.innerHTML = ''
 
                 var formData = new FormData()
@@ -981,12 +1050,13 @@ function pingTgCheck() {
 
                 tgCheckFolder = null
                 tgCheckCode = null
+                camCheckCode = null
                 checkingTGC = false
                 checkingTrapgroupCode = false
 
             }
-            else if (tgCode.endsWith('.*') || tgCode.endsWith('.+') || tgCode.endsWith('.*[0-9]+') || tgCode.endsWith('.+[0-9]+' )) {
-                error_message = 'Your site identifier is invalid. Please try again or contact us for assistance.'
+            else if (tgCode.endsWith('.*') || tgCode.endsWith('.+') || tgCode.endsWith('.*[0-9]+') || tgCode.endsWith('.+[0-9]+' ) || camCode.endsWith('.*') || camCode.endsWith('.+') || camCode.endsWith('.*[0-9]+') || camCode.endsWith('.+[0-9]+' )) {
+                error_message = 'Your site identifier or camera identifier is invalid. Please try again or contact us for assistance.'
 
                 infoDiv.innerHTML = error_message
 
@@ -998,6 +1068,7 @@ function pingTgCheck() {
 
                 tgCheckFolder = null
                 tgCheckCode = null
+                camCheckCode = null
                 checkingTGC = false
                 checkingTrapgroupCode = false
 
@@ -1007,15 +1078,21 @@ function pingTgCheck() {
                 if (document.getElementById('addImagesTGCode')!=null) {
                     if ((!document.getElementById('addImagesCheckbox').checked)&&(tgCode!='')) {
                         tgCode+='[0-9]+'
+                        if (camSameAsSite) {
+                            camCode+='[0-9]+'
+                        }
                     }
                 } else {
                     if ((!document.getElementById('newSurveyCheckbox').checked)&&(tgCode!='')) {
                         tgCode+='[0-9]+'
+                        if (camSameAsSite) {
+                            camCode+='[0-9]+'
+                        }
                     }
                 }
 
                 var formData = new FormData()
-                if ((tgCheckFolder==folder)&&(tgCheckCode==tgCode)) {
+                if ((tgCheckFolder==folder)&&(tgCheckCode==tgCode)&&(camCheckCode==camCode)) {
                     // Still the same - just checking status
                     if (modalNewSurvey.is(':visible')) {
                         surveyName = document.getElementById('newSurveyName').value
@@ -1034,6 +1111,7 @@ function pingTgCheck() {
                     formData.append("task_id", 'none')
                     formData.append("tgCode", tgCode)
                     formData.append("folder", folder)
+                    formData.append("camCode", camCode)
                     if (modalNewSurvey.is(':visible')) {
                         surveyOrganisation = document.getElementById('newSurveyOrg').value
                         formData.append("organisation_id", surveyOrganisation)
@@ -1043,6 +1121,7 @@ function pingTgCheck() {
                     }
                     tgCheckFolder = folder
                     tgCheckCode = tgCode
+                    camCheckCode = camCode
                 }
             
                 var xhttp = new XMLHttpRequest();
@@ -1053,14 +1132,47 @@ function pingTgCheck() {
                         tgCheckID = response.task_id
                         if ((tgCheckFolder==folder)&&(tgCheckCode==tgCode)) {
                             if (response.status=='SUCCESS') {
-                                infoDiv.innerHTML = response.data
+                                // infoDiv.innerHTML = response.data
+                                data = response.data
+
+                                if (data.message != 'Structure found.'){
+                                    infoDiv.innerHTML = data.message
+                                }
+                                else{
+                                    infoDiv.innerHTML = ''
+                                    if (data.structure != null) {
+                                        globalStructureCounts['sites'] = data.nr_sites
+                                        globalStructureCounts['cameras'] = data.nr_cams
+                                        structure_page = 1
+                                        globalSurveyStructure = {}
+                                        globalSurveyStructure[structure_page] = {}
+
+                                        page_count = 1
+                                        var tgs = Object.keys(data.structure)
+                                        console.log(tgs)
+                                        for (let i=0;i<tgs.length;i++) {
+                                            globalSurveyStructure[page_count][tgs[i]] = data.structure[tgs[i]]
+                                            if (Object.keys(globalSurveyStructure[page_count]).length == tags_per_page && i < tgs.length-1) {
+                                                page_count += 1
+                                                globalSurveyStructure[page_count] = {}
+                                            }
+                                        }
+
+                                        updateSurveyStructure()
+                                    }
+                                    else{
+                                        infoDiv.innerHTML = 'No structure found.'
+                                    }
+                                }
                                 tgCheckFolder = null
                                 tgCheckCode = null
+                                camCheckCode = null
                                 checkingTGC = false
                             } else if (response.status=='FAILURE') {
                                 infoDiv.innerHTML = 'Check failed.'
                                 tgCheckFolder = null
                                 tgCheckCode = null
+                                camCheckCode = null
                                 checkingTGC = false
                             } else {
                                 setTimeout(function() { pingTgCheck(); }, 3000)
@@ -1082,6 +1194,7 @@ function pingTgCheck() {
 
         tgCheckFolder = null
         tgCheckCode = null
+        camCheckCode = null
         checkingTGC = false
         checkingTrapgroupCode = false
     }
@@ -1090,51 +1203,165 @@ function pingTgCheck() {
 function checkTrapgroupCode() {
     /** Checks the trapgroup code and updates the TG info field. */
 
+    globalSurveyStructure = {}
+    globalStructureCounts = {}
+    structure_page = 1
+
     if (document.getElementById('addImagesTGCode')!=null) {
         tgCode = document.getElementById('addImagesTGCode').value
-        infoDiv = document.getElementById('addImagesTGInfo')
+        infoDiv = document.getElementById('addImagesStructureDiv')
         browserChecked = document.getElementById('BrowserAdd').checked
         folderChecked = document.getElementById('S3BucketAdd').checked
+        camBotLvlFolder = document.getElementById('camBotLvlFolderES').value
+        camSameAsSite = document.getElementById('camSameAsSiteES').checked
+        camRegExp = document.getElementById('camRegExpES').checked
+        if (camRegExp) {
+            camCode = document.getElementById('addImagesCamCode').value
+            if (!document.getElementById('addImagesCamCheckbox').checked&&camCode!='') {
+                camCode += '[0-9]+'
+            }
+        }
+        else if(camSameAsSite) {
+            camCode = tgCode
+        }
+        else{
+            camCode = 'None'
+        }
     } else {
         tgCode = document.getElementById('newSurveyTGCode').value
-        infoDiv = document.getElementById('newSurveyTGInfo')
+        infoDiv = document.getElementById('newSurveyStructureDiv')
         browserChecked = document.getElementById('BrowserUpload').checked
         folderChecked = document.getElementById('S3BucketUpload').checked
+        camBotLvlFolder = document.getElementById('camBotLvlFolder').value
+        camSameAsSite = document.getElementById('camSameAsSite').checked
+        camRegExp = document.getElementById('camRegExp').checked
+        if (camRegExp) {
+            camCode = document.getElementById('newSurveyCamCode').value
+            if (!document.getElementById('camAdvancedCheckbox').checked&&camCode!='') {
+                camCode += '[0-9]+'
+            }
+        }
+        else if(camSameAsSite) {
+            camCode = tgCode
+        }
+        else{
+            camCode = 'None'
+        }
     }
+
 
     if (document.getElementById('addImagesTGCode')!=null) {
         if ((!document.getElementById('addImagesCheckbox').checked)&&(tgCode!='')) {
             tgCode+='[0-9]+'
+            if (camSameAsSite) {
+                camCode+='[0-9]+'
+            }
         }
     } else {
         if ((!document.getElementById('newSurveyCheckbox').checked)&&(tgCode!='')) {
             tgCode+='[0-9]+'
+            if (camSameAsSite) {
+                camCode+='[0-9]+'
+            }
         }
     }
 
     infoDiv.innerHTML = ''
     if (browserChecked) {
         pathDisplay = document.getElementById('pathDisplay')
-        if ((tgCode!='')&&(pathDisplay.options.length>0)) {
+        if ((tgCode!='')&&(camCode!='')&&(pathDisplay.options.length>0)) {
             if (tgCode.endsWith('.*') || tgCode.endsWith('.+') || tgCode.endsWith('.*[0-9]+') || tgCode.endsWith('.+[0-9]+' )) {
                 error_message = 'Your site identifier is invalid. Please try again or contact us for assistance.'
+                infoDiv.innerHTML = error_message
+            } else if (camCode.endsWith('.*') || camCode.endsWith('.+') || camCode.endsWith('.*[0-9]+') || camCode.endsWith('.+[0-9]+' )) {
+                error_message = 'Your camera identifier is invalid. Please try again or contact us for assistance.'
                 infoDiv.innerHTML = error_message
             } else {
                 infoDiv.innerHTML = 'Checking...'
                 pattern = new RegExp(tgCode)
+                if (camCode != 'None') {
+                    camPattern = new RegExp(camCode)
+                }
                 
                 tgs = []
+                cams = []
+                structure = {}
                 for (let i=2;i<pathDisplay.options.length;i++) {
                     matches = pathDisplay.options[i].text.match(pattern)
-                    if (matches!=null) {
+                    if (camCode == 'None') {
+                        path_split = pathDisplay.options[i].text.split('/')
+                        cam_folder = path_split[path_split.length-1]
+                        camMatches = [cam_folder]
+                    }
+                    else{
+                        camPath = pathDisplay.options[i].text
+                        if (camCode != tgCode) {
+                            if (matches!=null) {
+                                camPath = camPath.replace(matches[0], '')
+                            }
+                        }
+                        camMatches = camPath.match(camPattern)
+                    }
+                    if (matches!=null && camMatches!=null) {
                         tg = matches[0]
+                        cam = camMatches[0]
                         if (!tgs.includes(tg)) {
                             tgs.push(tg)
+                        }
+                        if (!cams.includes(cam)) {
+                            cams.push(cam)
+                        }
+                        if (tg in structure) {
+                            if (!structure[tg].includes(cam)){
+                                structure[tg].push(cam)
+                            }
+                        }
+                        else {
+                            structure[tg] = [cam]
                         }
                     }
                 }
 
-                infoDiv.innerHTML = tgs.length.toString() + ' sites found: ' + tgs.join(', ')
+                validStructure = true
+                infoDiv.innerHTML = ''
+                if (tgs.length==0) {
+                    validStructure = false
+                }
+                if (cams.length==0) {
+                    validStructure = false
+                }
+                var totCams = 0
+                for (let i=0;i<tgs.length;i++) {
+                    if (structure[tgs[i]].length==0) {
+                        validStructure = false
+                    }
+                    totCams += structure[tgs[i]].length
+                }
+
+                if (validStructure) {
+                    structure_page = 1
+                    page_count = 1
+                    globalSurveyStructure = {}
+                    globalSurveyStructure[page_count] = {}
+                    
+                    globalStructureCounts['sites'] = tgs.length
+                    globalStructureCounts['cameras'] = totCams
+
+                    for (let i=0;i<tgs.length;i++) {
+                        globalSurveyStructure[page_count][tgs[i]] = structure[tgs[i]]
+                        if (Object.keys(globalSurveyStructure[page_count]).length == tags_per_page && i < tgs.length-1) {
+                            page_count += 1
+                            globalSurveyStructure[page_count] = {}
+                        }
+                    }
+                }
+                else{
+                    globalSurveyStructure = {}
+                    globalStructureCounts = {}
+                    structure_page = 1
+                    infoDiv.innerHTML = 'Invalid structure. Please check your site and camera identifiers.'
+                }
+
             }
         }
     } else if (folderChecked) {
@@ -1185,6 +1412,8 @@ function checkTrapgroupCode() {
             // xhttp.send(formData);
         }
     }
+
+    updateSurveyStructure()
 }
 
 function updateTgCode() {
@@ -1256,7 +1485,7 @@ function updateTgCode() {
 function buildTgBuilderRow() {
     /** Builds a row for the trapgroup code builder. */
 
-    IDNum = getIdNumforNext('charSelect')
+    IDNum = getIdNumforNext('charSelect-')
 
     if (IDNum==0) {
         // Initialising - build headings
@@ -1265,6 +1494,11 @@ function buildTgBuilderRow() {
         } else {
             tgBuilder = document.getElementById('newSurveyTgBuilder')
         }
+
+        while(tgBuilder.firstChild){
+            tgBuilder.removeChild(tgBuilder.firstChild);
+        }
+
         tgBuilder.append(document.createElement('br'))
 
         tgBuilderRows = document.createElement('div')
@@ -1525,11 +1759,23 @@ function buildBucketUpload(divID,folders) {
         $("#addImagesCheckbox").change( function() {
             checkTrapgroupCode()
         })
+        $("#addImagesCamCode").change( function() {
+            checkTrapgroupCode()
+        })
+        $("#addImagesCamCheckbox").change( function() {
+            checkTrapgroupCode()
+        })
     } else {
         $("#newSurveyTGCode").change( function() {
             checkTrapgroupCode()
         })
         $("#newSurveyCheckbox").change( function() {
+            checkTrapgroupCode()
+        })
+        $("#newSurveyCamCode").change( function() {
+            checkTrapgroupCode()
+        })
+        $("#camAdvancedCheckbox").change( function() {
             checkTrapgroupCode()
         })
     }
@@ -1685,7 +1931,7 @@ function buildAddIms() {
     tgBuilder.setAttribute('id','addImagesTgBuilder')
     addImagesAddImsDiv.appendChild(tgBuilder)
 
-    // addImagesAddImsDiv.appendChild(document.createElement('br'))
+    addImagesAddImsDiv.appendChild(document.createElement('br'))
 
     $("#addImagesCheckbox").change( function() {
         addImagesCheckbox = document.getElementById('addImagesCheckbox')
@@ -1703,14 +1949,220 @@ function buildAddIms() {
         }
     })
 
+    // Camera Code
+    h5 = document.createElement('h5')
+    h5.setAttribute('style','margin-bottom: 2px')
+    h5.innerHTML = 'Camera Identifier'
+    addImagesAddImsDiv.appendChild(h5)
+
+    div = document.createElement('div')
+    div.setAttribute('style','font-size: 80%; margin-bottom: 2px')
+    div.innerHTML = '<i>Select the method you would like to use to identify your cameras.</i>'
+    addImagesAddImsDiv.appendChild(div)
+
+    var div = document.createElement('div')
+    div.style.marginBottom = '5px'
+    addImagesAddImsDiv.appendChild(div)
+
+    var radioDiv = document.createElement('div')
+    radioDiv.setAttribute('class','custom-control custom-radio custom-control-inline')
+    div.appendChild(radioDiv)
+
+    var input = document.createElement('input')
+    input.setAttribute('type','radio')
+    input.classList.add('custom-control-input')
+    input.setAttribute('id','camBotLvlFolderES')
+    input.setAttribute('name','camCodeSelectionES')
+    input.setAttribute('value','customEx')
+    input.checked = true
+    input.setAttribute('onchange','updateCamDiv()')
+    radioDiv.appendChild(input)
+
+    var label = document.createElement('label')
+    label.classList.add('custom-control-label')
+    label.setAttribute('for','camBotLvlFolderES')
+    label.innerHTML = 'Folder'
+    radioDiv.appendChild(label)
+
+    var radioDiv = document.createElement('div')
+    radioDiv.setAttribute('class','custom-control custom-radio custom-control-inline')
+    div.appendChild(radioDiv)
+
+    var input = document.createElement('input')
+    input.setAttribute('type','radio')
+    input.classList.add('custom-control-input')
+    input.setAttribute('id','camSameAsSiteES')
+    input.setAttribute('name','camCodeSelectionES')
+    input.setAttribute('value','customEx')
+    input.checked = false
+    input.setAttribute('onchange','updateCamDiv()')
+    radioDiv.appendChild(input)
+
+    var label = document.createElement('label')
+    label.classList.add('custom-control-label')
+    label.setAttribute('for','camSameAsSiteES')
+    label.innerHTML = 'Site Identifier (one camera per site)'
+    radioDiv.appendChild(label)
+
+    var radioDiv = document.createElement('div')
+    radioDiv.setAttribute('class','custom-control custom-radio custom-control-inline')
+    div.appendChild(radioDiv)
+
+    var input = document.createElement('input')
+    input.setAttribute('type','radio')
+    input.classList.add('custom-control-input')
+    input.setAttribute('id','camRegExpES')
+    input.setAttribute('name','camCodeSelectionES')
+    input.setAttribute('value','customEx')
+    input.checked = false
+    input.setAttribute('onchange','updateCamDiv()')
+    radioDiv.appendChild(input)
+
+    var label = document.createElement('label')
+    label.classList.add('custom-control-label')
+    label.setAttribute('for','camRegExpES')
+    label.innerHTML = 'Camera Identifier'
+    radioDiv.appendChild(label)
+
+    div = document.createElement('div')
+    div.id = 'addImagesCamDesc'
+    div.setAttribute('style','font-size: 80%; margin-bottom: 2px')
+    div.innerHTML = '<i>Each bottom-level folder in your dataset will be considered a different camera.</i>'
+    addImagesAddImsDiv.appendChild(div)
+
+    var camDiv = document.createElement('div')
+    camDiv.id = 'addImagesCamDiv'
+    camDiv.hidden = true
+    addImagesAddImsDiv.appendChild(camDiv)
+
+    row = document.createElement('div')
+    row.classList.add('row')
+    camDiv.appendChild(row)
+
+    col1 = document.createElement('div')
+    col1.classList.add('col-lg-4')
+    row.appendChild(col1)
+
+    input = document.createElement('input')
+    input.setAttribute('type','text')
+    input.classList.add('form-control')
+    input.required = true
+    input.setAttribute('id','addImagesCamCode')
+    col1.appendChild(input)
+
+    col2 = document.createElement('div')
+    col2.classList.add('col-lg-4')
+    row.appendChild(col2)
+
+    checkDiv = document.createElement('div')
+    checkDiv.setAttribute('class','custom-control custom-checkbox')
+    col2.appendChild(checkDiv)
+
+    input2 = document.createElement('input')
+    input2.setAttribute('type','checkbox')
+    input2.classList.add('custom-control-input')
+    input2.setAttribute('id','addImagesCamCheckbox')
+    input2.setAttribute('name','addImagesCamCheckbox')
+    checkDiv.appendChild(input2)
+
+    label = document.createElement('label')
+    label.classList.add('custom-control-label')
+    label.setAttribute('for','addImagesCamCheckbox')
+    label.innerHTML = 'Advanced'
+    checkDiv.appendChild(label)
+
+    cameraBuilder = document.createElement('div')
+    cameraBuilder.setAttribute('id','addImagesCamBuilder')
+    camDiv.appendChild(cameraBuilder)
+
+
+    $("#addImagesCamCheckbox").change( function() {
+        addImagesCamCheckbox = document.getElementById('addImagesCamCheckbox')
+        if (addImagesCamCheckbox.checked) {
+            document.getElementById('addImagesErrors').innerHTML = 'Note that you are now required to enter a regular expression for your camera identifier. It will be used to identify your cameras based on your folder structure.'
+            buildCamBuilderRow()
+        } else {
+            document.getElementById('addImagesErrors').innerHTML = ''
+
+            // Clear TG Builder
+            addImagesCameraBuilder = document.getElementById('addImagesCamBuilder')
+            while(addImagesCameraBuilder.firstChild){
+                addImagesCameraBuilder.removeChild(addImagesCameraBuilder.firstChild);
+            }
+        }
+    })
+
+    addImagesAddImsDiv.appendChild(document.createElement('br'))
+
+    var h5 = document.createElement('h5')
+    h5.setAttribute('style','margin-bottom: 2px')
+    h5.innerHTML = 'Structure'
+    addImagesAddImsDiv.appendChild(h5)
+
+    var div = document.createElement('div')
+    div.setAttribute('style','font-size: 80%; margin-bottom: 2px')
+    div.innerHTML = '<i> View the structure of your dataset. Eg. "Site1 : Camera1, Camera2" etc. </i>'
+    addImagesAddImsDiv.appendChild(div)
+
+    var div = document.createElement('div')
+    div.setAttribute('id','addImagesStructureDiv')
+    div.setAttribute('style','font-size: 80%; color: #DF691A')
+    addImagesAddImsDiv.appendChild(div)
+
+    var addImagesStructureDiv2 = document.createElement('div')
+    addImagesStructureDiv2.setAttribute('id','addImagesStructureDiv2')
+    addImagesAddImsDiv.appendChild(addImagesStructureDiv2)
+
+    var row = document.createElement('div')
+    row.classList.add('row')
+    addImagesStructureDiv2.appendChild(row)
+
+    var col1 = document.createElement('div')
+    col1.classList.add('col-lg-1')
+    row.appendChild(col1)
+
+    var col2 = document.createElement('div')
+    col2.classList.add('col-lg-10')
+    row.appendChild(col2)
+
+    var col3 = document.createElement('div')
+    col3.classList.add('col-lg-1')
+    row.appendChild(col3)
+
+    var btn = document.createElement('button')
+    btn.setAttribute('class','btn btn-primary btn-sm')
+    btn.setAttribute('id','btnPrevStructureES')
+    btn.innerHTML = '<'
+    btn.onclick = function() { prevStructure() }
+    btn.hidden = true
+    col1.appendChild(btn)
+
+    var btn = document.createElement('button')
+    btn.setAttribute('class','btn btn-primary btn-sm pull-right')
+    btn.setAttribute('id','btnNextStructureES')
+    btn.innerHTML = '>'
+    btn.onclick = function() { nextStructure() }
+    btn.hidden = true
+    col3.appendChild(btn)
+
+
     buildBrowserUpload('addImagesFormDiv')
 }
 
 function buildCameras(camera_url='/getCameraStamps') {
     /** Updates the timestamp editor based on the current page */
 
+    camCameraLevel = document.getElementById('camCameraLevel').checked 
+
     if (camera_url=='/getCameraStamps') {
         camera_url += '?survey_id='+selectedSurvey
+    }
+
+    if (camCameraLevel) {
+        camera_url += '&level=camera'
+    }
+    else{
+        camera_url += '&level=folder'
     }
 
     var xhttp = new XMLHttpRequest();
@@ -1742,97 +2194,78 @@ function buildCameras(camera_url='/getCameraStamps') {
                 while(addImagesCamerasDiv.firstChild){
                     addImagesCamerasDiv.removeChild(addImagesCamerasDiv.firstChild);
                 }
-    
-                document.getElementById('openAddImagesTab').disabled = false
-                document.getElementById('openAddCoordinatesTab').disabled = false
-                document.getElementById('openEditTimestampsTab').disabled = false
-                document.getElementById('openEditClassifierTab').disabled = false
-                document.getElementById('openAdvancedTab').disabled = false
-                // addImagesCamerasDiv.appendChild(document.createElement('br'))
-            
-                h5 = document.createElement('h5')
-                h5.setAttribute('style','margin-bottom: 2px')
-                h5.innerHTML = 'Edit Timestamps'
-                addImagesCamerasDiv.appendChild(h5)
-            
-                div = document.createElement('div')
-                div.setAttribute('style','font-size: 80%; margin-bottom: 2px')
-                div.innerHTML = '<i>Here you can view and edit the timestamps of the fist image taken by each camera in the selected survey. All images taken by an edited camera will be shifted by the same amount.</i>'
-                addImagesCamerasDiv.appendChild(div)
 
-                errors = document.createElement('div')
-                errors.setAttribute('id','timestampErrors')
-                errors.setAttribute('style','font-size: 80%; color: #DF691A')
-                addImagesCamerasDiv.appendChild(errors)
-            
-                addImagesCamerasDiv.appendChild(document.createElement('br'))
-            
-                row = document.createElement('div')
-                row.classList.add('row')
-                addImagesCamerasDiv.appendChild(row)
-            
-                col = document.createElement('div')
-                col.classList.add('col-lg-6')
-                row.appendChild(col)
-            
-                h5 = document.createElement('h5')
-                h5.setAttribute('style','margin-bottom: 2px')
-                h5.innerHTML = 'Camera'
-                col.appendChild(h5)
-            
-                col = document.createElement('div')
-                col.classList.add('col-lg-3')
-                row.appendChild(col)
-            
-                h5 = document.createElement('h5')
-                h5.setAttribute('style','margin-bottom: 2px')
-                h5.innerHTML = 'Original'
-                col.appendChild(h5)
-            
-                col = document.createElement('div')
-                col.classList.add('col-lg-3')
-                row.appendChild(col)
-            
-                h5 = document.createElement('h5')
-                h5.setAttribute('style','margin-bottom: 2px')
-                h5.innerHTML = 'Corrected'
-                col.appendChild(h5)
+                var table = document.createElement('table')
+                table.classList.add('table');
+                table.classList.add('table-striped');
+                table.classList.add('table-bordered');
+                // table.classList.add('table-hover');
+                table.style.borderCollapse = 'collapse'
+                table.style.border = '1px solid rgba(0,0,0,0)'
+                addImagesCamerasDiv.appendChild(table)
+    
+                var thead = document.createElement('thead')
+                table.appendChild(thead)
+    
+                var tr = document.createElement('tr')
+                thead.appendChild(tr)
+    
+                var th = document.createElement('th')
+                th.innerHTML = 'Site'
+                th.setAttribute('width','10%')
+                tr.appendChild(th)
+    
+                var th = document.createElement('th')
+                th.innerHTML = 'Camera'
+                th.setAttribute('width','50%')
+                tr.appendChild(th)
+    
+                var th = document.createElement('th')
+                th.innerHTML = 'Original Timestamp'
+                th.setAttribute('width','20%')
+                tr.appendChild(th)
+    
+                var th = document.createElement('th')
+                th.innerHTML = 'Corrected Timestamp'
+                th.setAttribute('width','20%')
+                tr.appendChild(th)
+
             
                 for (let trapgroup=0;trapgroup<reply.length;trapgroup++) {
-                    h5 = document.createElement('h5')
-                    h5.setAttribute('style','margin-bottom: 2px')
-                    h5.innerHTML = reply[trapgroup].tag
-                    addImagesCamerasDiv.appendChild(h5)
-    
+                    var tbody = document.createElement('tbody');
+                    tbody.classList.add('timestamps')
+                    table.appendChild(tbody);
+
                     for (let camera=0;camera<reply[trapgroup].cameras.length;camera++) {
-                        row = document.createElement('div')
-                        row.setAttribute('class','row center')
-                        addImagesCamerasDiv.appendChild(row)
-                    
-                        col = document.createElement('div')
-                        col.classList.add('col-lg-6')
-                        col.innerHTML = reply[trapgroup].cameras[camera].folder
-                        row.appendChild(col)
-    
-                        col = document.createElement('div')
-                        col.classList.add('col-lg-3')
-                        // col.setAttribute('id','original_timestamp-'+reply[trapgroup].cameras[camera].id)
-                        col.innerHTML = reply[trapgroup].cameras[camera].timestamp
-                        row.appendChild(col)
-    
-                        // input = document.createElement('input')
-                        // input.setAttribute('type','text')
-                        // input.classList.add('form-control')
-                        // input.value = reply[trapgroup].cameras[camera].timestamp
-                        // input.disabled = true
-                        // col.appendChild(input)
-    
-                        col = document.createElement('div')
-                        col.classList.add('col-lg-3')
-                        row.appendChild(col)
+
+                        var tr = document.createElement('tr')
+                        tbody.appendChild(tr)
+
+                        if (camera==0) {
+                            var td = document.createElement('td')
+                            td.setAttribute('rowspan',reply[trapgroup].cameras.length)
+                            td.setAttribute('style', 'text-align:left; padding-top: 0px; padding-bottom: 0px; vertical-align: middle;' )
+                            td.innerHTML = reply[trapgroup].tag
+                            tr.appendChild(td)
+                        }
+
+                        var td = document.createElement('td')
+                        td.setAttribute('style', 'text-align:left; padding-top: 0px; padding-bottom: 0px; vertical-align: middle;')
+                        td.innerHTML = reply[trapgroup].cameras[camera].folder
+                        tr.appendChild(td)
+
+                        var td = document.createElement('td')
+                        td.setAttribute('style', 'text-align:left; padding-top: 0px; padding-bottom: 0px; vertical-align: middle;')
+                        td.innerHTML = reply[trapgroup].cameras[camera].timestamp
+                        tr.appendChild(td)
+
+                        var td = document.createElement('td')
+                        td.setAttribute('style', ' padding: 0px; vertical-align: middle;')
+                        tr.appendChild(td)
     
                         input = document.createElement('input')
                         input.setAttribute('type','text')
+                        // input.setAttribute('style','width: td.offsetWidth; height: td.offsetHeight; padding: 0px; margin: 0px;')
                         input.classList.add('form-control')
                         global_original_timestamps[reply[trapgroup].cameras[camera].id] = reply[trapgroup].cameras[camera].corrected_timestamp
                         if (reply[trapgroup].cameras[camera].id in global_corrected_timestamps) {
@@ -1841,14 +2274,20 @@ function buildCameras(camera_url='/getCameraStamps') {
                             input.value = reply[trapgroup].cameras[camera].corrected_timestamp
                         }
                         input.setAttribute('id','corrected_timestamp-'+reply[trapgroup].cameras[camera].id.toString())
-                        col.appendChild(input)
+                        td.appendChild(input)
 
                         $('#corrected_timestamp-'+reply[trapgroup].cameras[camera].id.toString()).change( function(wrapID) {
                             return function() {
                                 corrected_timestamp = document.getElementById('corrected_timestamp-'+wrapID.toString())
                                 if (isValidDate(new Date(corrected_timestamp.value))) {
-                                    document.getElementById('timestampErrors').innerHTML = ''
-                                    global_corrected_timestamps[wrapID] = corrected_timestamp.value
+                                    const timestamp_format = new RegExp('^[0-9]{4}/[0-9]{2}/[0-9]{2} [0-9]{2}:[0-5][0-9]:[0-5][0-9]$')
+                                    if (timestamp_format.test(corrected_timestamp.value)) {
+                                        document.getElementById('timestampErrors').innerHTML = ''
+                                        global_corrected_timestamps[wrapID] = corrected_timestamp.value
+                                    } else {
+                                        document.getElementById('timestampErrors').innerHTML = 'Please enter your timestamps in the format YYYY/MM/DD HH:MM:SS.'
+                                        delete global_corrected_timestamps[wrapID]
+                                    }
                                 } else {
                                     document.getElementById('timestampErrors').innerHTML = 'There are one or more invalid dates.'
                                     delete global_corrected_timestamps[wrapID]
@@ -1857,7 +2296,7 @@ function buildCameras(camera_url='/getCameraStamps') {
                         }(reply[trapgroup].cameras[camera].id));
                     }
     
-                    addImagesCamerasDiv.appendChild(document.createElement('br'))
+                    // addImagesCamerasDiv.appendChild(document.createElement('br'))
                 }
             }
         }
@@ -1865,19 +2304,246 @@ function buildCameras(camera_url='/getCameraStamps') {
     xhttp.send();
 }
 
+// function buildCameras(camera_url='/getCameraStamps') {
+//     /** Updates the timestamp editor based on the current page */
+
+//     camCameraLevel = document.getElementById('camCameraLevel').checked 
+
+//     if (camera_url=='/getCameraStamps') {
+//         camera_url += '?survey_id='+selectedSurvey
+//     }
+
+//     if (camCameraLevel) {
+//         camera_url += '&level=camera'
+//     }
+//     else{
+//         camera_url += '&level=folder'
+//     }
+
+//     var xhttp = new XMLHttpRequest();
+//     xhttp.open("GET", camera_url);
+//     xhttp.onreadystatechange =
+//     function(){
+//         if (this.readyState == 4 && this.status == 200) {
+//             reply = JSON.parse(this.responseText);
+
+//             if ((reply.survey==selectedSurvey)&&(modalAddImages.is(':visible'))) {
+//                 if (reply.next_url==null) {
+//                     btnNextCameras.style.visibility = 'hidden'
+//                 } else {
+//                     btnNextCameras.style.visibility = 'visible'
+//                     next_camera_url = reply.next_url
+//                 }
+    
+//                 if (reply.prev_url==null) {
+//                     btnPrevCameras.style.visibility = 'hidden'
+//                 } else {
+//                     btnPrevCameras.style.visibility = 'visible'
+//                     prev_camera_url = reply.prev_url
+//                 }
+
+//                 reply = reply.data
+
+//                 addImagesCamerasDiv = document.getElementById('addImagesCamerasDiv')
+
+//                 while(addImagesCamerasDiv.firstChild){
+//                     addImagesCamerasDiv.removeChild(addImagesCamerasDiv.firstChild);
+//                 }
+    
+            
+//                 for (let trapgroup=0;trapgroup<reply.length;trapgroup++) {
+//                     for (let camera=0;camera<reply[trapgroup].cameras.length;camera++) {
+//                         row = document.createElement('div')
+//                         row.setAttribute('class','row center')
+//                         addImagesCamerasDiv.appendChild(row)
+
+//                         col = document.createElement('div')
+//                         col.classList.add('col-lg-1')
+//                         row.appendChild(col)
+
+//                         if (camera==0) {
+//                             h5 = document.createElement('h5')
+//                             h5.setAttribute('style','margin-bottom: 0px; word-wrap: break-word;')
+//                             h5.innerHTML = reply[trapgroup].tag
+//                             col.appendChild(h5)
+//                         }
+                    
+//                         col = document.createElement('div')
+//                         col.classList.add('col-lg-5')
+//                         col.innerHTML = reply[trapgroup].cameras[camera].folder
+//                         row.appendChild(col)
+    
+//                         col = document.createElement('div')
+//                         col.classList.add('col-lg-3')
+//                         // col.setAttribute('id','original_timestamp-'+reply[trapgroup].cameras[camera].id)
+//                         col.innerHTML = reply[trapgroup].cameras[camera].timestamp
+//                         row.appendChild(col)
+    
+//                         // input = document.createElement('input')
+//                         // input.setAttribute('type','text')
+//                         // input.classList.add('form-control')
+//                         // input.value = reply[trapgroup].cameras[camera].timestamp
+//                         // input.disabled = true
+//                         // col.appendChild(input)
+    
+//                         col = document.createElement('div')
+//                         col.classList.add('col-lg-3')
+//                         row.appendChild(col)
+    
+//                         input = document.createElement('input')
+//                         input.setAttribute('type','text')
+//                         input.classList.add('form-control')
+//                         global_original_timestamps[reply[trapgroup].cameras[camera].id] = reply[trapgroup].cameras[camera].corrected_timestamp
+//                         if (reply[trapgroup].cameras[camera].id in global_corrected_timestamps) {
+//                             input.value = global_corrected_timestamps[reply[trapgroup].cameras[camera].id]
+//                         } else {
+//                             input.value = reply[trapgroup].cameras[camera].corrected_timestamp
+//                         }
+//                         input.setAttribute('id','corrected_timestamp-'+reply[trapgroup].cameras[camera].id.toString())
+//                         col.appendChild(input)
+
+//                         $('#corrected_timestamp-'+reply[trapgroup].cameras[camera].id.toString()).change( function(wrapID) {
+//                             return function() {
+//                                 corrected_timestamp = document.getElementById('corrected_timestamp-'+wrapID.toString())
+//                                 if (isValidDate(new Date(corrected_timestamp.value))) {
+//                                     const timestamp_format = new RegExp('^[0-9]{4}/[0-9]{2}/[0-9]{2} [0-9]{2}:[0-5][0-9]:[0-5][0-9]$')
+//                                     if (timestamp_format.test(corrected_timestamp.value)) {
+//                                         document.getElementById('timestampErrors').innerHTML = ''
+//                                         global_corrected_timestamps[wrapID] = corrected_timestamp.value
+//                                     } else {
+//                                         document.getElementById('timestampErrors').innerHTML = 'Please enter your timestamps in the format YYYY/MM/DD HH:MM:SS.'
+//                                         delete global_corrected_timestamps[wrapID]
+//                                     }
+//                                 } else {
+//                                     document.getElementById('timestampErrors').innerHTML = 'There are one or more invalid dates.'
+//                                     delete global_corrected_timestamps[wrapID]
+//                                 }
+//                             }
+//                         }(reply[trapgroup].cameras[camera].id));
+//                     }
+    
+//                     addImagesCamerasDiv.appendChild(document.createElement('br'))
+//                 }
+//             }
+//         }
+//     }
+//     xhttp.send();
+// }
+
 function buildEditTimestamp() {
     /** Builds the form for editing timestamps on the edit survey modal. */
-    
-    document.getElementById('openAddImagesTab').disabled = true
-    document.getElementById('openAddCoordinatesTab').disabled = true
-    document.getElementById('openEditTimestampsTab').disabled = true
-    document.getElementById('openEditClassifierTab').disabled = true
-    document.getElementById('openAdvancedTab').disabled = true
+
 
     global_corrected_timestamps = {}
     global_original_timestamps = {}
 
     addImagesEditTimestampsDiv = document.getElementById('addImagesEditTimestampsDiv')
+
+    h5 = document.createElement('h5')
+    h5.setAttribute('style','margin-bottom: 2px')
+    h5.innerHTML = 'Edit Timestamps'
+    addImagesEditTimestampsDiv.appendChild(h5)
+
+    div = document.createElement('div')
+    div.setAttribute('style','font-size: 80%; margin-bottom: 2px')
+    div.innerHTML = '<i>Here you can view and edit the timestamps of the fist image taken by each camera in the selected survey. All images taken by an edited camera will be shifted by the same amount. Select whether you would like to edit your timestamps on a camera or folder level.</i>'
+    addImagesEditTimestampsDiv.appendChild(div)
+
+    var radioDiv = document.createElement('div')
+    radioDiv.setAttribute('class','custom-control custom-radio custom-control-inline')
+    addImagesEditTimestampsDiv.appendChild(radioDiv)
+
+    var input = document.createElement('input')
+    input.setAttribute('type','radio')
+    input.classList.add('custom-control-input')
+    input.setAttribute('id','camFolderLevel')
+    input.setAttribute('name','camLevel')
+    input.setAttribute('value','customEx')
+    input.checked = true
+    radioDiv.appendChild(input)
+
+    var label = document.createElement('label')
+    label.classList.add('custom-control-label')
+    label.setAttribute('for','camFolderLevel')
+    label.innerHTML = 'Folder'
+    radioDiv.appendChild(label)
+
+    $('#camFolderLevel').change( function() {
+        global_corrected_timestamps = {}
+        global_original_timestamps = {} 
+        buildCameras()
+    });
+
+    var radioDiv = document.createElement('div')
+    radioDiv.setAttribute('class','custom-control custom-radio custom-control-inline')
+    addImagesEditTimestampsDiv.appendChild(radioDiv)
+
+    var input = document.createElement('input')
+    input.setAttribute('type','radio')
+    input.classList.add('custom-control-input')
+    input.setAttribute('id','camCameraLevel')
+    input.setAttribute('name','camLevel')
+    input.setAttribute('value','customEx')
+    radioDiv.appendChild(input)
+
+    var label = document.createElement('label')
+    label.classList.add('custom-control-label')
+    label.setAttribute('for','camCameraLevel')
+    label.innerHTML = 'Camera'
+    radioDiv.appendChild(label)
+
+    $('#camCameraLevel').change( function() {
+        global_corrected_timestamps = {}
+        global_original_timestamps = {}
+        buildCameras()
+    });
+
+    errors = document.createElement('div')
+    errors.setAttribute('id','timestampErrors')
+    errors.setAttribute('style','font-size: 80%; color: #DF691A')
+    addImagesEditTimestampsDiv.appendChild(errors)
+
+    addImagesEditTimestampsDiv.appendChild(document.createElement('br'))
+
+    // row = document.createElement('div')
+    // row.classList.add('row')
+    // addImagesEditTimestampsDiv.appendChild(row)
+
+    // col = document.createElement('div')
+    // col.classList.add('col-lg-1')
+    // row.appendChild(col)
+
+    // h5 = document.createElement('h5')
+    // h5.setAttribute('style','margin-bottom: 2px')
+    // h5.innerHTML = 'Site'
+    // col.appendChild(h5)
+
+    // col = document.createElement('div')
+    // col.classList.add('col-lg-5')
+    // row.appendChild(col)
+
+    // h5 = document.createElement('h5')
+    // h5.setAttribute('style','margin-bottom: 2px')
+    // h5.innerHTML = 'Camera'
+    // col.appendChild(h5)
+
+    // col = document.createElement('div')
+    // col.classList.add('col-lg-3')
+    // row.appendChild(col)
+
+    // h5 = document.createElement('h5')
+    // h5.setAttribute('style','margin-bottom: 2px')
+    // h5.innerHTML = 'Original'
+    // col.appendChild(h5)
+
+    // col = document.createElement('div')
+    // col.classList.add('col-lg-3')
+    // row.appendChild(col)
+
+    // h5 = document.createElement('h5')
+    // h5.setAttribute('style','margin-bottom: 2px')
+    // h5.innerHTML = 'Corrected'
+    // col.appendChild(h5)
 
     div = document.createElement('div')
     div.setAttribute('id','addImagesCamerasDiv')
@@ -2199,6 +2865,11 @@ function clearEditSurveyModal() {
         addImagesStaticDiv.removeChild(addImagesStaticDiv.firstChild);
     }
 
+    addImagesSurveyStructureDiv = document.getElementById('addImagesSurveyStructureDiv')
+    while(addImagesSurveyStructureDiv.firstChild){
+        addImagesSurveyStructureDiv.removeChild(addImagesSurveyStructureDiv.firstChild);
+    }
+
 }
 
 function buildAdvancedOptions() {
@@ -2349,7 +3020,7 @@ $("#newSurveyCheckbox").change( function() {
 
 $("#S3BucketUpload").change( function() {
     /** Listens for and initialises the bucket upload form when the option is selected. */
-
+    document.getElementById('newSurveyStructureDiv').innerHTML = ''
     S3BucketUpload = document.getElementById('S3BucketUpload')
     org_id = document.getElementById('newSurveyOrg').value
     if (S3BucketUpload.checked) {
@@ -2368,7 +3039,7 @@ $("#S3BucketUpload").change( function() {
 
 $("#BrowserUpload").change( function() {
     /** Listens for and initialises the browser upload form when the option is selected. */
-    
+    document.getElementById('newSurveyStructureDiv').innerHTML = ''
     BrowserUpload = document.getElementById('BrowserUpload')
     if (BrowserUpload.checked) {
         buildBrowserUpload('newSurveyFormDiv')
@@ -2994,6 +3665,10 @@ document.getElementById('btnSaveSurvey').addEventListener('click', ()=>{
     newSurveyPermission = document.getElementById('newSurveyPermission').value
     newSurveyAnnotation = document.getElementById('newSurveyAnnotation').value
     detailedAccessSurvey = document.getElementById('detailedAccessSurveyCb').checked
+    camRegExp = document.getElementById('camRegExp').checked
+    camBotLvlFolder = document.getElementById('camBotLvlFolder').checked
+    camSameAsSite = document.getElementById('camSameAsSite').checked
+    newSurveyStructureDiv = document.getElementById('newSurveyStructureDiv')
 
     classifier = document.querySelector('input[name="classifierSelection"]:checked')
     if (classifier==null) {
@@ -3085,6 +3760,35 @@ document.getElementById('btnSaveSurvey').addEventListener('click', ()=>{
             document.getElementById('newSurveyErrors').innerHTML = error_message 
         }   
     }
+
+    legalCamCode = true
+    if (camRegExp) {
+        // Regular expression
+        var newSurveyCamCode = document.getElementById('newSurveyCamCode').value
+        if (newSurveyCamCode == '') {
+            legalCamCode = false
+            document.getElementById('newSurveyErrors').innerHTML = 'The camera code field cannot be empty.'
+        }
+        else{
+            if (newSurveyCamCode.endsWith('.*') || newSurveyCamCode.endsWith('.+') || newSurveyCamCode.endsWith('.*[0-9]+') || newSurveyCamCode.endsWith('.+[0-9]+' )) {
+                legalCamCode = false
+                error_message = 'Your camera code is invalid. Please try again or send an email for assistance.'
+                document.getElementById('newSurveyErrors').innerHTML = error_message 
+            }   
+        }
+    }
+    else if (camBotLvlFolder) {
+        // Bottom-level folder
+        legalCamCode = true
+    }
+    else if (camSameAsSite) {
+        // Site identifier
+        legalCamCode = legalTGCode
+    }
+    else {
+        legalCamCode = false
+        document.getElementById('newSurveyErrors').innerHTML = 'You must select a camera code option.'
+    }
     
     legalInput = false
     if (document.getElementById('S3BucketUpload').checked == true) {
@@ -3112,19 +3816,19 @@ document.getElementById('btnSaveSurvey').addEventListener('click', ()=>{
         document.getElementById('newSurveyErrors').innerHTML = 'You must select an image upload method.'
     }
 
-    TGCheckReady = true
-    tgInfoDiv = document.getElementById('newSurveyTGInfo')
-    if ((tgInfoDiv!=null)&&(tgInfoDiv.innerHTML=='Checking...')) {
-        TGCheckReady = false
-        document.getElementById('newSurveyErrors').innerHTML = 'Please wait for your site-identifier check to finish.'
+    structureCheckReady = true
+    if ((newSurveyStructureDiv!=null)&&(newSurveyStructureDiv.innerHTML=='Checking...')) {
+        structureCheckReady = false
+        document.getElementById('newSurveyErrors').innerHTML = 'Please wait for your structure check to finish.'
     }
 
-    if ((tgInfoDiv!=null)&&(tgInfoDiv.innerHTML == '0 sites found: ')) {
+    if ((newSurveyStructureDiv!=null)&&(newSurveyStructureDiv.innerHTML == '')||(newSurveyStructureDiv.innerHTML == 'Malformed expression. Please try again.')||(newSurveyStructureDiv.innerHTML == 'Invalid structure. Please check your site and camera identifiers.')) {
         legalTGCode = false
-        document.getElementById('newSurveyErrors').innerHTML = 'Your specified site identifier has not detected any sites. Please try again.'
+        legalCamCode = false
+        document.getElementById('newSurveyErrors').innerHTML = 'Your specified site or camera identifiers are invalid. Please try again.'
     }
 
-    if (legalName&&legalOrganisation&&legalDescription&&legalPermission&&legalTGCode&&legalInput&&TGCheckReady&&classifier) {
+    if (legalName&&legalOrganisation&&legalDescription&&legalPermission&&legalTGCode&&legalInput&&structureCheckReady&&classifier&&legalCamCode) {
         document.getElementById('btnSaveSurvey').disabled = true
         if (false) {
             var reader = new FileReader()
@@ -3160,6 +3864,19 @@ document.getElementById('btnSaveSurvey').addEventListener('click', ()=>{
             if (detailedAccessSurvey) {
                 formData.append("detailed_access", JSON.stringify(detailed_access))
             }
+            if (camRegExp) {
+                formData.append("newSurveyCamCode", document.getElementById('newSurveyCamCode').value)
+                formData.append("camCheckbox", document.getElementById('camAdvancedCheckbox').checked.toString())
+            }
+            else if (camBotLvlFolder) {
+                formData.append("newSurveyCamCode", 'None')
+                formData.append("camCheckbox", 'false')
+            }
+            else if (camSameAsSite) {
+                formData.append("newSurveyCamCode", newSurveyTGCode)
+                formData.append("camCheckbox", newSurveyCheckbox.checked.toString())
+            }
+
 
             submitNewSurvey(formData)
         }
@@ -3236,6 +3953,10 @@ document.getElementById('btnAddImages').addEventListener('click', ()=>{
         document.getElementById('addImagesErrors').removeChild(document.getElementById('addImagesErrors').firstChild);
     }
 
+    if (tabActiveEditSurvey=='baseStructureTab') {
+        modalAddImages.modal('hide')
+    }
+
     legalFile = true
     if (tabActiveEditSurvey=='baseAddCoordinatesTab') {
         if (document.getElementById('addCoordinatesManualMethod').checked) {
@@ -3269,6 +3990,7 @@ document.getElementById('btnAddImages').addEventListener('click', ()=>{
     }
 
     legalTGCode = true
+    legalCamCode = true
     if (tabActiveEditSurvey=='baseAddImagesTab') {
         addImagesTGCode = document.getElementById('addImagesTGCode').value
         addImagesCheckboxChecked = document.getElementById('addImagesCheckbox').checked
@@ -3285,6 +4007,50 @@ document.getElementById('btnAddImages').addEventListener('click', ()=>{
             error_message = 'Your site identifier is invalid. Please try again or contact us for assistance.'
             document.getElementById('addImagesErrors').innerHTML = error_message 
         }   
+
+        camRegExp = document.getElementById('camRegExpES').checked
+        camBotLvlFolder = document.getElementById('camBotLvlFolderES').checked
+        camSameAsSite = document.getElementById('camSameAsSiteES').checked
+
+        if (camRegExp) {
+            // Regular expression
+            addImagesCamCode = document.getElementById('addImagesCamCode').value
+            addImagesCamCheckboxChecked = document.getElementById('addImagesCamCheckbox').checked
+
+            if ((addImagesCamCode == '') || (addImagesCamCode == ' ')) {
+                legalCamCode = false
+                document.getElementById('addImagesErrors').innerHTML = 'The camera code field cannot be empty.'
+            }
+            else if ((addImagesCamCode.includes('/'))||(addImagesCamCode.includes('\\'))) {
+                legalCamCode = false
+                document.getElementById('addImagesErrors').innerHTML = 'The camera code cannot contain slashes.'
+            }
+            else{
+                if (addImagesCamCode.endsWith('.*') || addImagesCamCode.endsWith('.+') || addImagesCamCode.endsWith('.*[0-9]+') || addImagesCamCode.endsWith('.+[0-9]+' )) {
+                    legalCamCode = false
+                    error_message = 'Your camera code is invalid. Please try again or send an email for assistance.'
+                    document.getElementById('addImagesErrors').innerHTML = error_message 
+                }   
+            }
+        }
+        else if (camBotLvlFolder) {
+            // Bottom-level folder
+            legalCamCode = true
+            addImagesCamCode = 'None'	
+            addImagesCamCheckboxChecked = false
+        }
+        else if (camSameAsSite) {
+            // Site identifier
+            legalCamCode = legalTGCode
+            addImagesCamCode = addImagesTGCode
+            addImagesCamCheckboxChecked = addImagesCheckboxChecked
+        }
+        else {
+            legalCamCode = false
+            addImagesCamCheckboxChecked = false
+            addImagesCamCode = ' '
+            document.getElementById('newSurveyErrors').innerHTML = 'You must select a camera code option.'
+        }
         
         legalInput = false
         if (document.getElementById('S3BucketAdd').checked == true) {
@@ -3316,18 +4082,21 @@ document.getElementById('btnAddImages').addEventListener('click', ()=>{
         addImagesTGCode = ' '
         addImagesS3Folder = 'none'
         addImagesCheckboxChecked = false
+        addImagesCamCode = ' '
+        addImagesCamCheckboxChecked = false
     }
 
-    TGCheckReady = true
-    tgInfoDiv = document.getElementById('addImagesTGInfo')
-    if ((tgInfoDiv!=null)&&(tgInfoDiv.innerHTML=='Checking...')) {
-        TGCheckReady = false
-        document.getElementById('addImagesErrors').innerHTML = 'Please wait for your site-identifier check to finish.'
+    structureCheckReady = true
+    addImagesStructureDiv = document.getElementById('addImagesStructureDiv')
+    if ((addImagesStructureDiv!=null)&&(addImagesStructureDiv.innerHTML=='Checking...')) {
+        structureCheckReady = false
+        document.getElementById('addImagesErrors').innerHTML = 'Please wait for your structure check to finish.'
     }
-    
-    if ((tgInfoDiv!=null)&&(tgInfoDiv.innerHTML == '0 sites found: ')) {
+
+    if ((addImagesStructureDiv!=null)&&((addImagesStructureDiv.innerHTML == '')||(addImagesStructureDiv.innerHTML == 'Malformed expression. Please try again.')||(addImagesStructureDiv.innerHTML == 'Invalid structure. Please check your site and camera identifiers.'))) {
         legalTGCode = false
-        document.getElementById('addImagesErrors').innerHTML = 'Your specified site identifier has not detected any sites. Please try again.'
+        legalCamCode = false
+        document.getElementById('addImagesErrors').innerHTML = 'Your specified site or camera identifiers are invalid. Please try again.'
     }
 
     legalClassifier = true
@@ -3341,7 +4110,7 @@ document.getElementById('btnAddImages').addEventListener('click', ()=>{
         }
     }
 
-    if (legalTGCode&&legalInput&&legalFile&&TGCheckReady&&legalClassifier&&!editingEnabled) {
+    if (legalTGCode&&legalInput&&legalFile&&structureCheckReady&&legalClassifier&&!editingEnabled&&legalCamCode) {
         document.getElementById('btnAddImages').disabled = true
         if (tabActiveEditSurvey=='baseEditClassifierTab') {
             var formData = new FormData()
@@ -3355,7 +4124,9 @@ document.getElementById('btnAddImages').addEventListener('click', ()=>{
                 formData.append("newSurveyTGCode", addImagesTGCode)
                 formData.append("newSurveyS3Folder", addImagesS3Folder)
                 formData.append("checkbox", addImagesCheckboxChecked.toString())
-                formData.append("coordData", JSON.stringify(coordData))                
+                formData.append("coordData", JSON.stringify(coordData))     
+                formData.append("newSurveyCamCode", addImagesCamCode)
+                formData.append("camCheckbox", addImagesCamCheckboxChecked.toString())      
                 addImagesSendRequest(formData)
             } else {
                 var reader = new FileReader()
@@ -3376,6 +4147,8 @@ document.getElementById('btnAddImages').addEventListener('click', ()=>{
                                     formData.append("newSurveyS3Folder", addImagesS3Folder)
                                     formData.append("checkbox", addImagesCheckboxChecked.toString())
                                     formData.append("kml", kmlFileUpload.files[0])
+                                    formData.append("newSurveyCamCode", addImagesCamCode)
+                                    formData.append("camCheckbox", addImagesCamCheckboxChecked.toString())
 
                                     if (tabActiveEditSurvey=='baseEditTimestampsTab') {
                                         timestampData = {}
@@ -3383,6 +4156,11 @@ document.getElementById('btnAddImages').addEventListener('click', ()=>{
                                             timestampData[camera_id] = {'original': global_original_timestamps[camera_id], 'corrected': global_corrected_timestamps[camera_id]}
                                         }
                                         formData.append("timestamps", JSON.stringify(timestampData))
+                                        level = 'folder'
+                                        if (document.getElementById('camCameraLevel').checked) {
+                                            level = 'camera'
+                                        }
+                                        formData.append("timestamp_level", JSON.stringify(level))
                                     }
 
                                     addImagesSendRequest(formData)
@@ -3407,6 +4185,8 @@ document.getElementById('btnAddImages').addEventListener('click', ()=>{
                             formData.append("newSurveyS3Folder", addImagesS3Folder)
                             formData.append("checkbox", addImagesCheckboxChecked.toString())
                             formData.append("kml", kmlFileUpload.files[0])
+                            formData.append("newSurveyCamCode", addImagesCamCode)
+                            formData.append("camCheckbox", addImagesCamCheckboxChecked.toString())
                             
                             if (tabActiveEditSurvey=='baseEditTimestampsTab') {
                                 timestampData = {}
@@ -3414,6 +4194,11 @@ document.getElementById('btnAddImages').addEventListener('click', ()=>{
                                     timestampData[camera_id] = {'original': global_original_timestamps[camera_id], 'corrected': global_corrected_timestamps[camera_id]}
                                 }
                                 formData.append("timestamps", JSON.stringify(timestampData))
+                                level = 'folder'
+                                if (document.getElementById('camCameraLevel').checked) {
+                                    level = 'camera'
+                                }
+                                formData.append("timestamp_level", JSON.stringify(level))
                             }
 
                             addImagesSendRequest(formData)
@@ -3431,6 +4216,8 @@ document.getElementById('btnAddImages').addEventListener('click', ()=>{
             formData.append("newSurveyTGCode", addImagesTGCode)
             formData.append("newSurveyS3Folder", addImagesS3Folder)
             formData.append("checkbox", addImagesCheckboxChecked.toString())
+            formData.append("newSurveyCamCode", addImagesCamCode)
+            formData.append("camCheckbox", addImagesCamCheckboxChecked.toString())
 
             if (tabActiveEditSurvey=='baseEditTimestampsTab') {
                 timestampData = {}
@@ -3438,6 +4225,11 @@ document.getElementById('btnAddImages').addEventListener('click', ()=>{
                     timestampData[camera_id] = {'original': global_original_timestamps[camera_id], 'corrected': global_corrected_timestamps[camera_id]}
                 }
                 formData.append("timestamps", JSON.stringify(timestampData))
+                level = 'folder'
+                if (document.getElementById('camCameraLevel').checked) {
+                    level = 'camera'
+                }
+                formData.append("timestamp_level", JSON.stringify(level))
             }        
             else if (tabActiveEditSurvey=='baseEditMasksTab') {
 
@@ -3917,6 +4709,11 @@ function changeEditSurveyTab(evt, tabName) {
     else if (tabName == 'baseStaticTab'){
         openStaticDetections()
     }
+    else if (tabName == 'baseStructureTab'){
+        openStructure()
+    }
+
+    document.getElementById('addImagesErrors').innerHTML = ''
 }
 
 function openEditMasks() {
@@ -4000,7 +4797,6 @@ function buildEditMasks() {
     paginationUl.style.margin = '10px';
     colDiv.appendChild(paginationUl);
 
-    // col2.appendChild(document.createElement('br'))
 
     var row = document.createElement('div')
     row.classList.add('row')
@@ -4123,7 +4919,7 @@ function getMasks() {
                 updateButtons()
             }
         }
-        xhttp.open("GET", '/getSurveyMasks/'+selectedSurvey+'?camera_id='+cameraIDs[cameraReadAheadIndex++]);
+        xhttp.open("GET", '/getSurveyMasks/'+selectedSurvey+'?cameragroup_id='+cameraIDs[cameraReadAheadIndex++]);
         xhttp.send();
     }
 }
@@ -4552,7 +5348,7 @@ function updateMasks() {
                 if (cameras[cameraIndex].masks[i].id.toString().startsWith('l_')) {
                     addedMasks[cameras[cameraIndex].masks[i].id] = {
                         'coords': new_coords,
-                        'camera_id': cameras[cameraIndex].id,
+                        'cameragroup_id': cameras[cameraIndex].id,
                     }
                 }
                 else{
@@ -4595,7 +5391,7 @@ function getMaskCameras(){
             }
         }
     }
-    xhttp.open("GET", '/getMaskCameras/'+selectedSurvey);
+    xhttp.open("GET", '/getMaskCameragroups/'+selectedSurvey);
     xhttp.send();
 }
 
@@ -4764,7 +5560,6 @@ function buildViewStatic() {
     var checkbox = document.createElement('input');
     checkbox.setAttribute("type", "checkbox");
     checkbox.id = 'staticToggle';
-    // checkbox.disabled = true
     toggle.appendChild(checkbox);
 
     var slider = document.createElement('span');
@@ -4816,7 +5611,6 @@ function buildViewStatic() {
     paginationUl.style.margin = '10px';
     colDiv.appendChild(paginationUl);
 
-    // col2.appendChild(document.createElement('br'))
 
     var row = document.createElement('div')
     row.classList.add('row')
@@ -4950,7 +5744,7 @@ function getStaticGroups(){
                 row.appendChild(col1)
 
                 var h6 = document.createElement('h6')
-                h6.innerHTML = 'You have no static detections to view.'
+                h6.innerHTML = 'You have no static detections to edit.'
                 col1.appendChild(h6)
             }
         }
@@ -5090,4 +5884,794 @@ function updateStaticMap() {
         }
     }
 
+}
+
+
+function updateCamDiv() {
+    /** Updates the Camera Identifier Div based on the option selected */
+
+    if (document.getElementById('camRegExpES') != null) {
+        var camRegExp = document.getElementById('camRegExpES').checked 
+        var camBotLvlFolder = document.getElementById('camBotLvlFolderES').checked
+        var camSameAsSite = document.getElementById('camSameAsSiteES').checked
+        var camIdDiv = document.getElementById('addImagesCamDiv')
+        var camOptionDesc = document.getElementById('addImagesCamDesc')
+    }
+    else{
+        var camRegExp = document.getElementById('camRegExp').checked 
+        var camBotLvlFolder = document.getElementById('camBotLvlFolder').checked
+        var camSameAsSite = document.getElementById('camSameAsSite').checked
+        var camIdDiv = document.getElementById('camIdDiv')
+        var camOptionDesc = document.getElementById('camOptionDesc') 
+    }
+
+    if (camRegExp) {
+        camOptionDesc.innerHTML = '<i>The identifier used to designate a camera in your folder structure. Eg. "Camera" if your cameras are stored in folders named "Camera1", "Camera2" etc. Becomes a <a href="https://www.w3schools.com/python/python_regex.asp">regular expression</a> search query if the advanced option is selected.</i>'
+        camIdDiv.hidden = false
+
+        if (document.getElementById('addImagesCamBuilder') != null) {
+            var newSurveyCamBuilder = document.getElementById('addImagesCamBuilder')
+            var camAdvancedCheckbox = document.getElementById('addImagesCamCheckbox')
+            var newSurveyCamCode = document.getElementById('addImagesCamCode')
+        }
+        else{
+            var newSurveyCamBuilder = document.getElementById('newSurveyCamBuilder')
+            var camAdvancedCheckbox = document.getElementById('camAdvancedCheckbox')
+            var newSurveyCamCode = document.getElementById('newSurveyCamCode')
+        }
+
+        while(newSurveyCamBuilder.firstChild){
+            newSurveyCamBuilder.removeChild(newSurveyCamBuilder.firstChild);
+        }
+        camAdvancedCheckbox.checked = false
+        newSurveyCamCode.value = ''
+
+        checkTrapgroupCode()
+    }
+    else if (camBotLvlFolder) {
+        camOptionDesc.innerHTML = '<i>Each bottom-level folder in your dataset will be considered a different camera.</i>'
+        camIdDiv.hidden = true
+        checkTrapgroupCode()
+    }
+    else if (camSameAsSite) {
+        camOptionDesc.innerHTML = '<i>The camera identifier will be the same as the site identifier.</i>'
+        camIdDiv.hidden = true
+        checkTrapgroupCode()
+    }
+
+}
+
+$("#camAdvancedCheckbox").change( function() {
+    /** Listens for and warns the user when they select the adanced trapgroup code option. */
+
+    var camAdvancedCheckbox = document.getElementById('camAdvancedCheckbox')
+    if (camAdvancedCheckbox.checked && document.getElementById('camRegExp').checked) {
+        document.getElementById('newSurveyErrors').innerHTML = 'Note that you are now required to enter a regular expression for your camera identifier. It will be used to identify your cameras based on your folder structure.'
+        buildCamBuilderRow()
+    } else {
+        document.getElementById('newSurveyErrors').innerHTML = ''
+
+        // Clear TG Builder
+        var newSurveyCamBuilder = document.getElementById('newSurveyCamBuilder')
+        while(newSurveyCamBuilder.firstChild){
+            newSurveyCamBuilder.removeChild(newSurveyCamBuilder.firstChild);
+        }      
+    }
+})
+
+function updateCamCode() {
+    /** Extracts the info from the trapgroup code builder and populates the trapgroup code accordingly. */
+
+    camCode = ''
+    charSelectCams = document.querySelectorAll('[id^=charSelectCam-]')
+    for (let i=0;i<charSelectCams.length;i++) {
+        IDNum = charSelectCams[i].id.split("-")[charSelectCams[i].id.split("-").length-1]
+        
+        selection = charSelectCams[i].options[charSelectCams[i].selectedIndex].text
+        if (selection=='Any Digit') {
+            camCode += '[0-9]'
+        } else if (selection=='Any Letter (Upper)') {
+            camCode += '[A-Z]'
+        } else if (selection=='Any Letter (Lower)') {
+            camCode += '[a-z]'
+        } else if (selection=='Any Letter (Any)') {
+            camCode += '[A-Za-z]'
+        } else if (selection=='Any Character') {
+            camCode += '.'
+        } else if (selection=='Custom Set') {
+            customCharactersCam = document.getElementById('customCharactersCam-'+IDNum).value
+            CustomCharSelectCam = document.getElementById('CustomCharSelectCam-'+IDNum)
+            selection = CustomCharSelectCam.options[CustomCharSelectCam.selectedIndex].text
+            if (selection=='Exactly') {
+                camCode += customCharactersCam
+            } else if (selection=='Or') {
+                camCode += '['+customCharactersCam+']'
+            }
+        }
+        
+        occurrenceSelectCam = document.getElementById('occurrenceSelectCam-'+IDNum)
+        selection = occurrenceSelectCam.options[occurrenceSelectCam.selectedIndex].text
+        if (selection=='Once') {
+            //pass
+        } else if (selection=='Zero or More') {
+            camCode += '*'
+        } else if (selection=='Zero or One') {
+            camCode += '?'
+        } else if (selection=='One or More') {
+            camCode += '+'
+        } else if (selection=='Custom Count') {
+            customOccurrenceCam = document.getElementById('customOccurrenceCam-'+IDNum).value
+            camCode += '{'+customOccurrenceCam.toString()+'}'
+        }
+    }
+
+    if (document.getElementById('addImagesCamCode') != null) {
+        document.getElementById('addImagesCamCode').value = camCode
+    }
+    else{
+        document.getElementById('newSurveyCamCode').value = camCode
+    }
+    
+
+    if (camCode.endsWith('.*') || camCode.endsWith('.+') || camCode.endsWith('.*[0-9]+') || camCode.endsWith('.+[0-9]+' )) {
+        error_message = 'Your site identifier is invalid. Please try again or contact us for assistance.'
+        if (document.getElementById('addImagesErrors')!=null) {
+            document.getElementById('addImagesErrors').innerHTML = error_message
+        }
+        else {
+            document.getElementById('newSurveyErrors').innerHTML = error_message
+        }
+    } else {
+        checkTrapgroupCode()
+    }
+    
+}
+
+function buildCamBuilderRow() {
+    /** Builds a row for the trapgroup code builder. */
+
+    IDNum = getIdNumforNext('charSelectCam')
+
+    if (IDNum==0) {
+        // Initialising - build headings
+        if (document.getElementById('addImagesCamBuilder') == null) {
+            camBuilder = document.getElementById('newSurveyCamBuilder')
+        }
+        else{
+            camBuilder = document.getElementById('addImagesCamBuilder')
+        }
+
+        while(camBuilder.firstChild){
+            camBuilder.removeChild(camBuilder.firstChild);
+        }
+
+        camBuilder.append(document.createElement('br'))
+
+        camBuilderRows = document.createElement('div')
+        camBuilderRows.setAttribute('id','camBuilderRows')
+        camBuilder.append(camBuilderRows)
+
+        // Add add-row button
+        camBuilderBtnRow = document.createElement('div')
+        camBuilderBtnRow.classList.add('row')
+        camBuilder.append(camBuilderBtnRow)
+
+        col1 = document.createElement('div')
+        col1.classList.add('col-lg-11')
+        camBuilderBtnRow.appendChild(col1)
+
+        col2 = document.createElement('div')
+        col2.classList.add('col-lg-1')
+        camBuilderBtnRow.appendChild(col2)  
+        
+        btnAdd = document.createElement('button');
+        btnAdd.classList.add('btn');
+        btnAdd.classList.add('btn-primary');
+        btnAdd.innerHTML = '+';
+        col2.appendChild(btnAdd)
+        
+        btnAdd.addEventListener('click', (evt)=>{
+            buildCamBuilderRow()
+        });
+
+        // Heading Row
+        row = document.createElement('div')
+        row.classList.add('row')
+        camBuilderRows.append(row)
+
+        // Character column
+        col1 = document.createElement('div')
+        col1.classList.add('col-lg-2')
+        col1.innerHTML = 'Character(s)'
+        row.appendChild(col1)
+
+        // Custom Character Column
+        col2 = document.createElement('div')
+        col2.classList.add('col-lg-3')
+        row.appendChild(col2)
+
+        // Custom Character Operation Column
+        col3 = document.createElement('div')
+        col3.classList.add('col-lg-2')
+        row.appendChild(col3)
+
+        // Occurrence Column
+        col4 = document.createElement('div')
+        col4.classList.add('col-lg-2')
+        col4.innerHTML = 'Occurence'
+        row.appendChild(col4)
+
+        // Custom Occurrence Column
+        col5 = document.createElement('div')
+        col5.classList.add('col-lg-2')
+        row.appendChild(col5)
+
+        // Delete Button Column
+        col6 = document.createElement('div')
+        col6.classList.add('col-lg-1')
+        row.appendChild(col6)
+    } else {
+        camBuilderRows = document.getElementById('camBuilderRows')
+    }
+
+    row = document.createElement('div')
+    row.classList.add('row')
+    camBuilderRows.append(row)
+
+    // Character column
+    col1 = document.createElement('div')
+    col1.classList.add('col-lg-2')
+    row.appendChild(col1)
+
+    selectID = 'charSelectCam-'+IDNum
+    select = document.createElement('select')
+    select.classList.add('form-control')
+    select.setAttribute('id',selectID)
+    col1.appendChild(select)
+
+    $("#"+selectID).change( function(wrapIDNum) {
+        return function() {
+            select = document.getElementById('charSelectCam-'+wrapIDNum)
+            selection = select.options[select.selectedIndex].text
+            if (selection == 'Custom Set') {
+                //Build custom row
+                col2 = document.getElementById('camBuilderCol2-'+wrapIDNum)
+
+                input = document.createElement('input')
+                input.setAttribute('type','text')
+                input.classList.add('form-control')
+                input.required = true
+                input.setAttribute('id','customCharactersCam-'+wrapIDNum)
+                col2.appendChild(input)
+
+                $("#customCharactersCam-"+wrapIDNum).change( function() {
+                    updateCamCode()
+                })
+
+                col3 = document.getElementById('camBuilderCol3-'+wrapIDNum)
+                
+                select = document.createElement('select')
+                select.classList.add('form-control')
+                select.setAttribute('id','CustomCharSelectCam-'+wrapIDNum)
+                col3.appendChild(select)
+
+                $("#CustomCharSelectCam-"+wrapIDNum).change( function() {
+                    updateCamCode()
+                })
+
+                fillSelect(select, ['Exactly','Or'], [1,2])
+
+            } else {
+                // Remove any custom row
+                div = document.getElementById('camBuilderCol2-'+wrapIDNum)
+                while(div.firstChild){
+                    div.removeChild(div.firstChild);
+                }
+
+                div = document.getElementById('camBuilderCol3-'+wrapIDNum)
+                while(div.firstChild){
+                    div.removeChild(div.firstChild);
+                }
+            }
+            updateCamCode()
+        }
+    }(IDNum));
+
+    fillSelect(select, ['Any Digit','Any Letter (Upper)','Any Letter (Lower)','Any Letter (Any)','Any Character','Custom Set'], [1,2,3,4,5,7])
+
+    // Custom Character Column
+    col2 = document.createElement('div')
+    col2.classList.add('col-lg-3')
+    col2.setAttribute('id','camBuilderCol2-'+IDNum)
+    row.appendChild(col2)
+
+    // Custom Character Operation Column
+    col3 = document.createElement('div')
+    col3.classList.add('col-lg-2')
+    col3.setAttribute('id','camBuilderCol3-'+IDNum)
+    row.appendChild(col3)
+
+    // Occurrence Column
+    col4 = document.createElement('div')
+    col4.classList.add('col-lg-2')
+    row.appendChild(col4)
+
+    selectID = 'occurrenceSelectCam-'+IDNum
+    select = document.createElement('select')
+    select.classList.add('form-control')
+    select.setAttribute('id',selectID)
+    col4.appendChild(select)
+
+    $("#"+selectID).change( function(wrapIDNum) {
+        return function() {
+            select = document.getElementById('occurrenceSelectCam-'+wrapIDNum)
+            selection = select.options[select.selectedIndex].text
+            if (selection == 'Custom Count') {
+                //Build custom row
+                col5 = document.getElementById('camBuilderCol5-'+wrapIDNum)
+
+                input = document.createElement('input')
+                input.setAttribute('type','text')
+                input.classList.add('form-control')
+                input.required = true
+                input.setAttribute('id','customOccurrenceCam-'+wrapIDNum)
+                col5.appendChild(input)
+
+                $("#customOccurrenceCam-"+wrapIDNum).change( function() {
+                    updateCamCode()
+                })
+            } else {
+                // Remove any custom row
+                div = document.getElementById('camBuilderCol5-'+wrapIDNum)
+                while(div.firstChild){
+                    div.removeChild(div.firstChild);
+                }
+            }
+            updateCamCode()
+        }
+    }(IDNum));
+
+    fillSelect(select, ['Once','Zero or More','Zero or One','One or More','Custom Count'], [1,2,3,4,5])
+
+    // Custom Occurrence Column
+    col5 = document.createElement('div')
+    col5.classList.add('col-lg-2')
+    col5.setAttribute('id','camBuilderCol5-'+IDNum)
+    row.appendChild(col5)
+
+    // Delete Column
+    col6 = document.createElement('div')
+    col6.classList.add('col-lg-1')
+    row.appendChild(col6)
+
+    btnRemove = document.createElement('button');
+    btnRemove.classList.add('btn');
+    btnRemove.classList.add('btn-default');
+    // btnRemove.id = 'btnRemove-'+IDNum;
+    btnRemove.innerHTML = '&times;';
+    col6.appendChild(btnRemove)
+    
+    btnRemove.addEventListener('click', (evt)=>{
+        evt.target.parentNode.parentNode.remove();
+        updateCamCode()
+    });
+
+    if (IDNum!=0) {
+        updateCamCode()
+    }
+}
+
+function openStructure() {
+    /** Opens the structure tab in edit survey. */
+
+    var addImagesSurveyStructureDiv = document.getElementById('addImagesSurveyStructureDiv')
+    while(addImagesSurveyStructureDiv.firstChild){
+        addImagesSurveyStructureDiv.removeChild(addImagesSurveyStructureDiv.firstChild);
+    }
+
+    // Heading
+    var headingDiv = document.createElement('div')
+    addImagesSurveyStructureDiv.appendChild(headingDiv)
+
+    var h5 = document.createElement('h5')
+    h5.innerHTML = 'Survey Structure'
+    h5.setAttribute('style','margin-bottom: 2px')
+    headingDiv.appendChild(h5)
+
+    var div = document.createElement('div')
+    div.setAttribute('style','font-size: 80%; margin-bottom: 2px')
+    div.innerHTML = '<i> Here you can view the structure of your survey by site, camera and folder and see how many images, videos and frames are in each folder. Please note that duplicate images or videos (based on hashes) are not stored in the database therefore the counts may not match the number of files in your dataset. </i>'
+    headingDiv.appendChild(div)
+
+    headingDiv.appendChild(document.createElement('br'))
+    
+    // Structure
+    var div = document.createElement('div')
+    div.id = 'structureDiv'
+    addImagesSurveyStructureDiv.appendChild(div)
+
+    // Buttons
+    var div = document.createElement('div')
+    div.setAttribute('id','structureButtonsDiv')
+    addImagesSurveyStructureDiv.appendChild(div)
+
+    var row = document.createElement('div')
+    row.classList.add('row')
+    addImagesSurveyStructureDiv.appendChild(row)
+
+    var col1 = document.createElement('div')
+    col1.classList.add('col-lg-2')
+    row.appendChild(col1)
+
+    var btnPrevStructure = document.createElement('button')
+    btnPrevStructure.setAttribute("class","btn btn-primary btn-block")
+    btnPrevStructure.setAttribute("id","btnPrevSurveyStructure")
+    btnPrevStructure.innerHTML = 'Previous'
+    col1.appendChild(btnPrevStructure)
+
+    var col2 = document.createElement('div')
+    col2.classList.add('col-lg-8')
+    row.appendChild(col2)
+
+    var col5 = document.createElement('div')
+    col5.classList.add('col-lg-2')
+    row.appendChild(col5)
+
+    var btnNextStructure = document.createElement('button')
+    btnNextStructure.setAttribute("class","btn btn-primary btn-block")
+    btnNextStructure.setAttribute("id","btnNextSurveyStructure")
+    btnNextStructure.innerHTML = 'Next'
+    col5.appendChild(btnNextStructure)
+
+    btnNextStructure.addEventListener('click', ()=>{
+        buildStructure(next_structure_url)
+    });
+    
+    btnPrevStructure.addEventListener('click', ()=>{
+        buildStructure(prev_structure_url)
+    });
+    
+    buildStructure()
+}
+
+
+function buildStructure(structure_url='/getSurveyStructure') {
+    if (structure_url=='/getSurveyStructure') {
+        structure_url += '?survey_id='+selectedSurvey
+    }
+
+    var xhttp = new XMLHttpRequest();
+    xhttp.onreadystatechange =
+    function(){
+        if (this.readyState == 4 && this.status == 200) {
+            reply = JSON.parse(this.responseText);
+            console.log(reply)
+            if ((reply.survey==selectedSurvey)&&(modalAddImages.is(':visible'))) {
+                if (reply.next_url==null) {
+                    document.getElementById('btnNextSurveyStructure').hidden = true
+                } else {
+                    document.getElementById('btnNextSurveyStructure').hidden = false
+                    next_structure_url = reply.next_url
+                }
+
+                if (reply.prev_url==null) {
+                    document.getElementById('btnPrevSurveyStructure').hidden = true
+                } else {
+                    document.getElementById('btnPrevSurveyStructure').hidden = false
+                    prev_structure_url = reply.prev_url
+                }
+            }
+
+            survey_structure = reply.structure
+
+            var structureDiv = document.getElementById('structureDiv')
+            while(structureDiv.firstChild){
+                structureDiv.removeChild(structureDiv.firstChild);
+            }
+
+            var table = document.createElement('table')
+            table.classList.add('table');
+            table.classList.add('table-striped');
+            table.classList.add('table-bordered');
+            // table.classList.add('table-hover');
+            table.style.borderCollapse = 'collapse'
+            table.style.border = '1px solid rgba(0,0,0,0)'
+            structureDiv.appendChild(table)
+
+            var thead = document.createElement('thead')
+            table.appendChild(thead)
+
+            var tr = document.createElement('tr')
+            thead.appendChild(tr)
+
+            var th = document.createElement('th')
+            th.innerHTML = 'Site'
+            tr.appendChild(th)
+
+            var th = document.createElement('th')
+            th.innerHTML = 'Camera'
+            tr.appendChild(th)
+
+            var th = document.createElement('th')
+            th.innerHTML = 'Folder'
+            tr.appendChild(th)
+
+            var th = document.createElement('th')
+            th.innerHTML = 'Image Count'
+            tr.appendChild(th)
+
+            var th = document.createElement('th')
+            th.innerHTML = 'Video Count'
+            tr.appendChild(th)
+
+            var th = document.createElement('th')
+            th.innerHTML = 'Frame Count'
+            tr.appendChild(th)
+
+            var tbody = document.createElement('tbody');
+            table.appendChild(tbody);
+
+            for (let i = 0; i < survey_structure.length; i++) {
+                for (let j = 0; j < survey_structure[i].cameras.length; j++) {
+                    for (let k = 0; k < survey_structure[i].cameras[j].folders.length; k++) {
+                        var tr = document.createElement('tr');
+                        tbody.appendChild(tr);
+            
+                        if (j === 0 && k === 0) {
+                            var tdSite = document.createElement('td');
+                            tdSite.classList.add('site');
+                            tdSite.classList.add('site-'+survey_structure[i].id);
+                            tdSite.setAttribute('rowspan', survey_structure[i].nr_folders);
+                            tdSite.setAttribute('style', 'text-align:left; vertical-align: middle;');
+                            tdSite.innerHTML = survey_structure[i].site;
+                            tr.appendChild(tdSite);
+
+                            tdSite.addEventListener('mouseenter', function () {
+                                highlightCells(this);
+                            });
+                    
+                            tdSite.addEventListener('mouseleave', function () {
+                                clearHighlights();
+                            });
+                        }
+            
+                        if (k === 0) {
+                            var tdCamera = document.createElement('td');
+                            tdCamera.classList.add('camera');
+                            tdCamera.classList.add('camera-'+survey_structure[i].cameras[j].id);
+                            tdCamera.classList.add('site-'+survey_structure[i].id);
+                            tdCamera.setAttribute('rowspan', survey_structure[i].cameras[j].folders.length);
+                            tdCamera.setAttribute('style', 'text-align:left; vertical-align: middle;');
+                            tdCamera.innerHTML = survey_structure[i].cameras[j].name;
+                            tr.appendChild(tdCamera);
+
+                            tdCamera.addEventListener('mouseenter', function () {
+                                highlightCells(this);
+                            });
+
+                            tdCamera.addEventListener('mouseleave', function () {
+                                clearHighlights();
+                            });
+                        }
+            
+                        var tdFolder = document.createElement('td');
+                        tdFolder.classList.add('folder');
+                        tdFolder.classList.add('camera-'+survey_structure[i].cameras[j].id);
+                        tdFolder.classList.add('site-'+survey_structure[i].id);
+                        tdFolder.setAttribute('style', 'text-align:left');
+                        tdFolder.innerHTML = survey_structure[i].cameras[j].folders[k].path;
+                        tr.appendChild(tdFolder);
+
+                        tdFolder.addEventListener('mouseenter', function () {
+                            highlightCells(this);
+                        });
+
+                        tdFolder.addEventListener('mouseleave', function () {
+                            clearHighlights();
+                        });
+
+                        var tdImageCount = document.createElement('td');
+                        tdImageCount.classList.add('folder');
+                        tdImageCount.classList.add('camera-'+survey_structure[i].cameras[j].id);
+                        tdImageCount.classList.add('site-'+survey_structure[i].id);
+                        tdImageCount.innerHTML = survey_structure[i].cameras[j].folders[k].image_count;
+                        tr.appendChild(tdImageCount);
+
+                        tdImageCount.addEventListener('mouseenter', function () {
+                            highlightCells(this);
+                        });
+
+                        tdImageCount.addEventListener('mouseleave', function () {
+                            clearHighlights();
+                        });
+
+                        var tdVideoCount = document.createElement('td');
+                        tdVideoCount.classList.add('folder');
+                        tdVideoCount.classList.add('camera-'+survey_structure[i].cameras[j].id);
+                        tdVideoCount.classList.add('site-'+survey_structure[i].id);
+                        tdVideoCount.innerHTML = survey_structure[i].cameras[j].folders[k].video_count;
+                        tr.appendChild(tdVideoCount);
+
+                        tdVideoCount.addEventListener('mouseenter', function () {
+                            highlightCells(this);
+                        });
+
+                        tdVideoCount.addEventListener('mouseleave', function () {
+                            clearHighlights();
+                        });
+
+                        var tdFrameCount = document.createElement('td');
+                        tdFrameCount.classList.add('folder');
+                        tdFrameCount.classList.add('camera-'+survey_structure[i].cameras[j].id);
+                        tdFrameCount.classList.add('site-'+survey_structure[i].id);
+                        tdFrameCount.innerHTML = survey_structure[i].cameras[j].folders[k].frame_count;
+                        tr.appendChild(tdFrameCount);
+
+                        tdFrameCount.addEventListener('mouseenter', function () {
+                            highlightCells(this);
+                        });
+
+                        tdFrameCount.addEventListener('mouseleave', function () {
+                            clearHighlights();
+                        });
+
+                    }
+                }
+            }
+
+        }
+    }
+    xhttp.open("GET", structure_url);
+    xhttp.send();
+
+}
+
+function updateSurveyStructure(){
+    /** Updates the survey structure display. */
+
+    if (document.getElementById('addImagesTGCode')!=null) {
+        var infoDiv = document.getElementById('addImagesStructureDiv')
+        var camSameAsSite = document.getElementById('camSameAsSiteES').checked
+        var btnPrevStructure = document.getElementById('btnPrevStructureES')
+        var btnNextStructure = document.getElementById('btnNextStructureES')
+    } else {
+        var infoDiv = document.getElementById('newSurveyStructureDiv')
+        var camSameAsSite = document.getElementById('camSameAsSite').checked
+        var btnPrevStructure = document.getElementById('btnPrevStructure')
+        var btnNextStructure = document.getElementById('btnNextStructure')
+    }
+    
+    btnPrevStructure.hidden = true
+    btnNextStructure.hidden = true
+
+    var structurePages = Object.keys(globalSurveyStructure)
+
+    if (structurePages.length > 0) {
+        infoDiv.innerHTML = ''
+        infoDiv.innerHTML = 'Structure found: ' + globalStructureCounts['sites'] + ' sites, ' + globalStructureCounts['cameras'] + ' cameras. <br>'
+
+        if (camSameAsSite) {
+            for (let i = 0; i < structurePages.length; i++) {
+                var tags = Object.keys(globalSurveyStructure[structurePages[i]])
+                for (let j = 0; j < tags.length; j++) {
+                    infoDiv.innerHTML += tags[j] + ' , '
+                }
+            }
+            infoDiv.innerHTML = infoDiv.innerHTML.slice(0, -3) + '<br>'
+        }
+        else{
+            var tags = Object.keys(globalSurveyStructure[structure_page])
+            for (let i=0;i<tags.length;i++) {
+                infoDiv.innerHTML += tags[i] + ' : '
+                for (let n=0;n<globalSurveyStructure[structure_page][tags[i]].length;n++) {
+                    infoDiv.innerHTML += globalSurveyStructure[structure_page][tags[i]][n] + ' , '
+                }
+                infoDiv.innerHTML = infoDiv.innerHTML.slice(0, -3) + '<br>'
+            }
+    
+            if (structure_page != structurePages[0]) {
+                btnPrevStructure.hidden = false
+            }
+            if (structure_page != structurePages[structurePages.length-1]) {
+                btnNextStructure.hidden = false
+            }
+            
+        }
+    }
+    else{
+        if (infoDiv.innerHTML != 'Checking...') {
+            infoDiv.innerHTML = 'Invalid structure. Please check your site and camera identifiers.'
+        }
+    }
+}
+
+function prevStructure(){
+    /** Moves to the previous structure page. */
+    var structurePages = Object.keys(globalSurveyStructure)
+    var structureIndex = structurePages.indexOf(structure_page.toString())
+
+    if (structureIndex > 0) {
+        structure_page = structurePages[structureIndex-1]
+    }
+    else{
+        structure_page = structurePages[0]
+    }
+
+    updateSurveyStructure()
+}
+
+function nextStructure(){
+    /** Moves to the next structure page. */
+    var structurePages = Object.keys(globalSurveyStructure)
+    var structureIndex = structurePages.indexOf(structure_page.toString())
+
+    if (structureIndex < structurePages.length-1) {
+        structure_page = structurePages[structureIndex+1]
+    }
+    else{
+        structure_page = structurePages[structurePages.length-1]
+    }
+
+    updateSurveyStructure()
+}
+
+
+function highlightCells(cell) {
+    clearHighlights();
+
+    cellsToHighlight = [cell];
+
+    cellClass = cell.classList[0];
+    
+
+    if(cellClass == 'site'){
+        cellSiteClass = cell.classList[1];
+        //Find all cells with site class
+        var allCells = document.querySelectorAll('.' + cellSiteClass);
+        for (let i = 0; i < allCells.length; i++) {
+            cellsToHighlight.push(allCells[i]);
+        }
+    }
+    else if (cellClass == 'camera'){
+        //Find all cells with site and camera class
+        cellCameraClass = cell.classList[1];
+        cellSiteClass = cell.classList[2];
+
+        var allCells = document.querySelectorAll('.' + cellCameraClass + '.' + cellSiteClass);
+        for (let i = 0; i < allCells.length; i++) {
+            cellsToHighlight.push(allCells[i]);
+        }
+
+        var siteCell = document.querySelector('.' + cellSiteClass + '.site');
+        cellsToHighlight.push(siteCell);
+    }
+    else{
+        cellCameraClass = cell.classList[1];
+        cellSiteClass = cell.classList[2];
+        //Find all celss in the current row
+        var row = cell.parentNode;
+        for (let i = 0; i < row.children.length; i++) {
+            cellsToHighlight.push(row.children[i]);
+        }
+
+        //Find camera cell with same class as current cell
+        var cameraCell = document.querySelector('.' + cellCameraClass + '.' + cellSiteClass + '.camera');
+        cellsToHighlight.push(cameraCell);
+        
+        //Find site cell with same class as current cell
+        var siteCell = document.querySelector('.' + cellSiteClass + '.site');
+        cellsToHighlight.push(siteCell);
+    }
+
+    for (let i = 0; i < cellsToHighlight.length; i++) {
+        cellsToHighlight[i].classList.add('highlight');
+    }
+
+}
+
+function clearHighlights() {
+    var highlightedCells = document.querySelectorAll('.highlight');
+    highlightedCells.forEach(function (highlightedCell) {
+        highlightedCell.classList.remove('highlight');
+    });
 }

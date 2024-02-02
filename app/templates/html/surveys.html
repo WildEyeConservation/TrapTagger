@@ -50,6 +50,9 @@ limitations under the License. -->
     img {
         filter: brightness(100%) contrast(100%) saturate(100%);
     }
+    td.highlight {
+        background-color: rgba(255, 255, 255, 0.2);
+    }
 </style>
 
 <br>
@@ -257,7 +260,7 @@ limitations under the License. -->
                         The identifier used to designate a site in your folder structure. Eg. "Site" if your sites are stored in folders named "Site1", "Site2" etc. Becomes 
                         a <a href="https://www.w3schools.com/python/python_regex.asp">regular expression</a> search query if the advanced option is selected.
                     </i></div>
-                    <div id="newSurveyTGInfo" style="font-size: 80%; color: #DF691A"></div>
+                    <!-- <div id="newSurveyTGInfo" style="font-size: 80%; color: #DF691A"></div> -->
                     <div class="row">
                         <div class='col-lg-4'>
                             <input type="text" class="form-control" required id="newSurveyTGCode"></input>
@@ -271,7 +274,55 @@ limitations under the License. -->
                     </div>
                     <div id="newSurveyTgBuilder"></div>
                     <br>
-            
+
+                    <h5 style="margin-bottom: 2px">Camera Identifier</h5>
+                    <div style="font-size: 80%; margin-bottom: 2px"><i> Select the method you would like to use to identify your cameras.</i></div>
+                    <div style="margin-bottom: 5px">
+                        <div class="custom-control custom-radio custom-control-inline">
+                            <input type="radio" class="custom-control-input" id="camBotLvlFolder" name="camCodeSelection" value='0' checked="true" onchange="updateCamDiv()">
+                            <label class="custom-control-label" for="camBotLvlFolder">Folder</label>
+                        </div> 
+                        <div class="custom-control custom-radio custom-control-inline">
+                            <input type="radio" class="custom-control-input" id="camSameAsSite" name="camCodeSelection" value='0' onchange="updateCamDiv()">
+                            <label class="custom-control-label" for="camSameAsSite">Site Identifier (one camera per site)</label>
+                        </div> 
+                        <div class="custom-control custom-radio custom-control-inline">
+                            <input type="radio" class="custom-control-input" id="camRegExp" name="camCodeSelection" value='2' onchange="updateCamDiv()">
+                            <label class="custom-control-label" for="camRegExp">Camera Identifier </label>
+                        </div>
+                    </div>
+                    <div style="font-size: 80%; margin-bottom: 2px" id="camOptionDesc"><i>Each bottom-level folder in your dataset will be considered a different camera.</i></div>
+                    <div id="camIdDiv" hidden>
+                        <div class="row">
+                            <div class='col-lg-4'>
+                                <input type="text" class="form-control" required id="newSurveyCamCode"></input>
+                            </div>
+                            <div class="col-lg-4">
+                                <div class="custom-control custom-checkbox">
+                                    <input type="checkbox" class="custom-control-input" id="camAdvancedCheckbox" name="camAdvancedCheckbox">
+                                    <label class="custom-control-label" for="camAdvancedCheckbox">Advanced</label>
+                                </div>
+                            </div>
+                        </div>
+                        <div id="newSurveyCamBuilder"></div>
+                    </div>      
+                    
+                    <br>
+                    <h5 style="margin-bottom: 2px">Structure</h5>
+                    <div style="font-size: 80%; margin-bottom: 2px"><i> View the structure of your dataset. Eg. "Site1 : Camera1, Camera2" etc.</i></div>
+                    <div id="newSurveyStructureDiv" style="font-size: 80%; color: #DF691A"></div>
+                    <div id="newSurveyStructureDiv2">
+                        <div class="row">
+                            <div class="col-lg-1">
+                                <button class="btn btn-primary btn-sm" type="button" id="btnPrevStructure" onclick="prevStructure()" hidden>&lt;</button>
+                            </div>
+                            <div class="col-lg-10"></div>
+                            <div class="col-lg-1">
+                                <button class="btn btn-primary btn-sm pull-right" type="button" id="btnNextStructure" onclick="nextStructure()" hidden>></button>
+                            </div>
+                        </div>
+                        <div id="newSurveyStructureBuilder"></div>
+                    </div>
                 </div>
                 <div class='modal-footer'>
 
@@ -294,7 +345,7 @@ limitations under the License. -->
 
 <!-- Add images Modal -->
 <div id="modalAddImages" class="modal fade" role="dialog" tabindex="-1">
-    <div class="modal-dialog" style="max-width: 65%;">
+    <div class="modal-dialog" style="max-width: 70%;">
   
         <!-- Modal content-->
         <div class="modal-content">
@@ -318,35 +369,36 @@ limitations under the License. -->
                 <button id="openAdvancedTab" class="tablinks" onclick="changeEditSurveyTab(event, 'baseAdvancedTab')">Advanced Options</button>
                 <button id="openEditMasksTab" class="tablinks" onclick="changeEditSurveyTab(event, 'baseEditMasksTab')">Masks</button>
                 <button id="openStaticTab" class="tablinks" onclick="changeEditSurveyTab(event, 'baseStaticTab')">Static Detections</button>
+                <button id="openStructureTab" class="tablinks" onclick="changeEditSurveyTab(event, 'baseStructureTab')">Structure</button>
             </div>
 
             <div class="modal-body">
+                <div id="addImagesErrors" style="font-size: 80%; color: #DF691A"></div>
 
-                <div class='form-group'>
-                    <div id="addImagesErrors" style="font-size: 80%; color: #DF691A"></div>
-                    <div class="tabcontent" id="baseAddImagesTab">
-                        <div id="addImagesAddImsDiv"></div>
-                    </div>
-                    <div class="tabcontent" id="baseAddCoordinatesTab">
-                        <div id="addImagesAddCoordsDiv"></div>
-                    </div>
-                    <div class="tabcontent" id="baseEditTimestampsTab">
-                        <div id="addImagesEditTimestampsDiv"></div>
-                    </div>
-                    <div class="tabcontent" id="baseEditClassifierTab">
-                        <div id="addImagesEditClassifierDiv"></div>
-                    </div>
-                    <div class="tabcontent" id="baseAdvancedTab">
-                        <div id="addImagesAdvancedDiv"></div>
-                    </div>
-                    <div class="tabcontent" id="baseEditMasksTab">
-                        <div id="addImagesEditMasksDiv"></div>
-                    </div>
-                    <div class="tabcontent" id="baseStaticTab">
-                        <div id="addImagesStaticDiv"></div>
-                    </div>
+                <div class="tabcontent" id="baseAddImagesTab">
+                    <div id="addImagesAddImsDiv"></div>
                 </div>
-          
+                <div class="tabcontent" id="baseAddCoordinatesTab">
+                    <div id="addImagesAddCoordsDiv"></div>
+                </div>
+                <div class="tabcontent" id="baseEditTimestampsTab">
+                    <div id="addImagesEditTimestampsDiv"></div>
+                </div>
+                <div class="tabcontent" id="baseEditClassifierTab">
+                    <div id="addImagesEditClassifierDiv"></div>
+                </div>
+                <div class="tabcontent" id="baseAdvancedTab">
+                    <div id="addImagesAdvancedDiv"></div>
+                </div>
+                <div class="tabcontent" id="baseEditMasksTab">
+                    <div id="addImagesEditMasksDiv"></div>
+                </div>
+                <div class="tabcontent" id="baseStaticTab">
+                    <div id="addImagesStaticDiv"></div>
+                </div>
+                <div class="tabcontent" id="baseStructureTab">
+                    <div id="addImagesSurveyStructureDiv"></div>
+                </div>
             </div>
             <div class='modal-footer'>
 

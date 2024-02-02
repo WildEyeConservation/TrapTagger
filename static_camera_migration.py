@@ -1,0 +1,134 @@
+# Description: This script will create camera groups and static groups for all surveys. 
+
+from app.models import *
+from app.routes import *
+
+
+# Create camera groups
+cam_code = None
+trapgroup_ids = [r[0] for r in db.session.query(Trapgroup.id).all()]
+for trapgroup_id in trapgroup_ids:
+    group_cameras(trapgroup_id, cam_code)
+    db.session.commit()
+
+
+
+# Create static groups
+def process_db_static_detections(cameragroup_id):
+    queryTemplate1="""
+        SELECT 
+                id1 AS detectionID,
+                GROUP_CONCAT(id2) AS matchIDs
+        FROM
+            (SELECT 
+                det1.id AS id1,
+                det2.id AS id2,
+                GREATEST(LEAST(det1.right, det2.right) - GREATEST(det1.left, det2.left), 0) * 
+                GREATEST(LEAST(det1.bottom, det2.bottom) - GREATEST(det1.top, det2.top), 0) AS intersection,
+                (det1.right - det1.left) * (det1.bottom - det1.top) AS area1,
+                (det2.right - det2.left) * (det2.bottom - det2.top) AS area2
+            FROM
+                detection AS det1
+                JOIN detection AS det2
+                JOIN image AS image1
+                JOIN image AS image2
+                JOIN camera AS camera1
+                JOIN camera AS camera2
+            ON 
+                camera1.cameragroup_id = camera2.cameragroup_id
+                AND camera1.id = image1.camera_id
+                AND camera2.id = image2.camera_id
+                AND image1.id = det1.image_id
+                AND image2.id = det2.image_id
+                AND image1.id != image2.id 
+            WHERE
+                ({}) 
+                AND camera1.cameragroup_id = {}
+                AND image1.id IN ({})
+                AND image2.id IN ({})
+                AND det1.static = 1
+                AND det2.static = 1
+                ) AS sq1
+        WHERE
+            area1 < 0.1
+            AND sq1.intersection / (sq1.area1 + sq1.area2 - sq1.intersection) > 0.7 GROUP BY id1
+    """
+
+    imcount = db.session.query(Image).join(Camera).filter(Camera.cameragroup_id==cameragroup_id).filter(~Camera.path.contains('_video_images_')).distinct().count()
+
+    detections = [r[0] for r in db.session.query(Detection.id)\
+                                        .join(Image)\
+                                        .join(Camera)\
+                                        .filter(Camera.cameragroup_id==cameragroup_id)\
+                                        .filter(~Camera.path.contains('_video_images_'))\
+                                        .filter(or_(and_(Detection.source==model,Detection.score>Config.DETECTOR_THRESHOLDS[model]) for model in Config.DETECTOR_THRESHOLDS))\
+                                        .filter(Detection.static==True)\
+                                        .order_by(Image.corrected_timestamp)\
+                                        .distinct().all()]
+
+    static_detections = []
+    static_groups = []
+    max_grouping = 7000
+    for chunk in chunker(detections,max_grouping):
+        if (len(chunk)<max_grouping) and (len(detections)>max_grouping):
+            chunk = detections[-max_grouping:]
+        images = db.session.query(Image).join(Detection).filter(Detection.id.in_(chunk)).distinct().all()
+        im_ids = ','.join([str(r.id) for r in images])
+        for det_id,matchids in db.session.execute(queryTemplate1.format('OR'.join([ ' (det1.source = "{}" AND det1.score > {}) '.format(model,Config.DETECTOR_THRESHOLDS[model]) for model in Config.DETECTOR_THRESHOLDS]),cameragroup_id,im_ids,im_ids)):
+            match_ids = [int(r) for r in matchids.split(',')]
+            matchcount = len(match_ids)
+            if matchcount>3 and matchcount/imcount>0.3 and det_id not in static_detections:
+                match_ids.append(det_id)
+                static_detections.extend(match_ids)
+                static_groups.append(match_ids)
+
+    for group in static_groups:
+        # Check if staticgroup exists with any of the detections
+        detections = db.session.query(Detection).filter(Detection.id.in_(group)).all()
+        staticgroups = db.session.query(Staticgroup).filter(Staticgroup.detections.any(Detection.id.in_(group))).all()
+        if staticgroups:
+            if len(staticgroups) == 1:
+                # Add detections to the existing static group if there is only one and the detections are not already in the group
+                staticgroup = staticgroups[0]
+                group_detections = list(set(staticgroup.detections + detections))
+                staticgroup.detections = group_detections
+
+            else:
+                # Create a new static group if there are multiple static groups (with all detections)
+                group_detections = []
+                for sg in staticgroups:
+                    group_detections.extend(sg.detections)
+                    db.session.delete(sg)
+                group_detections = list(set(group_detections + detections))
+                new_group = Staticgroup(status='unknown',detections=group_detections)
+                db.session.add(new_group)
+
+        else:
+            staticgroup = Staticgroup(status='unknown', detections=detections)
+            db.session.add(staticgroup)
+
+
+    # Check if there is any static detections that are not in a static group
+    detections = db.session.query(Detection).join(Image).join(Camera).filter(Camera.cameragroup_id==cameragroup_id).filter(Detection.static==True).filter(~Detection.staticgroups.any()).all()
+    for detection in detections:
+        staticgroup = Staticgroup(status='unknown', detections=[detection])
+        db.session.add(staticgroup)
+
+
+    db.session.commit()
+
+
+
+# Create static groups
+cameragroup_ids = [r[0] for r in db.session.query(Cameragroup.id).limit(1000).all()]
+for cameragroup_id in cameragroup_ids:
+    process_db_static_detections(cameragroup_id)
+    db.session.commit()
+
+
+# Get empty static groups and delete them
+staticgroups = db.session.query(Staticgroup).filter(~Staticgroup.detections.any()).all()
+for staticgroup in staticgroups:
+    db.session.delete(staticgroup)
+
+db.session.commit()

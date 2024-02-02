@@ -3171,9 +3171,9 @@ def mask_area(self, cluster_id, task_id, masks):
         cluster = db.session.query(Cluster).get(cluster_id)
         task_id = cluster.task_id
         trapgroup = cluster.images[0].camera.trapgroup
-        camera = cluster.images[0].camera
+        cameragroup = cluster.images[0].camera.cameragroup
 
-        if trapgroup and camera:
+        if trapgroup and cameragroup:
             # Validate & create masks
             for mask in masks:
                 poly_coords = mask['poly_coords']
@@ -3188,9 +3188,9 @@ def mask_area(self, cluster_id, task_id, masks):
 
                 poly_area = db.session.query(func.ST_Area(func.ST_GeomFromText(poly_string))).first()[0]
                 if poly_area > Config.MIN_MASK_AREA and poly_area < Config.MAX_MASK_AREA:
-                    check = db.session.query(Mask).filter(Mask.shape==poly_string).filter(Mask.camera_id==camera.id).first()
+                    check = db.session.query(Mask).filter(Mask.shape==poly_string).filter(Mask.cameragroup_id==cameragroup.id).first()
                     if not check:
-                        new_mask = Mask(shape=poly_string,camera_id=camera.id,checked=False)
+                        new_mask = Mask(shape=poly_string,cameragroup_id=cameragroup.id,checked=False)
                         db.session.add(new_mask)
             db.session.commit()
 
@@ -3198,8 +3198,9 @@ def mask_area(self, cluster_id, task_id, masks):
             detections = db.session.query(Detection)\
                                     .join(Image)\
                                     .join(Camera)\
+                                    .join(Cameragroup)\
                                     .join(Mask)\
-                                    .filter(Camera.id==camera.id)\
+                                    .filter(Cameragroup.id==cameragroup.id)\
                                     .filter(or_(and_(Detection.source==model,Detection.score>Config.DETECTOR_THRESHOLDS[model]) for model in Config.DETECTOR_THRESHOLDS))\
                                     .filter(~Detection.status.in_(Config.DET_IGNORE_STATUSES))\
                                     .filter(Detection.static==False)\
@@ -3272,7 +3273,7 @@ def update_masks(self,survey_id,removed_masks,added_masks,edited_masks):
             poly_string = poly_string[:-1] + '))'
             poly_area = db.session.query(func.ST_Area(func.ST_GeomFromText(poly_string))).first()[0]
             if poly_area > Config.MIN_MASK_AREA and poly_area < Config.MAX_MASK_AREA:
-                new_mask = Mask(shape=poly_string,camera_id=mask['camera_id'],checked=False)
+                new_mask = Mask(shape=poly_string,cameragroup_id=mask['cameragroup_id'],checked=False)
                 db.session.add(new_mask)
 
         # Edit masks
@@ -3298,6 +3299,7 @@ def update_masks(self,survey_id,removed_masks,added_masks,edited_masks):
         detections = db.session.query(Detection)\
                                 .join(Image)\
                                 .join(Camera)\
+                                .join(Cameragroup)\
                                 .join(Trapgroup)\
                                 .join(Mask)\
                                 .filter(Trapgroup.survey_id==survey_id)\
@@ -3324,6 +3326,7 @@ def update_masks(self,survey_id,removed_masks,added_masks,edited_masks):
         masked_detections = db.session.query(Detection)\
                                 .join(Image)\
                                 .join(Camera)\
+                                .join(Cameragroup)\
                                 .join(Trapgroup)\
                                 .join(Mask)\
                                 .filter(Trapgroup.survey_id==survey_id)\
@@ -3341,6 +3344,7 @@ def update_masks(self,survey_id,removed_masks,added_masks,edited_masks):
         unmasked_detections = db.session.query(Detection)\
                                 .join(Image)\
                                 .join(Camera)\
+                                .join(Cameragroup)\
                                 .join(Trapgroup)\
                                 .outerjoin(masked_detections, masked_detections.c.id==Detection.id)\
                                 .filter(Trapgroup.survey_id==survey_id)\

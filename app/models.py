@@ -126,7 +126,7 @@ class Camera(db.Model):
     images = db.relationship('Image', backref='camera', lazy=True)
     trapgroup_id = db.Column(db.Integer, db.ForeignKey('trapgroup.id'))
     videos = db.relationship('Video', backref='camera', lazy=True)
-    masks = db.relationship('Mask', backref='camera', lazy=True)
+    cameragroup_id = db.Column(db.Integer, db.ForeignKey('cameragroup.id'), index=True)
 
     def __repr__(self):
         return '<Camera {}>'.format(self.path)
@@ -161,6 +161,7 @@ class Survey(db.Model):
     organisation_id = db.Column(db.Integer, db.ForeignKey('organisation.id'), index=True, unique=False)
     exceptions = db.relationship('SurveyPermissionException', backref='survey', lazy=True)
     shares = db.relationship('SurveyShare', backref='survey', lazy=True)
+    camera_code = db.Column(db.String(256), index=False)
 
     def __repr__(self):
         return '<Survey {}>'.format(self.name)
@@ -581,7 +582,7 @@ class SurveyShare(db.Model):
 
 class Mask(db.Model):
     id = db.Column(db.Integer, primary_key=True)
-    camera_id = db.Column(db.Integer, db.ForeignKey('camera.id'), index=True, unique=False)
+    cameragroup_id = db.Column(db.Integer, db.ForeignKey('cameragroup.id'), index=True, unique=False)
     shape = db.Column(Geometry('POLYGON', srid=32734), index=False, unique=False)    # 32734 is the SRID for UTM Zone 34S (This is a hack because we can't use SRID = 0, so we use a linear unit to avoid distortion for cartesian coordinates)
     checked = db.Column(db.Boolean, default=False, index=False)
 
@@ -595,6 +596,15 @@ class Staticgroup(db.Model):
 
     def __repr__(self):
         return '<Staticgroup {}>'.format(self.id)
+
+class Cameragroup(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    name = db.Column(db.String(64), index=False)
+    cameras = db.relationship('Camera', backref='cameragroup', lazy=True)
+    masks = db.relationship('Mask', backref='cameragroup', lazy=True)
+
+    def __repr__(self):
+        return '<Cameragroup {}>'.format(self.name)
     
 db.Index('ix_det_srce_scre_stc_stat_class_classcre', Detection.source, Detection.score, Detection.static, Detection.status, Detection.classification, Detection.class_score)
 db.Index('ix_cluster_examined_task', Cluster.examined, Cluster.task_id)

@@ -17,7 +17,7 @@ limitations under the License.
 from app import app, db, celery
 from app.models import *
 from app.functions.globals import classifyTask, finish_knockdown, updateTaskCompletionStatus, updateLabelCompletionStatus, updateIndividualIdStatus, \
-                                    retryTime, chunker, resolve_abandoned_jobs, addChildLabels, updateAllStatuses
+                                    retryTime, chunker, resolve_abandoned_jobs, addChildLabels, updateAllStatuses, stringify_timestamp
 from app.functions.individualID import calculate_individual_similarities, cleanUpIndividuals
 from app.functions.imports import cluster_survey, classifySurvey, s3traverse, recluster_large_clusters, removeHumans, classifyCluster
 import GLOBALS
@@ -399,23 +399,14 @@ def delete_survey(self,survey_id):
                     db.session.delete(detSimilarity)
                 db.session.commit()
 
-                #TODO: CHeck this (staticgroups)
-                staticgroups = db.session.query(Staticgroup)\
-                                        .join(Detection)\
-                                        .join(Image)\
-                                        .join(Camera)\
-                                        .join(Trapgroup)\
-                                        .filter(Trapgroup.survey_id==survey_id)\
-                                        .all()
-                
-                for staticgroup in staticgroups:
-                    staticgroup.detections = []
-                    db.session.delete(staticgroup)
-                db.session.commit()
-
                 detections = db.session.query(Detection).join(Image).join(Camera).join(Trapgroup).filter(Trapgroup.survey_id==survey_id).all()
                 for detection in detections:
                     db.session.delete(detection)
+                db.session.commit()
+
+                staticgroups = db.session.query(Staticgroup).filter(~Staticgroup.detections.any()).all()
+                for staticgroup in staticgroups:
+                    db.session.delete(staticgroup)
                 db.session.commit()
 
                 # detections = db.session.query(Detection).join(Image).join(Camera).join(Trapgroup).filter(Trapgroup.survey_id==survey_id).all()
@@ -465,7 +456,7 @@ def delete_survey(self,survey_id):
         #Delete masks
         if status != 'error':
             try:
-                masks = db.session.query(Mask).join(Camera).join(Trapgroup).filter(Trapgroup.survey_id==survey_id).all()
+                masks = db.session.query(Mask).join(Cameragroup).join(Camera).join(Trapgroup).filter(Trapgroup.survey_id==survey_id).all()
                 for mask in masks:
                     db.session.delete(mask)
                 db.session.commit()
@@ -474,6 +465,20 @@ def delete_survey(self,survey_id):
                 status = 'error'
                 message = 'Could not delete masks.'
                 app.logger.info('Failed to delete masks.')
+
+        #Delete cameragroups
+        if status != 'error':
+            try:
+                cameragroups = db.session.query(Cameragroup).join(Camera).join(Trapgroup).filter(Trapgroup.survey_id==survey_id).all()
+                for cameragroup in cameragroups:
+                    cameragroup.cameras = []
+                    db.session.delete(cameragroup)
+                db.session.commit()
+                app.logger.info('Cameragroups deleted successfully.')
+            except:
+                status = 'error'
+                message = 'Could not delete cameragroups.'
+                app.logger.info('Failed to delete cameragroups.')
 
         #Delete cameras
         if status != 'error':
@@ -1354,20 +1359,46 @@ def updateCoords(self,survey_id,coordData):
     return True
 
 @celery.task(bind=True,max_retries=5,ignore_result=True)
-def changeTimestamps(self,survey_id,timestamps):
+def changeTimestamps(self,survey_id,timestamps,level):
     '''
     Celery task for shifting the camera timestamps of a specified survey. Re-clusters all tasks afterword.
     
         Parameters:
             survey_id (int): The survey to edit
             timestamps (dict): Timestamp changes formatted {camera_id: {'original': timestamp, 'corrected': timestamp}}
+            level (str): The level of the camera timestamps to edit - 'folder' (camera) or 'camera' (cameragroup)
     '''
     
     try:
-        app.logger.info('changeTimestamps called for survey {} with timestamps {}'.format(survey_id,timestamps))
+        app.logger.info('changeTimestamps called for survey {} with timestamps {} and level {}'.format(survey_id,timestamps,level))
 
         # double check for edited cameras
-        camera_ids = [int(r) for r in timestamps.keys() if (timestamps[r]['corrected']!=timestamps[r]['original'])]
+        if level == 'folder':
+            camera_ids = [int(r) for r in timestamps.keys() if (timestamps[r]['corrected']!=timestamps[r]['original'])]
+        elif level == 'camera':
+            # Get all cameras in the cameragroups and create timestamps entries for each camera with timestamp change from cameragroup
+            cg_timestamps = timestamps.copy()
+            timestamps = {}
+            cameragroup_ids = [int(r) for r in cg_timestamps.keys() if (cg_timestamps[r]['corrected']!=cg_timestamps[r]['original'])]
+            camera_ids = []
+            for cameragroup_id in cameragroup_ids:
+                corrected_timestamp = datetime.strptime(cg_timestamps[str(cameragroup_id)]['corrected'],"%Y/%m/%d %H:%M:%S")
+                original_timestamp = datetime.strptime(cg_timestamps[str(cameragroup_id)]['original'],"%Y/%m/%d %H:%M:%S")
+                cg_delta = corrected_timestamp - original_timestamp
+
+                camera_data = db.session.query(Camera.id, func.min(Image.timestamp), func.min(Image.corrected_timestamp))\
+                                .join(Image)\
+                                .filter(~Camera.path.contains('_video_images_'))\
+                                .filter(Image.timestamp!=None)\
+                                .filter(Camera.cameragroup_id==cameragroup_id)\
+                                .group_by(Camera.id).distinct().all()
+
+                for camera in camera_data:
+                    new_corrected_timestamp = camera[2] + cg_delta
+                    timestamps[str(camera[0])] = {'original':stringify_timestamp(camera[1]),'corrected':stringify_timestamp(new_corrected_timestamp)}
+                    camera_ids.append(camera[0])
+
+            app.logger.info('Camera timestamps from cameragroups: {}'.format(timestamps))
 
         # Check if there is a need to recluster (ie. there are overlapping edited cameras)
         # In order to make this indempotent, we use the 'original' timestamps which are more of an intermediate timestamp
@@ -1680,29 +1711,95 @@ def generateLabels(labels, task_id, labelDictionary):
     return True
 
 @celery.task(bind=True,max_retries=5)
-def findTrapgroupTags(self,tgCode,folder,organisation_id,surveyName):
+def findTrapgroupTags(self,tgCode,folder,organisation_id,surveyName,camCode):
     '''Celery task that does the trapgroup code check. Returns the user message.'''
 
     try:
-        reply = None
+        reply = {}
         # isjpeg = re.compile('\.jpe?g$', re.I)
 
         try:
             tgCode = re.compile(tgCode)
+            if camCode == 'None':
+                camCode = None
+            else:
+                camCode = re.compile(camCode)
+
+            if surveyName == '' or surveyName == 'None' or surveyName == 'null':
+                surveyName = None
+
             allTags = []
+            allCams = []
+            structure = {}
             for dirpath, folders, filenames in s3traverse(Config.BUCKET, db.session.query(Organisation).get(organisation_id).folder+'/'+folder):
                 # jpegs = list(filter(isjpeg.search, filenames))
                 # if len(jpegs):
-                tags = tgCode.findall(dirpath.replace(surveyName+'/',''))
-                if len(tags) > 0:
+
+                if dirpath.find('_video_images_')!=-1:
+                    dirpath = dirpath.split('/_video_images_')[0]
+
+                if surveyName:
+                    dirpath = dirpath.replace(surveyName+'/','')
+
+                tags = tgCode.findall(dirpath)
+                if camCode:
+                    if camCode != tgCode:
+                        if tags:
+                            dirpath = dirpath.replace(tags[0],'')
+                    cams = camCode.findall(dirpath) 
+                else:
+                    cam_path = dirpath.split('/')[-1]
+                    cams = [cam_path]
+                if len(tags) > 0 and len(cams) > 0:
                     tag = tags[0]
+                    cam = cams[0]
                     if tag not in allTags:
                         allTags.append(tag)
+                    if cam not in allCams:
+                        allCams.append(cam)
+                    if tag not in structure.keys():
+                        structure[tag] = [cam]
+                    else:
+                        if cam not in structure[tag]:
+                            structure[tag].append(cam)
+                
+            # reply = str(len(allTags)) + ' sites found: ' + ', '.join([str(tag) for tag in sorted(allTags)])
+            #Format as Site1: Camera1 Camera2 , Site2: Camera1 Camera2
+            reply = {}
+            validStructure = True
 
-            reply = str(len(allTags)) + ' sites found: ' + ', '.join([str(tag) for tag in sorted(allTags)])
+            if len(allTags) == 0:
+                validStructure = False
+
+            if len(allCams) == 0:
+                validStructure = False
+
+            totalCams = 0
+            for tag in structure.keys():
+                if len(structure[tag]) == 0:
+                    validStructure = False
+                totalCams += len(structure[tag])
+
+            if validStructure:
+                # reply = 'Structure found: ' + str(len(allTags)) + ' sites, ' + str(totalCams) + ' cameras. <br>'
+                # for tag in sorted(structure.keys()):
+                #     reply += tag + ' : ' + ' , '.join([str(cam) for cam in sorted(structure[tag])]) + '<br>'
+                reply['message'] = 'Structure found.'
+                reply['structure'] = structure
+                reply['nr_sites'] = len(allTags)
+                reply['nr_cams'] = totalCams
+
+            else:
+                reply['message'] = 'Invalid structure. Please check your site and camera identifiers.'
+                reply['structure'] = {}
+                reply['nr_sites'] = 0
+                reply['nr_cams'] = 0
 
         except:
-            reply = 'Malformed expression. Please try again.'
+            reply['message'] = 'Malformed expression. Please try again.'
+            reply['structure'] = {}
+            reply['nr_sites'] = 0
+            reply['nr_cams'] = 0
 
     except Exception as exc:
         app.logger.info(' ')

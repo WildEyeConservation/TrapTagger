@@ -292,7 +292,7 @@ function generateResults(){
         document.getElementById('btnDownloadResultsCSV').hidden = true
         document.getElementById('covariatesDiv').hidden = true
         document.getElementById('observationWindowDiv').hidden = true
-        document.getElementById('cameraTrapDiv').hidden = true
+        document.getElementById('cameraTrapDiv').hidden = false
         document.getElementById('dataUnitDiv').hidden = false
         document.getElementById('indivCharacteristicsDiv').hidden = true 
         document.getElementById('dateDivTA').hidden = true
@@ -4362,8 +4362,8 @@ function getSummary(check){
         var start_date = document.getElementById('startDate').value
         var end_date = document.getElementById('endDate').value
         if (document.getElementById('cameraSelector')){
-            // var trap_unit = document.getElementById('cameraSelector').value
-            var trap_unit = '0'
+            var trap_unit = document.getElementById('cameraSelector').value
+            // var trap_unit = '0'
         }
         else{
             var trap_unit = '0'

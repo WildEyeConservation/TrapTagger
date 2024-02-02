@@ -354,7 +354,6 @@ def create_task_dataframe(task_id,detection_count_levels,label_levels,url_levels
     '''
 
     task = db.session.query(Task).get(task_id)
-
     query = db.session.query( \
                 Image.id.label('image_id'),\
                 Image.filename.label('image_name'), \
@@ -370,8 +369,9 @@ def create_task_dataframe(task_id,detection_count_levels,label_levels,url_levels
                 Cluster.id.label('cluster'), \
                 Label.description.label('label'), \
                 Tag.description.label('tag'), \
-                Camera.id.label('camera'), \
                 Camera.path.label('file_path'), \
+                Cameragroup.id.label('cameragroup_id'), \
+                Cameragroup.name.label('camera'), \
                 Video.filename.label('video_name'), \
                 Trapgroup.id.label('trapgroup_id'), \
                 Trapgroup.tag.label('trapgroup'), \
@@ -387,6 +387,7 @@ def create_task_dataframe(task_id,detection_count_levels,label_levels,url_levels
                 .join(Label,Labelgroup.labels,isouter=True) \
                 .join(Tag,Labelgroup.tags,isouter=True) \
                 .join(Camera,Image.camera_id==Camera.id) \
+                .join(Cameragroup,Camera.cameragroup_id==Cameragroup.id) \
                 .join(Video,Camera.videos,isouter=True) \
                 .join(Trapgroup,Camera.trapgroup_id==Trapgroup.id) \
                 .join(Survey,Trapgroup.survey_id==Survey.id) \
@@ -458,8 +459,9 @@ def create_task_dataframe(task_id,detection_count_levels,label_levels,url_levels
                         Detection.score.label('score'), \
                         Cluster.notes.label('notes'), \
                         Cluster.id.label('cluster'), \
-                        Camera.id.label('camera'), \
                         Camera.path.label('file_path'), \
+                        Cameragroup.id.label('cameragroup_id'), \
+                        Cameragroup.name.label('camera'), \
                         Video.filename.label('video_name'), \
                         Trapgroup.id.label('trapgroup_id'), \
                         Trapgroup.tag.label('trapgroup'), \
@@ -472,6 +474,7 @@ def create_task_dataframe(task_id,detection_count_levels,label_levels,url_levels
                         .join(Image,Cluster.images) \
                         .join(Detection,Detection.image_id==Image.id) \
                         .join(Camera,Image.camera_id==Camera.id) \
+                        .join(Cameragroup,Camera.cameragroup_id==Cameragroup.id) \
                         .join(Video,Camera.videos,isouter=True) \
                         .join(Trapgroup,Camera.trapgroup_id==Trapgroup.id) \
                         .join(Survey,Trapgroup.survey_id==Survey.id) \
@@ -518,6 +521,9 @@ def create_task_dataframe(task_id,detection_count_levels,label_levels,url_levels
 
     #Combine file paths
     df['image'] = df.apply(lambda x: create_full_path(x.file_path, x.image_name, collapseVideo, x.video_name), axis=1)
+
+    #Create camera name
+    df['camera'] = df.apply(lambda x: x.trapgroup+'-'+x.camera, axis=1)
 
     #Remove nulls
     df.fillna('None', inplace=True)
@@ -595,6 +601,8 @@ def create_task_dataframe(task_id,detection_count_levels,label_levels,url_levels
         level_name = level
         if (level == 'capture') or (level == 'image'):
             level = 'image_id'
+        elif level=='camera':
+            level = 'cameragroup_id'
         elif level=='trapgroup':
             level = 'trapgroup_id'
         elif level=='survey':
@@ -610,6 +618,7 @@ def create_task_dataframe(task_id,detection_count_levels,label_levels,url_levels
     del df['label']
     del df['tag']
     # del df['image_id']
+    del df['cameragroup_id']
     del df['trapgroup_id']
     del df['survey_id']
     if individual_levels: del df['individual']
@@ -802,7 +811,8 @@ def generate_csv(self,selectedTasks, selectedLevel, requestedColumns, custom_col
                 elif label_level=='capture':
                     sq = rDets(db.session.query(Image,func.count(distinct(Label.id)).label('count'))\
                                         .join(Camera)\
-                                        .group_by(Camera.id,Image.corrected_timestamp)\
+                                        .join(Cameragroup)\
+                                        .group_by(Cameragroup.id,Image.corrected_timestamp)\
                                         .join(Detection))
                 elif label_level=='cluster':
                     sq = rDets(db.session.query(Cluster,func.count(distinct(Label.id)).label('count'))\
@@ -810,10 +820,11 @@ def generate_csv(self,selectedTasks, selectedLevel, requestedColumns, custom_col
                                         .join(Image,Cluster.images)\
                                         .join(Detection))
                 elif label_level=='camera':
-                    sq = rDets(db.session.query(Camera,func.count(distinct(Label.id)).label('count'))\
-                                        .group_by(Camera.id)\
+                    sq = rDets(db.session.query(Cameragroup,func.count(distinct(Label.id)).label('count'))\
+                                        .join(Camera)\
                                         .join(Image)\
-                                        .join(Detection))
+                                        .join(Detection)\
+                                        .group_by(Cameragroup.id))
                 elif label_level=='trapgroup':
                     sq = rDets(db.session.query(Trapgroup,func.count(distinct(Label.id)).label('count'))\
                                         .group_by(Trapgroup.id)\
@@ -877,17 +888,19 @@ def generate_csv(self,selectedTasks, selectedLevel, requestedColumns, custom_col
                     sq = rDets(db.session.query(Image,func.count(distinct(Tag.id)).label('count'))\
                                         .join(Detection)\
                                         .join(Camera)\
-                                        .group_by(Camera.id,Image.corrected_timestamp))
+                                        .join(Cameragroup)\
+                                        .group_by(Cameragroup.id,Image.corrected_timestamp))
                 elif tag_level=='cluster':
                     sq = rDets(db.session.query(Cluster,func.count(distinct(Tag.id)).label('count'))\
                                         .group_by(Cluster.id)\
                                         .join(Image,Cluster.images)\
                                         .join(Detection))
                 elif tag_level=='camera':
-                    sq = rDets(db.session.query(Camera,func.count(distinct(Tag.id)).label('count'))\
-                                        .group_by(Camera.id)\
+                    sq = rDets(db.session.query(Cameragroup,func.count(distinct(Tag.id)).label('count'))\
+                                        .join(Camera)\
                                         .join(Image)\
-                                        .join(Detection))
+                                        .join(Detection)\
+                                        .group_by(Cameragroup.id))
                 elif tag_level=='trapgroup':
                     sq = rDets(db.session.query(Trapgroup,func.count(distinct(Tag.id)).label('count'))\
                                         .group_by(Trapgroup.id)\
@@ -938,17 +951,19 @@ def generate_csv(self,selectedTasks, selectedLevel, requestedColumns, custom_col
                     sq = rDets(db.session.query(Image,func.count(distinct(Individual.id)).label('count'))\
                                         .join(Detection)\
                                         .join(Camera)\
-                                        .group_by(Camera.id,Image.corrected_timestamp))
+                                        .join(Cameragroup)\
+                                        .group_by(Cameragroup.id,Image.corrected_timestamp))
                 elif individual_level=='cluster':
                     sq = rDets(db.session.query(Cluster,func.count(distinct(Individual.id)).label('count'))\
                                         .group_by(Cluster.id)\
                                         .join(Image,Cluster.images)\
                                         .join(Detection))
                 elif individual_level=='camera':
-                    sq = rDets(db.session.query(Camera,func.count(distinct(Individual.id)).label('count'))\
-                                        .group_by(Camera.id)\
+                    sq = rDets(db.session.query(Cameragroup,func.count(distinct(Individual.id)).label('count'))\
+                                        .join(Camera)\
                                         .join(Image)\
-                                        .join(Detection))
+                                        .join(Detection)\
+                                        .group_by(Cameragroup.id))
                 elif individual_level=='trapgroup':
                     sq = rDets(db.session.query(Trapgroup,func.count(distinct(Individual.id)).label('count'))\
                                         .group_by(Trapgroup.id)\
@@ -2460,12 +2475,15 @@ def calculate_results_summary(self, task_ids, baseUnit, sites, groups, startDate
                                 Trapgroup.longitude,
                                 Trapgroup.altitude,
                                 Sitegroup.id,
-                                Sitegroup.name
+                                Sitegroup.name,
+                                Cameragroup.id,
+                                Cameragroup.name
                             )\
                             .join(Detection)\
                             .join(Labelgroup)\
                             .join(Label,Labelgroup.labels)\
                             .join(Camera)\
+                            .join(Cameragroup)\
                             .join(Trapgroup)\
                             .outerjoin(Sitegroup, Trapgroup.sitegroups)\
                             .filter(Labelgroup.task_id.in_(task_ids))\
@@ -2488,13 +2506,16 @@ def calculate_results_summary(self, task_ids, baseUnit, sites, groups, startDate
                                 Trapgroup.longitude,
                                 Trapgroup.altitude,
                                 Sitegroup.id,
-                                Sitegroup.name
+                                Sitegroup.name,
+                                Cameragroup.id,
+                                Cameragroup.name
                             )\
                             .join(Image,Cluster.images)\
                             .join(Detection)\
                             .join(Labelgroup)\
                             .join(Label,Labelgroup.labels)\
                             .join(Camera)\
+                            .join(Cameragroup)\
                             .join(Trapgroup)\
                             .outerjoin(Sitegroup, Trapgroup.sitegroups)\
                             .filter(Labelgroup.task_id.in_(task_ids))\
@@ -2518,10 +2539,13 @@ def calculate_results_summary(self, task_ids, baseUnit, sites, groups, startDate
                                 Trapgroup.longitude,
                                 Trapgroup.altitude,
                                 Sitegroup.id,
-                                Sitegroup.name
+                                Sitegroup.name,
+                                Cameragroup.id,
+                                Cameragroup.name
                             )\
                             .join(Image, Detection.image_id==Image.id)\
                             .join(Camera)\
+                            .join(Cameragroup)\
                             .join(Trapgroup)\
                             .join(Labelgroup)\
                             .join(Label,Labelgroup.labels)\
@@ -2550,7 +2574,7 @@ def calculate_results_summary(self, task_ids, baseUnit, sites, groups, startDate
             elif baseUnit == '3':
                 baseQuery = baseQuery.group_by(Detection.id, Label.id, Camera.id, Trapgroup.id, Sitegroup.id).all()
 
-            df = pd.DataFrame(baseQuery, columns=['id','timestamp','label_id','species', 'camera_id', 'path', 'site_id', 'name', 'latitude', 'longitude', 'altitude', 'group_id', 'group_name'])
+            df = pd.DataFrame(baseQuery, columns=['id','timestamp','label_id','species', 'camera_id', 'path', 'site_id', 'name', 'latitude', 'longitude', 'altitude', 'group_id', 'group_name', 'cameragroup_id', 'cameragroup_name'])
 
             # Unique rows
             df = df.drop_duplicates()
@@ -2732,22 +2756,21 @@ def calculate_results_summary(self, task_ids, baseUnit, sites, groups, startDate
                 # Convert the DataFrame to a list of dictionaries
                 summary['unit_counts'] = trap_counts_df.sort_values(by='count', ascending=False).to_dict(orient='records')
 
-            # TODO: Fix camera trap effort for cameras
             elif trapUnit == '1':  # Cameras   
                 # Base Camera Query
                 baseCamQuery = db.session.query(
                     Image.id,
                     Image.corrected_timestamp,
-                    Camera.id,
-                    Camera.path,
-                    Camera.trapgroup_id,
+                    Cameragroup.id,
+                    Cameragroup.name,
+                    Trapgroup.id,
                     Trapgroup.tag
                 ).join(Camera, Image.camera_id == Camera.id)\
+                .join(Cameragroup)\
                 .join(Trapgroup)\
                 .outerjoin(Sitegroup, Trapgroup.sitegroups)\
                 .filter(Trapgroup.survey_id.in_(survey_ids))\
-                .filter(Image.corrected_timestamp != None)\
-                .filter(~Camera.path.contains('_video_images_'))
+                .filter(Image.corrected_timestamp != None)
 
                 if startDate: baseCamQuery = baseCamQuery.filter(Image.corrected_timestamp >= startDate)
 
@@ -2760,24 +2783,19 @@ def calculate_results_summary(self, task_ids, baseUnit, sites, groups, startDate
                 elif groups != '0' and groups != '-1':
                     baseCamQuery = baseCamQuery.filter(Sitegroup.id.in_(groups))
                 
-                base_cam_df = pd.DataFrame(baseCamQuery.distinct().all(), columns=['id','timestamp', 'camera_id', 'path', 'site_id', 'site_tag'])
+                base_cam_df = pd.DataFrame(baseCamQuery.distinct().all(), columns=['id','timestamp', 'cameragroup_id', 'name', 'site_id', 'site_tag'])
                 base_cam_df = base_cam_df.drop_duplicates()
 
                 # Convert 'timestamp' column to datetime
                 base_cam_df['timestamp'] = pd.to_datetime(base_cam_df['timestamp'])
                 base_cam_df['date'] = base_cam_df['timestamp'].dt.date
 
-                # Add a name to each camera (last part of camera path after / )
-                base_cam_df['name'] = base_cam_df['path'].str.split('/').str[-1]
-
                 # Effort Days
-                # Group by 'camera_id' and count the unique dates to get the number of days each camera captured an image and include the camera path
+                # Group by name + site_tag and count the unique dates to get the number of days each camera captured an image and include the camera path
                 effort_days_df = base_cam_df.copy()
-                effort_days_df = effort_days_df.groupby(['camera_id', 'path', 'name', 'site_tag'])['date'].nunique().reset_index()
+                effort_days_df['name'] = effort_days_df['site_tag'] + '-' + effort_days_df['name']
+                effort_days_df = effort_days_df.groupby(['name'])['date'].nunique().reset_index()
                 effort_days_df.rename(columns={'date': 'count'}, inplace=True)
-
-                # Combine cameras that have the same site tag and same name
-                effort_days_df = effort_days_df.groupby(['site_tag', 'name'])['count'].sum().reset_index()
 
                 summary['effort_days'] = effort_days_df.sort_values(by='count', ascending=False).to_dict(orient='records')
 
@@ -2796,13 +2814,14 @@ def calculate_results_summary(self, task_ids, baseUnit, sites, groups, startDate
                 # Create a new id that will be assigned to cameras that have the same name and site tag
                 camera_active_df = base_cam_df.copy()
                 camera_active_df['camera_id'] = camera_active_df.groupby(['site_tag', 'name']).ngroup()
+                camera_active_df['name'] = camera_active_df['site_tag'] + '-' + camera_active_df['name']
                 camera_active_df = camera_active_df.drop_duplicates(subset=['id', 'timestamp', 'camera_id']) 
 
                 # Add a count column to the camera_active_df DataFrame and set it to 1
                 camera_active_df['count'] = 1
 
                 # Group by 'camera_id' and count the unique dates to get the number of days each camera captured an image
-                camera_active_df = camera_active_df.groupby(['camera_id', 'path', 'name', 'site_tag', 'date'])['count'].sum().reset_index()
+                camera_active_df = camera_active_df.groupby(['camera_id','name', 'date'])['count'].sum().reset_index()
 
                 camera_active_dict = camera_active_df.sort_values(by='date', ascending=True).to_dict(orient='records')
 
@@ -2822,21 +2841,19 @@ def calculate_results_summary(self, task_ids, baseUnit, sites, groups, startDate
                 # Unit Counts    
                 # Calculate how many counts each camera has capture for either clusters, images or detections
                 # Dataframe with the number of counts for each camera
-                camera_counts_df = df[['id', 'camera_id', 'path', 'site_id', 'name', 'latitude', 'longitude', 'altitude']].copy()
-                camera_counts_df = camera_counts_df[~camera_counts_df['path'].str.contains('_video_images_')]
+                camera_counts_df = df[['id', 'camera_id', 'path', 'site_id', 'name', 'cameragroup_id', 'cameragroup_name']].copy()
                 camera_counts_df.rename(columns={'name': 'site_tag'}, inplace=True)
+                camera_counts_df.rename(columns={'cameragroup_name': 'name'}, inplace=True)
                 camera_counts_df = camera_counts_df.drop_duplicates(subset=['id', 'camera_id'])
                 camera_counts_df['count'] = 1
 
-                # Add a name to each camera (last part of camera path after / )
-                camera_counts_df['name'] = camera_counts_df['path'].str.split('/').str[-1]
-
                 # Create a new id that will be assigned to cameras that have the same name and site tag
-                camera_counts_df['camera_id'] = camera_counts_df.groupby(['site_tag', 'name']).ngroup()
+                camera_counts_df['name'] = camera_counts_df['site_tag'] + '-' + camera_counts_df['name']
+                camera_counts_df['camera_id'] = camera_counts_df.groupby(['name']).ngroup()
                 
                 # Combine cameras with same id and sum theur counts
                 camera_counts_df = camera_counts_df.groupby(['camera_id', 'name'])['count'].sum().reset_index()
-                
+
                 # Convert the DataFrame to a list of dictionaries
                 summary['unit_counts'] = camera_counts_df.sort_values(by='count', ascending=False).to_dict(orient='records')
 
