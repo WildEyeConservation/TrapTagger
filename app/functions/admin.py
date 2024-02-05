@@ -1951,7 +1951,7 @@ def updateStatistics(self):
 
                 # Update DB object
                 statistic.user_count=len(users),
-                statistic.organisation_count = len(organisation)
+                statistic.organisation_count = len(organisations)
                 statistic.active_organisation_count=active_organisation_count,
                 statistic.image_count=image_count,
                 statistic.video_count=video_count,

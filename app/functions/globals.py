@@ -3079,7 +3079,8 @@ def updateEarthRanger(task_id):
 
             for index, row in df.iterrows():
                 if pd.isnull(row['timestamp']):
-                    row['timestamp'] = datetime.utcnow()
+                    # row['timestamp'] = datetime.utcnow()
+                    continue
 
                 if row['trapgroup_lat'] != 0 and row['trapgroup_lon'] != 0:
                     tz = tf.timezone_at(lng=row['trapgroup_lon'], lat=row['trapgroup_lat'])
