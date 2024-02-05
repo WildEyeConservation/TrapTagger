@@ -1026,7 +1026,7 @@ def fetch_clusters(taggingLevel,task_id,isBounding,trapgroup_id,session,limit=No
 
         else:
             # Need to filter by trapgroup id and exclude video
-            clusters = rDets(session.query(
+            clusters = session.query(
                             Cluster.id,
                             Cluster.notes,
                             Image.id,
@@ -1064,7 +1064,7 @@ def fetch_clusters(taggingLevel,task_id,isBounding,trapgroup_id,session,limit=No
                         .outerjoin(Individual,Detection.individuals)\
                         .outerjoin(IndividualTask,Individual.tasks)\
                         .filter(Camera.trapgroup_id==trapgroup_id)\
-                        .filter(Cluster.examined==False))
+                        .filter(Cluster.examined==False)
         
         # if '-6' in taggingLevel:  
         #     # NOTE: This is not currently used (is for check masked sightings)
@@ -1139,7 +1139,7 @@ def fetch_clusters(taggingLevel,task_id,isBounding,trapgroup_id,session,limit=No
 
             # Handle detections
             if row[9] and (row[9] not in clusterInfo[row[0]]['images'][row[2]]['detections'].keys()):
-                if (row[24] not in ['deleted','hidden']) and (row[15]==False) and (row[23]>Config.DETECTOR_THRESHOLDS[row[22]]):
+                if (row[24] not in Config.DET_IGNORE_STATUSES) and (row[15]==False) and (row[23]>Config.DETECTOR_THRESHOLDS[row[22]]):
                     clusterInfo[row[0]]['images'][row[2]]['detections'][row[9]] = {
                         'id': row[9],
                         'top': row[10],
