@@ -5345,7 +5345,6 @@ def getIndividualInfo(individual_id):
         family.extend(siblings)
         family = list(set(family))
 
-        # TODO: CHECK if the first seen and last seen should only relate to the tasks you have permission for (currently it's all tasks)
         firstSeen = db.session.query(Image).join(Detection).filter(Image.corrected_timestamp!=None).filter(Detection.individuals.contains(individual)).order_by(Image.corrected_timestamp).first()
         if firstSeen:
             firstSeen = stringify_timestamp(firstSeen.corrected_timestamp)
@@ -5363,7 +5362,12 @@ def getIndividualInfo(individual_id):
         else:
             access = 'read'
 
-        return json.dumps({'id': individual_id, 'name': individual.name, 'tags': [tag.description for tag in individual.tags], 'label': individual.species,  'notes': individual.notes, 'children': [child.id for child in individual.children], 'family': family, 'surveys': [task.survey.name + ' ' + task.name for task in individual.tasks], 'seen_range': [firstSeen, lastSeen], 'access': access})
+        indiv_surveys = []
+        for task in individual.tasks:
+            if ('default' != task.name) or ('_o_l_d_' not in task.name) or ('_copying' not in task.name):
+                indiv_surveys.append(task.survey.name + ' ' + task.name)
+
+        return json.dumps({'id': individual_id, 'name': individual.name, 'tags': [tag.description for tag in individual.tags], 'label': individual.species,  'notes': individual.notes, 'children': [child.id for child in individual.children], 'family': family, 'surveys': indiv_surveys, 'seen_range': [firstSeen, lastSeen], 'access': access})
     else:
         return json.dumps('error')
 
