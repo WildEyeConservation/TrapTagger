@@ -17,7 +17,7 @@ limitations under the License.
 import os
 from celery import Celery
 from celery.signals import celeryd_after_setup
-from llavaworker import llava
+from llavaworker import llava_model
 
 BASE = "/data"
 REDIS_IP = os.environ.get('REDIS_IP') or '127.0.0.1'
@@ -48,6 +48,6 @@ def llava_infer(batch,sourceBucket,prompt,external=False):
 
     response = {}
     for image in batch:
-        response[image] = llava.infer(image,sourceBucket,external,prompt)
+        response[image] = llava_model.infer(image,sourceBucket,external,prompt)
     
     return response
