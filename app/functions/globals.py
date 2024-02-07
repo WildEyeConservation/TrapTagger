@@ -2969,6 +2969,9 @@ def prep_required_images(task_id,trapgroup_id=None):
     
     return len(clusters)
 
+def create_er_api_dict(group):
+    return dict(zip(group['api_key'], group['er_id']))
+
 def updateEarthRanger(task_id):
     ''' Function for syncing to Earth Ranger Report a task is complete'''
     task = db.session.query(Task).get(task_id)
@@ -3028,8 +3031,11 @@ def updateEarthRanger(task_id):
                             sq2.c.count.label('count'),
                             Image.filename.label('filename'),
                             Camera.path.label('path'),
-                            Image.detection_rating.label('detection_rating')
+                            Image.detection_rating.label('detection_rating'),
+                            ERangerID.id.label('er_id'),
+                            ERangerID.api_key.label('api_key')
                         )\
+                        .outerjoin(ERangerID)\
                         .join(Image, Cluster.images)\
                         .join(Camera)\
                         .join(Trapgroup)\
@@ -3048,6 +3054,8 @@ def updateEarthRanger(task_id):
             if len(df) == 0:
                 return True
 
+            grouped_dict = df.groupby('cluster_id').apply(create_er_api_dict)
+            df['er_id_dict'] = df['cluster_id'].map(grouped_dict)
             df['tag'] = df['tag'].fillna('None')
             df = df.sort_values(by=['cluster_id','species','detection_rating'], ascending=False)
             df = df.groupby(['cluster_id','species','trapgroup_tag','trapgroup_lat','trapgroup_lon']).agg({
@@ -3055,7 +3063,8 @@ def updateEarthRanger(task_id):
                 'tag': lambda x: x.unique().tolist(),
                 'count':'max',
                 'filename': 'first', # Highest detection rating
-                'path': 'first'
+                'path': 'first',
+                'er_id_dict': 'first'
             }).reset_index()
             df['tag'] = df['tag'].apply(lambda x: [] if x == ['None'] else x)
 
@@ -3077,7 +3086,8 @@ def updateEarthRanger(task_id):
 
             for index, row in df.iterrows():
                 if pd.isnull(row['timestamp']):
-                    row['timestamp'] = datetime.utcnow()
+                    # row['timestamp'] = datetime.utcnow()
+                    continue
 
                 if row['trapgroup_lat'] != 0 and row['trapgroup_lon'] != 0:
                     tz = tf.timezone_at(lng=row['trapgroup_lon'], lat=row['trapgroup_lat'])
@@ -3088,79 +3098,105 @@ def updateEarthRanger(task_id):
                 else:
                     row['timestamp'] = row['timestamp'].replace(tzinfo=pytz.UTC)
 
-                payload = {
-                    "source": str(row['cluster_id']),
-                    "title": "TrapTagger Event",
-                    "recorded_at": row['timestamp'].isoformat(),
-                    "location": {
-                        "lat": row['trapgroup_lat'],
-                        "lon": row['trapgroup_lon']
-                    },
-                    "event_details": { 
-                        "location": row['trapgroup_tag'],
-                        "species": row['species'].lower(),
-                        "tags": row['tag'],
-                        "group_size": row['count']
-                    }
-                }
-
                 if row['species'] in er_species_api.keys():
                     er_api_keys = er_species_api[row['species']]
                     for er_api_key in er_api_keys:
-                        # Set headers
-                        er_header_json = {
-                            'Content-Type': 'application/json',
-                            'apikey': er_api_key
-                        }
-                        er_header_img = {
-                            'apikey': er_api_key
-                        }
-
-                        # Post payload to EarthRanger
-                        retry = True
-                        attempts = 0
-                        max_attempts = 10
-                        while retry and (attempts < max_attempts):
-                            attempts += 1
-                            try:
-                                response = requests.post(er_url, headers=er_header_json, json=payload)
-                                assert response.status_code == 200 and response.json()['object_id']
-                                retry = False
-                            except:
-                                retry = True
-
-                        # Dowload image from S3 and send blob to EarthRanger
-                        if response.status_code == 200 and response.json()['object_id']:
-                            if Config.DEBUGGING: app.logger.info('Event posted to EarthRanger: {}'.format(payload['source']))
-
-                            object_id = response.json()['object_id']
-                            image_key = row['path']+'/'+row['filename']
-                            er_url_img = er_url + object_id + '/attachments/'
-        
-                            with tempfile.NamedTemporaryFile(delete=True, suffix='.jpg') as temp_file:
-                                GLOBALS.s3client.download_file(Bucket=Config.BUCKET, Key=image_key, Filename=temp_file.name)
-
-                                files = {'file1': open(temp_file.name, 'rb')}
-
-                                retry_img = True
-                                attempts_img = 0
-                                max_attempts_img = 10
-                                while retry_img and (attempts_img < max_attempts_img):
-                                    attempts_img += 1
-                                    try:
-                                        response_img = requests.post(er_url_img, headers=er_header_img, files=files)
-                                        assert response_img.status_code == 200 and response_img.json()['object_id']
-                                        retry_img = False
-                                    except:
-                                        retry_img = True
-
-                                if response_img.status_code == 200 and response_img.json()['object_id']:
-                                    if Config.DEBUGGING: app.logger.info('Image posted to EarthRanger: {}'.format(row['filename']))
-                                else:
-                                    if Config.DEBUGGING: app.logger.info('Error posting image to EarthRanger: {}'.format(response.status_code))
+                        if (er_api_key in row['er_id_dict'].keys()) and (row['er_id_dict'][er_api_key]):
+                            # Update report
+                            update_existing_er_report(row)
                         else:
-                            if Config.DEBUGGING: app.logger.info('Error posting event to EarthRanger: {}'.format(response.status_code))
+                            # Create a new report
+                            create_new_er_report(row,er_api_key,er_url)
 
+    db.session.commit()
+
+    return True
+
+def update_existing_er_report(row):
+    '''Updates the existing Earth Ranger report for a cluster'''
+    #TODO: we are waiting for this to be supported in the API
+    return True
+
+def create_new_er_report(row,er_api_key,er_url):
+    '''Creates a new report in EarthRanger.'''
+
+    payload = {
+        "source": str(row['cluster_id']),
+        "title": "TrapTagger Event",
+        "recorded_at": row['timestamp'].isoformat(),
+        "location": {
+            "lat": row['trapgroup_lat'],
+            "lon": row['trapgroup_lon']
+        },
+        "event_details": { 
+            "location": row['trapgroup_tag'],
+            "species": row['species'].lower(),
+            "tags": row['tag'],
+            "group_size": row['count']
+        }
+    }
+
+    # Set headers
+    er_header_json = {
+        'Content-Type': 'application/json',
+        'apikey': er_api_key
+    }
+    er_header_img = {
+        'apikey': er_api_key
+    }
+
+    # Post payload to EarthRanger
+    retry = True
+    attempts = 0
+    max_attempts = 10
+    while retry and (attempts < max_attempts):
+        attempts += 1
+        try:
+            response = requests.post(er_url, headers=er_header_json, json=payload)
+            assert response.status_code == 200 and response.json()['object_id']
+            retry = False
+        except:
+            retry = True
+
+    # Dowload image from S3 and send blob to EarthRanger
+    if response.status_code == 200 and response.json()['object_id']:
+        if Config.DEBUGGING: app.logger.info('Event posted to EarthRanger: {}'.format(payload['source']))
+
+        object_id = response.json()['object_id']
+
+        try:
+            er_id = ERangerID(id=object_id,api_key=er_api_key,cluster_id=row['cluster_id'])
+            db.session.add(er_id)
+
+            image_key = row['path']+'/'+row['filename']
+            er_url_img = er_url + object_id + '/attachments/'
+
+            with tempfile.NamedTemporaryFile(delete=True, suffix='.jpg') as temp_file:
+                GLOBALS.s3client.download_file(Bucket=Config.BUCKET, Key=image_key, Filename=temp_file.name)
+
+                files = {'file1': open(temp_file.name, 'rb')}
+
+                retry_img = True
+                attempts_img = 0
+                max_attempts_img = 10
+                while retry_img and (attempts_img < max_attempts_img):
+                    attempts_img += 1
+                    try:
+                        response_img = requests.post(er_url_img, headers=er_header_img, files=files)
+                        assert response_img.status_code == 200 and response_img.json()['object_id']
+                        retry_img = False
+                    except:
+                        retry_img = True
+
+                if response_img.status_code == 200 and response_img.json()['object_id']:
+                    if Config.DEBUGGING: app.logger.info('Image posted to EarthRanger: {}'.format(row['filename']))
+                else:
+                    if Config.DEBUGGING: app.logger.info('Error posting image to EarthRanger: {}'.format(response.status_code))
+        except:
+            if Config.DEBUGGING: app.logger.info('Error posting image to EarthRanger: Duplicate object ID')
+    else:
+        if Config.DEBUGGING: app.logger.info('Error posting event to EarthRanger: {}'.format(response.status_code))
+    
     return True
 
 @celery.task(bind=True,max_retries=5,ignore_result=True)
@@ -3385,81 +3421,58 @@ def update_masks(self,survey_id,removed_masks,added_masks,edited_masks):
     
     return True
 
-@celery.task(bind=True,max_retries=5,ignore_result=True)
-def setup_new_survey_permissions(self,survey_id,organisation_id,user_id,permission,annotation,detailed_access,localsession=None):
+def setup_new_survey_permissions(survey,organisation_id,user_id,permission,annotation,detailed_access):
     '''Sets up the user permissions for a new survey.'''
 
-    try:
-        if localsession:
-            celeryTask = False
-            survey = survey_id
-        else:
-            celeryTask = True
-            localsession = db.session()
-            survey = localsession.query(Survey).get(survey_id)
+    user_permission = db.session.query(UserPermissions.default, UserPermissions.annotation).filter(UserPermissions.user_id==user_id).filter(UserPermissions.organisation_id==organisation_id).first()
+    if user_permission[0] != 'admin' and user_permission[0] != 'worker':
+        surveyException = SurveyPermissionException(user_id=user_id, survey=survey, permission='write', annotation=user_permission[1])
+        db.session.add(surveyException)
 
-        user_permission = localsession.query(UserPermissions.default, UserPermissions.annotation).filter(UserPermissions.user_id==user_id).filter(UserPermissions.organisation_id==organisation_id).first()
-        if user_permission[0] != 'admin' and user_permission[0] != 'worker':
-            surveyException = SurveyPermissionException(user_id=user_id, survey=survey, permission='write', annotation=user_permission[1])
-            localsession.add(surveyException)
-
-        exclude_user_ids = [user_id]
-        if detailed_access:
-            user_query = localsession.query(User.id, UserPermissions.default).join(UserPermissions).filter(UserPermissions.organisation_id==organisation_id).filter(UserPermissions.default!='admin').filter(~User.id.in_(exclude_user_ids)).distinct().all()
-            user_default = {r[0]:r[1] for r in user_query}
-            for access in detailed_access:
-                exclude_user_ids.append(access['user_id'])
-                annotation_access = True if access['annotation']=='1' else False
-                if user_default[access['user_id']] != 'admin':
-                    if user_default[access['user_id']] == 'worker': 
-                        newDetailedException = SurveyPermissionException(user_id=access['user_id'], survey=survey, permission='worker', annotation=annotation_access)
-                    else:
-                        newDetailedException = SurveyPermissionException(user_id=access['user_id'], survey=survey, permission=access['permission'], annotation=annotation_access)
-                    localsession.add(newDetailedException)
-
-        if permission != 'default' and annotation != 'default':
-            user_query = localsession.query(User.id, UserPermissions.default).join(UserPermissions).filter(UserPermissions.organisation_id==organisation_id).filter(UserPermissions.default!='admin').filter(~User.id.in_(exclude_user_ids)).distinct().all()
-            user_ids = [r[0] for r in user_query]
-            user_permissions = [r[1] for r in user_query]   
-            annotation_access = True if annotation== '1' else False
-            for i in range(len(user_ids)):
-                if user_permissions[i] == 'worker':
-                    newException = SurveyPermissionException(user_id=user_ids[i], survey=survey, permission='worker', annotation=annotation_access)
+    exclude_user_ids = [user_id]
+    if detailed_access:
+        user_query = db.session.query(User.id, UserPermissions.default).join(UserPermissions).filter(UserPermissions.organisation_id==organisation_id).filter(UserPermissions.default!='admin').filter(~User.id.in_(exclude_user_ids)).distinct().all()
+        user_default = {r[0]:r[1] for r in user_query}
+        for access in detailed_access:
+            exclude_user_ids.append(access['user_id'])
+            annotation_access = True if access['annotation']=='1' else False
+            if user_default[access['user_id']] != 'admin':
+                if user_default[access['user_id']] == 'worker': 
+                    newDetailedException = SurveyPermissionException(user_id=access['user_id'], survey=survey, permission='worker', annotation=annotation_access)
                 else:
-                    newException = SurveyPermissionException(user_id=user_ids[i], survey=survey, permission=permission, annotation=annotation_access)
-                localsession.add(newException)
+                    newDetailedException = SurveyPermissionException(user_id=access['user_id'], survey=survey, permission=access['permission'], annotation=annotation_access)
+                db.session.add(newDetailedException)
 
-        elif permission != 'default':
-            user_query = localsession.query(User.id, UserPermissions.default, UserPermissions.annotation).join(UserPermissions).filter(UserPermissions.organisation_id==organisation_id).filter(UserPermissions.default!='admin').filter(~User.id.in_(exclude_user_ids)).distinct().all()
-            user_ids = [r[0] for r in user_query]
-            user_permissions = [r[1] for r in user_query]   
-            user_annotations = [r[2] for r in user_query]
-            for i in range(len(user_ids)):
-                if user_permissions[i] != 'worker':
-                    newException = SurveyPermissionException(user_id=user_ids[i], survey=survey, permission=permission, annotation=user_annotations[i])
-                    localsession.add(newException)
+    if permission != 'default' and annotation != 'default':
+        user_query = db.session.query(User.id, UserPermissions.default).join(UserPermissions).filter(UserPermissions.organisation_id==organisation_id).filter(UserPermissions.default!='admin').filter(~User.id.in_(exclude_user_ids)).distinct().all()
+        user_ids = [r[0] for r in user_query]
+        user_permissions = [r[1] for r in user_query]   
+        annotation_access = True if annotation== '1' else False
+        for i in range(len(user_ids)):
+            if user_permissions[i] == 'worker':
+                newException = SurveyPermissionException(user_id=user_ids[i], survey=survey, permission='worker', annotation=annotation_access)
+            else:
+                newException = SurveyPermissionException(user_id=user_ids[i], survey=survey, permission=permission, annotation=annotation_access)
+            db.session.add(newException)
 
-        elif annotation != 'default':
-            user_query = localsession.query(User.id, UserPermissions.default).join(UserPermissions).filter(UserPermissions.organisation_id==organisation_id).filter(UserPermissions.default!='admin').filter(~User.id.in_(exclude_user_ids)).distinct().all()
-            user_ids = [r[0] for r in user_query]
-            user_permissions = [r[1] for r in user_query]
-            annotation_access = True if annotation== '1' else False
-            for i in range(len(user_ids)):
-                newException = SurveyPermissionException(user_id=user_ids[i], survey=survey, permission=user_permissions[i], annotation=annotation_access)
-                localsession.add(newException)
-                
-        if celeryTask: localsession.commit()
+    elif permission != 'default':
+        user_query = db.session.query(User.id, UserPermissions.default, UserPermissions.annotation).join(UserPermissions).filter(UserPermissions.organisation_id==organisation_id).filter(UserPermissions.default!='admin').filter(~User.id.in_(exclude_user_ids)).distinct().all()
+        user_ids = [r[0] for r in user_query]
+        user_permissions = [r[1] for r in user_query]   
+        user_annotations = [r[2] for r in user_query]
+        for i in range(len(user_ids)):
+            if user_permissions[i] != 'worker':
+                newException = SurveyPermissionException(user_id=user_ids[i], survey=survey, permission=permission, annotation=user_annotations[i])
+                db.session.add(newException)
 
-    except Exception as exc:
-        app.logger.info(' ')
-        app.logger.info('!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!')
-        app.logger.info(traceback.format_exc())
-        app.logger.info('!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!')
-        app.logger.info(' ')
-        self.retry(exc=exc, countdown= retryTime(self.request.retries))
-
-    finally:
-        if celeryTask: localsession.remove()
+    elif annotation != 'default':
+        user_query = db.session.query(User.id, UserPermissions.default).join(UserPermissions).filter(UserPermissions.organisation_id==organisation_id).filter(UserPermissions.default!='admin').filter(~User.id.in_(exclude_user_ids)).distinct().all()
+        user_ids = [r[0] for r in user_query]
+        user_permissions = [r[1] for r in user_query]
+        annotation_access = True if annotation== '1' else False
+        for i in range(len(user_ids)):
+            newException = SurveyPermissionException(user_id=user_ids[i], survey=survey, permission=user_permissions[i], annotation=annotation_access)
+            db.session.add(newException)
 
     return True
 
@@ -3691,3 +3704,19 @@ def setImageDownloadStatus(self,task_id,labels,include_empties, include_video, i
         db.session.remove()
 
     return True
+
+def checkUploadUser(user_id,survey_id):
+    '''Checks if the upload is checked out by the specified user. If the survey is available, then the upload is checked out.'''
+    
+    upload_user = GLOBALS.redisClient.get('upload_user_'+str(survey_id))
+    
+    if upload_user==None:
+        GLOBALS.redisClient.set('upload_user_'+str(survey_id),user_id)
+        GLOBALS.redisClient.set('upload_ping_'+str(survey_id),datetime.utcnow().timestamp())
+        return True
+    else:   
+        if int(upload_user.decode())==user_id:
+            GLOBALS.redisClient.set('upload_ping_'+str(survey_id),datetime.utcnow().timestamp())
+            return True
+    
+    return False

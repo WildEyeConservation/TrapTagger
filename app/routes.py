@@ -1147,8 +1147,7 @@ def deleteSurvey(survey_id):
         if userPermissions and userPermissions.delete:
 
             if survey.status.lower() == 'uploading':
-                upload_user = GLOBALS.redisClient.get('upload_user_'+str(survey_id))
-                if upload_user and int(upload_user.decode())!=current_user.id:
+                if not checkUploadUser(current_user.id,survey_id):
                     status = 'error'
                     message = 'The survey is currently being uploaded to by another user.'
 
@@ -1524,15 +1523,15 @@ def createNewSurvey():
                 classifier = db.session.query(Classifier).filter(Classifier.name==classifier).first()
                 newSurvey = Survey(name=surveyName, description=newSurveyDescription, trapgroup_code=newSurveyTGCode, organisation_id=organisation_id, status='Uploading', correct_timestamps=correctTimestamps, classifier_id=classifier.id, camera_code=newSurveyCamCode)
                 db.session.add(newSurvey)
+
+                # Add permissions
+                setup_new_survey_permissions(survey=newSurvey, organisation_id=organisation_id, user_id=current_user.id, permission=permission, annotation=annotation, detailed_access=detailed_access)
+
                 db.session.commit()
                 newSurvey_id = newSurvey.id
 
-                # Add permissions
-                setup_new_survey_permissions.delay(survey_id=newSurvey_id, organisation_id=organisation_id, user_id=current_user.id, permission=permission, annotation=annotation, detailed_access=detailed_access)
-
                 # Checkout the upload
-                GLOBALS.redisClient.set('upload_ping_'+str(newSurvey_id),datetime.utcnow().timestamp())
-                GLOBALS.redisClient.set('upload_user_'+str(newSurvey_id),current_user.id)
+                checkUploadUser(current_user.id,newSurvey_id)
             else:
                 import_survey.delay(s3Folder=newSurveyS3Folder,surveyName=surveyName,tag=newSurveyTGCode,organisation_id=organisation_id,correctTimestamps=correctTimestamps,classifier=classifier,cam_code=newSurveyCamCode,user_id=current_user.id,permission=permission,annotation=annotation,detailed_access=detailed_access)
     
@@ -2929,7 +2928,7 @@ def createAccount(token):
         if (check == None) and (check2 == None) and (len(folder) <= 64):
             newUser = User(username=info['organisation'], email=info['email'], admin=True, passed='pending')
             newTurkcode = Turkcode(code=info['organisation'], active=False, tagging_time=0)
-            newOrganisation = Organisation(name=info['organisation'], folder=folder, previous_image_count=0, image_count=0)
+            newOrganisation = Organisation(name=info['organisation'], folder=folder, previous_image_count=0, image_count=0, previous_video_count=0, video_count=0, previous_frame_count=0, frame_count=0)
             newUserPermission = UserPermissions(default='admin', annotation=True, create=True, delete=True) 
             newTurkcode.user = newUser
             newOrganisation.root = newUser
@@ -5442,7 +5441,6 @@ def getIndividualInfo(individual_id):
         family.extend(siblings)
         family = list(set(family))
 
-        # TODO: CHECK if the first seen and last seen should only relate to the tasks you have permission for (currently it's all tasks)
         firstSeen = db.session.query(Image).join(Detection).filter(Image.corrected_timestamp!=None).filter(Detection.individuals.contains(individual)).order_by(Image.corrected_timestamp).first()
         if firstSeen:
             firstSeen = stringify_timestamp(firstSeen.corrected_timestamp)
@@ -5460,7 +5458,12 @@ def getIndividualInfo(individual_id):
         else:
             access = 'read'
 
-        return json.dumps({'id': individual_id, 'name': individual.name, 'tags': [tag.description for tag in individual.tags], 'label': individual.species,  'notes': individual.notes, 'children': [child.id for child in individual.children], 'family': family, 'surveys': [task.survey.name + ' ' + task.name for task in individual.tasks], 'seen_range': [firstSeen, lastSeen], 'access': access})
+        indiv_surveys = []
+        for task in individual.tasks:
+            if ('default' != task.name) or ('_o_l_d_' not in task.name) or ('_copying' not in task.name):
+                indiv_surveys.append(task.survey.name + ' ' + task.name)
+
+        return json.dumps({'id': individual_id, 'name': individual.name, 'tags': [tag.description for tag in individual.tags], 'label': individual.species,  'notes': individual.notes, 'children': [child.id for child in individual.children], 'family': family, 'surveys': indiv_surveys, 'seen_range': [firstSeen, lastSeen], 'access': access})
     else:
         return json.dumps('error')
 
@@ -6950,7 +6953,9 @@ def assignLabel(clusterID):
         if (not current_user_admin) and (not GLOBALS.redisClient.sismember('active_jobs_'+str(task_id),current_user_username)):
             return {'redirect': url_for('done')}, 278
         else:
-            return json.dumps({'progress': (num, num2), 'reAllocated': reAllocated, 'newClusters': newClusters, 'classifications': classifications})
+            response = {'progress': (num, num2), 'reAllocated': reAllocated, 'newClusters': newClusters, 'classifications': classifications}
+            if explore: response['username'] = current_user_username
+            return json.dumps(response)
 
     except:
         return json.dumps('error')
@@ -7851,7 +7856,7 @@ def generateCSV():
             selectedTasks = [int(ast.literal_eval(request.form['preformatted']))]
             level = 'image'
             columns = ['trapgroup', 'latitude', 'longitude', 'timestamp', 'image_labels', 'image_sighting_count', 'image_url']
-            custom_columns = {selectedTasks[0]:{}}
+            custom_columns = {str(selectedTasks[0]):{}}
             label_type = 'column'
             includes = []
             excludes = []
@@ -8296,17 +8301,17 @@ def dashboard():
         if current_user.username=='Dashboard':
             organisations = db.session.query(Organisation).filter(~Organisation.name.in_(Config.ADMIN_USERS)).distinct().all()
             users = db.session.query(User).filter(~User.username.in_(Config.ADMIN_USERS)).filter(User.admin==True).distinct().all()
-            image_count=0
-            for organisation in organisations:
-                image_count+=organisation.image_count
+            image_count=int(db.session.query(func.sum(Survey.image_count)).join(Organisation).filter(~Organisation.name.in_(Config.ADMIN_USERS)).first()[0])
+            video_count=int(db.session.query(func.sum(Survey.video_count)).join(Organisation).filter(~Organisation.name.in_(Config.ADMIN_USERS)).first()[0])
+            frame_count=int(db.session.query(func.sum(Survey.frame_count)).join(Organisation).filter(~Organisation.name.in_(Config.ADMIN_USERS)).first()[0])
             
-            sq = db.session.query(Organisation.id.label('organisation_id'),func.sum(Survey.image_count).label('count')).join(Survey).group_by(Organisation.id).subquery()
+            sq = db.session.query(Organisation.id.label('organisation_id'),func.sum(Survey.image_count).label('image_count'),func.sum(Survey.frame_count).label('frame_count')).join(Survey).group_by(Organisation.id).subquery()
             active_organisations = db.session.query(Organisation)\
                                     .join(Survey)\
                                     .join(Task)\
                                     .join(sq,sq.c.organisation_id==Organisation.id)\
                                     .filter(Task.init_complete==True)\
-                                    .filter(sq.c.count>10000)\
+                                    .filter((sq.c.image_count+sq.c.frame_count)>10000)\
                                     .filter(~Organisation.name.in_(Config.ADMIN_USERS))\
                                     .distinct().count()
             
@@ -8314,10 +8319,16 @@ def dashboard():
             users_added_this_month = len(users)-latest_statistic.user_count
             organisations_added_this_month = len(organisations)-latest_statistic.organisation_count
             images_imported_this_month = image_count-latest_statistic.image_count
+            videos_imported_this_month = video_count-latest_statistic.video_count
+            frames_imported_this_month = frame_count-latest_statistic.frame_count
             active_organisations_this_month = active_organisations-latest_statistic.active_organisation_count
 
             image_count = str(round((image_count/1000000),2))+'M'
+            video_count = str(round((video_count/1000),2))+'k'
+            frame_count = str(round((frame_count/1000000),2))+'M'
             images_imported_this_month = str(round((images_imported_this_month/1000000),2))+'M'
+            videos_imported_this_month = str(round((videos_imported_this_month/1000),2))+'k'
+            frames_imported_this_month = str(round((frames_imported_this_month/1000000),2))+'M'
             
             startDate = datetime.utcnow().replace(day=1,hour=0,minute=0,second=0,microsecond=0)
             endDate = datetime.utcnow()+timedelta(days=1)
@@ -8330,7 +8341,8 @@ def dashboard():
                                                 .join(User,UserPermissions.user_id==User.id)\
                                                 .filter(User.last_ping>datetime.utcnow()-timedelta(days=1))\
                                                 .filter(~Organisation.name.in_(Config.ADMIN_USERS))\
-                                                .filter(User.admin==True).count()
+                                                .filter(~User.username.in_(Config.ADMIN_USERS))\
+                                                .filter(UserPermissions.default!='worker').count()
             
             unique_logins_this_month = db.session.query(User).filter(User.last_ping>startDate).filter(User.email!=None).filter(~User.username.in_(Config.ADMIN_USERS)).count()
             unique_admin_logins_this_month = db.session.query(User).filter(User.last_ping>startDate).filter(User.admin==True).filter(~User.username.in_(Config.ADMIN_USERS)).count()
@@ -8339,21 +8351,23 @@ def dashboard():
                                                 .join(User,UserPermissions.user_id==User.id)\
                                                 .filter(User.last_ping>startDate)\
                                                 .filter(~Organisation.name.in_(Config.ADMIN_USERS))\
-                                                .filter(User.admin==True).count()
+                                                .filter(~User.username.in_(Config.ADMIN_USERS))\
+                                                .filter(UserPermissions.default!='worker').count()
 
             # Need to add an hour to the start date so as to not grab the first statistic of the month which covers the last day of the previous month
-            average_logins = 0
-            average_admin_logins = 0
-            average_organisation_logins = 0
-            statistics = db.session.query(Statistic).filter(Statistic.timestamp>(startDate+timedelta(hours=1))).all()
-            if statistics:
-                for statistic in statistics:
-                    average_logins+=statistic.unique_daily_logins
-                    average_admin_logins+=statistic.unique_daily_admin_logins
-                    average_organisation_logins+=statistic.unique_daily_organisation_logins
-                average_logins = round(average_logins/len(statistics),2)
-                average_admin_logins = round(average_admin_logins/len(statistics),2)
-                average_organisation_logins = round(average_organisation_logins/len(statistics),2)
+            try:
+                average_logins, average_admin_logins, average_organisation_logins = db.session.query(\
+                                    func.sum(Statistic.unique_daily_logins)/func.count(Statistic.id),\
+                                    func.sum(Statistic.unique_daily_admin_logins)/func.count(Statistic.id),\
+                                    func.sum(Statistic.unique_daily_organisation_logins)/func.count(Statistic.id))\
+                                    .filter(Statistic.timestamp>(startDate+timedelta(hours=1))).first()
+                average_logins = round(float(average_logins),2)
+                average_admin_logins = round(float(average_admin_logins),2)
+                average_organisation_logins = round(float(average_organisation_logins),2)
+            except:
+                average_logins = 0
+                average_admin_logins = 0
+                average_organisation_logins = 0
 
             factor = monthrange(datetime.utcnow().year,datetime.utcnow().month)[1]/datetime.utcnow().day
             
@@ -8362,8 +8376,12 @@ def dashboard():
                         user_count = len(users),
                         organisation_count = len(organisations),
                         image_count = image_count,
+                        video_count = video_count,
+                        frame_count = frame_count,
                         users_added_this_month = users_added_this_month,
                         images_imported_this_month = images_imported_this_month,
+                        videos_imported_this_month = videos_imported_this_month,
+                        frames_imported_this_month = frames_imported_this_month,
                         active_organisations_this_month = active_organisations_this_month,
                         active_organisations = active_organisations,
                         last_months_server_cost = latest_statistic.server_cost,
@@ -8462,13 +8480,19 @@ def getActiveUserData():
         sq = db.session.query(
                                 Organisation.id.label('organisation_id'),
                                 func.sum(Survey.image_count).label('count'),
+                                func.sum(Survey.frame_count).label('frame_count'),
+                                func.sum(Survey.video_count).label('video_count'),
                                 (func.sum(Survey.image_count)-Organisation.image_count).label('this_month'),
-                                (Organisation.image_count-Organisation.previous_image_count).label('last_month')
+                                (Organisation.image_count-Organisation.previous_image_count).label('last_month'),
+                                (func.sum(Survey.video_count)-Organisation.video_count).label('videos_this_month'),
+                                (Organisation.video_count-Organisation.previous_video_count).label('videos_last_month'),
+                                (func.sum(Survey.frame_count)-Organisation.frame_count).label('frames_this_month'),
+                                (Organisation.frame_count-Organisation.previous_frame_count).label('frames_last_month')
                             )\
                             .join(Survey)\
                             .group_by(Organisation.id).subquery()
 
-        active_users = db.session.query(Organisation,sq.c.count,sq.c.this_month,sq.c.last_month)\
+        active_users = db.session.query(Organisation,sq.c.count,sq.c.this_month,sq.c.last_month,sq.c.videos_this_month,sq.c.videos_last_month,sq.c.frames_this_month,sq.c.frames_last_month,sq.c.frame_count,sq.c.video_count)\
                                 .join(sq,sq.c.organisation_id==Organisation.id)\
                                 .filter(~Organisation.name.in_(Config.ADMIN_USERS))
 
@@ -8476,7 +8500,7 @@ def getActiveUserData():
             active_users = active_users.join(Survey)\
                                 .join(Task)\
                                 .filter(Task.init_complete==True)\
-                                .filter(sq.c.count>10000)
+                                .filter((sq.c.count+sq.c.frame_count)>10000)
         
         if order=='total':
             active_users = active_users.order_by(sq.c.count.desc())
@@ -8484,6 +8508,14 @@ def getActiveUserData():
             active_users = active_users.order_by(sq.c.this_month.desc())
         elif order=='last_month':
             active_users = active_users.order_by(sq.c.last_month.desc())
+        elif order=='videos_this_month':
+            active_users = active_users.order_by(sq.c.videos_this_month.desc())
+        elif order=='videos_last_month':
+            active_users = active_users.order_by(sq.c.videos_last_month.desc())
+        elif order=='frames_this_month':
+            active_users = active_users.order_by(sq.c.frames_this_month.desc())
+        elif order=='frames_last_month':
+            active_users = active_users.order_by(sq.c.frames_last_month.desc())
 
         active_users = active_users.distinct().paginate(page, 20, False)
 
@@ -8493,6 +8525,12 @@ def getActiveUserData():
             image_count = int(item[1])
             images_this_month = int(item[2])
             images_last_month = int(item[3])
+            videos_this_month = int(item[4])
+            videos_last_month = int(item[5])
+            frames_this_month = int(item[6])
+            frames_last_month = int(item[7])
+            frame_count = int(item[8])
+            video_count = int(item[9])
             # image_count=int(db.session.query(sq.c.count).filter(sq.c.user_id==user.id).first()[0])
 
             reply.append({
@@ -8500,8 +8538,14 @@ def getActiveUserData():
                 'affiliation':          organisation.affiliation,
                 'surveys':              len(organisation.surveys[:]),
                 'images':               format_count(image_count),
-                'images_this_month':    format_count(images_this_month),
+                'videos':               format_count(video_count),
+                'frames':               format_count(frame_count),
+                'images_this_month':    format_count(frames_this_month),
                 'images_last_month':    format_count(images_last_month),
+                'videos_this_month':    format_count(videos_this_month),
+                'videos_last_month':    format_count(videos_last_month),
+                'frames_this_month':    format_count(frames_this_month),
+                'frames_last_month':    format_count(frames_last_month),
                 'regions':              organisation.regions
             })
 
@@ -8596,9 +8640,7 @@ def get_presigned_url():
         if organisation_id and (survey_status=='Uploading'):
             userPermissions = db.session.query(UserPermissions).filter(UserPermissions.organisation_id==organisation_id).filter(UserPermissions.user_id==current_user.id).first()
             if userPermissions and userPermissions.create:
-                upload_user = GLOBALS.redisClient.get('upload_user_'+str(survey_id))
-                if upload_user and (int(upload_user.decode())==current_user.id):
-                    GLOBALS.redisClient.set('upload_ping_'+str(survey_id),datetime.utcnow().timestamp())
+                if checkUploadUser(current_user.id,survey_id):
                     return  GLOBALS.s3UploadClient.generate_presigned_url(ClientMethod='put_object',
                                                                             Params={'Bucket': Config.BUCKET,
                                                                                     'Key': organisation_folder + '/' + request.json['filename'].strip('/'),
@@ -8624,9 +8666,7 @@ def check_upload_files():
         if organisation_id and (survey_status=='Uploading'):
             userPermissions = db.session.query(UserPermissions).filter(UserPermissions.organisation_id==organisation_id).filter(UserPermissions.user_id==current_user.id).first()
             if userPermissions and userPermissions.create:
-                upload_user = GLOBALS.redisClient.get('upload_user_'+str(survey_id))
-                if upload_user and (int(upload_user.decode())==current_user.id):
-                    GLOBALS.redisClient.set('upload_ping_'+str(survey_id),datetime.utcnow().timestamp())
+                if checkUploadUser(current_user.id,survey_id):
                     for file in files:
                         result = checkFile(file,organisation_folder)
                         if result:
@@ -8648,13 +8688,10 @@ def check_upload_available():
         if organisation_id and (survey_status=='Uploading'):
             userPermissions = db.session.query(UserPermissions).filter(UserPermissions.organisation_id==organisation_id).filter(UserPermissions.user_id==current_user.id).first()
             if userPermissions and userPermissions.create:
-                check = GLOBALS.redisClient.get('upload_user_'+str(survey_id))
-                if check and (int(check)!=current_user.id):
-                    return json.dumps('unavailable')
-                else:
-                    GLOBALS.redisClient.set('upload_ping_'+str(survey_id),datetime.utcnow().timestamp())
-                    GLOBALS.redisClient.set('upload_user_'+str(survey_id),current_user.id)
+                if checkUploadUser(current_user.id,survey_id):
                     return json.dumps('available')
+                else:
+                    return json.dumps('unavailable')
     except:
         pass
     

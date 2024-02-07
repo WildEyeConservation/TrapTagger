@@ -49,6 +49,18 @@ def delete_task(self,task_id):
 
     try:
         app.logger.info('Deleting task {}'.format(task_id))
+
+        earth_ranger_ids = db.session.query(ERangerID).join(Cluster).filter(Cluster.task_id==task_id).all()
+        try:
+            for earth_ranger_id in earth_ranger_ids:
+                db.session.delete(earth_ranger_ids)
+            db.session.commit()
+            app.logger.info('Earth Ranger IDs deleted successfully.')
+        except:
+            status = 'error'
+            message = 'Could not delete Earth Ranger IDs.'
+            app.logger.info('Failed to delete Earth Ranger IDs.')
+
         clusters = db.session.query(Cluster).filter(Cluster.task_id==task_id).all()
 
         try:
@@ -2002,24 +2014,25 @@ def updateStatistics(self):
                                                 .join(User,UserPermissions.user_id==User.id)\
                                                 .filter(User.last_ping>(datetime.utcnow().replace(hour=0,minute=0,second=0,microsecond=0)-timedelta(days=1)))\
                                                 .filter(~Organisation.name.in_(Config.ADMIN_USERS))\
-                                                .filter(User.admin==True).count()
+                                                .filter(~User.username.in_(Config.ADMIN_USERS))\
+                                                .filter(UserPermissions.default!='worker')\
+                                                .distinct().count()
 
             #Monthly stats
             if datetime.utcnow().day==1:
                 organisations = db.session.query(Organisation).filter(~Organisation.name.in_(Config.ADMIN_USERS)).distinct().all()
                 users = db.session.query(User).filter(~User.username.in_(Config.ADMIN_USERS)).filter(User.admin==True).distinct().all()
-                image_count=0
-                for organisation in organisations:
-                    for survey in organisation.surveys:
-                        image_count+=survey.image_count
+                image_count=int(db.session.query(func.sum(Survey.image_count)).join(Organisation).filter(~Organisation.name.in_(Config.ADMIN_USERS)).first()[0])
+                video_count=int(db.session.query(func.sum(Survey.video_count)).join(Organisation).filter(~Organisation.name.in_(Config.ADMIN_USERS)).first()[0])
+                frame_count=int(db.session.query(func.sum(Survey.frame_count)).join(Organisation).filter(~Organisation.name.in_(Config.ADMIN_USERS)).first()[0])
 
-                sq = db.session.query(Organisation.id.label('organisation_id'),func.sum(Survey.image_count).label('count')).join(Survey).group_by(Organisation.id).subquery()
+                sq = db.session.query(Organisation.id.label('organisation_id'),func.sum(Survey.image_count).label('image_count'),func.sum(Survey.frame_count).label('frame_count')).join(Survey).group_by(Organisation.id).subquery()
                 active_organisation_count = db.session.query(Organisation)\
                                         .join(Survey)\
                                         .join(Task)\
                                         .join(sq,sq.c.organisation_id==Organisation.id)\
                                         .filter(Task.init_complete==True)\
-                                        .filter(sq.c.count>10000)\
+                                        .filter((sq.c.image_count+sq.c.frame_count)>10000)\
                                         .filter(~Organisation.name.in_(Config.ADMIN_USERS))\
                                         .distinct().count()
 
@@ -2029,18 +2042,19 @@ def updateStatistics(self):
                 costs = get_AWS_costs(startDate,endDate)
 
                 # Average daily logins (need the plus 1 hour here so as to not include the last day of the previous month)
-                average_daily_logins = 0
-                average_daily_admin_logins = 0
-                average_daily_organisation_logins = 0
-                statistics = db.session.query(Statistic).filter(Statistic.timestamp>(startDate+timedelta(hours=1))).all()
-                if statistics:
-                    for stat in statistics:
-                        average_daily_logins += stat.unique_daily_logins
-                        average_daily_admin_logins += stat.unique_daily_admin_logins
-                        average_daily_organisation_logins += stat.unique_daily_organisation_logins
-                    average_daily_logins = round(average_daily_logins/len(statistics),2)
-                    average_daily_admin_logins = round(average_daily_admin_logins/len(statistics),2)
-                    average_daily_organisation_logins = round(average_daily_organisation_logins/len(statistics),2)
+                try:
+                    average_daily_logins, average_daily_admin_logins, average_daily_organisation_logins = db.session.query(\
+                                        func.sum(Statistic.unique_daily_logins)/func.count(Statistic.id),\
+                                        func.sum(Statistic.unique_daily_admin_logins)/func.count(Statistic.id),\
+                                        func.sum(Statistic.unique_daily_organisation_logins)/func.count(Statistic.id))\
+                                        .filter(Statistic.timestamp>(startDate+timedelta(hours=1))).first()
+                    average_daily_logins = round(float(average_daily_logins),2)
+                    average_daily_admin_logins = round(float(average_daily_admin_logins),2)
+                    average_daily_organisation_logins = round(float(average_daily_organisation_logins),2)
+                except:
+                    average_daily_logins = 0
+                    average_daily_admin_logins = 0
+                    average_daily_organisation_logins = 0
 
                 # Unique monthly logins
                 unique_monthly_logins = db.session.query(User)\
@@ -2056,13 +2070,16 @@ def updateStatistics(self):
                                                     .join(User,UserPermissions.user_id==User.id)\
                                                     .filter(User.last_ping>startDate)\
                                                     .filter(~Organisation.name.in_(Config.ADMIN_USERS))\
-                                                    .filter(User.admin==True).count()
+                                                    .filter(~User.username.in_(Config.ADMIN_USERS))\
+                                                    .filter(UserPermissions.default!='worker').count()
 
                 # Update DB object
                 statistic.user_count=len(users),
-                statistic.organisation_count = len(organisation)
+                statistic.organisation_count = len(organisations)
                 statistic.active_organisation_count=active_organisation_count,
                 statistic.image_count=image_count,
+                statistic.video_count=video_count,
+                statistic.frame_count=frame_count,
                 statistic.server_cost=costs['Amazon Elastic Compute Cloud - Compute'],
                 statistic.storage_cost=costs['Amazon Simple Storage Service'],
                 statistic.db_cost=costs['Amazon Relational Database Service'],
@@ -2075,12 +2092,18 @@ def updateStatistics(self):
                 statistic.unique_monthly_organisation_logins = unique_monthly_organisation_logins
 
                 # Update organisation image counts
-                data = db.session.query(Organisation,func.sum(Survey.image_count)).join(Survey).group_by(Organisation.id).all()
+                data = db.session.query(Organisation,func.sum(Survey.image_count),func.sum(Survey.video_count),func.sum(Survey.frame_count)).join(Survey).group_by(Organisation.id).all()
                 for item in data:
                     organisation = item[0]
-                    count = int(item[1])
+                    image_count = int(item[1])
+                    video_count = int(item[2])
+                    frame_count = int(item[3])
                     organisation.previous_image_count = organisation.image_count
-                    organisation.image_count = count
+                    organisation.image_count = image_count
+                    organisation.previous_video_count = organisation.video_count
+                    organisation.video_count = video_count
+                    organisation.previous_frame_count = organisation.frame_count
+                    organisation.frame_count = frame_count                    
 
             db.session.commit()
 

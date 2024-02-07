@@ -2802,11 +2802,23 @@ function submitLabels(mapID = 'map1') {
         }
         clusterID = clusters[mapID][clusterIndex[mapID]].id
         url = '/assignLabel/'+clusterID
+        var xhttp = new XMLHttpRequest();
         if (isReviewing) {
             url += '?explore=true'
-        }
-        var xhttp = new XMLHttpRequest();
-        if (isTagging) { 
+            xhttp.onreadystatechange = function(wrapMapID,wrapIndex) {
+                return function() {
+                    if (this.readyState == 4 && this.status == 278) {
+                        window.location.replace(JSON.parse(this.responseText)['redirect'])
+                    } else if (this.readyState == 4 && this.status == 200) {
+                        reply = JSON.parse(this.responseText);
+                        if (reply!='error') {
+                            clusters[wrapMapID][wrapIndex].annotator = reply.username
+                            updateDebugInfo()
+                        }
+                    }
+                }
+            }(mapID,clusterIndex[mapID])
+        } else if (isTagging) { 
             xhttp.onreadystatechange = function(wrapNothingStatus,wrapMapID,wrapIndex) {
                 return function() {
                     if (this.readyState == 4 && this.status == 278) {
@@ -2814,6 +2826,10 @@ function submitLabels(mapID = 'map1') {
                     } else if (this.readyState == 4 && this.status == 200) {
                         reply = JSON.parse(this.responseText);
                         if (reply!='error') {
+                            if (isReviewing) {
+                                clusters[wrapMapID][wrapIndex].annotator = reply.username
+                                updateDebugInfo()
+                            }
                             if (wrapNothingStatus) {
                                 if (reply.reAllocated==true) {
                                     clusterRequests[wrapMapID] = [];

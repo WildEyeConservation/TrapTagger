@@ -362,6 +362,7 @@ class Cluster(db.Model):
     required_images = db.relationship('Image', secondary=requiredimagestable, lazy=True, backref=db.backref('required_for', lazy=True))
     tags = db.relationship('Tag', secondary=tags, lazy=True, backref=db.backref('clusters', lazy=True))
     labels = db.relationship('Label', secondary=labelstable, lazy=True, backref=db.backref('clusters', lazy=True))
+    earth_ranger_ids = db.relationship('ERangerID', backref='cluster', lazy=True)
 
     def __repr__(self):
         return '<Cluster {}>'.format(self.id)
@@ -468,6 +469,8 @@ class Statistic(db.Model):
     organisation_count = db.Column(db.Integer, index=True)
     active_organisation_count = db.Column(db.Integer, index=False)
     image_count = db.Column(db.Integer, index=False)
+    video_count = db.Column(db.Integer, index=False)
+    frame_count = db.Column(db.Integer, index=False)
     server_cost = db.Column(db.Float, index=False)
     storage_cost = db.Column(db.Float, index=False)
     db_cost = db.Column(db.Float, index=False)
@@ -539,7 +542,11 @@ class Organisation(db.Model):
     folder = db.Column(db.String(64), index=True, unique=True)
     cloud_access = db.Column(db.Boolean, default=False, index=False)
     image_count = db.Column(db.Integer, index=False)
+    video_count = db.Column(db.Integer, index=False)
+    frame_count = db.Column(db.Integer, index=False)
     previous_image_count = db.Column(db.Integer, index=False)
+    previous_video_count = db.Column(db.Integer, index=False)
+    previous_frame_count = db.Column(db.Integer, index=False)
     earth_ranger_integrations = db.relationship('EarthRanger', backref='organisation', lazy=True)
     permissions = db.relationship('UserPermissions', backref='organisation', lazy=True)
     shares = db.relationship('SurveyShare', backref='organisation', lazy=True)
@@ -579,6 +586,14 @@ class SurveyShare(db.Model):
 
     def __repr__(self):
         return '<A survey share for survey {} to organisation {}>'.format(self.survey_id,self.organisation_id)
+
+class ERangerID(db.Model):
+    id = db.Column(db.String(64), primary_key=True)
+    api_key = db.Column(db.String(32), index=True)
+    cluster_id = db.Column(db.Integer, db.ForeignKey('cluster.id'), index=True, unique=False)
+
+    def __repr__(self):
+        return '<Earth Ranger ID object for cluster {}>'.format(self.cluster_id)
 
 class Mask(db.Model):
     id = db.Column(db.Integer, primary_key=True)
