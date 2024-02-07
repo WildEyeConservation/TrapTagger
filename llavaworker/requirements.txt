@@ -6,6 +6,7 @@ anyio==4.2.0
 attrs==23.2.0
 bitsandbytes==0.42.0
 boto3
+celery==5.1.2
 certifi==2024.2.2
 charset-normalizer==3.3.2
 click==8.1.7
