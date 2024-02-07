@@ -95,6 +95,12 @@ function loadNewCluster(mapID = 'map1') {
                                     }
                                 }
                             }
+
+                            var newDetections = info.staticgroup_detections
+                            var group_keys = Object.keys(newDetections)
+                            for (let i=0;i<group_keys.length;i++) {
+                                detectionGroups[group_keys[i]] = newDetections[group_keys[i]]
+                            }
                         }                
                     }
                 };

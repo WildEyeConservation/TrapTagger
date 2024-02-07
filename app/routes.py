@@ -12226,36 +12226,35 @@ def getStaticDetections(survey_id, reqID):
             return json.dumps({'static_detections': [{'id': -101}], 'id': reqID})
 
         staticgroup_detections = {}
-        for d in detectionClusters:
-            if d[10] in staticgroup_detections:
-                staticgroup_detections[d[10]].append({
-                    'id': d[0],
-                    'top': d[1],
-                    'bottom': d[2],
-                    'left': d[3],
-                    'right': d[4],
-                    'static': d[12]
-                })
-            else:
-                staticgroup_detections[d[10]] = [{
-                    'id': d[0],
-                    'top': d[1],
-                    'bottom': d[2],
-                    'left': d[3],
-                    'right': d[4],
-                    'static': d[12]
-                }]
-
         static_detections = []
         staticgroup_keys = {}
         for data in detectionClusters: 
+            if data[10] in staticgroup_detections:
+                staticgroup_detections[data[10]].append({
+                    'id': data[0],
+                    'top': data[1],
+                    'bottom': data[2],
+                    'left': data[3],
+                    'right': data[4],
+                    'static': data[12]
+                })
+            else:
+                staticgroup_detections[data[10]] = [{
+                    'id': data[0],
+                    'top': data[1],
+                    'bottom': data[2],
+                    'left': data[3],
+                    'right': data[4],
+                    'static': data[12]
+                }]
+
             if data[10] not in staticgroup_keys:
                 static_detections.append({
                     'id': data[10],
                     'images': [{	
                         'id': data[5],
                         'url': data[8]+'/'+data[6],
-                        'detections': staticgroup_detections[data[10]]
+                        'detections': []
                     }],
                     'labels': ['None'],
                     'label_ids': ['0'],
@@ -12276,10 +12275,10 @@ def getStaticDetections(survey_id, reqID):
                 static_detections[staticgroup_keys[data[10]]]['images'].append({
                     'id': data[5],
                     'url': data[8]+'/'+data[6],
-                    'detections': staticgroup_detections[data[10]]
+                    'detections': []
                 })
 
-        return json.dumps({'static_detections': static_detections, 'id': reqID})
+        return json.dumps({'static_detections': static_detections, 'id': reqID, 'staticgroup_detections': staticgroup_detections})
     else:
         return {'redirect': url_for('surveys')}, 278
 

@@ -272,6 +272,7 @@ var staticgroupIDs = []
 var staticgroupReadAheadIndex = 0
 var staticgroups = []
 var staticgroup_ids = []
+var staticgroupDetections = {}
 
 function buildSurveys(survey,disableSurvey) {
     /**
@@ -5118,8 +5119,8 @@ function addDetections() {
             map.setZoom(map.getMinZoom())
 
             // Draw detections
-            for(var i=0;i<staticgroups[staticgroupIndex].images[imageIndex].detections.length;i++){
-                var detection = staticgroups[staticgroupIndex].images[imageIndex].detections[i]
+            for(var i=0;i<staticgroupDetections[staticgroups[staticgroupIndex].id].length;i++){
+                var detection = staticgroupDetections[staticgroups[staticgroupIndex].id][i]
                 rect = L.rectangle([[detection.top*mapHeight,detection.left*mapWidth],[detection.bottom*mapHeight,detection.right*mapWidth]], rectOptions)
                 drawnItems.addLayer(rect)
             }
@@ -5466,6 +5467,7 @@ function openStaticDetections() {
         staticgroups = []
         staticgroup_ids = []
         finishedDisplaying = true
+        staticgroupDetections = {}
         clearEditSurveyModal()
         buildViewStatic()
         getStaticGroups()
@@ -5762,6 +5764,7 @@ function getStaticDetections() {
             if (this.readyState == 4 && this.status == 200) {
                 reply = JSON.parse(this.responseText);  
                 new_groups = reply.static_detections
+                new_detections = reply.staticgroup_detections
                 console.log(new_groups)
 
                 for (var i=0; i<new_groups.length; i++) {
@@ -5769,6 +5772,11 @@ function getStaticDetections() {
                         staticgroup_ids.push(new_groups[i].id)
                         staticgroups.push(new_groups[i])
                     }
+                }
+
+                keys = Object.keys(new_detections)
+                for (var i=0; i<keys.length; i++) {
+                    staticgroupDetections[keys[i]] = new_detections[keys[i]]
                 }
 
                 if (staticgroups.length - 1 == staticgroupIndex) {

@@ -132,6 +132,7 @@ var splides = {'map1': 'splide', 'map2': 'splide2'}
 var maskCheckData = {}
 var globalMasks = {"map1": []}
 var maskMode = false
+var detectionGroups = {}
 
 var colours = {
     'rgba(67,115,98,1)': false,
@@ -638,6 +639,12 @@ function addDetections(mapID = 'map1') {
         if (isBounding) {
             drawControl._toolbars.edit._toolbarContainer.firstElementChild.title = '(E)dit sightings'
             drawControl._toolbars.edit._toolbarContainer.lastElementChild.title = '(D)elete sightings'
+        }
+        if(isStaticCheck && detectionGroups){
+            sg_detections = detectionGroups[clusters[mapID][clusterIndex[mapID]].id]
+            for (let i=0;i<sg_detections.length;i++) {
+                buildDetection(image,sg_detections[i],mapID)
+            }
         }
         addedDetections[mapID] = true
         finishedDisplaying[mapID] = true
@@ -2624,6 +2631,7 @@ function onload (){
         clusters['map1'] = []
         clusterIndex['map1'] = 0
         imageIndex['map1'] = 0
+        detectionGroups = {}
         // loadNewCluster()
         getStaticGroupIDs()
     }
