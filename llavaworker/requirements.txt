@@ -9,7 +9,7 @@ boto3
 celery==5.1.2
 certifi==2024.2.2
 charset-normalizer==3.3.2
-click==8.1.7
+click
 colorama==0.4.6
 contourpy
 cycler==0.12.1
