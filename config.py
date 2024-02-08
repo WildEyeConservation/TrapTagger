@@ -75,6 +75,7 @@ class Config(object):
 
     #Worker config
     PARALLEL_AMI = os.environ.get('PARALLEL_AMI')
+    LLAVA_AMI = os.environ.get('LLAVA_AMI')
     BRANCH = os.environ.get('BRANCH')
     GPU_INSTANCE_TYPES = ['g4dn.xlarge'] #['p3.2xlarge', 'g4dn.xlarge', 'g3s.xlarge']
     XL_GPU_INSTANCE_TYPES = ['g5.xlarge']
@@ -126,7 +127,7 @@ class Config(object):
         'default': '300',
         'statistics': '300',
         'pipeline': '300',
-        'llava': '300'
+        'llava': '600'
     }
 
     #Aurora DB stuff

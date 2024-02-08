@@ -99,6 +99,7 @@ services:
             - AWS_S3_UPLOAD_ACCESS_KEY_ID=${AWS_S3_UPLOAD_ACCESS_KEY_ID}
             - AWS_S3_UPLOAD_SECRET_ACCESS_KEY=${AWS_S3_UPLOAD_SECRET_ACCESS_KEY}
             - MONKEY_PATCH=true
+            - LLAVA_AMI=${LLAVA_AMI}
         command: gunicorn -b 0.0.0.0:8000 -w 15 -t 120 -k gevent app:app
         networks:
             my-network:
@@ -153,6 +154,7 @@ services:
             - AWS_S3_UPLOAD_ACCESS_KEY_ID=${AWS_S3_UPLOAD_ACCESS_KEY_ID}
             - AWS_S3_UPLOAD_SECRET_ACCESS_KEY=${AWS_S3_UPLOAD_SECRET_ACCESS_KEY}
             - MONKEY_PATCH=true
+            - LLAVA_AMI=${LLAVA_AMI}
         command: gunicorn -b 0.0.0.0:8000 -w 9 -t 120 -k gevent app:app
         networks:
             my-network:
@@ -205,6 +207,7 @@ services:
             - AWS_S3_UPLOAD_ACCESS_KEY_ID=${AWS_S3_UPLOAD_ACCESS_KEY_ID}
             - AWS_S3_UPLOAD_SECRET_ACCESS_KEY=${AWS_S3_UPLOAD_SECRET_ACCESS_KEY}
             - MONKEY_PATCH=false
+            - LLAVA_AMI=${LLAVA_AMI}
         command: celery -A app.celery worker -B -E -n priority_worker -Q priority -Ofair --concurrency=1 --loglevel=info
         networks:
             - my-network
@@ -253,6 +256,7 @@ services:
             - AWS_S3_UPLOAD_ACCESS_KEY_ID=${AWS_S3_UPLOAD_ACCESS_KEY_ID}
             - AWS_S3_UPLOAD_SECRET_ACCESS_KEY=${AWS_S3_UPLOAD_SECRET_ACCESS_KEY}
             - MONKEY_PATCH=false
+            - LLAVA_AMI=${LLAVA_AMI}
         command: nice -10 celery -A app.celery worker -E -n ram_worker -Q ram_intensive -Ofair --concurrency=1 --loglevel=info
         networks:
             - my-network
@@ -301,6 +305,7 @@ services:
             - AWS_S3_UPLOAD_ACCESS_KEY_ID=${AWS_S3_UPLOAD_ACCESS_KEY_ID}
             - AWS_S3_UPLOAD_SECRET_ACCESS_KEY=${AWS_S3_UPLOAD_SECRET_ACCESS_KEY}
             - MONKEY_PATCH=false
+            - LLAVA_AMI=${LLAVA_AMI}
         command: nice -10 celery -A app.celery worker -E -n traptagger_worker1 -Q default -Ofair --concurrency=1 --loglevel=info
         networks:
             - my-network
