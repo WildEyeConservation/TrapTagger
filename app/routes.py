@@ -12402,7 +12402,6 @@ def getSurveyMasks(survey_id):
                                 .filter(Detection.status=='masked')\
                                 .filter(or_(and_(Detection.source==model,Detection.score>Config.DETECTOR_THRESHOLDS[model]) for model in Config.DETECTOR_THRESHOLDS))\
                                 .filter(Detection.static==False)\
-                                .filter(Mask.checked==False)\
                                 .order_by(Camera.id,Image.corrected_timestamp)
                                 
         if cameragroup_id:

@@ -268,6 +268,8 @@ class User(db.Model, UserMixin):
     exceptions = db.relationship('SurveyPermissionException', backref='user', lazy=True)
     root_organisation = db.relationship('Organisation', backref='root', uselist=False, lazy=True)
     notifications = db.relationship('Notification', backref='user', lazy=True)
+    masks = db.relationship('Mask', backref='user', lazy=True)
+    staticgroups = db.relationship('Staticgroup', backref='user', lazy=True)
     qualifications = db.relationship('User',secondary=workersTable,
                                     primaryjoin=id==workersTable.c.worker_id,
                                     secondaryjoin=id==workersTable.c.user_id,
@@ -595,23 +597,6 @@ class ERangerID(db.Model):
     def __repr__(self):
         return '<Earth Ranger ID object for cluster {}>'.format(self.cluster_id)
 
-class Mask(db.Model):
-    id = db.Column(db.Integer, primary_key=True)
-    cameragroup_id = db.Column(db.Integer, db.ForeignKey('cameragroup.id'), index=True, unique=False)
-    shape = db.Column(Geometry('POLYGON', srid=32734), index=False, unique=False)    # 32734 is the SRID for UTM Zone 34S (This is a hack because we can't use SRID = 0, so we use a linear unit to avoid distortion for cartesian coordinates)
-    checked = db.Column(db.Boolean, default=False, index=False)
-
-    def __repr__(self):
-        return '<Mask {}>'.format(self.id)
-
-class Staticgroup(db.Model):
-    id = db.Column(db.Integer, primary_key=True)
-    status = db.Column(db.String(10), index=True) # accepted/rejected/unknown
-    detections = db.relationship('Detection', backref='staticgroup', lazy=True)
-
-    def __repr__(self):
-        return '<Staticgroup {}>'.format(self.id)
-
 class Cameragroup(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     name = db.Column(db.String(64), index=False)
@@ -620,7 +605,25 @@ class Cameragroup(db.Model):
 
     def __repr__(self):
         return '<Cameragroup {}>'.format(self.name)
-    
+
+class Mask(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    cameragroup_id = db.Column(db.Integer, db.ForeignKey('cameragroup.id'), index=True, unique=False)
+    shape = db.Column(Geometry('POLYGON', srid=32734), index=True, unique=False)    # 32734 is the SRID for UTM Zone 34S (This is a hack because we can't use SRID = 0, so we use a linear unit to avoid distortion for cartesian coordinates)
+    user_id = db.Column(db.Integer, db.ForeignKey('user.id'), index=True, unique=False)
+
+    def __repr__(self):
+        return '<Mask {}>'.format(self.id)
+
+class Staticgroup(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    status = db.Column(db.String(10), index=True) # accepted/rejected/unknown
+    detections = db.relationship('Detection', backref='staticgroup', lazy=True)
+    user_id = db.Column(db.Integer, db.ForeignKey('user.id'), index=True, unique=False)
+
+    def __repr__(self):
+        return '<Staticgroup {}>'.format(self.id)
+
 db.Index('ix_det_srce_scre_stc_stat_class_classcre', Detection.source, Detection.score, Detection.static, Detection.status, Detection.classification, Detection.class_score)
 db.Index('ix_cluster_examined_task', Cluster.examined, Cluster.task_id)
 db.Index('ix_det_similarity_2_1', DetSimilarity.detection_2, DetSimilarity.detection_1, unique=True)

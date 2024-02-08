@@ -3226,7 +3226,7 @@ def mask_area(self, cluster_id, task_id, masks):
                 if poly_area > Config.MIN_MASK_AREA and poly_area < Config.MAX_MASK_AREA:
                     check = db.session.query(Mask).filter(Mask.shape==poly_string).filter(Mask.cameragroup_id==cameragroup.id).first()
                     if not check:
-                        new_mask = Mask(shape=poly_string,cameragroup_id=cameragroup.id,checked=False)
+                        new_mask = Mask(shape=poly_string,cameragroup_id=cameragroup.id)
                         db.session.add(new_mask)
             db.session.commit()
 
@@ -3309,7 +3309,7 @@ def update_masks(self,survey_id,removed_masks,added_masks,edited_masks):
             poly_string = poly_string[:-1] + '))'
             poly_area = db.session.query(func.ST_Area(func.ST_GeomFromText(poly_string))).first()[0]
             if poly_area > Config.MIN_MASK_AREA and poly_area < Config.MAX_MASK_AREA:
-                new_mask = Mask(shape=poly_string,cameragroup_id=mask['cameragroup_id'],checked=False)
+                new_mask = Mask(shape=poly_string,cameragroup_id=mask['cameragroup_id'])
                 db.session.add(new_mask)
 
         # Edit masks
