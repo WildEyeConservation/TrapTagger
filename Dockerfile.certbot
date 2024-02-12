@@ -12,6 +12,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-FROM nginx:1.13.7
+FROM nginx:1.25.3
 RUN apt-get update
-RUN apt-get install -y python-certbot-nginx
+RUN apt-get install -y python3-certbot-nginx
