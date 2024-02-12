@@ -103,7 +103,7 @@ def infer(image,sourceBucket,external,prompt):
     if not initialised: init()
 
     # prep image
-    image = load_image(image_file,sourceBucket,external)
+    image = load_image(image,sourceBucket,external)
     image_size = image.size
     image_tensor = process_images([image], image_processor, model.config)
     if type(image_tensor) is list:
