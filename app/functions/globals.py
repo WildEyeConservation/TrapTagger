@@ -2805,6 +2805,48 @@ def clean_up_redis():
                         GLOBALS.redisClient.delete(key)
                         GLOBALS.redisClient.delete('upload_user_'+str(survey_id))
 
+            # Manage Knockdown here
+            elif any(name in key for name in ['knockdown_ping']):
+                task_id = key.split('_')[-1]
+
+                if task_id == 'None':
+                    GLOBALS.redisClient.delete(key)
+                else:
+                    try:
+                        timestamp = GLOBALS.redisClient.get(key)
+                        if timestamp:
+                            timestamp = datetime.fromtimestamp(float(timestamp.decode()))
+                            if datetime.utcnow() - timestamp > timedelta(minutes=5):
+                                # Add wrap up knockdown function here or whatever
+                                task = db.session.query(Task).get(int(task_id))
+                                if task.status == 'Knockdown Analysis':
+                                    task.status = 'successInitial'
+                                    db.session.commit()
+                                GLOBALS.redisClient.delete('knockdown_ping_'+str(task_id))
+                    except:
+                        GLOBALS.redisClient.delete(key)
+
+            # Manage Static Detection Check here
+            elif any(name in key for name in ['static_check_ping']):
+                survey_id = key.split('_')[-1]
+
+                if survey_id == 'None':
+                    GLOBALS.redisClient.delete(key)
+                else:
+                    try:
+                        timestamp = GLOBALS.redisClient.get(key)
+                        if timestamp:
+                            timestamp = datetime.fromtimestamp(float(timestamp.decode()))
+                            if datetime.utcnow() - timestamp > timedelta(minutes=5):
+                                survey = db.session.query(Survey).get(int(survey_id))
+                                if survey.status == 'Static Detection Analysis':
+                                    survey.status = "Processing"
+                                    db.session.commit()
+                                    wrapUpStaticDetectionCheck.delay(survey_id)
+                                GLOBALS.redisClient.delete('static_check_ping_'+str(survey_id))
+                    except:
+                        GLOBALS.redisClient.delete(key)
+
     except Exception as exc:
         app.logger.info(' ')
         app.logger.info('!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!')
@@ -3200,7 +3242,7 @@ def create_new_er_report(row,er_api_key,er_url):
     return True
 
 @celery.task(bind=True,max_retries=5,ignore_result=True)
-def mask_area(self, cluster_id, task_id, masks):
+def mask_area(self, cluster_id, task_id, masks, user_id):
     ''' Create masks and mask detections in a specified area of an image. '''
     #TODO: THIS STILL NEEDS WORK AND CHECKING, ETC.
     try:
@@ -3223,10 +3265,10 @@ def mask_area(self, cluster_id, task_id, masks):
                 poly_string = poly_string[:-1] + '))'
 
                 poly_area = db.session.query(func.ST_Area(func.ST_GeomFromText(poly_string))).first()[0]
-                if poly_area > Config.MIN_MASK_AREA and poly_area < Config.MAX_MASK_AREA:
+                if poly_area > Config.MIN_MASK_AREA:
                     check = db.session.query(Mask).filter(Mask.shape==poly_string).filter(Mask.cameragroup_id==cameragroup.id).first()
                     if not check:
-                        new_mask = Mask(shape=poly_string,cameragroup_id=cameragroup.id)
+                        new_mask = Mask(shape=poly_string,cameragroup_id=cameragroup.id,user_id=user_id)
                         db.session.add(new_mask)
             db.session.commit()
 
@@ -3282,7 +3324,7 @@ def mask_area(self, cluster_id, task_id, masks):
 
 
 @celery.task(bind=True,max_retries=5,ignore_result=True)
-def update_masks(self,survey_id,removed_masks,added_masks,edited_masks):
+def update_masks(self,survey_id,removed_masks,added_masks,edited_masks,user_id):
     '''Celery task that updates masks for a survey.'''
 
     try:
@@ -3308,8 +3350,8 @@ def update_masks(self,survey_id,removed_masks,added_masks,edited_masks):
                 poly_string += str(coord[0]) + ' ' + str(coord[1]) + ','
             poly_string = poly_string[:-1] + '))'
             poly_area = db.session.query(func.ST_Area(func.ST_GeomFromText(poly_string))).first()[0]
-            if poly_area > Config.MIN_MASK_AREA and poly_area < Config.MAX_MASK_AREA:
-                new_mask = Mask(shape=poly_string,cameragroup_id=mask['cameragroup_id'])
+            if poly_area > Config.MIN_MASK_AREA:
+                new_mask = Mask(shape=poly_string,cameragroup_id=mask['cameragroup_id'],user_id=user_id)
                 db.session.add(new_mask)
 
         # Edit masks
@@ -3324,10 +3366,11 @@ def update_masks(self,survey_id,removed_masks,added_masks,edited_masks):
                 poly_string += str(coord[0]) + ' ' + str(coord[1]) + ','
             poly_string = poly_string[:-1] + '))'
             poly_area = db.session.query(func.ST_Area(func.ST_GeomFromText(poly_string))).first()[0]
-            if poly_area > Config.MIN_MASK_AREA and poly_area < Config.MAX_MASK_AREA:
+            if poly_area > Config.MIN_MASK_AREA:
                 mask = db.session.query(Mask).get(mask['id'])
                 if mask:
                     mask.shape = poly_string
+                    mask.user_id = user_id
 
         db.session.commit()
 
@@ -3720,3 +3763,141 @@ def checkUploadUser(user_id,survey_id):
             return True
     
     return False
+
+
+@celery.task(bind=True,max_retries=5,ignore_result=True)
+def wrapUpStaticDetectionCheck(self,survey_id):
+    '''Wraps up a survey after a static detection check.'''
+    try:
+        static_detections = db.session.query(Detection)\
+                                    .join(Image)\
+                                    .join(Camera)\
+                                    .join(Trapgroup)\
+                                    .join(Staticgroup)\
+                                    .filter(Trapgroup.survey_id==survey_id)\
+                                    .filter(or_(Staticgroup.status=='accepted',Staticgroup.status=='unknown'))\
+                                    .distinct().all()
+
+        images = []
+        for detection in static_detections:
+            images.append(detection.image)
+            detection.static = True
+
+        rejected_detections = db.session.query(Detection)\
+                                    .join(Image)\
+                                    .join(Camera)\
+                                    .join(Trapgroup)\
+                                    .join(Staticgroup)\
+                                    .filter(Trapgroup.survey_id==survey_id)\
+                                    .filter(Staticgroup.status=='rejected')\
+                                    .distinct().all()
+
+        for detection in rejected_detections:
+            images.append(detection.image)
+            detection.static = False
+
+        db.session.commit()
+
+        for image in images:
+            image.detection_rating = detection_rating(image)
+        db.session.commit()
+
+
+        task_ids = [r[0] for r in db.session.query(Task.id).filter(Task.survey_id==survey_id).filter(Task.name!='default').distinct().all()]
+        for task_id in task_ids:
+            updateAllStatuses(task_id=task_id, celeryTask=False)
+
+        survey = db.session.query(Survey).get(survey_id)
+        survey.status = 'Ready'
+        db.session.commit()
+
+    except Exception as exc:
+        app.logger.info(' ')
+        app.logger.info('!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!')
+        app.logger.info(traceback.format_exc())
+        app.logger.info('!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!')
+        app.logger.info(' ')
+        self.retry(exc=exc, countdown= retryTime(self.request.retries))
+
+    finally:
+        db.session.remove()
+
+    return True
+
+@celery.task(bind=True,max_retries=5,ignore_result=True)
+def update_staticgroups(self,survey_id,staticgroups,user_id):
+    '''Updates the staticgroups and static detections for the specified survey.'''
+    try:
+        survey = db.session.query(Survey).get(survey_id)
+        survey.status = 'Processing'
+        db.session.commit()
+
+        # Update staticgroups
+        for staticgroup in staticgroups:
+            if staticgroup['status'] == 'accepted': 
+                static_group = db.session.query(Staticgroup).get(staticgroup['id'])
+                static_group.status = 'accepted'
+                static_group.user_id = user_id
+
+            elif staticgroup['status'] == 'rejected':
+                static_group = db.session.query(Staticgroup).get(staticgroup['id'])
+                static_group.status = 'rejected'
+                static_group.user_id = user_id
+
+        db.session.commit()
+
+        # Update detections
+        static_detections = db.session.query(Detection)\
+                                    .join(Image)\
+                                    .join(Camera)\
+                                    .join(Trapgroup)\
+                                    .join(Staticgroup)\
+                                    .filter(Trapgroup.survey_id==survey_id)\
+                                    .filter(or_(Staticgroup.status=='accepted',Staticgroup.status=='unknown'))\
+                                    .distinct().all()
+
+        images = []
+        for detection in static_detections:
+            images.append(detection.image)
+            detection.static = True
+
+        rejected_detections = db.session.query(Detection)\
+                                    .join(Image)\
+                                    .join(Camera)\
+                                    .join(Trapgroup)\
+                                    .join(Staticgroup)\
+                                    .filter(Trapgroup.survey_id==survey_id)\
+                                    .filter(Staticgroup.status=='rejected')\
+                                    .distinct().all()
+
+        for detection in rejected_detections:
+            images.append(detection.image)
+            detection.static = False
+
+        db.session.commit()
+
+
+        for image in images:
+            image.detection_rating = detection_rating(image)
+        db.session.commit()
+
+        task_ids = [r[0] for r in db.session.query(Task.id).filter(Task.survey_id==survey_id).filter(Task.name!='default').distinct().all()]
+        for task_id in task_ids:
+            updateAllStatuses(task_id=task_id, celeryTask=False)
+
+        survey = db.session.query(Survey).get(survey_id)
+        survey.status = 'Ready'
+        db.session.commit()
+
+    except Exception as exc:
+        app.logger.info(' ')
+        app.logger.info('!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!')
+        app.logger.info(traceback.format_exc())
+        app.logger.info('!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!')
+        app.logger.info(' ')
+        self.retry(exc=exc, countdown= retryTime(self.request.retries))
+
+    finally:
+        db.session.remove()
+
+    return True

@@ -1927,14 +1927,14 @@ def editSurvey():
             if len(removed_masks)>0 or len(added_masks)>0 or len(edited_masks)>0:
                 survey.status = 'Processing'
                 db.session.commit() 
-                update_masks.delay(survey_id=survey.id,removed_masks=removed_masks,added_masks=added_masks,edited_masks=edited_masks)
+                update_masks.delay(survey_id=survey.id,removed_masks=removed_masks,added_masks=added_masks,edited_masks=edited_masks,user_id=current_user.id)
 
         elif 'staticgroups' in request.form:
             staticgroups = ast.literal_eval(request.form['staticgroups'])
             if len(staticgroups)>0:
                 survey.status = 'Processing'
                 db.session.commit()     
-                update_staticgroups.delay(survey_id=survey.id,staticgroups=staticgroups)
+                update_staticgroups.delay(survey_id=survey.id,staticgroups=staticgroups,user_id=current_user.id)
 
         elif 'kml' in request.files:
             uploaded_file = request.files['kml']
@@ -4526,6 +4526,7 @@ def exploreKnockdowns():
             task = db.session.query(Task).get(task_id)
             # if task and (task.survey.user==current_user):
             if task and (checkAnnotationPermission(current_user.parent_id,task.id) or checkSurveyPermission(current_user.id,task.survey_id,'write')):
+                GLOBALS.redisClient.set('knockdown_ping_'+str(task_id),datetime.utcnow().timestamp())
                 return render_template('html/knockdown.html', title='Knockdowns', helpFile='knockdown_analysis', bucket=Config.BUCKET, version=Config.VERSION)
             else:
                 return redirect(url_for('surveys'))
@@ -5866,6 +5867,7 @@ def getKnockCluster(task_id, knockedstatus, clusterID, index, imageIndex, T_inde
     finished = False
     # if task.survey.user==current_user:
     if checkSurveyPermission(current_user.id,task.survey_id,'write') or checkAnnotationPermission(current_user.parent_id,task.id):
+        GLOBALS.redisClient.set('knockdown_ping_'+str(task_id),datetime.utcnow().timestamp())
         if int(clusterID) != -102:
             # GLOBALS.mutex[int(task_id)]['global'].acquire()
             T_index = int(T_index)
@@ -12083,7 +12085,7 @@ def maskArea():
 
                 db.session.commit()
 
-                mask_area.apply_async(kwargs={'cluster_id': cluster_id, 'task_id': task_id, 'masks': masks})
+                mask_area.apply_async(kwargs={'cluster_id': cluster_id, 'task_id': task_id, 'masks': masks, 'user_id': current_user.parent_id})
 
     if (not current_user.admin) and (not GLOBALS.redisClient.sismember('active_jobs_'+str(current_user.turkcode[0].task_id),current_user.username)):
         return {'redirect': url_for('done')}, 278
@@ -12189,6 +12191,7 @@ def checkStaticDetections():
             survey_id = request.args.get('survey', None)
             survey = db.session.query(Survey).get(survey_id)
             if survey and checkSurveyPermission(current_user.id,survey.id,'write') and survey.status.lower() in Config.SURVEY_READY_STATUSES:
+                GLOBALS.redisClient.set('static_check_ping_'+str(survey_id),datetime.utcnow().timestamp())
                 return render_template('html/static_detections.html', title='Static Detections', helpFile='static_detections', bucket=Config.BUCKET, version=Config.VERSION)
             else:
                 return redirect(url_for('surveys'))
@@ -12236,12 +12239,14 @@ def getStaticDetections(survey_id, reqID):
                                     Trapgroup.id,
                                     Staticgroup.id,
                                     Staticgroup.status,
-                                    Detection.static
+                                    Detection.static,
+                                    User.username
                                 )\
                                 .join(Image, Image.id==Detection.image_id)\
                                 .join(Camera, Camera.id==Image.camera_id)\
                                 .join(Trapgroup, Trapgroup.id==Camera.trapgroup_id)\
                                 .join(Staticgroup)\
+                                .outerjoin(User, User.id==Staticgroup.user_id)\
                                 .filter(Trapgroup.survey_id==survey_id)\
                                 .order_by(Staticgroup.id,Image.corrected_timestamp,Detection.id)
                                     
@@ -12252,6 +12257,7 @@ def getStaticDetections(survey_id, reqID):
             detectionClusters = detectionClusters.filter(Staticgroup.id==staticgroup_id)
 
         if not edit:
+            GLOBALS.redisClient.set('static_check_ping_'+str(survey_id),datetime.utcnow().timestamp())
             detectionClusters = detectionClusters.filter(Detection.static==True).filter(Staticgroup.status=='unknown')
 
         detectionClusters = detectionClusters.distinct().all()
@@ -12303,7 +12309,8 @@ def getStaticDetections(survey_id, reqID):
                     'trapGroup': data[9],
                     'camera': data[7],
                     'camera_path': data[8],
-                    'staticgroup_status': data[11]
+                    'staticgroup_status': data[11],
+                    'user': data[13]
                 })
 
                 staticgroup_keys[data[10]] = len(static_detections)-1
@@ -12324,7 +12331,6 @@ def getStaticDetections(survey_id, reqID):
 def assignStatic():
     #TODO: CHECK/UPDATE THIS (static)
     survey_id = ast.literal_eval(request.form['survey_id'])
-    # detection_ids = ast.literal_eval(request.form['detection_ids'])
     staticgroup_id = ast.literal_eval(request.form['staticgroup_id'])
     static_status = ast.literal_eval(request.form['static_status'])
 
@@ -12332,38 +12338,21 @@ def assignStatic():
 
     survey = db.session.query(Survey).get(survey_id)
     if survey and checkSurveyPermission(current_user.id,survey.id,'write'):
+        GLOBALS.redisClient.set('static_check_ping_'+str(survey_id),datetime.utcnow().timestamp())
+
         if survey.status != 'Static Detection Analysis':
             survey.status = 'Static Detection Analysis'
-            db.session.commit()
 
-        images = []
         if static_status == 'accept_static':
             staticgroup = db.session.query(Staticgroup).get(staticgroup_id)
             staticgroup.status = 'accepted'
-            for detection in staticgroup.detections:
-                detection.static = True
-                detection.source = 'user'
-                images.append(detection.image)
-
-                if Config.DEBUGGING: app.logger.info('Detection {} marked as static'.format(detection.id))
-
-            db.session.commit()
+            staticgroup.user_id = current_user.id
 
         elif static_status == 'reject_static':
             staticgroup = db.session.query(Staticgroup).get(staticgroup_id)
             staticgroup.status = 'rejected'
-            for detection in staticgroup.detections:
-                detection.static = False
-                detection.source = 'user'
-                images.append(detection.image)
+            staticgroup.user_id = current_user.id
 
-                if Config.DEBUGGING: app.logger.info('Detection {} marked as not static'.format(detection.id))
-
-            db.session.commit()
-
-        
-        for image in images:
-            image.detection_rating = detection_rating(image)
         db.session.commit()
 
         return json.dumps({'status': 'SUCCESS', 'message': ''})
@@ -12391,13 +12380,15 @@ def getSurveyMasks(survey_id):
                                     Cameragroup.id,
                                     Cameragroup.name,
                                     Mask.id,
-                                    func.ST_AsGeoJSON(Mask.shape)
+                                    func.ST_AsGeoJSON(Mask.shape),
+                                    User.username
                                 )\
                                 .join(Image, Image.id==Detection.image_id)\
                                 .join(Camera, Camera.id==Image.camera_id)\
                                 .join(Cameragroup, Cameragroup.id==Camera.cameragroup_id)\
                                 .join(Mask, Mask.cameragroup_id==Cameragroup.id)\
                                 .join(Trapgroup, Trapgroup.id==Camera.trapgroup_id)\
+                                .outerjoin(User, User.id==Mask.user_id)\
                                 .filter(Trapgroup.survey_id==survey_id)\
                                 .filter(Detection.status=='masked')\
                                 .filter(or_(and_(Detection.source==model,Detection.score>Config.DETECTOR_THRESHOLDS[model]) for model in Config.DETECTOR_THRESHOLDS))\
@@ -12429,7 +12420,8 @@ def getSurveyMasks(survey_id):
                     }],
                     'masks': [{
                         'id': data[10],
-                        'coords': json.loads(data[11])['coordinates'][0]
+                        'coords': json.loads(data[11])['coordinates'][0],
+                        'user': data[12]
                     }],
                     'camera_path': data[7],
                     'cameragroup_name': data[9]
@@ -12465,7 +12457,8 @@ def getSurveyMasks(survey_id):
                 if not mask_exists:
                     masks[cam_idx]['masks'].append({
                         'id': data[10],
-                        'coords': json.loads(data[11])['coordinates'][0]
+                        'coords': json.loads(data[11])['coordinates'][0],
+                        'user': data[12]
                     })
 
         return json.dumps({'masks': masks})
@@ -12498,6 +12491,7 @@ def getStaticGroupIDs(survey_id):
                                 .filter(Trapgroup.survey_id==survey_id)\
         
         if not edit:
+            GLOBALS.redisClient.set('static_check_ping_'+str(survey_id),datetime.utcnow().timestamp())
             staticgroups = staticgroups.filter(Detection.static==True).filter(Staticgroup.status=='unknown')
 
         staticgroup_ids = [s[0] for s in staticgroups.distinct().all()]

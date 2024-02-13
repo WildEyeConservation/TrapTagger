@@ -4754,6 +4754,72 @@ function buildEditMasks() {
     addImagesEditMasksDiv.appendChild(row)
 
     var col1 = document.createElement('div')
+    col1.classList.add('col-lg-2')
+    row.appendChild(col1)
+
+    var col2 = document.createElement('div')
+    col2.classList.add('col-lg-8')
+    col2.setAttribute('style','text-align: center;')
+    row.appendChild(col2)
+
+    var col3 = document.createElement('div')
+    col3.classList.add('col-lg-2')
+    row.appendChild(col3)
+
+    var h6 = document.createElement('h6')
+    h6.id = 'mapTitle'
+    h6.innerHTML = 'Loading...'
+    col2.appendChild(h6)
+
+    var row = document.createElement('div')
+    row.classList.add('row')
+    addImagesEditMasksDiv.appendChild(row)
+
+    var col1 = document.createElement('div')
+    col1.classList.add('col-lg-2')
+    row.appendChild(col1)
+
+    var col2 = document.createElement('div')
+    col2.classList.add('col-lg-8')
+    col2.setAttribute('style','text-align: center;')
+    row.appendChild(col2)
+
+    var col3 = document.createElement('div')
+    col3.classList.add('col-lg-2')
+    row.appendChild(col3)
+
+    var center = document.createElement('center')
+    col2.appendChild(center)
+
+    var mapDiv = document.createElement('div')
+    mapDiv.id = 'mapDiv'
+    mapDiv.style.height = '700px'
+    center.appendChild(mapDiv)
+
+    var rowDiv2 = document.createElement('div');
+    rowDiv2.classList.add('row');
+    col3.appendChild(rowDiv2);
+
+    var colU = document.createElement('div')
+    colU.classList.add('col-lg-12')
+    colU.innerHTML = 'Created/Edited By:'
+    rowDiv2.append(colU)
+
+    var rowDiv3 = document.createElement('div');
+    rowDiv3.classList.add('row');
+    col3.appendChild(rowDiv3);
+
+    var colU = document.createElement('div')
+    colU.classList.add('col-lg-12')
+    colU.id = 'maskUsers'
+    colU.innerHTML = ''
+    rowDiv3.append(colU)
+
+    var row = document.createElement('div')
+    row.classList.add('row')
+    addImagesEditMasksDiv.appendChild(row)
+
+    var col1 = document.createElement('div')
     col1.classList.add('col-lg-1')
     row.appendChild(col1)
 
@@ -4765,20 +4831,6 @@ function buildEditMasks() {
     var col3 = document.createElement('div')
     col3.classList.add('col-lg-1')
     row.appendChild(col3)
-
-
-    var h6 = document.createElement('h6')
-    h6.id = 'mapTitle'
-    h6.innerHTML = 'Loading...'
-    col2.appendChild(h6)
-
-    var center = document.createElement('center')
-    col2.appendChild(center)
-
-    var mapDiv = document.createElement('div')
-    mapDiv.id = 'mapDiv'
-    mapDiv.style.height = '700px'
-    center.appendChild(mapDiv)
 
     var rowDiv = document.createElement('div');
     rowDiv.classList.add('row');
@@ -5145,6 +5197,16 @@ function updateMaskMap() {
     finishedDisplaying = false
     document.getElementById('mapTitle').innerHTML = cameras[cameraIndex].images[imageIndex].url.split('/').slice(1).join('/')
 
+    document.getElementById('maskUsers').innerHTML = ''
+    mask_users=''
+    for (let i=0; i<cameras[cameraIndex].masks.length; i++){
+        if (!mask_users.includes(cameras[cameraIndex].masks[i].user) && cameras[cameraIndex].masks[i].user != 'None') {
+            mask_users += cameras[cameraIndex].masks[i].user + ', '
+        }
+    }
+    document.getElementById('maskUsers').innerHTML = mask_users.slice(0,-2)
+
+
     if (map != null) {
         activeImage.setUrl("https://"+bucketName+".s3.amazonaws.com/" + modifyToCompURL(cameras[cameraIndex].images[imageIndex].url))
     }
@@ -5383,12 +5445,22 @@ function getMaskCameras(){
                 }  
             }
             else{
-                document.getElementById('mapTitle').innerHTML = 'You have no masks to edit.'
-                document.getElementById('btnPrevCamera').hidden = true
-                document.getElementById('btnPrevImage').hidden = true
-                document.getElementById('btnNextImage').hidden = true
-                document.getElementById('btnNextCamera').hidden = true
-                document.getElementById('mapDiv').hidden = true
+                addImagesEditMasksDiv = document.getElementById('addImagesEditMasksDiv')
+                while(addImagesEditMasksDiv.firstChild){
+                    addImagesEditMasksDiv.removeChild(addImagesEditMasksDiv.firstChild);
+                }
+
+                var row = document.createElement('div')
+                row.classList.add('row')
+                addImagesEditMasksDiv.appendChild(row)
+
+                var col1 = document.createElement('div')
+                col1.classList.add('col-lg-12', 'd-flex', 'align-items-center', 'justify-content-center')
+                row.appendChild(col1)
+
+                var h6 = document.createElement('h6')
+                h6.innerHTML = 'You have no masks to edit.'
+                col1.appendChild(h6)
             }
         }
     }
@@ -5577,6 +5649,27 @@ function buildViewStatic() {
             staticgroups[staticgroupIndex].staticgroup_status = 'rejected'
         }
     });
+
+    col3.appendChild(document.createElement('br'))
+
+    var rowDiv2 = document.createElement('div');
+    rowDiv2.classList.add('row');
+    col3.appendChild(rowDiv2);
+
+    var colU = document.createElement('div')
+    colU.classList.add('col-lg-12')
+    colU.innerHTML = 'Checked By:'
+    rowDiv2.append(colU)
+
+    var rowDiv3 = document.createElement('div');
+    rowDiv3.classList.add('row');
+    col3.appendChild(rowDiv3);
+
+    var colU = document.createElement('div')
+    colU.classList.add('col-lg-12')
+    colU.id = 'staticCheckedBy'
+    colU.innerHTML = ''
+    rowDiv3.append(colU)
     
     var row = document.createElement('div')
     row.classList.add('row')
@@ -5796,6 +5889,13 @@ function updateStaticMap() {
 
     finishedDisplaying = false
     document.getElementById('mapTitle').innerHTML = staticgroups[staticgroupIndex].images[imageIndex].url.split('/').slice(1).join('/')
+    if (staticgroups[staticgroupIndex].user){
+        document.getElementById('staticCheckedBy').innerHTML = staticgroups[staticgroupIndex].user
+    }
+    else{
+        document.getElementById('staticCheckedBy').innerHTML = 'None'
+    }
+    
     if (staticgroups[staticgroupIndex].staticgroup_status == 'rejected') {
         document.getElementById('staticToggle').checked = false
     }

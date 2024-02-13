@@ -596,7 +596,7 @@ function maskArea(mapID = 'map1') {
             nextCluster()
         }
         else if (globalMasks[mapID][0] == -1) {
-            document.getElementById('modalAlertText').innerHTML = 'The area you have masked is too small or too large. Please try again.'
+            document.getElementById('modalAlertText').innerHTML = 'The area you have masked is too small. Please try again.'
             modalAlert.modal({keyboard: true});
         }
         else {
@@ -629,7 +629,7 @@ function updateMasks(mapID = 'map1') {
 
                 // Check area of polygon
                 var area = (poly_box['bottom']-poly_box['top']) * (poly_box['right']-poly_box['left']) 
-                if (area >= 0.001 && area <= 0.3) {
+                if (area >= 0.001) {
                     globalMasks[mapID].push(mask_dict)
                 }
                 else{

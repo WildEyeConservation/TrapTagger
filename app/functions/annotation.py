@@ -602,30 +602,18 @@ def manageTasks():
         startTime = datetime.utcnow()
         session = db.session()
 
-        # Check Knockdown for timeout
-        tasks = session.query(Task)\
-                        .join(Survey)\
-                        .join(Organisation)\
-                        .join(UserPermissions)\
-                        .join(User,UserPermissions.user_id==User.id)\
-                        .filter(User.last_ping < (datetime.utcnow()-timedelta(minutes=5)))\
-                        .filter(Task.status=='Knockdown Analysis')\
-                        .distinct().all()
+        # # Check Knockdown for timeout
+        # tasks = session.query(Task)\
+        #                 .join(Survey)\
+        #                 .join(Organisation)\
+        #                 .join(UserPermissions)\
+        #                 .join(User,UserPermissions.user_id==User.id)\
+        #                 .filter(User.last_ping < (datetime.utcnow()-timedelta(minutes=5)))\
+        #                 .filter(Task.status=='Knockdown Analysis')\
+        #                 .distinct().all()
         
-        for task in tasks:
-            task.status = 'successInitial'
-
-        # Check for Static Detection Analysis timeout
-        surveys = session.query(Survey)\
-                        .join(Organisation)\
-                        .join(UserPermissions)\
-                        .join(User,UserPermissions.user_id==User.id)\
-                        .filter(User.last_ping < (datetime.utcnow()-timedelta(minutes=5)))\
-                        .filter(Survey.status=='Static Detection Analysis')\
-                        .distinct().all()
-
-        for survey in surveys:
-            survey.status = 'Ready'
+        # for task in tasks:
+        #     task.status = 'successInitial'
 
         # #Look for abandoned jobs
         # abandoned_jobs = session.query(User,Task)\
