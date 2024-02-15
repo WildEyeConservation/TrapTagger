@@ -2108,7 +2108,10 @@ def import_folder(s3Folder, tag, name, sourceBucket,destinationBucket,organisati
         videos = list(filter(isVideo.search, filenames))
         jpegs = list(filter(isjpeg.search, filenames))
         if (len(jpegs) or len(videos)) and not any(exclusion in dirpath for exclusion in exclusions):
-            tags = tag.findall(dirpath.replace(survey.name+'/',''))
+            if '/_video_images_/' in dirpath:
+                tags = tag.findall(dirpath.replace(survey.name+'/','').split('/_video_images_/')[0])
+            else:
+                tags = tag.findall(dirpath.replace(survey.name+'/',''))
             if len(tags) > 0:
                 trapgroup = Trapgroup.get_or_create(localsession, tags[0], sid)
                 survey.images_processing += len(jpegs)
@@ -2162,7 +2165,10 @@ def import_folder(s3Folder, tag, name, sourceBucket,destinationBucket,organisati
         jpegs = list(filter(isjpeg.search, filenames))
         
         if len(jpegs) and not any(exclusion in dirpath for exclusion in exclusions):
-            tags = tag.findall(dirpath.replace(survey.name+'/',''))
+            if '/_video_images_/' in dirpath:
+                tags = tag.findall(dirpath.replace(survey.name+'/','').split('/_video_images_/')[0])
+            else:
+                tags = tag.findall(dirpath.replace(survey.name+'/',''))
             
             if len(tags) > 0:
                 trapgroup = Trapgroup.get_or_create(localsession, tags[0], sid)
@@ -2171,7 +2177,6 @@ def import_folder(s3Folder, tag, name, sourceBucket,destinationBucket,organisati
                 camera = Camera.get_or_create(localsession, trapgroup.id, dirpath)
 
                 # Check if GPS data is available
-                #TODO: DOUBLE CHECK THIS
                 gps_file = jpegs[0]
                 gps_key = os.path.join(dirpath,gps_file)
                 with tempfile.NamedTemporaryFile(delete=True, suffix='.JPG') as temp_file:
