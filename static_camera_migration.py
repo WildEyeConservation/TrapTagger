@@ -3,12 +3,23 @@
 from app.models import *
 from app.routes import *
 
-
+#TODO: THIS STILL NEEDS TO BE COMPLETED (STATIC)
 # Create camera groups
-cam_code = None
-trapgroup_ids = [r[0] for r in db.session.query(Trapgroup.id).all()]
-for trapgroup_id in trapgroup_ids:
-    group_cameras(trapgroup_id, cam_code)
+# cam_code = None
+# trapgroup_ids = [r[0] for r in db.session.query(Trapgroup.id).all()]
+# for trapgroup_id in trapgroup_ids:
+#     group_cameras(trapgroup_id, cam_code)
+#     db.session.commit()
+
+survey_ids = [r[0] for r in db.session.query(Survey.id).all()]
+for survey_id in survey_ids:
+    survey = db.session.query(Survey).get(survey_id)
+    survey_name = survey.name
+    survey_tag = survey.trapgroup_code
+    camera_code = survey.camera_code
+    trapgroup_ids = [r[0] for r in db.session.query(Trapgroup.id).filter(Trapgroup.survey_id==survey_id).distinct().all()]
+    for trapgroup_id in trapgroup_ids:
+        group_cameras(trapgroup_id, camera_code, survey_name, survey_tag)
     db.session.commit()
 
 
@@ -120,7 +131,7 @@ def process_db_static_detections(cameragroup_id):
 
 
 # Create static groups
-cameragroup_ids = [r[0] for r in db.session.query(Cameragroup.id).limit(1000).all()]
+cameragroup_ids = [r[0] for r in db.session.query(Cameragroup.id).all()]
 for cameragroup_id in cameragroup_ids:
     process_db_static_detections(cameragroup_id)
     db.session.commit()
