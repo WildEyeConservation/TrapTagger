@@ -20,6 +20,7 @@ limitations under the License. -->
         filter: brightness(100%) contrast(100%) saturate(100%);
     }
 </style>
+
 <div class="row" >
     <div class="col-lg-1"></div>
     <div class="col-lg-8" style="text-align: center;">
@@ -27,8 +28,15 @@ limitations under the License. -->
         <p id="debug-text">
             <div id="debugImage" align="center"></div>
         </p>
+    </div>
+    <div class="col-lg-3"></div>
+</div>
+
+<div class="row" >
+    <div class="col-lg-1"></div>
+    <div class="col-lg-8" style="text-align: center;">
         <center>
-            <div id="mapDiv" style='height: 800px'></div>
+            <div id="mapDiv" style='height: 750px'></div>
         </center>
 
         <div class="row" >
@@ -59,11 +67,10 @@ limitations under the License. -->
                 <div class="col-lg-1"></div>
             </div>
         </div>
-
+        <br>
     </div>
     <div class="col-lg-2">
         <div class="control-group">
-            <p></p>
             <button class="btn btn-primary btn-block  btn-sm" onclick=handleStatic(1)>Accept (A)</button>
             <button class="btn btn-primary btn-block  btn-sm" onclick=handleStatic(0)>Reject (R)</button>
         </div>

@@ -12225,6 +12225,7 @@ def getStaticDetections(survey_id, reqID):
         # camera_id = request.args.get('camera_id', None)
         staticgroup_id = request.args.get('staticgroup_id', None)
         edit = request.args.get('edit', False, type=bool)
+        cameragroup_id = request.args.get('cameragroup_id', None)
 
         detectionClusters = db.session.query(
                                     Detection.id,
@@ -12256,9 +12257,14 @@ def getStaticDetections(survey_id, reqID):
         if staticgroup_id:
             detectionClusters = detectionClusters.filter(Staticgroup.id==staticgroup_id)
 
+        if cameragroup_id and cameragroup_id != '0':
+            detectionClusters = detectionClusters.join(Cameragroup).filter(Cameragroup.id==cameragroup_id)
+
         if not edit:
             GLOBALS.redisClient.set('static_check_ping_'+str(survey_id),datetime.utcnow().timestamp())
             detectionClusters = detectionClusters.filter(Detection.static==True).filter(Staticgroup.status=='unknown')
+        else:
+            detectionClusters = detectionClusters.filter(Staticgroup.status.in_(['accepted','rejected','unknown']))
 
         detectionClusters = detectionClusters.distinct().all()
 
@@ -12393,7 +12399,7 @@ def getSurveyMasks(survey_id):
                                 .filter(Detection.status=='masked')\
                                 .filter(or_(and_(Detection.source==model,Detection.score>Config.DETECTOR_THRESHOLDS[model]) for model in Config.DETECTOR_THRESHOLDS))\
                                 .filter(Detection.static==False)\
-                                .order_by(Camera.id,Image.corrected_timestamp)
+                                .order_by(Cameragroup.id,Image.corrected_timestamp)
                                 
         if cameragroup_id:
             mask_data = mask_data.filter(Cameragroup.id==cameragroup_id)
@@ -12470,7 +12476,7 @@ def getMaskCameras(survey_id):
     cameragroup_ids = []
     survey = db.session.query(Survey).get(survey_id)
     if survey and checkSurveyPermission(current_user.id,survey.id,'write'):
-        cameragroups = db.session.query(Mask.cameragroup_id).join(Cameragroup).join(Camera).join(Trapgroup).filter(Trapgroup.survey_id==survey_id).distinct().all()
+        cameragroups = db.session.query(Mask.cameragroup_id).join(Cameragroup).join(Camera).join(Trapgroup).filter(Trapgroup.survey_id==survey_id).order_by(Mask.cameragroup_id).distinct().all()
         cameragroup_ids = [c[0] for c in cameragroups]
 
     return json.dumps(cameragroup_ids)
@@ -12482,6 +12488,7 @@ def getStaticGroupIDs(survey_id):
     staticgroup_ids = []
     survey = db.session.query(Survey).get(survey_id)
     edit = request.args.get('edit', False, type=bool)
+    cameragroup_id = request.args.get('cameragroup_id', None)
     if survey and checkSurveyPermission(current_user.id,survey.id,'write'):
         staticgroups = db.session.query(Staticgroup.id)\
                                 .join(Detection)\
@@ -12490,9 +12497,14 @@ def getStaticGroupIDs(survey_id):
                                 .join(Trapgroup)\
                                 .filter(Trapgroup.survey_id==survey_id)\
         
+        if cameragroup_id and cameragroup_id != '0':
+            staticgroups = staticgroups.join(Cameragroup).filter(Cameragroup.id==cameragroup_id)
+
         if not edit:
             GLOBALS.redisClient.set('static_check_ping_'+str(survey_id),datetime.utcnow().timestamp())
             staticgroups = staticgroups.filter(Detection.static==True).filter(Staticgroup.status=='unknown')
+        else:
+            staticgroups = staticgroups.filter(Staticgroup.status.in_(['accepted','rejected','unknown']))
 
         staticgroup_ids = [s[0] for s in staticgroups.distinct().all()]
 
@@ -12602,3 +12614,27 @@ def getSurveyStructure():
         prev_url = url_for('getSurveyStructure', page=data.prev_num, survey_id=survey_id) if data.has_prev else None
 
     return json.dumps({'survey': survey_id, 'structure': structure, 'next_url':next_url, 'prev_url':prev_url})
+
+@app.route('/getStaticCameragroups/<survey_id>')
+@login_required
+def getStaticCameragroups(survey_id):
+    ''' Gets all the cameragroups that have static detections in a survey '''
+    cameragroups = []
+    survey = db.session.query(Survey).get(survey_id)
+    if survey and checkSurveyPermission(current_user.id,survey.id,'write'):
+        cameragroups = db.session.query(Cameragroup.id, Cameragroup.name)\
+                                .join(Camera, Camera.cameragroup_id==Cameragroup.id)\
+                                .join(Trapgroup, Trapgroup.id==Camera.trapgroup_id)\
+                                .join(Image)\
+                                .join(Detection)\
+                                .join(Staticgroup)\
+                                .filter(Trapgroup.survey_id==survey_id)\
+                                .filter(Staticgroup.status.in_(['accepted','rejected','unknown']))\
+                                .order_by(Cameragroup.name)\
+                                .distinct().all()
+
+                                
+        for i in range(len(cameragroups)):
+            cameragroups[i] = {'id': cameragroups[i][0], 'name': cameragroups[i][1]}
+    
+    return json.dumps(cameragroups)

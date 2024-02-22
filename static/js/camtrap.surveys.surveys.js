@@ -4800,10 +4800,30 @@ function buildEditMasks() {
     rowDiv2.classList.add('row');
     col3.appendChild(rowDiv2);
 
-    var colU = document.createElement('div')
-    colU.classList.add('col-lg-12')
-    colU.innerHTML = 'Created/Edited By:'
-    rowDiv2.append(colU)
+    // var colU = document.createElement('div')
+    // colU.classList.add('col-lg-12')
+    // colU.innerHTML = 'User:'
+    // rowDiv2.append(colU)
+
+    // var rowDiv3 = document.createElement('div');
+    // rowDiv3.classList.add('row');
+    // col3.appendChild(rowDiv3);
+
+    // var colU = document.createElement('div')
+    // colU.classList.add('col-lg-12')
+    // colU.id = 'maskUsers'
+    // colU.innerHTML = ''
+    // rowDiv3.append(colU)
+
+    h5 = document.createElement('h5')
+    h5.setAttribute('style','margin-bottom: 2px')
+    h5.innerHTML = 'Users'
+    col3.appendChild(h5)
+
+    div = document.createElement('div')
+    div.setAttribute('style','font-size: 80%; margin-bottom: 2px')
+    div.innerHTML = '<i>The users that have created or edited the masks for this camera.</i>'
+    col3.appendChild(div)
 
     var rowDiv3 = document.createElement('div');
     rowDiv3.classList.add('row');
@@ -4811,9 +4831,16 @@ function buildEditMasks() {
 
     var colU = document.createElement('div')
     colU.classList.add('col-lg-12')
-    colU.id = 'maskUsers'
-    colU.innerHTML = ''
     rowDiv3.append(colU)
+
+    var input = document.createElement('textarea')
+    input.id = 'maskUsers'
+    input.classList.add('form-control')
+    // input.setAttribute('type','text')
+    input.setAttribute('style', 'background-color: white; outline-color: #DF691A; rows: 2; resize: none;')
+    input.disabled = true
+    colU.appendChild(input)
+
 
     var row = document.createElement('div')
     row.classList.add('row')
@@ -5197,14 +5224,14 @@ function updateMaskMap() {
     finishedDisplaying = false
     document.getElementById('mapTitle').innerHTML = cameras[cameraIndex].images[imageIndex].url.split('/').slice(1).join('/')
 
-    document.getElementById('maskUsers').innerHTML = ''
+    document.getElementById('maskUsers').value = ''
     mask_users=''
     for (let i=0; i<cameras[cameraIndex].masks.length; i++){
         if (!mask_users.includes(cameras[cameraIndex].masks[i].user) && cameras[cameraIndex].masks[i].user != 'None') {
             mask_users += cameras[cameraIndex].masks[i].user + ', '
         }
     }
-    document.getElementById('maskUsers').innerHTML = mask_users.slice(0,-2)
+    document.getElementById('maskUsers').value = mask_users.slice(0,-2)
 
 
     if (map != null) {
@@ -5470,7 +5497,7 @@ function getMaskCameras(){
 
 function updateButtons() {
     /** Updates the buttons on the edit survey modal. */
-    if (tabActiveEditSurvey=='baseEditMasksTab') {
+    if ((tabActiveEditSurvey=='baseEditMasksTab') && (document.getElementById('btnPrevImage'))){
         if (imageIndex==0) {
             document.getElementById('btnPrevImage').disabled = true
         }
@@ -5496,7 +5523,7 @@ function updateButtons() {
             document.getElementById('btnNextCamera').disabled = false
         }
     }
-    else if (tabActiveEditSurvey=='baseStaticTab'){
+    else if ((tabActiveEditSurvey=='baseStaticTab') && (document.getElementById('btnPrevImage'))){
         if (imageIndex==0) {
             document.getElementById('btnPrevImage').disabled = true
         }
@@ -5542,6 +5569,7 @@ function openStaticDetections() {
         staticgroupDetections = {}
         clearEditSurveyModal()
         buildViewStatic()
+        getStaticCameras()
         getStaticGroups()
     }
 }
@@ -5603,24 +5631,120 @@ function buildViewStatic() {
     mapDiv.style.height = '700px'
     center.appendChild(mapDiv)
 
+
+
+    // col3.appendChild(document.createElement('br'))
+
+    // var rowDiv2 = document.createElement('div');
+    // rowDiv2.classList.add('row');
+    // col3.appendChild(rowDiv2);
+
+    // var colU = document.createElement('div')
+    // colU.classList.add('col-lg-12')
+    // colU.innerHTML = 'User:'
+    // rowDiv2.append(colU)
+
+
+    // col3.appendChild(document.createElement('br'))
+
+    h5 = document.createElement('h5')
+    h5.setAttribute('style','margin-bottom: 2px')
+    h5.innerHTML = 'User'
+    col3.appendChild(h5)
+
+    div = document.createElement('div')
+    div.setAttribute('style','font-size: 80%; margin-bottom: 2px')
+    div.innerHTML = '<i>The user that has checked the static detections.</i>'
+    col3.appendChild(div)
+
+    var rowDiv3 = document.createElement('div');
+    rowDiv3.classList.add('row');
+    col3.appendChild(rowDiv3);
+
+    var colU = document.createElement('div')
+    colU.classList.add('col-lg-12')
+    rowDiv3.append(colU)
+
+    var input = document.createElement('input')
+    input.id = 'staticCheckedBy'
+    input.classList.add('form-control')
+    input.setAttribute('type','text')
+    input.setAttribute('style', 'background-color: white;') 
+    input.disabled = true
+    colU.appendChild(input)
+
+    col3.appendChild(document.createElement('br'))
+
+    h5 = document.createElement('h5')
+    h5.setAttribute('style','margin-bottom: 2px')
+    h5.innerHTML = 'Camera'
+    col3.appendChild(h5)
+
+    div = document.createElement('div')
+    div.setAttribute('style','font-size: 80%; margin-bottom: 2px')
+    div.innerHTML = '<i>Filter your static detections by camera.</i>'
+    col3.appendChild(div)
+
+    var select = document.createElement('select');
+    select.id = 'sgCamSelect';
+    select.classList.add('form-control');
+    col3.appendChild(select);
+
+    document.getElementById('sgCamSelect').addEventListener('change', ()=>{
+        if (finishedDisplaying) {
+            staticgroups = []
+            staticgroupIndex = 0
+            imageIndex = 0
+            staticgroupIDs = []
+            staticgroupReadAheadIndex = 0
+            staticgroups = []
+            staticgroup_ids = []
+            finishedDisplaying = true
+            staticgroupDetections = {}
+            getStaticGroups()
+        }
+    });
+
+    // var rowDiv = document.createElement('div');
+    // rowDiv.classList.add('row');
+    // col3.appendChild(rowDiv);
+
+    // var colDiv1 = document.createElement('div');
+    // colDiv1.classList.add('col-lg-5', 'd-flex', 'align-items-center', 'justify-content-left');
+    // colDiv1.style.paddingRight = '0px'
+    // rowDiv.appendChild(colDiv1);
+
+    // var colDiv2 = document.createElement('div');
+    // colDiv2.classList.add('col-lg-7')
+    // colDiv2.style.paddingLeft = '0px'
+    // rowDiv.appendChild(colDiv2);
+
+    col3.appendChild(document.createElement('br'))
+
+    h5 = document.createElement('h5')
+    h5.setAttribute('style','margin-bottom: 2px')
+    h5.innerHTML = 'Static'
+    col3.appendChild(h5)
+
+    div = document.createElement('div')
+    div.setAttribute('style','font-size: 80%; margin-bottom: 2px')
+    div.innerHTML = '<i>Edit the status of the static detections.</i>'
+    col3.appendChild(div)
+
     var rowDiv = document.createElement('div');
     rowDiv.classList.add('row');
     col3.appendChild(rowDiv);
 
-    var colDiv1 = document.createElement('div');
-    colDiv1.classList.add('col-lg-5', 'd-flex', 'align-items-center', 'justify-content-left');
-    colDiv1.style.paddingRight = '0px'
-    rowDiv.appendChild(colDiv1);
-
     var colDiv2 = document.createElement('div');
-    colDiv2.classList.add('col-lg-7')
-    colDiv2.style.paddingLeft = '0px'
+    colDiv2.classList.add('col-lg-12')
+    // colDiv2.style.paddingLeft = '0px'
     rowDiv.appendChild(colDiv2);
 
-    var h6 = document.createElement('h6')
-    h6.innerHTML = 'Static: '
-    h6.style.margin = '0px'
-    colDiv1.appendChild(h6)
+
+    // var h6 = document.createElement('h5')
+    // h6.innerHTML = 'Static '
+    // h6.style.margin = '0px'
+    // colDiv1.appendChild(h6)
 
     var toggleDiv = document.createElement('div');
     toggleDiv.classList.add('justify-content-left');
@@ -5649,27 +5773,6 @@ function buildViewStatic() {
             staticgroups[staticgroupIndex].staticgroup_status = 'rejected'
         }
     });
-
-    col3.appendChild(document.createElement('br'))
-
-    var rowDiv2 = document.createElement('div');
-    rowDiv2.classList.add('row');
-    col3.appendChild(rowDiv2);
-
-    var colU = document.createElement('div')
-    colU.classList.add('col-lg-12')
-    colU.innerHTML = 'Checked By:'
-    rowDiv2.append(colU)
-
-    var rowDiv3 = document.createElement('div');
-    rowDiv3.classList.add('row');
-    col3.appendChild(rowDiv3);
-
-    var colU = document.createElement('div')
-    colU.classList.add('col-lg-12')
-    colU.id = 'staticCheckedBy'
-    colU.innerHTML = ''
-    rowDiv3.append(colU)
     
     var row = document.createElement('div')
     row.classList.add('row')
@@ -5806,6 +5909,16 @@ function buildViewStatic() {
 function getStaticGroups(){
     /* Gets the static groups for the current survey */
 
+    if (document.getElementById('sgCamSelect')) {
+        selectedCamera = document.getElementById('sgCamSelect').value
+        if (selectedCamera == ''){
+            selectedCamera = '0'
+        }
+    }
+    else{
+        selectedCamera = '0'
+    }
+
     var xhttp = new XMLHttpRequest();
     xhttp.onreadystatechange =
     function(){
@@ -5844,11 +5957,21 @@ function getStaticGroups(){
             }
         }
     }
-    xhttp.open("GET", '/getStaticGroupIDs/'+selectedSurvey + '?edit=true');
+    xhttp.open("GET", '/getStaticGroupIDs/'+selectedSurvey + '?edit=true&cameragroup_id=' + selectedCamera);
     xhttp.send();
 }
 
 function getStaticDetections() {
+
+    if (document.getElementById('sgCamSelect')) {
+        selectedCamera = document.getElementById('sgCamSelect').value
+        if (selectedCamera == ''){
+            selectedCamera = '0'
+        }
+    }
+    else{
+        selectedCamera = '0'
+    }
 
     if (staticgroupReadAheadIndex < staticgroupIDs.length) {
         var xhttp = new XMLHttpRequest();
@@ -5878,10 +6001,39 @@ function getStaticDetections() {
                 updateButtons()
             }
         }
-        xhttp.open("GET", '/getStaticDetections/' + selectedSurvey + '/' + 0 + '?staticgroup_id=' + staticgroupIDs[staticgroupReadAheadIndex++] + '&edit=true');
+        xhttp.open("GET", '/getStaticDetections/' + selectedSurvey + '/' + 0 + '?staticgroup_id=' + staticgroupIDs[staticgroupReadAheadIndex++] + '&edit=true&cameragroup_id=' + selectedCamera);
         xhttp.send();
     }
 
+}
+
+function getStaticCameras(){
+    var xhttp = new XMLHttpRequest();
+    xhttp.onreadystatechange =
+    function(){
+        if (this.readyState == 4 && this.status == 200) {
+            reply = JSON.parse(this.responseText);
+            staticCameras = reply
+
+            console.log(staticCameras)
+
+            sgCamSelect = document.getElementById('sgCamSelect')
+            clearSelect(sgCamSelect)
+
+            optionTexts = ['All']
+            optionValues = ['0']
+            for (var i=0; i<staticCameras.length; i++) {
+                optionTexts.push(staticCameras[i].name)
+                optionValues.push(staticCameras[i].id)
+            }
+
+            fillSelect(sgCamSelect, optionTexts, optionValues)
+
+        }
+
+    }
+    xhttp.open("GET", '/getStaticCameragroups/'+selectedSurvey);
+    xhttp.send();
 }
 
 function updateStaticMap() {
@@ -5890,10 +6042,10 @@ function updateStaticMap() {
     finishedDisplaying = false
     document.getElementById('mapTitle').innerHTML = staticgroups[staticgroupIndex].images[imageIndex].url.split('/').slice(1).join('/')
     if (staticgroups[staticgroupIndex].user){
-        document.getElementById('staticCheckedBy').innerHTML = staticgroups[staticgroupIndex].user
+        document.getElementById('staticCheckedBy').value = staticgroups[staticgroupIndex].user
     }
     else{
-        document.getElementById('staticCheckedBy').innerHTML = 'None'
+        document.getElementById('staticCheckedBy').value =  'None'
     }
     
     if (staticgroups[staticgroupIndex].staticgroup_status == 'rejected') {
