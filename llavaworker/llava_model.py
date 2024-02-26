@@ -35,6 +35,10 @@ temperature = 0.2
 max_new_tokens = 512
 conv_mode = None
 s3client = boto3.client('s3')
+tokenizer = None
+model = None
+image_processor = None
+context_len = None
 
 def load_image(image,sourceBucket,external):
     '''Loads the image from the given file or URL.'''
@@ -75,7 +79,7 @@ def load_image(image,sourceBucket,external):
 def init():
     '''Initializes the model and other variables.'''
 
-    global conv_mode, initialised
+    global conv_mode, initialised, tokenizer, model, image_processor, context_len
     disable_torch_init()
     model_name = get_model_name_from_path(model_path)
     tokenizer, model, image_processor, context_len = load_pretrained_model(model_path, None, model_name, load_8bit, load_4bit, device='cuda')
