@@ -17,12 +17,18 @@ limitations under the License.
 import os
 from celery import Celery
 from celery.signals import celeryd_after_setup
-from llavaworker import llava_model
+# from llavaworker import llava_model
 
 BASE = "/data"
 REDIS_IP = os.environ.get('REDIS_IP') or '127.0.0.1'
 app = Celery('llava', broker='redis://'+REDIS_IP,backend='redis://'+REDIS_IP,broker_transport_options={'visibility_timeout': 86400},result_expires=86400,task_acks_late=True)
 workername="default"
+
+tokenizer = None
+model = None
+image_processor = None
+context_len = None
+conv_mode = None
 
 @celeryd_after_setup.connect
 def setup_direct_queue(sender, instance, **kwargs):
@@ -47,7 +53,8 @@ def llava_infer(batch,sourceBucket,prompt,external=False):
     '''
 
     response = {}
+    global model,tokenizer,image_processor,context_len,conv_mode
     for image in batch:
-       response[image] = llava_model.infer(image,sourceBucket,external,prompt)
+       response[image],model,tokenizer,image_processor,context_len = llava_model.infer(image,sourceBucket,external,prompt,model,tokenizer,image_processor,context_len,conv_mode)
     
     return response

@@ -27,18 +27,13 @@ from transformers import TextStreamer
 import boto3
 import tempfile
 
-initialised = False
-model_path='liuhaotian/llava-v1.6-34b'
+# model_path='liuhaotian/llava-v1.6-34b'
+model_path='liuhaotian/llava-v1.6-mistral-7b'
 load_4bit = True
 load_8bit = False
 temperature = 0.2
 max_new_tokens = 512
-conv_mode = None
 s3client = boto3.client('s3')
-tokenizer = None
-model = None
-image_processor = None
-context_len = None
 
 def load_image(image,sourceBucket,external):
     '''Loads the image from the given file or URL.'''
@@ -79,7 +74,6 @@ def load_image(image,sourceBucket,external):
 def init():
     '''Initializes the model and other variables.'''
 
-    global conv_mode, initialised, tokenizer, model, image_processor, context_len
     disable_torch_init()
     model_name = get_model_name_from_path(model_path)
     tokenizer, model, image_processor, context_len = load_pretrained_model(model_path, None, model_name, load_8bit, load_4bit, device='cuda')
@@ -96,15 +90,13 @@ def init():
         conv_mode = "mpt"
     else:
         conv_mode = "llava_v0"
-    
-    initialised = True
 
-    return True
+    return model,tokenizer,image_processor,context_len,conv_mode
 
-def infer(image,sourceBucket,external,prompt):
+def infer(image,sourceBucket,external,prompt,model,tokenizer,image_processor,context_len,conv_mode):
     '''Generates a response to the given prompt and image.'''
     
-    if not initialised: init()
+    if model==None: model,tokenizer,image_processor,context_len,conv_mode = init()
 
     # prep image
     image = load_image(image,sourceBucket,external)
@@ -145,4 +137,4 @@ def infer(image,sourceBucket,external,prompt):
             streamer=streamer,
             use_cache=True)
     
-    return tokenizer.decode(output_ids[0]).split('<|startoftext|>')[1].split('<|im_end|>')[0].strip()
+    return tokenizer.decode(output_ids[0]).split('<|startoftext|>')[1].split('<|im_end|>')[0].strip(),model,tokenizer,image_processor,context_len,conv_mode
