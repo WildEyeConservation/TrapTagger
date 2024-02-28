@@ -95,8 +95,6 @@ def init():
 
 def infer(image,sourceBucket,external,prompt,model,tokenizer,image_processor,context_len,conv_mode):
     '''Generates a response to the given prompt and image.'''
-    
-    if model==None: model,tokenizer,image_processor,context_len,conv_mode = init()
 
     # prep image
     image = load_image(image,sourceBucket,external)
@@ -137,4 +135,5 @@ def infer(image,sourceBucket,external,prompt,model,tokenizer,image_processor,con
             streamer=streamer,
             use_cache=True)
     
-    return tokenizer.decode(output_ids[0]).split('<|startoftext|>')[1].split('<|im_end|>')[0].strip(),model,tokenizer,image_processor,context_len,conv_mode
+    return tokenizer.decode(output_ids[0]).split('<s>')[1].split('</s>')[0].strip()
+    # return tokenizer.decode(output_ids[0]).split('<|startoftext|>')[1].split('<|im_end|>')[0].strip()

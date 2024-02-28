@@ -52,9 +52,12 @@ def llava_infer(batch,sourceBucket,prompt,external=False):
             results (dict): A dictionary of the form {image_key: result} for each image in the batch.
     '''
 
-    response = {}
     global model,tokenizer,image_processor,context_len,conv_mode
+    if model == None: model,tokenizer,image_processor,context_len,conv_mode = llava_model.init()
+
+    response = {}
     for image in batch:
-       response[image],model,tokenizer,image_processor,context_len = llava_model.infer(image,sourceBucket,external,prompt,model,tokenizer,image_processor,context_len,conv_mode)
+       response[image] = llava_model.infer(image,sourceBucket,external,prompt,model,tokenizer,image_processor,context_len,conv_mode)
+       print(image,response[image])
     
     return response
