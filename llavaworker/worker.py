@@ -15,6 +15,7 @@ limitations under the License.
 '''
 
 import os
+import time
 from celery import Celery
 from celery.signals import celeryd_after_setup
 from llavaworker import llava_model
