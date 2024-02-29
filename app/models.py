@@ -506,6 +506,7 @@ class Video(db.Model):
     hash = db.Column(db.String(64), index=True)
     downloaded = db.Column(db.Boolean, default=False, index=True)
     camera_id = db.Column(db.Integer, db.ForeignKey('camera.id'), index=True, unique=False)
+    extracted_timestamp = db.Column(db.String(64), index=False)
 
     def __repr__(self):
         return '<Video {}>'.format(self.filename)

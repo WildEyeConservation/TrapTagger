@@ -4107,9 +4107,15 @@ def get_video_timestamps(self,survey_id):
     '''Videos have a poorly defined metadata standard. In order to get their timestamps consistently, we need to visually strip them from their frames'''
 
     try:
-        prompt = 'There is a timestamp embedded in this image. Please return only this timestamp in the format year/month/day hour:month:second. If there is no timestamp, return "none"'
+        prompt = 'There is a timestamp embedded onto this image somewhere. Please return only this timestamp in the format year/month/day hour:month:second. If there is no timestamp, return "none"'
         
-        batch = [r[0] for r in db.session.query(Camera.path+'/'+Image.filename).join(Camera).join(Video).join(Trapgroup).filter(Trapgroup.survey_id==survey_id).group_by(Video.id).distinct().all()]
+        batch = [r[0] for r in db.session.query(Camera.path+'/'+Image.filename)\
+                                        .join(Camera)\
+                                        .join(Video)\
+                                        .join(Trapgroup)\
+                                        .filter(Image.filename.contains('frame0'))\
+                                        .filter(Trapgroup.survey_id==survey_id)\
+                                        .group_by(Video.id).distinct().all()]
         db.session.close()
 
         results = []
@@ -4120,16 +4126,18 @@ def get_video_timestamps(self,survey_id):
             for result in results:
                 try:
                     response = result.get()
-                    with open('llava_output.json','w') as f:
-                        json.dump(response,f)
                     for file_path in response:
-
                         if response[file_path] != 'none':
                             try:
-                                timestamp = datetime.strptime(response[file_path], '%Y/%m/%d %H:%M:%S')
                                 path = '/'.join(file_path.split('/')[:-1])
                                 filename = file_path.split('/')[-1]
                                 image = db.session.query(Image).join(Camera).join(Trapgroup).filter(Trapgroup.survey_id==survey_id).filter(Camera.path==path).filter(Image.filename==filename).first()
+                                
+                                # Save raw extracted data into db
+                                image.camera.video.extracted_timestamp = response[file_path]
+
+                                # Try parse extracted data
+                                timestamp = datetime.strptime(response[file_path], '%Y/%m/%d %H:%M:%S')
                                 image.timestamp = timestamp
                                 image.corrected_timestamp = timestamp
                             except:

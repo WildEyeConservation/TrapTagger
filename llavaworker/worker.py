@@ -52,12 +52,19 @@ def llava_infer(batch,sourceBucket,prompt,external=False):
             results (dict): A dictionary of the form {image_key: result} for each image in the batch.
     '''
 
+    starttime = time.time()
     global model,tokenizer,image_processor,context_len,conv_mode
     if model == None: model,tokenizer,image_processor,context_len,conv_mode = llava_model.init()
+    inittime = time.time()
 
     response = {}
     for image in batch:
        response[image] = llava_model.infer(image,sourceBucket,external,prompt,model,tokenizer,image_processor,context_len,conv_mode)
        print(image,response[image])
+
+    finishtime = time.time()
+    print('LLaVA job completed in {}s.'.format(finishtime-starttime))
+    print('Init completed in {}s.'.format(inittime-starttime))
+    print('Inference completed in {}s with an average if {} per image.'.format(finishtime-inittime,(finishtime-inittime/len(batch))))
     
     return response
