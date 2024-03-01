@@ -46,6 +46,8 @@ var taskEditDict = {};
 var sessionDeletes = []
 var discardCancelled = false
 var discardOpened = false
+var confirmCancelled = false
+var confirmOpened = false
 var sessionIDs = []
 var selectedTaskName = null
 var allLabelsComp = null
@@ -108,6 +110,9 @@ var prev_classifier_url
 var currentDownloads = []
 var currentDownloadTasks = []
 var checkingTGC = false
+var speciesAndTasks = {}
+var speciesEditDict = {}
+var speciesLabelIDs = {}
 
 var s3 = null
 var stopFlag = true
@@ -159,6 +164,7 @@ const modalCSVGenerate = $('#modalCSVGenerate');
 const btnCsvGenerate = document.querySelector('#btnCsvGenerate');
 const btnExcelDownload = document.querySelector('#btnExcelDownload');
 const btnCsvDownload = document.querySelector('#btnCsvDownload');
+const modalConfirmEditSpecies = $('#modalConfirmEditSpecies');
 
 var polarColours = {'rgba(10,120,80,0.2)':false,
                     'rgba(255,255,255,0.2)':false,

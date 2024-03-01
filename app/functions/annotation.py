@@ -129,7 +129,7 @@ def launch_task(self,task_id):
                                     .filter(Individual.species==species)\
                                     .first()
                     if check==None:
-                        calculate_individual_similarities(task.id,species,None)
+                        calculate_individual_similarities(task.id,species)
                         task = db.session.query(Task).get(task_id)
 
                 #extract threshold
@@ -385,27 +385,28 @@ def wrapUpTask(self,task_id):
         task.tagging_time = total_time
         task.jobs_finished = len(turkcodes)
 
-        if '-4' in task.tagging_level:
+        # if '-4' in task.tagging_level:
             #Check if complete
-            tL = re.split(',',task.tagging_level)
-            species = tL[1]
-            incompleteIndividuals = db.session.query(Individual)\
-                                            .outerjoin(IndSimilarity, or_(IndSimilarity.individual_1==Individual.id,IndSimilarity.individual_2==Individual.id))\
-                                            .filter(Individual.tasks.contains(task))\
-                                            .filter(Individual.species==species)\
-                                            .filter(Individual.name!='unidentifiable')\
-                                            .filter(IndSimilarity.score==None)\
-                                            .distinct().count()
-            total_individual_count = db.session.query(Individual)\
-                                            .filter(Individual.tasks.contains(task))\
-                                            .filter(Individual.species==species)\
-                                            .filter(Individual.name!='unidentifiable')\
-                                            .count()
-            if Config.DEBUGGING: app.logger.info('There are {} incomplete individuals for wrapTask'.format(incompleteIndividuals))
-            if (incompleteIndividuals == 0) or (total_individual_count<2):
-                task.survey.status = 'Ready'
+            # tL = re.split(',',task.tagging_level)
+            # species = tL[1]
+            # incompleteIndividuals = db.session.query(Individual)\
+            #                                 .outerjoin(IndSimilarity, or_(IndSimilarity.individual_1==Individual.id,IndSimilarity.individual_2==Individual.id))\
+            #                                 .filter(Individual.tasks.contains(task))\
+            #                                 .filter(Individual.species==species)\
+            #                                 .filter(Individual.name!='unidentifiable')\
+            #                                 .filter(IndSimilarity.score==None)\
+            #                                 .distinct().count()
+            # total_individual_count = db.session.query(Individual)\
+            #                                 .filter(Individual.tasks.contains(task))\
+            #                                 .filter(Individual.species==species)\
+            #                                 .filter(Individual.name!='unidentifiable')\
+            #                                 .count()
+            # if Config.DEBUGGING: app.logger.info('There are {} incomplete individuals for wrapTask'.format(incompleteIndividuals))
+            # if (incompleteIndividuals == 0) or (total_individual_count<2):
+            #     task.survey.status = 'Ready'
 
-        elif '-5' in task.tagging_level:
+
+        if '-5' in task.tagging_level:
             GLOBALS.redisClient.delete('active_individuals_'+str(task_id))
             GLOBALS.redisClient.delete('active_indsims_'+str(task_id))
 
@@ -413,8 +414,16 @@ def wrapUpTask(self,task_id):
             task.ai_check_complete = True
 
         #Accounts for individual ID background processing
+        #TODO: SIM CHECK THIS
         if 'processing' not in task.survey.status:
-            task.survey.status = 'Ready'
+            if '-4' in task.tagging_level:
+                tL = re.split(',',task.tagging_level)
+                species = tL[1]
+                task.survey.status = 'indprocessing'
+                db.session.commit()
+                calculate_individual_similarities(task.id,species)
+            else:
+                task.survey.status = 'Ready'
 
         # handle multi-tasks
         for sub_task in task.sub_tasks:
