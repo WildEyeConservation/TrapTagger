@@ -414,14 +414,13 @@ def wrapUpTask(self,task_id):
             task.ai_check_complete = True
 
         #Accounts for individual ID background processing
-        #TODO: SIM CHECK THIS
         if 'processing' not in task.survey.status:
             if '-4' in task.tagging_level:
                 tL = re.split(',',task.tagging_level)
                 species = tL[1]
                 task.survey.status = 'indprocessing'
                 db.session.commit()
-                calculate_individual_similarities(task.id,species)
+                calculate_individual_similarities.delay(task.id,species)	
             else:
                 task.survey.status = 'Ready'
 

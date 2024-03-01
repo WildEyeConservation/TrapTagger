@@ -328,16 +328,8 @@ def stop_task(self,task_id):
             #remove trapgroup list from redis
             GLOBALS.redisClient.delete('trapgroups_'+str(task.survey_id))
 
-            # TODO: SIM CHECK THIS
             if 'processing' not in survey.status:
-                if '-4' in task.tagging_level:
-                    tL = re.split(',',task.tagging_level)
-                    species = tL[1]
-                    survey.status = 'indprocessing'
-                    db.session.commit()
-                    calculate_individual_similarities(task.id,species)
-                else:
-                    survey.status = 'Ready'
+                survey.status = 'Ready'
 
             # elif survey.status=='indprocessing':
             #     #Check whether individual similarities are still being processed
@@ -2034,7 +2026,6 @@ def updateStatistics(self):
 
     return True
 
-#TODO: DOuble check this
 @celery.task(bind=True,max_retries=5,ignore_result=True)
 def delete_individuals(self,task_ids, species):
     ''' Deletes all individuals of the specified species in the specified tasks. '''
@@ -2045,44 +2036,6 @@ def delete_individuals(self,task_ids, species):
         if species and species[0] == '0':
             species = [r[0] for r in db.session.query(Individual.species).join(Task, Individual.tasks).filter(Task.id.in_(task_ids)).distinct().all()]
             app.logger.info('Species to delete: {}'.format(species))
-
-        # Delete Detection Similarities (only if all applicable tasks are included for a survey)
-        tasks = db.session.query(Task).filter(Task.id.in_(task_ids)).all()
-        survey_ids = [task.survey_id for task in tasks]
-        survey_data = db.session.query(Survey.id, Task.id)\
-                                .join(Task)\
-                                .join(Individual, Task.individuals)\
-                                .filter(Survey.id.in_(survey_ids))\
-                                .filter(Task.name != 'default')\
-                                .filter(~Task.name.contains('_o_l_d_'))\
-                                .filter(~Task.name.contains('_copying'))\
-                                .filter(Individual.species.in_(species))\
-                                .distinct().all()
-        
-        survey_task_ids = {r[0]:[] for r in survey_data}
-        for r in survey_data:
-            survey_task_ids[r[0]].append(r[1])
-
-        det_sim_task_ids = []
-        for survey_id in survey_task_ids.keys():
-            if all(t_id in task_ids for t_id in survey_task_ids[survey_id]):
-                det_sim_task_ids.extend(survey_task_ids[survey_id])
-
-        
-        detSims = db.session.query(DetSimilarity)\
-                            .join(Detection,or_(Detection.id==DetSimilarity.detection_1,Detection.id==DetSimilarity.detection_2))\
-                            .join(Image)\
-                            .join(Camera)\
-                            .join(Trapgroup)\
-                            .join(Survey)\
-                            .join(Task)\
-                            .join(Individual, Detection.individuals)\
-                            .filter(Task.id.in_(det_sim_task_ids))\
-                            .filter(Individual.species.in_(species))\
-                            .distinct().all()
-
-        for detSim in detSims:
-            db.session.delete(detSim)
 
         # Get detections
         detections = [r[0] for r in db.session.query(Detection.id)\
@@ -2119,6 +2072,27 @@ def delete_individuals(self,task_ids, species):
             else:
                 individual.tasks = [task for task in individual.tasks if task.id not in task_ids]
                 individual.tags = [tag for tag in individual.tags if tag.task_id not in task_ids]
+
+
+        # Delete Detection similarities (where detections from sims are no longer associated with individuals)
+        det1 = alias(Detection)
+        det2 = alias(Detection)
+        indDets1 = alias(individualDetections)
+        indDets2 = alias(individualDetections)
+
+        detSims = db.session.query(DetSimilarity)\
+                            .join(det1,det1.c.id==DetSimilarity.detection_1)\
+                            .join(det2,det2.c.id==DetSimilarity.detection_2)\
+                            .outerjoin(indDets1, indDets1.c.detection_id==det1.c.id)\
+                            .outerjoin(indDets2, indDets2.c.detection_id==det2.c.id)\
+                            .filter(indDets1.c.detection_id==None)\
+                            .filter(indDets2.c.detection_id==None)\
+                            .filter(det1.c.id.in_(detections))\
+                            .filter(det2.c.id.in_(detections))\
+                            .distinct().all()
+
+        for detSim in detSims:
+            db.session.delete(detSim)
 
         db.session.commit()
                 
