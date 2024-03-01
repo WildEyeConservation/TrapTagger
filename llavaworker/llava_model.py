@@ -27,8 +27,8 @@ from transformers import TextStreamer
 import boto3
 import tempfile
 
-# model_path='liuhaotian/llava-v1.6-34b'
-model_path='/home/ubuntu/TrapTagger/llavaworker/llava-v1.6-mistral-7b'
+model_path='llavaworker/llava-v1.6-34b'
+# model_path='llavaworker/llava-v1.6-mistral-7b'
 load_4bit = True
 load_8bit = False
 temperature = 0.2
@@ -135,5 +135,5 @@ def infer(image,sourceBucket,external,prompt,model,tokenizer,image_processor,con
             streamer=streamer,
             use_cache=True)
     
-    # return tokenizer.decode(output_ids[0]).split('<|startoftext|>')[1].split('<|im_end|>')[0].strip()
-    return tokenizer.decode(output_ids[0]).split('<s>')[1].split('</s>')[0].strip()
+    return tokenizer.decode(output_ids[0]).split('<|startoftext|>')[1].split('<|im_end|>')[0].strip()
+    # return tokenizer.decode(output_ids[0]).split('<s>')[1].split('</s>')[0].strip()

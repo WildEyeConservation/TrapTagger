@@ -4111,7 +4111,7 @@ def get_video_timestamps(self,survey_id):
         # prompt = 'There is a timestamp embedded onto this image somewhere. Please return only this timestamp in the exact format in which it is written. If there is no timestamp, return "none"'
         prompt = 'Return all the text in this image, unchanged and exactly as it is appears in the image. If there is no text, return "none".'
 
-        batch = [r[0] for r in db.session.query(Camera.path+'/'+Image.filename)\
+        images = [r[0] for r in db.session.query(Camera.path+'/'+Image.filename)\
                                         .join(Camera)\
                                         .join(Video)\
                                         .join(Trapgroup)\
@@ -4121,22 +4121,35 @@ def get_video_timestamps(self,survey_id):
         db.session.close()
 
         results = []
-        results.append(llava_infer.apply_async(kwargs={'batch':batch, 'sourceBucket':Config.BUCKET, 'prompt': prompt, 'external': False},queue='llava'))
+        for batch in chunker(images,300):
+            results.append(llava_infer.apply_async(kwargs={'batch':batch, 'sourceBucket':Config.BUCKET, 'prompt': prompt, 'external': False},queue='llava'))
 
         GLOBALS.lock.acquire()
         with allow_join_result():
             for result in results:
                 try:
                     response = result.get()
+
+                    data = db.session.query(Camera.path+'/'+Image.filename,Image,Video)\
+                                    .join(Camera,Image.camera_id==Camera.id)\
+                                    .join(Trapgroup,Camera.trapgroup_id==Trapgroup.id)\
+                                    .join(Video,Camera.videos)\
+                                    .filter(Trapgroup.survey_id==survey_id)\
+                                    .filter((Camera.path+'/'+Image.filename).in_(list(response.keys())))\
+                                    .distinct().all()
+                    
+                    lookup = {}
+                    for item in data:
+                        lookup[item[0]] = {'image':item[1],'video':item[2]}
+                    
                     for file_path in response:
                         if response[file_path] != 'none':
                             try:
-                                path = '/'.join(file_path.split('/')[:-1])
-                                filename = file_path.split('/')[-1]
-                                image = db.session.query(Image).join(Camera).join(Trapgroup).filter(Trapgroup.survey_id==survey_id).filter(Camera.path==path).filter(Image.filename==filename).first()
-                                
+                                image = lookup[file_path]['image']
+                                video = lookup[file_path]['video']
+
                                 # Save raw extracted data into db
-                                image.camera.videos[0].extracted_timestamp = response[file_path]
+                                video.extracted_timestamp = response[file_path]
                                 
                                 # Try parse extracted data
                                 # datutil handles everything: AM/PM, d/m/y vs m/d/y (+ ambiguous cases), d-m-y, random extra text data around it etc.
