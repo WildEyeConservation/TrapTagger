@@ -52,6 +52,7 @@ import cv2
 import piexif
 import ffmpeg
 import json
+from dateutil.parser import parse as dateutil_parse
 
 def clusterAndLabel(localsession,task_id,user_id,image_id,labels):
     '''
@@ -4107,8 +4108,9 @@ def get_video_timestamps(self,survey_id):
     '''Videos have a poorly defined metadata standard. In order to get their timestamps consistently, we need to visually strip them from their frames'''
 
     try:
-        prompt = 'There is a timestamp embedded onto this image somewhere. Please return only this timestamp in the format year/month/day hour:month:second. If there is no timestamp, return "none"'
-        
+        # prompt = 'There is a timestamp embedded onto this image somewhere. Please return only this timestamp in the exact format in which it is written. If there is no timestamp, return "none"'
+        prompt = 'Return all the text in this image, unchanged and exactly as it is appears in the image. If there is no text, return "none".'
+
         batch = [r[0] for r in db.session.query(Camera.path+'/'+Image.filename)\
                                         .join(Camera)\
                                         .join(Video)\
@@ -4134,10 +4136,11 @@ def get_video_timestamps(self,survey_id):
                                 image = db.session.query(Image).join(Camera).join(Trapgroup).filter(Trapgroup.survey_id==survey_id).filter(Camera.path==path).filter(Image.filename==filename).first()
                                 
                                 # Save raw extracted data into db
-                                image.camera.video.extracted_timestamp = response[file_path]
-
+                                image.camera.videos[0].extracted_timestamp = response[file_path]
+                                
                                 # Try parse extracted data
-                                timestamp = datetime.strptime(response[file_path], '%Y/%m/%d %H:%M:%S')
+                                # datutil handles everything: AM/PM, d/m/y vs m/d/y (+ ambiguous cases), d-m-y, random extra text data around it etc.
+                                timestamp = dateutil_parse(response[file_path],fuzzy=True,dayfirst=True)
                                 image.timestamp = timestamp
                                 image.corrected_timestamp = timestamp
                             except:
