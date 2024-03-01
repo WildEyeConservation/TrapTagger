@@ -16,25 +16,25 @@ version: '3.1'
 services:
 
     nginx:
-       # This is the default approach, uses certbot generated certificates, and auto-renews
-       restart: always
-       build:
-           context: ./
-           dockerfile: Dockerfile.certbot
-       image: nginxcertbot
-       container_name: nginx
-       depends_on:
-           - flask
-       volumes:
-           - /etc/letsencrypt:/etc/letsencrypt
-           - ./nginx.conf:/etc/nginx/conf.d/default.conf
-           - ./static:/etc/nginx/html
-       entrypoint: "/bin/sh -c 'while :; do certbot renew; sleep 12h & wait $${!}; done & nginx -g \"daemon off;\"'"
-       ports:
-           - "80:80"
-           - "443:443"
-       networks:
-           - my-network
+        # This is the default approach, uses certbot generated certificates, and auto-renews
+        restart: always
+        build:
+            context: ./
+            dockerfile: Dockerfile.certbot
+        image: nginxcertbot
+        container_name: nginx
+        depends_on:
+            - flask
+        volumes:
+            - /etc/letsencrypt:/etc/letsencrypt
+            - ./nginx.conf:/etc/nginx/conf.d/default.conf
+            - ./static:/etc/nginx/html
+        entrypoint: "/bin/sh -c 'while :; do certbot renew; sleep 12h & wait $${!}; done & nginx -g \"daemon off;\"'"
+        ports:
+            - "80:80"
+            - "443:443"
+        networks:
+            - my-network
 
     # nginx:
     #     # Use this alternative setup if using self-signed certificates
@@ -66,6 +66,7 @@ services:
         volumes:
             - ./:/code/
             - ./wildbook-ia/wbia:/code/wbia
+            - ./LLaVA/llava:/code/llava
         environment:
             - FLASK_APP=/code/TrapTagger.py
             - GUNICORN_CMD_ARGS="--threads=7"
@@ -121,6 +122,7 @@ services:
         volumes:
             - ./:/code/
             - ./wildbook-ia/wbia:/code/wbia
+            - ./LLaVA/llava:/code/llava
         environment:
             - FLASK_APP=/code/TrapTagger.py
             - GUNICORN_CMD_ARGS="--threads=4"
@@ -174,6 +176,7 @@ services:
         volumes:
             - ./:/code/
             - ./wildbook-ia/wbia:/code/wbia
+            - ./LLaVA/llava:/code/llava
         environment:
             - PYTHONPATH=/code
             - FLASK_APP=/code/TrapTagger.py
@@ -223,6 +226,7 @@ services:
         volumes:
             - ./:/code/
             - ./wildbook-ia/wbia:/code/wbia
+            - ./LLaVA/llava:/code/llava
         environment:
             - PYTHONPATH=/code
             - FLASK_APP=/code/TrapTagger.py
@@ -272,6 +276,7 @@ services:
         volumes:
             - ./:/code/
             - ./wildbook-ia/wbia:/code/wbia
+            - ./LLaVA/llava:/code/llava
         environment:
             - PYTHONPATH=/code
             - FLASK_APP=/code/TrapTagger.py
@@ -321,6 +326,7 @@ services:
     #     volumes:
     #         - ./:/code/
     #         - ./wildbook-ia/wbia:/code/wbia
+    #         - ./LLaVA/llava:/code/llava
     #     environment:
     #         - PYTHONPATH=/code
     #         - FLASK_APP=/code/TrapTagger.py
@@ -369,6 +375,7 @@ services:
     #     volumes:
     #         - ./:/code/
     #         - ./wildbook-ia/wbia:/code/wbia
+    #         - ./LLaVA/llava:/code/llava
     #     environment:
     #         - PYTHONPATH=/code
     #         - FLASK_APP=/code/TrapTagger.py
