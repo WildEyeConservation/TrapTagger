@@ -78,7 +78,7 @@ class Config(object):
     LLAVA_AMI = os.environ.get('LLAVA_AMI')
     BRANCH = os.environ.get('BRANCH')
     GPU_INSTANCE_TYPES = ['g4dn.xlarge'] #['p3.2xlarge', 'g4dn.xlarge', 'g3s.xlarge']
-    XL_GPU_INSTANCE_TYPES = ['g5.xlarge']
+    XL_GPU_INSTANCE_TYPES = ['g5.12xlarge']
     CPU_INSTANCE_TYPES = ['t2.xlarge','t3a.xlarge'] #['t2.medium', 't3a.medium']
     PIPELINE_INSTANCE_TYPES = ['t2.xlarge','t3a.xlarge']
     INSTANCE_RATES = {
@@ -88,7 +88,7 @@ class Config(object):
         'default':         {'t2.xlarge': 1000, 't3a.xlarge': 1000},  #estimated
         'statistics':         {'t2.xlarge': 1000, 't3a.xlarge': 1000},  #estimated
         'pipeline':         {'t2.xlarge': 1000, 't3a.xlarge': 1000},  #estimated
-        'llava':           {'g5.xlarge': 600} #measured
+        'llava':           {'g5.12xlarge': 3130} #measured. 20 min startup
     } #Images per hour
     SG_ID = os.environ.get('SG_ID')
     PUBLIC_SUBNET_ID = os.environ.get('PUBLIC_SUBNET_ID')
@@ -99,7 +99,7 @@ class Config(object):
     MAX_DEFAULT = 8
     MAX_STATS = 4
     MAX_PIPELINE = 8
-    MAX_LLAVA = 10
+    MAX_LLAVA = 5
     DNS = os.environ.get('DNS')
 
     # Species Classification Config
@@ -127,7 +127,7 @@ class Config(object):
         'default': '300',
         'statistics': '300',
         'pipeline': '300',
-        'llava': '720'
+        'llava': '1500'
     }
 
     #Aurora DB stuff
@@ -356,8 +356,8 @@ class Config(object):
             'ami': LLAVA_AMI,
             'instances': XL_GPU_INSTANCE_TYPES,
             'max_instances': MAX_LLAVA,
-            'launch_delay': 900,
-            'rate': 2,
+            'launch_delay': 1500,
+            'rate': 31,
             'init_size': 0.5,
             'queue_type': 'rate',
             'repo': os.environ.get('MAIN_GIT_REPO'),

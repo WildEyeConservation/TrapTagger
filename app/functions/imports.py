@@ -4121,7 +4121,7 @@ def get_video_timestamps(self,survey_id):
         db.session.close()
 
         results = []
-        for batch in chunker(images,300):
+        for batch in chunker(images,100):
             results.append(llava_infer.apply_async(kwargs={'batch':batch, 'sourceBucket':Config.BUCKET, 'prompt': prompt, 'external': False},queue='llava'))
 
         GLOBALS.lock.acquire()
