@@ -4177,11 +4177,7 @@ def get_video_timestamps(self,trapgroup_id):
 
     try:
         starttime = time.time()
-
-        textractClient = boto3.client('textract', 
-                region_name=Config.AWS_REGION,
-                aws_access_key_id=Config.AWS_ACCESS_KEY_ID,
-                aws_secret_access_key=Config.AWS_SECRET_ACCESS_KEY)
+        textractClient = boto3.client('textract', region_name=Config.AWS_REGION)
 
         data = db.session.query(Camera.path+'/'+Image.filename,Image,Video)\
                                                 .join(Camera,Image.camera_id==Camera.id)\
