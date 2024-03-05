@@ -3306,7 +3306,10 @@ def import_survey(self,s3Folder,surveyName,tag,organisation_id,correctTimestamps
         survey.image_count = db.session.query(Image).join(Camera).join(Trapgroup).outerjoin(Video).filter(Trapgroup.survey==survey).filter(Video.id==None).distinct().count()
         survey.video_count = db.session.query(Video).join(Camera).join(Trapgroup).filter(Trapgroup.survey==survey).distinct().count()
         survey.frame_count = db.session.query(Image).join(Camera).join(Trapgroup).join(Video).filter(Trapgroup.survey==survey).distinct().count()
+        survey.status = 'Extracting Video Timestamps'
         db.session.commit()
+
+        extract_all_video_timestamps(survey_id)
         
         skip = False
         # if correctTimestamps:
@@ -3736,6 +3739,13 @@ def process_video_batch(self,dirpath,batch,bucket,trapgroup_id):
 
     return True
 
+def get_still_rate(video_fps,video_frames):
+    '''Returns the rate at which still should be extracted.'''
+    max_frames = 50     # Maximum number of frames to extract
+    fps_default = 1     # Default fps to extract frames at (frame per second)
+    frames_default_fps = math.ceil(video_frames / video_fps) * fps_default
+    return min(max_frames / frames_default_fps, fps_default)  
+
 # Function needs updating and testing
 def extract_images_from_video(localsession, sourceKey, bucketName, trapgroup_id):
     ''' Downloads video from bucket and extracts images from it. The images are then uploaded to the bucket. '''
@@ -3785,11 +3795,7 @@ def extract_images_from_video(localsession, sourceKey, bucketName, trapgroup_id)
             video_fps = video.get(cv2.CAP_PROP_FPS)
             video_frames = video.get(cv2.CAP_PROP_FRAME_COUNT)
 
-            max_frames = 50     # Maximum number of frames to extract
-            fps_default = 1     # Default fps to extract frames at (frame per second)
-            frames_default_fps = math.ceil(video_frames / video_fps) * fps_default
-            
-            fps = min(max_frames / frames_default_fps, fps_default)  
+            fps = get_still_rate(video_fps,video_frames)
             
             ret, frame = video.read()
             count = 0
@@ -3843,7 +3849,7 @@ def extract_images_from_video(localsession, sourceKey, bucketName, trapgroup_id)
             # Calculate hash 
             video_hash = generate_raw_image_hash(temp_file.name)
 
-        video = Video(camera=camera, filename=filename, hash=video_hash)
+        video = Video(camera=camera, filename=filename, hash=video_hash, fps=video_fps, frame_count=video_frames)
         localsession.add(video)
 
     except:
@@ -4103,21 +4109,15 @@ def pipelineLILA2(self,dets_filename,images_filename,survey_name,tgcode_str,sour
 
     return True
 
-@celery.task(bind=True,ignore_result=True)
-def get_video_timestamps(self,survey_id):
-    '''Videos have a poorly defined metadata standard. In order to get their timestamps consistently, we need to visually strip them from their frames'''
+@celery.task(bind=True,max_retries=5)
+def run_llava(self,image_ids,prompt):
+    '''Processes the specified images with LLaVA using the given prompt and saves the result in the images table.'''
 
     try:
-        # prompt = 'There is a timestamp embedded onto this image somewhere. Please return only this timestamp in the exact format in which it is written. If there is no timestamp, return "none"'
-        prompt = 'Return all the text in this image, unchanged and exactly as it is appears in the image. If there is no text, return "none".'
-
         images = [r[0] for r in db.session.query(Camera.path+'/'+Image.filename)\
                                         .join(Camera)\
-                                        .join(Video)\
-                                        .join(Trapgroup)\
-                                        .filter(Image.filename.contains('frame0'))\
-                                        .filter(Trapgroup.survey_id==survey_id)\
-                                        .group_by(Video.id).distinct().all()]
+                                        .filter(Image.id.in_(image_ids))\
+                                        .distinct().all()]
         db.session.close()
 
         results = []
@@ -4130,34 +4130,21 @@ def get_video_timestamps(self,survey_id):
                 try:
                     response = result.get()
 
-                    data = db.session.query(Camera.path+'/'+Image.filename,Image,Video)\
+                    data = db.session.query(Camera.path+'/'+Image.filename,Image)\
                                     .join(Camera,Image.camera_id==Camera.id)\
-                                    .join(Trapgroup,Camera.trapgroup_id==Trapgroup.id)\
-                                    .join(Video,Camera.videos)\
-                                    .filter(Trapgroup.survey_id==survey_id)\
                                     .filter((Camera.path+'/'+Image.filename).in_(list(response.keys())))\
                                     .distinct().all()
                     
                     lookup = {}
                     for item in data:
-                        lookup[item[0]] = {'image':item[1],'video':item[2]}
+                        lookup[item[0]] = item[1]
                     
                     for file_path in response:
-                        if response[file_path] != 'none':
-                            try:
-                                image = lookup[file_path]['image']
-                                video = lookup[file_path]['video']
-
-                                # Save raw extracted data into db
-                                video.extracted_timestamp = response[file_path]
-                                
-                                # Try parse extracted data
-                                # datutil handles everything: AM/PM, d/m/y vs m/d/y (+ ambiguous cases), d-m-y, random extra text data around it etc.
-                                timestamp = dateutil_parse(response[file_path],fuzzy=True,dayfirst=True)
-                                image.timestamp = timestamp
-                                image.corrected_timestamp = timestamp
-                            except:
-                                pass
+                        try:
+                            image = lookup[file_path]
+                            image.llava_data = response[file_path]
+                        except:
+                            pass
 
                 except Exception:
                     app.logger.info(' ')
@@ -4165,7 +4152,9 @@ def get_video_timestamps(self,survey_id):
                     app.logger.info(traceback.format_exc())
                     app.logger.info('!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!')
                     app.logger.info(' ')
+
                 result.forget()
+
         GLOBALS.lock.release()
 
         db.session.commit()
@@ -4179,5 +4168,139 @@ def get_video_timestamps(self,survey_id):
 
     finally:
         db.session.remove()
+
+    return True
+
+@celery.task(bind=True,max_retries=5)
+def get_video_timestamps(self,trapgroup_id):
+    '''Videos have a poorly defined metadata standard. In order to get their timestamps consistently, we need to visually strip them from their frames'''
+
+    try:
+        starttime = time.time()
+
+        textractClient = boto3.client('textract', 
+                region_name=Config.AWS_REGION,
+                aws_access_key_id=Config.AWS_ACCESS_KEY_ID,
+                aws_secret_access_key=Config.AWS_SECRET_ACCESS_KEY)
+
+        data = db.session.query(Camera.path+'/'+Image.filename,Image,Video)\
+                                                .join(Camera,Image.camera_id==Camera.id)\
+                                                .join(Video,Camera.videos)\
+                                                .filter(Image.filename.contains('frame0'))\
+                                                .filter(Camera.trapgroup_id==trapgroup_id)\
+                                                .filter(Video.extracted_text==None)\
+                                                .filter(Image.timestamp==None)\
+                                                .group_by(Video.id).distinct().all()
+
+        # Queue async requests
+        job_ids = {}
+        for item in data:
+            path = item[0]
+            image = item[1]
+
+            response = textractClient.start_document_text_detection(
+                DocumentLocation={
+                    'S3Object': {
+                        'Bucket': Config.BUCKET,
+                        'Name': path
+                    }
+                }
+            )
+            job_ids[image.id] = response['JobId']
+
+        # Fetch results
+        for item in data:
+            image = item[1]
+            video = item[2]
+            status = 'PENDING'
+
+            # Wait for completion
+            while status != 'SUCCEEDED':
+                response = textractClient.get_document_text_detection(
+                    JobId=job_ids[image.id]
+                )
+                status = response['JobStatus']
+                if status != 'SUCCEEDED': time.sleep(2)
+            
+            # Combine all text blocks
+            text = []
+            for block in response['Blocks']:
+                if block['BlockType']=='LINE':
+                    text.append(block['Text'])
+            text = ' '.join(text)
+
+            # Save extracted text
+            video.extracted_text = text
+
+        # Determine dayFirst (default to True)
+        dayfirst = True
+        ordered_tests = []
+        tests = db.session.query(Video.extracted_text).join(Camera).filter(Camera.trapgroup_id==trapgroup_id).distinct().all()
+        for n in range(math.floor(len(tests)/2)):
+            ordered_tests.append(test[n][0])
+            ordered_tests.append(test[-n][0])
+
+        for test in ordered_tests:
+            timestamp = dateutil_parse(test,fuzzy=True,dayfirst=True)
+            if timestamp.day>12:
+                if len(test.split(str(timestamp.day))[0]) < len(test.split(str(timestamp.month))[0]):
+                    dayfirst = True
+                else:
+                    dayfirst = False
+                break
+
+        # Parse timestamp
+        for item in data:
+            video = item[2]
+            try:
+                video_timestamp = dateutil_parse(video.extracted_text,fuzzy=True,dayfirst=dayfirst)
+                fps = get_still_rate(video.fps,video.frame_count)
+
+                frames = db.session.query(Image).join(Camera).join(Video,Camera.videos).filter(Video.id==video.id).distinct().all()
+                for frame in frames:
+                    frame_count = int(frame.filename.split('frame')[1][:-4])
+                    frame_timestamp = video_timestamp + timedelta(seconds=frame_count/fps)
+                    frame.timestamp = frame_timestamp
+                    frame.corrected_timestamp = frame_timestamp
+            except:
+                pass
+        
+        db.session.commit()
+        app.logger.info('Timestamp extraction for trapgroup {} took {}s for {} videos'.format(trapgroup_id,time.time()-starttime,len(data)))
+
+    except Exception as exc:
+        app.logger.info(' ')
+        app.logger.info('!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!')
+        app.logger.info(traceback.format_exc())
+        app.logger.info('!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!')
+        app.logger.info(' ')
+
+    finally:
+        db.session.remove()
+
+    return True
+
+def extract_all_video_timestamps(survey_id):
+    '''Kicks off all the celery tasks for extracting timestamps from the videos in the given survey.'''
+
+    trapgroup_ids = [r[0] for r in db.session.query(Trapgroup.id).filter(Trapgroup.survey_id==survey_id).join(Camera).filter(Camera.videos.any()).distinct().all()]
+
+    results = []
+    for trapgroup_id in trapgroup_ids:
+        results.append(get_video_timestamps.apply_async(kwargs={'trapgroup_id':trapgroup_id},queue='parallel'))
+
+    GLOBALS.lock.acquire()
+    with allow_join_result():
+        for result in results:
+            try:
+                result.get()
+            except Exception:
+                app.logger.info(' ')
+                app.logger.info('!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!')
+                app.logger.info(traceback.format_exc())
+                app.logger.info('!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!')
+                app.logger.info(' ')
+            result.forget()
+    GLOBALS.lock.release()
 
     return True
