@@ -127,6 +127,7 @@ const modalDownload = $('#modalDownload');
 const btnOpenExport = document.querySelector('#btnOpenExport');
 const modalExport = $('#modalExport');
 const modalAlertIndividuals = $('#modalAlertIndividuals');
+const modalIndividualsError = $('#modalIndividualsError');
 const modalIndividual = $('#modalIndividual');
 const modalIndividuals = $('#modalIndividuals');
 const submitTagsBtn = document.querySelector('#submitTagsBtn');

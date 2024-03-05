@@ -18,7 +18,7 @@ from app import app, db, celery
 from app.models import *
 from app.functions.globals import classifyTask, finish_knockdown, updateTaskCompletionStatus, updateLabelCompletionStatus, updateIndividualIdStatus, \
                                     retryTime, chunker, resolve_abandoned_jobs, addChildLabels, updateAllStatuses
-from app.functions.individualID import calculate_individual_similarities, cleanUpIndividuals
+from app.functions.individualID import calculate_individual_similarities, cleanUpIndividuals, check_individual_detection_mismatch
 from app.functions.imports import cluster_survey, classifySurvey, s3traverse, recluster_large_clusters, removeHumans, classifyCluster
 import GLOBALS
 from sqlalchemy.sql import func, or_, and_, distinct, alias
@@ -309,6 +309,9 @@ def stop_task(self,task_id):
                 cleanUpIndividuals(task_id)
                 GLOBALS.redisClient.delete('active_individuals_'+str(task_id))
                 GLOBALS.redisClient.delete('active_indsims_'+str(task_id))
+
+            if ',' not in task.tagging_level and task.init_complete and '-2' not in task.tagging_level:
+                check_individual_detection_mismatch(task_id=task_id,celeryTask=False)
 
             updateAllStatuses(task_id=int(task_id), celeryTask=False)
 

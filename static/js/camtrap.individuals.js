@@ -14,6 +14,7 @@
 
 const modalIndividual = $('#modalIndividual');
 const modalAlertIndividuals = $('#modalAlertIndividuals');
+const modalIndividualsError = $('#modalIndividualsError');
 const modalLaunchID = $('#modalLaunchID');
 const modalDeleteIndividuals = $('#modalDeleteIndividuals');
 const btnPrevTasks = document.getElementById('btnPrevTasks');
@@ -372,6 +373,14 @@ function getIndividual(individualID, individualName, association=false, order_va
                             modalAlertIndividualsReturn = true
                             modalIndividual.modal('hide')
                             modalAlertIndividuals.modal({keyboard: true});
+                        }
+                        else{
+                            document.getElementById('modalIndividualsErrorHeader').innerHTML = 'Error'
+                            document.getElementById('modalIndividualsErrorBody').innerHTML = 'You cannot delete an individual that is associated with only one detection. All detections for a species must be associated with an individual for the first stage of individual identitification to be considred complete. If you wish to start the identification process again you can select <em>Delete Individuals</em> on the Individuals page to permanently delete individuals for a particular species.'
+                            document.getElementById('btnCloseIndivErrorModal').setAttribute('onclick','modalIndividual.modal({keyboard: true});')
+                            modalAlertIndividualsReturn = true
+                            modalIndividual.modal('hide')
+                            modalIndividualsError.modal({keyboard: true});
                         }
                     });
 
@@ -2243,6 +2252,7 @@ $('#btnDeleteIndividuals').click( function() {
     indiv_tasks = {}
     species = []
     getIndividualSurveysTasks()
+    document.getElementById('deleteIndivErrors').innerHTML = ''
     modalDeleteIndividuals.modal({keyboard: true})
 });
 
@@ -2316,8 +2326,31 @@ $('#btnDeleteIndivs').click( function() {
     /** Checks if the deletion is valid and then asks for confirmation. */
     checkDeleteValid()
     if(legalDelete){
+
+        var confirmString = 'You are about to permanently delete all the individuals for the following annotation sets and species: <br><br>'
+        var surveySelects = document.querySelectorAll('[id^=idSurveySelectDel-]')
+        var taskSelects = document.querySelectorAll('[id^=idTaskSelectDel-]')
+        var speciesSelects = document.querySelectorAll('[id^=idSpeciesSelectDel-]')
+        confirmString += '<b>Annotation Sets:</b><br>'
+        for (let i=0;i<surveySelects.length;i++) {
+            if (surveySelects[i].value != '-99999') {
+                confirmString += surveySelects[i].options[surveySelects[i].selectedIndex].text + ' - ' + taskSelects[i].options[taskSelects[i].selectedIndex].text + '<br>'
+            }
+        }
+        confirmString += '<br><b>Species:</b><br>'
+        for (let i=0;i<speciesSelects.length;i++) {
+            if (speciesSelects[i].value != '0') {
+                confirmString += speciesSelects[i].options[speciesSelects[i].selectedIndex].text + '<br>'
+            }
+            else{
+                confirmString += 'All<br>'
+            }
+        }
+
+        confirmString += '<br>You will be required to start the identification process again for the selected species and annotation sets. Please note that this action cannot be undone.<br><br>Do you wish to continue?'
+                
         document.getElementById('modalAlertIndividualsHeader').innerHTML = 'Confirmation'
-        document.getElementById('modalAlertIndividualsBody').innerHTML = 'You are about to permanently delete all individuals for the selected annotation sets and species. Are you sure you want to continue?'
+        document.getElementById('modalAlertIndividualsBody').innerHTML = confirmString
         document.getElementById('btnContinueIndividualAlert').setAttribute('onclick','deleteIndividuals()')
         document.getElementById('btnCancelIndividualAlert').setAttribute('onclick','modalDeleteIndividuals.modal({keyboard: true});')
         modalAlertIndividualsReturn = true
@@ -2375,7 +2408,16 @@ function deleteIndividuals(){
     function(){
         if (this.readyState == 4 && this.status == 200) {
             reply = JSON.parse(this.responseText);  
-            getIndividuals()
+            if (reply.status=='success') {
+                document.getElementById('modalIndividualsErrorHeader').innerHTML = 'Success'
+                document.getElementById('modalIndividualsErrorBody').innerHTML = reply.message
+                modalIndividualsError.modal({keyboard: true});
+            }
+            else{
+                document.getElementById('modalIndividualsErrorHeader').innerHTML = 'Error'
+                document.getElementById('modalIndividualsErrorBody').innerHTML = reply.message
+                modalIndividualsError.modal({keyboard: true});
+            }
         }
     }
     xhttp.open("POST", '/deleteIndividuals');
@@ -2383,8 +2425,16 @@ function deleteIndividuals(){
 
     modalAlertIndividualsReturn = false
     modalAlertIndividuals.modal('hide')
+
+    document.getElementById('deleteIndivErrors').innerHTML = ''
 }
 
+modalIndividualsError.on('hidden.bs.modal', function(){
+    /** Clears the error modal */
+    if (!modalAlertIndividualsReturn) {
+        getIndividuals()
+    }
+});
 
 function onload(){
     /**Function for initialising the page on load.*/

@@ -16,7 +16,7 @@ limitations under the License.
 
 from app import app, db, celery
 from app.models import *
-from app.functions.globals import coordinateDistance, retryTime
+from app.functions.globals import coordinateDistance, retryTime, rDets, updateIndividualIdStatus
 import GLOBALS
 import time
 from sqlalchemy.sql import func, or_, and_, alias
@@ -646,7 +646,7 @@ def calculate_individual_similarities(self,task_id,species):
 
         individuals2 = individuals1.copy()
 
-        app.logger.info('Individual similarities are being calculated for {} individuals'.format(len(individuals1)))
+        app.logger.info('Individual similarities are being calculated for tasks: {}, species: {}, nr individuals: {}'.format(task_ids,species,len(individuals1)))
 
         total_individual_count = len(individuals2)
 
@@ -686,9 +686,11 @@ def calculate_individual_similarities(self,task_id,species):
             db.session.commit()
             launch_task.apply_async(kwargs={'task_id':task_id})
         elif task.status != 'PROGRESS' and task.status != 'PENDING':
+            updateIndividualIdStatus(task_id)
             task.survey.status = 'Ready'
             db.session.commit()
         else:
+            task.survey.status = 'Launched'
             db.session.commit()
 
     except Exception as exc:
@@ -1038,3 +1040,86 @@ def getProgress(individual_id,task_id):
                                 .distinct().count()
 
     return (completed, total)
+
+ #TODO (sim): Double check this 
+@celery.task(bind=True,max_retries=5,ignore_result=True)
+def check_individual_detection_mismatch(self,task_id,celeryTask=True):
+    ''' Checks for any detections whose labels differ from the their individuals' species'''
+    try:
+        # Get all detections whose labels differ from their individuals' species and remove them from the individuals
+        data = rDets(db.session.query(Detection.id, Label.description, Individual.id, Individual.species)\
+                                .join(Individual,Detection.individuals)\
+                                .join(Labelgroup)\
+                                .join(Label, Labelgroup.labels)\
+                                .filter(Labelgroup.task_id==task_id)\
+                                .filter(Individual.species!=Label.description)\
+                                .filter(Individual.tasks.any(Task.id==task_id))\
+                                ).distinct().all()
+
+        individuals_data = {}
+        for d in data:
+            if d[2] not in individuals_data.keys():
+                individuals_data[d[2]] = [d[0]]
+            else:
+                individuals_data[d[2]].append(d[0])
+            detection = db.session.query(Detection).get(d[0])
+            individual = db.session.query(Individual).get(d[2])
+            if detection in individual.detections:
+                individual.detections.remove(detection)
+
+
+        # Delete individuals with no detections
+        individuals = db.session.query(Individual)\
+                                .outerjoin(Detection, Individual.detections)\
+                                .filter(Detection.id==None)\
+                                .filter(Individual.tasks.any(Task.id==task_id))\
+                                .filter(Individual.name!='unidentifiable')\
+                                .all()
+
+        for individual in individuals:
+            allSimilarities = db.session.query(IndSimilarity).filter(or_(IndSimilarity.individual_1==individual.id,IndSimilarity.individual_2==individual.id)).distinct().all()
+            for similarity in allSimilarities:
+                db.session.delete(similarity)
+
+            individual.detections = []
+            individual.tags = []
+            individual.children = []
+            individual.parents = []
+            individual.tasks = []
+            db.session.delete(individual)
+            del individuals_data[individual.id]
+            
+        db.session.commit()
+
+        # Recalculate similarities where removed detections were used
+        individuals_check = []
+        for individual_id in individuals_data:
+            det_ids = individuals_data[individual_id]
+            individuals1 = [r[0] for r in db.session.query(Individual.id)\
+                                            .join(Task,Individual.tasks)\
+                                            .join(IndSimilarity, or_(IndSimilarity.individual_1==Individual.id,IndSimilarity.individual_2==Individual.id))\
+                                            .filter(Task.id==task_id)\
+                                            .filter(Individual.species==individual.species)\
+                                            .filter(Individual.name!='unidentifiable')\
+                                            .filter(Individual.id != individual_id)\
+                                            .filter(Individual.id.notin_(individuals_check))\
+                                            .filter(or_(IndSimilarity.individual_1==individual_id,IndSimilarity.individual_2==individual_id))\
+                                            .filter(or_(IndSimilarity.detection_1.in_(det_ids),IndSimilarity.detection_2.in_(det_ids)))\
+                                            .all()]
+
+            if len(individuals1) > 0:
+                individuals_check.append(individual_id)
+                calculate_individual_similarity.delay(individual1=individual_id,individuals2=individuals1)
+
+    except Exception as exc:
+        app.logger.info(' ')
+        app.logger.info('!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!')
+        app.logger.info(traceback.format_exc())
+        app.logger.info('!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!')
+        app.logger.info(' ')
+        if celeryTask: self.retry(exc=exc, countdown= retryTime(self.request.retries))
+
+    finally:
+        if celeryTask: db.session.remove()
+
+    return True

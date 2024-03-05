@@ -189,6 +189,14 @@ function getIndividuals(page = null) {
                                             modalIndividual.modal('hide')
                                             modalAlertIndividuals.modal({keyboard: true});
                                         }
+                                        else{
+                                            document.getElementById('modalIndividualsErrorHeader').innerHTML = 'Error'
+                                            document.getElementById('modalIndividualsErrorBody').innerHTML = 'You cannot delete an individual that is associated with only one detection. All detections for a species must be associated with an individual for the first stage of individual identitification to be considred complete. If you wish to start the identification process again you can select <em>Delete Individuals</em> on the Individuals page to permanently delete individuals for a particular species. '
+                                            document.getElementById('btnCloseIndivErrorModal').setAttribute('onclick','modalIndividual.modal({keyboard: true});')
+                                            modalAlertIndividualsReturn = true
+                                            modalIndividual.modal('hide')
+                                            modalIndividualsError.modal({keyboard: true});
+                                        }
                                     });
 
                                     if (indivdualAccess == 'write'){

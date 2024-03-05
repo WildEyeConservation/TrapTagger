@@ -1903,6 +1903,8 @@ modalConfirmEditSpecies.on('shown.bs.modal', function(){
 function getSpeciesAndTasks() {
     /** Gets the species and tasks for the current survey. */
     speciesAndTasks = {}
+    speciesLabelIDs = {}
+    speciesEditDict = {}
     var xhttp = new XMLHttpRequest();
     xhttp.onreadystatechange =
     function(){

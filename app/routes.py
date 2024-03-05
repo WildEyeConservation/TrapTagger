@@ -6839,6 +6839,12 @@ def assignLabel(clusterID):
                             session.close()
 
                     else:
+                        #TODO (sim): Double check this 
+                        if explore:
+                            individual_check = session.query(Individual.id).join(Detection, Individual.detections).join(Image).join(Cluster, Image.clusters).filter(Cluster.id==cluster.id).filter(Individual.tasks.any(Task.id==task_id)).first()
+                            if individual_check:
+                                check_individual_detection_mismatch.apply_async(kwargs={'task_id':task_id})
+
                         session.commit()
                         session.close()
 
@@ -7370,8 +7376,7 @@ def editTask(task_id):
                 if len(available_tasks) == len(species_tasks):  
                     for s_task in available_tasks:
                         s_task.status = 'Processing'
-                        db.session.commit()
-
+                    db.session.commit()
                     handleTaskEdit.delay(task_id=task_id,changes=editDict,speciesChanges=speciesEditDict)
                 else:
                     return json.dumps('error')
@@ -7534,11 +7539,6 @@ def editSightings(image_id,task_id):
                                 labelgroup = db.session.query(Labelgroup).filter(Labelgroup.detection_id==int(detID)).filter(Labelgroup.task_id==int(task_id)).first()
                                 labelgroup.labels = [label]
                                 labelgroup.checked = True
-
-                                #Dissociate detection from individual if the label has changed
-                                individual = db.session.query(Individual).join(Task,Individual.tasks).join(Detection,Individual.detections).filter(Task.id==task_id).filter(Detection.id==detID).first()
-                                if individual and individual.species != label.description:
-                                    individual.detections.remove(detection)
 
                     image.detection_rating = detection_rating(image)
                     db.session.commit()
@@ -12042,6 +12042,6 @@ def deleteIndividuals():
         db.session.commit()
         delete_individuals.apply_async(kwargs={'task_ids':task_ids, 'species': species})
 
-        return json.dumps('success')
-    return json.dumps('error')
+        return json.dumps({'status': 'success', 'message': 'Individuals are being deleted.'})
+    return json.dumps({'status': 'failure', 'message': 'An error occurred while deleting individuals. Please try again.'})
 
