@@ -18,7 +18,6 @@ import os
 import time
 from celery import Celery
 from celery.signals import celeryd_after_setup
-from llavaworker import llava_model
 
 BASE = "/data"
 REDIS_IP = os.environ.get('REDIS_IP') or '127.0.0.1'
@@ -54,6 +53,7 @@ def llava_infer(batch,sourceBucket,prompt,external=False):
     '''
 
     starttime = time.time()
+    from llavaworker import llava_model
     global model,tokenizer,image_processor,context_len,conv_mode
     if model == None: model,tokenizer,image_processor,context_len,conv_mode = llava_model.init()
     inittime = time.time()
