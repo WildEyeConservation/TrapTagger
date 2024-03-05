@@ -3322,7 +3322,8 @@ def import_survey(self,s3Folder,surveyName,tag,organisation_id,correctTimestamps
         #         skip = True
         if not skip:
             task_id=cluster_survey(survey_id)
-            survey = db.session.query(Survey).get(survey_id)
+            
+        survey = db.session.query(Survey).get(survey_id)
         
         survey.status='Removing Static Detections'
         db.session.commit()
@@ -4194,17 +4195,27 @@ def get_video_timestamps(self,trapgroup_id):
             path = item[0]
             image = item[1]
 
-            response = textractClient.start_document_text_detection(
-                DocumentLocation={
-                    'S3Object': {
-                        'Bucket': Config.BUCKET,
-                        'Name': path
-                    }
-                }
-            )
-            job_ids[image.id] = response['JobId']
+            retry = True
+            retry_rate = 1
+            while retry:
+                try:
+                    response = textractClient.start_document_text_detection(
+                        DocumentLocation={
+                            'S3Object': {
+                                'Bucket': Config.BUCKET,
+                                'Name': path
+                            }
+                        }
+                    )
+                    job_ids[image.id] = response['JobId']
+                    retry = False
+                except:
+                    # AWS limits the number of simultaneous documents to ~150
+                    print('retrying...')
+                    retry_rate = 2*retry_rate
+                    time.sleep(retry_rate)
 
-        # Fetch results
+        # Fetch results (which are stored a week)
         for item in data:
             image = item[1]
             video = item[2]
@@ -4280,23 +4291,27 @@ def extract_all_video_timestamps(survey_id):
     '''Kicks off all the celery tasks for extracting timestamps from the videos in the given survey.'''
 
     trapgroup_ids = [r[0] for r in db.session.query(Trapgroup.id).filter(Trapgroup.survey_id==survey_id).join(Camera).filter(Camera.videos.any()).distinct().all()]
-
-    results = []
     for trapgroup_id in trapgroup_ids:
-        results.append(get_video_timestamps.apply_async(kwargs={'trapgroup_id':trapgroup_id},queue='parallel'))
+        get_video_timestamps(trapgroup_id)
 
-    GLOBALS.lock.acquire()
-    with allow_join_result():
-        for result in results:
-            try:
-                result.get()
-            except Exception:
-                app.logger.info(' ')
-                app.logger.info('!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!')
-                app.logger.info(traceback.format_exc())
-                app.logger.info('!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!')
-                app.logger.info(' ')
-            result.forget()
-    GLOBALS.lock.release()
+    # We can't parallelise this at this stage - there is a maximum of 100 simultanrous async requests
+
+    # results = []
+    # for trapgroup_id in trapgroup_ids:
+    #     results.append(get_video_timestamps.apply_async(kwargs={'trapgroup_id':trapgroup_id},queue='parallel'))
+
+    # GLOBALS.lock.acquire()
+    # with allow_join_result():
+    #     for result in results:
+    #         try:
+    #             result.get()
+    #         except Exception:
+    #             app.logger.info(' ')
+    #             app.logger.info('!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!')
+    #             app.logger.info(traceback.format_exc())
+    #             app.logger.info('!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!')
+    #             app.logger.info(' ')
+    #         result.forget()
+    # GLOBALS.lock.release()
 
     return True
