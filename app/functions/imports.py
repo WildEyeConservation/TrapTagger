@@ -3322,7 +3322,7 @@ def import_survey(self,s3Folder,surveyName,tag,organisation_id,correctTimestamps
         #         skip = True
         if not skip:
             task_id=cluster_survey(survey_id)
-            
+
         survey = db.session.query(Survey).get(survey_id)
         
         survey.status='Removing Static Detections'
@@ -4172,8 +4172,20 @@ def run_llava(self,image_ids,prompt):
 
     return True
 
+def clean_extracted_timestamp(text):
+    '''Function that tries to clean up the messy extracted timestamps'''
+    try:
+        timestamp = re.findall("[0-9]+[^0-9a-zA-Z]+[0-9]+[^0-9a-zA-Z]*[0-9]*", text)
+        if len(timestamp)<2: return ''
+        timestamp = timestamp[0].replace(' ','') + ' ' + timestamp[1].replace(' ','')
+        if 'PM' in text: timestamp += ' PM'
+        if 'AM' in text: timestamp += ' AM'
+        return timestamp
+    except:
+        return text
+
 @celery.task(bind=True,max_retries=5)
-def get_video_timestamps(self,trapgroup_id):
+def get_video_timestamps(self,trapgroup_id,index):
     '''Videos have a poorly defined metadata standard. In order to get their timestamps consistently, we need to visually strip them from their frames'''
 
     try:
@@ -4183,9 +4195,8 @@ def get_video_timestamps(self,trapgroup_id):
         data = db.session.query(Camera.path+'/'+Image.filename,Image,Video)\
                                                 .join(Camera,Image.camera_id==Camera.id)\
                                                 .join(Video,Camera.videos)\
-                                                .filter(Image.filename.contains('frame0'))\
+                                                .filter(Image.filename.contains('frame'+str(index)))\
                                                 .filter(Camera.trapgroup_id==trapgroup_id)\
-                                                .filter(Video.extracted_text==None)\
                                                 .filter(Image.timestamp==None)\
                                                 .group_by(Video.id).distinct().all()
 
@@ -4242,33 +4253,70 @@ def get_video_timestamps(self,trapgroup_id):
         # Determine dayFirst (default to True)
         dayfirst = True
         ordered_tests = []
-        tests = db.session.query(Video.extracted_text).join(Camera).filter(Camera.trapgroup_id==trapgroup_id).distinct().all()
+        tests = [r[0] for r in db.session.query(Video.extracted_text).join(Camera).filter(Camera.trapgroup_id==trapgroup_id).distinct().all()]
         for n in range(math.floor(len(tests)/2)):
-            ordered_tests.append(test[n][0])
-            ordered_tests.append(test[-n][0])
+            ordered_tests.append(tests[n])
+            ordered_tests.append(tests[-n])
 
         for test in ordered_tests:
-            timestamp = dateutil_parse(test,fuzzy=True,dayfirst=True)
-            if timestamp.day>12:
-                if len(test.split(str(timestamp.day))[0]) < len(test.split(str(timestamp.month))[0]):
-                    dayfirst = True
-                else:
-                    dayfirst = False
-                break
+            try:
+                timestamp = dateutil_parse(clean_extracted_timestamp(test),fuzzy=True,dayfirst=True)
+                if timestamp.day>12:
+                    if len(test.split(str(timestamp.day))[0]) < len(test.split(str(timestamp.month))[0]):
+                        dayfirst = True
+                    else:
+                        dayfirst = False
+                    break
+            except:
+                pass
+
+        # Search for outliers - starting with fetching previously processed timestamps
+        dates = []
+        old_timestamps = [r[0] for r in db.session.query(Image.timestamp)\
+                            .join(Camera)\
+                            .filter(Camera.trapgroup_id==trapgroup_id)\
+                            .filter(Camera.videos.any())\
+                            .filter(Image.filename.contains('frame'+str(index)))\
+                            .filter(Image.timestamp != None)\
+                            .distinct().all()]
+        for timestamp in old_timestamps:
+            try:
+                dates.append(pd.Timestamp(timestamp))
+            except:
+                pass
+
+        # Search for outliers - now pre-process the current lot of timestamps
+        parsed_timestamps = {}
+        for item in data:
+            video = item[2]
+            try:
+                timestamp = dateutil_parse(clean_extracted_timestamp(video.extracted_text),fuzzy=True,dayfirst=dayfirst)
+                dates.append(pd.Timestamp(timestamp)) # this needs to be first - if it fails there is something wrong with the date and it should be dropped
+                parsed_timsetamps[video.id] = timestamp
+            except:
+                pass
+
+        # Search for outliers - find the 98 percent quantiles for reference
+        df = pd.DataFrame({'DATE': dates})
+        lower_limit = df['DATE'].quantile(0.02)
+        upper_limit = df['DATE'].quantile(0.98)
 
         # Parse timestamp
         for item in data:
             video = item[2]
             try:
-                video_timestamp = dateutil_parse(video.extracted_text,fuzzy=True,dayfirst=dayfirst)
-                fps = get_still_rate(video.fps,video.frame_count)
+                timestamp = parsed_timestamps[video.id]
 
-                frames = db.session.query(Image).join(Camera).join(Video,Camera.videos).filter(Video.id==video.id).distinct().all()
-                for frame in frames:
-                    frame_count = int(frame.filename.split('frame')[1][:-4])
-                    frame_timestamp = video_timestamp + timedelta(seconds=frame_count/fps)
-                    frame.timestamp = frame_timestamp
-                    frame.corrected_timestamp = frame_timestamp
+                if (upper_limit+timedelta(days=30)) >= timestamp >= (lower_limit-timedelta(days=30)):
+                    fps = get_still_rate(video.fps,video.frame_count)
+                    video_timestamp = timestamp - timedelta(seconds=index/fps)
+
+                    frames = db.session.query(Image).join(Camera).join(Video,Camera.videos).filter(Video.id==video.id).distinct().all()
+                    for frame in frames:
+                        frame_count = int(frame.filename.split('frame')[1][:-4])
+                        frame_timestamp = video_timestamp + timedelta(seconds=frame_count/fps)
+                        frame.timestamp = frame_timestamp
+                        frame.corrected_timestamp = frame_timestamp
             except:
                 pass
         
@@ -4290,9 +4338,23 @@ def get_video_timestamps(self,trapgroup_id):
 def extract_all_video_timestamps(survey_id):
     '''Kicks off all the celery tasks for extracting timestamps from the videos in the given survey.'''
 
-    trapgroup_ids = [r[0] for r in db.session.query(Trapgroup.id).filter(Trapgroup.survey_id==survey_id).join(Camera).filter(Camera.videos.any()).distinct().all()]
-    for trapgroup_id in trapgroup_ids:
-        get_video_timestamps(trapgroup_id)
+    starttime = time.time()
+    index = 0
+    trapgroup_ids = True
+    while trapgroup_ids and index<5:
+        trapgroup_ids = [r[0] for r in db.session.query(Trapgroup.id)\
+                                                .join(Camera)\
+                                                .join(Image)\
+                                                .filter(Trapgroup.survey_id==survey_id)\
+                                                .filter(Camera.videos.any())\
+                                                .filter(Image.filename.contains('frame'+str(index)))\
+                                                .filter(Image.timestamp==None)
+                                                .distinct().all()]
+        for trapgroup_id in trapgroup_ids:
+            get_video_timestamps(trapgroup_id,index)
+        index += 3
+
+    app.logger.info('All videos process for survey {} in {}s after {} iterations'.format(survey_id,time.time()-starttime,(index/3)+1))
 
     # We can't parallelise this at this stage - there is a maximum of 100 simultanrous async requests
 
