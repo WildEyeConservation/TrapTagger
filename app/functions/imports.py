@@ -4341,7 +4341,7 @@ def extract_all_video_timestamps(survey_id):
     starttime = time.time()
     index = 0
     trapgroup_ids = True
-    while trapgroup_ids and index<5:
+    while trapgroup_ids and index<=20:
         trapgroup_ids = [r[0] for r in db.session.query(Trapgroup.id)\
                                                 .join(Camera)\
                                                 .join(Image)\
@@ -4352,7 +4352,7 @@ def extract_all_video_timestamps(survey_id):
                                                 .distinct().all()]
         for trapgroup_id in trapgroup_ids:
             get_video_timestamps(trapgroup_id,index)
-        index += 3
+        index += 4
 
     app.logger.info('All videos process for survey {} in {}s after {} iterations'.format(survey_id,time.time()-starttime,(index/3)+1))
 
