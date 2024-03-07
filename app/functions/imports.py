@@ -4251,6 +4251,7 @@ def get_video_timestamps(self,trapgroup_id,index):
             video.extracted_text = text
 
         # Determine dayFirst (default to True)
+        # TODO: should probably only do this in the centre quartile
         dayfirst = True
         ordered_tests = []
         tests = [r[0] for r in db.session.query(Video.extracted_text).join(Camera).filter(Camera.trapgroup_id==trapgroup_id).distinct().all()]
@@ -4292,14 +4293,15 @@ def get_video_timestamps(self,trapgroup_id,index):
             try:
                 timestamp = dateutil_parse(clean_extracted_timestamp(video.extracted_text),fuzzy=True,dayfirst=dayfirst)
                 dates.append(pd.Timestamp(timestamp)) # this needs to be first - if it fails there is something wrong with the date and it should be dropped
-                parsed_timsetamps[video.id] = timestamp
+                parsed_timestamps[video.id] = timestamp
             except:
                 pass
 
         # Search for outliers - find the 98 percent quantiles for reference
         df = pd.DataFrame({'DATE': dates})
-        lower_limit = df['DATE'].quantile(0.02)
-        upper_limit = df['DATE'].quantile(0.98)
+        IQR = df['DATE'].quantile(0.75) - df['DATE'].quantile(0.25)
+        lower_limit = df['DATE'].quantile(0.25) - 1.5*IQR
+        upper_limit = df['DATE'].quantile(0.75) + 1.5*IQR
 
         # Parse timestamp
         for item in data:
