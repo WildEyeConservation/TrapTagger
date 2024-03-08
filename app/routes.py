@@ -7936,7 +7936,7 @@ def checkDownload(fileType,selectedTask):
     try:
         check = GLOBALS.s3client.head_object(Bucket=Config.BUCKET,Key=fileName)
         # deleteFile.apply_async(kwargs={'fileName': fileName}, countdown=3600)
-        return json.dumps('https://'+Config.BUCKET+'.s3.amazonaws.com/'+fileName)
+        return json.dumps('https://'+Config.BUCKET+'.s3.amazonaws.com/'+fileName.replace('+','%2B'))
     except:
         # file does not exist
         return json.dumps('not ready yet')
@@ -10385,7 +10385,7 @@ def getCovariateCSV():
                     covs.to_csv(temp_file.name, index=False)
                     fileName = folder +'/docs/' + current_user.username + '_Occupancy_Covariates.csv'
                     GLOBALS.s3client.put_object(Bucket=Config.BUCKET,Key=fileName,Body=temp_file)
-                    cov_url = "https://"+ Config.BUCKET + ".s3.amazonaws.com/" + fileName
+                    cov_url = "https://"+ Config.BUCKET + ".s3.amazonaws.com/" + fileName.replace('+','%2B')
 
                     # Schedule deletion
                     deleteFile.apply_async(kwargs={'fileName': fileName}, countdown=3600)
