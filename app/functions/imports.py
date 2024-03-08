@@ -3742,10 +3742,10 @@ def process_video_batch(self,dirpath,batch,bucket,trapgroup_id):
 
 def get_still_rate(video_fps,video_frames):
     '''Returns the rate at which still should be extracted.'''
-    max_frames = 50     # Maximum number of frames to extract
+    max_frames = 30     # Maximum number of frames to extract
     fps_default = 1     # Default fps to extract frames at (frame per second)
     frames_default_fps = math.ceil(video_frames / video_fps) * fps_default
-    return min(max_frames / frames_default_fps, fps_default)  
+    return min((max_frames-1) / frames_default_fps, fps_default)  
 
 # Function needs updating and testing
 def extract_images_from_video(localsession, sourceKey, bucketName, trapgroup_id):
@@ -3801,8 +3801,9 @@ def extract_images_from_video(localsession, sourceKey, bucketName, trapgroup_id)
             ret, frame = video.read()
             count = 0
             count_frame = 0
+            frame_rate = math.ceil(video_fps / fps)
             while ret:
-                if count % (video_fps // fps) == 0:
+                if count % frame_rate == 0:
                     with tempfile.NamedTemporaryFile(delete=True, suffix='.jpg') as temp_file_img:
                         cv2.imwrite(temp_file_img.name, frame)
                         # Timestamp
