@@ -50,7 +50,7 @@ function loadNewCluster(mapID = 'map1') {
                     } else if (this.readyState == 4 && this.status == 200) {
                         waitingForClusters[mapID] = false
                         info = JSON.parse(this.responseText);
-                        console.log(info)
+                        // console.log(info)
 
                         if (info.static_detections.length == 1 && info.static_detections[0].id == '-101') {
                             window.location.replace("surveys")

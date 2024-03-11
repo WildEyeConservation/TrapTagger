@@ -1151,7 +1151,7 @@ function pingTgCheck() {
 
                                         page_count = 1
                                         var tgs = Object.keys(data.structure)
-                                        console.log(tgs)
+                                        // console.log(tgs)
                                         for (let i=0;i<tgs.length;i++) {
                                             globalSurveyStructure[page_count][tgs[i]] = data.structure[tgs[i]]
                                             if (Object.keys(globalSurveyStructure[page_count]).length == tags_per_page && i < tgs.length-1) {
@@ -5929,7 +5929,7 @@ function getStaticGroups(){
         if (this.readyState == 4 && this.status == 200) {
             reply = JSON.parse(this.responseText);
             staticgroupIDs = reply
-            console.log(staticgroupIDs)
+            // console.log(staticgroupIDs)
 
             if (staticgroupIDs.length>0) {
                 document.getElementById('btnPrevGroup').hidden = false
@@ -5985,7 +5985,7 @@ function getStaticDetections() {
                 reply = JSON.parse(this.responseText);  
                 new_groups = reply.static_detections
                 new_detections = reply.staticgroup_detections
-                console.log(new_groups)
+                // console.log(new_groups)
 
                 for (var i=0; i<new_groups.length; i++) {
                     if (staticgroup_ids.indexOf(new_groups[i].id) == -1) {
@@ -6020,7 +6020,7 @@ function getStaticCameras(){
             reply = JSON.parse(this.responseText);
             staticCameras = reply
 
-            console.log(staticCameras)
+            // console.log(staticCameras)
 
             sgCamSelect = document.getElementById('sgCamSelect')
             clearSelect(sgCamSelect)
@@ -6609,7 +6609,7 @@ function buildStructure(structure_url='/getSurveyStructure') {
     function(){
         if (this.readyState == 4 && this.status == 200) {
             reply = JSON.parse(this.responseText);
-            console.log(reply)
+            // console.log(reply)
             if ((reply.survey==selectedSurvey)&&(modalAddImages.is(':visible'))) {
                 if (reply.next_url==null) {
                     document.getElementById('btnNextSurveyStructure').hidden = true
