@@ -273,6 +273,7 @@ var staticgroupReadAheadIndex = 0
 var staticgroups = []
 var staticgroup_ids = []
 var staticgroupDetections = {}
+var og_staticgroup_status = {}
 
 function buildSurveys(survey,disableSurvey) {
     /**
@@ -4255,10 +4256,12 @@ document.getElementById('btnAddImages').addEventListener('click', ()=>{
             else if (tabActiveEditSurvey=='baseStaticTab') {
                 staticgroup_data = []
                 for (let i=0;i<staticgroups.length;i++) {
-                    staticgroup_data.push({
-                        'id': staticgroups[i].id,
-                        'status': staticgroups[i].staticgroup_status
-                    })
+                    if (staticgroups[i].staticgroup_status!=og_staticgroup_status[staticgroups[i].id]) {
+                        staticgroup_data.push({
+                            'id': staticgroups[i].id,
+                            'status': staticgroups[i].staticgroup_status
+                        })
+                    }
                 }
                 formData.append("staticgroups", JSON.stringify(staticgroup_data))
                 
@@ -5567,6 +5570,7 @@ function openStaticDetections() {
         staticgroup_ids = []
         finishedDisplaying = true
         staticgroupDetections = {}
+        og_staticgroup_status = {}
         clearEditSurveyModal()
         buildViewStatic()
         getStaticCameras()
@@ -5697,10 +5701,10 @@ function buildViewStatic() {
             imageIndex = 0
             staticgroupIDs = []
             staticgroupReadAheadIndex = 0
-            staticgroups = []
             staticgroup_ids = []
             finishedDisplaying = true
             staticgroupDetections = {}
+            og_staticgroup_status = {}
             getStaticGroups()
         }
     });
@@ -5987,6 +5991,7 @@ function getStaticDetections() {
                     if (staticgroup_ids.indexOf(new_groups[i].id) == -1) {
                         staticgroup_ids.push(new_groups[i].id)
                         staticgroups.push(new_groups[i])
+                        og_staticgroup_status[new_groups[i].id] = new_groups[i].staticgroup_status
                     }
                 }
 
@@ -6055,7 +6060,6 @@ function updateStaticMap() {
         document.getElementById('staticToggle').checked = true
     }
     else if (staticgroups[staticgroupIndex].staticgroup_status == 'unknown') {
-        console.log('here')
         document.getElementById('staticToggle').checked = true
         staticgroups[staticgroupIndex].staticgroup_status = 'accepted'
     }

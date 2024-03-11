@@ -1329,14 +1329,6 @@ def imageViewer():
                 reqImages = db.session.query(Image).filter(Image.clusters.contains(cluster)).order_by(Image.corrected_timestamp).distinct().all()
 
         elif view_type=='camera':
-            #TODO: Update for cameragroup
-            # camera = db.session.query(Camera).get(int(id_no))
-            # # if camera and ((camera.trapgroup.survey.user==current_user) or (current_user.id==admin.id)):
-            # if camera and checkSurveyPermission(current_user.id,camera.trapgroup.survey_id,'read'):
-            #     reqImages = db.session.query(Image)\
-            #                     .filter(Image.camera==camera)\
-            #                     .order_by(Image.corrected_timestamp)\
-            #                     .distinct().all()
             cameragroup = db.session.query(Cameragroup).get(int(id_no))
             if cameragroup and checkSurveyPermission(current_user.id,cameragroup.cameras[0].trapgroup.survey_id,'read'):
                 reqImages = db.session.query(Image)\
@@ -7055,8 +7047,7 @@ def getSurveys():
     '''Returns a list of survey names and IDs owned by the current user.'''
     requiredPermission = request.args.get('requiredPermission',None)
     if requiredPermission==None: requiredPermission = 'read'
-    surveys = surveyPermissionsSQ(db.session.query(Survey.id, Survey.name),current_user.id,requiredPermission).distinct().all()
-    surveys = [tuple(row) for row in surveys]
+    surveys = [tuple(row) for row in surveyPermissionsSQ(db.session.query(Survey.id, Survey.name),current_user.id,requiredPermission).distinct().all()]
     return json.dumps(surveys)
 
 @app.route('/getWorkerSurveys')
@@ -7091,22 +7082,20 @@ def getTasks(survey_id):
 
     worker_id = request.args.get('worker_id',None)
     if worker_id:
-        tasks = surveyPermissionsSQ(db.session.query(Task.id, Task.name)\
+        tasks = [tuple(row) for row in surveyPermissionsSQ(db.session.query(Task.id, Task.name)\
                             .join(Survey)\
                             .join(Turkcode)\
                             .join(User,Turkcode.user_id==User.id)\
                             .filter(User.parent_id==worker_id)\
                             .filter(Survey.id == int(survey_id))\
                             .filter(Task.name != 'default').filter(~Task.name.contains('_o_l_d_')).filter(~Task.name.contains('_copying'))\
-                            ,current_user.id,'worker').distinct().all()
-        tasks = [tuple(row) for row in tasks]
+                            ,current_user.id,'worker').distinct().all()]
         return json.dumps(tasks)
     else:
         if int(survey_id) == -1:
             return json.dumps([(-1, 'Southern African')])
         else:
-            tasks = surveyPermissionsSQ(db.session.query(Task.id, Task.name).join(Survey).filter(Survey.id == int(survey_id)).filter(Task.name != 'default').filter(~Task.name.contains('_o_l_d_')).filter(~Task.name.contains('_copying')),current_user.id,'read').distinct().all()
-            tasks = [tuple(row) for row in tasks]
+            tasks = [tuple(row) for row in surveyPermissionsSQ(db.session.query(Task.id, Task.name).join(Survey).filter(Survey.id == int(survey_id)).filter(Task.name != 'default').filter(~Task.name.contains('_o_l_d_')).filter(~Task.name.contains('_copying')),current_user.id,'read').distinct().all()]
             #TODO: Will need to update similar return statements to this to fix the new TypeError: Object of type Row is not JSON serializable
             return json.dumps(tasks)
 
@@ -10624,9 +10613,7 @@ def populateSiteSelector():
         sites = db.session.query(Trapgroup.id, Trapgroup.tag).filter(Trapgroup.survey_id==survey.id).all()
         response.append((0, 'All'))
         for site in sites:
-            response.append(site)
-
-        response = [tuple(row) for row in response]
+            response.append(tuple(site))
 
     return json.dumps(response)
 
@@ -12044,7 +12031,7 @@ def clearNotifications():
 @login_required
 def maskArea():
     ''' Masks an area for a camera '''
-    #TODO: THIS STILL NEEDS UPDATING/CHECKING 
+
     cluster_id = ast.literal_eval(request.form['cluster_id'])
     image_id = ast.literal_eval(request.form['image_id'])
     masks = ast.literal_eval(request.form['masks'])
@@ -12165,7 +12152,6 @@ def maskArea():
 @login_required
 def staticDetectionCheck(survey_id):
     ''' Checks if a static detection check has been done for this survey ''' 
-    #TODO: CHECK/UPDATE THIS (static)
     static_check = False
     if current_user and current_user.is_authenticated:
         if checkSurveyPermission(current_user.id,survey_id,'write'):
@@ -12181,7 +12167,6 @@ def staticDetectionCheck(survey_id):
 @login_required
 def checkStaticDetections():
     '''Renders the static detections analysis page for the specified survey.'''
-    #TODO: CHECK/UPDATE THIS (static)
     if not current_user.is_authenticated:
         return redirect(url_for('login_page'))
     else:
@@ -12208,12 +12193,11 @@ def checkStaticDetections():
                 else:
                     return redirect(url_for('index'))
 
-
-
 @app.route('/getStaticDetections/<survey_id>/<reqID>')
 @login_required
 def getStaticDetections(survey_id, reqID):
-    #TODO: CHECK/UPDATE THIS (static)
+    ''' Gets all the static detections for the specified survey '''
+
     if Config.DEBUGGING: app.logger.info('Get static detections for survey {}'.format(survey_id))
 
     survey = db.session.query(Survey).get(survey_id)
@@ -12222,7 +12206,7 @@ def getStaticDetections(survey_id, reqID):
             if survey.status != 'Static Detection Analysis':
                 survey.status = 'Static Detection Analysis'
                 db.session.commit()
-        # camera_id = request.args.get('camera_id', None)
+
         staticgroup_id = request.args.get('staticgroup_id', None)
         edit = request.args.get('edit', False, type=bool)
         cameragroup_id = request.args.get('cameragroup_id', None)
@@ -12250,10 +12234,7 @@ def getStaticDetections(survey_id, reqID):
                                 .outerjoin(User, User.id==Staticgroup.user_id)\
                                 .filter(Trapgroup.survey_id==survey_id)\
                                 .order_by(Staticgroup.id,Image.corrected_timestamp,Detection.id)
-                                    
-        # if camera_id:
-        #     detectionClusters = detectionClusters.filter(Camera.id==camera_id)
-
+                                
         if staticgroup_id:
             detectionClusters = detectionClusters.filter(Staticgroup.id==staticgroup_id)
 
@@ -12335,7 +12316,8 @@ def getStaticDetections(survey_id, reqID):
 @app.route('/assignStatic', methods=['POST'])
 @login_required
 def assignStatic():
-    #TODO: CHECK/UPDATE THIS (static)
+    ''' Sets the status of a static detection group based on whether user as accepted or rejected the detections as static'''
+
     survey_id = ast.literal_eval(request.form['survey_id'])
     staticgroup_id = ast.literal_eval(request.form['staticgroup_id'])
     static_status = ast.literal_eval(request.form['static_status'])
@@ -12364,7 +12346,6 @@ def assignStatic():
         return json.dumps({'status': 'SUCCESS', 'message': ''})
     else:
         return {'redirect': url_for('surveys')}, 278
-
 
 @app.route('/getSurveyMasks/<survey_id>')
 @login_required
@@ -12514,7 +12495,6 @@ def getStaticGroupIDs(survey_id):
 @login_required
 def finishStaticDetectionCheck(survey_id):
     ''' Finishes the static detection check for a survey '''
-
     survey = db.session.query(Survey).get(survey_id)
     if survey and checkSurveyPermission(current_user.id,survey.id,'write'):
         survey.status = "Processing"

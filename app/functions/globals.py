@@ -3244,7 +3244,7 @@ def create_new_er_report(row,er_api_key,er_url):
 @celery.task(bind=True,max_retries=5,ignore_result=True)
 def mask_area(self, cluster_id, task_id, masks, user_id):
     ''' Create masks and mask detections in a specified area of an image. '''
-    #TODO: THIS STILL NEEDS WORK AND CHECKING, ETC.
+
     try:
         cluster = db.session.query(Cluster).get(cluster_id)
         task_id = cluster.task_id
@@ -3351,8 +3351,10 @@ def update_masks(self,survey_id,removed_masks,added_masks,edited_masks,user_id):
             poly_string = poly_string[:-1] + '))'
             poly_area = db.session.query(func.ST_Area(func.ST_GeomFromText(poly_string))).first()[0]
             if poly_area > Config.MIN_MASK_AREA:
-                new_mask = Mask(shape=poly_string,cameragroup_id=mask['cameragroup_id'],user_id=user_id)
-                db.session.add(new_mask)
+                check = db.session.query(Mask).filter(Mask.shape==poly_string).filter(Mask.cameragroup_id==cameragroup.id).first()
+                if not check:
+                    new_mask = Mask(shape=poly_string,cameragroup_id=mask['cameragroup_id'],user_id=user_id)
+                    db.session.add(new_mask)
 
         # Edit masks
         for mask in edited_masks:
@@ -3397,9 +3399,8 @@ def update_masks(self,survey_id,removed_masks,added_masks,edited_masks,user_id):
         for detection in detections:
             detection.status = 'masked'
             images.append(detection.image)
-            if Config.DEBUGGING: app.logger.info('Masking detection {}'.format(detection.id))
 
-        db.session.commit()
+        # db.session.commit()
 
         # Unmask detections
         masked_detections = db.session.query(Detection)\
@@ -3436,7 +3437,6 @@ def update_masks(self,survey_id,removed_masks,added_masks,edited_masks,user_id):
         for detection in unmasked_detections:
             detection.status = 'active'
             images.append(detection.image)
-            if Config.DEBUGGING: app.logger.info('Unmasking detection {}'.format(detection.id))
 
         db.session.commit()
 
@@ -3776,6 +3776,7 @@ def wrapUpStaticDetectionCheck(self,survey_id):
                                     .join(Staticgroup)\
                                     .filter(Trapgroup.survey_id==survey_id)\
                                     .filter(or_(Staticgroup.status=='accepted',Staticgroup.status=='unknown'))\
+                                    .filter(Detection.static==False)\
                                     .distinct().all()
 
         images = []
@@ -3790,6 +3791,7 @@ def wrapUpStaticDetectionCheck(self,survey_id):
                                     .join(Staticgroup)\
                                     .filter(Trapgroup.survey_id==survey_id)\
                                     .filter(Staticgroup.status=='rejected')\
+                                    .filter(Detection.static==True)\
                                     .distinct().all()
 
         for detection in rejected_detections:
@@ -3854,6 +3856,7 @@ def update_staticgroups(self,survey_id,staticgroups,user_id):
                                     .join(Staticgroup)\
                                     .filter(Trapgroup.survey_id==survey_id)\
                                     .filter(or_(Staticgroup.status=='accepted',Staticgroup.status=='unknown'))\
+                                    .filter(Detection.static==False)\
                                     .distinct().all()
 
         images = []
@@ -3868,6 +3871,7 @@ def update_staticgroups(self,survey_id,staticgroups,user_id):
                                     .join(Staticgroup)\
                                     .filter(Trapgroup.survey_id==survey_id)\
                                     .filter(Staticgroup.status=='rejected')\
+                                    .filter(Detection.static==True)\
                                     .distinct().all()
 
         for detection in rejected_detections:

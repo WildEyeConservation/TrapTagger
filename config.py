@@ -120,13 +120,15 @@ class Config(object):
 
     # Mask Area Config
     MIN_MASK_AREA = 0.001
-    MAX_MASK_AREA = 0.3
 
     # Static Detection Config
-    STATIC_AREA = 0.1
-    STATIC_IOU = 0.65
-    STATIC_MATCHCOUNT = 3
-    STATIC_PERCENTAGE = 0.1
+    STATIC_MATCHCOUNT = 5
+    STATIC_PERCENTAGE = 0.15
+    STATIC_IOU5 = 0.6
+    STATIC_IOU10 = 0.7
+    STATIC_IOU30 = 0.85
+    STATIC_IOU50 = 0.9
+    STATIC_IOU90 = 0.95
 
     # Time in seconds allowed for a worker to finish setting up beforte being checked for idleness
     SETUP_PERIOD = {
