@@ -4188,6 +4188,7 @@ def clean_extracted_timestamp(text):
                 final_candidates.append(candidate.replace(' ',''))
             except:
                 continue
+        if len(final_candidates)==0: return text
         timestamp = ' '.join(final_candidates)
         if 'PM' in text: timestamp += ' PM'
         if 'AM' in text: timestamp += ' AM'
@@ -4273,6 +4274,7 @@ def get_video_timestamps(self,trapgroup_id,index):
         for test in ordered_tests:
             try:
                 timestamp = dateutil_parse(clean_extracted_timestamp(test),fuzzy=True,dayfirst=True)
+                if (timestamp.year<2000) or (timestamp>=datetime.utcnow()): continue
                 if timestamp.day>12:
                     if len(test.split(str(timestamp.day))[0]) < len(test.split(str(timestamp.month))[0]):
                         dayfirst = True
@@ -4303,6 +4305,7 @@ def get_video_timestamps(self,trapgroup_id,index):
             video = item[2]
             try:
                 timestamp = dateutil_parse(clean_extracted_timestamp(video.extracted_text),fuzzy=True,dayfirst=dayfirst)
+                if (timestamp.year<2000) or (timestamp>=datetime.utcnow()): continue
                 dates.append(pd.Timestamp(timestamp)) # this needs to be first - if it fails there is something wrong with the date and it should be dropped
                 parsed_timestamps[video.id] = timestamp
             except:
