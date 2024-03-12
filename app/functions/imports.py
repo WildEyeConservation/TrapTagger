@@ -4176,9 +4176,19 @@ def run_llava(self,image_ids,prompt):
 def clean_extracted_timestamp(text):
     '''Function that tries to clean up the messy extracted timestamps'''
     try:
-        timestamp = re.findall("[0-9]+[^0-9a-zA-Z]+[0-9]+[^0-9a-zA-Z]*[0-9]*", text)
-        if len(timestamp)<2: return ''
-        timestamp = timestamp[0].replace(' ','') + ' ' + timestamp[1].replace(' ','')
+        final_candidates = []
+        disallowed_characters = ['°'] #allows us to remove number information like temperature
+        candidates = re.findall("[0-9]+[^0-9a-zA-Z]+[0-9]+[^0-9a-zA-Z]*[0-9]*", text)
+        for candidate in candidates:
+            if any(disallowed_character in candidate for disallowed_character in disallowed_characters): continue
+            try:
+                timestamp = dateutil_parse(candidate.replace(' ',''),fuzzy=True,dayfirst=True,default=datetime(year=2024,month=1,day=1))
+                if timestamp.year<2000: continue
+                if timestamp>=datetime.utcnow(): continue
+                final_candidates.append(candidate.replace(' ',''))
+            except:
+                continue
+        timestamp = ' '.join(final_candidates)
         if 'PM' in text: timestamp += ' PM'
         if 'AM' in text: timestamp += ' AM'
         return timestamp
