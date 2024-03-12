@@ -7774,7 +7774,8 @@ def generateCSV():
     except:
         pass
 
-    if task.survey.image_count>250000:
+    det_count = rDets(db.session.query(Detection).join(Image).join(Camera).join(Trapgroup).filter(Trapgroup.survey_id==task.survey_id)).distinct().count()
+    if det_count>300000:
         queue='ram_intensive'
     else:
         queue='default'
