@@ -2798,6 +2798,28 @@ def clean_up_redis():
                         GLOBALS.redisClient.delete(key)
                         GLOBALS.redisClient.delete('upload_user_'+str(survey_id))
 
+            # Manage Video Timestamp Check here
+            elif any(name in key for name in ['timestamp_check_ping']):
+                survey_id = key.split('_')[-1]
+
+                if survey_id == 'None':
+                    GLOBALS.redisClient.delete(key)
+                else:
+                    try:
+                        timestamp = GLOBALS.redisClient.get(key)
+                        if timestamp:
+                            timestamp = datetime.fromtimestamp(float(timestamp.decode()))
+                            if datetime.utcnow() - timestamp > timedelta(minutes=5):
+                                survey = db.session.query(Survey).get(int(survey_id))
+                                if survey.status == 'Video Timestamp Correction':
+                                    # survey.status = "Processing"
+                                    survey.status = 'Ready'
+                                    db.session.commit()
+                                    #TODO (timestamps): ADD PROCESSING FUNCTION CALL HERE & change status tp processing 
+                                GLOBALS.redisClient.delete('timestamp_check_ping_'+str(survey_id))
+                    except:
+                        GLOBALS.redisClient.delete(key)
+
     except Exception as exc:
         app.logger.info(' ')
         app.logger.info('!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!')

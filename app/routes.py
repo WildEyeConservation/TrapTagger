@@ -11892,3 +11892,153 @@ def clearNotifications():
         status = 'SUCCESS'
 
     return json.dumps({'status': status})
+
+@app.route('/checkTimestamps')
+@login_required
+def checkTimestamps():
+    '''Renders the timestamp analysis page for the specified survey.'''
+    if not current_user.is_authenticated:
+        return redirect(url_for('login_page'))
+    else:
+        if current_user.admin:
+            if current_user.username=='Dashboard': return redirect(url_for('dashboard'))
+            if not current_user.permissions: return redirect(url_for('landing'))
+            survey_id = request.args.get('survey', None)
+            survey = db.session.query(Survey).get(survey_id)
+            if survey and checkSurveyPermission(current_user.id,survey.id,'write') and survey.status.lower() in Config.SURVEY_READY_STATUSES:
+                GLOBALS.redisClient.set('timestamp_check_ping_'+str(survey_id),datetime.utcnow().timestamp())
+                return render_template('html/timestamps.html', title='Correct Timestamps', helpFile='timestamps', bucket=Config.BUCKET, version=Config.VERSION)
+            else:
+                return redirect(url_for('surveys'))
+        else:
+            if current_user.parent_id == None:
+                return redirect(url_for('jobs'))
+            else:
+                if current_user.turkcode[0].task.is_bounding:
+                    return redirect(url_for('sightings'))
+                elif '-4' in current_user.turkcode[0].task.tagging_level:
+                    return redirect(url_for('clusterID'))
+                elif '-5' in current_user.turkcode[0].task.tagging_level:
+                    return redirect(url_for('individualID'))
+                else:
+                    return redirect(url_for('index'))
+
+@app.route('/getFrameIDs/<survey_id>')
+@login_required
+def getFrameIDs(survey_id):
+    '''Gets the frame IDs for the specified survey whose videos require timestamps correction.'''
+    frame_ids = []
+    survey = db.session.query(Survey).get(survey_id)
+    if survey and checkSurveyPermission(current_user.id,survey.id,'write'):
+        frame_ids = [r[0] for r in db.session.query(Image.id)\
+                                .join(Camera)\
+                                .join(Video)\
+                                .join(Trapgroup)\
+                                .filter(Trapgroup.survey_id==survey_id)\
+                                .filter(Image.corrected_timestamp==None)\
+                                .filter(Image.filename=='frame0.jpg')\
+                                .order_by(Video.id).distinct().all()]
+
+    return json.dumps(frame_ids)
+
+@app.route('/getFrames/<survey_id>/<reqID>')
+@login_required
+def getFrames(survey_id, reqID):
+    '''Gets the frames for the specified survey whose videos require timestamps correction.'''
+    frames = []
+    survey = db.session.query(Survey).get(survey_id)
+    frame_id = request.args.get('frame_id', None)
+
+    if survey and checkSurveyPermission(current_user.id,survey.id,'write'):
+        GLOBALS.redisClient.set('timestamp_check_ping_'+str(survey_id),datetime.utcnow().timestamp())
+        if survey.status != 'Video Timestamp Correction':	
+            survey.status = 'Video Timestamp Correction'
+            db.session.commit()
+
+        frame_data = db.session.query(Video.id, Video.filename, Image.id, Image.filename, Camera.path)\
+                            .join(Camera, Camera.id==Video.camera_id)\
+                            .join(Image)\
+                            .join(Trapgroup)\
+                            .filter(Trapgroup.survey_id==survey_id)\
+                            .filter(Image.corrected_timestamp==None)\
+                            .filter(Image.filename=='frame0.jpg')
+
+        if frame_id:
+            frame_data = frame_data.filter(Image.id==frame_id)
+
+        frame_data = frame_data.order_by(Video.id).distinct().all()
+
+        if len(frame_data) == 0:
+            return json.dumps({'frames': [{'id': Config.FINISHED_CLUSTER}], 'id': reqID})
+
+        for d in frame_data:
+            frames.append({
+                'id': d[0],
+                'images': [{
+                    'id': d[0],
+                    'detections': [],
+                    'url': d[4]+'/'+d[3]
+                }],
+                'labels': ['None'],
+                'label_ids': ['0'],
+                'tags': ['None'],
+                'tag_ids': ['0'],
+                'required': [],
+                'video': d[4].split('/_video_images_/')[0]+'/'+d[1]
+            })
+
+    return json.dumps({'frames': frames, 'id': reqID})
+
+@app.route('/submitTimestamp', methods=['POST'])
+@login_required
+def submitTimestamp():
+    '''Submits the corrected timestamp for the specified frame.'''
+
+    status = 'error'
+    survey_id = ast.literal_eval(request.form['survey_id'])
+    frame_id = ast.literal_eval(request.form['frame_id'])
+    if 'timestamp' in request.form:
+        timestamp = ast.literal_eval(request.form['timestamp'])
+        timestamp_format = ast.literal_eval(request.form['timestamp_format'])
+    else:
+        timestamp = None
+        timestamp_format = None
+
+    if Config.DEBUGGING: app.logger.info('Frame ID: {} Timestamp: {} Timestamp Format: {}'.format(frame_id, timestamp, timestamp_format))
+
+    survey = db.session.query(Survey).get(survey_id)
+    frame = db.session.query(Image).get(frame_id)
+    if survey and frame and checkSurveyPermission(current_user.id,survey.id,'write'):
+        GLOBALS.redisClient.set('timestamp_check_ping_'+str(survey_id),datetime.utcnow().timestamp())
+
+        if survey.status != 'Video Timestamp Correction':	
+            survey.status = 'Video Timestamp Correction'
+
+        if timestamp:
+            try:
+                corrected_timestamp = datetime.strptime(timestamp, timestamp_format)
+            except:
+                corrected_timestamp = None
+        else:
+            corrected_timestamp = None
+        
+        if Config.DEBUGGING: app.logger.info('Corrected Timestamp: {}'.format(corrected_timestamp))
+        frame.corrected_timestamp = corrected_timestamp
+        db.session.commit()
+
+        status = 'success'
+
+    return json.dumps(status)
+
+@app.route('/finishTimestampCheck/<survey_id>')
+@login_required
+def finishTimestampCheck(survey_id):
+    '''Finishes the timestamp check for the specified survey.'''
+    survey = db.session.query(Survey).get(survey_id)
+    if survey and checkSurveyPermission(current_user.id,survey.id,'write'):
+        survey.status = 'Ready'
+        # survey.status = 'Processing'
+        db.session.commit()
+        # TODO (timestamps): ADD CALL TO PROCESSING FUNCTION HERE AND SET SURVEY STATUS TO PROCESSING
+
+    return json.dumps('success')

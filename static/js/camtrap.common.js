@@ -70,6 +70,8 @@ var orginal_labels
 var orginal_label_ids
 var skipName = null
 var idIndiv101 = false
+var isTimestampCheck
+
 const divBtns = document.querySelector('#divBtns');
 const catcounts = document.querySelector('#categorycounts');
 const mapdiv2 = document.querySelector('#mapdiv2');
@@ -1134,7 +1136,7 @@ function updateClusterLabels(mapID = 'map1') {
 
 function updateDebugInfo(mapID = 'map1',updateLabels = true) {
     /** Updates the displayed image/cluster info. */
-    if ((!isViewing && !isTagging && !isBounding && !isKnockdown)||(taggingLevel=='-3')||(isClassCheck)) { //(!isTagging)
+    if ((!isViewing && !isTagging && !isBounding && !isKnockdown && !isTimestampCheck) ||(taggingLevel=='-3')||(isClassCheck)) { //(!isTagging)
         if ((clusters[mapID][clusterIndex[mapID]].id == '-99')||(clusters[mapID][clusterIndex[mapID]].id == '-101')||(clusters[mapID][clusterIndex[mapID]].id == '-782')) {
             document.getElementById('debugImage').innerHTML =  '';
             document.getElementById('debugLabels').innerHTML = '';
@@ -1259,6 +1261,16 @@ function updateDebugInfo(mapID = 'map1',updateLabels = true) {
                 }
             }
         } 
+    }
+
+    if (isTimestampCheck) {
+        document.getElementById('debugImage').innerHTML =  clusters[mapID][clusterIndex[mapID]].video 
+        yearInput.value = ''
+        monthInput.value = ''
+        dayInput.value = ''
+        hourInput.value = ''
+        minutesInput.value = ''
+        secondsInput.value = ''
     }
 }
 
@@ -2475,6 +2487,15 @@ function onload (){
         }
     }
 
+    if (isTimestampCheck) {
+        console.log('timestamp check')
+        selectedSurvey = /survey=([^&]+)/.exec(document.location.href)[1]
+        clusters['map1'] = []
+        clusterIndex['map1'] = 0
+        imageIndex['map1'] = 0
+        getFrameIDs()
+    }
+
     // if (document.location.href.includes('task')) {
     //     switchToTask(/task=([^&]+)/.exec(document.location.href)[1])
     // }
@@ -3155,6 +3176,17 @@ document.onkeyup = function(event){
             case 'h': hideBoundingLabels()
                 break;
             case 'b': sendBoundingBack()
+                break;
+        }
+    } else if (isTimestampCheck) {
+        switch (event.key.toLowerCase()){
+            case ('n'):submitTimestamp(true)
+                break;
+            case (' '):skipTimeUnit()
+                break;
+            case '~': undoTimestamp()
+                break;
+            case '`': undoTimestamp()
                 break;
         }
     } else {

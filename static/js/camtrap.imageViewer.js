@@ -18,6 +18,7 @@ isKnockdown = false
 isBounding = false
 isViewing = true
 isIDing = false
+isTimestampCheck = false
 
 window.addEventListener('load', onload, false);
 
