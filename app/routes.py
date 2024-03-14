@@ -8109,6 +8109,8 @@ def getHelp():
 @login_required
 def checkNotifications():
     '''Checks if there are any new global notifications for the user.'''
+
+    allow_global = request.args.get('allow_global', 'true', type=str)
     
     total_unseen = 0
     global_notification = None
@@ -8120,7 +8122,6 @@ def checkNotifications():
                     .filter(or_(Notification.expires==None,Notification.expires>datetime.utcnow()))\
                     .order_by(desc(Notification.id))\
                     .all()
-
 
         for notification in notifications:
             seen_notif = False
@@ -8139,7 +8140,7 @@ def checkNotifications():
             if seen_notif == False:
                 total_unseen += 1
 
-        if global_notification:
+        if global_notification and (allow_global=='true'):
             global_notification.users_seen.append(current_user)
             db.session.commit()
 
