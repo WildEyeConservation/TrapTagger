@@ -12036,9 +12036,8 @@ def finishTimestampCheck(survey_id):
     '''Finishes the timestamp check for the specified survey.'''
     survey = db.session.query(Survey).get(survey_id)
     if survey and checkSurveyPermission(current_user.id,survey.id,'write'):
-        survey.status = 'Ready'
-        # survey.status = 'Processing'
+        survey.status = 'Processing'
         db.session.commit()
-        # TODO (timestamps): ADD CALL TO PROCESSING FUNCTION HERE AND SET SURVEY STATUS TO PROCESSING
-
+        processVideoTimestamps.apply_async(kwargs={'survey_id':survey.id})
+        
     return json.dumps('success')

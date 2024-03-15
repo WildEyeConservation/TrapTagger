@@ -35,6 +35,12 @@ function loadNewCluster(mapID = 'map1') {
     /** Requests the next back of clusters from the server. */
     if (frameReadAheadIndex < frameIDs.length) {
 
+        if (frameReadAheadIndex == frameIDs.length-1) {
+            lastFrame = true 
+        }else{
+            lastFrame = false
+        }
+
         waitingForClusters[mapID] = true
         var newID = Math.floor(Math.random() * 100000) + 1;
         clusterRequests[mapID].push(newID)
@@ -74,15 +80,16 @@ function loadNewCluster(mapID = 'map1') {
                                 
                                 }
                             }
+
+                            if (lastFrame) {
+                                clusters[mapID].push({'id': '-101'})
+                            }
                         }                
                     }
                 };
             xhttp.open("GET", '/getFrames/' + selectedSurvey + '/' + newID + '?frame_id=' + frameIDs[frameReadAheadIndex++]);
             xhttp.send();
         }
-    }
-    else{
-        clusters[mapID].push({id:'-101'})
     }
 }
 
@@ -294,8 +301,13 @@ function skipTimeUnit(){
 }
 
 yearInput.addEventListener('input', function() {
+
+    if (yearInput.value.length > 4){
+        yearInput.value = yearInput.value.slice(0,4)
+    }
+
     if (yearInput.value.length == 4) {
-        if (isNaN(yearInput.value)){
+        if (isNaN(yearInput.value) || parseInt(yearInput.value) > 9999 || parseInt(yearInput.value) < 0){
             document.getElementById('errorYear').innerHTML = 'Invalid year. Please try again.'
             yearInput.value = ''
             yearInput.focus()
@@ -305,17 +317,14 @@ yearInput.addEventListener('input', function() {
             document.getElementById('errorYear').innerHTML = ''
         }
     }
-    
 });
 
-// yearInput.addEventListener('keydown', function(event) {
-//     if (event.key === 'n') {
-//         event.preventDefault()
-//         clearInputs()
-//     }
-// });
-
 monthInput.addEventListener('input', function() {
+
+    if (monthInput.value.length > 2){
+        monthInput.value = monthInput.value.slice(0,2)
+    }
+    
     if (monthInput.value.length == 2) {
         if (isNaN(monthInput.value) || parseInt(monthInput.value) > 12 || parseInt(monthInput.value) < 1){
             document.getElementById('errorMonth').innerHTML = 'Invalid month. Please try again.'
@@ -336,14 +345,12 @@ monthInput.addEventListener('input', function() {
     }
 });
 
-// monthInput.addEventListener('keydown', function(event) {
-//     if (event.key === 'n') {
-//         event.preventDefault()
-//         clearInputs()
-//     }
-// });
-
 dayInput.addEventListener('input', function() {
+
+    if (dayInput.value.length > 2){
+        dayInput.value = dayInput.value.slice(0,2)
+    }
+
     if (dayInput.value.length == 2) {
         if (isNaN(dayInput.value) || parseInt(dayInput.value) > 31 || parseInt(dayInput.value) < 1){
             document.getElementById('errorDay').innerHTML = 'Invalid day. Please try again.'
@@ -364,14 +371,12 @@ dayInput.addEventListener('input', function() {
     }
 });
 
-// dayInput.addEventListener('keydown', function(event) {
-//     if (event.key === 'n') {
-//         event.preventDefault()
-//         clearInputs()
-//     }
-// });
-
 hourInput.addEventListener('input', function() {
+
+    if (hourInput.value.length > 2){
+        hourInput.value = hourInput.value.slice(0,2)
+    }
+
     if (hourInput.value.length == 2) {
         if (isNaN(hourInput.value) || parseInt(hourInput.value) > 23 || parseInt(hourInput.value) < 0){
             document.getElementById('errorHour').innerHTML = 'Invalid hour. Please try again.'
@@ -390,17 +395,13 @@ hourInput.addEventListener('input', function() {
             document.getElementById('errorHour').innerHTML = ''
         }
     }
-    
 });
 
-// hourInput.addEventListener('keydown', function(event) {
-//     if (event.key === 'n') {
-//         event.preventDefault()
-//         clearInputs()
-//     }
-// });
-
 minutesInput.addEventListener('input', function() {
+    if (minutesInput.value.length > 2){
+        minutesInput.value = minutesInput.value.slice(0,2)
+    }
+
     if (minutesInput.value.length == 2) {
         if (isNaN(minutesInput.value) || parseInt(minutesInput.value) > 59 || parseInt(minutesInput.value) < 0){
             document.getElementById('errorMinutes').innerHTML = 'Invalid minutes. Please try again.'
@@ -421,14 +422,12 @@ minutesInput.addEventListener('input', function() {
     }
 });
 
-// minutesInput.addEventListener('keydown', function(event) {
-//     if (event.key === 'n') {
-//         event.preventDefault()
-//         clearInputs()
-//     }
-// });
-
 secondsInput.addEventListener('input', function() {
+
+    if (secondsInput.value.length > 2){
+        secondsInput.value = secondsInput.value.slice(0,2)
+    }
+
     if (secondsInput.value.length == 2) {
         if (isNaN(secondsInput.value) || parseInt(secondsInput.value) > 59 || parseInt(secondsInput.value) < 0){
             document.getElementById('errorSeconds').innerHTML = 'Invalid seconds. Please try again.'
@@ -448,13 +447,6 @@ secondsInput.addEventListener('input', function() {
         }
     }
 });
-
-// secondsInput.addEventListener('keydown', function(event) {
-//     if (event.key === 'n') {
-//         // event.preventDefault()
-//         clearInputs()
-//     }
-// });
 
 btnDone.addEventListener('click', () => {
     /** Wraps up the user's session when they click the done button. */

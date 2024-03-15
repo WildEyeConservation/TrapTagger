@@ -2812,10 +2812,9 @@ def clean_up_redis():
                             if datetime.utcnow() - timestamp > timedelta(minutes=5):
                                 survey = db.session.query(Survey).get(int(survey_id))
                                 if survey.status == 'Video Timestamp Correction':
-                                    # survey.status = "Processing"
-                                    survey.status = 'Ready'
+                                    survey.status = "Processing"
                                     db.session.commit()
-                                    #TODO (timestamps): ADD PROCESSING FUNCTION CALL HERE & change status tp processing 
+                                    processVideoTimestamps.delay(survey_id)
                                 GLOBALS.redisClient.delete('timestamp_check_ping_'+str(survey_id))
                     except:
                         GLOBALS.redisClient.delete(key)
@@ -3513,3 +3512,29 @@ def checkUploadUser(user_id,survey_id):
             return True
     
     return False
+
+@celery.task(bind=True,max_retries=5,ignore_result=True)
+def processVideoTimestamps(self,survey_id):
+    '''Processes video timestamps after correction '''
+
+    try:
+
+        #TODO (timestamps): ADD PROCCESSING CODE HERE
+
+        survey = db.session.query(Survey).get(survey_id)
+        survey.status = 'Ready'
+        db.session.commit()
+
+    except Exception as exc:
+        app.logger.info(' ')
+        app.logger.info('!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!')
+        app.logger.info(traceback.format_exc())
+        app.logger.info('!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!')
+        app.logger.info(' ')
+        self.retry(exc=exc, countdown= retryTime(self.request.retries))
+
+    finally:
+        db.session.remove()
+
+    return True
+
