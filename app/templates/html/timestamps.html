@@ -1,0 +1,131 @@
+<!-- Copyright 2023
+
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+
+http://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License. -->
+
+{% extends "base.html" %}
+{% block app_content %}
+<style id="docStyle">
+    .btn-block { margin-top: 2px; margin-bottom: 2px; }
+    img {
+        filter: brightness(100%) contrast(100%) saturate(100%);
+    }
+</style>
+
+<div class="row" >
+    <div class="col-lg-1"></div>
+    <div class="col-lg-8" style="text-align: center;">
+        <p></p>
+        <p id="debug-text">
+            <div id="debugImage" align="center"></div>
+        </p>
+    </div>
+    <div class="col-lg-3"></div>
+</div>
+
+<div class="row" >
+    <div class="col-lg-1"></div>
+    <div class="col-lg-8" style="text-align: center;">
+        <center>
+            <div id="mapDiv" style='height: 800px'></div>
+        </center>
+
+        <div class="row" >
+            <div class="col-lg-12">
+            </div>
+        </div>
+        
+        <div class="control-group">
+            <div class="row">
+                <div class="col-lg-4"></div>
+                <div class="col-lg-4">
+                    <button id="prevCluster" class="btn btn-secondary btn-block" onclick="undoTimestamp()">Undo <span style="font-size:100%">&#x27F2;</span></button>
+                </div>
+                <div class="col-lg-4"></div>
+            </div>
+        </div>
+    </div>
+    <div class="col-lg-2">
+        <div class='card' style="font-size:80%">
+            <div class='card-body'>
+                <div class="control-group">
+                    <button class="btn btn-danger btn-block  btn-sm" style="margin-bottom: 3px; margin-top: 3px;" onclick=submitTimestamp(true)>No Timestamp (N)</button>
+                    <label for="year" style="margin-bottom: 2px">Year</label>
+                    <input type="number" id="year" class="form-control" style="margin-bottom: 2px" placeholder="YYYY" min="1900" max="2100">
+                    <div id="errorYear" style="font-size: 80%; color: #DF691A"></div>
+                    <label for="month" style="margin-bottom: 2px">Month</label>
+                    <input type="number" id="month" class="form-control" style="margin-bottom: 2px" placeholder="MM" min="1" max="12">
+                    <div id="errorMonth" style="font-size: 80%; color: #DF691A"></div>
+                    <label for="day" style="margin-bottom: 2px">Day</label>
+                    <input type="number" id="day" class="form-control" style="margin-bottom: 2px" placeholder="DD" min="1" max="31">
+                    <div id="errorDay" style="font-size: 80%; color: #DF691A"></div>
+                    <label for="hour" style="margin-bottom: 2px">Hour (24h)</label>
+                    <input type="number" id="hour" class="form-control" style="margin-bottom: 2px" placeholder="HH" min="0" max="23">
+                    <div id="errorHour" style="font-size: 80%; color: #DF691A"></div>
+                    <label for="minutes" style="margin-bottom: 2px">Minutes</label>
+                    <input type="number" id="minutes" class="form-control" style="margin-bottom: 2px" placeholder="MM" min="0" max="59">
+                    <div id="errorMinutes" style="font-size: 80%; color: #DF691A"></div>
+                    <label for="seconds" style="margin-bottom: 2px">Seconds</label>
+                    <input type="number" id="seconds" class="form-control" style="margin-bottom: 2px" placeholder="SS" min="0" max="59">
+                    <div id="errorSeconds" style="font-size: 80%; color: #DF691A"></div>
+                </div>
+            </div>
+        </div>
+    </div>
+    <div class="col-lg-1"></div>
+</div>
+
+<!-- Done Modal -->
+<div id="modalDone" class="modal fade" role="dialog"  tabindex="-1">
+    <div class="modal-dialog">
+      
+        <!-- Modal content-->
+        <div class="modal-content">
+            <div class="modal-header">
+                <h4 class="modal-title">Batch Complete</h4>
+                <button type="button" class="close" data-dismiss="modal">&times;</button>
+            </div>
+            <div class="modal-body">
+
+                <p align="justify">
+                    Please confirm that you are finished with the batch. Alternatively, if you would like to go back and change a timestamp, please do so now.
+                </p>
+
+            </div>
+            <div class='modal-footer'>
+                <div class='col-lg-3'>
+                    <button id='btnCancel' type='button' class='btn btn-info btn-block' 
+                    data-dismiss='modal'>Return</button>
+                </div>
+                <div class='col-lg-3'>
+                    <button id='btnDone' type='button' class='btn btn-primary btn-block'>Done</button>
+                </div>
+            </div>
+        </div>
+      
+    </div>
+</div>
+
+{% endblock %}
+
+{% block page_scripts %}
+<script src="js/camtrap.common.v{{ version }}.js"></script>
+<script src="js/camtrap.timestamps.v{{ version }}.js"></script>
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.6.0/dist/leaflet.css"
+   integrity="sha512-xwE/Az9zrjBIphAcBb3F6JVqxf46+CDLwfLMHloNu6KEQCAWi6HcDUbeOfBIptF7tcCzusKFjFw2yuvEpDL9wQ=="
+   crossorigin=""/>
+<script src="https://unpkg.com/leaflet@1.6.0/dist/leaflet.js"
+   integrity="sha512-gZwIG9x3wUXg2hdXF6+rVkLF/0Vi9U8D2Ntg4Ga5I5BZpVkVxlJWbSQtXPSiUTtC0TjtGOmxa1AJPuV0CPthew=="
+   crossorigin=""></script>
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet.draw/1.0.4/leaflet.draw.css"/>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet.draw/1.0.4/leaflet.draw.js"></script>
+{% endblock %}

@@ -17,6 +17,7 @@ isReviewing = false
 isKnockdown = false
 isBounding = false
 isIDing = false
+isTimestampCheck = false
 
 var clusterIdx = 0;
 var clusterIdList = []

@@ -31,6 +31,7 @@ isReviewing = true
 isKnockdown = false
 isBounding = false
 isIDing = false
+isTimestampCheck = false
 
 wrongStatus = true
 dontResetWrong = true

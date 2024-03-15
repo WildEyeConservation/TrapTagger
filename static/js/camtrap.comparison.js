@@ -26,6 +26,7 @@ isKnockdown = false
 const modalDisplay = $('#modalDisplay');
 isBounding = false
 isIDing = false
+isTimestampCheck = false
 
 function prepareTable() {
     /** Builds the confusion matrix table. */
