@@ -12250,9 +12250,6 @@ def getStaticDetections(survey_id, reqID):
         detectionClusters = detectionClusters.distinct().all()
 
         if len(detectionClusters) == 0:
-            if survey.status == 'Static Detection Analysis':
-                survey.status = 'Ready'
-                db.session.commit()
             return json.dumps({'static_detections': [{'id': -101}], 'id': reqID})
 
         staticgroup_detections = {}
@@ -12326,6 +12323,9 @@ def assignStatic():
 
     survey = db.session.query(Survey).get(survey_id)
     if survey and checkSurveyPermission(current_user.id,survey.id,'write'):
+        if not GLOBALS.redisClient.get('static_check_ping_'+str(survey_id)):
+            return {'redirect': url_for('surveys')}, 278
+            
         GLOBALS.redisClient.set('static_check_ping_'+str(survey_id),datetime.utcnow().timestamp())
 
         if survey.status != 'Static Detection Analysis':

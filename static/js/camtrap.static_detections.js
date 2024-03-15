@@ -25,9 +25,6 @@ var staticgroupIDs = []
 var staticgroupReadAheadIndex = 0
 
 const divSelector = document.querySelector('#divSelector');
-// const modalAllFineCheck = $('#modalAllFineCheck');
-// const modalCompleteReclusterCheck = $('#modalCompleteReclusterCheck');
-
 
 function loadNewCluster(mapID = 'map1') {
     /** Requests the next back of clusters from the server. */
@@ -120,13 +117,7 @@ function handleStatic(staticCheck, mapID = 'map1') {
             static_status = 'reject_static'
         }
 
-        // detection_ids = []
-        // for (var j=0; j<clusters[mapID][clusterIndex[mapID]].images[0].detections.length; j++) {
-        //     detection_ids.push(clusters[mapID][clusterIndex[mapID]].images[0].detections[j].id)
-        // }
-
         var formData = new FormData();
-        // formData.append('detection_ids', JSON.stringify(detection_ids));
         formData.append('static_status', JSON.stringify(static_status));
         formData.append('survey_id', JSON.stringify(selectedSurvey));
         formData.append('staticgroup_id', JSON.stringify(clusters[mapID][clusterIndex[mapID]].id));
