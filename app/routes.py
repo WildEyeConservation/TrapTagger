@@ -12009,6 +12009,10 @@ def submitTimestamp():
     survey = db.session.query(Survey).get(survey_id)
     frame = db.session.query(Image).get(frame_id)
     if survey and frame and checkSurveyPermission(current_user.id,survey.id,'write'):
+
+        if not GLOBALS.redisClient.get('timestamp_check_ping_'+str(survey_id)):
+            return {'redirect': url_for('surveys')}, 278
+            
         GLOBALS.redisClient.set('timestamp_check_ping_'+str(survey_id),datetime.utcnow().timestamp())
 
         if survey.status != 'Video Timestamp Correction':	
