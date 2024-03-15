@@ -4323,7 +4323,7 @@ def get_video_timestamps(self,trapgroup_id,index):
             try:
                 timestamp = parsed_timestamps[video.id]
 
-                if (upper_limit+timedelta(days=30)) >= timestamp >= (lower_limit-timedelta(days=30)):
+                if upper_limit >= timestamp >= lower_limit:
                     fps = get_still_rate(video.fps,video.frame_count)
                     video_timestamp = timestamp - timedelta(seconds=index/fps)
 
