@@ -240,8 +240,12 @@ modalNotification.on('hidden.bs.modal', function () {
 function checkNotifications() {
     /**Checks for and displays new notifications.*/
     if (document.getElementById('notificationBadge')) {
+        url = '/checkNotifications'
+        if (modalNotification.is(':visible')) {
+            url+='?allow_global=false'
+        }
         var xhttp = new XMLHttpRequest();
-        xhttp.open("POST", '/checkNotifications');
+        xhttp.open("POST", url);
         xhttp.onreadystatechange =
         function(){
             if (this.readyState == 4 && this.status == 200) {

@@ -7775,7 +7775,8 @@ def generateCSV():
     except:
         pass
 
-    if task.survey.image_count>250000:
+    det_count = rDets(db.session.query(Detection).join(Image).join(Camera).join(Trapgroup).filter(Trapgroup.survey_id==task.survey_id)).distinct().count()
+    if det_count>300000:
         queue='ram_intensive'
     else:
         queue='default'
@@ -7880,7 +7881,7 @@ def checkDownload(fileType,selectedTask):
     try:
         check = GLOBALS.s3client.head_object(Bucket=Config.BUCKET,Key=fileName)
         # deleteFile.apply_async(kwargs={'fileName': fileName}, countdown=3600)
-        return json.dumps('https://'+Config.BUCKET+'.s3.amazonaws.com/'+fileName)
+        return json.dumps('https://'+Config.BUCKET+'.s3.amazonaws.com/'+fileName.replace('+','%2B'))
     except:
         # file does not exist
         return json.dumps('not ready yet')
@@ -8109,6 +8110,8 @@ def getHelp():
 @login_required
 def checkNotifications():
     '''Checks if there are any new global notifications for the user.'''
+
+    allow_global = request.args.get('allow_global', 'true', type=str)
     
     total_unseen = 0
     global_notification = None
@@ -8120,7 +8123,6 @@ def checkNotifications():
                     .filter(or_(Notification.expires==None,Notification.expires>datetime.utcnow()))\
                     .order_by(desc(Notification.id))\
                     .all()
-
 
         for notification in notifications:
             seen_notif = False
@@ -8139,7 +8141,7 @@ def checkNotifications():
             if seen_notif == False:
                 total_unseen += 1
 
-        if global_notification:
+        if global_notification and (allow_global=='true'):
             global_notification.users_seen.append(current_user)
             db.session.commit()
 
@@ -10328,7 +10330,7 @@ def getCovariateCSV():
                     covs.to_csv(temp_file.name, index=False)
                     fileName = folder +'/docs/' + current_user.username + '_Occupancy_Covariates.csv'
                     GLOBALS.s3client.put_object(Bucket=Config.BUCKET,Key=fileName,Body=temp_file)
-                    cov_url = "https://"+ Config.BUCKET + ".s3.amazonaws.com/" + fileName
+                    cov_url = "https://"+ Config.BUCKET + ".s3.amazonaws.com/" + fileName.replace('+','%2B')
 
                     # Schedule deletion
                     deleteFile.apply_async(kwargs={'fileName': fileName}, countdown=3600)

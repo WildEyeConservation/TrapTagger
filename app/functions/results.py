@@ -993,7 +993,8 @@ def generate_csv(self,selectedTasks, selectedLevel, requestedColumns, custom_col
 
             # Trapgroup-by-trapgroup is inefficient - only do it when necessary (there are RAM issues with large surveys)
             # trapgroups = [None]
-            if task.survey.image_count<300000:
+            det_count = rDets(db.session.query(Detection).join(Image).join(Camera).join(Trapgroup).filter(Trapgroup.survey_id==task.survey_id)).distinct().count()
+            if det_count<300000:
                 trapgroups = [None]
             else:
                 trapgroups = [tg.id for tg in task.survey.trapgroups]
