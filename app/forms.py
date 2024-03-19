@@ -48,7 +48,7 @@ class RegistrationForm(FlaskForm):
             raise ValidationError('Username cannot contain special characters.')
 
     def validate_email(self, email):
-        user = User.query.filter_by(email=email.data).first()
+        user = User.query.filter_by(email=email.data).filter(~User.root_organisation.has()).first()
         if user is not None:
             raise ValidationError('Please use a different email address.')
 

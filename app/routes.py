@@ -25,6 +25,7 @@ from app.functions.individualID import *
 from app.functions.annotation import *
 from app.functions.imports import *
 from app.functions.permissions import *
+from app.functions.utilities import *
 import GLOBALS
 import json
 from flask import render_template, redirect, url_for, flash, request, send_from_directory, send_file
