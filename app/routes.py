@@ -1957,7 +1957,7 @@ def newWorkerAccount(token):
         email = info['email']
 
         if username.lower() not in Config.DISALLOWED_USERNAMES:
-            check = db.session.query(User).filter(or_(User.username==username,User.email==email)).first()
+            check = db.session.query(User).filter(or_(User.username==username,and_(User.email==email,~User.root_organisation.has()))).first()
             folder = username.lower().replace(' ','-').replace('_','-')
             org_check = db.session.query(Organisation).filter(or_(func.lower(Organisation.name)==username.lower(), Organisation.folder==folder)).first()
             disallowed_chars = '"[@!#$%^&*()<>?/\|}{~:]' + "'"
