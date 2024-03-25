@@ -438,28 +438,37 @@ def copy_survey(self,old_survey_id,organisation_id,new_name=None,copy_individual
 
         newSurvey = db.session.query(Survey).filter(Survey.name==new_name).filter(Survey.organisation==newOrganisation).first()
         if not newSurvey:
-            #copy images & compressed
-            temp_folders = []
-            paths = [r[0] for r in db.session.query(Camera.path).join(Trapgroup).filter(Trapgroup.survey==oldSurvey).distinct().all()]
-            for path in paths:
-                folder = path.split('/')[1]
-                if folder not in temp_folders: temp_folders.append(folder)
+            newOrganisation_folder = newOrganisation.folder
+            oldSurvey_organisation_folder = oldSurvey.organisation.folder
+            db.session.close() # The copy process can take a long time
 
+            #copy folders: normal & compressed
             folders = []
-            for folder in temp_folders:
-                folders.append(oldSurvey.organisation.folder+'/'+folder)
-                folders.append(oldSurvey.organisation.folder+'-comp/'+folder)
+            paths = [r[0] for r in db.session.query(Camera.path).join(Trapgroup).filter(Trapgroup.survey_id==old_survey_id).distinct().all()]
+            for path in paths:
+                folders.append(path)
+                folders.append(path.replace(oldSurvey_organisation_folder,oldSurvey_organisation_folder+'-comp'))
 
-            paginator = GLOBALS.s3client.get_paginator('list_objects_v2')
+            results = []
             for folder in folders:
-                page_iterator = paginator.paginate(Bucket=Config.BUCKET,Prefix=folder)
-                for page in page_iterator:
-                    for obj in page['Contents']:
-                        key = obj['Key']
-                        dest_key = key.replace(oldSurvey.organisation.folder, newOrganisation.folder)
-                        GLOBALS.s3client.copy_object(Bucket=Config.BUCKET, 
-                                                    CopySource=Config.BUCKET+'/'+key, 
-                                                    Key=dest_key)
+                results.append(copy_s3_folder.apply_async(kwargs={'source_folder':folder,'destination_folder':folder.replace(oldSurvey_organisation_folder,newOrganisation_folder)},queue='default'))
+
+            GLOBALS.lock.acquire()
+            with allow_join_result():
+                for result in results:
+                    try:
+                        result.get()
+                    except Exception:
+                        app.logger.info(' ')
+                        app.logger.info('!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!')
+                        app.logger.info(traceback.format_exc())
+                        app.logger.info('!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!')
+                        app.logger.info(' ')
+                    result.forget()
+            GLOBALS.lock.release()
+                        
+            # Re-init the db session now that the long copy is finished
+            oldSurvey = db.session.query(Survey).get(old_survey_id)
 
             #create new survey
             newSurvey = Survey(
@@ -600,6 +609,34 @@ def copy_survey(self,old_survey_id,organisation_id,new_name=None,copy_individual
         oldSurvey = db.session.query(Survey).get(old_survey_id)
         oldSurvey.status = 'Ready'
         db.session.commit()
+
+    except Exception as exc:
+        app.logger.info(' ')
+        app.logger.info('!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!')
+        app.logger.info(traceback.format_exc())
+        app.logger.info('!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!')
+        app.logger.info(' ')
+        self.retry(exc=exc, countdown= retryTime(self.request.retries))
+    
+    finally:
+        db.session.remove()
+
+    return True
+
+@celery.task(bind=True,max_retries=5)
+def copy_s3_folder(self,source_folder,destination_folder):
+    '''Copies the contents of an S3 folder from the source to the destination.'''
+
+    try:
+        paginator = GLOBALS.s3client.get_paginator('list_objects_v2')
+        page_iterator = paginator.paginate(Bucket=Config.BUCKET,Prefix=source_folder)
+        for page in page_iterator:
+            for obj in page['Contents']:
+                key = obj['Key']
+                dest_key = key.replace(source_folder, destination_folder)
+                GLOBALS.s3client.copy_object(Bucket=Config.BUCKET, 
+                                            CopySource=Config.BUCKET+'/'+key, 
+                                            Key=dest_key)
 
     except Exception as exc:
         app.logger.info(' ')
