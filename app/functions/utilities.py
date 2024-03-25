@@ -308,9 +308,9 @@ def copy_trapgroup(self,old_trapgroup_id,old_survey_id,new_survey_id,task_transl
                     filename = oldVideo.filename,
                     hash = oldVideo.hash,
                     camera = newCamera,
-                    extracted_text = oldVideo.extracted_text,
-                    fps = oldVideo.fps,
-                    frame_count = oldVideo.frame_count
+                    # extracted_text = oldVideo.extracted_text,
+                    # fps = oldVideo.fps,
+                    # frame_count = oldVideo.frame_count
                 )
                 db.session.add(newVideo)
 
@@ -323,7 +323,7 @@ def copy_trapgroup(self,old_trapgroup_id,old_survey_id,new_survey_id,task_transl
                     detection_rating = oldImage.detection_rating,
                     etag = oldImage.etag,
                     hash = oldImage.hash,
-                    llava_data = oldImage.llava_data,
+                    # llava_data = oldImage.llava_data,
                     camera = newCamera
                 )
                 db.session.add(newImage)

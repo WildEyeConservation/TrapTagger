@@ -1964,9 +1964,9 @@ def get_video_paths_and_labels(video,task,individual_sorted,species_sorted,flat_
 #     return True
 
 @celery.task(bind=True,max_retries=5,ignore_result=True)
-def generate_training_csv(self,tasks,destBucket,min_area,include_empties=False):
+def generate_training_csv(self,tasks,destBucket,min_area,include_empties=False,crop_images=True):
     '''
-    Generates a csv file for classification trainingg purposes.
+    Generates a csv file for classification training purposes.
 
         Parameters:
             tasks (list): A list of task IDs for which a file should be created
@@ -2017,16 +2017,17 @@ def generate_training_csv(self,tasks,destBucket,min_area,include_empties=False):
                 df['dataset_class'] = df['label']
 
                 # Check if you need to crop the images
-                try:              
-                    key = df.iloc[0]['path']
-                    check = GLOBALS.s3client.head_object(Bucket=destBucket,Key=key)
-                
-                except:
-                    # Crop does not exist - must crop the images
-                    crop_survey_images.apply_async(kwargs={'task_id':task_id,'min_area':min_area,'destBucket':destBucket},queue='parallel')
-                    task.survey.images_processing = len(df)
-                    # task.survey.status='Processing'
-                    db.session.commit()
+                if crop_images:
+                    try:              
+                        key = df.iloc[0]['path']
+                        check = GLOBALS.s3client.head_object(Bucket=destBucket,Key=key)
+                    
+                    except:
+                        # Crop does not exist - must crop the images
+                        crop_survey_images.apply_async(kwargs={'task_id':task_id,'min_area':min_area,'destBucket':destBucket},queue='parallel')
+                        task.survey.images_processing = len(df)
+                        # task.survey.status='Processing'
+                        db.session.commit()
 
                 # Order columns and remove superfluous ones
                 df = df[['path','dataset','location','dataset_class','confidence','label']]
@@ -2043,11 +2044,16 @@ def generate_training_csv(self,tasks,destBucket,min_area,include_empties=False):
                     outputDF = df
 
         # Write output to S3
-        # user = task.survey.user.username
-        organisation = task.survey.organisation.name
+        organisations = db.session.query(Organisation).join(Survey).join(Task).filter(Task.id.in_(tasks)).distinct().all()
+        if len(organisations) == 1:
+            organisation = organisations[0].name
+        else:
+            organisation = 'Multiple'
+        
+        key = 'classification_ds/'+randomString()+organisation+'_classification_ds.csv'
         with tempfile.NamedTemporaryFile(delete=True, suffix='.csv') as temp_file:
             outputDF.to_csv(temp_file.name,index=False)
-            GLOBALS.s3client.put_object(Bucket=destBucket,Key='classification_ds/'+randomString()+user+'_classification_ds.csv',Body=temp_file)
+            GLOBALS.s3client.put_object(Bucket=destBucket,Key=key,Body=temp_file)
 
     except Exception as exc:
         app.logger.info(' ')
@@ -2060,7 +2066,7 @@ def generate_training_csv(self,tasks,destBucket,min_area,include_empties=False):
     finally:
         db.session.remove()
 
-    return True
+    return key
 
 @celery.task(bind=True,max_retries=5,ignore_result=True)
 def crop_survey_images(self,task_id,min_area,destBucket,include_empties=False):
