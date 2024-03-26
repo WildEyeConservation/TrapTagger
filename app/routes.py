@@ -8583,7 +8583,7 @@ def get_image_info():
         include_frames = request.json['include_frames']
         fileName = request.json['fileName']
 
-        if include_video and any(ext in fileName.lower() for ext in ['mp4','avi']):
+        if include_video and any(ext in fileName.lower() for ext in ['mp4','avi','mov']):
             video = db.session.query(Video)\
                             .join(Camera)\
                             .join(Trapgroup)\
