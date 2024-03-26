@@ -501,7 +501,10 @@ def create_task_dataframe(task_id,detection_count_levels,label_levels,url_levels
                     .join(Individual,Detection.individuals) \
                     .filter(Trapgroup.survey==task.survey)\
                     .filter(Individual.tasks.contains(task)) \
-                    .filter(Individual.active==True)
+                    .filter(Individual.active==True)\
+                    .filter(Detection.static==False) \
+                    .filter(or_(and_(Detection.source==model,Detection.score>Config.DETECTOR_THRESHOLDS[model]) for model in Config.DETECTOR_THRESHOLDS)) \
+                    .filter(~Detection.status.in_(['deleted','hidden']))
 
         if include: query = query.filter(Individual.species.in_([r[0] for r in db.session.query(Label.description).filter(Label.id.in_(include)).distinct().all()]))
         if exclude: query = query.filter(~Individual.species.in_([r[0] for r in db.session.query(Label.description).filter(Label.id.in_(exclude)).distinct().all()]))
