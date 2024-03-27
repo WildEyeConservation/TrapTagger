@@ -112,9 +112,11 @@ class Image(db.Model):
     etag = db.Column(db.String(64), index=False)
     hash = db.Column(db.String(64), index=True)
     downloaded = db.Column(db.Boolean, default=False, index=True)
-    llava_data = db.Column(db.String(128), index=False)
+    extracted_data = db.Column(db.String(128), index=False)
     detections = db.relationship('Detection', backref='image', lazy=True)
     camera_id = db.Column(db.Integer, db.ForeignKey('camera.id'), index=True, unique=False)
+    skipped = db.Column(db.Boolean, default=False, index=True)
+    extracted = db.Column(db.Boolean, default=False, index=True)
 
     def __repr__(self):
         return '<Image {}>'.format(self.filename)
