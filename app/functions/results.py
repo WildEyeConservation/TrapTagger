@@ -1991,6 +1991,7 @@ def generate_training_csv(self,tasks,destBucket,min_area,include_empties=False,c
                         Detection.score.label('confidence'),\
                         Image.id.label('image_id'),\
                         Image.filename.label('filename'),\
+                        Image.hash.label('hash'),\
                         Camera.path.label('dirpath'),\
                         Trapgroup.tag.label('location'),\
                         Survey.name.label('dataset'),\
@@ -2033,11 +2034,11 @@ def generate_training_csv(self,tasks,destBucket,min_area,include_empties=False,c
                         db.session.commit()
 
                 # Order columns and remove superfluous ones
-                df = df[['path','dataset','location','dataset_class','confidence','label']]
+                df = df[['path','hash','dataset','location','dataset_class','confidence','label']]
 
                 # convert all labels to lower case
-                df['label'] = df.apply(lambda x: x.label.lower(), axis=1)
-                df['dataset_class'] = df.apply(lambda x: x.dataset_class.lower(), axis=1)
+                df['label'] = df.apply(lambda x: x.label.lower().strip(), axis=1)
+                df['dataset_class'] = df.apply(lambda x: x.dataset_class.lower().strip(), axis=1)
 
                 # Add to output
                 if outputDF is not None:
