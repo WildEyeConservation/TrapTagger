@@ -1167,7 +1167,7 @@ def updateSurveyStatus(survey_id, status):
                     db.session.commit()
                     GLOBALS.redisClient.delete('upload_ping_'+str(survey_id))
                     GLOBALS.redisClient.delete('upload_user_'+str(survey_id))
-                    import_survey.delay(s3Folder=survey.name,surveyName=survey.name,tag=survey.trapgroup_code,organisation_id=survey.organisation_id,correctTimestamps=survey.correct_timestamps,classifier=survey.classifier.name)
+                    import_survey.delay(s3Folder=survey.name,surveyName=survey.name,tag=survey.trapgroup_code,organisation_id=survey.organisation_id,correctTimestamps=survey.correct_timestamps,classifier=survey.classifier.name,description=survey.description)
                 else:
                     return json.dumps('error')
             else:
@@ -1472,7 +1472,7 @@ def createNewSurvey():
                 # Checkout the upload
                 checkUploadUser(current_user.id,newSurvey_id)
             else:
-                import_survey.delay(s3Folder=newSurveyS3Folder,surveyName=surveyName,tag=newSurveyTGCode,organisation_id=organisation_id,correctTimestamps=correctTimestamps,classifier=classifier,user_id=current_user.id,permission=permission,annotation=annotation,detailed_access=detailed_access)
+                import_survey.delay(s3Folder=newSurveyS3Folder,surveyName=surveyName,tag=newSurveyTGCode,organisation_id=organisation_id,correctTimestamps=correctTimestamps,classifier=classifier,description=newSurveyDescription,user_id=current_user.id,permission=permission,annotation=annotation,detailed_access=detailed_access)
     
         return json.dumps({'status': status, 'message': message, 'newSurvey_id': newSurvey_id, 'surveyName':surveyName})
     else:
@@ -1891,7 +1891,7 @@ def editSurvey():
                     db.session.commit()
                     
                     if newSurveyS3Folder!='none':
-                        import_survey.delay(s3Folder=newSurveyS3Folder,surveyName=survey.name,tag=newSurveyTGCode,organisation_id=survey.organisation_id,correctTimestamps=survey.correct_timestamps,classifier=None)
+                        import_survey.delay(s3Folder=newSurveyS3Folder,surveyName=survey.name,tag=newSurveyTGCode,organisation_id=survey.organisation_id,correctTimestamps=survey.correct_timestamps,classifier=None,description=survey.description)
                     else:
                         survey.status = 'Uploading'
                         db.session.commit()
