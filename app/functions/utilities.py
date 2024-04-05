@@ -19,7 +19,7 @@ from app.models import *
 from app.functions.globals import *
 import GLOBALS
 from sqlalchemy.sql import func, or_, and_, alias
-from sqlalchemy import desc
+from sqlalchemy import desc, extract
 from config import Config
 import traceback
 from celery.result import allow_join_result
@@ -650,3 +650,100 @@ def copy_s3_folder(self,source_folder,destination_folder):
         db.session.remove()
 
     return True
+
+def print_survey_summary(survey,survey_name,task_name=None):
+    ''' Helper function for inspect_organistaion_surveys that prints the rows for the table'''
+    
+    admin = db.session.query(User).filter(User.username=='Admin').first()
+    
+    if task_name:
+        task = db.session.query(Task).filter(Task.survey==survey).filter(Task.name==task_name).first()
+    else:
+        task = survey.tasks[-1]
+    
+    sq = db.session.query(Cluster.id.label('cluster_id'),func.count(Image.id).label('count'))\
+                    .join(Image,Cluster.images)\
+                    .filter(Cluster.task==task)\
+                    .group_by(Cluster.id).subquery()
+    av_cluster_count = float(db.session.query(func.sum(sq.c.count)/func.count(distinct(Cluster.id)))\
+                    .filter(Cluster.task==task)\
+                    .join(sq,sq.c.cluster_id==Cluster.id)\
+                    .first()[0])
+
+    clusters_ai_annot = db.session.query(Cluster)\
+                    .filter(Cluster.user==admin)\
+                    .filter(Cluster.task==task)\
+                    .distinct().count()
+    
+    total_clusters = db.session.query(Cluster).filter(Cluster.task==task).distinct().count()
+    non_empty_clusters = rDets(db.session.query(Cluster).join(Image,Cluster.images).join(Detection).filter(Cluster.task==task)).distinct().count()
+    empty_clusters = total_clusters - non_empty_clusters
+    perc_ai_annotated = round((clusters_ai_annot/non_empty_clusters)*100,2)
+    perc_class_MD_annotated = round(((clusters_ai_annot+empty_clusters)/total_clusters)*100,2)
+
+    det_count = rDets(db.session.query(Detection).join(Image).join(Camera).join(Trapgroup).filter(Trapgroup.survey==survey)).distinct().count()
+    dets_above_thresh = rDets(db.session.query(Detection)\
+                    .join(Image).join(Camera)\
+                    .join(Trapgroup)\
+                    .filter(Trapgroup.survey==survey)\
+                    .filter(Detection.class_score>survey.classifier.threshold))\
+                    .distinct().count()
+    
+    night_images = db.session.query(Image)\
+                    .join(Camera)\
+                    .join(Trapgroup)\
+                    .filter(Trapgroup.survey==survey)\
+                    .filter(or_(extract('hour',Image.corrected_timestamp)<6,extract('hour',Image.corrected_timestamp)>=18))\
+                    .distinct().count()
+    
+    sq = rDets(db.session.query(Image.id.label('image_id'),func.count(distinct(Detection.classification)).label('count'))\
+                    .join(Detection)\
+                    .join(Camera)\
+                    .join(Trapgroup)\
+                    .filter(Trapgroup.survey==survey)\
+                    .filter(Detection.class_score>survey.classifier.threshold))\
+                    .group_by(Image.id).subquery()
+    
+    average_classes_per_image = float(db.session.query(func.sum(sq.c.count)/func.count(distinct(Image.id)))\
+                    .join(Camera)\
+                    .join(Trapgroup)\
+                    .filter(Trapgroup.survey==survey)\
+                    .join(sq,sq.c.image_id==Image.id)\
+                    .first()[0])
+    
+    print('{:{}}{:{}}{:{}}{:{}}{:{}}{:{}}{:{}}{:{}}{:{}}{:{}}'.format(
+                    survey_name,20,
+                    survey.image_count,8,
+                    total_clusters,10,
+                    av_cluster_count,20,
+                    round(det_count/survey.image_count,2),13,
+                    average_classes_per_image,16,
+                    perc_ai_annotated,26,
+                    perc_class_MD_annotated,22,
+                    round(100*(dets_above_thresh/det_count),2),27,
+                    round(100*(night_images/survey.image_count),2),16
+    ))
+
+def inspect_organisation_surveys(organisation_id):
+    '''Prints the details of all an organisations surveys to help determine classification performance.'''
+    
+    organisation = db.session.query(Organisation).get(organisation_id)
+    
+    print('{:{}}{:{}}{:{}}{:{}}{:{}}{:{}}{:{}}{:{}}{:{}}{:{}}'.format(
+                    'survey',20,
+                    '  images',8,
+                    '  clusters',10,
+                    '  av. images/cluster',20,
+                    '  av. dets/im',13,
+                    '  av. classes/im',16,
+                    '  % animal clusters class.',26,
+                    '  % clusters annotated',22,
+                    '  % dets above class thresh',27,
+                    '  % night images',16
+    ))
+    
+    print_survey_summary(db.session.query(Survey).get(3),'Reference 1','Classifier')
+    print_survey_summary(db.session.query(Survey).get(4),'Reference 2','Classifier2.1')
+    
+    for survey in organisation.surveys:
+        print_survey_summary(survey,survey.name)
