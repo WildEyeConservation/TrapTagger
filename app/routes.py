@@ -1965,7 +1965,7 @@ def newWorkerAccount(token):
             
             if check==None and org_check==None and not disallowed and len(username)<=64:
                 password = info['password']
-                user = User(username=username, email=email, admin=False)
+                user = User(username=username, email=email, admin=False, cloud_access=False)
                 user.set_password(password)
                 db.session.add(user)
                 turkcode = Turkcode(code=username, active=False, tagging_time=0)
@@ -2835,7 +2835,7 @@ def createAccount(token):
         check2 = db.session.query(User).filter(func.lower(User.username)==info['organisation']).first()
 
         if (check == None) and (check2 == None) and (len(folder) <= 64):
-            newUser = User(username=info['organisation'], email=info['email'], admin=True, passed='pending')
+            newUser = User(username=info['organisation'], email=info['email'], admin=True, passed='pending', cloud_access=False)
             newTurkcode = Turkcode(code=info['organisation'], active=False, tagging_time=0)
             newOrganisation = Organisation(name=info['organisation'], folder=folder, previous_image_count=0, image_count=0, previous_video_count=0, video_count=0, previous_frame_count=0, frame_count=0)
             newUserPermission = UserPermissions(default='admin', annotation=True, create=True, delete=True) 
@@ -4516,7 +4516,7 @@ def load_login(user_id):
             username = 'load_tester_'+str(GLOBALS.load_testers)
             user = db.session.query(User).filter(User.username==username).first()
             if user == None:
-                user = User(username=username, admin=False)
+                user = User(username=username, admin=False, cloud_access=False)
                 user.set_password(randomString())
                 db.session.add(user)
                 turkcode = Turkcode(code=username, active=False, tagging_time=0)
