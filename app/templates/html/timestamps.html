@@ -58,7 +58,10 @@ limitations under the License. -->
         <div class='card' style="font-size:80%">
             <div class='card-body'>
                 <div class="control-group">
-                    <button class="btn btn-danger btn-block  btn-sm" style="margin-bottom: 3px; margin-top: 3px;" onclick=submitTimestamp(true)>No Timestamp (N)</button>
+                    <div id="divBtns">
+                        <button class="btn btn-danger btn-block  btn-sm" style="margin-bottom: 3px; margin-top: 3px;" onclick=submitTimestamp(true)>No Timestamp (N)</button>
+                        <button class="btn btn-primary btn-block  btn-sm" style="margin-bottom: 3px; margin-top: 3px;" onclick="skipCamera()">Skip Camera (S)</button>
+                    </div>
                     <label for="year" style="margin-bottom: 2px">Year</label>
                     <input type="number" id="year" class="form-control" style="margin-bottom: 2px" placeholder="YYYY" min="1900" max="2100">
                     <div id="errorYear" style="font-size: 80%; color: #DF691A"></div>

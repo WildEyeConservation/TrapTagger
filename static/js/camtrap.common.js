@@ -1209,8 +1209,7 @@ function updateDebugInfo(mapID = 'map1',updateLabels = true) {
             }
 
             // Update notes in explore
-            if(isReviewing && document.getElementById('noteboxExp'))
-            {
+            if(isReviewing && document.getElementById('noteboxExp')){
                 noteTextBox.value = clusters[mapID][clusterIndex[mapID]].notes
                 document.getElementById('notif').innerHTML = ""
             }
@@ -1264,7 +1263,7 @@ function updateDebugInfo(mapID = 'map1',updateLabels = true) {
     }
 
     if (isTimestampCheck) {
-        document.getElementById('debugImage').innerHTML =  clusters[mapID][clusterIndex[mapID]].video 
+        document.getElementById('debugImage').innerHTML = clusters[mapID][clusterIndex[mapID]].images[imageIndex[mapID]].name 
         yearInput.value = ''
         monthInput.value = ''
         dayInput.value = ''
@@ -2158,13 +2157,20 @@ function prepMap(mapID = 'map1') {
                         }
 
                         L.Browser.touch = true
-                
-                        map[wrapMapID] = new L.map(mapDivs[wrapMapID], {
+
+                        var mapAttributes = {
                             crs: L.CRS.Simple,
                             maxZoom: 10,
                             center: [0, 0],
                             zoomSnap: 0
-                        })
+                        }
+                        
+                        if (isTimestampCheck) {
+                            mapAttributes.attributionControl = false // Remove Leaflet attribution (because it might block the timestamp)
+                        }
+                
+                        map[wrapMapID] = new L.map(mapDivs[wrapMapID], mapAttributes)
+
                         var h1 = document.getElementById(mapDivs[wrapMapID]).clientHeight
                         var w1 = document.getElementById(mapDivs[wrapMapID]).clientWidth
 
@@ -2493,7 +2499,7 @@ function onload (){
         clusters['map1'] = []
         clusterIndex['map1'] = 0
         imageIndex['map1'] = 0
-        getFrameIDs()
+        getCameraIDs()
     }
 
     // if (document.location.href.includes('task')) {
@@ -3183,6 +3189,8 @@ document.onkeyup = function(event){
             case ('n'):submitTimestamp(true)
                 break;
             case (' '):skipTimeUnit()
+                break;
+            case ('s'): skipCamera() 
                 break;
             case '~': undoTimestamp()
                 break;

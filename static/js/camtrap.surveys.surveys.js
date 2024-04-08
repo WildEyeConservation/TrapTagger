@@ -207,7 +207,7 @@ var barColours = {
 
 var btnOpacity = 0.2
 
-var disabledSurveyStatuses = ['re-clustering','extracting labels','correcting timestamps','reclustering','removing duplicate images','importing coordinates','processing','deleting','launched','importing','removing humans','removing static detections','clustering','import queued','cancelled','prepping task','classifying','calculating scores','video timestamp correction','extracting video timestamps']
+var disabledSurveyStatuses = ['re-clustering','extracting labels','correcting timestamps','reclustering','removing duplicate images','importing coordinates','processing','deleting','launched','importing','removing humans','removing static detections','clustering','import queued','cancelled','prepping task','classifying','calculating scores','extracting timestamps']
 var diabledTaskStatuses = ['wrapping up','prepping','deleting','importing','processing','pending','started','initialising','stopping']
 const launchMTurkTaskBtn = document.querySelector('#launchMTurkTaskBtn');
 const btnCreateTask = document.querySelector('#btnCreateTask');
@@ -232,6 +232,20 @@ var pathDisplay = null
 const default_access  = {0: 'Worker', 1: 'Hidden', 2: 'Read', 3: 'Write', 4: 'Admin'}
 const access_slider_values = {'worker': 0, 'hidden': 1, 'read': 2, 'write': 3 , 'admin': 4}
 var globalOrganisationUsers = []
+
+var selectedTimestampType = 'camera'
+var cameraIDs = []
+var cameraReadAheadIndex = 0
+var imageIndex = 0
+var cameraIndex = 0
+var images = []
+var new_missing_timestamps = {}
+var original_extracted_timestamps = {}
+var corrected_extracted_timestamps = {}
+var original_edited_timestamps = {}
+var corrected_edited_timestamps = {}
+var camera_ids = []
+var currentYear = new Date().getFullYear()
 
 function buildSurveys(survey,disableSurvey) {
     /**
@@ -322,7 +336,7 @@ function buildSurveys(survey,disableSurvey) {
     infoElementRow3.setAttribute('style',"margin-left: 10px")
     infoCol.appendChild(infoElementRow3)
 
-    if (survey.status.toLowerCase()!='uploading') {
+    if ((survey.status.toLowerCase()!='uploading')&&(survey.status.toLowerCase()!='preprocessing')){
         
         infoElementDescription = document.createElement('div')
         infoElementDescription.classList.add('col-lg-6');
@@ -447,6 +461,159 @@ function buildSurveys(survey,disableSurvey) {
             }
             col2.appendChild(btnResume)
         }
+    } else if (survey.status.toLowerCase()=='preprocessing') {
+        addTaskBtn = null
+
+        taskDivHeading.innerHTML = 'Preprocessing Steps:'
+
+        var row = document.createElement('div')
+        row.classList.add('row')
+        row.setAttribute("style","margin-right: 15px")
+        taskDiv.appendChild(row)
+
+        var col1 = document.createElement('div')
+        col1.classList.add('col-lg-8')
+        row.appendChild(col1)
+
+        var col2 = document.createElement('div')
+        col2.classList.add('col-lg-2')
+        row.appendChild(col2)
+
+        var col3 = document.createElement('div')
+        col3.classList.add('col-lg-2')
+        row.appendChild(col3)
+
+        // Progress
+        var progressBarDiv = document.createElement('div')
+        progressBarDiv.setAttribute("id","stepsProgressDiv"+survey.id)
+        col1.appendChild(progressBarDiv)
+
+        var newProg = document.createElement('div');
+        newProg.classList.add('progress');
+        newProg.setAttribute('style','background-color: #3C4A59')
+        progressBarDiv.appendChild(newProg)
+
+        var newProgInner = document.createElement('div');
+        newProgInner.classList.add('progress-bar');
+        newProgInner.classList.add('progress-bar-striped');
+        newProgInner.classList.add('progress-bar-animated');
+        newProgInner.classList.add('active');
+        newProgInner.setAttribute("role", "progressbar");
+        newProgInner.setAttribute("id", "stepsProgress"+survey.id);
+        newProgInner.setAttribute("aria-valuenow", "0");
+        newProgInner.setAttribute("aria-valuemin", "0");
+        newProgInner.setAttribute("aria-valuemax", "2");
+        newProgInner.setAttribute("style", "width:"+(survey.prep_progress/survey.prep_statusses.length)*100+"%;transition:none; ");
+        newProgInner.innerHTML = (survey.prep_progress/survey.prep_statusses.length)*100+"% Complete";
+        newProg.appendChild(newProgInner);
+
+        var stepsDiv = document.createElement('div')
+        stepsDiv.setAttribute("id","stepsDiv"+survey.id)
+        stepsDiv.setAttribute("style","margin-top: 5px")
+        col1.appendChild(stepsDiv)
+
+        var row1 = document.createElement('div')
+        row1.classList.add('row')
+        row1.setAttribute("style","font-size:80%")
+        stepsDiv.appendChild(row1)
+
+        var cols1 = document.createElement('div')
+        cols1.classList.add('col-lg-6')
+        cols1.innerHTML = 'Timestamp Correction'
+        row1.appendChild(cols1)
+
+        var cols2 = document.createElement('div')
+        cols2.classList.add('col-lg-6')
+        cols2.setAttribute("style","padding-left: 2px")
+        cols2.innerHTML = 'Static Detection Check'
+        row1.appendChild(cols2)
+
+        var row2 = document.createElement('div')
+        row2.classList.add('row')
+        row2.setAttribute("style","font-size:70%")
+        stepsDiv.appendChild(row2)
+
+        var cols3 = document.createElement('div')
+        cols3.classList.add('col-lg-6')
+        cols3.setAttribute("id","step1Status"+survey.id)
+        cols3.innerHTML = survey.prep_statusses[0]
+        row2.appendChild(cols3)
+
+        var cols4 = document.createElement('div')
+        cols4.classList.add('col-lg-6')
+        cols4.setAttribute("id","step2Status"+survey.id)
+        cols4.setAttribute("style","padding-left: 2px")
+        cols4.innerHTML = survey.prep_statusses[1]
+        row2.appendChild(cols4)
+
+        var disblePrep = false
+        if (survey.prep_statusses.includes('In Progress')) {
+            disblePrep = true
+            disableSurvey = true
+        }
+        if (survey.prep_progress == 2) {
+            disblePrep = true
+        }
+
+        // Launch
+        var launchStep = document.createElement('button')
+        launchStep.setAttribute("id","launchStep"+survey.id)
+        launchStep.setAttribute("class","btn btn-primary btn-block btn-sm")
+        launchStep.innerHTML = 'Launch'
+        launchStep.disabled = disblePrep
+        col2.appendChild(launchStep)
+
+        launchStep.addEventListener('click', function(wrapSurveyId, wrapProgress) {
+            return function() {
+                selectedSurvey = wrapSurveyId
+
+                if (wrapProgress == 0) {
+                    document.location.href = '/checkTimestamps?survey='+wrapSurveyId
+                } else if (wrapProgress == 1) {
+                    // Static Detection Check
+                }
+            }
+        }(survey.id, survey.prep_progress));
+
+        // Skip
+        var skipStep = document.createElement('button')
+        skipStep.setAttribute("id","skipStep"+survey.id)
+        skipStep.setAttribute("class","btn btn-danger btn-block btn-sm")
+        skipStep.innerHTML = 'Skip'
+        skipStep.disabled = disblePrep
+        col3.appendChild(skipStep)
+
+        skipStep.addEventListener('click', function(wrapSurveyId, wrapProgress) {
+            return function() {
+                
+                selectedSurvey = wrapSurveyId
+
+                if (wrapProgress == 0) {
+                    step = 'timestamp'
+                    confirmStep = 'Timestamp Correction'
+                    warningMsg = '<i> Please note that skipping this step will result in the affected images and/or videos not having timestamps. It may have an impact on the clustering of your data as well as any subsequent analysis.</i>'
+                } else if (wrapProgress == 1) {
+                    step = 'static'
+                    confirmStep = 'Static Detection Check'
+                    warningMsg = '<i> Please note that skipping this step may result in missed animal detections that were wrongly marked as static. It may have an impact on the accuracy of your data. </i>'
+                }
+
+                document.getElementById('modalConfirmHeader').innerHTML = 'Confirmation Required'
+                document.getElementById('modalConfirmBody').innerHTML = 'Do you wish to skip ' + confirmStep + ' for this survey?<br><br>' + warningMsg
+                document.getElementById('btnConfirm').addEventListener('click', function() {
+                    var xhttp = new XMLHttpRequest();
+                    xhttp.onreadystatechange = function() {
+                        if (this.readyState == 4 && this.status == 200) {
+                            updatePage(current_page)
+                        }
+                    }
+                    xhttp.open("GET", "/skipPreprocessing/"+wrapSurveyId+"/"+step);
+                    xhttp.send();
+                });
+                modalConfirm.modal({keyboard: true});
+            }
+        }(survey.id, survey.prep_progress));
+    
     } else {
         taskDivHeading.innerHTML = 'Annotation Sets:'
         for (let i=0;i<survey.tasks.length;i++) {
@@ -798,11 +965,13 @@ function resetEditSurveyModal() {
     document.getElementById('addImagesEditTimestamps').checked = false
     document.getElementById('addImagesEditClassifier').checked = false
     document.getElementById('addImagesAdvanced').checked = false
+    document.getElementById('addImagesEditImgTimestamps').checked = false
     document.getElementById('addImagesAddImages').disabled = false
     document.getElementById('addImagesAddCoordinates').disabled = false
     document.getElementById('addImagesEditTimestamps').disabled = false
     document.getElementById('addImagesEditClassifier').disabled = false
     document.getElementById('addImagesAdvanced').disabled = false
+    document.getElementById('addImagesEditImgTimestamps').disabled = false
 
     clearEditSurveyModal()
 }
@@ -1696,23 +1865,7 @@ function buildCameras(camera_url='/getCameraStamps') {
                 document.getElementById('addImagesEditTimestamps').disabled = false
                 document.getElementById('addImagesEditClassifier').disabled = false
                 document.getElementById('addImagesAdvanced').disabled = false
-                addImagesCamerasDiv.appendChild(document.createElement('br'))
-            
-                h5 = document.createElement('h5')
-                h5.setAttribute('style','margin-bottom: 2px')
-                h5.innerHTML = 'Edit Timestamps'
-                addImagesCamerasDiv.appendChild(h5)
-            
-                div = document.createElement('div')
-                div.setAttribute('style','font-size: 80%; margin-bottom: 2px')
-                div.innerHTML = '<i>Here you can view and edit the timestamps of the fist image taken by each camera in the selected survey. All images taken by an edited camera will be shifted by the same amount.</i>'
-                addImagesCamerasDiv.appendChild(div)
-
-                errors = document.createElement('div')
-                errors.setAttribute('id','timestampErrors')
-                errors.setAttribute('style','font-size: 80%; color: #DF691A')
-                addImagesCamerasDiv.appendChild(errors)
-            
+                document.getElementById('addImagesEditImgTimestamps').disabled = false
                 addImagesCamerasDiv.appendChild(document.createElement('br'))
             
                 row = document.createElement('div')
@@ -1821,15 +1974,35 @@ function buildEditTimestamp() {
     document.getElementById('addImagesEditTimestamps').disabled = true
     document.getElementById('addImagesEditClassifier').disabled = true
     document.getElementById('addImagesAdvanced').disabled = true
+    document.getElementById('addImagesEditImgTimestamps').disabled = true
 
     global_corrected_timestamps = {}
     global_original_timestamps = {}
 
     addImagesEditTimestampsDiv = document.getElementById('addImagesEditTimestampsDiv')
 
+    addImagesEditTimestampsDiv.appendChild(document.createElement('br'))
+
+    h5 = document.createElement('h5')
+    h5.setAttribute('style','margin-bottom: 2px')
+    h5.innerHTML = 'Edit Timestamps'
+    addImagesEditTimestampsDiv.appendChild(h5)
+
     div = document.createElement('div')
-    div.setAttribute('id','addImagesCamerasDiv')
+    div.setAttribute('style','font-size: 80%; margin-bottom: 2px')
+    div.innerHTML = '<i>Here you can view and edit the timestamps of the first image taken by each camera in the selected survey. All images taken by an edited camera will be shifted by the same amount.</i>'
     addImagesEditTimestampsDiv.appendChild(div)
+
+    errors = document.createElement('div')
+    errors.setAttribute('id','timestampErrors')
+    errors.setAttribute('style','font-size: 80%; color: #DF691A')
+    addImagesEditTimestampsDiv.appendChild(errors)
+
+    addImagesCamerasDiv = document.createElement('div')
+    addImagesCamerasDiv.setAttribute('id','addImagesCamerasDiv')
+    addImagesEditTimestampsDiv.appendChild(addImagesCamerasDiv)
+
+    addImagesEditTimestampsDiv.appendChild(document.createElement('br'))
 
     row = document.createElement('div')
     row.classList.add('row')
@@ -1868,6 +2041,153 @@ function buildEditTimestamp() {
     });
     
     buildCameras()
+}
+
+function buildEditImageTimestamp() {
+    /** Builds the form for editing timestamps on the edit survey modal. */
+    
+    document.getElementById('addImagesAddImages').disabled = true
+    document.getElementById('addImagesAddCoordinates').disabled = true
+    document.getElementById('addImagesEditTimestamps').disabled = true
+    document.getElementById('addImagesEditClassifier').disabled = true
+    document.getElementById('addImagesAdvanced').disabled = true
+
+    new_missing_timestamps = {}
+    corrected_extracted_timestamps = {}
+    original_extracted_timestamps = {}
+    corrected_edited_timestamps = {}
+    original_edited_timestamps = {}
+    selectedTimestampType = 'camera'
+    map = null
+    imageIndex = 0
+    cameraReadAheadIndex = 0
+    images = []
+    camera_ids = []
+
+    addImagesEditImgTimestampsDiv = document.getElementById('addImagesEditImgTimestampsDiv')
+
+    addImagesEditImgTimestampsDiv.appendChild(document.createElement('br'))
+
+    h5 = document.createElement('h5')
+    h5.setAttribute('style','margin-bottom: 2px')
+    h5.innerHTML = 'Edit Image Timestamps'
+    addImagesEditImgTimestampsDiv.appendChild(h5)
+
+    var row = document.createElement('div')
+    addImagesEditImgTimestampsDiv.appendChild(row)
+    
+    var radio = document.createElement('div')
+    radio.setAttribute('class','custom-control custom-radio custom-control-inline')
+    row.appendChild(radio)
+
+    var input = document.createElement('input')
+    input.setAttribute('type','radio')
+    input.setAttribute('class','custom-control-input')
+    input.setAttribute('id','missingTimestamps')
+    input.setAttribute('name','timestampCorrection')
+    input.setAttribute('value','customEx')
+    radio.appendChild(input)
+
+    var label = document.createElement('label')
+    label.setAttribute('class','custom-control-label')
+    label.setAttribute('for','missingTimestamps')
+    label.innerHTML = 'Missing Timestamps'
+    radio.appendChild(label)
+
+    document.getElementById('missingTimestamps').addEventListener('click', ()=>{
+        document.getElementById('correctTimestampsDecscription').innerHTML = '<i>Here you add timestamps to images or videos that do not have them. </i>'
+        selectedTimestampType = 'missing'
+        imageIndex = 0
+        cameraIndex = 0
+        cameraReadAheadIndex = 0
+        images = []
+        camera_ids = []
+        map = null
+        buildTimestampsMap()
+        getTimestampCameraIDs()
+    });
+
+    radio = document.createElement('div')
+    radio.setAttribute('class','custom-control custom-radio custom-control-inline')
+    row.appendChild(radio)
+
+    input = document.createElement('input')
+    input.setAttribute('type','radio')
+    input.setAttribute('class','custom-control-input')
+    input.setAttribute('id','extractedTimestamps')
+    input.setAttribute('name','timestampCorrection')
+    input.setAttribute('value','customEx')
+    radio.appendChild(input)
+
+    label = document.createElement('label')
+    label.setAttribute('class','custom-control-label')
+    label.setAttribute('for','extractedTimestamps')
+    label.innerHTML = 'Extracted Timestamps'
+    radio.appendChild(label)
+
+    document.getElementById('extractedTimestamps').addEventListener('click', ()=>{
+        document.getElementById('correctTimestampsDecscription').innerHTML = '<i>Here you can view and edit the timestamps of videos and images whose timestamps were extracted that did not have them. </i>'
+        selectedTimestampType = 'extracted'
+        imageIndex = 0
+        cameraIndex = 0
+        cameraReadAheadIndex = 0
+        images = []
+        camera_ids = []
+        map = null
+        buildTimestampsMap()
+        getTimestampCameraIDs()
+    });
+
+    radio = document.createElement('div')
+    radio.setAttribute('class','custom-control custom-radio custom-control-inline')
+    row.appendChild(radio)
+
+    input = document.createElement('input')
+    input.setAttribute('type','radio')
+    input.setAttribute('class','custom-control-input')
+    input.setAttribute('id','editedTimestamps')
+    input.setAttribute('name','timestampCorrection')
+    input.setAttribute('value','customEx')
+    radio.appendChild(input)
+
+    label = document.createElement('label')
+    label.setAttribute('class','custom-control-label')
+    label.setAttribute('for','editedTimestamps')
+    label.innerHTML = 'Edited Timestamps'
+    radio.appendChild(label)
+
+    document.getElementById('editedTimestamps').addEventListener('click', ()=>{
+        document.getElementById('correctTimestampsDecscription').innerHTML = '<i>Here you can view and edit the timestamps of videos and images whose timestamps were edited by the user. </i>'
+        selectedTimestampType = 'edited'
+        imageIndex = 0
+        cameraIndex = 0
+        cameraReadAheadIndex = 0
+        images = []
+        camera_ids = []
+        map = null
+        buildTimestampsMap()
+        getTimestampCameraIDs()
+    });
+
+    div = document.createElement('div')
+    div.id = 'correctTimestampsDecscription'
+    div.setAttribute('style','font-size: 80%; margin-bottom: 2px')
+    div.innerHTML = '<i>Here you add timestamps to images or videos that do not have them. </i>'
+    addImagesEditImgTimestampsDiv.appendChild(div)
+
+    errors = document.createElement('div')
+    errors.setAttribute('id','timestampErrors')
+    errors.setAttribute('style','font-size: 80%; color: #DF691A')
+    addImagesEditImgTimestampsDiv.appendChild(errors)
+
+
+    addImagesImagesDiv = document.createElement('div')
+    addImagesImagesDiv.setAttribute('id','addImagesImagesDiv')
+    addImagesEditImgTimestampsDiv.appendChild(addImagesImagesDiv)
+
+    addImagesEditImgTimestampsDiv.appendChild(document.createElement('br'))
+
+    document.getElementById('missingTimestamps').click()
 }
 
 function buildKml() {
@@ -2123,6 +2443,11 @@ function clearEditSurveyModal() {
         addImagesEditTimestampsDiv.removeChild(addImagesEditTimestampsDiv.firstChild);
     }
 
+    addImagesEditImgTimestampsDiv = document.getElementById('addImagesEditImgTimestampsDiv')
+    while(addImagesEditImgTimestampsDiv.firstChild){
+        addImagesEditImgTimestampsDiv.removeChild(addImagesEditImgTimestampsDiv.firstChild);
+    }
+
     addImagesEditClassifierDiv = document.getElementById('addImagesEditClassifierDiv')
     while(addImagesEditClassifierDiv.firstChild){
         addImagesEditClassifierDiv.removeChild(addImagesEditClassifierDiv.firstChild);
@@ -2255,6 +2580,16 @@ $("#addImagesEditTimestamps").change( function() {
     if (addImagesEditTimestamps.checked) {
         clearEditSurveyModal()
         buildEditTimestamp()
+    }
+})
+
+$("#addImagesEditImgTimestamps").change( function() {
+    /** Listens for and initialises the edit timestamps form on the edit survey modal when the radio button is selected. */
+
+    addImagesEditImgTimestamps = document.getElementById('addImagesEditImgTimestamps')
+    if (addImagesEditImgTimestamps.checked) {
+        clearEditSurveyModal()
+        buildEditImageTimestamp()
     }
 })
 
@@ -3282,7 +3617,12 @@ document.getElementById('btnAddImages').addEventListener('click', ()=>{
         }
     }
 
-    if (legalTGCode&&legalInput&&legalFile&&TGCheckReady&&legalClassifier) {
+    legalTimestamp = true
+    if (document.getElementById('addImagesEditTimestamps').checked && document.getElementById('year')){
+        legalTimestamp = validateTimestamp()
+    }
+
+    if (legalTGCode&&legalInput&&legalFile&&TGCheckReady&&legalClassifier&&legalTimestamp) {
         document.getElementById('btnAddImages').disabled = true
         if (document.getElementById('addImagesEditClassifier').checked) {
             var formData = new FormData()
@@ -3366,6 +3706,19 @@ document.getElementById('btnAddImages').addEventListener('click', ()=>{
                 });
                 reader.readAsText(kmlFileUpload.files[0])
             }
+        } else if (document.getElementById('addImagesEditImgTimestamps').checked) {
+            var formData = new FormData()
+            formData.append("survey_id", selectedSurvey)
+            imageTimestampData = {}
+            allTimestamps = Object.assign({},new_missing_timestamps,corrected_extracted_timestamps,corrected_edited_timestamps)
+            for (image_id in allTimestamps) {
+                imageTimestampData[image_id] = getTimestamp(allTimestamps[image_id])
+            }
+            if (Object.keys(imageTimestampData).length>0) {
+                formData.append("imageTimestamps", JSON.stringify(imageTimestampData))
+            }
+            addImagesSendRequest(formData)
+        
         } else {
             var formData = new FormData()
             formData.append("survey_id", selectedSurvey)
@@ -3378,7 +3731,7 @@ document.getElementById('btnAddImages').addEventListener('click', ()=>{
                 for (camera_id in global_corrected_timestamps) {
                     timestampData[camera_id] = {'original': global_original_timestamps[camera_id], 'corrected': global_corrected_timestamps[camera_id]}
                 }
-                formData.append("timestamps", JSON.stringify(timestampData))
+                formData.append("timestamps", JSON.stringify(timestampData)) 
             }                
 
             addImagesSendRequest(formData)
@@ -3464,7 +3817,21 @@ function addImagesSendRequest(formData) {
                                                                                 prior to the annotation of your data due to the cluster-centric approach used in TrapTagger. In particular, 
                                                                                 this step should be peformed directly after data importation for best results. However, editing your 
                                                                                 timestamps later on will not affect the integrity of you data - you may just need to re-annotate some 
-                                                                                percentage it.</p>`
+                                                                                percentage of it.</p>`
+                    } else if (document.getElementById('addImagesEditImgTimestamps').checked) {
+                        document.getElementById('modalAlertBody').innerHTML = `<p>Your image timestamps will now be edited.</p><p>Images or videos whose
+                                                                                timestamps have been corrected that were missing or extracted will need to be re-clustered. In such a case, 
+                                                                                auto-classification will need to be performed again and any old auto-classifications will be overwritten. 
+                                                                                In addition, any manually-annotated clusters that were incorrectly clustered (ie. specifically those that 
+                                                                                need to be split up) will have their labels removed to ensure accurate annoation of your data. However, 
+                                                                                any sighting-level labels that were manually checked in the "sighting (box) correction" workflow will be 
+                                                                                retained.</p><p>In light of the above, your annotation sets for this survey may need some more annotation 
+                                                                                upon completion of the processing required. Moreover, this process may take a while depending on the number 
+                                                                                of affected images.</p><p>In general, it is strongly recommended that image timestamps should be corrected 
+                                                                                prior to the annotation of your data due to the cluster-centric approach used in TrapTagger. In particular, 
+                                                                                this step should be peformed directly after data importation for best results. However, editing your 
+                                                                                timestamps later on will not affect the integrity of you data - you may just need to re-annotate some 
+                                                                                percentage of it.</p>`
                     } else if (document.getElementById('addImagesEditClassifier').checked) {
                         document.getElementById('modalAlertBody').innerHTML = 'Your survey is now being re-classified. This may take a while.'
                     } else if ((document.getElementById('addCoordinatesManualMethod')!=null)&&(document.getElementById('addCoordinatesManualMethod').checked)) {
@@ -3768,4 +4135,1055 @@ function buildSurveyPermissionRow(){
         this.parentNode.parentNode.remove()
     });
 
+}
+
+function buildTimestampsMap(){
+    /** Builds the timestamps map for Edit Timestamps. */
+    var addImagesImagesDiv = document.getElementById('addImagesImagesDiv')
+    while(addImagesImagesDiv.firstChild){
+        addImagesImagesDiv.removeChild(addImagesImagesDiv.firstChild);
+    }
+
+    addImagesImagesDiv.appendChild(document.createElement('br'))
+
+    var row = document.createElement('div')
+    row.classList.add('row')
+    addImagesImagesDiv.appendChild(row)
+
+    var col1 = document.createElement('div')
+    col1.classList.add('col-lg-1')
+    row.appendChild(col1)
+
+    var col2 = document.createElement('div')
+    col2.classList.add('col-lg-8')
+    col2.setAttribute('style','text-align: center;')
+    row.appendChild(col2)
+
+    var col3 = document.createElement('div')
+    col3.classList.add('col-lg-3')
+    row.appendChild(col3)
+
+    var h6 = document.createElement('h6')
+    h6.id = 'mapTitle'
+    h6.innerHTML = 'Loading...'
+    col2.appendChild(h6)
+
+    var row = document.createElement('div')
+    row.classList.add('row')
+    addImagesImagesDiv.appendChild(row)
+
+    var col1 = document.createElement('div')
+    col1.classList.add('col-lg-1')
+    row.appendChild(col1)
+
+    var col2 = document.createElement('div')
+    col2.classList.add('col-lg-8')
+    col2.setAttribute('style','text-align: center;')
+    row.appendChild(col2)
+
+    var col3 = document.createElement('div')
+    col3.classList.add('col-lg-3')
+    row.appendChild(col3)
+
+    var center = document.createElement('center')
+    col2.appendChild(center)
+
+    var mapDiv = document.createElement('div')
+    mapDiv.id = 'mapDiv'
+    mapDiv.style.height = '700px'
+    center.appendChild(mapDiv)
+
+    var rowDiv2 = document.createElement('div');
+    rowDiv2.classList.add('row');
+    col3.appendChild(rowDiv2);
+
+    var card = document.createElement('div');
+    card.classList.add('card');
+    card.setAttribute('style','font-size: 80%; border: 0px;')
+    col3.appendChild(card);
+
+    var cardBody = document.createElement('div');
+    cardBody.classList.add('card-body');
+    cardBody.setAttribute('style','padding-top: 0px; padding-bottom: 0px;')
+    card.appendChild(cardBody);
+
+    var btn = document.createElement('button');
+    btn.setAttribute('class',"btn btn-danger btn-block  btn-sm");
+    btn.setAttribute('style',"margin-bottom: 3px; margin-top: 3px;")
+    btn.innerHTML = 'No Timestamp (N)';
+    btn.id = 'btnNoTimestamp';
+    cardBody.appendChild(btn);
+
+    document.getElementById('btnNoTimestamp').addEventListener('click', function(){
+        noTimestamp()
+    });
+
+    if (selectedTimestampType != 'missing'){
+        var btn = document.createElement('button');
+        btn.setAttribute('class',"btn btn-primary btn-block  btn-sm");
+        btn.setAttribute('style',"margin-bottom: 3px; margin-top: 3px;")
+        btn.innerHTML = 'Overwrite (O)';
+        btn.id = 'btnOverwriteTimestamp';
+        cardBody.appendChild(btn);
+
+        document.getElementById('btnOverwriteTimestamp').addEventListener('click', function(){
+            overwriteTimestamp()
+        });
+    }
+
+    const labels = ['Year', 'Month', 'Day', 'Hour (24h)', 'Minutes', 'Seconds'];
+    const placeholders = ['YYYY', 'MM', 'DD', 'HH', 'MM', 'SS'];
+    const minValues = [1900, 1, 1, 0, 0, 0];
+    const maxValues = [2100, 12, 31, 23, 59, 59];
+    const inputIds = ['year', 'month', 'day', 'hour', 'minutes', 'seconds'];
+
+    labels.forEach((label, index) => {
+        var labelElem = document.createElement('label');
+        labelElem.setAttribute('for', inputIds[index]);
+        labelElem.style.marginBottom = '2px';
+        labelElem.textContent = label;
+        cardBody.appendChild(labelElem);
+
+        var inputElem = document.createElement('input');
+        inputElem.setAttribute('type', 'number');
+        inputElem.id = inputIds[index];
+        inputElem.classList.add('form-control');
+        inputElem.style.marginBottom = '2px';
+        inputElem.setAttribute('placeholder', placeholders[index]);
+        inputElem.setAttribute('min', minValues[index]);
+        inputElem.setAttribute('max', maxValues[index]);
+        cardBody.appendChild(inputElem);
+
+        var errorElem = document.createElement('div');
+        errorElem.id = 'error' + label.split(' ')[0];
+        errorElem.setAttribute('style',"font-size: 80%; color: #DF691A")
+        cardBody.appendChild(errorElem);
+    });
+
+    var yearInput = document.getElementById('year');
+    var monthInput = document.getElementById('month');
+    var dayInput = document.getElementById('day');
+    var hourInput = document.getElementById('hour');
+    var minutesInput = document.getElementById('minutes');
+    var secondsInput = document.getElementById('seconds');
+
+    yearInput.addEventListener('input', function() {
+        document.getElementById('errorYear').innerHTML = ''
+        if (yearInput.value.length > 4){
+            yearInput.value = yearInput.value.slice(0,4)
+        }
+
+        if (yearInput.value.length == 4) {
+            if (isNaN(yearInput.value) || parseInt(yearInput.value) > currentYear || parseInt(yearInput.value) < 1900){
+                document.getElementById('errorYear').innerHTML = 'Invalid year. Please try again.'
+                yearInput.value = ''
+                yearInput.focus()
+            }
+            else{
+                monthInput.focus()
+                addTimestamp()
+            }
+        }
+    });
+    
+    monthInput.addEventListener('input', function() {
+        document.getElementById('errorMonth').innerHTML = ''
+        if (monthInput.value.length > 2){
+            monthInput.value = monthInput.value.slice(0,2)
+        }
+        
+        if (monthInput.value.length == 2) {
+            if (isNaN(monthInput.value) || parseInt(monthInput.value) > 12 || parseInt(monthInput.value) < 1){
+                document.getElementById('errorMonth').innerHTML = 'Invalid month. Please try again.'
+                monthInput.value = ''
+                monthInput.focus()
+            }
+            else{
+                dayInput.focus()
+                addTimestamp()
+            }
+        }
+        else if (monthInput.value.length < 2){
+            if (parseInt(monthInput.value) > 1){
+                monthInput.value = '0' + monthInput.value
+                dayInput.focus()
+                addTimestamp()
+            }
+        }
+    });
+    
+    dayInput.addEventListener('input', function() {
+        document.getElementById('errorDay').innerHTML = ''
+        if (dayInput.value.length > 2){
+            dayInput.value = dayInput.value.slice(0,2)
+        }
+    
+        if (dayInput.value.length == 2) {
+            if (isNaN(dayInput.value) || parseInt(dayInput.value) > 31 || parseInt(dayInput.value) < 1){
+                document.getElementById('errorDay').innerHTML = 'Invalid day. Please try again.'
+                dayInput.value = ''
+                dayInput.focus()
+            }
+            else{
+                hourInput.focus()
+                addTimestamp()
+            }
+        }
+        else if (dayInput.value.length < 2){
+            if (parseInt(dayInput.value) > 3){
+                dayInput.value = '0' + dayInput.value
+                hourInput.focus()
+                addTimestamp()
+            }
+        }
+    });
+    
+    hourInput.addEventListener('input', function() {
+        document.getElementById('errorHour').innerHTML = ''
+        if (hourInput.value.length > 2){
+            hourInput.value = hourInput.value.slice(0,2)
+        }
+    
+        if (hourInput.value.length == 2) {
+            if (isNaN(hourInput.value) || parseInt(hourInput.value) > 23 || parseInt(hourInput.value) < 0){
+                document.getElementById('errorHour').innerHTML = 'Invalid hour. Please try again.'
+                hourInput.value = ''
+                hourInput.focus()
+            }
+            else{
+                minutesInput.focus()
+                addTimestamp()
+            }
+        }
+        else if (hourInput.value.length < 2){
+            if (parseInt(hourInput.value) > 2){
+                hourInput.value = '0' + hourInput.value
+                minutesInput.focus()
+                addTimestamp()
+            }
+        }
+    });
+
+    minutesInput.addEventListener('input', function() {
+        document.getElementById('errorMinutes').innerHTML = ''
+        if (minutesInput.value.length > 2){
+            minutesInput.value = minutesInput.value.slice(0,2)
+        }
+    
+        if (minutesInput.value.length == 2) {
+            if (isNaN(minutesInput.value) || parseInt(minutesInput.value) > 59 || parseInt(minutesInput.value) < 0){
+                document.getElementById('errorMinutes').innerHTML = 'Invalid minutes. Please try again.'
+                minutesInput.value = ''
+                minutesInput.focus()
+            }
+            else{
+                secondsInput.focus()
+                addTimestamp()
+            }
+        }
+        else if (minutesInput.value.length < 2){
+            if (parseInt(minutesInput.value) > 5){
+                minutesInput.value = '0' + minutesInput.value
+                secondsInput.focus()
+                addTimestamp()
+            }
+        }
+    });
+    
+    secondsInput.addEventListener('input', function() {
+        document.getElementById('errorSeconds').innerHTML = ''
+        if (secondsInput.value.length > 2){
+            secondsInput.value = secondsInput.value.slice(0,2)
+        }
+    
+        if (secondsInput.value.length == 2) {
+            if (isNaN(secondsInput.value) || parseInt(secondsInput.value) > 59 || parseInt(secondsInput.value) < 0){
+                document.getElementById('errorSeconds').innerHTML = 'Invalid seconds. Please try again.'
+                secondsInput.value = ''
+                secondsInput.focus()
+            }
+            else{
+                addTimestamp()
+                nextTimestamp()
+            }
+        }
+        else if (secondsInput.value.length < 2){
+            if (parseInt(secondsInput.value) > 5){
+                secondsInput.value = '0' + secondsInput.value
+                addTimestamp()
+                nextTimestamp()
+            }
+        }
+    });
+
+    // col2.appendChild(document.createElement('br'))
+
+    var rowDiv = document.createElement('div');
+    rowDiv.classList.add('row');
+    col2.appendChild(rowDiv);
+
+    var colDiv = document.createElement('div');
+    colDiv.classList.add('col-lg-12', 'd-flex', 'align-items-center', 'justify-content-center');
+    rowDiv.appendChild(colDiv);
+
+    var clusterDiv = document.createElement('div');
+    clusterDiv.id = 'clusterPosition';
+    colDiv.appendChild(clusterDiv);
+
+    var paginationUl = document.createElement('ul');
+    paginationUl.classList.add('pagination');
+    paginationUl.id = 'paginationCircles';
+    paginationUl.style.margin = '10px';
+    colDiv.appendChild(paginationUl);
+
+    var row = document.createElement('div')
+    row.classList.add('row')
+    col2.appendChild(row)
+
+    var col1 = document.createElement('div')
+    col1.classList.add('col-lg-3')
+    row.appendChild(col1)
+
+    var col2 = document.createElement('div')
+    col2.classList.add('col-lg-3')
+    row.appendChild(col2)
+
+    var col3 = document.createElement('div')
+    col3.classList.add('col-lg-3')
+    row.appendChild(col3)
+
+    var col4 = document.createElement('div')
+    col4.classList.add('col-lg-3')
+    row.appendChild(col4)
+
+    var button = document.createElement('button')
+    button.classList.add('btn')
+    button.classList.add('btn-primary')
+    button.classList.add('btn-block')
+    button.id = 'btnPrevCam'
+    button.innerHTML = '<span style="font-size:100%">&#x276e;&#x276e;</span> Previous Camera'
+    button.disabled = true
+    col1.appendChild(button)
+
+    var button = document.createElement('button')
+    button.classList.add('btn')
+    button.classList.add('btn-primary')
+    button.classList.add('btn-block')
+    button.id = 'btnPrevImage'
+    button.innerHTML = '<span style="font-size:100%">&#x276e;</span> Previous'
+    button.disabled = true
+    col2.appendChild(button)
+
+    var button = document.createElement('button')
+    button.classList.add('btn')
+    button.classList.add('btn-primary')
+    button.classList.add('btn-block')
+    button.id = 'btnNextImage'
+    button.innerHTML = 'Next <span style="font-size:100%">&#x276f;</span>'
+    button.disabled = true
+    col3.appendChild(button)
+
+    var button = document.createElement('button')
+    button.classList.add('btn')
+    button.classList.add('btn-primary')
+    button.classList.add('btn-block')
+    button.id = 'btnNextCam'
+    button.innerHTML = 'Next Camera <span style="font-size:100%">&#x276f;&#x276f;</span>'
+    button.disabled = true
+    col4.appendChild(button)
+
+    document.getElementById('btnPrevCam').addEventListener('click', ()=>{
+        let validTimestamp = validateTimestamp()
+        if (cameraIndex>0 && finishedDisplaying && validTimestamp) {
+            cameraIndex -= 1
+            imageIndex = 0
+            updateImageMap()
+        }
+    });
+
+    document.getElementById('btnPrevImage').addEventListener('click', ()=>{
+        let validTimestamp = validateTimestamp()
+        if (imageIndex>0  && finishedDisplaying && validTimestamp) {
+            imageIndex -= 1
+            updateImageMap()
+        }
+    });
+
+    document.getElementById('btnNextImage').addEventListener('click', ()=>{
+        let validTimestamp = validateTimestamp()
+        if (imageIndex<images[cameraIndex].images.length-1  && finishedDisplaying && validTimestamp) {
+            imageIndex += 1
+            updateImageMap()
+        }
+    });
+
+    document.getElementById('btnNextCam').addEventListener('click', ()=>{
+        let validTimestamp = validateTimestamp()
+        if (cameraIndex<images.length-1 && finishedDisplaying && validTimestamp) {
+            cameraIndex += 1
+            imageIndex = 0
+            updateImageMap()
+            if (cameraIndex > images.length - 3){
+                getTimestampImages()
+            }
+        }
+    });
+
+    document.getElementById('btnPrevCam').hidden = true
+    document.getElementById('btnPrevImage').hidden = true
+    document.getElementById('btnNextImage').hidden = true
+    document.getElementById('btnNextCam').hidden = true
+}
+
+
+function getTimestampCameraIDs(){
+    /** Requests the image IDs from the server. */
+    var xhttp = new XMLHttpRequest();
+    xhttp.onreadystatechange =
+        function () {
+            if (this.readyState == 4 && this.status == 200) {
+                cameraIDs = JSON.parse(this.responseText);
+                if (cameraIDs.length == 0) {
+                    var addImagesImagesDiv = document.getElementById('addImagesImagesDiv')
+                    while(addImagesImagesDiv.firstChild){
+                        addImagesImagesDiv.removeChild(addImagesImagesDiv.firstChild);
+                    }
+
+                    addImagesImagesDiv.appendChild(document.createElement('br'))
+                    addImagesImagesDiv.appendChild(document.createElement('br'))
+    
+                    var row = document.createElement('div')
+                    row.classList.add('row')
+                    addImagesImagesDiv.appendChild(row)
+
+                    var col1 = document.createElement('div')
+                    col1.classList.add('col-lg-12', 'd-flex', 'align-items-center', 'justify-content-center')
+                    row.appendChild(col1)
+                    
+                    if (selectedTimestampType == 'missing') {
+                        var h6 = document.createElement('h6')
+                        h6.innerHTML = 'You have no missing timestamps for this survey.'
+                        col1.appendChild(h6)
+                    } else if (selectedTimestampType == 'extracted') {
+                        var h6 = document.createElement('h6')
+                        h6.innerHTML = 'You have no extracted timestamps for this survey.'
+                        col1.appendChild(h6)
+                    }
+                    else{
+                        var h6 = document.createElement('h6')
+                        h6.innerHTML = 'You have no edited timestamps for this survey.'
+                        col1.appendChild(h6)
+                    }
+                }
+                else{
+
+                    document.getElementById('btnPrevCam').hidden = false
+                    document.getElementById('btnPrevImage').hidden = false
+                    document.getElementById('btnNextImage').hidden = false
+                    document.getElementById('btnNextCam').hidden = false
+
+                    for (let i=0; i<3; i++) {
+                        getTimestampImages()
+                    }
+                }
+
+
+                document.getElementById('addImagesAddImages').disabled = false
+                document.getElementById('addImagesAddCoordinates').disabled = false
+                document.getElementById('addImagesEditTimestamps').disabled = false
+                document.getElementById('addImagesEditClassifier').disabled = false
+                document.getElementById('addImagesAdvanced').disabled = false
+            }
+        };
+    xhttp.open("GET", '/getTimestampCameraIDs/' + selectedSurvey + '?type=' + selectedTimestampType);
+    xhttp.send();
+}
+
+function getTimestampImages(){
+    /** Requests the image IDs from the server. */
+
+    if (cameraReadAheadIndex < cameraIDs.length){
+        var xhttp = new XMLHttpRequest();
+        xhttp.onreadystatechange =
+            function () {
+                if (this.readyState == 4 && this.status == 200) {
+                    reply = JSON.parse(this.responseText);
+                    console.log(reply)
+                    new_images = reply.images
+
+                    for (let i=0; i<new_images.length; i++) {
+                        if(camera_ids.indexOf(new_images[i].id)==-1){
+                            camera_ids.push(new_images[i].id)
+                            images.push(new_images[i])
+                        }
+                    }
+
+                    if (images.length - 1 == imageIndex) {
+                        updateImageMap()
+                    }
+                    updateTimestampButtons()
+
+                }
+            };
+            xhttp.open("GET", '/getTimestampImages/' + selectedSurvey + '/' + 0 + '?camera_id=' + cameraIDs[cameraReadAheadIndex++] + '&type=' + selectedTimestampType);
+            xhttp.send();
+
+    }
+}
+
+function updateTimestampButtons(){
+    /** Updates the buttons for Edit Timestamps */
+    if (imageIndex==0) {
+        document.getElementById('btnPrevImage').disabled = true
+    }
+    else{
+        document.getElementById('btnPrevImage').disabled = false
+    }
+
+    if (imageIndex==images[cameraIndex].images.length-1) {
+        document.getElementById('btnNextImage').disabled = true
+    }
+    else{
+        document.getElementById('btnNextImage').disabled = false
+    }
+
+    if(cameraIndex==0){
+        document.getElementById('btnPrevCam').disabled = true
+    }
+    else{
+        document.getElementById('btnPrevCam').disabled = false
+    }
+
+    if(cameraIndex==images.length-1){
+        document.getElementById('btnNextCam').disabled = true
+    }
+    else{
+        document.getElementById('btnNextCam').disabled = false
+    }
+
+    if (document.getElementById('clusterPosition') != null) {
+
+        cirNum = images[cameraIndex].images.length
+        circlesIndex = imageIndex
+        
+        var beginIndex = 0
+        var endIndex = cirNum
+        var multiple = false
+        if (cirNum > 10) {
+            multiple =  true
+            beginIndex = Math.max(0,circlesIndex-2)
+            if (beginIndex < 2) {
+                beginIndex = 0
+                endIndex = 5
+            }
+            else {
+                endIndex = Math.min(cirNum,circlesIndex+3)
+                if (endIndex > cirNum-2) {
+                    endIndex = cirNum
+                    beginIndex = cirNum - 5
+                }
+            }
+        }
+
+        paginationCircles = document.getElementById('paginationCircles')
+        while (paginationCircles.firstChild) {
+            paginationCircles.removeChild(paginationCircles.firstChild);
+        }
+
+
+        if (multiple && beginIndex != 0 && circlesIndex > 2) {
+            first = document.createElement('li')
+            first.setAttribute('onclick','updateTimestampImageIndex(0)')
+            first.style.fontSize = '60%'
+            first.innerHTML = '1'
+            paginationCircles.append(first)
+        
+            more = document.createElement('li')
+            more.setAttribute('class','disabled')
+            more.style.fontSize = '60%'
+            more.innerHTML = '...'
+            paginationCircles.append(more)
+        }
+
+
+        for (let i=beginIndex;i<endIndex;i++) {
+            li = document.createElement('li')
+            li.innerHTML = (i+1).toString()
+            li.setAttribute('onclick','updateTimestampImageIndex('+(i).toString()+')')
+            li.style.fontSize = '60%'
+            paginationCircles.append(li)
+
+            if (i == circlesIndex) {
+                li.setAttribute('class','active')
+            } else {
+                li.setAttribute('class','')
+            }
+        }
+
+        if (multiple && endIndex != cirNum && circlesIndex < cirNum-3) {
+            more = document.createElement('li')
+            more.setAttribute('class','disabled')
+            more.innerHTML = '...'
+            more.style.fontSize = '60%'
+            paginationCircles.append(more)
+
+            last_index = cirNum - 1
+            last = document.createElement('li')
+            last.setAttribute('onclick','updateTimestampImageIndex('+(last_index).toString()+')')
+            last.innerHTML = (last_index+1).toString()
+            last.style.fontSize = '60%'
+            paginationCircles.append(last)
+        }
+    }
+
+}
+
+function updateImageMap(){
+    /** Updates the image map with the current image. */
+
+    document.getElementById('year').focus()
+
+    document.getElementById('mapTitle').innerHTML = images[cameraIndex].images[imageIndex].name
+    if (map != null) {
+        activeImage.setUrl("https://"+bucketName+".s3.amazonaws.com/" + modifyToCompURL(images[cameraIndex].images[imageIndex].url))
+    }
+    else{
+        prepMapTS(images[cameraIndex].images[imageIndex])
+    }
+
+    var yearInput = document.getElementById('year');
+    var monthInput = document.getElementById('month');
+    var dayInput = document.getElementById('day');
+    var hourInput = document.getElementById('hour');
+    var minutesInput = document.getElementById('minutes');
+    var secondsInput = document.getElementById('seconds');
+
+    if (images[cameraIndex].images[imageIndex].timestamp) {
+
+        if (corrected_extracted_timestamps[images[cameraIndex].images[imageIndex].id]) {
+            yearInput.value = corrected_extracted_timestamps[images[cameraIndex].images[imageIndex].id].year
+            monthInput.value = corrected_extracted_timestamps[images[cameraIndex].images[imageIndex].id].month
+            dayInput.value = corrected_extracted_timestamps[images[cameraIndex].images[imageIndex].id].day
+            hourInput.value = corrected_extracted_timestamps[images[cameraIndex].images[imageIndex].id].hour
+            minutesInput.value = corrected_extracted_timestamps[images[cameraIndex].images[imageIndex].id].minutes
+            secondsInput.value = corrected_extracted_timestamps[images[cameraIndex].images[imageIndex].id].seconds
+        }
+        else if (corrected_edited_timestamps[images[cameraIndex].images[imageIndex].id]) {
+            yearInput.value = corrected_edited_timestamps[images[cameraIndex].images[imageIndex].id].year
+            monthInput.value = corrected_edited_timestamps[images[cameraIndex].images[imageIndex].id].month
+            dayInput.value = corrected_edited_timestamps[images[cameraIndex].images[imageIndex].id].day
+            hourInput.value = corrected_edited_timestamps[images[cameraIndex].images[imageIndex].id].hour
+            minutesInput.value = corrected_edited_timestamps[images[cameraIndex].images[imageIndex].id].minutes
+            secondsInput.value = corrected_edited_timestamps[images[cameraIndex].images[imageIndex].id].seconds
+        }
+        else{
+            var date = images[cameraIndex].images[imageIndex].timestamp.split(' ')[0]
+            var time = images[cameraIndex].images[imageIndex].timestamp.split(' ')[1]
+            var year = parseInt(date.split('-')[0])
+            var month = parseInt(date.split('-')[1])
+            var day = parseInt(date.split('-')[2])
+            var hour = parseInt(time.split(':')[0])
+            var minutes = parseInt(time.split(':')[1])
+            var seconds = parseInt(time.split(':')[2])
+            yearInput.value = year
+            monthInput.value = month
+            dayInput.value = day
+            hourInput.value = hour
+            minutesInput.value = minutes
+            secondsInput.value = seconds
+            if (selectedTimestampType=='extracted'){
+                original_extracted_timestamps[images[cameraIndex].images[imageIndex].id] = {'year': year, 'month': month, 'day': day, 'hour': hour, 'minutes': minutes, 'seconds': seconds}
+            }
+            else if (selectedTimestampType=='edited'){
+                original_edited_timestamps[images[cameraIndex].images[imageIndex].id] = {'year': year, 'month': month, 'day': day, 'hour': hour, 'minutes': minutes, 'seconds': seconds}
+            }
+        }
+    }
+    else{
+        if (new_missing_timestamps[images[cameraIndex].images[imageIndex].id]) {
+            yearInput.value = parseInt(new_missing_timestamps[images[cameraIndex].images[imageIndex].id].year)
+            monthInput.value = parseInt(new_missing_timestamps[images[cameraIndex].images[imageIndex].id].month)
+            dayInput.value = parseInt(new_missing_timestamps[images[cameraIndex].images[imageIndex].id].day)
+            hourInput.value = parseInt(new_missing_timestamps[images[cameraIndex].images[imageIndex].id].hour)
+            minutesInput.value = parseInt(new_missing_timestamps[images[cameraIndex].images[imageIndex].id].minutes)
+            secondsInput.value = parseInt(new_missing_timestamps[images[cameraIndex].images[imageIndex].id].seconds)
+        }
+        else{
+            yearInput.value = ''
+            monthInput.value = ''
+            dayInput.value = ''
+            hourInput.value = ''
+            minutesInput.value = ''
+            secondsInput.value = ''
+        }
+    }
+
+    updateTimestampButtons()
+}
+
+function prepMapTS(image){
+        /** Initialises the Leaflet image map for the edit survey modal. */
+    
+    if (bucketName != null) {
+        mapReady = false
+        imageUrl = "https://"+bucketName+".s3.amazonaws.com/" + modifyToCompURL(image.url)
+        var img = new Image();
+        img.onload = function(){
+            w = this.width
+            h = this.height
+
+            if (w>h) {
+                document.getElementById('mapDiv').setAttribute('style','height: calc(38vw *'+(h/w)+');  width:38vw')               
+            } else {
+                document.getElementById('mapDiv').setAttribute('style','height: calc(38vw *'+(w/h)+');  width:38vw')
+            }
+
+            L.Browser.touch = true
+    
+            map = new L.map('mapDiv', {
+                crs: L.CRS.Simple,
+                maxZoom: 10,
+                center: [0, 0],
+                zoomSnap: 0,
+                attributionControl: false // Remove Leaflet attribution (because it might block the timestamp)
+            })
+
+            var h1 = document.getElementById('mapDiv').clientHeight
+            var w1 = document.getElementById('mapDiv').clientWidth
+    
+            var southWest = map.unproject([0, h1], 2);
+            var northEast = map.unproject([w1, 0], 2);
+            var bounds = new L.LatLngBounds(southWest, northEast);
+    
+            mapWidth = northEast.lng
+            mapHeight = southWest.lat
+    
+            activeImage = L.imageOverlay(imageUrl, bounds).addTo(map);
+            activeImage.on('load', function() {
+                finishedDisplaying = true
+            });
+            map.setMaxBounds(bounds);
+            map.fitBounds(bounds)
+            map.setMinZoom(map.getZoom())
+
+            hc = document.getElementById('mapDiv').clientHeight
+            wc = document.getElementById('mapDiv').clientWidth
+            map.on('resize', function(){
+                if(document.getElementById('mapDiv').clientHeight){
+                    h1 = document.getElementById('mapDiv').clientHeight
+                    w1 = document.getElementById('mapDiv').clientWidth
+                }
+                else{
+                    h1 = hc
+                    w1 = wc
+                }
+                
+                southWest = map.unproject([0, h1], 2);
+                northEast = map.unproject([w1, 0], 2);
+                bounds = new L.LatLngBounds(southWest, northEast);
+        
+                mapWidth = northEast.lng
+                mapHeight = southWest.lat
+
+                map.invalidateSize()
+                map.setMaxBounds(bounds)
+                map.fitBounds(bounds)
+                map.setMinZoom(map.getZoom())
+                activeImage.setBounds(bounds)
+            });
+
+
+            map.on('drag', function() {
+                map.panInsideBounds(bounds, { animate: false });
+            });
+    
+            map.on('zoomstart', function() {
+                if (!fullRes) {
+                    activeImage.setUrl("https://"+bucketName+".s3.amazonaws.com/" + modifyToCompURL(images[cameraIndex].images[imageIndex].images[0].url))
+                    fullRes = true  
+                }
+            });    
+
+            mapReady = true
+        };
+        img.src = imageUrl  
+    }
+
+}
+
+function addTimestamp(){
+    /** Adds the current timestamp to the list of timestamps. */
+    var yearInput = document.getElementById('year');
+    var monthInput = document.getElementById('month');
+    var dayInput = document.getElementById('day');
+    var hourInput = document.getElementById('hour');
+    var minutesInput = document.getElementById('minutes');
+    var secondsInput = document.getElementById('seconds');
+
+    var timeDict = {'year': yearInput.value, 'month': monthInput.value, 'day': dayInput.value, 'hour': hourInput.value, 'minutes': minutesInput.value, 'seconds': secondsInput.value}
+    var timestamp = getTimestamp(timeDict).timestamp
+
+    if (selectedTimestampType=='missing'){
+        if (timestamp != ''){
+            new_missing_timestamps[images[cameraIndex].images[imageIndex].id] = {'year': yearInput.value, 'month': monthInput.value, 'day': dayInput.value, 'hour': hourInput.value, 'minutes': minutesInput.value, 'seconds': secondsInput.value}
+        }
+        else{
+            delete new_missing_timestamps[images[cameraIndex].images[imageIndex].id]
+        }
+    }
+    else if (selectedTimestampType=='extracted'){
+        var ogTimestamp = getTimestamp(original_extracted_timestamps[images[cameraIndex].images[imageIndex].id]).timestamp
+        if ((timestamp != '' && new Date(timestamp).getTime() != new Date(ogTimestamp).getTime()) || (timestamp == '' && ogTimestamp != '')){
+            corrected_extracted_timestamps[images[cameraIndex].images[imageIndex].id] = timeDict
+        }
+        else{
+            delete corrected_extracted_timestamps[images[cameraIndex].images[imageIndex].id]
+        }
+    }
+    else if (selectedTimestampType=='edited'){
+        var ogTimestamp = getTimestamp(original_edited_timestamps[images[cameraIndex].images[imageIndex].id]).timestamp
+        if ((timestamp != '' && new Date(timestamp).getTime() != new Date(ogTimestamp).getTime()) || (timestamp == '' && ogTimestamp != '')){
+            corrected_edited_timestamps[images[cameraIndex].images[imageIndex].id] = timeDict
+        }
+        else{
+            delete corrected_edited_timestamps[images[cameraIndex].images[imageIndex].id]
+        }
+    }
+}
+
+function noTimestamp(){
+    /** Removes the current timestamp. */
+    document.getElementById('year').value = ''
+    document.getElementById('month').value = ''
+    document.getElementById('day').value = ''
+    document.getElementById('hour').value = ''
+    document.getElementById('minutes').value = ''
+    document.getElementById('seconds').value = ''
+
+    if (selectedTimestampType=='missing'){
+        delete new_missing_timestamps[images[cameraIndex].images[imageIndex].id]
+    }
+    else if (selectedTimestampType=='extracted'){
+        var ogTimestamp = getTimestamp(original_extracted_timestamps[images[cameraIndex].images[imageIndex].id]).timestamp
+        if (ogTimestamp != ''){
+            corrected_extracted_timestamps[images[cameraIndex].images[imageIndex].id] = {'year': '', 'month': '', 'day': '', 'hour': '', 'minutes': '', 'seconds': ''}
+        }
+        else{
+            delete corrected_extracted_timestamps[images[cameraIndex].images[imageIndex].id]
+        }
+    }
+    else if (selectedTimestampType=='edited'){
+        var ogTimestamp = getTimestamp(original_edited_timestamps[images[cameraIndex].images[imageIndex].id]).timestamp
+        if (ogTimestamp != ''){
+            corrected_edited_timestamps[images[cameraIndex].images[imageIndex].id] = {'year': '', 'month': '', 'day': '', 'hour': '', 'minutes': '', 'seconds': ''}
+        }
+        else{
+            delete corrected_edited_timestamps[images[cameraIndex].images[imageIndex].id]
+        }
+    }
+
+    nextTimestamp()
+}
+
+function skipTime(){
+    /** Skips the current time unit and moves to the next one. */
+    var yearInput = document.getElementById('year');
+    var monthInput = document.getElementById('month');
+    var dayInput = document.getElementById('day');
+    var hourInput = document.getElementById('hour');
+    var minutesInput = document.getElementById('minutes');
+    var secondsInput = document.getElementById('seconds');
+    var validTimestamp = validateTimestamp()
+
+    if (validTimestamp){
+        if (yearInput == document.activeElement){
+            monthInput.focus()
+            addTimestamp()
+        }
+        else if (monthInput == document.activeElement){
+            dayInput.focus()
+            addTimestamp()
+        }
+        else if (dayInput == document.activeElement){
+            hourInput.focus()
+            addTimestamp()
+        }
+        else if (hourInput == document.activeElement){
+            minutesInput.focus()
+            addTimestamp()
+        }
+        else if (minutesInput == document.activeElement){
+            secondsInput.focus()
+            addTimestamp()
+        }
+        else if (secondsInput == document.activeElement){
+            addTimestamp()
+            nextTimestamp()
+        }
+        else{
+            yearInput.focus()
+            addTimestamp()
+        }
+    }
+}
+
+function overwriteTimestamp(){
+    /** Clears the current timestamp so that a new one can be entered. */
+    document.getElementById('year').value = ''
+    document.getElementById('month').value = ''
+    document.getElementById('day').value = ''
+    document.getElementById('hour').value = ''
+    document.getElementById('minutes').value = ''
+    document.getElementById('seconds').value = ''
+    addTimestamp()
+    document.getElementById('year').focus()
+}
+
+function validateTimestamp(){
+    /** Validates the current timestamp. */
+
+    var year = document.getElementById('year').value
+    var month = document.getElementById('month').value
+    var day = document.getElementById('day').value
+    var hour = document.getElementById('hour').value
+    var minutes = document.getElementById('minutes').value
+    var seconds = document.getElementById('seconds').value
+    var validTimestamp = true
+
+    document.getElementById('errorYear').innerHTML = '' 
+    if ((year!= '') && (year.length != 4 || isNaN(year) || parseInt(year) > currentYear || parseInt(year) < 1900)){
+        validTimestamp = false
+        document.getElementById('errorYear').innerHTML = 'Invalid year. Please try again.'
+    }
+    document.getElementById('errorMonth').innerHTML = ''
+    if ((month!= '') && (isNaN(month) || parseInt(month) > 12 || parseInt(month) < 1)){
+        validTimestamp = false
+        document.getElementById('errorMonth').innerHTML = 'Invalid month. Please try again.'
+    }
+    document.getElementById('errorDay').innerHTML = ''
+    if ((day!= '') && (isNaN(day) || parseInt(day) > 31 || parseInt(day) < 1)){
+        validTimestamp = false
+        document.getElementById('errorDay').innerHTML = 'Invalid day. Please try again.'
+    }
+    document.getElementById('errorHour').innerHTML = ''
+    if ((hour!= '') && (isNaN(hour) || parseInt(hour) > 23 || parseInt(hour) < 0)){
+        validTimestamp = false
+        document.getElementById('errorHour').innerHTML = 'Invalid hour. Please try again.'
+    }
+    document.getElementById('errorMinutes').innerHTML = ''
+    if ((minutes!= '') && (isNaN(minutes) || parseInt(minutes) > 59 || parseInt(minutes) < 0)){
+        validTimestamp = false
+        document.getElementById('errorMinutes').innerHTML = 'Invalid minutes. Please try again.'
+    }
+    document.getElementById('errorSeconds').innerHTML = ''
+    if ((seconds!= '') && (isNaN(seconds) || parseInt(seconds) > 59 || parseInt(seconds) < 0)){
+        validTimestamp = false
+        document.getElementById('errorSeconds').innerHTML = 'Invalid seconds. Please try again.'
+    }
+
+    return validTimestamp
+}
+
+function getTimestamp(time_dict){
+    /** Gets the timestamp from the time_dict. */
+    var year = time_dict.year
+    var month = time_dict.month
+    var day = time_dict.day
+    var hour = time_dict.hour
+    var minutes = time_dict.minutes
+    var seconds = time_dict.seconds
+    var timestamp = ''
+    var timestamp_format = ''
+    if (year.toString() != ''){
+        timestamp = year
+        timestamp_format = '%Y'
+    }
+    if (month.toString() != ''){
+        if (timestamp != ''){
+            timestamp += '-'
+            timestamp_format += '-'
+        }
+        timestamp += month
+        timestamp_format += '%m'
+    }
+    if (day.toString() != ''){
+        if (timestamp != ''){
+            timestamp += '-'
+            timestamp_format += '-'
+        }
+        timestamp += day
+        timestamp_format += '%d'
+    }
+    if (hour.toString() != ''){
+        if (timestamp != ''){
+            timestamp += ' '
+            timestamp_format += ' '
+        }
+        timestamp += hour
+        timestamp_format += '%H'
+    }
+    if (minutes.toString() != ''){
+        if (timestamp != ''){
+            timestamp += ':'
+            timestamp_format += ':'
+        }
+        timestamp += minutes
+        timestamp_format += '%M'
+    }
+    if (seconds.toString() != ''){
+        if (timestamp != ''){
+            timestamp += ':'
+            timestamp_format += ':'
+        }
+        timestamp += seconds
+        timestamp_format += '%S'
+    }
+
+    timestamp_dict = {'timestamp': timestamp, 'format': timestamp_format}
+
+    return timestamp_dict
+}
+
+modalAddImages.on('keyup', function(event) {
+    /** Event listener for hotkeys on Edit Timestamps. */
+    if (document.getElementById('addImagesEditImgTimestamps').checked && (document.getElementById('missingTimestamps').checked||document.getElementById('extractedTimestamps').checked||document.getElementById('editedTimestamps').checked)){
+        if (event.key.toLowerCase() == 'n') {
+            event.preventDefault()
+            noTimestamp()
+        }
+        else if (event.key.toLowerCase() == 'o') {
+            event.preventDefault()
+            overwriteTimestamp()
+        }
+        else if (event.key.toLowerCase() == ' ') {
+            event.preventDefault()
+            skipTime()
+        }
+        // else if (event.key.toLowerCase() == 'arrowleft') {
+        //     event.preventDefault()
+        //     document.getElementById('btnPrevImage').click()
+        // }
+        // else if (event.key.toLowerCase() == 'arrowright') {
+        //     event.preventDefault()
+        //     document.getElementById('btnNextImage').click()
+        // }
+    }
+});
+
+function nextTimestamp(){
+    if (imageIndex < images[cameraIndex].images.length - 1){
+        document.getElementById('btnNextImage').click()
+    }
+    else if ((cameraIndex < images.length - 1) && imageIndex == images[cameraIndex].images.length - 1){
+        document.getElementById('btnNextCam').click()
+    }
+}
+
+function updateTimestampImageIndex(index) {
+    /** Updates the image index. */
+    validTimestamp = validateTimestamp()
+    if (index >= 0 && index < images[cameraIndex].images.length && validTimestamp && finishedDisplaying) {
+        imageIndex = index
+        updateImageMap()
+    }
 }

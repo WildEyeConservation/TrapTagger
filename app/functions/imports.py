@@ -3275,7 +3275,7 @@ def correct_timestamps(survey_id,setup_time=31):
 
 
 @celery.task(bind=True,max_retries=5,ignore_result=True)
-def import_survey(self,s3Folder,surveyName,tag,organisation_id,correctTimestamps,classifier,user_id=None,permission=None,annotation=None,detailed_access=None):
+def import_survey(self,s3Folder,surveyName,tag,organisation_id,correctTimestamps,classifier,user_id=None,permission=None,annotation=None,detailed_access=None,preprocess_done=False):
     '''
     Celery task for the importing of surveys. Includes all necessary processes such as animal detection, species classification etc. Handles added images cleanly.
 
@@ -3292,25 +3292,38 @@ def import_survey(self,s3Folder,surveyName,tag,organisation_id,correctTimestamps
         app.logger.info("Importing survey {}".format(surveyName))
         processes=4
 
-        if (db.session.query(Survey).filter(Survey.name==surveyName).filter(Survey.organisation_id==organisation_id).first()):
-            addingImages = True
+        if not preprocess_done:
+            if (db.session.query(Survey).filter(Survey.name==surveyName).filter(Survey.organisation_id==organisation_id).first()):
+                addingImages = True
+            else:
+                addingImages = False
+
+            organisation = db.session.query(Organisation).get(organisation_id)
+            import_folder(organisation.folder+'/'+s3Folder, tag, surveyName,Config.BUCKET,Config.BUCKET,organisation_id,False,None,[],processes,None,user_id,permission,annotation,detailed_access)
+            
+            survey = db.session.query(Survey).filter(Survey.name==surveyName).filter(Survey.organisation_id==organisation_id).first()
+            survey_id = survey.id
+            survey.correct_timestamps = correctTimestamps
+            survey.image_count = db.session.query(Image).join(Camera).join(Trapgroup).outerjoin(Video).filter(Trapgroup.survey==survey).filter(Video.id==None).distinct().count()
+            survey.video_count = db.session.query(Video).join(Camera).join(Trapgroup).filter(Trapgroup.survey==survey).distinct().count()
+            survey.frame_count = db.session.query(Image).join(Camera).join(Trapgroup).join(Video).filter(Trapgroup.survey==survey).distinct().count()
+            survey.status = 'Extracting Timestamps'
+            if classifier != None and not survey.classifier:
+                classifier_object = db.session.query(Classifier).filter(Classifier.name==classifier).first()
+                survey.classifier = classifier_object
+            db.session.commit()
+
+            extract_missing_timestamps(survey_id)
+            timestamp_check = db.session.query(Image.id).join(Camera).join(Trapgroup).filter(Trapgroup.survey_id==survey_id).filter(Image.corrected_timestamp==None).first()
+            skipCluster = timestamp_check
         else:
-            addingImages = False
+            survey = db.session.query(Survey).filter(Survey.name==surveyName).filter(Survey.organisation_id==organisation_id).first()
+            survey_id = survey.id
+            timestamp_check = db.session.query(Image.id).join(Camera).join(Trapgroup).filter(Trapgroup.survey_id==survey_id).filter(Image.timestamp==None).first()
+            static_check = False
+            #TODO: Add static check
+            skipCluster = not timestamp_check
 
-        organisation = db.session.query(Organisation).get(organisation_id)
-        import_folder(organisation.folder+'/'+s3Folder, tag, surveyName,Config.BUCKET,Config.BUCKET,organisation_id,False,None,[],processes,None,user_id,permission,annotation,detailed_access)
-        
-        survey = db.session.query(Survey).filter(Survey.name==surveyName).filter(Survey.organisation_id==organisation_id).first()
-        survey_id = survey.id
-        survey.correct_timestamps = correctTimestamps
-        survey.image_count = db.session.query(Image).join(Camera).join(Trapgroup).outerjoin(Video).filter(Trapgroup.survey==survey).filter(Video.id==None).distinct().count()
-        survey.video_count = db.session.query(Video).join(Camera).join(Trapgroup).filter(Trapgroup.survey==survey).distinct().count()
-        survey.frame_count = db.session.query(Image).join(Camera).join(Trapgroup).join(Video).filter(Trapgroup.survey==survey).distinct().count()
-        survey.status = 'Extracting Video Timestamps'
-        db.session.commit()
-
-        extract_all_video_timestamps(survey_id)
-        
         skip = False
         # if correctTimestamps:
         #     survey.status='Correcting Timestamps'
@@ -3320,48 +3333,66 @@ def import_survey(self,s3Folder,surveyName,tag,organisation_id,correctTimestamps
         #         from app.functions.admin import reclusterAfterTimestampChange
         #         reclusterAfterTimestampChange(survey_id)
         #         skip = True
-        if not skip:
+        if not skip and not skipCluster:
             task_id=cluster_survey(survey_id)
 
         survey = db.session.query(Survey).get(survey_id)
         
-        survey.status='Removing Static Detections'
-        db.session.commit()
-        processStaticDetections(survey_id)
-        survey = db.session.query(Survey).get(survey_id)
-        
-        survey.status='Removing Humans'
-        db.session.commit()
-        removeHumans(task_id)
-        
-        survey.status='Importing Coordinates'
-        db.session.commit()
-        importKML(survey.id)
+        if not preprocess_done:
+            survey.status='Removing Static Detections'
+            db.session.commit()
+            processStaticDetections(survey_id)
+            survey = db.session.query(Survey).get(survey_id)
+            static_check = False
+            #TODO: Add static check
 
-        survey.status='Classifying'
-        db.session.commit()
-        classifySurvey(survey_id=survey_id,sourceBucket=Config.BUCKET,classifier=classifier)
+            survey.status='Importing Coordinates'
+            db.session.commit()
+            importKML(survey.id)
 
-        survey = db.session.query(Survey).get(survey_id)
-        survey.status='Re-Clustering'
-        db.session.commit()
-        for task in survey.tasks:
-            recluster_large_clusters(task.id,True)
-        
-        survey.status='Calculating Scores'
-        db.session.commit()
-        updateSurveyDetectionRatings(survey_id=survey_id)
-        
-        task_ids = [r[0] for r in db.session.query(Task.id).filter(Task.survey_id==survey_id).filter(Task.name!='default').all()]
-        for task_id in task_ids:
-            classifyTask(task_id)
-            updateAllStatuses(task_id=task_id, celeryTask=False)
+        if not skipCluster:
+            survey.status='Removing Humans'
+            db.session.commit()
+            removeHumans(task_id)
 
-        survey = db.session.query(Survey).get(survey_id)
-        survey.status = 'Ready'
-        survey.images_processing = 0
-        db.session.commit()
-        app.logger.info("Finished importing survey {}".format(surveyName))
+            survey.status='Classifying'
+            db.session.commit()
+            classifySurvey(survey_id=survey_id,sourceBucket=Config.BUCKET,classifier=classifier)
+
+            survey = db.session.query(Survey).get(survey_id)
+            survey.status='Re-Clustering'
+            db.session.commit()
+            for task in survey.tasks:
+                recluster_large_clusters(task.id,True)
+
+        if not preprocess_done and (timestamp_check or static_check):
+            survey_status = "Preprocessing,"
+            if timestamp_check:
+                survey_status += "Available,"
+            else:
+                survey_status += "N/A,"
+            if static_check:
+                survey_status += "Available"
+            else:
+                survey_status += "N/A"
+            survey = db.session.query(Survey).get(survey_id)
+            survey.status = survey_status
+            survey.images_processing = 0
+            db.session.commit()
+            app.logger.info("Finished importing survey {}. Preprocessing required.".format(surveyName))
+        else:
+            survey.status='Calculating Scores'
+            db.session.commit()
+            updateSurveyDetectionRatings(survey_id=survey_id)
+            task_ids = [r[0] for r in db.session.query(Task.id).filter(Task.survey_id==survey_id).filter(Task.name!='default').all()]
+            for task_id in task_ids:
+                classifyTask(task_id)
+                updateAllStatuses(task_id=task_id, celeryTask=False)
+            survey = db.session.query(Survey).get(survey_id)
+            survey.status = 'Ready'
+            survey.images_processing = 0
+            db.session.commit()
+            app.logger.info("Finished importing survey {}".format(surveyName))
 
     except Exception as exc:
         app.logger.info(' ')
@@ -3744,10 +3775,9 @@ def get_still_rate(video_fps,video_frames):
     '''Returns the rate at which still should be extracted.'''
     max_frames = 30     # Maximum number of frames to extract
     fps_default = 1     # Default fps to extract frames at (frame per second)
-    frames_default_fps = math.ceil(video_frames / video_fps) * fps_default
-    return min((max_frames-1) / frames_default_fps, fps_default)  
+    video_duration = math.ceil(video_frames / video_fps)
+    return min((max_frames-1) / video_duration, fps_default)  
 
-# Function needs updating and testing
 def extract_images_from_video(localsession, sourceKey, bucketName, trapgroup_id):
     ''' Downloads video from bucket and extracts images from it. The images are then uploaded to the bucket. '''
 
@@ -4144,7 +4174,7 @@ def run_llava(self,image_ids,prompt):
                     for file_path in response:
                         try:
                             image = lookup[file_path]
-                            image.llava_data = response[file_path]
+                            image.extracted_data = response[file_path]
                         except:
                             pass
 
@@ -4197,20 +4227,28 @@ def clean_extracted_timestamp(text):
         return text
 
 @celery.task(bind=True,max_retries=5)
-def get_video_timestamps(self,trapgroup_id,index):
-    '''Videos have a poorly defined metadata standard. In order to get their timestamps consistently, we need to visually strip them from their frames'''
+def get_timestamps(self,trapgroup_id,index=None):
+    '''Videos have a poorly defined metadata standard. In order to get their timestamps consistently, we need to visually strip them from their frames. This can also be used to extract timestamps from images.'''
 
     try:
         starttime = time.time()
         textractClient = boto3.client('textract', region_name=Config.AWS_REGION)
 
-        data = db.session.query(Camera.path+'/'+Image.filename,Image,Video)\
-                                                .join(Camera,Image.camera_id==Camera.id)\
-                                                .join(Video,Camera.videos)\
-                                                .filter(Image.filename.contains('frame'+str(index)))\
-                                                .filter(Camera.trapgroup_id==trapgroup_id)\
-                                                .filter(Image.timestamp==None)\
-                                                .group_by(Video.id).distinct().all()
+        if index != None:  # Videos
+            data = db.session.query(Camera.path+'/'+Image.filename,Image,Video)\
+                                .join(Camera,Image.camera_id==Camera.id)\
+                                .join(Video,Camera.videos)\
+                                .filter(Image.filename.contains('frame'+str(index)))\
+                                .filter(Camera.trapgroup_id==trapgroup_id)\
+                                .filter(Image.timestamp==None)\
+                                .group_by(Video.id).distinct().all()
+        else:  # Images
+            data = db.session.query(Camera.path+'/'+Image.filename,Image)\
+                                .join(Camera,Image.camera_id==Camera.id)\
+                                .filter(~Camera.videos.any())\
+                                .filter(Camera.trapgroup_id==trapgroup_id)\
+                                .filter(Image.timestamp==None)\
+                                .group_by(Image.id).distinct().all()
 
         # Queue async requests
         job_ids = {}
@@ -4241,7 +4279,6 @@ def get_video_timestamps(self,trapgroup_id,index):
         # Fetch results (which are stored a week)
         for item in data:
             image = item[1]
-            video = item[2]
             status = 'PENDING'
 
             # Wait for completion
@@ -4260,13 +4297,20 @@ def get_video_timestamps(self,trapgroup_id,index):
             text = ' '.join(text)
 
             # Save extracted text
-            video.extracted_text = text
+            if index != None:
+                video = item[2]
+                video.extracted_text = text
+            else:
+                image.extracted_data = text
 
         # Determine dayFirst (default to True)
         # TODO: should probably only do this in the centre quartile
         dayfirst = True
         ordered_tests = []
-        tests = [r[0] for r in db.session.query(Video.extracted_text).join(Camera).filter(Camera.trapgroup_id==trapgroup_id).distinct().all()]
+        if index != None:
+            tests = [r[0] for r in db.session.query(Video.extracted_text).join(Camera).filter(Camera.trapgroup_id==trapgroup_id).distinct().all()]
+        else:
+            tests = [r[0] for r in db.session.query(Image.extracted_data).join(Camera).filter(Camera.trapgroup_id==trapgroup_id).distinct().all()]
         for n in range(math.floor(len(tests)/2)):
             ordered_tests.append(tests[n])
             ordered_tests.append(tests[-n])
@@ -4286,13 +4330,22 @@ def get_video_timestamps(self,trapgroup_id,index):
 
         # Search for outliers - starting with fetching previously processed timestamps
         dates = []
-        old_timestamps = [r[0] for r in db.session.query(Image.timestamp)\
-                            .join(Camera)\
-                            .filter(Camera.trapgroup_id==trapgroup_id)\
-                            .filter(Camera.videos.any())\
-                            .filter(Image.filename.contains('frame'+str(index)))\
-                            .filter(Image.timestamp != None)\
-                            .distinct().all()]
+        if index != None:
+            old_timestamps = [r[0] for r in db.session.query(Image.timestamp)\
+                                .join(Camera)\
+                                .filter(Camera.trapgroup_id==trapgroup_id)\
+                                .filter(Camera.videos.any())\
+                                .filter(Image.filename.contains('frame'+str(index)))\
+                                .filter(Image.timestamp != None)\
+                                .distinct().all()]
+        else:
+            old_timestamps = [r[0] for r in db.session.query(Image.timestamp)\
+                                .join(Camera)\
+                                .filter(Camera.trapgroup_id==trapgroup_id)\
+                                .filter(~Camera.videos.any())\
+                                .filter(Image.timestamp != None)\
+                                .distinct().all()]
+            
         for timestamp in old_timestamps:
             try:
                 dates.append(pd.Timestamp(timestamp))
@@ -4302,12 +4355,17 @@ def get_video_timestamps(self,trapgroup_id,index):
         # Search for outliers - now pre-process the current lot of timestamps
         parsed_timestamps = {}
         for item in data:
-            video = item[2]
+            if index != None:
+                extracted_text = item[2].extracted_text
+                item_id = item[2].id
+            else:
+                extracted_text = item[1].extracted_data
+                item_id = item[1].id
             try:
-                timestamp = dateutil_parse(clean_extracted_timestamp(video.extracted_text),fuzzy=True,dayfirst=dayfirst)
+                timestamp = dateutil_parse(clean_extracted_timestamp(extracted_text),fuzzy=True,dayfirst=dayfirst)
                 if (timestamp.year<2000) or (timestamp>=datetime.utcnow()): continue
                 dates.append(pd.Timestamp(timestamp)) # this needs to be first - if it fails there is something wrong with the date and it should be dropped
-                parsed_timestamps[video.id] = timestamp
+                parsed_timestamps[item_id] = timestamp
             except:
                 pass
 
@@ -4319,25 +4377,37 @@ def get_video_timestamps(self,trapgroup_id,index):
 
         # Parse timestamp
         for item in data:
-            video = item[2]
-            try:
-                timestamp = parsed_timestamps[video.id]
+            if index != None:
+                video = item[2]
+                try:
+                    timestamp = parsed_timestamps[video.id]
 
-                if upper_limit >= timestamp >= lower_limit:
-                    fps = get_still_rate(video.fps,video.frame_count)
-                    video_timestamp = timestamp - timedelta(seconds=index/fps)
+                    if upper_limit >= timestamp >= lower_limit:
+                        fps = get_still_rate(video.fps,video.frame_count)
+                        video_timestamp = timestamp - timedelta(seconds=index/fps)
 
-                    frames = db.session.query(Image).join(Camera).join(Video,Camera.videos).filter(Video.id==video.id).distinct().all()
-                    for frame in frames:
-                        frame_count = int(frame.filename.split('frame')[1][:-4])
-                        frame_timestamp = video_timestamp + timedelta(seconds=frame_count/fps)
-                        frame.timestamp = frame_timestamp
-                        frame.corrected_timestamp = frame_timestamp
-            except:
-                pass
+                        frames = db.session.query(Image).join(Camera).join(Video,Camera.videos).filter(Video.id==video.id).distinct().all()
+                        for frame in frames:
+                            frame_count = int(frame.filename.split('frame')[1][:-4])
+                            frame_timestamp = video_timestamp + timedelta(seconds=frame_count/fps)
+                            frame.timestamp = frame_timestamp
+                            frame.corrected_timestamp = frame_timestamp
+                            frame.extracted = True
+                except:
+                    pass
+            else:
+                image = item[1]
+                try:
+                    timestamp = parsed_timestamps[image.id]
+                    if upper_limit >= timestamp >= lower_limit:
+                        image.timestamp = timestamp
+                        image.corrected_timestamp = timestamp
+                        image.extracted = True
+                except:
+                    pass
         
         db.session.commit()
-        app.logger.info('Timestamp extraction for trapgroup {} took {}s for {} videos'.format(trapgroup_id,time.time()-starttime,len(data)))
+        app.logger.info('Timestamp extraction for trapgroup {} took {}s for {} {}'.format(trapgroup_id,time.time()-starttime,len(data),'videos' if index != None else 'images'))
 
     except Exception as exc:
         app.logger.info(' ')
@@ -4351,9 +4421,10 @@ def get_video_timestamps(self,trapgroup_id,index):
 
     return True
 
-def extract_all_video_timestamps(survey_id):
-    '''Kicks off all the celery tasks for extracting timestamps from the videos in the given survey.'''
+def extract_missing_timestamps(survey_id):
+    '''Kicks off all the celery tasks for extracting timestamps from the videos/images in the given survey that doesn't have timestamps.'''
 
+    # Process Videos
     starttime = time.time()
     index = 0
     trapgroup_ids = True
@@ -4364,19 +4435,34 @@ def extract_all_video_timestamps(survey_id):
                                                 .filter(Trapgroup.survey_id==survey_id)\
                                                 .filter(Camera.videos.any())\
                                                 .filter(Image.filename.contains('frame'+str(index)))\
-                                                .filter(Image.timestamp==None)
+                                                .filter(Image.timestamp==None)\
                                                 .distinct().all()]
         for trapgroup_id in trapgroup_ids:
-            get_video_timestamps(trapgroup_id,index)
+            get_timestamps(trapgroup_id,index)
         index += 4
 
-    app.logger.info('All videos process for survey {} in {}s after {} iterations'.format(survey_id,time.time()-starttime,(index/3)+1))
+    app.logger.info('All videos processed for survey {} in {}s after {} iterations'.format(survey_id,time.time()-starttime,(index/3)+1))
+
+    # Process Images
+    starttime = time.time()
+    trapgroup_ids = [r[0] for r in db.session.query(Trapgroup.id)\
+                                                .join(Camera)\
+                                                .join(Image)\
+                                                .filter(Trapgroup.survey_id==survey_id)\
+                                                .filter(~Camera.videos.any())\
+                                                .filter(Image.timestamp==None)\
+                                                .distinct().all()]
+    for trapgroup_id in trapgroup_ids:
+        get_timestamps(trapgroup_id)
+
+    app.logger.info('All images processed for survey {} in {}s'.format(survey_id,time.time()-starttime))
+                                            
 
     # We can't parallelise this at this stage - there is a maximum of 100 simultanrous async requests
 
     # results = []
     # for trapgroup_id in trapgroup_ids:
-    #     results.append(get_video_timestamps.apply_async(kwargs={'trapgroup_id':trapgroup_id},queue='parallel'))
+    #     results.append(get_timestamps.apply_async(kwargs={'trapgroup_id':trapgroup_id},queue='parallel'))
 
     # GLOBALS.lock.acquire()
     # with allow_join_result():

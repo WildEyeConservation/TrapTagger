@@ -19,10 +19,8 @@ isBounding = false
 isIDing = false
 isTimestampCheck = true
 
-var frameIDs = [];
-var frameReadAheadIndex = 0;
-var frames = [];
 var clusterIdList = [];
+var currentYear = new Date().getFullYear();
 
 const yearInput = document.getElementById('year');
 const monthInput = document.getElementById('month');
@@ -33,12 +31,13 @@ const secondsInput = document.getElementById('seconds');
 
 function loadNewCluster(mapID = 'map1') {
     /** Requests the next back of clusters from the server. */
-    if (frameReadAheadIndex < frameIDs.length) {
 
-        if (frameReadAheadIndex == frameIDs.length-1) {
-            lastFrame = true 
+    if (cameraReadAheadIndex < cameraIDs.length) {
+
+        if (cameraReadAheadIndex == cameraIDs.length-1) {
+            lastCamera = true 
         }else{
-            lastFrame = false
+            lastCamera = false
         }
 
         waitingForClusters[mapID] = true
@@ -56,15 +55,15 @@ function loadNewCluster(mapID = 'map1') {
                         info = JSON.parse(this.responseText);
                         // console.log(info)
 
-                        if (info.frames.length == 1 && info.frames[0].id == '-101') {
+                        if (info.images.length == 1 && info.images[0].id == '-101') {
                             window.location.replace("surveys")
                         }
 
                         if (clusterRequests[mapID].includes(parseInt(info.id))) {
 
-                            for (let i=0;i<info.frames.length;i++) {
-                                newcluster = info.frames[i];
-                                if ((!clusterIdList.includes(newcluster.id))||(newcluster.id=='-101')) {
+                            for (let i=0;i<info.images.length;i++) {
+                                newcluster = info.images[i];
+                                if ((!clusterIdList.includes(newcluster.id))||(newcluster.id=='-101')||(!skippedCameras.includes(newcluster.camera_id))) {
                                     clusterIdList.push(newcluster.id)
 
                                     if ((clusters[mapID].length>0)&&(clusters[mapID][clusters[mapID].length-1].id=='-101')&&(clusterIndex[mapID] < clusters[mapID].length-1)) {
@@ -81,32 +80,32 @@ function loadNewCluster(mapID = 'map1') {
                                 }
                             }
 
-                            if (lastFrame) {
+                            if (lastCamera) {
                                 clusters[mapID].push({'id': '-101'})
                             }
                         }                
                     }
                 };
-            xhttp.open("GET", '/getFrames/' + selectedSurvey + '/' + newID + '?frame_id=' + frameIDs[frameReadAheadIndex++]);
+            xhttp.open("GET", '/getTimestampImages/' + selectedSurvey + '/' + newID + '?camera_id=' + cameraIDs[cameraReadAheadIndex++]);  
             xhttp.send();
         }
     }
 }
 
-function getFrameIDs(mapID = 'map1'){
-    /** Requests the frame IDs from the server. */
+function getCameraIDs(mapID = 'map1'){
+    /** Requests the image IDs from the server. */
     yearInput.focus()
     var xhttp = new XMLHttpRequest();
     xhttp.onreadystatechange =
         function () {
             if (this.readyState == 4 && this.status == 200) {
                 clusters[mapID]=[]
-                frameReadAheadIndex = 0
+                cameraReadAheadIndex = 0
                 clusterIndex[mapID] = 0
                 imageIndex[mapID] = 0
-                frameIDs = JSON.parse(this.responseText);
+                cameraIDs = JSON.parse(this.responseText);
 
-                if (frameIDs.length == 0) {
+                if (cameraIDs.length == 0) {
                     window.location.replace("surveys")
                 }
                 else{
@@ -116,7 +115,7 @@ function getFrameIDs(mapID = 'map1'){
                 }
             }
         };
-    xhttp.open("GET", '/getFrameIDs/' + selectedSurvey);
+    xhttp.open("GET", '/getTimestampCameraIDs/' + selectedSurvey);
     xhttp.send();
 }
 
@@ -136,7 +135,7 @@ function submitTimestamp(no_time = false, mapID = 'map1') {
     }
     else{
 
-        if ((year!= '') && (year.length != 4 || isNaN(year))){
+        if ((year!= '') && (year.length != 4 || isNaN(year) || parseInt(year) > currentYear || parseInt(year) < 1900)){
             validTimestamp = false
             document.getElementById('errorYear').innerHTML = 'Invalid year. Please try again.'
         }
@@ -165,7 +164,7 @@ function submitTimestamp(no_time = false, mapID = 'map1') {
 
     if (validTimestamp){
         var formData = new FormData();
-        formData.append('frame_id', JSON.stringify(frameIDs[clusterIndex['map1']]));
+        formData.append('image_id', JSON.stringify(clusters[mapID][clusterIndex[mapID]].images[imageIndex[mapID]].id));
         formData.append('survey_id', JSON.stringify(selectedSurvey));
         if (!no_time){
             var timestamp = ''
@@ -230,6 +229,7 @@ function submitTimestamp(no_time = false, mapID = 'map1') {
                 } else if (this.readyState == 4 && this.status == 200) {                    
                     response = JSON.parse(this.responseText);
                     clusters[wrapMapID][wrapClusterIndex].ready = true
+                    clusters[mapID][clusterIndex[mapID]].skipped = false
                 }
             }
         }(clusterIndex[mapID],mapID);
@@ -245,7 +245,12 @@ function submitTimestamp(no_time = false, mapID = 'map1') {
         document.getElementById('errorMinutes').innerHTML = ''
         document.getElementById('errorSeconds').innerHTML = ''
 
-        nextCluster(mapID)
+
+        if (imageIndex[mapID] < clusters[mapID][clusterIndex[mapID]].images.length-1){
+            nextImage(mapID)
+        } else {
+            nextCluster(mapID)
+        }
 
     } 
 }
@@ -253,7 +258,18 @@ function submitTimestamp(no_time = false, mapID = 'map1') {
 function undoTimestamp(mapID = 'map1') {
     /** Goes back to the previous cluster. */
     clearInputs()
-    prevCluster(mapID)
+    // prevCluster(mapID)
+
+    if (clusters[mapID][clusterIndex[mapID]].skipped){
+        clusters[mapID][clusterIndex[mapID]].skipped = false
+        prevCluster(mapID)
+    } else {
+        if (imageIndex[mapID] > 0){
+            prevImage(mapID)
+        } else {
+            prevCluster(mapID)
+        }
+    }
 }
 
 function clearInputs(){
@@ -300,6 +316,14 @@ function skipTimeUnit(){
     
 }
 
+function skipCamera(mapID = 'map1'){
+    /** Skips the current camera. */
+
+    clusters[mapID][clusterIndex[mapID]].skipped = true
+    nextCluster()
+}
+
+
 yearInput.addEventListener('input', function() {
 
     if (yearInput.value.length > 4){
@@ -307,7 +331,7 @@ yearInput.addEventListener('input', function() {
     }
 
     if (yearInput.value.length == 4) {
-        if (isNaN(yearInput.value) || parseInt(yearInput.value) > 9999 || parseInt(yearInput.value) < 0){
+        if (isNaN(yearInput.value) || parseInt(yearInput.value) > currentYear || parseInt(yearInput.value) < 1900){
             document.getElementById('errorYear').innerHTML = 'Invalid year. Please try again.'
             yearInput.value = ''
             yearInput.focus()
