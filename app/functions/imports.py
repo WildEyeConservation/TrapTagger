@@ -126,7 +126,7 @@ def importCSV(self,survey_id,task_id,filePath,user_id):
             df = pd.read_csv(temp_file.name)
 
         if df:
-            isVideo = re.compile('(\.avi$)|(\.mp4$)', re.I)
+            isVideo = re.compile('(\.avi$)|(\.mp4$)|(\.mov$)', re.I)
             df.drop_duplicates(subset=['filepath'], keep=True, inplace=True)
             df['image_id'] = df.apply(lambda x: findImID(survey_id,x.filename,isVideo), axis=1)
             df = df[df['image_id'].notna()]
@@ -2086,7 +2086,7 @@ def import_folder(s3Folder, tag, name, sourceBucket,destinationBucket,organisati
             label_source (str): Exif field where labels should be extracted from
     '''
     
-    isVideo = re.compile('(\.avi$)|(\.mp4$)', re.I)
+    isVideo = re.compile('(\.avi$)|(\.mp4$)|(\.mov$)', re.I)
     isjpeg = re.compile('(\.jpe?g$)|(_jpe?g$)', re.I)
     
     localsession=db.session()

@@ -6057,7 +6057,7 @@ def getClustersBySpecies(task_id, species, tag_id, trapgroup_id, annotator_id):
             while parent_labels != []:
                 temp_labels = []
                 for label in parent_labels:
-                    children_labels = db.session.query(Label).filter(Label.parent_id == label.id).all()
+                    children_labels = db.session.query(Label).filter(Label.parent_id == label.id).filter(Label.task==task).all()
                     if children_labels != []:
                         temp_labels.extend(children_labels)
                         for lab in children_labels:
@@ -8583,7 +8583,7 @@ def get_image_info():
         include_frames = request.json['include_frames']
         fileName = request.json['fileName']
 
-        if include_video and any(ext in fileName.lower() for ext in ['mp4','avi']):
+        if include_video and any(ext in fileName.lower() for ext in ['mp4','avi','mov']):
             video = db.session.query(Video)\
                             .join(Camera)\
                             .join(Trapgroup)\
@@ -11639,7 +11639,7 @@ def populateSpeciesSelector():
     task = current_user.turkcode[0].task
     if task and checkSurveyPermission(current_user.id,task.survey_id,'read'):
         labels = db.session.query(Label.id, Label.description).filter(Label.task_id==task.id).distinct().all()
-        global_labels = db.session.query(Label.id, Label.description).filter(Label.task_id == None).filter(Label.description != 'Wrong').filter(Label.description != 'Skip').all()
+        global_labels = db.session.query(Label.id, Label.description).filter(Label.task_id == None).filter(Label.description != 'Wrong').filter(Label.description != 'Skip').filter(Label.description != 'Remove False Detections').all()
         labels.extend(global_labels)
         labels.insert(0, (0, 'All'))
 
