@@ -4,3 +4,6 @@
 [submodule "wildbook-ia"]
 	path = wildbook-ia
 	url = https://github.com/WildMeOrg/wildbook-ia
+[submodule "LLaVA"]
+	path = LLaVA
+	url = https://github.com/haotian-liu/LLaVA.git

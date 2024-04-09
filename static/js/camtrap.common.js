@@ -75,6 +75,8 @@ var orginal_label_ids
 var skipName = null
 var idIndiv101 = false
 var isMaskCheck = false
+var isTimestampCheck
+
 const divBtns = document.querySelector('#divBtns');
 const catcounts = document.querySelector('#categorycounts');
 const mapdiv2 = document.querySelector('#mapdiv2');
@@ -1156,7 +1158,7 @@ function updateClusterLabels(mapID = 'map1') {
 
 function updateDebugInfo(mapID = 'map1',updateLabels = true) {
     /** Updates the displayed image/cluster info. */
-    if ((!isViewing && !isTagging && !isBounding && !isKnockdown && !isStaticCheck)||(taggingLevel=='-3')||(isClassCheck)) { //(!isTagging)
+    if ((!isViewing && !isTagging && !isBounding && !isKnockdown && !isStaticCheck && !isTimestampCheck) ||(taggingLevel=='-3')||(isClassCheck)) { //(!isTagging)
         if ((clusters[mapID][clusterIndex[mapID]].id == '-99')||(clusters[mapID][clusterIndex[mapID]].id == '-101')||(clusters[mapID][clusterIndex[mapID]].id == '-782')) {
             document.getElementById('debugImage').innerHTML =  '';
             document.getElementById('debugLabels').innerHTML = '';
@@ -1229,8 +1231,7 @@ function updateDebugInfo(mapID = 'map1',updateLabels = true) {
             }
 
             // Update notes in explore
-            if(isReviewing && document.getElementById('noteboxExp'))
-            {
+            if(isReviewing && document.getElementById('noteboxExp')){
                 noteTextBox.value = clusters[mapID][clusterIndex[mapID]].notes
                 document.getElementById('notif').innerHTML = ""
             }
@@ -1285,6 +1286,16 @@ function updateDebugInfo(mapID = 'map1',updateLabels = true) {
 
     if (isStaticCheck) {
         document.getElementById('debugImage').innerHTML =  clusters[mapID][clusterIndex[mapID]].images[imageIndex[mapID]].url.split('/').slice(1).join('/');
+    }
+
+    if (isTimestampCheck) {
+        document.getElementById('debugImage').innerHTML = clusters[mapID][clusterIndex[mapID]].images[imageIndex[mapID]].name 
+        yearInput.value = ''
+        monthInput.value = ''
+        dayInput.value = ''
+        hourInput.value = ''
+        minutesInput.value = ''
+        secondsInput.value = ''
     }
 }
 
@@ -2280,13 +2291,20 @@ function prepMap(mapID = 'map1') {
                         }
 
                         L.Browser.touch = true
-                
-                        map[wrapMapID] = new L.map(mapDivs[wrapMapID], {
+
+                        var mapAttributes = {
                             crs: L.CRS.Simple,
                             maxZoom: 10,
                             center: [0, 0],
                             zoomSnap: 0
-                        })
+                        }
+                        
+                        if (isTimestampCheck) {
+                            mapAttributes.attributionControl = false // Remove Leaflet attribution (because it might block the timestamp)
+                        }
+                
+                        map[wrapMapID] = new L.map(mapDivs[wrapMapID], mapAttributes)
+
                         var h1 = document.getElementById(mapDivs[wrapMapID]).clientHeight
                         var w1 = document.getElementById(mapDivs[wrapMapID]).clientWidth
 
@@ -2634,6 +2652,14 @@ function onload (){
         detectionGroups = {}
         // loadNewCluster()
         getStaticGroupIDs()
+    }
+
+    if (isTimestampCheck) {
+        selectedSurvey = /survey=([^&]+)/.exec(document.location.href)[1]
+        clusters['map1'] = []
+        clusterIndex['map1'] = 0
+        imageIndex['map1'] = 0
+        getCameraIDs()
     }
 
     // if (document.location.href.includes('task')) {
@@ -3337,12 +3363,24 @@ document.onkeyup = function(event){
             case 'b': sendBoundingBack()
                 break;
         }
-
     } else if (isStaticCheck) {
         switch (event.key.toLowerCase()){
             case ('a'):handleStatic(1)
                 break;
             case ('r'):handleStatic(0)
+                break;
+        }
+    } else if (isTimestampCheck) {
+        switch (event.key.toLowerCase()){
+            case ('n'):submitTimestamp(true)
+                break;
+            case (' '):skipTimeUnit()
+                break;
+            case ('s'): skipCamera() 
+                break;
+            case '~': undoTimestamp()
+                break;
+            case '`': undoTimestamp()
                 break;
         }
     } else {

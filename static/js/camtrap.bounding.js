@@ -18,6 +18,7 @@ isKnockdown = false
 isBounding = true
 isIDing = false
 isStaticCheck = false
+isTimestampCheck = false
 var dbDetIds = {}
 var addDetCnt
 var drawControl = null

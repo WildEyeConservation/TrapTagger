@@ -19,6 +19,7 @@ isBounding = false
 isViewing = true
 isIDing = false
 isStaticCheck = false
+isTimestampCheck = false
 
 window.addEventListener('load', onload, false);
 

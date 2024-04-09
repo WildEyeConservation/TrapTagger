@@ -2847,6 +2847,26 @@ def clean_up_redis():
                     except:
                         GLOBALS.redisClient.delete(key)
 
+            # Manage Video Timestamp Check here
+            elif any(name in key for name in ['timestamp_check_ping']):
+                survey_id = key.split('_')[-1]
+
+                if survey_id == 'None':
+                    GLOBALS.redisClient.delete(key)
+                else:
+                    try:
+                        timestamp = GLOBALS.redisClient.get(key)
+                        if timestamp:
+                            timestamp = datetime.fromtimestamp(float(timestamp.decode()))
+                            if datetime.utcnow() - timestamp > timedelta(minutes=5):
+                                survey = db.session.query(Survey).get(int(survey_id))
+                                if 'preprocessing' in survey.status.lower():
+                                    survey.status = "Preprocessing,Available," + survey.status.split(',')[2]
+                                    db.session.commit()
+                                GLOBALS.redisClient.delete('timestamp_check_ping_'+str(survey_id))
+                    except:
+                        GLOBALS.redisClient.delete(key)
+
     except Exception as exc:
         app.logger.info(' ')
         app.logger.info('!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!')
@@ -3763,7 +3783,6 @@ def checkUploadUser(user_id,survey_id):
             return True
     
     return False
-
 
 @celery.task(bind=True,max_retries=5,ignore_result=True)
 def wrapUpStaticDetectionCheck(self,survey_id):

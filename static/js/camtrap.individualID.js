@@ -18,6 +18,7 @@ isKnockdown = false
 isBounding = false
 isIDing = true
 isStaticCheck = false
+isTimestampCheck = false
 
 var suggestions = []
 var suggestionIndex = 0

@@ -32,6 +32,7 @@ isKnockdown = false
 isBounding = false
 isIDing = false
 isStaticCheck = false
+isTimestampCheck = false
 
 wrongStatus = true
 dontResetWrong = true

@@ -1151,9 +1151,15 @@ def deleteSurvey(survey_id):
                     status = 'error'
                     message = 'The survey is currently being uploaded to by another user.'
 
+            if 'preprocessing' in survey.status.lower():
+                prep_statusses = survey.status.split(',')
+                if 'In Progress' in prep_statusses:
+                    status = 'error'
+                    message = 'The survey is currently being preprocessed by another user.'
+
             #Check that survey is not in use
             if status != 'error':
-                if (survey.status.lower() in Config.SURVEY_READY_STATUSES) or (survey.status.lower() == 'uploading'):
+                if (survey.status.lower() in Config.SURVEY_READY_STATUSES) or (survey.status.lower() == 'uploading') or ('preprocessing' in survey.status.lower()):
                     pass
                 else:
                     status = 'error'
@@ -1947,6 +1953,12 @@ def editSurvey():
                     uploaded_file.save(temp_file.name)
                     GLOBALS.s3client.put_object(Bucket=Config.BUCKET,Key=key,Body=temp_file)
                 importKML(survey.id)
+
+        elif 'imageTimestamps' in request.form:
+            imageTimestamps = ast.literal_eval(request.form['imageTimestamps'])
+            survey.status = 'Processing'
+            db.session.commit()
+            recluster_after_image_timestamp_change.delay(survey_id=survey.id,image_timestamps=imageTimestamps)
         
         else:
             userPermissions = db.session.query(UserPermissions).filter(UserPermissions.organisation_id==survey.organisation_id).filter(UserPermissions.user_id==current_user.id).first()
@@ -3544,6 +3556,19 @@ def getHomeSurveys():
                                     'organisation': item[17],
                                     'tasks': []}
 
+            if 'preprocessing' in surveyStatus.lower():
+                prep_statusses = surveyStatus.split(',')
+                survey_data[item[0]]['status'] = prep_statusses[0]
+                survey_data[item[0]]['prep_statusses'] = prep_statusses[1:]
+                prep_progress = 0
+                if prep_statusses[1] in ['Available', 'In Progress']:
+                    prep_progress = 0
+                elif prep_statusses[2] in ['Available', 'In Progress']:
+                    prep_progress = 1
+                else:
+                    prep_progress = 2
+                survey_data[item[0]]['prep_progress'] = prep_progress
+
         if item[8] and (item[9]!='default') and (item[8] not in handled_tasks):
             handled_tasks.append(item[8])
             clusters_remaining = GLOBALS.redisClient.get('clusters_remaining_'+str(item[8]))
@@ -3658,6 +3683,19 @@ def getHomeSurveys():
                                         'numTrapgroups': item[7],
                                         'organisation': item[17],
                                         'tasks': []}
+
+                if 'preprocessing' in surveyStatus.lower():
+                    prep_statusses = surveyStatus.split(',')
+                    survey_data2[item[0]]['status'] = prep_statusses[0]
+                    survey_data2[item[0]]['prep_statusses'] = prep_statusses[1:]
+                    prep_progress = 0
+                    if prep_statusses[1] in ['Available', 'In Progress']:
+                        prep_progress = 0
+                    elif prep_statusses[2] in ['Available', 'In Progress']:
+                        prep_progress = 1
+                    else:
+                        prep_progress = 2
+                    survey_data2[item[0]]['prep_progress'] = prep_progress
 
             if item[8] and (item[9]!='default') and (item[8] not in handled_tasks):
                 handled_tasks.append(item[8])
@@ -12618,3 +12656,277 @@ def getStaticCameragroups(survey_id):
             cameragroups[i] = {'id': cameragroups[i][0], 'name': cameragroups[i][1]}
     
     return json.dumps(cameragroups)
+
+@app.route('/checkTimestamps')
+@login_required
+def checkTimestamps():
+    '''Renders the timestamp analysis page for the specified survey.'''
+    if not current_user.is_authenticated:
+        return redirect(url_for('login_page'))
+    else:
+        if current_user.admin:
+            if current_user.username=='Dashboard': return redirect(url_for('dashboard'))
+            if not current_user.permissions: return redirect(url_for('landing'))
+            survey_id = request.args.get('survey', None)
+            survey = db.session.query(Survey).get(survey_id)
+            if survey and checkSurveyPermission(current_user.id,survey.id,'write'):
+                if 'preprocessing' in survey.status.lower() and survey.status.split(',')[1] == 'Available':
+                    GLOBALS.redisClient.set('timestamp_check_ping_'+str(survey_id),datetime.utcnow().timestamp())
+                    return render_template('html/timestamps.html', title='Correct Timestamps', helpFile='timestamp_correction', bucket=Config.BUCKET, version=Config.VERSION)
+                else:
+                    return redirect(url_for('surveys'))
+            else:
+                return redirect(url_for('surveys'))
+        else:
+            if current_user.parent_id == None:
+                return redirect(url_for('jobs'))
+            else:
+                if current_user.turkcode[0].task.is_bounding:
+                    return redirect(url_for('sightings'))
+                elif '-4' in current_user.turkcode[0].task.tagging_level:
+                    return redirect(url_for('clusterID'))
+                elif '-5' in current_user.turkcode[0].task.tagging_level:
+                    return redirect(url_for('individualID'))
+                else:
+                    return redirect(url_for('index'))
+
+# @app.route('/getImageIDs/<survey_id>')
+# @login_required
+# def getImageIDs(survey_id):
+#     '''Gets the image IDs for the specified survey who require timestamps correction.''' 
+#     image_ids = []
+#     survey = db.session.query(Survey).get(survey_id)
+#     check_type = request.args.get('type', None)
+#     if survey and checkSurveyPermission(current_user.id,survey.id,'write'):
+#         # Get all images and first frame of videos that do not have timestamps
+#         images = db.session.query(Image.id)\
+#                             .join(Camera)\
+#                             .join(Trapgroup)\
+#                             .filter(Trapgroup.survey_id==survey_id)\
+#                             .filter(or_(Image.filename=='frame0.jpg', ~Image.filename.like('frame%')))
+
+#         if check_type:
+#             if check_type == 'missing':
+#                 images = images.filter(Image.corrected_timestamp==None)
+#             elif check_type == 'extracted':
+#                 images = images.filter(and_(Image.extracted==True,Image.timestamp==Image.corrected_timestamp))
+#             elif check_type == 'edited': 
+#                 images = images.filter(or_(
+#                                 and_(Image.timestamp==None,Image.corrected_timestamp!=None),
+#                                 and_(Image.extracted==True,Image.timestamp!=Image.corrected_timestamp)
+#                             ))
+#         else:
+#             images = images.filter(Image.corrected_timestamp==None)
+
+#         image_ids = [r[0] for r in images.distinct().all()]
+
+#     return json.dumps(image_ids)
+
+@app.route('/getTimestampCameraIDs/<survey_id>')
+@login_required
+def getTimestampCameraIDs(survey_id):
+    '''Gets the camera IDs for the specified survey whose images require timestamps correction.''' 
+    camera_ids = []
+    survey = db.session.query(Survey).get(survey_id)
+    check_type = request.args.get('type', None)
+    if survey and checkSurveyPermission(current_user.id,survey.id,'write'):
+        # Get all camera ids for images and first frame of videos that do not have timestamps
+        cameras = db.session.query(Camera.id)\
+                            .join(Image)\
+                            .join(Trapgroup)\
+                            .filter(Trapgroup.survey_id==survey_id)\
+                            .filter(or_(Image.filename=='frame0.jpg', ~Image.filename.like('frame%')))
+
+        if check_type:
+            if check_type == 'missing':
+                cameras = cameras.filter(Image.corrected_timestamp==None)
+            elif check_type == 'extracted':
+                cameras = cameras.filter(and_(Image.extracted==True,Image.timestamp==Image.corrected_timestamp))
+            elif check_type == 'edited': 
+                cameras = cameras.filter(or_(
+                                and_(Image.timestamp==None,Image.corrected_timestamp!=None),
+                                and_(Image.extracted==True,Image.timestamp!=Image.corrected_timestamp)
+                            ))
+        else:
+            cameras = cameras.filter(Image.corrected_timestamp==None)
+
+        camera_ids = [r[0] for r in cameras.distinct().all()]
+
+    return json.dumps(camera_ids)
+
+@app.route('/getTimestampImages/<survey_id>/<reqID>')
+@login_required
+def getTimestampImages(survey_id, reqID):
+    '''Gets the images for the specified survey whose videos require timestamps correction.'''
+    images = []
+    survey = db.session.query(Survey).get(survey_id)
+    image_id = request.args.get('image_id', None)
+    check_type = request.args.get('type', None)
+    camera_id = request.args.get('camera_id', None)
+
+    if survey and checkSurveyPermission(current_user.id,survey.id,'write'):
+        if 'preprocessing' in survey.status.lower():
+            GLOBALS.redisClient.set('timestamp_check_ping_'+str(survey_id),datetime.utcnow().timestamp())
+            survey.status = 'Preprocessing,In Progress,' + survey.status.split(',')[2]
+            db.session.commit()
+
+        image_data = db.session.query(Image.id, Image.filename, Image.corrected_timestamp, Video.filename, Camera.id, Camera.path)\
+                                .join(Camera, Camera.id==Image.camera_id)\
+                                .join(Trapgroup)\
+                                .outerjoin(Video, Video.camera_id==Camera.id)\
+                                .filter(Trapgroup.survey_id==survey_id)\
+                                .filter(or_(Image.filename=='frame0.jpg', ~Image.filename.like('frame%')))
+        if check_type:
+            if check_type == 'missing':
+                image_data = image_data.filter(Image.corrected_timestamp==None)
+            elif check_type == 'extracted':
+                image_data = image_data.filter(and_(Image.extracted==True,Image.timestamp==Image.corrected_timestamp))
+            elif check_type == 'edited':
+                image_data = image_data.filter(or_(
+                                and_(Image.timestamp==None,Image.corrected_timestamp!=None),
+                                and_(Image.extracted==True,Image.timestamp!=Image.corrected_timestamp)
+                            ))
+        else:  
+            image_data = image_data.filter(Image.corrected_timestamp==None)
+
+        if image_id:
+            image_data = image_data.filter(Image.id==image_id)
+
+        if camera_id:
+            image_data = image_data.filter(Camera.id==camera_id)
+
+        image_data = image_data.distinct().all()
+
+        if len(image_data) == 0 and 'preprocessing' in survey.status.lower():
+            return json.dumps({'images': [{'id': Config.FINISHED_CLUSTER}], 'id': reqID})
+
+        camera_keys = {}
+        for d in image_data:
+            if d[4] not in camera_keys:
+                images.append({
+                    'id': d[4],
+                    'images': [],
+                    'labels': ['None'],
+                    'label_ids': ['0'],
+                    'tags': ['None'],
+                    'tag_ids': ['0'],
+                    'required': [],
+                    'camera_id': d[4]
+                })
+                camera_keys[d[4]] = len(images)-1
+
+            images[camera_keys[d[4]]]['images'].append({
+                'id': d[0],
+                'detections': [],
+                'url': d[5]+'/'+d[1],
+                'timestamp': d[2].strftime('%Y-%m-%d %H:%M:%S') if d[2] else None,
+                'name': d[5].split('/_video_images_/')[0]+'/'+d[3] if d[3] else d[5]+'/'+d[1]
+            })
+
+    return json.dumps({'images': images, 'id': reqID})
+
+@app.route('/submitTimestamp', methods=['POST'])
+@login_required
+def submitTimestamp():
+    '''Submits the corrected timestamp for the specified image.'''
+
+    status = 'error'
+    survey_id = ast.literal_eval(request.form['survey_id'])
+    image_id = ast.literal_eval(request.form['image_id'])
+    if 'timestamp' in request.form:
+        timestamp = ast.literal_eval(request.form['timestamp'])
+        timestamp_format = ast.literal_eval(request.form['timestamp_format'])
+    else:
+        timestamp = None
+        timestamp_format = None
+
+    if Config.DEBUGGING: app.logger.info('Image ID: {} Timestamp: {} Timestamp Format: {}'.format(image_id, timestamp, timestamp_format))
+
+    survey = db.session.query(Survey).get(survey_id)
+    image = db.session.query(Image).get(image_id)
+    if survey and image and checkSurveyPermission(current_user.id,survey.id,'write'):
+
+        if not GLOBALS.redisClient.get('timestamp_check_ping_'+str(survey_id)):
+            return {'redirect': url_for('surveys')}, 278
+            
+        GLOBALS.redisClient.set('timestamp_check_ping_'+str(survey_id),datetime.utcnow().timestamp())
+
+        if 'preprocessing' in survey.status.lower():
+            survey.status = 'Preprocessing,In Progress,' + survey.status.split(',')[2]
+
+        corrected_timestamp = None
+        if timestamp:
+            try:
+                corrected_timestamp = datetime.strptime(timestamp, timestamp_format)
+            except:
+                corrected_timestamp = None
+        
+        if Config.DEBUGGING: app.logger.info('Corrected Timestamp: {}'.format(corrected_timestamp))
+        image.corrected_timestamp = corrected_timestamp
+        image.skipped = False
+
+        # Handle video frames
+        if 'frame' in image.filename:
+            video = db.session.query(Video).join(Camera).join(Image,Camera.images).filter(Image.id==image.id).first()
+            if video:
+                index = int(image.filename.split('frame')[1][:-4])
+                fps = get_still_rate(video.fps,video.frame_count)
+                frames = db.session.query(Image).join(Camera).join(Video,Camera.videos).filter(Video.id==video.id).distinct().all()
+                if corrected_timestamp:
+                    video_timestamp = corrected_timestamp - timedelta(seconds=index/fps)
+                    for frame in frames:
+                        frame_count = int(frame.filename.split('frame')[1][:-4])
+                        frame_timestamp = video_timestamp + timedelta(seconds=frame_count/fps)
+                        frame.corrected_timestamp = frame_timestamp
+                        frame.skipped = False
+                else:
+                    for frame in frames:
+                        frame.corrected_timestamp = None
+                        frame.skipped = False
+
+        db.session.commit()
+        status = 'success'
+
+    return json.dumps(status)
+
+@app.route('/finishTimestampCheck/<survey_id>')
+@login_required
+def finishTimestampCheck(survey_id):
+    '''Finishes the timestamp check for the specified survey.'''
+    survey = db.session.query(Survey).get(survey_id)
+    if survey and checkSurveyPermission(current_user.id,survey.id,'write'):
+        if 'preprocessing' in survey.status.lower():
+            if survey.status.split(',')[2] in ['N/A', 'Completed', 'Skipped']:	
+                survey.status = 'Processing'
+                import_survey.delay(s3Folder=survey.name,surveyName=survey.name,tag=survey.trapgroup_code,organisation_id=survey.organisation_id,correctTimestamps=survey.correct_timestamps,classifier=survey.classifier.name,preprocess_done=True)
+            else:
+                survey.status = 'Preprocessing,Completed,' + survey.status.split(',')[2]
+            db.session.commit()
+        GLOBALS.redisClient.delete('timestamp_check_ping_'+str(survey_id))
+        
+    return json.dumps('success')
+
+@app.route('/skipPreprocessing/<survey_id>/<step>')
+@login_required
+def skipPreprocessing(survey_id,step):
+    '''Skips the preprocessing for the specified survey.'''
+    survey = db.session.query(Survey).get(survey_id)
+    if survey and checkSurveyPermission(current_user.id,survey.id,'write'):
+        if 'preprocessing' in survey.status.lower():
+            statusses = survey.status.split(',')
+            if step == 'timestamp':
+                if statusses[2].lower() in ['completed', 'skipped', 'n/a']:
+                    survey.status = 'Processing'
+                    import_survey.delay(s3Folder=survey.name,surveyName=survey.name,tag=survey.trapgroup_code,organisation_id=survey.organisation_id,correctTimestamps=survey.correct_timestamps,classifier=survey.classifier.name,preprocess_done=True)
+                else:
+                    survey.status = 'Preprocessing,Skipped,' + statusses[2]
+
+            elif step == 'static':
+                if statusses[1].lower() in ['completed', 'skipped', 'n/a']:
+                    survey.status = 'Processing'
+                    import_survey.delay(s3Folder=survey.name,surveyName=survey.name,tag=survey.trapgroup_code,organisation_id=survey.organisation_id,correctTimestamps=survey.correct_timestamps,classifier=survey.classifier.name,preprocess_done=True)
+                else:
+                    survey.status = 'Preprocessing,' + statusses[1] + ',Skipped'
+
+            db.session.commit()
+    return json.dumps('success')

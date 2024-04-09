@@ -18,6 +18,7 @@ isKnockdown = false
 isBounding = false
 isIDing = false
 isStaticCheck = false
+isTimestampCheck = false
 
 var drawControl = null
 var toolTipsOpen = true

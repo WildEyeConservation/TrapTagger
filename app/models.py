@@ -113,8 +113,11 @@ class Image(db.Model):
     etag = db.Column(db.String(64), index=False)
     hash = db.Column(db.String(64), index=True)
     downloaded = db.Column(db.Boolean, default=False, index=True)
+    extracted_data = db.Column(db.String(128), index=False)
     detections = db.relationship('Detection', backref='image', lazy=True)
     camera_id = db.Column(db.Integer, db.ForeignKey('camera.id'), index=True, unique=False)
+    skipped = db.Column(db.Boolean, default=False, index=True)
+    extracted = db.Column(db.Boolean, default=False, index=True)
 
     def __repr__(self):
         return '<Image {}>'.format(self.filename)
@@ -512,6 +515,9 @@ class Video(db.Model):
     hash = db.Column(db.String(64), index=True)
     downloaded = db.Column(db.Boolean, default=False, index=True)
     camera_id = db.Column(db.Integer, db.ForeignKey('camera.id'), index=True, unique=False)
+    extracted_text = db.Column(db.String(64), index=False)
+    fps = db.Column(db.Integer, index=False)
+    frame_count = db.Column(db.Integer, index=False)
 
     def __repr__(self):
         return '<Video {}>'.format(self.filename)
