@@ -172,7 +172,6 @@ const modalCSVGenerate = $('#modalCSVGenerate');
 const btnCsvGenerate = document.querySelector('#btnCsvGenerate');
 const btnExcelDownload = document.querySelector('#btnExcelDownload');
 const btnCsvDownload = document.querySelector('#btnCsvDownload');
-const modalStaticCheck = $('#modalStaticCheck');
 
 var polarColours = {'rgba(10,120,80,0.2)':false,
                     'rgba(255,255,255,0.2)':false,
@@ -610,9 +609,11 @@ function buildSurveys(survey,disableSurvey) {
                 selectedSurvey = wrapSurveyId
 
                 if (wrapProgress == 0) {
+                    // Timestamp Correction
                     document.location.href = '/checkTimestamps?survey='+wrapSurveyId
                 } else if (wrapProgress == 1) {
                     // Static Detection Check
+                    document.location.href = '/checkStaticDetections?survey='+wrapSurveyId;
                 }
             }
         }(survey.id, survey.prep_progress));
@@ -690,27 +691,10 @@ function buildSurveys(survey,disableSurvey) {
         addTaskBtn.addEventListener('click', function(wrapSurveyId) {
             return function() {
                 selectedSurvey = wrapSurveyId
-
-                var xhttp = new XMLHttpRequest();
-                xhttp.onreadystatechange =
-                function(){
-                    if (this.readyState == 4 && this.status == 200) {
-                        reply = JSON.parse(this.responseText);  
-
-                        if (reply.static_check) {
-                            modalStaticCheck.modal({keyboard: true});
-                        }
-                        else {
-                            resetModalAddTask1()
-                            resetModalAddTask2()
-                            resetModalAddTask3()
-                            modalAddTask.modal({keyboard: true});
-                        }
-                    }
-                }
-                xhttp.open("GET", '/staticDetectionCheck/'+selectedSurvey);
-                xhttp.send();
-
+                resetModalAddTask1()
+                resetModalAddTask2()
+                resetModalAddTask3()
+                modalAddTask.modal({keyboard: true});
             }
         }(survey.id));
     }
@@ -2674,50 +2658,6 @@ function buildEditTimestamp() {
 
     addImagesEditTimestampsDiv.appendChild(document.createElement('br'))
 
-    // row = document.createElement('div')
-    // row.classList.add('row')
-    // addImagesEditTimestampsDiv.appendChild(row)
-
-    // col = document.createElement('div')
-    // col.classList.add('col-lg-1')
-    // row.appendChild(col)
-
-    // h5 = document.createElement('h5')
-    // h5.setAttribute('style','margin-bottom: 2px')
-    // h5.innerHTML = 'Site'
-    // col.appendChild(h5)
-
-    // col = document.createElement('div')
-    // col.classList.add('col-lg-5')
-    // row.appendChild(col)
-
-    // h5 = document.createElement('h5')
-    // h5.setAttribute('style','margin-bottom: 2px')
-    // h5.innerHTML = 'Camera'
-    // col.appendChild(h5)
-
-    // col = document.createElement('div')
-    // col.classList.add('col-lg-3')
-    // row.appendChild(col)
-
-    // h5 = document.createElement('h5')
-    // h5.setAttribute('style','margin-bottom: 2px')
-    // h5.innerHTML = 'Original'
-    // col.appendChild(h5)
-
-    // col = document.createElement('div')
-    // col.classList.add('col-lg-3')
-    // row.appendChild(col)
-
-    // h5 = document.createElement('h5')
-    // h5.setAttribute('style','margin-bottom: 2px')
-    // h5.innerHTML = 'Corrected'
-    // col.appendChild(h5)
-
-    div = document.createElement('div')
-    div.setAttribute('style','font-size: 80%; margin-bottom: 2px')
-    div.innerHTML = '<i>Here you can view and edit the timestamps of the first image taken by each camera in the selected survey. All images taken by an edited camera will be shifted by the same amount.</i>'
-    addImagesEditTimestampsDiv.appendChild(div)
 
     errors = document.createElement('div')
     errors.setAttribute('id','timestampErrors')
@@ -2771,12 +2711,6 @@ function buildEditTimestamp() {
 
 function buildEditImageTimestamp() {
     /** Builds the form for editing timestamps on the edit survey modal. */
-    
-    document.getElementById('addImagesAddImages').disabled = true
-    document.getElementById('addImagesAddCoordinates').disabled = true
-    document.getElementById('addImagesEditTimestamps').disabled = true
-    document.getElementById('addImagesEditClassifier').disabled = true
-    document.getElementById('addImagesAdvanced').disabled = true
 
     new_missing_timestamps = {}
     corrected_extracted_timestamps = {}
@@ -2791,8 +2725,6 @@ function buildEditImageTimestamp() {
     camera_ids = []
 
     addImagesEditImgTimestampsDiv = document.getElementById('addImagesEditImgTimestampsDiv')
-
-    addImagesEditImgTimestampsDiv.appendChild(document.createElement('br'))
 
     h5 = document.createElement('h5')
     h5.setAttribute('style','margin-bottom: 2px')
@@ -2898,20 +2830,13 @@ function buildEditImageTimestamp() {
     div = document.createElement('div')
     div.id = 'correctTimestampsDecscription'
     div.setAttribute('style','font-size: 80%; margin-bottom: 2px')
-    div.innerHTML = '<i>Here you add timestamps to images or videos that do not have them. </i>'
+    div.innerHTML = '<i>Here you can add timestamps to images or videos that do not have any timestamps. </i>'
     addImagesEditImgTimestampsDiv.appendChild(div)
-
-    errors = document.createElement('div')
-    errors.setAttribute('id','timestampErrors')
-    errors.setAttribute('style','font-size: 80%; color: #DF691A')
-    addImagesEditImgTimestampsDiv.appendChild(errors)
-
 
     addImagesImagesDiv = document.createElement('div')
     addImagesImagesDiv.setAttribute('id','addImagesImagesDiv')
+    addImagesImagesDiv.setAttribute('style','margin-top: 10px')
     addImagesEditImgTimestampsDiv.appendChild(addImagesImagesDiv)
-
-    addImagesEditImgTimestampsDiv.appendChild(document.createElement('br'))
 
     document.getElementById('missingTimestamps').click()
 }
@@ -5030,20 +4955,6 @@ function buildSurveyPermissionRow(){
         this.parentNode.parentNode.remove()
     });
 
-}
-
-function launchStaticDetectionCheck() {
-    /** Launches the static detection check */
-    window.location.href = '/checkStaticDetections?survey='+selectedSurvey;
-    modalStaticCheck.modal('hide')
-}
-
-function cancelStaticDetection(){
-    modalStaticCheck.modal('hide')
-    resetModalAddTask1()
-    resetModalAddTask2()
-    resetModalAddTask3()
-    modalAddTask.modal({keyboard: true});
 }
 
 function changeEditSurveyTab(evt, tabName) {
@@ -7321,7 +7232,7 @@ function buildTimestampsMap(){
         addImagesImagesDiv.removeChild(addImagesImagesDiv.firstChild);
     }
 
-    addImagesImagesDiv.appendChild(document.createElement('br'))
+    // addImagesImagesDiv.appendChild(document.createElement('br'))
 
     var row = document.createElement('div')
     row.classList.add('row')
@@ -7725,9 +7636,6 @@ function getTimestampCameraIDs(){
                     while(addImagesImagesDiv.firstChild){
                         addImagesImagesDiv.removeChild(addImagesImagesDiv.firstChild);
                     }
-
-                    addImagesImagesDiv.appendChild(document.createElement('br'))
-                    addImagesImagesDiv.appendChild(document.createElement('br'))
     
                     var row = document.createElement('div')
                     row.classList.add('row')
@@ -7763,13 +7671,6 @@ function getTimestampCameraIDs(){
                         getTimestampImages()
                     }
                 }
-
-
-                document.getElementById('addImagesAddImages').disabled = false
-                document.getElementById('addImagesAddCoordinates').disabled = false
-                document.getElementById('addImagesEditTimestamps').disabled = false
-                document.getElementById('addImagesEditClassifier').disabled = false
-                document.getElementById('addImagesAdvanced').disabled = false
             }
         };
     xhttp.open("GET", '/getTimestampCameraIDs/' + selectedSurvey + '?type=' + selectedTimestampType);
@@ -8323,7 +8224,7 @@ function getTimestamp(time_dict){
 
 modalAddImages.on('keyup', function(event) {
     /** Event listener for hotkeys on Edit Timestamps. */
-    if (document.getElementById('addImagesEditImgTimestamps').checked && (document.getElementById('missingTimestamps').checked||document.getElementById('extractedTimestamps').checked||document.getElementById('editedTimestamps').checked)){
+    if (tabActiveEditSurvey=='baseEditImgTimestampsTab' && (document.getElementById('missingTimestamps').checked||document.getElementById('extractedTimestamps').checked||document.getElementById('editedTimestamps').checked)){
         if (event.key.toLowerCase() == 'n') {
             event.preventDefault()
             noTimestamp()

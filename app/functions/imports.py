@@ -3445,8 +3445,7 @@ def import_survey(self,s3Folder,surveyName,tag,organisation_id,correctTimestamps
             survey = db.session.query(Survey).filter(Survey.name==surveyName).filter(Survey.organisation_id==organisation_id).first()
             survey_id = survey.id
             timestamp_check = db.session.query(Image.id).join(Camera).join(Trapgroup).filter(Trapgroup.survey_id==survey_id).filter(Image.timestamp==None).first()
-            static_check = False
-            #TODO: Add static check
+            static_check = db.session.query(Staticgroup).join(Detection).join(Image).join(Camera).join(Trapgroup).filter(Trapgroup.survey_id==survey_id).first()
             skipCluster = not timestamp_check
 
         skip = False
@@ -3473,12 +3472,16 @@ def import_survey(self,s3Folder,surveyName,tag,organisation_id,correctTimestamps
             db.session.commit()
             processStaticDetections(survey_id)
             survey = db.session.query(Survey).get(survey_id)
-            static_check = False
-            #TODO: Add static check
+            static_check = db.session.query(Staticgroup).join(Detection).join(Image).join(Camera).join(Trapgroup).filter(Trapgroup.survey_id==survey_id).filter(Staticgroup.status=='unknown').first()
 
             survey.status='Importing Coordinates'
             db.session.commit()
             importKML(survey.id)
+
+        if static_check and preprocess_done:
+            survey.status='Processing Static Detections'
+            db.session.commit()
+            wrapUpStaticDetectionCheck(survey_id)
 
         if not skipCluster:
             survey.status='Removing Humans'
@@ -4718,5 +4721,38 @@ def extract_missing_timestamps(survey_id):
     #             app.logger.info(' ')
     #         result.forget()
     # GLOBALS.lock.release()
+
+    return True
+
+def wrapUpStaticDetectionCheck(survey_id):
+    '''Wraps up the static status for detections after the static detections have been reviewed in the Preprocessing stage.'''	
+
+    static_detections = db.session.query(Detection)\
+                                .join(Image)\
+                                .join(Camera)\
+                                .join(Trapgroup)\
+                                .join(Staticgroup)\
+                                .filter(Trapgroup.survey_id==survey_id)\
+                                .filter(or_(Staticgroup.status=='accepted',Staticgroup.status=='unknown'))\
+                                .filter(Detection.static==False)\
+                                .distinct().all()
+
+    for detection in static_detections:
+        detection.static = True
+
+    rejected_detections = db.session.query(Detection)\
+                                .join(Image)\
+                                .join(Camera)\
+                                .join(Trapgroup)\
+                                .join(Staticgroup)\
+                                .filter(Trapgroup.survey_id==survey_id)\
+                                .filter(Staticgroup.status=='rejected')\
+                                .filter(Detection.static==True)\
+                                .distinct().all()
+
+    for detection in rejected_detections:
+        detection.static = False
+
+    db.session.commit()
 
     return True

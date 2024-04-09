@@ -1,7 +1,7 @@
 """added extracted timestamp column to video table
 
 Revision ID: 0dae8a55964f
-Revises: dbda7bd631a8
+Revises: 9622455aef8e
 Create Date: 2024-02-29 07:00:28.654504
 
 """
@@ -11,7 +11,7 @@ import sqlalchemy as sa
 
 # revision identifiers, used by Alembic.
 revision = '0dae8a55964f'
-down_revision = 'dbda7bd631a8'
+down_revision = '9622455aef8e'
 branch_labels = None
 depends_on = None
 

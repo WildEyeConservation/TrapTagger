@@ -12213,9 +12213,12 @@ def checkStaticDetections():
             if not current_user.permissions: return redirect(url_for('landing'))
             survey_id = request.args.get('survey', None)
             survey = db.session.query(Survey).get(survey_id)
-            if survey and checkSurveyPermission(current_user.id,survey.id,'write') and survey.status.lower() in Config.SURVEY_READY_STATUSES:
-                GLOBALS.redisClient.set('static_check_ping_'+str(survey_id),datetime.utcnow().timestamp())
-                return render_template('html/static_detections.html', title='Static Detections', helpFile='static_detections', bucket=Config.BUCKET, version=Config.VERSION)
+            if survey and checkSurveyPermission(current_user.id,survey.id,'write'):
+                if 'preprocessing' in survey.status.lower() and survey.status.split(',')[2] == 'Available' and survey.status.split(',')[1] in ['Completed','Skipped','N/A']:
+                    GLOBALS.redisClient.set('static_check_ping_'+str(survey_id),datetime.utcnow().timestamp())
+                    return render_template('html/static_detections.html', title='Static Detections', helpFile='static_detections', bucket=Config.BUCKET, version=Config.VERSION)
+                else:
+                    return redirect(url_for('surveys'))
             else:
                 return redirect(url_for('surveys'))
         else:
@@ -12241,8 +12244,8 @@ def getStaticDetections(survey_id, reqID):
     survey = db.session.query(Survey).get(survey_id)
     if survey and checkSurveyPermission(current_user.id,survey.id,'write'):
         if int(reqID) != 0:
-            if survey.status != 'Static Detection Analysis':
-                survey.status = 'Static Detection Analysis'
+            if 'preprocessing' in survey.status.lower():
+                survey.status = 'Preprocessing,' + survey.status.split(',')[1] + ',In Progress'
                 db.session.commit()
 
         staticgroup_id = request.args.get('staticgroup_id', None)
@@ -12366,8 +12369,8 @@ def assignStatic():
             
         GLOBALS.redisClient.set('static_check_ping_'+str(survey_id),datetime.utcnow().timestamp())
 
-        if survey.status != 'Static Detection Analysis':
-            survey.status = 'Static Detection Analysis'
+        if 'preprocessing' in survey.status.lower():
+            survey.status = 'Preprocessing,' + survey.status.split(',')[1] + ',In Progress'
 
         if static_status == 'accept_static':
             staticgroup = db.session.query(Staticgroup).get(staticgroup_id)
@@ -12535,9 +12538,13 @@ def finishStaticDetectionCheck(survey_id):
     ''' Finishes the static detection check for a survey '''
     survey = db.session.query(Survey).get(survey_id)
     if survey and checkSurveyPermission(current_user.id,survey.id,'write'):
-        survey.status = "Processing"
-        db.session.commit()
-        wrapUpStaticDetectionCheck.delay(survey_id)
+        if 'preprocessing' in survey.status.lower():
+            if survey.status.split(',')[1] in ['N/A', 'Completed', 'Skipped']:	
+                survey.status = 'Processing'
+                import_survey.delay(s3Folder=survey.name,surveyName=survey.name,tag=survey.trapgroup_code,organisation_id=survey.organisation_id,correctTimestamps=survey.correct_timestamps,classifier=survey.classifier.name,cam_code=survey.camera_code,preprocess_done=True)
+            else:
+                survey.status = 'Preprocessing,' + survey.status.split(',')[2] + ',Completed'
+            db.session.commit()
 
     return json.dumps('success')
 
@@ -12670,7 +12677,7 @@ def checkTimestamps():
             survey_id = request.args.get('survey', None)
             survey = db.session.query(Survey).get(survey_id)
             if survey and checkSurveyPermission(current_user.id,survey.id,'write'):
-                if 'preprocessing' in survey.status.lower() and survey.status.split(',')[1] == 'Available':
+                if 'preprocessing' in survey.status.lower() and survey.status.split(',')[1] == 'Available' and survey.status.split(',')[2] != 'In Progress':
                     GLOBALS.redisClient.set('timestamp_check_ping_'+str(survey_id),datetime.utcnow().timestamp())
                     return render_template('html/timestamps.html', title='Correct Timestamps', helpFile='timestamp_correction', bucket=Config.BUCKET, version=Config.VERSION)
                 else:
@@ -12731,7 +12738,8 @@ def getTimestampCameraIDs(survey_id):
     check_type = request.args.get('type', None)
     if survey and checkSurveyPermission(current_user.id,survey.id,'write'):
         # Get all camera ids for images and first frame of videos that do not have timestamps
-        cameras = db.session.query(Camera.id)\
+        cameras = db.session.query(Cameragroup.id)\
+                            .join(Camera)\
                             .join(Image)\
                             .join(Trapgroup)\
                             .filter(Trapgroup.survey_id==survey_id)\
@@ -12770,8 +12778,9 @@ def getTimestampImages(survey_id, reqID):
             survey.status = 'Preprocessing,In Progress,' + survey.status.split(',')[2]
             db.session.commit()
 
-        image_data = db.session.query(Image.id, Image.filename, Image.corrected_timestamp, Video.filename, Camera.id, Camera.path)\
+        image_data = db.session.query(Image.id, Image.filename, Image.corrected_timestamp, Video.filename, Cameragroup.id, Camera.path, )\
                                 .join(Camera, Camera.id==Image.camera_id)\
+                                .join(Cameragroup, Cameragroup.id==Camera.cameragroup_id)\
                                 .join(Trapgroup)\
                                 .outerjoin(Video, Video.camera_id==Camera.id)\
                                 .filter(Trapgroup.survey_id==survey_id)\
@@ -12793,7 +12802,7 @@ def getTimestampImages(survey_id, reqID):
             image_data = image_data.filter(Image.id==image_id)
 
         if camera_id:
-            image_data = image_data.filter(Camera.id==camera_id)
+            image_data = image_data.filter(Cameragroup.id==camera_id)
 
         image_data = image_data.distinct().all()
 
@@ -12898,7 +12907,7 @@ def finishTimestampCheck(survey_id):
         if 'preprocessing' in survey.status.lower():
             if survey.status.split(',')[2] in ['N/A', 'Completed', 'Skipped']:	
                 survey.status = 'Processing'
-                import_survey.delay(s3Folder=survey.name,surveyName=survey.name,tag=survey.trapgroup_code,organisation_id=survey.organisation_id,correctTimestamps=survey.correct_timestamps,classifier=survey.classifier.name,preprocess_done=True)
+                import_survey.delay(s3Folder=survey.name,surveyName=survey.name,tag=survey.trapgroup_code,organisation_id=survey.organisation_id,correctTimestamps=survey.correct_timestamps,classifier=survey.classifier.name,cam_code=survey.camera_code,preprocess_done=True)
             else:
                 survey.status = 'Preprocessing,Completed,' + survey.status.split(',')[2]
             db.session.commit()
@@ -12917,14 +12926,14 @@ def skipPreprocessing(survey_id,step):
             if step == 'timestamp':
                 if statusses[2].lower() in ['completed', 'skipped', 'n/a']:
                     survey.status = 'Processing'
-                    import_survey.delay(s3Folder=survey.name,surveyName=survey.name,tag=survey.trapgroup_code,organisation_id=survey.organisation_id,correctTimestamps=survey.correct_timestamps,classifier=survey.classifier.name,preprocess_done=True)
+                    import_survey.delay(s3Folder=survey.name,surveyName=survey.name,tag=survey.trapgroup_code,organisation_id=survey.organisation_id,correctTimestamps=survey.correct_timestamps,classifier=survey.classifier.name,cam_code=survey.camera_code,preprocess_done=True)
                 else:
                     survey.status = 'Preprocessing,Skipped,' + statusses[2]
 
             elif step == 'static':
                 if statusses[1].lower() in ['completed', 'skipped', 'n/a']:
                     survey.status = 'Processing'
-                    import_survey.delay(s3Folder=survey.name,surveyName=survey.name,tag=survey.trapgroup_code,organisation_id=survey.organisation_id,correctTimestamps=survey.correct_timestamps,classifier=survey.classifier.name,preprocess_done=True)
+                    import_survey.delay(s3Folder=survey.name,surveyName=survey.name,tag=survey.trapgroup_code,organisation_id=survey.organisation_id,correctTimestamps=survey.correct_timestamps,classifier=survey.classifier.name,cam_code=survey.camera_code,preprocess_done=True)
                 else:
                     survey.status = 'Preprocessing,' + statusses[1] + ',Skipped'
 
