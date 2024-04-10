@@ -504,7 +504,10 @@ def create_task_dataframe(task_id,detection_count_levels,label_levels,url_levels
                     .join(Individual,Detection.individuals) \
                     .filter(Trapgroup.survey==task.survey)\
                     .filter(Individual.tasks.contains(task)) \
-                    .filter(Individual.active==True)
+                    .filter(Individual.active==True)\
+                    .filter(Detection.static==False) \
+                    .filter(or_(and_(Detection.source==model,Detection.score>Config.DETECTOR_THRESHOLDS[model]) for model in Config.DETECTOR_THRESHOLDS)) \
+                    .filter(~Detection.status.in_(['deleted','hidden']))
 
         if include: query = query.filter(Individual.species.in_([r[0] for r in db.session.query(Label.description).filter(Label.id.in_(include)).distinct().all()]))
         if exclude: query = query.filter(~Individual.species.in_([r[0] for r in db.session.query(Label.description).filter(Label.id.in_(exclude)).distinct().all()]))
@@ -1008,7 +1011,8 @@ def generate_csv(self,selectedTasks, selectedLevel, requestedColumns, custom_col
 
             # Trapgroup-by-trapgroup is inefficient - only do it when necessary (there are RAM issues with large surveys)
             # trapgroups = [None]
-            if task.survey.image_count<300000:
+            det_count = rDets(db.session.query(Detection).join(Image).join(Camera).join(Trapgroup).filter(Trapgroup.survey_id==task.survey_id)).distinct().count()
+            if det_count<300000:
                 trapgroups = [None]
             else:
                 trapgroups = [tg.id for tg in task.survey.trapgroups]
@@ -1978,9 +1982,9 @@ def get_video_paths_and_labels(video,task,individual_sorted,species_sorted,flat_
 #     return True
 
 @celery.task(bind=True,max_retries=5,ignore_result=True)
-def generate_training_csv(self,tasks,destBucket,min_area,include_empties=False):
+def generate_training_csv(self,tasks,destBucket,min_area,include_empties=False,crop_images=True):
     '''
-    Generates a csv file for classification trainingg purposes.
+    Generates a csv file for classification training purposes.
 
         Parameters:
             tasks (list): A list of task IDs for which a file should be created
@@ -2002,6 +2006,7 @@ def generate_training_csv(self,tasks,destBucket,min_area,include_empties=False):
                         Detection.score.label('confidence'),\
                         Image.id.label('image_id'),\
                         Image.filename.label('filename'),\
+                        Image.hash.label('hash'),\
                         Camera.path.label('dirpath'),\
                         Trapgroup.tag.label('location'),\
                         Survey.name.label('dataset'),\
@@ -2031,23 +2036,24 @@ def generate_training_csv(self,tasks,destBucket,min_area,include_empties=False):
                 df['dataset_class'] = df['label']
 
                 # Check if you need to crop the images
-                try:              
-                    key = df.iloc[0]['path']
-                    check = GLOBALS.s3client.head_object(Bucket=destBucket,Key=key)
-                
-                except:
-                    # Crop does not exist - must crop the images
-                    crop_survey_images.apply_async(kwargs={'task_id':task_id,'min_area':min_area,'destBucket':destBucket},queue='parallel')
-                    task.survey.images_processing = len(df)
-                    # task.survey.status='Processing'
-                    db.session.commit()
+                if crop_images:
+                    try:              
+                        key = df.iloc[0]['path']
+                        check = GLOBALS.s3client.head_object(Bucket=destBucket,Key=key)
+                    
+                    except:
+                        # Crop does not exist - must crop the images
+                        crop_survey_images.apply_async(kwargs={'task_id':task_id,'min_area':min_area,'destBucket':destBucket},queue='parallel')
+                        task.survey.images_processing = len(df)
+                        # task.survey.status='Processing'
+                        db.session.commit()
 
                 # Order columns and remove superfluous ones
-                df = df[['path','dataset','location','dataset_class','confidence','label']]
+                df = df[['path','hash','dataset','location','dataset_class','confidence','label']]
 
                 # convert all labels to lower case
-                df['label'] = df.apply(lambda x: x.label.lower(), axis=1)
-                df['dataset_class'] = df.apply(lambda x: x.dataset_class.lower(), axis=1)
+                df['label'] = df.apply(lambda x: x.label.lower().strip(), axis=1)
+                df['dataset_class'] = df.apply(lambda x: x.dataset_class.lower().strip(), axis=1)
 
                 # Add to output
                 if outputDF is not None:
@@ -2057,11 +2063,16 @@ def generate_training_csv(self,tasks,destBucket,min_area,include_empties=False):
                     outputDF = df
 
         # Write output to S3
-        # user = task.survey.user.username
-        organisation = task.survey.organisation.name
+        organisations = db.session.query(Organisation).join(Survey).join(Task).filter(Task.id.in_(tasks)).distinct().all()
+        if len(organisations) == 1:
+            organisation = organisations[0].name
+        else:
+            organisation = 'Multiple'
+        
+        key = 'classification_ds/'+randomString()+organisation+'_classification_ds.csv'
         with tempfile.NamedTemporaryFile(delete=True, suffix='.csv') as temp_file:
             outputDF.to_csv(temp_file.name,index=False)
-            GLOBALS.s3client.put_object(Bucket=destBucket,Key='classification_ds/'+randomString()+user+'_classification_ds.csv',Body=temp_file)
+            GLOBALS.s3client.put_object(Bucket=destBucket,Key=key,Body=temp_file)
 
     except Exception as exc:
         app.logger.info(' ')
@@ -2074,7 +2085,7 @@ def generate_training_csv(self,tasks,destBucket,min_area,include_empties=False):
     finally:
         db.session.remove()
 
-    return True
+    return key
 
 @celery.task(bind=True,max_retries=5,ignore_result=True)
 def crop_survey_images(self,task_id,min_area,destBucket,include_empties=False):
