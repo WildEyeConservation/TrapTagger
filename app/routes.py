@@ -3778,8 +3778,8 @@ def getHomeSurveys():
         for survey_id in survey_ids:
             survey_data[survey_id] = survey_data2[survey_id]
 
-        next_url = url_for('getHomeSurveys', page=(page+1), order=order, downloads=current_downloads) if has_next else None
-        prev_url = url_for('getHomeSurveys', page=(page-1), order=order, downloads=current_downloads) if has_prev else None
+        next_url = url_for('getHomeSurveys', page=(page+1), order=order, downloads=current_downloads, search=search) if has_next else None
+        prev_url = url_for('getHomeSurveys', page=(page-1), order=order, downloads=current_downloads, search=search) if has_prev else None
 
     else:
         next_url = None

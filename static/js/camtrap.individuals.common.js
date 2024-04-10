@@ -182,7 +182,7 @@ function prepMapIndividual(image) {
             hc = document.getElementById('mapDiv').clientHeight
             wc = document.getElementById('mapDiv').clientWidth
             map.on('resize', function(){
-                if(document.getElementById('mapDiv').clientHeight){
+                if(document.getElementById('mapDiv') && document.getElementById('mapDiv').clientHeight){
                     h1 = document.getElementById('mapDiv').clientHeight
                     w1 = document.getElementById('mapDiv').clientWidth
                 }

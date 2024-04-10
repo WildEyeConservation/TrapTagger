@@ -948,7 +948,7 @@ def processStaticDetections(survey_id):
 
     # Process static detections
     results = []
-    cameragroup_ids = db.session.query(Cameragroup.id).join(Camera).join(Trapgroup).filter(Trapgroup.survey_id==survey_id).distinct().all()
+    cameragroup_ids = [r[0] for r in db.session.query(Cameragroup.id).join(Camera).join(Trapgroup).filter(Trapgroup.survey_id==survey_id).distinct().all()]
     for cameragroup_id in cameragroup_ids:
         results.append(processCameraStaticDetections.apply_async(kwargs={'cameragroup_id':cameragroup_id},queue='parallel'))
     
@@ -3453,7 +3453,7 @@ def import_survey(self,s3Folder,surveyName,tag,organisation_id,correctTimestamps
             survey = db.session.query(Survey).filter(Survey.name==surveyName).filter(Survey.organisation_id==organisation_id).first()
             survey_id = survey.id
             timestamp_check = db.session.query(Image.id).join(Camera).join(Trapgroup).filter(Trapgroup.survey_id==survey_id).filter(Image.timestamp==None).first()
-            static_check = db.session.query(Staticgroup).join(Detection).join(Image).join(Camera).join(Trapgroup).filter(Trapgroup.survey_id==survey_id).first()
+            static_check = db.session.query(Staticgroup.id).join(Detection).join(Image).join(Camera).join(Trapgroup).filter(Trapgroup.survey_id==survey_id).first()
             skipCluster = not timestamp_check
 
         skip = False
@@ -3480,7 +3480,7 @@ def import_survey(self,s3Folder,surveyName,tag,organisation_id,correctTimestamps
             db.session.commit()
             processStaticDetections(survey_id)
             survey = db.session.query(Survey).get(survey_id)
-            static_check = db.session.query(Staticgroup).join(Detection).join(Image).join(Camera).join(Trapgroup).filter(Trapgroup.survey_id==survey_id).filter(Staticgroup.status=='unknown').first()
+            static_check = db.session.query(Staticgroup.id).join(Detection).join(Image).join(Camera).join(Trapgroup).filter(Trapgroup.survey_id==survey_id).filter(Staticgroup.status=='unknown').first()
 
             survey.status='Importing Coordinates'
             db.session.commit()
