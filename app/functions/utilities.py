@@ -284,6 +284,37 @@ def copy_trapgroup(self,old_trapgroup_id,old_survey_id,new_survey_id,task_transl
             newTag = db.session.query(Tag).filter(Tag.description==oldTag.description).filter(Tag.task_id==task_translations[oldTag.task_id]).first()
             tag_translations[oldTag] = newTag
 
+        #TODO: CHECK THIS
+        #copy cameragroups
+        # cameragroup_translations = {}
+        # oldCameragroups = db.session.query(Cameragroup).join(Camera).join(Trapgroup).filter(Trapgroup.survey_id==old_survey_id).distinct().all()
+        # for oldCameragroup in oldCameragroups:
+        #     newCameragroup = Cameragroup(
+        #         name = oldCameragroup.name
+        #     )
+        #     db.session.add(newCameragroup)
+        #     #copy masks
+        #     for oldMask in oldCameragroup.masks:
+        #         newMask = Mask(
+        #             shape = oldMask.shape,
+        #             cameragroup = newCameragroup,
+        #             user_id = oldMask.user_id
+        #         )
+        #         db.session.add(newMask)
+        #     cameragroup_translations[oldCameragroup] = newCameragroup
+
+        #TODO: CHECK THIS
+        #copy staticgroups
+        # staticgroup_translations = {}
+        # oldStaticgroups = db.session.query(Staticgroup).join(Detection).join(Image).join(Camera).join(Trapgroup).filter(Trapgroup.survey_id==old_survey_id).distinct().all()
+        # for oldStaticgroup in oldStaticgroups:
+        #     newStaticgroup = Staticgroup(
+        #         status = oldStaticgroup.status,
+        #         user_id = oldStaticgroup.user_id
+        #     )
+        #     db.session.add(newStaticgroup)
+        #     staticgroup_translations[oldStaticgroup] = newStaticgroup
+
         # copy trapgroup
         newTrapgroup = Trapgroup(
             survey_id = new_survey_id,
@@ -302,15 +333,22 @@ def copy_trapgroup(self,old_trapgroup_id,old_survey_id,new_survey_id,task_transl
             )
             db.session.add(newCamera)
 
+            #TODO: CHECK THIS
+            # oldCameragroup = oldCamera.cameragroup
+            # if oldCameragroup in cameragroup_translations:
+            #     newCameragroup = cameragroup_translations[oldCameragroup]
+            #     if newCameragroup:
+            #         newCameragroup.cameras.append(newCamera)
+
             #copy videos
             for oldVideo in oldCamera.videos:
                 newVideo = Video(
                     filename = oldVideo.filename,
                     hash = oldVideo.hash,
                     camera = newCamera,
-                    # extracted_text = oldVideo.extracted_text,
-                    # fps = oldVideo.fps,
-                    # frame_count = oldVideo.frame_count
+                    extracted_text = oldVideo.extracted_text,
+                    fps = oldVideo.fps,
+                    frame_count = oldVideo.frame_count
                 )
                 db.session.add(newVideo)
 
@@ -323,8 +361,10 @@ def copy_trapgroup(self,old_trapgroup_id,old_survey_id,new_survey_id,task_transl
                     detection_rating = oldImage.detection_rating,
                     etag = oldImage.etag,
                     hash = oldImage.hash,
-                    # llava_data = oldImage.llava_data,
-                    camera = newCamera
+                    extracted_data = oldImage.extracted_data,
+                    camera = newCamera,
+                    skipped = oldImage.skipped,
+                    extracted = oldImage.extracted
                 )
                 db.session.add(newImage)
 
@@ -379,6 +419,14 @@ def copy_trapgroup(self,old_trapgroup_id,old_survey_id,new_survey_id,task_transl
                                 newIndividual.tasks = [db.session.query(Task).get(new_task)]
 
                             newIndividual.detections.append(newDetection)
+
+                    #TODO: CHECK THIS
+                    # if oldDetection.staticgroup:
+                    #     oldStaticgroup = oldDetection.staticgroup
+                    #     if oldStaticgroup in staticgroup_translations:
+                    #         newStaticgroup = staticgroup_translations[oldStaticgroup]
+                    #         if newStaticgroup:
+                    #             newStaticgroup.detections.append(newDetection)
 
         #copy clusters
         oldClusters = db.session.query(Cluster)\

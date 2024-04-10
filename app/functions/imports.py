@@ -3418,7 +3418,9 @@ def import_survey(self,s3Folder,surveyName,tag,organisation_id,correctTimestamps
             organisation_id (int): The organisation to which the survey will belong
             correctTimestamps (bool): Whether or not the system should attempt to correct the relative timestamps of the cameras in each trapgroup
             classifier (str): The name of the classifier model to use
+            cam_code (str): The camera regular expression code used to identify cameras in the folder structure or if None will use bottom level folders as cameras
             description (str): The survey description
+            preprocess_done (bool): Whether or not the survey has already been preprocessed
     '''
     
     try:
@@ -3441,9 +3443,6 @@ def import_survey(self,s3Folder,surveyName,tag,organisation_id,correctTimestamps
             survey.video_count = db.session.query(Video).join(Camera).join(Trapgroup).filter(Trapgroup.survey==survey).distinct().count()
             survey.frame_count = db.session.query(Image).join(Camera).join(Trapgroup).join(Video).filter(Trapgroup.survey==survey).distinct().count()
             survey.status = 'Extracting Timestamps'
-            if classifier != None and not survey.classifier:
-                classifier_object = db.session.query(Classifier).filter(Classifier.name==classifier).first()
-                survey.classifier = classifier_object
             db.session.commit()
 
             extract_missing_timestamps(survey_id)

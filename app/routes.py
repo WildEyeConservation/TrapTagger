@@ -12544,7 +12544,7 @@ def finishStaticDetectionCheck(survey_id):
         if 'preprocessing' in survey.status.lower():
             if survey.status.split(',')[1] in ['N/A', 'Completed', 'Skipped']:	
                 survey.status = 'Processing'
-                import_survey.delay(s3Folder=survey.name,surveyName=survey.name,tag=survey.trapgroup_code,organisation_id=survey.organisation_id,correctTimestamps=survey.correct_timestamps,classifier=survey.classifier.name,cam_code=survey.camera_code,preprocess_done=True)
+                import_survey.delay(s3Folder=survey.name,surveyName=survey.name,tag=survey.trapgroup_code,organisation_id=survey.organisation_id,correctTimestamps=survey.correct_timestamps,classifier=survey.classifier.name,cam_code=survey.camera_code,description=survey.description,preprocess_done=True)
             else:
                 survey.status = 'Preprocessing,' + survey.status.split(',')[2] + ',Completed'
             db.session.commit()
@@ -12910,7 +12910,7 @@ def finishTimestampCheck(survey_id):
         if 'preprocessing' in survey.status.lower():
             if survey.status.split(',')[2] in ['N/A', 'Completed', 'Skipped']:	
                 survey.status = 'Processing'
-                import_survey.delay(s3Folder=survey.name,surveyName=survey.name,tag=survey.trapgroup_code,organisation_id=survey.organisation_id,correctTimestamps=survey.correct_timestamps,classifier=survey.classifier.name,cam_code=survey.camera_code,preprocess_done=True)
+                import_survey.delay(s3Folder=survey.name,surveyName=survey.name,tag=survey.trapgroup_code,organisation_id=survey.organisation_id,correctTimestamps=survey.correct_timestamps,classifier=survey.classifier.name,cam_code=survey.camera_code,description=survey.description,preprocess_done=True)
             else:
                 survey.status = 'Preprocessing,Completed,' + survey.status.split(',')[2]
             db.session.commit()
@@ -12929,14 +12929,14 @@ def skipPreprocessing(survey_id,step):
             if step == 'timestamp':
                 if statusses[2].lower() in ['completed', 'skipped', 'n/a']:
                     survey.status = 'Processing'
-                    import_survey.delay(s3Folder=survey.name,surveyName=survey.name,tag=survey.trapgroup_code,organisation_id=survey.organisation_id,correctTimestamps=survey.correct_timestamps,classifier=survey.classifier.name,cam_code=survey.camera_code,preprocess_done=True)
+                    import_survey.delay(s3Folder=survey.name,surveyName=survey.name,tag=survey.trapgroup_code,organisation_id=survey.organisation_id,correctTimestamps=survey.correct_timestamps,classifier=survey.classifier.name,cam_code=survey.camera_code,description=survey.description,preprocess_done=True)
                 else:
                     survey.status = 'Preprocessing,Skipped,' + statusses[2]
 
             elif step == 'static':
                 if statusses[1].lower() in ['completed', 'skipped', 'n/a']:
                     survey.status = 'Processing'
-                    import_survey.delay(s3Folder=survey.name,surveyName=survey.name,tag=survey.trapgroup_code,organisation_id=survey.organisation_id,correctTimestamps=survey.correct_timestamps,classifier=survey.classifier.name,cam_code=survey.camera_code,preprocess_done=True)
+                    import_survey.delay(s3Folder=survey.name,surveyName=survey.name,tag=survey.trapgroup_code,organisation_id=survey.organisation_id,correctTimestamps=survey.correct_timestamps,classifier=survey.classifier.name,cam_code=survey.camera_code,description=survey.description,preprocess_done=True)
                 else:
                     survey.status = 'Preprocessing,' + statusses[1] + ',Skipped'
 
