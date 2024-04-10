@@ -948,7 +948,8 @@ def processStaticDetections(survey_id):
 
     # Process static detections
     results = []
-    for cameragroup_id in db.session.query(Cameragroup.id).join('camera', 'trapgroup').filter(Trapgroup.survey_id == survey_id).distinct():
+    cameragroup_ids = db.session.query(Cameragroup.id).join(Camera).join(Trapgroup).filter(Trapgroup.survey_id==survey_id).distinct().all()
+    for cameragroup_id in cameragroup_ids:
         results.append(processCameraStaticDetections.apply_async(kwargs={'cameragroup_id':cameragroup_id},queue='parallel'))
     
     #Wait for processing to complete
