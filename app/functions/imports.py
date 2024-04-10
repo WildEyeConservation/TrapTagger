@@ -4727,32 +4727,67 @@ def extract_missing_timestamps(survey_id):
 def wrapUpStaticDetectionCheck(survey_id):
     '''Wraps up the static status for detections after the static detections have been reviewed in the Preprocessing stage.'''	
 
-    static_detections = db.session.query(Detection)\
-                                .join(Image)\
-                                .join(Camera)\
-                                .join(Trapgroup)\
-                                .join(Staticgroup)\
-                                .filter(Trapgroup.survey_id==survey_id)\
-                                .filter(or_(Staticgroup.status=='accepted',Staticgroup.status=='unknown'))\
-                                .filter(Detection.static==False)\
-                                .distinct().all()
+    results = []
+    trapgroup_ids = [r[0] for r in db.session.query(Trapgroup.id).filter(Trapgroup.survey_id==survey_id).distinct().all()]
+    for trapgroup_id in trapgroup_ids:
+        results.append(updateTrapgroupStaticDetections.apply_async(kwargs={'trapgroup_id':trapgroup_id},queue='default'))
+    
+    #Wait for processing to complete
+    db.session.remove()
+    GLOBALS.lock.acquire()
+    with allow_join_result():
+        for result in results:
+            try:
+                result.get()
+            except Exception:
+                app.logger.info(' ')
+                app.logger.info('!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!')
+                app.logger.info(traceback.format_exc())
+                app.logger.info('!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!')
+                app.logger.info(' ')
+            
+            result.forget()
+    GLOBALS.lock.release()
 
-    for detection in static_detections:
-        detection.static = True
+    return True
 
-    rejected_detections = db.session.query(Detection)\
-                                .join(Image)\
-                                .join(Camera)\
-                                .join(Trapgroup)\
-                                .join(Staticgroup)\
-                                .filter(Trapgroup.survey_id==survey_id)\
-                                .filter(Staticgroup.status=='rejected')\
-                                .filter(Detection.static==True)\
-                                .distinct().all()
+@celery.task(bind=True,max_retries=5)
+def updateTrapgroupStaticDetections(self,trapgroup_id):
+    ''' Updates the static status for detections in a trapgroup after the static detections have been reviewed in the Preprocessing stage.'''
+    try:
+        static_detections = db.session.query(Detection)\
+                                    .join(Image)\
+                                    .join(Camera)\
+                                    .join(Staticgroup)\
+                                    .filter(Camera.trapgroup_id==trapgroup_id)\
+                                    .filter(or_(Staticgroup.status=='accepted',Staticgroup.status=='unknown'))\
+                                    .distinct().all()
 
-    for detection in rejected_detections:
-        detection.static = False
+        for detection in static_detections:
+            detection.static = True
 
-    db.session.commit()
+        rejected_detections = db.session.query(Detection)\
+                                    .join(Image)\
+                                    .join(Camera)\
+                                    .join(Staticgroup)\
+                                    .filter(Camera.trapgroup_id==trapgroup_id)\
+                                    .filter(Staticgroup.status=='rejected')\
+                                    .distinct().all()
+
+        for detection in rejected_detections:
+            detection.static = False
+
+        db.session.commit()
+
+    except Exception as exc:
+        app.logger.info(' ')
+        app.logger.info('!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!')
+        app.logger.info(traceback.format_exc())
+        app.logger.info('!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!')
+        app.logger.info(' ')
+        self.retry(exc=exc, countdown= retryTime(self.request.retries))
+
+    finally:
+        db.session.remove()
 
     return True
