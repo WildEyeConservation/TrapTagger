@@ -26,6 +26,7 @@ var prevSite = '0'
 var prevAnnotator = '0'
 var prevStartDate = null
 var prevEndDate = null
+var editingEnabled = false
 isTagging = false
 isReviewing = true
 isKnockdown = false

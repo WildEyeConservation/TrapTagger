@@ -2128,7 +2128,6 @@ def recluster_after_image_timestamp_change(self,survey_id,image_timestamps):
     timestamps = {image_id:timestamp}
     survey_id
     '''
-    #TODO (timestamp): CHECK THIS AND TEST IT
     try:
         app.logger.info('Image timestamp edit and recluster for survey {} with image_timestamps {}'.format(survey_id,image_timestamps))
 
@@ -2170,41 +2169,39 @@ def recluster_after_image_timestamp_change(self,survey_id,image_timestamps):
                 pass
 
         image_ids = list(timestamps.keys())
+        trapgroup_ids = []
         if image_ids:
-            # edit the image timestamps here
-            trapgroup_ids = []
-            image_ids = list(timestamps.keys())
-            for image_id in image_ids:
-                images[image_id].corrected_timestamp = timestamps[image_id]
-                trapgroup_ids.append(trapgroups[image_id])
-
+            cluster_movement = {}
+            old_clusters = {}
+            checked = {}
             for task in tasks:
+                old_clusters[task.id] = {}
+                checked[task.id] = {}
+                cluster_movement[task.id] = {}
+        
+            data = db.session.query(Image.id,Cluster,Cluster.task_id).join(Cluster,Image.clusters).filter(Image.id.in_(image_ids)).distinct().all()
+            for item in data:
+                old_clusters[item[2]][item[0]] = item[1]
 
-                old_clusters = {}
-                data = db.session.query(Image.id,Cluster).join(Cluster,Image.clusters).filter(Cluster.task==task).filter(Image.id.in_(image_ids)).distinct().all()
-                for item in data:
-                    old_clusters[item[0]] = item[1]
+            data = rDets(db.session.query(Image.id,Label,Labelgroup.task_id)\
+                                .join(Detection,Image.detections)\
+                                .join(Labelgroup)\
+                                .join(Label,Labelgroup.labels)\
+                                .filter(Labelgroup.checked==True)\
+                                .filter(Image.id.in_(image_ids)))\
+                                .distinct().all()
 
-                checked = {}
-                data = rDets(db.session.query(Image.id,Label)\
-                                    .join(Detection)\
-                                    .join(Labelgroup)\
-                                    .join(Label,Labelgroup.labels)\
-                                    .filter(Labelgroup.checked==True)\
-                                    .filter(Labelgroup.task==task)\
-                                    .filter(Image.id.in_(image_ids)))\
-                                    .distinct().all()
-                for item in data:
-                    if item[0] not in checked.keys(): checked[item[0]] = []
-                    checked[item[0]].append(item[1])
+            for item in data:
+                if item[0] not in checked[item[2]].keys(): checked[item[2]][item[0]] = []
+                checked[item[2]][item[0]].append(item[1])
 
-                cluster_movement = {}
-                for image_id in timestamps:
-                    image = images[image_id]
-                    trapgroup_id = trapgroups[image_id]
-                    old_cluster = old_clusters[image_id]
-
-                    if old_cluster not in cluster_movement.keys(): cluster_movement[old_cluster] = []
+            for image_id in timestamps:
+                image = images[image_id]
+                trapgroup_id = trapgroups[image_id]
+                
+                for task in tasks:
+                    old_cluster = old_clusters[task.id][image_id]
+                    if old_cluster not in cluster_movement[task.id].keys(): cluster_movement[task.id][old_cluster] = []
 
                     if timestamps[image_id] == None:
                         if image_id in videos.keys() and videos[image_id] != None:
@@ -2247,7 +2244,9 @@ def recluster_after_image_timestamp_change(self,survey_id,image_timestamps):
                         # Combine all candidate clusters into new cluster (will be reclustered if too large later)
                         for cluster in candidate_clusters[1:]:
                             # Move images across
-                            newCluster.images.extend(cluster.images)
+                            for img in cluster.images:
+                                if img not in newCluster.images:
+                                    newCluster.images.append(img)
                             cluster.images = []
 
                             # Copy notes
@@ -2275,12 +2274,12 @@ def recluster_after_image_timestamp_change(self,survey_id,image_timestamps):
                         db.session.add(newCluster)
                         newCluster.images = [image]
 
-                    if newCluster not in cluster_movement[old_cluster]:
-                        cluster_movement[old_cluster].append(newCluster)
+                    if newCluster not in cluster_movement[task.id][old_cluster]:
+                        cluster_movement[task.id][old_cluster].append(newCluster)
 
                     # Pass through checked labels
-                    if image_id in checked.keys():
-                        for label in checked[image_id]:
+                    if image_id in checked[task.id].keys():
+                        for label in checked[task.id][image_id]:
                             if label not in newCluster.labels:
                                 newCluster.labels.append(label)
 
@@ -2293,9 +2292,13 @@ def recluster_after_image_timestamp_change(self,survey_id,image_timestamps):
                     # Update new clusters classification
                     newCluster.classification = classifyCluster(newCluster)
 
-                    
+                # Update image timestamp
+                image.corrected_timestamp = timestamps[image_id]
+                trapgroup_ids.append(trapgroup_id)
+
+            for task in tasks:
                 # Go through all the old clusters and see if they split up - if so, we need to drop the labels because we don't know what images were viewed
-                for old_cluster in cluster_movement:
+                for old_cluster in cluster_movement[task.id]:
 
                     if old_cluster.user==admin:
                         # if AI labelled - drop labels as the contents have changed
@@ -2307,9 +2310,9 @@ def recluster_after_image_timestamp_change(self,survey_id,image_timestamps):
                         old_cluster.labels = []
                         old_cluster.user_id = None
 
-                    elif len(cluster_movement[old_cluster]) == 1:
+                    elif len(cluster_movement[task.id][old_cluster]) == 1:
                         # single destination -> not split -> copy across labels
-                        newCluster = cluster_movement[old_cluster][0]
+                        newCluster = cluster_movement[task.id][old_cluster][0]
                         
                         for label in old_cluster.labels:
                             if label not in newCluster.labels:
@@ -2335,9 +2338,14 @@ def recluster_after_image_timestamp_change(self,survey_id,image_timestamps):
                         prev = old_images[0].corrected_timestamp
                         group = [old_images[0]]
                         for image in old_images[1:]:
-                            if image.corrected_timestamp-prev > timedelta(seconds=60):
-                                groups.append(group)
-                                group = []
+                            if image.corrected_timestamp == None:
+                                if prev != None:
+                                    groups.append(group)
+                                    group = []
+                            else:
+                                if prev == None or image.corrected_timestamp-prev > timedelta(seconds=60):
+                                    groups.append(group)
+                                    group = []
                             group.append(image)
                             prev = image.corrected_timestamp
                         groups.append(group)
@@ -2391,13 +2399,6 @@ def recluster_after_image_timestamp_change(self,survey_id,image_timestamps):
                     cluster.required_images = []
                     #Delete cluster
                     db.session.delete(cluster)
-                
-            # # edit the image timestamps here
-            # trapgroup_ids = []
-            # image_ids = list(timestamps.keys())
-            # for image_id in image_ids:
-            #     images[image_id].corrected_timestamp = timestamps[image_id]
-            #     trapgroup_ids.append(trapgroups[image_id])
 
             # commit changes
             db.session.commit()

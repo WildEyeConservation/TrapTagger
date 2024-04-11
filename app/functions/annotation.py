@@ -764,7 +764,7 @@ def manageTasks():
 
     finally:
         session.close()
-        if Config.DEBUGGING: app.logger.info('Manage tasks completed in {}'.format(datetime.utcnow()-startTime))
+        if Config.DEBUGGING: print('Manage tasks completed in {}'.format(datetime.utcnow()-startTime))
         countdown = 20 - (datetime.utcnow()-startTime).total_seconds()
         if countdown < 0: countdown=0
         manageTasks.apply_async(queue='priority', priority=0, countdown=countdown)
@@ -1462,17 +1462,6 @@ def translate_cluster_for_client(clusterInfo,reqId,limit,isBounding,taggingLevel
                     if clusterInfo[cluster_id]['images'][image_id]['detections'][detection_id]['individuals'] == []:
                         clusterInfo[cluster_id]['images'][image_id]['detections'][detection_id]['individuals'] = ['-1']
 
-            # Add videos
-            if id:
-                for video_id in clusterInfo[cluster_id]['videos']:
-                    images.append({
-                        'id': clusterInfo[cluster_id]['videos'][video_id]['id'],
-                        'url': clusterInfo[cluster_id]['videos'][video_id]['url'].replace('+','%2B').replace('?','%3F'),
-                        'timestamp': clusterInfo[cluster_id]['videos'][video_id]['timestamp'],
-                        'camera': clusterInfo[cluster_id]['videos'][video_id]['camera'],
-                        'rating': clusterInfo[cluster_id]['videos'][video_id]['rating'],
-                        'detections': []
-                    })
 
             # add required images
             # if (not id) and (not isBounding) and (',' not in taggingLevel) and('-6' not in taggingLevel):
@@ -1509,6 +1498,18 @@ def translate_cluster_for_client(clusterInfo,reqId,limit,isBounding,taggingLevel
                         })
             
             required = [n for n in range(len(images))]
+
+            # Add videos
+            if id:
+                for video_id in clusterInfo[cluster_id]['videos']:
+                    images.append({
+                        'id': clusterInfo[cluster_id]['videos'][video_id]['id'],
+                        'url': clusterInfo[cluster_id]['videos'][video_id]['url'].replace('+','%2B').replace('?','%3F'),
+                        'timestamp': clusterInfo[cluster_id]['videos'][video_id]['timestamp'],
+                        'camera': clusterInfo[cluster_id]['videos'][video_id]['camera'],
+                        'rating': clusterInfo[cluster_id]['videos'][video_id]['rating'],
+                        'detections': []
+                    })
             
             # Order images
             if id or ('-4' in taggingLevel) or ('-5' in taggingLevel):

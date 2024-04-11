@@ -19,6 +19,7 @@ isKnockdown = false
 isBounding = false
 isIDing = false
 isStaticCheck = true
+isTimestampCheck = false
 
 var clusterIdList = []
 var staticgroupIDs = []

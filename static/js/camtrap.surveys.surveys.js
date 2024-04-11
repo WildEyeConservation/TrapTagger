@@ -4378,7 +4378,7 @@ document.getElementById('btnAddImages').addEventListener('click', ()=>{
     }
 
     legalTimestamp = true
-    if (document.getElementById('addImagesEditTimestamps').checked && document.getElementById('year')){
+    if (tabActiveEditSurvey=='baseEditImgTimestampsTab') {
         legalTimestamp = validateTimestamp()
     }
 
@@ -7977,7 +7977,7 @@ function prepMapTS(image){
     
             map.on('zoomstart', function() {
                 if (!fullRes) {
-                    activeImage.setUrl("https://"+bucketName+".s3.amazonaws.com/" + modifyToCompURL(images[cameraIndex].images[imageIndex].images[0].url))
+                    activeImage.setUrl("https://"+bucketName+".s3.amazonaws.com/" + modifyToCompURL(images[cameraIndex].images[imageIndex].url))
                     fullRes = true  
                 }
             });    

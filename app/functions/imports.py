@@ -3452,6 +3452,8 @@ def import_survey(self,s3Folder,surveyName,tag,organisation_id,correctTimestamps
         else:
             survey = db.session.query(Survey).filter(Survey.name==surveyName).filter(Survey.organisation_id==organisation_id).first()
             survey_id = survey.id
+            survey.images_processing = survey.image_count + survey.video_count 
+            db.session.commit()
             timestamp_check = db.session.query(Image.id).join(Camera).join(Trapgroup).filter(Trapgroup.survey_id==survey_id).filter(Image.timestamp==None).first()
             static_check = db.session.query(Staticgroup.id).join(Detection).join(Image).join(Camera).join(Trapgroup).filter(Trapgroup.survey_id==survey_id).first()
             skipCluster = not timestamp_check
@@ -4738,7 +4740,7 @@ def wrapUpStaticDetectionCheck(survey_id):
     results = []
     trapgroup_ids = [r[0] for r in db.session.query(Trapgroup.id).filter(Trapgroup.survey_id==survey_id).distinct().all()]
     for trapgroup_id in trapgroup_ids:
-        results.append(updateTrapgroupStaticDetections.apply_async(kwargs={'trapgroup_id':trapgroup_id},queue='default'))
+        results.append(updateTrapgroupStaticDetections.apply_async(kwargs={'trapgroup_id':trapgroup_id},queue='parallel'))
     
     #Wait for processing to complete
     db.session.remove()
