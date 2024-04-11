@@ -1385,8 +1385,8 @@ def genInitKeys(taggingLevel,task_id,addSkip,addRemoveFalseDetections,addMaskAre
             elif num==45:
                 #minus
                 indx = Config.NUMBER_OF_HOTKEYS-2
-            elif num==47:
-                #forward slash
+            elif num==42:
+                #asterisk
                 indx = Config.NUMBER_OF_HOTKEYS-1
             else:
                 #Handle letters

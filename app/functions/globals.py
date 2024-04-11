@@ -3370,7 +3370,7 @@ def update_masks(self,survey_id,removed_masks,added_masks,edited_masks,user_id):
             poly_string = poly_string[:-1] + '))'
             poly_area = db.session.query(func.ST_Area(func.ST_GeomFromText(poly_string))).first()[0]
             if poly_area > Config.MIN_MASK_AREA:
-                check = db.session.query(Mask).filter(Mask.shape==poly_string).filter(Mask.cameragroup_id==cameragroup.id).first()
+                check = db.session.query(Mask).filter(Mask.shape==poly_string).filter(Mask.cameragroup_id==mask['cameragroup_id']).first()
                 if not check:
                     new_mask = Mask(shape=poly_string,cameragroup_id=mask['cameragroup_id'],user_id=user_id)
                     db.session.add(new_mask)
@@ -3793,14 +3793,9 @@ def update_staticgroups(self,survey_id,staticgroups,user_id):
 
         # Update staticgroups
         for staticgroup in staticgroups:
-            if staticgroup['status'] == 'accepted': 
+            if staticgroup['status'] in ['accepted','rejected']:
                 static_group = db.session.query(Staticgroup).get(staticgroup['id'])
-                static_group.status = 'accepted'
-                static_group.user_id = user_id
-
-            elif staticgroup['status'] == 'rejected':
-                static_group = db.session.query(Staticgroup).get(staticgroup['id'])
-                static_group.status = 'rejected'
+                static_group.status = staticgroup['status']
                 static_group.user_id = user_id
 
         db.session.commit()

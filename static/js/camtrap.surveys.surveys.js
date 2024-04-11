@@ -229,7 +229,7 @@ var selectedSurvey = 0;
 var selectedTask = 0;
 var legalLabels = false;
 var legalTags = true; //false
-var globalHotkeysParents = ['v', 'q', 'n', 'u', '-', '0', '=']
+var globalHotkeysParents = ['v', 'q', 'n', 'u', '-', '0', '*']
 var globalDescriptions = ['none', 'vehicles/humans/livestock', 'knocked down', 'wrong', 'nothing', 'unknown', 'skip', 'remove false detections', 'mask area']
 var globalHotkeysChildren = ['9', '0']
 var taskNames = []

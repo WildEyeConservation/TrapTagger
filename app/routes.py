@@ -11810,7 +11810,13 @@ def populateSpeciesSelector():
     task = current_user.turkcode[0].task
     if task and checkSurveyPermission(current_user.id,task.survey_id,'read'):
         labels = db.session.query(Label.id, Label.description).filter(Label.task_id==task.id).distinct().all()
-        global_labels = db.session.query(Label.id, Label.description).filter(Label.task_id == None).filter(Label.description != 'Wrong').filter(Label.description != 'Skip').filter(Label.description != 'Remove False Detections').all()
+        global_labels = db.session.query(Label.id, Label.description)\
+                                    .filter(Label.task_id == None)\
+                                    .filter(Label.description != 'Wrong')\
+                                    .filter(Label.description != 'Skip')\
+                                    .filter(Label.description != 'Remove False Detections')\
+                                    .filter(Label.description != 'Mask Area')\
+                                    .all()
         labels.extend(global_labels)
         labels.insert(0, (0, 'All'))
         labels = [tuple(row) for row in labels]

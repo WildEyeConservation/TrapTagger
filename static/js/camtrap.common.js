@@ -3057,7 +3057,7 @@ function initKeys(res){
                     newbtn.innerHTML = labelName + ' (Space)';
                 } else if (i == labs.length-1) {
                     newbtn.classList.add('btn-danger');
-                    newbtn.innerHTML = labelName + ' (/)';
+                    newbtn.innerHTML = labelName + ' (*)';
                 } else {
                     newbtn.classList.add('btn-danger');
                     newbtn.innerHTML = labelName + ' (' + String.fromCharCode(parseInt(i)+55) + ')';
@@ -3107,7 +3107,7 @@ function initKeys(res){
                         newbtn.innerHTML = labelName + ' (Space)';
                     } else if (i == labs.length-1) {
                         newbtn.classList.add('btn-info');
-                        newbtn.innerHTML = labelName + ' (/)';
+                        newbtn.innerHTML = labelName + ' (*)';
                     } else {
                         newbtn.classList.add('btn-info');
                         newbtn.innerHTML = labelName + ' (' + String.fromCharCode(parseInt(i)+55) + ')';
@@ -3287,7 +3287,7 @@ document.onkeyup = function(event){
                 case ('-'):assignLabel(hotkeys[37])
                     break;
 
-                case ('/'):assignLabel(hotkeys[38])
+                case ('*'):assignLabel(hotkeys[38])
                     break;
 
                 case 'control': activateMultiple()
