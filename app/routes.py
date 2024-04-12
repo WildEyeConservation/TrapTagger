@@ -769,43 +769,20 @@ def getCameraStamps():
     prev_url = None
     page = request.args.get('page', 1, type=int)
     survey_id = request.args.get('survey_id', None, type=int)
-    level = request.args.get('level', 'folder', type=str)
     # order = request.args.get('order', 5, type=int)
     # search = request.args.get('search', '', type=str)
 
     survey = db.session.query(Survey).get(survey_id)
     if survey and checkSurveyPermission(current_user.id,survey_id,'read'):
-        if level == 'folder':
-            data = db.session.query(Trapgroup.tag, Camera.id, Camera.path, func.min(Image.timestamp), func.min(Image.corrected_timestamp))\
-                                .join(Camera, Camera.trapgroup_id==Trapgroup.id)\
-                                .join(Image)\
-                                .filter(Trapgroup.survey_id==survey_id)\
-                                .filter(~Camera.path.contains('_video_images_'))\
-                                .filter(Image.timestamp!=None)\
-                                .group_by(Trapgroup.id, Camera.id)\
-                                .order_by(Trapgroup.tag)\
-                                .paginate(page, 10, False)
-
-        elif level == 'camera':
-            subquery = db.session.query(Cameragroup.id,func.min(Image.corrected_timestamp).label('min_timestamp'))\
-                                .join(Camera, Camera.cameragroup_id==Cameragroup.id)\
-                                .join(Image, Image.camera_id==Camera.id)\
-                                .join(Trapgroup, Trapgroup.id==Camera.trapgroup_id)\
-                                .filter(Trapgroup.survey_id==survey_id)\
-                                .filter(~Camera.path.contains('_video_images_'))\
-                                .filter(Image.timestamp!=None)\
-                                .group_by(Cameragroup.id)\
-                                .subquery()
-
-            data = db.session.query(Trapgroup.tag, Cameragroup.id, Cameragroup.name, Image.timestamp, Image.corrected_timestamp)\
-                                .join(Camera, Camera.trapgroup_id==Trapgroup.id)\
-                                .join(Cameragroup, Cameragroup.id==Camera.cameragroup_id)\
-                                .join(Image)\
-                                .join(subquery, and_(subquery.c.id == Cameragroup.id, subquery.c.min_timestamp == Image.corrected_timestamp))\
-                                .group_by(Trapgroup.id, Cameragroup.id)\
-                                .order_by(Trapgroup.tag)\
-                                .paginate(page, 10, False)
-
+        data = db.session.query(Trapgroup.tag, Cameragroup.id, Cameragroup.name, func.min(Image.corrected_timestamp))\
+                            .join(Camera, Camera.trapgroup_id==Trapgroup.id)\
+                            .join(Cameragroup, Cameragroup.id==Camera.cameragroup_id)\
+                            .join(Image)\
+                            .filter(Trapgroup.survey_id==survey_id)\
+                            .filter(Image.corrected_timestamp!=None)\
+                            .group_by(Trapgroup.id, Cameragroup.id)\
+                            .order_by(Trapgroup.tag)\
+                            .paginate(page, 10, False)
 
         temp_results = {}
         for row in data.items:
@@ -813,8 +790,7 @@ def getCameraStamps():
                 temp_results[row[0]] = []
             temp_results[row[0]].append({   'id': row[1],
                                             'folder': row[2],
-                                            'timestamp': stringify_timestamp(row[3]),
-                                            'corrected_timestamp': stringify_timestamp(row[4])})
+                                            'corrected_timestamp': stringify_timestamp(row[3])})
 
         for key in temp_results.keys():
             reply.append({'tag': key, 'cameras': temp_results[key]})
@@ -1911,8 +1887,7 @@ def editSurvey():
             survey.status = 'Processing'
             db.session.commit()
             timestamps = ast.literal_eval(request.form['timestamps'])
-            timestamp_level = ast.literal_eval(request.form['timestamp_level'])
-            changeTimestamps.delay(survey_id=survey.id,timestamps=timestamps,level=timestamp_level)
+            changeTimestamps.delay(survey_id=survey.id,timestamps=timestamps)
         
         elif 'coordData' in request.form:
             coordData = ast.literal_eval(request.form['coordData'])
@@ -12565,7 +12540,10 @@ def getSurveyStructure():
     structure = []
     next_url = None
     prev_url = None
+    has_next = False
+    has_prev = False
     page = request.args.get('page', 1, type=int)
+    page_window = 10
     survey_id = request.args.get('survey_id', None, type=int)
     survey = db.session.query(Survey).get(survey_id)
 
@@ -12596,11 +12574,13 @@ def getSurveyStructure():
                             .outerjoin(video_subquery, video_subquery.c.id==Cameragroup.id)\
                             .filter(Trapgroup.survey_id==survey_id)\
                             .order_by(Trapgroup.tag, Cameragroup.name)\
-                            .distinct().paginate(page, 10, False)       
+                            .distinct().all()
         
+        total_data = len(data)
+        data = data[(page-1)*page_window:page*page_window]
         site_keys = {}
         camera_keys = {}
-        for d in data.items:
+        for d in data:
             if d[0] not in site_keys:
                 site_keys[d[0]] = len(structure)
                 camera_keys[d[2]] = 0
@@ -12643,9 +12623,13 @@ def getSurveyStructure():
                         'frame_count': d[8] if d[8] else 0
                     })
 
+        if total_data > page*page_window:
+            has_next = True
+        if page > 1:
+            has_prev = True
 
-        next_url = url_for('getSurveyStructure', page=data.next_num, survey_id=survey_id) if data.has_next else None
-        prev_url = url_for('getSurveyStructure', page=data.prev_num, survey_id=survey_id) if data.has_prev else None
+        next_url = url_for('getSurveyStructure', page=page+1, survey_id=survey_id) if has_next else None
+        prev_url = url_for('getSurveyStructure', page=page-1, survey_id=survey_id) if has_prev else None
 
     return json.dumps({'survey': survey_id, 'structure': structure, 'next_url':next_url, 'prev_url':prev_url})
 

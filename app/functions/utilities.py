@@ -492,9 +492,15 @@ def copy_survey(self,old_survey_id,organisation_id,new_name=None,copy_individual
             folders = []
             paths = [r[0] for r in db.session.query(Camera.path).join(Trapgroup).filter(Trapgroup.survey_id==old_survey_id).distinct().all()]
             for path in paths:
+                if '_video_images_' in path: # Need to add parent folder for cases where the folder only contained videos otherwise it won't copy the videos
+                    video_path = path.split('/_video_images_')[0]
+                    if video_path not in folders: 
+                        folders.append(video_path)
+                        folders.append(video_path.replace(oldSurvey_organisation_folder,oldSurvey_organisation_folder+'-comp'))
                 folders.append(path)
                 folders.append(path.replace(oldSurvey_organisation_folder,oldSurvey_organisation_folder+'-comp'))
 
+            folders = list(set(folders))
             results = []
             for folder in folders:
                 results.append(copy_s3_folder.apply_async(kwargs={'source_folder':folder,'destination_folder':folder.replace(oldSurvey_organisation_folder,newOrganisation_folder)},queue='default'))

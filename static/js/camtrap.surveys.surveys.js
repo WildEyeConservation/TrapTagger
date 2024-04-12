@@ -2305,17 +2305,8 @@ function buildAddIms() {
 function buildCameras(camera_url='/getCameraStamps') {
     /** Updates the timestamp editor based on the current page */
 
-    camCameraLevel = document.getElementById('camCameraLevel').checked 
-
     if (camera_url=='/getCameraStamps') {
         camera_url += '?survey_id='+selectedSurvey
-    }
-
-    if (camCameraLevel) {
-        camera_url += '&level=camera'
-    }
-    else{
-        camera_url += '&level=folder'
     }
 
     var xhttp = new XMLHttpRequest();
@@ -2374,7 +2365,7 @@ function buildCameras(camera_url='/getCameraStamps') {
                 tr.appendChild(th)
     
                 var th = document.createElement('th')
-                th.innerHTML = 'Original Timestamp'
+                th.innerHTML = 'Current Timestamp'
                 th.setAttribute('width','20%')
                 tr.appendChild(th)
     
@@ -2409,7 +2400,7 @@ function buildCameras(camera_url='/getCameraStamps') {
 
                         var td = document.createElement('td')
                         td.setAttribute('style', 'text-align:left; padding-top: 0px; padding-bottom: 0px; vertical-align: middle;')
-                        td.innerHTML = reply[trapgroup].cameras[camera].timestamp
+                        td.innerHTML = reply[trapgroup].cameras[camera].corrected_timestamp
                         tr.appendChild(td)
 
                         var td = document.createElement('td')
@@ -2424,7 +2415,8 @@ function buildCameras(camera_url='/getCameraStamps') {
                         if (reply[trapgroup].cameras[camera].id in global_corrected_timestamps) {
                             input.value = global_corrected_timestamps[reply[trapgroup].cameras[camera].id]
                         } else {
-                            input.value = reply[trapgroup].cameras[camera].corrected_timestamp
+                            // input.value = reply[trapgroup].cameras[camera].corrected_timestamp
+                            input.value = ''
                         }
                         input.setAttribute('id','corrected_timestamp-'+reply[trapgroup].cameras[camera].id.toString())
                         td.appendChild(input)
@@ -2432,24 +2424,27 @@ function buildCameras(camera_url='/getCameraStamps') {
                         $('#corrected_timestamp-'+reply[trapgroup].cameras[camera].id.toString()).change( function(wrapID) {
                             return function() {
                                 corrected_timestamp = document.getElementById('corrected_timestamp-'+wrapID.toString())
-                                if (isValidDate(new Date(corrected_timestamp.value))) {
-                                    const timestamp_format = new RegExp('^[0-9]{4}/[0-9]{2}/[0-9]{2} [0-9]{2}:[0-5][0-9]:[0-5][0-9]$')
-                                    if (timestamp_format.test(corrected_timestamp.value)) {
-                                        document.getElementById('timestampErrors').innerHTML = ''
-                                        global_corrected_timestamps[wrapID] = corrected_timestamp.value
+                                if (corrected_timestamp.value==''){
+                                    delete global_corrected_timestamps[wrapID]
+                                }
+                                else{
+                                    if (isValidDate(new Date(corrected_timestamp.value))) {
+                                        const timestamp_format = new RegExp('^[0-9]{4}/[0-9]{2}/[0-9]{2} [0-9]{2}:[0-5][0-9]:[0-5][0-9]$')
+                                        if (timestamp_format.test(corrected_timestamp.value)) {
+                                            document.getElementById('timestampErrors').innerHTML = ''
+                                            global_corrected_timestamps[wrapID] = corrected_timestamp.value
+                                        } else {
+                                            document.getElementById('timestampErrors').innerHTML = 'Please enter your timestamps in the format YYYY/MM/DD HH:MM:SS.'
+                                            delete global_corrected_timestamps[wrapID]
+                                        }
                                     } else {
-                                        document.getElementById('timestampErrors').innerHTML = 'Please enter your timestamps in the format YYYY/MM/DD HH:MM:SS.'
+                                        document.getElementById('timestampErrors').innerHTML = 'There are one or more invalid dates.'
                                         delete global_corrected_timestamps[wrapID]
                                     }
-                                } else {
-                                    document.getElementById('timestampErrors').innerHTML = 'There are one or more invalid dates.'
-                                    delete global_corrected_timestamps[wrapID]
                                 }
                             }
                         }(reply[trapgroup].cameras[camera].id));
                     }
-    
-                    // addImagesCamerasDiv.appendChild(document.createElement('br'))
                 }
             }
         }
@@ -2457,135 +2452,8 @@ function buildCameras(camera_url='/getCameraStamps') {
     xhttp.send();
 }
 
-// function buildCameras(camera_url='/getCameraStamps') {
-//     /** Updates the timestamp editor based on the current page */
-
-//     camCameraLevel = document.getElementById('camCameraLevel').checked 
-
-//     if (camera_url=='/getCameraStamps') {
-//         camera_url += '?survey_id='+selectedSurvey
-//     }
-
-//     if (camCameraLevel) {
-//         camera_url += '&level=camera'
-//     }
-//     else{
-//         camera_url += '&level=folder'
-//     }
-
-//     var xhttp = new XMLHttpRequest();
-//     xhttp.open("GET", camera_url);
-//     xhttp.onreadystatechange =
-//     function(){
-//         if (this.readyState == 4 && this.status == 200) {
-//             reply = JSON.parse(this.responseText);
-
-//             if ((reply.survey==selectedSurvey)&&(modalAddImages.is(':visible'))) {
-//                 if (reply.next_url==null) {
-//                     btnNextCameras.style.visibility = 'hidden'
-//                 } else {
-//                     btnNextCameras.style.visibility = 'visible'
-//                     next_camera_url = reply.next_url
-//                 }
-    
-//                 if (reply.prev_url==null) {
-//                     btnPrevCameras.style.visibility = 'hidden'
-//                 } else {
-//                     btnPrevCameras.style.visibility = 'visible'
-//                     prev_camera_url = reply.prev_url
-//                 }
-
-//                 reply = reply.data
-
-//                 addImagesCamerasDiv = document.getElementById('addImagesCamerasDiv')
-
-//                 while(addImagesCamerasDiv.firstChild){
-//                     addImagesCamerasDiv.removeChild(addImagesCamerasDiv.firstChild);
-//                 }
-    
-            
-//                 for (let trapgroup=0;trapgroup<reply.length;trapgroup++) {
-//                     for (let camera=0;camera<reply[trapgroup].cameras.length;camera++) {
-//                         row = document.createElement('div')
-//                         row.setAttribute('class','row center')
-//                         addImagesCamerasDiv.appendChild(row)
-
-//                         col = document.createElement('div')
-//                         col.classList.add('col-lg-1')
-//                         row.appendChild(col)
-
-//                         if (camera==0) {
-//                             h5 = document.createElement('h5')
-//                             h5.setAttribute('style','margin-bottom: 0px; word-wrap: break-word;')
-//                             h5.innerHTML = reply[trapgroup].tag
-//                             col.appendChild(h5)
-//                         }
-                    
-//                         col = document.createElement('div')
-//                         col.classList.add('col-lg-5')
-//                         col.innerHTML = reply[trapgroup].cameras[camera].folder
-//                         row.appendChild(col)
-    
-//                         col = document.createElement('div')
-//                         col.classList.add('col-lg-3')
-//                         // col.setAttribute('id','original_timestamp-'+reply[trapgroup].cameras[camera].id)
-//                         col.innerHTML = reply[trapgroup].cameras[camera].timestamp
-//                         row.appendChild(col)
-    
-//                         // input = document.createElement('input')
-//                         // input.setAttribute('type','text')
-//                         // input.classList.add('form-control')
-//                         // input.value = reply[trapgroup].cameras[camera].timestamp
-//                         // input.disabled = true
-//                         // col.appendChild(input)
-    
-//                         col = document.createElement('div')
-//                         col.classList.add('col-lg-3')
-//                         row.appendChild(col)
-    
-//                         input = document.createElement('input')
-//                         input.setAttribute('type','text')
-//                         input.classList.add('form-control')
-//                         global_original_timestamps[reply[trapgroup].cameras[camera].id] = reply[trapgroup].cameras[camera].corrected_timestamp
-//                         if (reply[trapgroup].cameras[camera].id in global_corrected_timestamps) {
-//                             input.value = global_corrected_timestamps[reply[trapgroup].cameras[camera].id]
-//                         } else {
-//                             input.value = reply[trapgroup].cameras[camera].corrected_timestamp
-//                         }
-//                         input.setAttribute('id','corrected_timestamp-'+reply[trapgroup].cameras[camera].id.toString())
-//                         col.appendChild(input)
-
-//                         $('#corrected_timestamp-'+reply[trapgroup].cameras[camera].id.toString()).change( function(wrapID) {
-//                             return function() {
-//                                 corrected_timestamp = document.getElementById('corrected_timestamp-'+wrapID.toString())
-//                                 if (isValidDate(new Date(corrected_timestamp.value))) {
-//                                     const timestamp_format = new RegExp('^[0-9]{4}/[0-9]{2}/[0-9]{2} [0-9]{2}:[0-5][0-9]:[0-5][0-9]$')
-//                                     if (timestamp_format.test(corrected_timestamp.value)) {
-//                                         document.getElementById('timestampErrors').innerHTML = ''
-//                                         global_corrected_timestamps[wrapID] = corrected_timestamp.value
-//                                     } else {
-//                                         document.getElementById('timestampErrors').innerHTML = 'Please enter your timestamps in the format YYYY/MM/DD HH:MM:SS.'
-//                                         delete global_corrected_timestamps[wrapID]
-//                                     }
-//                                 } else {
-//                                     document.getElementById('timestampErrors').innerHTML = 'There are one or more invalid dates.'
-//                                     delete global_corrected_timestamps[wrapID]
-//                                 }
-//                             }
-//                         }(reply[trapgroup].cameras[camera].id));
-//                     }
-    
-//                     addImagesCamerasDiv.appendChild(document.createElement('br'))
-//                 }
-//             }
-//         }
-//     }
-//     xhttp.send();
-// }
-
 function buildEditTimestamp() {
     /** Builds the form for editing timestamps on the edit survey modal. */
-
 
     global_corrected_timestamps = {}
     global_original_timestamps = {}
@@ -2599,57 +2467,8 @@ function buildEditTimestamp() {
 
     div = document.createElement('div')
     div.setAttribute('style','font-size: 80%; margin-bottom: 2px')
-    div.innerHTML = '<i>Here you can view and edit the timestamps of the fist image taken by each camera in the selected survey. All images taken by an edited camera will be shifted by the same amount. Select whether you would like to edit your timestamps on a camera or folder level.</i>'
+    div.innerHTML = '<i>Here you can view and edit the timestamps of the fist image taken by each camera in the selected survey. All images taken by an edited camera will be shifted by the same amount.</i>'
     addImagesEditTimestampsDiv.appendChild(div)
-
-    var radioDiv = document.createElement('div')
-    radioDiv.setAttribute('class','custom-control custom-radio custom-control-inline')
-    addImagesEditTimestampsDiv.appendChild(radioDiv)
-
-    var input = document.createElement('input')
-    input.setAttribute('type','radio')
-    input.classList.add('custom-control-input')
-    input.setAttribute('id','camFolderLevel')
-    input.setAttribute('name','camLevel')
-    input.setAttribute('value','customEx')
-    input.checked = true
-    radioDiv.appendChild(input)
-
-    var label = document.createElement('label')
-    label.classList.add('custom-control-label')
-    label.setAttribute('for','camFolderLevel')
-    label.innerHTML = 'Folder'
-    radioDiv.appendChild(label)
-
-    $('#camFolderLevel').change( function() {
-        global_corrected_timestamps = {}
-        global_original_timestamps = {} 
-        buildCameras()
-    });
-
-    var radioDiv = document.createElement('div')
-    radioDiv.setAttribute('class','custom-control custom-radio custom-control-inline')
-    addImagesEditTimestampsDiv.appendChild(radioDiv)
-
-    var input = document.createElement('input')
-    input.setAttribute('type','radio')
-    input.classList.add('custom-control-input')
-    input.setAttribute('id','camCameraLevel')
-    input.setAttribute('name','camLevel')
-    input.setAttribute('value','customEx')
-    radioDiv.appendChild(input)
-
-    var label = document.createElement('label')
-    label.classList.add('custom-control-label')
-    label.setAttribute('for','camCameraLevel')
-    label.innerHTML = 'Camera'
-    radioDiv.appendChild(label)
-
-    $('#camCameraLevel').change( function() {
-        global_corrected_timestamps = {}
-        global_original_timestamps = {}
-        buildCameras()
-    });
 
     errors = document.createElement('div')
     errors.setAttribute('id','timestampErrors')
@@ -2657,12 +2476,6 @@ function buildEditTimestamp() {
     addImagesEditTimestampsDiv.appendChild(errors)
 
     addImagesEditTimestampsDiv.appendChild(document.createElement('br'))
-
-
-    errors = document.createElement('div')
-    errors.setAttribute('id','timestampErrors')
-    errors.setAttribute('style','font-size: 80%; color: #DF691A')
-    addImagesEditTimestampsDiv.appendChild(errors)
 
     addImagesCamerasDiv = document.createElement('div')
     addImagesCamerasDiv.setAttribute('id','addImagesCamerasDiv')
@@ -4428,11 +4241,6 @@ document.getElementById('btnAddImages').addEventListener('click', ()=>{
                                             timestampData[camera_id] = {'original': global_original_timestamps[camera_id], 'corrected': global_corrected_timestamps[camera_id]}
                                         }
                                         formData.append("timestamps", JSON.stringify(timestampData))
-                                        level = 'folder'
-                                        if (document.getElementById('camCameraLevel').checked) {
-                                            level = 'camera'
-                                        }
-                                        formData.append("timestamp_level", JSON.stringify(level))
                                     }
 
                                     addImagesSendRequest(formData)
@@ -4466,11 +4274,6 @@ document.getElementById('btnAddImages').addEventListener('click', ()=>{
                                     timestampData[camera_id] = {'original': global_original_timestamps[camera_id], 'corrected': global_corrected_timestamps[camera_id]}
                                 }
                                 formData.append("timestamps", JSON.stringify(timestampData))
-                                level = 'folder'
-                                if (document.getElementById('camCameraLevel').checked) {
-                                    level = 'camera'
-                                }
-                                formData.append("timestamp_level", JSON.stringify(level))
                             }
 
                             addImagesSendRequest(formData)
@@ -4510,11 +4313,6 @@ document.getElementById('btnAddImages').addEventListener('click', ()=>{
                     timestampData[camera_id] = {'original': global_original_timestamps[camera_id], 'corrected': global_corrected_timestamps[camera_id]}
                 }
                 formData.append("timestamps", JSON.stringify(timestampData))
-                level = 'folder'
-                if (document.getElementById('camCameraLevel').checked) {
-                    level = 'camera'
-                }
-                formData.append("timestamp_level", JSON.stringify(level))
             }        
             else if (tabActiveEditSurvey=='baseEditMasksTab') {
 
@@ -5089,21 +4887,6 @@ function buildEditMasks() {
     rowDiv2.classList.add('row');
     col3.appendChild(rowDiv2);
 
-    // var colU = document.createElement('div')
-    // colU.classList.add('col-lg-12')
-    // colU.innerHTML = 'User:'
-    // rowDiv2.append(colU)
-
-    // var rowDiv3 = document.createElement('div');
-    // rowDiv3.classList.add('row');
-    // col3.appendChild(rowDiv3);
-
-    // var colU = document.createElement('div')
-    // colU.classList.add('col-lg-12')
-    // colU.id = 'maskUsers'
-    // colU.innerHTML = ''
-    // rowDiv3.append(colU)
-
     h5 = document.createElement('h5')
     h5.setAttribute('style','margin-bottom: 2px')
     h5.innerHTML = 'Users'
@@ -5293,7 +5076,7 @@ function getMasks() {
     }
 }
 
-function prepMapMS(image) {
+function prepMapES(image) {
     /** Initialises the Leaflet image map for the edit survey modal. */
 
     if (bucketName != null) {
@@ -5311,13 +5094,19 @@ function prepMapMS(image) {
             }
 
             L.Browser.touch = true
-    
-            map = new L.map('mapDiv', {
+
+            map_config = {
                 crs: L.CRS.Simple,
                 maxZoom: 10,
                 center: [0, 0],
                 zoomSnap: 0
-            })
+            }
+
+            if(tabActiveEditSurvey=='baseEditImgTimestampsTab'){
+                map_config['attributionControl'] = false  // Remove Leaflet attribution (because it might block the timestamp)
+            }
+    
+            map = new L.map('mapDiv', map_config);
 
             var h1 = document.getElementById('mapDiv').clientHeight
             var w1 = document.getElementById('mapDiv').clientWidth
@@ -5381,6 +5170,9 @@ function prepMapMS(image) {
                     }
                     else if (tabActiveEditSurvey=='baseStaticTab') {
                         activeImage.setUrl("https://"+bucketName+".s3.amazonaws.com/" + modifyToCompURL(staticgroups[staticgroupIndex].images[imageIndex].url))
+                    }
+                    else if (tabActiveEditSurvey=='baseEditImgTimestampsTab') {
+                        activeImage.setUrl("https://"+bucketName+".s3.amazonaws.com/" + modifyToCompURL(images[cameraIndex].images[imageIndex].url))
                     }
                     fullRes = true  
                 }
@@ -5522,91 +5314,14 @@ function updateMaskMap() {
     }
     document.getElementById('maskUsers').value = mask_users.slice(0,-2)
 
-
     if (map != null) {
         activeImage.setUrl("https://"+bucketName+".s3.amazonaws.com/" + modifyToCompURL(cameras[cameraIndex].images[imageIndex].url))
     }
     else{
-        prepMapMS(cameras[cameraIndex].images[imageIndex])
+        prepMapES(cameras[cameraIndex].images[imageIndex])
     }
 
     updateButtons()
-
-    if (document.getElementById('clusterPosition') != null) {
-
-        cirNum = cameras[cameraIndex].images.length
-        circlesIndex = imageIndex
-        
-        var beginIndex = 0
-        var endIndex = cirNum
-        var multiple = false
-        if (cirNum > 10) {
-            multiple =  true
-            beginIndex = Math.max(0,circlesIndex-2)
-            if (beginIndex < 2) {
-                beginIndex = 0
-                endIndex = 5
-            }
-            else {
-                endIndex = Math.min(cirNum,circlesIndex+3)
-                if (endIndex > cirNum-2) {
-                    endIndex = cirNum
-                    beginIndex = cirNum - 5
-                }
-            }
-        }
-
-        paginationCircles = document.getElementById('paginationCircles')
-        while (paginationCircles.firstChild) {
-            paginationCircles.removeChild(paginationCircles.firstChild);
-        }
-
-
-        if (multiple && beginIndex != 0 && circlesIndex > 2) {
-            first = document.createElement('li')
-            first.setAttribute('onclick','updateImageIndex(0)')
-            first.style.fontSize = '60%'
-            first.innerHTML = '1'
-            paginationCircles.append(first)
-        
-            more = document.createElement('li')
-            more.setAttribute('class','disabled')
-            more.style.fontSize = '60%'
-            more.innerHTML = '...'
-            paginationCircles.append(more)
-        }
-
-
-        for (let i=beginIndex;i<endIndex;i++) {
-            li = document.createElement('li')
-            li.innerHTML = (i+1).toString()
-            li.setAttribute('onclick','updateImageIndex('+(i).toString()+')')
-            li.style.fontSize = '60%'
-            paginationCircles.append(li)
-
-            if (i == circlesIndex) {
-                li.setAttribute('class','active')
-            } else {
-                li.setAttribute('class','')
-            }
-        }
-
-        if (multiple && endIndex != cirNum && circlesIndex < cirNum-3) {
-            more = document.createElement('li')
-            more.setAttribute('class','disabled')
-            more.innerHTML = '...'
-            more.style.fontSize = '60%'
-            paginationCircles.append(more)
-
-            last_index = cirNum - 1
-            last = document.createElement('li')
-            last.setAttribute('onclick','updateImageIndex('+(last_index).toString()+')')
-            last.innerHTML = (last_index+1).toString()
-            last.style.fontSize = '60%'
-            paginationCircles.append(last)
-        }
-    }
-
 }
 
 function updateImageIndex(index) {
@@ -5621,6 +5336,13 @@ function updateImageIndex(index) {
         if (index >= 0 && index < staticgroups[staticgroupIndex].images.length && finishedDisplaying) {
             imageIndex = index
             updateStaticMap()
+        }
+    }
+    else if (tabActiveEditSurvey=='baseEditImgTimestampsTab'){
+        validTimestamp = validateTimestamp()
+        if (index >= 0 && index < images[cameraIndex].images.length && validTimestamp && finishedDisplaying) {
+            imageIndex = index
+            updateImageMap()
         }
     }
 }
@@ -5786,58 +5508,120 @@ function getMaskCameras(){
 
 function updateButtons() {
     /** Updates the buttons on the edit survey modal. */
-    if ((tabActiveEditSurvey=='baseEditMasksTab') && (document.getElementById('btnPrevImage'))){
-        if (imageIndex==0) {
-            document.getElementById('btnPrevImage').disabled = true
+    const btnPrevImage = document.getElementById('btnPrevImage');
+    const btnNextImage = document.getElementById('btnNextImage');
+    const btnPrevCamera = document.getElementById('btnPrevCamera');
+    const btnNextCamera = document.getElementById('btnNextCamera');
+    const btnPrevGroup = document.getElementById('btnPrevGroup');
+    const btnNextGroup = document.getElementById('btnNextGroup');
+
+    if (tabActiveEditSurvey === 'baseEditMasksTab' && btnPrevImage) {
+        btnPrevImage.disabled = imageIndex === 0;
+        btnNextImage.disabled = imageIndex === cameras[cameraIndex].images.length - 1;
+        btnPrevCamera.disabled = cameraIndex === 0;
+        btnNextCamera.disabled = cameraIndex === cameras.length - 1;
+    } else if (tabActiveEditSurvey === 'baseStaticTab' && btnPrevImage) {
+        btnPrevImage.disabled = imageIndex === 0;
+        btnNextImage.disabled = imageIndex === staticgroups[staticgroupIndex].images.length - 1;
+        btnPrevGroup.disabled = staticgroupIndex === 0;
+        btnNextGroup.disabled = staticgroupIndex === staticgroups.length - 1;
+    } else if (tabActiveEditSurvey === 'baseEditImgTimestampsTab' && btnPrevImage) {
+        btnPrevImage.disabled = imageIndex === 0;
+        btnNextImage.disabled = imageIndex === images[cameraIndex].images.length - 1;
+        btnPrevCamera.disabled = cameraIndex === 0;
+        btnNextCamera.disabled = cameraIndex === images.length - 1;
+    }
+
+    updatePaginationCircles();
+}
+
+function updatePaginationCircles(){
+    /** Updates pagination circles on the edit survey modal. */
+
+    if (document.getElementById('clusterPosition') != null) {
+
+        if (tabActiveEditSurvey=='baseEditMasksTab'){
+            cirNum = cameras[cameraIndex].images.length
         }
-        else{
-            document.getElementById('btnPrevImage').disabled = false
+        else if (tabActiveEditSurvey=='baseStaticTab'){
+            cirNum = staticgroups[staticgroupIndex].images.length
         }
-        if (imageIndex==cameras[cameraIndex].images.length-1) {
-            document.getElementById('btnNextImage').disabled = true
+        else if (tabActiveEditSurvey=='baseEditImgTimestampsTab'){
+            cirNum = images[cameraIndex].images.length
         }
-        else{
-            document.getElementById('btnNextImage').disabled = false
+
+        circlesIndex = imageIndex
+        
+        var beginIndex = 0
+        var endIndex = cirNum
+        var multiple = false
+        if (cirNum > 10) {
+            multiple =  true
+            beginIndex = Math.max(0,circlesIndex-2)
+            if (beginIndex < 2) {
+                beginIndex = 0
+                endIndex = 5
+            }
+            else {
+                endIndex = Math.min(cirNum,circlesIndex+3)
+                if (endIndex > cirNum-2) {
+                    endIndex = cirNum
+                    beginIndex = cirNum - 5
+                }
+            }
         }
-        if (cameraIndex==0) {
-            document.getElementById('btnPrevCamera').disabled = true
+
+        paginationCircles = document.getElementById('paginationCircles')
+        while (paginationCircles.firstChild) {
+            paginationCircles.removeChild(paginationCircles.firstChild);
         }
-        else{
-            document.getElementById('btnPrevCamera').disabled = false
+
+
+        if (multiple && beginIndex != 0 && circlesIndex > 2) {
+            first = document.createElement('li')
+            first.setAttribute('onclick','updateImageIndex(0)')
+            first.style.fontSize = '60%'
+            first.innerHTML = '1'
+            paginationCircles.append(first)
+        
+            more = document.createElement('li')
+            more.setAttribute('class','disabled')
+            more.style.fontSize = '60%'
+            more.innerHTML = '...'
+            paginationCircles.append(more)
         }
-        if (cameraIndex==cameras.length-1) {
-            document.getElementById('btnNextCamera').disabled = true
+
+
+        for (let i=beginIndex;i<endIndex;i++) {
+            li = document.createElement('li')
+            li.innerHTML = (i+1).toString()
+            li.setAttribute('onclick','updateImageIndex('+(i).toString()+')')
+            li.style.fontSize = '60%'
+            paginationCircles.append(li)
+
+            if (i == circlesIndex) {
+                li.setAttribute('class','active')
+            } else {
+                li.setAttribute('class','')
+            }
         }
-        else{
-            document.getElementById('btnNextCamera').disabled = false
+
+        if (multiple && endIndex != cirNum && circlesIndex < cirNum-3) {
+            more = document.createElement('li')
+            more.setAttribute('class','disabled')
+            more.innerHTML = '...'
+            more.style.fontSize = '60%'
+            paginationCircles.append(more)
+
+            last_index = cirNum - 1
+            last = document.createElement('li')
+            last.setAttribute('onclick','updateImageIndex('+(last_index).toString()+')')
+            last.innerHTML = (last_index+1).toString()
+            last.style.fontSize = '60%'
+            paginationCircles.append(last)
         }
     }
-    else if ((tabActiveEditSurvey=='baseStaticTab') && (document.getElementById('btnPrevImage'))){
-        if (imageIndex==0) {
-            document.getElementById('btnPrevImage').disabled = true
-        }
-        else{
-            document.getElementById('btnPrevImage').disabled = false
-        }
-        if (imageIndex==staticgroups[staticgroupIndex].images.length-1) {
-            document.getElementById('btnNextImage').disabled = true
-        }
-        else{
-            document.getElementById('btnNextImage').disabled = false
-        }
-        if (staticgroupIndex==0) {
-            document.getElementById('btnPrevGroup').disabled = true
-        }
-        else{
-            document.getElementById('btnPrevGroup').disabled = false
-        }
-        if (staticgroupIndex==staticgroups.length-1) {
-            document.getElementById('btnNextGroup').disabled = true
-        }
-        else{
-            document.getElementById('btnNextGroup').disabled = false
-        }
-    }
+
 }
 
 function openStaticDetections() {
@@ -6354,85 +6138,10 @@ function updateStaticMap() {
         activeImage.setUrl("https://"+bucketName+".s3.amazonaws.com/" + modifyToCompURL(staticgroups[staticgroupIndex].images[imageIndex].url))
     }
     else{
-        prepMapMS(staticgroups[staticgroupIndex].images[imageIndex])
+        prepMapES(staticgroups[staticgroupIndex].images[imageIndex])
     }
 
     updateButtons()
-
-    if (document.getElementById('clusterPosition') != null) {
-
-        cirNum = staticgroups[staticgroupIndex].images.length
-        circlesIndex = imageIndex
-        
-        var beginIndex = 0
-        var endIndex = cirNum
-        var multiple = false
-        if (cirNum > 10) {
-            multiple =  true
-            beginIndex = Math.max(0,circlesIndex-2)
-            if (beginIndex < 2) {
-                beginIndex = 0
-                endIndex = 5
-            }
-            else {
-                endIndex = Math.min(cirNum,circlesIndex+3)
-                if (endIndex > cirNum-2) {
-                    endIndex = cirNum
-                    beginIndex = cirNum - 5
-                }
-            }
-        }
-
-        paginationCircles = document.getElementById('paginationCircles')
-        while (paginationCircles.firstChild) {
-            paginationCircles.removeChild(paginationCircles.firstChild);
-        }
-
-
-        if (multiple && beginIndex != 0 && circlesIndex > 2) {
-            first = document.createElement('li')
-            first.setAttribute('onclick','updateImageIndex(0)')
-            first.style.fontSize = '60%'
-            first.innerHTML = '1'
-            paginationCircles.append(first)
-        
-            more = document.createElement('li')
-            more.setAttribute('class','disabled')
-            more.style.fontSize = '60%'
-            more.innerHTML = '...'
-            paginationCircles.append(more)
-        }
-
-
-        for (let i=beginIndex;i<endIndex;i++) {
-            li = document.createElement('li')
-            li.innerHTML = (i+1).toString()
-            li.setAttribute('onclick','updateImageIndex('+(i).toString()+')')
-            li.style.fontSize = '60%'
-            paginationCircles.append(li)
-
-            if (i == circlesIndex) {
-                li.setAttribute('class','active')
-            } else {
-                li.setAttribute('class','')
-            }
-        }
-
-        if (multiple && endIndex != cirNum && circlesIndex < cirNum-3) {
-            more = document.createElement('li')
-            more.setAttribute('class','disabled')
-            more.innerHTML = '...'
-            more.style.fontSize = '60%'
-            paginationCircles.append(more)
-
-            last_index = cirNum - 1
-            last = document.createElement('li')
-            last.setAttribute('onclick','updateImageIndex('+(last_index).toString()+')')
-            last.innerHTML = (last_index+1).toString()
-            last.style.fontSize = '60%'
-            paginationCircles.append(last)
-        }
-    }
 
 }
 
@@ -7167,6 +6876,7 @@ function nextStructure(){
 
 
 function highlightCells(cell) {
+    /** Highlights the cells in the structure table. */
     clearHighlights();
 
     cellsToHighlight = [cell];
@@ -7220,11 +6930,13 @@ function highlightCells(cell) {
 }
 
 function clearHighlights() {
+    /** Clears the highlights in the structure table. */
     var highlightedCells = document.querySelectorAll('.highlight');
     highlightedCells.forEach(function (highlightedCell) {
         highlightedCell.classList.remove('highlight');
     });
 }
+
 function buildTimestampsMap(){
     /** Builds the timestamps map for Edit Timestamps. */
     var addImagesImagesDiv = document.getElementById('addImagesImagesDiv')
@@ -7548,7 +7260,7 @@ function buildTimestampsMap(){
     button.classList.add('btn')
     button.classList.add('btn-primary')
     button.classList.add('btn-block')
-    button.id = 'btnPrevCam'
+    button.id = 'btnPrevCamera'
     button.innerHTML = '<span style="font-size:100%">&#x276e;&#x276e;</span> Previous Camera'
     button.disabled = true
     col1.appendChild(button)
@@ -7575,12 +7287,12 @@ function buildTimestampsMap(){
     button.classList.add('btn')
     button.classList.add('btn-primary')
     button.classList.add('btn-block')
-    button.id = 'btnNextCam'
+    button.id = 'btnNextCamera'
     button.innerHTML = 'Next Camera <span style="font-size:100%">&#x276f;&#x276f;</span>'
     button.disabled = true
     col4.appendChild(button)
 
-    document.getElementById('btnPrevCam').addEventListener('click', ()=>{
+    document.getElementById('btnPrevCamera').addEventListener('click', ()=>{
         let validTimestamp = validateTimestamp()
         if (cameraIndex>0 && finishedDisplaying && validTimestamp) {
             cameraIndex -= 1
@@ -7605,7 +7317,7 @@ function buildTimestampsMap(){
         }
     });
 
-    document.getElementById('btnNextCam').addEventListener('click', ()=>{
+    document.getElementById('btnNextCamera').addEventListener('click', ()=>{
         let validTimestamp = validateTimestamp()
         if (cameraIndex<images.length-1 && finishedDisplaying && validTimestamp) {
             cameraIndex += 1
@@ -7617,10 +7329,10 @@ function buildTimestampsMap(){
         }
     });
 
-    document.getElementById('btnPrevCam').hidden = true
+    document.getElementById('btnPrevCamera').hidden = true
     document.getElementById('btnPrevImage').hidden = true
     document.getElementById('btnNextImage').hidden = true
-    document.getElementById('btnNextCam').hidden = true
+    document.getElementById('btnNextCamera').hidden = true
 }
 
 
@@ -7662,10 +7374,10 @@ function getTimestampCameraIDs(){
                 }
                 else{
 
-                    document.getElementById('btnPrevCam').hidden = false
+                    document.getElementById('btnPrevCamera').hidden = false
                     document.getElementById('btnPrevImage').hidden = false
                     document.getElementById('btnNextImage').hidden = false
-                    document.getElementById('btnNextCam').hidden = false
+                    document.getElementById('btnNextCamera').hidden = false
 
                     for (let i=0; i<3; i++) {
                         getTimestampImages()
@@ -7686,7 +7398,7 @@ function getTimestampImages(){
             function () {
                 if (this.readyState == 4 && this.status == 200) {
                     reply = JSON.parse(this.responseText);
-                    console.log(reply)
+                    // console.log(reply)
                     new_images = reply.images
 
                     for (let i=0; i<new_images.length; i++) {
@@ -7699,7 +7411,7 @@ function getTimestampImages(){
                     if (images.length - 1 == imageIndex) {
                         updateImageMap()
                     }
-                    updateTimestampButtons()
+                    updateButtons()
 
                 }
             };
@@ -7709,112 +7421,6 @@ function getTimestampImages(){
     }
 }
 
-function updateTimestampButtons(){
-    /** Updates the buttons for Edit Timestamps */
-    if (imageIndex==0) {
-        document.getElementById('btnPrevImage').disabled = true
-    }
-    else{
-        document.getElementById('btnPrevImage').disabled = false
-    }
-
-    if (imageIndex==images[cameraIndex].images.length-1) {
-        document.getElementById('btnNextImage').disabled = true
-    }
-    else{
-        document.getElementById('btnNextImage').disabled = false
-    }
-
-    if(cameraIndex==0){
-        document.getElementById('btnPrevCam').disabled = true
-    }
-    else{
-        document.getElementById('btnPrevCam').disabled = false
-    }
-
-    if(cameraIndex==images.length-1){
-        document.getElementById('btnNextCam').disabled = true
-    }
-    else{
-        document.getElementById('btnNextCam').disabled = false
-    }
-
-    if (document.getElementById('clusterPosition') != null) {
-
-        cirNum = images[cameraIndex].images.length
-        circlesIndex = imageIndex
-        
-        var beginIndex = 0
-        var endIndex = cirNum
-        var multiple = false
-        if (cirNum > 10) {
-            multiple =  true
-            beginIndex = Math.max(0,circlesIndex-2)
-            if (beginIndex < 2) {
-                beginIndex = 0
-                endIndex = 5
-            }
-            else {
-                endIndex = Math.min(cirNum,circlesIndex+3)
-                if (endIndex > cirNum-2) {
-                    endIndex = cirNum
-                    beginIndex = cirNum - 5
-                }
-            }
-        }
-
-        paginationCircles = document.getElementById('paginationCircles')
-        while (paginationCircles.firstChild) {
-            paginationCircles.removeChild(paginationCircles.firstChild);
-        }
-
-
-        if (multiple && beginIndex != 0 && circlesIndex > 2) {
-            first = document.createElement('li')
-            first.setAttribute('onclick','updateTimestampImageIndex(0)')
-            first.style.fontSize = '60%'
-            first.innerHTML = '1'
-            paginationCircles.append(first)
-        
-            more = document.createElement('li')
-            more.setAttribute('class','disabled')
-            more.style.fontSize = '60%'
-            more.innerHTML = '...'
-            paginationCircles.append(more)
-        }
-
-
-        for (let i=beginIndex;i<endIndex;i++) {
-            li = document.createElement('li')
-            li.innerHTML = (i+1).toString()
-            li.setAttribute('onclick','updateTimestampImageIndex('+(i).toString()+')')
-            li.style.fontSize = '60%'
-            paginationCircles.append(li)
-
-            if (i == circlesIndex) {
-                li.setAttribute('class','active')
-            } else {
-                li.setAttribute('class','')
-            }
-        }
-
-        if (multiple && endIndex != cirNum && circlesIndex < cirNum-3) {
-            more = document.createElement('li')
-            more.setAttribute('class','disabled')
-            more.innerHTML = '...'
-            more.style.fontSize = '60%'
-            paginationCircles.append(more)
-
-            last_index = cirNum - 1
-            last = document.createElement('li')
-            last.setAttribute('onclick','updateTimestampImageIndex('+(last_index).toString()+')')
-            last.innerHTML = (last_index+1).toString()
-            last.style.fontSize = '60%'
-            paginationCircles.append(last)
-        }
-    }
-
-}
 
 function updateImageMap(){
     /** Updates the image map with the current image. */
@@ -7826,7 +7432,7 @@ function updateImageMap(){
         activeImage.setUrl("https://"+bucketName+".s3.amazonaws.com/" + modifyToCompURL(images[cameraIndex].images[imageIndex].url))
     }
     else{
-        prepMapTS(images[cameraIndex].images[imageIndex])
+        prepMapES(images[cameraIndex].images[imageIndex])
     }
 
     var yearInput = document.getElementById('year');
@@ -7896,97 +7502,7 @@ function updateImageMap(){
         }
     }
 
-    updateTimestampButtons()
-}
-
-function prepMapTS(image){
-        /** Initialises the Leaflet image map for the edit survey modal. */
-    
-    if (bucketName != null) {
-        mapReady = false
-        imageUrl = "https://"+bucketName+".s3.amazonaws.com/" + modifyToCompURL(image.url)
-        var img = new Image();
-        img.onload = function(){
-            w = this.width
-            h = this.height
-
-            if (w>h) {
-                document.getElementById('mapDiv').setAttribute('style','height: calc(38vw *'+(h/w)+');  width:38vw')               
-            } else {
-                document.getElementById('mapDiv').setAttribute('style','height: calc(38vw *'+(w/h)+');  width:38vw')
-            }
-
-            L.Browser.touch = true
-    
-            map = new L.map('mapDiv', {
-                crs: L.CRS.Simple,
-                maxZoom: 10,
-                center: [0, 0],
-                zoomSnap: 0,
-                attributionControl: false // Remove Leaflet attribution (because it might block the timestamp)
-            })
-
-            var h1 = document.getElementById('mapDiv').clientHeight
-            var w1 = document.getElementById('mapDiv').clientWidth
-    
-            var southWest = map.unproject([0, h1], 2);
-            var northEast = map.unproject([w1, 0], 2);
-            var bounds = new L.LatLngBounds(southWest, northEast);
-    
-            mapWidth = northEast.lng
-            mapHeight = southWest.lat
-    
-            activeImage = L.imageOverlay(imageUrl, bounds).addTo(map);
-            activeImage.on('load', function() {
-                finishedDisplaying = true
-            });
-            map.setMaxBounds(bounds);
-            map.fitBounds(bounds)
-            map.setMinZoom(map.getZoom())
-
-            hc = document.getElementById('mapDiv').clientHeight
-            wc = document.getElementById('mapDiv').clientWidth
-            map.on('resize', function(){
-                if(document.getElementById('mapDiv') && document.getElementById('mapDiv').clientHeight){
-                    h1 = document.getElementById('mapDiv').clientHeight
-                    w1 = document.getElementById('mapDiv').clientWidth
-                }
-                else{
-                    h1 = hc
-                    w1 = wc
-                }
-                
-                southWest = map.unproject([0, h1], 2);
-                northEast = map.unproject([w1, 0], 2);
-                bounds = new L.LatLngBounds(southWest, northEast);
-        
-                mapWidth = northEast.lng
-                mapHeight = southWest.lat
-
-                map.invalidateSize()
-                map.setMaxBounds(bounds)
-                map.fitBounds(bounds)
-                map.setMinZoom(map.getZoom())
-                activeImage.setBounds(bounds)
-            });
-
-
-            map.on('drag', function() {
-                map.panInsideBounds(bounds, { animate: false });
-            });
-    
-            map.on('zoomstart', function() {
-                if (!fullRes) {
-                    activeImage.setUrl("https://"+bucketName+".s3.amazonaws.com/" + modifyToCompURL(images[cameraIndex].images[imageIndex].url))
-                    fullRes = true  
-                }
-            });    
-
-            mapReady = true
-        };
-        img.src = imageUrl  
-    }
-
+    updateButtons()
 }
 
 function addTimestamp(){
@@ -8237,14 +7753,6 @@ modalAddImages.on('keyup', function(event) {
             event.preventDefault()
             skipTime()
         }
-        // else if (event.key.toLowerCase() == 'arrowleft') {
-        //     event.preventDefault()
-        //     document.getElementById('btnPrevImage').click()
-        // }
-        // else if (event.key.toLowerCase() == 'arrowright') {
-        //     event.preventDefault()
-        //     document.getElementById('btnNextImage').click()
-        // }
     }
 });
 
@@ -8254,14 +7762,5 @@ function nextTimestamp(){
     }
     else if ((cameraIndex < images.length - 1) && imageIndex == images[cameraIndex].images.length - 1){
         document.getElementById('btnNextCam').click()
-    }
-}
-
-function updateTimestampImageIndex(index) {
-    /** Updates the image index. */
-    validTimestamp = validateTimestamp()
-    if (index >= 0 && index < images[cameraIndex].images.length && validTimestamp && finishedDisplaying) {
-        imageIndex = index
-        updateImageMap()
     }
 }

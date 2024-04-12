@@ -1371,101 +1371,58 @@ def updateCoords(self,survey_id,coordData):
     return True
 
 @celery.task(bind=True,max_retries=5,ignore_result=True)
-def changeTimestamps(self,survey_id,timestamps,level):
+def changeTimestamps(self,survey_id,timestamps):
     '''
     Celery task for shifting the camera timestamps of a specified survey. Re-clusters all tasks afterword.
     
         Parameters:
             survey_id (int): The survey to edit
-            timestamps (dict): Timestamp changes formatted {camera_id: {'original': timestamp, 'corrected': timestamp}}
-            level (str): The level of the camera timestamps to edit - 'folder' (camera) or 'camera' (cameragroup)
+            timestamps (dict): Timestamp changes formatted {cameragroup_id: {'original': timestamp, 'corrected': timestamp}}
     '''
     
     try:
-        app.logger.info('changeTimestamps called for survey {} with timestamps {} and level {}'.format(survey_id,timestamps,level))
+        app.logger.info('changeTimestamps called for survey {} with timestamps {}'.format(survey_id,timestamps))
 
-        # double check for edited cameras
-        if level == 'folder':
-            camera_ids = [int(r) for r in timestamps.keys() if (timestamps[r]['corrected']!=timestamps[r]['original'])]
-        elif level == 'camera':
-            # Get all cameras in the cameragroups and create timestamps entries for each camera with timestamp change from cameragroup
-            cg_timestamps = timestamps.copy()
-            timestamps = {}
-            cameragroup_ids = [int(r) for r in cg_timestamps.keys() if (cg_timestamps[r]['corrected']!=cg_timestamps[r]['original'])]
-            camera_ids = []
-            for cameragroup_id in cameragroup_ids:
-                corrected_timestamp = datetime.strptime(cg_timestamps[str(cameragroup_id)]['corrected'],"%Y/%m/%d %H:%M:%S")
-                original_timestamp = datetime.strptime(cg_timestamps[str(cameragroup_id)]['original'],"%Y/%m/%d %H:%M:%S")
-                cg_delta = corrected_timestamp - original_timestamp
+        cg_timestamps = timestamps.copy()
+        timestamps = {}
+        cameragroup_ids = [int(r) for r in cg_timestamps.keys() if (cg_timestamps[r]['corrected']!=cg_timestamps[r]['original'])]
+        camera_ids = []
+        for cameragroup_id in cameragroup_ids:
+            corrected_timestamp = datetime.strptime(cg_timestamps[str(cameragroup_id)]['corrected'],"%Y/%m/%d %H:%M:%S")
+            original_timestamp = datetime.strptime(cg_timestamps[str(cameragroup_id)]['original'],"%Y/%m/%d %H:%M:%S")
+            cg_delta = corrected_timestamp - original_timestamp
 
-                camera_data = db.session.query(Camera.id, func.min(Image.timestamp), func.min(Image.corrected_timestamp))\
-                                .join(Image)\
-                                .filter(~Camera.path.contains('_video_images_'))\
-                                .filter(Image.timestamp!=None)\
-                                .filter(Camera.cameragroup_id==cameragroup_id)\
-                                .group_by(Camera.id).distinct().all()
+            camera_data = db.session.query(Camera.id, func.min(Image.corrected_timestamp))\
+                            .join(Image)\
+                            .filter(Image.corrected_timestamp!=None)\
+                            .filter(Camera.cameragroup_id==cameragroup_id)\
+                            .group_by(Camera.id).distinct().all()
 
-                for camera in camera_data:
-                    new_corrected_timestamp = camera[2] + cg_delta
-                    timestamps[str(camera[0])] = {'original':stringify_timestamp(camera[1]),'corrected':stringify_timestamp(new_corrected_timestamp)}
-                    camera_ids.append(camera[0])
+            for camera in camera_data:
+                new_corrected_timestamp = camera[1] + cg_delta
+                timestamps[str(camera[0])] = {'original':stringify_timestamp(camera[1]),'corrected':stringify_timestamp(new_corrected_timestamp)}
+                camera_ids.append(camera[0])
 
-            app.logger.info('Camera timestamps from cameragroups: {}'.format(timestamps))
 
         # Check if there is a need to recluster (ie. there are overlapping edited cameras)
-        # In order to make this indempotent, we use the 'original' timestamps which are more of an intermediate timestamp
         overlap_prior = []
         trapgroups = db.session.query(Trapgroup).join(Camera).filter(Camera.id.in_(camera_ids)).distinct().all()
         for trapgroup in trapgroups:
-            camera_times = db.session.query(Camera.id,func.min(Image.timestamp).label('min'),func.max(Image.timestamp).label('max'),func.min(Image.corrected_timestamp).label('min_corrected'),func.max(Image.corrected_timestamp).label('max_corrected'))\
+            camera_times = db.session.query(Camera.id,func.min(Image.corrected_timestamp).label('min'),func.max(Image.corrected_timestamp).label('max'))\
                                     .join(Image)\
-                                    .filter(Image.timestamp!=None)\
+                                    .filter(Image.corrected_timestamp!=None)\
                                     .filter(Camera.trapgroup_id==trapgroup.id)\
                                     .group_by(Camera.id)\
                                     .all()
-            
+            trapgroup
+            camera_times 
             camera_times2 = camera_times.copy()
             for item in camera_times:
                 if trapgroup.id in overlap_prior: break
                 camera_times2.remove(item)
-                camera1_id = item[0]
-
-                if str(camera1_id) in timestamps.keys():
-                    try:
-                        # original = intermediate
-                        camera1_original = datetime.strptime(timestamps[str(camera1_id)]['original'],"%Y/%m/%d %H:%M:%S")
-                        camera1_delta = camera1_original - item[1]
-                        camera1_min = item[1] + camera1_delta
-                        camera1_max = item[2] + camera1_delta
-                    except:
-                        # if timestamp is incorrectly formatted, it will not be edited
-                        camera2_min = item2[3]
-                        camera2_max = item2[4]
-                else:
-                    # if timestamp is not edited, use the corrected timestamp from db
-                    camera1_min = item[3]
-                    camera1_max = item[4]
-
                 for item2 in camera_times2:
-                    camera2_id = item2[0]
-
-                    if str(camera2_id) in timestamps.keys():
-                        try:
-                            camera2_original = datetime.strptime(timestamps[str(camera2_id)]['original'],"%Y/%m/%d %H:%M:%S")
-                            camera2_delta = camera2_original - item2[1]
-                            camera2_min = item2[1] + camera2_delta
-                            camera2_max = item2[2] + camera2_delta
-                        except:
-                            # if timestamp is incorrectly formatted, it will not be edited
-                            camera2_min = item2[3]
-                            camera2_max = item2[4]
-                    else:
-                        # if timestamp is not edited, use the corrected timestamp from db
-                        camera2_min = item2[3]
-                        camera2_max = item2[4]
-
-                    if (camera1_min<=camera2_max<=camera1_max) or (camera1_min<=camera2_min<=camera1_max) or (camera2_min<=camera1_max<=camera2_max) or (camera2_min<=camera1_min<=camera2_max):
-                        if (camera1_id in camera_ids) or (camera2_id in camera_ids):
+                    if (item[1]<=item2[2]<=item[2]) or (item[1]<=item2[1]<=item[2]) or (item2[1]<=item[2]<=item2[2]) or (item2[1]<=item[1]<=item2[2]):
+                        if (item[0] in camera_ids) or (item2[0] in camera_ids):
                             if Config.DEBUGGING: app.logger.info('Trapgroup {} overlapping prior to edit'.format(trapgroup.id))
                             overlap_prior.append(trapgroup.id)
                             break
@@ -1473,21 +1430,19 @@ def changeTimestamps(self,survey_id,timestamps,level):
         # Update timestamps
         for camera_id in camera_ids:
             try:
-                timestamp = datetime.strptime(timestamps[str(camera_id)]['corrected'],"%Y/%m/%d %H:%M:%S")
-                # folder = item['camera']
-                # trapTag = re.split('/',identifier)[0]
-                # folder = re.split(trapTag+'/',item['camera'])[-1]
+                timestamp = datetime.strptime(timestamps[str(camera_id)]['original'],"%Y/%m/%d %H:%M:%S")
+                new_timestamp = datetime.strptime(timestamps[str(camera_id)]['corrected'],"%Y/%m/%d %H:%M:%S")
 
                 images = db.session.query(Image)\
                                 .filter(Image.camera_id==camera_id)\
-                                .filter(Image.timestamp!=None)\
-                                .order_by(Image.timestamp).all()
+                                .filter(Image.corrected_timestamp!=None)\
+                                .order_by(Image.corrected_timestamp).all()
 
                 if images:            
-                    delta = timestamp-images[0].timestamp
+                    delta = new_timestamp-timestamp
                     if Config.DEBUGGING: app.logger.info('Delta of {} for camera {}'.format(delta,camera_id))
                     for image in images:
-                        image.corrected_timestamp = image.timestamp + delta
+                        image.corrected_timestamp = image.corrected_timestamp + delta
             except:
                 # timestamp probably incorrectly formatted
                 pass
