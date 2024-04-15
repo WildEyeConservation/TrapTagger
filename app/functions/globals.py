@@ -3289,7 +3289,6 @@ def mask_area(self, cluster_id, task_id, masks, user_id):
                     if not check:
                         new_mask = Mask(shape=poly_string,cameragroup_id=cameragroup.id,user_id=user_id)
                         db.session.add(new_mask)
-            db.session.commit()
 
             # Mask detections
             detections = db.session.query(Detection)\
@@ -3300,7 +3299,7 @@ def mask_area(self, cluster_id, task_id, masks, user_id):
                                     .filter(Cameragroup.id==cameragroup.id)\
                                     .filter(or_(and_(Detection.source==model,Detection.score>Config.DETECTOR_THRESHOLDS[model]) for model in Config.DETECTOR_THRESHOLDS))\
                                     .filter(~Detection.status.in_(Config.DET_IGNORE_STATUSES))\
-                                    .filter(Detection.static==False)\
+                                    .filter(Detection.source!='user')\
                                     .filter(and_(
                                         func.ST_Intersects(func.ST_GeomFromText(func.concat('POINT(', Detection.left, ' ', Detection.top, ')'), 32734), Mask.shape),
                                         func.ST_Intersects(func.ST_GeomFromText(func.concat('POINT(', Detection.left, ' ', Detection.bottom, ')'), 32734), Mask.shape),
@@ -3393,7 +3392,6 @@ def update_masks(self,survey_id,removed_masks,added_masks,edited_masks,user_id):
                     mask.shape = poly_string
                     mask.user_id = user_id
 
-        db.session.commit()
 
         # Mask detections
         detections = db.session.query(Detection)\
@@ -3405,7 +3403,7 @@ def update_masks(self,survey_id,removed_masks,added_masks,edited_masks,user_id):
                                 .filter(Trapgroup.survey_id==survey_id)\
                                 .filter(or_(and_(Detection.source==model,Detection.score>Config.DETECTOR_THRESHOLDS[model]) for model in Config.DETECTOR_THRESHOLDS))\
                                 .filter(~Detection.status.in_(Config.DET_IGNORE_STATUSES))\
-                                .filter(Detection.static==False)\
+                                .filter(Detection.source!='user')\
                                 .filter(and_(
                                     func.ST_Intersects(func.ST_GeomFromText(func.concat('POINT(', Detection.left, ' ', Detection.top, ')'), 32734), Mask.shape),
                                     func.ST_Intersects(func.ST_GeomFromText(func.concat('POINT(', Detection.left, ' ', Detection.bottom, ')'), 32734), Mask.shape),
@@ -3419,7 +3417,6 @@ def update_masks(self,survey_id,removed_masks,added_masks,edited_masks,user_id):
             detection.status = 'masked'
             images.append(detection.image)
 
-        # db.session.commit()
 
         # Unmask detections
         masked_detections = db.session.query(Detection)\
@@ -3431,7 +3428,7 @@ def update_masks(self,survey_id,removed_masks,added_masks,edited_masks,user_id):
                                 .filter(Trapgroup.survey_id==survey_id)\
                                 .filter(or_(and_(Detection.source==model,Detection.score>Config.DETECTOR_THRESHOLDS[model]) for model in Config.DETECTOR_THRESHOLDS))\
                                 .filter(Detection.status=='masked')\
-                                .filter(Detection.static==False)\
+                                .filter(Detection.source!='user')\
                                 .filter(and_(
                                     func.ST_Intersects(func.ST_GeomFromText(func.concat('POINT(', Detection.left, ' ', Detection.top, ')'), 32734), Mask.shape),
                                     func.ST_Intersects(func.ST_GeomFromText(func.concat('POINT(', Detection.left, ' ', Detection.bottom, ')'), 32734), Mask.shape),
@@ -3449,7 +3446,6 @@ def update_masks(self,survey_id,removed_masks,added_masks,edited_masks,user_id):
                                 .filter(Trapgroup.survey_id==survey_id)\
                                 .filter(or_(and_(Detection.source==model,Detection.score>Config.DETECTOR_THRESHOLDS[model]) for model in Config.DETECTOR_THRESHOLDS))\
                                 .filter(Detection.status=='masked')\
-                                .filter(Detection.static==False)\
                                 .filter(masked_detections.c.id==None)\
                                 .distinct().all()
 
@@ -3461,6 +3457,7 @@ def update_masks(self,survey_id,removed_masks,added_masks,edited_masks,user_id):
 
         for image in set(images):
             image.detection_rating = detection_rating(image)
+        db.session.commit()
 
         task_ids = [r[0] for r in db.session.query(Task.id).filter(Task.survey_id==survey_id).filter(Task.name!='default').distinct().all()]
         for task_id in task_ids:
@@ -3798,7 +3795,6 @@ def update_staticgroups(self,survey_id,staticgroups,user_id):
                 static_group.status = staticgroup['status']
                 static_group.user_id = user_id
 
-        db.session.commit()
 
         # Update detections
         static_detections = db.session.query(Detection)\
@@ -3808,7 +3804,7 @@ def update_staticgroups(self,survey_id,staticgroups,user_id):
                                     .join(Staticgroup)\
                                     .filter(Trapgroup.survey_id==survey_id)\
                                     .filter(or_(Staticgroup.status=='accepted',Staticgroup.status=='unknown'))\
-                                    .filter(Detection.static==False)\
+                                    .filter(Detection.static!=True)\
                                     .distinct().all()
 
         images = []
@@ -3823,7 +3819,7 @@ def update_staticgroups(self,survey_id,staticgroups,user_id):
                                     .join(Staticgroup)\
                                     .filter(Trapgroup.survey_id==survey_id)\
                                     .filter(Staticgroup.status=='rejected')\
-                                    .filter(Detection.static==True)\
+                                    .filter(Detection.static!=False)\
                                     .distinct().all()
 
         for detection in rejected_detections:

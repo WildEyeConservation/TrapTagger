@@ -823,7 +823,6 @@ def processCameraStaticDetections(self,cameragroup_id):
                         for detection in detections:
                             detection.static = True
 
-        db.session.commit()
 
         static_detections = list(set(static_detections))
         sq = db.session.query(Detection).filter(Detection.id.in_(static_detections)).subquery()
@@ -843,10 +842,9 @@ def processCameraStaticDetections(self,cameragroup_id):
         for staticgroup in staticgroups:
             db.session.delete(staticgroup)
 
-        db.session.commit()
 
-
-        ##### Update Masked Detections ########
+        ##### Update Masked Status ########
+        # Mask detections
         detections = db.session.query(Detection)\
                                 .join(Image)\
                                 .join(Camera)\
@@ -855,7 +853,7 @@ def processCameraStaticDetections(self,cameragroup_id):
                                 .filter(Mask.cameragroup_id==cameragroup_id)\
                                 .filter(or_(and_(Detection.source==model,Detection.score>Config.DETECTOR_THRESHOLDS[model]) for model in Config.DETECTOR_THRESHOLDS))\
                                 .filter(~Detection.status.in_(Config.DET_IGNORE_STATUSES))\
-                                .filter(Detection.static==False)\
+                                .filter(Detection.source!='user')\
                                 .filter(and_(
                                     func.ST_Intersects(func.ST_GeomFromText(func.concat('POINT(', Detection.left, ' ', Detection.top, ')'), 32734), Mask.shape),
                                     func.ST_Intersects(func.ST_GeomFromText(func.concat('POINT(', Detection.left, ' ', Detection.bottom, ')'), 32734), Mask.shape),
@@ -867,7 +865,6 @@ def processCameraStaticDetections(self,cameragroup_id):
         for detection in detections:
             detection.status = 'masked'
 
-        # db.session.commit()
 
         # Unmask detections
         masked_detections = db.session.query(Detection)\
@@ -878,7 +875,7 @@ def processCameraStaticDetections(self,cameragroup_id):
                                 .filter(Mask.cameragroup_id==cameragroup_id)\
                                 .filter(or_(and_(Detection.source==model,Detection.score>Config.DETECTOR_THRESHOLDS[model]) for model in Config.DETECTOR_THRESHOLDS))\
                                 .filter(Detection.status=='masked')\
-                                .filter(Detection.static==False)\
+                                .filter(Detection.source!='user')\
                                 .filter(and_(
                                     func.ST_Intersects(func.ST_GeomFromText(func.concat('POINT(', Detection.left, ' ', Detection.top, ')'), 32734), Mask.shape),
                                     func.ST_Intersects(func.ST_GeomFromText(func.concat('POINT(', Detection.left, ' ', Detection.bottom, ')'), 32734), Mask.shape),
@@ -894,7 +891,6 @@ def processCameraStaticDetections(self,cameragroup_id):
                                 .filter(Camera.cameragroup_id==cameragroup_id)\
                                 .filter(or_(and_(Detection.source==model,Detection.score>Config.DETECTOR_THRESHOLDS[model]) for model in Config.DETECTOR_THRESHOLDS))\
                                 .filter(Detection.status=='masked')\
-                                .filter(Detection.static==False)\
                                 .filter(masked_detections.c.id==None)\
                                 .distinct().all()
 

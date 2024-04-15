@@ -7761,6 +7761,6 @@ function nextTimestamp(){
         document.getElementById('btnNextImage').click()
     }
     else if ((cameraIndex < images.length - 1) && imageIndex == images[cameraIndex].images.length - 1){
-        document.getElementById('btnNextCam').click()
+        document.getElementById('btnNextCamera').click()
     }
 }
