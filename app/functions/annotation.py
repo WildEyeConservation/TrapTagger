@@ -1363,8 +1363,9 @@ def genInitKeys(taggingLevel,task_id,addSkip,addRemoveFalseDetections,addMaskAre
         wrong_category = db.session.query(Label).get(GLOBALS.wrong_id)
         categories = db.session.query(Label).filter(Label.task_id==task_id).filter(Label.parent_id==int(taggingLevel)).all()
         categories.append(wrong_category)
-        if addMaskArea: mask_category = db.session.query(Label).get(GLOBALS.mask_area_id)
-        categories.append(mask_category)
+        if addMaskArea: 
+            mask_category = db.session.query(Label).get(GLOBALS.mask_area_id)
+            categories.append(mask_category)
         addSkip = True
 
     hotkeys = [Config.EMPTY_HOTKEY_ID] * Config.NUMBER_OF_HOTKEYS
@@ -1864,3 +1865,33 @@ def translate_cluster_for_client(clusterInfo,reqId,limit,isBounding,taggingLevel
 #         manageDownloads.apply_async(queue='priority', priority=0, countdown=countdown)
         
 #     return True
+
+@celery.task(bind=True,max_retries=5,ignore_result=True)
+def skipCameraImages(self,cameragroup_id):
+    '''Marks all images in a camera group as skipped that have no timestamps'''
+    try:
+        images = db.session.query(Image)\
+                    .join(Camera)\
+                    .join(Cameragroup)\
+                    .filter(Cameragroup.id==cameragroup_id)\
+                    .filter(Image.corrected_timestamp==None)\
+                    .filter(Image.skipped==False)\
+                    .distinct().all()
+        
+        for image in images:
+            image.skipped = True
+
+        db.session.commit()
+
+    except Exception as exc:
+        app.logger.info(' ')
+        app.logger.info('!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!')
+        app.logger.info(traceback.format_exc())
+        app.logger.info('!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!')
+        app.logger.info(' ')
+        self.retry(exc=exc, countdown= retryTime(self.request.retries))
+
+    finally:
+        db.session.remove()
+
+    return True

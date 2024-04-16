@@ -109,6 +109,9 @@ function getCameraIDs(mapID = 'map1'){
                 if (cameraIDs.length == 0) {
                     window.location.replace("surveys")
                 }
+                else if (cameraIDs.length == 1 && cameraIDs[0] == '-101') {
+                    finishTimestampCheck()
+                }
                 else{
                     for (let i=0;i<3;i++){
                         loadNewCluster()
@@ -320,6 +323,17 @@ function skipTimeUnit(){
 function skipCamera(mapID = 'map1'){
     /** Skips the current camera. */
 
+    cameragroup_id = clusters[mapID][clusterIndex[mapID]].id
+    var xhttp = new XMLHttpRequest();
+    xhttp.onreadystatechange =
+        function () {
+            if (this.readyState == 4 && this.status == 200) {
+                // console.log(this.responseText)
+            }
+        };
+    xhttp.open("GET", '/skipTimestampCamera/' + selectedSurvey + '/' + cameragroup_id);
+    xhttp.send();
+
     clusters[mapID][clusterIndex[mapID]].skipped = true
     nextCluster()
 }
@@ -475,6 +489,11 @@ secondsInput.addEventListener('input', function() {
 
 btnDone.addEventListener('click', () => {
     /** Wraps up the user's session when they click the done button. */
+    finishTimestampCheck()
+});
+
+function finishTimestampCheck(){
+    /** Wraps up the timestamp check. */
     var xhttp = new XMLHttpRequest();
     xhttp.onreadystatechange =
         function () {
@@ -484,8 +503,7 @@ btnDone.addEventListener('click', () => {
         };
     xhttp.open("GET", '/finishTimestampCheck/' + selectedSurvey);
     xhttp.send();
-});
-
+}
 
 window.addEventListener('load', onload, false);
 

@@ -7030,12 +7030,13 @@ def initKeys():
     # if task and ((current_user.parent in task.survey.user.workers) or (current_user.parent == task.survey.user) or (current_user == task.survey.user)):
     if task and (checkAnnotationPermission(current_user.parent_id,task.id) or checkSurveyPermission(current_user.id,task.survey_id,'write')):
 
+        addMaskArea = False
         if task.tagging_level == '-1':
             addRemoveFalseDetections = True
             addMaskArea = True
         else:
             addRemoveFalseDetections = False
-            if int(task.tagging_level) > 0 and not task.is_bounding:
+            if (',' not in task.tagging_level) and int(task.tagging_level) > 0 and not task.is_bounding:
                 addMaskArea = True
 
         addSkip = False
@@ -7924,7 +7925,7 @@ def generateCSV():
     else:
         queue='default'
 
-    app.logger.info('Calling generate_csv: {}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {}'.format(selectedTasks, level, columns, custom_columns, label_type, includes, excludes, start_date, end_date, column_translations,current_user.username))
+    app.logger.info('Calling generate_csv: {}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {}'.format(selectedTasks, level, columns, custom_columns, label_type, includes, excludes, start_date, end_date, column_translations,collapseVideo,current_user.username))
     generate_csv.apply_async(kwargs={'selectedTasks':selectedTasks, 'selectedLevel':level, 'requestedColumns':columns, 'custom_columns':custom_columns, 'label_type':label_type, 'includes':includes, 'excludes':excludes, 'startDate':start_date, 'endDate':end_date, 'column_translations': column_translations, 'collapseVideo':collapseVideo, 'user_name': current_user.username}, queue=queue)
 
     return json.dumps({'status':'success', 'message': None})
@@ -12514,6 +12515,9 @@ def getStaticGroupIDs(survey_id):
 
         staticgroup_ids = [s[0] for s in staticgroups.distinct().all()]
 
+        if len(staticgroup_ids) == 0 and not edit:
+            staticgroup_ids = ['-101']
+
     return json.dumps(staticgroup_ids)
 
 @app.route('/finishStaticDetectionCheck/<survey_id>')
@@ -12749,9 +12753,12 @@ def getTimestampCameraIDs(survey_id):
                                 and_(Image.extracted==True,Image.timestamp!=Image.corrected_timestamp)
                             ))
         else:
-            cameras = cameras.filter(Image.corrected_timestamp==None)
+            cameras = cameras.filter(Image.corrected_timestamp==None).filter(Image.skipped==False)
 
         camera_ids = [r[0] for r in cameras.distinct().all()]
+
+        if len(camera_ids) == 0 and 'preprocessing' in survey.status.lower():
+            camera_ids = ['-101']
 
     return json.dumps(camera_ids)
 
@@ -12789,7 +12796,7 @@ def getTimestampImages(survey_id, reqID):
                                 and_(Image.extracted==True,Image.timestamp!=Image.corrected_timestamp)
                             ))
         else:  
-            image_data = image_data.filter(Image.corrected_timestamp==None)
+            image_data = image_data.filter(Image.corrected_timestamp==None).filter(Image.skipped==False)
 
         if image_id:
             image_data = image_data.filter(Image.id==image_id)
@@ -12865,7 +12872,7 @@ def submitTimestamp():
         
         if Config.DEBUGGING: app.logger.info('Corrected Timestamp: {}'.format(corrected_timestamp))
         image.corrected_timestamp = corrected_timestamp
-        image.skipped = False
+        image.skipped = False if corrected_timestamp else True
 
         # Handle video frames
         if 'frame' in image.filename:
@@ -12884,7 +12891,7 @@ def submitTimestamp():
                 else:
                     for frame in frames:
                         frame.corrected_timestamp = None
-                        frame.skipped = False
+                        frame.skipped = True
 
         db.session.commit()
         status = 'success'
@@ -12931,4 +12938,15 @@ def skipPreprocessing(survey_id,step):
                     survey.status = 'Preprocessing,' + statusses[1] + ',Skipped'
 
             db.session.commit()
+    return json.dumps('success')
+
+@app.route('/skipTimestampCamera/<survey_id>/<cameragroup_id>')
+@login_required
+def skipTimestampCamera(survey_id,cameragroup_id):
+    '''Marks all images with no timestamps for the specified camera as skipped.'''
+    survey = db.session.query(Survey).get(survey_id)
+    if survey and checkSurveyPermission(current_user.id,survey.id,'write'):
+        if 'preprocessing' in survey.status.lower():
+            skipCameraImages.delay(cameragroup_id)
+
     return json.dumps('success')

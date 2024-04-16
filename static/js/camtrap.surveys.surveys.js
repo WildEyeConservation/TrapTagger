@@ -638,7 +638,7 @@ function buildSurveys(survey,disableSurvey) {
                 } else if (wrapProgress == 1) {
                     step = 'static'
                     confirmStep = 'Static Detection Check'
-                    warningMsg = '<i> Please note that skipping this step may result in missed animal detections that were wrongly marked as static. It may have an impact on the accuracy of your data. </i>'
+                    warningMsg = '<i> Please note that skipping this step may result in missed animal detections that were wrongly marked as static. It may have an impact on the accuracy of your data. It is strongly recommended to complete this step.</i>'
                 }
 
                 document.getElementById('modalConfirmHeader').innerHTML = 'Confirmation Required'

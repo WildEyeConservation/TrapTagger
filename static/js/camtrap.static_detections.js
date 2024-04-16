@@ -157,6 +157,9 @@ function getStaticGroupIDs(mapID = 'map1'){
                 if (staticgroupIDs.length == 0) {
                     window.location.replace("surveys")
                 }
+                else if (staticgroupIDs.length == 1 && staticgroupIDs[0] == '-101') {
+                    finishStaticDetectionCheck()
+                }
                 else{
                     for (let i=0;i<3;i++){
                         loadNewCluster()
@@ -172,6 +175,11 @@ window.addEventListener('load', onload, false);
 
 btnDone.addEventListener('click', () => {
     /** Wraps up the user's session when they click the done button. */
+    finishStaticDetectionCheck()
+});
+
+function finishStaticDetectionCheck() {
+    /** Wraps up tha static detection check. */
     var xhttp = new XMLHttpRequest();
     xhttp.onreadystatechange =
         function () {
@@ -181,5 +189,4 @@ btnDone.addEventListener('click', () => {
         };
     xhttp.open("GET", '/finishStaticDetectionCheck/' + selectedSurvey);
     xhttp.send();
-
-});
+}
