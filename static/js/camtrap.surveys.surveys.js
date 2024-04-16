@@ -214,8 +214,8 @@ var barColours = {
 
 var btnOpacity = 0.2
 
-var disabledSurveyStatuses = ['re-clustering','extracting labels','correcting timestamps','reclustering','removing duplicate images','importing coordinates','processing','deleting','launched','importing','removing humans','removing static detections','clustering','import queued','cancelled','prepping task','classifying','calculating scores']
-var diabledTaskStatuses = ['wrapping up','prepping','deleting','importing','processing','pending','started','initialising','stopping']
+var disabledSurveyStatuses = ['re-clustering','extracting labels','correcting timestamps','reclustering','removing duplicate images','importing coordinates','processing','deleting','launched','importing','removing humans','removing static detections','clustering','import queued','cancelled','prepping task','classifying','calculating scores','copying']
+var diabledTaskStatuses = ['wrapping up','prepping','deleting','importing','processing','pending','started','initialising','stopping','copying']
 const launchMTurkTaskBtn = document.querySelector('#launchMTurkTaskBtn');
 const btnCreateTask = document.querySelector('#btnCreateTask');
 
@@ -3416,6 +3416,8 @@ function addImagesSendRequest(formData) {
             if (reply.status=='success') {
 
                 if ((document.getElementById('addImagesAddImages').checked)&&(document.getElementById('BrowserAdd').checked)) {
+                    uploadID = reply.survey_id
+                    surveyName = reply.survey_name
                     uploading = true
                     updatePage(current_page)
                     // uploadFiles(true)

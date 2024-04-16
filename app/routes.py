@@ -25,6 +25,7 @@ from app.functions.individualID import *
 from app.functions.annotation import *
 from app.functions.imports import *
 from app.functions.permissions import *
+from app.functions.utilities import *
 import GLOBALS
 import json
 from flask import render_template, redirect, url_for, flash, request, send_from_directory, send_file
@@ -518,7 +519,7 @@ def getAllIndividuals():
             reply.append({
                             'id': individual.id,
                             'name': individual.name,
-                            'url': (image.camera.path + '/' + image.filename).replace('+','%2B')
+                            'url': (image.camera.path + '/' + image.filename).replace('+','%2B').replace('?','%3F').replace('#','%23')
                         })
 
     next = individuals.next_num if individuals.has_next else None
@@ -586,7 +587,7 @@ def getIndividuals(task_id,species):
             reply.append({
                             'id': individual.id,
                             'name': individual.name,
-                            'url': (image.camera.path + '/' + image.filename).replace('+','%2B')
+                            'url': (image.camera.path + '/' + image.filename).replace('+','%2B').replace('?','%3F').replace('#','%23')
                         })
 
         next = individuals.next_num if individuals.has_next else None
@@ -729,11 +730,11 @@ def getIndividual(individual_id):
 
             video_url = None
             if image.camera.videos:
-                video_url = (image.camera.path.split('_video_images_')[0] + image.camera.videos[0].filename).replace('+','%2B')
+                video_url = (image.camera.path.split('_video_images_')[0] + image.camera.videos[0].filename).replace('+','%2B').replace('?','%3F').replace('#','%23')
 
             reply.append({
                             'id': image.id,
-                            'url': (image.camera.path + '/' + image.filename).replace('+','%2B'),
+                            'url': (image.camera.path + '/' + image.filename).replace('+','%2B').replace('?','%3F').replace('#','%23'),
                             'video_url': video_url,
                             'timestamp': stringify_timestamp(image.corrected_timestamp), 
                             'trapgroup': 
@@ -1174,7 +1175,7 @@ def updateSurveyStatus(survey_id, status):
                     db.session.commit()
                     GLOBALS.redisClient.delete('upload_ping_'+str(survey_id))
                     GLOBALS.redisClient.delete('upload_user_'+str(survey_id))
-                    import_survey.delay(s3Folder=survey.name,surveyName=survey.name,tag=survey.trapgroup_code,organisation_id=survey.organisation_id,correctTimestamps=survey.correct_timestamps,classifier=survey.classifier.name)
+                    import_survey.delay(s3Folder=survey.name,surveyName=survey.name,tag=survey.trapgroup_code,organisation_id=survey.organisation_id,correctTimestamps=survey.correct_timestamps,classifier=survey.classifier.name,description=survey.description)
                 else:
                     return json.dumps('error')
             else:
@@ -1328,7 +1329,7 @@ def imageViewer():
             return render_template("html/block.html",text="You do not have permission to view this item.", helpFile='block', version=Config.VERSION)
 
         images = [{'id': image.id,
-                'url': (image.camera.path + '/' + image.filename).replace('+','%2B'),
+                'url': (image.camera.path + '/' + image.filename).replace('+','%2B').replace('?','%3F').replace('#','%23'),
                 'detections': [{'id': detection.id,
                                         'top': detection.top,
                                         'bottom': detection.bottom,
@@ -1479,7 +1480,7 @@ def createNewSurvey():
                 # Checkout the upload
                 checkUploadUser(current_user.id,newSurvey_id)
             else:
-                import_survey.delay(s3Folder=newSurveyS3Folder,surveyName=surveyName,tag=newSurveyTGCode,organisation_id=organisation_id,correctTimestamps=correctTimestamps,classifier=classifier,user_id=current_user.id,permission=permission,annotation=annotation,detailed_access=detailed_access)
+                import_survey.delay(s3Folder=newSurveyS3Folder,surveyName=surveyName,tag=newSurveyTGCode,organisation_id=organisation_id,correctTimestamps=correctTimestamps,classifier=classifier,description=newSurveyDescription,user_id=current_user.id,permission=permission,annotation=annotation,detailed_access=detailed_access)
     
         return json.dumps({'status': status, 'message': message, 'newSurvey_id': newSurvey_id, 'surveyName':surveyName})
     else:
@@ -1827,6 +1828,8 @@ def editSurvey():
     
     status = 'success'
     message = ''
+    upload_survey_id = None
+    upload_survey_name = None
     survey_id = request.form['survey_id']
     ignore_small_detections = request.form['ignore_small_detections']
     sky_masked = request.form['sky_masked']
@@ -1898,10 +1901,12 @@ def editSurvey():
                     db.session.commit()
                     
                     if newSurveyS3Folder!='none':
-                        import_survey.delay(s3Folder=newSurveyS3Folder,surveyName=survey.name,tag=newSurveyTGCode,organisation_id=survey.organisation_id,correctTimestamps=survey.correct_timestamps,classifier=None)
+                        import_survey.delay(s3Folder=newSurveyS3Folder,surveyName=survey.name,tag=newSurveyTGCode,organisation_id=survey.organisation_id,correctTimestamps=survey.correct_timestamps,classifier=None,description=survey.description)
                     else:
                         survey.status = 'Uploading'
                         db.session.commit()
+                        upload_survey_id = survey.id
+                        upload_survey_name = survey.name
             
             else:
                 status = 'error'
@@ -1911,7 +1916,7 @@ def editSurvey():
         status = 'error'
         message = 'You do not have permission to edit this survey.'
 
-    return json.dumps({'status': status, 'message': message})
+    return json.dumps({'status': status, 'message': message, 'survey_id': upload_survey_id, 'survey_name': upload_survey_name})
 
 @app.route('/TTWorkerSignup', methods=['GET', 'POST'])
 def TTWorkerSignup():
@@ -1964,7 +1969,7 @@ def newWorkerAccount(token):
         email = info['email']
 
         if username.lower() not in Config.DISALLOWED_USERNAMES:
-            check = db.session.query(User).filter(or_(User.username==username,User.email==email)).first()
+            check = db.session.query(User).filter(or_(User.username==username,and_(User.email==email,~User.root_organisation.has()))).first()
             folder = username.lower().replace(' ','-').replace('_','-')
             org_check = db.session.query(Organisation).filter(or_(func.lower(Organisation.name)==username.lower(), Organisation.folder==folder)).first()
             disallowed_chars = '"[@!#$%^&*()<>?/\|}{~:]' + "'"
@@ -1972,7 +1977,7 @@ def newWorkerAccount(token):
             
             if check==None and org_check==None and not disallowed and len(username)<=64:
                 password = info['password']
-                user = User(username=username, email=email, admin=False)
+                user = User(username=username, email=email, admin=False, cloud_access=False)
                 user.set_password(password)
                 db.session.add(user)
                 turkcode = Turkcode(code=username, active=False, tagging_time=0)
@@ -2850,7 +2855,7 @@ def createAccount(token):
         check2 = db.session.query(User).filter(func.lower(User.username)==info['organisation']).first()
 
         if (check == None) and (check2 == None) and (len(folder) <= 64):
-            newUser = User(username=info['organisation'], email=info['email'], admin=True, passed='pending')
+            newUser = User(username=info['organisation'], email=info['email'], admin=True, passed='pending', cloud_access=False)
             newTurkcode = Turkcode(code=info['organisation'], active=False, tagging_time=0)
             newOrganisation = Organisation(name=info['organisation'], folder=folder, previous_image_count=0, image_count=0, previous_video_count=0, video_count=0, previous_frame_count=0, frame_count=0)
             newUserPermission = UserPermissions(default='admin', annotation=True, create=True, delete=True) 
@@ -4531,7 +4536,7 @@ def load_login(user_id):
             username = 'load_tester_'+str(GLOBALS.load_testers)
             user = db.session.query(User).filter(User.username==username).first()
             if user == None:
-                user = User(username=username, admin=False)
+                user = User(username=username, admin=False, cloud_access=False)
                 user.set_password(randomString())
                 db.session.add(user)
                 turkcode = Turkcode(code=username, active=False, tagging_time=0)
@@ -4684,7 +4689,7 @@ def undoPreviousSuggestion(individual_1,individual_2):
             images = []
             for image in sortedImages:
                 output = {'id': image.id,
-                        'url': (image.camera.path + '/' + image.filename).replace('+','%2B'),
+                        'url': (image.camera.path + '/' + image.filename).replace('+','%2B').replace('?','%3F').replace('#','%23'),
                         'timestamp': numify_timestamp(image.corrected_timestamp),
                         'camera': image.camera_id,
                         'rating': image.detection_rating,
@@ -5183,7 +5188,7 @@ def getSuggestion(individual_id):
             sortedImages = db.session.query(Image).join(Detection).filter(Detection.individuals.contains(individual)).all()
 
             images = [{'id': image.id,
-                    'url': (image.camera.path + '/' + image.filename).replace('+','%2B'),
+                    'url': (image.camera.path + '/' + image.filename).replace('+','%2B').replace('?','%3F').replace('#','%23'),
                     'timestamp': numify_timestamp(image.corrected_timestamp),
                     'camera': image.camera_id,
                     'rating': image.detection_rating,
@@ -5715,7 +5720,7 @@ def getImage():
     # if image and (current_user == image.camera.trapgroup.survey.user):
     if image and checkSurveyPermission(current_user.id,image.camera.trapgroup.survey_id,'read'):
         images = [{'id': image.id,
-                'url': (image.camera.path + '/' + image.filename).replace('+','%2B'),
+                'url': (image.camera.path + '/' + image.filename).replace('+','%2B').replace('?','%3F').replace('#','%23'),
                 'rating': image.detection_rating,
                 'detections': [{'top': detection.top,
                                 'bottom': detection.bottom,
@@ -5890,7 +5895,7 @@ def getKnockCluster(task_id, knockedstatus, clusterID, index, imageIndex, T_inde
 
         if sortedImages != None:
             images = [{'id': image.id,
-                    'url': (image.camera.path + '/' + image.filename).replace('+','%2B'),
+                    'url': (image.camera.path + '/' + image.filename).replace('+','%2B').replace('?','%3F').replace('#','%23'),
                     'rating': image.detection_rating,
                     'detections': [{'top': detection.top,
                                     'bottom': detection.bottom,
@@ -6077,7 +6082,7 @@ def getClustersBySpecies(task_id, species, tag_id, trapgroup_id, annotator_id):
             while parent_labels != []:
                 temp_labels = []
                 for label in parent_labels:
-                    children_labels = db.session.query(Label).filter(Label.parent_id == label.id).all()
+                    children_labels = db.session.query(Label).filter(Label.parent_id == label.id).filter(Label.task==task).all()
                     if children_labels != []:
                         temp_labels.extend(children_labels)
                         for lab in children_labels:
@@ -7831,7 +7836,8 @@ def generateCSV():
     except:
         pass
 
-    if task.survey.image_count>250000:
+    det_count = rDets(db.session.query(Detection).join(Image).join(Camera).join(Trapgroup).filter(Trapgroup.survey_id==task.survey_id)).distinct().count()
+    if det_count>300000:
         queue='ram_intensive'
     else:
         queue='default'
@@ -7936,7 +7942,7 @@ def checkDownload(fileType,selectedTask):
     try:
         check = GLOBALS.s3client.head_object(Bucket=Config.BUCKET,Key=fileName)
         # deleteFile.apply_async(kwargs={'fileName': fileName}, countdown=3600)
-        return json.dumps('https://'+Config.BUCKET+'.s3.amazonaws.com/'+fileName.replace('+','%2B'))
+        return json.dumps('https://'+Config.BUCKET+'.s3.amazonaws.com/'+fileName.replace('+','%2B').replace('?','%3F').replace('#','%23'))
     except:
         # file does not exist
         return json.dumps('not ready yet')
@@ -8165,6 +8171,8 @@ def getHelp():
 @login_required
 def checkNotifications():
     '''Checks if there are any new global notifications for the user.'''
+
+    allow_global = request.args.get('allow_global', 'true', type=str)
     
     total_unseen = 0
     global_notification = None
@@ -8176,7 +8184,6 @@ def checkNotifications():
                     .filter(or_(Notification.expires==None,Notification.expires>datetime.utcnow()))\
                     .order_by(desc(Notification.id))\
                     .all()
-
 
         for notification in notifications:
             seen_notif = False
@@ -8195,7 +8202,7 @@ def checkNotifications():
             if seen_notif == False:
                 total_unseen += 1
 
-        if global_notification:
+        if global_notification and (allow_global=='true'):
             global_notification.users_seen.append(current_user)
             db.session.commit()
 
@@ -8637,7 +8644,7 @@ def get_image_info():
         include_frames = request.json['include_frames']
         fileName = request.json['fileName']
 
-        if include_video and any(ext in fileName.lower() for ext in ['mp4','avi']):
+        if include_video and any(ext in fileName.lower() for ext in ['mp4','avi','mov']):
             video = db.session.query(Video)\
                             .join(Camera)\
                             .join(Trapgroup)\
@@ -8867,7 +8874,7 @@ def get_required_files():
                 file_ids.append(video.id)
                 pathSplit  = video.camera.path.split('/',1)
                 path = pathSplit[0] + '-comp/' + pathSplit[1].split('_video_images_')[0] + video.filename.split('.')[0] + '.mp4'
-                reply.append({'url':'https://'+Config.BUCKET+'.s3.amazonaws.com/'+ path.replace('+','%2B'),'paths':videoPaths,'labels':videoLabels})
+                reply.append({'url':'https://'+Config.BUCKET+'.s3.amazonaws.com/'+ path.replace('+','%2B').replace('?','%3F').replace('#','%23'),'paths':videoPaths,'labels':videoLabels})
             db.session.commit()
 
         else:
@@ -8875,7 +8882,7 @@ def get_required_files():
                 imagePaths, imageLabels, imageTags = get_image_paths_and_labels(image,task,individual_sorted,species_sorted,flat_structure,labels,include_empties)
                 imageLabels.extend(imageTags)
                 file_ids.append(image.id)
-                reply.append({'url':'https://'+Config.BUCKET+'.s3.amazonaws.com/'+(image.camera.path+'/'+image.filename).replace('+','%2B'),'paths':imagePaths,'labels':imageLabels})
+                reply.append({'url':'https://'+Config.BUCKET+'.s3.amazonaws.com/'+(image.camera.path+'/'+image.filename).replace('+','%2B').replace('?','%3F').replace('#','%23'),'paths':imagePaths,'labels':imageLabels})
             db.session.commit()
 
     return json.dumps({'ids':file_ids,'requiredFiles':reply})
@@ -9326,7 +9333,7 @@ def getIndividualAssociations(individual_id, order):
                     'name': association[1],
                     'cluster_count': association[2],
                     'image_count': association[3],	
-                    'url': (image.camera.path + '/' + image.filename).replace('+','%2B')
+                    'url': (image.camera.path + '/' + image.filename).replace('+','%2B').replace('?','%3F').replace('#','%23')
                 }
             )
 
@@ -10385,7 +10392,7 @@ def getCovariateCSV():
                     covs.to_csv(temp_file.name, index=False)
                     fileName = folder +'/docs/' + current_user.username + '_Occupancy_Covariates.csv'
                     GLOBALS.s3client.put_object(Bucket=Config.BUCKET,Key=fileName,Body=temp_file)
-                    cov_url = "https://"+ Config.BUCKET + ".s3.amazonaws.com/" + fileName.replace('+','%2B')
+                    cov_url = "https://"+ Config.BUCKET + ".s3.amazonaws.com/" + fileName.replace('+','%2B').replace('?','%3F').replace('#','%23')
 
                     # Schedule deletion
                     deleteFile.apply_async(kwargs={'fileName': fileName}, countdown=3600)
@@ -11694,7 +11701,7 @@ def populateSpeciesSelector():
     task = current_user.turkcode[0].task
     if task and checkSurveyPermission(current_user.id,task.survey_id,'read'):
         labels = db.session.query(Label.id, Label.description).filter(Label.task_id==task.id).distinct().all()
-        global_labels = db.session.query(Label.id, Label.description).filter(Label.task_id == None).filter(Label.description != 'Wrong').filter(Label.description != 'Skip').all()
+        global_labels = db.session.query(Label.id, Label.description).filter(Label.task_id == None).filter(Label.description != 'Wrong').filter(Label.description != 'Skip').filter(Label.description != 'Remove False Detections').all()
         labels.extend(global_labels)
         labels.insert(0, (0, 'All'))
 

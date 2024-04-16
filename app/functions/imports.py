@@ -126,7 +126,7 @@ def importCSV(self,survey_id,task_id,filePath,user_id):
             df = pd.read_csv(temp_file.name)
 
         if df:
-            isVideo = re.compile('(\.avi$)|(\.mp4$)', re.I)
+            isVideo = re.compile('(\.avi$)|(\.mp4$)|(\.mov$)', re.I)
             df.drop_duplicates(subset=['filepath'], keep=True, inplace=True)
             df['image_id'] = df.apply(lambda x: findImID(survey_id,x.filename,isVideo), axis=1)
             df = df[df['image_id'].notna()]
@@ -2067,7 +2067,7 @@ def remove_duplicate_images(survey_id):
     
     return True
 
-def import_folder(s3Folder, tag, name, sourceBucket,destinationBucket,organisation_id,pipeline,min_area,exclusions,processes=4,label_source=None,user_id=None,permission=None,annotation=None,detailed_access=None):
+def import_folder(s3Folder, tag, name, sourceBucket,destinationBucket,organisation_id,pipeline,min_area,exclusions,description,processes=4,label_source=None,user_id=None,permission=None,annotation=None,detailed_access=None):
     '''
     Import all images from an AWS S3 folder. Handles re-import of a folder cleanly.
 
@@ -2081,15 +2081,17 @@ def import_folder(s3Folder, tag, name, sourceBucket,destinationBucket,organisati
             pipeline (bool): Whether import is to pipeline training data (only crops will be saved)
             min_area (float): The minimum area detection to crop if pipelining
             exclusions (list): A list of folders to exclude
+            description (str): The description of the survey
             processes (int): Optional number of threads used for the import
             label_source (str): Exif field where labels should be extracted from
     '''
     
-    isVideo = re.compile('(\.avi$)|(\.mp4$)', re.I)
+    isVideo = re.compile('(\.avi$)|(\.mp4$)|(\.mov$)', re.I)
     isjpeg = re.compile('(\.jpe?g$)|(_jpe?g$)', re.I)
     
     localsession=db.session()
     survey = Survey.get_or_create(localsession,name=name,organisation_id=organisation_id,trapgroup_code=tag)
+    survey.description = description
     survey.status = 'Importing'
     survey.images_processing = 0
     survey.processing_initialised = True
@@ -3278,7 +3280,7 @@ def correct_timestamps(survey_id,setup_time=31):
 
 
 @celery.task(bind=True,max_retries=5,ignore_result=True)
-def import_survey(self,s3Folder,surveyName,tag,organisation_id,correctTimestamps,classifier,user_id=None,permission=None,annotation=None,detailed_access=None):
+def import_survey(self,s3Folder,surveyName,tag,organisation_id,correctTimestamps,classifier,description,user_id=None,permission=None,annotation=None,detailed_access=None):
     '''
     Celery task for the importing of surveys. Includes all necessary processes such as animal detection, species classification etc. Handles added images cleanly.
 
@@ -3289,6 +3291,7 @@ def import_survey(self,s3Folder,surveyName,tag,organisation_id,correctTimestamps
             organisation_id (int): The organisation to which the survey will belong
             correctTimestamps (bool): Whether or not the system should attempt to correct the relative timestamps of the cameras in each trapgroup
             classifier (str): The name of the classifier model to use
+            description (str): The survey description
     '''
     
     try:
@@ -3301,7 +3304,7 @@ def import_survey(self,s3Folder,surveyName,tag,organisation_id,correctTimestamps
             addingImages = False
 
         organisation = db.session.query(Organisation).get(organisation_id)
-        import_folder(organisation.folder+'/'+s3Folder, tag, surveyName,Config.BUCKET,Config.BUCKET,organisation_id,False,None,[],processes,None,user_id,permission,annotation,detailed_access)
+        import_folder(organisation.folder+'/'+s3Folder, tag, surveyName,Config.BUCKET,Config.BUCKET,organisation_id,False,None,[],description,processes,None,user_id,permission,annotation,detailed_access)
         
         survey = db.session.query(Survey).filter(Survey.name==surveyName).filter(Survey.organisation_id==organisation_id).first()
         survey_id = survey.id
@@ -3574,7 +3577,7 @@ def pipeline_survey(self,surveyName,bucketName,dataSource,fileAttached,trapgroup
 
         else:
             #import from S3 folder
-            import_folder(dataSource,trapgroupCode,surveyName,sourceBucket,bucketName,organisation_id,True,min_area,exclusions,4,label_source)
+            import_folder(dataSource,trapgroupCode,surveyName,sourceBucket,bucketName,organisation_id,True,min_area,exclusions,'',4,label_source)
 
         # if labels extracted from metadata, there are already labelled clusters
         if not label_source:

@@ -2559,7 +2559,7 @@ def rDets(sq):
 def generate_raw_image_hash(filename):
     '''Generates a hash of an image with no EXIF data in a format compatable with the front end or generates a hash of a video.'''
     
-    if filename.endswith('.AVI') or filename.endswith('.MP4') or filename.endswith('.avi') or filename.endswith('.mp4'):
+    if filename.endswith('.AVI') or filename.endswith('.MP4') or filename.endswith('.avi') or filename.endswith('.mp4') or filename.endswith('.mov') or filename.endswith('.MOV'):
         hash = hashlib.md5(open(filename, "rb").read()).hexdigest()
     else:
         output=io.BytesIO()
