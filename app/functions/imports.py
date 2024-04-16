@@ -4304,6 +4304,20 @@ def processCameras(survey_id, survey_name, trapgroup_code, camera_code, queue='p
             result.forget()
     GLOBALS.lock.release()
 
+    # Find empty cameragroups
+    empty_cameragroups = db.session.query(Cameragroup).filter(~Cameragroup.cameras.any()).all()
+    for empty_cameragroup in empty_cameragroups:
+        empty_cameragroup.masks = []
+        db.session.delete(empty_cameragroup)
+
+    # Find masks without a cameragroup
+    masks = db.session.query(Mask).filter(Mask.cameragroup_id==None).all()
+    for mask in masks:
+        db.session.delete(mask)
+
+    db.session.commit()
+    db.session.remove()
+
     return True
 
 @celery.task(bind=True,max_retries=5)
@@ -4363,17 +4377,6 @@ def group_cameras(self,trapgroup_id,camera_code,survey_name,trapgroup_code):
                     else:
                         camera_group = Cameragroup(name=camera_name,cameras=[camera],masks=[])
                         db.session.add(camera_group)
-
-        # Find empty cameragroups
-        empty_cameragroups = db.session.query(Cameragroup).filter(~Cameragroup.cameras.any()).all()
-        for empty_cameragroup in empty_cameragroups:
-            empty_cameragroup.masks = []
-            db.session.delete(empty_cameragroup)
-
-        # Find masks without a cameragroup
-        masks = db.session.query(Mask).filter(Mask.cameragroup_id==None).all()
-        for mask in masks:
-            db.session.delete(mask)
 
         db.session.commit()
 
