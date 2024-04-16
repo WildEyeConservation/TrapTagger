@@ -1820,6 +1820,8 @@ def editSurvey():
     
     status = 'success'
     message = ''
+    upload_survey_id = None
+    upload_survey_name = None
     survey_id = request.form['survey_id']
     ignore_small_detections = request.form['ignore_small_detections']
     sky_masked = request.form['sky_masked']
@@ -1895,6 +1897,8 @@ def editSurvey():
                     else:
                         survey.status = 'Uploading'
                         db.session.commit()
+                        upload_survey_id = survey.id
+                        upload_survey_name = survey.name
             
             else:
                 status = 'error'
@@ -1904,7 +1908,7 @@ def editSurvey():
         status = 'error'
         message = 'You do not have permission to edit this survey.'
 
-    return json.dumps({'status': status, 'message': message})
+    return json.dumps({'status': status, 'message': message, 'survey_id': upload_survey_id, 'survey_name': upload_survey_name})
 
 @app.route('/TTWorkerSignup', methods=['GET', 'POST'])
 def TTWorkerSignup():
