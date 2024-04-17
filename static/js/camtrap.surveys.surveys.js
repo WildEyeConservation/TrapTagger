@@ -3409,6 +3409,8 @@ function addImagesSendRequest(formData) {
             if (reply.status=='success') {
 
                 if ((document.getElementById('addImagesAddImages').checked)&&(document.getElementById('BrowserAdd').checked)) {
+                    uploadID = reply.survey_id
+                    surveyName = reply.survey_name
                     uploading = true
                     updatePage(current_page)
                     // uploadFiles(true)
