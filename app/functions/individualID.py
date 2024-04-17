@@ -1041,11 +1041,12 @@ def getProgress(individual_id,task_id):
 
     return (completed, total)
 
- #TODO (sim): Double check this 
 @celery.task(bind=True,max_retries=5,ignore_result=True)
-def check_individual_detection_mismatch(self,task_id,celeryTask=True):
+def check_individual_detection_mismatch(self,task_id,cluster_id=None,celeryTask=True):
     ''' Checks for any detections whose labels differ from the their individuals' species'''
     try:
+        task = db.session.query(Task).get(task_id)
+        
         # Get all detections whose labels differ from their individuals' species and remove them from the individuals
         data = rDets(db.session.query(Detection.id, Label.description, Individual.id, Individual.species)\
                                 .join(Individual,Detection.individuals)\
@@ -1053,8 +1054,13 @@ def check_individual_detection_mismatch(self,task_id,celeryTask=True):
                                 .join(Label, Labelgroup.labels)\
                                 .filter(Labelgroup.task_id==task_id)\
                                 .filter(Individual.species!=Label.description)\
-                                .filter(Individual.tasks.any(Task.id==task_id))\
-                                ).distinct().all()
+                                .filter(Individual.tasks.contains(task))\
+                                )
+
+        if cluster_id:
+            data = data.join(Image).join(Cluster,Image.clusters).filter(Cluster.id==cluster_id)
+
+        data = data.distinct().all()
 
         individuals_data = {}
         for d in data:
@@ -1072,7 +1078,7 @@ def check_individual_detection_mismatch(self,task_id,celeryTask=True):
         individuals = db.session.query(Individual)\
                                 .outerjoin(Detection, Individual.detections)\
                                 .filter(Detection.id==None)\
-                                .filter(Individual.tasks.any(Task.id==task_id))\
+                                .filter(Individual.tasks.contains(task))\
                                 .filter(Individual.name!='unidentifiable')\
                                 .all()
 

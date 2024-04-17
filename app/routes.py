@@ -6973,11 +6973,10 @@ def assignLabel(clusterID):
                             session.close()
 
                     else:
-                        #TODO (sim): Double check this 
                         if explore:
-                            individual_check = session.query(Individual.id).join(Detection, Individual.detections).join(Image).join(Cluster, Image.clusters).filter(Cluster.id==cluster.id).filter(Individual.tasks.any(Task.id==task_id)).first()
+                            individual_check = session.query(Individual.id).join(Detection, Individual.detections).join(Image).join(Cluster, Image.clusters).filter(Cluster.id==cluster.id).filter(Individual.tasks.contains(task)).first()
                             if individual_check:
-                                check_individual_detection_mismatch.apply_async(kwargs={'task_id':task_id})
+                                check_individual_detection_mismatch.apply_async(kwargs={'task_id':task_id,'cluster_id':cluster.id})
 
                         session.commit()
                         session.close()

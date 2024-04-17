@@ -1629,7 +1629,7 @@ function assignLabel(label,mapID = 'map1'){
             getKeys()
             initMaskMode(mapID)
         } else if (isReviewing && !modalNothingKnock.is(':visible') && hasIndividuals) {
-            document.getElementById('modalNothingKnockText').innerHTML = 'This cluster contains detections that are linked to specific individuals. If you choose to label this cluster as a different species, all associated detections will be removed from their respective individuals. Please note that this action is irreversible and cannot be undone. <br><br><i>If you wish to continue, press the label hotkey again.</i><br><br><i>Otherwise, press "Esc" or label the cluster as anything else.</i>'
+            document.getElementById('modalNothingKnockText').innerHTML = 'This cluster contains detections that are linked to specific individuals. If you choose to label this cluster as a different species, all associated detections will be removed from their respective individuals. Please note that this action is irreversible and cannot be undone. <br><br><i>If you wish to continue, press the label hotkey again.</i><br><br><i>Otherwise, press "Esc".</i>'
             modalNothingKnock.modal({keyboard: true}) 
         } else if ((finishedDisplaying[mapID] == true) && (!modalActive) && (modalActive2 == false) && (clusters[mapID][clusterIndex[mapID]].id != '-99') && (clusters[mapID][clusterIndex[mapID]].id != '-101') && (clusters[mapID][clusterIndex[mapID]].id != '-782')) {
     

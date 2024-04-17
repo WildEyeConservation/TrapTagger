@@ -132,7 +132,6 @@ def launch_task(self,task_id):
                     #     calculate_individual_similarities(task.id,species)
                     #     task = db.session.query(Task).get(task_id)
 
-                    #TODO (sim): Double check this 
                     individuals = db.session.query(Individual)\
                                     .join(Task,Individual.tasks)\
                                     .filter(Individual.species==species)\
