@@ -30,7 +30,7 @@ def upgrade():
     )
 
     op.create_index(op.f('ix_mask_cameragroup_id'), 'mask', ['cameragroup_id'], unique=False)
-    op.create_index(op.f('ix_mask_shape'), 'mask', ['shape'], unique=False)
+    # op.create_index(op.f('ix_mask_shape'), 'mask', ['shape'], unique=False)
     op.create_index(op.f('ix_mask_user_id'), 'mask', ['user_id'], unique=False)
 
     # ### end Alembic commands ###
