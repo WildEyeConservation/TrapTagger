@@ -3015,6 +3015,7 @@ def updateEarthRanger(task_id):
 
             clusters = rDets(db.session.query(
                             Cluster.id.label('cluster_id'),
+                            Cluster.notes.label('notes'),
                             Image.corrected_timestamp.label('timestamp'),
                             Trapgroup.tag.label('trapgroup_tag'),
                             Trapgroup.latitude.label('trapgroup_lat'),
@@ -3128,6 +3129,8 @@ def create_new_er_report(row,er_api_key,er_url):
             "group_size": row['count']
         }
     }
+
+    if row['notes']: payload['event_details']['notes'] = row['notes']
 
     # Set headers
     er_header_json = {
