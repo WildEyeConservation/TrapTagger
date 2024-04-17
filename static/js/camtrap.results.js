@@ -242,6 +242,7 @@ function generateResults(){
     var analysisType = document.getElementById('analysisSelector').value
     var resultsDiv = document.getElementById('resultsDiv')
     var resultsTab = document.getElementById('resultsTab')
+    resultsTab.hidden = true
 
     while(resultsDiv.firstChild){
         resultsDiv.removeChild(resultsDiv.firstChild)
@@ -291,7 +292,7 @@ function generateResults(){
         document.getElementById('btnDownloadResultsCSV').hidden = true
         document.getElementById('covariatesDiv').hidden = true
         document.getElementById('observationWindowDiv').hidden = true
-        document.getElementById('cameraTrapDiv').hidden = true
+        document.getElementById('cameraTrapDiv').hidden = false
         document.getElementById('dataUnitDiv').hidden = false
         document.getElementById('indivCharacteristicsDiv').hidden = true 
         document.getElementById('dateDivTA').hidden = true
@@ -3996,6 +3997,7 @@ function clearAnalysis(){
     while(resultsTab.firstChild){
         resultsTab.removeChild(resultsTab.firstChild);
     }
+    resultsTab.hidden = true
 
     clearChartColours()
     timeLabels = []
@@ -4360,8 +4362,8 @@ function getSummary(check){
         var start_date = document.getElementById('startDate').value
         var end_date = document.getElementById('endDate').value
         if (document.getElementById('cameraSelector')){
-            // var trap_unit = document.getElementById('cameraSelector').value
-            var trap_unit = '0'
+            var trap_unit = document.getElementById('cameraSelector').value
+            // var trap_unit = '0'
         }
         else{
             var trap_unit = '0'
@@ -4491,6 +4493,7 @@ function buildSummary(summary){
     /** Builds the summary div */
     var resultsDiv = document.getElementById('resultsDiv')
     var resultsTab = document.getElementById('resultsTab')
+    resultsTab.hidden = false
 
     // Create the tab buttons and tabs for summary results
     // Data summary tab
@@ -6290,6 +6293,7 @@ function buildOccupancyTabs(results){
     // Builds the occupancy tabs 
     var resultsDiv = document.getElementById('resultsDiv')
     var resultsTab = document.getElementById('resultsTab')
+    resultsTab.hidden = false
 
     var btnSummaryOccuTab = document.createElement('button')
     btnSummaryOccuTab.classList.add('tablinks')
@@ -8130,6 +8134,7 @@ function buildSCRtabs(results){
     /**Function for building the tabs for the SCR results.*/
     var resultsDiv = document.getElementById('resultsDiv')
     var resultsTab = document.getElementById('resultsTab')
+    resultsTab.hidden = false
 
     // CR Summary
     var btnSummaryCRtab = document.createElement('button')

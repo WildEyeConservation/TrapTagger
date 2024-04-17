@@ -13,6 +13,7 @@
 // limitations under the License.
 
 var selectedTask = 0
+var selectedSurvey = 0
 var isTagging
 var hotkeys = []
 var skipLabel = -900
@@ -22,6 +23,7 @@ var unknownLabel = -900
 var downLabel = -900
 var wrongLabel = -900
 var unKnockLabel = -123
+var maskLabel = -900
 var xl
 var isReviewing
 var isComparison
@@ -42,10 +44,12 @@ var waitModalID = 0
 var timerWaitModal
 var batchComplete = false
 var knockedTG = null
+var maskedTG = null
 var knockWait = false
 var EMPTY_HOTKEY_ID = '-967'
 var NEXT_CLUSTER_ID = '-729'
 var rectOptions
+var maskRectOptions
 var targetRect = null
 var targetUpdated = null
 var isTutorial = window.location.href.includes("tutorial");
@@ -70,6 +74,9 @@ var orginal_labels
 var orginal_label_ids
 var skipName = null
 var idIndiv101 = false
+var isMaskCheck = false
+var isTimestampCheck
+
 const divBtns = document.querySelector('#divBtns');
 const catcounts = document.querySelector('#categorycounts');
 const mapdiv2 = document.querySelector('#mapdiv2');
@@ -93,6 +100,7 @@ const nextImageBtn = document.querySelector('#nextImage');
 const prevImageBtn = document.querySelector('#prevImage');
 const clusterPositionCircles = document.getElementById('clusterPosition')
 const modalNothingKnock = $('#modalNothingKnock');
+const modalMaskArea = $('#modalMaskArea');
 
 var waitModalMap = null
 var classificationCheckData = {'overwrite':false,'data':[]}
@@ -106,6 +114,7 @@ var clusterRequests = {"map1": []}
 var finishedDisplaying = {"map1": true}
 var map = {"map1": null}
 var drawnItems = {"map1": null}
+var drawnMaskItems = {"map1": null}
 var pauseControl = {"map1": null}
 var playControl = {"map1": null}
 var activeImage = {"map1": null}
@@ -121,7 +130,11 @@ var clusterLabels = {"map1": []}
 var clusterPosition = {"map1": document.getElementById('clusterPositionSplide')}
 var clusterPositionSplide = {"map1": null}
 var mapDivs = {'map1': 'mapDiv', 'map2': 'mapdiv2'}
-var splides = {'map1': 'splide', 'map2': 'splide2'}        
+var splides = {'map1': 'splide', 'map2': 'splide2'}     
+var maskCheckData = {}
+var globalMasks = {"map1": []}
+var maskMode = false
+var detectionGroups = {}
 
 var colours = {
     'rgba(67,115,98,1)': false,
@@ -225,7 +238,7 @@ function imageHighlight(switchOn,mapID = 'map1') {
 }
 
 function buildDetection(image,detection,mapID = 'map1',colour=null) {
-    if (detection.static == false) {   
+    if (detection.static == false || (detection.static == true && isStaticCheck == true)) {
                  
         if (isIDing && (detection.individual!='-1')) {
             rectOptions.color = individuals[individualIndex][detection.individual].colour
@@ -629,6 +642,12 @@ function addDetections(mapID = 'map1') {
             drawControl._toolbars.edit._toolbarContainer.firstElementChild.title = '(E)dit sightings'
             drawControl._toolbars.edit._toolbarContainer.lastElementChild.title = '(D)elete sightings'
         }
+        if(isStaticCheck && detectionGroups){
+            sg_detections = detectionGroups[clusters[mapID][clusterIndex[mapID]].id]
+            for (let i=0;i<sg_detections.length;i++) {
+                buildDetection(image,sg_detections[i],mapID)
+            }
+        }
         addedDetections[mapID] = true
         finishedDisplaying[mapID] = true
     }
@@ -652,7 +671,7 @@ function updateCanvas(mapID = 'map1') {
                 modalWait2Hide = false
                 modalWait2.modal({backdrop: 'static', keyboard: false});
             }
-            if ((typeof clusters[mapID][clusterIndex[mapID]-1] != 'undefined') && (typeof clusters[mapID][clusterIndex[mapID]-1][ITEM_IDS] != 'undefined') && ((clusters[mapID][clusterIndex[mapID]-1][ITEM_IDS].includes(RFDLabel.toString())) || (clusters[mapID][clusterIndex[mapID]-1][ITEM_IDS].includes(downLabel)))) {
+            if ((typeof clusters[mapID][clusterIndex[mapID]-1] != 'undefined') && (typeof clusters[mapID][clusterIndex[mapID]-1][ITEM_IDS] != 'undefined') && ((clusters[mapID][clusterIndex[mapID]-1][ITEM_IDS].includes(RFDLabel.toString())) || (clusters[mapID][clusterIndex[mapID]-1][ITEM_IDS].includes(downLabel)) || (clusters[mapID][clusterIndex[mapID]-1][ITEM_IDS].includes(maskLabel)))) {
                 redirectToDone()
             } else {
                 prevCluster(mapID)
@@ -946,7 +965,7 @@ function updateButtons(mapID = 'map1'){
                 }
             }
         } else {
-            if ((clusterIndex[mapID]==0)||((clusters[mapID][clusterIndex[mapID]-1][ITEM_IDS]!=undefined)&&(clusters[mapID][clusterIndex[mapID]-1][ITEM_IDS].some(r=> [downLabel,downLabel.toString(),RFDLabel,RFDLabel.toString()].includes(r))))) {
+            if ((clusterIndex[mapID]==0)||((clusters[mapID][clusterIndex[mapID]-1][ITEM_IDS]!=undefined)&&(clusters[mapID][clusterIndex[mapID]-1][ITEM_IDS].some(r=> [downLabel,downLabel.toString(),RFDLabel,RFDLabel.toString(),maskLabel,maskLabel.toString()].includes(r))))) {
                 prevClusterBtn.classList.add("disabled")
             }else{
                 prevClusterBtn.classList.remove("disabled")
@@ -1045,6 +1064,11 @@ function goToPrevCluster(mapID = 'map1') {
     clusterIndex[mapID] = clusterIndex[mapID] - 1
     updateClusterLabels(mapID)
 
+    if (isTagging && (taggingLevel == '-1' || parseInt(taggingLevel) > 0)) {
+        drawnMaskItems[mapID].clearLayers()
+        updateMasks(mapID)
+    }
+
     if (wrongStatus && !isReviewing) {
         initKeys(globalKeys[taggingLevel])
     }
@@ -1110,7 +1134,7 @@ function prevCluster(mapID = 'map1'){
                         }
                     }
                 } else {
-                    if ((!isTagging)||((clusters[mapID][clusterIndex[mapID]-1][ITEM_IDS]!=undefined)&&(!clusters[mapID][clusterIndex[mapID]-1][ITEM_IDS].some(r=> [downLabel,downLabel.toString(),RFDLabel,RFDLabel.toString()].includes(r))))) {
+                    if ((!isTagging)||((clusters[mapID][clusterIndex[mapID]-1][ITEM_IDS]!=undefined)&&(!clusters[mapID][clusterIndex[mapID]-1][ITEM_IDS].some(r=> [downLabel,downLabel.toString(),RFDLabel,RFDLabel.toString(),maskLabel,maskLabel.toString()].includes(r))))) {
                         goToPrevCluster(mapID)
                     }
                 }
@@ -1134,7 +1158,7 @@ function updateClusterLabels(mapID = 'map1') {
 
 function updateDebugInfo(mapID = 'map1',updateLabels = true) {
     /** Updates the displayed image/cluster info. */
-    if ((!isViewing && !isTagging && !isBounding && !isKnockdown)||(taggingLevel=='-3')||(isClassCheck)) { //(!isTagging)
+    if ((!isViewing && !isTagging && !isBounding && !isKnockdown && !isStaticCheck && !isTimestampCheck) ||(taggingLevel=='-3')||(isClassCheck)) { //(!isTagging)
         if ((clusters[mapID][clusterIndex[mapID]].id == '-99')||(clusters[mapID][clusterIndex[mapID]].id == '-101')||(clusters[mapID][clusterIndex[mapID]].id == '-782')) {
             document.getElementById('debugImage').innerHTML =  '';
             document.getElementById('debugLabels').innerHTML = '';
@@ -1207,8 +1231,7 @@ function updateDebugInfo(mapID = 'map1',updateLabels = true) {
             }
 
             // Update notes in explore
-            if(isReviewing && document.getElementById('noteboxExp'))
-            {
+            if(isReviewing && document.getElementById('noteboxExp')){
                 noteTextBox.value = clusters[mapID][clusterIndex[mapID]].notes
                 document.getElementById('notif').innerHTML = ""
             }
@@ -1259,6 +1282,20 @@ function updateDebugInfo(mapID = 'map1',updateLabels = true) {
                 }
             }
         } 
+    }
+
+    if (isStaticCheck) {
+        document.getElementById('debugImage').innerHTML =  clusters[mapID][clusterIndex[mapID]].images[imageIndex[mapID]].url.split('/').slice(1).join('/');
+    }
+
+    if (isTimestampCheck) {
+        document.getElementById('debugImage').innerHTML = clusters[mapID][clusterIndex[mapID]].images[imageIndex[mapID]].name 
+        yearInput.value = ''
+        monthInput.value = ''
+        dayInput.value = ''
+        hourInput.value = ''
+        minutesInput.value = ''
+        secondsInput.value = ''
     }
 }
 
@@ -1458,6 +1495,11 @@ function nextCluster(mapID = 'map1') {
 
             updateClusterLabels(mapID)
 
+            if (isTagging && (taggingLevel == '-1' || parseInt(taggingLevel) > 0)) {
+                drawnMaskItems[mapID].clearLayers()
+                updateMasks(mapID)
+            }
+
             if (isIDing && (document.getElementById('btnSendToBack')==null)) {
                 actions = []
                 preLoadCount = 1
@@ -1510,7 +1552,7 @@ function switchToTask(task){
         xhttp.open("GET", '/setAdminTask/'+task);
         xhttp.send();
     }
-    if (!isTagging && !isReviewing && !isKnockdown){
+    if (!isTagging && !isReviewing && !isKnockdown && !isStaticCheck){
         populateSpecies(task)
     }
 }
@@ -1536,6 +1578,8 @@ function switchTaggingLevel(level) {
 
 function assignLabel(label,mapID = 'map1'){
     /** Assigns the specified label to the current cluster. */
+    var hasIndividuals = false
+    
     if (isTutorial) {
         if (finishedDisplaying[mapID] && !modalActive && !modalActive2) {
             if (!tutProcessUserInput(label)) return;
@@ -1543,13 +1587,23 @@ function assignLabel(label,mapID = 'map1'){
             return;
         }
     }
+    else if (isReviewing){
+        for (let imInd=0;imInd<clusters[mapID][clusterIndex[mapID]].images.length;imInd++) {
+            for (let detInd=0;detInd<clusters[mapID][clusterIndex[mapID]].images[imInd].detections.length;detInd++) {
+                if (clusters[mapID][clusterIndex[mapID]].images[imInd].detections[detInd].individual != '-1'){
+                    hasIndividuals = true
+                    break
+                }
+            }
+        }
+    }
 
     if ((label==taggingLevel)&&(label==tempTaggingLevel)) {
         label = skipLabel
     }
     
-    if (label != EMPTY_HOTKEY_ID) {
-        if (multipleStatus && ((nothingLabel==label)||(downLabel==label)||(RFDLabel==label)||(skipLabel==label))) {
+    if (label != EMPTY_HOTKEY_ID && !editingEnabled) {
+        if (multipleStatus && ((nothingLabel==label)||(downLabel==label)||(RFDLabel==label)||(skipLabel==label)||(maskLabel==label))) {
             //ignore nothing, skip and knocked down labels in multi
         } else if ([RFDLabel,downLabel].includes(parseInt(label)) && !modalNothingKnock.is(':visible')) {
             // confirmation modal for nothing and knockdowns
@@ -1559,7 +1613,7 @@ function assignLabel(label,mapID = 'map1'){
                 } else {
                     document.getElementById('modalNothingKnockText').innerHTML = 'You are about to mark the current cluster as containing nothing and have the associated false detections removed from all other images from this camera.<br><br><i>If you wish to continue, press the "-" hotkey again.</i><br><br><i>Otherwise press "Esc" or label the cluster as anything else.</i>'
                 }
-            } else {
+            } else if (label==downLabel) {
                 document.getElementById('modalNothingKnockText').innerHTML = 'You are about to mark the current camera as knocked down. This will filter out all images from this camera from this timestamp onward.<br><br><i>If you wish to continue, press the "Q" hotkey again.</i><br><br><i>Otherwise press "Esc" or label the cluster as anything else.</i>'
             }
             modalNothingKnock.modal({keyboard: true}) //{backdrop: 'static', keyboard: false});
@@ -1570,6 +1624,13 @@ function assignLabel(label,mapID = 'map1'){
         } else if (wrongStatus && (label in globalKeys) && (label != tempTaggingLevel)) {
             tempTaggingLevel = label
             initKeys(globalKeys[tempTaggingLevel])
+        } else if (label==maskLabel && !maskMode) {
+            maskMode = true
+            getKeys()
+            initMaskMode(mapID)
+        } else if (isReviewing && !modalNothingKnock.is(':visible') && hasIndividuals) {
+            document.getElementById('modalNothingKnockText').innerHTML = 'This cluster contains detections that are linked to specific individuals. If you choose to label this cluster as a different species, all associated detections will be removed from their respective individuals. Please note that this action is irreversible and cannot be undone. <br><br><i>If you wish to continue, press the label hotkey again.</i><br><br><i>Otherwise, press "Esc".</i>'
+            modalNothingKnock.modal({keyboard: true}) 
         } else if ((finishedDisplaying[mapID] == true) && (!modalActive) && (modalActive2 == false) && (clusters[mapID][clusterIndex[mapID]].id != '-99') && (clusters[mapID][clusterIndex[mapID]].id != '-101') && (clusters[mapID][clusterIndex[mapID]].id != '-782')) {
     
             if (taggingLevel=='-3') {
@@ -1692,6 +1753,92 @@ function assignLabel(label,mapID = 'map1'){
                     }
                 }
             
+
+            // } else if (taggingLevel=='-6') {    
+            //     // Not in use
+            //     // Review Mask
+            //     if (label == 'accept_mask') {
+            //         // accept
+            //         maskCheckData['mask'] = 'accept'
+
+            //         maskCheckData['cluster_id'] = clusters[mapID][clusterIndex[mapID]].id
+            //         maskCheckData['image_ids'] = []
+            //         maskCheckData['detection_ids'] = []
+            //         for (let i=0;i<clusters[mapID][clusterIndex[mapID]].images.length;i++) {
+            //             maskCheckData['image_ids'].push(clusters[mapID][clusterIndex[mapID]].images[i].id)
+            //             for (let j=0;j<clusters[mapID][clusterIndex[mapID]].images[i].detections.length;j++) {
+            //                 maskCheckData['detection_ids'].push(clusters[mapID][clusterIndex[mapID]].images[i].detections[j].id)
+            //             }
+            //         }
+    
+            //         var formData = new FormData()
+            //         formData.append("data", JSON.stringify(maskCheckData))
+    
+            //         var xhttp = new XMLHttpRequest();
+            //         xhttp.onreadystatechange =
+            //         function(wrapClusterIndex,wrapMapID){
+            //             return function() {
+            //                 if (this.readyState == 4 && this.status == 278) {
+            //                     window.location.replace(JSON.parse(this.responseText)['redirect'])
+            //                 } else if (this.readyState == 4 && this.status == 200) {                    
+            //                     response = JSON.parse(this.responseText);
+            //                     clusters[wrapMapID][wrapClusterIndex].ready = true
+            //                     updateProgBar(response.progress)
+            //                 }
+            //             }
+            //         }(clusterIndex[mapID],mapID);
+            //         xhttp.open("POST", '/reviewMask');
+            //         clusters[mapID][clusterIndex[mapID]].ready = false
+            //         xhttp.send(formData);
+    
+            //         maskCheckData = {}
+            //         nextCluster(mapID)
+
+
+            //     } else if (label == 'reject_mask') {
+            //         // reject
+            //         // maskCheckData['mask'] = 'reject'
+
+            //         if (divBtns != null) {
+            //             orginal_labels = clusters[mapID][clusterIndex[mapID]][ITEMS]
+            //             orginal_label_ids = clusters[mapID][clusterIndex[mapID]][ITEM_IDS]
+            //             // clusters[mapID][clusterIndex[mapID]][ITEMS] = ['None']
+            //             // clusters[mapID][clusterIndex[mapID]][ITEM_IDS] = ['0']
+            //             // clusterLabels[mapID] = []
+            //             updateDebugInfo(mapID,false)
+
+            //             selectBtns = document.getElementById('selectBtns')
+            //             // multipleStatus = false
+            //             wrongStatus = true
+            //             tempTaggingLevel = '-1'
+            //             taggingLevel = '-1'
+
+            //             while(divBtns.firstChild){
+            //                 divBtns.removeChild(divBtns.firstChild);
+            //             }
+
+            //             var newbtn = document.createElement('button');
+            //             newbtn.classList.add('btn');
+            //             newbtn.classList.add('btn-danger');
+            //             newbtn.innerHTML = 'Back';
+            //             newbtn.setAttribute("id", 0);
+            //             newbtn.classList.add('btn-block');
+            //             newbtn.classList.add('btn-sm');
+            //             newbtn.setAttribute("style", "margin-top: 3px; margin-bottom: 3px");
+            //             newbtn.addEventListener('click', (evt)=>{
+            //                 suggestionBack();
+            //             });
+            //             selectBtns.appendChild(newbtn);
+
+            //             // populateLevels()
+            //             initKeys(globalKeys['-1'])
+
+            //             activateMultiple()
+            //         }
+
+            //     }
+
+                    
             } else {
     
                 if (modalNothingKnock.is(':visible')) {
@@ -1706,6 +1853,12 @@ function assignLabel(label,mapID = 'map1'){
                 } else {
                     if (label==downLabel) {
                         knockdown(mapID)
+                    } else if (label==maskLabel) {
+                        maskArea(mapID)
+                    } else if (label=='cancel_mask') {
+                        cancelMask(mapID)
+                    } else if (label=='submit_mask') {
+                        modalMaskArea.modal({keyboard: true}) 
                     } else {
                         var checkVar = 0
                         if ((!taggingLevel.includes('-2'))&&((label==unknownLabel)||(label==nothingLabel)||(label==RFDLabel)||clusters[mapID][clusterIndex[mapID]].required.length>1)) {
@@ -1834,6 +1987,7 @@ function assignLabel(label,mapID = 'map1'){
                                         updateDebugInfo(mapID)
                                     }
                                     
+                                    // if (wrongStatus&&!isClassCheck&&!dontResetWrong&&!isMaskCheck) {
                                     if (wrongStatus&&!isClassCheck&&!dontResetWrong) {
                                         wrongStatus = false
                                         tempTaggingLevel = taggingLevel
@@ -1848,6 +2002,7 @@ function assignLabel(label,mapID = 'map1'){
                                     }
         
                                     if (!multipleStatus) {
+                                        // if (isClassCheck||isMaskCheck) {
                                         if (isClassCheck) {
                                             wrongStatus = false
                                             suggestionBack(false)
@@ -1905,6 +2060,11 @@ function fetchTaggingLevel() {
             if (taggingLevel == '-3') {
                 isClassCheck = true
             }
+
+            // if (taggingLevel == '-6'){
+            //     isMaskCheck = true
+            // }
+
             if ((!taggingLevel.includes('-4'))&&(!taggingLevel.includes('-5'))) {
                 getKeys()
             }
@@ -2146,13 +2306,20 @@ function prepMap(mapID = 'map1') {
                         }
 
                         L.Browser.touch = true
-                
-                        map[wrapMapID] = new L.map(mapDivs[wrapMapID], {
+
+                        var mapAttributes = {
                             crs: L.CRS.Simple,
                             maxZoom: 10,
                             center: [0, 0],
                             zoomSnap: 0
-                        })
+                        }
+                        
+                        if (isTimestampCheck) {
+                            mapAttributes.attributionControl = false // Remove Leaflet attribution (because it might block the timestamp)
+                        }
+                
+                        map[wrapMapID] = new L.map(mapDivs[wrapMapID], mapAttributes)
+
                         var h1 = document.getElementById(mapDivs[wrapMapID]).clientHeight
                         var w1 = document.getElementById(mapDivs[wrapMapID]).clientWidth
 
@@ -2208,6 +2375,9 @@ function prepMap(mapID = 'map1') {
                 
                         drawnItems[wrapMapID] = new L.FeatureGroup();
                         map[wrapMapID].addLayer(drawnItems[wrapMapID]);
+
+                        drawnMaskItems[wrapMapID] = new L.FeatureGroup();
+                        map[wrapMapID].addLayer(drawnMaskItems[wrapMapID]);
                 
                         map[wrapMapID].on('zoomstart', function(wrapWrapMapID) {
                             return function () { 
@@ -2236,7 +2406,21 @@ function prepMap(mapID = 'map1') {
                                 opacity: 0.8,
                                 weight:3,
                                 contextmenu: false,
-                            }            
+                            }      
+                            
+                            if (isTagging && (taggingLevel == '-1' || parseInt(taggingLevel) > 0)) {
+                                maskRectOptions = {
+                                    color: "rgba(91,192,222,1)",
+                                    fill: true,
+                                    fillOpacity: 0.0,
+                                    opacity: 0.8,
+                                    weight:3,
+                                    contextmenu: false,
+                                }
+
+                                taggingMapPrep(wrapMapID)
+
+                            }
                         }
                         mapReady[wrapMapID] = true
                         updateCanvas(wrapMapID)
@@ -2475,6 +2659,24 @@ function onload (){
         }
     }
 
+    if (isStaticCheck) {
+        selectedSurvey = /survey=([^&]+)/.exec(document.location.href)[1]
+        clusters['map1'] = []
+        clusterIndex['map1'] = 0
+        imageIndex['map1'] = 0
+        detectionGroups = {}
+        // loadNewCluster()
+        getStaticGroupIDs()
+    }
+
+    if (isTimestampCheck) {
+        selectedSurvey = /survey=([^&]+)/.exec(document.location.href)[1]
+        clusters['map1'] = []
+        clusterIndex['map1'] = 0
+        imageIndex['map1'] = 0
+        getCameraIDs()
+    }
+
     // if (document.location.href.includes('task')) {
     //     switchToTask(/task=([^&]+)/.exec(document.location.href)[1])
     // }
@@ -2604,6 +2806,7 @@ function activateMultiple(mapID = 'map1') {
                     // nothing
                 } else if ((taggingLevel.includes('-2')) || ((clusters[mapID][clusterIndex[mapID]][ITEMS].length > 0) && (!clusters[mapID][clusterIndex[mapID]][ITEMS].includes('None')))) {
                     submitLabels(mapID)
+                    // if (isClassCheck||isMaskCheck) {
                     if (isClassCheck) {
                         wrongStatus = false
                         suggestionBack(false)
@@ -2685,6 +2888,9 @@ function submitLabels(mapID = 'map1') {
                                 clusters[wrapMapID][wrapIndex].ready = true
                                 clusters[wrapMapID][wrapIndex].classification = reply.classifications
                             }
+                            // if (isMaskCheck) {
+                            //     clusters[wrapMapID][wrapIndex].ready = true
+                            // }
                             Progress = reply.progress
                             updateProgBar(Progress)
                         }
@@ -2697,6 +2903,10 @@ function submitLabels(mapID = 'map1') {
             wrongStatus = false
             clusters[mapID][clusterIndex[mapID]].ready = false
         }
+        // if (isMaskCheck) {
+        //     wrongStatus = false
+        //     clusters[mapID][clusterIndex[mapID]].ready = false
+        // }
         xhttp.send(formData);
         if (batchComplete&&nothingStatus) {
             redirectToDone()
@@ -2826,7 +3036,7 @@ function initKeys(res){
 
         // Add other important buttons
         for (let i=0;i<labs.length;i++) {
-            if (((names[i]=='Wrong')||(names[i]=='Skip')||(names[i]=='Remove False Detections'))&&(labs[i] != EMPTY_HOTKEY_ID)) {
+            if (((names[i]=='Wrong')||(names[i]=='Skip')||(names[i]=='Remove False Detections')||(names[i]=='Mask Area'))&&(labs[i] != EMPTY_HOTKEY_ID)) {
 
                 hotkeys[i] = labs[i].toString()
                 labelName = names[i]
@@ -2854,12 +3064,15 @@ function initKeys(res){
                 if (i < 10) {
                     newbtn.classList.add('btn-danger');
                     newbtn.innerHTML = labelName + ' (' + String.fromCharCode(parseInt(i)+48) + ')';
-                } else if (i == labs.length-1) {
-                    newbtn.classList.add('btn-danger');
-                    newbtn.innerHTML = labelName + ' (-)';
                 } else if (i == labs.length-2) {
                     newbtn.classList.add('btn-danger');
+                    newbtn.innerHTML = labelName + ' (-)';
+                } else if (i == labs.length-3) {
+                    newbtn.classList.add('btn-danger');
                     newbtn.innerHTML = labelName + ' (Space)';
+                } else if (i == labs.length-1) {
+                    newbtn.classList.add('btn-danger');
+                    newbtn.innerHTML = labelName + ' (*)';
                 } else {
                     newbtn.classList.add('btn-danger');
                     newbtn.innerHTML = labelName + ' (' + String.fromCharCode(parseInt(i)+55) + ')';
@@ -2887,9 +3100,11 @@ function initKeys(res){
                 downLabel = labs[i]
             } else if (names[i]=='Skip') {
                 skipLabel = labs[i]
+            } else if (names[i]=='Mask Area') {
+                maskLabel = labs[i]
             }
 
-            if ((names[i]!='Wrong')&&(names[i]!='Skip')&&(names[i]!='Remove False Detections')) {
+            if ((names[i]!='Wrong')&&(names[i]!='Skip')&&(names[i]!='Remove False Detections')&&(names[i]!='Mask Area')) {
                 hotkeys[i] = labs[i].toString()
                 labelName = names[i]
     
@@ -2899,12 +3114,15 @@ function initKeys(res){
                     if (i < 10) {
                         newbtn.classList.add('btn-primary');
                         newbtn.innerHTML = labelName + ' (' + String.fromCharCode(parseInt(i)+48) + ')';
-                    } else if (i == labs.length-1) {
-                        newbtn.classList.add('btn-info');
-                        newbtn.innerHTML = labelName + ' (-)';
                     } else if (i == labs.length-2) {
                         newbtn.classList.add('btn-info');
+                        newbtn.innerHTML = labelName + ' (-)';
+                    } else if (i == labs.length-3) {
+                        newbtn.classList.add('btn-info');
                         newbtn.innerHTML = labelName + ' (Space)';
+                    } else if (i == labs.length-1) {
+                        newbtn.classList.add('btn-info');
+                        newbtn.innerHTML = labelName + ' (*)';
                     } else {
                         newbtn.classList.add('btn-info');
                         newbtn.innerHTML = labelName + ' (' + String.fromCharCode(parseInt(i)+55) + ')';
@@ -3083,7 +3301,10 @@ document.onkeyup = function(event){
 
                 case ('-'):assignLabel(hotkeys[37])
                     break;
-    
+
+                case ('*'):assignLabel(hotkeys[38])
+                    break;
+
                 case 'control': activateMultiple()
                     break;
     
@@ -3157,6 +3378,26 @@ document.onkeyup = function(event){
             case 'b': sendBoundingBack()
                 break;
         }
+    } else if (isStaticCheck) {
+        switch (event.key.toLowerCase()){
+            case ('a'):handleStatic(1)
+                break;
+            case ('r'):handleStatic(0)
+                break;
+        }
+    } else if (isTimestampCheck) {
+        switch (event.key.toLowerCase()){
+            case ('n'):submitTimestamp(true)
+                break;
+            case (' '):skipTimeUnit()
+                break;
+            case ('s'): skipCamera() 
+                break;
+            case '~': undoTimestamp()
+                break;
+            case '`': undoTimestamp()
+                break;
+        }
     } else {
         switch (event.key.toLowerCase()){
             case 'arrowright': nextImage()
@@ -3208,7 +3449,7 @@ function checkWaitModal(mapID = 'map1') {
         document.getElementById('PlsWaitCountDownDiv').innerHTML = PlsWaitCountDown
     }
 
-    if ((xl == false)&&(isTagging ==false)&&(isReviewing ==false)&&(isKnockdown == false)) {
+    if ((xl == false)&&(isTagging ==false)&&(isReviewing ==false)&&(isKnockdown == false)&&(isStaticCheck == false)) {
         if (clusterIndex[mapID] >= clusterIDs.length) {
             if (modalWait2.is(':visible')) {
                 modalWait2Hide = true

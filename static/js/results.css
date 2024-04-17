@@ -45,7 +45,7 @@ limitations under the License.
 }
 
 .tab button:disabled {
-  cursor: not-allowed;
+  cursor: default;
   background-color: rgba(60, 74, 89, 0.5);
 }
 
@@ -147,11 +147,15 @@ input:checked:disabled + .slider {
   background-color: rgba(223, 105, 26, 0.8);
 }
 
-tbody:hover td[rowspan],
+tbody.permissions:hover td[rowspan],
 tr:hover td {
   background: rgba(255, 255, 255, 0.2);
 }
 
+tbody.timestamps:hover td[rowspan],
+tr:hover td {
+  background: rgba(255, 255, 255, 0.2);
+}
 
 .badge {
   background-color: #DF691A;

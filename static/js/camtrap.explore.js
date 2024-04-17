@@ -26,17 +26,20 @@ var prevSite = '0'
 var prevAnnotator = '0'
 var prevStartDate = null
 var prevEndDate = null
+var editingEnabled = false
 isTagging = false
 isReviewing = true
 isKnockdown = false
 isBounding = false
 isIDing = false
+isStaticCheck = false
+isTimestampCheck = false
 
 wrongStatus = true
 dontResetWrong = true
 tempTaggingLevel = '-1'
 
-var blockedExploreLabels = ['Knocked Down', 'Remove False Detections']
+var blockedExploreLabels = ['Knocked Down', 'Remove False Detections', 'Mask Area']
 
 const divSelector = document.querySelector('#divSelector');
 const divTagSelector = document.querySelector('#divTagSelector');

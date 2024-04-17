@@ -18,6 +18,7 @@ from datetime import datetime
 from flask_login import UserMixin
 from werkzeug.security import generate_password_hash, check_password_hash
 from app import db, login
+from geoalchemy2 import Geometry
 
 tags = db.Table('tags',
     db.Column('tag_id', db.Integer, db.ForeignKey('tag.id')),
@@ -112,8 +113,11 @@ class Image(db.Model):
     etag = db.Column(db.String(64), index=False)
     hash = db.Column(db.String(64), index=True)
     downloaded = db.Column(db.Boolean, default=False, index=True)
+    extracted_data = db.Column(db.String(128), index=False)
     detections = db.relationship('Detection', backref='image', lazy=True)
     camera_id = db.Column(db.Integer, db.ForeignKey('camera.id'), index=True, unique=False)
+    skipped = db.Column(db.Boolean, default=False, index=True)
+    extracted = db.Column(db.Boolean, default=False, index=True)
 
     def __repr__(self):
         return '<Image {}>'.format(self.filename)
@@ -125,6 +129,7 @@ class Camera(db.Model):
     images = db.relationship('Image', backref='camera', lazy=True)
     trapgroup_id = db.Column(db.Integer, db.ForeignKey('trapgroup.id'))
     videos = db.relationship('Video', backref='camera', lazy=True)
+    cameragroup_id = db.Column(db.Integer, db.ForeignKey('cameragroup.id'), index=True)
 
     def __repr__(self):
         return '<Camera {}>'.format(self.path)
@@ -159,6 +164,7 @@ class Survey(db.Model):
     organisation_id = db.Column(db.Integer, db.ForeignKey('organisation.id'), index=True, unique=False)
     exceptions = db.relationship('SurveyPermissionException', backref='survey', lazy=True)
     shares = db.relationship('SurveyShare', backref='survey', lazy=True)
+    camera_code = db.Column(db.String(256), index=False)
 
     def __repr__(self):
         return '<Survey {}>'.format(self.name)
@@ -221,6 +227,7 @@ class Detection(db.Model):
     classification = db.Column(db.String(64), index=True)
     class_score = db.Column(db.Float, index=True)
     labelgroups = db.relationship('Labelgroup', backref='detection', lazy=True)
+    staticgroup_id = db.Column(db.Integer, db.ForeignKey('staticgroup.id'), index=True)
 
     def __repr__(self):
         return '<Detection of class {} on image {}>'.format(self.category, self.image_id)
@@ -264,6 +271,8 @@ class User(db.Model, UserMixin):
     exceptions = db.relationship('SurveyPermissionException', backref='user', lazy=True)
     root_organisation = db.relationship('Organisation', backref='root', uselist=False, lazy=True)
     notifications = db.relationship('Notification', backref='user', lazy=True)
+    masks = db.relationship('Mask', backref='user', lazy=True)
+    staticgroups = db.relationship('Staticgroup', backref='user', lazy=True)
     qualifications = db.relationship('User',secondary=workersTable,
                                     primaryjoin=id==workersTable.c.worker_id,
                                     secondaryjoin=id==workersTable.c.user_id,
@@ -506,6 +515,9 @@ class Video(db.Model):
     hash = db.Column(db.String(64), index=True)
     downloaded = db.Column(db.Boolean, default=False, index=True)
     camera_id = db.Column(db.Integer, db.ForeignKey('camera.id'), index=True, unique=False)
+    extracted_text = db.Column(db.String(64), index=False)
+    fps = db.Column(db.Integer, index=False)
+    frame_count = db.Column(db.Integer, index=False)
 
     def __repr__(self):
         return '<Video {}>'.format(self.filename)
@@ -590,7 +602,34 @@ class ERangerID(db.Model):
 
     def __repr__(self):
         return '<Earth Ranger ID object for cluster {}>'.format(self.cluster_id)
-    
+
+class Cameragroup(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    name = db.Column(db.String(64), index=False)
+    cameras = db.relationship('Camera', backref='cameragroup', lazy=True)
+    masks = db.relationship('Mask', backref='cameragroup', lazy=True)
+
+    def __repr__(self):
+        return '<Cameragroup {}>'.format(self.name)
+
+class Mask(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    cameragroup_id = db.Column(db.Integer, db.ForeignKey('cameragroup.id'), index=True, unique=False)
+    shape = db.Column(Geometry('POLYGON', srid=32734), index=True, unique=False)    # 32734 is the SRID for UTM Zone 34S (This is a hack because we can't use SRID = 0, so we use a linear unit to avoid distortion for cartesian coordinates)
+    user_id = db.Column(db.Integer, db.ForeignKey('user.id'), index=True, unique=False)
+
+    def __repr__(self):
+        return '<Mask {}>'.format(self.id)
+
+class Staticgroup(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    status = db.Column(db.String(10), index=True) # accepted/rejected/unknown
+    detections = db.relationship('Detection', backref='staticgroup', lazy=True)
+    user_id = db.Column(db.Integer, db.ForeignKey('user.id'), index=True, unique=False)
+
+    def __repr__(self):
+        return '<Staticgroup {}>'.format(self.id)
+
 db.Index('ix_det_srce_scre_stc_stat_class_classcre', Detection.source, Detection.score, Detection.static, Detection.status, Detection.classification, Detection.class_score)
 db.Index('ix_cluster_examined_task', Cluster.examined, Cluster.task_id)
 db.Index('ix_det_similarity_2_1', DetSimilarity.detection_2, DetSimilarity.detection_1, unique=True)

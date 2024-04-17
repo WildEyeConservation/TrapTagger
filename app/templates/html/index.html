@@ -216,6 +216,38 @@ limitations under the License. -->
       
     </div>
 </div>
+
+<!-- Mask Area Modal -->
+<div id="modalMaskArea" class="modal fade" role="dialog"  tabindex="-1">
+    <div class="modal-dialog">
+      
+        <!-- Modal content-->
+        <div class="modal-content">
+            <div class="modal-header">
+                <h4 class="modal-title">Mask Area</h4>
+                <button type="button" class="close" data-dismiss="modal">&times;</button>
+            </div>
+            <div class="modal-body">
+
+                <p id="modalMaskText" align="justify">
+                    You are about to mask the areas you have drawn on the current image. This will filter out all detections in the masked areas for this camera. Do you wish to continue?
+                </p>
+
+            </div>
+            <div class='modal-footer'>
+                <div class='col-lg-3'>
+                    <button id='btnCancel' type='button' class='btn btn-info btn-block' 
+                    data-dismiss='modal'>Cancel</button>
+                </div>
+                <div class='col-lg-3'>
+                    <button id='btnMask' type='button' class='btn btn-primary btn-block' onclick=submitMasks()>Mask</button>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+
 {% endblock %}
 
 {% block page_scripts %}

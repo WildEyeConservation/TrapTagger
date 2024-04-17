@@ -17,9 +17,9 @@ limitations under the License.
 from app import app, db, celery
 from app.models import *
 from app.functions.globals import classifyTask, finish_knockdown, updateTaskCompletionStatus, updateLabelCompletionStatus, updateIndividualIdStatus, \
-                                    retryTime, chunker, resolve_abandoned_jobs, addChildLabels, updateAllStatuses
-from app.functions.individualID import calculate_individual_similarities, cleanUpIndividuals
-from app.functions.imports import cluster_survey, classifySurvey, s3traverse, recluster_large_clusters, removeHumans, classifyCluster
+                                    retryTime, chunker, resolve_abandoned_jobs, addChildLabels, updateAllStatuses, stringify_timestamp, rDets
+from app.functions.individualID import calculate_individual_similarities, cleanUpIndividuals, check_individual_detection_mismatch
+from app.functions.imports import cluster_survey, classifySurvey, s3traverse, recluster_large_clusters, removeHumans, classifyCluster, get_still_rate
 import GLOBALS
 from sqlalchemy.sql import func, or_, and_, distinct, alias
 from sqlalchemy import desc, extract
@@ -310,6 +310,9 @@ def stop_task(self,task_id):
                 GLOBALS.redisClient.delete('active_individuals_'+str(task_id))
                 GLOBALS.redisClient.delete('active_indsims_'+str(task_id))
 
+            if ',' not in task.tagging_level and task.init_complete and '-2' not in task.tagging_level:
+                check_individual_detection_mismatch(task_id=task_id,celeryTask=False)
+
             updateAllStatuses(task_id=int(task_id), celeryTask=False)
 
             # if task_id in GLOBALS.mutex.keys(): GLOBALS.mutex.pop(task_id, None)
@@ -330,28 +333,29 @@ def stop_task(self,task_id):
 
             if 'processing' not in survey.status:
                 survey.status = 'Ready'
-            elif survey.status=='indprocessing':
-                #Check whether individual similarities are still being processed
-                inspector = celery.control.inspect()
-                active_tasks = inspector.active()
-                reserved_tasks = inspector.reserved()
 
-                still_processing = False
-                for tasks in [active_tasks,reserved_tasks]:
-                    for worker in tasks:
-                        for task in tasks[worker]:
-                            if ('calculate_individual_similarities' in task['name']) and (('task_id' in task['kwargs']) and (int(task['kwargs']['task_id']) == int(task_id)) or ((len(task['args'])>0) and (int(task['args'][0]) == int(task_id)))):
-                                still_processing = True
-                                break
-                        else:
-                            continue
-                        break
-                    else:
-                        continue
-                    break
+            # elif survey.status=='indprocessing':
+            #     #Check whether individual similarities are still being processed
+            #     inspector = celery.control.inspect()
+            #     active_tasks = inspector.active()
+            #     reserved_tasks = inspector.reserved()
 
-                if not still_processing:
-                    survey.status = 'Ready'
+            #     still_processing = False
+            #     for tasks in [active_tasks,reserved_tasks]:
+            #         for worker in tasks:
+            #             for task in tasks[worker]:
+            #                 if ('calculate_individual_similarities' in task['name']) and (('task_id' in task['kwargs']) and (int(task['kwargs']['task_id']) == int(task_id)) or ((len(task['args'])>0) and (int(task['args'][0]) == int(task_id)))):
+            #                     still_processing = True
+            #                     break
+            #             else:
+            #                 continue
+            #             break
+            #         else:
+            #             continue
+            #         break
+
+            #     if not still_processing:
+            #         survey.status = 'Ready'
 
             db.session.commit()
 
@@ -416,6 +420,11 @@ def delete_survey(self,survey_id):
                     db.session.delete(detection)
                 db.session.commit()
 
+                staticgroups = db.session.query(Staticgroup).filter(~Staticgroup.detections.any()).all()
+                for staticgroup in staticgroups:
+                    db.session.delete(staticgroup)
+                db.session.commit()
+
                 # detections = db.session.query(Detection).join(Image).join(Camera).join(Trapgroup).filter(Trapgroup.survey_id==survey_id).all()
                 # for chunk in chunker(detections,1000):
                 #     for detection in chunk:
@@ -459,6 +468,33 @@ def delete_survey(self,survey_id):
                 status = 'error'
                 message = 'Could not delete videos.'
                 app.logger.info('Failed to delete videos.')
+
+        #Delete masks
+        if status != 'error':
+            try:
+                masks = db.session.query(Mask).join(Cameragroup).join(Camera).join(Trapgroup).filter(Trapgroup.survey_id==survey_id).all()
+                for mask in masks:
+                    db.session.delete(mask)
+                db.session.commit()
+                app.logger.info('Masks deleted successfully.')
+            except:
+                status = 'error'
+                message = 'Could not delete masks.'
+                app.logger.info('Failed to delete masks.')
+
+        #Delete cameragroups
+        if status != 'error':
+            try:
+                cameragroups = db.session.query(Cameragroup).join(Camera).join(Trapgroup).filter(Trapgroup.survey_id==survey_id).all()
+                for cameragroup in cameragroups:
+                    cameragroup.cameras = []
+                    db.session.delete(cameragroup)
+                db.session.commit()
+                app.logger.info('Cameragroups deleted successfully.')
+            except:
+                status = 'error'
+                message = 'Could not delete cameragroups.'
+                app.logger.info('Failed to delete cameragroups.')
 
         #Delete cameras
         if status != 'error':
@@ -628,7 +664,7 @@ def deleteChildLabels(parent):
         db.session.delete(label)
     return True
 
-def processChanges(changes, keys, sessionLabels, task_id):
+def processChanges(changes, keys, sessionLabels, task_id, speciesChanges=None):
     '''
     Processes requested changes to a task, specifically relating to the editing of labels.
 
@@ -637,6 +673,7 @@ def processChanges(changes, keys, sessionLabels, task_id):
             keys (list): List of parent labels for which changes need to be made
             sessionLabels (dict): Labels that have been added in the previous sessions
             task_id (int): Task being edited
+            speciesChanges (dict): The species that are being changed as well as the associated task IDs
 
         Returns:
             skipped (list): List of labels that cannot be added yet
@@ -671,10 +708,25 @@ def processChanges(changes, keys, sessionLabels, task_id):
             for edit_id in changes[parent]['edits']['modify']:
                 if 's' not in edit_id:
                     editLabel = db.session.query(Label).get(int(edit_id))
-
                     if editLabel:
+                        oldLabel = editLabel.description    
                         editLabel.description = changes[parent]['edits']['modify'][edit_id]['description']
                         editLabel.hotkey = changes[parent]['edits']['modify'][edit_id]['hotkey']
+
+                        # Find individuals with this label as their species and update their species and update the label in other tasks
+                        if oldLabel in speciesChanges:
+                            individuals = db.session.query(Individual).join(Task,Individual.tasks).filter(Task.id.in_(speciesChanges[oldLabel]['tasks'])).filter(Individual.species==oldLabel).all()
+                            for individual in individuals:
+                                individual.species = editLabel.description
+
+                            for t_id in speciesChanges[oldLabel]['tasks']:
+                                if t_id != task_id:
+                                    checkLabel = db.session.query(Label).filter(Label.task_id==t_id).filter(Label.description==editLabel.description).first()
+                                    if not checkLabel:
+                                        taskLabel = db.session.query(Label).filter(Label.task_id==t_id).filter(Label.description==oldLabel).first()
+                                        if taskLabel:
+                                            taskLabel.description = editLabel.description
+                                        
 
             for additional_id in changes[parent]['additional']:
                 check = db.session.query(Label) \
@@ -701,23 +753,26 @@ def processChanges(changes, keys, sessionLabels, task_id):
     return skipped, sessionLabels
 
 @celery.task(bind=True,max_retries=5,ignore_result=True)
-def handleTaskEdit(self,task_id,changes):
+def handleTaskEdit(self,task_id,changes,speciesChanges=None):
     '''
     Celery task that handles task edits, specifically relating to the editing of labels.
 
         Parameters:
             task_id (int): The task being edited
             changes (dict): The changes being implemented to a parent label - modifed, deleted, or added
+            speciesChanges (dict): The species that are being changed as well as the associated task IDs
     '''
     
     try:
         if db.session.query(Task).get(task_id):
             changes = ast.literal_eval(changes)
+            if speciesChanges:
+                speciesChanges = ast.literal_eval(speciesChanges)
             sessionLabels = {}
-            skipped, sessionLabels = processChanges(changes, changes.keys(), sessionLabels, task_id)
+            skipped, sessionLabels = processChanges(changes, changes.keys(), sessionLabels, task_id, speciesChanges)
 
             while skipped != []:
-                skipped, sessionLabels = processChanges(changes, skipped, sessionLabels, task_id)
+                skipped, sessionLabels = processChanges(changes, skipped, sessionLabels, task_id, speciesChanges)
 
             translations = db.session.query(Translation).filter(Translation.task_id==task_id).all()
             for translation in translations:
@@ -725,6 +780,16 @@ def handleTaskEdit(self,task_id,changes):
 
             task = db.session.query(Task).get(task_id)
             task.status = 'Ready'
+
+            task_ids = []
+            if speciesChanges:
+                for species in speciesChanges:
+                    for t_id in speciesChanges[species]['tasks']:
+                        if t_id not in task_ids and t_id != task_id:
+                            task = db.session.query(Task).get(t_id)
+                            task.status = 'Ready'
+                            task_ids.append(t_id)
+
             db.session.commit()
 
     except Exception as exc:
@@ -1345,69 +1410,52 @@ def changeTimestamps(self,survey_id,timestamps):
     
         Parameters:
             survey_id (int): The survey to edit
-            timestamps (dict): Timestamp changes formatted {camera_id: {'original': timestamp, 'corrected': timestamp}}
+            timestamps (dict): Timestamp changes formatted {cameragroup_id: {'original': timestamp, 'corrected': timestamp}}
     '''
     
     try:
         app.logger.info('changeTimestamps called for survey {} with timestamps {}'.format(survey_id,timestamps))
 
-        # double check for edited cameras
-        camera_ids = [int(r) for r in timestamps.keys() if (timestamps[r]['corrected']!=timestamps[r]['original'])]
+        cg_timestamps = timestamps.copy()
+        timestamps = {}
+        cameragroup_ids = [int(r) for r in cg_timestamps.keys() if (cg_timestamps[r]['corrected']!=cg_timestamps[r]['original'])]
+        camera_ids = []
+        for cameragroup_id in cameragroup_ids:
+            corrected_timestamp = datetime.strptime(cg_timestamps[str(cameragroup_id)]['corrected'],"%Y/%m/%d %H:%M:%S")
+            original_timestamp = datetime.strptime(cg_timestamps[str(cameragroup_id)]['original'],"%Y/%m/%d %H:%M:%S")
+            cg_delta = corrected_timestamp - original_timestamp
+
+            camera_data = db.session.query(Camera.id, func.min(Image.corrected_timestamp))\
+                            .join(Image)\
+                            .filter(Image.corrected_timestamp!=None)\
+                            .filter(Camera.cameragroup_id==cameragroup_id)\
+                            .group_by(Camera.id).distinct().all()
+
+            for camera in camera_data:
+                new_corrected_timestamp = camera[1] + cg_delta
+                timestamps[str(camera[0])] = {'original':stringify_timestamp(camera[1]),'corrected':stringify_timestamp(new_corrected_timestamp)}
+                camera_ids.append(camera[0])
+
 
         # Check if there is a need to recluster (ie. there are overlapping edited cameras)
-        # In order to make this indempotent, we use the 'original' timestamps which are more of an intermediate timestamp
         overlap_prior = []
         trapgroups = db.session.query(Trapgroup).join(Camera).filter(Camera.id.in_(camera_ids)).distinct().all()
         for trapgroup in trapgroups:
-            camera_times = db.session.query(Camera.id,func.min(Image.timestamp).label('min'),func.max(Image.timestamp).label('max'),func.min(Image.corrected_timestamp).label('min_corrected'),func.max(Image.corrected_timestamp).label('max_corrected'))\
+            camera_times = db.session.query(Camera.id,func.min(Image.corrected_timestamp).label('min'),func.max(Image.corrected_timestamp).label('max'))\
                                     .join(Image)\
-                                    .filter(Image.timestamp!=None)\
+                                    .filter(Image.corrected_timestamp!=None)\
                                     .filter(Camera.trapgroup_id==trapgroup.id)\
                                     .group_by(Camera.id)\
                                     .all()
-            
+            trapgroup
+            camera_times 
             camera_times2 = camera_times.copy()
             for item in camera_times:
                 if trapgroup.id in overlap_prior: break
                 camera_times2.remove(item)
-                camera1_id = item[0]
-
-                if str(camera1_id) in timestamps.keys():
-                    try:
-                        # original = intermediate
-                        camera1_original = datetime.strptime(timestamps[str(camera1_id)]['original'],"%Y/%m/%d %H:%M:%S")
-                        camera1_delta = camera1_original - item[1]
-                        camera1_min = item[1] + camera1_delta
-                        camera1_max = item[2] + camera1_delta
-                    except:
-                        # if timestamp is incorrectly formatted, it will not be edited
-                        camera2_min = item2[3]
-                        camera2_max = item2[4]
-                else:
-                    # if timestamp is not edited, use the corrected timestamp from db
-                    camera1_min = item[3]
-                    camera1_max = item[4]
-
                 for item2 in camera_times2:
-                    camera2_id = item2[0]
-
-                    if str(camera2_id) in timestamps.keys():
-                        try:
-                            camera2_original = datetime.strptime(timestamps[str(camera2_id)]['original'],"%Y/%m/%d %H:%M:%S")
-                            camera2_delta = camera2_original - item2[1]
-                            camera2_min = item2[1] + camera2_delta
-                            camera2_max = item2[2] + camera2_delta
-                        except:
-                            # if timestamp is incorrectly formatted, it will not be edited
-                            camera2_min = item2[3]
-                            camera2_max = item2[4]
-                    else:
-                        # if timestamp is not edited, use the corrected timestamp from db
-                        camera2_min = item2[3]
-                        camera2_max = item2[4]
-
-                    if (camera1_min<=camera2_max<=camera1_max) or (camera1_min<=camera2_min<=camera1_max) or (camera2_min<=camera1_max<=camera2_max) or (camera2_min<=camera1_min<=camera2_max):
-                        if (camera1_id in camera_ids) or (camera2_id in camera_ids):
+                    if (item[1]<=item2[2]<=item[2]) or (item[1]<=item2[1]<=item[2]) or (item2[1]<=item[2]<=item2[2]) or (item2[1]<=item[1]<=item2[2]):
+                        if (item[0] in camera_ids) or (item2[0] in camera_ids):
                             if Config.DEBUGGING: app.logger.info('Trapgroup {} overlapping prior to edit'.format(trapgroup.id))
                             overlap_prior.append(trapgroup.id)
                             break
@@ -1415,21 +1463,19 @@ def changeTimestamps(self,survey_id,timestamps):
         # Update timestamps
         for camera_id in camera_ids:
             try:
-                timestamp = datetime.strptime(timestamps[str(camera_id)]['corrected'],"%Y/%m/%d %H:%M:%S")
-                # folder = item['camera']
-                # trapTag = re.split('/',identifier)[0]
-                # folder = re.split(trapTag+'/',item['camera'])[-1]
+                timestamp = datetime.strptime(timestamps[str(camera_id)]['original'],"%Y/%m/%d %H:%M:%S")
+                new_timestamp = datetime.strptime(timestamps[str(camera_id)]['corrected'],"%Y/%m/%d %H:%M:%S")
 
                 images = db.session.query(Image)\
                                 .filter(Image.camera_id==camera_id)\
-                                .filter(Image.timestamp!=None)\
-                                .order_by(Image.timestamp).all()
+                                .filter(Image.corrected_timestamp!=None)\
+                                .order_by(Image.corrected_timestamp).all()
 
                 if images:            
-                    delta = timestamp-images[0].timestamp
+                    delta = new_timestamp-timestamp
                     if Config.DEBUGGING: app.logger.info('Delta of {} for camera {}'.format(delta,camera_id))
                     for image in images:
-                        image.corrected_timestamp = image.timestamp + delta
+                        image.corrected_timestamp = image.corrected_timestamp + delta
             except:
                 # timestamp probably incorrectly formatted
                 pass
@@ -1665,29 +1711,95 @@ def generateLabels(labels, task_id, labelDictionary):
     return True
 
 @celery.task(bind=True,max_retries=5)
-def findTrapgroupTags(self,tgCode,folder,organisation_id,surveyName):
+def findTrapgroupTags(self,tgCode,folder,organisation_id,surveyName,camCode):
     '''Celery task that does the trapgroup code check. Returns the user message.'''
 
     try:
-        reply = None
+        reply = {}
         # isjpeg = re.compile('\.jpe?g$', re.I)
 
         try:
             tgCode = re.compile(tgCode)
+            if camCode == 'None':
+                camCode = None
+            else:
+                camCode = re.compile(camCode)
+
+            if surveyName == '' or surveyName == 'None' or surveyName == 'null':
+                surveyName = None
+
             allTags = []
+            allCams = []
+            structure = {}
             for dirpath, folders, filenames in s3traverse(Config.BUCKET, db.session.query(Organisation).get(organisation_id).folder+'/'+folder):
                 # jpegs = list(filter(isjpeg.search, filenames))
                 # if len(jpegs):
-                tags = tgCode.findall(dirpath.replace(surveyName+'/',''))
-                if len(tags) > 0:
+
+                if dirpath.find('_video_images_')!=-1:
+                    dirpath = dirpath.split('/_video_images_')[0]
+
+                if surveyName:
+                    dirpath = dirpath.replace(surveyName+'/','')
+
+                tags = tgCode.findall(dirpath)
+                if camCode:
+                    if camCode != tgCode:
+                        if tags:
+                            dirpath = dirpath.replace(tags[0],'')
+                    cams = camCode.findall(dirpath) 
+                else:
+                    cam_path = dirpath.split('/')[-1]
+                    cams = [cam_path]
+                if len(tags) > 0 and len(cams) > 0:
                     tag = tags[0]
+                    cam = cams[0]
                     if tag not in allTags:
                         allTags.append(tag)
+                    if cam not in allCams:
+                        allCams.append(cam)
+                    if tag not in structure.keys():
+                        structure[tag] = [cam]
+                    else:
+                        if cam not in structure[tag]:
+                            structure[tag].append(cam)
+                
+            # reply = str(len(allTags)) + ' sites found: ' + ', '.join([str(tag) for tag in sorted(allTags)])
+            #Format as Site1: Camera1 Camera2 , Site2: Camera1 Camera2
+            reply = {}
+            validStructure = True
 
-            reply = str(len(allTags)) + ' sites found: ' + ', '.join([str(tag) for tag in sorted(allTags)])
+            if len(allTags) == 0:
+                validStructure = False
+
+            if len(allCams) == 0:
+                validStructure = False
+
+            totalCams = 0
+            for tag in structure.keys():
+                if len(structure[tag]) == 0:
+                    validStructure = False
+                totalCams += len(structure[tag])
+
+            if validStructure:
+                # reply = 'Structure found: ' + str(len(allTags)) + ' sites, ' + str(totalCams) + ' cameras. <br>'
+                # for tag in sorted(structure.keys()):
+                #     reply += tag + ' : ' + ' , '.join([str(cam) for cam in sorted(structure[tag])]) + '<br>'
+                reply['message'] = 'Structure found.'
+                reply['structure'] = structure
+                reply['nr_sites'] = len(allTags)
+                reply['nr_cams'] = totalCams
+
+            else:
+                reply['message'] = 'Invalid structure. Please check your site and camera identifiers.'
+                reply['structure'] = {}
+                reply['nr_sites'] = 0
+                reply['nr_cams'] = 0
 
         except:
-            reply = 'Malformed expression. Please try again.'
+            reply['message'] = 'Malformed expression. Please try again.'
+            reply['structure'] = {}
+            reply['nr_sites'] = 0
+            reply['nr_cams'] = 0
 
     except Exception as exc:
         app.logger.info(' ')
@@ -1981,6 +2093,405 @@ def updateStatistics(self):
                     organisation.previous_frame_count = organisation.frame_count
                     organisation.frame_count = frame_count                    
 
+            db.session.commit()
+
+    except Exception as exc:
+        app.logger.info(' ')
+        app.logger.info('!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!')
+        app.logger.info(traceback.format_exc())
+        app.logger.info('!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!')
+        app.logger.info(' ')
+        self.retry(exc=exc, countdown= retryTime(self.request.retries))
+
+    finally:
+        db.session.remove()
+
+    return True
+
+
+@celery.task(bind=True,max_retries=5,ignore_result=True)
+def delete_individuals(self,task_ids, species):
+    ''' Deletes all individuals of the specified species in the specified tasks. '''
+    try:
+        app.logger.info('Deleting individuals of species {} in tasks {}'.format(species,task_ids))
+
+        task_ids = [int(r) for r in task_ids]
+        if species and species[0] == '0':
+            species = [r[0] for r in db.session.query(Individual.species).join(Task, Individual.tasks).filter(Task.id.in_(task_ids)).distinct().all()]
+            app.logger.info('Species to delete: {}'.format(species))
+
+        # Get detections
+        detections = [r[0] for r in db.session.query(Detection.id)\
+                                        .join(Image)\
+                                        .join(Camera)\
+                                        .join(Trapgroup)\
+                                        .join(Survey)\
+                                        .join(Task)\
+                                        .join(Individual, Detection.individuals)\
+                                        .filter(Task.id.in_(task_ids))\
+                                        .filter(Individual.species.in_(species))\
+                                        .distinct().all()]
+
+
+        # Delete Individuals
+        individuals = db.session.query(Individual)\
+                                .join(Task,Individual.tasks)\
+                                .filter(Individual.species.in_(species))\
+                                .filter(Task.id.in_(task_ids))\
+                                .all()
+
+        for individual in individuals:
+            individual.detections = [detection for detection in individual.detections if detection.id not in detections]
+            if len(individual.detections)==0:
+                individual.detections = []
+                individual.children = []
+                individual.tags = []
+                individual.tasks = []
+                # Delete Individual Similarities
+                indSims = db.session.query(IndSimilarity).filter(or_(IndSimilarity.individual_1==individual.id,IndSimilarity.individual_2==individual.id)).all()
+                for indSim in indSims:
+                    db.session.delete(indSim)
+                db.session.delete(individual)
+            else:
+                individual.tasks = [task for task in individual.tasks if task.id not in task_ids]
+                individual.tags = [tag for tag in individual.tags if tag.task_id not in task_ids]
+
+
+        # Delete Detection similarities (where detections from sims are no longer associated with individuals)
+        det1 = alias(Detection)
+        det2 = alias(Detection)
+        indDets1 = alias(individualDetections)
+        indDets2 = alias(individualDetections)
+
+        detSims = db.session.query(DetSimilarity)\
+                            .join(det1,det1.c.id==DetSimilarity.detection_1)\
+                            .join(det2,det2.c.id==DetSimilarity.detection_2)\
+                            .outerjoin(indDets1, indDets1.c.detection_id==det1.c.id)\
+                            .outerjoin(indDets2, indDets2.c.detection_id==det2.c.id)\
+                            .filter(indDets1.c.detection_id==None)\
+                            .filter(indDets2.c.detection_id==None)\
+                            .filter(det1.c.id.in_(detections))\
+                            .filter(det2.c.id.in_(detections))\
+                            .distinct().all()
+
+        for detSim in detSims:
+            db.session.delete(detSim)
+
+        db.session.commit()
+                
+        # Update statuses
+        for task_id in task_ids:
+            updateAllStatuses(task_id=task_id, celeryTask=False)
+            task = db.session.query(Task).get(task_id)
+            task.status = 'Ready'
+            
+
+        db.session.commit()
+
+    except Exception as exc:
+        app.logger.info(' ')
+        app.logger.info('!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!')
+        app.logger.info(traceback.format_exc())
+        app.logger.info('!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!')
+        app.logger.info(' ')
+        self.retry(exc=exc, countdown= retryTime(self.request.retries))
+
+    finally:
+        db.session.remove()
+
+    return True
+
+@celery.task(bind=True,max_retries=5,ignore_result=True)
+def recluster_after_image_timestamp_change(self,survey_id,image_timestamps):
+    '''
+    An efficient way to do re-clustering after image timestamp editing
+    image_timestamps = {image_id:{'timestamp':timestamp,'format':format}}
+    timestamps = {image_id:timestamp}
+    survey_id
+    '''
+    try:
+        app.logger.info('Image timestamp edit and recluster for survey {} with image_timestamps {}'.format(survey_id,image_timestamps))
+
+        tasks = db.session.query(Task).filter(Task.survey_id==survey_id).filter(~Task.name.contains('_o_l_d_')).all()
+        admin = db.session.query(User).filter(User.username=='Admin').first()
+
+        images = {}
+        trapgroups = {}
+        videos = {}
+        timestamps = {}
+        data = db.session.query(Image,Camera.trapgroup_id,Video.id,Video.fps,Video.frame_count).join(Camera,Image.camera_id==Camera.id).outerjoin(Video,Camera.videos).filter(Image.id.in_(list(image_timestamps.keys()))).distinct().all()
+        # Get all the images and their new timestamps (including all frames in videos)
+        for item in data:
+            try:
+                if image_timestamps[str(item[0].id)]['timestamp'] != '':
+                    new_timestamp = datetime.strptime(image_timestamps[str(item[0].id)]['timestamp'],image_timestamps[str(item[0].id)]['format'])
+                else:
+                    new_timestamp = None
+                if item[2] != None:
+                    index = int(item[0].filename.split('frame')[1][:-4])
+                    fps = get_still_rate(item[3],item[4])
+                    frames = db.session.query(Image).join(Camera).join(Video).filter(Video.id==item[2]).order_by(Image.id).all()
+                    video_timestamp = None
+                    if new_timestamp: video_timestamp = new_timestamp - timedelta(seconds=index/fps) 
+                    for frame in frames:
+                        frame_count = int(frame.filename.split('frame')[1][:-4])
+                        frame_timestamp = video_timestamp + timedelta(seconds=frame_count/fps) if video_timestamp else None
+                        timestamps[frame.id] = frame_timestamp
+                        images[frame.id] = frame
+                        trapgroups[frame.id] = item[1]
+                        videos[frame.id] = item[2]
+                else:
+                    timestamps[item[0].id] = new_timestamp
+                    images[item[0].id] = item[0]
+                    trapgroups[item[0].id] = item[1]
+                    videos[item[0].id] = None
+            except:
+                # Timestamp probably incorrectly formatted
+                pass
+
+        image_ids = list(timestamps.keys())
+        trapgroup_ids = []
+        if image_ids:
+            cluster_movement = {}
+            old_clusters = {}
+            checked = {}
+            for task in tasks:
+                old_clusters[task.id] = {}
+                checked[task.id] = {}
+                cluster_movement[task.id] = {}
+        
+            data = db.session.query(Image.id,Cluster,Cluster.task_id).join(Cluster,Image.clusters).filter(Image.id.in_(image_ids)).distinct().all()
+            for item in data:
+                old_clusters[item[2]][item[0]] = item[1]
+
+            data = rDets(db.session.query(Image.id,Label,Labelgroup.task_id)\
+                                .join(Detection,Image.detections)\
+                                .join(Labelgroup)\
+                                .join(Label,Labelgroup.labels)\
+                                .filter(Labelgroup.checked==True)\
+                                .filter(Image.id.in_(image_ids)))\
+                                .distinct().all()
+
+            for item in data:
+                if item[0] not in checked[item[2]].keys(): checked[item[2]][item[0]] = []
+                checked[item[2]][item[0]].append(item[1])
+
+            for image_id in timestamps:
+                image = images[image_id]
+                trapgroup_id = trapgroups[image_id]
+                
+                for task in tasks:
+                    old_cluster = old_clusters[task.id][image_id]
+                    if old_cluster not in cluster_movement[task.id].keys(): cluster_movement[task.id][old_cluster] = []
+
+                    if timestamps[image_id] == None:
+                        if image_id in videos.keys() and videos[image_id] != None:
+                            video_id = videos[image_id]
+                            # Get all the image keys in the videos dict where the value is the video_id
+                            video_image_ids = [k for k,v in videos.items() if v==video_id]
+                            candidate_clusters = db.session.query(Cluster)\
+                                                    .join(Image,Cluster.images)\
+                                                    .join(Camera)\
+                                                    .filter(Cluster.task==task)\
+                                                    .filter(Camera.trapgroup_id==trapgroup_id)\
+                                                    .filter(Image.id.in_(video_image_ids))\
+                                                    .filter(Image.corrected_timestamp==None)\
+                                                    .filter(Cluster.id!=old_cluster.id)\
+                                                    .distinct().all()
+                        else:
+                            candidate_clusters = None
+                    else: 
+                        candidate_clusters = db.session.query(Cluster)\
+                                                    .join(Image,Cluster.images)\
+                                                    .join(Camera)\
+                                                    .filter(Cluster.task==task)\
+                                                    .filter(Camera.trapgroup_id==trapgroup_id)\
+                                                    .filter(Image.corrected_timestamp<=timestamps[image_id]+timedelta(seconds=60))\
+                                                    .filter(Image.corrected_timestamp>=timestamps[image_id]-timedelta(seconds=60))\
+                                                    .distinct().all()
+
+                    # This needs to be here in case the old_cluster is in the candidate_clusters
+                    if image in old_cluster.images: old_cluster.images.remove(image)
+
+                    if candidate_clusters:
+                        newCluster = candidate_clusters[0]
+                        if image not in newCluster.images: newCluster.images.append(image)
+
+                        # If the cluster was AI annotated - drop labels
+                        if newCluster.user == admin:
+                            newCluster.labels = []
+                            newCluster.user_id = None
+
+                        # Combine all candidate clusters into new cluster (will be reclustered if too large later)
+                        for cluster in candidate_clusters[1:]:
+                            # Move images across
+                            for img in cluster.images:
+                                if img not in newCluster.images:
+                                    newCluster.images.append(img)
+                            cluster.images = []
+
+                            # Copy notes
+                            if not newCluster.notes: newCluster.notes = ''
+                            if cluster.notes: newCluster.notes += cluster.notes
+
+                            # Copy tags
+                            for tag in cluster.tags:
+                                if tag not in newCluster.tags:
+                                    newCluster.tags.append(tag)
+
+                            # Copy labels (don't copy AI labels)
+                            if cluster.user != admin:
+                                for label in cluster.labels:
+                                    if label not in newCluster.labels:
+                                        newCluster.labels.append(label)
+                            
+                                # Pass through user
+                                if (not newCluster.user) and cluster.user:
+                                    newCluster.user = cluster.user
+
+                    else:
+                        # Create new cluster
+                        newCluster = Cluster(task=task)
+                        db.session.add(newCluster)
+                        newCluster.images = [image]
+
+                    if newCluster not in cluster_movement[task.id][old_cluster]:
+                        cluster_movement[task.id][old_cluster].append(newCluster)
+
+                    # Pass through checked labels
+                    if image_id in checked[task.id].keys():
+                        for label in checked[task.id][image_id]:
+                            if label not in newCluster.labels:
+                                newCluster.labels.append(label)
+
+                    # handle labelgroups
+                    labelgroups = db.session.query(Labelgroup).join(Detection).join(Image).filter(Image.clusters.contains(newCluster)).filter(Labelgroup.task==task).distinct().all()
+                    for labelgroup in labelgroups:
+                        if not labelgroup.checked:
+                            labelgroup.labels = newCluster.labels
+
+                    # Update new clusters classification
+                    newCluster.classification = classifyCluster(newCluster)
+
+                # Update image timestamp
+                image.corrected_timestamp = timestamps[image_id]
+                trapgroup_ids.append(trapgroup_id)
+
+            for task in tasks:
+                # Go through all the old clusters and see if they split up - if so, we need to drop the labels because we don't know what images were viewed
+                for old_cluster in cluster_movement[task.id]:
+
+                    if old_cluster.user==admin:
+                        # if AI labelled - drop labels as the contents have changed
+                        old_cluster.labels = []
+                        old_cluster.user_id = None
+
+                    elif old_cluster.images:
+                        # cluster has been split up - drop labels
+                        old_cluster.labels = []
+                        old_cluster.user_id = None
+
+                    elif len(cluster_movement[task.id][old_cluster]) == 1:
+                        # single destination -> not split -> copy across labels
+                        newCluster = cluster_movement[task.id][old_cluster][0]
+                        
+                        for label in old_cluster.labels:
+                            if label not in newCluster.labels:
+                                newCluster.labels.append(label)
+                        
+                        for tag in old_cluster.tags:
+                            if tag not in newCluster.tags:
+                                newCluster.tags.append(tag)
+
+                        # Copy notes
+                        if not newCluster.notes: newCluster.notes = ''
+                        if old_cluster.notes: newCluster.notes += old_cluster.notes
+                    
+                    else:
+                        #split up
+                        old_cluster.labels = []
+                        old_cluster.user_id = None
+                    
+                    if old_cluster.images:
+                        # Check timing of images
+                        groups = []
+                        old_images = db.session.query(Image).filter(Image.clusters.contains(old_cluster)).order_by(Image.corrected_timestamp).all()
+                        prev = old_images[0].corrected_timestamp
+                        group = [old_images[0]]
+                        for image in old_images[1:]:
+                            if image.corrected_timestamp == None:
+                                if prev != None:
+                                    groups.append(group)
+                                    group = []
+                            else:
+                                if prev == None or image.corrected_timestamp-prev > timedelta(seconds=60):
+                                    groups.append(group)
+                                    group = []
+                            group.append(image)
+                            prev = image.corrected_timestamp
+                        groups.append(group)
+
+                        old_cluster_user_id = old_cluster.user_id
+                        if len(groups)>1:
+                            temp_clusters = []
+                            old_cluster.labels = []
+                            old_cluster.user_id = None
+                            old_cluster.images = []
+                            for group in groups:
+                                newCluster = Cluster(task=task)
+                                db.session.add(newCluster)
+                                newCluster.images = group
+                                temp_clusters.append(newCluster)
+                        else:
+                            temp_clusters = [old_cluster]
+
+                        for temp_cluster in temp_clusters:
+                            # handle labelgroups - first check for checked labels
+                            final_labels = temp_cluster.labels
+                            labelgroups = db.session.query(Labelgroup).join(Detection).join(Image).filter(Image.clusters.contains(temp_cluster)).filter(Labelgroup.task==task).distinct().all()
+                            for labelgroup in labelgroups:
+                                if labelgroup.checked:
+                                    for label in labelgroup.labels:
+                                        if label not in final_labels:
+                                            final_labels.append(label)
+
+                            # Copy the finalised labels through to the luster
+                            temp_cluster.labels = final_labels
+                            if not final_labels:
+                                temp_cluster.user_id = None
+                            else:
+                                temp_cluster.user_id = old_cluster_user_id
+
+                            for labelgroup in labelgroups:
+                                if not labelgroup.checked: labelgroup.labels = final_labels
+
+                            temp_cluster.classification = classifyCluster(temp_cluster)
+
+                # delete any empty clusters that remain
+                empty_clusters = db.session.query(Cluster).filter(Cluster.task==task).filter(~Cluster.images.any()).distinct().all()
+                for cluster in empty_clusters:
+                    #Delete cluster labels
+                    cluster.labels = []
+                    #Delete cluster tags
+                    cluster.tags = []
+                    #Delete cluster - image associations
+                    cluster.images = []
+                    #Delete required images
+                    cluster.required_images = []
+                    #Delete cluster
+                    db.session.delete(cluster)
+
+            # commit changes
+            db.session.commit()
+                
+            #then do normal post timestamp stuff
+            trapgroup_ids = list(set(trapgroup_ids))
+            if Config.DEBUGGING: app.logger.info('Wrap up after timestamp change called for survey {} with trapgroup_ids {}'.format(survey_id,trapgroup_ids))
+            wrapUpAfterTimestampChange.delay(survey_id=survey_id,trapgroup_ids=trapgroup_ids)
+
+        else:
+            survey = db.session.query(Survey).get(survey_id)
+            survey.status = 'Ready'
             db.session.commit()
 
     except Exception as exc:

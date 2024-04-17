@@ -167,6 +167,25 @@ limitations under the License. -->
                     
         </div>
 
+        <br>
+
+        <div class="card"  id="editCard">
+            <div class='card-header' style="margin-top: 0px; margin-bottom: 0px; border-bottom: 1px solid rgb(60,74,89); ">
+                <div class="row">
+                    <div class="col-lg-9">
+                        <h3>Edit</h3>
+                    </div>
+                </div>
+            </div>
+            <div class="card-body" id="editDiv">
+                <div class="row">
+                    <div class="col-lg-12">
+                        <button type='button' class='btn btn-danger btn-block' id='btnDeleteIndividuals'>Delete Individuals</button>
+                    </div>
+                </div>
+            </div>  
+        </div>
+
     </div>
 </div>
 <br>
@@ -367,17 +386,38 @@ limitations under the License. -->
           <div class='modal-footer'>
 
               <div class='col-lg-3'>
-                  <button type='button' class='btn btn-info btn-block' data-dismiss='modal' onclick="modalIndividual.modal({keyboard: true})">Cancel</button>
+                  <button id="btnCancelIndividualAlert" type='button' class='btn btn-info btn-block' data-dismiss='modal'>Cancel</button>
               </div>
 
               <div class='col-lg-3'>
-                  <button id="btnContinueIndividualAlert" type='button' class='btn btn-danger btn-block'>Continue</button>
+                  <button id="btnContinueIndividualAlert" type='button' class='btn btn-danger btn-block' data-dismiss='modal'>Continue</button>
               </div>
 
           </div>
       </div>
 
   </div>
+</div>
+
+<!-- Individual Error Modal -->
+<div id="modalIndividualsError" class="modal fade" role="dialog" tabindex="-1">
+    <div class="modal-dialog">
+        <!-- Modal content-->
+        <div class="modal-content">
+            <div class="modal-header">
+                <h4 id='modalIndividualsErrorHeader' class="modal-title"></h4>
+                <button id="helpx" type="button" class="close" data-dismiss="modal">&times;</button>
+            </div>
+            <div class="modal-body">
+                <p id='modalIndividualsErrorBody' align="justify"></p>
+            </div>
+            <div class='modal-footer'>
+                <div class='col-lg-3'>
+                    <button id="btnCloseIndivErrorModal" type='button' class='btn btn-info btn-block' data-dismiss='modal'>Close</button>
+                </div>
+            </div>
+        </div>
+    </div>
 </div>
 
 <!-- Launch ID Task Modal -->
@@ -399,7 +439,7 @@ limitations under the License. -->
             </div>
             <div class="modal-body">
                 <h5 style="margin-bottom: 2px">Description</h5>
-                <div style="font-size: 80%; margin-bottom: 2px" id="annotationDescription"><i>Identify specific individuals for a chosen individual across surveys. It is required that you complete individual identification for each survey of interest before beginning this process.</i></div>
+                <div style="font-size: 80%; margin-bottom: 2px" id="annotationDescription"><i>Identify specific individuals for a chosen species across surveys. It is required that you complete individual identification for each survey of interest before beginning this process.</i></div>
                 <br>
 
                 <h5 style="margin-bottom: 2px">Annotation Level</h5>
@@ -446,6 +486,66 @@ limitations under the License. -->
             </div>
         </div>
   
+    </div>
+</div>
+
+
+<!-- Delete Individuals Modal -->
+<div id="modalDeleteIndividuals" class="modal fade" role="dialog" tabindex="-1">
+    <div class="modal-dialog" style="max-width: 50%;">
+  
+        <!-- Modal content-->
+        <div class="modal-content">
+            <div class="modal-header">
+                <div class='col-lg-10' style="padding: 0px">
+                    <h4 class="modal-title">Delete Individuals</h4>
+                </div>
+                <div class='col-lg-1' style="padding: 0px">
+                    <button class='btn btn-primary btn-sm pull-right' onclick="helpOpen('delete_individuals')">Help</button>
+                </div>
+                <div class='col-lg-1' style="padding: 0px">
+                    <button id="helpx" type="button" class="close" data-dismiss="modal">&times;</button>
+                </div>
+            </div>
+            <div class="modal-body">
+                <h5 style="margin-bottom: 2px">Description</h5>
+                <div style="font-size: 80%; margin-bottom: 2px"><i>Here you can delete individuals from your annotation sets and surveys for a specific species. This will completely remove the individuals from the database and allow you to start the identification process again.</i></div>
+                <br>
+
+                <h5 style="margin-bottom: 2px">Surveys and annotation sets</h5>
+                <div style="font-size: 80%; margin-bottom: 2px"><i>Select which surveys and annotation sets you would like to delete individuals for.</i></div>
+                <div id="surveySelectDel"></div>
+                <div class="row">
+                    <div class="col-lg-3">
+                        <button class="btn btn-info" id="addSurveyDel" onclick="buildSurveySelectDelete()">+</button>
+                    </div>
+                </div>
+                <br>
+
+                <h5 style="margin-bottom: 2px">Species</h5>
+                <div style="font-size: 80%; margin-bottom: 2px"><i>Select the species you would like to delete individuals for.</i></div>
+                <div id="speciesSelectDel"></div>	
+                <div class="row">
+                    <div class="col-lg-3">
+                        <button class="btn btn-info" id="addSpeciesDel" onclick="buildSpeciesSelectDelete()">+</button>
+                    </div>
+                </div>
+                <br>
+
+                <div id="deleteIndivErrors" style="font-size: 80%; color: #DF691A"></div>
+            </div>
+            <div class='modal-footer'>
+
+                    <div class='col-lg-2'>
+                        <button id="btnDeleteIndivs" type='button' class='btn btn-danger btn-block'>Delete</button>
+                    </div>
+                    <div class='col-lg-2'>
+                        <button id="helpclose" type='button' class='btn btn-info btn-block' 
+                        data-dismiss='modal'>Close</button>
+                    </div>
+
+            </div>
+        </div>
     </div>
 </div>
 

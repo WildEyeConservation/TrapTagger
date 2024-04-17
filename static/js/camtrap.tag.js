@@ -17,6 +17,14 @@ isReviewing = false
 isKnockdown = false
 isBounding = false
 isIDing = false
+isStaticCheck = false
+isTimestampCheck = false
+
+var drawControl = null
+var toolTipsOpen = true
+var editingEnabled = false
+var maskId = {'map1': null}
+var maskLayer = {'map1': null}
 
 var clusterIdList = []
 // const modalNote = $('#modalNote');
@@ -45,8 +53,12 @@ function loadNewCluster(mapID = 'map1') {
                                 if (((knockedTG!=null)&&(parseInt(newcluster.trapGroup)>0)&&(newcluster.trapGroup!=knockedTG))||(newcluster.id == '-101')) {
                                     knockedTG=null
                                 }
+
+                                if (((maskedTG!=null)&&(parseInt(newcluster.trapGroup)>0)&&(newcluster.trapGroup!=maskedTG))||(newcluster.id == '-101')) {
+                                    maskedTG=null
+                                }
                                 
-                                if (knockedTG==null) {
+                                if (knockedTG==null && maskedTG==null) {
                                     if ((!clusterIdList.includes(newcluster.id))||(newcluster.id=='-101')) {
                                         clusterIdList.push(newcluster.id)
 
@@ -97,7 +109,12 @@ function suggestionBack(resetLabels=true,mapID='map1') {
         clusters[mapID][clusterIndex[mapID]][ITEM_IDS] = orginal_label_ids
         updateDebugInfo()
     }
-    taggingLevel = '-3'
+    if (isClassCheck) {
+        taggingLevel = '-3'
+    }
+    // else if (isMaskCheck) {
+    //     taggingLevel = '-6'
+    // }
     getKeys()
 }
 
@@ -216,6 +233,119 @@ function getKeys() {
                     }
                 }
             xhttp.send();
+
+
+        } else if (isTagging && maskMode && (taggingLevel == '-1' || parseInt(taggingLevel) > 0)) {
+            multipleStatus = false
+            selectBtns = document.getElementById('selectBtns')
+
+            while(selectBtns.firstChild){
+                selectBtns.removeChild(selectBtns.firstChild);
+            }
+
+            while(divBtns.firstChild){
+                divBtns.removeChild(divBtns.firstChild);
+            }
+
+            var newbtn = document.createElement('button');
+            newbtn.classList.add('btn');
+            newbtn.classList.add('btn-primary');
+            newbtn.innerHTML = 'Submit Masks (S)';
+            newbtn.setAttribute("id", 1);
+            newbtn.classList.add('btn-block');
+            newbtn.classList.add('btn-sm');
+            newbtn.setAttribute("style", "margin-top: 3px; margin-bottom: 3px");
+            newbtn.addEventListener('click', (evt)=>{
+                assignLabel('submit_mask');
+            });
+
+            divBtns.appendChild(newbtn);
+
+            var newbtn = document.createElement('button');
+            newbtn.classList.add('btn');
+            newbtn.classList.add('btn-primary');
+            newbtn.innerHTML = 'Cancel (C)';
+            newbtn.setAttribute("id", 2);
+            newbtn.classList.add('btn-block');
+            newbtn.classList.add('btn-sm');
+            newbtn.setAttribute("style", "margin-top: 3px; margin-bottom: 3px");
+            newbtn.addEventListener('click', (evt)=>{
+                assignLabel('cancel_mask');
+            });
+
+            divBtns.appendChild(newbtn);
+
+            hotkeys = Array(38).fill(EMPTY_HOTKEY_ID)
+            hotkeys[28] = 'submit_mask' //s
+            hotkeys[12] = 'cancel_mask' //c
+
+            var xhttp = new XMLHttpRequest();
+            xhttp.open("GET", '/initKeys', true);
+            xhttp.onreadystatechange =
+                function () {
+                    if (this.readyState == 4 && this.status == 278) {
+                        window.location.replace(JSON.parse(this.responseText)['redirect'])
+                    } else if (this.readyState == 4 && this.status == 200) {
+                        globalKeys = JSON.parse(this.responseText);
+                    }
+                }
+            xhttp.send();
+
+        // } else if (taggingLevel == '-6') {
+        //     multipleStatus = false
+        //     selectBtns = document.getElementById('selectBtns')
+
+        //     while(selectBtns.firstChild){
+        //         selectBtns.removeChild(selectBtns.firstChild);
+        //     }
+
+        //     while(divBtns.firstChild){
+        //         divBtns.removeChild(divBtns.firstChild);
+        //     }
+
+        //     var newbtn = document.createElement('button');
+        //     newbtn.classList.add('btn');
+        //     newbtn.classList.add('btn-primary');
+        //     newbtn.innerHTML = 'Accept (A)';
+        //     newbtn.setAttribute("id", 1);
+        //     newbtn.classList.add('btn-block');
+        //     newbtn.classList.add('btn-sm');
+        //     newbtn.setAttribute("style", "margin-top: 3px; margin-bottom: 3px");
+        //     newbtn.addEventListener('click', (evt)=>{
+        //         console.log('accept')
+        //         assignLabel('accept_mask');
+        //     });
+        //     divBtns.appendChild(newbtn);
+
+        //     var newbtn = document.createElement('button');
+        //     newbtn.classList.add('btn');
+        //     newbtn.classList.add('btn-primary');
+        //     newbtn.innerHTML = 'Reject (R)';
+        //     newbtn.setAttribute("id", 2);
+        //     newbtn.classList.add('btn-block');
+        //     newbtn.classList.add('btn-sm');
+        //     newbtn.setAttribute("style", "margin-top: 3px; margin-bottom: 3px");
+        //     newbtn.addEventListener('click', (evt)=>{
+        //         console.log('reject')
+        //         assignLabel('reject_mask');
+        //     });
+        //     divBtns.appendChild(newbtn);
+
+        //     hotkeys = Array(38).fill(EMPTY_HOTKEY_ID)
+        //     hotkeys[10] = 'accept_mask' //a
+        //     hotkeys[27] = 'reject_mask' //r
+
+        //     var xhttp = new XMLHttpRequest();
+        //     xhttp.open("GET", '/initKeys', true);
+        //     xhttp.onreadystatechange =
+        //         function () {
+        //             if (this.readyState == 4 && this.status == 278) {
+        //                 window.location.replace(JSON.parse(this.responseText)['redirect'])
+        //             } else if (this.readyState == 4 && this.status == 200) {
+        //                 globalKeys = JSON.parse(this.responseText);
+        //             }
+        //         }
+        //     xhttp.send();
 
         } else {
             if (globalKeys==null) {
@@ -360,3 +490,213 @@ modalNote.on('hidden.bs.modal', function(){
     document.getElementById('notebox').value = ''
     document.getElementById('notif').innerHTML = ""
 });
+
+
+function taggingMapPrep(mapID = 'map1') {
+    /** Preps the map for masking and tagging. */
+
+    map[mapID].on("draw:drawstart", function(e) {
+        editingEnabled = true
+    })
+
+    map[mapID].on("draw:drawstop", function(e) {
+        editingEnabled = false
+    })
+
+    map[mapID].on("draw:editstart", function(e) {
+        editingEnabled = true
+    })
+
+    map[mapID].on("draw:editstop", function(e) {
+        editingEnabled = false
+    })
+
+    map[mapID].on("draw:deletestart", function(e) {
+        editingEnabled = true
+    })
+
+    map[mapID].on("draw:deletestop", function(e) {
+        editingEnabled = false
+    })
+
+    map[mapID].on('draw:created', function (e) {
+        var newLayer = e.layer;
+        var newBounds = newLayer.getBounds();
+        var isOverlapping = false;
+
+        drawnMaskItems[mapID].eachLayer(function (layer) {
+            if (newBounds.intersects(layer.getBounds())) {
+                isOverlapping = true;
+            }
+        });
+
+        if (isOverlapping) {
+            document.getElementById('modalAlertText').innerHTML = 'The area you have masked overlaps with another masked area. You can edit the existing mask or delete it and try again.'
+            modalAlert.modal({keyboard: true});
+            drawnMaskItems[mapID].removeLayer(newLayer);
+        } else {
+            drawnMaskItems[mapID].addLayer(newLayer);  
+        }
+
+    });
+
+}
+
+function maskArea(mapID = 'map1') {
+    /** Masks the area drawn by the user. */
+    if (!clusters[mapID][clusterIndex[mapID]][ITEMS].includes(maskLabel)) {
+        updateMasks(mapID)
+        if (globalMasks[mapID].length > 0 && globalMasks[mapID][0] != -1) {
+            maskedTG = clusters[mapID][clusterIndex[mapID]].trapGroup
+            clusterRequests[mapID] = [];
+            clusters[mapID] = clusters[mapID].slice(0,clusterIndex[mapID]+1);
+            imageID=clusters[mapID][clusterIndex[mapID]].images[imageIndex[mapID]].id
+            clusterID=clusters[mapID][clusterIndex[mapID]].id
+
+            var formData = new FormData();
+            formData.append('masks', JSON.stringify(globalMasks[mapID]));
+            formData.append('cluster_id', clusterID);
+            formData.append('image_id', imageID);
+
+            var xhttp = new XMLHttpRequest();
+            xhttp.onreadystatechange =
+            function(){
+                if (this.readyState == 4 && this.status == 278) {
+                    window.location.replace(JSON.parse(this.responseText)['redirect'])
+                }
+            }
+            xhttp.open("POST", '/maskArea', true);
+            xhttp.send(formData);
+
+            clusters[mapID][clusterIndex[mapID]][ITEMS] = [maskLabel];
+            clusters[mapID][clusterIndex[mapID]][ITEM_IDS] = [maskLabel];
+
+            if (batchComplete) {
+                redirectToDone()
+            }
+
+            clusterIndex[mapID] += 1
+            imageIndex[mapID] = 0
+
+            if (drawnMaskItems[mapID] != null) {
+                drawnMaskItems[mapID].eachLayer(function (layer) {
+                    drawnMaskItems[mapID].removeLayer(layer);
+                });
+            }
+            
+            if (drawControl != null) {
+                drawControl.remove()
+            }
+        
+            updateMasks(mapID)
+        
+            maskMode = false
+            multipleStatus = false
+            getKeys()
+
+            nextCluster()
+        }
+        else if (globalMasks[mapID][0] == -1) {
+            document.getElementById('modalAlertText').innerHTML = 'The area you have masked is too small. Please try again.'
+            modalAlert.modal({keyboard: true});
+        }
+        else {
+            document.getElementById('modalAlertText').innerHTML = 'You have no masked areas. Please draw a mask and try again or cancel if you do not wish to mask this image.'
+            modalAlert.modal({keyboard: true});
+        }
+    }
+} 
+
+function updateMasks(mapID = 'map1') {
+    /** Updates the masks on the map. */
+    globalMasks[mapID] = []
+    if (drawnMaskItems[mapID] != null) {
+        drawnMaskItems[mapID].eachLayer(function (layer) {
+            mask_dict = {}
+            if (layer instanceof L.Polygon) {
+                mask_dict['poly_coords'] = []
+                layer._latlngs[0].forEach(function (point) {
+                    mask_dict['poly_coords'].push([point.lng/mapWidth[mapID], point.lat/mapHeight[mapID]])
+                });
+                mask_dict['poly_coords'].push(mask_dict['poly_coords'][0])
+
+                // Create a box around the polygon
+                poly_box = {}
+                poly_box['top'] = layer._bounds._northEast.lat/mapHeight[mapID]
+                poly_box['bottom'] = layer._bounds._southWest.lat/mapHeight[mapID]
+                poly_box['left'] = layer._bounds._southWest.lng/mapWidth[mapID]
+                poly_box['right'] = layer._bounds._northEast.lng/mapWidth[mapID]
+                mask_dict['poly_box'] = poly_box
+
+                // Check area of polygon
+                var area = (poly_box['bottom']-poly_box['top']) * (poly_box['right']-poly_box['left']) 
+                if (area >= 0.001) {
+                    globalMasks[mapID].push(mask_dict)
+                }
+                else{
+                    globalMasks[mapID] = [-1]
+                }
+            }
+        });
+    }
+}
+
+function initMaskMode(mapID='map1'){
+    /** Initialises the map for masking. */
+    if (isTagging && (taggingLevel == '-1' || parseInt(taggingLevel) > 0)) {
+
+        if (drawControl != null) {
+            drawControl.remove()
+        }
+
+        drawControl = new L.Control.Draw({
+            draw: {
+                polygon: {
+                    shapeOptions: maskRectOptions,
+                    allowIntersection: false,
+                },
+                polyline: false,
+                circle: false,
+                circlemarker: false,
+                marker: false,
+                rectangle: {
+                    shapeOptions: maskRectOptions,
+                    showArea: false
+                }
+            },
+            edit: {
+                featureGroup: drawnMaskItems[mapID],
+            }
+        });
+        map[mapID].addControl(drawControl);
+        drawControl._toolbars.draw._toolbarContainer.children[0].title = 'Mask Area'
+        drawControl._toolbars.draw._toolbarContainer.children[1].title = 'Mask Area'
+
+    }
+}
+
+function cancelMask(mapID = 'map1') {
+    /** Cancels the current mask. */
+    if (drawnMaskItems[mapID] != null) {
+        drawnMaskItems[mapID].eachLayer(function (layer) {
+            drawnMaskItems[mapID].removeLayer(layer);
+        });
+    }
+    
+    if (drawControl != null) {
+        drawControl.remove()
+    }
+
+    updateMasks(mapID)
+
+    maskMode = false
+    multipleStatus = false
+    getKeys()
+}
+
+function submitMasks(mapID = 'map1') {
+    /** Submits the current masks. */
+    updateMasks(mapID)
+    assignLabel(maskLabel)
+    modalMaskArea.modal('hide')
+}

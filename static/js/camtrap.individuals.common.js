@@ -182,7 +182,7 @@ function prepMapIndividual(image) {
             hc = document.getElementById('mapDiv').clientHeight
             wc = document.getElementById('mapDiv').clientWidth
             map.on('resize', function(){
-                if(document.getElementById('mapDiv').clientHeight){
+                if(document.getElementById('mapDiv') && document.getElementById('mapDiv').clientHeight){
                     h1 = document.getElementById('mapDiv').clientHeight
                     w1 = document.getElementById('mapDiv').clientWidth
                 }
@@ -436,6 +436,8 @@ function updateMapIndividual( url){
 
 function deleteIndividual() {
     /** Deletes the selected individual. */
+    document.getElementById('btnContinueIndividualAlert').disabled = true
+    modalAlertIndividualsReturn = false
     modalAlertIndividuals.modal('hide')
     cleanModalIndividual()
     var xhttp = new XMLHttpRequest();
@@ -443,39 +445,64 @@ function deleteIndividual() {
     function(){
         if (this.readyState == 4 && this.status == 200) {
             reply = JSON.parse(this.responseText);
-            if (reply=='success') {
-                getIndividuals(current_page)
+            if (document.getElementById('btnContinueIndividualAlert')) {
+                document.getElementById('btnContinueIndividualAlert').disabled = false
             }
+            getIndividuals(current_page)
         }
     }
     xhttp.open("GET", '/deleteIndividual/'+selectedIndividual.toString());
     xhttp.send();
+
+    if (document.getElementById('modalIndividuals')) {
+        modalIndividuals.modal({keyboard: true});
+    }
+    
 }
 
 function removeImage() {
     /** Removes the currently displayed individual from the selected individual. */
+    document.getElementById('btnContinueIndividualAlert').disabled = true
     modalAlertIndividuals.modal('hide')
-    modalIndividual.modal({keyboard: true});
+    
     if (individualImages.length > 1){
         image = individualImages[individualSplide.index]
         detection = image.detections[0]
+
+        individualImages.splice(individualSplide.index, 1)
+        updateSlider()
+        if (individualSplide.index > 0){
+            individualSplide.go(0)
+        }
+        else{
+            finishedDisplaying = false
+            image = individualImages[0]
+            document.getElementById('tgInfo').innerHTML = "Site: " + image.trapgroup.tag
+            document.getElementById('timeInfo').innerHTML = image.timestamp
+            addedDetections = false
+            var isImage = checkIfImage(image.url)
+            var isActiveImage = checkIfImage(activeImage._url)
+            if (isImage != isActiveImage) {
+                updateMapIndividual(image.url)
+            }
+            updatePlayControlImage()
+            activeImage.setUrl("https://"+bucketName+".s3.amazonaws.com/" + modifyToCompURL(image.url))
+        }
+    
         var xhttp = new XMLHttpRequest();
         xhttp.onreadystatechange =
         function(){
             if (this.readyState == 4 && this.status == 200) {
                 reply = JSON.parse(this.responseText);
-                if (reply.status=='success') {
-                    index = individualImages.indexOf(image);
-                    if (index > -1) {
-                        individualImages.splice(index, 1);
-                    }
-                    updateSlider()
-                    individualSplide.go(0)
+                if (document.getElementById('btnContinueIndividualAlert')) {
+                    document.getElementById('btnContinueIndividualAlert').disabled = false
                 }
             }
         }
         xhttp.open("GET", '/dissociateDetection/'+detection.id.toString()+'?individual_id='+selectedIndividual.toString());
         xhttp.send();
+
+        modalIndividual.modal({keyboard: true});
     }
     
 }

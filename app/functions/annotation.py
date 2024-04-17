@@ -19,7 +19,7 @@ from app.models import *
 from app.functions.globals import taggingLevelSQ, addChildLabels, resolve_abandoned_jobs, createTurkcodes, deleteTurkcodes, \
                                     updateTaskCompletionStatus, updateLabelCompletionStatus, updateIndividualIdStatus, retryTime, chunker, \
                                     getClusterClassifications, checkForIdWork, numify_timestamp, rDets, prep_required_images, updateAllStatuses
-from app.functions.individualID import calculate_detection_similarities, generateUniqueName, cleanUpIndividuals, calculate_individual_similarities
+from app.functions.individualID import calculate_detection_similarities, generateUniqueName, cleanUpIndividuals, calculate_individual_similarities, check_individual_detection_mismatch
 # from app.functions.results import resetImageDownloadStatus, resetVideoDownloadStatus
 import GLOBALS
 from sqlalchemy.sql import func, distinct, or_, alias, and_
@@ -69,7 +69,7 @@ def launch_task(self,task_id):
                                         .filter(Labelgroup.task_id==task_id)\
                                         .filter(or_(and_(Detection.source==model,Detection.score>Config.DETECTOR_THRESHOLDS[model]) for model in Config.DETECTOR_THRESHOLDS)) \
                                         .filter(Detection.static == False) \
-                                        .filter(~Detection.status.in_(['deleted','hidden'])) \
+                                        .filter(~Detection.status.in_(Config.DET_IGNORE_STATUSES)) \
                                         .filter(Cluster.task_id==task_id)\
                                         .group_by(Cluster.id)\
                                         .subquery()
@@ -87,7 +87,7 @@ def launch_task(self,task_id):
                                         .filter(Labelgroup.task_id==task_id)\
                                         .filter(or_(and_(Detection.source==model,Detection.score>Config.DETECTOR_THRESHOLDS[model]) for model in Config.DETECTOR_THRESHOLDS)) \
                                         .filter(Detection.static == False) \
-                                        .filter(~Detection.status.in_(['deleted','hidden'])) \
+                                        .filter(~Detection.status.in_(Config.DET_IGNORE_STATUSES)) \
                                         .filter(individualsSQ.c.id==None)\
                                         .filter(or_(sq.c.detCount==1,sq.c.imCount==1))\
                                         .distinct().all()
@@ -122,14 +122,66 @@ def launch_task(self,task_id):
 
                 # check if indsims are actually there - specifically for post timestamp edits
                 if len(task_ids)==1:
-                    check = db.session.query(IndSimilarity)\
-                                    .join(Individual, IndSimilarity.individual_1==Individual.id)\
+                    # check = db.session.query(IndSimilarity)\
+                    #                 .join(Individual, IndSimilarity.individual_1==Individual.id)\
+                    #                 .join(Task,Individual.tasks)\
+                    #                 .filter(Task.id.in_(task_ids))\
+                    #                 .filter(Individual.species==species)\
+                    #                 .first()
+                    # if check==None:
+                    #     calculate_individual_similarities(task.id,species)
+                    #     task = db.session.query(Task).get(task_id)
+
+                    individuals = db.session.query(Individual)\
                                     .join(Task,Individual.tasks)\
-                                    .filter(Task.id.in_(task_ids))\
                                     .filter(Individual.species==species)\
-                                    .first()
-                    if check==None:
-                        calculate_individual_similarities(task.id,species,None)
+                                    .filter(Individual.active==True)\
+                                    .filter(Individual.name!='unidentifiable')\
+                                    .filter(Task.id.in_(task_ids))\
+                                    .subquery()
+
+                    indsims1 = db.session.query(Individual.id.label('indID1'), func.count(distinct(IndSimilarity.id)).label('simCount'))\
+                                    .join(IndSimilarity,IndSimilarity.individual_1==Individual.id)\
+                                    .join(individuals,IndSimilarity.individual_2==individuals.c.id)\
+                                    .join(Task,Individual.tasks)\
+                                    .filter(Individual.species==species)\
+                                    .filter(Individual.active==True)\
+                                    .filter(Individual.name!='unidentifiable')\
+                                    .filter(Task.id.in_(task_ids))\
+                                    .group_by(Individual.id)\
+                                    .subquery()
+
+                    indsims2 = db.session.query(Individual.id.label('indID2'), func.count(distinct(IndSimilarity.id)).label('simCount'))\
+                                    .join(IndSimilarity,IndSimilarity.individual_2==Individual.id)\
+                                    .join(individuals,IndSimilarity.individual_1==individuals.c.id)\
+                                    .join(Task,Individual.tasks)\
+                                    .filter(Individual.species==species)\
+                                    .filter(Individual.active==True)\
+                                    .filter(Individual.name!='unidentifiable')\
+                                    .filter(Task.id.in_(task_ids))\
+                                    .group_by(Individual.id)\
+                                    .subquery()
+
+                    indsims_counts = db.session.query(Individual.id, func.coalesce(indsims1.c.simCount,0) + func.coalesce(indsims2.c.simCount,0))\
+                                    .join(Task,Individual.tasks)\
+                                    .outerjoin(indsims1,Individual.id==indsims1.c.indID1)\
+                                    .outerjoin(indsims2,Individual.id==indsims2.c.indID2)\
+                                    .filter(Individual.species==species)\
+                                    .filter(Individual.active==True)\
+                                    .filter(Individual.name!='unidentifiable')\
+                                    .filter(Task.id.in_(task_ids))\
+                                    .distinct().all()
+
+                    check = False 
+                    req_count = len(indsims_counts) - 1
+                    if len(indsims_counts) > 1:
+                        for counts in indsims_counts:
+                            if counts[1] < req_count:
+                                check = True
+                                break
+
+                    if check:
+                        calculate_individual_similarities(task.id,species)
                         task = db.session.query(Task).get(task_id)
 
                 #extract threshold
@@ -182,10 +234,18 @@ def launch_task(self,task_id):
 
             sq = taggingLevelSQ(sq,taggingLevel,isBounding,task_id)
 
+            # if '-6' in taggingLevel:
+            #     # NOTE: This is not currently used (is for check masked sightings)
+            #     clusters = sq.filter(Cluster.task_id == task_id) \
+            #                     .filter(or_(and_(Detection.source==model,Detection.score>Config.DETECTOR_THRESHOLDS[model]) for model in Config.DETECTOR_THRESHOLDS)) \
+            #                     .filter(Detection.static == False) \
+            #                     .filter(Detection.status == 'masked') \
+            #                     .distinct().all()
+
             clusters = sq.filter(Cluster.task_id == task_id) \
                             .filter(or_(and_(Detection.source==model,Detection.score>Config.DETECTOR_THRESHOLDS[model]) for model in Config.DETECTOR_THRESHOLDS)) \
                             .filter(Detection.static == False) \
-                            .filter(~Detection.status.in_(['deleted','hidden'])) \
+                            .filter(~Detection.status.in_(Config.DET_IGNORE_STATUSES)) \
                             .distinct().all()
 
             cluster_count = len(clusters)
@@ -209,6 +269,7 @@ def launch_task(self,task_id):
 
         task.cluster_count = cluster_count
 
+        # if not (any(item in taggingLevel for item in ['-4','-5','-6']) or isBounding):
         if not (any(item in taggingLevel for item in ['-4','-5']) or isBounding):
             prep_required_images(task_id)
 
@@ -353,6 +414,9 @@ def wrapUpTask(self,task_id):
 
         if '-5' in task.tagging_level:
             cleanUpIndividuals(task_id)
+        
+        if ',' not in task.tagging_level and task.init_complete and '-2' not in task.tagging_level:
+            check_individual_detection_mismatch(task_id=task_id, celeryTask=False)
 
         clusters = db.session.query(Cluster).filter(Cluster.task_id==task_id).filter(Cluster.skipped==True).distinct().all()
         for cluster in clusters:
@@ -385,27 +449,28 @@ def wrapUpTask(self,task_id):
         task.tagging_time = total_time
         task.jobs_finished = len(turkcodes)
 
-        if '-4' in task.tagging_level:
+        # if '-4' in task.tagging_level:
             #Check if complete
-            tL = re.split(',',task.tagging_level)
-            species = tL[1]
-            incompleteIndividuals = db.session.query(Individual)\
-                                            .outerjoin(IndSimilarity, or_(IndSimilarity.individual_1==Individual.id,IndSimilarity.individual_2==Individual.id))\
-                                            .filter(Individual.tasks.contains(task))\
-                                            .filter(Individual.species==species)\
-                                            .filter(Individual.name!='unidentifiable')\
-                                            .filter(IndSimilarity.score==None)\
-                                            .distinct().count()
-            total_individual_count = db.session.query(Individual)\
-                                            .filter(Individual.tasks.contains(task))\
-                                            .filter(Individual.species==species)\
-                                            .filter(Individual.name!='unidentifiable')\
-                                            .count()
-            if Config.DEBUGGING: app.logger.info('There are {} incomplete individuals for wrapTask'.format(incompleteIndividuals))
-            if (incompleteIndividuals == 0) or (total_individual_count<2):
-                task.survey.status = 'Ready'
+            # tL = re.split(',',task.tagging_level)
+            # species = tL[1]
+            # incompleteIndividuals = db.session.query(Individual)\
+            #                                 .outerjoin(IndSimilarity, or_(IndSimilarity.individual_1==Individual.id,IndSimilarity.individual_2==Individual.id))\
+            #                                 .filter(Individual.tasks.contains(task))\
+            #                                 .filter(Individual.species==species)\
+            #                                 .filter(Individual.name!='unidentifiable')\
+            #                                 .filter(IndSimilarity.score==None)\
+            #                                 .distinct().count()
+            # total_individual_count = db.session.query(Individual)\
+            #                                 .filter(Individual.tasks.contains(task))\
+            #                                 .filter(Individual.species==species)\
+            #                                 .filter(Individual.name!='unidentifiable')\
+            #                                 .count()
+            # if Config.DEBUGGING: app.logger.info('There are {} incomplete individuals for wrapTask'.format(incompleteIndividuals))
+            # if (incompleteIndividuals == 0) or (total_individual_count<2):
+            #     task.survey.status = 'Ready'
 
-        elif '-5' in task.tagging_level:
+
+        if '-5' in task.tagging_level:
             GLOBALS.redisClient.delete('active_individuals_'+str(task_id))
             GLOBALS.redisClient.delete('active_indsims_'+str(task_id))
 
@@ -414,7 +479,14 @@ def wrapUpTask(self,task_id):
 
         #Accounts for individual ID background processing
         if 'processing' not in task.survey.status:
-            task.survey.status = 'Ready'
+            if '-4' in task.tagging_level:
+                tL = re.split(',',task.tagging_level)
+                species = tL[1]
+                task.survey.status = 'indprocessing'
+                db.session.commit()
+                calculate_individual_similarities.delay(task.id,species)	
+            else:
+                task.survey.status = 'Ready'
 
         # handle multi-tasks
         for sub_task in task.sub_tasks:
@@ -593,18 +665,18 @@ def manageTasks():
         startTime = datetime.utcnow()
         session = db.session()
 
-        # Check Knockdown for timeout
-        tasks = session.query(Task)\
-                        .join(Survey)\
-                        .join(Organisation)\
-                        .join(UserPermissions)\
-                        .join(User,UserPermissions.user_id==User.id)\
-                        .filter(User.last_ping < (datetime.utcnow()-timedelta(minutes=5)))\
-                        .filter(Task.status=='Knockdown Analysis')\
-                        .distinct().all()
+        # # Check Knockdown for timeout
+        # tasks = session.query(Task)\
+        #                 .join(Survey)\
+        #                 .join(Organisation)\
+        #                 .join(UserPermissions)\
+        #                 .join(User,UserPermissions.user_id==User.id)\
+        #                 .filter(User.last_ping < (datetime.utcnow()-timedelta(minutes=5)))\
+        #                 .filter(Task.status=='Knockdown Analysis')\
+        #                 .distinct().all()
         
-        for task in tasks:
-            task.status = 'successInitial'
+        # for task in tasks:
+        #     task.status = 'successInitial'
 
         # #Look for abandoned jobs
         # abandoned_jobs = session.query(User,Task)\
@@ -755,7 +827,7 @@ def manageTasks():
 
     finally:
         session.close()
-        if Config.DEBUGGING: app.logger.info('Manage tasks completed in {}'.format(datetime.utcnow()-startTime))
+        if Config.DEBUGGING: print('Manage tasks completed in {}'.format(datetime.utcnow()-startTime))
         countdown = 20 - (datetime.utcnow()-startTime).total_seconds()
         if countdown < 0: countdown=0
         manageTasks.apply_async(queue='priority', priority=0, countdown=countdown)
@@ -893,7 +965,7 @@ def fetch_clusters(taggingLevel,task_id,isBounding,trapgroup_id,session,limit=No
                         .filter(Task.id.in_(task_ids))\
                         .filter(or_(sq1.c.indID1!=None, sq2.c.indID2!=None))\
                         .filter(or_(and_(Detection.source==model,Detection.score>Config.DETECTOR_THRESHOLDS[model]) for model in Config.DETECTOR_THRESHOLDS))\
-                        .filter(~Detection.status.in_(['deleted','hidden']))\
+                        .filter(~Detection.status.in_(Config.DET_IGNORE_STATUSES))\
                         .filter(Detection.static==False)\
                         .order_by(desc(sq3.c.count3)).all()
 
@@ -1045,6 +1117,16 @@ def fetch_clusters(taggingLevel,task_id,isBounding,trapgroup_id,session,limit=No
                         .filter(Camera.trapgroup_id==trapgroup_id)\
                         .filter(Cluster.examined==False)
         
+        # if '-6' in taggingLevel:  
+        #     # NOTE: This is not currently used (is for check masked sightings)
+        #     clusters = clusters.filter(or_(and_(Detection.source==model,Detection.score>Config.DETECTOR_THRESHOLDS[model]) for model in Config.DETECTOR_THRESHOLDS))\
+        #                     .filter(Detection.static==False)\
+        #                     .filter(Detection.status=='masked')\
+        #                     .filter(Labelgroup.task_id == task_id) \
+        #                     .filter(Cluster.task_id == task_id) \
+        #                     .order_by(desc(Cluster.classification), Cluster.id)\
+        #                     .distinct().limit(25000).all()
+
         # This need to be ordered by Cluster ID otherwise the a max request will drop random info
         clusters = clusters.filter(Labelgroup.task_id == task_id) \
                         .filter(Cluster.task_id == task_id) \
@@ -1108,7 +1190,7 @@ def fetch_clusters(taggingLevel,task_id,isBounding,trapgroup_id,session,limit=No
 
             # Handle detections
             if row[9] and (row[9] not in clusterInfo[row[0]]['images'][row[2]]['detections'].keys()):
-                if (row[24] not in ['deleted','hidden']) and (row[15]==False) and (row[23]>Config.DETECTOR_THRESHOLDS[row[22]]):
+                if (row[24] not in Config.DET_IGNORE_STATUSES) and (row[15]==False) and (row[23]>Config.DETECTOR_THRESHOLDS[row[22]]):
                     clusterInfo[row[0]]['images'][row[2]]['detections'][row[9]] = {
                         'id': row[9],
                         'top': row[10],
@@ -1166,7 +1248,7 @@ def fetch_clusters(taggingLevel,task_id,isBounding,trapgroup_id,session,limit=No
                                     .filter(Trapgroup.id==trapgroup_id)\
                                     .filter(or_(and_(Detection.source==model,Detection.score>Config.DETECTOR_THRESHOLDS[model]) for model in Config.DETECTOR_THRESHOLDS)) \
                                     .filter(Detection.static == False) \
-                                    .filter(~Detection.status.in_(['deleted','hidden'])) \
+                                    .filter(~Detection.status.in_(Config.DET_IGNORE_STATUSES)) \
                                     .filter(((Detection.right-Detection.left)*(Detection.bottom-Detection.top)) > Config.DET_AREA)\
                                     .filter(Detection.class_score>Classifier.threshold) \
                                     .filter(Cluster.id.in_(cluster_ids))\
@@ -1179,7 +1261,7 @@ def fetch_clusters(taggingLevel,task_id,isBounding,trapgroup_id,session,limit=No
                                     .filter(Cluster.task_id==task_id)\
                                     .filter(or_(and_(Detection.source==model,Detection.score>Config.DETECTOR_THRESHOLDS[model]) for model in Config.DETECTOR_THRESHOLDS)) \
                                     .filter(Detection.static == False) \
-                                    .filter(~Detection.status.in_(['deleted','hidden'])) \
+                                    .filter(~Detection.status.in_(Config.DET_IGNORE_STATUSES)) \
                                     .filter(((Detection.right-Detection.left)*(Detection.bottom-Detection.top)) > Config.DET_AREA)\
                                     .filter(Cluster.id.in_(cluster_ids))\
                                     .group_by(Cluster.id)\
@@ -1309,7 +1391,7 @@ def fetch_clusters(taggingLevel,task_id,isBounding,trapgroup_id,session,limit=No
 
 #     return clusters
 
-def genInitKeys(taggingLevel,task_id,addSkip,addRemoveFalseDetections):
+def genInitKeys(taggingLevel,task_id,addSkip,addRemoveFalseDetections,addMaskArea):
     '''Returns the labels and hotkeys for the given tagging level and task'''
 
     if taggingLevel == '-1':
@@ -1317,6 +1399,7 @@ def genInitKeys(taggingLevel,task_id,addSkip,addRemoveFalseDetections):
         
         special_categories = db.session.query(Label).filter(Label.task_id == None).filter(Label.description != 'Wrong').filter(Label.description != 'Skip')
         if not addRemoveFalseDetections: special_categories = special_categories.filter(Label.id != GLOBALS.remove_false_detections_id)
+        if not addMaskArea: special_categories = special_categories.filter(Label.id != GLOBALS.mask_area_id)
         
         special_categories = special_categories.all()
         
@@ -1331,6 +1414,7 @@ def genInitKeys(taggingLevel,task_id,addSkip,addRemoveFalseDetections):
 
         special_categories = db.session.query(Label).filter(Label.task_id == None).filter(Label.description != 'Wrong').filter(Label.description != 'Skip')
         if not addRemoveFalseDetections: special_categories = special_categories.filter(Label.id != GLOBALS.remove_false_detections_id)
+        if not addMaskArea: special_categories = special_categories.filter(Label.id != GLOBALS.mask_area_id)
         special_categories = special_categories.all()
         
         categories.extend(special_categories)
@@ -1342,6 +1426,9 @@ def genInitKeys(taggingLevel,task_id,addSkip,addRemoveFalseDetections):
         wrong_category = db.session.query(Label).get(GLOBALS.wrong_id)
         categories = db.session.query(Label).filter(Label.task_id==task_id).filter(Label.parent_id==int(taggingLevel)).all()
         categories.append(wrong_category)
+        if addMaskArea: 
+            mask_category = db.session.query(Label).get(GLOBALS.mask_area_id)
+            categories.append(mask_category)
         addSkip = True
 
     hotkeys = [Config.EMPTY_HOTKEY_ID] * Config.NUMBER_OF_HOTKEYS
@@ -1358,9 +1445,12 @@ def genInitKeys(taggingLevel,task_id,addSkip,addRemoveFalseDetections):
                 indx = num-55
             elif num==32:
                 #Spacebar
-                indx = Config.NUMBER_OF_HOTKEYS-2
+                indx = Config.NUMBER_OF_HOTKEYS-3
             elif num==45:
                 #minus
+                indx = Config.NUMBER_OF_HOTKEYS-2
+            elif num==42:
+                #asterisk
                 indx = Config.NUMBER_OF_HOTKEYS-1
             else:
                 #Handle letters
@@ -1436,19 +1526,9 @@ def translate_cluster_for_client(clusterInfo,reqId,limit,isBounding,taggingLevel
                     if clusterInfo[cluster_id]['images'][image_id]['detections'][detection_id]['individuals'] == []:
                         clusterInfo[cluster_id]['images'][image_id]['detections'][detection_id]['individuals'] = ['-1']
 
-            # Add videos
-            if id:
-                for video_id in clusterInfo[cluster_id]['videos']:
-                    images.append({
-                        'id': clusterInfo[cluster_id]['videos'][video_id]['id'],
-                        'url': clusterInfo[cluster_id]['videos'][video_id]['url'].replace('+','%2B').replace('?','%3F').replace('#','%23'),
-                        'timestamp': clusterInfo[cluster_id]['videos'][video_id]['timestamp'],
-                        'camera': clusterInfo[cluster_id]['videos'][video_id]['camera'],
-                        'rating': clusterInfo[cluster_id]['videos'][video_id]['rating'],
-                        'detections': []
-                    })
 
             # add required images
+            # if (not id) and (not isBounding) and (',' not in taggingLevel) and('-6' not in taggingLevel):
             if (not id) and (not isBounding) and (',' not in taggingLevel):
                 for image_id in clusterInfo[cluster_id]['required']:
                     if image_id in clusterInfo[cluster_id]['images'].keys():
@@ -1482,6 +1562,18 @@ def translate_cluster_for_client(clusterInfo,reqId,limit,isBounding,taggingLevel
                         })
             
             required = [n for n in range(len(images))]
+
+            # Add videos
+            if id:
+                for video_id in clusterInfo[cluster_id]['videos']:
+                    images.append({
+                        'id': clusterInfo[cluster_id]['videos'][video_id]['id'],
+                        'url': clusterInfo[cluster_id]['videos'][video_id]['url'].replace('+','%2B').replace('?','%3F'),
+                        'timestamp': clusterInfo[cluster_id]['videos'][video_id]['timestamp'],
+                        'camera': clusterInfo[cluster_id]['videos'][video_id]['camera'],
+                        'rating': clusterInfo[cluster_id]['videos'][video_id]['rating'],
+                        'detections': []
+                    })
             
             # Order images
             if id or ('-4' in taggingLevel) or ('-5' in taggingLevel):
@@ -1622,7 +1714,7 @@ def translate_cluster_for_client(clusterInfo,reqId,limit,isBounding,taggingLevel
 #                                 .filter(Detection.image_id==image.id)\
 #                                 .filter(Detection.individuals.contains(cluster))\
 #                                 .filter(or_(and_(Detection.source==model,Detection.score>Config.DETECTOR_THRESHOLDS[model]) for model in Config.DETECTOR_THRESHOLDS))\
-#                                 .filter(~Detection.status.in_(['deleted','hidden']))\
+#                                 .filter(~Detection.status.in_(Config.DET_IGNORE_STATUSES))\
 #                                 .filter(Detection.static==False)\
 #                                 .first()
 
@@ -1659,7 +1751,7 @@ def translate_cluster_for_client(clusterInfo,reqId,limit,isBounding,taggingLevel
 #                             image,
 #                             [detection for detection in image.detections if (
 #                                 (detection.score>Config.DETECTOR_THRESHOLDS[detection.source]) and
-#                                 (detection.status not in ['deleted','hidden']) and 
+#                                 (detection.status not in Config.DET_IGNORE_STATUSES) and 
 #                                 (detection.static == False)
 #                             )]
 #                         ) for image in sortedImages]
@@ -1701,7 +1793,7 @@ def translate_cluster_for_client(clusterInfo,reqId,limit,isBounding,taggingLevel
 #                                         .join(Individual,Detection.individuals)\
 #                                         .filter(Detection.image_id==image.id)\
 #                                         .filter(or_(and_(Detection.source==model,Detection.score>Config.DETECTOR_THRESHOLDS[model]) for model in Config.DETECTOR_THRESHOLDS))\
-#                                         .filter(~Detection.status.in_(['deleted','hidden']))\
+#                                         .filter(~Detection.status.in_(Config.DET_IGNORE_STATUSES))\
 #                                         .filter(Detection.static==False)\
 #                                         .filter(Labelgroup.task_id==cluster.task_id)\
 #                                         .filter(Labelgroup.labels.contains(label))\
@@ -1713,7 +1805,7 @@ def translate_cluster_for_client(clusterInfo,reqId,limit,isBounding,taggingLevel
 #                                         .join(Labelgroup)\
 #                                         .filter(Detection.image_id==image.id)\
 #                                         .filter(or_(and_(Detection.source==model,Detection.score>Config.DETECTOR_THRESHOLDS[model]) for model in Config.DETECTOR_THRESHOLDS))\
-#                                         .filter(~Detection.status.in_(['deleted','hidden']))\
+#                                         .filter(~Detection.status.in_(Config.DET_IGNORE_STATUSES))\
 #                                         .filter(Detection.static==False)\
 #                                         .filter(Labelgroup.task_id==cluster.task_id)\
 #                                         .filter(Labelgroup.labels.contains(label))\
@@ -1727,7 +1819,7 @@ def translate_cluster_for_client(clusterInfo,reqId,limit,isBounding,taggingLevel
 #                             image,
 #                             [detection for detection in image.detections if (
 #                                 (detection.score>Config.DETECTOR_THRESHOLDS[detection.source]) and
-#                                 (detection.status not in ['deleted','hidden']) and 
+#                                 (detection.status not in Config.DET_IGNORE_STATUSES) and 
 #                                 (detection.static == False)
 #                             )]
 #                         ) for image in sortedImages]
@@ -1836,3 +1928,33 @@ def translate_cluster_for_client(clusterInfo,reqId,limit,isBounding,taggingLevel
 #         manageDownloads.apply_async(queue='priority', priority=0, countdown=countdown)
         
 #     return True
+
+@celery.task(bind=True,max_retries=5,ignore_result=True)
+def skipCameraImages(self,cameragroup_id):
+    '''Marks all images in a camera group as skipped that have no timestamps'''
+    try:
+        images = db.session.query(Image)\
+                    .join(Camera)\
+                    .join(Cameragroup)\
+                    .filter(Cameragroup.id==cameragroup_id)\
+                    .filter(Image.corrected_timestamp==None)\
+                    .filter(Image.skipped==False)\
+                    .distinct().all()
+        
+        for image in images:
+            image.skipped = True
+
+        db.session.commit()
+
+    except Exception as exc:
+        app.logger.info(' ')
+        app.logger.info('!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!')
+        app.logger.info(traceback.format_exc())
+        app.logger.info('!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!')
+        app.logger.info(' ')
+        self.retry(exc=exc, countdown= retryTime(self.request.retries))
+
+    finally:
+        db.session.remove()
+
+    return True

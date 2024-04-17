@@ -75,8 +75,10 @@ class Config(object):
 
     #Worker config
     PARALLEL_AMI = os.environ.get('PARALLEL_AMI')
+    LLAVA_AMI = os.environ.get('LLAVA_AMI')
     BRANCH = os.environ.get('BRANCH')
     GPU_INSTANCE_TYPES = ['g4dn.xlarge'] #['p3.2xlarge', 'g4dn.xlarge', 'g3s.xlarge']
+    XL_GPU_INSTANCE_TYPES = ['g5.12xlarge']
     CPU_INSTANCE_TYPES = ['t2.xlarge','t3a.xlarge'] #['t2.medium', 't3a.medium']
     PIPELINE_INSTANCE_TYPES = ['t2.xlarge','t3a.xlarge']
     INSTANCE_RATES = {
@@ -85,7 +87,8 @@ class Config(object):
         'parallel':         {'t2.xlarge': 1000, 't3a.xlarge': 1000},  #estimated
         'default':         {'t2.xlarge': 1000, 't3a.xlarge': 1000},  #estimated
         'statistics':         {'t2.xlarge': 1000, 't3a.xlarge': 1000},  #estimated
-        'pipeline':         {'t2.xlarge': 1000, 't3a.xlarge': 1000}  #estimated
+        'pipeline':         {'t2.xlarge': 1000, 't3a.xlarge': 1000},  #estimated
+        'llava':           {'g5.12xlarge': 3130} #measured. 20 min startup
     } #Images per hour
     SG_ID = os.environ.get('SG_ID')
     PUBLIC_SUBNET_ID = os.environ.get('PUBLIC_SUBNET_ID')
@@ -96,6 +99,7 @@ class Config(object):
     MAX_DEFAULT = 8
     MAX_STATS = 4
     MAX_PIPELINE = 8
+    MAX_LLAVA = 5
     DNS = os.environ.get('DNS')
 
     # Species Classification Config
@@ -111,9 +115,24 @@ class Config(object):
     TASK_READY_STATUSES = ['ready','success','successinitial','stopped']
     SURVEY_READY_STATUSES = ['ready','failed','stopped','cancelled']
 
+    # Detection statuses
+    DET_IGNORE_STATUSES = ['deleted','hidden','masked']
+
     # Hotkey info
-    NUMBER_OF_HOTKEYS = 38
+    NUMBER_OF_HOTKEYS = 39
     EMPTY_HOTKEY_ID= -967
+
+    # Mask Area Config
+    MIN_MASK_AREA = 0.001
+
+    # Static Detection Config
+    STATIC_MATCHCOUNT = 5
+    STATIC_PERCENTAGE = 0.15
+    STATIC_IOU5 = 0.6
+    STATIC_IOU10 = 0.7
+    STATIC_IOU30 = 0.85
+    STATIC_IOU50 = 0.9
+    STATIC_IOU90 = 0.95
 
     # Time in seconds allowed for a worker to finish setting up beforte being checked for idleness
     SETUP_PERIOD = {
@@ -122,7 +141,8 @@ class Config(object):
         'parallel': '300',
         'default': '300',
         'statistics': '300',
-        'pipeline': '300'
+        'pipeline': '300',
+        'llava': '1500'
     }
 
     #Aurora DB stuff
@@ -137,7 +157,8 @@ class Config(object):
         'parallel': 48,
         'default': 12,
         'statistics': 12,
-        'pipeline': 12
+        'pipeline': 12,
+        'llava': 12
     }
 
     # Celery Worker concurrency
@@ -145,7 +166,8 @@ class Config(object):
         'parallel': 1,
         'default': 1,
         'statistics': 1,
-        'pipeline': 1
+        'pipeline': 1,
+        'llava': 1
     }
 
     # Queue config
@@ -344,6 +366,28 @@ class Config(object):
                 os.environ.get('AWS_S3_DOWNLOAD_SECRET_ACCESS_KEY') + "'" + 
                 ' -l info'
         },
+        'llava': {
+            'type': 'GPU',
+            'ami': LLAVA_AMI,
+            'instances': XL_GPU_INSTANCE_TYPES,
+            'max_instances': MAX_LLAVA,
+            'launch_delay': 1500,
+            'rate': 31,
+            'init_size': 0.5,
+            'queue_type': 'rate',
+            'repo': os.environ.get('MAIN_GIT_REPO'),
+            'branch': BRANCH,
+            'user_data': 
+                'bash /home/ubuntu/TrapTagger/llavaworker/launch.sh ' + 
+                'celery_worker_{}' + ' ' + 
+                HOST_IP + ' ' + 
+                'llava ' + 
+                SETUP_PERIOD['llava'] + " " + 
+                'IDLE_MULTIPLIER' + " '" +
+                os.environ.get('AWS_ACCESS_KEY_ID') + "' '" + 
+                os.environ.get('AWS_SECRET_ACCESS_KEY') + "' " + 
+                '-l info'
+        },
         # 'classification': {
         #     'type': 'GPU',
         #     'ami': PARALLEL_AMI,
@@ -393,7 +437,7 @@ class Config(object):
         '1':{'name': 'Image', 'columns': ['Name', 'ID', 'Species Count', 'Labels', 'Sighting Count', 'Tags', 'Timestamp', 'URL', 'Individuals', 'Original Timestamp']},
         '2':{'name': 'Capture', 'columns': ['Number', 'ID', 'Species Count', 'Labels', 'Sighting Count', 'Tags', 'Timestamp', 'Image Count', 'URL', 'Individuals']},
         '3':{'name': 'Cluster', 'columns': ['ID', 'Species Count', 'Labels', 'Sighting Count', 'Tags', 'Timestamp', 'Notes', 'Image Count', 'URL', 'Individuals']},
-        '4':{'name': 'Camera', 'columns': ['ID', 'Species Count', 'Labels', 'Tags', 'Animal Count', 'Image Count', 'URL', 'Individuals']},
+        '4':{'name': 'Camera', 'columns': ['Name', 'Species Count', 'Labels', 'Tags', 'Animal Count', 'Image Count', 'URL', 'Individuals']},
         '5':{'name': 'Site', 'columns': ['Name', 'Species Count', 'Labels', 'Tags', 'Latitude', 'Longitude', 'Altitude', 'Animal Count', 'Image Count', 'URL', 'Individuals']},
         '6':{'name': 'Survey', 'columns': ['Name', 'Species Count', 'Labels', 'Tags', 'Description', 'Animal Count', 'Image Count', 'URL', 'Individuals']},
         '7':{'name': 'Custom', 'columns': []}

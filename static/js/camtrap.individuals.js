@@ -14,12 +14,13 @@
 
 const modalIndividual = $('#modalIndividual');
 const modalAlertIndividuals = $('#modalAlertIndividuals');
+const modalIndividualsError = $('#modalIndividualsError');
 const modalLaunchID = $('#modalLaunchID');
+const modalDeleteIndividuals = $('#modalDeleteIndividuals');
 const btnPrevTasks = document.getElementById('btnPrevTasks');
 const btnNextTasks = document.getElementById('btnNextTasks');
 
 var modalAlertIndividualsReturn = false
-
 var individualSplide = null
 var map = null
 var mapStats = null
@@ -47,6 +48,8 @@ var stopControl = null
 var playControlImage = null
 var drawnItems = null
 var jobTimer
+var modalDeleteActive = false
+var legalDelete = false
 
 function getIndividuals(page = null) {
     /** Gets a page of individuals. Gets the first page if none is specified. */
@@ -169,9 +172,7 @@ function getIndividuals(page = null) {
 
                     image.addEventListener('click', function(individualID,individualName){
                         return function() {
-                            individualTags(individualID)
                             getIndividual(individualID,individualName)
-                            modalIndividual.modal({keyboard: true});
                         }
                     }(newIndividual.id,newIndividual.name));
 
@@ -297,7 +298,7 @@ function getIndividualInfo(individualID){
 
 }
 
-function getIndividual(individualID, individualName, order_value = 'a1', site='0', start_date='', end_date=''){
+function getIndividual(individualID, individualName, association=false, order_value='a1', site='0', start_date='', end_date=''){
     /** Gets the specified individual*/
    
     selectedIndividual = individualID
@@ -361,15 +362,26 @@ function getIndividual(individualID, individualName, order_value = 'a1', site='0
                     document.getElementById('tgInfo').innerHTML = 'Site: ' + individualImages[0].trapgroup.tag
                     document.getElementById('timeInfo').innerHTML = individualImages[0].timestamp     
 
-                    getIndividualInfo(individualID)
+                    individualTags(individualID)
 
                     document.getElementById('btnDelIndiv').addEventListener('click', ()=>{
-                        document.getElementById('modalAlertIndividualsHeader').innerHTML = 'Confirmation'
-                        document.getElementById('modalAlertIndividualsBody').innerHTML = 'Do you want to permanently delete this individual?'
-                        document.getElementById('btnContinueIndividualAlert').setAttribute('onclick','deleteIndividual()')
-                        modalAlertIndividualsReturn = true
-                        modalIndividual.modal('hide')
-                        modalAlertIndividuals.modal({keyboard: true});
+                        if (individualImages.length > 1){
+                            document.getElementById('modalAlertIndividualsHeader').innerHTML = 'Confirmation'
+                            document.getElementById('modalAlertIndividualsBody').innerHTML = 'Do you want to permanently delete this individual?'
+                            document.getElementById('btnContinueIndividualAlert').setAttribute('onclick','deleteIndividual()')
+                            document.getElementById('btnCancelIndividualAlert').setAttribute('onclick','modalIndividual.modal({keyboard: true});')
+                            modalAlertIndividualsReturn = true
+                            modalIndividual.modal('hide')
+                            modalAlertIndividuals.modal({keyboard: true});
+                        }
+                        else{
+                            document.getElementById('modalIndividualsErrorHeader').innerHTML = 'Error'
+                            document.getElementById('modalIndividualsErrorBody').innerHTML = 'You cannot delete an individual that is associated with only one detection. All detections for a species must be associated with an individual for the first stage of individual identitification to be considred complete. If you wish to start the identification process again you can select <em>Delete Individuals</em> on the Individuals page to permanently delete individuals for a particular species.'
+                            document.getElementById('btnCloseIndivErrorModal').setAttribute('onclick','modalIndividual.modal({keyboard: true});')
+                            modalAlertIndividualsReturn = true
+                            modalIndividual.modal('hide')
+                            modalIndividualsError.modal({keyboard: true});
+                        }
                     });
 
 
@@ -378,6 +390,7 @@ function getIndividual(individualID, individualName, order_value = 'a1', site='0
                             document.getElementById('modalAlertIndividualsHeader').innerHTML = 'Confirmation'
                             document.getElementById('modalAlertIndividualsBody').innerHTML = 'Do you want to permanently remove this image from this individual?'
                             document.getElementById('btnContinueIndividualAlert').setAttribute('onclick','removeImage()')
+                            document.getElementById('btnCancelIndividualAlert').setAttribute('onclick','modalIndividual.modal({keyboard: true});')
                             modalAlertIndividualsReturn = true
                             modalIndividual.modal('hide')
                             modalAlertIndividuals.modal({keyboard: true});
@@ -386,10 +399,15 @@ function getIndividual(individualID, individualName, order_value = 'a1', site='0
                         
                     });
 
-                    prepMapIndividual(individualImages[0])
-                    updateSlider()
-
                     buildAssociationTable(individualID)
+
+                    if(association){
+                        prepMapIndividual(individualImages[0])
+                        updateSlider()
+                    }
+                    else{
+                        modalIndividual.modal({keyboard: true});
+                    }
                 
                 }
                 else{
@@ -515,9 +533,7 @@ function individualTags(individual_id){
         if (this.readyState == 4 && this.status == 200) {
             tags = JSON.parse(this.responseText);  
             globalTags = tags
-
             if(tags){
-                
                 for (let i=0;i<tags.length;i++) {
                     tag = tags[i].tag
                     hotkey = tags[i].hotkey
@@ -543,6 +559,7 @@ function individualTags(individual_id){
                 }
             }
             
+            getIndividualInfo(individual_id)
         }
     }
     xhttp.open("GET", '/getTags/' +  individual_id);
@@ -855,6 +872,14 @@ modalIndividual.on('hidden.bs.modal', function(){
         cleanModalIndividual()
         getIndividuals(current_page)
         getTasks()
+    }
+});
+
+modalIndividual.on('shown.bs.modal', function(){
+    /** Initialises the individual modal when opened. */
+    if (map==null){
+        prepMapIndividual(individualImages[0])
+        updateSlider()
     }
 });
 
@@ -2028,8 +2053,7 @@ function buildAssociation(association){
     image.addEventListener('click', function(individualID,individualName){
         return function() {
             cleanModalIndividual()        
-            individualTags(individualID)
-            getIndividual(individualID,individualName)
+            getIndividual(individualID,individualName, true)
             modalIndividual.scrollTop(0)
         }
     }(association.id,association.name));
@@ -2052,6 +2076,365 @@ function buildAssociation(association){
 
     table.appendChild(row);
 }
+
+function getIndividualSurveysTasks(){
+    /** Gets the surveys and tasks which contain individuals for deletion. */
+
+    var surveySelect = document.getElementById('surveySelectDel')
+    while(surveySelect.firstChild){
+        surveySelect.removeChild(surveySelect.firstChild);
+    }
+
+    var speciesSelect = document.getElementById('speciesSelectDel')
+    while(speciesSelect.firstChild){
+        speciesSelect.removeChild(speciesSelect.firstChild);
+    }
+
+    var xhttp = new XMLHttpRequest();
+    xhttp.onreadystatechange =
+    function(){
+        if (this.readyState == 4 && this.status == 200) {
+            reply = JSON.parse(this.responseText);  
+            console.log(reply)
+            indiv_surveys = reply.surveys
+            indiv_tasks = reply.tasks
+            indiv_species = reply.species
+            buildSurveySelectDelete()
+            buildSpeciesSelectDelete()
+        }
+    }
+    xhttp.open("GET", '/getIndividualSurveysTasks');
+    xhttp.send();
+}
+
+function buildSurveySelectDelete(){
+    /** Builds the survey selectors for the modal  */
+    
+    var IDNum = getIdNumforNext('idSurveySelectDel-')
+    var surveySelect = document.getElementById('surveySelectDel')
+
+    var row = document.createElement('div')
+    row.classList.add('row')
+    surveySelect.appendChild(row)
+
+    var col1 = document.createElement('div')
+    col1.classList.add('col-lg-5')
+    row.appendChild(col1)
+
+    var col2 = document.createElement('div')
+    col2.classList.add('col-lg-5')
+    row.appendChild(col2)
+
+    var col3 = document.createElement('div')
+    col3.classList.add('col-lg-2')
+    row.appendChild(col3)
+    
+    var idSurveySelect = document.createElement('select')
+    idSurveySelect.classList.add('form-control')
+    idSurveySelect.id = 'idSurveySelectDel-'+String(IDNum)
+    idSurveySelect.name = idSurveySelect.id
+    col1.appendChild(idSurveySelect)
+
+    var idTaskSelect = document.createElement('select')
+    idTaskSelect.classList.add('form-control')
+    idTaskSelect.id = 'idTaskSelectDel-'+String(IDNum)
+    idTaskSelect.name = idTaskSelect.id
+    col2.appendChild(idTaskSelect)
+
+    if (indiv_surveys != null) {    
+        optionTexts = ['None']
+        optionValues = ['-99999'] 
+        fillSelect(idTaskSelect, [''], ['-99999'])  
+
+        for (survey_id in indiv_surveys){
+            optionTexts.push(indiv_surveys[survey_id].name)
+            optionValues.push(survey_id)
+        }
+
+        clearSelect(idSurveySelect)
+        fillSelect(idSurveySelect, optionTexts, optionValues)  
+        
+    }
+
+    if (IDNum!=0) {
+        btnRemove = document.createElement('button');
+        btnRemove.classList.add('btn');
+        btnRemove.classList.add('btn-info');
+        btnRemove.innerHTML = '&times;';
+        btnRemove.addEventListener('click', (evt)=>{
+            evt.target.parentNode.parentNode.remove();
+        });
+        col3.appendChild(btnRemove);
+    }
+
+    $("#"+idSurveySelect.id).change( function(wrapIDNum) {
+        return function() {
+            idSurveySelect = document.getElementById('idSurveySelectDel-'+String(wrapIDNum))
+            idTaskSelect = document.getElementById('idTaskSelectDel-'+String(wrapIDNum))
+            survey = idSurveySelect.options[idSurveySelect.selectedIndex].value
+            if (survey=="-99999") {
+                clearSelect(idTaskSelect)
+                fillSelect(idTaskSelect, [''], ['-99999'])
+            } else {
+                optionTexts = []      
+                optionValues = []
+
+                survey_id = idSurveySelect.options[idSurveySelect.selectedIndex].value
+                for (let i=0;i<indiv_surveys[survey_id].task_ids.length;i++) {
+                    optionTexts.push(indiv_tasks[indiv_surveys[survey_id].task_ids[i]])
+                    optionValues.push(indiv_surveys[survey_id].task_ids[i])
+                }
+
+                clearSelect(idTaskSelect)
+                fillSelect(idTaskSelect, optionTexts, optionValues)
+            }
+               
+        }
+    }(IDNum));
+}
+
+function buildSpeciesSelectDelete(){
+    /** Builds the species selector for the modal  */
+
+    var IDNum = getIdNumforNext('idSpeciesSelectDel-')
+    var speciesSelect = document.getElementById('speciesSelectDel')
+
+    var row = document.createElement('div')
+    row.classList.add('row')
+    speciesSelect.appendChild(row)
+
+    var col1 = document.createElement('div')
+    col1.classList.add('col-lg-5')
+    row.appendChild(col1)
+
+    var col2 = document.createElement('div')
+    col2.classList.add('col-lg-2')
+    row.appendChild(col2)
+
+    var idSpeciesSelect = document.createElement('select')
+    idSpeciesSelect.classList.add('form-control')
+    idSpeciesSelect.id = 'idSpeciesSelectDel-'+String(IDNum)
+    idSpeciesSelect.name = idSpeciesSelect.id
+    col1.appendChild(idSpeciesSelect)
+
+    if (indiv_species != null) {
+        if(IDNum==0){
+            optionTexts = ['All']
+            optionValues = ['0'] 
+        }
+        else{
+            optionTexts = []
+            optionValues = []
+        }
+        
+        for (let i=0;i<indiv_species.length;i++) {
+            optionTexts.push(indiv_species[i])
+            optionValues.push(indiv_species[i])
+        }
+        clearSelect(idSpeciesSelect)
+        fillSelect(idSpeciesSelect, optionTexts, optionValues)  
+    }
+
+    if (IDNum!=0) {
+        btnRemove = document.createElement('button');
+        btnRemove.classList.add('btn');
+        btnRemove.classList.add('btn-info');
+        btnRemove.innerHTML = '&times;';
+        btnRemove.addEventListener('click', (evt)=>{
+            evt.target.parentNode.parentNode.remove();
+        });
+        col2.appendChild(btnRemove);
+    }
+}
+
+$('#btnDeleteIndividuals').click( function() {
+    indiv_surveys = {}
+    indiv_tasks = {}
+    species = []
+    getIndividualSurveysTasks()
+    document.getElementById('deleteIndivErrors').innerHTML = ''
+    modalDeleteIndividuals.modal({keyboard: true})
+});
+
+function checkDeleteValid(){
+    /** Checks that the selected annotation sets and species are valid for deletion. */
+
+    legalDelete = false
+    var speciesAll = false
+    var duplicateTask = false
+    var noneSurvey = false
+
+    var surveySelects = document.querySelectorAll('[id^=idSurveySelectDel-]')
+    var taskSelects = document.querySelectorAll('[id^=idTaskSelectDel-]')
+    var speciesSelects = document.querySelectorAll('[id^=idSpeciesSelectDel-]')
+
+    var deleteErrors = document.getElementById('deleteIndivErrors')
+    while(deleteErrors.firstChild){
+        deleteErrors.removeChild(deleteErrors.firstChild)
+    }
+
+    for (let i=0;i<taskSelects.length;i++) {
+        currTaskVal = taskSelects[i].value
+        for (let j=0;j<taskSelects.length;j++) {
+            if(taskSelects[j].value == currTaskVal && j!=i){
+                duplicateTask = true
+            }
+        }
+    }
+
+    for (let i=0;i<surveySelects.length;i++) {
+        if(surveySelects[i].value == '-99999'){
+            noneSurvey = true
+        }
+    }
+
+    if (speciesSelects.length > 1) {
+        for (let i=0;i<speciesSelects.length;i++) {
+            if(speciesSelects[i].value == '0'){
+                speciesAll = true
+            }
+        }
+    }
+    
+    if (duplicateTask) {
+        newdiv = document.createElement('div')
+        newdiv.innerHTML =  'You have duplicate annotation sets, please remove the duplicate.'
+        deleteErrors.appendChild(newdiv)
+    }
+
+    if(noneSurvey){
+        newdiv = document.createElement('div')
+        newdiv.innerHTML =  'You have not selected any surveys and annotation sets. Please select a survey and annotation set.'
+        deleteErrors.appendChild(newdiv)
+    }
+
+    if(speciesAll){
+        newdiv = document.createElement('div')
+        newdiv.innerHTML =  'You have selected all species and added additional species. Please remove additional species or "All" species.'
+        deleteErrors.appendChild(newdiv)
+    }
+
+    if (duplicateTask||noneSurvey||speciesAll) {
+        legalDelete = false
+    } else {
+        legalDelete = true
+    }
+
+}
+
+$('#btnDeleteIndivs').click( function() {
+    /** Checks if the deletion is valid and then asks for confirmation. */
+    checkDeleteValid()
+    if(legalDelete){
+
+        var confirmString = 'You are about to permanently delete all the individuals for the following annotation sets and species: <br><br>'
+        var surveySelects = document.querySelectorAll('[id^=idSurveySelectDel-]')
+        var taskSelects = document.querySelectorAll('[id^=idTaskSelectDel-]')
+        var speciesSelects = document.querySelectorAll('[id^=idSpeciesSelectDel-]')
+        confirmString += '<b>Annotation Sets:</b><br>'
+        for (let i=0;i<surveySelects.length;i++) {
+            if (surveySelects[i].value != '-99999') {
+                confirmString += surveySelects[i].options[surveySelects[i].selectedIndex].text + ' - ' + taskSelects[i].options[taskSelects[i].selectedIndex].text + '<br>'
+            }
+        }
+        confirmString += '<br><b>Species:</b><br>'
+        for (let i=0;i<speciesSelects.length;i++) {
+            if (speciesSelects[i].value != '0') {
+                confirmString += speciesSelects[i].options[speciesSelects[i].selectedIndex].text + '<br>'
+            }
+            else{
+                confirmString += 'All<br>'
+            }
+        }
+
+        confirmString += '<br>You will be required to start the identification process again for the selected species and annotation sets. Please note that this action cannot be undone.<br><br>Do you wish to continue?'
+                
+        document.getElementById('modalAlertIndividualsHeader').innerHTML = 'Confirmation'
+        document.getElementById('modalAlertIndividualsBody').innerHTML = confirmString
+        document.getElementById('btnContinueIndividualAlert').setAttribute('onclick','deleteIndividuals()')
+        document.getElementById('btnCancelIndividualAlert').setAttribute('onclick','modalDeleteIndividuals.modal({keyboard: true});')
+        modalAlertIndividualsReturn = true
+        modalDeleteIndividuals.modal('hide')
+        modalAlertIndividuals.modal({keyboard: true}); 
+    }
+});
+
+modalDeleteIndividuals.on('hidden.bs.modal', function(){
+    /** Clears the delete individuals modal */
+    if (!modalAlertIndividualsReturn&&!helpReturn) {
+        var surveySelect = document.getElementById('surveySelectDel')
+        while(surveySelect.firstChild){
+            surveySelect.removeChild(surveySelect.firstChild);
+        }
+        var speciesSelect = document.getElementById('speciesSelectDel')
+        while(speciesSelect.firstChild){
+            speciesSelect.removeChild(speciesSelect.firstChild);
+        }
+
+        getIndividuals()
+    }
+    else{
+        modalAlertIndividualsReturn = false
+        helpReturn = false
+    }
+});
+
+function deleteIndividuals(){
+    /** Deletes the individuals for the selected annotation sets and species. */
+    var task_ids = []
+    var species = []
+
+    var taskSelects = document.querySelectorAll('[id^=idTaskSelectDel-]')
+    var speciesSelects = document.querySelectorAll('[id^=idSpeciesSelectDel-]')
+
+    for (let i=0;i<taskSelects.length;i++) {
+        if (taskSelects[i].value != '-99999' && task_ids.indexOf(taskSelects[i].value) == -1) {
+            task_ids.push(taskSelects[i].value)
+        }
+    }
+
+    for (let i=0;i<speciesSelects.length;i++) {
+        if (species.indexOf(speciesSelects[i].value) == -1) {
+            species.push(speciesSelects[i].value)
+        }
+    }
+
+    var formData = new FormData()
+    formData.append("task_ids", JSON.stringify(task_ids))
+    formData.append("species", JSON.stringify(species))
+
+    var xhttp = new XMLHttpRequest();
+    xhttp.onreadystatechange =
+    function(){
+        if (this.readyState == 4 && this.status == 200) {
+            reply = JSON.parse(this.responseText);  
+            if (reply.status=='success') {
+                document.getElementById('modalIndividualsErrorHeader').innerHTML = 'Success'
+                document.getElementById('modalIndividualsErrorBody').innerHTML = reply.message
+                modalIndividualsError.modal({keyboard: true});
+            }
+            else{
+                document.getElementById('modalIndividualsErrorHeader').innerHTML = 'Error'
+                document.getElementById('modalIndividualsErrorBody').innerHTML = reply.message
+                modalIndividualsError.modal({keyboard: true});
+            }
+        }
+    }
+    xhttp.open("POST", '/deleteIndividuals');
+    xhttp.send(formData);
+
+    modalAlertIndividualsReturn = false
+    modalAlertIndividuals.modal('hide')
+
+    document.getElementById('deleteIndivErrors').innerHTML = ''
+}
+
+modalIndividualsError.on('hidden.bs.modal', function(){
+    /** Clears the error modal */
+    if (!modalAlertIndividualsReturn) {
+        getIndividuals()
+    }
+});
 
 function onload(){
     /**Function for initialising the page on load.*/

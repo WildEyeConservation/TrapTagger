@@ -13,7 +13,7 @@ See the License for the specific language governing permissions and
 limitations under the License. -->
 
 <div align="justify">
-    Here you are able to edit your survey in five ways:
+    Here you are able to edit your survey in seven ways:
 </div>
 
 <ul align="justify">
@@ -37,10 +37,38 @@ limitations under the License. -->
 
     <li>
         Camera timestamps: Adjust each camera's clock by setting the timestamp of its first image to the correct time. This can be used to correct for incorrectly set up cameras. Please 
-        note that this can be done at any time, but it is recommended that you should do it right away before creating your first annotation set.
+        note that this can be done at any time, but it is recommended that you should do it right away before creating your first annotation set. This can be done at either a folder or camera level.
+    </li>
+
+    <li>
+        Image Timestamps: Edit the timestamps of your images and videos. Please note that this can be done at any time, but it is recommended that you should do it right away before creating your first annotation set. The timestamps can be edited in three ways:
+        <ul>
+            <li>
+                Missing Timestamps: If you have any images or videos without timestamps, you can add the timestamps here.
+            </li>
+            <li>
+                Extracted Timestamps: Here you can view and edit the timestamps that were extracted from an image or video if it was not possible to extract the timestamp from the image or video's metadata.
+            </li>
+            <li>
+                Edited Timestamps: View and edit the timestamps that were manually added to an image or video that had no timestamp or whose extracted timestamp was corrected.
+            </li>
+        </ul>
     </li>
 
     <li>
         Advanced options: Select whether the system should ignore small detections or those in the sky. This reduces the number of false detections due to birds in exchange for some reduced accuracy.
+    </li>
+
+    <li>
+        Masks: View and edit the masks you have created during the annotation process. You can review what detections have been masked, and add, edit or remove masks as you see fit.
+    </li>
+
+    <li>
+        Static Detections: View and edit the detections that were marked as static. You can edit whether the idenitified static detections are correct or not. It is recommended that you do this
+        before creating your first annotation set.
+    </li>
+
+    <li>
+        Structure: View the structure of your survey. This is useful for checking that your survey has been set up correctly.
     </li>
 </ul>

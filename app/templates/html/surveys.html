@@ -50,6 +50,9 @@ limitations under the License. -->
     img {
         filter: brightness(100%) contrast(100%) saturate(100%);
     }
+    td.highlight {
+        background-color: rgba(255, 255, 255, 0.2);
+    }
 </style>
 
 <br>
@@ -257,7 +260,7 @@ limitations under the License. -->
                         The identifier used to designate a site in your folder structure. Eg. "Site" if your sites are stored in folders named "Site1", "Site2" etc. Becomes 
                         a <a href="https://www.w3schools.com/python/python_regex.asp">regular expression</a> search query if the advanced option is selected.
                     </i></div>
-                    <div id="newSurveyTGInfo" style="font-size: 80%; color: #DF691A"></div>
+                    <!-- <div id="newSurveyTGInfo" style="font-size: 80%; color: #DF691A"></div> -->
                     <div class="row">
                         <div class='col-lg-4'>
                             <input type="text" class="form-control" required id="newSurveyTGCode"></input>
@@ -271,7 +274,55 @@ limitations under the License. -->
                     </div>
                     <div id="newSurveyTgBuilder"></div>
                     <br>
-            
+
+                    <h5 style="margin-bottom: 2px">Camera Identifier</h5>
+                    <div style="font-size: 80%; margin-bottom: 2px"><i> Select the method you would like to use to identify your cameras.</i></div>
+                    <div style="margin-bottom: 5px">
+                        <div class="custom-control custom-radio custom-control-inline">
+                            <input type="radio" class="custom-control-input" id="camBotLvlFolder" name="camCodeSelection" value='0' checked="true" onchange="updateCamDiv()">
+                            <label class="custom-control-label" for="camBotLvlFolder">Folder</label>
+                        </div> 
+                        <div class="custom-control custom-radio custom-control-inline">
+                            <input type="radio" class="custom-control-input" id="camSameAsSite" name="camCodeSelection" value='0' onchange="updateCamDiv()">
+                            <label class="custom-control-label" for="camSameAsSite">Site Identifier (one camera per site)</label>
+                        </div> 
+                        <div class="custom-control custom-radio custom-control-inline">
+                            <input type="radio" class="custom-control-input" id="camRegExp" name="camCodeSelection" value='2' onchange="updateCamDiv()">
+                            <label class="custom-control-label" for="camRegExp">Camera Identifier </label>
+                        </div>
+                    </div>
+                    <div style="font-size: 80%; margin-bottom: 2px" id="camOptionDesc"><i>Each bottom-level folder in your dataset will be considered a different camera.</i></div>
+                    <div id="camIdDiv" hidden>
+                        <div class="row">
+                            <div class='col-lg-4'>
+                                <input type="text" class="form-control" required id="newSurveyCamCode"></input>
+                            </div>
+                            <div class="col-lg-4">
+                                <div class="custom-control custom-checkbox">
+                                    <input type="checkbox" class="custom-control-input" id="camAdvancedCheckbox" name="camAdvancedCheckbox">
+                                    <label class="custom-control-label" for="camAdvancedCheckbox">Advanced</label>
+                                </div>
+                            </div>
+                        </div>
+                        <div id="newSurveyCamBuilder"></div>
+                    </div>      
+                    
+                    <br>
+                    <h5 style="margin-bottom: 2px">Structure</h5>
+                    <div style="font-size: 80%; margin-bottom: 2px"><i> View the structure of your dataset. Eg. "Site1 : Camera1, Camera2" etc.</i></div>
+                    <div id="newSurveyStructureDiv" style="font-size: 80%; color: #DF691A"></div>
+                    <div id="newSurveyStructureDiv2">
+                        <div class="row">
+                            <div class="col-lg-1">
+                                <button class="btn btn-primary btn-sm" type="button" id="btnPrevStructure" onclick="prevStructure()" hidden>&lt;</button>
+                            </div>
+                            <div class="col-lg-10"></div>
+                            <div class="col-lg-1">
+                                <button class="btn btn-primary btn-sm pull-right" type="button" id="btnNextStructure" onclick="nextStructure()" hidden>></button>
+                            </div>
+                        </div>
+                        <div id="newSurveyStructureBuilder"></div>
+                    </div>
                 </div>
                 <div class='modal-footer'>
 
@@ -294,7 +345,7 @@ limitations under the License. -->
 
 <!-- Add images Modal -->
 <div id="modalAddImages" class="modal fade" role="dialog" tabindex="-1">
-    <div class="modal-dialog" style="max-width: 65%;">
+    <div class="modal-dialog" style="max-width: 70%;">
   
         <!-- Modal content-->
         <div class="modal-content">
@@ -309,41 +360,49 @@ limitations under the License. -->
                     <button id="helpx" type="button" class="close" data-dismiss="modal">&times;</button>
                 </div>
             </div>
+
+            <div class="tab" id="editSurveyTabs">
+                <button id="openAddImagesTab" class="tablinks" onclick="changeEditSurveyTab(event, 'baseAddImagesTab')">Files</button>
+                <button id="openAddCoordinatesTab" class="tablinks" onclick="changeEditSurveyTab(event, 'baseAddCoordinatesTab')">Coordinates</button>
+                <button id="openEditTimestampsTab" class="tablinks" onclick="changeEditSurveyTab(event, 'baseEditTimestampsTab')">Camera Timestamps</button>
+                <button id="openEditImgTimestampsTab" class="tablinks" onclick="changeEditSurveyTab(event, 'baseEditImgTimestampsTab')">Image Timestamps</button>
+                <button id="openEditClassifierTab" class="tablinks" onclick="changeEditSurveyTab(event, 'baseEditClassifierTab')">Species Classifier</button>
+                <button id="openAdvancedTab" class="tablinks" onclick="changeEditSurveyTab(event, 'baseAdvancedTab')">Advanced Options</button>
+                <button id="openEditMasksTab" class="tablinks" onclick="changeEditSurveyTab(event, 'baseEditMasksTab')">Masks</button>
+                <button id="openStaticTab" class="tablinks" onclick="changeEditSurveyTab(event, 'baseStaticTab')">Static Detections</button>
+                <button id="openStructureTab" class="tablinks" onclick="changeEditSurveyTab(event, 'baseStructureTab')">Structure</button>
+            </div>
+
             <div class="modal-body">
+                <div id="addImagesErrors" style="font-size: 80%; color: #DF691A"></div>
 
-                <div class='form-group'>
-                    <div id="addImagesErrors" style="font-size: 80%; color: #DF691A"></div>
-
-                    <div style="font-size: 80%; margin-bottom: 2px"><i>What would you like to edit?</i></div>
-                    <div class="custom-control custom-radio custom-control-inline">
-                        <input type="radio" class="custom-control-input" id="addImagesAddImages" name="editSelection" value="customEx">
-                        <label class="custom-control-label" for="addImagesAddImages">Files</label>
-                    </div>
-                    <div class="custom-control custom-radio custom-control-inline">
-                        <input type="radio" class="custom-control-input" id="addImagesAddCoordinates" name="editSelection" value="customEx">
-                        <label class="custom-control-label" for="addImagesAddCoordinates">Coordinates</label>
-                    </div>
-                    <div class="custom-control custom-radio custom-control-inline">
-                        <input type="radio" class="custom-control-input" id="addImagesEditTimestamps" name="editSelection" value="customEx">
-                        <label class="custom-control-label" for="addImagesEditTimestamps">Camera Timestamps</label>
-                    </div>
-                    <div class="custom-control custom-radio custom-control-inline">
-                        <input type="radio" class="custom-control-input" id="addImagesEditClassifier" name="editSelection" value="customEx">
-                        <label class="custom-control-label" for="addImagesEditClassifier">Species Classifier</label>
-                    </div>
-                    <div class="custom-control custom-radio custom-control-inline">
-                        <input type="radio" class="custom-control-input" id="addImagesAdvanced" name="editSelection" value="customEx">
-                        <label class="custom-control-label" for="addImagesAdvanced">Advanced Options</label>
-                    </div>
-    
+                <div class="tabcontent" id="baseAddImagesTab">
                     <div id="addImagesAddImsDiv"></div>
-                    <div id="addImagesAddCoordsDiv"></div>
-                    <div id="addImagesEditTimestampsDiv"></div>
-                    <div id="addImagesEditClassifierDiv"></div>
-                    <div id="addImagesAdvancedDiv"></div>
-
                 </div>
-          
+                <div class="tabcontent" id="baseAddCoordinatesTab">
+                    <div id="addImagesAddCoordsDiv"></div>
+                </div>
+                <div class="tabcontent" id="baseEditTimestampsTab">
+                    <div id="addImagesEditTimestampsDiv"></div>
+                </div>
+                <div class="tabcontent" id="baseEditImgTimestampsTab">
+                    <div id="addImagesEditImgTimestampsDiv"></div>
+                </div>
+                <div class="tabcontent" id="baseEditClassifierTab">
+                    <div id="addImagesEditClassifierDiv"></div>
+                </div>
+                <div class="tabcontent" id="baseAdvancedTab">
+                    <div id="addImagesAdvancedDiv"></div>
+                </div>
+                <div class="tabcontent" id="baseEditMasksTab">
+                    <div id="addImagesEditMasksDiv"></div>
+                </div>
+                <div class="tabcontent" id="baseStaticTab">
+                    <div id="addImagesStaticDiv"></div>
+                </div>
+                <div class="tabcontent" id="baseStructureTab">
+                    <div id="addImagesSurveyStructureDiv"></div>
+                </div>
             </div>
             <div class='modal-footer'>
 
@@ -1414,12 +1473,33 @@ limitations under the License. -->
                 </div>
 
                 <div class='col-lg-3'>
-                    <button id="btnContinueIndividualAlert" type='button' class='btn btn-danger btn-block'>Continue</button>
+                    <button id="btnContinueIndividualAlert" type='button' class='btn btn-danger btn-block' data-dismiss='modal'>Continue</button>
                 </div>
 
             </div>
         </div>
   
+    </div>
+</div>
+
+<!-- Individual Error Modal -->
+<div id="modalIndividualsError" class="modal fade" role="dialog" tabindex="-1">
+    <div class="modal-dialog">
+        <!-- Modal content-->
+        <div class="modal-content">
+            <div class="modal-header">
+                <h4 id='modalIndividualsErrorHeader' class="modal-title"></h4>
+                <button id="helpx" type="button" class="close" data-dismiss="modal">&times;</button>
+            </div>
+            <div class="modal-body">
+                <p id='modalIndividualsErrorBody' align="justify"></p>
+            </div>
+            <div class='modal-footer'>
+                <div class='col-lg-3'>
+                    <button id="btnCloseIndivErrorModal" type='button' class='btn btn-info btn-block' data-dismiss='modal'>Close</button>
+                </div>
+            </div>
+        </div>
     </div>
 </div>
 
@@ -1490,6 +1570,49 @@ limitations under the License. -->
         </div>
     </div>
 
+<!-- Confirm edit species Modal -->
+<div id="modalConfirmEditSpecies" class="modal fade" role="dialog" tabindex="-1">
+    <div class="modal-dialog">
+        <!-- Modal content-->
+        <div class="modal-content">
+            <div class="modal-header">
+                <h4 class="modal-title">Please Confirm</h4>
+                <button id="helpx" type="button" class="close" data-dismiss="modal">&times;</button>
+            </div>
+            <div class="modal-body">
+
+                <p align="justify">
+                    <i>
+                        Please note that modifying the label linked to an individual will result in an update to the species of that particular individual. 
+                        Should you have performed individual identification across various annotation sets, the revised label descriptions will be propagated across all annotation 
+                        sets pertaining to the species of that particular individual. The following annotation sets will be affected:
+                    </i>	
+                </p>
+
+                <p align="justify" id="modalConfirmEditSpeciesBody"></p>
+
+                <p align="justify">
+                    <i>Do you wish to continue?</i>
+                </p>
+
+                <p id='modalConfirmEditSpeciesError' align="justify" style="color: #DF691A"></p>
+          
+            </div>
+            <div class='modal-footer'>
+                <div class='col-lg-3'>
+                    <button id="btnCancelConfirmSpecies" type='button' class='btn btn-danger btn-block' 
+                    data-dismiss='modal'>Cancel</button>
+                </div>
+
+                <div class='col-lg-3'>
+                    <button id="btnConfirmEditSpecies" type='button' class='btn btn-info btn-block' 
+                    data-dismiss='modal'>Confirm</button>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
 <!-- Please Wait Modal -->
 <div id="modalPW" class="modal fade" role="dialog" tabindex="-1">
     <div class="modal-dialog">
@@ -1557,7 +1680,7 @@ limitations under the License. -->
   
         <!-- Modal content-->
         <div class="modal-content">
-            <div class="modal-header">
+            <div class="modal-header" style="border-bottom: 0px">
                 <div class='col-lg-10' style="padding: 0px">
                     <h4 class="modal-title">Launch for Manual Annotation</h4>
                 </div>
@@ -1568,11 +1691,22 @@ limitations under the License. -->
                     <button id="helpx" type="button" class="close" data-dismiss="modal">&times;</button>
                 </div>
             </div>
+
+            <div class="tab" id="annotationTabs" style="border-top: 1px solid rgb(60, 74, 89);">
+                <button id="openSpeciesLabellingTab" class="tablinks" onclick="changeAnnotationTab(event, 'baseSpeciesLabellingTab')">Species Labelling</button>
+                <button id="openAISpeciesTab" class="tablinks" onclick="changeAnnotationTab(event, 'baseAISpeciesTab')">AI Species Check</button>
+                <button id="openInfoTab" class="tablinks" onclick="changeAnnotationTab(event, 'baseInfoTab')">Informational Tagging</button>
+                <button id="openMultiSpeciesTab" class="tablinks" onclick="changeAnnotationTab(event, 'baseMultiSpeciesTab')">Multi-Species Differentiation</button>
+                <button id="openSightingTab" class="tablinks" onclick="changeAnnotationTab(event, 'baseSightingTab')">Sighting (Box) Correction</button>
+                <button id="openIndividualTab" class="tablinks" onclick="changeAnnotationTab(event, 'baseIndividualTab')">Individual Identification</button>
+                <!-- <button id="openMaskedTab" class="tablinks" onclick="changeAnnotationTab(event, 'baseMaskedTab')">Review Masked Sightings</button> -->
+            </div>
+
             <div class="modal-body">
 
                 <div id="launchErrors" style="font-size: 80%; color: #DF691A"></div>
 
-                <h5 style="margin-bottom: 2px">Annotation Type</h5>
+                <!-- <h5 style="margin-bottom: 2px">Annotation Type</h5>
                 <div style="font-size: 80%; margin-bottom: 2px"><i>The type of annotation you would like to do. Note that you must have all clusters annotatated to your top species level before being able to proceed.</i></div>
                 <div class="custom-control custom-radio custom-control-inline">
                     <input type="radio" class="custom-control-input" id="clusterTag" name="taggingSelection" value="customEx">
@@ -1599,7 +1733,7 @@ limitations under the License. -->
                     <label class="custom-control-label" for="individualID">Individual Identification</label>
                 </div>
                 <br>
-                <br>
+                <br> -->
 
                 <h5 style="margin-bottom: 2px">Description</h5>
                 <div style="font-size: 80%; margin-bottom: 2px" id="annotationDescription"><i>Label the species contained in each unlabelled image cluster.</i></div>
@@ -1697,6 +1831,8 @@ limitations under the License. -->
   
     </div>
 </div>
+
+
 {% endblock %}
 
 {% block page_scripts %}
@@ -1737,6 +1873,8 @@ limitations under the License. -->
 <script src='https://unpkg.com/leaflet.gridlayer.googlemutant@latest/dist/Leaflet.GoogleMutant.js'></script>
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@splidejs/splide@latest/dist/css/splide.min.css">
 <script src="https://cdn.jsdelivr.net/npm/@splidejs/splide@latest/dist/js/splide.min.js"></script>
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet.draw/1.0.4/leaflet.draw.css"/>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet.draw/1.0.4/leaflet.draw.js"></script>
 <!-- <script src="js/piexif.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/crypto-js/4.0.0/crypto-js.min.js"></script> -->
 {% endblock %}

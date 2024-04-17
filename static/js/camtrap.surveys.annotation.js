@@ -12,20 +12,23 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+var tabActiveLaunch = 'baseSpeciesLabellingTab'
+var taskCompletionStatus = 'False'
+
 launchMTurkTaskBtn.addEventListener('click', ()=>{
     /** Event listener for the launch-task button. Submits all info to the server after doing the necessary checks. */
 
     taskSize = parseInt(document.getElementById('taskSize').value)
     taskTaggingLevel = document.getElementById('taskTaggingLevel').value
 
-    if (document.getElementById('sightingTag').checked || document.getElementById('sightingDifferentiation').checked) {
+    if (tabActiveLaunch == 'baseSightingTab' || tabActiveLaunch == 'baseMultiSpeciesTab') {
         isBounding = true
     } else {
         isBounding = false
     }
 
     allow = true
-    if (document.getElementById('individualID').checked) {
+    if (tabActiveLaunch == 'baseIndividualTab'){
         taskTaggingLevel = document.getElementById('idStage').value+','+document.getElementById('taskTaggingLevel').options[document.getElementById('taskTaggingLevel').selectedIndex].text
         if (document.getElementById('idStage').value=='-4') {
             // if (document.getElementById('wordName').checked) {
@@ -450,37 +453,46 @@ function updateTaskStatus() {
 
 function resetLaunchTaskPage() {
     /** Clears the launch-task page. */
-
-    document.getElementById('clusterTag').checked = true
-    document.getElementById('sightingTag').checked = false
-    document.getElementById('sightingDifferentiation').checked = false
-    document.getElementById('classTag').checked = false
-    document.getElementById('infoTag').checked = false
-    document.getElementById('individualID').checked = false
-
     document.getElementById('taskSize').value = 200
     document.getElementById('launchErrors').value = ''
-    document.getElementById('sightingTag').disabled = true
-    document.getElementById('sightingDifferentiation').disabled = true
-    document.getElementById('individualID').disabled = true
-    document.getElementById('classTag').disabled = true
+    document.getElementById('openSightingTab').disabled = true
+    document.getElementById('openMultiSpeciesTab').disabled = true
+    document.getElementById('openIndividualTab').disabled = true
+    document.getElementById('openAISpeciesTab').disabled = true
+    document.getElementById('openInfoTab').disabled = true
+    document.getElementById('openSpeciesLabellingTab').disabled = false
+    // document.getElementById('openMaskedTab').disabled = true
     clearSelect(document.getElementById('taskTaggingLevel'))
+
+    individualLevel = document.getElementById('individualLevel')
+    while(individualLevel.firstChild){
+        individualLevel.removeChild(individualLevel.firstChild);
+    }
+
+    document.getElementById('annotationDescription').innerHTML = "<i>Label the species contained in each unlabelled image cluster.</i>"
+
+    var mainModal = document.getElementById('modalLaunchTask')
+    var tablinks = mainModal.getElementsByClassName("tablinks");
+    for (let i = 0; i < tablinks.length; i++) {
+        tablinks[i].className = tablinks[i].className.replace(" active", "");
+    }
 }
 
-$("#clusterTag").change( function() {
+function openClusterTag() {
     /** Listens for cluster species annotation in the launch task modal, and populates the species-level accordingly. */
 
-    if (document.getElementById('clusterTag').checked) {
+    if (tabActiveLaunch == 'baseSpeciesLabellingTab') {
         individualLevel = document.getElementById('individualLevel')
         while(individualLevel.firstChild){
             individualLevel.removeChild(individualLevel.firstChild);
         }
 
-        document.getElementById('sightingTag').disabled = true
-        document.getElementById('sightingDifferentiation').disabled = true
-        document.getElementById('individualID').disabled = true
-        document.getElementById('classTag').disabled = true
-        document.getElementById('infoTag').disabled = true
+        document.getElementById('openSightingTab').disabled = true
+        document.getElementById('openMultiSpeciesTab').disabled = true
+        document.getElementById('openIndividualTab').disabled = true
+        document.getElementById('openAISpeciesTab').disabled = true
+        document.getElementById('openInfoTab').disabled = true
+        // document.getElementById('openMaskedTab').disabled = true
 
         document.getElementById('annotationDescription').innerHTML = "<i>Label the species contained in each unlabelled image cluster.</i>"
 
@@ -500,31 +512,35 @@ $("#clusterTag").change( function() {
                     document.getElementById('taskTaggingLevel').disabled = false
                 }
 
-                document.getElementById('sightingTag').disabled = false
-                document.getElementById('sightingDifferentiation').disabled = false
-                document.getElementById('individualID').disabled = false
-                document.getElementById('classTag').disabled = false
-                document.getElementById('infoTag').disabled = false
+                if (taskCompletionStatus == 'True') {
+                    document.getElementById('openSightingTab').disabled = false
+                    document.getElementById('openMultiSpeciesTab').disabled = false
+                    document.getElementById('openIndividualTab').disabled = false
+                    document.getElementById('openAISpeciesTab').disabled = false
+                    document.getElementById('openInfoTab').disabled = false
+                    // document.getElementById('openMaskedTab').disabled = false
+                }
             }
         }
         xhttp.send();
     }
-})
+}
 
-$("#infoTag").change( function() {
+function openInfoTag() {
     /** Listens for informational tagging in the launch task modal, and populates the species-level accordingly. */
 
-    if (document.getElementById('infoTag').checked) {
+    if (tabActiveLaunch == 'baseInfoTab') {
         individualLevel = document.getElementById('individualLevel')
         while(individualLevel.firstChild){
             individualLevel.removeChild(individualLevel.firstChild);
         }
 
-        document.getElementById('sightingTag').disabled = true
-        document.getElementById('sightingDifferentiation').disabled = true
-        document.getElementById('individualID').disabled = true
-        document.getElementById('classTag').disabled = true
-        document.getElementById('clusterTag').disabled = true
+        document.getElementById('openSightingTab').disabled = true
+        document.getElementById('openMultiSpeciesTab').disabled = true
+        document.getElementById('openIndividualTab').disabled = true
+        document.getElementById('openAISpeciesTab').disabled = true
+        document.getElementById('openSpeciesLabellingTab').disabled = true
+        // document.getElementById('openMaskedTab').disabled = true
 
         document.getElementById('annotationDescription').innerHTML = "<i>Add additional informational tags to each cluster containing a chosen species. You will be able to set up and edit these tags on launch.</i>"
 
@@ -544,21 +560,22 @@ $("#infoTag").change( function() {
                     document.getElementById('taskTaggingLevel').disabled = false
                 }
 
-                document.getElementById('sightingTag').disabled = false
-                document.getElementById('sightingDifferentiation').disabled = false
-                document.getElementById('individualID').disabled = false
-                document.getElementById('classTag').disabled = false
-                document.getElementById('clusterTag').disabled = false
+                document.getElementById('openSightingTab').disabled = false
+                document.getElementById('openMultiSpeciesTab').disabled = false
+                document.getElementById('openIndividualTab').disabled = false
+                document.getElementById('openAISpeciesTab').disabled = false
+                document.getElementById('openSpeciesLabellingTab').disabled = false
+                // document.getElementById('openMaskedTab').disabled = false
             }
         }
         xhttp.send();
     }
-})
+}
 
 $("#taskTaggingLevel").change( function() {
     /** Listens for changes in the task tagging level, and enables/disables the individual ID stage selector accordingly. */
     
-    if (document.getElementById('individualID').checked) {
+    if (tabActiveLaunch=='baseIndividualTab') {
         if (speciesDisabled[document.getElementById('taskTaggingLevel').options[document.getElementById('taskTaggingLevel').selectedIndex].text] == 'true') {
             document.getElementById('idStage').disabled = true
         } else {
@@ -728,16 +745,17 @@ function buildIndividualOptions() {
     radio.appendChild(label)
 }
 
-$("#individualID").change( function() {
+function openIndividualID() {
     /** Listens for individual ID being selected, and populates the form accordingly. */
     
-    if (document.getElementById('individualID').checked) {
+    if (tabActiveLaunch == 'baseIndividualTab') {
         
-        document.getElementById('classTag').disabled = true
-        document.getElementById('sightingTag').disabled = true
-        document.getElementById('sightingDifferentiation').disabled = true
-        document.getElementById('infoTag').disabled = true
-        document.getElementById('clusterTag').disabled = true
+        document.getElementById('openSightingTab').disabled = true
+        document.getElementById('openMultiSpeciesTab').disabled = true
+        document.getElementById('openSpeciesLabellingTab').disabled = true
+        document.getElementById('openAISpeciesTab').disabled = true
+        document.getElementById('openInfoTab').disabled = true
+        // document.getElementById('openMaskedTab').disabled = true
 
         document.getElementById('annotationDescription').innerHTML = "<i>Identify specific individuals for a chosen individual. Begin by identifying individuals on a cluster-by-cluster basis to try combine multiple viewing angles. Then identify individuals across different clusters based on suggested matches. It is recommended that you correct your sightings (boxes) for your species of interest before beginning this process/</i>"
         clearSelect(document.getElementById('taskTaggingLevel'))
@@ -757,11 +775,12 @@ $("#individualID").change( function() {
                     document.getElementById('idStage').disabled = false
                 }
 
-                document.getElementById('classTag').disabled = false
-                document.getElementById('sightingTag').disabled = false
-                document.getElementById('sightingDifferentiation').disabled = false
-                document.getElementById('infoTag').disabled = false
-                document.getElementById('clusterTag').disabled = false
+                document.getElementById('openSightingTab').disabled = false
+                document.getElementById('openMultiSpeciesTab').disabled = false
+                document.getElementById('openInfoTab').disabled = false
+                document.getElementById('openAISpeciesTab').disabled = false
+                document.getElementById('openSpeciesLabellingTab').disabled = false
+                // document.getElementById('openMaskedTab').disabled = false
                 
             }
         }
@@ -820,22 +839,23 @@ $("#individualID").change( function() {
             individualLevel.removeChild(individualLevel.firstChild);
         }
     }
-})
+}
 
-$("#classTag").change( function() {
+function openClassTag() {
     /** Listens for the AI-check annotation task being selected, and populates the form accordingly. */
 
-    if (document.getElementById('classTag').checked) {
+    if (tabActiveLaunch == 'baseAISpeciesTab') {
         individualLevel = document.getElementById('individualLevel')
         while(individualLevel.firstChild){
             individualLevel.removeChild(individualLevel.firstChild);
         }
 
-        document.getElementById('sightingTag').disabled = true
-        document.getElementById('sightingDifferentiation').disabled = true
-        document.getElementById('individualID').disabled = true
-        document.getElementById('infoTag').disabled = true
-        document.getElementById('clusterTag').disabled = true
+        document.getElementById('openSightingTab').disabled = true
+        document.getElementById('openMultiSpeciesTab').disabled = true
+        document.getElementById('openIndividualTab').disabled = true
+        document.getElementById('openInfoTab').disabled = true
+        document.getElementById('openSpeciesLabellingTab').disabled = true
+        // document.getElementById('openMaskedTab').disabled = true
 
         document.getElementById('annotationDescription').innerHTML = "<i>Check your cluster-level species labels against the AI to find mistakes.</i>"
 
@@ -855,31 +875,33 @@ $("#classTag").change( function() {
                     document.getElementById('taskTaggingLevel').disabled = false
                 }
 
-                document.getElementById('sightingTag').disabled = false
-                document.getElementById('sightingDifferentiation').disabled = false
-                document.getElementById('individualID').disabled = false
-                document.getElementById('infoTag').disabled = false
-                document.getElementById('clusterTag').disabled = false
+                document.getElementById('openSightingTab').disabled = false
+                document.getElementById('openMultiSpeciesTab').disabled = false
+                document.getElementById('openIndividualTab').disabled = false
+                document.getElementById('openInfoTab').disabled = false
+                document.getElementById('openSpeciesLabellingTab').disabled = false
+                // document.getElementById('openMaskedTab').disabled = false
             }
         }
         xhttp.send();
     }
-})
+}
 
-$("#sightingTag").change( function() {
+function openSightingTag() {
     /** Listens for the bounding-box correction task being selected, and populates the form accordingly. */
 
-    if (document.getElementById('sightingTag').checked) {
+    if (tabActiveLaunch == 'baseSightingTab') {
         individualLevel = document.getElementById('individualLevel')
         while(individualLevel.firstChild){
             individualLevel.removeChild(individualLevel.firstChild);
         }
 
-        document.getElementById('classTag').disabled = true
-        document.getElementById('sightingDifferentiation').disabled = true
-        document.getElementById('individualID').disabled = true
-        document.getElementById('infoTag').disabled = true
-        document.getElementById('clusterTag').disabled = true
+        document.getElementById('openMultiSpeciesTab').disabled = true
+        document.getElementById('openIndividualTab').disabled = true
+        document.getElementById('openAISpeciesTab').disabled = true
+        document.getElementById('openInfoTab').disabled = true
+        document.getElementById('openSpeciesLabellingTab').disabled = true
+        // document.getElementById('openMaskedTab').disabled = true
 
         document.getElementById('annotationDescription').innerHTML = "<i>Correct the AI-generated boxes for a particular species. Use this to obtain more accurate animal counts or to prepare for individual identification.</i>"
 
@@ -899,32 +921,34 @@ $("#sightingTag").change( function() {
                     document.getElementById('taskTaggingLevel').disabled = false
                 }
 
-                document.getElementById('classTag').disabled = false
-                document.getElementById('sightingDifferentiation').disabled = false
-                document.getElementById('individualID').disabled = false
-                document.getElementById('infoTag').disabled = false
-                document.getElementById('clusterTag').disabled = false
+                document.getElementById('openMultiSpeciesTab').disabled = false
+                document.getElementById('openIndividualTab').disabled = false
+                document.getElementById('openAISpeciesTab').disabled = false
+                document.getElementById('openInfoTab').disabled = false
+                document.getElementById('openSpeciesLabellingTab').disabled = false
+                // document.getElementById('openMaskedTab').disabled = false
 
             }
         }
         xhttp.send();
     }
-})
+}
 
-$("#sightingDifferentiation").change( function() {
+function openMultiSpeciesTag() {
     /** Listens for the bounding-box correction task being selected, and populates the form accordingly. */
 
-    if (document.getElementById('sightingDifferentiation').checked) {
+    if (tabActiveLaunch == 'baseMultiSpeciesTab') {
         individualLevel = document.getElementById('individualLevel')
         while(individualLevel.firstChild){
             individualLevel.removeChild(individualLevel.firstChild);
         }
 
-        document.getElementById('classTag').disabled = true
-        document.getElementById('sightingTag').disabled = true
-        document.getElementById('individualID').disabled = true
-        document.getElementById('infoTag').disabled = true
-        document.getElementById('clusterTag').disabled = true
+        document.getElementById('openSightingTab').disabled = true
+        document.getElementById('openIndividualTab').disabled = true
+        document.getElementById('openAISpeciesTab').disabled = true
+        document.getElementById('openInfoTab').disabled = true
+        document.getElementById('openSpeciesLabellingTab').disabled = true
+        // document.getElementById('openMaskedTab').disabled = true
 
         document.getElementById('annotationDescription').innerHTML = "<i>Differentiate which species each box/sighting contains in clusters that contain multiple species. Do this to obatin more accurate animal counts, and more accurate image-level labelling. Also necessary preparation for individual identification</i>"
 
@@ -944,16 +968,65 @@ $("#sightingDifferentiation").change( function() {
                     document.getElementById('taskTaggingLevel').disabled = false
                 }
 
-                document.getElementById('classTag').disabled = false
-                document.getElementById('sightingTag').disabled = false
-                document.getElementById('individualID').disabled = false
-                document.getElementById('infoTag').disabled = false
-                document.getElementById('clusterTag').disabled = false
+                document.getElementById('openSightingTab').disabled = false
+                document.getElementById('openIndividualTab').disabled = false
+                document.getElementById('openAISpeciesTab').disabled = false
+                document.getElementById('openInfoTab').disabled = false
+                document.getElementById('openSpeciesLabellingTab').disabled = false
+                // document.getElementById('openMaskedTab').disabled = false
             }
         }
         xhttp.send();
     }
-})
+}
+
+// function openMaskedTag() {
+//     /** Listens for the bounding-box correction task being selected, and populates the form accordingly. */
+
+//     if (tabActiveLaunch == 'baseMaskedTab') {
+//         individualLevel = document.getElementById('individualLevel')
+//         while(individualLevel.firstChild){
+//             individualLevel.removeChild(individualLevel.firstChild);
+//         }
+
+//         document.getElementById('openSightingTab').disabled = true
+//         document.getElementById('openMultiSpeciesTab').disabled = true
+//         document.getElementById('openIndividualTab').disabled = true
+//         document.getElementById('openAISpeciesTab').disabled = true
+//         document.getElementById('openInfoTab').disabled = true
+//         document.getElementById('openSpeciesLabellingTab').disabled = true
+
+//         document.getElementById('annotationDescription').innerHTML = "<i>Review all sightings that were masked if you have masked an area in a previous task. This can be to ensure that no sightings were missed, or to correct any mistakes.</i>"
+
+//         clearSelect(document.getElementById('taskTaggingLevel'))
+//         var xhttp = new XMLHttpRequest();
+//         xhttp.open("GET", '/getTaggingLevelsbyTask/'+selectedTask+'/maskedTag');
+//         xhttp.onreadystatechange =
+//         function(){
+//             if (this.readyState == 4 && this.status == 200) {
+//                 reply = JSON.parse(this.responseText);  
+//                 clearSelect(document.getElementById('taskTaggingLevel'))
+//                 fillSelect(document.getElementById('taskTaggingLevel'), reply.texts, reply.values, reply.colours)
+    
+//                 if (reply.disabled == 'true') {
+//                     document.getElementById('taskTaggingLevel').disabled = true
+//                 } else {
+//                     document.getElementById('taskTaggingLevel').disabled = false
+//                 }
+
+//                 document.getElementById('openSightingTab').disabled = false
+//                 document.getElementById('openMultiSpeciesTab').disabled = false
+//                 document.getElementById('openIndividualTab').disabled = false
+//                 document.getElementById('openAISpeciesTab').disabled = false
+//                 document.getElementById('openInfoTab').disabled = false
+//                 document.getElementById('openSpeciesLabellingTab').disabled = false
+
+//             }
+//         }
+//         xhttp.send();
+//     }
+// }
+
 
 modalEditTranslations.on('hidden.bs.modal', function(){
     /** Cancels the launch task request for the selected task if the user cancels the edit translations modal. */
@@ -1007,18 +1080,6 @@ modalLaunchTask.on('shown.bs.modal', function(){
 
     if (!helpReturn) {
 
-        individualLevel = document.getElementById('individualLevel')
-        while(individualLevel.firstChild){
-            individualLevel.removeChild(individualLevel.firstChild);
-        }
-
-        document.getElementById('sightingTag').disabled = true
-        document.getElementById('sightingDifferentiation').disabled = true
-        document.getElementById('individualID').disabled = true
-        document.getElementById('classTag').disabled = true
-        document.getElementById('infoTag').disabled = true
-        document.getElementById('clusterTag').checked = true
-
         var xhttp = new XMLHttpRequest();
         xhttp.open("GET", '/getTaskCompletionStatus/'+selectedTask);
         xhttp.onreadystatechange =
@@ -1026,30 +1087,15 @@ modalLaunchTask.on('shown.bs.modal', function(){
             if (this.readyState == 4 && this.status == 200) {
                 taskCompletionStatus = JSON.parse(this.responseText);  
                 if (taskCompletionStatus == 'True') {
-                    document.getElementById('sightingTag').disabled = false
-                    document.getElementById('sightingDifferentiation').disabled = false
-                    document.getElementById('individualID').disabled = false
-                    document.getElementById('classTag').disabled = false
-                    document.getElementById('infoTag').disabled = false
+                    document.getElementById('openSightingTab').disabled = false
+                    document.getElementById('openMultiSpeciesTab').disabled = false
+                    document.getElementById('openIndividualTab').disabled = false
+                    document.getElementById('openAISpeciesTab').disabled = false
+                    document.getElementById('openInfoTab').disabled = false
+                    // document.getElementById('openMaskedTab').disabled = false
                 }
-            }
-        }
-        xhttp.send();
-
-        var xhttp = new XMLHttpRequest();
-        xhttp.open("GET", '/getTaggingLevelsbyTask/'+selectedTask+'/clusterTag');
-        xhttp.onreadystatechange =
-        function(){
-            if (this.readyState == 4 && this.status == 200) {
-                reply = JSON.parse(this.responseText);  
-                clearSelect(document.getElementById('taskTaggingLevel'))
-                fillSelect(document.getElementById('taskTaggingLevel'), reply.texts, reply.values, reply.colours)
-    
-                if (reply.disabled == 'true') {
-                    document.getElementById('taskTaggingLevel').disabled = true
-                } else {
-                    document.getElementById('taskTaggingLevel').disabled = false
-                }
+                document.getElementById('openSpeciesLabellingTab').disabled = false
+                document.getElementById('openSpeciesLabellingTab').click()
             }
         }
         xhttp.send();
@@ -1066,3 +1112,45 @@ modalLaunchTask.on('hidden.bs.modal', function(){
         document.getElementById('launchMTurkTaskBtn').disabled=false
     }
 });
+
+function changeAnnotationTab(evt, tabName) {
+    /** Opens the permissions tab */
+
+    var mainModal = document.getElementById('modalLaunchTask')
+    // var tabcontent = mainCard.getElementsByClassName("tabcontent");
+    // for (let i = 0; i < tabcontent.length; i++) {
+    //     tabcontent[i].style.display = "none";
+    // }
+
+    var tablinks = mainModal.getElementsByClassName("tablinks");
+    for (let i = 0; i < tablinks.length; i++) {
+        tablinks[i].className = tablinks[i].className.replace(" active", "");
+    }
+
+    // document.getElementById(tabName).style.display = "block";
+    evt.currentTarget.className += " active";
+    tabActiveLaunch = tabName
+
+    if (tabName == 'baseSpeciesLabellingTab') {
+        openClusterTag()
+    }
+    else if (tabName == 'baseAISpeciesTab') {
+        openClassTag()
+    }
+    // else if (tabName == 'baseMaskedTab') {
+    //     openMaskedTag()
+    // }
+    else if (tabName == 'baseInfoTab') {
+        openInfoTag()
+    }
+    else if (tabName == 'baseMultiSpeciesTab') {
+        openMultiSpeciesTag()
+    }
+    else if (tabName == 'baseSightingTab') {
+        openSightingTag()
+    }
+    else if (tabName == 'baseIndividualTab') {
+        openIndividualID()
+    }
+
+}

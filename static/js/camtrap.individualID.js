@@ -17,6 +17,8 @@ isReviewing = false
 isKnockdown = false
 isBounding = false
 isIDing = true
+isStaticCheck = false
+isTimestampCheck = false
 
 var suggestions = []
 var suggestionIndex = 0
@@ -394,8 +396,12 @@ function loadNewCluster(mapID = 'map1') {
                                         if (((knockedTG!=null)&&(parseInt(newcluster.trapGroup)>0)&&(newcluster.trapGroup!=knockedTG))||(newcluster.id == '-101')) {
                                             knockedTG=null
                                         }
+
+                                        if(((maskedTG!=null)&&(parseInt(newcluster.trapGroup)>0)&&(newcluster.trapGroup==maskedTG))||(newcluster.id == '-101')) {
+                                            maskedTG=null
+                                        }
                                         
-                                        if (knockedTG==null) {
+                                        if (knockedTG==null && maskedTG==null) {
                                             if (true) { //(!clusterIdList.includes(newcluster.id))||(newcluster.id=='-101')
                                                 clusterIdList.push(newcluster.id)
     
@@ -1141,6 +1147,18 @@ function hideBoundingLabels() {
 function dissociateDetection(detID,mapID="map1") {
     /** Dissociates the specified individual from it's individual during the inter-cliuster ID phase. */
     if ((clusters[mapID][clusterIndex[mapID]].images.length > 1) && (finishedDisplaying['map1']) && (finishedDisplaying['map2']) && (modalActive == false) && (modalActive2 == false)) {
+        
+        for (let i=0;i<clusters[mapID][clusterIndex[mapID]].images.length;i++) {
+            if (clusters[mapID][clusterIndex[mapID]].images[i].detections[0].id == detID) {
+                actions.push(['dissociation',detID,JSON.parse(JSON.stringify(clusters[mapID][clusterIndex[mapID]].images[i])),mapID,clusters[mapID][clusterIndex[mapID]].id])
+                clusters[mapID][clusterIndex[mapID]].images.splice(i, 1)
+                break
+            }
+        }
+
+        sliderIndex[mapID] = '-1'
+        update(mapID)
+        
         var xhttp = new XMLHttpRequest();
         xhttp.onreadystatechange =
         function (wrapDetID,wrapMapID) {
@@ -1149,18 +1167,18 @@ function dissociateDetection(detID,mapID="map1") {
                     window.location.replace(JSON.parse(this.responseText)['redirect'])
                 } else if (this.readyState == 4 && this.status == 200) {
                     reply = JSON.parse(this.responseText);
-                    if (reply.status == 'success') {
-                        for (let i=0;i<clusters[wrapMapID][clusterIndex[wrapMapID]].images.length;i++) {
-                            if (wrapDetID==clusters[wrapMapID][clusterIndex[wrapMapID]].images[i].detections[0].id) {
-                                actions.push(['dissociation',wrapDetID,JSON.parse(JSON.stringify(clusters[wrapMapID][clusterIndex[wrapMapID]].images[i])),wrapMapID,clusters[wrapMapID][clusterIndex[wrapMapID]].id])
-                                clusters[wrapMapID][clusterIndex[wrapMapID]].images.splice(i, 1)
-                                break
-                            }
-                        }
+                    // if (reply.status == 'success') {
+                    //     for (let i=0;i<clusters[wrapMapID][clusterIndex[wrapMapID]].images.length;i++) {
+                    //         if (wrapDetID==clusters[wrapMapID][clusterIndex[wrapMapID]].images[i].detections[0].id) {
+                    //             actions.push(['dissociation',wrapDetID,JSON.parse(JSON.stringify(clusters[wrapMapID][clusterIndex[wrapMapID]].images[i])),wrapMapID,clusters[wrapMapID][clusterIndex[wrapMapID]].id])
+                    //             clusters[wrapMapID][clusterIndex[wrapMapID]].images.splice(i, 1)
+                    //             break
+                    //         }
+                    //     }
     
-                        sliderIndex[wrapMapID] = '-1'
-                        update(wrapMapID)
-                    }
+                    //     sliderIndex[wrapMapID] = '-1'
+                    //     update(wrapMapID)
+                    // }
                 }
             }
         }(detID,mapID);
