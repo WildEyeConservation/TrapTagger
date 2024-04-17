@@ -18,7 +18,7 @@ from app import app, db, celery
 from app.models import *
 from app.functions.globals import classifyTask, finish_knockdown, updateTaskCompletionStatus, updateLabelCompletionStatus, updateIndividualIdStatus, \
                                     retryTime, chunker, resolve_abandoned_jobs, addChildLabels, updateAllStatuses, stringify_timestamp, rDets
-from app.functions.individualID import calculate_individual_similarities, cleanUpIndividuals
+from app.functions.individualID import calculate_individual_similarities, cleanUpIndividuals, check_individual_detection_mismatch
 from app.functions.imports import cluster_survey, classifySurvey, s3traverse, recluster_large_clusters, removeHumans, classifyCluster, get_still_rate
 import GLOBALS
 from sqlalchemy.sql import func, or_, and_, distinct, alias
@@ -310,6 +310,9 @@ def stop_task(self,task_id):
                 GLOBALS.redisClient.delete('active_individuals_'+str(task_id))
                 GLOBALS.redisClient.delete('active_indsims_'+str(task_id))
 
+            if ',' not in task.tagging_level and task.init_complete and '-2' not in task.tagging_level:
+                check_individual_detection_mismatch(task_id=task_id,celeryTask=False)
+
             updateAllStatuses(task_id=int(task_id), celeryTask=False)
 
             # if task_id in GLOBALS.mutex.keys(): GLOBALS.mutex.pop(task_id, None)
@@ -330,28 +333,29 @@ def stop_task(self,task_id):
 
             if 'processing' not in survey.status:
                 survey.status = 'Ready'
-            elif survey.status=='indprocessing':
-                #Check whether individual similarities are still being processed
-                inspector = celery.control.inspect()
-                active_tasks = inspector.active()
-                reserved_tasks = inspector.reserved()
 
-                still_processing = False
-                for tasks in [active_tasks,reserved_tasks]:
-                    for worker in tasks:
-                        for task in tasks[worker]:
-                            if ('calculate_individual_similarities' in task['name']) and (('task_id' in task['kwargs']) and (int(task['kwargs']['task_id']) == int(task_id)) or ((len(task['args'])>0) and (int(task['args'][0]) == int(task_id)))):
-                                still_processing = True
-                                break
-                        else:
-                            continue
-                        break
-                    else:
-                        continue
-                    break
+            # elif survey.status=='indprocessing':
+            #     #Check whether individual similarities are still being processed
+            #     inspector = celery.control.inspect()
+            #     active_tasks = inspector.active()
+            #     reserved_tasks = inspector.reserved()
 
-                if not still_processing:
-                    survey.status = 'Ready'
+            #     still_processing = False
+            #     for tasks in [active_tasks,reserved_tasks]:
+            #         for worker in tasks:
+            #             for task in tasks[worker]:
+            #                 if ('calculate_individual_similarities' in task['name']) and (('task_id' in task['kwargs']) and (int(task['kwargs']['task_id']) == int(task_id)) or ((len(task['args'])>0) and (int(task['args'][0]) == int(task_id)))):
+            #                     still_processing = True
+            #                     break
+            #             else:
+            #                 continue
+            #             break
+            #         else:
+            #             continue
+            #         break
+
+            #     if not still_processing:
+            #         survey.status = 'Ready'
 
             db.session.commit()
 
@@ -660,7 +664,7 @@ def deleteChildLabels(parent):
         db.session.delete(label)
     return True
 
-def processChanges(changes, keys, sessionLabels, task_id):
+def processChanges(changes, keys, sessionLabels, task_id, speciesChanges=None):
     '''
     Processes requested changes to a task, specifically relating to the editing of labels.
 
@@ -669,6 +673,7 @@ def processChanges(changes, keys, sessionLabels, task_id):
             keys (list): List of parent labels for which changes need to be made
             sessionLabels (dict): Labels that have been added in the previous sessions
             task_id (int): Task being edited
+            speciesChanges (dict): The species that are being changed as well as the associated task IDs
 
         Returns:
             skipped (list): List of labels that cannot be added yet
@@ -703,10 +708,25 @@ def processChanges(changes, keys, sessionLabels, task_id):
             for edit_id in changes[parent]['edits']['modify']:
                 if 's' not in edit_id:
                     editLabel = db.session.query(Label).get(int(edit_id))
-
                     if editLabel:
+                        oldLabel = editLabel.description    
                         editLabel.description = changes[parent]['edits']['modify'][edit_id]['description']
                         editLabel.hotkey = changes[parent]['edits']['modify'][edit_id]['hotkey']
+
+                        # Find individuals with this label as their species and update their species and update the label in other tasks
+                        if oldLabel in speciesChanges:
+                            individuals = db.session.query(Individual).join(Task,Individual.tasks).filter(Task.id.in_(speciesChanges[oldLabel]['tasks'])).filter(Individual.species==oldLabel).all()
+                            for individual in individuals:
+                                individual.species = editLabel.description
+
+                            for t_id in speciesChanges[oldLabel]['tasks']:
+                                if t_id != task_id:
+                                    checkLabel = db.session.query(Label).filter(Label.task_id==t_id).filter(Label.description==editLabel.description).first()
+                                    if not checkLabel:
+                                        taskLabel = db.session.query(Label).filter(Label.task_id==t_id).filter(Label.description==oldLabel).first()
+                                        if taskLabel:
+                                            taskLabel.description = editLabel.description
+                                        
 
             for additional_id in changes[parent]['additional']:
                 check = db.session.query(Label) \
@@ -733,23 +753,26 @@ def processChanges(changes, keys, sessionLabels, task_id):
     return skipped, sessionLabels
 
 @celery.task(bind=True,max_retries=5,ignore_result=True)
-def handleTaskEdit(self,task_id,changes):
+def handleTaskEdit(self,task_id,changes,speciesChanges=None):
     '''
     Celery task that handles task edits, specifically relating to the editing of labels.
 
         Parameters:
             task_id (int): The task being edited
             changes (dict): The changes being implemented to a parent label - modifed, deleted, or added
+            speciesChanges (dict): The species that are being changed as well as the associated task IDs
     '''
     
     try:
         if db.session.query(Task).get(task_id):
             changes = ast.literal_eval(changes)
+            if speciesChanges:
+                speciesChanges = ast.literal_eval(speciesChanges)
             sessionLabels = {}
-            skipped, sessionLabels = processChanges(changes, changes.keys(), sessionLabels, task_id)
+            skipped, sessionLabels = processChanges(changes, changes.keys(), sessionLabels, task_id, speciesChanges)
 
             while skipped != []:
-                skipped, sessionLabels = processChanges(changes, skipped, sessionLabels, task_id)
+                skipped, sessionLabels = processChanges(changes, skipped, sessionLabels, task_id, speciesChanges)
 
             translations = db.session.query(Translation).filter(Translation.task_id==task_id).all()
             for translation in translations:
@@ -757,6 +780,16 @@ def handleTaskEdit(self,task_id,changes):
 
             task = db.session.query(Task).get(task_id)
             task.status = 'Ready'
+
+            task_ids = []
+            if speciesChanges:
+                for species in speciesChanges:
+                    for t_id in speciesChanges[species]['tasks']:
+                        if t_id not in task_ids and t_id != task_id:
+                            task = db.session.query(Task).get(t_id)
+                            task.status = 'Ready'
+                            task_ids.append(t_id)
+
             db.session.commit()
 
     except Exception as exc:
@@ -2061,6 +2094,99 @@ def updateStatistics(self):
                     organisation.frame_count = frame_count                    
 
             db.session.commit()
+
+    except Exception as exc:
+        app.logger.info(' ')
+        app.logger.info('!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!')
+        app.logger.info(traceback.format_exc())
+        app.logger.info('!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!')
+        app.logger.info(' ')
+        self.retry(exc=exc, countdown= retryTime(self.request.retries))
+
+    finally:
+        db.session.remove()
+
+    return True
+
+
+@celery.task(bind=True,max_retries=5,ignore_result=True)
+def delete_individuals(self,task_ids, species):
+    ''' Deletes all individuals of the specified species in the specified tasks. '''
+    try:
+        app.logger.info('Deleting individuals of species {} in tasks {}'.format(species,task_ids))
+
+        task_ids = [int(r) for r in task_ids]
+        if species and species[0] == '0':
+            species = [r[0] for r in db.session.query(Individual.species).join(Task, Individual.tasks).filter(Task.id.in_(task_ids)).distinct().all()]
+            app.logger.info('Species to delete: {}'.format(species))
+
+        # Get detections
+        detections = [r[0] for r in db.session.query(Detection.id)\
+                                        .join(Image)\
+                                        .join(Camera)\
+                                        .join(Trapgroup)\
+                                        .join(Survey)\
+                                        .join(Task)\
+                                        .join(Individual, Detection.individuals)\
+                                        .filter(Task.id.in_(task_ids))\
+                                        .filter(Individual.species.in_(species))\
+                                        .distinct().all()]
+
+
+        # Delete Individuals
+        individuals = db.session.query(Individual)\
+                                .join(Task,Individual.tasks)\
+                                .filter(Individual.species.in_(species))\
+                                .filter(Task.id.in_(task_ids))\
+                                .all()
+
+        for individual in individuals:
+            individual.detections = [detection for detection in individual.detections if detection.id not in detections]
+            if len(individual.detections)==0:
+                individual.detections = []
+                individual.children = []
+                individual.tags = []
+                individual.tasks = []
+                # Delete Individual Similarities
+                indSims = db.session.query(IndSimilarity).filter(or_(IndSimilarity.individual_1==individual.id,IndSimilarity.individual_2==individual.id)).all()
+                for indSim in indSims:
+                    db.session.delete(indSim)
+                db.session.delete(individual)
+            else:
+                individual.tasks = [task for task in individual.tasks if task.id not in task_ids]
+                individual.tags = [tag for tag in individual.tags if tag.task_id not in task_ids]
+
+
+        # Delete Detection similarities (where detections from sims are no longer associated with individuals)
+        det1 = alias(Detection)
+        det2 = alias(Detection)
+        indDets1 = alias(individualDetections)
+        indDets2 = alias(individualDetections)
+
+        detSims = db.session.query(DetSimilarity)\
+                            .join(det1,det1.c.id==DetSimilarity.detection_1)\
+                            .join(det2,det2.c.id==DetSimilarity.detection_2)\
+                            .outerjoin(indDets1, indDets1.c.detection_id==det1.c.id)\
+                            .outerjoin(indDets2, indDets2.c.detection_id==det2.c.id)\
+                            .filter(indDets1.c.detection_id==None)\
+                            .filter(indDets2.c.detection_id==None)\
+                            .filter(det1.c.id.in_(detections))\
+                            .filter(det2.c.id.in_(detections))\
+                            .distinct().all()
+
+        for detSim in detSims:
+            db.session.delete(detSim)
+
+        db.session.commit()
+                
+        # Update statuses
+        for task_id in task_ids:
+            updateAllStatuses(task_id=task_id, celeryTask=False)
+            task = db.session.query(Task).get(task_id)
+            task.status = 'Ready'
+            
+
+        db.session.commit()
 
     except Exception as exc:
         app.logger.info(' ')

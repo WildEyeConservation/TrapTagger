@@ -1655,10 +1655,10 @@ def resolve_abandoned_jobs(abandoned_jobs,session=None):
         user = item[0]
         task = item[1]
 
-        if ('-4' in task.tagging_level) and (task.survey.status=='indprocessing'):
-            if Config.DEBUGGING: app.logger.info('Triggering individual similarity calculation for user {}'.format(user.parent.username))
-            from app.functions.individualID import calculate_individual_similarities
-            calculate_individual_similarities.delay(task_id=task.id,species=re.split(',',task.tagging_level)[1],user_ids=[user.id])
+        # if ('-4' in task.tagging_level) and (task.survey.status=='indprocessing'):
+        #     if Config.DEBUGGING: app.logger.info('Triggering individual similarity calculation for user {}'.format(user.parent.username))
+        #     from app.functions.individualID import calculate_individual_similarities
+        #     calculate_individual_similarities.delay(task_id=task.id,species=re.split(',',task.tagging_level)[1],user_ids=[user.id])
         
         if '-5' in task.tagging_level:
             #flush allocations

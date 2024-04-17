@@ -520,7 +520,7 @@ def getAllIndividuals():
             reply.append({
                             'id': individual.id,
                             'name': individual.name,
-                            'url': (image.camera.path + '/' + image.filename).replace('+','%2B').replace('?','%3F')
+                            'url': (image.camera.path + '/' + image.filename).replace('+','%2B').replace('?','%3F').replace('#','%23')
                         })
 
     next = individuals.next_num if individuals.has_next else None
@@ -588,7 +588,7 @@ def getIndividuals(task_id,species):
             reply.append({
                             'id': individual.id,
                             'name': individual.name,
-                            'url': (image.camera.path + '/' + image.filename).replace('+','%2B').replace('?','%3F')
+                            'url': (image.camera.path + '/' + image.filename).replace('+','%2B').replace('?','%3F').replace('#','%23')
                         })
 
         next = individuals.next_num if individuals.has_next else None
@@ -602,14 +602,18 @@ def getIndividuals(task_id,species):
 @login_required
 def deleteIndividual(individual_id):
     '''Deletes the requested individual and returns a success or error status.'''
+    if Config.DEBUGGING: app.logger.info('Delete individual: {}'.format(individual_id))
 
     individual_id = int(individual_id)
     individual = db.session.query(Individual).get(individual_id)
 
     task = db.session.query(Task).join(Individual,Task.individuals).filter(Task.sub_tasks.any()).filter(Individual.id==individual_id).distinct().first()
-    if not task: task = individual.tasks[0]
+    if not task and individual: task = individual.tasks[0]
 
-    if individual and all(checkSurveyPermission(current_user.id,task.survey_id,'write') for task in individual.tasks):
+    if individual and individual.active and task and all(checkSurveyPermission(current_user.id,task.survey_id,'write') for task in individual.tasks):
+        individual.active = False
+        db.session.commit()
+
         task_ids = [r.id for r in individual.tasks]
 
         for detection in individual.detections:
@@ -638,6 +642,7 @@ def deleteIndividual(individual_id):
                                                 .filter(Individual.name!='unidentifiable')\
                                                 .filter(Individual.id != individual.id)\
                                                 .filter(Individual.id != newIndividual.id)\
+                                                .filter(Individual.active==True)\
                                                 .all()]
 
             calculate_individual_similarity.delay(individual1=newIndividual.id,individuals2=individuals)
@@ -674,13 +679,13 @@ def getIndividual(individual_id):
     start_date = ast.literal_eval(request.form['start_date'])
     end_date = ast.literal_eval(request.form['end_date'])
 
-    survey_ids = []
-    for task in individual.tasks:
-        if checkSurveyPermission(current_user.id,task.survey_id,'read'):
-            survey_ids.append(task.survey_id)
-
     # if individual and (individual.tasks[0].survey.user==current_user):
-    if individual and survey_ids:
+    if individual and individual.active==True:
+        survey_ids = []
+        for task in individual.tasks:
+            if checkSurveyPermission(current_user.id,task.survey_id,'read'):
+                survey_ids.append(task.survey_id)
+
         images = db.session.query(Image)\
                     .join(Detection)\
                     .join(Camera)\
@@ -726,11 +731,11 @@ def getIndividual(individual_id):
 
             video_url = None
             if image.camera.videos:
-                video_url = (image.camera.path.split('_video_images_')[0] + image.camera.videos[0].filename).replace('+','%2B').replace('?','%3F')
+                video_url = (image.camera.path.split('_video_images_')[0] + image.camera.videos[0].filename).replace('+','%2B').replace('?','%3F').replace('#','%23')
 
             reply.append({
                             'id': image.id,
-                            'url': (image.camera.path + '/' + image.filename).replace('+','%2B').replace('?','%3F'),
+                            'url': (image.camera.path + '/' + image.filename).replace('+','%2B').replace('?','%3F').replace('#','%23'),
                             'video_url': video_url,
                             'timestamp': stringify_timestamp(image.corrected_timestamp), 
                             'trapgroup': 
@@ -755,7 +760,10 @@ def getIndividual(individual_id):
                             ]
                         })
 
-        access = 'write' if all(checkSurveyPermission(current_user.id,task.survey_id,'write') for task in individual.tasks) else 'read'
+        if survey_ids:
+            access = 'write' if all(checkSurveyPermission(current_user.id,task.survey_id,'write') for task in individual.tasks) else 'read'
+        else:
+            access = 'hidden'
 
     return json.dumps({'individual': reply, 'access': access})
 
@@ -1349,7 +1357,7 @@ def imageViewer():
             return render_template("html/block.html",text="You do not have permission to view this item.", helpFile='block', version=Config.VERSION)
 
         images = [{'id': image.id,
-                'url': (image.camera.path + '/' + image.filename).replace('+','%2B').replace('?','%3F'),
+                'url': (image.camera.path + '/' + image.filename).replace('+','%2B').replace('?','%3F').replace('#','%23'),
                 'detections': [{'id': detection.id,
                                         'top': detection.top,
                                         'bottom': detection.bottom,
@@ -1857,6 +1865,8 @@ def editSurvey():
     
     status = 'success'
     message = ''
+    upload_survey_id = None
+    upload_survey_name = None
     survey_id = request.form['survey_id']
     ignore_small_detections = request.form['ignore_small_detections']
     sky_masked = request.form['sky_masked']
@@ -1966,6 +1976,8 @@ def editSurvey():
                     else:
                         survey.status = 'Uploading'
                         db.session.commit()
+                        upload_survey_id = survey.id
+                        upload_survey_name = survey.name
             
             else:
                 status = 'error'
@@ -1975,7 +1987,7 @@ def editSurvey():
         status = 'error'
         message = 'You do not have permission to edit this survey.'
 
-    return json.dumps({'status': status, 'message': message})
+    return json.dumps({'status': status, 'message': message, 'survey_id': upload_survey_id, 'survey_name': upload_survey_name})
 
 @app.route('/TTWorkerSignup', methods=['GET', 'POST'])
 def TTWorkerSignup():
@@ -2733,8 +2745,16 @@ def getDetailedTaskStatus(task_id):
                     reply['Summary']['Images'] = image_count
                     reply['Summary']['Sightings'] = sighting_count
                     
-                    if label_id!=GLOBALS.vhl_id: reply['Summary']['Individuals'] = len(label.individuals[:])
-
+                    # if label_id!=GLOBALS.vhl_id: reply['Summary']['Individuals'] = len(label.individuals[:])
+                    if label_id!=GLOBALS.vhl_id: 
+                        individual_count = db.session.query(Individual)\
+                                                        .filter(Individual.species==label.description)\
+                                                        .filter(Individual.tasks.contains(task))\
+                                                        .filter(Individual.name!='unidentifiable')\
+                                                        .filter(Individual.active==True)\
+                                                        .distinct().count()
+                                                        
+                        reply['Summary']['Individuals'] = individual_count
                     # Checked Sightings
                     if sighting_count != 0:
                         checked_detections = sighting_count - bounding_count
@@ -4771,7 +4791,7 @@ def undoPreviousSuggestion(individual_1,individual_2):
             images = []
             for image in sortedImages:
                 output = {'id': image.id,
-                        'url': (image.camera.path + '/' + image.filename).replace('+','%2B').replace('?','%3F'),
+                        'url': (image.camera.path + '/' + image.filename).replace('+','%2B').replace('?','%3F').replace('#','%23'),
                         'timestamp': numify_timestamp(image.corrected_timestamp),
                         'camera': image.camera_id,
                         'rating': image.detection_rating,
@@ -4888,6 +4908,7 @@ def dissociateDetection(detection_id):
                                                     .filter(Individual.species==individual.species)\
                                                     .filter(Individual.name!='unidentifiable')\
                                                     .filter(Individual.id != individual.id)\
+                                                    .filter(Individual.id != newIndividual.id)\
                                                     .all()]
 
         calculate_individual_similarity.delay(individual1=individual.id,individuals2=individuals1)
@@ -5269,7 +5290,7 @@ def getSuggestion(individual_id):
             sortedImages = db.session.query(Image).join(Detection).filter(Detection.individuals.contains(individual)).all()
 
             images = [{'id': image.id,
-                    'url': (image.camera.path + '/' + image.filename).replace('+','%2B').replace('?','%3F'),
+                    'url': (image.camera.path + '/' + image.filename).replace('+','%2B').replace('?','%3F').replace('#','%23'),
                     'timestamp': numify_timestamp(image.corrected_timestamp),
                     'camera': image.camera_id,
                     'rating': image.detection_rating,
@@ -5801,7 +5822,7 @@ def getImage():
     # if image and (current_user == image.camera.trapgroup.survey.user):
     if image and checkSurveyPermission(current_user.id,image.camera.trapgroup.survey_id,'read'):
         images = [{'id': image.id,
-                'url': (image.camera.path + '/' + image.filename).replace('+','%2B').replace('?','%3F'),
+                'url': (image.camera.path + '/' + image.filename).replace('+','%2B').replace('?','%3F').replace('#','%23'),
                 'rating': image.detection_rating,
                 'detections': [{'top': detection.top,
                                 'bottom': detection.bottom,
@@ -5977,7 +5998,7 @@ def getKnockCluster(task_id, knockedstatus, clusterID, index, imageIndex, T_inde
 
         if sortedImages != None:
             images = [{'id': image.id,
-                    'url': (image.camera.path + '/' + image.filename).replace('+','%2B').replace('?','%3F'),
+                    'url': (image.camera.path + '/' + image.filename).replace('+','%2B').replace('?','%3F').replace('#','%23'),
                     'rating': image.detection_rating,
                     'detections': [{'top': detection.top,
                                     'bottom': detection.bottom,
@@ -6952,6 +6973,12 @@ def assignLabel(clusterID):
                             session.close()
 
                     else:
+                        #TODO (sim): Double check this 
+                        if explore:
+                            individual_check = session.query(Individual.id).join(Detection, Individual.detections).join(Image).join(Cluster, Image.clusters).filter(Cluster.id==cluster.id).filter(Individual.tasks.any(Task.id==task_id)).first()
+                            if individual_check:
+                                check_individual_detection_mismatch.apply_async(kwargs={'task_id':task_id})
+
                         session.commit()
                         session.close()
 
@@ -7468,10 +7495,40 @@ def editTask(task_id):
     try:
         task = db.session.query(Task).get(task_id)
         if task and checkSurveyPermission(current_user.id,task.survey_id,'write') and (task.status.lower() in Config.TASK_READY_STATUSES):
-            task.status='Processing'
-            db.session.commit()
             editDict = request.form['editDict']
-            handleTaskEdit.delay(task_id=task_id,changes=editDict)
+            if 'speciesEditDict' in request.form:
+                speciesEditDict = request.form['speciesEditDict']
+                speciesDict = ast.literal_eval(speciesEditDict)
+            else:
+                speciesEditDict = None
+                speciesDict = None
+
+            if speciesDict:
+                species_tasks = []
+                for species in speciesDict:
+                    species_tasks.extend(speciesDict[species]['tasks'])
+
+                species_tasks = list(set(species_tasks))
+                available_tasks = []
+                if len(species_tasks) > 1:
+                    for s_tid in species_tasks:
+                        s_task = db.session.query(Task).get(s_tid)
+                        if s_task and checkSurveyPermission(current_user.id,s_task.survey_id,'write') and (s_task.status.lower() in Config.TASK_READY_STATUSES):
+                            available_tasks.append(s_task)
+                else:
+                    available_tasks = [task]
+
+                if len(available_tasks) == len(species_tasks):  
+                    for s_task in available_tasks:
+                        s_task.status = 'Processing'
+                    db.session.commit()
+                    handleTaskEdit.delay(task_id=task_id,changes=editDict,speciesChanges=speciesEditDict)
+                else:
+                    return json.dumps('error')
+            else:
+                task.status='Processing'
+                db.session.commit()
+                handleTaskEdit.delay(task_id=task_id,changes=editDict)
         return json.dumps('success')
     except:
         return json.dumps('error')
@@ -7692,9 +7749,9 @@ def done():
     # Add time
     turkcode.tagging_time = int((datetime.utcnow() - turkcode.assigned).total_seconds())
 
-    if ('-4' in task.tagging_level) and (task.survey.status=='indprocessing'):
-        calculate_individual_similarities.delay(task_id=task_id,species=re.split(',',task.tagging_level)[1],user_ids=[current_user.id])
-    elif '-5' in task.tagging_level:
+    # if ('-4' in task.tagging_level) and (task.survey.status=='indprocessing'):
+        # calculate_individual_similarities.delay(task_id=task_id,species=re.split(',',task.tagging_level)[1],user_ids=[current_user.id])
+    if '-5' in task.tagging_level:
         #flush allocations
         userIndividuals = [int(r.decode()) for r in GLOBALS.redisClient.lrange('user_individuals_'+str(current_user.id),0,-1)]
         for userIndividual in userIndividuals:
@@ -8025,7 +8082,7 @@ def checkDownload(fileType,selectedTask):
     try:
         check = GLOBALS.s3client.head_object(Bucket=Config.BUCKET,Key=fileName)
         # deleteFile.apply_async(kwargs={'fileName': fileName}, countdown=3600)
-        return json.dumps('https://'+Config.BUCKET+'.s3.amazonaws.com/'+fileName.replace('+','%2B').replace('?','%3F'))
+        return json.dumps('https://'+Config.BUCKET+'.s3.amazonaws.com/'+fileName.replace('+','%2B').replace('?','%3F').replace('#','%23'))
     except:
         # file does not exist
         return json.dumps('not ready yet')
@@ -8957,7 +9014,7 @@ def get_required_files():
                 file_ids.append(video.id)
                 pathSplit  = video.camera.path.split('/',1)
                 path = pathSplit[0] + '-comp/' + pathSplit[1].split('_video_images_')[0] + video.filename.split('.')[0] + '.mp4'
-                reply.append({'url':'https://'+Config.BUCKET+'.s3.amazonaws.com/'+ path.replace('+','%2B').replace('?','%3F'),'paths':videoPaths,'labels':videoLabels})
+                reply.append({'url':'https://'+Config.BUCKET+'.s3.amazonaws.com/'+ path.replace('+','%2B').replace('?','%3F').replace('#','%23'),'paths':videoPaths,'labels':videoLabels})
             db.session.commit()
 
         else:
@@ -8965,7 +9022,7 @@ def get_required_files():
                 imagePaths, imageLabels, imageTags = get_image_paths_and_labels(image,task,individual_sorted,species_sorted,flat_structure,labels,include_empties)
                 imageLabels.extend(imageTags)
                 file_ids.append(image.id)
-                reply.append({'url':'https://'+Config.BUCKET+'.s3.amazonaws.com/'+(image.camera.path+'/'+image.filename).replace('+','%2B').replace('?','%3F'),'paths':imagePaths,'labels':imageLabels})
+                reply.append({'url':'https://'+Config.BUCKET+'.s3.amazonaws.com/'+(image.camera.path+'/'+image.filename).replace('+','%2B').replace('?','%3F').replace('#','%23'),'paths':imagePaths,'labels':imageLabels})
             db.session.commit()
 
     return json.dumps({'ids':file_ids,'requiredFiles':reply})
@@ -9366,6 +9423,7 @@ def getIndividualAssociations(individual_id, order):
             .filter(Task.id.in_(task_ids))\
             .filter(Individual.name!='unidentifiable')\
             .filter(Individual.id!=individual.id)\
+            .filter(Individual.active==True)\
             .group_by(Individual.id)
 
         # Order the associations
@@ -9415,7 +9473,7 @@ def getIndividualAssociations(individual_id, order):
                     'name': association[1],
                     'cluster_count': association[2],
                     'image_count': association[3],	
-                    'url': (image.camera.path + '/' + image.filename).replace('+','%2B').replace('?','%3F')
+                    'url': (image.camera.path + '/' + image.filename).replace('+','%2B').replace('?','%3F').replace('#','%23')
                 }
             )
 
@@ -10474,7 +10532,7 @@ def getCovariateCSV():
                     covs.to_csv(temp_file.name, index=False)
                     fileName = folder +'/docs/' + current_user.username + '_Occupancy_Covariates.csv'
                     GLOBALS.s3client.put_object(Bucket=Config.BUCKET,Key=fileName,Body=temp_file)
-                    cov_url = "https://"+ Config.BUCKET + ".s3.amazonaws.com/" + fileName.replace('+','%2B').replace('?','%3F')
+                    cov_url = "https://"+ Config.BUCKET + ".s3.amazonaws.com/" + fileName.replace('+','%2B').replace('?','%3F').replace('#','%23')
 
                     # Schedule deletion
                     deleteFile.apply_async(kwargs={'fileName': fileName}, countdown=3600)
@@ -12306,7 +12364,7 @@ def getStaticDetections(survey_id, reqID):
                     'id': data[10],
                     'images': [{	
                         'id': data[5],
-                        'url': data[8]+'/'+data[6],
+                        'url': (data[8]+'/'+data[6]).replace('+','%2B').replace('?','%3F').replace('#','%23'),
                         'detections': []
                     }],
                     'labels': ['None'],
@@ -12328,7 +12386,7 @@ def getStaticDetections(survey_id, reqID):
             else:
                 static_detections[staticgroup_keys[data[10]]]['images'].append({
                     'id': data[5],
-                    'url': data[8]+'/'+data[6],
+                    'url': (data[8]+'/'+data[6]).replace('+','%2B').replace('?','%3F').replace('#','%23'),
                     'detections': []
                 })
 
@@ -12422,7 +12480,7 @@ def getSurveyMasks(survey_id):
                     'id': data[8],
                     'images': [{
                         'id': data[5],
-                        'url': data[7]+'/'+data[6],
+                        'url': (data[7]+'/'+data[6]).replace('+','%2B').replace('?','%3F').replace('#','%23'),
                         'detections': [{
                             'id': data[0],
                             'top': data[1],
@@ -12445,7 +12503,7 @@ def getSurveyMasks(survey_id):
                 if not image_exists:
                     masks[cam_idx]['images'].append({
                         'id': data[5],
-                        'url': data[7]+'/'+data[6],
+                        'url': (data[7]+'/'+data[6]).replace('+','%2B').replace('?','%3F').replace('#','%23'),
                         'detections': [{
                             'id': data[0],
                             'top': data[1],
@@ -12827,7 +12885,7 @@ def getTimestampImages(survey_id, reqID):
             images[camera_keys[d[4]]]['images'].append({
                 'id': d[0],
                 'detections': [],
-                'url': d[5]+'/'+d[1],
+                'url': (d[5]+'/'+d[1]).replace('+','%2B').replace('?','%3F').replace('#','%23'),
                 'timestamp': d[2].strftime('%Y-%m-%d %H:%M:%S') if d[2] else None,
                 'name': d[5].split('/_video_images_/')[0]+'/'+d[3] if d[3] else d[5]+'/'+d[1]
             })
@@ -12950,3 +13008,98 @@ def skipTimestampCamera(survey_id,cameragroup_id):
             skipCameraImages.delay(cameragroup_id)
 
     return json.dumps('success')
+
+@app.route('/getIndividualSpeciesAndTasksForEdit/<task_id>')
+@login_required
+def getIndividualSpeciesAndTasksForEdit(task_id):
+    ''' Gets all the species and tasks for the individual's associated with a task (for task label edit) '''
+
+    species_info = {}
+    task = db.session.query(Task).get(task_id)
+    if task and checkSurveyPermission(current_user.id,task.survey_id,'read'):
+        individuals_sq = db.session.query(Individual.id).join(Task, Individual.tasks).filter(Task.id==task_id).distinct().subquery()
+
+        data = db.session.query(Individual.species, Task.id, Task.name, Survey.name)\
+                                .join(Task, Individual.tasks)\
+                                .join(Survey, Task.survey_id==Survey.id)\
+                                .join(individuals_sq, individuals_sq.c.id==Individual.id)\
+                                .distinct().all()
+
+        for d in data:
+            if d[0] not in species_info:
+                species_info[d[0]] = {
+                    'tasks': [d[1]],
+                    'task_names': [d[3] + ' ' + d[2]]
+                }
+            else:
+                species_info[d[0]]['tasks'].append(d[1])
+                species_info[d[0]]['task_names'].append(d[3] + ' ' + d[2])
+
+    return json.dumps(species_info)
+
+@app.route('/getIndividualSurveysTasks')
+@login_required
+def getIndividualSurveysTasks():
+    ''' Gets all the surveys, tasks, and species for the individual's associated with a user that's available for deletion '''
+
+    survey_info = {}
+    task_info = {}
+    species = []
+    if current_user and current_user.is_authenticated:
+        data = surveyPermissionsSQ(db.session.query(
+                                    Survey.id,
+                                    Survey.name,
+                                    Task.id,
+                                    Task.name,
+                                    Individual.species
+                                )\
+                                .join(Task, Survey.id==Task.survey_id)\
+                                .join(Individual, Task.individuals)\
+                                .filter(~Task.name.contains('_o_l_d_'))\
+                                .filter(~Task.name.contains('_copying'))\
+                                .filter(Task.name != 'default'),current_user.id,'write')\
+                                .filter(func.lower(Task.status).in_(Config.TASK_READY_STATUSES))\
+                                .filter(func.lower(Survey.status).in_(Config.SURVEY_READY_STATUSES))\
+                                .distinct().all()
+
+        for d in data:
+            if d[0] not in survey_info:
+                survey_info[d[0]] = {
+                    'name': d[1],
+                    'task_ids': []
+                }
+            
+            if d[2] not in survey_info[d[0]]['task_ids']:
+                survey_info[d[0]]['task_ids'].append(d[2])
+
+            if d[2] not in task_info:
+                task_info[d[2]] = d[3]
+
+            if d[4] not in species:
+                species.append(d[4])
+
+    return json.dumps({'surveys': survey_info, 'tasks': task_info, 'species': species})
+
+@app.route('/deleteIndividuals', methods=['POST'])
+@login_required
+def deleteIndividuals():
+    ''' Deletes all the individuals associated with a task '''
+
+    task_ids = ast.literal_eval(request.form['task_ids'])
+    species = ast.literal_eval(request.form['species'])
+    tasks = surveyPermissionsSQ(db.session.query(Task)\
+                                            .join(Survey)\
+                                            .filter(Task.id.in_(task_ids))\
+                                            .filter(func.lower(Task.status).in_(Config.TASK_READY_STATUSES))\
+                                            .filter(func.lower(Survey.status).in_(Config.SURVEY_READY_STATUSES))\
+                                            ,current_user.id, 'write').distinct().all()
+
+    if tasks and len(tasks) == len(task_ids):
+        for task in tasks:
+            task.status = 'Processing'
+        db.session.commit()
+        delete_individuals.apply_async(kwargs={'task_ids':task_ids, 'species': species})
+
+        return json.dumps({'status': 'success', 'message': 'Individuals are being deleted.'})
+    return json.dumps({'status': 'failure', 'message': 'An error occurred while deleting individuals. Please try again.'})
+

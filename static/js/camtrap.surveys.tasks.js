@@ -502,10 +502,18 @@ function BuildLabelRow(IDNum, isLoad, div, includeParent) {
         }(IDNum));
         btnRemove.addEventListener('click', (evt)=>{
             if (evt.target.parentNode.parentNode.parentNode.parentNode==document.getElementById('LabelDisplayDiv')) {
-                sessionDeletes.push(evt.target.id.split("-")[evt.target.id.split("-").length-1])
+                del_id = evt.target.id.split("-")[evt.target.id.split("-").length-1]
+                if (Object.keys(speciesLabelIDs).includes(del_id)) {
+                    document.getElementById('modalAlertHeader').innerHTML = 'Error'
+                    document.getElementById('modalAlertBody').innerHTML = 'This label is associated with individuals. It cannot be deleted.'
+                    modalAlert.modal({keyboard: true});
+                }
+                else {
+                    sessionDeletes.push(del_id)
+                    evt.target.parentNode.parentNode.parentNode.remove();
+                    checkLabels(true)
+                }
             }
-            evt.target.parentNode.parentNode.parentNode.remove();
-            checkLabels(true)
         });
     }
 }
@@ -1156,25 +1164,34 @@ btnSaveLabelChanges.addEventListener('click', ()=>{
 btnEditTaskSubmit.addEventListener('click', ()=>{
     /** Submit the edited task laels to the server when button is pushed. */
 
-    document.getElementById('btnEditTaskSubmit').disabled = true
+    var speciesChange = checkSpeciesChange()
+    if (speciesChange) {
+        confirmOpened = true
+        modalEditTask.modal('hide')
+        document.getElementById('modalConfirmEditSpeciesError').innerHTML = ''
+        modalConfirmEditSpecies.modal({keyboard: true});
+    }
+    else{
+        document.getElementById('btnEditTaskSubmit').disabled = true
 
-    var formData = new FormData()
-    formData.append("editDict", JSON.stringify(taskEditDict))
-
-    var xhttp = new XMLHttpRequest();
-    xhttp.open("POST", '/editTask/'+selectedTask);
-    xhttp.onreadystatechange =
-    function(){
-        if (this.readyState == 4 && this.status == 200) {
-            reply = JSON.parse(this.responseText);  
-            if (reply=='success') {
-                modalEditTask.modal('hide')
-            } else {
-                document.getElementById('btnEditTaskSubmit').disabled = false
+        var formData = new FormData()
+        formData.append("editDict", JSON.stringify(taskEditDict))
+    
+        var xhttp = new XMLHttpRequest();
+        xhttp.open("POST", '/editTask/'+selectedTask);
+        xhttp.onreadystatechange =
+        function(){
+            if (this.readyState == 4 && this.status == 200) {
+                reply = JSON.parse(this.responseText);  
+                if (reply=='success') {
+                    modalEditTask.modal('hide')
+                } else {
+                    document.getElementById('btnEditTaskSubmit').disabled = false
+                }
             }
         }
+        xhttp.send(formData);
     }
-    xhttp.send(formData);
 });
 
 btnCreateTask2.addEventListener('click', ()=>{
@@ -1722,9 +1739,10 @@ function updateEditLabelDisplay() {
 modalEditTask.on('shown.bs.modal', function(){
     /** Initialises the label-editing modal when it is opened. */
 
-    if (discardCancelled||helpReturn) {
+    if (discardCancelled||helpReturn||confirmCancelled) {
         discardCancelled = false
         helpReturn = false
+        confirmCancelled = false
     } else {
         taskEditDict = {}
         sessionDeletes = []
@@ -1760,6 +1778,8 @@ modalEditTask.on('shown.bs.modal', function(){
                 }
     
                 updateEditLabelDisplay()
+
+                getSpeciesAndTasks()
             }
         }
         xhttp.open("GET", '/getLabels/'+selectedTask);
@@ -1769,8 +1789,7 @@ modalEditTask.on('shown.bs.modal', function(){
 
 modalEditTask.on('hidden.bs.modal', function(){
     /** Clears the label-editing modal when closed. */
-    
-    if ((!helpReturn)&&(!discardOpened)) {
+    if ((!helpReturn)&&(!discardOpened)&&(!confirmOpened)) {
         LabelDisplayDiv = document.getElementById('LabelDisplayDiv')
         while(LabelDisplayDiv.firstChild){
             LabelDisplayDiv.removeChild(LabelDisplayDiv.firstChild);
@@ -1789,6 +1808,7 @@ modalEditTask.on('hidden.bs.modal', function(){
         document.getElementById('btnEditTaskSubmit').disabled = false
     } else {
         discardOpened = false
+        confirmOpened = false
     }
 });
 
@@ -1806,3 +1826,100 @@ modalConfirmEdit.on('hidden.bs.modal', function(){
         }
     }
 });
+
+function checkSpeciesChange(){
+    /** Checks if a label that is associated with a species has been changed. */
+
+    var needChange = false
+    var species = Object.keys(speciesAndTasks)
+    for (let i=0;i<globalLabels.length;i++) {
+        labelID = globalLabels[i][3]
+        parentID = globalLabels[i][4]
+        labelDescription = globalLabels[i][0]
+
+        if (species.includes(labelDescription)) {
+            if (Object.keys(taskEditDict[parentID]['edits']['modify']).includes(String(labelID))) {
+                needChange = true
+                speciesEditDict[labelDescription] = {}
+                speciesEditDict[labelDescription]['description'] = taskEditDict[parentID]['edits']['modify'][labelID]['description']
+                speciesEditDict[labelDescription]['tasks'] = speciesAndTasks[labelDescription]['tasks']
+
+            }
+        }
+    }
+
+    return needChange
+}
+
+document.getElementById('btnConfirmEditSpecies').addEventListener('click', ()=>{
+    /** Submits the edited task labels to the server when the user confirms the changes (if species labels have been changed). */
+    document.getElementById('btnConfirmEditSpecies').disabled = true
+    var formData = new FormData()
+    formData.append("editDict", JSON.stringify(taskEditDict))
+    formData.append("speciesEditDict", JSON.stringify(speciesEditDict))
+    
+    var xhttp = new XMLHttpRequest();
+    xhttp.open("POST", '/editTask/'+selectedTask);
+    xhttp.onreadystatechange =
+    function(){
+        if (this.readyState == 4 && this.status == 200) {
+            reply = JSON.parse(this.responseText);  
+            console.log(reply)
+            if (reply=='success') {
+                modalConfirmEditSpecies.modal('hide')
+                modalEditTask.modal('hide')
+            } 
+            else{
+                document.getElementById('modalConfirmEditSpeciesError').innerHTML = 'There was an error submitting your changes. Please try again.'
+            }
+            document.getElementById('btnConfirmEditSpecies').disabled = false
+        }
+    }
+    xhttp.send(formData);
+});
+
+document.getElementById('btnCancelConfirmSpecies').addEventListener('click', ()=>{
+    /** Cancels the species change confirmation and re-opens the edit labels modal. */
+    confirmCancelled = true
+    modalConfirmEditSpecies.modal('hide')
+    modalEditTask.modal({keyboard: true});
+});
+
+modalConfirmEditSpecies.on('shown.bs.modal', function(){
+    document.getElementById('modalConfirmEditSpeciesError').innerHTML = ''
+    document.getElementById('modalConfirmEditSpeciesBody').innerHTML = ''
+    speciesTasksString = ''
+    for (let species in speciesEditDict) {
+        speciesTasks = speciesAndTasks[species]['task_names']
+        speciesDescription = speciesEditDict[species]['description']
+        for (let i=0;i<speciesTasks.length;i++) {
+            speciesTasksString += speciesTasks[i] + ' : ' + species + ' -> ' + speciesDescription + '<br>'
+        }
+    }
+
+    document.getElementById('modalConfirmEditSpeciesBody').innerHTML = speciesTasksString
+});
+
+function getSpeciesAndTasks() {
+    /** Gets the species and tasks for the current survey. */
+    speciesAndTasks = {}
+    speciesLabelIDs = {}
+    speciesEditDict = {}
+    var xhttp = new XMLHttpRequest();
+    xhttp.onreadystatechange =
+    function(){
+        if (this.readyState == 4 && this.status == 200) {
+            speciesAndTasks = JSON.parse(this.responseText);
+            speciesLabelIDs = {}
+            for (let i=0;i<globalLabels.length;i++) {
+                labelID = globalLabels[i][3]
+                labelDescription = globalLabels[i][0]
+                if (Object.keys(speciesAndTasks).includes(labelDescription)) {
+                    speciesLabelIDs[labelID] = labelDescription
+                }
+            }
+        }
+    }
+    xhttp.open("GET", '/getIndividualSpeciesAndTasksForEdit/'+selectedTask);
+    xhttp.send();
+}

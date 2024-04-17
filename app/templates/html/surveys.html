@@ -1473,12 +1473,33 @@ limitations under the License. -->
                 </div>
 
                 <div class='col-lg-3'>
-                    <button id="btnContinueIndividualAlert" type='button' class='btn btn-danger btn-block'>Continue</button>
+                    <button id="btnContinueIndividualAlert" type='button' class='btn btn-danger btn-block' data-dismiss='modal'>Continue</button>
                 </div>
 
             </div>
         </div>
   
+    </div>
+</div>
+
+<!-- Individual Error Modal -->
+<div id="modalIndividualsError" class="modal fade" role="dialog" tabindex="-1">
+    <div class="modal-dialog">
+        <!-- Modal content-->
+        <div class="modal-content">
+            <div class="modal-header">
+                <h4 id='modalIndividualsErrorHeader' class="modal-title"></h4>
+                <button id="helpx" type="button" class="close" data-dismiss="modal">&times;</button>
+            </div>
+            <div class="modal-body">
+                <p id='modalIndividualsErrorBody' align="justify"></p>
+            </div>
+            <div class='modal-footer'>
+                <div class='col-lg-3'>
+                    <button id="btnCloseIndivErrorModal" type='button' class='btn btn-info btn-block' data-dismiss='modal'>Close</button>
+                </div>
+            </div>
+        </div>
     </div>
 </div>
 
@@ -1548,6 +1569,49 @@ limitations under the License. -->
       
         </div>
     </div>
+
+<!-- Confirm edit species Modal -->
+<div id="modalConfirmEditSpecies" class="modal fade" role="dialog" tabindex="-1">
+    <div class="modal-dialog">
+        <!-- Modal content-->
+        <div class="modal-content">
+            <div class="modal-header">
+                <h4 class="modal-title">Please Confirm</h4>
+                <button id="helpx" type="button" class="close" data-dismiss="modal">&times;</button>
+            </div>
+            <div class="modal-body">
+
+                <p align="justify">
+                    <i>
+                        Please note that modifying the label linked to an individual will result in an update to the species of that particular individual. 
+                        Should you have performed individual identification across various annotation sets, the revised label descriptions will be propagated across all annotation 
+                        sets pertaining to the species of that particular individual. The following annotation sets will be affected:
+                    </i>	
+                </p>
+
+                <p align="justify" id="modalConfirmEditSpeciesBody"></p>
+
+                <p align="justify">
+                    <i>Do you wish to continue?</i>
+                </p>
+
+                <p id='modalConfirmEditSpeciesError' align="justify" style="color: #DF691A"></p>
+          
+            </div>
+            <div class='modal-footer'>
+                <div class='col-lg-3'>
+                    <button id="btnCancelConfirmSpecies" type='button' class='btn btn-danger btn-block' 
+                    data-dismiss='modal'>Cancel</button>
+                </div>
+
+                <div class='col-lg-3'>
+                    <button id="btnConfirmEditSpecies" type='button' class='btn btn-info btn-block' 
+                    data-dismiss='modal'>Confirm</button>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
 
 <!-- Please Wait Modal -->
 <div id="modalPW" class="modal fade" role="dialog" tabindex="-1">

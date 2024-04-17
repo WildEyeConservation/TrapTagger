@@ -46,6 +46,8 @@ var taskEditDict = {};
 var sessionDeletes = []
 var discardCancelled = false
 var discardOpened = false
+var confirmCancelled = false
+var confirmOpened = false
 var sessionIDs = []
 var selectedTaskName = null
 var allLabelsComp = null
@@ -121,6 +123,9 @@ var globalSurveyStructure = {}
 var globalStructureCounts = {'sites':0,'cameras':0}
 var structure_page = 1
 var tags_per_page = 10
+var speciesAndTasks = {}
+var speciesEditDict = {}
+var speciesLabelIDs = {}
 
 var s3 = null
 var stopFlag = true
@@ -135,6 +140,7 @@ const modalDownload = $('#modalDownload');
 const btnOpenExport = document.querySelector('#btnOpenExport');
 const modalExport = $('#modalExport');
 const modalAlertIndividuals = $('#modalAlertIndividuals');
+const modalIndividualsError = $('#modalIndividualsError');
 const modalIndividual = $('#modalIndividual');
 const modalIndividuals = $('#modalIndividuals');
 const submitTagsBtn = document.querySelector('#submitTagsBtn');
@@ -172,6 +178,7 @@ const modalCSVGenerate = $('#modalCSVGenerate');
 const btnCsvGenerate = document.querySelector('#btnCsvGenerate');
 const btnExcelDownload = document.querySelector('#btnExcelDownload');
 const btnCsvDownload = document.querySelector('#btnCsvDownload');
+const modalConfirmEditSpecies = $('#modalConfirmEditSpecies');
 
 var polarColours = {'rgba(10,120,80,0.2)':false,
                     'rgba(255,255,255,0.2)':false,
@@ -4376,6 +4383,8 @@ function addImagesSendRequest(formData) {
             if (reply.status=='success') {
 
                 if ((tabActiveEditSurvey=='baseAddImagesTab')&&(document.getElementById('BrowserAdd').checked)) {
+                    uploadID = reply.survey_id
+                    surveyName = reply.survey_name
                     uploading = true
                     updatePage(current_page)
                     // uploadFiles(true)

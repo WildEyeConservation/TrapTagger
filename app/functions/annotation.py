@@ -19,7 +19,7 @@ from app.models import *
 from app.functions.globals import taggingLevelSQ, addChildLabels, resolve_abandoned_jobs, createTurkcodes, deleteTurkcodes, \
                                     updateTaskCompletionStatus, updateLabelCompletionStatus, updateIndividualIdStatus, retryTime, chunker, \
                                     getClusterClassifications, checkForIdWork, numify_timestamp, rDets, prep_required_images, updateAllStatuses
-from app.functions.individualID import calculate_detection_similarities, generateUniqueName, cleanUpIndividuals, calculate_individual_similarities
+from app.functions.individualID import calculate_detection_similarities, generateUniqueName, cleanUpIndividuals, calculate_individual_similarities, check_individual_detection_mismatch
 # from app.functions.results import resetImageDownloadStatus, resetVideoDownloadStatus
 import GLOBALS
 from sqlalchemy.sql import func, distinct, or_, alias, and_
@@ -122,14 +122,67 @@ def launch_task(self,task_id):
 
                 # check if indsims are actually there - specifically for post timestamp edits
                 if len(task_ids)==1:
-                    check = db.session.query(IndSimilarity)\
-                                    .join(Individual, IndSimilarity.individual_1==Individual.id)\
+                    # check = db.session.query(IndSimilarity)\
+                    #                 .join(Individual, IndSimilarity.individual_1==Individual.id)\
+                    #                 .join(Task,Individual.tasks)\
+                    #                 .filter(Task.id.in_(task_ids))\
+                    #                 .filter(Individual.species==species)\
+                    #                 .first()
+                    # if check==None:
+                    #     calculate_individual_similarities(task.id,species)
+                    #     task = db.session.query(Task).get(task_id)
+
+                    #TODO (sim): Double check this 
+                    individuals = db.session.query(Individual)\
                                     .join(Task,Individual.tasks)\
-                                    .filter(Task.id.in_(task_ids))\
                                     .filter(Individual.species==species)\
-                                    .first()
-                    if check==None:
-                        calculate_individual_similarities(task.id,species,None)
+                                    .filter(Individual.active==True)\
+                                    .filter(Individual.name!='unidentifiable')\
+                                    .filter(Task.id.in_(task_ids))\
+                                    .subquery()
+
+                    indsims1 = db.session.query(Individual.id.label('indID1'), func.count(distinct(IndSimilarity.id)).label('simCount'))\
+                                    .join(IndSimilarity,IndSimilarity.individual_1==Individual.id)\
+                                    .join(individuals,IndSimilarity.individual_2==individuals.c.id)\
+                                    .join(Task,Individual.tasks)\
+                                    .filter(Individual.species==species)\
+                                    .filter(Individual.active==True)\
+                                    .filter(Individual.name!='unidentifiable')\
+                                    .filter(Task.id.in_(task_ids))\
+                                    .group_by(Individual.id)\
+                                    .subquery()
+
+                    indsims2 = db.session.query(Individual.id.label('indID2'), func.count(distinct(IndSimilarity.id)).label('simCount'))\
+                                    .join(IndSimilarity,IndSimilarity.individual_2==Individual.id)\
+                                    .join(individuals,IndSimilarity.individual_1==individuals.c.id)\
+                                    .join(Task,Individual.tasks)\
+                                    .filter(Individual.species==species)\
+                                    .filter(Individual.active==True)\
+                                    .filter(Individual.name!='unidentifiable')\
+                                    .filter(Task.id.in_(task_ids))\
+                                    .group_by(Individual.id)\
+                                    .subquery()
+
+                    indsims_counts = db.session.query(Individual.id, func.coalesce(indsims1.c.simCount,0) + func.coalesce(indsims2.c.simCount,0))\
+                                    .join(Task,Individual.tasks)\
+                                    .outerjoin(indsims1,Individual.id==indsims1.c.indID1)\
+                                    .outerjoin(indsims2,Individual.id==indsims2.c.indID2)\
+                                    .filter(Individual.species==species)\
+                                    .filter(Individual.active==True)\
+                                    .filter(Individual.name!='unidentifiable')\
+                                    .filter(Task.id.in_(task_ids))\
+                                    .distinct().all()
+
+                    check = False 
+                    req_count = len(indsims_counts) - 1
+                    if len(indsims_counts) > 1:
+                        for counts in indsims_counts:
+                            if counts[1] < req_count:
+                                check = True
+                                break
+
+                    if check:
+                        calculate_individual_similarities(task.id,species)
                         task = db.session.query(Task).get(task_id)
 
                 #extract threshold
@@ -362,6 +415,9 @@ def wrapUpTask(self,task_id):
 
         if '-5' in task.tagging_level:
             cleanUpIndividuals(task_id)
+        
+        if ',' not in task.tagging_level and task.init_complete and '-2' not in task.tagging_level:
+            check_individual_detection_mismatch(task_id=task_id, celeryTask=False)
 
         clusters = db.session.query(Cluster).filter(Cluster.task_id==task_id).filter(Cluster.skipped==True).distinct().all()
         for cluster in clusters:
@@ -394,27 +450,28 @@ def wrapUpTask(self,task_id):
         task.tagging_time = total_time
         task.jobs_finished = len(turkcodes)
 
-        if '-4' in task.tagging_level:
+        # if '-4' in task.tagging_level:
             #Check if complete
-            tL = re.split(',',task.tagging_level)
-            species = tL[1]
-            incompleteIndividuals = db.session.query(Individual)\
-                                            .outerjoin(IndSimilarity, or_(IndSimilarity.individual_1==Individual.id,IndSimilarity.individual_2==Individual.id))\
-                                            .filter(Individual.tasks.contains(task))\
-                                            .filter(Individual.species==species)\
-                                            .filter(Individual.name!='unidentifiable')\
-                                            .filter(IndSimilarity.score==None)\
-                                            .distinct().count()
-            total_individual_count = db.session.query(Individual)\
-                                            .filter(Individual.tasks.contains(task))\
-                                            .filter(Individual.species==species)\
-                                            .filter(Individual.name!='unidentifiable')\
-                                            .count()
-            if Config.DEBUGGING: app.logger.info('There are {} incomplete individuals for wrapTask'.format(incompleteIndividuals))
-            if (incompleteIndividuals == 0) or (total_individual_count<2):
-                task.survey.status = 'Ready'
+            # tL = re.split(',',task.tagging_level)
+            # species = tL[1]
+            # incompleteIndividuals = db.session.query(Individual)\
+            #                                 .outerjoin(IndSimilarity, or_(IndSimilarity.individual_1==Individual.id,IndSimilarity.individual_2==Individual.id))\
+            #                                 .filter(Individual.tasks.contains(task))\
+            #                                 .filter(Individual.species==species)\
+            #                                 .filter(Individual.name!='unidentifiable')\
+            #                                 .filter(IndSimilarity.score==None)\
+            #                                 .distinct().count()
+            # total_individual_count = db.session.query(Individual)\
+            #                                 .filter(Individual.tasks.contains(task))\
+            #                                 .filter(Individual.species==species)\
+            #                                 .filter(Individual.name!='unidentifiable')\
+            #                                 .count()
+            # if Config.DEBUGGING: app.logger.info('There are {} incomplete individuals for wrapTask'.format(incompleteIndividuals))
+            # if (incompleteIndividuals == 0) or (total_individual_count<2):
+            #     task.survey.status = 'Ready'
 
-        elif '-5' in task.tagging_level:
+
+        if '-5' in task.tagging_level:
             GLOBALS.redisClient.delete('active_individuals_'+str(task_id))
             GLOBALS.redisClient.delete('active_indsims_'+str(task_id))
 
@@ -423,7 +480,14 @@ def wrapUpTask(self,task_id):
 
         #Accounts for individual ID background processing
         if 'processing' not in task.survey.status:
-            task.survey.status = 'Ready'
+            if '-4' in task.tagging_level:
+                tL = re.split(',',task.tagging_level)
+                species = tL[1]
+                task.survey.status = 'indprocessing'
+                db.session.commit()
+                calculate_individual_similarities.delay(task.id,species)	
+            else:
+                task.survey.status = 'Ready'
 
         # handle multi-tasks
         for sub_task in task.sub_tasks:
@@ -1472,7 +1536,7 @@ def translate_cluster_for_client(clusterInfo,reqId,limit,isBounding,taggingLevel
                         covered_images.append(image_id)
                         images.append({
                             'id': clusterInfo[cluster_id]['images'][image_id]['id'],
-                            'url': clusterInfo[cluster_id]['images'][image_id]['url'].replace('+','%2B').replace('?','%3F'),
+                            'url': clusterInfo[cluster_id]['images'][image_id]['url'].replace('+','%2B').replace('?','%3F').replace('#','%23'),
                             'timestamp': clusterInfo[cluster_id]['images'][image_id]['timestamp'],
                             'camera': clusterInfo[cluster_id]['images'][image_id]['camera'],
                             'rating': clusterInfo[cluster_id]['images'][image_id]['rating'],
@@ -1544,7 +1608,7 @@ def translate_cluster_for_client(clusterInfo,reqId,limit,isBounding,taggingLevel
                         covered_images.append(image_id)
                         images.append({
                             'id': clusterInfo[cluster_id]['images'][image_id]['id'],
-                            'url': clusterInfo[cluster_id]['images'][image_id]['url'].replace('+','%2B').replace('?','%3F'),
+                            'url': clusterInfo[cluster_id]['images'][image_id]['url'].replace('+','%2B').replace('?','%3F').replace('#','%23'),
                             'timestamp': clusterInfo[cluster_id]['images'][image_id]['timestamp'],
                             'camera': clusterInfo[cluster_id]['images'][image_id]['camera'],
                             'rating': clusterInfo[cluster_id]['images'][image_id]['rating'],
