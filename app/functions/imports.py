@@ -1487,6 +1487,11 @@ def batch_images(camera_id,filenames,sourceBucket,dirpath,destBucket,survey_id,p
                                 timestamp = datetime.strptime(t[field], '%Y:%m:%d %H:%M:%S')
                                 break
                         # assert timestamp
+
+                        # Check timestamp is not corrupt
+                        if timestamp and (timestamp>datetime.utcnow()): timestamp == None
+                        if timestamp and (timestamp.year<2000): timestamp == None
+                        
                     except:
                         if Config.DEBUGGING: app.logger.info("Skipping {} could not extract timestamp...".format(dirpath+'/'+filename))
                         continue
