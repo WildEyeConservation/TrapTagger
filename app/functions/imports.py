@@ -4500,7 +4500,7 @@ def get_timestamps(self,trapgroup_id,index=None):
                                 .join(Video,Camera.videos)\
                                 .filter(Image.filename.contains('frame'+str(index)))\
                                 .filter(Camera.trapgroup_id==trapgroup_id)\
-                                .filter(Image.timestamp==None)\
+                                .filter(Image.corrected_timestamp==None)\
                                 .filter(Image.skipped!=True)\
                                 .group_by(Video.id).distinct().all()
         else:  # Images
@@ -4508,7 +4508,7 @@ def get_timestamps(self,trapgroup_id,index=None):
                                 .join(Camera,Image.camera_id==Camera.id)\
                                 .filter(~Camera.videos.any())\
                                 .filter(Camera.trapgroup_id==trapgroup_id)\
-                                .filter(Image.timestamp==None)\
+                                .filter(Image.corrected_timestamp==None)\
                                 .filter(Image.skipped!=True)\
                                 .group_by(Image.id).distinct().all()
 
@@ -4697,7 +4697,7 @@ def extract_missing_timestamps(survey_id):
                                                 .filter(Trapgroup.survey_id==survey_id)\
                                                 .filter(Camera.videos.any())\
                                                 .filter(Image.filename.contains('frame'+str(index)))\
-                                                .filter(Image.timestamp==None)\
+                                                .filter(Image.corrected_timestamp==None)\
                                                 .filter(Image.skipped!=True)\
                                                 .distinct().all()]
         for trapgroup_id in trapgroup_ids:
@@ -4713,7 +4713,7 @@ def extract_missing_timestamps(survey_id):
                                                 .join(Image)\
                                                 .filter(Trapgroup.survey_id==survey_id)\
                                                 .filter(~Camera.videos.any())\
-                                                .filter(Image.timestamp==None)\
+                                                .filter(Image.corrected_timestamp==None)\
                                                 .filter(Image.skipped!=True)\
                                                 .distinct().all()]
     for trapgroup_id in trapgroup_ids:
