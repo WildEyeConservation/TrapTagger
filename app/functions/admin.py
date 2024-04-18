@@ -2375,6 +2375,7 @@ def recluster_after_image_timestamp_change(self,survey_id,image_timestamps):
 
                 # Update image timestamp
                 image.corrected_timestamp = timestamps[image_id]
+                image.skipped = False if timestamps[image_id] else True
                 trapgroup_ids.append(trapgroup_id)
 
             for task in tasks:

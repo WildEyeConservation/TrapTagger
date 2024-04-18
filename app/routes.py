@@ -12810,7 +12810,7 @@ def getTimestampCameraIDs(survey_id):
                                 and_(Image.extracted==True,Image.timestamp!=Image.corrected_timestamp)
                             ))
         else:
-            cameras = cameras.filter(Image.corrected_timestamp==None).filter(Image.skipped==False)
+            cameras = cameras.filter(Image.corrected_timestamp==None).filter(Image.skipped!=True)
 
         camera_ids = [r[0] for r in cameras.distinct().all()]
 
@@ -12853,7 +12853,7 @@ def getTimestampImages(survey_id, reqID):
                                 and_(Image.extracted==True,Image.timestamp!=Image.corrected_timestamp)
                             ))
         else:  
-            image_data = image_data.filter(Image.corrected_timestamp==None).filter(Image.skipped==False)
+            image_data = image_data.filter(Image.corrected_timestamp==None).filter(Image.skipped!=True)
 
         if image_id:
             image_data = image_data.filter(Image.id==image_id)

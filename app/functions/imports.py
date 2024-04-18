@@ -3443,7 +3443,7 @@ def import_survey(self,s3Folder,surveyName,tag,organisation_id,correctTimestamps
             db.session.commit()
 
             extract_missing_timestamps(survey_id)
-            timestamp_check = db.session.query(Image.id).join(Camera).join(Trapgroup).filter(Trapgroup.survey_id==survey_id).filter(Image.corrected_timestamp==None).first()
+            timestamp_check = db.session.query(Image.id).join(Camera).join(Trapgroup).filter(Trapgroup.survey_id==survey_id).filter(Image.corrected_timestamp==None).filter(Image.skipped!=True).first()
             skipCluster = timestamp_check
         else:
             survey = db.session.query(Survey).filter(Survey.name==surveyName).filter(Survey.organisation_id==organisation_id).first()
