@@ -1064,7 +1064,7 @@ function goToPrevCluster(mapID = 'map1') {
     clusterIndex[mapID] = clusterIndex[mapID] - 1
     updateClusterLabels(mapID)
 
-    if (isTagging && (taggingLevel == '-1' || parseInt(taggingLevel) > 0)) {
+    if (isTagging && !isTutorial && (taggingLevel == '-1' || parseInt(taggingLevel) > 0)) {
         drawnMaskItems[mapID].clearLayers()
         updateMasks(mapID)
     }
@@ -1495,7 +1495,7 @@ function nextCluster(mapID = 'map1') {
 
             updateClusterLabels(mapID)
 
-            if (isTagging && (taggingLevel == '-1' || parseInt(taggingLevel) > 0)) {
+            if (isTagging && !isTutorial && (taggingLevel == '-1' || parseInt(taggingLevel) > 0)) {
                 drawnMaskItems[mapID].clearLayers()
                 updateMasks(mapID)
             }
@@ -2408,7 +2408,7 @@ function prepMap(mapID = 'map1') {
                                 contextmenu: false,
                             }      
                             
-                            if (isTagging && (taggingLevel == '-1' || parseInt(taggingLevel) > 0)) {
+                            if (isTagging && !isTutorial && (taggingLevel == '-1' || parseInt(taggingLevel) > 0)) {
                                 maskRectOptions = {
                                     color: "rgba(91,192,222,1)",
                                     fill: true,
@@ -3064,13 +3064,13 @@ function initKeys(res){
                 if (i < 10) {
                     newbtn.classList.add('btn-danger');
                     newbtn.innerHTML = labelName + ' (' + String.fromCharCode(parseInt(i)+48) + ')';
-                } else if (i == labs.length-2) {
+                } else if (i == labs.length-2 && labelName == 'Remove False Detections') {
                     newbtn.classList.add('btn-danger');
                     newbtn.innerHTML = labelName + ' (-)';
                 } else if (i == labs.length-3) {
                     newbtn.classList.add('btn-danger');
                     newbtn.innerHTML = labelName + ' (Space)';
-                } else if (i == labs.length-1) {
+                } else if (i == labs.length-1 && labelName == 'Mask Area') {
                     newbtn.classList.add('btn-danger');
                     newbtn.innerHTML = labelName + ' (*)';
                 } else {
@@ -3114,13 +3114,13 @@ function initKeys(res){
                     if (i < 10) {
                         newbtn.classList.add('btn-primary');
                         newbtn.innerHTML = labelName + ' (' + String.fromCharCode(parseInt(i)+48) + ')';
-                    } else if (i == labs.length-2) {
+                    } else if (i == labs.length-2 && labelName == 'Remove False Detections') {
                         newbtn.classList.add('btn-info');
                         newbtn.innerHTML = labelName + ' (-)';
                     } else if (i == labs.length-3) {
                         newbtn.classList.add('btn-info');
                         newbtn.innerHTML = labelName + ' (Space)';
-                    } else if (i == labs.length-1) {
+                    } else if (i == labs.length-1 && labelName == 'Mask Area') {
                         newbtn.classList.add('btn-info');
                         newbtn.innerHTML = labelName + ' (*)';
                     } else {

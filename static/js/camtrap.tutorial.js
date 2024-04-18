@@ -13,6 +13,7 @@
 // limitations under the License.
 
 var state = "selectLion";
+var editingEnabled = false
 
 function tutProcessUserInput(input) {
     /** Processes the user input for the tutorial. */
