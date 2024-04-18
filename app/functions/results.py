@@ -2004,6 +2004,11 @@ def generate_training_csv(self,tasks,destBucket,min_area,include_empties=False,c
             df = pd.read_sql(db.session.query(\
                         Detection.id.label('detection_id'),\
                         Detection.score.label('confidence'),\
+                        Detection.left.label('left'),\
+                        Detection.right.label('right'),\
+                        Detection.top.label('top'),\
+                        Detection.bottom.label('bottom'),\
+                        Cluster.id.label('cluster_id'),\
                         Image.id.label('image_id'),\
                         Image.filename.label('filename'),\
                         Image.hash.label('hash'),\
@@ -2012,12 +2017,14 @@ def generate_training_csv(self,tasks,destBucket,min_area,include_empties=False,c
                         Survey.name.label('dataset'),\
                         Label.description.label('label'))\
                         .join(Image,Detection.image_id==Image.id)\
+                        .join(Cluster,Image.clusters)\
                         .join(Camera,Camera.id==Image.camera_id)\
                         .join(Trapgroup,Trapgroup.id==Camera.trapgroup_id)\
                         .join(Survey,Survey.id==Trapgroup.survey_id)\
                         .join(Labelgroup,Labelgroup.detection_id==Detection.id)\
                         .join(Label,Labelgroup.labels)\
                         .filter(Labelgroup.task_id==task_id)\
+                        .filter(Cluster.task_id==task_id)\
                         .filter(Label.id.in_(labels))\
                         .filter(((Detection.right-Detection.left)*(Detection.bottom-Detection.top)) > min_area)\
                         .filter(or_(and_(Detection.source==model,Detection.score>Config.DETECTOR_THRESHOLDS[model]) for model in Config.DETECTOR_THRESHOLDS))\
@@ -2025,31 +2032,34 @@ def generate_training_csv(self,tasks,destBucket,min_area,include_empties=False,c
                         .filter(~Detection.status.in_(Config.DET_IGNORE_STATUSES))\
                         .statement,db.session.bind)
 
-            # Drop detections
+            # Drop multi labels
             df = df.drop_duplicates(subset=['detection_id'], keep=False)
 
             if len(df):
-                # Build crop names
-                df['path'] = df.apply(lambda x: x.dirpath+'/'+x.filename[:-4]+'_'+str(x.detection_id)+'.jpg', axis=1)
+                # # Build crop names
+                # df['path'] = df.apply(lambda x: x.dirpath+'/'+x.filename[:-4]+'_'+str(x.detection_id)+'.jpg', axis=1)
+
+                # Build full paths
+                df['path'] = df.apply(lambda x: x.dirpath+'/'+x.filename, axis=1)
 
                 # Set the dataset_class to the label value
                 df['dataset_class'] = df['label']
 
                 # Check if you need to crop the images
-                if crop_images:
-                    try:              
-                        key = df.iloc[0]['path']
-                        check = GLOBALS.s3client.head_object(Bucket=destBucket,Key=key)
+                # if crop_images:
+                #     try:              
+                #         key = df.iloc[0]['path']
+                #         check = GLOBALS.s3client.head_object(Bucket=destBucket,Key=key)
                     
-                    except:
-                        # Crop does not exist - must crop the images
-                        crop_survey_images.apply_async(kwargs={'task_id':task_id,'min_area':min_area,'destBucket':destBucket},queue='parallel')
-                        task.survey.images_processing = len(df)
-                        # task.survey.status='Processing'
-                        db.session.commit()
+                #     except:
+                #         # Crop does not exist - must crop the images
+                #         crop_survey_images.apply_async(kwargs={'task_id':task_id,'min_area':min_area,'destBucket':destBucket},queue='parallel')
+                #         task.survey.images_processing = len(df)
+                #         # task.survey.status='Processing'
+                #         db.session.commit()
 
                 # Order columns and remove superfluous ones
-                df = df[['path','hash','dataset','location','dataset_class','confidence','label']]
+                df = df[['detection_id','left','right','top','bottom','cluster_id','path','hash','dataset','location','dataset_class','confidence','label']]
 
                 # convert all labels to lower case
                 df['label'] = df.apply(lambda x: x.label.lower().strip(), axis=1)
