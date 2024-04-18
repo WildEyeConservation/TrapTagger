@@ -1930,7 +1930,7 @@ def translate_cluster_for_client(clusterInfo,reqId,limit,isBounding,taggingLevel
 #     return True
 
 @celery.task(bind=True,max_retries=5,ignore_result=True)
-def skipCameraImages(self,cameragroup_id):
+def skipCameraImages(self,cameragroup_id,skip):
     '''Marks all images in a camera group as skipped that have no timestamps'''
     try:
         images = db.session.query(Image)\
@@ -1938,11 +1938,10 @@ def skipCameraImages(self,cameragroup_id):
                     .join(Cameragroup)\
                     .filter(Cameragroup.id==cameragroup_id)\
                     .filter(Image.corrected_timestamp==None)\
-                    .filter(Image.skipped!=True)\
                     .distinct().all()
         
         for image in images:
-            image.skipped = True
+            image.skipped = skip
 
         db.session.commit()
 

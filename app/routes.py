@@ -6900,86 +6900,86 @@ def assignLabel(clusterID):
                     #     for image in images:
                     #         image.detection_rating = detection_rating(image)
 
-                    if remove_false_detections:
-                        tgs_available = session.query(Trapgroup)\
-                                                .filter(Trapgroup.survey==task.survey)\
-                                                .filter(Trapgroup.user_id==None)\
-                                                .filter(Trapgroup.active==True)\
-                                                .first()
+                    # NOTE: HIDING REMOVE FALSE DETECTIONS FUNCTIONALITY
+                    # if remove_false_detections:
+                    #     tgs_available = session.query(Trapgroup)\
+                    #                             .filter(Trapgroup.survey==task.survey)\
+                    #                             .filter(Trapgroup.user_id==None)\
+                    #                             .filter(Trapgroup.active==True)\
+                    #                             .first()
 
-                        removable_detections = session.query(Detection)\
-                                                .join(Image)\
-                                                .filter(Image.clusters.contains(cluster))\
-                                                .filter(or_(and_(Detection.source==model,Detection.score>Config.DETECTOR_THRESHOLDS[model]) for model in Config.DETECTOR_THRESHOLDS))\
-                                                .filter(~Detection.status.in_(Config.DET_IGNORE_STATUSES))\
-                                                .filter(Detection.static==False)\
-                                                .filter(((Detection.right-Detection.left)*(Detection.bottom-Detection.top))<0.1)\
-                                                .first()
+                    #     removable_detections = session.query(Detection)\
+                    #                             .join(Image)\
+                    #                             .filter(Image.clusters.contains(cluster))\
+                    #                             .filter(or_(and_(Detection.source==model,Detection.score>Config.DETECTOR_THRESHOLDS[model]) for model in Config.DETECTOR_THRESHOLDS))\
+                    #                             .filter(~Detection.status.in_(Config.DET_IGNORE_STATUSES))\
+                    #                             .filter(Detection.static==False)\
+                    #                             .filter(((Detection.right-Detection.left)*(Detection.bottom-Detection.top))<0.1)\
+                    #                             .first()
 
-                        if tgs_available and (not explore) and removable_detections:
-                            if GLOBALS.redisClient.get('clusters_allocated_'+str(current_user.id))==None: GLOBALS.redisClient.set('clusters_allocated_'+str(current_user.id),0)
-                            reAllocated = True
-                            trapgroup = session.query(Trapgroup).join(Camera).join(Image).filter(Image.clusters.contains(cluster)).first()
-                            survey_id = task.survey_id
-                            task_size = task.size
-                            trapgroup.processing = True
-                            trapgroup.active = False
-                            trapgroup.user_id = None
-                            GLOBALS.redisClient.set('clusters_allocated_'+str(current_user.id),num)
+                    #     if tgs_available and (not explore) and removable_detections:
+                    #         if GLOBALS.redisClient.get('clusters_allocated_'+str(current_user.id))==None: GLOBALS.redisClient.set('clusters_allocated_'+str(current_user.id),0)
+                    #         reAllocated = True
+                    #         trapgroup = session.query(Trapgroup).join(Camera).join(Image).filter(Image.clusters.contains(cluster)).first()
+                    #         survey_id = task.survey_id
+                    #         task_size = task.size
+                    #         trapgroup.processing = True
+                    #         trapgroup.active = False
+                    #         trapgroup.user_id = None
+                    #         GLOBALS.redisClient.set('clusters_allocated_'+str(current_user.id),num)
 
-                            label_description = None
-                            if int(taggingLevel) > 0: label_description = session.query(Label).get(int(taggingLevel)).description
+                    #         label_description = None
+                    #         if int(taggingLevel) > 0: label_description = session.query(Label).get(int(taggingLevel)).description
                             
-                            session.commit()
+                    #         session.commit()
                             
-                            removeFalseDetections.apply_async(kwargs={'cluster_id':clusterID,'undo':False})
+                    #         removeFalseDetections.apply_async(kwargs={'cluster_id':clusterID,'undo':False})
 
-                            # Get a new batch of clusters
-                            # session.close()
-                            # GLOBALS.mutex[task_id]['global'].acquire()
-                            # # Open a new session to ensure allocations are up to date after a long wait
-                            # session = db.session()
-                            # session.add(current_user)
-                            # session.refresh(current_user)
+                    #         # Get a new batch of clusters
+                    #         # session.close()
+                    #         # GLOBALS.mutex[task_id]['global'].acquire()
+                    #         # # Open a new session to ensure allocations are up to date after a long wait
+                    #         # session = db.session()
+                    #         # session.add(current_user)
+                    #         # session.refresh(current_user)
 
-                            trapgroup = allocate_new_trapgroup(task_id,current_user.id,survey_id,session)
-                            if trapgroup == None:
-                                session.close()
-                                # GLOBALS.mutex[task_id]['global'].release()
-                                newClusters = []
-                            else:
-                                limit = task_size - int(GLOBALS.redisClient.get('clusters_allocated_'+str(current_user.id)).decode())
-                                clusterInfo, max_request = fetch_clusters(taggingLevel,task_id,isBounding,trapgroup.id,session,limit)
+                    #         trapgroup = allocate_new_trapgroup(task_id,current_user.id,survey_id,session)
+                    #         if trapgroup == None:
+                    #             session.close()
+                    #             # GLOBALS.mutex[task_id]['global'].release()
+                    #             newClusters = []
+                    #         else:
+                    #             limit = task_size - int(GLOBALS.redisClient.get('clusters_allocated_'+str(current_user.id)).decode())
+                    #             clusterInfo, max_request = fetch_clusters(taggingLevel,task_id,isBounding,trapgroup.id,session,limit)
 
-                                # if len(clusterInfo)==0: current_user.trapgroup = []
-                                if (len(clusterInfo) <= limit) and not max_request:
-                                    clusters_allocated = int(GLOBALS.redisClient.get('clusters_allocated_'+str(current_user.id)).decode()) + len(clusterInfo)
-                                    trapgroup.active = False
-                                    GLOBALS.redisClient.lrem(survey_id,0,trapgroup.id)
-                                else:
-                                    clusters_allocated = int(GLOBALS.redisClient.get('clusters_allocated_'+str(current_user.id)).decode()) + limit
-                                GLOBALS.redisClient.set('clusters_allocated_'+str(current_user.id),clusters_allocated)
+                    #             # if len(clusterInfo)==0: current_user.trapgroup = []
+                    #             if (len(clusterInfo) <= limit) and not max_request:
+                    #                 clusters_allocated = int(GLOBALS.redisClient.get('clusters_allocated_'+str(current_user.id)).decode()) + len(clusterInfo)
+                    #                 trapgroup.active = False
+                    #                 GLOBALS.redisClient.lrem(survey_id,0,trapgroup.id)
+                    #             else:
+                    #                 clusters_allocated = int(GLOBALS.redisClient.get('clusters_allocated_'+str(current_user.id)).decode()) + limit
+                    #             GLOBALS.redisClient.set('clusters_allocated_'+str(current_user.id),clusters_allocated)
                                 
-                                session.commit()
-                                session.close()
-                                # GLOBALS.mutex[task_id]['global'].release()
+                    #             session.commit()
+                    #             session.close()
+                    #             # GLOBALS.mutex[task_id]['global'].release()
 
-                                newClusters = translate_cluster_for_client(clusterInfo,'0',limit,isBounding,taggingLevel,None,label_description)['info']
+                    #             newClusters = translate_cluster_for_client(clusterInfo,'0',limit,isBounding,taggingLevel,None,label_description)['info']
 
-                            if (newClusters==[]) or (clusters_allocated >= task_size):
-                                newClusters.append(Config.FINISHED_CLUSTER)
-                        else:
-                            session.commit()
-                            session.close()
+                    #         if (newClusters==[]) or (clusters_allocated >= task_size):
+                    #             newClusters.append(Config.FINISHED_CLUSTER)
+                    #     else:
+                    #         session.commit()
+                    #         session.close()
 
-                    else:
-                        if explore:
-                            individual_check = session.query(Individual.id).join(Detection, Individual.detections).join(Image).join(Cluster, Image.clusters).filter(Cluster.id==cluster.id).filter(Individual.tasks.contains(task)).first()
-                            if individual_check:
-                                check_individual_detection_mismatch.apply_async(kwargs={'task_id':task_id,'cluster_id':cluster.id})
+                    if explore:
+                        individual_check = session.query(Individual.id).join(Detection, Individual.detections).join(Image).join(Cluster, Image.clusters).filter(Cluster.id==cluster.id).filter(Individual.tasks.contains(task)).first()
+                        if individual_check:
+                            check_individual_detection_mismatch.apply_async(kwargs={'task_id':task_id,'cluster_id':cluster.id})
 
-                        session.commit()
-                        session.close()
+                    session.commit()
+                    session.close()
 
         else:
             return {'redirect': url_for('done')}, 278
@@ -7057,11 +7057,12 @@ def initKeys():
     if task and (checkAnnotationPermission(current_user.parent_id,task.id) or checkSurveyPermission(current_user.id,task.survey_id,'write')):
 
         addMaskArea = False
+        addRemoveFalseDetections = False
         if task.tagging_level == '-1':
-            addRemoveFalseDetections = True
+            # addRemoveFalseDetections = True
             addMaskArea = True
         else:
-            addRemoveFalseDetections = False
+            # addRemoveFalseDetections = False
             if (',' not in task.tagging_level) and int(task.tagging_level) > 0 and not task.is_bounding:
                 addMaskArea = True
 
@@ -13002,9 +13003,12 @@ def skipPreprocessing(survey_id,step):
 def skipTimestampCamera(survey_id,cameragroup_id):
     '''Marks all images with no timestamps for the specified camera as skipped.'''
     survey = db.session.query(Survey).get(survey_id)
+    undo = request.args.get('undo', None)
     if survey and checkSurveyPermission(current_user.id,survey.id,'write'):
         if 'preprocessing' in survey.status.lower():
-            skipCameraImages.delay(cameragroup_id)
+            skip = False if undo else True
+            if Config.DEBUGGING: app.logger.info('Mark simages.skipped {} for cameragroup {}'.format(skip,cameragroup_id))
+            skipCameraImages.delay(cameragroup_id,skip)
 
     return json.dumps('success')
 
