@@ -1938,7 +1938,7 @@ def skipCameraImages(self,cameragroup_id):
                     .join(Cameragroup)\
                     .filter(Cameragroup.id==cameragroup_id)\
                     .filter(Image.corrected_timestamp==None)\
-                    .filter(Image.skipped==False)\
+                    .filter(Image.skipped!=True)\
                     .distinct().all()
         
         for image in images:

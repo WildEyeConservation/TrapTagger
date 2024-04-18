@@ -3443,14 +3443,15 @@ def import_survey(self,s3Folder,surveyName,tag,organisation_id,correctTimestamps
             db.session.commit()
 
             extract_missing_timestamps(survey_id)
-            timestamp_check = db.session.query(Image.id).join(Camera).join(Trapgroup).filter(Trapgroup.survey_id==survey_id).filter(Image.corrected_timestamp==None).first()
+            timestamp_check = db.session.query(Image.id).join(Camera).join(Trapgroup).filter(Trapgroup.survey_id==survey_id).filter(Image.corrected_timestamp==None).filter(Image.skipped!=True).first()
             skipCluster = timestamp_check
         else:
             survey = db.session.query(Survey).filter(Survey.name==surveyName).filter(Survey.organisation_id==organisation_id).first()
             survey_id = survey.id
             survey.images_processing = survey.image_count + survey.video_count 
             db.session.commit()
-            timestamp_check = db.session.query(Image.id).join(Camera).join(Trapgroup).filter(Trapgroup.survey_id==survey_id).filter(Image.timestamp==None).first()
+            # timestamp_check = db.session.query(Image.id).join(Camera).join(Trapgroup).filter(Trapgroup.survey_id==survey_id).filter(Image.timestamp==None).first()
+            timestamp_check = db.session.query(Image.id).join(Camera).join(Trapgroup).filter(Trapgroup.survey_id==survey_id).filter(~Image.clusters.any()).first()
             static_check = db.session.query(Staticgroup.id).join(Detection).join(Image).join(Camera).join(Trapgroup).filter(Trapgroup.survey_id==survey_id).first()
             skipCluster = not timestamp_check
 
@@ -3488,6 +3489,7 @@ def import_survey(self,s3Folder,surveyName,tag,organisation_id,correctTimestamps
             survey.status='Processing Static Detections'
             db.session.commit()
             wrapUpStaticDetectionCheck(survey_id)
+            survey = db.session.query(Survey).get(survey_id)
 
         if not skipCluster:
             survey.status='Removing Humans'
