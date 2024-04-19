@@ -2261,7 +2261,7 @@ function buildAddIms() {
 
     var div = document.createElement('div')
     div.setAttribute('style','font-size: 80%; margin-bottom: 2px')
-    div.innerHTML = '<i> View the structure of your dataset. Eg. "Site1 : Camera1, Camera2" etc. </i>'
+    div.innerHTML = '<i>Check the detected structure of your survey. Eg. "Site1 : Camera1, Camera2" etc. </i>'
     addImagesAddImsDiv.appendChild(div)
 
     var div = document.createElement('div')
