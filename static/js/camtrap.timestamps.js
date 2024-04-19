@@ -83,7 +83,7 @@ function loadNewCluster(mapID = 'map1') {
                                 }
                             }
 
-                            if (lastCamera) {
+                            if (lastCamera && clusters[mapID].length == cameraIDs.length) {
                                 clusters[mapID].push({'id': '-101'})
                             }
                         }                
