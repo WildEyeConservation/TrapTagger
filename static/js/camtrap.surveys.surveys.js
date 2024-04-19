@@ -2604,7 +2604,7 @@ function buildEditImageTimestamp() {
     radio.appendChild(label)
 
     document.getElementById('extractedTimestamps').addEventListener('click', ()=>{
-        document.getElementById('correctTimestampsDecscription').innerHTML = '<i>Here you can view and edit the timestamps of videos and images whose timestamps were extracted that did not have them. </i>'
+        document.getElementById('correctTimestampsDecscription').innerHTML = '<i>Here you can view and edit the timestamps of videos and images that were visually extracted by AI. </i>'
         selectedTimestampType = 'extracted'
         imageIndex = 0
         cameraIndex = 0
@@ -2635,7 +2635,7 @@ function buildEditImageTimestamp() {
     radio.appendChild(label)
 
     document.getElementById('editedTimestamps').addEventListener('click', ()=>{
-        document.getElementById('correctTimestampsDecscription').innerHTML = '<i>Here you can view and edit the timestamps of videos and images whose timestamps were edited by the user. </i>'
+        document.getElementById('correctTimestampsDecscription').innerHTML = '<i>Here you can view and edit the timestamps of videos and images that you have edited. </i>'
         selectedTimestampType = 'edited'
         imageIndex = 0
         cameraIndex = 0
