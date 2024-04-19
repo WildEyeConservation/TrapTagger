@@ -59,8 +59,8 @@ limitations under the License. -->
             <div class='card-body'>
                 <div class="control-group">
                     <div id="divBtns">
-                        <button class="btn btn-danger btn-block  btn-sm" style="margin-bottom: 3px; margin-top: 3px;" onclick=submitTimestamp(true)>No Timestamp (N)</button>
-                        <button class="btn btn-primary btn-block  btn-sm" style="margin-bottom: 3px; margin-top: 3px;" onclick="skipCamera()">Skip Camera (S)</button>
+                        <button class="btn btn-danger btn-block  btn-sm" style="margin-bottom: 3px; margin-top: 3px;" onclick=submitTimestamp(true)>Image Has No Timestamp (N)</button>
+                        <button class="btn btn-danger btn-block  btn-sm" style="margin-bottom: 3px; margin-top: 3px;" onclick="skipCamera()">Camera Has No Timestamp (S)</button>
                     </div>
                     <label for="year" style="margin-bottom: 2px">Year</label>
                     <input type="number" id="year" class="form-control" style="margin-bottom: 2px" placeholder="YYYY" min="1900" max="2100">
@@ -106,8 +106,7 @@ limitations under the License. -->
             </div>
             <div class='modal-footer'>
                 <div class='col-lg-3'>
-                    <button id='btnCancel' type='button' class='btn btn-info btn-block' 
-                    data-dismiss='modal'>Return</button>
+                    <button id='btnCancel' type='button' class='btn btn-info btn-block' data-dismiss='modal'>Return</button>
                 </div>
                 <div class='col-lg-3'>
                     <button id='btnDone' type='button' class='btn btn-primary btn-block'>Done</button>
@@ -115,6 +114,29 @@ limitations under the License. -->
             </div>
         </div>
       
+    </div>
+</div>
+
+
+<!-- Camera No Timestamp Modal -->
+<div id="modalCameraNoTimestamp" class="modal fade" role="dialog"  tabindex="-1">
+    <div class="modal-dialog">
+        <!-- Modal content-->
+        <div class="modal-content">
+            <div class="modal-header">
+                <h4 class="modal-title">Warning</h4>
+                <button type="button" class="close" data-dismiss="modal">&times;</button>
+            </div>
+            <div class="modal-body">
+                <p align="justify">
+                    You are about to mark the images without timestamps in the current camera as having no timestamps. This should be done only if you are unable to add timestamps to any of the images in the current camera.
+                    <br><br>
+                    <i>If you wish to continue, press the "S" hotkey again.</i>
+                    <br><br>
+                    <i>Otherwise press "Esc" or label the cluster as anything else.</i>
+                </p>
+            </div>
+        </div>
     </div>
 </div>
 

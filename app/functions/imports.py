@@ -4481,14 +4481,16 @@ def get_timestamps(self,trapgroup_id,index=None,use_old=False):
                                 .join(Video,Camera.videos)\
                                 .filter(Image.filename.contains('frame'+str(index)))\
                                 .filter(Camera.trapgroup_id==trapgroup_id)\
-                                .filter(Image.timestamp==None)\
+                                .filter(Image.corrected_timestamp==None)\
+                                .filter(Image.skipped!=True)\
                                 .group_by(Video.id).distinct().all()
         else:  # Images
             data = db.session.query(Camera.path+'/'+Image.filename,Image)\
                                 .join(Camera,Image.camera_id==Camera.id)\
                                 .filter(~Camera.videos.any())\
                                 .filter(Camera.trapgroup_id==trapgroup_id)\
-                                .filter(Image.timestamp==None)\
+                                .filter(Image.corrected_timestamp==None)\
+                                .filter(Image.skipped!=True)\
                                 .group_by(Image.id).distinct().all()
 
         # Queue async requests
@@ -4680,7 +4682,8 @@ def extract_missing_timestamps(survey_id,use_old=False):
                                                 .filter(Trapgroup.survey_id==survey_id)\
                                                 .filter(Camera.videos.any())\
                                                 .filter(Image.filename.contains('frame'+str(index)))\
-                                                .filter(Image.timestamp==None)\
+                                                .filter(Image.corrected_timestamp==None)\
+                                                .filter(Image.skipped!=True)\
                                                 .distinct().all()]
         for trapgroup_id in trapgroup_ids:
             get_timestamps(trapgroup_id,index,use_old)
@@ -4695,7 +4698,8 @@ def extract_missing_timestamps(survey_id,use_old=False):
                                                 .join(Image)\
                                                 .filter(Trapgroup.survey_id==survey_id)\
                                                 .filter(~Camera.videos.any())\
-                                                .filter(Image.timestamp==None)\
+                                                .filter(Image.corrected_timestamp==None)\
+                                                .filter(Image.skipped!=True)\
                                                 .distinct().all()]
     for trapgroup_id in trapgroup_ids:
         get_timestamps(trapgroup_id)

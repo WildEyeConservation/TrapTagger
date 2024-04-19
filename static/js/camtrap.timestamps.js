@@ -30,6 +30,8 @@ const hourInput = document.getElementById('hour');
 const minutesInput = document.getElementById('minutes');
 const secondsInput = document.getElementById('seconds');
 
+const modalCameraNoTimestamp =  $('#modalCameraNoTimestamp');
+
 function loadNewCluster(mapID = 'map1') {
     /** Requests the next back of clusters from the server. */
 
@@ -262,10 +264,20 @@ function submitTimestamp(no_time = false, mapID = 'map1') {
 function undoTimestamp(mapID = 'map1') {
     /** Goes back to the previous cluster. */
     clearInputs()
-    // prevCluster(mapID)
 
-    if (clusters[mapID][clusterIndex[mapID]].skipped){
-        clusters[mapID][clusterIndex[mapID]].skipped = false
+    if ((clusterIndex[mapID] > 0) && (clusters[mapID][clusterIndex[mapID]-1].skipped)){
+        cameragroup_id = clusters[mapID][clusterIndex[mapID]-1].id
+        var xhttp = new XMLHttpRequest();
+        xhttp.onreadystatechange =
+            function () {
+                if (this.readyState == 4 && this.status == 200) {
+                    // console.log(this.responseText)
+                }
+            };
+        xhttp.open("GET", '/skipTimestampCamera/' + selectedSurvey + '/' + cameragroup_id + '?undo=true');
+        xhttp.send();
+
+        clusters[mapID][clusterIndex[mapID]-1].skipped = false
         prevCluster(mapID)
     } else {
         if (imageIndex[mapID] > 0){
@@ -323,19 +335,26 @@ function skipTimeUnit(){
 function skipCamera(mapID = 'map1'){
     /** Skips the current camera. */
 
-    cameragroup_id = clusters[mapID][clusterIndex[mapID]].id
-    var xhttp = new XMLHttpRequest();
-    xhttp.onreadystatechange =
-        function () {
-            if (this.readyState == 4 && this.status == 200) {
-                // console.log(this.responseText)
-            }
-        };
-    xhttp.open("GET", '/skipTimestampCamera/' + selectedSurvey + '/' + cameragroup_id);
-    xhttp.send();
+    if (modalCameraNoTimestamp.is(':visible')){
+        cameragroup_id = clusters[mapID][clusterIndex[mapID]].id
+        var xhttp = new XMLHttpRequest();
+        xhttp.onreadystatechange =
+            function () {
+                if (this.readyState == 4 && this.status == 200) {
+                    // console.log(this.responseText)
+                }
+            };
+        xhttp.open("GET", '/skipTimestampCamera/' + selectedSurvey + '/' + cameragroup_id);
+        xhttp.send();
 
-    clusters[mapID][clusterIndex[mapID]].skipped = true
-    nextCluster()
+        modalCameraNoTimestamp.modal('hide')
+        clusters[mapID][clusterIndex[mapID]].skipped = true
+        nextCluster(mapID)
+    }
+    else {
+        modalCameraNoTimestamp.modal({keyboard: true})
+    }
+
 }
 
 
@@ -506,5 +525,4 @@ function finishTimestampCheck(){
 }
 
 window.addEventListener('load', onload, false);
-
 
