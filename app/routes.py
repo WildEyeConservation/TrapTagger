@@ -6158,6 +6158,7 @@ def getClustersBySpecies(task_id, species, tag_id, trapgroup_id, annotator_id):
     Returns all clusters if species is 0.'''
 
     task = db.session.query(Task).get(task_id)
+    reqId = request.args.get('reqId', None)
 
     if task and checkSurveyPermission(current_user.id,task.survey_id,'read'):
         # notes = request.args.get('notes', None)
@@ -6242,7 +6243,7 @@ def getClustersBySpecies(task_id, species, tag_id, trapgroup_id, annotator_id):
     else:
         clusters = []
 
-    return json.dumps(clusters)
+    return json.dumps({'reqID': reqId, 'clusterIDs': clusters})
 
 @app.route('/getTrapgroups', methods=['POST'])
 @login_required

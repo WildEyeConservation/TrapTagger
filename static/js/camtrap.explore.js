@@ -35,6 +35,8 @@ isIDing = false
 isStaticCheck = false
 isTimestampCheck = false
 
+currentRequest = null
+
 wrongStatus = true
 dontResetWrong = true
 tempTaggingLevel = '-1'
@@ -171,6 +173,8 @@ function getClusterIDs(mapID = 'map1'){
     if (notes != ''){
         formData.append('notes', JSON.stringify(notes))
     }
+    var newID = Math.floor(Math.random() * 100000) + 1;
+    currentRequest = newID
     xhttp.onreadystatechange =
         function () {
             if (this.readyState == 4 && this.status == 200) {
@@ -179,38 +183,41 @@ function getClusterIDs(mapID = 'map1'){
                 clusterIndex[mapID] = 0
                 imageIndex[mapID] = 0
                 updateClusterLabels()
-                clusterIDs = JSON.parse(this.responseText);
-                if(clusterIDs.length == 0){
-                    document.getElementById('modalAlertText').innerHTML = 'There are no clusters available.'
-                    modalAlert.modal({keyboard: true});
-                    if(notesOnly){
-                        document.getElementById('onlyNotesCheckbox').checked = false
-                        notesOnly = false
+                response = JSON.parse(this.responseText);
+                if (parseInt(response.reqID)==currentRequest) {
+                    clusterIDs = response.clusterIDs
+                    if(clusterIDs.length == 0){
+                        document.getElementById('modalAlertText').innerHTML = 'There are no clusters available.'
+                        modalAlert.modal({keyboard: true});
+                        if(notesOnly){
+                            document.getElementById('onlyNotesCheckbox').checked = false
+                            notesOnly = false
+                        }
+                        currentLabel= prevLabel
+                        divSelector.value = currentLabel
+                        currentTag = prevTag
+                        divTagSelector.value = currentTag
+                        currentSite = prevSite
+                        divSiteSelector.value = currentSite
+                        currentAnnotator = prevAnnotator
+                        divAnnotatorSelector.value = currentAnnotator
+                        currentStartDate = prevStartDate
+                        document.getElementById('expStartDate').value = currentStartDate ? currentStartDate.split(' ')[0] : ''
+                        currentEndDate = prevEndDate
+                        document.getElementById('expEndDate').value = currentEndDate ? currentEndDate.split(' ')[0] : ''
+                        document.getElementById('noteboxExpSearch').value = ''
+                        document.getElementById('notif1').innerHTML = ''
+                        getClusterIDs()
                     }
-                    currentLabel= prevLabel
-                    divSelector.value = currentLabel
-                    currentTag = prevTag
-                    divTagSelector.value = currentTag
-                    currentSite = prevSite
-                    divSiteSelector.value = currentSite
-                    currentAnnotator = prevAnnotator
-                    divAnnotatorSelector.value = currentAnnotator
-                    currentStartDate = prevStartDate
-                    document.getElementById('expStartDate').value = currentStartDate ? currentStartDate.split(' ')[0] : ''
-                    currentEndDate = prevEndDate
-                    document.getElementById('expEndDate').value = currentEndDate ? currentEndDate.split(' ')[0] : ''
-                    document.getElementById('noteboxExpSearch').value = ''
-                    document.getElementById('notif1').innerHTML = ''
-                    getClusterIDs()
-                }
-                else{
-                    for (let i=0;i<3;i++){
-                        loadNewCluster()
+                    else{
+                        for (let i=0;i<3;i++){
+                            loadNewCluster()
+                        }
                     }
                 }
             }
         };
-    xhttp.open("POST", '/getClustersBySpecies/'+selectedTask+'/'+currentLabel+'/'+currentTag+'/'+currentSite+'/'+currentAnnotator);
+    xhttp.open("POST", '/getClustersBySpecies/'+selectedTask+'/'+currentLabel+'/'+currentTag+'/'+currentSite+'/'+currentAnnotator+'&reqId='+newID);
     xhttp.send(formData);
 }
 
@@ -226,6 +233,8 @@ function searchNotes(mapID='map1'){
     if(currentEndDate){
         formData.append('endDate', JSON.stringify(currentEndDate))
     }
+    var newID = Math.floor(Math.random() * 100000) + 1;
+    currentRequest = newID
     xhttp.onreadystatechange =
         function () {
             if (this.readyState == 4 && this.status == 200) {
@@ -234,19 +243,23 @@ function searchNotes(mapID='map1'){
                 clusterIndex[mapID] = 0
                 imageIndex[mapID] = 0
                 updateClusterLabels()
-                clusterIDs = JSON.parse(this.responseText);
-                if (clusterIDs[0]){
-                    for (let i=0;i<3;i++){
-                        loadNewCluster()
+                response = JSON.parse(this.responseText);
+                if (parseInt(response.reqID)==currentRequest) {
+                    clusterIDs = response.clusterIDs
+
+                    if (clusterIDs[0]){
+                        for (let i=0;i<3;i++){
+                            loadNewCluster()
+                        }
+                        document.getElementById('notif1').innerHTML = ''
                     }
-                    document.getElementById('notif1').innerHTML = ''
-                }
-                else{
-                    document.getElementById('notif1').innerHTML = 'No notes matches your search.'
+                    else{
+                        document.getElementById('notif1').innerHTML = 'No notes matches your search.'
+                    }
                 }
             }
         };
-    xhttp.open("POST", '/getClustersBySpecies/'+selectedTask+'/'+currentLabel+'/'+currentTag+'/'+currentSite+'/'+currentAnnotator);
+    xhttp.open("POST", '/getClustersBySpecies/'+selectedTask+'/'+currentLabel+'/'+currentTag+'/'+currentSite+'/'+currentAnnotator+'&reqId='+newID);
     xhttp.send(formData);
 }
 
