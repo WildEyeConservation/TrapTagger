@@ -1491,7 +1491,7 @@ def batch_images(camera_id,filenames,sourceBucket,dirpath,destBucket,survey_id,p
                         # Check timestamp is not corrupt
                         if timestamp and (timestamp>datetime.utcnow()): timestamp == None
                         if timestamp and (timestamp.year<2000): timestamp == None
-                        
+
                     except:
                         if Config.DEBUGGING: app.logger.info("Skipping {} could not extract timestamp...".format(dirpath+'/'+filename))
                         continue
@@ -2196,21 +2196,18 @@ def remove_duplicate_images(survey_id):
     
     return True
 
-def import_folder(s3Folder, tag, name, sourceBucket,destinationBucket,organisation_id,pipeline,min_area,exclusions,description,processes=4,label_source=None,user_id=None,permission=None,annotation=None,detailed_access=None):
+def import_folder(s3Folder, survey_id, sourceBucket,destinationBucket,pipeline,min_area,exclusions,processes=4,label_source=None):
     '''
     Import all images from an AWS S3 folder. Handles re-import of a folder cleanly.
 
         Parameters:
             s3Folder (str): folder name to import
-            tag (str): Regular expression used to indentify trapgroups
-            name (str): Survey name
+            survey_id (int): The ID of the survey to be processed
             sourceBucket (str): Bucket from which import takes place
             destinationBucket (str): Bucket where compressed images are stored
-            organisation_id (int): organisation doing the import
             pipeline (bool): Whether import is to pipeline training data (only crops will be saved)
             min_area (float): The minimum area detection to crop if pipelining
             exclusions (list): A list of folders to exclude
-            description (str): The description of the survey
             processes (int): Optional number of threads used for the import
             label_source (str): Exif field where labels should be extracted from
     '''
@@ -2219,18 +2216,15 @@ def import_folder(s3Folder, tag, name, sourceBucket,destinationBucket,organisati
     isjpeg = re.compile('(\.jpe?g$)|(_jpe?g$)', re.I)
     
     localsession=db.session()
-    survey = Survey.get_or_create(localsession,name=name,organisation_id=organisation_id,trapgroup_code=tag)
-    survey.description = description
+    survey = localsession.query(Survey).get(survey_id)
+    # survey = Survey.get_or_create(localsession,name=name,organisation_id=organisation_id,trapgroup_code=tag)
     survey.status = 'Importing'
     survey.images_processing = 0
     survey.processing_initialised = True
 
-    # If permissions have been supplied, we need to set them up here
-    if user_id:
-        setup_new_survey_permissions(survey=survey, organisation_id=organisation_id, user_id=user_id, permission=permission, annotation=annotation, detailed_access=detailed_access)
-    
     localsession.commit()
     sid=survey.id
+    tag = survey.trapgroup_code
     tag = re.compile(tag)
 
     # Handle videos first so that their frames can be imported like normal images
@@ -2379,7 +2373,7 @@ def import_folder(s3Folder, tag, name, sourceBucket,destinationBucket,organisati
                         batch = []
 
             else:
-                app.logger.info('{}: failed to import path {}. No tag found.'.format(name,dirpath))
+                app.logger.info('{}: failed to import path {}. No tag found.'.format(survey_id,dirpath))
 
     if batch_count!=0:
         results.append(importImages.apply_async(kwargs={'batch':batch,'csv':False,'pipeline':pipeline,'external':False,'min_area':min_area, 'remove_gps':any_gps,'label_source':label_source},queue='parallel'))
@@ -2753,7 +2747,7 @@ def updateSurveyDetectionRatings(survey_id):
 
     return True
 
-def classifySurvey(survey_id,sourceBucket,classifier,batch_size=200,processes=4):
+def classifySurvey(survey_id,sourceBucket,classifier=None,batch_size=200,processes=4):
     '''
     Runs the classifier on the survey, and then updates cluster classifications.
 
@@ -3409,38 +3403,25 @@ def correct_timestamps(survey_id,setup_time=31):
 
 
 @celery.task(bind=True,max_retries=5,ignore_result=True)
-def import_survey(self,s3Folder,surveyName,tag,organisation_id,correctTimestamps,classifier,cam_code,description,user_id=None,permission=None,annotation=None,detailed_access=None,preprocess_done=False):
+def import_survey(self,survey_id,preprocess_done=False):
     '''
     Celery task for the importing of surveys. Includes all necessary processes such as animal detection, species classification etc. Handles added images cleanly.
 
         Parameters:
-            s3Folder (str): The folder on the user's AWS S3 bucket where the images much be imported from
-            surveyName (str): The name of the survey
-            tag (str): The trapgroup regular expression code used to identify trapgroups in the folder structure
-            organisation_id (int): The organisation to which the survey will belong
-            correctTimestamps (bool): Whether or not the system should attempt to correct the relative timestamps of the cameras in each trapgroup
-            classifier (str): The name of the classifier model to use
-            cam_code (str): The camera regular expression code used to identify cameras in the folder structure or if None will use bottom level folders as cameras
-            description (str): The survey description
+            survey_id (int): The ID of the survey to be processed
             preprocess_done (bool): Whether or not the survey has already been preprocessed
     '''
     
     try:
-        app.logger.info("Importing survey {}".format(surveyName))
+        app.logger.info("Importing survey {}".format(survey_id))
         processes=4
 
         if not preprocess_done:
-            if (db.session.query(Survey).filter(Survey.name==surveyName).filter(Survey.organisation_id==organisation_id).first()):
-                addingImages = True
-            else:
-                addingImages = False
-
-            organisation = db.session.query(Organisation).get(organisation_id)
-            import_folder(organisation.folder+'/'+s3Folder, tag, surveyName,Config.BUCKET,Config.BUCKET,organisation_id,False,None,[],description,processes,None,user_id,permission,annotation,detailed_access)
+            survey = db.session.query(Survey).get(survey_id)
+            import_folder(survey.organisation.folder+'/'+survey.folder, survey_id,Config.BUCKET,Config.BUCKET,False,None,[],processes)
             
-            survey = db.session.query(Survey).filter(Survey.name==surveyName).filter(Survey.organisation_id==organisation_id).first()
+            survey = db.session.query(Survey).get(survey_id)
             survey_id = survey.id
-            survey.correct_timestamps = correctTimestamps
             survey.image_count = db.session.query(Image).join(Camera).join(Trapgroup).outerjoin(Video).filter(Trapgroup.survey==survey).filter(Video.id==None).distinct().count()
             survey.video_count = db.session.query(Video).join(Camera).join(Trapgroup).filter(Trapgroup.survey==survey).distinct().count()
             survey.frame_count = db.session.query(Image).join(Camera).join(Trapgroup).join(Video).filter(Trapgroup.survey==survey).distinct().count()
@@ -3451,7 +3432,7 @@ def import_survey(self,s3Folder,surveyName,tag,organisation_id,correctTimestamps
             timestamp_check = db.session.query(Image.id).join(Camera).join(Trapgroup).filter(Trapgroup.survey_id==survey_id).filter(Image.corrected_timestamp==None).filter(Image.skipped!=True).first()
             skipCluster = timestamp_check
         else:
-            survey = db.session.query(Survey).filter(Survey.name==surveyName).filter(Survey.organisation_id==organisation_id).first()
+            survey = db.session.query(Survey).get(survey_id)
             survey_id = survey.id
             survey.images_processing = survey.image_count + survey.video_count 
             db.session.commit()
@@ -3475,9 +3456,8 @@ def import_survey(self,s3Folder,surveyName,tag,organisation_id,correctTimestamps
         if not preprocess_done:
             survey = db.session.query(Survey).get(survey_id)
             survey.status='Processing Cameras'
-            survey.camera_code = cam_code
             db.session.commit()
-            processCameras(survey_id,surveyName,tag,cam_code)
+            processCameras(survey_id, survey.trapgroup_code, survey.camera_code)
             survey = db.session.query(Survey).get(survey_id)
 
             survey.status='Removing Static Detections'
@@ -3503,7 +3483,7 @@ def import_survey(self,s3Folder,surveyName,tag,organisation_id,correctTimestamps
 
             survey.status='Classifying'
             db.session.commit()
-            classifySurvey(survey_id=survey_id,sourceBucket=Config.BUCKET,classifier=classifier)
+            classifySurvey(survey_id=survey_id,sourceBucket=Config.BUCKET)
 
             survey = db.session.query(Survey).get(survey_id)
             survey.status='Re-Clustering'
@@ -3525,7 +3505,7 @@ def import_survey(self,s3Folder,surveyName,tag,organisation_id,correctTimestamps
             survey.status = survey_status
             survey.images_processing = 0
             db.session.commit()
-            app.logger.info("Finished importing survey {}. Preprocessing required.".format(surveyName))
+            app.logger.info("Finished importing survey {}. Preprocessing required.".format(survey_id))
         else:
             survey.status='Calculating Scores'
             db.session.commit()
@@ -3538,7 +3518,7 @@ def import_survey(self,s3Folder,surveyName,tag,organisation_id,correctTimestamps
             survey.status = 'Ready'
             survey.images_processing = 0
             db.session.commit()
-            app.logger.info("Finished importing survey {}".format(surveyName))
+            app.logger.info("Finished importing survey {}".format(survey_id))
 
     except Exception as exc:
         app.logger.info(' ')
@@ -3752,7 +3732,7 @@ def pipeline_survey(self,surveyName,bucketName,dataSource,fileAttached,trapgroup
 
         else:
             #import from S3 folder
-            import_folder(dataSource,trapgroupCode,surveyName,sourceBucket,bucketName,organisation_id,True,min_area,exclusions,'',4,label_source)
+            import_folder(dataSource,survey_id,sourceBucket,bucketName,True,min_area,exclusions,4,label_source)
 
         # if labels extracted from metadata, there are already labelled clusters
         if not label_source:
@@ -4287,13 +4267,13 @@ def pipelineLILA2(self,dets_filename,images_filename,survey_name,tgcode_str,sour
 
     return True
 
-def processCameras(survey_id, survey_name, trapgroup_code, camera_code, queue='parallel'):
+def processCameras(survey_id, trapgroup_code, camera_code, queue='parallel'):
     ''' Processes all cameras in a survey without a cameragroup, extracting the camera code from the path and creating a cameragroup for each unique code.'''
     trapgroup_ids = [r[0] for r in db.session.query(Trapgroup.id).filter(Trapgroup.survey_id==survey_id).all()]
 
     results = []
     for trapgroup_id in trapgroup_ids:
-        results.append(group_cameras.apply_async(kwargs={'trapgroup_id':trapgroup_id, 'camera_code': camera_code, 'survey_name': survey_name, 'trapgroup_code': trapgroup_code},queue=queue))
+        results.append(group_cameras.apply_async(kwargs={'trapgroup_id':trapgroup_id, 'camera_code': camera_code, 'trapgroup_code': trapgroup_code},queue=queue))
 
     #Wait for processing to complete
     db.session.remove()
@@ -4328,11 +4308,12 @@ def processCameras(survey_id, survey_name, trapgroup_code, camera_code, queue='p
     return True
 
 @celery.task(bind=True,max_retries=5)
-def group_cameras(self,trapgroup_id,camera_code,survey_name,trapgroup_code):
+def group_cameras(self,trapgroup_id,camera_code,trapgroup_code):
     ''' Groups cameras into cameragroups based on the camera code (Camera identifier or Bottom-level Folder)'''
     try:
         cameras = db.session.query(Camera).filter(Camera.trapgroup_id==trapgroup_id).filter(Camera.cameragroup_id==None).all()
         trapgroup = db.session.query(Trapgroup).get(trapgroup_id)
+        survey_name = trapgroup.survey.name
         camera_name = None
         same_as_site = False
 
@@ -4487,7 +4468,7 @@ def clean_extracted_timestamp(text):
         return text
 
 @celery.task(bind=True,max_retries=5)
-def get_timestamps(self,trapgroup_id,index=None):
+def get_timestamps(self,trapgroup_id,index=None,use_old=False):
     '''Videos have a poorly defined metadata standard. In order to get their timestamps consistently, we need to visually strip them from their frames. This can also be used to extract timestamps from images.'''
 
     try:
@@ -4643,7 +4624,11 @@ def get_timestamps(self,trapgroup_id,index=None):
                     timestamp = parsed_timestamps[video.id]
 
                     if upper_limit >= timestamp >= lower_limit:
-                        fps = get_still_rate(video.fps,video.frame_count)
+                        if use_old:
+                            # TODO: remove this - it's just here for the update pre-processing
+                            fps = get_still_rate_old(video.fps,video.frame_count)
+                        else:
+                            fps = get_still_rate(video.fps,video.frame_count)
                         video_timestamp = timestamp - timedelta(seconds=index/fps)
 
                         frames = db.session.query(Image).join(Camera).join(Video,Camera.videos).filter(Video.id==video.id).distinct().all()
@@ -4681,7 +4666,7 @@ def get_timestamps(self,trapgroup_id,index=None):
 
     return True
 
-def extract_missing_timestamps(survey_id):
+def extract_missing_timestamps(survey_id,use_old=False):
     '''Kicks off all the celery tasks for extracting timestamps from the videos/images in the given survey that doesn't have timestamps.'''
 
     # Process Videos
@@ -4698,7 +4683,7 @@ def extract_missing_timestamps(survey_id):
                                                 .filter(Image.timestamp==None)\
                                                 .distinct().all()]
         for trapgroup_id in trapgroup_ids:
-            get_timestamps(trapgroup_id,index)
+            get_timestamps(trapgroup_id,index,use_old)
         index += 4
 
     app.logger.info('All videos processed for survey {} in {}s after {} iterations'.format(survey_id,time.time()-starttime,(index/3)+1))

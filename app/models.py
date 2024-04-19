@@ -158,6 +158,7 @@ class Survey(db.Model):
     sky_masked = db.Column(db.Boolean, default=False, index=False)
     user_id = db.Column(db.Integer, db.ForeignKey('user.id'))
     correct_timestamps = db.Column(db.Boolean, default=False, index=False)
+    folder = db.Column(db.String(64), index=False)
     trapgroups = db.relationship('Trapgroup', backref='survey', lazy=True)
     tasks = db.relationship('Task', backref='survey', lazy=True)
     classifier_id = db.Column(db.Integer, db.ForeignKey('classifier.id'), index=False)

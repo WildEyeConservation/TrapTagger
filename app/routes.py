@@ -1203,7 +1203,7 @@ def updateSurveyStatus(survey_id, status):
                     db.session.commit()
                     GLOBALS.redisClient.delete('upload_ping_'+str(survey_id))
                     GLOBALS.redisClient.delete('upload_user_'+str(survey_id))
-                    import_survey.delay(s3Folder=survey.name,surveyName=survey.name,tag=survey.trapgroup_code,organisation_id=survey.organisation_id,correctTimestamps=survey.correct_timestamps,classifier=survey.classifier.name,cam_code=survey.camera_code,description=survey.description)
+                    import_survey.delay(survey_id=survey.id)
                 else:
                     return json.dumps('error')
             else:
@@ -1501,22 +1501,30 @@ def createNewSurvey():
                     uploaded_file.save(temp_file.name)
                     GLOBALS.s3client.put_object(Bucket=Config.BUCKET,Key=key,Body=temp_file)
 
+            # Create survey
+            classifier = db.session.query(Classifier).filter(Classifier.name==classifier).first()
+            newSurvey = Survey(name=surveyName, description=newSurveyDescription, trapgroup_code=newSurveyTGCode, organisation_id=organisation_id, status='Uploading', correct_timestamps=correctTimestamps, classifier_id=classifier.id, camera_code=newSurveyCamCode)
+            db.session.add(newSurvey)
+
+            if newSurveyS3Folder=='none':
+                newSurvey.folder=newSurvey.name
+            else:
+                newSurvey.folder=newSurveyS3Folder
+
+            # Add permissions
+            setup_new_survey_permissions(survey=newSurvey, organisation_id=organisation_id, user_id=current_user.id, permission=permission, annotation=annotation, detailed_access=detailed_access)
+
+            db.session.commit()
+
             if newSurveyS3Folder=='none':
                 # Browser upload
-                classifier = db.session.query(Classifier).filter(Classifier.name==classifier).first()
-                newSurvey = Survey(name=surveyName, description=newSurveyDescription, trapgroup_code=newSurveyTGCode, organisation_id=organisation_id, status='Uploading', correct_timestamps=correctTimestamps, classifier_id=classifier.id, camera_code=newSurveyCamCode)
-                db.session.add(newSurvey)
-
-                # Add permissions
-                setup_new_survey_permissions(survey=newSurvey, organisation_id=organisation_id, user_id=current_user.id, permission=permission, annotation=annotation, detailed_access=detailed_access)
-
-                db.session.commit()
                 newSurvey_id = newSurvey.id
 
                 # Checkout the upload
                 checkUploadUser(current_user.id,newSurvey_id)
             else:
-                import_survey.delay(s3Folder=newSurveyS3Folder,surveyName=surveyName,tag=newSurveyTGCode,organisation_id=organisation_id,correctTimestamps=correctTimestamps,classifier=classifier,cam_code=newSurveyCamCode,description=newSurveyDescription,user_id=current_user.id,permission=permission,annotation=annotation,detailed_access=detailed_access)
+                # Bucket upload
+                import_survey.delay(survey_id=newSurvey.id)
     
         return json.dumps({'status': status, 'message': message, 'newSurvey_id': newSurvey_id, 'surveyName':surveyName})
     else:
@@ -1963,6 +1971,12 @@ def editSurvey():
                         newSurveyCamCode = newSurveyCamCode+'[0-9]+'
 
                     survey.trapgroup_code=newSurveyTGCode
+
+                    if newSurveyS3Folder!='none':
+                        survey.folder = newSurveyS3Folder
+                    else:
+                        survey.folder = survey.name
+                    
                     if newSurveyCamCode!='None':
                         survey.camera_code=newSurveyCamCode
                     else:
@@ -1972,7 +1986,7 @@ def editSurvey():
                     db.session.commit()
                     
                     if newSurveyS3Folder!='none':
-                        import_survey.delay(s3Folder=newSurveyS3Folder,surveyName=survey.name,tag=newSurveyTGCode,organisation_id=survey.organisation_id,correctTimestamps=survey.correct_timestamps,classifier=None,cam_code=newSurveyCamCode,description=survey.description)
+                        import_survey.delay(survey_id=survey.id)
                     else:
                         survey.status = 'Uploading'
                         db.session.commit()
@@ -12586,7 +12600,7 @@ def finishStaticDetectionCheck(survey_id):
         if 'preprocessing' in survey.status.lower():
             if survey.status.split(',')[1] in ['N/A', 'Completed', 'Skipped']:	
                 survey.status = 'Processing'
-                import_survey.delay(s3Folder=survey.name,surveyName=survey.name,tag=survey.trapgroup_code,organisation_id=survey.organisation_id,correctTimestamps=survey.correct_timestamps,classifier=survey.classifier.name,cam_code=survey.camera_code,description=survey.description,preprocess_done=True)
+                import_survey.delay(survey_id=survey.id,preprocess_done=True)
             else:
                 survey.status = 'Preprocessing,' + survey.status.split(',')[2] + ',Completed'
             db.session.commit()
@@ -12964,7 +12978,7 @@ def finishTimestampCheck(survey_id):
         if 'preprocessing' in survey.status.lower():
             if survey.status.split(',')[2] in ['N/A', 'Completed', 'Skipped']:	
                 survey.status = 'Processing'
-                import_survey.delay(s3Folder=survey.name,surveyName=survey.name,tag=survey.trapgroup_code,organisation_id=survey.organisation_id,correctTimestamps=survey.correct_timestamps,classifier=survey.classifier.name,cam_code=survey.camera_code,description=survey.description,preprocess_done=True)
+                import_survey.delay(survey_id=survey.id,preprocess_done=True)
             else:
                 survey.status = 'Preprocessing,Completed,' + survey.status.split(',')[2]
             db.session.commit()
@@ -12983,14 +12997,14 @@ def skipPreprocessing(survey_id,step):
             if step == 'timestamp':
                 if statusses[2].lower() in ['completed', 'skipped', 'n/a']:
                     survey.status = 'Processing'
-                    import_survey.delay(s3Folder=survey.name,surveyName=survey.name,tag=survey.trapgroup_code,organisation_id=survey.organisation_id,correctTimestamps=survey.correct_timestamps,classifier=survey.classifier.name,cam_code=survey.camera_code,description=survey.description,preprocess_done=True)
+                    import_survey.delay(survey_id=survey.id,preprocess_done=True)
                 else:
                     survey.status = 'Preprocessing,Skipped,' + statusses[2]
 
             elif step == 'static':
                 if statusses[1].lower() in ['completed', 'skipped', 'n/a']:
                     survey.status = 'Processing'
-                    import_survey.delay(s3Folder=survey.name,surveyName=survey.name,tag=survey.trapgroup_code,organisation_id=survey.organisation_id,correctTimestamps=survey.correct_timestamps,classifier=survey.classifier.name,cam_code=survey.camera_code,description=survey.description,preprocess_done=True)
+                    import_survey.delay(survey_id=survey.id,preprocess_done=True)
                 else:
                     survey.status = 'Preprocessing,' + statusses[1] + ',Skipped'
 
