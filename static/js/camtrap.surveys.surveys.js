@@ -236,7 +236,7 @@ var selectedSurvey = 0;
 var selectedTask = 0;
 var legalLabels = false;
 var legalTags = true; //false
-var globalHotkeysParents = ['v', 'q', 'n', 'u', '-', '0', '*']
+var globalHotkeysParents = ['v', 'q', 'n', 'u', '-', '0']
 var globalDescriptions = ['none', 'vehicles/humans/livestock', 'knocked down', 'wrong', 'nothing', 'unknown', 'skip', 'remove false detections', 'mask area']
 var globalHotkeysChildren = ['9', '0']
 var taskNames = []
@@ -281,7 +281,7 @@ var staticgroup_ids = []
 var staticgroupDetections = {}
 var og_staticgroup_status = {}
 
-var selectedTimestampType = 'camera'
+var selectedTimestampType = 'missing'
 var cameraIDs = []
 var cameraReadAheadIndex = 0
 var imageIndex = 0
@@ -2537,10 +2537,11 @@ function buildEditImageTimestamp() {
     original_extracted_timestamps = {}
     corrected_edited_timestamps = {}
     original_edited_timestamps = {}
-    selectedTimestampType = 'camera'
+    selectedTimestampType = 'missing'
     map = null
     imageIndex = 0
     cameraReadAheadIndex = 0
+    cameraIndex = 0
     images = []
     camera_ids = []
 
@@ -4817,6 +4818,8 @@ function openEditMasks() {
     /** Listens for and initialises the edit masks form on the edit survey modal when the radio button is selected. */
     if (tabActiveEditSurvey=='baseEditMasksTab') {
         removedMasks = []
+        addedMasks = {}
+        editedMasks = {}
         cameraIndex = 0
         imageIndex = 0
         leafletMaskIDs = {}
@@ -5078,6 +5081,7 @@ function getMasks() {
                     updateMaskMap()
                 }
                 updateButtons()
+                preloadImages()
             }
         }
         xhttp.open("GET", '/getSurveyMasks/'+selectedSurvey+'?cameragroup_id='+cameraIDs[cameraReadAheadIndex++]);
@@ -5331,6 +5335,7 @@ function updateMaskMap() {
     }
 
     updateButtons()
+    preloadImages(true)
 }
 
 function updateImageIndex(index) {
@@ -5398,7 +5403,7 @@ function maskEditPrep() {
         });
 
         if (isOverlapping) {
-            document.getElementById('modalAlertText').innerHTML = 'The area you have masked overlaps with another masked area. You can edit the existing mask or delete it and try again.'
+            document.getElementById('modalAlertText').innerHTML = "The masked area you've outlined overlaps with another masked area. A detection will only be considered masked if it is fully within the boundaries of a single mask. It is recommended that you either adjust the existing mask to cover the entire detection area or delete it and create a new one."
             modalAlert.modal({keyboard: true});
             drawnMaskItems.removeLayer(newLayer);
         } else {
@@ -5480,6 +5485,11 @@ function getMaskCameras(){
             reply = JSON.parse(this.responseText);
             cameraIDs = reply
             // console.log(cameraIDs)
+
+            cameras = []
+            removedMasks = []
+            editedMasks = {}
+            addedMasks = {}
 
             if (cameraIDs.length>0) {
                 document.getElementById('btnPrevCamera').hidden = false
@@ -5856,6 +5866,11 @@ function buildViewStatic() {
             staticgroups[staticgroupIndex].staticgroup_status = 'rejected'
         }
     });
+
+    var div = document.createElement('div')
+    div.innerHTML = '* Hold Spacebar to hide detections.'
+    div.setAttribute('style','font-size: 64%; margin-top: 5px')
+    col3.appendChild(div)
     
     var row = document.createElement('div')
     row.classList.add('row')
@@ -6083,6 +6098,7 @@ function getStaticDetections() {
                     updateStaticMap()
                 }
                 updateButtons()
+                preloadImages()
             }
         }
         xhttp.open("GET", '/getStaticDetections/' + selectedSurvey + '/' + 0 + '?staticgroup_id=' + staticgroupIDs[staticgroupReadAheadIndex++] + '&edit=true&cameragroup_id=' + selectedCamera);
@@ -6151,6 +6167,7 @@ function updateStaticMap() {
     }
 
     updateButtons()
+    preloadImages(true)
 
 }
 
@@ -6727,7 +6744,7 @@ function buildStructure(structure_url='/getSurveyStructure') {
                         tdFolder.classList.add('camera-'+survey_structure[i].cameras[j].id);
                         tdFolder.classList.add('site-'+survey_structure[i].id);
                         tdFolder.setAttribute('style', 'text-align:left');
-                        tdFolder.innerHTML = survey_structure[i].cameras[j].folders[k].path;
+                        tdFolder.innerHTML = survey_structure[i].cameras[j].folders[k].path.split('/').slice(1).join('/');
                         tr.appendChild(tdFolder);
 
                         tdFolder.addEventListener('mouseenter', function () {
@@ -7031,12 +7048,12 @@ function buildTimestampsMap(){
         var btn = document.createElement('button');
         btn.setAttribute('class',"btn btn-primary btn-block  btn-sm");
         btn.setAttribute('style',"margin-bottom: 3px; margin-top: 3px;")
-        btn.innerHTML = 'Overwrite (O)';
-        btn.id = 'btnOverwriteTimestamp';
+        btn.innerHTML = 'Clear (C)';
+        btn.id = 'btnClearTimestamp';
         cardBody.appendChild(btn);
 
-        document.getElementById('btnOverwriteTimestamp').addEventListener('click', function(){
-            overwriteTimestamp()
+        document.getElementById('btnClearTimestamp').addEventListener('click', function(){
+            clearTimestamp()
         });
     }
 
@@ -7068,6 +7085,11 @@ function buildTimestampsMap(){
         errorElem.setAttribute('style',"font-size: 80%; color: #DF691A")
         cardBody.appendChild(errorElem);
     });
+
+    var div = document.createElement('div');
+    div.setAttribute('style','font-size: 80%')
+    div.innerHTML = '* Press Spacebar/Enter/Tab to skip a field.'
+    cardBody.appendChild(div);
 
     var yearInput = document.getElementById('year');
     var monthInput = document.getElementById('month');
@@ -7351,7 +7373,8 @@ function getTimestampCameraIDs(){
     xhttp.onreadystatechange =
         function () {
             if (this.readyState == 4 && this.status == 200) {
-                cameraIDs = JSON.parse(this.responseText);
+                reply = JSON.parse(this.responseText);
+                cameraIDs = reply.camera_ids
                 if (cameraIDs.length == 0) {
                     var addImagesImagesDiv = document.getElementById('addImagesImagesDiv')
                     while(addImagesImagesDiv.firstChild){
@@ -7421,6 +7444,7 @@ function getTimestampImages(){
                         updateImageMap()
                     }
                     updateButtons()
+                    preloadImages()
 
                 }
             };
@@ -7436,7 +7460,7 @@ function updateImageMap(){
 
     document.getElementById('year').focus()
 
-    document.getElementById('mapTitle').innerHTML = images[cameraIndex].images[imageIndex].name
+    document.getElementById('mapTitle').innerHTML = images[cameraIndex].images[imageIndex].name.split('/').slice(1).join('/')
     if (map != null) {
         activeImage.setUrl("https://"+bucketName+".s3.amazonaws.com/" + modifyToCompURL(images[cameraIndex].images[imageIndex].url))
     }
@@ -7512,6 +7536,7 @@ function updateImageMap(){
     }
 
     updateButtons()
+    preloadImages(true)
 }
 
 function addTimestamp(){
@@ -7588,7 +7613,7 @@ function noTimestamp(){
     nextTimestamp()
 }
 
-function skipTime(){
+function skipTime(back=false){
     /** Skips the current time unit and moves to the next one. */
     var yearInput = document.getElementById('year');
     var monthInput = document.getElementById('month');
@@ -7600,28 +7625,28 @@ function skipTime(){
 
     if (validTimestamp){
         if (yearInput == document.activeElement){
-            monthInput.focus()
+            back ? yearInput.focus() : monthInput.focus()
             addTimestamp()
         }
         else if (monthInput == document.activeElement){
-            dayInput.focus()
+            back ? yearInput.focus() : dayInput.focus();
             addTimestamp()
         }
         else if (dayInput == document.activeElement){
-            hourInput.focus()
+            back ? monthInput.focus() : hourInput.focus()
             addTimestamp()
         }
         else if (hourInput == document.activeElement){
-            minutesInput.focus()
+            back ? dayInput.focus() : minutesInput.focus()
             addTimestamp()
         }
         else if (minutesInput == document.activeElement){
-            secondsInput.focus()
+            back ? hourInput.focus() : secondsInput.focus()
             addTimestamp()
         }
         else if (secondsInput == document.activeElement){
             addTimestamp()
-            nextTimestamp()
+            back ? minutesInput.focus() : nextTimestamp()
         }
         else{
             yearInput.focus()
@@ -7630,7 +7655,7 @@ function skipTime(){
     }
 }
 
-function overwriteTimestamp(){
+function clearTimestamp(){
     /** Clears the current timestamp so that a new one can be entered. */
     document.getElementById('year').value = ''
     document.getElementById('month').value = ''
@@ -7754,13 +7779,40 @@ modalAddImages.on('keyup', function(event) {
             event.preventDefault()
             noTimestamp()
         }
-        else if (event.key.toLowerCase() == 'o') {
+        else if (event.key.toLowerCase() == 'c') {
             event.preventDefault()
-            overwriteTimestamp()
+            clearTimestamp()
         }
-        else if (event.key.toLowerCase() == ' ') {
+        else if ((event.key.toLowerCase() == ' ')||(event.key.toLowerCase() == 'tab')||(event.key.toLowerCase() == 'enter')) {
             event.preventDefault()
             skipTime()
+        }
+    }
+    else if (tabActiveEditSurvey=='baseStaticTab'){
+        if (event.key.toLowerCase() == ' ') {
+            event.preventDefault()
+            hideDetections(false)
+        }
+    }
+});
+
+modalAddImages.on('keydown', function(event) {
+    /** Event listener for hotkeys on Edit Timestamps. */
+    if (tabActiveEditSurvey=='baseEditImgTimestampsTab' && (document.getElementById('missingTimestamps').checked||document.getElementById('extractedTimestamps').checked||document.getElementById('editedTimestamps').checked)){
+        if (event.key.toLowerCase() == 'tab') {
+            event.preventDefault()
+        }
+        else if (event.key.toLowerCase() == 'backspace') {
+            if (document.activeElement.value == ''){
+                event.preventDefault()
+                skipTime(true)
+            }
+        }
+    }
+    else if (tabActiveEditSurvey=='baseStaticTab'){
+        if (event.key.toLowerCase() == ' ') {
+            event.preventDefault()
+            hideDetections(true)
         }
     }
 });
@@ -7771,5 +7823,59 @@ function nextTimestamp(){
     }
     else if ((cameraIndex < images.length - 1) && imageIndex == images[cameraIndex].images.length - 1){
         document.getElementById('btnNextCamera').click()
+    }
+}
+
+function hideDetections(hide) {
+    /** Hides the detections on the map when hotkey is pressed. */
+    if (hide){
+        addedDetections = false
+        drawnItems.clearLayers()
+    }
+    else{
+        addedDetections = false
+        addDetections()
+    }
+}
+
+
+function preloadImages(imageOnly=false){
+    /** Preloads the images for the structure table. */
+
+    if (tabActiveEditSurvey === 'baseEditMasksTab') {
+
+        if (imageIndex < cameras[cameraIndex].images.length - 1) {
+            im = new Image();
+            im.src = "https://"+bucketName+".s3.amazonaws.com/" + modifyToCompURL(cameras[cameraIndex].images[imageIndex + 1].url)
+        }
+
+        if (cameraIndex<cameras.length-1 && !imageOnly){
+            im = new Image();
+            im.src = "https://"+bucketName+".s3.amazonaws.com/" + modifyToCompURL(cameras[cameraIndex+1].images[0].url)
+        }
+        
+    } else if (tabActiveEditSurvey === 'baseStaticTab') {
+
+        if (imageIndex < staticgroups[staticgroupIndex].images.length - 1) {
+            im = new Image();
+            im.src = "https://"+bucketName+".s3.amazonaws.com/" + modifyToCompURL(staticgroups[staticgroupIndex].images[imageIndex + 1].url)
+        }
+
+        if (staticgroupIndex<staticgroups.length-1 && !imageOnly){
+            im = new Image();
+            im.src = "https://"+bucketName+".s3.amazonaws.com/" + modifyToCompURL(staticgroups[staticgroupIndex+1].images[0].url)
+        }
+
+    } else if (tabActiveEditSurvey === 'baseEditImgTimestampsTab') {
+
+        if (imageIndex < images[cameraIndex].images.length - 1) {
+            im = new Image();
+            im.src = "https://"+bucketName+".s3.amazonaws.com/" + modifyToCompURL(images[cameraIndex].images[imageIndex + 1].url)
+        }
+
+        if (cameraIndex<images.length-1 && !imageOnly){
+            im = new Image();
+            im.src = "https://"+bucketName+".s3.amazonaws.com/" + modifyToCompURL(images[cameraIndex+1].images[0].url)
+        }
     }
 }

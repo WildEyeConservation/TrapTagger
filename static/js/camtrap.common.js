@@ -198,7 +198,7 @@ function checkImage(url){
 function preload(mapID = 'map1') {
     /** Pre-loads the next three first-images of the next clusters. */
     if (bucketName!=null) {
-        if (isKnockdown) {
+        if (isKnockdown||isTimestampCheck) {
             if (clusters[mapID][clusterIndex[mapID]].images.length > 1) {
                 for (let i=0;i<clusters[mapID][clusterIndex[mapID]].images.length;i++) {
                     if ((clusters[mapID][clusterIndex[mapID]].id != '-99')&&(clusters[mapID][clusterIndex[mapID]].id != '-101')&&(clusters[mapID][clusterIndex[mapID]].id != '-782')) {
@@ -214,6 +214,14 @@ function preload(mapID = 'map1') {
                         if (clusters[mapID][clusterIndex[mapID] + i].required.length==0) {
                             im = new Image();
                             im.src = "https://"+bucketName+".s3.amazonaws.com/" + modifyToCompURL(clusters[mapID][clusterIndex[mapID] + i].images[0].url)
+                            if (isStaticCheck) {
+                                for (let j=1;j<4;j++) {
+                                    if (clusters[mapID][clusterIndex[mapID] + i].images.length > j) {
+                                        im = new Image();
+                                        im.src = "https://"+bucketName+".s3.amazonaws.com/" + modifyToCompURL(clusters[mapID][clusterIndex[mapID] + i].images[j].url)
+                                    }
+                                }
+                            }
                         } else {
                             for (let requiredIndex=0;requiredIndex<clusters[mapID][clusterIndex[mapID] + i].required.length;requiredIndex++) {
                                 im = new Image();
@@ -1289,13 +1297,46 @@ function updateDebugInfo(mapID = 'map1',updateLabels = true) {
     }
 
     if (isTimestampCheck) {
-        document.getElementById('debugImage').innerHTML = clusters[mapID][clusterIndex[mapID]].images[imageIndex[mapID]].name 
+        document.getElementById('debugImage').innerHTML = clusters[mapID][clusterIndex[mapID]].images[imageIndex[mapID]].name.split('/').slice(1).join('/');
         yearInput.value = ''
         monthInput.value = ''
         dayInput.value = ''
         hourInput.value = ''
         minutesInput.value = ''
         secondsInput.value = ''
+        document.getElementById('btnClearTimestamp').hidden = true
+        if (clusters[mapID][clusterIndex[mapID]].images[imageIndex[mapID]].extracted_data != '') {
+            extracted_data = clusters[mapID][clusterIndex[mapID]].images[imageIndex[mapID]].extracted_data.split(',')
+            for (let i=0;i<extracted_data.length;i++) {
+                switch (i){
+                    case 0:
+                        yearInput.value = parseInt(extracted_data[i])
+                        monthInput.focus()
+                        break
+                    case 1:
+                        monthInput.value = parseInt(extracted_data[i])
+                        dayInput.focus()
+                        break
+                    case 2:
+                        dayInput.value = parseInt(extracted_data[i])
+                        hourInput.focus()
+                        break
+                    case 3:
+                        hourInput.value = parseInt(extracted_data[i])
+                        minutesInput.focus()
+                        break
+                    case 4:
+                        minutesInput.value = parseInt(extracted_data[i])
+                        secondsInput.focus()
+                        break
+                    case 5:
+                        secondsInput.value = parseInt(extracted_data[i])
+                        secondsInput.focus()
+                        break
+                }
+            }
+            document.getElementById('btnClearTimestamp').hidden = false
+        }
     }
 }
 
@@ -1700,6 +1741,7 @@ function assignLabel(label,mapID = 'map1'){
                             initKeys(globalKeys['-1'])
                         }
                     } else {
+                        wrongStatus = false
                         classification = clusters[mapID][clusterIndex[mapID]].classification.shift()
     
                         if (classification != undefined) {
@@ -2088,6 +2130,10 @@ function updateProgBar(prog) {
         prog_bar.setAttribute('style',"width:"+perc+"%")
         if (isIDing && (document.getElementById('btnSendToBack')==null)) {
             document.getElementById('progressText').innerHTML = prog[0] + " of "+prog[1] + " suggestions for the current individual."
+        } else if (isTimestampCheck){
+            document.getElementById('progressText').innerHTML = prog[0] + " of "+prog[1] + " timestamps completed."
+        } else if (isStaticCheck){
+            document.getElementById('progressText').innerHTML = prog[0] + " of "+prog[1] + " static detection groups completed."
         } else {
             document.getElementById('progressText').innerHTML = prog[0] + " of "+prog[1] + " clusters completed."
         }
@@ -3064,15 +3110,15 @@ function initKeys(res){
                 if (i < 10) {
                     newbtn.classList.add('btn-danger');
                     newbtn.innerHTML = labelName + ' (' + String.fromCharCode(parseInt(i)+48) + ')';
-                } else if (i == labs.length-2 && labelName == 'Remove False Detections') {
-                    newbtn.classList.add('btn-danger');
-                    newbtn.innerHTML = labelName + ' (-)';
+                // } else if (i == labs.length-2 && labelName == 'Remove False Detections') {
+                //     newbtn.classList.add('btn-danger');
+                //     newbtn.innerHTML = labelName + ' (-)';
                 } else if (i == labs.length-3) {
                     newbtn.classList.add('btn-danger');
                     newbtn.innerHTML = labelName + ' (Space)';
                 } else if (i == labs.length-1 && labelName == 'Mask Area') {
                     newbtn.classList.add('btn-danger');
-                    newbtn.innerHTML = labelName + ' (*)';
+                    newbtn.innerHTML = labelName + ' (-)';
                 } else {
                     newbtn.classList.add('btn-danger');
                     newbtn.innerHTML = labelName + ' (' + String.fromCharCode(parseInt(i)+55) + ')';
@@ -3114,15 +3160,15 @@ function initKeys(res){
                     if (i < 10) {
                         newbtn.classList.add('btn-primary');
                         newbtn.innerHTML = labelName + ' (' + String.fromCharCode(parseInt(i)+48) + ')';
-                    } else if (i == labs.length-2 && labelName == 'Remove False Detections') {
-                        newbtn.classList.add('btn-info');
-                        newbtn.innerHTML = labelName + ' (-)';
+                    // } else if (i == labs.length-2 && labelName == 'Remove False Detections') {
+                    //     newbtn.classList.add('btn-info');
+                    //     newbtn.innerHTML = labelName + ' (-)';
                     } else if (i == labs.length-3) {
                         newbtn.classList.add('btn-info');
                         newbtn.innerHTML = labelName + ' (Space)';
                     } else if (i == labs.length-1 && labelName == 'Mask Area') {
                         newbtn.classList.add('btn-info');
-                        newbtn.innerHTML = labelName + ' (*)';
+                        newbtn.innerHTML = labelName + ' (-)';
                     } else {
                         newbtn.classList.add('btn-info');
                         newbtn.innerHTML = labelName + ' (' + String.fromCharCode(parseInt(i)+55) + ')';
@@ -3299,10 +3345,10 @@ document.onkeyup = function(event){
                 case (' '):assignLabel(hotkeys[36])
                     break;
 
-                case ('-'):assignLabel(hotkeys[37])
-                    break;
+                // case ('-'):assignLabel(hotkeys[37]) //RFD
+                //     break;
 
-                case ('*'):assignLabel(hotkeys[38])
+                case ('-'):assignLabel(hotkeys[38])  //Mask Area
                     break;
 
                 case 'control': activateMultiple()
@@ -3384,12 +3430,20 @@ document.onkeyup = function(event){
                 break;
             case ('r'):handleStatic(0)
                 break;
+            case (' '): hideDetections(false)
+                break;
+            case 'arrowright': nextImage()
+                break;
+            case 'arrowleft': prevImage()
+                break;
         }
     } else if (isTimestampCheck) {
         switch (event.key.toLowerCase()){
             case ('n'):submitTimestamp(true)
                 break;
-            case (' '):skipTimeUnit()
+            case ('enter'): skipTimeUnit()
+                break;
+            case (' '): skipTimeUnit()
                 break;
             case ('s'): skipCamera() 
                 break;
@@ -3397,6 +3451,10 @@ document.onkeyup = function(event){
                 break;
             case '`': undoTimestamp()
                 break;
+            case ('c'): if (document.getElementById('btnClearTimestamp').hidden == false){
+                clearInputs()
+                break;
+            }
         }
     } else {
         switch (event.key.toLowerCase()){
@@ -3407,6 +3465,31 @@ document.onkeyup = function(event){
         }
     }
 }
+
+document.onkeydown = function(event){
+    /** Sets up the hotkeys. */
+    if (isTimestampCheck) {
+        if (event.key.toLowerCase() == 'tab') {
+            // Prevent default for tab has to be done on keydown
+            event.preventDefault()
+            skipTimeUnit()
+        }
+        else if (event.key.toLowerCase() == 'backspace') {
+            // Only want to do this if the input is empty and the user is trying to go back (not after they've just deleted a character)
+            if (document.activeElement.value == ''){
+                event.preventDefault()
+                skipTimeUnit(true)
+            }
+        }
+    }
+    else if(isStaticCheck){
+        if (event.key.toLowerCase() == ' ') {
+            event.preventDefault()
+            hideDetections(true)
+        }
+    }
+}
+
 
 document.onclick = function (event){
     /** Closes the context menu on click when editing the bounding boxes, or whilst doing individual ID. */

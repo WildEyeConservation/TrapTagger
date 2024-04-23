@@ -24,6 +24,8 @@ isTimestampCheck = false
 var clusterIdList = []
 var staticgroupIDs = []
 var staticgroupReadAheadIndex = 0
+var total_staticgroups = 0
+var completed_staticgroups = 0
 
 const divSelector = document.querySelector('#divSelector');
 
@@ -111,7 +113,7 @@ function loadNewCluster(mapID = 'map1') {
 
 function handleStatic(staticCheck, mapID = 'map1') {
     /** Handles the user input of static or not - loading the next image with detection accordingly. */
-    if (!modalWait2.is(':visible')) {
+    if (!modalActive && !modalActive2 && finishedDisplaying[mapID]) {
         if (staticCheck==1) {
             static_status = 'accept_static'
         } else {
@@ -138,6 +140,8 @@ function handleStatic(staticCheck, mapID = 'map1') {
         xhttp.open("POST", '/assignStatic');
         xhttp.send(formData);
 
+        completed_staticgroups += 1
+        updateProgBar([completed_staticgroups, total_staticgroups])
         nextCluster(mapID)
     }
 }
@@ -153,6 +157,8 @@ function getStaticGroupIDs(mapID = 'map1'){
                 clusterIndex[mapID] = 0
                 imageIndex[mapID] = 0
                 staticgroupIDs = JSON.parse(this.responseText);
+                total_staticgroups = staticgroupIDs.length
+                completed_staticgroups = 0
 
                 if (staticgroupIDs.length == 0) {
                     window.location.replace("surveys")
@@ -161,6 +167,7 @@ function getStaticGroupIDs(mapID = 'map1'){
                     finishStaticDetectionCheck()
                 }
                 else{
+                    updateProgBar([completed_staticgroups, total_staticgroups])
                     for (let i=0;i<3;i++){
                         loadNewCluster()
                     }
@@ -171,7 +178,14 @@ function getStaticGroupIDs(mapID = 'map1'){
     xhttp.send();
 }
 
-window.addEventListener('load', onload, false);
+function undoStatic(mapID = 'map1') {
+    /** Goes back to the previous cluster. */
+    if (clusterIndex[mapID]>0 && finishedDisplaying[mapID] && !modalActive && !modalActive2) {
+        completed_staticgroups -= 1
+        updateProgBar([completed_staticgroups, total_staticgroups])
+        prevCluster()
+    }
+}
 
 btnDone.addEventListener('click', () => {
     /** Wraps up the user's session when they click the done button. */
@@ -190,3 +204,32 @@ function finishStaticDetectionCheck() {
     xhttp.open("GET", '/finishStaticDetectionCheck/' + selectedSurvey);
     xhttp.send();
 }
+
+function saveProgress() {
+    /** Wraps up tha static detection check. */
+    var xhttp = new XMLHttpRequest();
+    xhttp.onreadystatechange =
+        function () {
+            if (this.readyState == 4 && this.status == 200) {
+                window.location.replace("surveys")
+            }
+        };
+    xhttp.open("GET", '/finishStaticDetectionCheck/' + selectedSurvey + '?save=true');
+    xhttp.send();
+}
+
+function hideDetections(hide,mapID='map1') {
+    /** Hides the detections on the map when hotkey is pressed. */
+    if (finishedDisplaying[mapID] && !modalActive && !modalActive2){
+        if (hide){
+            addedDetections[mapID] = false
+            drawnItems[mapID].clearLayers()
+        }
+        else{
+            addedDetections[mapID] = false
+            addDetections(mapID)
+        }
+    }
+}
+
+window.addEventListener('load', onload, false);

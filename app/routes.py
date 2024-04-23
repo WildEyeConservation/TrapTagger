@@ -12625,14 +12625,19 @@ def getStaticGroupIDs(survey_id):
 def finishStaticDetectionCheck(survey_id):
     ''' Finishes the static detection check for a survey '''
     survey = db.session.query(Survey).get(survey_id)
+    save = request.args.get('save', None)
     if survey and checkSurveyPermission(current_user.id,survey.id,'write'):
         if 'preprocessing' in survey.status.lower():
-            if survey.status.split(',')[1] in ['N/A', 'Completed', 'Skipped']:	
-                survey.status = 'Processing'
-                import_survey.delay(survey_id=survey.id,preprocess_done=True)
+            if save:
+                survey.status = 'Preprocessing,' + survey.status.split(',')[1] + ',Available'
             else:
-                survey.status = 'Preprocessing,' + survey.status.split(',')[2] + ',Completed'
+                if survey.status.split(',')[1] in ['N/A', 'Completed', 'Skipped']:	
+                    survey.status = 'Processing'
+                    import_survey.delay(survey_id=survey.id,preprocess_done=True)
+                else:
+                    survey.status = 'Preprocessing,' + survey.status.split(',')[2] + ',Completed'
             db.session.commit()
+        GLOBALS.redisClient.delete('static_check_ping_'+str(survey_id))
 
     return json.dumps('success')
 
@@ -12831,6 +12836,7 @@ def checkTimestamps():
 def getTimestampCameraIDs(survey_id):
     '''Gets the camera IDs for the specified survey whose images require timestamps correction.''' 
     camera_ids = []
+    total_image_count = 0
     survey = db.session.query(Survey).get(survey_id)
     check_type = request.args.get('type', None)
     if survey and checkSurveyPermission(current_user.id,survey.id,'write'):
@@ -12854,13 +12860,21 @@ def getTimestampCameraIDs(survey_id):
                             ))
         else:
             cameras = cameras.filter(Image.corrected_timestamp==None).filter(Image.skipped!=True)
+            total_image_count = db.session.query(Image.id)\
+                                            .join(Camera)\
+                                            .join(Trapgroup)\
+                                            .filter(Trapgroup.survey_id==survey_id)\
+                                            .filter(or_(Image.filename=='frame0.jpg', ~Image.filename.like('frame%')))\
+                                            .filter(Image.corrected_timestamp==None)\
+                                            .filter(Image.skipped!=True)\
+                                            .distinct().count()
 
         camera_ids = [r[0] for r in cameras.distinct().all()]
 
         if len(camera_ids) == 0 and 'preprocessing' in survey.status.lower():
             camera_ids = ['-101']
 
-    return json.dumps(camera_ids)
+    return json.dumps({'camera_ids': camera_ids, 'total_image_count': total_image_count})
 
 @app.route('/getTimestampImages/<survey_id>/<reqID>')
 @login_required
@@ -12878,7 +12892,7 @@ def getTimestampImages(survey_id, reqID):
             survey.status = 'Preprocessing,In Progress,' + survey.status.split(',')[2]
             db.session.commit()
 
-        image_data = db.session.query(Image.id, Image.filename, Image.corrected_timestamp, Video.filename, Cameragroup.id, Camera.path, )\
+        image_data = db.session.query(Image.id, Image.filename, Image.corrected_timestamp, Video.filename, Cameragroup.id, Camera.path, Image.extracted_data)\
                                 .join(Camera, Camera.id==Image.camera_id)\
                                 .join(Cameragroup, Cameragroup.id==Camera.cameragroup_id)\
                                 .join(Trapgroup)\
@@ -12929,7 +12943,8 @@ def getTimestampImages(survey_id, reqID):
                 'detections': [],
                 'url': (d[5]+'/'+d[1]).replace('+','%2B').replace('?','%3F').replace('#','%23'),
                 'timestamp': d[2].strftime('%Y-%m-%d %H:%M:%S') if d[2] else None,
-                'name': d[5].split('/_video_images_/')[0]+'/'+d[3] if d[3] else d[5]+'/'+d[1]
+                'name': d[5].split('/_video_images_/')[0]+'/'+d[3] if d[3] else d[5]+'/'+d[1],
+                'extracted_data': d[6]
             })
 
     return json.dumps({'images': images, 'id': reqID})
@@ -13003,13 +13018,17 @@ def submitTimestamp():
 def finishTimestampCheck(survey_id):
     '''Finishes the timestamp check for the specified survey.'''
     survey = db.session.query(Survey).get(survey_id)
+    save = request.args.get('save', None)
     if survey and checkSurveyPermission(current_user.id,survey.id,'write'):
         if 'preprocessing' in survey.status.lower():
-            if survey.status.split(',')[2] in ['N/A', 'Completed', 'Skipped']:	
-                survey.status = 'Processing'
-                import_survey.delay(survey_id=survey.id,preprocess_done=True)
+            if save:
+                survey.status = 'Preprocessing,Available,' + survey.status.split(',')[2]
             else:
-                survey.status = 'Preprocessing,Completed,' + survey.status.split(',')[2]
+                if survey.status.split(',')[2] in ['N/A', 'Completed', 'Skipped']:	
+                    survey.status = 'Processing'
+                    import_survey.delay(survey_id=survey.id,preprocess_done=True)
+                else:
+                    survey.status = 'Preprocessing,Completed,' + survey.status.split(',')[2]
             db.session.commit()
         GLOBALS.redisClient.delete('timestamp_check_ping_'+str(survey_id))
         
@@ -13045,12 +13064,9 @@ def skipPreprocessing(survey_id,step):
 def skipTimestampCamera(survey_id,cameragroup_id):
     '''Marks all images with no timestamps for the specified camera as skipped.'''
     survey = db.session.query(Survey).get(survey_id)
-    undo = request.args.get('undo', None)
     if survey and checkSurveyPermission(current_user.id,survey.id,'write'):
         if 'preprocessing' in survey.status.lower():
-            skip = False if undo else True
-            if Config.DEBUGGING: app.logger.info('Mark simages.skipped {} for cameragroup {}'.format(skip,cameragroup_id))
-            skipCameraImages.delay(cameragroup_id,skip)
+            skipCameraImages.delay(cameragroup_id)
 
     return json.dumps('success')
 

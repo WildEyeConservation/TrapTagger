@@ -20,6 +20,8 @@ isIDing = false
 isStaticCheck = false
 isTimestampCheck = true
 
+var total_timestamps = 0
+var completed_timestamps = 0
 var clusterIdList = [];
 var currentYear = new Date().getFullYear();
 
@@ -106,7 +108,10 @@ function getCameraIDs(mapID = 'map1'){
                 cameraReadAheadIndex = 0
                 clusterIndex[mapID] = 0
                 imageIndex[mapID] = 0
-                cameraIDs = JSON.parse(this.responseText);
+                reply = JSON.parse(this.responseText);
+                cameraIDs = reply.camera_ids
+                total_timestamps = reply.total_image_count
+                completed_timestamps = 0
 
                 if (cameraIDs.length == 0) {
                     window.location.replace("surveys")
@@ -115,6 +120,7 @@ function getCameraIDs(mapID = 'map1'){
                     finishTimestampCheck()
                 }
                 else{
+                    updateProgBar([completed_timestamps,total_timestamps])
                     for (let i=0;i<3;i++){
                         loadNewCluster()
                     }
@@ -127,6 +133,10 @@ function getCameraIDs(mapID = 'map1'){
 
 function submitTimestamp(no_time = false, mapID = 'map1') {
     /** Submits the timestamps to the server. */
+
+    if (modalCameraNoTimestamp.is(':visible')){
+        modalCameraNoTimestamp.modal('hide')
+    }
 
     var year = yearInput.value
     var month = monthInput.value
@@ -168,7 +178,7 @@ function submitTimestamp(no_time = false, mapID = 'map1') {
 
     }
 
-    if (validTimestamp){
+    if (validTimestamp && finishedDisplaying[mapID] && !modalActive2 && !modalActive){
         var formData = new FormData();
         formData.append('image_id', JSON.stringify(clusters[mapID][clusterIndex[mapID]].images[imageIndex[mapID]].id));
         formData.append('survey_id', JSON.stringify(selectedSurvey));
@@ -251,35 +261,24 @@ function submitTimestamp(no_time = false, mapID = 'map1') {
         document.getElementById('errorMinutes').innerHTML = ''
         document.getElementById('errorSeconds').innerHTML = ''
 
-
+        completed_timestamps += 1
+        updateProgBar([completed_timestamps,total_timestamps])
         if (imageIndex[mapID] < clusters[mapID][clusterIndex[mapID]].images.length-1){
             nextImage(mapID)
         } else {
             nextCluster(mapID)
         }
+        prevClusterBtn.disabled = false
 
     } 
 }
 
 function undoTimestamp(mapID = 'map1') {
     /** Goes back to the previous cluster. */
-    clearInputs()
-
-    if ((clusterIndex[mapID] > 0) && (clusters[mapID][clusterIndex[mapID]-1].skipped)){
-        cameragroup_id = clusters[mapID][clusterIndex[mapID]-1].id
-        var xhttp = new XMLHttpRequest();
-        xhttp.onreadystatechange =
-            function () {
-                if (this.readyState == 4 && this.status == 200) {
-                    // console.log(this.responseText)
-                }
-            };
-        xhttp.open("GET", '/skipTimestampCamera/' + selectedSurvey + '/' + cameragroup_id + '?undo=true');
-        xhttp.send();
-
-        clusters[mapID][clusterIndex[mapID]-1].skipped = false
-        prevCluster(mapID)
-    } else {
+    if (((clusterIndex[mapID] > 0) || (imageIndex[mapID] > 0)) && finishedDisplaying[mapID] && !modalActive2 && !modalActive){
+        clearInputs()
+        completed_timestamps -= 1
+        updateProgBar([completed_timestamps,total_timestamps])
         if (imageIndex[mapID] > 0){
             prevImage(mapID)
         } else {
@@ -305,26 +304,26 @@ function clearInputs(){
     document.getElementById('errorSeconds').innerHTML = ''
 }
 
-function skipTimeUnit(){
+function skipTimeUnit(back = false){
     /** SKips the current time unit  */
 
     if (yearInput == document.activeElement){
-        monthInput.focus()
+        back ? yearInput.focus() : monthInput.focus()
     }
     else if (monthInput == document.activeElement){
-        dayInput.focus()
+        back ? yearInput.focus() : dayInput.focus()
     }
     else if (dayInput == document.activeElement){
-        hourInput.focus()
+        back ? monthInput.focus() : hourInput.focus()
     }
     else if (hourInput == document.activeElement){
-        minutesInput.focus()
+        back ? dayInput.focus() : minutesInput.focus()
     }
     else if (minutesInput == document.activeElement){
-        secondsInput.focus()
+        back ? hourInput.focus() : secondsInput.focus()
     }
     else if (secondsInput == document.activeElement){
-        submitTimestamp()
+        back ? minutesInput.focus() : submitTimestamp()
     }
     else{
         yearInput.focus()
@@ -334,27 +333,40 @@ function skipTimeUnit(){
 
 function skipCamera(mapID = 'map1'){
     /** Skips the current camera. */
+    if(finishedDisplaying[mapID] && !modalActive2 && !modalActive){
+        if (modalCameraNoTimestamp.is(':visible')){
+            cameragroup_id = clusters[mapID][clusterIndex[mapID]].id
+            var xhttp = new XMLHttpRequest();
+            xhttp.onreadystatechange =
+                function () {
+                    if (this.readyState == 4 && this.status == 200) {
+                        // console.log(this.responseText)
+                    }
+                };
+            xhttp.open("GET", '/skipTimestampCamera/' + selectedSurvey + '/' + cameragroup_id);
+            xhttp.send();
 
-    if (modalCameraNoTimestamp.is(':visible')){
-        cameragroup_id = clusters[mapID][clusterIndex[mapID]].id
-        var xhttp = new XMLHttpRequest();
-        xhttp.onreadystatechange =
-            function () {
-                if (this.readyState == 4 && this.status == 200) {
-                    // console.log(this.responseText)
-                }
-            };
-        xhttp.open("GET", '/skipTimestampCamera/' + selectedSurvey + '/' + cameragroup_id);
-        xhttp.send();
+            modalCameraNoTimestamp.modal('hide')
 
-        modalCameraNoTimestamp.modal('hide')
-        clusters[mapID][clusterIndex[mapID]].skipped = true
-        nextCluster(mapID)
+            image_count = clusters[mapID][clusterIndex[mapID]].images.length
+            completed_timestamps += image_count - imageIndex[mapID]
+            updateProgBar([completed_timestamps,total_timestamps])
+            clusters[mapID].splice(clusterIndex[mapID], 1)
+            cameraIDs.splice(cameraIDs.indexOf(cameragroup_id), 1)
+            if (cameraIDs.length == 0){
+                finishTimestampCheck()
+            }
+            else{
+                cameraReadAheadIndex--
+                clusterIndex[mapID]--
+                prevClusterBtn.disabled = true
+                nextCluster(mapID)
+            }
+        }
+        else {
+            modalCameraNoTimestamp.modal({keyboard: true})
+        }
     }
-    else {
-        modalCameraNoTimestamp.modal({keyboard: true})
-    }
-
 }
 
 
@@ -521,6 +533,20 @@ function finishTimestampCheck(){
             }
         };
     xhttp.open("GET", '/finishTimestampCheck/' + selectedSurvey);
+    xhttp.send();
+}
+
+function saveProgress(){
+    /** Saves the user's progress. */
+    var xhttp = new XMLHttpRequest();
+    xhttp.onreadystatechange =
+        function () {
+            if (this.readyState == 4 && this.status == 200) {
+                // console.log(this.responseText)
+                window.location.replace("surveys")
+            }
+        };
+    xhttp.open("GET", '/finishTimestampCheck/' + selectedSurvey + '?save=true');
     xhttp.send();
 }
 
