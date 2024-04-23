@@ -1741,6 +1741,7 @@ function assignLabel(label,mapID = 'map1'){
                             initKeys(globalKeys['-1'])
                         }
                     } else {
+                        wrongStatus = false
                         classification = clusters[mapID][clusterIndex[mapID]].classification.shift()
     
                         if (classification != undefined) {
