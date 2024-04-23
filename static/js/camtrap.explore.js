@@ -217,7 +217,7 @@ function getClusterIDs(mapID = 'map1'){
                 }
             }
         };
-    xhttp.open("POST", '/getClustersBySpecies/'+selectedTask+'/'+currentLabel+'/'+currentTag+'/'+currentSite+'/'+currentAnnotator+'&reqId='+newID);
+    xhttp.open("POST", '/getClustersBySpecies/'+selectedTask+'/'+currentLabel+'/'+currentTag+'/'+currentSite+'/'+currentAnnotator+'?reqId='+newID);
     xhttp.send(formData);
 }
 
@@ -259,7 +259,7 @@ function searchNotes(mapID='map1'){
                 }
             }
         };
-    xhttp.open("POST", '/getClustersBySpecies/'+selectedTask+'/'+currentLabel+'/'+currentTag+'/'+currentSite+'/'+currentAnnotator+'&reqId='+newID);
+    xhttp.open("POST", '/getClustersBySpecies/'+selectedTask+'/'+currentLabel+'/'+currentTag+'/'+currentSite+'/'+currentAnnotator+'?reqId='+newID);
     xhttp.send(formData);
 }
 
