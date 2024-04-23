@@ -531,7 +531,7 @@ function taggingMapPrep(mapID = 'map1') {
         });
 
         if (isOverlapping) {
-            document.getElementById('modalAlertText').innerHTML = 'The area you have masked overlaps with another masked area. You can edit the existing mask or delete it and try again.'
+            document.getElementById('modalAlertText').innerHTML = "The masked area you've outlined overlaps with another masked area. A detection will only be considered masked if it is fully within the boundaries of a single mask. It is recommended that you either adjust the existing mask to cover the entire detection area or delete it and create a new one."
             modalAlert.modal({keyboard: true});
             drawnMaskItems[mapID].removeLayer(newLayer);
         } else {

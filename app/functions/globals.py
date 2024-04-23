@@ -3294,6 +3294,13 @@ def mask_area(self, cluster_id, task_id, masks, user_id):
                         db.session.add(new_mask)
 
             # Mask detections
+            polygon = func.ST_GeomFromText(func.concat('POLYGON((',
+                                      Detection.left, ' ', Detection.top, ', ',
+                                      Detection.left, ' ', Detection.bottom, ', ',
+                                      Detection.right, ' ', Detection.bottom, ', ',
+                                      Detection.right, ' ', Detection.top, ', ',
+                                      Detection.left, ' ', Detection.top, '))'), 32734)
+
             detections = db.session.query(Detection)\
                                     .join(Image)\
                                     .join(Camera)\
@@ -3303,12 +3310,7 @@ def mask_area(self, cluster_id, task_id, masks, user_id):
                                     .filter(or_(and_(Detection.source==model,Detection.score>Config.DETECTOR_THRESHOLDS[model]) for model in Config.DETECTOR_THRESHOLDS))\
                                     .filter(~Detection.status.in_(Config.DET_IGNORE_STATUSES))\
                                     .filter(Detection.source!='user')\
-                                    .filter(and_(
-                                        func.ST_Intersects(func.ST_GeomFromText(func.concat('POINT(', Detection.left, ' ', Detection.top, ')'), 32734), Mask.shape),
-                                        func.ST_Intersects(func.ST_GeomFromText(func.concat('POINT(', Detection.left, ' ', Detection.bottom, ')'), 32734), Mask.shape),
-                                        func.ST_Intersects(func.ST_GeomFromText(func.concat('POINT(', Detection.right,' ', Detection.bottom, ')'), 32734), Mask.shape),
-                                        func.ST_Intersects(func.ST_GeomFromText(func.concat('POINT(', Detection.right,' ', Detection.top,  ')'), 32734), Mask.shape),
-                                    ))\
+                                    .filter(func.ST_Contains(Mask.shape, polygon))\
                                     .distinct().all()
 
             images = []
@@ -3397,7 +3399,14 @@ def update_masks(self,survey_id,removed_masks,added_masks,edited_masks,user_id):
 
 
         # Mask detections
-        detections = db.session.query(Detection)\
+        polygon = func.ST_GeomFromText(func.concat('POLYGON((',
+                            Detection.left, ' ', Detection.top, ', ',
+                            Detection.left, ' ', Detection.bottom, ', ',
+                            Detection.right, ' ', Detection.bottom, ', ',
+                            Detection.right, ' ', Detection.top, ', ',
+                            Detection.left, ' ', Detection.top, '))'), 32734)
+
+        mask_query = db.session.query(Detection)\
                                 .join(Image)\
                                 .join(Camera)\
                                 .join(Cameragroup)\
@@ -3405,15 +3414,10 @@ def update_masks(self,survey_id,removed_masks,added_masks,edited_masks,user_id):
                                 .join(Mask)\
                                 .filter(Trapgroup.survey_id==survey_id)\
                                 .filter(or_(and_(Detection.source==model,Detection.score>Config.DETECTOR_THRESHOLDS[model]) for model in Config.DETECTOR_THRESHOLDS))\
-                                .filter(~Detection.status.in_(Config.DET_IGNORE_STATUSES))\
                                 .filter(Detection.source!='user')\
-                                .filter(and_(
-                                    func.ST_Intersects(func.ST_GeomFromText(func.concat('POINT(', Detection.left, ' ', Detection.top, ')'), 32734), Mask.shape),
-                                    func.ST_Intersects(func.ST_GeomFromText(func.concat('POINT(', Detection.left, ' ', Detection.bottom, ')'), 32734), Mask.shape),
-                                    func.ST_Intersects(func.ST_GeomFromText(func.concat('POINT(', Detection.right,' ', Detection.bottom, ')'), 32734), Mask.shape),
-                                    func.ST_Intersects(func.ST_GeomFromText(func.concat('POINT(', Detection.right,' ', Detection.top,  ')'), 32734), Mask.shape),
-                                ))\
-                                .distinct().all()
+                                .filter(func.ST_Contains(Mask.shape, polygon))
+
+        detections = mask_query.filter(~Detection.status.in_(Config.DET_IGNORE_STATUSES)).distinct().all()
         
         images = []
         for detection in detections:
@@ -3422,23 +3426,7 @@ def update_masks(self,survey_id,removed_masks,added_masks,edited_masks,user_id):
 
 
         # Unmask detections
-        masked_detections = db.session.query(Detection)\
-                                .join(Image)\
-                                .join(Camera)\
-                                .join(Cameragroup)\
-                                .join(Trapgroup)\
-                                .join(Mask)\
-                                .filter(Trapgroup.survey_id==survey_id)\
-                                .filter(or_(and_(Detection.source==model,Detection.score>Config.DETECTOR_THRESHOLDS[model]) for model in Config.DETECTOR_THRESHOLDS))\
-                                .filter(Detection.status=='masked')\
-                                .filter(Detection.source!='user')\
-                                .filter(and_(
-                                    func.ST_Intersects(func.ST_GeomFromText(func.concat('POINT(', Detection.left, ' ', Detection.top, ')'), 32734), Mask.shape),
-                                    func.ST_Intersects(func.ST_GeomFromText(func.concat('POINT(', Detection.left, ' ', Detection.bottom, ')'), 32734), Mask.shape),
-                                    func.ST_Intersects(func.ST_GeomFromText(func.concat('POINT(', Detection.right,' ', Detection.bottom, ')'), 32734), Mask.shape),
-                                    func.ST_Intersects(func.ST_GeomFromText(func.concat('POINT(', Detection.right,' ', Detection.top,  ')'), 32734), Mask.shape),
-                                ))\
-                                .subquery()
+        masked_detections = mask_query.filter(Detection.status=='masked').subquery()
 
         unmasked_detections = db.session.query(Detection)\
                                 .join(Image)\

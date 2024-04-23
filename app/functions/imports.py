@@ -845,44 +845,30 @@ def processCameraStaticDetections(self,cameragroup_id):
 
         ##### Update Masked Status ########
         # Mask detections
-        detections = db.session.query(Detection)\
+        polygon = func.ST_GeomFromText(func.concat('POLYGON((',
+                            Detection.left, ' ', Detection.top, ', ',
+                            Detection.left, ' ', Detection.bottom, ', ',
+                            Detection.right, ' ', Detection.bottom, ', ',
+                            Detection.right, ' ', Detection.top, ', ',
+                            Detection.left, ' ', Detection.top, '))'), 32734)
+
+        mask_query = db.session.query(Detection)\
                                 .join(Image)\
                                 .join(Camera)\
                                 .join(Cameragroup)\
                                 .join(Mask)\
-                                .filter(Mask.cameragroup_id==cameragroup_id)\
+                                .filter(Cameragroup.id==cameragroup_id)\
                                 .filter(or_(and_(Detection.source==model,Detection.score>Config.DETECTOR_THRESHOLDS[model]) for model in Config.DETECTOR_THRESHOLDS))\
-                                .filter(~Detection.status.in_(Config.DET_IGNORE_STATUSES))\
                                 .filter(Detection.source!='user')\
-                                .filter(and_(
-                                    func.ST_Intersects(func.ST_GeomFromText(func.concat('POINT(', Detection.left, ' ', Detection.top, ')'), 32734), Mask.shape),
-                                    func.ST_Intersects(func.ST_GeomFromText(func.concat('POINT(', Detection.left, ' ', Detection.bottom, ')'), 32734), Mask.shape),
-                                    func.ST_Intersects(func.ST_GeomFromText(func.concat('POINT(', Detection.right,' ', Detection.bottom, ')'), 32734), Mask.shape),
-                                    func.ST_Intersects(func.ST_GeomFromText(func.concat('POINT(', Detection.right,' ', Detection.top,  ')'), 32734), Mask.shape),
-                                ))\
-                                .distinct().all()
-        
+                                .filter(func.ST_Contains(Mask.shape, polygon))
+
+        detections = mask_query.filter(~Detection.status.in_(Config.DET_IGNORE_STATUSES)).distinct().all()
+
         for detection in detections:
             detection.status = 'masked'
 
-
         # Unmask detections
-        masked_detections = db.session.query(Detection)\
-                                .join(Image)\
-                                .join(Camera)\
-                                .join(Cameragroup)\
-                                .join(Mask)\
-                                .filter(Mask.cameragroup_id==cameragroup_id)\
-                                .filter(or_(and_(Detection.source==model,Detection.score>Config.DETECTOR_THRESHOLDS[model]) for model in Config.DETECTOR_THRESHOLDS))\
-                                .filter(Detection.status=='masked')\
-                                .filter(Detection.source!='user')\
-                                .filter(and_(
-                                    func.ST_Intersects(func.ST_GeomFromText(func.concat('POINT(', Detection.left, ' ', Detection.top, ')'), 32734), Mask.shape),
-                                    func.ST_Intersects(func.ST_GeomFromText(func.concat('POINT(', Detection.left, ' ', Detection.bottom, ')'), 32734), Mask.shape),
-                                    func.ST_Intersects(func.ST_GeomFromText(func.concat('POINT(', Detection.right,' ', Detection.bottom, ')'), 32734), Mask.shape),
-                                    func.ST_Intersects(func.ST_GeomFromText(func.concat('POINT(', Detection.right,' ', Detection.top,  ')'), 32734), Mask.shape),
-                                ))\
-                                .subquery()
+        masked_detections = mask_query.filter(Detection.status=='masked').subquery()
 
         unmasked_detections = db.session.query(Detection)\
                                 .join(Image)\
@@ -1053,7 +1039,7 @@ def setupDatabase():
         db.session.add(vehicles)
 
     if db.session.query(Label).filter(Label.description=='Mask Area').first()==None:
-        mask = Label(description='Mask Area', hotkey='*')
+        mask = Label(description='Mask Area', hotkey='-')
         db.session.add(mask)
 
     if db.session.query(Classifier).filter(Classifier.name=='MegaDetector').first()==None:
@@ -4705,27 +4691,55 @@ def extract_missing_timestamps(survey_id,use_old=False):
         get_timestamps(trapgroup_id)
 
     app.logger.info('All images processed for survey {} in {}s'.format(survey_id,time.time()-starttime))
+
+    # We can't parallelise this (timestamp extraction) at this stage - there is a maximum of 100 simultanrous async requests to AWS Textract 
+
+
+    # Extrapolate Video timestamps
+    camera_data = db.session.query(Cameragroup.id,func.SUBSTRING_INDEX(Camera.path, '/_video_images_',1))\
+                                                .join(Camera)\
+                                                .join(Image)\
+                                                .join(Trapgroup)\
+                                                .filter(Trapgroup.survey_id==survey_id)\
+                                                .filter(Camera.videos.any())\
+                                                .filter(Image.corrected_timestamp==None)\
+                                                .filter(Image.skipped!=True)\
+                                                .distinct().all()
+
+
+    # Extrapolate Image timestamps
+    camera_ids = [r[0] for r in db.session.query(Camera.id)\
+                                                .join(Image)\
+                                                .join(Trapgroup)\
+                                                .filter(Trapgroup.survey_id==survey_id)\
+                                                .filter(Image.corrected_timestamp==None)\
+                                                .filter(Image.skipped!=True)\
+                                                .filter(~Camera.videos.any())\
+                                                .distinct().all()]
                                             
 
-    # We can't parallelise this at this stage - there is a maximum of 100 simultanrous async requests
+    results = []
+    for cg_id, path in camera_data:
+        results.append(extrapolate_timestamps.apply_async(kwargs={'camera_id':cg_id,'folder':path},queue='parallel'))
 
-    # results = []
-    # for trapgroup_id in trapgroup_ids:
-    #     results.append(get_timestamps.apply_async(kwargs={'trapgroup_id':trapgroup_id},queue='parallel'))
+    for camera_id in camera_ids:
+        results.append(extrapolate_timestamps.apply_async(kwargs={'camera_id':camera_id,'folder':None},queue='parallel'))
 
-    # GLOBALS.lock.acquire()
-    # with allow_join_result():
-    #     for result in results:
-    #         try:
-    #             result.get()
-    #         except Exception:
-    #             app.logger.info(' ')
-    #             app.logger.info('!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!')
-    #             app.logger.info(traceback.format_exc())
-    #             app.logger.info('!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!')
-    #             app.logger.info(' ')
-    #         result.forget()
-    # GLOBALS.lock.release()
+    #Wait for processing to complete
+    db.session.remove()
+    GLOBALS.lock.acquire()
+    with allow_join_result():
+        for result in results:
+            try:
+                result.get()
+            except Exception:
+                app.logger.info(' ')
+                app.logger.info('!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!')
+                app.logger.info(traceback.format_exc())
+                app.logger.info('!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!')
+                app.logger.info(' ')
+            result.forget()
+    GLOBALS.lock.release()
 
     return True
 
@@ -4781,6 +4795,117 @@ def updateTrapgroupStaticDetections(self,trapgroup_id):
 
         for detection in rejected_detections:
             detection.static = False
+
+        db.session.commit()
+
+    except Exception as exc:
+        app.logger.info(' ')
+        app.logger.info('!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!')
+        app.logger.info(traceback.format_exc())
+        app.logger.info('!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!')
+        app.logger.info(' ')
+        self.retry(exc=exc, countdown= retryTime(self.request.retries))
+
+    finally:
+        db.session.remove()
+
+    return True
+
+@celery.task(bind=True,max_retries=5)
+def extrapolate_timestamps(self,camera_id,folder=None):
+    '''Extrapolates timestamp data from other extracted data for images where the extracted timestamp is missing'''
+    try:
+        if folder: #Videos
+            images = db.session.query(Image,Video.id,Video.filename,Video.fps,Video.frame_count)\
+                                .join(Camera, Camera.id==Image.camera_id)\
+                                .join(Video)\
+                                .filter(Camera.cameragroup_id==camera_id)\
+                                .filter(Camera.path.contains(folder))\
+                                .filter(Image.corrected_timestamp==None)\
+                                .filter(Image.filename.contains('frame0'))\
+                                .order_by(Video.filename)\
+                                .distinct().all()
+
+            timestamp_images = db.session.query(Video.filename,Image.corrected_timestamp)\
+                                        .join(Camera, Camera.id==Video.camera_id)\
+                                        .join(Image)\
+                                        .filter(Camera.cameragroup_id==camera_id)\
+                                        .filter(Camera.path.contains(folder))\
+                                        .filter(Image.corrected_timestamp!=None)\
+                                        .filter(Image.filename.contains('frame0'))\
+                                        .order_by(Video.filename)\
+                                        .distinct().all()
+        else: #Images
+            images = db.session.query(Image)\
+                                .filter(Image.camera_id==camera_id)\
+                                .filter(Image.corrected_timestamp==None)\
+                                .order_by(Image.filename)\
+                                .distinct().all()
+
+            timestamp_images = db.session.query(Image.filename,Image.corrected_timestamp)\
+                                        .filter(Image.camera_id==camera_id)\
+                                        .filter(Image.corrected_timestamp!=None)\
+                                        .order_by(Image.filename)\
+                                        .distinct().all()
+
+        timestamp_map = {filename: timestamp for filename, timestamp in timestamp_images}
+
+        # Extrapolate timestamps
+        # Find the closest images before and after the missing timestamp and get as much information as possible
+        for image in images:
+            try:
+                img = image[0] if folder else image
+                img.extracted_data = ''
+
+                # Find closest images with timestamps
+                image_filename = image[2] if folder else image.filename
+                before = max((filename for filename in timestamp_map.keys() if filename < image_filename), key=lambda x: x, default=None)
+                after = min((filename for filename in timestamp_map.keys() if filename > image_filename), key=lambda x: x, default=None)
+
+                # Extrapolate timestamp
+                if before and after:
+                    before_time = timestamp_map[before]
+                    after_time = timestamp_map[after]
+                    time_diff = after_time - before_time
+
+                    if time_diff.total_seconds() == 0:
+                        # If the two timestamps are the same, just use that
+                        if folder:
+                            video_timestamp = before_time
+                            fps = get_still_rate(image[3],image[4])
+                            frames = db.session.query(Image).join(Camera).join(Video,Camera.videos).filter(Video.id==image[1]).distinct().all()
+                            for frame in frames:
+                                frame_count = int(frame.filename.split('frame')[1][:-4])
+                                frame_timestamp = video_timestamp + timedelta(seconds=frame_count/fps)
+                                frame.timestamp = frame_timestamp
+                                frame.corrected_timestamp = frame_timestamp
+                                frame.extracted = True
+                        else:
+                            image.timestamp = before_time
+                            image.corrected_timestamp = before_time
+                            image.extracted = True
+                    else:
+                        # Extrapolate timestamp to prepopulate the timestamp 
+                        timestamp = ''
+                        if before_time.year == after_time.year:
+                            timestamp += str(before_time.year)
+                            if before_time.month == after_time.month:
+                                timestamp += ','+str(before_time.month)
+                                if before_time.day == after_time.day:
+                                    timestamp += ','+str(before_time.day)
+                                    if before_time.hour == after_time.hour:
+                                        timestamp += ','+str(before_time.hour)
+                                        if before_time.minute == after_time.minute:
+                                            timestamp += ','+str(before_time.minute)
+                                            if before_time.second == after_time.second:
+                                                timestamp += ','+str(before_time.second)
+                        if timestamp:
+                            if folder:
+                                image[0].extracted_data = timestamp
+                            else:
+                                image.extracted_data = timestamp
+            except:
+                pass
 
         db.session.commit()
 

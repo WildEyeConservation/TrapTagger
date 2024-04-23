@@ -58,10 +58,6 @@ limitations under the License. -->
         <div class='card' style="font-size:80%">
             <div class='card-body'>
                 <div class="control-group">
-                    <div id="divBtns">
-                        <button class="btn btn-danger btn-block  btn-sm" style="margin-bottom: 3px; margin-top: 3px;" onclick=submitTimestamp(true)>Image Has No Timestamp (N)</button>
-                        <button class="btn btn-danger btn-block  btn-sm" style="margin-bottom: 3px; margin-top: 3px;" onclick="skipCamera()">Camera Has No Timestamp (S)</button>
-                    </div>
                     <label for="year" style="margin-bottom: 2px">Year</label>
                     <input type="number" id="year" class="form-control" style="margin-bottom: 2px" placeholder="YYYY" min="1900" max="2100">
                     <div id="errorYear" style="font-size: 80%; color: #DF691A"></div>
@@ -80,12 +76,34 @@ limitations under the License. -->
                     <label for="seconds" style="margin-bottom: 2px">Seconds</label>
                     <input type="number" id="seconds" class="form-control" style="margin-bottom: 2px" placeholder="SS" min="0" max="59">
                     <div id="errorSeconds" style="font-size: 80%; color: #DF691A"></div>
+                    <div style="font-size: 80%;">* Press Spacebar/Enter/Tab to skip a field.</div>
+                    <div id="divBtns">
+                        <button class="btn btn-danger btn-block  btn-sm" style="margin-bottom: 3px; margin-top: 3px;" onclick=submitTimestamp(true)>Image Has No Timestamp (N)</button>
+                        <button class="btn btn-danger btn-block  btn-sm" style="margin-bottom: 3px; margin-top: 3px;" onclick="skipCamera()">Camera Has No Timestamp (S)</button>
+                        <button id="btnClearTimestamp" class="btn btn-primary btn-block  btn-sm" style="margin-bottom: 3px; margin-top: 3px;" onclick="clearInputs()" hidden>Clear (C)</button>
+                        <button class="btn btn-success btn-block btn-sm" style="margin-bottom: 3px; margin-top: 3px;" onclick=saveProgress()>Save & Exit</button>
+                    </div>
                 </div>
             </div>
         </div>
     </div>
     <div class="col-lg-1"></div>
 </div>
+
+<br>
+<div class="row">
+    <div class="col-lg-1"></div>
+    <div class="col-lg-10">
+        <div class="progress">
+            <div class="progress-bar progress-bar-striped progress-bar-animated active" role="progressbar" id="progress"
+            aria-valuenow="0" aria-valuemin="0" aria-valuemax="100" style="width:0%">
+                <span id="progressText" align="center" style="font-size: 120%"></span>
+            </div>
+        </div>
+    </div>
+    <div class="col-lg-1"></div>
+</div>
+<br>
 
 <!-- Done Modal -->
 <div id="modalDone" class="modal fade" role="dialog"  tabindex="-1">

@@ -59,7 +59,7 @@ limitations under the License. -->
                     <button id="prevImage"   class="btn btn-primary btn-block"   onclick=prevImage()><span style="font-size:100%">&#x276e;</span> Previous Image</button>
                 </div>
                 <div class="col-lg-4">
-                    <button id="prevCluster" class="btn btn-secondary btn-block" onclick='prevCluster()'>Undo <span style="font-size:100%">&#x27F2;</span></button>
+                    <button id="prevCluster" class="btn btn-secondary btn-block" onclick=undoStatic()>Undo <span style="font-size:100%">&#x27F2;</span></button>
                 </div>
                 <div class="col-lg-3">
                     <button id="nextImage"   class="btn btn-primary btn-block"   onclick=nextImage()>Next Image <span style="font-size:100%">&#x276f;</span></button>
@@ -73,14 +73,31 @@ limitations under the License. -->
         <div class='card' style="font-size:80%">
             <div class="card-body">
                 <div class="control-group">
-                    <button class="btn btn-primary btn-block  btn-sm" onclick=handleStatic(1)>Accept (A)</button>
-                    <button class="btn btn-primary btn-block  btn-sm" onclick=handleStatic(0)>Reject (R)</button>
+                    <button class="btn btn-primary btn-block  btn-sm" style="margin-bottom: 3px; margin-top: 3px;" onclick=handleStatic(1)>Accept (A)</button>
+                    <button class="btn btn-primary btn-block  btn-sm" style="margin-bottom: 3px; margin-top: 3px;" onclick=handleStatic(0)>Reject (R)</button>
+                    <button class="btn btn-success btn-block btn-sm" style="margin-bottom: 3px; margin-top: 3px;" onclick=saveProgress()>Save & Exit</button>
                 </div>
+                <div style="font-size: 80%;">* Hold Spacebar to hide detections.</div>
             </div>
         </div>
     </div>
     <div class="col-lg-1"></div>
 </div>
+
+<br>
+<div class="row">
+    <div class="col-lg-1"></div>
+    <div class="col-lg-10">
+        <div class="progress">
+            <div class="progress-bar progress-bar-striped progress-bar-animated active" role="progressbar" id="progress"
+            aria-valuenow="0" aria-valuemin="0" aria-valuemax="100" style="width:0%">
+                <span id="progressText" align="center" style="font-size: 120%"></span>
+            </div>
+        </div>
+    </div>
+    <div class="col-lg-1"></div>
+</div>
+<br>
 
 
 <!-- Done Modal -->

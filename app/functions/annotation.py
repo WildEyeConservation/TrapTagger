@@ -1448,10 +1448,7 @@ def genInitKeys(taggingLevel,task_id,addSkip,addRemoveFalseDetections,addMaskAre
                 indx = Config.NUMBER_OF_HOTKEYS-3
             elif num==45:
                 #minus
-                indx = Config.NUMBER_OF_HOTKEYS-2
-            elif num==42:
-                #asterisk
-                indx = Config.NUMBER_OF_HOTKEYS-1
+                indx = Config.NUMBER_OF_HOTKEYS-1   #Mask Area hotkey (RFD old hotkey)
             else:
                 #Handle letters
                 indx = num-87
@@ -1930,18 +1927,20 @@ def translate_cluster_for_client(clusterInfo,reqId,limit,isBounding,taggingLevel
 #     return True
 
 @celery.task(bind=True,max_retries=5,ignore_result=True)
-def skipCameraImages(self,cameragroup_id,skip):
-    '''Marks all images in a camera group as skipped that have no timestamps'''
+def skipCameraImages(self,cameragroup_id):
+    '''Clears the timestamps of all images in a cameragroup that were extracted or has no timestamp and sets them as skipped.'''
     try:
         images = db.session.query(Image)\
                     .join(Camera)\
                     .join(Cameragroup)\
                     .filter(Cameragroup.id==cameragroup_id)\
-                    .filter(Image.corrected_timestamp==None)\
+                    .filter(or_(Image.corrected_timestamp==None,Image.extracted==True))\
                     .distinct().all()
         
         for image in images:
-            image.skipped = skip
+            image.skipped = True
+            image.corrected_timestamp = None
+            image.timestamp = None
 
         db.session.commit()
 
