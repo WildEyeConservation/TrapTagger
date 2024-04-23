@@ -618,7 +618,7 @@ btnCsvDownload.addEventListener('click', ()=>{
             formData.append("start_date", JSON.stringify(startDateCSV))
             formData.append("end_date", JSON.stringify(endDateCSV))
             formData.append("column_translations", JSON.stringify(column_translations))
-            formData.append("collapseVideo", JSON.stringify(collapseVideo))
+            // formData.append("collapseVideo", JSON.stringify(collapseVideo))
 
             var xhttp = new XMLHttpRequest();
             xhttp.open("POST", '/generateCSV');
