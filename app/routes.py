@@ -12481,10 +12481,37 @@ def getSurveyMasks(survey_id):
                                 .filter(Detection.static==False)\
                                 .order_by(Cameragroup.id,Image.corrected_timestamp)
                                 
-        if cameragroup_id:
-            mask_data = mask_data.filter(Cameragroup.id==cameragroup_id)
+        if cameragroup_id: mask_data = mask_data.filter(Cameragroup.id==cameragroup_id)
 
         mask_data = mask_data.distinct().all()
+
+        # We need to also include masks that didn't actually mask any detections
+        mask_ids = list(set([r[10] for r in mask_data]))
+
+        additional_masks = db.session.query(
+                                    Mask.id,
+                                    func.ST_AsGeoJSON(Mask.shape),
+                                    User.username,
+                                    Cameragroup.id,
+                                    Cameragroup.name,
+                                    Camera.path,
+                                    Image.id,
+                                    Image.filename
+                                )\
+                                .outerjoin(User,User.id==Mask.user_id)\
+                                .join(Cameragroup,Mask.cameragroup_id==Cameragroup.id)\
+                                .join(Camera,Camera.cameragroup_id==Cameragroup.id)\
+                                .join(Image,Image.camera_id==Camera.id)\
+                                .join(Trapgroup,Trapgroup.id==Camera.trapgroup_id)\
+                                .filter(Trapgroup.survey_id==survey_id)\
+                                .filter(~Mask.id.in_(mask_ids))
+
+        if cameragroup_id: additional_masks = additional_masks.filter(Cameragroup.id==cameragroup_id)
+
+        additional_masks = additional_masks.group_by(Mask.id).distinct().all()
+
+        for additional_mask in additional_masks:
+            mask_data.append([None,None,None,None,None,additional_mask[6],additional_mask[7],additional_mask[5],additional_mask[3],additional_mask[4],additional_mask[0],additional_mask[1],additional_mask[2]])
 
         masks = []
         cam_keys = {}

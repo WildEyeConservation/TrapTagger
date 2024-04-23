@@ -5737,7 +5737,7 @@ function buildViewStatic() {
 
     div = document.createElement('div')
     div.setAttribute('style','font-size: 80%; margin-bottom: 2px')
-    div.innerHTML = '<i>The user that has checked the static detections.</i>'
+    div.innerHTML = '<i>This is who checked the static detections.</i>'
     col3.appendChild(div)
 
     var rowDiv3 = document.createElement('div');
@@ -5811,7 +5811,7 @@ function buildViewStatic() {
 
     div = document.createElement('div')
     div.setAttribute('style','font-size: 80%; margin-bottom: 2px')
-    div.innerHTML = '<i>Edit the status of the static detections.</i>'
+    div.innerHTML = '<i>The status of the current set of detections.</i>'
     col3.appendChild(div)
 
     var rowDiv = document.createElement('div');
