@@ -281,7 +281,7 @@ var staticgroup_ids = []
 var staticgroupDetections = {}
 var og_staticgroup_status = {}
 
-var selectedTimestampType = 'camera'
+var selectedTimestampType = 'missing'
 var cameraIDs = []
 var cameraReadAheadIndex = 0
 var imageIndex = 0
@@ -2537,10 +2537,11 @@ function buildEditImageTimestamp() {
     original_extracted_timestamps = {}
     corrected_edited_timestamps = {}
     original_edited_timestamps = {}
-    selectedTimestampType = 'camera'
+    selectedTimestampType = 'missing'
     map = null
     imageIndex = 0
     cameraReadAheadIndex = 0
+    cameraIndex = 0
     images = []
     camera_ids = []
 
@@ -4817,6 +4818,8 @@ function openEditMasks() {
     /** Listens for and initialises the edit masks form on the edit survey modal when the radio button is selected. */
     if (tabActiveEditSurvey=='baseEditMasksTab') {
         removedMasks = []
+        addedMasks = {}
+        editedMasks = {}
         cameraIndex = 0
         imageIndex = 0
         leafletMaskIDs = {}

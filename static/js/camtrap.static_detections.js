@@ -180,7 +180,7 @@ function getStaticGroupIDs(mapID = 'map1'){
 
 function undoStatic(mapID = 'map1') {
     /** Goes back to the previous cluster. */
-    if (clusterIndex[mapID]>0) {
+    if (clusterIndex[mapID]>0 && finishedDisplaying[mapID] && !modalActive && !modalActive2) {
         completed_staticgroups -= 1
         updateProgBar([completed_staticgroups, total_staticgroups])
         prevCluster()
@@ -220,16 +220,16 @@ function saveProgress() {
 
 function hideDetections(hide,mapID='map1') {
     /** Hides the detections on the map when hotkey is pressed. */
-
-    if (hide){
-        addedDetections[mapID] = false
-        drawnItems[mapID].clearLayers()
+    if (finishedDisplaying[mapID] && !modalActive && !modalActive2){
+        if (hide){
+            addedDetections[mapID] = false
+            drawnItems[mapID].clearLayers()
+        }
+        else{
+            addedDetections[mapID] = false
+            addDetections(mapID)
+        }
     }
-    else{
-        addedDetections[mapID] = false
-        addDetections(mapID)
-    }
-
 }
 
 window.addEventListener('load', onload, false);

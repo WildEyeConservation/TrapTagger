@@ -333,40 +333,40 @@ function skipTimeUnit(back = false){
 
 function skipCamera(mapID = 'map1'){
     /** Skips the current camera. */
+    if(finishedDisplaying[mapID] && !modalActive2 && !modalActive){
+        if (modalCameraNoTimestamp.is(':visible')){
+            cameragroup_id = clusters[mapID][clusterIndex[mapID]].id
+            var xhttp = new XMLHttpRequest();
+            xhttp.onreadystatechange =
+                function () {
+                    if (this.readyState == 4 && this.status == 200) {
+                        // console.log(this.responseText)
+                    }
+                };
+            xhttp.open("GET", '/skipTimestampCamera/' + selectedSurvey + '/' + cameragroup_id);
+            xhttp.send();
 
-    if (modalCameraNoTimestamp.is(':visible')){
-        cameragroup_id = clusters[mapID][clusterIndex[mapID]].id
-        var xhttp = new XMLHttpRequest();
-        xhttp.onreadystatechange =
-            function () {
-                if (this.readyState == 4 && this.status == 200) {
-                    // console.log(this.responseText)
-                }
-            };
-        xhttp.open("GET", '/skipTimestampCamera/' + selectedSurvey + '/' + cameragroup_id);
-        xhttp.send();
+            modalCameraNoTimestamp.modal('hide')
 
-        modalCameraNoTimestamp.modal('hide')
-
-        image_count = clusters[mapID][clusterIndex[mapID]].images.length
-        completed_timestamps += image_count - imageIndex[mapID]
-        updateProgBar([completed_timestamps,total_timestamps])
-        clusters[mapID].splice(clusterIndex[mapID], 1)
-        cameraIDs.splice(cameraIDs.indexOf(cameragroup_id), 1)
-        if (cameraIDs.length == 0){
-            finishTimestampCheck()
+            image_count = clusters[mapID][clusterIndex[mapID]].images.length
+            completed_timestamps += image_count - imageIndex[mapID]
+            updateProgBar([completed_timestamps,total_timestamps])
+            clusters[mapID].splice(clusterIndex[mapID], 1)
+            cameraIDs.splice(cameraIDs.indexOf(cameragroup_id), 1)
+            if (cameraIDs.length == 0){
+                finishTimestampCheck()
+            }
+            else{
+                cameraReadAheadIndex--
+                clusterIndex[mapID]--
+                prevClusterBtn.disabled = true
+                nextCluster(mapID)
+            }
         }
-        else{
-            cameraReadAheadIndex--
-            clusterIndex[mapID]--
-            prevClusterBtn.disabled = true
-            nextCluster(mapID)
+        else {
+            modalCameraNoTimestamp.modal({keyboard: true})
         }
     }
-    else {
-        modalCameraNoTimestamp.modal({keyboard: true})
-    }
-
 }
 
 
