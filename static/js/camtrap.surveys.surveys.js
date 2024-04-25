@@ -8239,9 +8239,9 @@ function preloadImages(imageOnly=false){
 
     if (tabActiveEditSurvey === 'baseEditMasksTab') {
 
-        if (imageIndex < cameras[maskCamIndex].images.length - 1) {
+        if (maskImgIndex < cameras[maskCamIndex].images.length - 1) {
             im = new Image();
-            im.src = "https://"+bucketName+".s3.amazonaws.com/" + modifyToCompURL(cameras[maskCamIndex].images[imageIndex + 1].url)
+            im.src = "https://"+bucketName+".s3.amazonaws.com/" + modifyToCompURL(cameras[maskCamIndex].images[maskImgIndex + 1].url)
         }
 
         if (maskCamIndex<cameras.length-1 && !imageOnly){
@@ -8263,9 +8263,9 @@ function preloadImages(imageOnly=false){
 
     } else if (tabActiveEditSurvey === 'baseEditImgTimestampsTab') {
 
-        if (maskImgIndex < images[cameraIndex].images.length - 1) {
+        if (imageIndex < images[cameraIndex].images.length - 1) {
             im = new Image();
-            im.src = "https://"+bucketName+".s3.amazonaws.com/" + modifyToCompURL(images[cameraIndex].images[maskImgIndex + 1].url)
+            im.src = "https://"+bucketName+".s3.amazonaws.com/" + modifyToCompURL(images[cameraIndex].images[imageIndex + 1].url)
         }
 
         if (cameraIndex<images.length-1 && !imageOnly){
