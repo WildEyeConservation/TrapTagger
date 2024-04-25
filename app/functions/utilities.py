@@ -23,6 +23,7 @@ from sqlalchemy import desc, extract
 from config import Config
 import traceback
 from celery.result import allow_join_result
+import cv2
 
 @celery.task(bind=True,max_retries=5)
 def copy_task_trapgroup(self,trapgroup_id,old_task_id,new_task_id):
@@ -942,3 +943,42 @@ def process_leftover_static_detections(self,camera_id):
 
     return True
 
+@celery.task(bind=True,max_retries=5)
+def process_videos(self,trapgroup_id):
+
+    try:
+        videos = db.session.query(Video).join(Camera).filter(Camera.trapgroup_id==trapgroup_id).distinct().all()
+        for video in videos:
+            key = [video.camera.path.split('/')[0]+'-comp']
+            key.extend(video.camera.path.split('/')[1:])
+            key = '/'.join(key).split('_video_images_')[0] + video.filename.split('.')[0] + '.mp4'
+            
+            with tempfile.NamedTemporaryFile(delete=True, suffix='.JPG') as temp_file:
+                GLOBALS.s3client.download_file(Bucket='traptagger', Key=key, Filename=temp_file.name)
+                vdo = cv2.VideoCapture(temp_file.name)
+            
+            video_fps = vdo.get(cv2.CAP_PROP_FPS)
+            video_frames = vdo.get(cv2.CAP_PROP_FRAME_COUNT)
+            video.still_rate=get_still_rate_old(video_fps,video_frames)
+
+        db.session.commit()
+
+    except Exception as exc:
+        app.logger.info(' ')
+        app.logger.info('!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!')
+        app.logger.info(traceback.format_exc())
+        app.logger.info('!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!')
+        app.logger.info(' ')
+        self.retry(exc=exc, countdown= retryTime(self.request.retries))
+
+    finally:
+        db.session.close()
+
+    return True
+
+def get_still_rate_old(video_fps,video_frames):
+    '''Returns the rate at which still should be extracted.'''
+    max_frames = 50     # Maximum number of frames to extract
+    fps_default = 1     # Default fps to extract frames at (frame per second)
+    frames_default_fps = math.ceil(video_frames / video_fps) * fps_default
+    return min(max_frames / frames_default_fps, fps_default)  
