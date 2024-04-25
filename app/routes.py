@@ -1881,6 +1881,7 @@ def editSurvey():
         classifier = None
         if 'classifier' in request.form:
             classifier = request.form['classifier']
+            if classifier.lower() == 'none': classifier = None 
 
         timestamps = None
         if 'timestamps' in request.form:
@@ -7033,6 +7034,7 @@ def assignLabel(clusterID):
                     if explore:
                         individual_check = session.query(Individual.id).join(Detection, Individual.detections).join(Image).join(Cluster, Image.clusters).filter(Cluster.id==cluster.id).filter(Individual.tasks.contains(task)).first()
                         if individual_check:
+                            individual_check = individual_check[0]
                             check_individual_detection_mismatch.apply_async(kwargs={'task_id':task_id,'cluster_id':cluster.id})
 
                     session.commit()
@@ -7045,7 +7047,9 @@ def assignLabel(clusterID):
             return {'redirect': url_for('done')}, 278
         else:
             response = {'progress': (num, num2), 'reAllocated': reAllocated, 'newClusters': newClusters, 'classifications': classifications}
-            if explore: response['username'] = current_user_username
+            if explore: 
+                response['username'] = current_user_username
+                response['individual_check'] = individual_check
             return json.dumps(response)
 
     except:

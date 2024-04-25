@@ -748,6 +748,7 @@ function buildSurveys(survey,disableSurvey) {
         if (addTaskBtn) {
             addImagesBtn.disabled = true
             addTaskBtn.disabled = true
+            editSurveyBtn.disabled = true
         }
         deleteSurveyBtn.disabled = true
     } else {
@@ -755,6 +756,7 @@ function buildSurveys(survey,disableSurvey) {
             if (addTaskBtn) {
                 addImagesBtn.disabled = true
                 addTaskBtn.disabled = true
+                editSurveyBtn.disabled = true
             }
             deleteSurveyBtn.disabled = true
 
@@ -771,6 +773,7 @@ function buildSurveys(survey,disableSurvey) {
             if (addTaskBtn) {
                 addImagesBtn.disabled = false
                 addTaskBtn.disabled = false
+                editSurveyBtn.disabled = false
             }
 
             if  (survey.status.toLowerCase()=='uploading' && !uploading) {
@@ -793,6 +796,7 @@ function buildSurveys(survey,disableSurvey) {
             if (addTaskBtn) {
                 addImagesBtn.disabled = true
                 addTaskBtn.disabled = true
+                editSurveyBtn.disabled = true
             }
             deleteSurveyBtn.disabled = true
 
@@ -4496,8 +4500,9 @@ document.getElementById('btnEditSurvey').addEventListener('click', ()=>{
     legalClassifier = true
     classifier = document.querySelector('input[name="classifierSelection"]:checked')
     if (classifier==null) {
-        document.getElementById('editSurveyErrors').innerHTML = 'You must select a classifier.'
-        legalClassifier = false
+        // document.getElementById('editSurveyErrors').innerHTML = 'You must select a classifier.'
+        // legalClassifier = false
+        classifier = 'none'
     } else {
         classifier = classifier.id
     }

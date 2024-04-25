@@ -1305,7 +1305,7 @@ function updateDebugInfo(mapID = 'map1',updateLabels = true) {
         minutesInput.value = ''
         secondsInput.value = ''
         document.getElementById('btnClearTimestamp').hidden = true
-        if (clusters[mapID][clusterIndex[mapID]].images[imageIndex[mapID]].extracted_data != '') {
+        if (clusters[mapID][clusterIndex[mapID]].images[imageIndex[mapID]].extracted_data != '' && clusters[mapID][clusterIndex[mapID]].images[imageIndex[mapID]].extracted_data != null) {
             extracted_data = clusters[mapID][clusterIndex[mapID]].images[imageIndex[mapID]].extracted_data.split(',')
             for (let i=0;i<extracted_data.length;i++) {
                 switch (i){
@@ -2900,6 +2900,10 @@ function submitLabels(mapID = 'map1') {
                         reply = JSON.parse(this.responseText);
                         if (reply!='error') {
                             clusters[wrapMapID][wrapIndex].annotator = reply.username
+                            if (reply.individual_check) {
+                                clusters[wrapMapID].splice(wrapIndex,1)
+                                clusterIndex[wrapMapID] -= 1
+                            }
                             updateDebugInfo()
                         }
                     }
