@@ -2379,6 +2379,8 @@ def edit_survey(self,survey_id,user_id,classifier,sky_masked,ignore_small_detect
     '''Celery task that handles the editing of a survey.'''
     try:
         survey = db.session.query(Survey).get(survey_id)
+        survey.status = 'Processing'
+        db.session.commit()
 
         # Coordinates
         if coord_data:

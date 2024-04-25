@@ -863,7 +863,7 @@ def process_db_static_detections(self,camera_id):
         for det_id,matches in static_groups.items():
             group = [det_id]
             group.extend(matches)
-            matchcount = len(matches)
+            matchcount = len(group)
             if matchcount>3 and matchcount/imcount>0.3 and any(d not in static_detections for d in group):
                 static_detections.extend(group)
                 # Check if staticgroup exists with any of the detections
@@ -915,7 +915,7 @@ def process_leftover_static_detections(self,camera_id):
             staticgroups = db.session.query(Staticgroup).join(Detection).join(Image).filter(Image.camera_id==camera_id).filter(Detection.static==True).distinct().all()
             for staticgroup in staticgroups:
                 comparison_detection = staticgroup.detections[0]
-                intersection = (min(detection.right,comparison_detection.right) - max(detection.left,comparison_detection.left)) * (min(detection.bottom,comparison_detection.bottom) - max(detection.top,comparison_detection.top))
+                intersection = max((min(detection.right,comparison_detection.right) - max(detection.left,comparison_detection.left)),0) * max((min(detection.bottom,comparison_detection.bottom) - max(detection.top,comparison_detection.top)),0)
                 area1 = (detection.right - detection.left) * (detection.bottom - detection.top)
                 area2 = (comparison_detection.right - comparison_detection.left) * (comparison_detection.bottom - comparison_detection.top)
                 iou = intersection / (area1 + area2 - intersection)

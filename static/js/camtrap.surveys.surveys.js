@@ -4562,7 +4562,6 @@ document.getElementById('btnEditSurvey').addEventListener('click', ()=>{
             formData.append("coordData", JSON.stringify(coordData))
         }
         else if (document.getElementById('addCoordinatesKMLMethod').checked) {
-            //TODO: NOT SURE ABOUT KML DATA VERIFICATION
             formData.append("kml", kmlFileUpload.files[0])
         }
     
@@ -5751,14 +5750,14 @@ function updateImageIndex(index) {
         }
     }
     else if (tabActiveEditSurvey=='baseStaticTab'){
-        if (index >= 0 && index < staticgroups[staticgroupIndex].images.length && finishedDisplayingMask) {
+        if (index >= 0 && index < staticgroups[staticgroupIndex].images.length && finishedDisplayingStatic) {
             staticImgIndex = index
             updateStaticMap()
         }
     }
     else if (tabActiveEditSurvey=='baseEditImgTimestampsTab'){
         validTimestamp = validateTimestamp()
-        if (index >= 0 && index < images[cameraIndex].images.length && validTimestamp && finishedDisplayingMask) {
+        if (index >= 0 && index < images[cameraIndex].images.length && validTimestamp && finishedDisplayingTime) {
             imageIndex = index
             updateImageMap()
         }
