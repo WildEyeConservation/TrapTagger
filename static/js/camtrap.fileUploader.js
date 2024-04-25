@@ -174,7 +174,7 @@ async function uploadFiles() {
     if (modalNewSurvey.is(':visible')) {
         modalNewSurvey.modal('hide')
     } else {
-        modalAddImages.modal('hide')
+        modalAddFiles.modal('hide')
     }
     uploadWorker.postMessage({'func': 'uploadFiles', 'args': [surveyName,uploadID]});
 }

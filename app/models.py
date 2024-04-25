@@ -517,8 +517,7 @@ class Video(db.Model):
     downloaded = db.Column(db.Boolean, default=False, index=True)
     camera_id = db.Column(db.Integer, db.ForeignKey('camera.id'), index=True, unique=False)
     extracted_text = db.Column(db.String(64), index=False)
-    fps = db.Column(db.Integer, index=False)
-    frame_count = db.Column(db.Integer, index=False)
+    still_rate = db.Column(db.Float, index=False)
 
     def __repr__(self):
         return '<Video {}>'.format(self.filename)

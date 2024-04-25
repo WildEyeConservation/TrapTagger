@@ -1873,64 +1873,41 @@ def editSurvey():
     
     status = 'success'
     message = ''
-    upload_survey_id = None
-    upload_survey_name = None
     survey_id = request.form['survey_id']
-    ignore_small_detections = request.form['ignore_small_detections']
-    sky_masked = request.form['sky_masked']
-
     survey = db.session.query(Survey).get(survey_id)
     organisation = survey.organisation
     if survey and checkSurveyPermission(current_user.id,survey_id,'write'):
-        
+
+        classifier = None
         if 'classifier' in request.form:
             classifier = request.form['classifier']
-            if survey.classifier.name != classifier:
-                re_classify_survey.delay(survey_id=survey.id,classifier=classifier)
 
-        elif ignore_small_detections!='none':
-            # Checks for the case that you switch both off
-            edge='false'
-            if (ignore_small_detections=='false') and (sky_masked=='false'):
-                if (survey.ignore_small_detections==True) and (survey.sky_masked==True):
-                    edge = True
-
-            if str(survey.ignore_small_detections).lower() != ignore_small_detections:
-                hideSmallDetections.delay(survey_id=survey.id,ignore_small_detections=ignore_small_detections,edge=edge)
-
-            if str(survey.sky_masked).lower() != sky_masked:
-                maskSky.delay(survey_id=survey.id,sky_masked=sky_masked,edge=edge)
-
-        elif 'timestamps' in request.form:
-            survey.status = 'Processing'
-            db.session.commit()
+        timestamps = None
+        if 'timestamps' in request.form:
             timestamps = ast.literal_eval(request.form['timestamps'])
-            changeTimestamps.delay(survey_id=survey.id,timestamps=timestamps)
-        
-        elif 'coordData' in request.form:
-            coordData = ast.literal_eval(request.form['coordData'])
-            updateCoords.delay(survey_id=survey.id,coordData=coordData)
+            if len(timestamps)==0: timestamps = None
 
-        elif 'masks' in request.form:
+        masks = None
+        if 'masks' in request.form:
             masks = ast.literal_eval(request.form['masks'])
             removed_masks = masks['removed']
             added_masks = masks['added']
             edited_masks = masks['edited']
-            if len(removed_masks)>0 or len(added_masks)>0 or len(edited_masks)>0:
-                survey.status = 'Processing'
-                db.session.commit() 
-                update_masks.delay(survey_id=survey.id,removed_masks=removed_masks,added_masks=added_masks,edited_masks=edited_masks,user_id=current_user.id)
+            if len(removed_masks)==0 and len(added_masks)==0 and len(edited_masks)==0: masks = None
 
-        elif 'staticgroups' in request.form:
+        staticgroups = None
+        if 'staticgroups' in request.form:
             staticgroups = ast.literal_eval(request.form['staticgroups'])
-            if len(staticgroups)>0:
-                survey.status = 'Processing'
-                db.session.commit()     
-                update_staticgroups.delay(survey_id=survey.id,staticgroups=staticgroups,user_id=current_user.id)
+            if len(staticgroups)==0: staticgroups = None
 
-        elif 'kml' in request.files:
+        imageTimestamps = None
+        if 'imageTimestamps' in request.form:
+            imageTimestamps = ast.literal_eval(request.form['imageTimestamps'])
+            if len(imageTimestamps)==0: imageTimestamps = None
+
+        kml = None
+        if 'kml' in request.files:
             uploaded_file = request.files['kml']
-
             if uploaded_file.filename != '':
                 if os.path.splitext(uploaded_file.filename)[1].lower() == '.kml':
                     pass  
@@ -1940,66 +1917,121 @@ def editSurvey():
             else:
                 status = 'error'
                 message = 'Coordinates file must have a name.' 
-
             if status == 'success':
                 key = organisation.folder + '-comp/kmlFiles/' + survey.name + '.kml'
                 with tempfile.NamedTemporaryFile(delete=True, suffix='.kml') as temp_file:
                     uploaded_file.save(temp_file.name)
                     GLOBALS.s3client.put_object(Bucket=Config.BUCKET,Key=key,Body=temp_file)
-                importKML(survey.id)
+                kml = key
 
-        elif 'imageTimestamps' in request.form:
-            imageTimestamps = ast.literal_eval(request.form['imageTimestamps'])
+        coordData = None 
+        if 'coordData' in request.form:
+            coordData = ast.literal_eval(request.form['coordData'])
+            if len(coordData)==0: coordData = None
+
+        ignore_small_detections = None
+        if 'ignore_small_detections' in request.form:
+            ignore_small_detections = request.form['ignore_small_detections']
+            if ignore_small_detections == 'false':
+                ignore_small_detections = False
+            elif ignore_small_detections == 'true':
+                ignore_small_detections = True
+            else:
+                ignore_small_detections = None
+
+        sky_masked = None
+        if 'sky_masked' in request.form:
+            sky_masked = request.form['sky_masked']
+            if sky_masked == 'false':
+                sky_masked = False
+            elif sky_masked == 'true':
+                sky_masked = True
+            else:
+                sky_masked = None
+
+
+        if status == 'success':
             survey.status = 'Processing'
             db.session.commit()
-            recluster_after_image_timestamp_change.delay(survey_id=survey.id,image_timestamps=imageTimestamps)
-        
-        else:
-            userPermissions = db.session.query(UserPermissions).filter(UserPermissions.organisation_id==survey.organisation_id).filter(UserPermissions.user_id==current_user.id).first()
-            if userPermissions and userPermissions.create:
-                newSurveyTGCode = request.form['newSurveyTGCode']
-                newSurveyS3Folder = request.form['newSurveyS3Folder']
-                checkbox = request.form['checkbox']
-                newSurveyCamCode = request.form['newSurveyCamCode']
-                camCheckbox = request.form['camCheckbox']
-
-                if newSurveyTGCode!=' ' and newSurveyCamCode!=' ':
-                    if checkbox=='false':
-                        newSurveyTGCode = newSurveyTGCode+'[0-9]+'
-
-                    if camCheckbox=='false' and newSurveyCamCode!='None':
-                        newSurveyCamCode = newSurveyCamCode+'[0-9]+'
-
-                    survey.trapgroup_code=newSurveyTGCode
-
-                    if newSurveyS3Folder!='none':
-                        survey.folder = newSurveyS3Folder
-                    else:
-                        survey.folder = survey.name
-                    
-                    if newSurveyCamCode!='None':
-                        survey.camera_code=newSurveyCamCode
-                    else:
-                        survey.camera_code=None
-                        newSurveyCamCode=None
-
-                    db.session.commit()
-                    
-                    if newSurveyS3Folder!='none':
-                        import_survey.delay(survey_id=survey.id)
-                    else:
-                        survey.status = 'Uploading'
-                        db.session.commit()
-                        upload_survey_id = survey.id
-                        upload_survey_name = survey.name
-            
-            else:
-                status = 'error'
-                message = 'You do not have permission to add images to this survey.'
+            app.logger.info('Edit survey requested for {} with classifier: {}, ignore_small_detections: {}, sky_masked: {}, timestamps: {}, coordData: {}, masks: {}, staticgroups: {}, kml: {}, imageTimestamps: {}'.format(survey.name,classifier,ignore_small_detections,sky_masked,timestamps,coordData,masks,staticgroups,kml,imageTimestamps))
+            edit_survey.delay(survey_id=survey.id,user_id=current_user.id,classifier=classifier,ignore_small_detections=ignore_small_detections,sky_masked=sky_masked,timestamps=timestamps,coord_data=coordData,masks=masks,staticgroups=staticgroups,kml_file=kml,image_timestamps=imageTimestamps)
 
     else:
         status = 'error'
         message = 'You do not have permission to edit this survey.'
+
+    return json.dumps({'status': status, 'message': message})
+
+@app.route('/addFiles', methods=['POST'])
+@login_required
+def addFiles():
+    '''
+    Adds Files to the specified survey. Returns success/error status and associated message.
+
+        Parameters:
+            survey_id (int): The ID of the survey to add files to
+            newSurveyTGCode (str): Trapgroup code for adding images
+            newSurveyS3Folder (str): Folder where additional images should be found
+            checkbox (str): Whether or not the trapgroup code is an advanced code or not
+            newSurveyCamCode (str): Camera code for adding images
+            camCheckbox (str): Whether or not the camera code is an advanced code or not
+    '''
+    
+    status = 'success'
+    message = ''
+    upload_survey_id = None
+    upload_survey_name = None
+    survey_id = request.form['survey_id']
+
+    survey = db.session.query(Survey).get(survey_id)
+    organisation = survey.organisation
+    if survey and checkSurveyPermission(current_user.id,survey_id,'write'):
+        
+        userPermissions = db.session.query(UserPermissions).filter(UserPermissions.organisation_id==survey.organisation_id).filter(UserPermissions.user_id==current_user.id).first()
+        if userPermissions and userPermissions.create:
+            newSurveyTGCode = request.form['newSurveyTGCode']
+            newSurveyS3Folder = request.form['newSurveyS3Folder']
+            checkbox = request.form['checkbox']
+            newSurveyCamCode = request.form['newSurveyCamCode']
+            camCheckbox = request.form['camCheckbox']
+
+            if newSurveyTGCode!=' ' and newSurveyCamCode!=' ':
+                if checkbox=='false':
+                    newSurveyTGCode = newSurveyTGCode+'[0-9]+'
+
+                if camCheckbox=='false' and newSurveyCamCode!='None':
+                    newSurveyCamCode = newSurveyCamCode+'[0-9]+'
+
+                survey.trapgroup_code=newSurveyTGCode
+
+                if newSurveyS3Folder!='none':
+                    survey.folder = newSurveyS3Folder
+                else:
+                    survey.folder = survey.name
+                
+                if newSurveyCamCode!='None':
+                    survey.camera_code=newSurveyCamCode
+                else:
+                    survey.camera_code=None
+                    newSurveyCamCode=None
+
+                db.session.commit()
+                
+                if newSurveyS3Folder!='none':
+                    import_survey.delay(survey_id=survey.id)
+                else:
+                    survey.status = 'Uploading'
+                    db.session.commit()
+                    upload_survey_id = survey.id
+                    upload_survey_name = survey.name
+        
+        else:
+            status = 'error'
+            message = 'You do not have permission to add images to this survey.'
+
+    else:
+        status = 'error'
+        message = 'You do not have permission to add images to this survey.'
 
     return json.dumps({'status': status, 'message': message, 'survey_id': upload_survey_id, 'survey_name': upload_survey_name})
 
@@ -6266,23 +6298,33 @@ def getTrapgroups():
             ids.append(trapgroup.id)
     return json.dumps({'names':names,'values':ids})
 
-@app.route('/getTrapgroupCoords/<survey_id>')
+@app.route('/getTrapgroupCoords')
 @login_required
-def getTrapgroupCoords(survey_id):
+def getTrapgroupCoords():
     '''Returns the trapgoup coordinates for the specified survey.'''
     
+    next_url = None
+    prev_url = None
     reply = []
+    survey_id = request.args.get('survey_id', None, type=int)
+    page = request.args.get('page', 1, type=int)
+
     survey = db.session.query(Survey).get(int(survey_id))
     if survey and checkSurveyPermission(current_user.id,survey_id,'read'):
-        for trapgroup in db.session.query(Trapgroup).filter(Trapgroup.survey==survey).order_by(Trapgroup.tag).distinct().all():
+        trapgroups = db.session.query(Trapgroup).filter(Trapgroup.survey_id==survey_id).order_by(Trapgroup.tag).distinct().paginate(page, 10, False)
+        for trapgroup in trapgroups.items:
             data = {}
+            data['id'] = trapgroup.id
             data['tag'] = trapgroup.tag
             data['latitude'] = trapgroup.latitude
             data['longitude'] = trapgroup.longitude
             data['altitude'] = trapgroup.altitude
             reply.append(data)
 
-    return json.dumps(reply)
+        next_url = url_for('getTrapgroupCoords', survey_id=survey_id, page=trapgroups.next_num) if trapgroups.has_next else None
+        prev_url = url_for('getTrapgroupCoords', survey_id=survey_id, page=trapgroups.prev_num) if trapgroups.has_prev else None
+
+    return json.dumps({'trapgroups':reply, 'next_url': next_url, 'prev_url': prev_url})
 
 @app.route('/getSurveyClassifications/<survey_id>')
 @login_required
@@ -12994,7 +13036,7 @@ def submitTimestamp():
             video = db.session.query(Video).join(Camera).join(Image,Camera.images).filter(Image.id==image.id).first()
             if video:
                 index = int(image.filename.split('frame')[1][:-4])
-                fps = get_still_rate(video.fps,video.frame_count)
+                fps = video.still_rate
                 frames = db.session.query(Image).join(Camera).join(Video,Camera.videos).filter(Video.id==video.id).distinct().all()
                 if corrected_timestamp:
                     video_timestamp = corrected_timestamp - timedelta(seconds=index/fps)

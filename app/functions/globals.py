@@ -3346,128 +3346,106 @@ def mask_area(self, cluster_id, task_id, masks, user_id):
     return True
 
 
-@celery.task(bind=True,max_retries=5,ignore_result=True)
-def update_masks(self,survey_id,removed_masks,added_masks,edited_masks,user_id):
-    '''Celery task that updates masks for a survey.'''
+def update_masks(survey_id,removed_masks,added_masks,edited_masks,user_id):
+    '''Updates the masks for a survey.'''
 
-    try:
-        survey = db.session.query(Survey).get(survey_id)
-        survey.status = 'Processing'
-        db.session.commit()
+    survey = db.session.query(Survey).get(survey_id)
+    survey.status = 'Processing'
+    db.session.commit()
 
-        # Remove masks
-        for mask_id in removed_masks:
-            mask = db.session.query(Mask).get(mask_id)
+    # Remove masks
+    for mask_id in removed_masks:
+        mask = db.session.query(Mask).get(mask_id)
+        if mask:
+            db.session.delete(mask)
+
+    # Add masks
+    for mask in added_masks:
+        poly_coords = mask['coords']
+        poly_string = 'POLYGON(('
+        for coord in poly_coords:
+            if round(coord[0],2) == 0 or coord[0] < 0 : coord[0] = 0
+            if round(coord[1],2) == 0 or coord[1] < 0: coord[1] = 0
+            if round(coord[0],2) == 1 or coord[0] > 1: coord[0] = 1
+            if round(coord[1],2) == 1 or coord[1] > 1: coord[1] = 1
+            poly_string += str(coord[0]) + ' ' + str(coord[1]) + ','
+        poly_string = poly_string[:-1] + '))'
+        poly_area = db.session.query(func.ST_Area(func.ST_GeomFromText(poly_string))).first()[0]
+        if poly_area > Config.MIN_MASK_AREA:
+            check = db.session.query(Mask).filter(Mask.shape==poly_string).filter(Mask.cameragroup_id==mask['cameragroup_id']).first()
+            if not check:
+                new_mask = Mask(shape=poly_string,cameragroup_id=mask['cameragroup_id'],user_id=user_id)
+                db.session.add(new_mask)
+
+    # Edit masks
+    for mask in edited_masks:
+        poly_coords = mask['coords']
+        poly_string = 'POLYGON(('
+        for coord in poly_coords:
+            if round(coord[0],2) == 0 or coord[0] < 0 : coord[0] = 0
+            if round(coord[1],2) == 0 or coord[1] < 0: coord[1] = 0
+            if round(coord[0],2) == 1 or coord[0] > 1: coord[0] = 1
+            if round(coord[1],2) == 1 or coord[1] > 1: coord[1] = 1
+            poly_string += str(coord[0]) + ' ' + str(coord[1]) + ','
+        poly_string = poly_string[:-1] + '))'
+        poly_area = db.session.query(func.ST_Area(func.ST_GeomFromText(poly_string))).first()[0]
+        if poly_area > Config.MIN_MASK_AREA:
+            mask = db.session.query(Mask).get(mask['id'])
             if mask:
-                db.session.delete(mask)
-
-        # Add masks
-        for mask in added_masks:
-            poly_coords = mask['coords']
-            poly_string = 'POLYGON(('
-            for coord in poly_coords:
-                if round(coord[0],2) == 0 or coord[0] < 0 : coord[0] = 0
-                if round(coord[1],2) == 0 or coord[1] < 0: coord[1] = 0
-                if round(coord[0],2) == 1 or coord[0] > 1: coord[0] = 1
-                if round(coord[1],2) == 1 or coord[1] > 1: coord[1] = 1
-                poly_string += str(coord[0]) + ' ' + str(coord[1]) + ','
-            poly_string = poly_string[:-1] + '))'
-            poly_area = db.session.query(func.ST_Area(func.ST_GeomFromText(poly_string))).first()[0]
-            if poly_area > Config.MIN_MASK_AREA:
-                check = db.session.query(Mask).filter(Mask.shape==poly_string).filter(Mask.cameragroup_id==mask['cameragroup_id']).first()
-                if not check:
-                    new_mask = Mask(shape=poly_string,cameragroup_id=mask['cameragroup_id'],user_id=user_id)
-                    db.session.add(new_mask)
-
-        # Edit masks
-        for mask in edited_masks:
-            poly_coords = mask['coords']
-            poly_string = 'POLYGON(('
-            for coord in poly_coords:
-                if round(coord[0],2) == 0 or coord[0] < 0 : coord[0] = 0
-                if round(coord[1],2) == 0 or coord[1] < 0: coord[1] = 0
-                if round(coord[0],2) == 1 or coord[0] > 1: coord[0] = 1
-                if round(coord[1],2) == 1 or coord[1] > 1: coord[1] = 1
-                poly_string += str(coord[0]) + ' ' + str(coord[1]) + ','
-            poly_string = poly_string[:-1] + '))'
-            poly_area = db.session.query(func.ST_Area(func.ST_GeomFromText(poly_string))).first()[0]
-            if poly_area > Config.MIN_MASK_AREA:
-                mask = db.session.query(Mask).get(mask['id'])
-                if mask:
-                    mask.shape = poly_string
-                    mask.user_id = user_id
+                mask.shape = poly_string
+                mask.user_id = user_id
 
 
-        # Mask detections
-        polygon = func.ST_GeomFromText(func.concat('POLYGON((',
-                            Detection.left, ' ', Detection.top, ', ',
-                            Detection.left, ' ', Detection.bottom, ', ',
-                            Detection.right, ' ', Detection.bottom, ', ',
-                            Detection.right, ' ', Detection.top, ', ',
-                            Detection.left, ' ', Detection.top, '))'), 32734)
+    # Mask detections
+    polygon = func.ST_GeomFromText(func.concat('POLYGON((',
+                        Detection.left, ' ', Detection.top, ', ',
+                        Detection.left, ' ', Detection.bottom, ', ',
+                        Detection.right, ' ', Detection.bottom, ', ',
+                        Detection.right, ' ', Detection.top, ', ',
+                        Detection.left, ' ', Detection.top, '))'), 32734)
 
-        mask_query = db.session.query(Detection)\
-                                .join(Image)\
-                                .join(Camera)\
-                                .join(Cameragroup)\
-                                .join(Trapgroup)\
-                                .join(Mask)\
-                                .filter(Trapgroup.survey_id==survey_id)\
-                                .filter(or_(and_(Detection.source==model,Detection.score>Config.DETECTOR_THRESHOLDS[model]) for model in Config.DETECTOR_THRESHOLDS))\
-                                .filter(Detection.source!='user')\
-                                .filter(func.ST_Contains(Mask.shape, polygon))
+    mask_query = db.session.query(Detection)\
+                            .join(Image)\
+                            .join(Camera)\
+                            .join(Cameragroup)\
+                            .join(Trapgroup)\
+                            .join(Mask)\
+                            .filter(Trapgroup.survey_id==survey_id)\
+                            .filter(or_(and_(Detection.source==model,Detection.score>Config.DETECTOR_THRESHOLDS[model]) for model in Config.DETECTOR_THRESHOLDS))\
+                            .filter(Detection.source!='user')\
+                            .filter(func.ST_Contains(Mask.shape, polygon))
 
-        detections = mask_query.filter(~Detection.status.in_(Config.DET_IGNORE_STATUSES)).distinct().all()
-        
-        images = []
-        for detection in detections:
-            detection.status = 'masked'
-            images.append(detection.image)
+    detections = mask_query.filter(~Detection.status.in_(Config.DET_IGNORE_STATUSES)).distinct().all()
+    
+    images = []
+    for detection in detections:
+        detection.status = 'masked'
+        images.append(detection.image)
 
 
-        # Unmask detections
-        masked_detections = mask_query.filter(Detection.status=='masked').subquery()
+    # Unmask detections
+    masked_detections = mask_query.filter(Detection.status=='masked').subquery()
 
-        unmasked_detections = db.session.query(Detection)\
-                                .join(Image)\
-                                .join(Camera)\
-                                .join(Cameragroup)\
-                                .join(Trapgroup)\
-                                .outerjoin(masked_detections, masked_detections.c.id==Detection.id)\
-                                .filter(Trapgroup.survey_id==survey_id)\
-                                .filter(or_(and_(Detection.source==model,Detection.score>Config.DETECTOR_THRESHOLDS[model]) for model in Config.DETECTOR_THRESHOLDS))\
-                                .filter(Detection.status=='masked')\
-                                .filter(masked_detections.c.id==None)\
-                                .distinct().all()
+    unmasked_detections = db.session.query(Detection)\
+                            .join(Image)\
+                            .join(Camera)\
+                            .join(Cameragroup)\
+                            .join(Trapgroup)\
+                            .outerjoin(masked_detections, masked_detections.c.id==Detection.id)\
+                            .filter(Trapgroup.survey_id==survey_id)\
+                            .filter(or_(and_(Detection.source==model,Detection.score>Config.DETECTOR_THRESHOLDS[model]) for model in Config.DETECTOR_THRESHOLDS))\
+                            .filter(Detection.status=='masked')\
+                            .filter(masked_detections.c.id==None)
 
-        for detection in unmasked_detections:
-            detection.status = 'active'
-            images.append(detection.image)
+    for detection in unmasked_detections:
+        detection.status = 'active'
+        images.append(detection.image)
 
-        db.session.commit()
+    db.session.commit()
 
-        for image in set(images):
-            image.detection_rating = detection_rating(image)
-        db.session.commit()
-
-        task_ids = [r[0] for r in db.session.query(Task.id).filter(Task.survey_id==survey_id).filter(Task.name!='default').distinct().all()]
-        for task_id in task_ids:
-            updateAllStatuses(task_id=task_id, celeryTask=False)
-
-        survey = db.session.query(Survey).get(survey_id)
-        survey.status = 'Ready'
-        db.session.commit()
-
-    except Exception as exc:
-        app.logger.info(' ')
-        app.logger.info('!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!')
-        app.logger.info(traceback.format_exc())
-        app.logger.info('!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!')
-        app.logger.info(' ')
-        self.retry(exc=exc, countdown= retryTime(self.request.retries))
-
-    finally:
-        db.session.remove()
+    for image in set(images):
+        image.detection_rating = detection_rating(image)
+    db.session.commit()
     
     return True
 
@@ -3771,76 +3749,85 @@ def checkUploadUser(user_id,survey_id):
     
     return False
 
-@celery.task(bind=True,max_retries=5,ignore_result=True)
-def update_staticgroups(self,survey_id,staticgroups,user_id):
+def update_staticgroups(survey_id,staticgroups,user_id):
     '''Updates the staticgroups and static detections for the specified survey.'''
-    try:
-        survey = db.session.query(Survey).get(survey_id)
-        survey.status = 'Processing'
-        db.session.commit()
 
-        # Update staticgroups
-        for staticgroup in staticgroups:
-            if staticgroup['status'] in ['accepted','rejected']:
-                static_group = db.session.query(Staticgroup).get(staticgroup['id'])
-                static_group.status = staticgroup['status']
-                static_group.user_id = user_id
+    survey = db.session.query(Survey).get(survey_id)
+    survey.status = 'Processing'
+    db.session.commit()
 
-
-        # Update detections
-        static_detections = db.session.query(Detection)\
-                                    .join(Image)\
-                                    .join(Camera)\
-                                    .join(Trapgroup)\
-                                    .join(Staticgroup)\
-                                    .filter(Trapgroup.survey_id==survey_id)\
-                                    .filter(or_(Staticgroup.status=='accepted',Staticgroup.status=='unknown'))\
-                                    .filter(Detection.static!=True)\
-                                    .distinct().all()
-
-        images = []
-        for detection in static_detections:
-            images.append(detection.image)
-            detection.static = True
-
-        rejected_detections = db.session.query(Detection)\
-                                    .join(Image)\
-                                    .join(Camera)\
-                                    .join(Trapgroup)\
-                                    .join(Staticgroup)\
-                                    .filter(Trapgroup.survey_id==survey_id)\
-                                    .filter(Staticgroup.status=='rejected')\
-                                    .filter(Detection.static!=False)\
-                                    .distinct().all()
-
-        for detection in rejected_detections:
-            images.append(detection.image)
-            detection.static = False
-
-        db.session.commit()
+    # Update staticgroups
+    for staticgroup in staticgroups:
+        if staticgroup['status'] in ['accepted','rejected']:
+            static_group = db.session.query(Staticgroup).get(staticgroup['id'])
+            static_group.status = staticgroup['status']
+            static_group.user_id = user_id
 
 
-        for image in images:
-            image.detection_rating = detection_rating(image)
-        db.session.commit()
+    # Update detections
+    static_detections = db.session.query(Detection)\
+                                .join(Image)\
+                                .join(Camera)\
+                                .join(Trapgroup)\
+                                .join(Staticgroup)\
+                                .filter(Trapgroup.survey_id==survey_id)\
+                                .filter(or_(Staticgroup.status=='accepted',Staticgroup.status=='unknown'))\
+                                .filter(Detection.static!=True)\
+                                .distinct().all()
 
-        task_ids = [r[0] for r in db.session.query(Task.id).filter(Task.survey_id==survey_id).filter(Task.name!='default').distinct().all()]
-        for task_id in task_ids:
-            updateAllStatuses(task_id=task_id, celeryTask=False)
+    images = []
+    for detection in static_detections:
+        images.append(detection.image)
+        detection.static = True
 
-        survey = db.session.query(Survey).get(survey_id)
-        survey.status = 'Ready'
-        db.session.commit()
+    rejected_detections = db.session.query(Detection)\
+                                .join(Image)\
+                                .join(Camera)\
+                                .join(Trapgroup)\
+                                .join(Staticgroup)\
+                                .filter(Trapgroup.survey_id==survey_id)\
+                                .filter(Staticgroup.status=='rejected')\
+                                .filter(Detection.static!=False)\
+                                .distinct().all()
 
-    except Exception as exc:
-        app.logger.info(' ')
-        app.logger.info('!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!')
-        app.logger.info(traceback.format_exc())
-        app.logger.info('!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!')
-        app.logger.info(' ')
-        self.retry(exc=exc, countdown= retryTime(self.request.retries))
+    for detection in rejected_detections:
+        images.append(detection.image)
+        detection.static = False
 
-    finally:
-        db.session.remove()
+    db.session.commit()
+
+
+    for image in images:
+        image.detection_rating = detection_rating(image)
+    db.session.commit()
 
     return True
+
+
+def verify_label(description,hotkey,parent):
+    '''Verifies the label description and hotkey.'''	
+
+    valid = True
+    if description.lower() in ['knocked down','nothing','vehicles/humans/livestock','unknown','skip','remove false detections', 'mask area']:
+        valid = False
+
+    if not hotkey.isdigit() and not hotkey.isalpha() and not hotkey.isspace():
+        valid = False
+
+    if parent == 'None' or parent == 'none':
+        parent = None
+
+    if not parent:
+        if hotkey.lower() in ['v', 'q', 'n', 'u']:
+            valid = False
+    else:
+        if hotkey == '9':
+            valid = False
+
+    if hotkey == '0':
+        valid = False
+
+    if len(description) == 0 or len(hotkey) == 0:
+        valid = False
+
+    return valid

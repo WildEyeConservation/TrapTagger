@@ -344,14 +344,54 @@ limitations under the License. -->
 </div>
 
 <!-- Add images Modal -->
-<div id="modalAddImages" class="modal fade" role="dialog" tabindex="-1">
+<div id="modalAddFiles" class="modal fade" role="dialog" tabindex="-1">
+    <div class="modal-dialog" style="max-width: 50%;">
+  
+        <!-- Modal content-->
+        <div class="modal-content">
+            <div class="modal-header">
+                <div class='col-lg-10' style="padding: 0px">
+                    <h4 id="addFilesHeader" class="modal-title">Add Files</h4>
+                </div>
+                <div class='col-lg-1' style="padding: 0px">
+                    <button class='btn btn-primary btn-sm pull-right' onclick="helpOpen('add_files')">Help</button>
+                </div>
+                <div class='col-lg-1' style="padding: 0px">
+                    <button id="helpx" type="button" class="close" data-dismiss="modal">&times;</button>
+                </div>
+            </div>
+
+            <div class="modal-body">
+                <div id="addFilesErrors" style="font-size: 80%; color: #DF691A"></div>
+                <div id="addFilesDiv"></div>
+            </div>
+            <div class='modal-footer'>
+                <div class='col-lg-8'></div>
+                <div class='col-lg-2'>
+                    <button class='btn btn-primary btn-block' id='btnAddFiles'>
+                        Confirm
+                    </button>
+                </div>
+                <div class='col-lg-2'>
+                    <button id="helpclose" type='button' class='btn btn-info btn-block' 
+                    data-dismiss='modal'>Close</button>
+                </div>
+
+            </div>
+        </div>
+  
+    </div>
+</div>
+
+<!-- Edit Survey Modal -->
+<div id="modalEditSurvey" class="modal fade" role="dialog" tabindex="-1">
     <div class="modal-dialog" style="max-width: 70%;">
   
         <!-- Modal content-->
         <div class="modal-content">
             <div class="modal-header">
                 <div class='col-lg-10' style="padding: 0px">
-                    <h4 id="addImagesHeader" class="modal-title">Add Images</h4>
+                    <h4 id="editSurveyHeader" class="modal-title">Edit Survey</h4>
                 </div>
                 <div class='col-lg-1' style="padding: 0px">
                     <button class='btn btn-primary btn-sm pull-right' onclick="helpOpen('edit_survey')">Help</button>
@@ -362,7 +402,6 @@ limitations under the License. -->
             </div>
 
             <div class="tab" id="editSurveyTabs">
-                <button id="openAddImagesTab" class="tablinks" onclick="changeEditSurveyTab(event, 'baseAddImagesTab')">Files</button>
                 <button id="openAddCoordinatesTab" class="tablinks" onclick="changeEditSurveyTab(event, 'baseAddCoordinatesTab')">Coordinates</button>
                 <button id="openEditTimestampsTab" class="tablinks" onclick="changeEditSurveyTab(event, 'baseEditTimestampsTab')">Camera Timestamps</button>
                 <button id="openEditImgTimestampsTab" class="tablinks" onclick="changeEditSurveyTab(event, 'baseEditImgTimestampsTab')">Image Timestamps</button>
@@ -374,42 +413,38 @@ limitations under the License. -->
             </div>
 
             <div class="modal-body">
-                <div id="addImagesErrors" style="font-size: 80%; color: #DF691A"></div>
-
-                <div class="tabcontent" id="baseAddImagesTab">
-                    <div id="addImagesAddImsDiv"></div>
-                </div>
+                <div id="editSurveyErrors" style="font-size: 80%; color: #DF691A"></div>
                 <div class="tabcontent" id="baseAddCoordinatesTab">
-                    <div id="addImagesAddCoordsDiv"></div>
+                    <div id="editCoordsDiv"></div>
                 </div>
                 <div class="tabcontent" id="baseEditTimestampsTab">
-                    <div id="addImagesEditTimestampsDiv"></div>
+                    <div id="editTimestampsDiv"></div>
                 </div>
                 <div class="tabcontent" id="baseEditImgTimestampsTab">
-                    <div id="addImagesEditImgTimestampsDiv"></div>
+                    <div id="editImgTimestampsDiv"></div>
                 </div>
                 <div class="tabcontent" id="baseEditClassifierTab">
-                    <div id="addImagesEditClassifierDiv"></div>
+                    <div id="editClassifierDiv"></div>
                 </div>
                 <div class="tabcontent" id="baseAdvancedTab">
-                    <div id="addImagesAdvancedDiv"></div>
+                    <div id="editAdvancedDiv"></div>
                 </div>
                 <div class="tabcontent" id="baseEditMasksTab">
-                    <div id="addImagesEditMasksDiv"></div>
+                    <div id="editMasksDiv"></div>
                 </div>
                 <div class="tabcontent" id="baseStaticTab">
-                    <div id="addImagesStaticDiv"></div>
+                    <div id="editStaticDiv"></div>
                 </div>
                 <div class="tabcontent" id="baseStructureTab">
-                    <div id="addImagesSurveyStructureDiv"></div>
+                    <div id="editSurveyStructureDiv"></div>
                 </div>
             </div>
             <div class='modal-footer'>
 
                 <div class='col-lg-8'></div>
                 <div class='col-lg-2'>
-                    <button class='btn btn-primary btn-block' id='btnAddImages'>
-                        Confirm
+                    <button class='btn btn-primary btn-block' id='btnEditSurvey'>
+                        Save Changes
                     </button>
                 </div>
                 <div class='col-lg-2'>

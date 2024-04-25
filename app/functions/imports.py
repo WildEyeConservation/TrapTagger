@@ -1842,8 +1842,6 @@ def runClassifier(self,lower_index,upper_index,sourceBucket,batch_size,survey_id
                         .join(Trapgroup)\
                         .filter(Trapgroup.survey_id==survey_id)\
                         .filter(or_(and_(Detection.source==model,Detection.score>Config.DETECTOR_THRESHOLDS[model]) for model in Config.DETECTOR_THRESHOLDS))\
-                        .filter(Detection.static==False)\
-                        .filter(~Detection.status.in_(Config.DET_IGNORE_STATUSES))\
                         .order_by(Image.id).distinct().all()]
 
         batch = images[lower_index:upper_index]
@@ -1853,8 +1851,6 @@ def runClassifier(self,lower_index,upper_index,sourceBucket,batch_size,survey_id
                                     .join(Image)\
                                     .filter(Image.id.in_(batch))\
                                     .filter(or_(and_(Detection.source==model,Detection.score>Config.DETECTOR_THRESHOLDS[model]) for model in Config.DETECTOR_THRESHOLDS))\
-                                    .filter(Detection.static==False)\
-                                    .filter(~Detection.status.in_(Config.DET_IGNORE_STATUSES))\
                                     .filter(Detection.left!=Detection.right)\
                                     .filter(Detection.top!=Detection.bottom)\
                                     .distinct().all()
@@ -1878,8 +1874,6 @@ def runClassifier(self,lower_index,upper_index,sourceBucket,batch_size,survey_id
                                 .join(Camera)\
                                 .filter(Image.id.in_(batch))\
                                 .filter(or_(and_(Detection.source==model,Detection.score>Config.DETECTOR_THRESHOLDS[model]) for model in Config.DETECTOR_THRESHOLDS))\
-                                .filter(Detection.static==False)\
-                                .filter(~Detection.status.in_(Config.DET_IGNORE_STATUSES))\
                                 .filter(Detection.left!=Detection.right)\
                                 .filter(Detection.top!=Detection.bottom)\
                                 .all()
@@ -2763,8 +2757,6 @@ def classifySurvey(survey_id,sourceBucket,classifier=None,batch_size=200,process
                         .join(Trapgroup)\
                         .filter(Trapgroup.survey_id==survey_id)\
                         .filter(or_(and_(Detection.source==model,Detection.score>Config.DETECTOR_THRESHOLDS[model]) for model in Config.DETECTOR_THRESHOLDS))\
-                        .filter(Detection.static==False)\
-                        .filter(~Detection.status.in_(Config.DET_IGNORE_STATUSES))\
                         .distinct().count()
 
     chunk_size = round(Config.QUEUES['parallel']['rate']/4)
@@ -3993,7 +3985,7 @@ def extract_images_from_video(localsession, sourceKey, bucketName, trapgroup_id)
             # Calculate hash 
             video_hash = generate_raw_image_hash(temp_file.name)
 
-        video = Video(camera=camera, filename=filename, hash=video_hash, fps=video_fps, frame_count=video_frames)
+        video = Video(camera=camera, filename=filename, hash=video_hash, still_rate=fps)
         localsession.add(video)
 
     except:
@@ -4454,7 +4446,7 @@ def clean_extracted_timestamp(text):
         return text
 
 @celery.task(bind=True,max_retries=5)
-def get_timestamps(self,trapgroup_id,index=None,use_old=False):
+def get_timestamps(self,trapgroup_id,index=None):
     '''Videos have a poorly defined metadata standard. In order to get their timestamps consistently, we need to visually strip them from their frames. This can also be used to extract timestamps from images.'''
 
     try:
@@ -4612,11 +4604,7 @@ def get_timestamps(self,trapgroup_id,index=None,use_old=False):
                     timestamp = parsed_timestamps[video.id]
 
                     if upper_limit >= timestamp >= lower_limit:
-                        if use_old:
-                            # TODO: remove this - it's just here for the update pre-processing
-                            fps = get_still_rate_old(video.fps,video.frame_count)
-                        else:
-                            fps = get_still_rate(video.fps,video.frame_count)
+                        fps = video.still_rate
                         video_timestamp = timestamp - timedelta(seconds=index/fps)
 
                         frames = db.session.query(Image).join(Camera).join(Video,Camera.videos).filter(Video.id==video.id).distinct().all()
@@ -4654,7 +4642,7 @@ def get_timestamps(self,trapgroup_id,index=None,use_old=False):
 
     return True
 
-def extract_missing_timestamps(survey_id,use_old=False):
+def extract_missing_timestamps(survey_id):
     '''Kicks off all the celery tasks for extracting timestamps from the videos/images in the given survey that doesn't have timestamps.'''
 
     # Process Videos
@@ -4672,7 +4660,7 @@ def extract_missing_timestamps(survey_id,use_old=False):
                                                 .filter(Image.skipped!=True)\
                                                 .distinct().all()]
         for trapgroup_id in trapgroup_ids:
-            get_timestamps(trapgroup_id,index,use_old)
+            get_timestamps(trapgroup_id,index)
         index += 4
 
     app.logger.info('All videos processed for survey {} in {}s after {} iterations'.format(survey_id,time.time()-starttime,(index/3)+1))
@@ -4816,7 +4804,7 @@ def extrapolate_timestamps(self,camera_id,folder=None):
     '''Extrapolates timestamp data from other extracted data for images where the extracted timestamp is missing'''
     try:
         if folder: #Videos
-            images = db.session.query(Image,Video.id,Video.filename,Video.fps,Video.frame_count)\
+            images = db.session.query(Image,Video.id,Video.filename,Video.still_rate)\
                                 .join(Camera, Camera.id==Image.camera_id)\
                                 .join(Video)\
                                 .filter(Camera.cameragroup_id==camera_id)\
@@ -4872,7 +4860,7 @@ def extrapolate_timestamps(self,camera_id,folder=None):
                         # If the two timestamps are the same, just use that
                         if folder:
                             video_timestamp = before_time
-                            fps = get_still_rate(image[3],image[4])
+                            fps = image[3]
                             frames = db.session.query(Image).join(Camera).join(Video,Camera.videos).filter(Video.id==image[1]).distinct().all()
                             for frame in frames:
                                 frame_count = int(frame.filename.split('frame')[1][:-4])

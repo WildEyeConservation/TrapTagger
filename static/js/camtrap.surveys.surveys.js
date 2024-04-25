@@ -14,7 +14,8 @@
 
 const modalNewSurvey = $('#modalNewSurvey');
 const btnNewSurvey = document.querySelector('#btnNewSurvey');
-const modalAddImages = $('#modalAddImages');
+const modalEditSurvey = $('#modalEditSurvey');
+const modalAddFiles = $('#modalAddFiles');
 const modalAddTask = $('#modalAddTask');
 const modalResults = $('#modalResults');
 const modalExploreTask = $('#modalExploreTask');
@@ -252,37 +253,49 @@ var pathDisplay = null
 const default_access  = {0: 'Worker', 1: 'Hidden', 2: 'Read', 3: 'Write', 4: 'Admin'}
 const access_slider_values = {'worker': 0, 'hidden': 1, 'read': 2, 'write': 3 , 'admin': 4}
 var globalOrganisationUsers = []
-var tabActiveEditSurvey = 'baseAddImagesTab'
+var tabActiveEditSurvey = 'baseAddCoordinatesTab'
 
-var drawnItems = null
+var finishedDisplayingMask = null
+var finishedDisplayingTime = null
+var finishedDisplayingStatic = null
+var drawnItemsMask = null
+var drawnItemsStatic = null
 var drawnMaskItems = null
 var cameras = []
-var cameraIndex = 0
-var imageIndex = 0
-var map = null
-var activeImage = null
+var maskCamIndex = 0
+var maskImgIndex = 0
+var mapTime = null
+var activeImageTime = null
+var mapReadyTime = null
+var mapStatic = null
+var activeImageStatic = null
+var addedDetectionsStatic = false
+var mapReadyStatic = null
+var mapMask = null
+var activeImageMask = null
 var editingEnabled = false
-var addedDetections = false
-var mapReady = null
+var addedDetectionsMask = false
+var mapReadyMask = null
 var drawControl = null
 var leafletMaskIDs = {}
 var removedMasks = []
 var editedMasks = {}
 var addedMasks = {}
-var camera_ids = []
-var cameraReadAheadIndex = 0
-var cameraIDs = []
-var finishedDisplaying = true
+var maskCamIDs = []
+var maskCamReadAheadIndex = 0
+var maskCam_ids = []
 var staticgroupIndex = 0
+var staticImgIndex = 0
 var staticgroupIDs = []
 var staticgroupReadAheadIndex = 0
 var staticgroups = []
 var staticgroup_ids = []
 var staticgroupDetections = {}
 var og_staticgroup_status = {}
-
+var staticCameras = []
 var selectedTimestampType = 'missing'
 var cameraIDs = []
+var camera_ids = []
 var cameraReadAheadIndex = 0
 var imageIndex = 0
 var cameraIndex = 0
@@ -292,8 +305,9 @@ var original_extracted_timestamps = {}
 var corrected_extracted_timestamps = {}
 var original_edited_timestamps = {}
 var corrected_edited_timestamps = {}
-var camera_ids = []
 var currentYear = new Date().getFullYear()
+var original_coordinates = {}
+var corrected_coordinates = {}
 
 function buildSurveys(survey,disableSurvey) {
     /**
@@ -355,11 +369,11 @@ function buildSurveys(survey,disableSurvey) {
     surveyDiv.appendChild(surveyRow)
 
     var infoCol = document.createElement('div')
-    infoCol.classList.add('col-lg-5');
+    infoCol.classList.add('col-lg-4');
     surveyRow.appendChild(infoCol)
 
     var buttonCol = document.createElement('div')
-    buttonCol.classList.add('col-lg-7');
+    buttonCol.classList.add('col-lg-8');
     surveyRow.appendChild(buttonCol)
 
     var buttonRow = document.createElement('div')
@@ -434,7 +448,7 @@ function buildSurveys(survey,disableSurvey) {
         infoElementRow0.classList.add('row');
         infoElementRow0.classList.add('center');
         infoElementRow0.setAttribute('style',"margin-left: 10px")
-        infoCol.appendChild(infoElementRow0)
+        surveyDiv.appendChild(infoElementRow0)
 
         infoElementFiller = document.createElement('div')
         infoElementFiller.classList.add('col-lg-12');
@@ -443,12 +457,16 @@ function buildSurveys(survey,disableSurvey) {
         infoElementRow0.appendChild(infoElementFiller)
     }
 
+    editCol = document.createElement('div')
+    editCol.classList.add('col-lg-2');
+    buttonRow.appendChild(editCol)
+
     addImagesCol = document.createElement('div')
     addImagesCol.classList.add('col-lg-3');
     buttonRow.appendChild(addImagesCol)
 
     addTaskCol = document.createElement('div')
-    addTaskCol.classList.add('col-lg-6');
+    addTaskCol.classList.add('col-lg-4');
     buttonRow.appendChild(addTaskCol)
 
     deleteSurveyCol = document.createElement('div')
@@ -673,25 +691,45 @@ function buildSurveys(survey,disableSurvey) {
             }
         }
 
+        editSurveyBtn = document.createElement('button')
+        editSurveyBtn.setAttribute("class","btn btn-primary btn-block btn-sm")
+        editSurveyBtn.setAttribute("id","editSurveyBtn"+survey.id)
+        editSurveyBtn.innerHTML = 'Edit'
+        editCol.appendChild(editSurveyBtn)
+    
+        editSurveyBtn.addEventListener('click', function(wrapSurveyName,wrapSurveyId) {
+            return function() {
+                surveyName = wrapSurveyName
+                selectedSurvey = wrapSurveyId
+                document.getElementById('editSurveyHeader').innerHTML =  'Edit Survey: ' + wrapSurveyName
+                clearEditSurveyModal()
+                modalEditSurvey.modal({keyboard: true});
+                document.getElementById('openAddCoordinatesTab').click()
+            }
+        }(survey.name,survey.id));
+
         addImagesBtn = document.createElement('button')
         addImagesBtn.setAttribute("class","btn btn-primary btn-block btn-sm")
         addImagesBtn.setAttribute("id","addImagesBtn"+survey.id)
-        addImagesBtn.innerHTML = 'Edit'
+        addImagesBtn.setAttribute("style","white-space: normal; word-wrap: break-word;")
+        addImagesBtn.innerHTML = 'Add Files'
         addImagesCol.appendChild(addImagesBtn)
     
         addImagesBtn.addEventListener('click', function(wrapSurveyName,wrapSurveyId) {
             return function() {
                 surveyName = wrapSurveyName
                 selectedSurvey = wrapSurveyId
-                document.getElementById('addImagesHeader').innerHTML =  'Edit Survey: ' + wrapSurveyName
-                modalAddImages.modal({keyboard: true});
-                document.getElementById('openAddImagesTab').click()
+                document.getElementById('addFilesHeader').innerHTML =  'Add Files: ' + wrapSurveyName
+                clearAddFilesModal()
+                modalAddFiles.modal({keyboard: true});
+                openAddImages()
             }
         }(survey.name,survey.id));
 
         addTaskBtn = document.createElement('button')
         addTaskBtn.setAttribute("class","btn btn-primary btn-block btn-sm")
         addTaskBtn.setAttribute("id","addTaskBtn"+survey.id)
+        addTaskBtn.setAttribute("style","white-space: normal; word-wrap: break-word;")
         addTaskBtn.innerHTML = 'Add Annotation Set'
         addTaskCol.appendChild(addTaskBtn)
 
@@ -1037,7 +1075,7 @@ function resetEditSurveyModal() {
     // document.getElementById('addImagesAdvanced').disabled = false
 
 
-    var mainModal = document.getElementById('modalAddImages')
+    var mainModal = document.getElementById('modalEditSurvey')
     var tablinks = mainModal.getElementsByClassName("tablinks");
     for (let i = 0; i < tablinks.length; i++) {
         tablinks[i].className = tablinks[i].className.replace(" active", "");
@@ -1157,7 +1195,7 @@ function buildBrowserUpload(divID) {
 }
 
 function pingTgCheck() {
-    if (modalNewSurvey.is(':visible')||modalAddImages.is(':visible')) {
+    if (modalNewSurvey.is(':visible')||modalAddFiles.is(':visible')) {
         if (!checkingTrapgroupCode) {
             checkingTrapgroupCode = true
             S3FolderInput = document.getElementById('S3FolderInput')
@@ -1631,7 +1669,7 @@ function updateTgCode() {
     if (tgCode.endsWith('.*') || tgCode.endsWith('.+') || tgCode.endsWith('.*[0-9]+') || tgCode.endsWith('.+[0-9]+' )) {
         error_message = 'Your site identifier is invalid. Please try again or contact us for assistance.'
         if (document.getElementById('addImagesTGCode')!=null) {
-            document.getElementById('addImagesErrors').innerHTML = error_message
+            document.getElementById('addFilesErrors').innerHTML = error_message
         }
         else {
             document.getElementById('newSurveyErrors').innerHTML = error_message
@@ -1948,15 +1986,15 @@ function buildBucketUpload(divID,folders) {
 function buildAddIms() {
     /** Builds the add images form for use in the edit survey modal. */
     
-    addImagesAddImsDiv = document.getElementById('addImagesAddImsDiv')
-    // addImagesAddImsDiv.appendChild(document.createElement('br'))
+    addFilesDiv = document.getElementById('addFilesDiv')
+    // addFilesDiv.appendChild(document.createElement('br'))
 
     // Upload Type
     UTdiv = document.createElement('div')
     if (cloudAccess=='False') {
         UTdiv.setAttribute('hidden','true')
     }
-    addImagesAddImsDiv.appendChild(UTdiv)
+    addFilesDiv.appendChild(UTdiv)
 
     h5 = document.createElement('h5')
     h5.setAttribute('style','margin-bottom: 2px')
@@ -2010,7 +2048,7 @@ function buildAddIms() {
 
     div = document.createElement('div')
     div.setAttribute('id','addImagesFormDiv')
-    addImagesAddImsDiv.appendChild(div)
+    addFilesDiv.appendChild(div)
 
     $("#S3BucketAdd").change( function() {
         S3BucketAdd = document.getElementById('S3BucketAdd')
@@ -2039,21 +2077,21 @@ function buildAddIms() {
     h5 = document.createElement('h5')
     h5.setAttribute('style','margin-bottom: 2px')
     h5.innerHTML = 'Site Identifier'
-    addImagesAddImsDiv.appendChild(h5)
+    addFilesDiv.appendChild(h5)
 
     div = document.createElement('div')
     div.setAttribute('style','font-size: 80%; margin-bottom: 2px')
     div.innerHTML = '<i>The identifier used to designate a site in your folder structure. Eg. "Site" if your sites are stored in folders named "Site1", "Site2" etc. Becomes a <a href="https://www.w3schools.com/python/python_regex.asp">regular expression</a> search query if the advanced option is selected.</i>'
-    addImagesAddImsDiv.appendChild(div)
+    addFilesDiv.appendChild(div)
 
     info = document.createElement('div')
     info.setAttribute('id','addImagesTGInfo')
     info.setAttribute('style','font-size: 80%; color: #DF691A')
-    addImagesAddImsDiv.appendChild(info)
+    addFilesDiv.appendChild(info)
 
     row = document.createElement('div')
     row.classList.add('row')
-    addImagesAddImsDiv.appendChild(row)
+    addFilesDiv.appendChild(row)
 
     col1 = document.createElement('div')
     col1.classList.add('col-lg-4')
@@ -2089,17 +2127,17 @@ function buildAddIms() {
 
     tgBuilder = document.createElement('div')
     tgBuilder.setAttribute('id','addImagesTgBuilder')
-    addImagesAddImsDiv.appendChild(tgBuilder)
+    addFilesDiv.appendChild(tgBuilder)
 
-    addImagesAddImsDiv.appendChild(document.createElement('br'))
+    addFilesDiv.appendChild(document.createElement('br'))
 
     $("#addImagesCheckbox").change( function() {
         addImagesCheckbox = document.getElementById('addImagesCheckbox')
         if (addImagesCheckbox.checked) {
-            document.getElementById('addImagesErrors').innerHTML = 'Note that you are now required to enter a regular expression for your site identifier. It will be used to identify your sites based on your folder structure.'
+            document.getElementById('addFilesErrors').innerHTML = 'Note that you are now required to enter a regular expression for your site identifier. It will be used to identify your sites based on your folder structure.'
             buildTgBuilderRow()
         } else {
-            document.getElementById('addImagesErrors').innerHTML = ''
+            document.getElementById('addFilesErrors').innerHTML = ''
 
             // Clear TG Builder
             addImagesTgBuilder = document.getElementById('addImagesTgBuilder')
@@ -2113,16 +2151,16 @@ function buildAddIms() {
     h5 = document.createElement('h5')
     h5.setAttribute('style','margin-bottom: 2px')
     h5.innerHTML = 'Camera Identifier'
-    addImagesAddImsDiv.appendChild(h5)
+    addFilesDiv.appendChild(h5)
 
     div = document.createElement('div')
     div.setAttribute('style','font-size: 80%; margin-bottom: 2px')
     div.innerHTML = '<i>Select the method you would like to use to identify your cameras.</i>'
-    addImagesAddImsDiv.appendChild(div)
+    addFilesDiv.appendChild(div)
 
     var div = document.createElement('div')
     div.style.marginBottom = '5px'
-    addImagesAddImsDiv.appendChild(div)
+    addFilesDiv.appendChild(div)
 
     var radioDiv = document.createElement('div')
     radioDiv.setAttribute('class','custom-control custom-radio custom-control-inline')
@@ -2188,12 +2226,12 @@ function buildAddIms() {
     div.id = 'addImagesCamDesc'
     div.setAttribute('style','font-size: 80%; margin-bottom: 2px')
     div.innerHTML = '<i>Each bottom-level folder in your dataset will be considered a different camera.</i>'
-    addImagesAddImsDiv.appendChild(div)
+    addFilesDiv.appendChild(div)
 
     var camDiv = document.createElement('div')
     camDiv.id = 'addImagesCamDiv'
     camDiv.hidden = true
-    addImagesAddImsDiv.appendChild(camDiv)
+    addFilesDiv.appendChild(camDiv)
 
     row = document.createElement('div')
     row.classList.add('row')
@@ -2239,10 +2277,10 @@ function buildAddIms() {
     $("#addImagesCamCheckbox").change( function() {
         addImagesCamCheckbox = document.getElementById('addImagesCamCheckbox')
         if (addImagesCamCheckbox.checked) {
-            document.getElementById('addImagesErrors').innerHTML = 'Note that you are now required to enter a regular expression for your camera identifier. It will be used to identify your cameras based on your folder structure.'
+            document.getElementById('addFilesErrors').innerHTML = 'Note that you are now required to enter a regular expression for your camera identifier. It will be used to identify your cameras based on your folder structure.'
             buildCamBuilderRow()
         } else {
-            document.getElementById('addImagesErrors').innerHTML = ''
+            document.getElementById('addFilesErrors').innerHTML = ''
 
             // Clear TG Builder
             addImagesCameraBuilder = document.getElementById('addImagesCamBuilder')
@@ -2252,26 +2290,26 @@ function buildAddIms() {
         }
     })
 
-    addImagesAddImsDiv.appendChild(document.createElement('br'))
+    addFilesDiv.appendChild(document.createElement('br'))
 
     var h5 = document.createElement('h5')
     h5.setAttribute('style','margin-bottom: 2px')
     h5.innerHTML = 'Structure'
-    addImagesAddImsDiv.appendChild(h5)
+    addFilesDiv.appendChild(h5)
 
     var div = document.createElement('div')
     div.setAttribute('style','font-size: 80%; margin-bottom: 2px')
     div.innerHTML = '<i>Check the detected structure of your survey. Eg. "Site1 : Camera1, Camera2" etc. </i>'
-    addImagesAddImsDiv.appendChild(div)
+    addFilesDiv.appendChild(div)
 
     var div = document.createElement('div')
     div.setAttribute('id','addImagesStructureDiv')
     div.setAttribute('style','font-size: 80%; color: #DF691A')
-    addImagesAddImsDiv.appendChild(div)
+    addFilesDiv.appendChild(div)
 
     var addImagesStructureDiv2 = document.createElement('div')
     addImagesStructureDiv2.setAttribute('id','addImagesStructureDiv2')
-    addImagesAddImsDiv.appendChild(addImagesStructureDiv2)
+    addFilesDiv.appendChild(addImagesStructureDiv2)
 
     var row = document.createElement('div')
     row.classList.add('row')
@@ -2323,7 +2361,7 @@ function buildCameras(camera_url='/getCameraStamps') {
         if (this.readyState == 4 && this.status == 200) {
             reply = JSON.parse(this.responseText);
 
-            if ((reply.survey==selectedSurvey)&&(modalAddImages.is(':visible'))) {
+            if ((reply.survey==selectedSurvey)&&(modalEditSurvey.is(':visible'))) {
                 if (reply.next_url==null) {
                     btnNextCameras.style.visibility = 'hidden'
                 } else {
@@ -2465,34 +2503,34 @@ function buildEditTimestamp() {
     global_corrected_timestamps = {}
     global_original_timestamps = {}
 
-    addImagesEditTimestampsDiv = document.getElementById('addImagesEditTimestampsDiv')
+    editTimestampsDiv = document.getElementById('editTimestampsDiv')
 
     h5 = document.createElement('h5')
     h5.setAttribute('style','margin-bottom: 2px')
     h5.innerHTML = 'Edit Timestamps'
-    addImagesEditTimestampsDiv.appendChild(h5)
+    editTimestampsDiv.appendChild(h5)
 
     div = document.createElement('div')
     div.setAttribute('style','font-size: 80%; margin-bottom: 2px')
     div.innerHTML = '<i>Here you can view and edit the timestamps of the fist image taken by each camera in the selected survey. All images taken by an edited camera will be shifted by the same amount.</i>'
-    addImagesEditTimestampsDiv.appendChild(div)
+    editTimestampsDiv.appendChild(div)
 
     errors = document.createElement('div')
     errors.setAttribute('id','timestampErrors')
     errors.setAttribute('style','font-size: 80%; color: #DF691A')
-    addImagesEditTimestampsDiv.appendChild(errors)
+    editTimestampsDiv.appendChild(errors)
 
-    addImagesEditTimestampsDiv.appendChild(document.createElement('br'))
+    editTimestampsDiv.appendChild(document.createElement('br'))
 
     addImagesCamerasDiv = document.createElement('div')
     addImagesCamerasDiv.setAttribute('id','addImagesCamerasDiv')
-    addImagesEditTimestampsDiv.appendChild(addImagesCamerasDiv)
+    editTimestampsDiv.appendChild(addImagesCamerasDiv)
 
-    addImagesEditTimestampsDiv.appendChild(document.createElement('br'))
+    editTimestampsDiv.appendChild(document.createElement('br'))
 
     row = document.createElement('div')
     row.classList.add('row')
-    addImagesEditTimestampsDiv.appendChild(row)
+    editTimestampsDiv.appendChild(row)
 
     col1 = document.createElement('div')
     col1.classList.add('col-lg-2')
@@ -2538,22 +2576,22 @@ function buildEditImageTimestamp() {
     corrected_edited_timestamps = {}
     original_edited_timestamps = {}
     selectedTimestampType = 'missing'
-    map = null
+    mapTime = null
     imageIndex = 0
     cameraReadAheadIndex = 0
     cameraIndex = 0
     images = []
     camera_ids = []
 
-    addImagesEditImgTimestampsDiv = document.getElementById('addImagesEditImgTimestampsDiv')
+    editImgTimestampsDiv = document.getElementById('editImgTimestampsDiv')
 
     h5 = document.createElement('h5')
     h5.setAttribute('style','margin-bottom: 2px')
     h5.innerHTML = 'Edit Image Timestamps'
-    addImagesEditImgTimestampsDiv.appendChild(h5)
+    editImgTimestampsDiv.appendChild(h5)
 
     var row = document.createElement('div')
-    addImagesEditImgTimestampsDiv.appendChild(row)
+    editImgTimestampsDiv.appendChild(row)
     
     var radio = document.createElement('div')
     radio.setAttribute('class','custom-control custom-radio custom-control-inline')
@@ -2581,9 +2619,8 @@ function buildEditImageTimestamp() {
         cameraReadAheadIndex = 0
         images = []
         camera_ids = []
-        map = null
+        mapTime = null
         buildTimestampsMap()
-        getTimestampCameraIDs()
     });
 
     radio = document.createElement('div')
@@ -2612,9 +2649,8 @@ function buildEditImageTimestamp() {
         cameraReadAheadIndex = 0
         images = []
         camera_ids = []
-        map = null
+        mapTime = null
         buildTimestampsMap()
-        getTimestampCameraIDs()
     });
 
     radio = document.createElement('div')
@@ -2643,21 +2679,20 @@ function buildEditImageTimestamp() {
         cameraReadAheadIndex = 0
         images = []
         camera_ids = []
-        map = null
+        mapTime = null
         buildTimestampsMap()
-        getTimestampCameraIDs()
     });
 
     div = document.createElement('div')
     div.id = 'correctTimestampsDecscription'
     div.setAttribute('style','font-size: 80%; margin-bottom: 2px')
     div.innerHTML = '<i>Here you can add timestamps to images or videos that do not have any timestamps. </i>'
-    addImagesEditImgTimestampsDiv.appendChild(div)
+    editImgTimestampsDiv.appendChild(div)
 
     addImagesImagesDiv = document.createElement('div')
     addImagesImagesDiv.setAttribute('id','addImagesImagesDiv')
     addImagesImagesDiv.setAttribute('style','margin-top: 10px')
-    addImagesEditImgTimestampsDiv.appendChild(addImagesImagesDiv)
+    editImgTimestampsDiv.appendChild(addImagesImagesDiv)
 
     document.getElementById('missingTimestamps').click()
 }
@@ -2727,23 +2762,90 @@ function buildKml() {
 
 function openAddImages(){
     /** Listens for and initialises the add images form on the edit survey modal when the radio button is selected. */
-
-    if (tabActiveEditSurvey=='baseAddImagesTab') {
-        clearEditSurveyModal()
-        buildAddIms()
-    }
+    clearAddFilesModal()
+    buildAddIms()
 }
 
 function buildManualCoords() {
     /** Build the manual coords editor */
+    var coordsButtonsDiv = document.getElementById('coordsButtonsDiv')
+    while(coordsButtonsDiv.firstChild){
+        coordsButtonsDiv.removeChild(coordsButtonsDiv.firstChild);
+    }
+
+    coordsButtonsDiv.appendChild(document.createElement('br'))
+
+    var row = document.createElement('div')
+    row.classList.add('row')
+    coordsButtonsDiv.appendChild(row)
+
+    var col1 = document.createElement('div')
+    col1.classList.add('col-lg-2')
+    row.appendChild(col1)
+
+    var btnPrevSites = document.createElement('button')
+    btnPrevSites.setAttribute("class","btn btn-primary btn-block")
+    btnPrevSites.setAttribute("id","btnPrevSites")
+    btnPrevSites.innerHTML = 'Previous'
+    col1.appendChild(btnPrevSites)
+
+    var col2 = document.createElement('div')
+    col2.classList.add('col-lg-8')
+    row.appendChild(col2)
+
+    var col3 = document.createElement('div')
+    col3.classList.add('col-lg-2')
+    row.appendChild(col3)
+
+    var btnNextSites = document.createElement('button')
+    btnNextSites.setAttribute("class","btn btn-primary btn-block")
+    btnNextSites.setAttribute("id","btnNextSites")
+    btnNextSites.innerHTML = 'Next'
+    col3.appendChild(btnNextSites)
+
+    btnNextSites.addEventListener('click', ()=>{
+        getCoords(next_sites_url)
+    });
+    
+    btnPrevSites.addEventListener('click', ()=>{
+        getCoords(prev_sites_url)
+    });
+
+    getCoords()
+
+}
+
+function getCoords(url='/getTrapgroupCoords') {
+    /** Get the coordinates for the selected survey */
+    if (url=='/getTrapgroupCoords') {
+        url += '?survey_id='+selectedSurvey
+    }
+
     var xhttp = new XMLHttpRequest();
-    xhttp.open("GET", '/getTrapgroupCoords/'+selectedSurvey);
+    xhttp.open("GET", url);
     xhttp.onreadystatechange =
     function(){
         if (this.readyState == 4 && this.status == 200) {
             reply = JSON.parse(this.responseText);
+
+            if (reply.next_url==null) {
+                document.getElementById('btnNextSites').style.visibility = 'hidden'
+            } else {
+                document.getElementById('btnNextSites').style.visibility = 'visible'
+                next_sites_url = reply.next_url
+            }
+
+            if (reply.prev_url==null) {
+                document.getElementById('btnPrevSites').style.visibility = 'hidden'
+            } else {
+                document.getElementById('btnPrevSites').style.visibility = 'visible'
+                prev_sites_url = reply.prev_url
+            }
             
             addImsCoordsDiv = document.getElementById('addImsCoordsDiv')
+            while(addImsCoordsDiv.firstChild){
+                addImsCoordsDiv.removeChild(addImsCoordsDiv.firstChild);
+            }
             addImsCoordsDiv.appendChild(document.createElement('br'))
             
             headingRow = document.createElement('div')
@@ -2768,10 +2870,16 @@ function buildManualCoords() {
             headingCol = document.createElement('div')
             headingCol.setAttribute('class','col-lg-3')
             headingCol.innerHTML = 'Altitude'
-            headingRow.appendChild(headingCol)            
+            headingRow.appendChild(headingCol)       
+            
+            trapgroups = reply.trapgroups
 
-            for (let i=0;i<reply.length;i++) {
-                trapgroup = reply[i]
+            for (let i=0;i<trapgroups.length;i++) {
+                trapgroup = trapgroups[i]
+                original_coordinates[trapgroup.id] = {'latitude':trapgroup.latitude, 'longitude':trapgroup.longitude, 'altitude':trapgroup.altitude}
+                if (!corrected_coordinates[trapgroup.id]) {
+                    corrected_coordinates[trapgroup.id] = {}
+                }
 
                 row = document.createElement('div')
                 row.setAttribute('class','row')
@@ -2789,8 +2897,12 @@ function buildManualCoords() {
                 input1 = document.createElement('input')
                 input1.setAttribute('type','text')
                 input1.setAttribute('class','form-control')
-                input1.setAttribute('id','latitude-'+trapgroup.tag)
-                input1.value = trapgroup.latitude
+                input1.setAttribute('id','latitude-'+trapgroup.id)
+                if (corrected_coordinates[trapgroup.id].latitude) {
+                    input1.value = corrected_coordinates[trapgroup.id].latitude
+                } else {
+                    input1.value = trapgroup.latitude
+                }
                 col2.appendChild(input1)
 
                 col3 = document.createElement('div')
@@ -2800,8 +2912,12 @@ function buildManualCoords() {
                 input2 = document.createElement('input')
                 input2.setAttribute('type','text')
                 input2.setAttribute('class','form-control')
-                input2.setAttribute('id','longitude-'+trapgroup.tag)
-                input2.value = trapgroup.longitude
+                input2.setAttribute('id','longitude-'+trapgroup.id)
+                if (corrected_coordinates[trapgroup.id].longitude) {
+                    input2.value = corrected_coordinates[trapgroup.id].longitude
+                } else {
+                    input2.value = trapgroup.longitude
+                }
                 col3.appendChild(input2)
 
                 col4 = document.createElement('div')
@@ -2811,9 +2927,65 @@ function buildManualCoords() {
                 input3 = document.createElement('input')
                 input3.setAttribute('type','text')
                 input3.setAttribute('class','form-control')
-                input3.setAttribute('id','altitude-'+trapgroup.tag)
-                input3.value = trapgroup.altitude
+                input3.setAttribute('id','altitude-'+trapgroup.id)
+                if (corrected_coordinates[trapgroup.id].altitude) {
+                    input3.value = corrected_coordinates[trapgroup.id].altitude
+                } else {
+                    input3.value = trapgroup.altitude
+                }
                 col4.appendChild(input3)
+
+                $('#latitude-'+trapgroup.id).change(function(wrapID) {
+                    return function() {
+                        latitude = document.getElementById('latitude-'+wrapID)
+                        if (isNaN(latitude.value)) {
+                            document.getElementById('editSurveyErrors').innerHTML = 'Invalid coordinates. Please enter a valid number.'
+                            delete corrected_coordinates[wrapID].latitude
+                        } else {
+                            document.getElementById('editSurveyErrors').innerHTML = ''
+                            if (latitude.value!=original_coordinates[wrapID].latitude) {
+                                corrected_coordinates[wrapID].latitude = latitude.value
+                            } else {
+                                delete corrected_coordinates[wrapID].latitude
+                            }
+                        }
+                    }
+                }(trapgroup.id));
+
+                $('#longitude-'+trapgroup.id).change(function(wrapID) {
+                    return function() {
+                        longitude = document.getElementById('longitude-'+wrapID)
+                        if (isNaN(longitude.value)) {
+                            document.getElementById('editSurveyErrors').innerHTML = 'Invalid coordinates. Please enter a valid number.'
+                            delete corrected_coordinates[wrapID].longitude
+                        } else {
+                            document.getElementById('editSurveyErrors').innerHTML = ''
+                            if (longitude.value!=original_coordinates[wrapID].longitude) {
+                                corrected_coordinates[wrapID].longitude = longitude.value
+                            } else {
+                                delete corrected_coordinates[wrapID].longitude
+                            }
+                        }
+                    }
+                }(trapgroup.id));
+
+                $('#altitude-'+trapgroup.id).change(function(wrapID) {
+                    return function() {
+                        altitude = document.getElementById('altitude-'+wrapID)
+                        if (isNaN(altitude.value)) {
+                            document.getElementById('editSurveyErrors').innerHTML = 'Invalid coordinates. Please enter a valid number.'
+                            delete corrected_coordinates[wrapID].altitude
+                        } else {
+                            document.getElementById('editSurveyErrors').innerHTML = ''
+                            if (altitude.value!=original_coordinates[wrapID].altitude) {
+                                corrected_coordinates[wrapID].altitude = altitude.value
+                            } else {
+                                delete corrected_coordinates[wrapID].altitude
+                            }
+                        }
+                    }
+                }(trapgroup.id));
+
             }
         }
     }
@@ -2823,26 +2995,29 @@ function buildManualCoords() {
 function buildCoordsOptions() {
     /** Builds the selector to selct between kml upload and manual. */
 
-    addImagesAddCoordsDiv = document.getElementById('addImagesAddCoordsDiv')
-    while(addImagesAddCoordsDiv.firstChild){
-        addImagesAddCoordsDiv.removeChild(addImagesAddCoordsDiv.firstChild);
+    original_coordinates = {}
+    corrected_coordinates = {}
+
+    editCoordsDiv = document.getElementById('editCoordsDiv')
+    while(editCoordsDiv.firstChild){
+        editCoordsDiv.removeChild(editCoordsDiv.firstChild);
     }
 
-    // addImagesAddCoordsDiv.appendChild(document.createElement('br'))
+    // editCoordsDiv.appendChild(document.createElement('br'))
 
     h5 = document.createElement('h5')
     h5.setAttribute('style','margin-bottom: 2px')
     h5.innerHTML = 'Method'
-    addImagesAddCoordsDiv.appendChild(h5)
+    editCoordsDiv.appendChild(h5)
 
     infoDiv = document.createElement('div')
     infoDiv.setAttribute('style','font-size: 80%; margin-bottom: 2px')
     infoDiv.innerHTML = '<i>Select how you would like to edit your site coordinates.</i>'
-    addImagesAddCoordsDiv.appendChild(infoDiv)
+    editCoordsDiv.appendChild(infoDiv)
 
     optionDiv = document.createElement('div')
     optionDiv.setAttribute('class','custom-control custom-radio custom-control-inline')
-    addImagesAddCoordsDiv.appendChild(optionDiv)
+    editCoordsDiv.appendChild(optionDiv)
     
     input = document.createElement('input')
     input.setAttribute('type','radio')
@@ -2860,9 +3035,13 @@ function buildCoordsOptions() {
 
     $("#addCoordinatesKMLMethod").change( function() {
         if (document.getElementById('addCoordinatesKMLMethod').checked) {
-            addImsCoordsDiv = document.getElementById('addImsCoordsDiv')
+            var addImsCoordsDiv = document.getElementById('addImsCoordsDiv')
             while(addImsCoordsDiv.firstChild){
                 addImsCoordsDiv.removeChild(addImsCoordsDiv.firstChild);
+            }
+            var coordsButtonsDiv = document.getElementById('coordsButtonsDiv')
+            while(coordsButtonsDiv.firstChild){
+                coordsButtonsDiv.removeChild(coordsButtonsDiv.firstChild);
             }
             buildKml()
         }
@@ -2870,7 +3049,7 @@ function buildCoordsOptions() {
 
     optionDiv = document.createElement('div')
     optionDiv.setAttribute('class','custom-control custom-radio custom-control-inline')
-    addImagesAddCoordsDiv.appendChild(optionDiv)
+    editCoordsDiv.appendChild(optionDiv)
 
     input = document.createElement('input')
     input.setAttribute('type','radio')
@@ -2888,9 +3067,13 @@ function buildCoordsOptions() {
 
     $("#addCoordinatesManualMethod").change( function() {
         if (document.getElementById('addCoordinatesManualMethod').checked) {
-            addImsCoordsDiv = document.getElementById('addImsCoordsDiv')
+            var addImsCoordsDiv = document.getElementById('addImsCoordsDiv')
             while(addImsCoordsDiv.firstChild){
                 addImsCoordsDiv.removeChild(addImsCoordsDiv.firstChild);
+            }
+            var coordsButtonsDiv = document.getElementById('coordsButtonsDiv')
+            while(coordsButtonsDiv.firstChild){
+                coordsButtonsDiv.removeChild(coordsButtonsDiv.firstChild);
             }
             buildManualCoords()
         }
@@ -2898,57 +3081,122 @@ function buildCoordsOptions() {
 
     addImsCoordsDiv = document.createElement('div')
     addImsCoordsDiv.setAttribute('id','addImsCoordsDiv')
-    addImagesAddCoordsDiv.appendChild(addImsCoordsDiv)
+    editCoordsDiv.appendChild(addImsCoordsDiv)
+
+    coordsButtonsDiv = document.createElement('div')
+    coordsButtonsDiv.setAttribute('id','coordsButtonsDiv')
+    editCoordsDiv.appendChild(coordsButtonsDiv)
+
+    document.getElementById('addCoordinatesKMLMethod').click()
+    
 }
 
 function clearEditSurveyModal() {
     /** Clears the edit survey modal */
     
-    addImagesAddImsDiv = document.getElementById('addImagesAddImsDiv') 
-    while(addImagesAddImsDiv.firstChild){
-        addImagesAddImsDiv.removeChild(addImagesAddImsDiv.firstChild);
+    editTimestampsDiv = document.getElementById('editTimestampsDiv')
+    while(editTimestampsDiv.firstChild){
+        editTimestampsDiv.removeChild(editTimestampsDiv.firstChild);
     }
 
-    addImagesEditTimestampsDiv = document.getElementById('addImagesEditTimestampsDiv')
-    while(addImagesEditTimestampsDiv.firstChild){
-        addImagesEditTimestampsDiv.removeChild(addImagesEditTimestampsDiv.firstChild);
+    editImgTimestampsDiv = document.getElementById('editImgTimestampsDiv')
+    while(editImgTimestampsDiv.firstChild){
+        editImgTimestampsDiv.removeChild(editImgTimestampsDiv.firstChild);
     }
 
-    addImagesEditImgTimestampsDiv = document.getElementById('addImagesEditImgTimestampsDiv')
-    while(addImagesEditImgTimestampsDiv.firstChild){
-        addImagesEditImgTimestampsDiv.removeChild(addImagesEditImgTimestampsDiv.firstChild);
+    editClassifierDiv = document.getElementById('editClassifierDiv')
+    while(editClassifierDiv.firstChild){
+        editClassifierDiv.removeChild(editClassifierDiv.firstChild);
     }
 
-    addImagesEditClassifierDiv = document.getElementById('addImagesEditClassifierDiv')
-    while(addImagesEditClassifierDiv.firstChild){
-        addImagesEditClassifierDiv.removeChild(addImagesEditClassifierDiv.firstChild);
+    editCoordsDiv = document.getElementById('editCoordsDiv')
+    while(editCoordsDiv.firstChild){
+        editCoordsDiv.removeChild(editCoordsDiv.firstChild);
     }
 
-    addImagesAddCoordsDiv = document.getElementById('addImagesAddCoordsDiv')
-    while(addImagesAddCoordsDiv.firstChild){
-        addImagesAddCoordsDiv.removeChild(addImagesAddCoordsDiv.firstChild);
+    editAdvancedDiv = document.getElementById('editAdvancedDiv')
+    while(editAdvancedDiv.firstChild){
+        editAdvancedDiv.removeChild(editAdvancedDiv.firstChild);
     }
 
-    addImagesAdvancedDiv = document.getElementById('addImagesAdvancedDiv')
-    while(addImagesAdvancedDiv.firstChild){
-        addImagesAdvancedDiv.removeChild(addImagesAdvancedDiv.firstChild);
+    editMasksDiv = document.getElementById('editMasksDiv')
+    while(editMasksDiv.firstChild){
+        editMasksDiv.removeChild(editMasksDiv.firstChild);
     }
 
-    addImagesEditMasksDiv = document.getElementById('addImagesEditMasksDiv')
-    while(addImagesEditMasksDiv.firstChild){
-        addImagesEditMasksDiv.removeChild(addImagesEditMasksDiv.firstChild);
+    editStaticDiv = document.getElementById('editStaticDiv')
+    while(editStaticDiv.firstChild){
+        editStaticDiv.removeChild(editStaticDiv.firstChild);
     }
 
-    addImagesStaticDiv = document.getElementById('addImagesStaticDiv')
-    while(addImagesStaticDiv.firstChild){
-        addImagesStaticDiv.removeChild(addImagesStaticDiv.firstChild);
+    editSurveyStructureDiv = document.getElementById('editSurveyStructureDiv')
+    while(editSurveyStructureDiv.firstChild){
+        editSurveyStructureDiv.removeChild(editSurveyStructureDiv.firstChild);
     }
 
-    addImagesSurveyStructureDiv = document.getElementById('addImagesSurveyStructureDiv')
-    while(addImagesSurveyStructureDiv.firstChild){
-        addImagesSurveyStructureDiv.removeChild(addImagesSurveyStructureDiv.firstChild);
-    }
+    tabActiveEditSurvey = 'baseAddCoordinatesTab'
+    global_corrected_timestamps = {}
+    global_original_timestamps = {}
+    finishedDisplayingTime = null
+    finishedDisplayingStatic = null
+    drawnItemsMask = null
+    drawnItemsStatic = null
+    drawnMaskItems = null
+    cameras = []
+    maskCamIndex = 0
+    maskImgIndex = 0
+    mapTime = null
+    activeImageTime = null
+    mapReadyTime = null
+    mapStatic = null
+    activeImageStatic = null
+    addedDetectionsStatic = false
+    mapReadyStatic = null
+    mapMask = null
+    activeImageMask = null
+    editingEnabled = false
+    addedDetectionsMask = false
+    mapReadyMask = null
+    drawControl = null
+    leafletMaskIDs = {}
+    removedMasks = []
+    editedMasks = {}
+    addedMasks = {}
+    maskCamIDs = []
+    maskCamReadAheadIndex = 0
+    maskCam_ids = []
+    staticgroupIndex = 0
+    staticImgIndex = 0
+    staticgroupIDs = []
+    staticgroupReadAheadIndex = 0
+    staticgroups = []
+    staticgroup_ids = []
+    staticgroupDetections = {}
+    og_staticgroup_status = {}
+    staticCameras = []
+    selectedTimestampType = 'missing'
+    cameraIDs = []
+    camera_ids = []
+    cameraReadAheadIndex = 0
+    imageIndex = 0
+    cameraIndex = 0
+    images = []
+    new_missing_timestamps = {}
+    original_extracted_timestamps = {}
+    corrected_extracted_timestamps = {}
+    original_edited_timestamps = {}
+    corrected_edited_timestamps = {}
+    original_coordinates = {}
+    corrected_coordinates = {}
+}
 
+function clearAddFilesModal(){
+    /** Clears the add files modal */
+
+    addFilesDiv = document.getElementById('addFilesDiv') 
+    while(addFilesDiv.firstChild){
+        addFilesDiv.removeChild(addFilesDiv.firstChild);
+    }
 }
 
 function buildAdvancedOptions() {
@@ -2961,12 +3209,12 @@ function buildAdvancedOptions() {
         if (this.readyState == 4 && this.status == 200) {
             reply = JSON.parse(this.responseText);
             
-            addImagesAdvancedDiv = document.getElementById('addImagesAdvancedDiv')
-            // addImagesAdvancedDiv.appendChild(document.createElement('br'))
+            editAdvancedDiv = document.getElementById('editAdvancedDiv')
+            // editAdvancedDiv.appendChild(document.createElement('br'))
 
             row = document.createElement('div')
             row.setAttribute('class','row')
-            addImagesAdvancedDiv.appendChild(row)
+            editAdvancedDiv.appendChild(row)
 
             h5 = document.createElement('h5')
             h5.setAttribute('style','padding-top: 16px; padding-left: 15px; padding-right: 10px; margin-bottom: 2px')
@@ -2997,13 +3245,13 @@ function buildAdvancedOptions() {
             div = document.createElement('div')
             div.setAttribute('style','font-size: 80%; margin-bottom: 2px')
             div.innerHTML = '<i>Filters out triggers from small animals like birds. Improves system performance for waterhole cameras in exchange for some reduced recall.</i>'
-            addImagesAdvancedDiv.appendChild(div)
+            editAdvancedDiv.appendChild(div)
 
-            addImagesAdvancedDiv.appendChild(document.createElement('br'))
+            editAdvancedDiv.appendChild(document.createElement('br'))
 
             row = document.createElement('div')
             row.setAttribute('class','row')
-            addImagesAdvancedDiv.appendChild(row)
+            editAdvancedDiv.appendChild(row)
 
             h5 = document.createElement('h5')
             h5.setAttribute('style','padding-top: 16px; padding-left: 15px; padding-right: 10px; margin-bottom: 2px')
@@ -3034,7 +3282,7 @@ function buildAdvancedOptions() {
             div = document.createElement('div')
             div.setAttribute('style','font-size: 80%; margin-bottom: 2px')
             div.innerHTML = '<i>Ignores detections where the bottom occurs in the top third of the image - useful for ignoring triggers from birds. Improves system performance for waterhole cameras in exchange for some reduced recall.</i>'
-            addImagesAdvancedDiv.appendChild(div)
+            editAdvancedDiv.appendChild(div)
         }
     }
     xhttp.send();
@@ -3044,8 +3292,10 @@ function openAddCoordinates(){
     /** Listens for and initialises the add kml file form on the edit survey modal when the radio button is selected. */
 
     if (tabActiveEditSurvey=='baseAddCoordinatesTab') {
-        clearEditSurveyModal()
-        buildCoordsOptions()
+        editCoordsDiv = document.getElementById('editCoordsDiv')
+        if (editCoordsDiv.firstChild==null) {
+            buildCoordsOptions()
+        }
     }
 }
 
@@ -3053,8 +3303,10 @@ function openAdvanced(){
     /** Listens for and initialises the advanced options form on the edit survey modal when the radio button is selected. */
 
     if (tabActiveEditSurvey=='baseAdvancedTab') {
-        clearEditSurveyModal()
-        buildAdvancedOptions()
+        editAdvancedDiv = document.getElementById('editAdvancedDiv')
+        if (editAdvancedDiv.firstChild==null) {
+            buildAdvancedOptions()
+        }
     }
 }
 
@@ -3062,8 +3314,10 @@ function openEditTimestamps(){
     /** Listens for and initialises the edit timestamps form on the edit survey modal when the radio button is selected. */
 
     if (tabActiveEditSurvey=='baseEditTimestampsTab') {
-        clearEditSurveyModal()
-        buildEditTimestamp()
+        editTimestampsDiv = document.getElementById('editTimestampsDiv')
+        if (editTimestampsDiv.firstChild==null) {
+            buildEditTimestamp()
+        }
     }
 }
 
@@ -3071,8 +3325,10 @@ function openEditImageTimestamps(){
     /** Listens for and initialises the edit timestamps form on the edit survey modal when the radio button is selected. */
 
     if (tabActiveEditSurvey=='baseEditImgTimestampsTab') {
-        clearEditSurveyModal()
-        buildEditImageTimestamp()
+        editImgTimestampsDiv = document.getElementById('editImgTimestampsDiv')
+        if (editImgTimestampsDiv.firstChild==null) {
+            buildEditImageTimestamp()
+        }
     }
 }
 
@@ -3080,11 +3336,10 @@ function openEditClassifier(){
     /** Listens for and initialises the edit timestamps form on the edit survey modal when the radio button is selected. */
 
     if (tabActiveEditSurvey=='baseEditClassifierTab') {
-        clearEditSurveyModal()
-        addImagesEditClassifierDiv = document.getElementById('addImagesEditClassifierDiv')
-        addImagesEditClassifierDiv.appendChild(document.createElement('br'))
-        buildClassifierSelectTable(addImagesEditClassifierDiv)
-        // addImagesEditClassifierDiv.appendChild(document.createElement('br'))
+        editClassifierDiv = document.getElementById('editClassifierDiv')
+        if (editClassifierDiv.firstChild==null) {
+            buildClassifierSelectTable(editClassifierDiv)
+        }
     }
 }
 
@@ -3440,7 +3695,7 @@ function updateClassifierTable(url=null) {
         url='/getClassifierInfo'
     }
 
-    if (modalAddImages.is(':visible')) {
+    if (modalEditSurvey.is(':visible')) {
         if (!url.includes('?')) {
             url += '?'
         }
@@ -3636,7 +3891,7 @@ modalNewSurvey.on('shown.bs.modal', function(){
       
 });
 
-modalAddImages.on('shown.bs.modal', function(){
+modalEditSurvey.on('shown.bs.modal', function(){
     /** Initialises the edit-survey modal when opened. */
     if (!helpReturn) {
         // var xhttp = new XMLHttpRequest();
@@ -3657,12 +3912,21 @@ modalAddImages.on('shown.bs.modal', function(){
     }
 });
 
-modalAddImages.on('hidden.bs.modal', function(){
+modalEditSurvey.on('hidden.bs.modal', function(){
     /** Clears the edit-survey modal when closed. */
 
     if (!helpReturn) {
         resetEditSurveyModal()
-        document.getElementById('btnAddImages').disabled = false
+        document.getElementById('btnEditSurvey').disabled = false
+    } else {
+        helpReturn = false
+    }
+});
+
+modalAddFiles.on('hidden.bs.modal', function(){
+    /** Clears the add-files modal when closed. */
+    if (!helpReturn) {
+        clearAddFilesModal()
     } else {
         helpReturn = false
     }
@@ -4034,336 +4298,220 @@ function submitNewSurvey(formData) {
     xhttp.send(formData);
 }
 
-document.getElementById('btnAddImages').addEventListener('click', ()=>{
-    /** Handles the submission of the edit survey modal. */
+document.getElementById('btnAddFiles').addEventListener('click', ()=>{
+    /** Handles the submission of the add files modal. */
 
-    while(document.getElementById('addImagesErrors').firstChild){
-        document.getElementById('addImagesErrors').removeChild(document.getElementById('addImagesErrors').firstChild);
-    }
-
-    if (tabActiveEditSurvey=='baseStructureTab') {
-        modalAddImages.modal('hide')
-    }
-
-    legalFile = true
-    if (tabActiveEditSurvey=='baseAddCoordinatesTab') {
-        if (document.getElementById('addCoordinatesManualMethod').checked) {
-            coordData = []
-            allLatitudes = document.querySelectorAll('[id^=latitude-]');
-            for (let i=0;i<allLatitudes.length;i++) {
-                item = allLatitudes[i]
-                tag = item.id.split("latitude-")[item.id.split("latitude-").length-1]
-                latitude = document.getElementById('latitude-'+tag).value
-                longitude = document.getElementById('longitude-'+tag).value
-                altitude = document.getElementById('altitude-'+tag).value
-                coordData.push({'tag':tag,'latitude':latitude,'longitude':longitude,'altitude':altitude})
-            }
-        } else if (document.getElementById('addCoordinatesKMLMethod').checked) {
-            kmlFileUpload = document.getElementById('kmlFileUpload2')
-            if (kmlFileUpload.files.length > 1) {
-                document.getElementById('addImagesErrors').innerHTML = 'You can only upload a single coordinate file'
-                legalFile = false
-            } else if (kmlFileUpload.files.length == 1) {
-                if (kmlFileUpload.files[0].size>50000000) {
-                    document.getElementById('addImagesErrors').innerHTML = 'File cannot be larger than 50MB.'
-                    legalFile = false
-                } else {
-                    if (!kmlFileUpload.files[0].name.includes('.kml')) {
-                        document.getElementById('addImagesErrors').innerHTML = 'The trap coordinate file must be a .kml file.'
-                        legalFile = false
-                    }
-                }
-            }
-        }
+    var addFilesErrors = document.getElementById('addFilesErrors')
+    while(addFilesErrors.firstChild){
+        addFilesErrors.removeChild(addFilesErrors.firstChild);
     }
 
     legalTGCode = true
     legalCamCode = true
-    if (tabActiveEditSurvey=='baseAddImagesTab') {
-        addImagesTGCode = document.getElementById('addImagesTGCode').value
-        addImagesCheckboxChecked = document.getElementById('addImagesCheckbox').checked
+    addImagesTGCode = document.getElementById('addImagesTGCode').value
+    addImagesCheckboxChecked = document.getElementById('addImagesCheckbox').checked
 
-        if ((addImagesTGCode == '')||(addImagesTGCode == ' ')) {
-            legalTGCode = false
-            document.getElementById('addImagesErrors').innerHTML = 'The site identifier field cannot be empty.'
-        } else if ((addImagesTGCode.includes('/'))||(addImagesTGCode.includes('\\'))) {
-            legalTGCode = false
-            document.getElementById('addImagesErrors').innerHTML = 'The site identifier cannot contain slashes.'
-        }
-        else if (addImagesTGCode.endsWith('.*') || addImagesTGCode.endsWith('.+') || addImagesTGCode.endsWith('.*[0-9]+') || addImagesTGCode.endsWith('.+[0-9]+' )) {
-            legalTGCode = false
-            error_message = 'Your site identifier is invalid. Please try again or contact us for assistance.'
-            document.getElementById('addImagesErrors').innerHTML = error_message 
-        }   
+    if ((addImagesTGCode == '')||(addImagesTGCode == ' ')) {
+        legalTGCode = false
+        addFilesErrors.innerHTML = 'The site identifier field cannot be empty.'
+    } else if ((addImagesTGCode.includes('/'))||(addImagesTGCode.includes('\\'))) {
+        legalTGCode = false
+        addFilesErrors.innerHTML = 'The site identifier cannot contain slashes.'
+    }
+    else if (addImagesTGCode.endsWith('.*') || addImagesTGCode.endsWith('.+') || addImagesTGCode.endsWith('.*[0-9]+') || addImagesTGCode.endsWith('.+[0-9]+' )) {
+        legalTGCode = false
+        error_message = 'Your site identifier is invalid. Please try again or contact us for assistance.'
+        addFilesErrors.innerHTML = error_message 
+    }   
 
-        camRegExp = document.getElementById('camRegExpES').checked
-        camBotLvlFolder = document.getElementById('camBotLvlFolderES').checked
-        camSameAsSite = document.getElementById('camSameAsSiteES').checked
+    camRegExp = document.getElementById('camRegExpES').checked
+    camBotLvlFolder = document.getElementById('camBotLvlFolderES').checked
+    camSameAsSite = document.getElementById('camSameAsSiteES').checked
 
-        if (camRegExp) {
-            // Regular expression
-            addImagesCamCode = document.getElementById('addImagesCamCode').value
-            addImagesCamCheckboxChecked = document.getElementById('addImagesCamCheckbox').checked
+    if (camRegExp) {
+        // Regular expression
+        addImagesCamCode = document.getElementById('addImagesCamCode').value
+        addImagesCamCheckboxChecked = document.getElementById('addImagesCamCheckbox').checked
 
-            if ((addImagesCamCode == '') || (addImagesCamCode == ' ')) {
-                legalCamCode = false
-                document.getElementById('addImagesErrors').innerHTML = 'The camera code field cannot be empty.'
-            }
-            else if ((addImagesCamCode.includes('/'))||(addImagesCamCode.includes('\\'))) {
-                legalCamCode = false
-                document.getElementById('addImagesErrors').innerHTML = 'The camera code cannot contain slashes.'
-            }
-            else{
-                if (addImagesCamCode.endsWith('.*') || addImagesCamCode.endsWith('.+') || addImagesCamCode.endsWith('.*[0-9]+') || addImagesCamCode.endsWith('.+[0-9]+' )) {
-                    legalCamCode = false
-                    error_message = 'Your camera code is invalid. Please try again or send an email for assistance.'
-                    document.getElementById('addImagesErrors').innerHTML = error_message 
-                }   
-            }
-        }
-        else if (camBotLvlFolder) {
-            // Bottom-level folder
-            legalCamCode = true
-            addImagesCamCode = 'None'	
-            addImagesCamCheckboxChecked = false
-        }
-        else if (camSameAsSite) {
-            // Site identifier
-            legalCamCode = legalTGCode
-            addImagesCamCode = addImagesTGCode
-            addImagesCamCheckboxChecked = addImagesCheckboxChecked
-        }
-        else {
+        if ((addImagesCamCode == '') || (addImagesCamCode == ' ')) {
             legalCamCode = false
-            addImagesCamCheckboxChecked = false
-            addImagesCamCode = ' '
-            document.getElementById('newSurveyErrors').innerHTML = 'You must select a camera code option.'
+            addFilesErrors.innerHTML = 'The camera code field cannot be empty.'
         }
-        
-        legalInput = false
-        if (document.getElementById('S3BucketAdd').checked == true) {
-            S3FolderInput = document.getElementById('S3FolderInput')
-            addImagesS3Folder = S3FolderInput.options[S3FolderInput.selectedIndex].text
-            if (addImagesS3Folder=='') {
-                document.getElementById('addImagesErrors').innerHTML = 'The folder name field cannot be empty.'
-            } else if (addImagesS3Folder.toLowerCase()=='none') {
-                document.getElementById('addImagesErrors').innerHTML = 'The folder cannot be called "none".'
-            } else if ((addImagesS3Folder.includes('/'))||(addImagesS3Folder.includes('\\'))) {
-                document.getElementById('addImagesErrors').innerHTML = 'The folder name cannot contain slashes.'
-            } else {
-                legalInput = true
-            }
-        } else if (document.getElementById('BrowserAdd').checked == true) {
-            pathDisplay = document.getElementById('pathDisplay')
-            if (pathDisplay.options.length == 0) {
-                document.getElementById('addImagesErrors').innerHTML = 'You must select files to upload.'
-            } else {
-                legalInput = true
-                addImagesS3Folder = 'none'
-                // files = inputFile.files
-            }
+        else if ((addImagesCamCode.includes('/'))||(addImagesCamCode.includes('\\'))) {
+            legalCamCode = false
+            addFilesErrors.innerHTML = 'The camera code cannot contain slashes.'
+        }
+        else{
+            if (addImagesCamCode.endsWith('.*') || addImagesCamCode.endsWith('.+') || addImagesCamCode.endsWith('.*[0-9]+') || addImagesCamCode.endsWith('.+[0-9]+' )) {
+                legalCamCode = false
+                error_message = 'Your camera code is invalid. Please try again or send an email for assistance.'
+                addFilesErrors.innerHTML = error_message 
+            }   
+        }
+    }
+    else if (camBotLvlFolder) {
+        // Bottom-level folder
+        legalCamCode = true
+        addImagesCamCode = 'None'	
+        addImagesCamCheckboxChecked = false
+    }
+    else if (camSameAsSite) {
+        // Site identifier
+        legalCamCode = legalTGCode
+        addImagesCamCode = addImagesTGCode
+        addImagesCamCheckboxChecked = addImagesCheckboxChecked
+    }
+    else {
+        legalCamCode = false
+        addImagesCamCheckboxChecked = false
+        addImagesCamCode = ' '
+        document.getElementById('newSurveyErrors').innerHTML = 'You must select a camera code option.'
+    }
+    
+    legalInput = false
+    if (document.getElementById('S3BucketAdd').checked == true) {
+        S3FolderInput = document.getElementById('S3FolderInput')
+        addImagesS3Folder = S3FolderInput.options[S3FolderInput.selectedIndex].text
+        if (addImagesS3Folder=='') {
+            addFilesErrors.innerHTML = 'The folder name field cannot be empty.'
+        } else if (addImagesS3Folder.toLowerCase()=='none') {
+            addFilesErrors.innerHTML = 'The folder cannot be called "none".'
+        } else if ((addImagesS3Folder.includes('/'))||(addImagesS3Folder.includes('\\'))) {
+            addFilesErrors.innerHTML = 'The folder name cannot contain slashes.'
         } else {
-            document.getElementById('addImagesErrors').innerHTML = 'You must select a file upload method.'
+            legalInput = true
+        }
+    } else if (document.getElementById('BrowserAdd').checked == true) {
+        pathDisplay = document.getElementById('pathDisplay')
+        if (pathDisplay.options.length == 0) {
+            addFilesErrors.innerHTML = 'You must select files to upload.'
+        } else {
+            legalInput = true
+            addImagesS3Folder = 'none'
+            // files = inputFile.files
         }
     } else {
-        legalInput = true
-        addImagesTGCode = ' '
-        addImagesS3Folder = 'none'
-        addImagesCheckboxChecked = false
-        addImagesCamCode = ' '
-        addImagesCamCheckboxChecked = false
+        addFilesErrors.innerHTML = 'You must select a file upload method.'
     }
 
     structureCheckReady = true
     addImagesStructureDiv = document.getElementById('addImagesStructureDiv')
     if ((addImagesStructureDiv!=null)&&(addImagesStructureDiv.innerHTML=='Checking...')) {
         structureCheckReady = false
-        document.getElementById('addImagesErrors').innerHTML = 'Please wait for your structure check to finish.'
+        document.getElementById('addFilesErrors').innerHTML = 'Please wait for your structure check to finish.'
     }
 
     if ((addImagesStructureDiv!=null)&&((addImagesStructureDiv.innerHTML == '')||(addImagesStructureDiv.innerHTML == 'Malformed expression. Please try again.')||(addImagesStructureDiv.innerHTML == 'Invalid structure. Please check your site and camera identifiers.'))) {
         legalTGCode = false
         legalCamCode = false
-        document.getElementById('addImagesErrors').innerHTML = 'Your specified site or camera identifiers are invalid. Please try again.'
+        document.getElementById('addFilesErrors').innerHTML = 'Your specified site or camera identifiers are invalid. Please try again.'
     }
 
-    legalClassifier = true
-    if (tabActiveEditSurvey=='baseEditClassifierTab') {
-        classifier = document.querySelector('input[name="classifierSelection"]:checked')
-        if (classifier==null) {
-            document.getElementById('addImagesErrors').innerHTML = 'You must select a classifier.'
-            legalClassifier = false
-        } else {
-            classifier = classifier.id
-        }
-    }
+    if (legalTGCode&&legalInput&&structureCheckReady&&legalCamCode) {
+        var formData = new FormData()
+        formData.append("survey_id", selectedSurvey)
+        formData.append("newSurveyTGCode", addImagesTGCode)
+        formData.append("newSurveyS3Folder", addImagesS3Folder)
+        formData.append("checkbox", addImagesCheckboxChecked.toString())
+        formData.append("newSurveyCamCode", addImagesCamCode)
+        formData.append("camCheckbox", addImagesCamCheckboxChecked.toString())
 
-    legalTimestamp = true
-    if (tabActiveEditSurvey=='baseEditImgTimestampsTab') {
-        legalTimestamp = validateTimestamp()
-    }
-
-    if (legalTGCode&&legalInput&&legalFile&&structureCheckReady&&legalClassifier&&!editingEnabled&&legalCamCode&&legalTimestamp) {
-        document.getElementById('btnAddImages').disabled = true
-        if (tabActiveEditSurvey=='baseEditClassifierTab') {
-            var formData = new FormData()
-            formData.append("survey_id", selectedSurvey)
-            formData.append("classifier", classifier)               
-            addImagesSendRequest(formData)
-        } else if (tabActiveEditSurvey=='baseAddCoordinatesTab') {
-            if (document.getElementById('addCoordinatesManualMethod').checked) {
-                var formData = new FormData()
-                formData.append("survey_id", selectedSurvey)
-                formData.append("newSurveyTGCode", addImagesTGCode)
-                formData.append("newSurveyS3Folder", addImagesS3Folder)
-                formData.append("checkbox", addImagesCheckboxChecked.toString())
-                formData.append("coordData", JSON.stringify(coordData))     
-                formData.append("newSurveyCamCode", addImagesCamCode)
-                formData.append("camCheckbox", addImagesCamCheckboxChecked.toString())      
-                addImagesSendRequest(formData)
-            } else {
-                var reader = new FileReader()
-                reader.addEventListener('load', (event) => {
-                    kmldata = event.target.result
-
-                    if (tabActiveEditSurvey!='baseAddImagesTab') {
-                        var xhttp = new XMLHttpRequest();
-                        xhttp.open("GET", '/getSurveyTGcode/'+selectedSurvey);
-                        xhttp.onreadystatechange =
-                        function(){
-                            if (this.readyState == 4 && this.status == 200) {
-                                regex = JSON.parse(this.responseText);                      
-                                if ((kmldata.match(regex)||!regex.includes('[0-9]+'))&&(kmldata.includes('Placemark'))&&(kmldata.includes('Point'))) {
-                                    var formData = new FormData()
-                                    formData.append("survey_id", selectedSurvey)
-                                    formData.append("newSurveyTGCode", addImagesTGCode)
-                                    formData.append("newSurveyS3Folder", addImagesS3Folder)
-                                    formData.append("checkbox", addImagesCheckboxChecked.toString())
-                                    formData.append("kml", kmlFileUpload.files[0])
-                                    formData.append("newSurveyCamCode", addImagesCamCode)
-                                    formData.append("camCheckbox", addImagesCamCheckboxChecked.toString())
-
-                                    if (tabActiveEditSurvey=='baseEditTimestampsTab') {
-                                        timestampData = {}
-                                        for (camera_id in global_corrected_timestamps) {
-                                            timestampData[camera_id] = {'original': global_original_timestamps[camera_id], 'corrected': global_corrected_timestamps[camera_id]}
-                                        }
-                                        formData.append("timestamps", JSON.stringify(timestampData))
-                                    }
-
-                                    addImagesSendRequest(formData)
-                                } else {
-                                    document.getElementById('addImagesErrors').innerHTML = 'There is an error in the format of your .kml file.'
-                                    document.getElementById('btnAddImages').disabled = false
-                                }
-
-                            }
-                        }
-                        xhttp.send();
-                    } else {
-                        if (addImagesCheckboxChecked==true) {
-                            regex = addImagesTGCode
-                        } else {
-                            regex = addImagesTGCode + '[0-9]+'
-                        }
-                        if ((addImagesCheckboxChecked||kmldata.match(regex))&&(kmldata.includes('Placemark'))&&(kmldata.includes('Point'))) {
-                            var formData = new FormData()
-                            formData.append("survey_id", selectedSurvey)
-                            formData.append("newSurveyTGCode", addImagesTGCode)
-                            formData.append("newSurveyS3Folder", addImagesS3Folder)
-                            formData.append("checkbox", addImagesCheckboxChecked.toString())
-                            formData.append("kml", kmlFileUpload.files[0])
-                            formData.append("newSurveyCamCode", addImagesCamCode)
-                            formData.append("camCheckbox", addImagesCamCheckboxChecked.toString())
-                            
-                            if (tabActiveEditSurvey=='baseEditTimestampsTab') {
-                                timestampData = {}
-                                for (camera_id in global_corrected_timestamps) {
-                                    timestampData[camera_id] = {'original': global_original_timestamps[camera_id], 'corrected': global_corrected_timestamps[camera_id]}
-                                }
-                                formData.append("timestamps", JSON.stringify(timestampData))
-                            }
-
-                            addImagesSendRequest(formData)
-                        } else {
-                            document.getElementById('addImagesErrors').innerHTML = 'There is an error in the format of your .kml file.'
-                            document.getElementById('btnAddImages').disabled = false
-                        }
+        var xhttp = new XMLHttpRequest();
+        xhttp.open("POST", '/addFiles');
+        xhttp.onreadystatechange =
+        function(){
+            if (this.readyState == 4 && this.status == 200) {
+                reply = JSON.parse(this.responseText);  
+                if (reply.status=='success') {
+                    if (document.getElementById('BrowserAdd').checked) {
+                        uploadID = reply.survey_id
+                        surveyName = reply.survey_name
+                        uploading = true
+                        updatePage(current_page)
                     }
-                });
-                reader.readAsText(kmlFileUpload.files[0])
-            }
-        } else if (tabActiveEditSurvey=='baseEditImgTimestampsTab') {
-            var formData = new FormData()
-            formData.append("survey_id", selectedSurvey)
-            imageTimestampData = {}
-            allTimestamps = Object.assign({},new_missing_timestamps,corrected_extracted_timestamps,corrected_edited_timestamps)
-            for (image_id in allTimestamps) {
-                imageTimestampData[image_id] = getTimestamp(allTimestamps[image_id])
-            }
-            if (Object.keys(imageTimestampData).length>0) {
-                formData.append("imageTimestamps", JSON.stringify(imageTimestampData))
-            }
-            addImagesSendRequest(formData)
-        
-        } else {
-            var formData = new FormData()
-            formData.append("survey_id", selectedSurvey)
-            formData.append("newSurveyTGCode", addImagesTGCode)
-            formData.append("newSurveyS3Folder", addImagesS3Folder)
-            formData.append("checkbox", addImagesCheckboxChecked.toString())
-            formData.append("newSurveyCamCode", addImagesCamCode)
-            formData.append("camCheckbox", addImagesCamCheckboxChecked.toString())
 
-            if (tabActiveEditSurvey=='baseEditTimestampsTab') {
-                timestampData = {}
-                for (camera_id in global_corrected_timestamps) {
-                    timestampData[camera_id] = {'original': global_original_timestamps[camera_id], 'corrected': global_corrected_timestamps[camera_id]}
+                    modalAddFiles.modal('hide')
+                    clearAddFilesModal()
                 }
-                formData.append("timestamps", JSON.stringify(timestampData))
-            }        
-            else if (tabActiveEditSurvey=='baseEditMasksTab') {
-
-                var new_masks = []
-                var edit_masks = []
-
-                for (var key in addedMasks) {
-                    new_masks.push(addedMasks[key])
+                else{
+                    document.getElementById('addFilesErrors').innerHTML = reply.message
+                    document.getElementById('btnAddFiles').disabled = false
                 }
-
-                for (var key in editedMasks) {
-                    edit_masks.push({'id': key, 'coords': editedMasks[key]})
-                }
-
-                mask_dict = {
-                    'removed' : removedMasks,
-                    'added' : new_masks,
-                    'edited' : edit_masks
-                }
-                formData.append("masks", JSON.stringify(mask_dict))
             }
-            else if (tabActiveEditSurvey=='baseStaticTab') {
-                staticgroup_data = []
-                for (let i=0;i<staticgroups.length;i++) {
-                    if (staticgroups[i].staticgroup_status!=og_staticgroup_status[staticgroups[i].id]) {
-                        staticgroup_data.push({
-                            'id': staticgroups[i].id,
-                            'status': staticgroups[i].staticgroup_status
-                        })
-                    }
-                }
-                formData.append("staticgroups", JSON.stringify(staticgroup_data))
-                
-            }
-
-            addImagesSendRequest(formData)
         }
+        xhttp.send(formData);
     }
+
 });
 
-function addImagesSendRequest(formData) {
-    /** Submits the add-images request to the server, and begins the browser upload if necessary. */
 
+document.getElementById('btnEditSurvey').addEventListener('click', ()=>{
+    /** Handles the submission of the edit survey modal. */
+
+    var editSurveyErrors = document.getElementById('editSurveyErrors')
+    while(editSurveyErrors.firstChild){
+        editSurveyErrors.removeChild(editSurveyErrors.firstChild);
+    }
+
+    //Coordinates
+    legalFile = true
+    if (document.getElementById('addCoordinatesManualMethod').checked) {
+        coordData = []
+        for (site_id in corrected_coordinates){
+            if(corrected_coordinates[site_id].latitude || corrected_coordinates[site_id].longitude || corrected_coordinates[site_id].altitude){
+                let lat = corrected_coordinates[site_id].latitude ? corrected_coordinates[site_id].latitude : original_coordinates[site_id].latitude
+                let lon = corrected_coordinates[site_id].longitude ? corrected_coordinates[site_id].longitude : original_coordinates[site_id].longitude
+                let alt = corrected_coordinates[site_id].altitude ? corrected_coordinates[site_id].altitude : original_coordinates[site_id].altitude
+                coordData.push({'site_id':site_id,'latitude':lat,'longitude':lon,'altitude':alt})
+            }
+        }
+    } else if (document.getElementById('addCoordinatesKMLMethod').checked) {
+        kmlFileUpload = document.getElementById('kmlFileUpload2')
+        if (kmlFileUpload.files.length > 1) {
+            document.getElementById('editSurveyErrors').innerHTML = 'You can only upload a single coordinate file'
+            legalFile = false
+        } else if (kmlFileUpload.files.length == 1) {
+            if (kmlFileUpload.files[0].size>50000000) {
+                document.getElementById('editSurveyErrors').innerHTML = 'File cannot be larger than 50MB.'
+                legalFile = false
+            } else {
+                if (!kmlFileUpload.files[0].name.includes('.kml')) {
+                    document.getElementById('editSurveyErrors').innerHTML = 'The trap coordinate file must be a .kml file.'
+                    legalFile = false
+                }
+            }
+        }
+    }
+    
+    //Classifier
+    legalClassifier = true
+    classifier = document.querySelector('input[name="classifierSelection"]:checked')
+    if (classifier==null) {
+        document.getElementById('editSurveyErrors').innerHTML = 'You must select a classifier.'
+        legalClassifier = false
+    } else {
+        classifier = classifier.id
+    }
+    
+
+    //Image Timestamps
+    legalTimestamp = true
+    if(document.getElementById('year')) {
+        legalTimestamp = validateTimestamp()
+    }
+    imageTimestampData = {}
+    allTimestamps = Object.assign({},new_missing_timestamps,corrected_extracted_timestamps,corrected_edited_timestamps)
+    for (image_id in allTimestamps) {
+        imageTimestampData[image_id] = getTimestamp(allTimestamps[image_id])
+    }
+
+    //Camera Timestamps
+    timestampData = {}
+    for (camera_id in global_corrected_timestamps) {
+        timestampData[camera_id] = {'original': global_original_timestamps[camera_id], 'corrected': global_corrected_timestamps[camera_id]}
+    }
+
+    //Advanced 
     ignore_small_detections= 'none'
     sky_masked = 'none'
     if (document.getElementById('smallDetectionsCheckbox')!=null) {
@@ -4371,119 +4519,190 @@ function addImagesSendRequest(formData) {
         sky_masked = document.getElementById('skyMaskCheckbox').checked.toString()
     }
 
-    formData.append("ignore_small_detections", ignore_small_detections)
-    formData.append("sky_masked", sky_masked)
+    //Masks
+    var new_masks = []
+    var edit_masks = []
+    for (var key in addedMasks) {
+        new_masks.push(addedMasks[key])
+    }
+    for (var key in editedMasks) {
+        edit_masks.push({'id': key, 'coords': editedMasks[key]})
+    }
+    mask_dict = {
+        'removed' : removedMasks,
+        'added' : new_masks,
+        'edited' : edit_masks
+    }
 
-    var xhttp = new XMLHttpRequest();
-    xhttp.open("POST", '/editSurvey');
-    xhttp.onreadystatechange =
-    function(){
-        if (this.readyState == 4 && this.status == 200) {
-            reply = JSON.parse(this.responseText);  
-
-            if (reply.status=='success') {
-
-                if ((tabActiveEditSurvey=='baseAddImagesTab')&&(document.getElementById('BrowserAdd').checked)) {
-                    uploadID = reply.survey_id
-                    surveyName = reply.survey_name
-                    uploading = true
-                    updatePage(current_page)
-                    // uploadFiles(true)
-                    // uploading = true
-                    // var xhttp = new XMLHttpRequest();
-                    // xhttp.open("GET", '/updateSurveyStatus/'+surveyName+'/Uploading');
-                    // xhttp.send();
-                    
-                    // ProgBarDiv = document.getElementById('uploadProgBarDiv')
-
-                    // while(ProgBarDiv.firstChild){
-                    //     ProgBarDiv.removeChild(ProgBarDiv.firstChild);
-                    // }
-
-                    // var newProg = document.createElement('div');
-                    // newProg.classList.add('progress');
-
-                    // var newProgInner = document.createElement('div');
-                    // newProgInner.classList.add('progress-bar');
-                    // newProgInner.classList.add('progress-bar-striped');
-                    // newProgInner.classList.add('active');
-                    // newProgInner.setAttribute("role", "progressbar");
-                    // newProgInner.setAttribute("id", "uploadProgBar");
-                    // newProgInner.setAttribute("aria-valuenow", "0");
-                    // newProgInner.setAttribute("aria-valuemin", "0");
-                    // newProgInner.setAttribute("aria-valuemax", files.length.toString());
-                    // newProgInner.setAttribute("style", "width:0%");
-
-                    // newProg.appendChild(newProgInner);
-                    // ProgBarDiv.appendChild(newProg);
-
-                    // modalAddImages.modal('hide')
-                    // modalUploadProgress.modal({backdrop: 'static', keyboard: false});
-
-                    // uploadSurveyToCloud(surveyName)
-                } else {
-
-                    if ((tabActiveEditSurvey=='baseAddImagesTab')&&(tabActiveEditSurvey=='baseAddCoordinatesTab')) {
-                        document.getElementById('modalAlertBody').innerHTML = 'Your additional images and coordinates are being imported.'
-                    } else if (tabActiveEditSurvey=='baseAddImagesTab') {
-                        document.getElementById('modalAlertBody').innerHTML = 'Your additional images are being imported.'
-                    } else if (tabActiveEditSurvey=='baseEditTimestampsTab') {
-                        document.getElementById('modalAlertBody').innerHTML = `<p>Your camera timestamps will now be edited.</p><p>Please note that if you have muliple cameras per site, 
-                                                                                the images from the affected sites will need to be re-clustered if the operation periods of the edited 
-                                                                                cameras overlap with any others (before or after having  had their timestamps edited). In such a case, 
-                                                                                auto-classification will need to be performed again and any old auto-classifications will be overwritten. 
-                                                                                In addition, any manually-annotated clusters that were incorrectly clustered (ie. specifically those that 
-                                                                                need to be split up) will have their labels removed to ensure accurate annoation of your data. However, 
-                                                                                any sighting-level labels that were manually checked in the "sighting (box) correction" workflow will be 
-                                                                                retained.</p><p>In light of the above, your annotation sets for this survey may need some more annotation 
-                                                                                upon completion of the processing required. Moreover, this process may take a while depending on the number 
-                                                                                of affected images.</p><p>In general, it is strongly recommended that camera timestamps should be corrected 
-                                                                                prior to the annotation of your data due to the cluster-centric approach used in TrapTagger. In particular, 
-                                                                                this step should be peformed directly after data importation for best results. However, editing your 
-                                                                                timestamps later on will not affect the integrity of you data - you may just need to re-annotate some 
-                                                                                percentage of it.</p>`
-                    } else if (tabActiveEditSurvey=='baseEditImgTimestampsTab') {
-                        document.getElementById('modalAlertBody').innerHTML = `<p>Your image timestamps will now be edited.</p><p>Images or videos whose
-                                                                                timestamps have been corrected that were missing or extracted will need to be re-clustered. In such a case, 
-                                                                                auto-classification will need to be performed again and any old auto-classifications will be overwritten. 
-                                                                                In addition, any manually-annotated clusters that were incorrectly clustered (ie. specifically those that 
-                                                                                need to be split up) will have their labels removed to ensure accurate annoation of your data. However, 
-                                                                                any sighting-level labels that were manually checked in the "sighting (box) correction" workflow will be 
-                                                                                retained.</p><p>In light of the above, your annotation sets for this survey may need some more annotation 
-                                                                                upon completion of the processing required. Moreover, this process may take a while depending on the number 
-                                                                                of affected images.</p><p>In general, it is strongly recommended that image timestamps should be corrected 
-                                                                                prior to the annotation of your data due to the cluster-centric approach used in TrapTagger. In particular, 
-                                                                                this step should be peformed directly after data importation for best results. However, editing your 
-                                                                                timestamps later on will not affect the integrity of you data - you may just need to re-annotate some 
-                                                                                percentage of it.</p>`
-                    } else if (tabActiveEditSurvey=='baseEditClassifierTab') {
-                        document.getElementById('modalAlertBody').innerHTML = 'Your survey is now being re-classified. This may take a while.'
-                    } else if (tabActiveEditSurvey=='baseEditMasksTab') {
-                        document.getElementById('modalAlertBody').innerHTML = 'Your masks are being updated. You may be required to annotate some images again if there are detections that are no longer masked. Please note that this may take a while.'
-                    } else if (tabActiveEditSurvey=='baseStaticTab') {
-                        document.getElementById('modalAlertBody').innerHTML = 'Your static detections are being updated. You may be required to annotate again if there are detections that are no longer static. Please note that this may take a while.'
-                    } else if ((document.getElementById('addCoordinatesManualMethod')!=null)&&(document.getElementById('addCoordinatesManualMethod').checked)) {
-                        document.getElementById('modalAlertBody').innerHTML = 'Your coordinates are being updated.'
-                    } else if (document.getElementById('smallDetectionsCheckbox')!=null) {
-                        document.getElementById('modalAlertBody').innerHTML = 'Your survey options are being updated.'
-                    } else {
-                        document.getElementById('modalAlertBody').innerHTML = 'Your coordinates are being imported.'
-                    }
-
-                    document.getElementById('modalAlertHeader').innerHTML = 'Success'
-                    alertReload = true
-                    modalAddImages.modal('hide')
-                    modalAlert.modal({keyboard: true});
-                }
-
-            } else {
-                document.getElementById('addImagesErrors').innerHTML = reply.message
-                document.getElementById('btnAddImages').disabled = false
-            }
+    //Static Detections
+    staticgroup_data = []
+    for (let i=0;i<staticgroups.length;i++) {
+        if (staticgroups[i].staticgroup_status!=og_staticgroup_status[staticgroups[i].id]) {
+            staticgroup_data.push({
+                'id': staticgroups[i].id,
+                'status': staticgroups[i].staticgroup_status
+            })
         }
     }
-    xhttp.send(formData);
-}
+
+
+    if (legalFile&&legalClassifier&&!editingEnabled&&legalTimestamp) {
+        document.getElementById('btnEditSurvey').disabled = true
+
+        var formData = new FormData()
+        formData.append("survey_id", selectedSurvey)
+        formData.append("classifier", classifier)          
+        formData.append("timestamps", JSON.stringify(timestampData))     
+        formData.append("imageTimestamps", JSON.stringify(imageTimestampData))
+        formData.append("masks", JSON.stringify(mask_dict))
+        formData.append("staticgroups", JSON.stringify(staticgroup_data))
+        formData.append("ignore_small_detections", ignore_small_detections)
+        formData.append("sky_masked", sky_masked)
+        if (document.getElementById('addCoordinatesManualMethod').checked) {
+            formData.append("coordData", JSON.stringify(coordData))
+        }
+        else if (document.getElementById('addCoordinatesKMLMethod').checked) {
+            //TODO: NOT SURE ABOUT KML DATA VERIFICATION
+            formData.append("kml", kmlFileUpload.files[0])
+        }
+    
+        var xhttp = new XMLHttpRequest();
+        xhttp.open("POST", '/editSurvey');
+        xhttp.onreadystatechange =
+        function(){
+            if (this.readyState == 4 && this.status == 200) {
+                reply = JSON.parse(this.responseText);  
+                if (reply.status=='success') {
+                    document.getElementById('modalAlertBody').innerHTML = 'Your survey is being edited. Please note that this may take some time.'
+                    document.getElementById('modalAlertHeader').innerHTML = 'Success'
+                    alertReload = true
+                    modalEditSurvey.modal('hide')
+                    modalAlert.modal({keyboard: true});
+                    clearEditSurveyModal()
+
+                } else {
+                    document.getElementById('editSurveyErrors').innerHTML = reply.message
+                    document.getElementById('btnEditSurvey').disabled = false
+                }
+            }
+        } 
+        xhttp.send(formData);
+    }
+});
+
+// function addImagesSendRequest(formData) {
+//     /** Submits the add-images request to the server, and begins the browser upload if necessary. */
+
+//     var xhttp = new XMLHttpRequest();
+//     xhttp.open("POST", '/editSurvey');
+//     xhttp.onreadystatechange =
+//     function(){
+//         if (this.readyState == 4 && this.status == 200) {
+//             reply = JSON.parse(this.responseText);  
+
+//             if (reply.status=='success') {
+
+//                 if ((tabActiveEditSurvey=='baseAddImagesTab')&&(document.getElementById('BrowserAdd').checked)) {
+//                     uploadID = reply.survey_id
+//                     surveyName = reply.survey_name
+//                     uploading = true
+//                     updatePage(current_page)
+//                     // uploadFiles(true)
+//                     // uploading = true
+//                     // var xhttp = new XMLHttpRequest();
+//                     // xhttp.open("GET", '/updateSurveyStatus/'+surveyName+'/Uploading');
+//                     // xhttp.send();
+                    
+//                     // ProgBarDiv = document.getElementById('uploadProgBarDiv')
+
+//                     // while(ProgBarDiv.firstChild){
+//                     //     ProgBarDiv.removeChild(ProgBarDiv.firstChild);
+//                     // }
+
+//                     // var newProg = document.createElement('div');
+//                     // newProg.classList.add('progress');
+
+//                     // var newProgInner = document.createElement('div');
+//                     // newProgInner.classList.add('progress-bar');
+//                     // newProgInner.classList.add('progress-bar-striped');
+//                     // newProgInner.classList.add('active');
+//                     // newProgInner.setAttribute("role", "progressbar");
+//                     // newProgInner.setAttribute("id", "uploadProgBar");
+//                     // newProgInner.setAttribute("aria-valuenow", "0");
+//                     // newProgInner.setAttribute("aria-valuemin", "0");
+//                     // newProgInner.setAttribute("aria-valuemax", files.length.toString());
+//                     // newProgInner.setAttribute("style", "width:0%");
+
+//                     // newProg.appendChild(newProgInner);
+//                     // ProgBarDiv.appendChild(newProg);
+
+//                     // modalAddImages.modal('hide')
+//                     // modalUploadProgress.modal({backdrop: 'static', keyboard: false});
+
+//                     // uploadSurveyToCloud(surveyName)
+//                 } else {
+
+//                     if ((tabActiveEditSurvey=='baseAddImagesTab')&&(tabActiveEditSurvey=='baseAddCoordinatesTab')) {
+//                         document.getElementById('modalAlertBody').innerHTML = 'Your additional images and coordinates are being imported.'
+//                     } else if (tabActiveEditSurvey=='baseAddImagesTab') {
+//                         document.getElementById('modalAlertBody').innerHTML = 'Your additional images are being imported.'
+//                     } else if (tabActiveEditSurvey=='baseEditTimestampsTab') {
+//                         document.getElementById('modalAlertBody').innerHTML = `<p>Your camera timestamps will now be edited.</p><p>Please note that if you have muliple cameras per site, 
+//                                                                                 the images from the affected sites will need to be re-clustered if the operation periods of the edited 
+//                                                                                 cameras overlap with any others (before or after having  had their timestamps edited). In such a case, 
+//                                                                                 auto-classification will need to be performed again and any old auto-classifications will be overwritten. 
+//                                                                                 In addition, any manually-annotated clusters that were incorrectly clustered (ie. specifically those that 
+//                                                                                 need to be split up) will have their labels removed to ensure accurate annoation of your data. However, 
+//                                                                                 any sighting-level labels that were manually checked in the "sighting (box) correction" workflow will be 
+//                                                                                 retained.</p><p>In light of the above, your annotation sets for this survey may need some more annotation 
+//                                                                                 upon completion of the processing required. Moreover, this process may take a while depending on the number 
+//                                                                                 of affected images.</p><p>In general, it is strongly recommended that camera timestamps should be corrected 
+//                                                                                 prior to the annotation of your data due to the cluster-centric approach used in TrapTagger. In particular, 
+//                                                                                 this step should be peformed directly after data importation for best results. However, editing your 
+//                                                                                 timestamps later on will not affect the integrity of you data - you may just need to re-annotate some 
+//                                                                                 percentage of it.</p>`
+//                     } else if (tabActiveEditSurvey=='baseEditImgTimestampsTab') {
+//                         document.getElementById('modalAlertBody').innerHTML = `<p>Your image timestamps will now be edited.</p><p>Images or videos whose
+//                                                                                 timestamps have been corrected that were missing or extracted will need to be re-clustered. In such a case, 
+//                                                                                 auto-classification will need to be performed again and any old auto-classifications will be overwritten. 
+//                                                                                 In addition, any manually-annotated clusters that were incorrectly clustered (ie. specifically those that 
+//                                                                                 need to be split up) will have their labels removed to ensure accurate annoation of your data. However, 
+//                                                                                 any sighting-level labels that were manually checked in the "sighting (box) correction" workflow will be 
+//                                                                                 retained.</p><p>In light of the above, your annotation sets for this survey may need some more annotation 
+//                                                                                 upon completion of the processing required. Moreover, this process may take a while depending on the number 
+//                                                                                 of affected images.</p><p>In general, it is strongly recommended that image timestamps should be corrected 
+//                                                                                 prior to the annotation of your data due to the cluster-centric approach used in TrapTagger. In particular, 
+//                                                                                 this step should be peformed directly after data importation for best results. However, editing your 
+//                                                                                 timestamps later on will not affect the integrity of you data - you may just need to re-annotate some 
+//                                                                                 percentage of it.</p>`
+//                     } else if (tabActiveEditSurvey=='baseEditClassifierTab') {
+//                         document.getElementById('modalAlertBody').innerHTML = 'Your survey is now being re-classified. This may take a while.'
+//                     } else if (tabActiveEditSurvey=='baseEditMasksTab') {
+//                         document.getElementById('modalAlertBody').innerHTML = 'Your masks are being updated. You may be required to annotate some images again if there are detections that are no longer masked. Please note that this may take a while.'
+//                     } else if (tabActiveEditSurvey=='baseStaticTab') {
+//                         document.getElementById('modalAlertBody').innerHTML = 'Your static detections are being updated. You may be required to annotate again if there are detections that are no longer static. Please note that this may take a while.'
+//                     } else if ((document.getElementById('addCoordinatesManualMethod')!=null)&&(document.getElementById('addCoordinatesManualMethod').checked)) {
+//                         document.getElementById('modalAlertBody').innerHTML = 'Your coordinates are being updated.'
+//                     } else if (document.getElementById('smallDetectionsCheckbox')!=null) {
+//                         document.getElementById('modalAlertBody').innerHTML = 'Your survey options are being updated.'
+//                     } else {
+//                         document.getElementById('modalAlertBody').innerHTML = 'Your coordinates are being imported.'
+//                     }
+
+//                     document.getElementById('modalAlertHeader').innerHTML = 'Success'
+//                     alertReload = true
+//                     modalEditSurvey.modal('hide')
+//                     modalAlert.modal({keyboard: true});
+//                 }
+
+//             } else {
+//                 document.getElementById('editSurveyErrors').innerHTML = reply.message
+//                 document.getElementById('btnEditSurvey').disabled = false
+//             }
+//         }
+//     }
+//     xhttp.send(formData);
+// }
 
 // document.getElementById('cancelUpload').addEventListener('click', ()=>{
 //     /** Cancels the browser upload when the concel button is pressed. */
@@ -4768,7 +4987,7 @@ function buildSurveyPermissionRow(){
 function changeEditSurveyTab(evt, tabName) {
     /** Opens the permissions tab */
 
-    var mainModal = document.getElementById('modalAddImages')
+    var mainModal = document.getElementById('modalEditSurvey')
     var tabcontent = mainModal.getElementsByClassName("tabcontent");
     for (let i = 0; i < tabcontent.length; i++) {
         tabcontent[i].style.display = "none";
@@ -4783,10 +5002,7 @@ function changeEditSurveyTab(evt, tabName) {
     evt.currentTarget.className += " active";
     tabActiveEditSurvey = tabName
 
-    if (tabName == 'baseAddImagesTab') {
-        openAddImages()
-    }
-    else if (tabName == 'baseAddCoordinatesTab') {
+    if (tabName == 'baseAddCoordinatesTab') {
         openAddCoordinates()
     }
     else if (tabName == 'baseEditTimestampsTab') {
@@ -4811,30 +5027,31 @@ function changeEditSurveyTab(evt, tabName) {
         openEditImageTimestamps()
     }
 
-    document.getElementById('addImagesErrors').innerHTML = ''
+    document.getElementById('editSurveyErrors').innerHTML = ''
 }
 
 function openEditMasks() {
     /** Listens for and initialises the edit masks form on the edit survey modal when the radio button is selected. */
     if (tabActiveEditSurvey=='baseEditMasksTab') {
-        removedMasks = []
-        addedMasks = {}
-        editedMasks = {}
-        cameraIndex = 0
-        imageIndex = 0
-        leafletMaskIDs = {}
-        if (map){
-            map.remove()
+        var editMasksDiv = document.getElementById('editMasksDiv')
+        if (editMasksDiv.firstChild==null) {
+            removedMasks = []
+            addedMasks = {}
+            editedMasks = {}
+            maskCamIndex = 0
+            maskImgIndex = 0
+            leafletMaskIDs = {}
+            if (mapMask){
+                mapMask.remove()
+            }
+            mapMask = null
+            maskCamIDs = []
+            maskCamReadAheadIndex = 0
+            cameras = []
+            maskCam_ids = []
+            finishedDisplayingMask = true
+            buildEditMasks()
         }
-        map = null
-        cameraIDs = []
-        cameraReadAheadIndex = 0
-        cameras = []
-        camera_ids = []
-        finishedDisplaying = true
-        clearEditSurveyModal()
-        buildEditMasks()
-        getMaskCameras()
     }
 }
 
@@ -4842,15 +5059,15 @@ function openEditMasks() {
 function buildEditMasks() {
     /** Builds the edit masks layout on the edit survey modal. */
 
-    var addImagesEditMasksDiv = document.getElementById('addImagesEditMasksDiv')
+    var editMasksDiv = document.getElementById('editMasksDiv')
 
-    while(addImagesEditMasksDiv.firstChild){
-        addImagesEditMasksDiv.removeChild(addImagesEditMasksDiv.firstChild);
+    while(editMasksDiv.firstChild){
+        editMasksDiv.removeChild(editMasksDiv.firstChild);
     }
 
     var row = document.createElement('div')
     row.classList.add('row')
-    addImagesEditMasksDiv.appendChild(row)
+    editMasksDiv.appendChild(row)
 
     var col1 = document.createElement('div')
     col1.classList.add('col-lg-2')
@@ -4866,13 +5083,13 @@ function buildEditMasks() {
     row.appendChild(col3)
 
     var h6 = document.createElement('h6')
-    h6.id = 'mapTitle'
+    h6.id = 'mapTitle_mask'
     h6.innerHTML = 'Loading...'
     col2.appendChild(h6)
 
     var row = document.createElement('div')
     row.classList.add('row')
-    addImagesEditMasksDiv.appendChild(row)
+    editMasksDiv.appendChild(row)
 
     var col1 = document.createElement('div')
     col1.classList.add('col-lg-2')
@@ -4891,7 +5108,7 @@ function buildEditMasks() {
     col2.appendChild(center)
 
     var mapDiv = document.createElement('div')
-    mapDiv.id = 'mapDiv'
+    mapDiv.id = 'mapDiv_mask'
     mapDiv.style.height = '700px'
     center.appendChild(mapDiv)
 
@@ -4928,7 +5145,7 @@ function buildEditMasks() {
 
     var row = document.createElement('div')
     row.classList.add('row')
-    addImagesEditMasksDiv.appendChild(row)
+    editMasksDiv.appendChild(row)
 
     var col1 = document.createElement('div')
     col1.classList.add('col-lg-1')
@@ -4952,12 +5169,12 @@ function buildEditMasks() {
     rowDiv.appendChild(colDiv);
 
     var clusterDiv = document.createElement('div');
-    clusterDiv.id = 'clusterPosition';
+    clusterDiv.id = 'clusterPosition_mask';
     colDiv.appendChild(clusterDiv);
 
     var paginationUl = document.createElement('ul');
     paginationUl.classList.add('pagination');
-    paginationUl.id = 'paginationCircles';
+    paginationUl.id = 'paginationCircles_mask';
     paginationUl.style.margin = '10px';
     colDiv.appendChild(paginationUl);
 
@@ -4986,7 +5203,7 @@ function buildEditMasks() {
     button.classList.add('btn')
     button.classList.add('btn-primary')
     button.classList.add('btn-block')
-    button.id = 'btnPrevCamera'
+    button.id = 'btnPrevCameraMask'
     button.innerHTML = '<span style="font-size:100%">&#x276e;&#x276e;</span> Previous Camera'
     button.disabled = true
     col1.appendChild(button)
@@ -4995,7 +5212,7 @@ function buildEditMasks() {
     button.classList.add('btn')
     button.classList.add('btn-primary')
     button.classList.add('btn-block')
-    button.id = 'btnPrevImage'
+    button.id = 'btnPrevImageMask'
     button.innerHTML = '<span style="font-size:100%">&#x276e;</span> Previous Image'
     button.disabled = true
     col2.appendChild(button)
@@ -5004,7 +5221,7 @@ function buildEditMasks() {
     button.classList.add('btn')
     button.classList.add('btn-primary')
     button.classList.add('btn-block')
-    button.id = 'btnNextImage'
+    button.id = 'btnNextImageMask'
     button.innerHTML = 'Next Image <span style="font-size:100%">&#x276f;</span>'
     button.disabled = true
     col3.appendChild(button)
@@ -5013,87 +5230,89 @@ function buildEditMasks() {
     button.classList.add('btn')
     button.classList.add('btn-primary')
     button.classList.add('btn-block')
-    button.id = 'btnNextCamera'
+    button.id = 'btnNextCameraMask'
     button.innerHTML = 'Next Camera <span style="font-size:100%">&#x276f;&#x276f;</span>'
     button.disabled = true
     col4.appendChild(button)
 
-    document.getElementById('btnPrevCamera').addEventListener('click', ()=>{
-        if (cameraIndex>0 && !editingEnabled && finishedDisplaying) {
-            cameraIndex -= 1
-            imageIndex = 0
+    document.getElementById('btnPrevCameraMask').addEventListener('click', ()=>{
+        if (maskCamIndex>0 && !editingEnabled && finishedDisplayingMask) {
+            maskCamIndex -= 1
+            maskImgIndex = 0
             updateMaskMap()
         }
     });
 
-    document.getElementById('btnPrevImage').addEventListener('click', ()=>{
-        if (imageIndex>0 && !editingEnabled && finishedDisplaying) {
-            imageIndex -= 1
+    document.getElementById('btnPrevImageMask').addEventListener('click', ()=>{
+        if (maskImgIndex>0 && !editingEnabled && finishedDisplayingMask) {
+            maskImgIndex -= 1
             updateMaskMap()
         }
     });
 
-    document.getElementById('btnNextImage').addEventListener('click', ()=>{
-        if (imageIndex<cameras[cameraIndex].images.length-1 && !editingEnabled && finishedDisplaying) {
-            imageIndex += 1
+    document.getElementById('btnNextImageMask').addEventListener('click', ()=>{
+        if (maskImgIndex<cameras[maskCamIndex].images.length-1 && !editingEnabled && finishedDisplayingMask) {
+            maskImgIndex += 1
             updateMaskMap()
         }
     });
 
-    document.getElementById('btnNextCamera').addEventListener('click', ()=>{
-        if (cameraIndex<cameras.length-1 && !editingEnabled && finishedDisplaying) {
-            cameraIndex += 1
-            imageIndex = 0
+    document.getElementById('btnNextCameraMask').addEventListener('click', ()=>{
+        if (maskCamIndex<cameras.length-1 && !editingEnabled && finishedDisplayingMask) {
+            maskCamIndex += 1
+            maskImgIndex = 0
             updateMaskMap()
-            if (cameraIndex > cameras.length - 3){
+            if (maskCamIndex > cameras.length - 3){
                 getMasks()
             }
         }
     });
 
-    document.getElementById('btnPrevCamera').hidden = true
-    document.getElementById('btnPrevImage').hidden = true
-    document.getElementById('btnNextImage').hidden = true
-    document.getElementById('btnNextCamera').hidden = true
+    document.getElementById('btnPrevCameraMask').hidden = true
+    document.getElementById('btnNextCameraMask').hidden = true
+    document.getElementById('btnPrevImageMask').hidden = true
+    document.getElementById('btnNextImageMask').hidden = true
+
+    getMaskCameras()
 
 }
 
 function getMasks() {
     /** Gets the masks for the current survey. */
 
-    if (cameraReadAheadIndex < cameraIDs.length) {
+    if (maskCamReadAheadIndex < maskCamIDs.length) {
         var xhttp = new XMLHttpRequest();
         xhttp.onreadystatechange =
         function(){
             if (this.readyState == 4 && this.status == 200) {
                 reply = JSON.parse(this.responseText);  
                 new_cameras = reply.masks
-                // console.log(new_cameras)
+                console.log(new_cameras)
 
                 for (var i=0; i<new_cameras.length; i++) {
-                    if (camera_ids.indexOf(new_cameras[i].id) == -1) {
-                        camera_ids.push(new_cameras[i].id)
+                    if (maskCam_ids.indexOf(new_cameras[i].id) == -1) {
+                        maskCam_ids.push(new_cameras[i].id)
                         cameras.push(new_cameras[i])
                     }
                 }
 
-                if (cameras.length - 1 == cameraIndex) {
+                if (cameras.length - 1 == maskCamIndex) {
                     updateMaskMap()
                 }
                 updateButtons()
                 preloadImages()
             }
         }
-        xhttp.open("GET", '/getSurveyMasks/'+selectedSurvey+'?cameragroup_id='+cameraIDs[cameraReadAheadIndex++]);
+        xhttp.open("GET", '/getSurveyMasks/'+selectedSurvey+'?cameragroup_id='+maskCamIDs[maskCamReadAheadIndex++]);
         xhttp.send();
     }
 }
 
-function prepMapES(image) {
+function prepMapMask(image) {
     /** Initialises the Leaflet image map for the edit survey modal. */
-
+    console.log('prepMapES')
     if (bucketName != null) {
-        mapReady = false
+        mapReadyMask = false
         imageUrl = "https://"+bucketName+".s3.amazonaws.com/" + modifyToCompURL(image.url)
         var img = new Image();
         img.onload = function(){
@@ -5101,9 +5320,9 @@ function prepMapES(image) {
             h = this.height
 
             if (w>h) {
-                document.getElementById('mapDiv').setAttribute('style','height: calc(38vw *'+(h/w)+');  width:38vw')               
+                document.getElementById('mapDiv_mask').setAttribute('style','height: calc(38vw *'+(h/w)+');  width:38vw')               
             } else {
-                document.getElementById('mapDiv').setAttribute('style','height: calc(38vw *'+(w/h)+');  width:38vw')
+                document.getElementById('mapDiv_mask').setAttribute('style','height: calc(38vw *'+(w/h)+');  width:38vw')
             }
 
             L.Browser.touch = true
@@ -5114,85 +5333,73 @@ function prepMapES(image) {
                 center: [0, 0],
                 zoomSnap: 0
             }
-
-            if(tabActiveEditSurvey=='baseEditImgTimestampsTab'){
-                map_config['attributionControl'] = false  // Remove Leaflet attribution (because it might block the timestamp)
-            }
     
-            map = new L.map('mapDiv', map_config);
+            mapMask = new L.map('mapDiv_mask', map_config);
 
-            var h1 = document.getElementById('mapDiv').clientHeight
-            var w1 = document.getElementById('mapDiv').clientWidth
+            var h1 = document.getElementById('mapDiv_mask').clientHeight
+            var w1 = document.getElementById('mapDiv_mask').clientWidth
     
-            var southWest = map.unproject([0, h1], 2);
-            var northEast = map.unproject([w1, 0], 2);
+            var southWest = mapMask.unproject([0, h1], 2);
+            var northEast = mapMask.unproject([w1, 0], 2);
             var bounds = new L.LatLngBounds(southWest, northEast);
     
             mapWidth = northEast.lng
             mapHeight = southWest.lat
     
-            activeImage = L.imageOverlay(imageUrl, bounds).addTo(map);
-            activeImage.on('load', function() {
-                addedDetections = false
+            activeImageMask = L.imageOverlay(imageUrl, bounds).addTo(mapMask);
+            activeImageMask.on('load', function() {
+                addedDetectionsMask = false
                 addDetections()
-                finishedDisplaying = true
+                finishedDisplayingMask = true
             });
-            map.setMaxBounds(bounds);
-            map.fitBounds(bounds)
-            map.setMinZoom(map.getZoom())
+            mapMask.setMaxBounds(bounds);
+            mapMask.fitBounds(bounds)
+            mapMask.setMinZoom(mapMask.getZoom())
 
-            hc = document.getElementById('mapDiv').clientHeight
-            wc = document.getElementById('mapDiv').clientWidth
-            map.on('resize', function(){
-                if(document.getElementById('mapDiv') && document.getElementById('mapDiv').clientHeight){
-                    h1 = document.getElementById('mapDiv').clientHeight
-                    w1 = document.getElementById('mapDiv').clientWidth
+            hc = document.getElementById('mapDiv_mask').clientHeight
+            wc = document.getElementById('mapDiv_mask').clientWidth
+            mapMask.on('resize', function(){
+                if(document.getElementById('mapDiv_mask') && document.getElementById('mapDiv_mask').clientHeight){
+                    h1 = document.getElementById('mapDiv_mask').clientHeight
+                    w1 = document.getElementById('mapDiv_mask').clientWidth
                 }
                 else{
                     h1 = hc
                     w1 = wc
                 }
                 
-                southWest = map.unproject([0, h1], 2);
-                northEast = map.unproject([w1, 0], 2);
+                southWest = mapMask.unproject([0, h1], 2);
+                northEast = mapMask.unproject([w1, 0], 2);
                 bounds = new L.LatLngBounds(southWest, northEast);
         
                 mapWidth = northEast.lng
                 mapHeight = southWest.lat
 
-                map.invalidateSize()
-                map.setMaxBounds(bounds)
-                map.fitBounds(bounds)
-                map.setMinZoom(map.getZoom())
-                activeImage.setBounds(bounds)
+                mapMask.invalidateSize()
+                mapMask.setMaxBounds(bounds)
+                mapMask.fitBounds(bounds)
+                mapMask.setMinZoom(mapMask.getZoom())
+                activeImageMask.setBounds(bounds)
 
-                addedDetections = false
+                addedDetectionsMask = false
                 addDetections()
 
             });
 
 
-            map.on('drag', function() {
-                map.panInsideBounds(bounds, { animate: false });
+            mapMask.on('drag', function() {
+                mapMask.panInsideBounds(bounds, { animate: false });
             });
     
-            map.on('zoomstart', function() {
+            mapMask.on('zoomstart', function() {
                 if (!fullRes) {
-                    if (tabActiveEditSurvey=='baseEditMasksTab') {
-                        activeImage.setUrl("https://"+bucketName+".s3.amazonaws.com/" + modifyToCompURL(cameras[cameraIndex].images[imageIndex].url))
-                    }
-                    else if (tabActiveEditSurvey=='baseStaticTab') {
-                        activeImage.setUrl("https://"+bucketName+".s3.amazonaws.com/" + modifyToCompURL(staticgroups[staticgroupIndex].images[imageIndex].url))
-                    }
-                    else if (tabActiveEditSurvey=='baseEditImgTimestampsTab') {
-                        activeImage.setUrl("https://"+bucketName+".s3.amazonaws.com/" + modifyToCompURL(images[cameraIndex].images[imageIndex].url))
-                    }
+                    activeImageMask.setUrl("https://"+bucketName+".s3.amazonaws.com/" + modifyToCompURL(cameras[maskCamIndex].images[maskImgIndex].url))
                     fullRes = true  
                 }
             });    
 
-            drawnItems = new L.FeatureGroup();
-            map.addLayer(drawnItems);
+            drawnItemsMask = new L.FeatureGroup();
+            mapMask.addLayer(drawnItemsMask);
 
             rectOptions = {
                 color: "rgba(223,105,26,1)",
@@ -5203,52 +5410,249 @@ function prepMapES(image) {
                 contextmenu: false,
             }  
 
-            if (tabActiveEditSurvey=='baseEditMasksTab') {
-                drawnMaskItems = new L.FeatureGroup();
-                map.addLayer(drawnMaskItems);
-            
-    
-
-                maskRectOptions = {
-                    color: "rgba(91,192,222,1)",
-                    fill: true,
-                    fillOpacity: 0.0,
-                    opacity: 0.8,
-                    weight:3,
-                    contextmenu: false,
-                }
+            drawnMaskItems = new L.FeatureGroup();
+            mapMask.addLayer(drawnMaskItems);
         
-                if (drawControl != null) {
-                    drawControl.remove()
-                }
-            
-                drawControl = new L.Control.Draw({
-                    draw: {
-                        polygon: {
-                            shapeOptions: maskRectOptions,
-                            allowIntersection: false,
-                        },
-                        polyline: false,
-                        circle: false,
-                        circlemarker: false,
-                        marker: false,
-                        rectangle: {
-                            shapeOptions: maskRectOptions,
-                            showArea: false
-                        }
+            maskRectOptions = {
+                color: "rgba(91,192,222,1)",
+                fill: true,
+                fillOpacity: 0.0,
+                opacity: 0.8,
+                weight:3,
+                contextmenu: false,
+            }
+    
+            if (drawControl != null) {
+                drawControl.remove()
+            }
+        
+            drawControl = new L.Control.Draw({
+                draw: {
+                    polygon: {
+                        shapeOptions: maskRectOptions,
+                        allowIntersection: false,
                     },
-                    edit: {
-                        featureGroup: drawnMaskItems,
+                    polyline: false,
+                    circle: false,
+                    circlemarker: false,
+                    marker: false,
+                    rectangle: {
+                        shapeOptions: maskRectOptions,
+                        showArea: false
                     }
-                });
-                map.addControl(drawControl);
-                drawControl._toolbars.draw._toolbarContainer.children[0].title = 'Draw a mask'
-                drawControl._toolbars.draw._toolbarContainer.children[1].title = 'Draw a mask'
+                },
+                edit: {
+                    featureGroup: drawnMaskItems,
+                }
+            });
+            mapMask.addControl(drawControl);
+            drawControl._toolbars.draw._toolbarContainer.children[0].title = 'Draw a mask'
+            drawControl._toolbars.draw._toolbarContainer.children[1].title = 'Draw a mask'
 
-                maskEditPrep()
+            maskEditPrep()
+        
+            mapReadyMask = true
+        };
+        img.src = imageUrl  
+    }
+}
+
+function prepMapStatic(image) {
+    /** Initialises the Leaflet image map for the edit survey modal. */
+
+    if (bucketName != null) {
+        mapReadyStatic = false
+        imageUrl = "https://"+bucketName+".s3.amazonaws.com/" + modifyToCompURL(image.url)
+        var img = new Image();
+        img.onload = function(){
+            w = this.width
+            h = this.height
+
+            if (w>h) {
+                document.getElementById('mapDiv_static').setAttribute('style','height: calc(38vw *'+(h/w)+');  width:38vw')               
+            } else {
+                document.getElementById('mapDiv_static').setAttribute('style','height: calc(38vw *'+(w/h)+');  width:38vw')
             }
 
-            mapReady = true
+            L.Browser.touch = true
+
+            map_config = {
+                crs: L.CRS.Simple,
+                maxZoom: 10,
+                center: [0, 0],
+                zoomSnap: 0
+            }
+    
+            mapStatic = new L.map('mapDiv_static', map_config);
+
+            var h1 = document.getElementById('mapDiv_static').clientHeight
+            var w1 = document.getElementById('mapDiv_static').clientWidth
+    
+            var southWest = mapStatic.unproject([0, h1], 2);
+            var northEast = mapStatic.unproject([w1, 0], 2);
+            var bounds = new L.LatLngBounds(southWest, northEast);
+    
+            mapWidth = northEast.lng
+            mapHeight = southWest.lat
+    
+            activeImageStatic = L.imageOverlay(imageUrl, bounds).addTo(mapStatic);
+            activeImageStatic.on('load', function() {
+                addedDetectionsStatic = false
+                addDetections()
+                finishedDisplayingStatic = true
+            });
+            mapStatic.setMaxBounds(bounds);
+            mapStatic.fitBounds(bounds)
+            mapStatic.setMinZoom(mapStatic.getZoom())
+
+            hc = document.getElementById('mapDiv_static').clientHeight
+            wc = document.getElementById('mapDiv_static').clientWidth
+            mapStatic.on('resize', function(){
+                if(document.getElementById('mapDiv_static') && document.getElementById('mapDiv_static').clientHeight){
+                    h1 = document.getElementById('mapDiv_static').clientHeight
+                    w1 = document.getElementById('mapDiv_static').clientWidth
+                }
+                else{
+                    h1 = hc
+                    w1 = wc
+                }
+                
+                southWest = mapStatic.unproject([0, h1], 2);
+                northEast = mapStatic.unproject([w1, 0], 2);
+                bounds = new L.LatLngBounds(southWest, northEast);
+        
+                mapWidth = northEast.lng
+                mapHeight = southWest.lat
+
+                mapStatic.invalidateSize()
+                mapStatic.setMaxBounds(bounds)
+                mapStatic.fitBounds(bounds)
+                mapStatic.setMinZoom(mapStatic.getZoom())
+                activeImageStatic.setBounds(bounds)
+
+                addedDetectionsStatic = false
+                addDetections()
+
+            });
+
+
+            mapStatic.on('drag', function() {
+                mapStatic.panInsideBounds(bounds, { animate: false });
+            });
+    
+            mapStatic.on('zoomstart', function() {
+                if (!fullRes) {
+                    activeImageStatic.setUrl("https://"+bucketName+".s3.amazonaws.com/" + modifyToCompURL(staticgroups[staticgroupIndex].images[staticImgIndex].url))
+                    fullRes = true  
+                }
+            });    
+
+            drawnItemsStatic = new L.FeatureGroup();
+            mapStatic.addLayer(drawnItemsStatic);
+
+            rectOptions = {
+                color: "rgba(223,105,26,1)",
+                fill: true,
+                fillOpacity: 0.0,
+                opacity: 0.8,
+                weight:3,
+                contextmenu: false,
+            }  
+
+            mapReadyStatic = true
+        };
+        img.src = imageUrl  
+    }
+}
+
+
+function prepMapTime(image) {
+    /** Initialises the Leaflet image map for the edit survey modal. */
+
+    if (bucketName != null) {
+        mapReadyTime = false
+        imageUrl = "https://"+bucketName+".s3.amazonaws.com/" + modifyToCompURL(image.url)
+        var img = new Image();
+        img.onload = function(){
+            w = this.width
+            h = this.height
+
+            if (w>h) {
+                document.getElementById('mapDiv_time').setAttribute('style','height: calc(38vw *'+(h/w)+');  width:38vw')               
+            } else {
+                document.getElementById('mapDiv_time').setAttribute('style','height: calc(38vw *'+(w/h)+');  width:38vw')
+            }
+
+            L.Browser.touch = true
+
+            map_config = {
+                crs: L.CRS.Simple,
+                maxZoom: 10,
+                center: [0, 0],
+                zoomSnap: 0,
+                attributionControl: false
+            }
+    
+            mapTime = new L.map('mapDiv_time', map_config);
+
+            var h1 = document.getElementById('mapDiv_time').clientHeight
+            var w1 = document.getElementById('mapDiv_time').clientWidth
+    
+            var southWest = mapTime.unproject([0, h1], 2);
+            var northEast = mapTime.unproject([w1, 0], 2);
+            var bounds = new L.LatLngBounds(southWest, northEast);
+    
+            mapWidth = northEast.lng
+            mapHeight = southWest.lat
+    
+            activeImageTime = L.imageOverlay(imageUrl, bounds).addTo(mapTime);
+            activeImageTime.on('load', function() {
+                finishedDisplayingTime = true
+            });
+            mapTime.setMaxBounds(bounds);
+            mapTime.fitBounds(bounds)
+            mapTime.setMinZoom(mapTime.getZoom())
+
+            hc = document.getElementById('mapDiv_time').clientHeight
+            wc = document.getElementById('mapDiv_time').clientWidth
+            mapTime.on('resize', function(){
+                if(document.getElementById('mapDiv_time') && document.getElementById('mapDiv_time').clientHeight){
+                    h1 = document.getElementById('mapDiv_time').clientHeight
+                    w1 = document.getElementById('mapDiv_time').clientWidth
+                }
+                else{
+                    h1 = hc
+                    w1 = wc
+                }
+                
+                southWest = mapTime.unproject([0, h1], 2);
+                northEast = mamapTimep.unproject([w1, 0], 2);
+                bounds = new L.LatLngBounds(southWest, northEast);
+        
+                mapWidth = northEast.lng
+                mapHeight = southWest.lat
+
+                mapTime.invalidateSize()
+                mapTime.setMaxBounds(bounds)
+                mapTime.fitBounds(bounds)
+                mapTime.setMinZoom(mapTime.getZoom())
+                activeImageTime.setBounds(bounds)
+
+            });
+
+
+            mapTime.on('drag', function() {
+                mapTime.panInsideBounds(bounds, { animate: false });
+            });
+    
+            mapTime.on('zoomstart', function() {
+                if (!fullRes) {
+                    activeImageTime.setUrl("https://"+bucketName+".s3.amazonaws.com/" + modifyToCompURL(images[cameraIndex].images[imageIndex].url))
+                    fullRes = true  
+                }
+            });    
+
+            mapReadyTime = true
         };
         img.src = imageUrl  
     }
@@ -5258,21 +5662,21 @@ function addDetections() {
     /** Adds the detections to the map. */
 
     if (tabActiveEditSurvey=='baseEditMasksTab') {
-        if (addedDetections == false) {
-            drawnItems.clearLayers()
+        if (addedDetectionsMask == false) {
+            drawnItemsMask.clearLayers()
             drawnMaskItems.clearLayers()
-            map.setZoom(map.getMinZoom())
+            mapMask.setZoom(mapMask.getMinZoom())
 
             // Draw detections
-            for(var i=0;i<cameras[cameraIndex].images[imageIndex].detections.length;i++){
-                var detection = cameras[cameraIndex].images[imageIndex].detections[i]
+            for(var i=0;i<cameras[maskCamIndex].images[maskImgIndex].detections.length;i++){
+                var detection = cameras[maskCamIndex].images[maskImgIndex].detections[i]
                 rect = L.rectangle([[detection.top*mapHeight,detection.left*mapWidth],[detection.bottom*mapHeight,detection.right*mapWidth]], rectOptions)
-                drawnItems.addLayer(rect)
+                drawnItemsMask.addLayer(rect)
             }
 
             // Draw masks
-            for(var i=0;i<cameras[cameraIndex].masks.length;i++){
-                var mask = cameras[cameraIndex].masks[i]
+            for(var i=0;i<cameras[maskCamIndex].masks.length;i++){
+                var mask = cameras[maskCamIndex].masks[i]
                 var coords = mask['coords']
                 poly_coords = []
                 for(var j=0;j<coords.length;j++){
@@ -5283,22 +5687,22 @@ function addDetections() {
                 leafletMaskIDs[mask.id] = poly._leaflet_id
             }
 
-            addedDetections = true
+            addedDetectionsMask = true
         }
     }
     else if (tabActiveEditSurvey=='baseStaticTab') {
-        if (addedDetections == false) {
-            drawnItems.clearLayers()
-            map.setZoom(map.getMinZoom())
+        if (addedDetectionsStatic == false) {
+            drawnItemsStatic.clearLayers()
+            mapStatic.setZoom(mapStatic.getMinZoom())
 
             // Draw detections
             for(var i=0;i<staticgroupDetections[staticgroups[staticgroupIndex].id].length;i++){
                 var detection = staticgroupDetections[staticgroups[staticgroupIndex].id][i]
                 rect = L.rectangle([[detection.top*mapHeight,detection.left*mapWidth],[detection.bottom*mapHeight,detection.right*mapWidth]], rectOptions)
-                drawnItems.addLayer(rect)
+                drawnItemsStatic.addLayer(rect)
             }
 
-            addedDetections = true
+            addedDetectionsStatic = true
         }
     }
     
@@ -5315,23 +5719,23 @@ function modifyToCompURL(url) {
 function updateMaskMap() {
     /** Updates the mask map after an action has been performed. */
 
-    finishedDisplaying = false
-    document.getElementById('mapTitle').innerHTML = cameras[cameraIndex].images[imageIndex].url.split('/').slice(1).join('/')
+    finishedDisplayingMask = false
+    document.getElementById('mapTitle_mask').innerHTML = cameras[maskCamIndex].images[maskImgIndex].url.split('/').slice(1).join('/')
 
     document.getElementById('maskUsers').value = ''
     mask_users=''
-    for (let i=0; i<cameras[cameraIndex].masks.length; i++){
-        if (!mask_users.includes(cameras[cameraIndex].masks[i].user) && cameras[cameraIndex].masks[i].user != 'None') {
-            mask_users += cameras[cameraIndex].masks[i].user + ', '
+    for (let i=0; i<cameras[maskCamIndex].masks.length; i++){
+        if (!mask_users.includes(cameras[maskCamIndex].masks[i].user) && cameras[maskCamIndex].masks[i].user != 'None') {
+            mask_users += cameras[maskCamIndex].masks[i].user + ', '
         }
     }
     document.getElementById('maskUsers').value = mask_users.slice(0,-2)
 
-    if (map != null) {
-        activeImage.setUrl("https://"+bucketName+".s3.amazonaws.com/" + modifyToCompURL(cameras[cameraIndex].images[imageIndex].url))
+    if (mapMask != null) {
+        activeImageMask.setUrl("https://"+bucketName+".s3.amazonaws.com/" + modifyToCompURL(cameras[maskCamIndex].images[maskImgIndex].url))
     }
     else{
-        prepMapES(cameras[cameraIndex].images[imageIndex])
+        prepMapMask(cameras[maskCamIndex].images[maskImgIndex])
     }
 
     updateButtons()
@@ -5341,20 +5745,20 @@ function updateMaskMap() {
 function updateImageIndex(index) {
     /** Updates the image index. */
     if (tabActiveEditSurvey=='baseEditMasksTab') {
-        if (index >= 0 && index < cameras[cameraIndex].images.length && !editingEnabled && finishedDisplaying) {
-            imageIndex = index
+        if (index >= 0 && index < cameras[maskCamIndex].images.length && !editingEnabled && finishedDisplayingMask) {
+            maskImgIndex = index
             updateMaskMap()
         }
     }
     else if (tabActiveEditSurvey=='baseStaticTab'){
-        if (index >= 0 && index < staticgroups[staticgroupIndex].images.length && finishedDisplaying) {
-            imageIndex = index
+        if (index >= 0 && index < staticgroups[staticgroupIndex].images.length && finishedDisplayingMask) {
+            staticImgIndex = index
             updateStaticMap()
         }
     }
     else if (tabActiveEditSurvey=='baseEditImgTimestampsTab'){
         validTimestamp = validateTimestamp()
-        if (index >= 0 && index < images[cameraIndex].images.length && validTimestamp && finishedDisplaying) {
+        if (index >= 0 && index < images[cameraIndex].images.length && validTimestamp && finishedDisplayingMask) {
             imageIndex = index
             updateImageMap()
         }
@@ -5363,35 +5767,35 @@ function updateImageIndex(index) {
 
 
 function maskEditPrep() {
-    /** Preps the map for masking and tagging. */
+    /** Preps the mapMask for masking and tagging. */
 
-    map.on("draw:drawstart", function(e) {
+    mapMask.on("draw:drawstart", function(e) {
         editingEnabled = true
     })
 
-    map.on("draw:drawstop", function(e) {
+    mapMask.on("draw:drawstop", function(e) {
         editingEnabled = false
     })
 
-    map.on("draw:editstart", function(e) {
+    mapMask.on("draw:editstart", function(e) {
         editingEnabled = true
     })
 
-    map.on("draw:editstop", function(e) {
-        editingEnabled = false
-        updateMasks()
-    })
-
-    map.on("draw:deletestart", function(e) {
-        editingEnabled = true
-    })
-
-    map.on("draw:deletestop", function(e) {
+    mapMask.on("draw:editstop", function(e) {
         editingEnabled = false
         updateMasks()
     })
 
-    map.on('draw:created', function (e) {
+    mapMask.on("draw:deletestart", function(e) {
+        editingEnabled = true
+    })
+
+    mapMask.on("draw:deletestop", function(e) {
+        editingEnabled = false
+        updateMasks()
+    })
+
+    mapMask.on('draw:created', function (e) {
         var newLayer = e.layer;
         var newBounds = newLayer.getBounds();
         var isOverlapping = false;
@@ -5412,7 +5816,7 @@ function maskEditPrep() {
 
         leafletMaskIDs['l_' + newLayer._leaflet_id] = newLayer._leaflet_id
         var new_mask = {'id':'l_' + newLayer._leaflet_id, 'coords':[]}
-        cameras[cameraIndex].masks.push(new_mask)
+        cameras[maskCamIndex].masks.push(new_mask)
 
         updateMasks()
 
@@ -5423,21 +5827,21 @@ function maskEditPrep() {
 function updateMasks() {
     /** Updates the masks after an edit has been performed. */
 
-    for (var i=0;i<cameras[cameraIndex].masks.length;i++) {
-        if (drawnMaskItems.getLayer(leafletMaskIDs[cameras[cameraIndex].masks[i].id]) == null) {
-            if (!cameras[cameraIndex].masks[i].id.toString().startsWith('l_')) {
-                removedMasks.push(cameras[cameraIndex].masks[i].id)
-                delete editedMasks[cameras[cameraIndex].masks[i].id]
+    for (var i=0;i<cameras[maskCamIndex].masks.length;i++) {
+        if (drawnMaskItems.getLayer(leafletMaskIDs[cameras[maskCamIndex].masks[i].id]) == null) {
+            if (!cameras[maskCamIndex].masks[i].id.toString().startsWith('l_')) {
+                removedMasks.push(cameras[maskCamIndex].masks[i].id)
+                delete editedMasks[cameras[maskCamIndex].masks[i].id]
             }
             else{
-                delete addedMasks[cameras[cameraIndex].masks[i].id]
+                delete addedMasks[cameras[maskCamIndex].masks[i].id]
             }
-            delete leafletMaskIDs[cameras[cameraIndex].masks[i].id]
-            cameras[cameraIndex].masks.splice(i,1)
+            delete leafletMaskIDs[cameras[maskCamIndex].masks[i].id]
+            cameras[maskCamIndex].masks.splice(i,1)
             i -= 1
         }
         else{
-            var coords = drawnMaskItems.getLayer(leafletMaskIDs[cameras[cameraIndex].masks[i].id])._latlngs[0]
+            var coords = drawnMaskItems.getLayer(leafletMaskIDs[cameras[maskCamIndex].masks[i].id])._latlngs[0]
             var new_coords = []
             for (var j=0;j<coords.length;j++) {
                 new_coords.push([coords[j].lng/mapWidth,coords[j].lat/mapHeight])
@@ -5446,9 +5850,9 @@ function updateMasks() {
 
             edit_coords = false
             // Check if coords are different
-            if (cameras[cameraIndex].masks[i].coords.length == new_coords.length) {
-                for (var j=0;j<cameras[cameraIndex].masks[i].coords.length;j++) {
-                    if (cameras[cameraIndex].masks[i].coords[j][0] != new_coords[j][0] || cameras[cameraIndex].masks[i].coords[j][1] != new_coords[j][1]) {
+            if (cameras[maskCamIndex].masks[i].coords.length == new_coords.length) {
+                for (var j=0;j<cameras[maskCamIndex].masks[i].coords.length;j++) {
+                    if (cameras[maskCamIndex].masks[i].coords[j][0] != new_coords[j][0] || cameras[maskCamIndex].masks[i].coords[j][1] != new_coords[j][1]) {
                         edit_coords = true
                         break
                     }
@@ -5459,15 +5863,15 @@ function updateMasks() {
             }
 
             if (edit_coords) {
-                cameras[cameraIndex].masks[i].coords = new_coords
-                if (cameras[cameraIndex].masks[i].id.toString().startsWith('l_')) {
-                    addedMasks[cameras[cameraIndex].masks[i].id] = {
+                cameras[maskCamIndex].masks[i].coords = new_coords
+                if (cameras[maskCamIndex].masks[i].id.toString().startsWith('l_')) {
+                    addedMasks[cameras[maskCamIndex].masks[i].id] = {
                         'coords': new_coords,
-                        'cameragroup_id': cameras[cameraIndex].id,
+                        'cameragroup_id': cameras[maskCamIndex].id,
                     }
                 }
                 else{
-                    editedMasks[cameras[cameraIndex].masks[i].id] = new_coords
+                    editedMasks[cameras[maskCamIndex].masks[i].id] = new_coords
                 }
 
             }
@@ -5483,33 +5887,30 @@ function getMaskCameras(){
     function(){
         if (this.readyState == 4 && this.status == 200) {
             reply = JSON.parse(this.responseText);
-            cameraIDs = reply
-            // console.log(cameraIDs)
+            maskCamIDs = reply
+            console.log(maskCamIDs)
 
             cameras = []
-            removedMasks = []
-            editedMasks = {}
-            addedMasks = {}
 
-            if (cameraIDs.length>0) {
-                document.getElementById('btnPrevCamera').hidden = false
-                document.getElementById('btnPrevImage').hidden = false
-                document.getElementById('btnNextImage').hidden = false
-                document.getElementById('btnNextCamera').hidden = false
-                
+            if (maskCamIDs.length>0) {
+                document.getElementById('btnPrevCameraMask').hidden = false
+                document.getElementById('btnNextCameraMask').hidden = false
+                document.getElementById('btnPrevImageMask').hidden = false
+                document.getElementById('btnNextImageMask').hidden = false
+
                 for (var i=0; i<3; i++) {
                     getMasks()
                 }  
             }
             else{
-                addImagesEditMasksDiv = document.getElementById('addImagesEditMasksDiv')
-                while(addImagesEditMasksDiv.firstChild){
-                    addImagesEditMasksDiv.removeChild(addImagesEditMasksDiv.firstChild);
+                editMasksDiv = document.getElementById('editMasksDiv')
+                while(editMasksDiv.firstChild){
+                    editMasksDiv.removeChild(editMasksDiv.firstChild);
                 }
 
                 var row = document.createElement('div')
                 row.classList.add('row')
-                addImagesEditMasksDiv.appendChild(row)
+                editMasksDiv.appendChild(row)
 
                 var col1 = document.createElement('div')
                 col1.classList.add('col-lg-12', 'd-flex', 'align-items-center', 'justify-content-center')
@@ -5527,24 +5928,30 @@ function getMaskCameras(){
 
 function updateButtons() {
     /** Updates the buttons on the edit survey modal. */
-    const btnPrevImage = document.getElementById('btnPrevImage');
-    const btnNextImage = document.getElementById('btnNextImage');
-    const btnPrevCamera = document.getElementById('btnPrevCamera');
-    const btnNextCamera = document.getElementById('btnNextCamera');
-    const btnPrevGroup = document.getElementById('btnPrevGroup');
-    const btnNextGroup = document.getElementById('btnNextGroup');
-
-    if (tabActiveEditSurvey === 'baseEditMasksTab' && btnPrevImage) {
-        btnPrevImage.disabled = imageIndex === 0;
-        btnNextImage.disabled = imageIndex === cameras[cameraIndex].images.length - 1;
-        btnPrevCamera.disabled = cameraIndex === 0;
-        btnNextCamera.disabled = cameraIndex === cameras.length - 1;
-    } else if (tabActiveEditSurvey === 'baseStaticTab' && btnPrevImage) {
-        btnPrevImage.disabled = imageIndex === 0;
-        btnNextImage.disabled = imageIndex === staticgroups[staticgroupIndex].images.length - 1;
+    
+    if (tabActiveEditSurvey === 'baseEditMasksTab') {
+        const btnPrevImage = document.getElementById('btnPrevImageMask');
+        const btnNextImage = document.getElementById('btnNextImageMask');
+        const btnPrevCamera = document.getElementById('btnPrevCameraMask');
+        const btnNextCamera = document.getElementById('btnNextCameraMask');
+        btnPrevImage.disabled = maskImgIndex === 0;
+        btnNextImage.disabled = maskImgIndex === cameras[maskCamIndex].images.length - 1;
+        btnPrevCamera.disabled = maskCamIndex === 0;
+        btnNextCamera.disabled = maskCamIndex === cameras.length - 1;
+    } else if (tabActiveEditSurvey === 'baseStaticTab') {
+        const btnPrevImage = document.getElementById('btnPrevImageStatic');
+        const btnNextImage = document.getElementById('btnNextImageStatic');
+        const btnPrevGroup = document.getElementById('btnPrevGroup');
+        const btnNextGroup = document.getElementById('btnNextGroup');
+        btnPrevImage.disabled = staticImgIndex === 0;
+        btnNextImage.disabled = staticImgIndex === staticgroups[staticgroupIndex].images.length - 1;
         btnPrevGroup.disabled = staticgroupIndex === 0;
         btnNextGroup.disabled = staticgroupIndex === staticgroups.length - 1;
-    } else if (tabActiveEditSurvey === 'baseEditImgTimestampsTab' && btnPrevImage) {
+    } else if (tabActiveEditSurvey === 'baseEditImgTimestampsTab') {
+        const btnPrevImage = document.getElementById('btnPrevImage');
+        const btnNextImage = document.getElementById('btnNextImage');
+        const btnPrevCamera = document.getElementById('btnPrevCamera');
+        const btnNextCamera = document.getElementById('btnNextCamera');
         btnPrevImage.disabled = imageIndex === 0;
         btnNextImage.disabled = imageIndex === images[cameraIndex].images.length - 1;
         btnPrevCamera.disabled = cameraIndex === 0;
@@ -5557,20 +5964,30 @@ function updateButtons() {
 function updatePaginationCircles(){
     /** Updates pagination circles on the edit survey modal. */
 
-    if (document.getElementById('clusterPosition') != null) {
-
-        if (tabActiveEditSurvey=='baseEditMasksTab'){
-            cirNum = cameras[cameraIndex].images.length
-        }
-        else if (tabActiveEditSurvey=='baseStaticTab'){
-            cirNum = staticgroups[staticgroupIndex].images.length
-        }
-        else if (tabActiveEditSurvey=='baseEditImgTimestampsTab'){
-            cirNum = images[cameraIndex].images.length
-        }
-
+    if (tabActiveEditSurvey=='baseEditMasksTab'){
+        cirNum = cameras[maskCamIndex].images.length
+        circlesIndex = maskImgIndex
+        clusterPosition = document.getElementById('clusterPosition_mask')
+        paginationCircles = document.getElementById('paginationCircles_mask')
+    }
+    else if (tabActiveEditSurvey=='baseStaticTab'){
+        cirNum = staticgroups[staticgroupIndex].images.length
+        circlesIndex = staticImgIndex
+        clusterPosition = document.getElementById('clusterPosition_static')
+        paginationCircles = document.getElementById('paginationCircles_static')
+    }
+    else if (tabActiveEditSurvey=='baseEditImgTimestampsTab'){
+        cirNum = images[cameraIndex].images.length
         circlesIndex = imageIndex
-        
+        clusterPosition = document.getElementById('clusterPosition_time')
+        paginationCircles = document.getElementById('paginationCircles_time')
+    }
+
+    if (clusterPosition != null) {
+        while (paginationCircles.firstChild) {
+            paginationCircles.removeChild(paginationCircles.firstChild);
+        }
+
         var beginIndex = 0
         var endIndex = cirNum
         var multiple = false
@@ -5589,12 +6006,6 @@ function updatePaginationCircles(){
                 }
             }
         }
-
-        paginationCircles = document.getElementById('paginationCircles')
-        while (paginationCircles.firstChild) {
-            paginationCircles.removeChild(paginationCircles.firstChild);
-        }
-
 
         if (multiple && beginIndex != 0 && circlesIndex > 2) {
             first = document.createElement('li')
@@ -5646,24 +6057,24 @@ function updatePaginationCircles(){
 function openStaticDetections() {
     /** Listens for and initialises the edit masks form on the edit survey modal when the radio button is selected. */
     if (tabActiveEditSurvey=='baseStaticTab') {
-        staticgroupIndex = 0
-        imageIndex = 0
-        leafletMaskIDs = {}
-        if (map){
-            map.remove()
+        var editStaticDiv = document.getElementById('editStaticDiv')
+        if (editStaticDiv.firstChild==null) {
+            staticgroupIndex = 0
+            staticImgIndex = 0
+            if (mapStatic){
+                mapStatic.remove()
+            }
+            mapStatic = null
+            staticgroupIDs = []
+            staticgroupReadAheadIndex = 0
+            staticgroups = []
+            staticgroup_ids = []
+            finishedDisplayingStatic = true
+            staticgroupDetections = {}
+            og_staticgroup_status = {}
+            staticCameras = []
+            getStaticCameras()
         }
-        map = null
-        staticgroupIDs = []
-        staticgroupReadAheadIndex = 0
-        staticgroups = []
-        staticgroup_ids = []
-        finishedDisplaying = true
-        staticgroupDetections = {}
-        og_staticgroup_status = {}
-        clearEditSurveyModal()
-        buildViewStatic()
-        getStaticCameras()
-        getStaticGroups()
     }
 }
 
@@ -5671,15 +6082,15 @@ function openStaticDetections() {
 function buildViewStatic() {
     /** Builds the view static layout on the edit survey modal. */
 
-    var addImagesStaticDiv = document.getElementById('addImagesStaticDiv')
+    var editStaticDiv = document.getElementById('editStaticDiv')
 
-    while(addImagesStaticDiv.firstChild){
-        addImagesStaticDiv.removeChild(addImagesStaticDiv.firstChild);
+    while(editStaticDiv.firstChild){
+        editStaticDiv.removeChild(editStaticDiv.firstChild);
     }
 
     var row = document.createElement('div')
     row.classList.add('row')
-    addImagesStaticDiv.appendChild(row)
+    editStaticDiv.appendChild(row)
 
     var col1 = document.createElement('div')
     col1.classList.add('col-lg-2')
@@ -5695,13 +6106,13 @@ function buildViewStatic() {
     row.appendChild(col3)
 
     var h6 = document.createElement('h6')
-    h6.id = 'mapTitle'
+    h6.id = 'mapTitle_static'
     h6.innerHTML = 'Loading...'
     col2.appendChild(h6)
 
     var row = document.createElement('div')
     row.classList.add('row')
-    addImagesStaticDiv.appendChild(row)
+    editStaticDiv.appendChild(row)
 
     var col1 = document.createElement('div')
     col1.classList.add('col-lg-2')
@@ -5720,25 +6131,9 @@ function buildViewStatic() {
     col2.appendChild(center)
 
     var mapDiv = document.createElement('div')
-    mapDiv.id = 'mapDiv'
+    mapDiv.id = 'mapDiv_static'
     mapDiv.style.height = '700px'
     center.appendChild(mapDiv)
-
-
-
-    // col3.appendChild(document.createElement('br'))
-
-    // var rowDiv2 = document.createElement('div');
-    // rowDiv2.classList.add('row');
-    // col3.appendChild(rowDiv2);
-
-    // var colU = document.createElement('div')
-    // colU.classList.add('col-lg-12')
-    // colU.innerHTML = 'User:'
-    // rowDiv2.append(colU)
-
-
-    // col3.appendChild(document.createElement('br'))
 
     h5 = document.createElement('h5')
     h5.setAttribute('style','margin-bottom: 2px')
@@ -5784,33 +6179,31 @@ function buildViewStatic() {
     col3.appendChild(select);
 
     document.getElementById('sgCamSelect').addEventListener('change', ()=>{
-        if (finishedDisplaying) {
+        if (finishedDisplayingStatic) {
             staticgroups = []
             staticgroupIndex = 0
-            imageIndex = 0
+            staticImgIndex = 0
             staticgroupIDs = []
             staticgroupReadAheadIndex = 0
             staticgroup_ids = []
-            finishedDisplaying = true
+            finishedDisplayingStatic = true
             staticgroupDetections = {}
             og_staticgroup_status = {}
             getStaticGroups()
         }
     });
 
-    // var rowDiv = document.createElement('div');
-    // rowDiv.classList.add('row');
-    // col3.appendChild(rowDiv);
+    sgCamSelect = document.getElementById('sgCamSelect')
+    clearSelect(sgCamSelect)
 
-    // var colDiv1 = document.createElement('div');
-    // colDiv1.classList.add('col-lg-5', 'd-flex', 'align-items-center', 'justify-content-left');
-    // colDiv1.style.paddingRight = '0px'
-    // rowDiv.appendChild(colDiv1);
+    optionTexts = ['All']
+    optionValues = ['0']
+    for (var i=0; i<staticCameras.length; i++) {
+        optionTexts.push(staticCameras[i].name)
+        optionValues.push(staticCameras[i].id)
+    }
 
-    // var colDiv2 = document.createElement('div');
-    // colDiv2.classList.add('col-lg-7')
-    // colDiv2.style.paddingLeft = '0px'
-    // rowDiv.appendChild(colDiv2);
+    fillSelect(sgCamSelect, optionTexts, optionValues)
 
     col3.appendChild(document.createElement('br'))
 
@@ -5830,14 +6223,7 @@ function buildViewStatic() {
 
     var colDiv2 = document.createElement('div');
     colDiv2.classList.add('col-lg-12')
-    // colDiv2.style.paddingLeft = '0px'
     rowDiv.appendChild(colDiv2);
-
-
-    // var h6 = document.createElement('h5')
-    // h6.innerHTML = 'Static '
-    // h6.style.margin = '0px'
-    // colDiv1.appendChild(h6)
 
     var toggleDiv = document.createElement('div');
     toggleDiv.classList.add('justify-content-left');
@@ -5874,7 +6260,7 @@ function buildViewStatic() {
     
     var row = document.createElement('div')
     row.classList.add('row')
-    addImagesStaticDiv.appendChild(row)
+    editStaticDiv.appendChild(row)
 
     var col1 = document.createElement('div')
     col1.classList.add('col-lg-1')
@@ -5898,15 +6284,14 @@ function buildViewStatic() {
     rowDiv.appendChild(colDiv);
 
     var clusterDiv = document.createElement('div');
-    clusterDiv.id = 'clusterPosition';
+    clusterDiv.id = 'clusterPosition_static';
     colDiv.appendChild(clusterDiv);
 
     var paginationUl = document.createElement('ul');
     paginationUl.classList.add('pagination');
-    paginationUl.id = 'paginationCircles';
+    paginationUl.id = 'paginationCircles_static';
     paginationUl.style.margin = '10px';
     colDiv.appendChild(paginationUl);
-
 
     var row = document.createElement('div')
     row.classList.add('row')
@@ -5941,7 +6326,7 @@ function buildViewStatic() {
     button.classList.add('btn')
     button.classList.add('btn-primary')
     button.classList.add('btn-block')
-    button.id = 'btnPrevImage'
+    button.id = 'btnPrevImageStatic'
     button.innerHTML = '<span style="font-size:100%">&#x276e;</span> Previous Image'
     button.disabled = true
     col2.appendChild(button)
@@ -5950,7 +6335,7 @@ function buildViewStatic() {
     button.classList.add('btn')
     button.classList.add('btn-primary')
     button.classList.add('btn-block')
-    button.id = 'btnNextImage'
+    button.id = 'btnNextImageStatic'
     button.innerHTML = 'Next Image <span style="font-size:100%">&#x276f;</span>'
     button.disabled = true
     col3.appendChild(button)
@@ -5965,31 +6350,31 @@ function buildViewStatic() {
     col4.appendChild(button)
 
     document.getElementById('btnPrevGroup').addEventListener('click', ()=>{
-        if (staticgroupIndex>0 && finishedDisplaying) {
+        if (staticgroupIndex>0 && finishedDisplayingStatic) {
             staticgroupIndex -= 1
-            imageIndex = 0
+            staticImgIndex = 0
             updateStaticMap()
         }
     });
 
-    document.getElementById('btnPrevImage').addEventListener('click', ()=>{
-        if (imageIndex>0 && finishedDisplaying) {
-            imageIndex -= 1
+    document.getElementById('btnPrevImageStatic').addEventListener('click', ()=>{
+        if (staticImgIndex>0 && finishedDisplayingStatic) {
+            staticImgIndex -= 1
             updateStaticMap()
         }
     });
 
-    document.getElementById('btnNextImage').addEventListener('click', ()=>{
-        if (imageIndex<staticgroups[staticgroupIndex].images.length-1 && finishedDisplaying) {
-            imageIndex += 1
+    document.getElementById('btnNextImageStatic').addEventListener('click', ()=>{
+        if (staticImgIndex<staticgroups[staticgroupIndex].images.length-1 && finishedDisplayingStatic) {
+            staticImgIndex += 1
             updateStaticMap()
         }
     });
 
     document.getElementById('btnNextGroup').addEventListener('click', ()=>{
-        if (staticgroupIndex<staticgroups.length-1 && finishedDisplaying) {
+        if (staticgroupIndex<staticgroups.length-1 && finishedDisplayingStatic) {
             staticgroupIndex += 1
-            imageIndex = 0
+            staticImgIndex = 0
             updateStaticMap()
             if (staticgroupIndex > staticgroups.length - 3){
                 getStaticDetections()
@@ -5998,9 +6383,11 @@ function buildViewStatic() {
     });
 
     document.getElementById('btnPrevGroup').hidden = true
-    document.getElementById('btnPrevImage').hidden = true
-    document.getElementById('btnNextImage').hidden = true
+    document.getElementById('btnPrevImageStatic').hidden = true
+    document.getElementById('btnNextImageStatic').hidden = true
     document.getElementById('btnNextGroup').hidden = true
+
+    getStaticGroups()
 
 }
 
@@ -6027,8 +6414,8 @@ function getStaticGroups(){
 
             if (staticgroupIDs.length>0) {
                 document.getElementById('btnPrevGroup').hidden = false
-                document.getElementById('btnPrevImage').hidden = false
-                document.getElementById('btnNextImage').hidden = false
+                document.getElementById('btnPrevImageStatic').hidden = false
+                document.getElementById('btnNextImageStatic').hidden = false
                 document.getElementById('btnNextGroup').hidden = false
                 
                 for (var i=0; i<3; i++) {
@@ -6036,14 +6423,14 @@ function getStaticGroups(){
                 }  
             }
             else{
-                addImagesStaticDiv = document.getElementById('addImagesStaticDiv')
-                while(addImagesStaticDiv.firstChild){
-                    addImagesStaticDiv.removeChild(addImagesStaticDiv.firstChild);
+                editStaticDiv = document.getElementById('editStaticDiv')
+                while(editStaticDiv.firstChild){
+                    editStaticDiv.removeChild(editStaticDiv.firstChild);
                 }
 
                 var row = document.createElement('div')
                 row.classList.add('row')
-                addImagesStaticDiv.appendChild(row)
+                editStaticDiv.appendChild(row)
 
                 var col1 = document.createElement('div')
                 col1.classList.add('col-lg-12', 'd-flex', 'align-items-center', 'justify-content-center')
@@ -6114,20 +6501,9 @@ function getStaticCameras(){
         if (this.readyState == 4 && this.status == 200) {
             reply = JSON.parse(this.responseText);
             staticCameras = reply
-
             // console.log(staticCameras)
 
-            sgCamSelect = document.getElementById('sgCamSelect')
-            clearSelect(sgCamSelect)
-
-            optionTexts = ['All']
-            optionValues = ['0']
-            for (var i=0; i<staticCameras.length; i++) {
-                optionTexts.push(staticCameras[i].name)
-                optionValues.push(staticCameras[i].id)
-            }
-
-            fillSelect(sgCamSelect, optionTexts, optionValues)
+            buildViewStatic()
 
         }
 
@@ -6139,8 +6515,8 @@ function getStaticCameras(){
 function updateStaticMap() {
     /** Updates the static map after an action has been performed. */
 
-    finishedDisplaying = false
-    document.getElementById('mapTitle').innerHTML = staticgroups[staticgroupIndex].images[imageIndex].url.split('/').slice(1).join('/')
+    finishedDisplayingStatic = false
+    document.getElementById('mapTitle_static').innerHTML = staticgroups[staticgroupIndex].images[staticImgIndex].url.split('/').slice(1).join('/')
     if (staticgroups[staticgroupIndex].user){
         document.getElementById('staticCheckedBy').value = staticgroups[staticgroupIndex].user
     }
@@ -6159,11 +6535,11 @@ function updateStaticMap() {
         staticgroups[staticgroupIndex].staticgroup_status = 'accepted'
     }
 
-    if (map != null) {
-        activeImage.setUrl("https://"+bucketName+".s3.amazonaws.com/" + modifyToCompURL(staticgroups[staticgroupIndex].images[imageIndex].url))
+    if (mapStatic != null) {
+        activeImageStatic.setUrl("https://"+bucketName+".s3.amazonaws.com/" + modifyToCompURL(staticgroups[staticgroupIndex].images[staticImgIndex].url))
     }
     else{
-        prepMapES(staticgroups[staticgroupIndex].images[imageIndex])
+        prepMapStatic(staticgroups[staticgroupIndex].images[staticImgIndex])
     }
 
     updateButtons()
@@ -6300,8 +6676,8 @@ function updateCamCode() {
 
     if (camCode.endsWith('.*') || camCode.endsWith('.+') || camCode.endsWith('.*[0-9]+') || camCode.endsWith('.+[0-9]+' )) {
         error_message = 'Your site identifier is invalid. Please try again or contact us for assistance.'
-        if (document.getElementById('addImagesErrors')!=null) {
-            document.getElementById('addImagesErrors').innerHTML = error_message
+        if (document.getElementById('addFilesErrors')!=null) {
+            document.getElementById('addFilesErrors').innerHTML = error_message
         }
         else {
             document.getElementById('newSurveyErrors').innerHTML = error_message
@@ -6549,74 +6925,79 @@ function buildCamBuilderRow() {
 function openStructure() {
     /** Opens the structure tab in edit survey. */
 
-    var addImagesSurveyStructureDiv = document.getElementById('addImagesSurveyStructureDiv')
-    while(addImagesSurveyStructureDiv.firstChild){
-        addImagesSurveyStructureDiv.removeChild(addImagesSurveyStructureDiv.firstChild);
+    // var editSurveyStructureDiv = document.getElementById('editSurveyStructureDiv')
+    // while(editSurveyStructureDiv.firstChild){
+    //     editSurveyStructureDiv.removeChild(editSurveyStructureDiv.firstChild);
+    // }
+
+    var editSurveyStructureDiv = document.getElementById('editSurveyStructureDiv')
+    if (editSurveyStructureDiv .firstChild==null) {
+
+        // Heading
+        var headingDiv = document.createElement('div')
+        editSurveyStructureDiv.appendChild(headingDiv)
+
+        var h5 = document.createElement('h5')
+        h5.innerHTML = 'Survey Structure'
+        h5.setAttribute('style','margin-bottom: 2px')
+        headingDiv.appendChild(h5)
+
+        var div = document.createElement('div')
+        div.setAttribute('style','font-size: 80%; margin-bottom: 2px')
+        div.innerHTML = '<i> Here you can view the structure of your survey by site, camera and folder and see how many images, videos and frames are in each folder. Please note that duplicate images or videos (based on hashes) are not stored in the database therefore the counts may not match the number of files in your dataset. </i>'
+        headingDiv.appendChild(div)
+
+        headingDiv.appendChild(document.createElement('br'))
+        
+        // Structure
+        var div = document.createElement('div')
+        div.id = 'structureDiv'
+        editSurveyStructureDiv.appendChild(div)
+
+        // Buttons
+        var div = document.createElement('div')
+        div.setAttribute('id','structureButtonsDiv')
+        editSurveyStructureDiv.appendChild(div)
+
+        var row = document.createElement('div')
+        row.classList.add('row')
+        editSurveyStructureDiv.appendChild(row)
+
+        var col1 = document.createElement('div')
+        col1.classList.add('col-lg-2')
+        row.appendChild(col1)
+
+        var btnPrevStructure = document.createElement('button')
+        btnPrevStructure.setAttribute("class","btn btn-primary btn-block")
+        btnPrevStructure.setAttribute("id","btnPrevSurveyStructure")
+        btnPrevStructure.innerHTML = 'Previous'
+        col1.appendChild(btnPrevStructure)
+
+        var col2 = document.createElement('div')
+        col2.classList.add('col-lg-8')
+        row.appendChild(col2)
+
+        var col5 = document.createElement('div')
+        col5.classList.add('col-lg-2')
+        row.appendChild(col5)
+
+        var btnNextStructure = document.createElement('button')
+        btnNextStructure.setAttribute("class","btn btn-primary btn-block")
+        btnNextStructure.setAttribute("id","btnNextSurveyStructure")
+        btnNextStructure.innerHTML = 'Next'
+        col5.appendChild(btnNextStructure)
+
+        btnNextStructure.addEventListener('click', ()=>{
+            buildStructure(next_structure_url)
+        });
+        
+        btnPrevStructure.addEventListener('click', ()=>{
+            buildStructure(prev_structure_url)
+        });
+        
+        buildStructure()
+
     }
-
-    // Heading
-    var headingDiv = document.createElement('div')
-    addImagesSurveyStructureDiv.appendChild(headingDiv)
-
-    var h5 = document.createElement('h5')
-    h5.innerHTML = 'Survey Structure'
-    h5.setAttribute('style','margin-bottom: 2px')
-    headingDiv.appendChild(h5)
-
-    var div = document.createElement('div')
-    div.setAttribute('style','font-size: 80%; margin-bottom: 2px')
-    div.innerHTML = '<i> Here you can view the structure of your survey by site, camera and folder and see how many images, videos and frames are in each folder. Please note that duplicate images or videos (based on hashes) are not stored in the database therefore the counts may not match the number of files in your dataset. </i>'
-    headingDiv.appendChild(div)
-
-    headingDiv.appendChild(document.createElement('br'))
-    
-    // Structure
-    var div = document.createElement('div')
-    div.id = 'structureDiv'
-    addImagesSurveyStructureDiv.appendChild(div)
-
-    // Buttons
-    var div = document.createElement('div')
-    div.setAttribute('id','structureButtonsDiv')
-    addImagesSurveyStructureDiv.appendChild(div)
-
-    var row = document.createElement('div')
-    row.classList.add('row')
-    addImagesSurveyStructureDiv.appendChild(row)
-
-    var col1 = document.createElement('div')
-    col1.classList.add('col-lg-2')
-    row.appendChild(col1)
-
-    var btnPrevStructure = document.createElement('button')
-    btnPrevStructure.setAttribute("class","btn btn-primary btn-block")
-    btnPrevStructure.setAttribute("id","btnPrevSurveyStructure")
-    btnPrevStructure.innerHTML = 'Previous'
-    col1.appendChild(btnPrevStructure)
-
-    var col2 = document.createElement('div')
-    col2.classList.add('col-lg-8')
-    row.appendChild(col2)
-
-    var col5 = document.createElement('div')
-    col5.classList.add('col-lg-2')
-    row.appendChild(col5)
-
-    var btnNextStructure = document.createElement('button')
-    btnNextStructure.setAttribute("class","btn btn-primary btn-block")
-    btnNextStructure.setAttribute("id","btnNextSurveyStructure")
-    btnNextStructure.innerHTML = 'Next'
-    col5.appendChild(btnNextStructure)
-
-    btnNextStructure.addEventListener('click', ()=>{
-        buildStructure(next_structure_url)
-    });
-    
-    btnPrevStructure.addEventListener('click', ()=>{
-        buildStructure(prev_structure_url)
-    });
-    
-    buildStructure()
 }
 
 
@@ -6631,7 +7012,7 @@ function buildStructure(structure_url='/getSurveyStructure') {
         if (this.readyState == 4 && this.status == 200) {
             reply = JSON.parse(this.responseText);
             // console.log(reply)
-            if ((reply.survey==selectedSurvey)&&(modalAddImages.is(':visible'))) {
+            if ((reply.survey==selectedSurvey)&&(modalEditSurvey.is(':visible'))) {
                 if (reply.next_url==null) {
                     document.getElementById('btnNextSurveyStructure').hidden = true
                 } else {
@@ -6990,7 +7371,7 @@ function buildTimestampsMap(){
     row.appendChild(col3)
 
     var h6 = document.createElement('h6')
-    h6.id = 'mapTitle'
+    h6.id = 'mapTitle_time'
     h6.innerHTML = 'Loading...'
     col2.appendChild(h6)
 
@@ -7015,7 +7396,7 @@ function buildTimestampsMap(){
     col2.appendChild(center)
 
     var mapDiv = document.createElement('div')
-    mapDiv.id = 'mapDiv'
+    mapDiv.id = 'mapDiv_time'
     mapDiv.style.height = '700px'
     center.appendChild(mapDiv)
 
@@ -7258,12 +7639,12 @@ function buildTimestampsMap(){
     rowDiv.appendChild(colDiv);
 
     var clusterDiv = document.createElement('div');
-    clusterDiv.id = 'clusterPosition';
+    clusterDiv.id = 'clusterPosition_time';
     colDiv.appendChild(clusterDiv);
 
     var paginationUl = document.createElement('ul');
     paginationUl.classList.add('pagination');
-    paginationUl.id = 'paginationCircles';
+    paginationUl.id = 'paginationCircles_time';
     paginationUl.style.margin = '10px';
     colDiv.appendChild(paginationUl);
 
@@ -7325,7 +7706,7 @@ function buildTimestampsMap(){
 
     document.getElementById('btnPrevCamera').addEventListener('click', ()=>{
         let validTimestamp = validateTimestamp()
-        if (cameraIndex>0 && finishedDisplaying && validTimestamp) {
+        if (cameraIndex>0 && finishedDisplayingTime && validTimestamp) {
             cameraIndex -= 1
             imageIndex = 0
             updateImageMap()
@@ -7334,7 +7715,7 @@ function buildTimestampsMap(){
 
     document.getElementById('btnPrevImage').addEventListener('click', ()=>{
         let validTimestamp = validateTimestamp()
-        if (imageIndex>0  && finishedDisplaying && validTimestamp) {
+        if (imageIndex>0  && finishedDisplayingTime && validTimestamp) {
             imageIndex -= 1
             updateImageMap()
         }
@@ -7342,7 +7723,7 @@ function buildTimestampsMap(){
 
     document.getElementById('btnNextImage').addEventListener('click', ()=>{
         let validTimestamp = validateTimestamp()
-        if (imageIndex<images[cameraIndex].images.length-1  && finishedDisplaying && validTimestamp) {
+        if (imageIndex<images[cameraIndex].images.length-1  && finishedDisplayingTime && validTimestamp) {
             imageIndex += 1
             updateImageMap()
         }
@@ -7350,7 +7731,7 @@ function buildTimestampsMap(){
 
     document.getElementById('btnNextCamera').addEventListener('click', ()=>{
         let validTimestamp = validateTimestamp()
-        if (cameraIndex<images.length-1 && finishedDisplaying && validTimestamp) {
+        if (cameraIndex<images.length-1 && finishedDisplayingTime && validTimestamp) {
             cameraIndex += 1
             imageIndex = 0
             updateImageMap()
@@ -7364,6 +7745,8 @@ function buildTimestampsMap(){
     document.getElementById('btnPrevImage').hidden = true
     document.getElementById('btnNextImage').hidden = true
     document.getElementById('btnNextCamera').hidden = true
+
+    getTimestampCameraIDs()
 }
 
 
@@ -7460,12 +7843,12 @@ function updateImageMap(){
 
     document.getElementById('year').focus()
 
-    document.getElementById('mapTitle').innerHTML = images[cameraIndex].images[imageIndex].name.split('/').slice(1).join('/')
-    if (map != null) {
-        activeImage.setUrl("https://"+bucketName+".s3.amazonaws.com/" + modifyToCompURL(images[cameraIndex].images[imageIndex].url))
+    document.getElementById('mapTitle_time').innerHTML = images[cameraIndex].images[imageIndex].name.split('/').slice(1).join('/')
+    if (mapTime != null) {
+        activeImageTime.setUrl("https://"+bucketName+".s3.amazonaws.com/" + modifyToCompURL(images[cameraIndex].images[imageIndex].url))
     }
     else{
-        prepMapES(images[cameraIndex].images[imageIndex])
+        prepMapTime(images[cameraIndex].images[imageIndex])
     }
 
     var yearInput = document.getElementById('year');
@@ -7772,7 +8155,7 @@ function getTimestamp(time_dict){
     return timestamp_dict
 }
 
-modalAddImages.on('keyup', function(event) {
+modalEditSurvey.on('keyup', function(event) {
     /** Event listener for hotkeys on Edit Timestamps. */
     if (tabActiveEditSurvey=='baseEditImgTimestampsTab' && (document.getElementById('missingTimestamps').checked||document.getElementById('extractedTimestamps').checked||document.getElementById('editedTimestamps').checked)){
         if (event.key.toLowerCase() == 'n') {
@@ -7796,7 +8179,7 @@ modalAddImages.on('keyup', function(event) {
     }
 });
 
-modalAddImages.on('keydown', function(event) {
+modalEditSurvey.on('keydown', function(event) {
     /** Event listener for hotkeys on Edit Timestamps. */
     if (tabActiveEditSurvey=='baseEditImgTimestampsTab' && (document.getElementById('missingTimestamps').checked||document.getElementById('extractedTimestamps').checked||document.getElementById('editedTimestamps').checked)){
         if (event.key.toLowerCase() == 'tab') {
@@ -7829,11 +8212,11 @@ function nextTimestamp(){
 function hideDetections(hide) {
     /** Hides the detections on the map when hotkey is pressed. */
     if (hide){
-        addedDetections = false
-        drawnItems.clearLayers()
+        addedDetectionsStatic = false
+        drawnItemsStatic.clearLayers()
     }
     else{
-        addedDetections = false
+        addedDetectionsStatic = false
         addDetections()
     }
 }
@@ -7844,21 +8227,21 @@ function preloadImages(imageOnly=false){
 
     if (tabActiveEditSurvey === 'baseEditMasksTab') {
 
-        if (imageIndex < cameras[cameraIndex].images.length - 1) {
+        if (imageIndex < cameras[maskCamIndex].images.length - 1) {
             im = new Image();
-            im.src = "https://"+bucketName+".s3.amazonaws.com/" + modifyToCompURL(cameras[cameraIndex].images[imageIndex + 1].url)
+            im.src = "https://"+bucketName+".s3.amazonaws.com/" + modifyToCompURL(cameras[maskCamIndex].images[imageIndex + 1].url)
         }
 
-        if (cameraIndex<cameras.length-1 && !imageOnly){
+        if (maskCamIndex<cameras.length-1 && !imageOnly){
             im = new Image();
-            im.src = "https://"+bucketName+".s3.amazonaws.com/" + modifyToCompURL(cameras[cameraIndex+1].images[0].url)
+            im.src = "https://"+bucketName+".s3.amazonaws.com/" + modifyToCompURL(cameras[maskCamIndex+1].images[0].url)
         }
         
     } else if (tabActiveEditSurvey === 'baseStaticTab') {
 
-        if (imageIndex < staticgroups[staticgroupIndex].images.length - 1) {
+        if (staticImgIndex < staticgroups[staticgroupIndex].images.length - 1) {
             im = new Image();
-            im.src = "https://"+bucketName+".s3.amazonaws.com/" + modifyToCompURL(staticgroups[staticgroupIndex].images[imageIndex + 1].url)
+            im.src = "https://"+bucketName+".s3.amazonaws.com/" + modifyToCompURL(staticgroups[staticgroupIndex].images[staticImgIndex + 1].url)
         }
 
         if (staticgroupIndex<staticgroups.length-1 && !imageOnly){
@@ -7868,9 +8251,9 @@ function preloadImages(imageOnly=false){
 
     } else if (tabActiveEditSurvey === 'baseEditImgTimestampsTab') {
 
-        if (imageIndex < images[cameraIndex].images.length - 1) {
+        if (maskImgIndex < images[cameraIndex].images.length - 1) {
             im = new Image();
-            im.src = "https://"+bucketName+".s3.amazonaws.com/" + modifyToCompURL(images[cameraIndex].images[imageIndex + 1].url)
+            im.src = "https://"+bucketName+".s3.amazonaws.com/" + modifyToCompURL(images[cameraIndex].images[maskImgIndex + 1].url)
         }
 
         if (cameraIndex<images.length-1 && !imageOnly){
