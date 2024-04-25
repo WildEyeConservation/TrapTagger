@@ -3145,13 +3145,22 @@ function clearEditSurveyModal() {
     cameras = []
     maskCamIndex = 0
     maskImgIndex = 0
+    if (mapTime) {
+        mapTime.remove()
+    }
     mapTime = null
     activeImageTime = null
     mapReadyTime = null
+    if (mapStatic) {
+        mapStatic.remove()
+    }
     mapStatic = null
     activeImageStatic = null
     addedDetectionsStatic = false
     mapReadyStatic = null
+    if (mapMask) {
+        mapMask.remove()
+    }
     mapMask = null
     activeImageMask = null
     editingEnabled = false
@@ -5309,7 +5318,6 @@ function getMasks() {
 
 function prepMapMask(image) {
     /** Initialises the Leaflet image map for the edit survey modal. */
-    console.log('prepMapES')
     if (bucketName != null) {
         mapReadyMask = false
         imageUrl = "https://"+bucketName+".s3.amazonaws.com/" + modifyToCompURL(image.url)

@@ -600,11 +600,11 @@ btnCsvDownload.addEventListener('click', ()=>{
             endDateCSV = endDateCSV + ' 23:59:59'
         }
 
-        if (document.getElementById('collapseVideo').checked) {
-            collapseVideo = true
-        } else {
-            collapseVideo = false
-        }
+        // if (document.getElementById('collapseVideo').checked) {
+        //     collapseVideo = true
+        // } else {
+        //     collapseVideo = false
+        // }
 
         if (noEmpties) {
             var formData = new FormData()
@@ -1496,8 +1496,8 @@ modalCSVGenerate.on('shown.bs.modal', function(){
         document.getElementById('rowLabelFormat').checked = false
         document.getElementById('includeLabels').checked = true
         document.getElementById('excludeLabels').checked = false
-        document.getElementById('videoFrames').checked = false
-        document.getElementById('collapseVideo').checked = true
+        // document.getElementById('videoFrames').checked = false
+        // document.getElementById('collapseVideo').checked = true
         
         if (csvInfo==null) {
             var xhttp = new XMLHttpRequest();

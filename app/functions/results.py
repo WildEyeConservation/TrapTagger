@@ -315,7 +315,7 @@ def create_full_path(path,filename,video=False):
     '''Helper function for create_task_dataframe that returns the concatonated input.'''
     if video:
         if filename:
-            return path.split('_video_images_')[0]+filename
+            return ('/'.join(path.split('/')[1:])).split('_video_images_')[0]+filename
         else:
             return None
     else:
@@ -353,6 +353,7 @@ def create_task_dataframe(task_id,detection_count_levels,label_levels,url_levels
     '''
 
     task = db.session.query(Task).get(task_id)
+    Parent = alias(User)
     query = db.session.query( \
                 Image.id.label('image_id'),\
                 Image.filename.label('image_name'), \
@@ -379,7 +380,9 @@ def create_task_dataframe(task_id,detection_count_levels,label_levels,url_levels
                 Trapgroup.altitude.label('altitude'), \
                 Survey.id.label('survey_id'), \
                 Survey.name.label('survey'), \
-                Survey.description.label('survey_description')) \
+                Survey.description.label('survey_description'), \
+                User.username.label('username'), \
+                Parent.c.username.label('parent_username')) \
                 .join(Image,Cluster.images) \
                 .join(Detection,Detection.image_id==Image.id) \
                 .join(Labelgroup,Labelgroup.detection_id==Detection.id) \
@@ -390,6 +393,8 @@ def create_task_dataframe(task_id,detection_count_levels,label_levels,url_levels
                 .join(Video,Camera.videos,isouter=True) \
                 .join(Trapgroup,Camera.trapgroup_id==Trapgroup.id) \
                 .join(Survey,Trapgroup.survey_id==Survey.id) \
+                .outerjoin(User,User.id==Cluster.user_id)\
+                .outerjoin(Parent,Parent.c.id==User.parent_id)\
                 .filter(Cluster.task_id==task_id) \
                 .filter(Labelgroup.task_id==task_id) \
                 .filter(Detection.static==False) \
@@ -445,6 +450,7 @@ def create_task_dataframe(task_id,detection_count_levels,label_levels,url_levels
 
         # if len(missing_images) != 0:
         #This includes all the images with no detections
+        Parent = alias(User)
         query = db.session.query( \
                         Image.id.label('image_id'),\
                         Image.filename.label('image_name'), \
@@ -469,7 +475,9 @@ def create_task_dataframe(task_id,detection_count_levels,label_levels,url_levels
                         Trapgroup.altitude.label('altitude'), \
                         Survey.id.label('survey_id'), \
                         Survey.name.label('survey'), \
-                        Survey.description.label('survey_description')) \
+                        Survey.description.label('survey_description'), \
+                        User.username.label('username'), \
+                        Parent.c.username.label('parent_username')) \
                         .join(Image,Cluster.images) \
                         .join(Detection,Detection.image_id==Image.id) \
                         .join(Camera,Image.camera_id==Camera.id) \
@@ -478,6 +486,8 @@ def create_task_dataframe(task_id,detection_count_levels,label_levels,url_levels
                         .join(Trapgroup,Camera.trapgroup_id==Trapgroup.id) \
                         .join(Survey,Trapgroup.survey_id==Survey.id) \
                         .outerjoin(sq,sq.c.id==Image.id)\
+                        .outerjoin(User,User.id==Cluster.user_id)\
+                        .outerjoin(Parent,Parent.c.id==User.parent_id)\
                         .filter(Cluster.task_id==task_id)\
                         .filter(sq.c.id==None)
 
@@ -535,6 +545,10 @@ def create_task_dataframe(task_id,detection_count_levels,label_levels,url_levels
 
     #Replace nothings
     df['label'] = df['label'].replace({'Nothing': 'None'}, regex=True)
+
+    # Create annotator 
+    df['annotator'] = df.apply(lambda x: x.parent_username if x.parent_username else x.username, axis=1)
+    df['annotator'] = df['annotator'].replace({'Admin': 'AI', 'None': 'AI', None: 'AI'})
 
     #Add capture ID
     df.sort_values(by=['survey', 'trapgroup', 'camera', 'timestamp'], inplace=True, ascending=True)
@@ -627,6 +641,8 @@ def create_task_dataframe(task_id,detection_count_levels,label_levels,url_levels
     del df['trapgroup_id']
     del df['survey_id']
     if individual_levels: del df['individual']
+    del df['username']
+    del df['parent_username']
 
     #Add image counts
     df['capture_image_count'] = df.groupby('unique_capture')['id'].transform('nunique')
@@ -1004,10 +1020,6 @@ def generate_csv(self,selectedTasks, selectedLevel, requestedColumns, custom_col
 
                 individual_list[individual_level] = individual_li
 
-        # Include the video_path column if there are any videos
-        video = db.session.query(Video).join(Camera).join(Trapgroup).filter(Trapgroup.survey_id==task.survey_id).first()
-        if ('image' in requestedColumns) and video:
-            requestedColumns.insert(requestedColumns.index('image')+1, 'video_path')
 
         originalRequestedColumns = requestedColumns.copy()
 
