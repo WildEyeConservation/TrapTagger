@@ -13132,6 +13132,7 @@ def getIndividualSpeciesAndTasksForEdit(task_id):
                                 .join(individuals_sq, individuals_sq.c.id==Individual.id)\
                                 .distinct().all()
 
+        species = [d[0] for d in data]
         for d in data:
             if d[0] not in species_info:
                 species_info[d[0]] = {
@@ -13142,7 +13143,13 @@ def getIndividualSpeciesAndTasksForEdit(task_id):
                 species_info[d[0]]['tasks'].append(d[1])
                 species_info[d[0]]['task_names'].append(d[3] + ' ' + d[2])
 
-    return json.dumps(species_info)
+        parent_ids = []
+        for s in set(species):
+            parents = getParentLabels(task_id,s,[],addLabel=False)
+            if parents:
+                parent_ids.extend(parents)
+
+    return json.dumps({'species_info': species_info, 'parent_ids': parent_ids})
 
 @app.route('/getIndividualSurveysTasks')
 @login_required

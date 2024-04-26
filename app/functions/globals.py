@@ -3831,3 +3831,14 @@ def verify_label(description,hotkey,parent):
         valid = False
 
     return valid
+
+def getParentLabels(task_id,description,parent_labels,addLabel=True):
+    '''Returns all a child label's parent labels.'''
+
+    label = db.session.query(Label).filter(Label.description==description).filter(Label.task_id==task_id).first()
+    if label:
+        if addLabel: parent_labels.append(label.id)
+        if label.parent:
+            getParentLabels(task_id,label.parent.description,parent_labels)
+
+    return parent_labels

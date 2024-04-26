@@ -127,6 +127,7 @@ var tags_per_page = 10
 var speciesAndTasks = {}
 var speciesEditDict = {}
 var speciesLabelIDs = {}
+var speciesParentIDs = []
 
 var s3 = null
 var stopFlag = true
