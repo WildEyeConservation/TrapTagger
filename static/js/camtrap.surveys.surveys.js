@@ -700,7 +700,6 @@ function buildSurveys(survey,disableSurvey) {
     
         editSurveyBtn.addEventListener('click', function(wrapSurveyName,wrapSurveyId) {
             return function() {
-                surveyName = wrapSurveyName
                 selectedSurvey = wrapSurveyId
                 document.getElementById('editSurveyHeader').innerHTML =  'Edit Survey: ' + wrapSurveyName
                 clearEditSurveyModal()
