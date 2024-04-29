@@ -910,25 +910,30 @@ def process_db_static_detections(self,camera_id):
 def process_leftover_static_detections(self,camera_id):
     try:
         #Process static detections that are not in a static group
-        detections = db.session.query(Detection).join(Image).filter(Image.camera_id==camera_id).filter(Detection.static==True).filter(Detection.staticgroup_id==None).distinct().all()
         iou_thresh = 0.5
-        for detection in detections:
-            staticgroups = db.session.query(Staticgroup).join(Detection).join(Image).filter(Image.camera_id==camera_id).filter(Detection.static==True).distinct().all()
-            for staticgroup in staticgroups:
-                comparison_detection = staticgroup.detections[0]
-                intersection = max((min(detection.right,comparison_detection.right) - max(detection.left,comparison_detection.left)),0) * max((min(detection.bottom,comparison_detection.bottom) - max(detection.top,comparison_detection.top)),0)
-                area1 = (detection.right - detection.left) * (detection.bottom - detection.top)
-                area2 = (comparison_detection.right - comparison_detection.left) * (comparison_detection.bottom - comparison_detection.top)
-                iou = intersection / (area1 + area2 - intersection)
-                if iou > iou_thresh:
-                    staticgroup.detections.append(detection)
-                    break
+        staticgroups = db.session.query(Staticgroup).join(Detection).join(Image).filter(Image.camera_id==camera_id).filter(Detection.static==True).distinct().all()
+        detections = db.session.query(Detection).join(Image).filter(Image.camera_id==camera_id).filter(Detection.static==True).filter(Detection.staticgroup_id==None).distinct().limit(1000).all()
+        
+        while detections:
+            for detection in detections:
+                for staticgroup in staticgroups:
+                    comparison_detection = staticgroup.detections[0]
+                    intersection = max((min(detection.right,comparison_detection.right) - max(detection.left,comparison_detection.left)),0) * max((min(detection.bottom,comparison_detection.bottom) - max(detection.top,comparison_detection.top)),0)
+                    area1 = (detection.right - detection.left) * (detection.bottom - detection.top)
+                    area2 = (comparison_detection.right - comparison_detection.left) * (comparison_detection.bottom - comparison_detection.top)
+                    iou = intersection / (area1 + area2 - intersection)
+                    if iou > iou_thresh:
+                        staticgroup.detections.append(detection)
+                        break
 
-            if not detection.staticgroup:
-                staticgroup = Staticgroup(status='accepted', detections=[detection])
-                db.session.add(staticgroup)
+                if not detection.staticgroup:
+                    staticgroup = Staticgroup(status='accepted', detections=[detection])
+                    db.session.add(staticgroup)
+                    staticgroups.append(staticgroup)
 
-        db.session.commit()
+            db.session.commit()
+
+            detections = db.session.query(Detection).join(Image).filter(Image.camera_id==camera_id).filter(Detection.static==True).filter(Detection.staticgroup_id==None).distinct().limit(1000).all()
 
     except Exception as exc:
         app.logger.info(' ')
