@@ -660,9 +660,32 @@ def deleteChildLabels(parent):
     '''
     labelChildren = db.session.query(Label).filter(Label.parent==parent).filter(Label.task==parent.task).all()
     for label in labelChildren:
-        deleteChildLabels(label)
-        db.session.delete(label)
+        has_individuals = checkForIndividuals(label)
+        if not has_individuals:
+            deleteChildLabels(label)
+            db.session.delete(label)
     return True
+
+def checkForIndividuals(label,has_individuals=False):
+    '''
+    Helper function for processChanges. Checks if there are any individuals with the specified label or its children.
+
+        Parameters:
+            label (Label): Label to check
+            has_individuals (bool): Flag to indicate if individuals have been found
+
+        Returns:
+            has_individuals (bool): Flag to indicate if individuals have been found
+    '''
+    if not has_individuals:
+        has_individuals = db.session.query(Individual).filter(Individual.species==label.description).filter(Individual.tasks.contains(label.task)).first()
+        if not has_individuals:
+            children = db.session.query(Label).filter(Label.parent==label).filter(Label.task==label.task).all()
+            for child in children:
+                has_individuals = checkForIndividuals(child,has_individuals)
+                if has_individuals:
+                    break
+    return has_individuals
 
 def processChanges(changes, keys, sessionLabels, task_id, speciesChanges=None):
     '''
@@ -701,7 +724,8 @@ def processChanges(changes, keys, sessionLabels, task_id, speciesChanges=None):
             for delete_id in changes[parent]['edits']['delete']:
                 if 's' not in delete_id:
                     deleteLabel = db.session.query(Label).get(int(delete_id))
-                    if deleteLabel:
+                    has_individuals = checkForIndividuals(deleteLabel)
+                    if deleteLabel and not has_individuals:
                         deleteChildLabels(deleteLabel)
                         db.session.delete(deleteLabel)
 

@@ -508,6 +508,11 @@ function BuildLabelRow(IDNum, isLoad, div, includeParent) {
                     document.getElementById('modalAlertBody').innerHTML = 'This label is associated with individuals. It cannot be deleted.'
                     modalAlert.modal({keyboard: true});
                 }
+                else if (speciesParentIDs.includes(parseInt(del_id))) {
+                    document.getElementById('modalAlertHeader').innerHTML = 'Error'
+                    document.getElementById('modalAlertBody').innerHTML = "This label has child labels that are associated with individuals. It cannot be deleted."
+                    modalAlert.modal({keyboard: true});
+                }
                 else {
                     sessionDeletes.push(del_id)
                     evt.target.parentNode.parentNode.parentNode.remove();
@@ -1905,11 +1910,14 @@ function getSpeciesAndTasks() {
     speciesAndTasks = {}
     speciesLabelIDs = {}
     speciesEditDict = {}
+    speciesParentIDs = []
     var xhttp = new XMLHttpRequest();
     xhttp.onreadystatechange =
     function(){
         if (this.readyState == 4 && this.status == 200) {
-            speciesAndTasks = JSON.parse(this.responseText);
+            reply = JSON.parse(this.responseText);
+            speciesAndTasks = reply.species_info
+            speciesParentIDs = reply.parent_ids
             speciesLabelIDs = {}
             for (let i=0;i<globalLabels.length;i++) {
                 labelID = globalLabels[i][3]

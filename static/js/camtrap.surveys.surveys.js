@@ -127,6 +127,7 @@ var tags_per_page = 10
 var speciesAndTasks = {}
 var speciesEditDict = {}
 var speciesLabelIDs = {}
+var speciesParentIDs = []
 
 var s3 = null
 var stopFlag = true
@@ -699,7 +700,6 @@ function buildSurveys(survey,disableSurvey) {
     
         editSurveyBtn.addEventListener('click', function(wrapSurveyName,wrapSurveyId) {
             return function() {
-                surveyName = wrapSurveyName
                 selectedSurvey = wrapSurveyId
                 document.getElementById('editSurveyHeader').innerHTML =  'Edit Survey: ' + wrapSurveyName
                 clearEditSurveyModal()
