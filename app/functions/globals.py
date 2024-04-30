@@ -3264,14 +3264,13 @@ def create_new_er_report(row,er_api_key,er_url):
     return True
 
 @celery.task(bind=True,max_retries=5,ignore_result=True)
-def mask_area(self, cluster_id, task_id, masks, user_id):
+def mask_area(self, image_id, task_id, masks, user_id):
     ''' Create masks and mask detections in a specified area of an image. '''
 
     try:
-        cluster = db.session.query(Cluster).get(cluster_id)
-        task_id = cluster.task_id
-        trapgroup = cluster.images[0].camera.trapgroup
-        cameragroup = cluster.images[0].camera.cameragroup
+        image = db.session.query(Image).get(image_id)
+        trapgroup = image.camera.trapgroup
+        cameragroup = image.camera.cameragroup
 
         if trapgroup and cameragroup:
             # Validate & create masks

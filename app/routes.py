@@ -12214,7 +12214,7 @@ def maskArea():
 
                 db.session.commit()
 
-                mask_area.apply_async(kwargs={'cluster_id': cluster_id, 'task_id': task_id, 'masks': masks, 'user_id': current_user.parent_id})
+                mask_area.apply_async(kwargs={'image_id': image_id, 'task_id': task_id, 'masks': masks, 'user_id': current_user.parent_id})
 
     if (not current_user.admin) and (not GLOBALS.redisClient.sismember('active_jobs_'+str(current_user.turkcode[0].task_id),current_user.username)):
         return {'redirect': url_for('done')}, 278
