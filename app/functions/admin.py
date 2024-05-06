@@ -879,8 +879,8 @@ def copyClusters(self,newTask,session=None,trapgroup_id=None,celeryTask=False):
                     for labelgroup in labelgroups:
                         labelgroup.labels = cluster.labels
 
-            if trapgroup_id or celeryTask: session.commit()
             # db.session.commit()
+            session.commit()
 
     except Exception as exc:
         app.logger.info(' ')
@@ -940,11 +940,11 @@ def prepTask(self,newTask_id, survey_id, includes, translation,labels,parallel=F
                     
                     result.forget()
             GLOBALS.lock.release()
-            newTask = db.session.query(Task).get(newTask_id)
 
         else:
             copyClusters(newTask_id)
 
+        newTask = db.session.query(Task).get(newTask_id)
         newTask.status = 'Auto-Classifying'
         db.session.commit()
 
