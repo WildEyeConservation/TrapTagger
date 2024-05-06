@@ -1427,6 +1427,8 @@ def classifyTask(self,task,session=None,reClusters=None,trapgroup_ids=None,celer
     finally:
         if celeryTask: session.close()
 
+    return True
+
 def update_label_ids():
     ''' Updates the default label IDs in the globals. '''
 
