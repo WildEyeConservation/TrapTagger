@@ -3081,7 +3081,7 @@ def updateEarthRanger(task_id):
                                         .group_by(sq1.c.image_id, sq1.c.species)\
                                         .subquery()
 
-            clusters = rDets(db.session.query(
+            df = pd.read_sql(rDets(db.session.query(
                             Cluster.id.label('cluster_id'),
                             Cluster.notes.label('notes'),
                             Image.corrected_timestamp.label('timestamp'),
@@ -3095,7 +3095,8 @@ def updateEarthRanger(task_id):
                             Camera.path.label('path'),
                             Image.detection_rating.label('detection_rating'),
                             ERangerID.id.label('er_id'),
-                            ERangerID.api_key.label('api_key')
+                            ERangerID.api_key.label('api_key'),
+                            Detection.id.label('detection_id')
                         )\
                         .outerjoin(ERangerID)\
                         .join(Image, Cluster.images)\
@@ -3109,26 +3110,34 @@ def updateEarthRanger(task_id):
                         .filter(sq2.c.species.in_(er_species))\
                         .filter(Cluster.task_id == task_id)\
                         .filter(Labelgroup.task_id == task_id)\
-                        .filter(Labelgroup.labels.any(Label.id.in_(label_list))))
-
-            df = pd.DataFrame(clusters.distinct().all())
+                        .filter(Labelgroup.labels.any(Label.id.in_(label_list)))).statement,db.session.bind)
 
             if len(df) == 0:
                 return True
 
+            # add individuals which don't want to outer join
+            df2 = pd.read_sql(db.session.query(Detection.id.label('detection_id'),Individual.name.label('individual'))\
+                                        .join(Individual,Detection.individuals)\
+                                        .filter(Individual.tasks.contains(task))\
+                                        .filter(Individual.species.in_(er_species)).statement,db.session.bind)
+            df = pd.merge(df, df2, on=['detection_id'], how='outer')
+
             grouped_dict = df.groupby('cluster_id').apply(create_er_api_dict)
             df['er_id_dict'] = df['cluster_id'].map(grouped_dict)
             df['tag'] = df['tag'].fillna('None')
+            df['individual'] = df['individual'].fillna('None')
             df = df.sort_values(by=['cluster_id','species','detection_rating'], ascending=False)
             df = df.groupby(['cluster_id','species','trapgroup_tag','trapgroup_lat','trapgroup_lon']).agg({
                 'timestamp':'min',
                 'tag': lambda x: x.unique().tolist(),
+                'individual': lambda x: x.unique().tolist(),
                 'count':'max',
                 'filename': 'first', # Highest detection rating
                 'path': 'first',
                 'er_id_dict': 'first'
             }).reset_index()
             df['tag'] = df['tag'].apply(lambda x: [] if x == ['None'] else x)
+            df['individual'] = df['individual'].apply(lambda x: [] if x == ['None'] else x)
 
             # Handle clusters that contain multiple species that contains labels from parent and children of parent
             duplicate_clusters = df[df.duplicated(subset=['cluster_id'], keep=False)]
@@ -3199,6 +3208,7 @@ def create_new_er_report(row,er_api_key,er_url):
     }
 
     if row['notes']: payload['event_details']['notes'] = row['notes']
+    if row['individual']: payload['event_details']['individuals'] = row['individual']
 
     # Set headers
     er_header_json = {
