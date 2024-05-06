@@ -31,6 +31,7 @@ import traceback
 from config import Config
 import json
 import boto3
+from celery.result import allow_join_result
 
 @celery.task(bind=True,max_retries=5,ignore_result=True)
 def delete_task(self,task_id):
@@ -831,46 +832,71 @@ def handleTaskEdit(self,task_id,changes,speciesChanges=None):
 
     return True
 
-def copyClusters(newTask,session=None):
+@celery.task(bind=True,max_retries=5)
+def copyClusters(self,newTask,session=None,trapgroup_id=None,celeryTask=False):
     '''Copies default task clustering to the specified task.'''
+    try:
+        if session == None:
+            session = db.session()
+            newTask = session.query(Task).get(newTask)
 
-    if session == None:
-        session = db.session()
-        newTask = session.query(Task).get(newTask)
+        survey_id = newTask.survey_id
+        default = session.query(Task).filter(Task.name=='default').filter(Task.survey_id==int(survey_id)).first()
+        
+        check = session.query(Cluster).filter(Cluster.task==newTask)
+        if trapgroup_id:
+            check = check.join(Image,Cluster.images).join(Camera).filter(Camera.trapgroup_id==trapgroup_id)
+        check = check.first()
 
-    survey_id = newTask.survey_id
-    default = session.query(Task).filter(Task.name=='default').filter(Task.survey_id==int(survey_id)).first()
-    
-    check = session.query(Cluster).filter(Cluster.task==newTask).first()
+        if check == None:
+            detections = session.query(Detection).join(Image).join(Camera)
+            if trapgroup_id:
+                detections = detections.filter(Camera.trapgroup_id==trapgroup_id)
+            else:
+                detections = detections.join(Trapgroup).filter(Trapgroup.survey_id==survey_id).all()
 
-    if check == None:
-        detections = session.query(Detection).join(Image).join(Camera).join(Trapgroup).filter(Trapgroup.survey_id==survey_id).all()
-        for detection in detections:
-            labelgroup = Labelgroup(detection_id=detection.id,task=newTask,checked=False)
-            session.add(labelgroup)
+            for detection in detections:
+                labelgroup = Labelgroup(detection_id=detection.id,task=newTask,checked=False)
+                session.add(labelgroup)
 
-        clusters = session.query(Cluster).filter(Cluster.task_id==default.id).distinct().all()
-        for cluster in clusters:
-            newCluster = Cluster(task=newTask)
-            session.add(newCluster)
-            newCluster.images=cluster.images
-            newCluster.classification = cluster.classification
+            clusters = session.query(Cluster).filter(Cluster.task_id==default.id)
+            if trapgroup_id:
+                clusters = clusters.join(Image,Cluster.images).join(Camera).filter(Camera.trapgroup_id==trapgroup_id)
+            clusters = clusters.all()
 
-            if cluster.labels != []:
-                newCluster.labels=cluster.labels
-                newCluster.user_id=cluster.user_id
-                newCluster.timestamp = datetime.utcnow()
+            for cluster in clusters:
+                newCluster = Cluster(task=newTask)
+                session.add(newCluster)
+                newCluster.images=cluster.images
+                newCluster.classification = cluster.classification
 
-                labelgroups = session.query(Labelgroup).join(Detection).join(Image).filter(Image.clusters.contains(cluster)).filter(Labelgroup.task==newTask).all()
-                for labelgroup in labelgroups:
-                    labelgroup.labels = cluster.labels
+                if cluster.labels != []:
+                    newCluster.labels=cluster.labels
+                    newCluster.user_id=cluster.user_id
+                    newCluster.timestamp = datetime.utcnow()
 
-        # db.session.commit()
+                    labelgroups = session.query(Labelgroup).join(Detection).join(Image).filter(Image.clusters.contains(cluster)).filter(Labelgroup.task==newTask).all()
+                    for labelgroup in labelgroups:
+                        labelgroup.labels = cluster.labels
+
+            if trapgroup_id or celeryTask: session.commit()
+            # db.session.commit()
+
+    except Exception as exc:
+        app.logger.info(' ')
+        app.logger.info('!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!')
+        app.logger.info(traceback.format_exc())
+        app.logger.info('!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!')
+        app.logger.info(' ')
+        self.retry(exc=exc, countdown= retryTime(self.request.retries))
+
+    finally:
+        if celeryTask: session.close()
 
     return True
 
 @celery.task(bind=True,max_retries=5,ignore_result=True)
-def prepTask(self,newTask_id, survey_id, includes, translation, labels):
+def prepTask(self,newTask_id, survey_id, includes, translation,labels,parallel=False):
     '''
     Celery task for preparing a new task for a survey, includes setting up translations, clustering, and auto-classification.
 
@@ -892,11 +918,59 @@ def prepTask(self,newTask_id, survey_id, includes, translation, labels):
         newTask.status = 'Generating Clusters'
         db.session.commit()
 
-        copyClusters(newTask_id)
+        if parallel:
+            results = []
+            trapgroup_ids = [r[0] for r in db.session.query(Trapgroup.id).filter(Trapgroup.survey_id==survey_id).distinct().all()]
+            for trapgroup_id in trapgroup_ids:
+                results.append(copyClusters.apply_async(kwargs={'newTask': newTask_id, 'trapgroup_id':trapgroup_id, 'celeryTask': True},queue='parallel'))
+    
+            #Wait for processing to complete
+            db.session.remove()
+            GLOBALS.lock.acquire()
+            with allow_join_result():
+                for result in results:
+                    try:
+                        result.get()
+                    except Exception:
+                        app.logger.info(' ')
+                        app.logger.info('!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!')
+                        app.logger.info(traceback.format_exc())
+                        app.logger.info('!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!')
+                        app.logger.info(' ')
+                    
+                    result.forget()
+            GLOBALS.lock.release()
+            newTask = db.session.query(Task).get(newTask_id)
+
+        else:
+            copyClusters(newTask_id)
 
         newTask.status = 'Auto-Classifying'
         db.session.commit()
-        classifyTask(newTask_id)
+
+        if parallel:
+            results = []
+            trapgroup_ids = [r[0] for r in db.session.query(Trapgroup.id).filter(Trapgroup.survey_id==survey_id).distinct().all()]
+            for trapgroup_id in trapgroup_ids:
+                results.append(classifyTask.apply_async(kwargs={'task': newTask_id, 'trapgroup_ids':[trapgroup_id], 'celeryTask': True},queue='parallel'))
+            #Wait for processing to complete
+            db.session.remove()
+            GLOBALS.lock.acquire()
+            with allow_join_result():
+                for result in results:
+                    try:
+                        result.get()
+                    except Exception:
+                        app.logger.info(' ')
+                        app.logger.info('!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!')
+                        app.logger.info(traceback.format_exc())
+                        app.logger.info('!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!')
+                        app.logger.info(' ')
+                    
+                    result.forget()
+            GLOBALS.lock.release()
+        else:
+            classifyTask(newTask_id)
         
         updateAllStatuses(task_id=newTask_id, celeryTask=False)
 

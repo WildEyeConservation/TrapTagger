@@ -1316,7 +1316,8 @@ def unknock_cluster(self,image_id, label_id, user_id, task_id):
 
     return None
 
-def classifyTask(task,session=None,reClusters=None,trapgroup_ids=None):
+@celery.task(bind=True,max_retries=5)
+def classifyTask(self,task,session=None,reClusters=None,trapgroup_ids=None,celeryTask=False):
     '''
     Auto-classifies and labels the species contained in each cluster of a specified task, based on the species selected by the user. Can be given a specific subset of 
     clusters to classify.
@@ -1329,6 +1330,8 @@ def classifyTask(task,session=None,reClusters=None,trapgroup_ids=None):
         if session == None:
             commit = True
             session = db.session()
+        if celeryTask:
+            commit = True
 
         if type(task) == int:
             task = session.query(Task).get(task)
@@ -1413,14 +1416,16 @@ def classifyTask(task,session=None,reClusters=None,trapgroup_ids=None):
         if commit: session.commit()
         app.logger.info('Finished classifying task '+str(task))
 
-    except Exception:
+    except Exception as exc:
         app.logger.info(' ')
         app.logger.info('!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!')
         app.logger.info(traceback.format_exc())
         app.logger.info('!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!')
         app.logger.info(' ')
-    
-    return True
+        self.retry(exc=exc, countdown= retryTime(self.request.retries))
+
+    finally:
+        if celeryTask: session.close()
 
 def update_label_ids():
     ''' Updates the default label IDs in the globals. '''
