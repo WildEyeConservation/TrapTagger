@@ -3859,7 +3859,8 @@ def process_video_batch(self,dirpath,batch,bucket,trapgroup_id):
         localsession.commit()
 
         # only delete files after db commit #indempotency
-        for filename in batch:
+        filenames = [r[0] for r in localsession.query(Video.filename).join(Camera).filter(Camera.trapgroup_id==trapgroup_id).filter(Video.filename.in_(batch)).distinct().all()]
+        for filename in filenames:
             GLOBALS.s3client.delete_object(Bucket=bucket, Key=dirpath+'/'+filename)
 
     except Exception as exc:
@@ -3936,6 +3937,7 @@ def extract_images_from_video(localsession, sourceKey, bucketName, trapgroup_id)
             count = 0
             count_frame = 0
             frame_rate = math.ceil(video_fps / fps)
+            assert ret==True #need this to catch metadata issues
             while ret:
                 if count % frame_rate == 0:
                     with tempfile.NamedTemporaryFile(delete=True, suffix='.jpg') as temp_file_img:
