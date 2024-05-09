@@ -740,7 +740,7 @@ def processChanges(changes, keys, sessionLabels, task_id, speciesChanges=None):
                         editLabel.hotkey = changes[parent]['edits']['modify'][edit_id]['hotkey']
 
                         # Find individuals with this label as their species and update their species and update the label in other tasks
-                        if oldLabel in speciesChanges:
+                        if speciesChanges and oldLabel in speciesChanges:
                             individuals = db.session.query(Individual).join(Task,Individual.tasks).filter(Task.id.in_(speciesChanges[oldLabel]['tasks'])).filter(Individual.species==oldLabel).all()
                             for individual in individuals:
                                 individual.species = editLabel.description
