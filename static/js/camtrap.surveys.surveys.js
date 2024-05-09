@@ -181,6 +181,7 @@ const btnCsvGenerate = document.querySelector('#btnCsvGenerate');
 const btnExcelDownload = document.querySelector('#btnExcelDownload');
 const btnCsvDownload = document.querySelector('#btnCsvDownload');
 const modalConfirmEditSpecies = $('#modalConfirmEditSpecies');
+const modalConfirmEditClose = $('#modalConfirmEditClose');
 
 var polarColours = {'rgba(10,120,80,0.2)':false,
                     'rgba(255,255,255,0.2)':false,
@@ -309,6 +310,9 @@ var corrected_edited_timestamps = {}
 var currentYear = new Date().getFullYear()
 var original_coordinates = {}
 var corrected_coordinates = {}
+var timestampSites = []
+var timestampCameras = {}
+var timestampSpecies = []
 
 function buildSurveys(survey,disableSurvey) {
     /**
@@ -2591,7 +2595,7 @@ function buildEditImageTimestamp() {
 
     h5 = document.createElement('h5')
     h5.setAttribute('style','margin-bottom: 2px')
-    h5.innerHTML = 'Edit Image Timestamps'
+    h5.innerHTML = 'Edit File Timestamps'
     editImgTimestampsDiv.appendChild(h5)
 
     var row = document.createElement('div')
@@ -2693,10 +2697,154 @@ function buildEditImageTimestamp() {
     div.innerHTML = '<i>Here you can add timestamps to images or videos that do not have any timestamps. </i>'
     editImgTimestampsDiv.appendChild(div)
 
+    var row = document.createElement('div')
+    row.classList.add('row')
+    editImgTimestampsDiv.appendChild(row)
+
+    var col1 = document.createElement('div')
+    col1.classList.add('col-lg-2')
+    col1.setAttribute('style', 'padding-right: 0px;')
+    row.appendChild(col1)
+
+    var col2 = document.createElement('div')
+    col2.classList.add('col-lg-10')
+    col2.setAttribute('style','padding-right: 0px;')
+    row.appendChild(col2)
+
+    timestampsFilterDiv = document.createElement('div')
+    timestampsFilterDiv.setAttribute('id','timestampsFilterDiv')
+    timestampsFilterDiv.setAttribute('style','margin-top: 10px')
+    col1.appendChild(timestampsFilterDiv)
+
+    h5 = document.createElement('h5')
+    h5.setAttribute('style','margin-bottom: 2px')
+    h5.innerHTML = 'Site'
+    timestampsFilterDiv.appendChild(h5)
+
+    div = document.createElement('div')
+    div.setAttribute('style','font-size: 80%; margin-bottom: 2px')
+    div.innerHTML = '<i>Filter your files by site.</i>'
+    timestampsFilterDiv.appendChild(div)
+
+    var select = document.createElement('select');
+    select.id = 'timeSiteSelect';
+    select.classList.add('form-control');
+    timestampsFilterDiv.appendChild(select);
+
+    document.getElementById('timeSiteSelect').addEventListener('change', ()=>{
+        imageIndex = 0
+        cameraIndex = 0
+        cameraReadAheadIndex = 0
+        images = []
+        camera_ids = []
+        mapTime = null
+
+        timeCamSelect = document.getElementById('timeCamSelect')
+        clearSelect(timeCamSelect)
+        optionTexts = ['All']
+        optionValues = ['0']
+        site_id = parseInt(document.getElementById('timeSiteSelect').value)
+        if (site_id != 0) {
+            for (var i=0; i<timestampCameras[site_id].length; i++) {
+                optionTexts.push(timestampCameras[site_id][i].name)
+                optionValues.push(timestampCameras[site_id][i].id)
+            }
+        }
+        fillSelect(timeCamSelect, optionTexts, optionValues)
+
+        buildTimestampsMap()
+    });
+
+    timeSiteSelect = document.getElementById('timeSiteSelect')
+    clearSelect(timeSiteSelect)
+
+    optionTexts = ['All']
+    optionValues = ['0']
+    for (var i=0; i<timestampSites.length; i++) {
+        optionTexts.push(timestampSites[i].name)
+        optionValues.push(timestampSites[i].id)
+    }
+
+    fillSelect(timeSiteSelect, optionTexts, optionValues)
+
+    timestampsFilterDiv.appendChild(document.createElement('br'))
+    
+    h5 = document.createElement('h5')
+    h5.setAttribute('style','margin-bottom: 2px')
+    h5.innerHTML = 'Camera'
+    timestampsFilterDiv.appendChild(h5)
+
+    div = document.createElement('div')
+    div.setAttribute('style','font-size: 80%; margin-bottom: 2px')
+    div.innerHTML = '<i>Filter your files by camera.</i>'
+    timestampsFilterDiv.appendChild(div)
+
+    var select = document.createElement('select');
+    select.id = 'timeCamSelect';
+    select.classList.add('form-control');
+    timestampsFilterDiv.appendChild(select);
+
+    document.getElementById('timeCamSelect').addEventListener('change', ()=>{
+        imageIndex = 0
+        cameraIndex = 0
+        cameraReadAheadIndex = 0
+        images = []
+        camera_ids = []
+        mapTime = null
+        buildTimestampsMap()
+    });
+
+    timeCamSelect = document.getElementById('timeCamSelect')
+    clearSelect(timeCamSelect)
+    optionTexts = ['All']
+    optionValues = ['0']
+    fillSelect(timeCamSelect, optionTexts, optionValues)
+
+    timestampsFilterDiv.appendChild(document.createElement('br'))
+
+    h5 = document.createElement('h5')
+    h5.setAttribute('style','margin-bottom: 2px')
+    h5.innerHTML = 'Species'
+    timestampsFilterDiv.appendChild(h5)
+
+    div = document.createElement('div')
+    div.setAttribute('style','font-size: 80%; margin-bottom: 2px')
+    div.innerHTML = '<i>Filter your files by species.</i>'
+    timestampsFilterDiv.appendChild(div)
+
+    var select = document.createElement('select');
+    select.id = 'timeSpeciesSelect';
+    select.classList.add('form-control');
+    timestampsFilterDiv.appendChild(select);
+
+    document.getElementById('timeSpeciesSelect').addEventListener('change', ()=>{
+        imageIndex = 0
+        cameraIndex = 0
+        cameraReadAheadIndex = 0
+        images = []
+        camera_ids = []
+        mapTime = null
+        buildTimestampsMap()
+    });
+
+    timeSpeciesSelect = document.getElementById('timeSpeciesSelect')
+    clearSelect(timeSpeciesSelect)
+
+    optionTexts = ['All']
+    optionValues = ['0']
+    for (var i=0; i<timestampSpecies.length; i++) {
+        optionTexts.push(timestampSpecies[i])
+        optionValues.push(timestampSpecies[i])
+    }
+
+    fillSelect(timeSpeciesSelect, optionTexts, optionValues)
+
+    timestampsFilterDiv.appendChild(document.createElement('br'))
+
     addImagesImagesDiv = document.createElement('div')
     addImagesImagesDiv.setAttribute('id','addImagesImagesDiv')
     addImagesImagesDiv.setAttribute('style','margin-top: 10px')
-    editImgTimestampsDiv.appendChild(addImagesImagesDiv)
+    col2.appendChild(addImagesImagesDiv)
 
     document.getElementById('missingTimestamps').click()
 }
@@ -3201,6 +3349,9 @@ function clearEditSurveyModal() {
     corrected_edited_timestamps = {}
     original_coordinates = {}
     corrected_coordinates = {}
+    timestampSites = []
+    timestampCameras = {}
+    timestampSpecies = []
 }
 
 function clearAddFilesModal(){
@@ -3340,7 +3491,7 @@ function openEditImageTimestamps(){
     if (tabActiveEditSurvey=='baseEditImgTimestampsTab') {
         editImgTimestampsDiv = document.getElementById('editImgTimestampsDiv')
         if (editImgTimestampsDiv.firstChild==null) {
-            buildEditImageTimestamp()
+            getTimestampSitesCameraAndSpecies()
         }
     }
 }
@@ -3928,12 +4079,27 @@ modalEditSurvey.on('shown.bs.modal', function(){
 modalEditSurvey.on('hidden.bs.modal', function(){
     /** Clears the edit-survey modal when closed. */
 
-    if (!helpReturn) {
+    if (!helpReturn && !alertReload) {
+        modalConfirmEditClose.modal({keyboard: true});
+    } else if (!helpReturn && alertReload) {
         resetEditSurveyModal()
         document.getElementById('btnEditSurvey').disabled = false
     } else {
         helpReturn = false
     }
+});
+
+$('#btnCancelCloseES').click( function() {
+    /** Event listener for the cancel button on the edit-survey modal close confirmation modal. */
+    modalConfirmEditClose.modal('hide')
+    modalEditSurvey.modal({keyboard: true});
+});
+
+$('#btnConfirmCloseES').click( function() {
+    /** Event listener for the confirm button on the edit-survey modal close confirmation modal. */
+    modalConfirmEditClose.modal('hide')
+    resetEditSurveyModal()
+    document.getElementById('btnEditSurvey').disabled = false
 });
 
 modalAddFiles.on('hidden.bs.modal', function(){
@@ -5638,7 +5804,7 @@ function prepMapTime(image) {
                 }
                 
                 southWest = mapTime.unproject([0, h1], 2);
-                northEast = mamapTimep.unproject([w1, 0], 2);
+                northEast = mapTime.unproject([w1, 0], 2);
                 bounds = new L.LatLngBounds(southWest, northEast);
         
                 mapWidth = northEast.lng
@@ -7369,12 +7535,12 @@ function buildTimestampsMap(){
     row.classList.add('row')
     addImagesImagesDiv.appendChild(row)
 
-    var col1 = document.createElement('div')
-    col1.classList.add('col-lg-1')
-    row.appendChild(col1)
+    // var col1 = document.createElement('div')
+    // col1.classList.add('col-lg-1')
+    // row.appendChild(col1)
 
     var col2 = document.createElement('div')
-    col2.classList.add('col-lg-8')
+    col2.classList.add('col-lg-9')
     col2.setAttribute('style','text-align: center;')
     row.appendChild(col2)
 
@@ -7391,17 +7557,18 @@ function buildTimestampsMap(){
     row.classList.add('row')
     addImagesImagesDiv.appendChild(row)
 
-    var col1 = document.createElement('div')
-    col1.classList.add('col-lg-1')
-    row.appendChild(col1)
+    // var col1 = document.createElement('div')
+    // col1.classList.add('col-lg-1')
+    // row.appendChild(col1)
 
     var col2 = document.createElement('div')
-    col2.classList.add('col-lg-8')
+    col2.classList.add('col-lg-9')
     col2.setAttribute('style','text-align: center;')
     row.appendChild(col2)
 
     var col3 = document.createElement('div')
     col3.classList.add('col-lg-3')
+    col3.setAttribute('style','padding-left: 0px;')
     row.appendChild(col3)
 
     var center = document.createElement('center')
@@ -7764,6 +7931,16 @@ function buildTimestampsMap(){
 
 function getTimestampCameraIDs(){
     /** Requests the image IDs from the server. */
+
+    trapgroup_id = document.getElementById('timeSiteSelect').value
+    camera_id = document.getElementById('timeCamSelect').value
+    species = document.getElementById('timeSpeciesSelect').value
+    var formData = new FormData();
+    formData.append('trapgroup_id', JSON.stringify(trapgroup_id));
+    formData.append('camera_id', JSON.stringify(camera_id));
+    formData.append('species', JSON.stringify(species));
+    formData.append('type', JSON.stringify(selectedTimestampType));
+
     var xhttp = new XMLHttpRequest();
     xhttp.onreadystatechange =
         function () {
@@ -7775,27 +7952,29 @@ function getTimestampCameraIDs(){
                     while(addImagesImagesDiv.firstChild){
                         addImagesImagesDiv.removeChild(addImagesImagesDiv.firstChild);
                     }
+
+                    addImagesImagesDiv.setAttribute('style','width: 100%; height:100%;')
     
-                    var row = document.createElement('div')
-                    row.classList.add('row')
-                    addImagesImagesDiv.appendChild(row)
+                    // var row = document.createElement('div')
+                    // row.classList.add('row')
+                    // addImagesImagesDiv.appendChild(row)
 
                     var col1 = document.createElement('div')
-                    col1.classList.add('col-lg-12', 'd-flex', 'align-items-center', 'justify-content-center')
-                    row.appendChild(col1)
+                    col1.classList.add('col-lg-12', 'd-flex', 'align-items-center', 'justify-content-center', 'text-center', 'h-100')
+                    addImagesImagesDiv.appendChild(col1)
                     
                     if (selectedTimestampType == 'missing') {
                         var h6 = document.createElement('h6')
-                        h6.innerHTML = 'You have no missing timestamps for this survey.'
+                        h6.innerHTML = 'You have no missing timestamps for this survey that match the current filters.'
                         col1.appendChild(h6)
                     } else if (selectedTimestampType == 'extracted') {
                         var h6 = document.createElement('h6')
-                        h6.innerHTML = 'You have no extracted timestamps for this survey.'
+                        h6.innerHTML = 'You have no extracted timestamps for this survey that match the current filters.'
                         col1.appendChild(h6)
                     }
                     else{
                         var h6 = document.createElement('h6')
-                        h6.innerHTML = 'You have no edited timestamps for this survey.'
+                        h6.innerHTML = 'You have no edited timestamps for this survey that match the current filters.'
                         col1.appendChild(h6)
                     }
                 }
@@ -7812,12 +7991,14 @@ function getTimestampCameraIDs(){
                 }
             }
         };
-    xhttp.open("GET", '/getTimestampCameraIDs/' + selectedSurvey + '?type=' + selectedTimestampType);
-    xhttp.send();
+    xhttp.open("POST", '/getTimestampCameraIDs/' + selectedSurvey );
+    xhttp.send(formData);
 }
 
 function getTimestampImages(){
     /** Requests the image IDs from the server. */
+
+    species = document.getElementById('timeSpeciesSelect').value
 
     if (cameraReadAheadIndex < cameraIDs.length){
         var xhttp = new XMLHttpRequest();
@@ -7843,7 +8024,7 @@ function getTimestampImages(){
 
                 }
             };
-            xhttp.open("GET", '/getTimestampImages/' + selectedSurvey + '/' + 0 + '?camera_id=' + cameraIDs[cameraReadAheadIndex++] + '&type=' + selectedTimestampType);
+            xhttp.open("GET", '/getTimestampImages/' + selectedSurvey + '/' + 0 + '?camera_id=' + cameraIDs[cameraReadAheadIndex++] + '&type=' + selectedTimestampType + '&species=' + species);
             xhttp.send();
 
     }
@@ -8273,4 +8454,24 @@ function preloadImages(imageOnly=false){
             im.src = "https://"+bucketName+".s3.amazonaws.com/" + modifyToCompURL(images[cameraIndex+1].images[0].url)
         }
     }
+}
+
+function getTimestampSitesCameraAndSpecies(){
+    var xhttp = new XMLHttpRequest();
+    xhttp.onreadystatechange =
+    function(){
+        if (this.readyState == 4 && this.status == 200) {
+            reply = JSON.parse(this.responseText);
+
+            timestampSites = reply.sites
+            timestampCameras = reply.cameras
+            timestampSpecies = reply.species
+
+            buildEditImageTimestamp()
+
+        }
+
+    }
+    xhttp.open("GET", '/getTimestampSitesCameraAndSpecies/'+selectedSurvey);
+    xhttp.send();
 }

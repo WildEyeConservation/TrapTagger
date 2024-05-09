@@ -1952,10 +1952,11 @@ def editSurvey():
 
 
         if status == 'success':
-            survey.status = 'Processing'
-            db.session.commit()
-            app.logger.info('Edit survey requested for {} with classifier: {}, ignore_small_detections: {}, sky_masked: {}, timestamps: {}, coordData: {}, masks: {}, staticgroups: {}, kml: {}, imageTimestamps: {}'.format(survey.name,classifier,ignore_small_detections,sky_masked,timestamps,coordData,masks,staticgroups,kml,imageTimestamps))
-            edit_survey.delay(survey_id=survey.id,user_id=current_user.id,classifier=classifier,ignore_small_detections=ignore_small_detections,sky_masked=sky_masked,timestamps=timestamps,coord_data=coordData,masks=masks,staticgroups=staticgroups,kml_file=kml,image_timestamps=imageTimestamps)
+            if classifier or ignore_small_detections or sky_masked or timestamps or coordData or masks or staticgroups or kml or imageTimestamps:
+                survey.status = 'Processing'
+                db.session.commit()
+                app.logger.info('Edit survey requested for {} with classifier: {}, ignore_small_detections: {}, sky_masked: {}, timestamps: {}, coordData: {}, masks: {}, staticgroups: {}, kml: {}, imageTimestamps: {}'.format(survey.name,classifier,ignore_small_detections,sky_masked,timestamps,coordData,masks,staticgroups,kml,imageTimestamps))
+                edit_survey.delay(survey_id=survey.id,user_id=current_user.id,classifier=classifier,ignore_small_detections=ignore_small_detections,sky_masked=sky_masked,timestamps=timestamps,coord_data=coordData,masks=masks,staticgroups=staticgroups,kml_file=kml,image_timestamps=imageTimestamps)
 
     else:
         status = 'error'
@@ -12877,14 +12878,33 @@ def checkTimestamps():
 
 #     return json.dumps(image_ids)
 
-@app.route('/getTimestampCameraIDs/<survey_id>')
+@app.route('/getTimestampCameraIDs/<survey_id>', methods=['POST'])
 @login_required
 def getTimestampCameraIDs(survey_id):
     '''Gets the camera IDs for the specified survey whose images require timestamps correction.''' 
     camera_ids = []
     total_image_count = 0
     survey = db.session.query(Survey).get(survey_id)
-    check_type = request.args.get('type', None)
+
+    check_type = None
+    if 'type' in request.form:
+        check_type = ast.literal_eval(request.form['type'])
+
+    trapgroup_id = None
+    if 'trapgroup_id' in request.form:
+        trapgroup_id = ast.literal_eval(request.form['trapgroup_id'])
+        if int(trapgroup_id) == 0: trapgroup_id = None
+
+    camera_id = None
+    if 'camera_id' in request.form:
+        camera_id = ast.literal_eval(request.form['camera_id'])
+        if int(camera_id) == 0: camera_id = None
+
+    species = None
+    if 'species' in request.form:
+        species = ast.literal_eval(request.form['species'])
+        if species == '0': species = None
+        
     if survey and checkSurveyPermission(current_user.id,survey.id,'write'):
         # Get all camera ids for images and first frame of videos that do not have timestamps
         cameras = db.session.query(Cameragroup.id)\
@@ -12915,6 +12935,23 @@ def getTimestampCameraIDs(survey_id):
                                             .filter(Image.skipped!=True)\
                                             .distinct().count()
 
+        if trapgroup_id:
+            cameras = cameras.filter(Trapgroup.id==trapgroup_id)
+
+        if camera_id:
+            cameras = cameras.filter(Cameragroup.id==camera_id)
+
+        if species:
+            labels = db.session.query(Label).join(Task).filter(Label.description==species).filter(Task.survey_id==survey_id).distinct().all()
+            label_list = []
+            for label in labels:
+                label_list.append(label.id)
+                label_list.extend(getChildList(label,int(label.task_id)))
+            if not labels:
+                labels = db.session.query(Label).filter(Label.description==species).filter(Label.task_id==None).distinct().all()
+                label_list = [l.id for l in labels]
+            cameras = cameras.join(Detection).join(Labelgroup).filter(Labelgroup.labels.any(Label.id.in_(label_list)))
+
         camera_ids = [r[0] for r in cameras.distinct().all()]
 
         if len(camera_ids) == 0 and 'preprocessing' in survey.status.lower():
@@ -12931,6 +12968,8 @@ def getTimestampImages(survey_id, reqID):
     image_id = request.args.get('image_id', None)
     check_type = request.args.get('type', None)
     camera_id = request.args.get('camera_id', None)
+    species = request.args.get('species', None)
+    if species and species=='0': species = None
 
     if survey and checkSurveyPermission(current_user.id,survey.id,'write'):
         if 'preprocessing' in survey.status.lower():
@@ -12963,6 +13002,17 @@ def getTimestampImages(survey_id, reqID):
 
         if camera_id:
             image_data = image_data.filter(Cameragroup.id==camera_id)
+
+        if species:
+            labels = db.session.query(Label).join(Task).filter(Label.description==species).filter(Task.survey_id==survey_id).distinct().all()
+            label_list = []
+            for label in labels:
+                label_list.append(label.id)
+                label_list.extend(getChildList(label,int(label.task_id)))
+            if not labels:
+                labels = db.session.query(Label).filter(Label.description==species).filter(Label.task_id==None).distinct().all()
+                label_list = [l.id for l in labels]
+            image_data = image_data.join(Detection).join(Labelgroup).filter(Labelgroup.labels.any(Label.id.in_(label_list)))
 
         image_data = image_data.distinct().all()
 
@@ -13199,21 +13249,57 @@ def getIndividualSurveysTasks():
 def deleteIndividuals():
     ''' Deletes all the individuals associated with a task '''
 
-    task_ids = ast.literal_eval(request.form['task_ids'])
-    species = ast.literal_eval(request.form['species'])
-    tasks = surveyPermissionsSQ(db.session.query(Task)\
-                                            .join(Survey)\
-                                            .filter(Task.id.in_(task_ids))\
-                                            .filter(func.lower(Task.status).in_(Config.TASK_READY_STATUSES))\
-                                            .filter(func.lower(Survey.status).in_(Config.SURVEY_READY_STATUSES))\
-                                            ,current_user.id, 'write').distinct().all()
+    if current_user and current_user.is_authenticated:
+        task_ids = ast.literal_eval(request.form['task_ids'])
+        species = ast.literal_eval(request.form['species'])
+        tasks = surveyPermissionsSQ(db.session.query(Task)\
+                                                .join(Survey)\
+                                                .filter(Task.id.in_(task_ids))\
+                                                .filter(func.lower(Task.status).in_(Config.TASK_READY_STATUSES))\
+                                                .filter(func.lower(Survey.status).in_(Config.SURVEY_READY_STATUSES))\
+                                                ,current_user.id, 'write').distinct().all()
 
-    if tasks and len(tasks) == len(task_ids):
-        for task in tasks:
-            task.status = 'Processing'
-        db.session.commit()
-        delete_individuals.apply_async(kwargs={'task_ids':task_ids, 'species': species})
+        if tasks and len(tasks) == len(task_ids):
+            for task in tasks:
+                task.status = 'Processing'
+            db.session.commit()
+            delete_individuals.apply_async(kwargs={'task_ids':task_ids, 'species': species})
 
-        return json.dumps({'status': 'success', 'message': 'Individuals are being deleted.'})
+            return json.dumps({'status': 'success', 'message': 'Individuals are being deleted.'})
     return json.dumps({'status': 'failure', 'message': 'An error occurred while deleting individuals. Please try again.'})
 
+@app.route('/getTimestampSitesCameraAndSpecies/<survey_id>')
+@login_required
+def getTimestampSitesCameraAndSpecies(survey_id):
+    ''' Gets all the sites, cameras, and species for the files in Edit Survey: File Timestamps '''
+
+    sites = []
+    cameras = {}
+    species = []
+    survey = db.session.query(Survey).get(survey_id)
+    if survey and checkSurveyPermission(current_user.id,survey.id,'read'):
+        sites_data = db.session.query(Trapgroup.id, Trapgroup.tag).filter(Trapgroup.survey_id==survey_id).distinct().all()
+        for site in sites_data:
+            sites.append({'id': site[0], 'name': site[1]})
+
+        cameras_data = db.session.query(Trapgroup.id, Cameragroup.id, Cameragroup.name).join(Camera, Camera.trapgroup_id==Trapgroup.id).join(Cameragroup).filter(Trapgroup.survey_id==survey_id).distinct().all()
+        for camera in cameras_data:
+            if camera[0] not in cameras:
+                cameras[camera[0]] = []
+            cameras[camera[0]].append({'id': camera[1], 'name': camera[2]})
+
+        species_data = db.session.query(Label.description).join(Task).filter(Task.survey_id==survey_id).distinct().all()
+        global_labels = db.session.query(Label.description)\
+                            .filter(Label.task_id == None)\
+                            .filter(Label.description != 'Wrong')\
+                            .filter(Label.description != 'Skip')\
+                            .filter(Label.description != 'Remove False Detections')\
+                            .filter(Label.description != 'Mask Area')\
+                            .all()
+        for s in species_data:
+            species.append(s[0])
+
+        for s in global_labels:
+            species.append(s[0])
+
+    return json.dumps({'sites': sites, 'cameras':cameras, 'species':species})

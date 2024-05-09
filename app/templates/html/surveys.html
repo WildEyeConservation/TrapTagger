@@ -404,7 +404,7 @@ limitations under the License. -->
             <div class="tab" id="editSurveyTabs">
                 <button id="openAddCoordinatesTab" class="tablinks" onclick="changeEditSurveyTab(event, 'baseAddCoordinatesTab')">Coordinates</button>
                 <button id="openEditTimestampsTab" class="tablinks" onclick="changeEditSurveyTab(event, 'baseEditTimestampsTab')">Camera Timestamps</button>
-                <button id="openEditImgTimestampsTab" class="tablinks" onclick="changeEditSurveyTab(event, 'baseEditImgTimestampsTab')">Image Timestamps</button>
+                <button id="openEditImgTimestampsTab" class="tablinks" onclick="changeEditSurveyTab(event, 'baseEditImgTimestampsTab')">File Timestamps</button>
                 <button id="openEditClassifierTab" class="tablinks" onclick="changeEditSurveyTab(event, 'baseEditClassifierTab')">Species Classifier</button>
                 <button id="openAdvancedTab" class="tablinks" onclick="changeEditSurveyTab(event, 'baseAdvancedTab')">Advanced Options</button>
                 <button id="openEditMasksTab" class="tablinks" onclick="changeEditSurveyTab(event, 'baseEditMasksTab')">Masks</button>
@@ -1864,6 +1864,37 @@ limitations under the License. -->
             </div>
         </div>
   
+    </div>
+</div>
+
+<!-- Confirm edit survey close Modal -->
+<div id="modalConfirmEditClose" class="modal fade" role="dialog" tabindex="-1">
+    <div class="modal-dialog">
+        <!-- Modal content-->
+        <div class="modal-content">
+            <div class="modal-header">
+                <h4 class="modal-title">Please Confirm</h4>
+                <button id="helpx" type="button" class="close" data-dismiss="modal">&times;</button>
+            </div>
+            <div class="modal-body">
+                <p align="justify">
+                    Any unsaved changes made to this survey will be lost if you close this window.
+                </p>
+                <p align="justify">
+                    Do you wish to continue?
+                </p>
+            </div>
+            <div class="modal-footer">
+                <div class="col-lg-3">
+                    <button id="btnCancelCloseES" type="button" class="btn btn-info btn-block" 
+                    data-dismiss="modal">Cancel</button>
+                </div>
+                <div class="col-lg-3">
+                    <button id="btnConfirmCloseES" type="button" class="btn btn-danger btn-block" 
+                    data-dismiss="modal">Discard Changes</button>
+                </div>
+            </div>
+        </div>
     </div>
 </div>
 

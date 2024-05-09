@@ -2521,7 +2521,7 @@ def edit_survey(self,survey_id,user_id,classifier,sky_masked,ignore_small_detect
             if survey.classifier.name != classifier:
                 re_classify_survey(survey_id=survey_id,classifier=classifier)
 
-        # Image Timestamps
+        # File Timestamps
         trapgroup_ids = []
         if image_timestamps:
             trapgroup_ids = recluster_after_image_timestamp_change(survey_id=survey_id,image_timestamps=image_timestamps)
