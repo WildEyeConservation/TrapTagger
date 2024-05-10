@@ -2011,7 +2011,14 @@ def generate_training_csv(self,tasks,destBucket,min_area,include_empties=False,c
     '''
 
     try:
-        outputDF = None
+        organisations = db.session.query(Organisation).join(Survey).join(Task).filter(Task.id.in_(tasks)).distinct().all()
+        if len(organisations) == 1:
+            organisation = organisations[0].name
+        else:
+            organisation = 'Multiple'
+        
+        key = 'classification_ds/'+randomString()+organisation+'_classification_ds.csv'
+
         for task_id in tasks:
             task = db.session.query(Task).get(task_id)
 
@@ -2084,23 +2091,17 @@ def generate_training_csv(self,tasks,destBucket,min_area,include_empties=False,c
                 df['dataset_class'] = df.apply(lambda x: x.dataset_class.lower().strip(), axis=1)
 
                 # Add to output
-                if outputDF is not None:
-                    outputDF = pd.concat([outputDF, df], ignore_index=True)
-                    outputDF.fillna(0, inplace=True)
-                else:
-                    outputDF = df
+                # if outputDF is not None:
+                #     outputDF = pd.concat([outputDF, df], ignore_index=True)
+                #     outputDF.fillna(0, inplace=True)
+                # else:
+                #     outputDF = df
+
+                df.to_csv(key, index=False, mode='a', header=not os.path.exists(key))
 
         # Write output to S3
-        organisations = db.session.query(Organisation).join(Survey).join(Task).filter(Task.id.in_(tasks)).distinct().all()
-        if len(organisations) == 1:
-            organisation = organisations[0].name
-        else:
-            organisation = 'Multiple'
-        
-        key = 'classification_ds/'+randomString()+organisation+'_classification_ds.csv'
-        with tempfile.NamedTemporaryFile(delete=True, suffix='.csv') as temp_file:
-            outputDF.to_csv(temp_file.name,index=False)
-            GLOBALS.s3client.put_object(Bucket=destBucket,Key=key,Body=temp_file)
+        GLOBALS.s3client.upload_file(Filename=key, Bucket=destBucket, Key=key)
+        os.remove(key)
 
     except Exception as exc:
         app.logger.info(' ')
