@@ -2684,15 +2684,17 @@ def fire_up_instances(queue,instance_count):
 
     return True
 
-def inspect_celery(include_reserved=False):
+def inspect_celery(include_spam=False,include_reserved=False):
     ''' Funcion to manually inspect the running celery tasks'''
     inspector = celery.control.inspect()
+    spam = ['importImages','.detection','.classify','runClassifier','processCameraStaticDetections', 'process_video_batch','cluster_trapgroup']
+    if include_spam: spam = []
 
     print('//////////////////////Active tasks://////////////////////')
     inspector_active = inspector.active()
     for worker in inspector_active:
         for task in inspector_active[worker]:
-            if not any(name in task['name'] for name in ['importImages','.detection','.classify','runClassifier']):
+            if not any(name in task['name'] for name in spam):
                 print('')
                 print(task)
 
@@ -2704,7 +2706,7 @@ def inspect_celery(include_reserved=False):
         inspector_reserved = inspector.reserved()
         for worker in inspector_reserved:
             for task in inspector_reserved[worker]:
-                if not any(name in task['name'] for name in ['importImages','.detection','classify','runClassifier']):
+                if not any(name in task['name'] for name in spam):
                     print('')
                     print(task)
 

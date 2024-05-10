@@ -761,6 +761,7 @@ def processCameraStaticDetections(self,cameragroup_id):
                                             .order_by(Image.corrected_timestamp)\
                                             .distinct().all()]
 
+        final_static_groups = []
         static_detections = []
         grouping = 7000
         overlap = 1000
@@ -791,49 +792,60 @@ def processCameraStaticDetections(self,cameragroup_id):
                 group.append(det_id)
                 if len(match_ids)>Config.STATIC_MATCHCOUNT and len(match_ids)/image_count>=match_percentage and any([d_id not in static_detections for d_id in group]):
                     static_detections.extend(group)
-                    # Check if staticgroup exists with any of the detections
-                    detections = db.session.query(Detection).filter(Detection.id.in_(group)).distinct().all()
-                    staticgroups = db.session.query(Staticgroup).filter(Staticgroup.detections.any(Detection.id.in_(group))).distinct().all()
-                    if staticgroups:
-                        if len(staticgroups) == 1:
-                            # Add detections to the existing static group if there is only one and the detections are not already in the group
-                            staticgroup = staticgroups[0]
-                            group_detections = list(set(staticgroup.detections + detections))
-                            staticgroup.detections = group_detections
-                            if staticgroup.status == 'rejected':
-                                for detection in group_detections:
-                                    detection.static = False
-                            else:
-                                for detection in group_detections:
-                                    detection.static = True
-                        else:
-                            # Create a new static group if there are multiple static groups (with all detections)
-                            group_detections = []
-                            for sg in staticgroups:
-                                group_detections.extend(sg.detections)
-                                db.session.delete(sg)
-                            group_detections = list(set(group_detections + detections))
-                            new_group = Staticgroup(status='unknown',detections=group_detections)
-                            db.session.add(new_group)
-                            for detection in group_detections:
-                                detection.static = True
-                    else:
-                        staticgroup = Staticgroup(status='unknown', detections=detections)
-                        db.session.add(staticgroup)
-                        for detection in detections:
-                            detection.static = True
 
+                    found = False
+                    for item in final_static_groups:
+                        if any([d_id in item for d_id in group]):
+                            item.extend(group)
+                            item = list(set(item))
+                            found = True
+                            break
+                    if not found: final_static_groups.append(group)
+
+        for group in final_static_groups:
+            detections = db.session.query(Detection).filter(Detection.id.in_(group)).distinct().all()
+            staticgroups = db.session.query(Staticgroup).filter(Staticgroup.detections.any(Detection.id.in_(group))).distinct().all()
+            if staticgroups:
+                if len(staticgroups) == 1:
+                    # Add detections to the existing static group if there is only one and the detections are not already in the group
+                    staticgroup = staticgroups[0]
+                    group_detections = list(set(staticgroup.detections + detections))
+                    staticgroup.detections = group_detections
+                    if staticgroup.status == 'rejected':
+                        for detection in group_detections:
+                            detection.static = False
+                    else:
+                        for detection in group_detections:
+                            detection.static = True
+                else:
+                    # Create a new static group if there are multiple static groups (with all detections)
+                    group_detections = []
+                    for sg in staticgroups:
+                        group_detections.extend(sg.detections)
+                        db.session.delete(sg)
+                    group_detections = list(set(group_detections + detections))
+                    new_group = Staticgroup(status='unknown',detections=group_detections)
+                    db.session.add(new_group)
+                    for detection in group_detections:
+                        detection.static = True
+            else:
+                staticgroup = Staticgroup(status='unknown', detections=detections)
+                db.session.add(staticgroup)
+                for detection in detections:
+                    detection.static = True
+
+        db.session.commit()
 
         static_detections = list(set(static_detections))
         sq = db.session.query(Detection).filter(Detection.id.in_(static_detections)).subquery()
-        other_detections = db.session.query(Detection)\
+        detections = db.session.query(Detection)\
                                     .join(Image)\
                                     .join(Camera)\
                                     .outerjoin(sq,sq.c.id==Detection.id)\
                                     .filter(Camera.cameragroup_id==cameragroup_id)\
                                     .filter(sq.c.id==None)\
                                     .all()
-        for detection in other_detections:
+        for detection in detections:
             detection.static = False
             detection.staticgroup = None
 
@@ -842,6 +854,7 @@ def processCameraStaticDetections(self,cameragroup_id):
         for staticgroup in staticgroups:
             db.session.delete(staticgroup)
 
+        db.session.commit()
 
         ##### Update Masked Status ########
         # Mask detections
@@ -867,10 +880,12 @@ def processCameraStaticDetections(self,cameragroup_id):
         for detection in detections:
             detection.status = 'masked'
 
+        db.session.commit()
+
         # Unmask detections
         masked_detections = mask_query.filter(Detection.status=='masked').subquery()
 
-        unmasked_detections = db.session.query(Detection)\
+        detections = db.session.query(Detection)\
                                 .join(Image)\
                                 .join(Camera)\
                                 .outerjoin(masked_detections, masked_detections.c.id==Detection.id)\
@@ -880,7 +895,7 @@ def processCameraStaticDetections(self,cameragroup_id):
                                 .filter(masked_detections.c.id==None)\
                                 .distinct().all()
 
-        for detection in unmasked_detections:
+        for detection in detections:
             detection.status = 'active'
 
         db.session.commit()
@@ -3419,7 +3434,7 @@ def import_survey(self,survey_id,preprocess_done=False):
             static_check = db.session.query(Staticgroup.id).join(Detection).join(Image).join(Camera).join(Trapgroup).filter(Trapgroup.survey_id==survey_id).first()
             skipCluster = not timestamp_check
 
-        skip = False
+        # skip = False
         # if correctTimestamps:
         #     survey.status='Correcting Timestamps'
         #     db.session.commit()
@@ -3428,7 +3443,7 @@ def import_survey(self,survey_id,preprocess_done=False):
         #         from app.functions.admin import reclusterAfterTimestampChange
         #         reclusterAfterTimestampChange(survey_id)
         #         skip = True
-        if not skip and not skipCluster:
+        if not skipCluster:
             task_id=cluster_survey(survey_id)
         
         if not preprocess_done:
