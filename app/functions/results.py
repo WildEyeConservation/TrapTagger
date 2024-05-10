@@ -2083,6 +2083,10 @@ def generate_training_csv(self,tasks,destBucket,min_area,include_empties=False,c
                 #         # task.survey.status='Processing'
                 #         db.session.commit()
 
+                # Int locations cause an issue
+                df['location'] = df.apply(lambda x: str(x.location), axis=1)
+                df['location'] = df.apply(lambda x: 'site_'+x.location if x.location.isdigit() else x.location, axis=1)
+
                 # Order columns and remove superfluous ones
                 df = df[['detection_id','left','right','top','bottom','cluster_id','path','hash','dataset','location','dataset_class','confidence','label']]
 
