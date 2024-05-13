@@ -23,10 +23,10 @@ import json
 import torch
 import torch.backends.cudnn as cudnn
 import torchvision.transforms as transforms
-import argparse
-from ScarceNet.lib.config import update_config
-from ScarceNet.lib.config import cfg
-from ScarceNet.lib.models.pose_hrnet_part import get_pose_net
+# import argparse
+# from ScarceNet.lib.config import update_config
+# from ScarceNet.lib.config import cfg
+# from ScarceNet.lib.models.pose_hrnet_part import get_pose_net
 
 s3client = boto3.client('s3')
 
@@ -149,28 +149,28 @@ def segment_images(batch,sourceBucket):
         sam.to(device=device)
         predictor = SamPredictor(sam)
 
-        # Pose detection initialization
+        # # Pose detection initialization
+        # # args = argparse.Namespace(cfg='ScarceNet/experiments/ap10k/hrnet/w32_256x192_adam_lr1e-3.yaml',
+        # #                             opts=['OUTPUT_DIR', 'test', 'TEST.MODEL_FILE',
+        # #                                 'ScarceNet/output/output_part25_updatev2/model_best.pth', 'MODEL.NAME',
+        # #                                 'pose_hrnet_part', 'GPUS', '[0,]'],
+        # #                             modelDir='', logDir='', dataDir='', prevModelDir='', animalpose=True, vis=False)
         # args = argparse.Namespace(cfg='ScarceNet/experiments/ap10k/hrnet/w32_256x192_adam_lr1e-3.yaml',
         #                             opts=['OUTPUT_DIR', 'test', 'TEST.MODEL_FILE',
-        #                                 'ScarceNet/output/output_part25_updatev2/model_best.pth', 'MODEL.NAME',
+        #                                 'model_best.pth', 'MODEL.NAME',
         #                                 'pose_hrnet_part', 'GPUS', '[0,]'],
         #                             modelDir='', logDir='', dataDir='', prevModelDir='', animalpose=True, vis=False)
-        args = argparse.Namespace(cfg='ScarceNet/experiments/ap10k/hrnet/w32_256x192_adam_lr1e-3.yaml',
-                                    opts=['OUTPUT_DIR', 'test', 'TEST.MODEL_FILE',
-                                        'model_best.pth', 'MODEL.NAME',
-                                        'pose_hrnet_part', 'GPUS', '[0,]'],
-                                    modelDir='', logDir='', dataDir='', prevModelDir='', animalpose=True, vis=False)
-        update_config(cfg, args)
-        cudnn.benchmark = True
-        torch.backends.cudnn.deterministic = False
-        torch.backends.cudnn.enabled = True
+        # update_config(cfg, args)
+        # cudnn.benchmark = True
+        # torch.backends.cudnn.deterministic = False
+        # torch.backends.cudnn.enabled = True
 
-        # checkpoint = torch.load("ScarceNet/output/output_part25_updatev2/model_best.pth")
-        checkpoint = torch.load("model_best.pth")
-        model = get_pose_net(cfg, is_train=False)
+        # # checkpoint = torch.load("ScarceNet/output/output_part25_updatev2/model_best.pth")
+        # checkpoint = torch.load("model_best.pth")
+        # model = get_pose_net(cfg, is_train=False)
 
-        model.load_state_dict(checkpoint['state_dict'], strict=True)
-        model = torch.nn.DataParallel(model, device_ids=cfg.GPUS).cuda()
+        # model.load_state_dict(checkpoint['state_dict'], strict=True)
+        # model = torch.nn.DataParallel(model, device_ids=cfg.GPUS).cuda()
 
         init = True
 
@@ -211,11 +211,11 @@ def segment_images(batch,sourceBucket):
             seg_img_path = '/'.join(split_path)
             with tempfile.NamedTemporaryFile(delete=True, suffix='.JPG') as temp_file_img:
                 segmented_image.save(temp_file_img.name)
-                print('Uploading segmented image to S3')
+                print('Uploading segmented image to S3 {}'.format(seg_img_path))
                 s3client.put_object(Bucket=sourceBucket, Key=seg_img_path, Body=temp_file_img)
-                flank = get_flank(temp_file_img.name)
-                print('Get flank for detection_id: {} - {}'.format(detection_id, flank))
-                detection_flanks[detection_id] = flank
+                # flank = get_flank(temp_file_img.name)
+                # print('Get flank for detection_id: {} - {}'.format(detection_id, flank))
+                # detection_flanks[detection_id] = flank
 
     return detection_flanks
 
