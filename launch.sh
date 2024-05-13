@@ -117,7 +117,7 @@ do
     -e AWS_S3_DOWNLOAD_SECRET_ACCESS_KEY\
     -v /home/ubuntu/TrapTagger:/code\
     -v /home/ubuntu/TrapTagger/wildbook-ia/wbia:/code/wbia\
-    --name traptagger$i traptagger:1.1.0\
+    --name traptagger$i traptagger:1.1.1\
     celery -A app.celery worker -E -n ${WORKER_NAME} -Q ${QUEUE} -Ofair --concurrency=${CONCURRENCY} --loglevel=info\
     > worker$i.log 2>&1 &
 done

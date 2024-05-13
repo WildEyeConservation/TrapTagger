@@ -21,7 +21,7 @@ services:
         build:
             context: ./
             dockerfile: Dockerfile.flask
-        image: traptagger:1.1.0
+        image: traptagger:1.1.1
         volumes:
             - ./:/code/
             - ./wildbook-ia/wbia:/code/wbia
