@@ -19,7 +19,6 @@ from celery import Celery
 from celery.signals import celeryd_after_setup
 from gpuworker import detector
 from gpuworker import classifier
-from gpuworker import similarity
 
 BASE = "/data"
 REDIS_IP = os.environ.get('REDIS_IP') or '127.0.0.1'
@@ -115,5 +114,5 @@ def classify(batch):
 
 @app.task()
 def segment_and_pose(batch,sourceBucket):
-
+    from gpuworker import similarity
     return similarity.segment_images(batch,sourceBucket)

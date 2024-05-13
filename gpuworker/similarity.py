@@ -140,6 +140,7 @@ def segment_images(batch,sourceBucket):
     global predictor, init, model
 
     if not init:
+        print('Initializing SAM and Pose Detection models')
         # SAM initialization
         sam_checkpoint = "sam_vit_h_4b8939.pth"
         model_type = "vit_h"
@@ -181,12 +182,14 @@ def segment_images(batch,sourceBucket):
         image_id = image['image_id']
         detection_id = image['detection_id']
         with tempfile.NamedTemporaryFile(delete=True, suffix='.JPG') as temp_file:
+            print('Downloading {} from S3'.format(image_path))
             s3client.download_file(Bucket=sourceBucket, Key=image_path, Filename=temp_file.name)
             image_data = np.array(Image.open(temp_file.name))
             h, w, _ = image_data.shape
             bbox_dict = bbox_list[image_id]
             x1, x2, y1, y2 = bbox_dict['left'], bbox_dict['right'], bbox_dict['top'], bbox_dict['bottom']
             bbox = np.array([x1 * w, y1 * h, x2 * w, y2 * h])
+            print('Segmenting image')
             predictor.set_image(image_data)
             masks, _, _ = predictor.predict(
                 point_coords=None,
@@ -208,8 +211,10 @@ def segment_images(batch,sourceBucket):
             seg_img_path = '/'.join(split_path)
             with tempfile.NamedTemporaryFile(delete=True, suffix='.JPG') as temp_file_img:
                 segmented_image.save(temp_file_img.name)
+                print('Uploading segmented image to S3')
                 s3client.put_object(Bucket=sourceBucket, Key=seg_img_path, Body=temp_file_img)
                 flank = get_flank(temp_file_img.name)
+                print('Get flank for detection_id: {} - {}'.format(detection_id, flank))
                 detection_flanks[detection_id] = flank
 
     return detection_flanks
