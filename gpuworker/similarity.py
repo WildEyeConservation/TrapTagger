@@ -178,7 +178,7 @@ def segment_images(batch,sourceBucket):
     detection_flanks = {}
     for image in batch:
         image_path = image['image_path']
-        bbox_list = image['bbox_list']
+        bbox_dict = image['bbox']
         image_id = image['image_id']
         detection_id = image['detection_id']
         with tempfile.NamedTemporaryFile(delete=True, suffix='.JPG') as temp_file:
@@ -186,7 +186,6 @@ def segment_images(batch,sourceBucket):
             s3client.download_file(Bucket=sourceBucket, Key=image_path, Filename=temp_file.name)
             image_data = np.array(Image.open(temp_file.name))
             h, w, _ = image_data.shape
-            bbox_dict = bbox_list[image_id]
             x1, x2, y1, y2 = bbox_dict['left'], bbox_dict['right'], bbox_dict['top'], bbox_dict['bottom']
             bbox = np.array([x1 * w, y1 * h, x2 * w, y2 * h])
             print('Segmenting image')
