@@ -206,7 +206,7 @@ def segment_images(batch,sourceBucket):
             # Save segmented image for now to s3
             split_path = image_path.split('/')
             split_path[0] += '-comp'
-            split_path[-1] = '/_segmented_images_/' + split_path[-1].split('.')[0] + '_' + str(detection_id) + '.JPG'
+            split_path[-1] = '_segmented_images_/' + split_path[-1].split('.')[0] + '_' + str(detection_id) + '.JPG'
             seg_img_path = '/'.join(split_path)
             with tempfile.NamedTemporaryFile(delete=True, suffix='.JPG') as temp_file_img:
                 segmented_image.save(temp_file_img.name)

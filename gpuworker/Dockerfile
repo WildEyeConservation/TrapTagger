@@ -12,9 +12,10 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-FROM nvidia/cuda:10.1-cudnn7-runtime-ubi7
+# FROM nvidia/cuda:10.2-cudnn7-runtime-ubi8
 # FROM python:3.6.12
-FROM python:3.8.5
+FROM nvidia/cuda:12.1.0-cudnn8-runtime-ubi8
+FROM python:3.10.13
 FROM tensorflow/tensorflow:1.15.0-gpu-py3
 RUN rm /etc/apt/sources.list.d/cuda.list
 RUN rm /etc/apt/sources.list.d/nvidia-ml.list
@@ -65,3 +66,4 @@ RUN pip install \
 ENV NVIDIA_VISIBLE_DEVICES all
 ENV NVIDIA_DRIVER_CAPABILITIES compute,utility
 ENV PYTHONPATH=/code/CameraTraps
+ENV PYTHONPATH=/code/ScarceNet
