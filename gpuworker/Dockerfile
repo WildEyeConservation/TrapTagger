@@ -43,7 +43,7 @@ RUN unzip -p ScarceNet_final_models.zip ScarceNet_final_models/output_part25_upd
 RUN rm ScarceNet_final_models.zip
 RUN pip install \
     celery\
-    -e git+https://github.com/facebookresearch/segment-anything.git\
+    -e git+https://github.com/facebookresearch/segment-anything.git@main#egg=segment-anything\
     humanfriendly\
     jsonpickle\
     matplotlib\
