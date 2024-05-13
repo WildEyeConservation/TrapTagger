@@ -31,12 +31,14 @@ WORKDIR /code
 RUN wget "https://github.com/microsoft/CameraTraps/releases/download/v5.0/md_v5a.0.0.pt"
 RUN wget "https://github.com/microsoft/CameraTraps/releases/download/v5.0/md_v5b.0.0.pt"
 RUN wget "https://dl.fbaipublicfiles.com/segment_anything/sam_vit_h_4b8939.pth"
-RUN wget "https://drive.google.com/file/d/1MQGyyf1MQjETRG_CRBMEfrV0IFiis_ZQ/view?usp=share_link"
 RUN git clone https://github.com/ultralytics/yolov5.git
 RUN mkdir CameraTraps
 RUN cp -r yolov5/utils CameraTraps/utils
 RUN cp -r yolov5/models CameraTraps/models
 RUN git clone https://github.com/chaneyddtt/ScarceNet.git
+RUN pip install gdown
+ENV PATH="$HOME/.local/bin:$PATH"
+RUN gdown https://drive.google.com/uc?id=1MQGyyf1MQjETRG_CRBMEfrV0IFiis_ZQ
 RUN unzip -p ScarceNet_final_models.zip ScarceNet_final_models/output_part25_updatev2/model_best.pth > model_best.pth
 RUN rm ScarceNet_final_models.zip
 RUN pip install \
