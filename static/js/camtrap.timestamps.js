@@ -100,6 +100,7 @@ function loadNewCluster(mapID = 'map1') {
 function getCameraIDs(mapID = 'map1'){
     /** Requests the image IDs from the server. */
     yearInput.focus()
+    var formData = new FormData();
     var xhttp = new XMLHttpRequest();
     xhttp.onreadystatechange =
         function () {
@@ -127,8 +128,8 @@ function getCameraIDs(mapID = 'map1'){
                 }
             }
         };
-    xhttp.open("GET", '/getTimestampCameraIDs/' + selectedSurvey);
-    xhttp.send();
+    xhttp.open("POST", '/getTimestampCameraIDs/' + selectedSurvey);
+    xhttp.send(formData);
 }
 
 function submitTimestamp(no_time = false, mapID = 'map1') {
