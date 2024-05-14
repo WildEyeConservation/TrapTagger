@@ -62,7 +62,8 @@ RUN pip install \
     opencv-python\
     PyYAML\
     seaborn\
-    yacs 
+    yacs\
+    ultralytics
 ENV NVIDIA_VISIBLE_DEVICES all
 ENV NVIDIA_DRIVER_CAPABILITIES compute,utility
 ENV PYTHONPATH=/code/CameraTraps
