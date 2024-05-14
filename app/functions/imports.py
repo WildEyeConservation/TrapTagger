@@ -2233,21 +2233,23 @@ def import_folder(s3Folder, survey_id, sourceBucket,destinationBucket,pipeline,m
             else:
                 tags = tag.findall(dirpath.replace(survey.name+'/',''))
             if len(tags) > 0:
-                trapgroup = Trapgroup.get_or_create(localsession, tags[0], sid)
-                survey.images_processing += len(jpegs)
-                localsession.commit()
+                camera_name = extract_camera_name(survey.camera_code,survey.trapgroup_code,survey.name,tags[0],dirpath)
+                if camera_name:
+                    trapgroup = Trapgroup.get_or_create(localsession, tags[0], sid)
+                    survey.images_processing += len(jpegs)
+                    localsession.commit()
 
-                already_processed = [r[0] for r in localsession.query(Video.filename)\
-                                            .join(Camera)\
-                                            .filter(Camera.trapgroup_id==trapgroup.id)\
-                                            .filter(Camera.path.contains(dirpath+'/_video_images_/'))\
-                                            .all()]
+                    already_processed = [r[0] for r in localsession.query(Video.filename)\
+                                                .join(Camera)\
+                                                .filter(Camera.trapgroup_id==trapgroup.id)\
+                                                .filter(Camera.path.contains(dirpath+'/_video_images_/'))\
+                                                .all()]
 
-                to_process = [video for video in videos if video not in already_processed]
+                    to_process = [video for video in videos if video not in already_processed]
 
-                for batch in chunker(to_process,500):
-                    results.append(process_video_batch.apply_async(kwargs={'dirpath':dirpath,'batch':batch,'bucket':sourceBucket, 'trapgroup_id': trapgroup.id},queue='parallel'))
-                    app.logger.info('Processing video batch: '.format(len(batch)))
+                    for batch in chunker(to_process,500):
+                        results.append(process_video_batch.apply_async(kwargs={'dirpath':dirpath,'batch':batch,'bucket':sourceBucket, 'trapgroup_id': trapgroup.id},queue='parallel'))
+                        app.logger.info('Processing video batch: '.format(len(batch)))
 
     # survey.processing_initialised = False
     # localsession.commit()
@@ -2291,81 +2293,84 @@ def import_folder(s3Folder, survey_id, sourceBucket,destinationBucket,pipeline,m
                 tags = tag.findall(dirpath.replace(survey.name+'/',''))
             
             if len(tags) > 0:
-                trapgroup = Trapgroup.get_or_create(localsession, tags[0], sid)
-                # survey.images_processing += len(jpegs)
-                # localsession.commit()
-                camera = Camera.get_or_create(localsession, trapgroup.id, dirpath)
+                camera_name = extract_camera_name(survey.camera_code,survey.trapgroup_code,survey.name,tags[0],dirpath)
+                
+                if camera_name:
+                    trapgroup = Trapgroup.get_or_create(localsession, tags[0], sid)
+                    # survey.images_processing += len(jpegs)
+                    # localsession.commit()
+                    camera = Camera.get_or_create(localsession, trapgroup.id, dirpath)
 
-                # Check if GPS data is available
-                gps_file = jpegs[0]
-                gps_key = os.path.join(dirpath,gps_file)
-                with tempfile.NamedTemporaryFile(delete=True, suffix='.JPG') as temp_file:
-                    GLOBALS.s3client.download_file(Bucket=sourceBucket, Key=gps_key, Filename=temp_file.name)
-                    try:
-                        exif_data = piexif.load(temp_file.name)
-                        if exif_data['GPS']:
-                            any_gps = True
-                            remove_gps = True
-                            if trapgroup.latitude == 0 and trapgroup.longitude == 0 and trapgroup.altitude == 0:
-                                # Try and extract latitude and longitude and altitude
-                                try:
-                                    gps_keys = exif_data['GPS'].keys()
+                    # Check if GPS data is available
+                    gps_file = jpegs[0]
+                    gps_key = os.path.join(dirpath,gps_file)
+                    with tempfile.NamedTemporaryFile(delete=True, suffix='.JPG') as temp_file:
+                        GLOBALS.s3client.download_file(Bucket=sourceBucket, Key=gps_key, Filename=temp_file.name)
+                        try:
+                            exif_data = piexif.load(temp_file.name)
+                            if exif_data['GPS']:
+                                any_gps = True
+                                remove_gps = True
+                                if trapgroup.latitude == 0 and trapgroup.longitude == 0 and trapgroup.altitude == 0:
+                                    # Try and extract latitude and longitude and altitude
+                                    try:
+                                        gps_keys = exif_data['GPS'].keys()
 
-                                    if piexif.GPSIFD.GPSLatitude in gps_keys:
-                                        lat = exif_data['GPS'][piexif.GPSIFD.GPSLatitude]
-                                        trapgroup.latitude = lat[0][0]/lat[0][1] + lat[1][0]/lat[1][1]/60 + lat[2][0]/lat[2][1]/3600
-                                        if piexif.GPSIFD.GPSLatitudeRef in gps_keys:
-                                            lat_ref = exif_data['GPS'][piexif.GPSIFD.GPSLatitudeRef]
-                                            if lat_ref == b'S': trapgroup.latitude = -trapgroup.latitude
+                                        if piexif.GPSIFD.GPSLatitude in gps_keys:
+                                            lat = exif_data['GPS'][piexif.GPSIFD.GPSLatitude]
+                                            trapgroup.latitude = lat[0][0]/lat[0][1] + lat[1][0]/lat[1][1]/60 + lat[2][0]/lat[2][1]/3600
+                                            if piexif.GPSIFD.GPSLatitudeRef in gps_keys:
+                                                lat_ref = exif_data['GPS'][piexif.GPSIFD.GPSLatitudeRef]
+                                                if lat_ref == b'S': trapgroup.latitude = -trapgroup.latitude
 
-                                    if piexif.GPSIFD.GPSLongitude in gps_keys:
-                                        lon = exif_data['GPS'][piexif.GPSIFD.GPSLongitude]
-                                        trapgroup.longitude = lon[0][0]/lon[0][1] + lon[1][0]/lon[1][1]/60 + lon[2][0]/lon[2][1]/3600
-                                        if piexif.GPSIFD.GPSLongitudeRef in gps_keys:
-                                            lon_ref = exif_data['GPS'][piexif.GPSIFD.GPSLongitudeRef]
-                                            if lon_ref == b'W': trapgroup.longitude = -trapgroup.longitude
-    
-                                    if piexif.GPSIFD.GPSAltitude in gps_keys:
-                                        alt = exif_data['GPS'][piexif.GPSIFD.GPSAltitude]
-                                        trapgroup.altitude = alt[0]/alt[1]
-                                        if piexif.GPSIFD.GPSAltitudeRef in gps_keys:
-                                            alt_ref = exif_data['GPS'][piexif.GPSIFD.GPSAltitudeRef]
-                                            if alt_ref == 1: trapgroup.altitude = -trapgroup.altitude
+                                        if piexif.GPSIFD.GPSLongitude in gps_keys:
+                                            lon = exif_data['GPS'][piexif.GPSIFD.GPSLongitude]
+                                            trapgroup.longitude = lon[0][0]/lon[0][1] + lon[1][0]/lon[1][1]/60 + lon[2][0]/lon[2][1]/3600
+                                            if piexif.GPSIFD.GPSLongitudeRef in gps_keys:
+                                                lon_ref = exif_data['GPS'][piexif.GPSIFD.GPSLongitudeRef]
+                                                if lon_ref == b'W': trapgroup.longitude = -trapgroup.longitude
+        
+                                        if piexif.GPSIFD.GPSAltitude in gps_keys:
+                                            alt = exif_data['GPS'][piexif.GPSIFD.GPSAltitude]
+                                            trapgroup.altitude = alt[0]/alt[1]
+                                            if piexif.GPSIFD.GPSAltitudeRef in gps_keys:
+                                                alt_ref = exif_data['GPS'][piexif.GPSIFD.GPSAltitudeRef]
+                                                if alt_ref == 1: trapgroup.altitude = -trapgroup.altitude
 
-                                    if Config.DEBUGGING: app.logger.info('Extracted GPS data from {}'.format(gps_key))	    
-                                except:
-                                    pass
-                        else:
-                            remove_gps = False
-                    except:
-                        pass
+                                        if Config.DEBUGGING: app.logger.info('Extracted GPS data from {}'.format(gps_key))	    
+                                    except:
+                                        pass
+                            else:
+                                remove_gps = False
+                        except:
+                            pass
 
-                localsession.commit()
-                tid=trapgroup.id
+                    localsession.commit()
+                    tid=trapgroup.id
 
-                already_processed = [r[0] for r in localsession.query(Image.filename)\
-                                            .filter(Image.camera==camera)\
-                                            .all()]
+                    already_processed = [r[0] for r in localsession.query(Image.filename)\
+                                                .filter(Image.camera==camera)\
+                                                .all()]
 
-                to_process = [filename for filename in jpegs if filename not in already_processed]
+                    to_process = [filename for filename in jpegs if filename not in already_processed]
 
-                #Break folders down into chunks to prevent overly-large folders causing issues
-                for chunk in chunker(to_process,chunk_size):
-                    batch.append({'sourceBucket':sourceBucket,
-                                    'dirpath':dirpath,
-                                    'filenames': chunk,
-                                    'trapgroup_id':tid,
-                                    'camera_id': camera.id,
-                                    'survey_id':sid,
-                                    'destBucket':destinationBucket})
+                    #Break folders down into chunks to prevent overly-large folders causing issues
+                    for chunk in chunker(to_process,chunk_size):
+                        batch.append({'sourceBucket':sourceBucket,
+                                        'dirpath':dirpath,
+                                        'filenames': chunk,
+                                        'trapgroup_id':tid,
+                                        'camera_id': camera.id,
+                                        'survey_id':sid,
+                                        'destBucket':destinationBucket})
 
-                    batch_count += len(chunk)
+                        batch_count += len(chunk)
 
-                    if (batch_count / (((Config.QUEUES['parallel']['rate'])*random.uniform(0.5, 1.5))/2) ) >= 1:
-                        results.append(importImages.apply_async(kwargs={'batch':batch,'csv':False,'pipeline':pipeline,'external':False,'min_area':min_area,'remove_gps':remove_gps,'label_source':label_source},queue='parallel'))
-                        app.logger.info('Queued batch with {} images'.format(batch_count))
-                        batch_count = 0
-                        batch = []
+                        if (batch_count / (((Config.QUEUES['parallel']['rate'])*random.uniform(0.5, 1.5))/2) ) >= 1:
+                            results.append(importImages.apply_async(kwargs={'batch':batch,'csv':False,'pipeline':pipeline,'external':False,'min_area':min_area,'remove_gps':remove_gps,'label_source':label_source},queue='parallel'))
+                            app.logger.info('Queued batch with {} images'.format(batch_count))
+                            batch_count = 0
+                            batch = []
 
             else:
                 app.logger.info('{}: failed to import path {}. No tag found.'.format(survey_id,dirpath))
@@ -4310,30 +4315,9 @@ def group_cameras(self,trapgroup_id,camera_code,trapgroup_code):
         trapgroup = db.session.query(Trapgroup).get(trapgroup_id)
         survey_name = trapgroup.survey.name
         camera_name = None
-        same_as_site = False
-
-        if camera_code == trapgroup_code:
-            same_as_site = True
 
         for camera in cameras:
-            if camera_code:
-                # Identifier
-                if same_as_site:
-                    camera_code = re.compile(camera_code)
-                    tags = camera_code.findall(camera.path.replace(survey_name,''))
-                    camera_name = tags[0] if tags else None
-                else:
-                    # If cam identifier not the same as the site identifier, remove the site identifier from the camera path
-                    camera_code = re.compile(camera_code)
-                    tags = camera_code.findall(camera.path.replace(survey_name,'').replace(trapgroup.tag,''))
-                    camera_name = tags[0] if tags else None
-            else:
-                # Folder
-                if '_video_images_' in camera.path:
-                    # If video, use the folder above the video_images folder
-                    camera_name = camera.path.split('/_video_images_')[0].split('/')[-1]
-                else:
-                    camera_name = camera.path.split('/')[-1]
+            camera_name = extract_camera_name(camera_code,trapgroup_code,survey_name,trapgroup.tag,camera.path)
             if camera_name:
                 if not camera.cameragroup:
                     if not camera_code and not '_video_images_' in camera.path:
@@ -4376,6 +4360,36 @@ def group_cameras(self,trapgroup_id,camera_code,trapgroup_code):
 
     return True
 
+def extract_camera_name(camera_code,trapgroup_code,survey_name,trapgroup_tag,path):
+    '''Extracts the camera name from the given path.'''
+
+    if camera_code:
+        # Identifier
+
+        same_as_site = False
+        if camera_code == trapgroup_code:
+            same_as_site = True
+
+        if same_as_site:
+            camera_code = re.compile(camera_code)
+            tags = camera_code.findall(path.replace(survey_name,''))
+            camera_name = tags[0] if tags else None
+        
+        else:
+            # If cam identifier not the same as the site identifier, remove the site identifier from the camera path
+            camera_code = re.compile(camera_code)
+            tags = camera_code.findall(path.replace(survey_name,'').replace(trapgroup_tag,''))
+            camera_name = tags[0] if tags else None
+
+    else:
+        # Folder
+        if '_video_images_' in path:
+            # If video, use the folder above the video_images folder
+            camera_name = path.split('/_video_images_')[0].split('/')[-1]
+        else:
+            camera_name = path.split('/')[-1]
+
+    return camera_name
 
 @celery.task(bind=True,max_retries=5)
 def run_llava(self,image_ids,prompt):
