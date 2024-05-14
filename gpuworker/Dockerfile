@@ -16,7 +16,7 @@
 # FROM python:3.6.12
 FROM nvidia/cuda:11.2.2-cudnn8-runtime-ubi8
 FROM python:3.9.7
-FROM tensorflow/tensorflow:2.7.0-gpu-py3
+FROM tensorflow/tensorflow:2.7.0-gpu
 RUN python --version
 RUN rm /etc/apt/sources.list.d/cuda.list
 RUN rm /etc/apt/sources.list.d/nvidia-ml.list
