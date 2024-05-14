@@ -24,10 +24,6 @@ import torch
 import torch.backends.cudnn as cudnn
 import torchvision.transforms as transforms
 import argparse
-import ScarceNet 
-from ScarceNet.lib.config import update_config
-from ScarceNet.lib.config import cfg
-from ScarceNet.lib.models.pose_hrnet_part import get_pose_net
 
 s3client = boto3.client('s3')
 
@@ -151,6 +147,9 @@ def segment_images(batch,sourceBucket):
         predictor = SamPredictor(sam)
 
         # Pose detection initialization
+        from lib.config import update_config
+        from lib.config import cfg
+        from lib.models.pose_hrnet_part import get_pose_net
         # args = argparse.Namespace(cfg='ScarceNet/experiments/ap10k/hrnet/w32_256x192_adam_lr1e-3.yaml',
         #                             opts=['OUTPUT_DIR', 'test', 'TEST.MODEL_FILE',
         #                                 'ScarceNet/output/output_part25_updatev2/model_best.pth', 'MODEL.NAME',
