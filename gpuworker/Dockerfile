@@ -18,11 +18,11 @@
 # FROM nvidia/cuda:11.2.2-cudnn8-runtime-ubi8
 # FROM python:3.9.7
 # FROM tensorflow/tensorflow:2.7.0-gpu
-FROM nvidia/cuda:12.1.0-cudnn8-runtime-ubi8
-FROM python:3.10.13
 # RUN python --version
 # RUN rm /etc/apt/sources.list.d/cuda.list
 # RUN rm /etc/apt/sources.list.d/nvidia-ml.list
+FROM nvidia/cuda:12.1.0-cudnn8-runtime-ubi8
+FROM python:3.10.13
 RUN apt-get update && \
     apt-get upgrade -y && \
     apt-get install -y git 
@@ -30,7 +30,7 @@ RUN apt-get install ffmpeg libsm6 libxext6  -y
 RUN apt-get install wget
 RUN apt-get install unzip
 RUN pip install --upgrade pip
-RUN pip install -Iv numpy==1.18.5
+# RUN pip install -Iv numpy==1.18.5
 RUN pip3 install torch torchvision torchaudio
 WORKDIR /code
 RUN wget "https://github.com/microsoft/CameraTraps/releases/download/v5.0/md_v5a.0.0.pt"
@@ -67,7 +67,8 @@ RUN pip install \
     PyYAML\
     seaborn\
     yacs\
-    ultralytics
+    ultralytics \
+    numpy
 ENV NVIDIA_VISIBLE_DEVICES all
 ENV NVIDIA_DRIVER_CAPABILITIES compute,utility
 ENV PYTHONPATH=/code/CameraTraps
