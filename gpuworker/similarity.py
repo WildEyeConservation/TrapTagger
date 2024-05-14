@@ -24,6 +24,7 @@ import torch
 import torch.backends.cudnn as cudnn
 import torchvision.transforms as transforms
 import argparse
+import ScarceNet 
 from ScarceNet.lib.config import update_config
 from ScarceNet.lib.config import cfg
 from ScarceNet.lib.models.pose_hrnet_part import get_pose_net
