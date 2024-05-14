@@ -71,5 +71,4 @@ RUN pip install \
     numpy
 ENV NVIDIA_VISIBLE_DEVICES all
 ENV NVIDIA_DRIVER_CAPABILITIES compute,utility
-ENV PYTHONPATH=/code/CameraTraps
-ENV PYTHONPATH=/code/ScarceNet
+ENV PYTHONPATH=/code/CameraTraps:/code/ScarceNet
