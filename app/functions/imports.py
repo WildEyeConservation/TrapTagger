@@ -761,7 +761,8 @@ def processCameraStaticDetections(self,cameragroup_id):
             if (len(chunk)<(grouping+overlap)) and (len(dets)>grouping):
                 chunk = dets[-grouping-overlap:]
             
-            for det_id,match_id in db.session.execute(queryTemplate1.format(chunk,chunk,Config.STATIC_IOU5,Config.STATIC_IOU10,Config.STATIC_IOU30,Config.STATIC_IOU50,Config.STATIC_IOU90)):
+            det_ids = ','.join([str(r) for r in chunk])
+            for det_id,match_id in db.session.execute(queryTemplate1.format(det_ids,det_ids,Config.STATIC_IOU5,Config.STATIC_IOU10,Config.STATIC_IOU30,Config.STATIC_IOU50,Config.STATIC_IOU90)):
                 if det_id not in static_groups:
                     static_groups[det_id] = []
                 static_groups[det_id].append(match_id)
