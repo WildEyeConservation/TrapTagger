@@ -24,6 +24,7 @@ import torch
 import torch.backends.cudnn as cudnn
 import torchvision.transforms as transforms
 import argparse
+import time
 
 s3client = boto3.client('s3')
 
@@ -137,24 +138,24 @@ def segment_images(batch,sourceBucket):
     global predictor, init, model
 
     if not init:
-        print('Initializing SAM and Pose Detection models')
         # SAM initialization
+        print('Initializing SAM')
+        starttime = time.time()
         sam_checkpoint = "sam_vit_h_4b8939.pth"
         model_type = "vit_h"
         device = "cuda"
         sam = sam_model_registry[model_type](checkpoint=sam_checkpoint)
         sam.to(device=device)
         predictor = SamPredictor(sam)
+        print('SAM initialized in {} seconds'.format(time.time() - starttime))
 
         # Pose detection initialization
+        print('Initializing Pose Detection')
+        starttime = time.time()
         from lib.config import update_config
         from lib.config import cfg
         from lib.models.pose_hrnet_part import get_pose_net
-        # args = argparse.Namespace(cfg='ScarceNet/experiments/ap10k/hrnet/w32_256x192_adam_lr1e-3.yaml',
-        #                             opts=['OUTPUT_DIR', 'test', 'TEST.MODEL_FILE',
-        #                                 'ScarceNet/output/output_part25_updatev2/model_best.pth', 'MODEL.NAME',
-        #                                 'pose_hrnet_part', 'GPUS', '[0,]'],
-        #                             modelDir='', logDir='', dataDir='', prevModelDir='', animalpose=True, vis=False)
+
         args = argparse.Namespace(cfg='ScarceNet/experiments/ap10k/hrnet/w32_256x192_adam_lr1e-3.yaml',
                                     opts=['OUTPUT_DIR', 'test', 'TEST.MODEL_FILE',
                                         'model_best.pth', 'MODEL.NAME',
@@ -165,13 +166,12 @@ def segment_images(batch,sourceBucket):
         torch.backends.cudnn.deterministic = False
         torch.backends.cudnn.enabled = True
 
-        # checkpoint = torch.load("ScarceNet/output/output_part25_updatev2/model_best.pth")
         checkpoint = torch.load("model_best.pth")
         model = get_pose_net(cfg, is_train=False)
 
         model.load_state_dict(checkpoint['state_dict'], strict=True)
         model = torch.nn.DataParallel(model, device_ids=cfg.GPUS).cuda()
-
+        print('Pose Detection initialized in {} seconds'.format(time.time() - starttime))
         init = True
 
     segmented_images = {}
@@ -189,6 +189,7 @@ def segment_images(batch,sourceBucket):
             x1, x2, y1, y2 = bbox_dict['left'], bbox_dict['right'], bbox_dict['top'], bbox_dict['bottom']
             bbox = np.array([x1 * w, y1 * h, x2 * w, y2 * h])
             print('Segmenting image')
+            starttime = time.time()
             predictor.set_image(image_data)
             masks, _, _ = predictor.predict(
                 point_coords=None,
@@ -202,6 +203,7 @@ def segment_images(batch,sourceBucket):
             segmented_image = (mask_image * image_data).astype('uint8')
             segmented_image = Image.fromarray(segmented_image[int(y1 * h):int(y2 * h), int(x1 * w):int(x2 * w)])
             segmented_images[detection_id] = segmented_image
+            print('Segmentation done in {} seconds'.format(time.time() - starttime))
             # Get flank from the segmented image 
             # Save segmented image for now to s3
             split_path = image_path.split('/')
@@ -212,8 +214,10 @@ def segment_images(batch,sourceBucket):
                 segmented_image.save(temp_file_img.name)
                 print('Uploading segmented image to S3 {}'.format(seg_img_path))
                 s3client.put_object(Bucket=sourceBucket, Key=seg_img_path, Body=temp_file_img)
+                starttime = time.time()
                 flank = get_flank(temp_file_img.name)
                 print('Get flank for detection_id: {} - {}'.format(detection_id, flank))
+                print('Flank detection done in {} seconds'.format(time.time() - starttime))     
                 detection_flanks[detection_id] = flank
 
     return detection_flanks
