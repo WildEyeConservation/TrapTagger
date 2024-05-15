@@ -728,22 +728,11 @@ def processCameraStaticDetections(self,cameragroup_id):
                 FROM
                     detection AS det1
                     JOIN detection AS det2
-                    JOIN image AS image1
-                    JOIN image AS image2
-                    JOIN camera AS camera1
-                    JOIN camera AS camera2
-                ON 
-                    camera1.cameragroup_id = camera2.cameragroup_id
-                    AND camera1.id = image1.camera_id
-                    AND camera2.id = image2.camera_id
-                    AND image1.id = det1.image_id
-                    AND image2.id = det2.image_id
-                    AND image1.id != image2.id 
+                ON
+                    det1.image_id != det2.image_id
                 WHERE
-                    ({}) 
-                    AND camera1.cameragroup_id = {}
-                    AND image1.id IN ({})
-                    AND image2.id IN ({})
+                    det1.id IN ({})
+                    AND det2.id IN ({})
                     ) AS sq1
             WHERE
                 (sq1.intersection / (sq1.area1 + sq1.area2 - sq1.intersection) > {} AND sq1.area1 <= 0.05) 
@@ -756,6 +745,7 @@ def processCameraStaticDetections(self,cameragroup_id):
         dets = [r[0] for r in db.session.query(Detection.id)\
                                             .join(Image)\
                                             .join(Camera)\
+                                            .filter(~Image.clusters.any())\
                                             .filter(Camera.cameragroup_id==cameragroup_id)\
                                             .filter(or_(and_(Detection.source==model,Detection.score>Config.DETECTOR_THRESHOLDS[model]) for model in Config.DETECTOR_THRESHOLDS))\
                                             .order_by(Image.corrected_timestamp)\
@@ -763,21 +753,18 @@ def processCameraStaticDetections(self,cameragroup_id):
 
         final_static_groups = []
         static_detections = []
-        grouping = 7000
-        overlap = 1000
+        grouping = 5000
+        overlap = 500
         for i in range(0,len(dets),grouping):
             static_groups = {}
             chunk = dets[i:i+grouping+overlap]
             if (len(chunk)<(grouping+overlap)) and (len(dets)>grouping):
                 chunk = dets[-grouping-overlap:]
-                
-            images = db.session.query(Image.id).join(Detection).filter(Detection.id.in_(chunk)).distinct().all()
-            im_ids = ','.join([str(r[0]) for r in images])
-            for det_id,match_id in db.session.execute(queryTemplate1.format('OR'.join([ ' (det1.source = "{}" AND det1.score > {}) '.format(model,Config.DETECTOR_THRESHOLDS[model]) for model in Config.DETECTOR_THRESHOLDS]),cameragroup_id,im_ids,im_ids,Config.STATIC_IOU5,Config.STATIC_IOU10,Config.STATIC_IOU30,Config.STATIC_IOU50,Config.STATIC_IOU90)):
+            
+            for det_id,match_id in db.session.execute(queryTemplate1.format(chunk,chunk,Config.STATIC_IOU5,Config.STATIC_IOU10,Config.STATIC_IOU30,Config.STATIC_IOU50,Config.STATIC_IOU90)):
                 if det_id not in static_groups:
                     static_groups[det_id] = []
                 static_groups[det_id].append(match_id)
-        
 
             # Threshold for match percentage based on number of images
             image_count = len(images)
@@ -800,6 +787,7 @@ def processCameraStaticDetections(self,cameragroup_id):
                             item = list(set(item))
                             found = True
                             break
+
                     if not found: final_static_groups.append(group)
 
         for group in final_static_groups:
@@ -834,8 +822,6 @@ def processCameraStaticDetections(self,cameragroup_id):
                 for detection in detections:
                     detection.static = True
 
-        db.session.commit()
-
         static_detections = list(set(static_detections))
         sq = db.session.query(Detection).filter(Detection.id.in_(static_detections)).subquery()
         detections = db.session.query(Detection)\
@@ -853,8 +839,6 @@ def processCameraStaticDetections(self,cameragroup_id):
         staticgroups = db.session.query(Staticgroup).filter(~Staticgroup.detections.any()).all()
         for staticgroup in staticgroups:
             db.session.delete(staticgroup)
-
-        db.session.commit()
 
         ##### Update Masked Status ########
         # Mask detections
@@ -879,8 +863,6 @@ def processCameraStaticDetections(self,cameragroup_id):
 
         for detection in detections:
             detection.status = 'masked'
-
-        db.session.commit()
 
         # Unmask detections
         masked_detections = mask_query.filter(Detection.status=='masked').subquery()
@@ -943,9 +925,9 @@ def processStaticDetections(survey_id):
     #     detection.static = False
     # db.session.commit()
 
-    # Process static detections
+    # Process static detections (only do this for cameragroups with new images - those with no clusters)
     results = []
-    cameragroup_ids = [r[0] for r in db.session.query(Cameragroup.id).join(Camera).join(Trapgroup).filter(Trapgroup.survey_id==survey_id).distinct().all()]
+    cameragroup_ids = [r[0] for r in db.session.query(Cameragroup.id).join(Camera).join(Trapgroup).join(Image).filter(~Image.clusters.any()).filter(Trapgroup.survey_id==survey_id).distinct().all()]
     for cameragroup_id in cameragroup_ids:
         results.append(processCameraStaticDetections.apply_async(kwargs={'cameragroup_id':cameragroup_id},queue='parallel'))
     
@@ -3448,8 +3430,6 @@ def import_survey(self,survey_id,preprocess_done=False):
         #         from app.functions.admin import reclusterAfterTimestampChange
         #         reclusterAfterTimestampChange(survey_id)
         #         skip = True
-        if not skipCluster:
-            task_id=cluster_survey(survey_id)
         
         if not preprocess_done:
             survey = db.session.query(Survey).get(survey_id)
@@ -3467,6 +3447,9 @@ def import_survey(self,survey_id,preprocess_done=False):
             survey.status='Importing Coordinates'
             db.session.commit()
             importKML(survey.id)
+
+        if not skipCluster:
+            task_id=cluster_survey(survey_id)
 
         if static_check and preprocess_done:
             survey.status='Processing Static Detections'
@@ -3732,6 +3715,11 @@ def pipeline_survey(self,surveyName,bucketName,dataSource,fileAttached,trapgroup
             #import from S3 folder
             import_folder(dataSource,survey_id,sourceBucket,bucketName,True,min_area,exclusions,4,label_source)
 
+        survey = db.session.query(Survey).get(survey_id)
+        survey.status='Removing Static Detections'
+        db.session.commit()
+        processStaticDetections(survey_id)
+
         # if labels extracted from metadata, there are already labelled clusters
         if not label_source:
 
@@ -3809,11 +3797,6 @@ def pipeline_survey(self,surveyName,bucketName,dataSource,fileAttached,trapgroup
                             app.logger.info(' ')
                         result.forget()
                 GLOBALS.lock.release()
-
-        survey = db.session.query(Survey).get(survey_id)
-        survey.status='Removing Static Detections'
-        db.session.commit()
-        processStaticDetections(survey_id)
 
         survey = db.session.query(Survey).get(survey_id)
         survey.status = 'Ready'
