@@ -767,7 +767,7 @@ def processCameraStaticDetections(self,cameragroup_id):
                 static_groups[det_id].append(match_id)
 
             # Threshold for match percentage based on number of images
-            image_count = len(images)
+            image_count = db.session.query(Image).join(Detection).filter(Detection.id.in_(chunk)).distinct().count()
             if image_count > 100:
                 match_percentage = round(Config.STATIC_PERCENTAGE / math.log(image_count, 10), 2)
             else:
