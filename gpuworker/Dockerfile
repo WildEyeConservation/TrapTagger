@@ -57,7 +57,6 @@ RUN pip install \
     PyYAML\
     seaborn\
     yacs\
-    ultralytics \
     numpy
 ENV NVIDIA_VISIBLE_DEVICES all
 ENV NVIDIA_DRIVER_CAPABILITIES compute,utility
