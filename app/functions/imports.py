@@ -828,6 +828,7 @@ def processCameraStaticDetections(self,cameragroup_id):
                                     .join(Image)\
                                     .join(Camera)\
                                     .outerjoin(sq,sq.c.id==Detection.id)\
+                                    .filter(~Image.clusters.any())\
                                     .filter(Camera.cameragroup_id==cameragroup_id)\
                                     .filter(sq.c.id==None)\
                                     .all()
@@ -854,6 +855,7 @@ def processCameraStaticDetections(self,cameragroup_id):
                                 .join(Camera)\
                                 .join(Cameragroup)\
                                 .join(Mask)\
+                                .filter(~Image.clusters.any())\
                                 .filter(Cameragroup.id==cameragroup_id)\
                                 .filter(or_(and_(Detection.source==model,Detection.score>Config.DETECTOR_THRESHOLDS[model]) for model in Config.DETECTOR_THRESHOLDS))\
                                 .filter(Detection.source!='user')\
@@ -871,6 +873,7 @@ def processCameraStaticDetections(self,cameragroup_id):
                                 .join(Image)\
                                 .join(Camera)\
                                 .outerjoin(masked_detections, masked_detections.c.id==Detection.id)\
+                                .filter(~Image.clusters.any())\
                                 .filter(Camera.cameragroup_id==cameragroup_id)\
                                 .filter(or_(and_(Detection.source==model,Detection.score>Config.DETECTOR_THRESHOLDS[model]) for model in Config.DETECTOR_THRESHOLDS))\
                                 .filter(Detection.status=='masked')\
