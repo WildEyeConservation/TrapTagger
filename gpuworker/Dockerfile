@@ -12,15 +12,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-# FROM nvidia/cuda:10.2-cudnn7-runtime-ubi8
-# FROM python:3.6.12
-# FROM tensorflow/tensorflow:1.15.0-gpu-py3
-# FROM nvidia/cuda:11.2.2-cudnn8-runtime-ubi8
-# FROM python:3.9.7
-# FROM tensorflow/tensorflow:2.7.0-gpu
-# RUN python --version
-# RUN rm /etc/apt/sources.list.d/cuda.list
-# RUN rm /etc/apt/sources.list.d/nvidia-ml.list
 FROM nvidia/cuda:12.1.0-cudnn8-runtime-ubi8
 FROM python:3.10.13
 RUN apt-get update && \
@@ -30,17 +21,16 @@ RUN apt-get install ffmpeg libsm6 libxext6  -y
 RUN apt-get install wget
 RUN apt-get install unzip
 RUN pip install --upgrade pip
-# RUN pip install -Iv numpy==1.18.5
 RUN pip3 install torch torchvision torchaudio
 WORKDIR /code
 RUN wget "https://github.com/microsoft/CameraTraps/releases/download/v5.0/md_v5a.0.0.pt"
 RUN wget "https://github.com/microsoft/CameraTraps/releases/download/v5.0/md_v5b.0.0.pt"
 RUN wget "https://dl.fbaipublicfiles.com/segment_anything/sam_vit_h_4b8939.pth"
-RUN git clone https://github.com/ultralytics/yolov5.git
+RUN git clone https://github.com/ultralytics/yolov5.git && cd yolov5 && git checkout 2e10909
 RUN mkdir CameraTraps
 RUN cp -r yolov5/utils CameraTraps/utils
 RUN cp -r yolov5/models CameraTraps/models
-RUN git clone https://github.com/chaneyddtt/ScarceNet.git
+RUN git clone https://github.com/chaneyddtt/ScarceNet.git && cd ScarceNet && git checkout df4fa6b
 RUN pip install gdown
 ENV PATH="$HOME/.local/bin:$PATH"
 RUN gdown https://drive.google.com/uc?id=1MQGyyf1MQjETRG_CRBMEfrV0IFiis_ZQ
@@ -48,7 +38,7 @@ RUN unzip -p ScarceNet_final_models.zip ScarceNet_final_models/output_part25_upd
 RUN rm ScarceNet_final_models.zip
 RUN pip install \
     celery\
-    -e git+https://github.com/facebookresearch/segment-anything.git@main#egg=segment-anything\
+    -e git+https://github.com/facebookresearch/segment-anything.git@6fdee8f2727f4506cfbbe553e23b895e27956588#egg=segment-anything\
     humanfriendly\
     jsonpickle\
     matplotlib\
