@@ -4440,7 +4440,7 @@ def run_llava(self,image_ids,prompt):
 
     return True
 
-def clean_extracted_timestamp(text):
+def clean_extracted_timestamp(text,dayfirst):
     '''Function that tries to clean up the messy extracted timestamps'''
     try:
         final_candidates = []
@@ -4449,7 +4449,7 @@ def clean_extracted_timestamp(text):
         for candidate in candidates:
             if any(disallowed_character in candidate for disallowed_character in disallowed_characters): continue
             try:
-                timestamp = dateutil_parse(candidate.replace(' ',''),fuzzy=True,dayfirst=True,default=datetime(year=2024,month=1,day=1))
+                timestamp = dateutil_parse(candidate.replace(' ',''),fuzzy=True,dayfirst=dayfirst,default=datetime(year=2024,month=1,day=1))
                 if timestamp.year<2000: continue
                 if timestamp>=datetime.utcnow(): continue
                 final_candidates.append(candidate.replace(' ',''))
@@ -4556,8 +4556,8 @@ def get_timestamps(self,trapgroup_id,index=None):
 
         for test in ordered_tests:
             try:
-                timestamp = dateutil_parse(clean_extracted_timestamp(test),fuzzy=True,dayfirst=True)
-                if (timestamp.year<2000) or (timestamp>=datetime.utcnow()): continue
+                timestamp = dateutil_parse(clean_extracted_timestamp(test,dayfirst),fuzzy=True,dayfirst=True)
+                if (timestamp.year<2000) or (timestamp>=datetime.utcnow().replace(hour=0,minute=0,second=0,microsecond=0)): continue #dateutil_parse uses todays date if there is only a time - need to filter this out
                 if timestamp.day>12:
                     if len(test.split(str(timestamp.day))[0]) < len(test.split(str(timestamp.month))[0]):
                         dayfirst = True
@@ -4601,8 +4601,8 @@ def get_timestamps(self,trapgroup_id,index=None):
                 extracted_text = item[1].extracted_data
                 item_id = item[1].id
             try:
-                timestamp = dateutil_parse(clean_extracted_timestamp(extracted_text),fuzzy=True,dayfirst=dayfirst)
-                if (timestamp.year<2000) or (timestamp>=datetime.utcnow()): continue
+                timestamp = dateutil_parse(clean_extracted_timestamp(extracted_text,dayfirst),fuzzy=True,dayfirst=dayfirst)
+                if (timestamp.year<2000) or (timestamp>=datetime.utcnow().replace(hour=0,minute=0,second=0,microsecond=0)): continue #dateutil_parse uses todays date if there is only a time - need to filter this out
                 dates.append(pd.Timestamp(timestamp)) # this needs to be first - if it fails there is something wrong with the date and it should be dropped
                 parsed_timestamps[item_id] = timestamp
             except:
