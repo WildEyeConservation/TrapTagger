@@ -4445,6 +4445,11 @@ def clean_extracted_timestamp(text,dayfirst):
     try:
         final_candidates = []
         disallowed_characters = ['°'] #allows us to remove number information like temperature
+        terms_for_removal = [r'[0-9.,]+.?in[Hh]g',r'[0-9.,]+.?[°cCfF]'] # Temp & pressure trip up the parsing
+        for term in terms_for_removal:
+            finds = re.findall(term, text)
+            for find in finds:
+                text = text.replace(find,'')
         candidates = re.findall("[0-9]+[^0-9a-zA-Z]+[0-9]+[^0-9a-zA-Z]*[0-9]*", text)
         for candidate in candidates:
             if any(disallowed_character in candidate for disallowed_character in disallowed_characters): continue
@@ -4458,7 +4463,7 @@ def clean_extracted_timestamp(text,dayfirst):
         if len(final_candidates)==0: return text
         timestamp = ' '.join(final_candidates)
         if 'PM' in text: timestamp += ' PM'
-        if 'AM' in text: timestamp += ' AM'
+        if 'AM' in text.replace('CAMERA',''): timestamp += ' AM' #we need to prevent the AM match in CAMERA
         return timestamp
     except:
         return text
@@ -4556,7 +4561,7 @@ def get_timestamps(self,trapgroup_id,index=None):
 
         for test in ordered_tests:
             try:
-                timestamp = dateutil_parse(clean_extracted_timestamp(test,dayfirst),fuzzy=True,dayfirst=True)
+                timestamp = dateutil_parse(clean_extracted_timestamp(test,dayfirst),fuzzy=True,dayfirst=True,default=datetime.utcnow()+timedelta(days=365))
                 if (timestamp.year<2000) or (timestamp>=datetime.utcnow().replace(hour=0,minute=0,second=0,microsecond=0)): continue #dateutil_parse uses todays date if there is only a time - need to filter this out
                 if timestamp.day>12:
                     if len(test.split(str(timestamp.day))[0]) < len(test.split(str(timestamp.month))[0]):
@@ -4601,7 +4606,7 @@ def get_timestamps(self,trapgroup_id,index=None):
                 extracted_text = item[1].extracted_data
                 item_id = item[1].id
             try:
-                timestamp = dateutil_parse(clean_extracted_timestamp(extracted_text,dayfirst),fuzzy=True,dayfirst=dayfirst)
+                timestamp = dateutil_parse(clean_extracted_timestamp(extracted_text,dayfirst),fuzzy=True,dayfirst=dayfirst,default=datetime.utcnow()+timedelta(days=365))
                 if (timestamp.year<2000) or (timestamp>=datetime.utcnow().replace(hour=0,minute=0,second=0,microsecond=0)): continue #dateutil_parse uses todays date if there is only a time - need to filter this out
                 dates.append(pd.Timestamp(timestamp)) # this needs to be first - if it fails there is something wrong with the date and it should be dropped
                 parsed_timestamps[item_id] = timestamp
