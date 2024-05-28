@@ -4463,7 +4463,7 @@ def clean_extracted_timestamp(text,dayfirst):
         if len(final_candidates)==0: return text
         timestamp = ' '.join(final_candidates)
         if 'PM' in text: timestamp += ' PM'
-        if 'AM' in text.replace('CAMERA',''): timestamp += ' AM' #we need to prevent the AM match in CAMERA
+        if 'AM' in text.replace('CAMERA','').replace('CAM',''): timestamp += ' AM' #we need to prevent the AM match in CAMERA
         return timestamp
     except:
         return text
@@ -4533,11 +4533,13 @@ def get_timestamps(self,trapgroup_id,index=None):
                 status = response['JobStatus']
                 if status != 'SUCCEEDED': time.sleep(2)
             
-            # Combine all text blocks
-            text = []
+            # Combine all text blocks - we want to try and preserve left-to-right order
+            temp_text = {}
             for block in response['Blocks']:
                 if block['BlockType']=='LINE':
-                    text.append(block['Text'])
+                    temp_text[float(block['Geometry']['BoundingBox']['Left'])] = block['Text']
+            temp_text = {k: v for k, v in sorted(temp_text.items(), key=lambda item: item[0])}
+            text = [temp_text[key] for key in temp_text]
             text = ' '.join(text)
 
             # Save extracted text
