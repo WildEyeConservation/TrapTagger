@@ -19,3 +19,9 @@ import os
 class Config(object):
     WORKER_NAME = 'celery@worker'+str(os.environ.get('WORKER_NUMBER'))+'@'+os.environ.get('WORKER_NAME')
     QUEUE = os.environ.get('QUEUE')
+
+    # WBIA Configs
+    WBIA_DB_NAME = os.environ.get('WBIA_DB_NAME')
+    WBIA_DB_SERVER = os.environ.get('WBIA_DB_SERVER')
+    WBIA_DB_URI = WBIA_DB_SERVER+"/"+WBIA_DB_NAME
+    WBIA_DIR = os.environ.get('WBIA_DIR')

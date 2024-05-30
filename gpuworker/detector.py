@@ -215,7 +215,7 @@ def infer(batch,sourceBucket,external,model,threshold=0.05,pass_images=False):
                 results.append(detections)
         print('Finished batch')
 
-    except Exception as e:
+    except:
         print('Error with batch... returning empty set of detections.')
         results=[]
         for n in range(len(batch)):
@@ -228,7 +228,6 @@ def infer(batch,sourceBucket,external,model,threshold=0.05,pass_images=False):
                                     'status': 'active',
                                     'source' : 'error'}]
             results.append(detections)
-        print('Exception: {}'.format(e.traceback))
     
     if pass_images:
         return results, images
