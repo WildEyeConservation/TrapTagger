@@ -27,7 +27,7 @@ export AWS_ACCESS_KEY_ID=$6
 export AWS_SECRET_ACCESS_KEY=$7
 export WBIA_DB_NAME=$8
 export WBIA_DB_SERVER=$9
-export WBIA_DIR=$10
+export WBIA_DIR=${10}
 
 printf \
 'REDIS_IP='$REDIS_IP'\n'\
