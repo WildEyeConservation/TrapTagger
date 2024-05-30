@@ -1156,8 +1156,8 @@ function updateClusterLabels(mapID = 'map1') {
     clusterLabels[mapID] = []
     if ((clusters[mapID][clusterIndex[mapID]]!=undefined)&&(clusters[mapID][clusterIndex[mapID]][ITEM_IDS]!=undefined)) {
         for (let i=0;i<clusters[mapID][clusterIndex[mapID]][ITEM_IDS].length;i++) {
-            label_id = clusters[mapID][clusterIndex[mapID]][ITEM_IDS][i]
-            if (parseInt(label_id) != 0) {
+            label_id = parseInt(clusters[mapID][clusterIndex[mapID]][ITEM_IDS][i])
+            if (label_id != 0) {
                 clusterLabels[mapID].push(label_id)
             }
         }
@@ -1941,9 +1941,17 @@ function assignLabel(label,mapID = 'map1'){
                                     } else {
                                         btn.setAttribute("class", "btn btn-info btn-block btn-sm");
                                     }
-                
-                                    clusters[mapID][clusterIndex[mapID]][ITEMS].splice(clusters[mapID][clusterIndex[mapID]][ITEMS].indexOf(labelName), 1);
-                                    clusters[mapID][clusterIndex[mapID]][ITEM_IDS].splice(clusters[mapID][clusterIndex[mapID]][ITEM_IDS].indexOf(label), 1);
+                                    
+                                    index = clusters[mapID][clusterIndex[mapID]][ITEMS].indexOf(labelName)
+                                    if (index>-1) {
+                                        clusters[mapID][clusterIndex[mapID]][ITEMS].splice(index, 1);
+                                    }
+                                    
+                                    index=clusters[mapID][clusterIndex[mapID]][ITEM_IDS].indexOf(label)
+                                    if (index>-1) {
+                                        clusters[mapID][clusterIndex[mapID]][ITEM_IDS].splice(index, 1);
+                                    }
+                                    
                                     if (clusters[mapID][clusterIndex[mapID]][ITEMS].length == 0) {
                                         clusters[mapID][clusterIndex[mapID]][ITEMS] = ['None']
                                         clusters[mapID][clusterIndex[mapID]][ITEM_IDS] = ['0']
@@ -1954,7 +1962,11 @@ function assignLabel(label,mapID = 'map1'){
                                         updateDebugInfo(mapID)
                                     }
     
-                                    clusterLabels[mapID].splice(clusterLabels[mapID].indexOf(label), 1)
+                                    index = clusterLabels[mapID].indexOf(parseInt(label))
+                                    if (index>-1){
+                                        clusterLabels[mapID].splice(index, 1)
+                                    }
+                                    
                                 } else {
     
                                     unknocked = false
@@ -1968,12 +1980,20 @@ function assignLabel(label,mapID = 'map1'){
                                             clusters[mapID][clusterIndex[mapID]][ITEM_IDS] = []
                                         }
                                         if (clusters[mapID][clusterIndex[mapID]][ITEMS].includes(taggingLabel)) {
-                                            clusters[mapID][clusterIndex[mapID]][ITEMS].splice(clusters[mapID][clusterIndex[mapID]][ITEMS].indexOf(taggingLabel), 1);
-                                            clusters[mapID][clusterIndex[mapID]][ITEM_IDS].splice(clusters[mapID][clusterIndex[mapID]][ITEM_IDS].indexOf(taggingLevel), 1);
+                                            index = clusters[mapID][clusterIndex[mapID]][ITEMS].indexOf(taggingLabel)
+                                            if (index>-1) {
+                                                clusters[mapID][clusterIndex[mapID]][ITEMS].splice(index, 1);
+                                            }
+                                            
+                                            index = clusters[mapID][clusterIndex[mapID]][ITEM_IDS].indexOf(taggingLevel)
+                                            if (index>-1) {
+                                                clusters[mapID][clusterIndex[mapID]][ITEM_IDS].splice(index, 1);
+                                            }
+                                            
                                         }
                                         clusters[mapID][clusterIndex[mapID]][ITEMS].push(labelName);
                                         clusters[mapID][clusterIndex[mapID]][ITEM_IDS].push(label);
-                                        clusterLabels[mapID].push(label)
+                                        clusterLabels[mapID].push(parseInt(label))
         
                                     } else {
     
@@ -1987,9 +2007,21 @@ function assignLabel(label,mapID = 'map1'){
                                                 label_id = globalKeys[taggingLevel][0][i].toString()
                                                 if (clusters[mapID][clusterIndex[mapID]][ITEM_IDS].includes(label_id)) {
                                                     label_name = globalKeys[taggingLevel][1][i]
-                                                    clusters[mapID][clusterIndex[mapID]][ITEMS].splice(clusters[mapID][clusterIndex[mapID]][ITEMS].indexOf(label_name), 1);
-                                                    clusters[mapID][clusterIndex[mapID]][ITEM_IDS].splice(clusters[mapID][clusterIndex[mapID]][ITEM_IDS].indexOf(label_id), 1);
-                                                    clusterLabels[mapID].splice(clusterLabels[mapID].indexOf(label_id), 1)
+
+                                                    index = clusters[mapID][clusterIndex[mapID]][ITEMS].indexOf(label_name)
+                                                    if (index>-1) {
+                                                        clusters[mapID][clusterIndex[mapID]][ITEMS].splice(index, 1);
+                                                    }
+                                                    
+                                                    index = clusters[mapID][clusterIndex[mapID]][ITEM_IDS].indexOf(label_id)
+                                                    if (index>1) {
+                                                        clusters[mapID][clusterIndex[mapID]][ITEM_IDS].splice(index, 1);
+                                                    }
+                                                    
+                                                    index = clusterLabels[mapID].indexOf(parseInt(label_id))
+                                                    if (index>-1) {
+                                                        clusterLabels[mapID].splice(index, 1)
+                                                    }
                                                 }
                                             }
     
@@ -1999,25 +2031,44 @@ function assignLabel(label,mapID = 'map1'){
                                                     label_id = globalKeys[tempTaggingLevel][0][i].toString()
                                                     if (clusters[mapID][clusterIndex[mapID]][ITEM_IDS].includes(label_id)) {
                                                         label_name = globalKeys[tempTaggingLevel][1][i]
-                                                        clusters[mapID][clusterIndex[mapID]][ITEMS].splice(clusters[mapID][clusterIndex[mapID]][ITEMS].indexOf(label_name), 1);
-                                                        clusters[mapID][clusterIndex[mapID]][ITEM_IDS].splice(clusters[mapID][clusterIndex[mapID]][ITEM_IDS].indexOf(label_id), 1);
-                                                        clusterLabels[mapID].splice(clusterLabels[mapID].indexOf(label_id), 1)
+
+                                                        index = clusters[mapID][clusterIndex[mapID]][ITEMS].indexOf(label_name)
+                                                        if (index>-1) {
+                                                            clusters[mapID][clusterIndex[mapID]][ITEMS].splice(index, 1);
+                                                        }
+                                                        
+                                                        index = clusters[mapID][clusterIndex[mapID]][ITEM_IDS].indexOf(label_id)
+                                                        if (index>-1) {
+                                                            clusters[mapID][clusterIndex[mapID]][ITEM_IDS].splice(index, 1);
+                                                        }
+                                                        
+                                                        index = clusterLabels[mapID].indexOf(parseInt(label_id))
+                                                        if (index>-1) {
+                                                            clusterLabels[mapID].splice(index, 1)    
+                                                        }
                                                     }
                                                 }
                                             }
                                         }
     
                                         if (clusters[mapID][clusterIndex[mapID]][ITEMS].includes('None')) {
-                                            clusters[mapID][clusterIndex[mapID]][ITEMS].splice(clusters[mapID][clusterIndex[mapID]][ITEMS].indexOf('None'), 1);
-                                            clusters[mapID][clusterIndex[mapID]][ITEM_IDS].splice(clusters[mapID][clusterIndex[mapID]][ITEM_IDS].indexOf('0'), 1);
+                                            index = clusters[mapID][clusterIndex[mapID]][ITEMS].indexOf('None')
+                                            if (index>-1) {
+                                                clusters[mapID][clusterIndex[mapID]][ITEMS].splice(index, 1);
+                                            }
+                                            
+                                            index = clusters[mapID][clusterIndex[mapID]][ITEM_IDS].indexOf('0')
+                                            if (index>-1) {
+                                                clusters[mapID][clusterIndex[mapID]][ITEM_IDS].splice(index, 1);
+                                            }
                                         }
                                         clusters[mapID][clusterIndex[mapID]][ITEMS].push(labelName);
                                         clusters[mapID][clusterIndex[mapID]][ITEM_IDS].push(label);
-                                        clusterLabels[mapID].push(label)
+                                        clusterLabels[mapID].push(parseInt(label))
     
                                         // clusters[mapID][clusterIndex[mapID]][ITEMS] = [labelName]
                                         // clusters[mapID][clusterIndex[mapID]][ITEM_IDS] = [label]
-                                        // clusterLabels[mapID] = [label]
+                                        // clusterLabels[mapID] = [parseInt(label)]
     
                                         if (unknocked) {
                                             clusters[mapID][clusterIndex[mapID]][ITEMS].push(unKnockLabel)
@@ -2746,9 +2797,16 @@ function removeMultiLabel(label,mapID = 'map1') {
 
     labelIndex = clusters[mapID][clusterIndex[mapID]][ITEMS].indexOf(label)
     label_id = clusters[mapID][clusterIndex[mapID]][ITEM_IDS][labelIndex]
-    clusters[mapID][clusterIndex[mapID]][ITEMS].splice(labelIndex, 1);
-    clusters[mapID][clusterIndex[mapID]][ITEM_IDS].splice(labelIndex, 1);
-    clusterLabels[mapID].splice(clusterLabels[mapID].indexOf(label_id), 1)
+    
+    if (labelIndex>-1) {
+        clusters[mapID][clusterIndex[mapID]][ITEMS].splice(labelIndex, 1);
+        clusters[mapID][clusterIndex[mapID]][ITEM_IDS].splice(labelIndex, 1);
+    }
+
+    index = clusterLabels[mapID].indexOf(parseInt(label_id))
+    if (index>-1) {
+        clusterLabels[mapID].splice(index, 1)
+    }
 
     if (clusters[mapID][clusterIndex[mapID]][ITEMS].length == 0) {
         clusters[mapID][clusterIndex[mapID]][ITEMS] = ['None']
@@ -2877,7 +2935,7 @@ function submitLabels(mapID = 'map1') {
         }
         console.log(clusterLabels[mapID])
         nothingStatus = false
-        if (clusterLabels[mapID].includes(RFDLabel.toString()) && isTagging) {
+        if (clusterLabels[mapID].includes(parseInt(RFDLabel)) && isTagging) {
             // reallocate on nothing
             nothingStatus = true
             if ((!modalWait2.is(':visible'))&&(!modalWait.is(':visible'))) {
@@ -2899,10 +2957,12 @@ function submitLabels(mapID = 'map1') {
                     } else if (this.readyState == 4 && this.status == 200) {
                         reply = JSON.parse(this.responseText);
                         if (reply!='error') {
-                            clusters[wrapMapID][wrapIndex].annotator = reply.username
-                            if (reply.individual_check) {
-                                clusters[wrapMapID].splice(wrapIndex,1)
-                                clusterIndex[wrapMapID] -= 1
+                            if (wrapIndex>-1) {
+                                clusters[wrapMapID][wrapIndex].annotator = reply.username
+                                if (reply.individual_check) {
+                                    clusters[wrapMapID].splice(wrapIndex,1)
+                                    clusterIndex[wrapMapID] -= 1
+                                }
                             }
                             updateDebugInfo()
                         }
