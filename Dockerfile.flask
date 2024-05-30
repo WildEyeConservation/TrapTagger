@@ -23,6 +23,7 @@ RUN apt-get install -y  python3.7\
                         libmagickwand-dev\
                         ffmpeg\
                         libsm6\
-                        libxext6
+                        libxext6\
+                        postgresql
 RUN pip install -r requirements.txt
 RUN pip install torch==1.7.1+cu101 torchvision==0.8.2+cu101 torchaudio==0.7.2 -f https://download.pytorch.org/whl/torch_stable.html

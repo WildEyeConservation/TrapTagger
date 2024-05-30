@@ -87,6 +87,7 @@ Pint==0.18
 prometheus-client==0.8.0
 prompt-toolkit==3.0.22
 psutil==5.8.0
+psycopg2-binary==2.9.5
 pyexifinfo==0.4.0
 pyexiftool==0.5.5
 PyJWT==2.0.1
