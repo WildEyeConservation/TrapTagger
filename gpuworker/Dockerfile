@@ -12,8 +12,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-FROM nvidia/cuda:12.1.0-cudnn8-runtime-ubi8
-FROM python:3.10.13
+FROM nvidia/cuda:11.4.1-cudnn8-runtime-ubi8
+FROM python:3.8.12
 RUN apt-get update && \
     apt-get upgrade -y && \
     apt-get install -y git 
