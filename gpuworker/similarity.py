@@ -26,7 +26,7 @@ import torchvision.transforms as transforms
 import argparse
 import time
 import sys
-from config import Config
+from gpuworker.config import Config
 import os
 import utool as ut
 import math
