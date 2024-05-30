@@ -113,6 +113,6 @@ def classify(batch):
 
 
 @app.task()
-def segment_and_pose(batch,sourceBucket):
+def segment_and_pose(batch,sourceBucket,imFolder,species):
     from gpuworker import similarity
-    return similarity.segment_images(batch,sourceBucket)
+    return similarity.segment_images(batch,sourceBucket,imFolder,species)
