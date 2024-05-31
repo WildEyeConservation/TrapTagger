@@ -248,6 +248,13 @@ def segment_images(batch,sourceBucket,imFolder,species):
     global predictor, init, model, ibs
 
     if not init:
+        # Wbia initialization
+        print('Initializing Wbia')
+        starttime = time.time()
+        from wbia import opendb
+        ibs = opendb(db=Config.WBIA_DB_NAME,dbdir=Config.WBIA_DIR,allow_newdir=True)
+        print('Wbia initialized in {} seconds'.format(time.time() - starttime))
+
         # SAM initialization
         print('Initializing SAM')
         starttime = time.time()
@@ -282,13 +289,6 @@ def segment_images(batch,sourceBucket,imFolder,species):
         model.load_state_dict(checkpoint['state_dict'], strict=True)
         model = torch.nn.DataParallel(model, device_ids=cfg.GPUS).cuda()
         print('Pose Detection initialized in {} seconds'.format(time.time() - starttime))
-
-        # Wbia initialization
-        print('Initializing Wbia')
-        starttime = time.time()
-        import opendb
-        ibs = opendb(db=Config.WBIA_DB_NAME,dbdir=Config.WBIA_DIR,allow_newdir=True)
-        print('Wbia initialized in {} seconds'.format(time.time() - starttime))
 
         init = True
 
