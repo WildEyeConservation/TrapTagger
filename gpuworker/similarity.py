@@ -131,13 +131,16 @@ def get_flank(image_path: str) -> str:
     return visibility
 
 
-def segment_images(ibs,batch,sourceBucket,imFolder,species):
+def process_images(ibs,batch,sourceBucket,imFolder,species):
     """
-    Segments the image using Segment Anything (SAM) - Meta AI research, from a bounding box prompt.
+    Segments the image using Segment Anything (SAM) - Meta AI research, from a bounding box prompt. Estimates the flank using ScarceNet Keypoint detection. Adds the 
+    segmented image and the detection to the wbia database.
     Params:
-        - batch (dict): the bacth of images to be segmented including their path, bbox_list, image_id.
+        - batch (dict): the bacth of images to be segmented including their path, bbox_list, image_id and detection_id
         - sourceBucket (str): the source bucket of the images
-    Returns the filename in the same folder as where this function is executed from.
+        - imFolder (str): the folder to save the segmented images to
+        - species (str): the species of the images
+    Returns a dictionary containing the flank and the database ID (wbia) for each detection.
     """
     global predictor, init, model
 
@@ -254,7 +257,7 @@ def segment_images(ibs,batch,sourceBucket,imFolder,species):
 
             print('Added segmented image and detection (annotation) to the wbia database. Det_id: {}, gid: {} aid: {}'.format(detection_id, gid, aid))
 
-            detection_results[int(detection_id)] = {
+            detection_results[detection_id] = {
                 'flank': flank,
                 'aid': aid,
                 'gid': gid
