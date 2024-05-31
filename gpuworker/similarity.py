@@ -38,7 +38,7 @@ db_uri = Config.WBIA_DB_URI
 if db_uri:
     sys.argv.extend(['--db-uri', db_uri])
 
-from gpuworker.wbia import opendb
+from wbia import opendb
 ibs = opendb(db=Config.WBIA_DB_NAME,dbdir=Config.WBIA_DIR,allow_newdir=True)
 
 init = False

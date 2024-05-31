@@ -64,4 +64,4 @@ RUN pip install \
     wbia-vtool==3.3.0
 ENV NVIDIA_VISIBLE_DEVICES all
 ENV NVIDIA_DRIVER_CAPABILITIES compute,utility
-ENV PYTHONPATH=/code/CameraTraps:/code/ScarceNet
+ENV PYTHONPATH=/code/CameraTraps:/code/ScarceNet:/code/wbia
