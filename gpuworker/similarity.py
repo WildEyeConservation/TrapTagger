@@ -38,8 +38,10 @@ db_uri = Config.WBIA_DB_URI
 if db_uri:
     sys.argv.extend(['--db-uri', db_uri])
 
-from wbia import opendb
-ibs = opendb(db=Config.WBIA_DB_NAME,dbdir=Config.WBIA_DIR,allow_newdir=True)
+# from wbia import opendb
+# ibs = opendb(db=Config.WBIA_DB_NAME,dbdir=Config.WBIA_DIR,allow_newdir=True)
+
+ibs = None
 
 init = False
 predictor = None
@@ -243,7 +245,7 @@ def segment_images(batch,sourceBucket,imFolder,species):
         - sourceBucket (str): the source bucket of the images
     Returns the filename in the same folder as where this function is executed from.
     """
-    global predictor, init, model
+    global predictor, init, model, ibs
 
     if not init:
         # SAM initialization
@@ -280,6 +282,14 @@ def segment_images(batch,sourceBucket,imFolder,species):
         model.load_state_dict(checkpoint['state_dict'], strict=True)
         model = torch.nn.DataParallel(model, device_ids=cfg.GPUS).cuda()
         print('Pose Detection initialized in {} seconds'.format(time.time() - starttime))
+
+        # Wbia initialization
+        print('Initializing Wbia')
+        starttime = time.time()
+        import opendb
+        ibs = opendb(db=Config.WBIA_DB_NAME,dbdir=Config.WBIA_DIR,allow_newdir=True)
+        print('Wbia initialized in {} seconds'.format(time.time() - starttime))
+
         init = True
 
     if not os.path.isdir(imFolder):
