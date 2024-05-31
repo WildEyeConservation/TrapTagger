@@ -41,23 +41,24 @@ RUN pip install \
     -e git+https://github.com/facebookresearch/segment-anything.git@6fdee8f2727f4506cfbbe553e23b895e27956588#egg=segment-anything\
     humanfriendly\
     jsonpickle\
-    matplotlib\
+    matplotlib==3.3.0\
     Pillow\
     requests\
     redis\
     tqdm\
-    pandas\
+    pandas==1.1.4\
     progressbar2\
     pylint\
-    scikit-learn\
+    scikit-image==0.18.3\
+    scikit-learn==1.0.1\
     xlrd\
     pillow-simd\
     boto3\
     opencv-python\
     PyYAML\
-    seaborn\
+    seaborn==0.9.0\
     yacs\
-    numpy\
+    numpy==1.19.3\
     wbia-pyflann==3.3.0\
     wbia-pyhesaff==3.0.2\
     wbia-utool==3.4.0\
@@ -66,7 +67,15 @@ RUN pip install \
     psycopg2-binary==2.9.5\
     Deprecated==1.2.12\
     Flask==1.1.1\
-    Jinja2==3.0.3
+    Jinja2==3.0.3\
+    itsdangerous==2.0.1\
+    Werkzeug==0.16.0\
+    lockfile==0.12.2\
+    oauthlib==3.2.0\
+    requests_oauthlib==1.3.1\
+    simplejson==3.17.3\
+    tornado==6.1\
+    pyzmq==22.1.0
 ENV NVIDIA_VISIBLE_DEVICES all
 ENV NVIDIA_DRIVER_CAPABILITIES compute,utility
 ENV PYTHONPATH=/code:/code/CameraTraps:/code/ScarceNet
