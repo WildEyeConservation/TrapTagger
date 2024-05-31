@@ -65,7 +65,8 @@ RUN pip install \
     SQLAlchemy==1.4.50\
     psycopg2-binary==2.9.5\
     Deprecated==1.2.12\
-    Flask==1.1.1
+    Flask==1.1.1\
+    Jinja2==3.0.3
 ENV NVIDIA_VISIBLE_DEVICES all
 ENV NVIDIA_DRIVER_CAPABILITIES compute,utility
 ENV PYTHONPATH=/code:/code/CameraTraps:/code/ScarceNet
