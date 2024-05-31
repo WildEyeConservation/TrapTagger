@@ -25,23 +25,12 @@ import torch.backends.cudnn as cudnn
 import torchvision.transforms as transforms
 import argparse
 import time
-import sys
-from gpuworker.config import Config
 import os
 import utool as ut
 import math
 
 s3client = boto3.client('s3')
 
-# Need db-uri arguement for wbia db
-db_uri = Config.WBIA_DB_URI
-if db_uri:
-    sys.argv.extend(['--db-uri', db_uri])
-
-# from wbia import opendb
-# ibs = opendb(db=Config.WBIA_DB_NAME,dbdir=Config.WBIA_DIR,allow_newdir=True)
-
-ibs = None
 
 init = False
 predictor = None
@@ -237,7 +226,7 @@ def get_flank(image_path: str) -> str:
 
 #     return detection_flanks
 
-def segment_images(batch,sourceBucket,imFolder,species):
+def segment_images(ibs,batch,sourceBucket,imFolder,species):
     """
     Segments the image using Segment Anything (SAM) - Meta AI research, from a bounding box prompt.
     Params:
@@ -245,16 +234,9 @@ def segment_images(batch,sourceBucket,imFolder,species):
         - sourceBucket (str): the source bucket of the images
     Returns the filename in the same folder as where this function is executed from.
     """
-    global predictor, init, model, ibs
+    global predictor, init, model
 
     if not init:
-        # Wbia initialization
-        print('Initializing Wbia')
-        starttime = time.time()
-        from wbia import opendb
-        ibs = opendb(db=Config.WBIA_DB_NAME,dbdir=Config.WBIA_DIR,allow_newdir=True)
-        print('Wbia initialized in {} seconds'.format(time.time() - starttime))
-
         # SAM initialization
         print('Initializing SAM')
         starttime = time.time()

@@ -19,6 +19,13 @@ from celery import Celery
 from celery.signals import celeryd_after_setup
 from gpuworker import detector
 from gpuworker import classifier
+import sys
+from gpuworker.config import Config
+
+# Need db-uri arguement for wbia db
+db_uri = Config.WBIA_DB_URI
+if db_uri:
+    sys.argv.extend(['--db-uri', db_uri])
 
 BASE = "/data"
 REDIS_IP = os.environ.get('REDIS_IP') or '127.0.0.1'
@@ -115,4 +122,6 @@ def classify(batch):
 @app.task()
 def segment_and_pose(batch,sourceBucket,imFolder,species):
     from gpuworker import similarity
-    return similarity.segment_images(batch,sourceBucket,imFolder,species)
+    from wbia import opendb 
+    ibs = opendb(db=Config.WBIA_DB_NAME,dbdir=Config.WBIA_DIR,allow_newdir=True)
+    return similarity.segment_images(ibs,batch,sourceBucket,imFolder,species)
