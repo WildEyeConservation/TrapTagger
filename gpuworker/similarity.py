@@ -251,7 +251,7 @@ def segment_images(batch,sourceBucket,imFolder,species):
         # Wbia initialization
         print('Initializing Wbia')
         starttime = time.time()
-        from gpuworker.wbia import opendb
+        from wbia import opendb
         ibs = opendb(db=Config.WBIA_DB_NAME,dbdir=Config.WBIA_DIR,allow_newdir=True)
         print('Wbia initialized in {} seconds'.format(time.time() - starttime))
 
