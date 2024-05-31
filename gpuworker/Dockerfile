@@ -17,7 +17,7 @@ FROM python:3.8.12
 RUN apt-get update && \
     apt-get upgrade -y && \
     apt-get install -y git 
-RUN apt-get install ffmpeg libsm6 libxext6  -y
+RUN apt-get install ffmpeg libsm6 libxext6 postgresql -y
 RUN apt-get install wget
 RUN apt-get install unzip
 RUN pip install --upgrade pip
@@ -61,7 +61,9 @@ RUN pip install \
     wbia-pyflann==3.3.0\
     wbia-pyhesaff==3.0.2\
     wbia-utool==3.4.0\
-    wbia-vtool==3.3.0
+    wbia-vtool==3.3.0\
+    SQLAlchemy==1.4.50\
+    psycopg2-binary==2.9.5
 ENV NVIDIA_VISIBLE_DEVICES all
 ENV NVIDIA_DRIVER_CAPABILITIES compute,utility
-ENV PYTHONPATH=/code/CameraTraps:/code/ScarceNet:/code/wbia
+ENV PYTHONPATH=/code:/code/CameraTraps:/code/ScarceNet

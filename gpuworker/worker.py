@@ -21,17 +21,7 @@ from gpuworker import detector
 from gpuworker import classifier
 import sys
 from gpuworker.config import Config
-
-# Debug information
-print("PYTHONPATH:", os.environ.get('PYTHONPATH'))
-print("sys.path:", sys.path)
-
-# Attempt to import wbia
-try:
-    from wbia import opendb
-    print("wbia import succeeded")
-except ImportError as e:
-    print("wbia import failed:", str(e))
+from wbia import opendb
 
 # Need db-uri arguement for wbia db
 db_uri = Config.WBIA_DB_URI
@@ -133,6 +123,5 @@ def classify(batch):
 @app.task()
 def segment_and_pose(batch,sourceBucket,imFolder,species):
     from gpuworker import similarity
-    from wbia import opendb 
     ibs = opendb(db=Config.WBIA_DB_NAME,dbdir=Config.WBIA_DIR,allow_newdir=True)
     return similarity.segment_images(ibs,batch,sourceBucket,imFolder,species)
