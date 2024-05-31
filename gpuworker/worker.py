@@ -22,6 +22,17 @@ from gpuworker import classifier
 import sys
 from gpuworker.config import Config
 
+# Debug information
+print("PYTHONPATH:", os.environ.get('PYTHONPATH'))
+print("sys.path:", sys.path)
+
+# Attempt to import wbia
+try:
+    from wbia import opendb
+    print("wbia import succeeded")
+except ImportError as e:
+    print("wbia import failed:", str(e))
+
 # Need db-uri arguement for wbia db
 db_uri = Config.WBIA_DB_URI
 if db_uri:
