@@ -75,6 +75,7 @@ RUN pip install \
     requests_oauthlib==1.3.1\
     simplejson==3.17.3\
     tornado==6.1\
+    pynmea2==1.18.0\
     pyzmq==22.1.0
 ENV NVIDIA_VISIBLE_DEVICES all
 ENV NVIDIA_DRIVER_CAPABILITIES compute,utility
