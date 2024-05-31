@@ -63,7 +63,8 @@ RUN pip install \
     wbia-utool==3.4.0\
     wbia-vtool==3.3.0\
     SQLAlchemy==1.4.50\
-    psycopg2-binary==2.9.5
+    psycopg2-binary==2.9.5\
+    Deprecated==1.2.12
 ENV NVIDIA_VISIBLE_DEVICES all
 ENV NVIDIA_DRIVER_CAPABILITIES compute,utility
 ENV PYTHONPATH=/code:/code/CameraTraps:/code/ScarceNet
