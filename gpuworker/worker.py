@@ -21,7 +21,7 @@ from gpuworker import detector
 from gpuworker import classifier
 import sys
 from gpuworker.config import Config
-from wbia import opendb
+# from wbia import opendb
 
 # Need db-uri arguement for wbia db
 db_uri = Config.WBIA_DB_URI
@@ -123,5 +123,6 @@ def classify(batch):
 @app.task()
 def segment_and_pose(batch,sourceBucket,imFolder,species):
     from gpuworker import similarity
+    from wbia import opendb
     ibs = opendb(db=Config.WBIA_DB_NAME,dbdir=Config.WBIA_DIR,allow_newdir=True)
     return similarity.segment_images(ibs,batch,sourceBucket,imFolder,species)
