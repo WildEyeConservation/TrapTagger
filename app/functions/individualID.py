@@ -1494,8 +1494,8 @@ def calculate_hotspotter_similarity(self,qaid_list,daid_list):
                 'score_list': []
             }
             for n in range(len(cm.daid_list)):
-                aid2 = cm.daid_list[n]
-                score = cm.score_list[n]
+                aid2 = int(cm.daid_list[n])
+                score = float(cm.score_list[n])
                 cm_dict['daid_list'].append(aid2)
                 cm_dict['score_list'].append(score)
                 fm = cm.fm_list[n]
