@@ -1462,7 +1462,7 @@ def calculate_hotspotter_similarity(self,qaid_list,daid_list):
         from wbia import opendb
         from wbia.algo.hots.pipeline import request_wbia_query_L0
 
-        ibs = opendb(db=Config.WBIA_DB_NAME,dbdir=Config.WBIA_DIR,allow_newdir=True)
+        ibs = opendb(db=Config.WBIA_DB_NAME,dbdir=Config.WBIA_DIR+str(qaid_list[0]),allow_newdir=True)
 
         qreq_ = ibs.new_query_request(qaid_list, daid_list)
         cm_list = request_wbia_query_L0(ibs, qreq_)
@@ -1488,19 +1488,22 @@ def calculate_hotspotter_similarity(self,qaid_list,daid_list):
         simililarity_scores = []
         for cm in cm_list:
             aid1 = cm.qaid
-
-            simililarity_scores.append({
-                'qaid' : aid1,
-                'daid_list' : cm.daid_list,
-                'score_list' : cm.score_list
-            })
-
+            cm_dict = {
+                'qaid': aid1,
+                'daid_list': [],
+                'score_list': []
+            }
             for n in range(len(cm.daid_list)):
                 aid2 = cm.daid_list[n]
+                score = cm.score_list[n]
+                cm_dict['daid_list'].append(aid2)
+                cm_dict['score_list'].append(score)
                 fm = cm.fm_list[n]
                 fs = cm.fsv_list[n]
                 params_iter = [(aid1, aid2, fm, fs)]
                 rowid_list = ibs.db.add_cleanly(tblname, colnames, params_iter, get_rowid_from_superkey, superkey_paramx)
+
+            simililarity_scores.append(cm_dict)
 
         db.session.commit()
 
