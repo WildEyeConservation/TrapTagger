@@ -884,7 +884,9 @@ def processCameraStaticDetections(self,cameragroup_id):
                         break
                 if not found: final_static_groups.append(group)
 
+        static_detections = []
         for group in final_static_groups:
+            static_detections.extend(group)
             detections = db.session.query(Detection).filter(Detection.id.in_(group)).distinct().all()
             staticgroups = db.session.query(Staticgroup).filter(Staticgroup.detections.any(Detection.id.in_(group))).distinct().all()
             if staticgroups:
