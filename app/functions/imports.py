@@ -707,89 +707,182 @@ def cluster_survey(survey_id,queue='parallel',force=False,trapgroup_ids=None):
 #         db.session.remove()
 
 #     return True
+
+# @celery.task(bind=True,max_retries=5)
+# def processCameraStaticDetections(self,cameragroup_id):
+#     '''Checks all the detections associated with a given camera ID to see if they are static or not.'''
+#     try:
+#         ###### Single query approach
+#         queryTemplate1="""
+#             SELECT 
+#                     id1 AS detectionID,
+#                     id2 as matchID
+#             FROM
+#                 (SELECT 
+#                     det1.id AS id1,
+#                     det2.id AS id2,
+#                     GREATEST(LEAST(det1.right, det2.right) - GREATEST(det1.left, det2.left), 0) * 
+#                     GREATEST(LEAST(det1.bottom, det2.bottom) - GREATEST(det1.top, det2.top), 0) AS intersection,
+#                     (det1.right - det1.left) * (det1.bottom - det1.top) AS area1,
+#                     (det2.right - det2.left) * (det2.bottom - det2.top) AS area2
+#                 FROM
+#                     detection AS det1
+#                     JOIN detection AS det2
+#                 ON
+#                     det1.image_id != det2.image_id
+#                 WHERE
+#                     det1.id IN ({})
+#                     AND det2.id IN ({})
+#                     ) AS sq1
+#             WHERE
+#                 (sq1.intersection / (sq1.area1 + sq1.area2 - sq1.intersection) > {} AND sq1.area1 <= 0.05) 
+#                 OR (sq1.intersection / (sq1.area1 + sq1.area2 - sq1.intersection) > {}  AND sq1.area1 > 0.05 AND sq1.area1 <= 0.1)
+#                 OR (sq1.intersection / (sq1.area1 + sq1.area2 - sq1.intersection) > {}  AND sq1.area1 > 0.1 AND sq1.area1 <= 0.3)
+#                 OR (sq1.intersection / (sq1.area1 + sq1.area2 - sq1.intersection) > {}  AND sq1.area1 > 0.3 AND sq1.area1 <= 0.5)
+#                 OR (sq1.intersection / (sq1.area1 + sq1.area2 - sq1.intersection) > {}  AND sq1.area1 > 0.5 AND sq1.area1 <= 0.9)
+#         """
+
+#         dets = [r[0] for r in db.session.query(Detection.id)\
+#                                             .join(Image)\
+#                                             .join(Camera)\
+#                                             .filter(~Image.clusters.any())\
+#                                             .filter(Camera.cameragroup_id==cameragroup_id)\
+#                                             .filter(or_(and_(Detection.source==model,Detection.score>Config.DETECTOR_THRESHOLDS[model]) for model in Config.DETECTOR_THRESHOLDS))\
+#                                             .order_by(Image.corrected_timestamp)\
+#                                             .distinct().all()]
+
+#         final_static_groups = []
+#         static_detections = []
+#         grouping = 5000
+#         overlap = 500
+#         for i in range(0,len(dets),grouping):
+#             static_groups = {}
+#             chunk = dets[i:i+grouping+overlap]
+#             if (len(chunk)<(grouping+overlap)) and (len(dets)>grouping):
+#                 chunk = dets[-grouping-overlap:]
+            
+#             det_ids = ','.join([str(r) for r in chunk])
+#             for det_id,match_id in db.session.execute(queryTemplate1.format(det_ids,det_ids,Config.STATIC_IOU5,Config.STATIC_IOU10,Config.STATIC_IOU30,Config.STATIC_IOU50,Config.STATIC_IOU90)):
+#                 if det_id not in static_groups:
+#                     static_groups[det_id] = []
+#                 static_groups[det_id].append(match_id)
+
+#             # Threshold for match percentage based on number of images
+#             image_count = db.session.query(Image).join(Detection).filter(Detection.id.in_(chunk)).distinct().count()
+#             if image_count > 100:
+#                 match_percentage = round(Config.STATIC_PERCENTAGE / math.log(image_count, 10), 2)
+#             else:
+#                 match_percentage = Config.STATIC_PERCENTAGE
+
+#             # Process static groups
+#             for det_id, match_ids in static_groups.items():
+#                 group = match_ids
+#                 group.append(det_id)
+#                 if len(match_ids)>Config.STATIC_MATCHCOUNT and len(match_ids)/image_count>=match_percentage and any([d_id not in static_detections for d_id in group]):
+#                     static_detections.extend(group)
+
+#                     found = False
+#                     for item in final_static_groups:
+#                         if any([d_id in item for d_id in group]):
+#                             item.extend(group)
+#                             item = list(set(item))
+#                             found = True
+#                             break
+
+#                     if not found: final_static_groups.append(group)
+
+def IOU(bbox1,bbox2):
+    '''Calculates IOU between two bounding boxes'''
+    intersection = max(min(bbox1['right'],bbox2['right']) - max(bbox1['left'],bbox2['left']),0) * max(min(bbox1['bottom'],bbox2['bottom']) - max(bbox1['top'],bbox2['top']),0)
+    return intersection / (bbox1['area'] + bbox2['area'] - intersection)
+
+def calc_det_iou(detection_id,df):
+    ''' Calculates the IOUs for a detection against the specified dataframe '''
+
+    detection = df[df['detection_id']==detection_id].iloc[0]
+    df.drop(df[df['detection_id']==detection_id].index,inplace=True)
+    
+    df = df[
+        (df['left']<detection['right']) &
+        (df['right']>detection['left']) &
+        (df['bottom']>detection['top']) &
+        (df['top']<detection['bottom'])
+    ]
+    
+    if len(df) == 0: return []
+    
+    df['iou'] = df.apply(lambda x: IOU(detection,x), axis=1)
+
+    if detection['area'] <= 0.05:
+        threshold = Config.STATIC_IOU5
+    elif detection['area'] <= 0.1:
+        threshold = Config.STATIC_IOU10
+    elif detection['area'] <= 0.3:
+        threshold = Config.STATIC_IOU30
+    elif detection['area'] <= 0.5:
+        threshold = Config.STATIC_IOU50
+    elif detection['area'] <= 0.9:
+        threshold = Config.STATIC_IOU90
+    else:
+        return []
+
+    return list(df[df['iou']>threshold]['detection_id'])
     
 @celery.task(bind=True,max_retries=5)
 def processCameraStaticDetections(self,cameragroup_id):
     '''Checks all the detections associated with a given camera ID to see if they are static or not.'''
     try:
-        ###### Single query approach
-        queryTemplate1="""
-            SELECT 
-                    id1 AS detectionID,
-                    id2 as matchID
-            FROM
-                (SELECT 
-                    det1.id AS id1,
-                    det2.id AS id2,
-                    GREATEST(LEAST(det1.right, det2.right) - GREATEST(det1.left, det2.left), 0) * 
-                    GREATEST(LEAST(det1.bottom, det2.bottom) - GREATEST(det1.top, det2.top), 0) AS intersection,
-                    (det1.right - det1.left) * (det1.bottom - det1.top) AS area1,
-                    (det2.right - det2.left) * (det2.bottom - det2.top) AS area2
-                FROM
-                    detection AS det1
-                    JOIN detection AS det2
-                ON
-                    det1.image_id != det2.image_id
-                WHERE
-                    det1.id IN ({})
-                    AND det2.id IN ({})
-                    ) AS sq1
-            WHERE
-                (sq1.intersection / (sq1.area1 + sq1.area2 - sq1.intersection) > {} AND sq1.area1 <= 0.05) 
-                OR (sq1.intersection / (sq1.area1 + sq1.area2 - sq1.intersection) > {}  AND sq1.area1 > 0.05 AND sq1.area1 <= 0.1)
-                OR (sq1.intersection / (sq1.area1 + sq1.area2 - sq1.intersection) > {}  AND sq1.area1 > 0.1 AND sq1.area1 <= 0.3)
-                OR (sq1.intersection / (sq1.area1 + sq1.area2 - sq1.intersection) > {}  AND sq1.area1 > 0.3 AND sq1.area1 <= 0.5)
-                OR (sq1.intersection / (sq1.area1 + sq1.area2 - sq1.intersection) > {}  AND sq1.area1 > 0.5 AND sq1.area1 <= 0.9)
-        """
 
-        dets = [r[0] for r in db.session.query(Detection.id)\
-                                            .join(Image)\
-                                            .join(Camera)\
-                                            .filter(~Image.clusters.any())\
-                                            .filter(Camera.cameragroup_id==cameragroup_id)\
-                                            .filter(or_(and_(Detection.source==model,Detection.score>Config.DETECTOR_THRESHOLDS[model]) for model in Config.DETECTOR_THRESHOLDS))\
-                                            .order_by(Image.corrected_timestamp)\
-                                            .distinct().all()]
+        image_count = db.session.query(Image).join(Camera).filter(Camera.cameragroup_id==cameragroup_id).distinct().count()
+        if image_count > 100:
+            match_percentage = round(Config.STATIC_PERCENTAGE / math.log(image_count, 10), 2)
+        else:
+            match_percentage = Config.STATIC_PERCENTAGE
+        
+        df = pd.read_sql(db.session.query(
+                            Detection.id.label('detection_id'),
+                            Detection.left.label('left'),
+                            Detection.right.label('right'),
+                            Detection.top.label('top'),
+                            Detection.bottom.label('bottom'),
+                        )\
+                        .join(Image)\
+                        .join(Camera)\
+                        .filter(Camera.cameragroup_id==cameragroup_id)\
+                        .filter(or_(and_(Detection.source==model,Detection.score>Config.DETECTOR_THRESHOLDS[model]) for model in Config.DETECTOR_THRESHOLDS))\
+                        .statement,db.session.bind)
+
+        db.session.remove()
+
+        df['area'] = df.apply(lambda x: (x.right - x.left) * (x.bottom - x.top), axis=1)
+        detection_ids = list(df['detection_id'])
 
         final_static_groups = []
-        static_detections = []
-        grouping = 5000
-        overlap = 500
-        for i in range(0,len(dets),grouping):
-            static_groups = {}
-            chunk = dets[i:i+grouping+overlap]
-            if (len(chunk)<(grouping+overlap)) and (len(dets)>grouping):
-                chunk = dets[-grouping-overlap:]
+        for detection_id in detection_ids:
+
+            new_df = df.copy()
+            for group in final_static_groups:
+                if detection_id in group:
+                    new_df = new_df[~(new_df['detection_id'].isin(group) & (new_df['detection_id']!=detection_id))]
+                    break
+
+            if len(new_df) == 0: continue
+
+            group = calc_det_iou(detection_id,new_df)
+
+            # This allows the df to become smaller over the loop (no need to recalculate IOUs from the opposite side)
+            df.drop(df[df['detection_id']==detection_id].index,inplace=True)
+            group.append(detection_id)
             
-            det_ids = ','.join([str(r) for r in chunk])
-            for det_id,match_id in db.session.execute(queryTemplate1.format(det_ids,det_ids,Config.STATIC_IOU5,Config.STATIC_IOU10,Config.STATIC_IOU30,Config.STATIC_IOU50,Config.STATIC_IOU90)):
-                if det_id not in static_groups:
-                    static_groups[det_id] = []
-                static_groups[det_id].append(match_id)
-
-            # Threshold for match percentage based on number of images
-            image_count = db.session.query(Image).join(Detection).filter(Detection.id.in_(chunk)).distinct().count()
-            if image_count > 100:
-                match_percentage = round(Config.STATIC_PERCENTAGE / math.log(image_count, 10), 2)
-            else:
-                match_percentage = Config.STATIC_PERCENTAGE
-
-            # Process static groups
-            for det_id, match_ids in static_groups.items():
-                group = match_ids
-                group.append(det_id)
-                if len(match_ids)>Config.STATIC_MATCHCOUNT and len(match_ids)/image_count>=match_percentage and any([d_id not in static_detections for d_id in group]):
-                    static_detections.extend(group)
-
-                    found = False
-                    for item in final_static_groups:
-                        if any([d_id in item for d_id in group]):
-                            item.extend(group)
-                            item = list(set(item))
-                            found = True
-                            break
-
-                    if not found: final_static_groups.append(group)
+            if (len(group)>Config.STATIC_MATCHCOUNT) and (len(group)/image_count>=match_percentage):
+                found = False
+                for item in final_static_groups:
+                    if any([d_id in item for d_id in group]):
+                        item.extend(group)
+                        item = list(set(item))
+                        found = True
+                        break
+                if not found: final_static_groups.append(group)
 
         for group in final_static_groups:
             detections = db.session.query(Detection).filter(Detection.id.in_(group)).distinct().all()
