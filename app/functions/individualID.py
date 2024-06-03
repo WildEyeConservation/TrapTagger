@@ -438,11 +438,11 @@ def calculate_detection_similarities(self,task_ids,species,algorithm):
                 for cm_list in cm_lists:
                     for cm in cm_list:
                         startTime = time.time()
-                        detection1_id = det_Translation[cm.qaid]
+                        detection1_id = det_Translation[cm['qaid']]
                         covered_detections = []
-                        for n in range(len(cm.daid_list)):
-                            score = cm.score_list[n]
-                            aid2 = cm.daid_list[n]
+                        for n in range(len(cm['daid_list'])):
+                            score = cm['score_list'][n]
+                            aid2 = cm['daid_list'][n]
                             detection2_id = det_Translation[aid2]
                             covered_detections.append(detection2_id)
 
