@@ -1461,6 +1461,8 @@ def calculate_hotspotter_similarity(self,qaid_list,daid_list):
     '''
 
     try:
+        app.logger.info('Calculating Hotspotter Similarity for {} query IDs and {} database IDs'.format(len(qaid_list),len(daid_list)))
+
         from wbia.algo.hots.pipeline import request_wbia_query_L0
 
         if GLOBALS.ibs is None:
