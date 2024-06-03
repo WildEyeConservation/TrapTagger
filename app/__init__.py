@@ -84,7 +84,8 @@ def make_celery(flask_app):
         Queue('ram_intensive',     routing_key='ram_intensive.#'),
         Queue('statistics',     routing_key='statistics.#'),
         Queue('pipeline',     routing_key='pipeline.#'),
-        Queue('llava',     routing_key='llava.#')
+        Queue('llava',     routing_key='llava.#'),
+        Queue('similarity',     routing_key='similarity.#')
     ]
 
     if not Config.INITIAL_SETUP:
@@ -152,6 +153,11 @@ logger.info('App Startup')
 
 celery = make_celery(app)
 
+# Need db-uri arguement for wbia db
+db_uri = Config.WBIA_DB_URI
+if db_uri:
+    sys.argv.extend(['--db-uri', db_uri])
+    
 from app import routes
 from app.functions.globals import update_label_ids
 if not Config.MAINTENANCE: update_label_ids()

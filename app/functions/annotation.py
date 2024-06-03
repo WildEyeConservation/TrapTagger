@@ -19,7 +19,7 @@ from app.models import *
 from app.functions.globals import taggingLevelSQ, addChildLabels, resolve_abandoned_jobs, createTurkcodes, deleteTurkcodes, \
                                     updateTaskCompletionStatus, updateLabelCompletionStatus, updateIndividualIdStatus, retryTime, chunker, \
                                     getClusterClassifications, checkForIdWork, numify_timestamp, rDets, prep_required_images, updateAllStatuses
-from app.functions.individualID import calculate_detection_similarities, generateUniqueName, cleanUpIndividuals, calculate_individual_similarities, check_individual_detection_mismatch
+from app.functions.individualID import calculate_detection_similarities, generateUniqueName, cleanUpIndividuals, calculate_individual_similarities, check_individual_detection_mismatch, process_detections_for_individual_id
 # from app.functions.results import resetImageDownloadStatus, resetVideoDownloadStatus
 import GLOBALS
 from sqlalchemy.sql import func, distinct, or_, alias, and_
@@ -55,10 +55,16 @@ def launch_task(self,task_id):
                 label = db.session.query(Label).filter(Label.task==task).filter(Label.description==species).first()
 
                 #Start calculating detection similarities in the background
+                # if tL[4]=='h':
+                #     calculate_detection_similarities.delay(task_ids=[task_id],species=label.description,algorithm='hotspotter')
+                # elif tL[4]=='n':
+                #     calculate_detection_similarities.delay(task_ids=[task_id],species=label.description,algorithm='none')
                 if tL[4]=='h':
-                    calculate_detection_similarities.delay(task_ids=[task_id],species=label.description,algorithm='hotspotter')
-                elif tL[4]=='n':
-                    calculate_detection_similarities.delay(task_ids=[task_id],species=label.description,algorithm='none')
+                    process_detections_for_individual_id(task_id,species)
+                    task = db.session.query(Task).get(task_id)
+                # elif tL[4]=='n':
+                    # process_detections_for_individual_id(task_id,species)
+                    # Not sure if we still need to calculate flank 
 
                 if tL[3] == 'a':
                     sq = db.session.query(Cluster.id.label('clusterID'),Detection.id.label('detID'),func.count(distinct(Detection.id)).label('detCount'),func.count(distinct(Image.id)).label('imCount'))\
@@ -478,13 +484,25 @@ def wrapUpTask(self,task_id):
             task.ai_check_complete = True
 
         #Accounts for individual ID background processing
+        # if 'processing' not in task.survey.status:
+        #     if '-4' in task.tagging_level:
+        #         tL = re.split(',',task.tagging_level)
+        #         species = tL[1]
+        #         task.survey.status = 'indprocessing'
+        #         db.session.commit()
+        #         calculate_individual_similarities.delay(task.id,species)	
+        #     else:
+        #         task.survey.status = 'Ready'
         if 'processing' not in task.survey.status:
             if '-4' in task.tagging_level:
                 tL = re.split(',',task.tagging_level)
                 species = tL[1]
-                task.survey.status = 'indprocessing'
+                task.survey.status = 'processing'
                 db.session.commit()
-                calculate_individual_similarities.delay(task.id,species)	
+                if tL[4]=='h':
+                    calculate_detection_similarities.delay(task_ids=[task_id],species=species,algorithm='hotspotter')
+                elif tL[4]=='n':
+                    calculate_detection_similarities.delay(task_ids=[task_id],species=species,algorithm='none')
             else:
                 task.survey.status = 'Ready'
 

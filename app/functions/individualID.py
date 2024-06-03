@@ -16,10 +16,10 @@ limitations under the License.
 
 from app import app, db, celery
 from app.models import *
-from app.functions.globals import coordinateDistance, retryTime, rDets, updateIndividualIdStatus
+from app.functions.globals import coordinateDistance, retryTime, rDets, updateIndividualIdStatus, chunker
 import GLOBALS
 import time
-from sqlalchemy.sql import func, or_, and_, alias
+from sqlalchemy.sql import func, or_, and_, alias, distinct
 from sqlalchemy.sql.expression import cast
 from sqlalchemy import desc
 import random
@@ -32,6 +32,298 @@ import traceback
 import sqlalchemy as sa
 import shutil
 from celery.result import allow_join_result
+from gpuworker.worker import segment_and_pose
+
+# @celery.task(bind=True,max_retries=5,ignore_result=True)
+# def calculate_detection_similarities(self,task_ids,species,algorithm):
+#     '''
+#     Celery task for calculating the similarity between detections for individual ID purposes.
+
+#         Parameters:
+#             task_ids (list): Tasks for which the calculation must take place
+#             species (str): The species for which the individual ID is being performed
+#             algorithm (str): The selected algorithm
+#     '''
+
+#     try:
+#         OverallStartTime = time.time()
+#         if len(task_ids)==1:
+#             task = db.session.query(Task).get(task_ids[0])
+#         else:
+#             task = db.session.query(Task).filter(Task.id.in_(task_ids)).filter(Task.sub_tasks.any()).first()
+#         task.survey.status = 'processing'
+#         db.session.commit()
+#         # label = db.session.query(Label).filter(Label.description==species).filter(Label.task==task).first()
+
+#         rootQuery = db.session.query(Detection.id)\
+#                             .join(Labelgroup)\
+#                             .join(Task)\
+#                             .join(Label,Labelgroup.labels)\
+#                             .filter(Task.id.in_(task_ids))\
+#                             .filter(Label.description==species)\
+#                             .filter(or_(and_(Detection.source==model,Detection.score>Config.DETECTOR_THRESHOLDS[model]) for model in Config.DETECTOR_THRESHOLDS)) \
+#                             .filter(Detection.static == False) \
+#                             .filter(~Detection.status.in_(Config.DET_IGNORE_STATUSES))
+                    
+#         sq = rootQuery.subquery()
+#         sq2 = rootQuery.subquery()
+#         queryDetections = [r[0] for r in rootQuery.distinct().all()]
+
+#         # Ensure that we only do this when we need to
+#         calculation_needed = False
+#         for detection in queryDetections:
+#             count = db.session.query(DetSimilarity)\
+#                         .filter(or_(DetSimilarity.detection_1==detection,DetSimilarity.detection_2==detection))\
+#                         .join(sq,DetSimilarity.detection_1==sq.c.id)\
+#                         .join(sq2,DetSimilarity.detection_2==sq2.c.id)\
+#                         .distinct().count()
+#             if count<(len(queryDetections)-1):
+#                 calculation_needed = True
+#                 break
+
+#         if calculation_needed:
+
+#             # # Delete old detSims
+#             # destims = db.session.query(DetSimilarity)\
+#             #             .join(sq,DetSimilarity.detection_1==sq.c.id)\
+#             #             .join(sq2,DetSimilarity.detection_2==sq2.c.id)\
+#             #             .all()
+
+#             # for destim in destims:
+#             #     db.session.delete(destim)
+
+#             if algorithm == 'hotspotter':
+#                 # Wbia is only imported here to prevent its version of mysql interfering with flask migrate
+#                 # Also suppressing deprication warning since wbia's utool seems to be an issue
+#                 # this means we need to use python 3.9 or lower
+#                 import warnings
+#                 with warnings.catch_warnings():
+#                     warnings.filterwarnings("ignore", category=DeprecationWarning)
+#                     from wbia import opendb
+#                     import utool as ut
+#                     from wbia.algo.hots.pipeline import request_wbia_query_L0
+
+#                 startTime = time.time()
+#                 labelName = species.replace(' ','_').lower()
+#                 dbName = 'hots_' + task.survey.name.replace(' ','_').lower() + '_' + task.name.replace(' ','_').lower() + '_' + labelName
+#                 imFolder = dbName + '_images'
+
+#                 if os.path.isdir(dbName):
+#                     shutil.rmtree(dbName, ignore_errors=True)
+#                 if os.path.isdir(imFolder):
+#                     shutil.rmtree(imFolder, ignore_errors=True)
+
+#                 os.mkdir(imFolder)
+
+#                 # Create new DB
+#                 ibs = opendb(dbdir=dbName,allow_newdir=True)
+
+#                 # Add species
+#                 species_nice_list = [species]
+#                 species_text_list = [labelName]
+#                 species_code_list = ['SH']
+#                 species_ids = ibs.add_species(species_nice_list, species_text_list, species_code_list)
+#                 hs_label = species_ids[0]
+
+#                 # get the data from the db efficiently
+#                 data = db.session.query(Detection.id,Detection.left,Detection.right,Detection.top,Detection.bottom,Image.id,Image.filename,Camera.path)\
+#                                     .join(Image,Detection.image_id==Image.id)\
+#                                     .join(Camera,Image.camera_id==Camera.id)\
+#                                     .join(Labelgroup,Labelgroup.detection_id==Detection.id)\
+#                                     .join(Task,Labelgroup.task_id==Task.id)\
+#                                     .join(Label,Labelgroup.labels)\
+#                                     .filter(Task.id.in_(task_ids))\
+#                                     .filter(Label.description==species)\
+#                                     .filter(or_(and_(Detection.source==model,Detection.score>Config.DETECTOR_THRESHOLDS[model]) for model in Config.DETECTOR_THRESHOLDS)) \
+#                                     .filter(Detection.static == False) \
+#                                     .filter(~Detection.status.in_(Config.DET_IGNORE_STATUSES)) \
+#                                     .distinct().all()
+
+#                 # Import images
+#                 aid_list = []
+#                 aid_Translation = {}
+#                 det_Translation = {}
+#                 gid_Translation = {}
+#                 for item in data:
+#                     image_id = item[5]
+
+#                     if image_id not in gid_Translation.keys():
+#                         #Download & import image
+#                         path = item[-1]
+#                         filename = item[-2]
+#                         key = path+'/'+filename
+#                         filename = imFolder + '/' + str(image_id) + '.jpg'
+#                         GLOBALS.s3client.download_file(Bucket=Config.BUCKET, Key=key, Filename=filename)
+#                         gid = ibs.add_images([ut.unixpath(ut.grab_test_imgpath(filename))], auto_localize=False)[0]
+#                         gid_Translation[image_id] = gid
+
+#                     # Annotations
+#                     gid = gid_Translation[image_id]
+#                     detection_id = item[0]
+#                     left = item[1]
+#                     right = item[2]
+#                     top = item[3]
+#                     bottom = item[4]
+
+#                     imWidth = ibs.get_image_widths(gid)
+#                     imHeight = ibs.get_image_heights(gid)
+#                     w = math.floor(imWidth*(right-left))
+#                     h = math.floor(imHeight*(bottom-top))
+#                     x = math.floor(imWidth*left)
+#                     y = math.floor(imHeight*top)
+
+#                     aids = ibs.add_annots([gid],bbox_list=[[x, y, w, h]],species_rowid_list=[hs_label])
+#                     aid_list.extend(aids)
+
+#                     aid = aids[0]
+#                     aid_Translation[detection_id] = aid
+#                     det_Translation[aid] = detection_id
+
+#                 endTime = time.time()
+#                 if Config.DEBUGGING: app.logger.info("Hotspotter DB set up in {}".format(endTime - startTime))
+                
+#                 # Run Hotspotter
+#                 # quaid_list = query ids
+#                 # daid_list = database ids
+#                 qaid_list = []
+#                 for detection in queryDetections:
+#                     aid = aid_Translation[detection]
+#                     qaid_list.append(aid)
+
+#                 daid_list = aid_list.copy()
+#                 qreq_ = ibs.new_query_request(qaid_list, daid_list)
+#                 cm_list = request_wbia_query_L0(ibs, qreq_)
+
+#                 # Digest results
+#                 for cm in cm_list:
+#                     startTime = time.time()
+#                     detection1_id = det_Translation[cm.qaid]
+#                     covered_detections = []
+#                     for n in range(len(cm.daid_list)):
+#                         score = cm.score_list[n]
+#                         aid2 = cm.daid_list[n]
+#                         detection2_id = det_Translation[aid2]
+#                         covered_detections.append(detection2_id)
+
+#                         detSimilarity = db.session.query(DetSimilarity).filter(\
+#                                                     or_(\
+#                                                         and_(\
+#                                                             DetSimilarity.detection_1==detection1_id,\
+#                                                             DetSimilarity.detection_2==detection2_id),\
+#                                                         and_(\
+#                                                             DetSimilarity.detection_1==detection2_id,\
+#                                                             DetSimilarity.detection_2==detection1_id)\
+#                                                     )).first()
+
+#                         if detSimilarity == None:
+#                             detSimilarity = DetSimilarity(detection_1=detection1_id, detection_2=detection2_id)
+#                             db.session.add(detSimilarity)
+
+#                         detSimilarity.score = float(score)
+
+#                     non_covered_detections = [r[0] for r in db.session.query(Detection.id)\
+#                                                     .join(Labelgroup)\
+#                                                     .join(Task)\
+#                                                     .join(Label,Labelgroup.labels)\
+#                                                     .filter(Task.id.in_(task_ids))\
+#                                                     .filter(Label.description==species)\
+#                                                     .filter(or_(and_(Detection.source==model,Detection.score>Config.DETECTOR_THRESHOLDS[model]) for model in Config.DETECTOR_THRESHOLDS)) \
+#                                                     .filter(Detection.static == False) \
+#                                                     .filter(~Detection.status.in_(Config.DET_IGNORE_STATUSES)) \
+#                                                     .filter(~Detection.id.in_(covered_detections))\
+#                                                     .filter(Detection.id!=detection1_id)\
+#                                                     .distinct().all()]
+
+#                     for non_covered in non_covered_detections:
+#                         detSimilarity = db.session.query(DetSimilarity).filter(\
+#                                                         or_(\
+#                                                             and_(\
+#                                                                 DetSimilarity.detection_1==detection1_id,\
+#                                                                 DetSimilarity.detection_2==non_covered),\
+#                                                             and_(\
+#                                                                 DetSimilarity.detection_1==non_covered,\
+#                                                                 DetSimilarity.detection_2==detection1_id)\
+#                                                         )).first()
+
+#                         if detSimilarity == None:
+#                             detSimilarity = DetSimilarity(detection_1=detection1_id, detection_2=non_covered)
+#                             db.session.add(detSimilarity)
+
+#                         if detSimilarity.score == None:
+#                             detSimilarity.score = 0
+
+#                     # db.session.commit()
+#                     if Config.DEBUGGING: app.logger.info("Hotspotter run for detection {} in {}s".format(detection1_id,time.time() - startTime))
+
+#                 # Delete images & db
+#                 shutil.rmtree(dbName, ignore_errors=True)
+#                 shutil.rmtree(imFolder, ignore_errors=True)
+
+#             elif algorithm == 'none':
+#                 allDetections = queryDetections.copy()
+
+#                 for queryDetection in queryDetections:
+#                     allDetections.remove(queryDetection)
+#                     for detection in allDetections:
+#                         detSimilarity = db.session.query(DetSimilarity).filter(\
+#                                                         or_(\
+#                                                             and_(\
+#                                                                 DetSimilarity.detection_1==queryDetection,\
+#                                                                 DetSimilarity.detection_2==detection),\
+#                                                             and_(\
+#                                                                 DetSimilarity.detection_1==detection,\
+#                                                                 DetSimilarity.detection_2==queryDetection)\
+#                                                         )).first()
+
+#                         if detSimilarity == None:
+#                             detSimilarity = DetSimilarity(detection_1=queryDetection, detection_2=detection)
+#                             db.session.add(detSimilarity)
+
+#                         detSimilarity.score = 1
+
+#         app.logger.info("Hotspotter run completed in {}s".format(time.time() - OverallStartTime))
+
+#         # if len(task_ids)==1:
+#         #     active_jobs = [r.decode() for r in GLOBALS.redisClient.smembers('active_jobs_'+str(task_ids[0]))]
+#         #     user_ids = [r[0] for r in db.session.query(User.id)\
+#         #                                         .join(Individual, Individual.user_id==User.id)\
+#         #                                         .join(Task,Individual.tasks)\
+#         #                                         .outerjoin(IndSimilarity, or_(IndSimilarity.individual_1==Individual.id,IndSimilarity.individual_2==Individual.id))\
+#         #                                         .filter(Task.id.in_(task_ids))\
+#         #                                         .filter(Individual.species==species)\
+#         #                                         .filter(IndSimilarity.score==None)\
+#         #                                         .filter(~User.username.in_(active_jobs))\
+#         #                                         .distinct().all()]
+#         # else:
+#         #     user_ids = None
+
+#         # task.survey.status = 'indprocessing'
+#         # db.session.commit()
+
+#         # calculate_individual_similarities.delay(task_id=task.id,species=species,user_ids=user_ids)
+
+#         db.session.commit()
+#         task = db.session.query(Task).get(task_ids[0])
+#         if task.status not in ['PROGRESS','PENDING'] or (len(task_ids)>1 and ('-5' in task.tagging_level)):
+#             task.survey.status = 'indprocessing'
+#             db.session.commit()
+#             calculate_individual_similarities.delay(task_id=task.id,species=species)
+#         else:
+#             task.survey.status = 'Launched'
+#             db.session.commit()
+
+#     except Exception as exc:
+#         app.logger.info(' ')
+#         app.logger.info('!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!')
+#         app.logger.info(traceback.format_exc())
+#         app.logger.info('!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!')
+#         app.logger.info(' ')
+#         self.retry(exc=exc, countdown= retryTime(self.request.retries))
+
+#     finally:
+#         db.session.remove()
+
+#     return True
 
 @celery.task(bind=True,max_retries=5,ignore_result=True)
 def calculate_detection_similarities(self,task_ids,species,algorithm):
@@ -52,7 +344,6 @@ def calculate_detection_similarities(self,task_ids,species,algorithm):
             task = db.session.query(Task).filter(Task.id.in_(task_ids)).filter(Task.sub_tasks.any()).first()
         task.survey.status = 'processing'
         db.session.commit()
-        # label = db.session.query(Label).filter(Label.description==species).filter(Label.task==task).first()
 
         rootQuery = db.session.query(Detection.id)\
                             .join(Labelgroup)\
@@ -64,201 +355,148 @@ def calculate_detection_similarities(self,task_ids,species,algorithm):
                             .filter(Detection.static == False) \
                             .filter(~Detection.status.in_(Config.DET_IGNORE_STATUSES))
                     
-        sq = rootQuery.subquery()
+        sq1 = rootQuery.subquery()
         sq2 = rootQuery.subquery()
-        queryDetections = [r[0] for r in rootQuery.distinct().all()]
 
-        # Ensure that we only do this when we need to
-        calculation_needed = False
-        for detection in queryDetections:
-            count = db.session.query(DetSimilarity)\
-                        .filter(or_(DetSimilarity.detection_1==detection,DetSimilarity.detection_2==detection))\
-                        .join(sq,DetSimilarity.detection_1==sq.c.id)\
+        detsims1 = db.session.query(Detection.id.label('detID1'), func.count(distinct(DetSimilarity.detection_2)).label('simCount1'))\
+                        .join(DetSimilarity,DetSimilarity.detection_1==Detection.id)\
+                        .join(sq1,DetSimilarity.detection_1==sq1.c.id)\
                         .join(sq2,DetSimilarity.detection_2==sq2.c.id)\
-                        .distinct().count()
-            if count<(len(queryDetections)-1):
-                calculation_needed = True
-                break
+                        .group_by(Detection.id)\
+                        .subquery()
 
-        if calculation_needed:
+        detsims2 = db.session.query(Detection.id.label('detID2'), func.count(distinct(DetSimilarity.detection_1)).label('simCount2'))\
+                        .join(DetSimilarity,DetSimilarity.detection_2==Detection.id)\
+                        .join(sq1,DetSimilarity.detection_1==sq1.c.id)\
+                        .join(sq2,DetSimilarity.detection_2==sq2.c.id)\
+                        .group_by(Detection.id)\
+                        .subquery()
 
-            # # Delete old detSims
-            # destims = db.session.query(DetSimilarity)\
-            #             .join(sq,DetSimilarity.detection_1==sq.c.id)\
-            #             .join(sq2,DetSimilarity.detection_2==sq2.c.id)\
-            #             .all()
+        detsims_counts = db.session.query(Detection.id, Detection.aid, Detection.flank, func.coalesce(detsims1.c.simCount1,0) + func.coalesce(detsims2.c.simCount2,0))\
+                        .join(sq1,Detection.id==sq1.c.id)\
+                        .outerjoin(detsims1,Detection.id==detsims1.c.detID1)\
+                        .outerjoin(detsims2,Detection.id==detsims2.c.detID2)\
+                        .distinct().all()
+                        
 
-            # for destim in destims:
-            #     db.session.delete(destim)
+        required_detections = []
+        det_Translation = {}
+        req_count = len(detsims_counts) - 1
+        for det in detsims_counts:
+            if det[3] < req_count:
+                required_detections.append((det[0],det[1],det[2]))
+                det_Translation[det[1]] = det[0]
 
+
+        if len(required_detections)>0:
             if algorithm == 'hotspotter':
-                # Wbia is only imported here to prevent its version of mysql interfering with flask migrate
-                # Also suppressing deprication warning since wbia's utool seems to be an issue
-                # this means we need to use python 3.9 or lower
-                import warnings
-                with warnings.catch_warnings():
-                    warnings.filterwarnings("ignore", category=DeprecationWarning)
-                    from wbia import opendb
-                    import utool as ut
-                    from wbia.algo.hots.pipeline import request_wbia_query_L0
-
-                startTime = time.time()
-                labelName = species.replace(' ','_').lower()
-                dbName = 'hots_' + task.survey.name.replace(' ','_').lower() + '_' + task.name.replace(' ','_').lower() + '_' + labelName
-                imFolder = dbName + '_images'
-
-                if os.path.isdir(dbName):
-                    shutil.rmtree(dbName, ignore_errors=True)
-                if os.path.isdir(imFolder):
-                    shutil.rmtree(imFolder, ignore_errors=True)
-
-                os.mkdir(imFolder)
-
-                # Create new DB
-                ibs = opendb(dbdir=dbName,allow_newdir=True)
-
-                # Add species
-                species_nice_list = [species]
-                species_text_list = [labelName]
-                species_code_list = ['SH']
-                species_ids = ibs.add_species(species_nice_list, species_text_list, species_code_list)
-                hs_label = species_ids[0]
-
-                # get the data from the db efficiently
-                data = db.session.query(Detection.id,Detection.left,Detection.right,Detection.top,Detection.bottom,Image.id,Image.filename,Camera.path)\
-                                    .join(Image,Detection.image_id==Image.id)\
-                                    .join(Camera,Image.camera_id==Camera.id)\
-                                    .join(Labelgroup,Labelgroup.detection_id==Detection.id)\
-                                    .join(Task,Labelgroup.task_id==Task.id)\
-                                    .join(Label,Labelgroup.labels)\
-                                    .filter(Task.id.in_(task_ids))\
-                                    .filter(Label.description==species)\
-                                    .filter(or_(and_(Detection.source==model,Detection.score>Config.DETECTOR_THRESHOLDS[model]) for model in Config.DETECTOR_THRESHOLDS)) \
-                                    .filter(Detection.static == False) \
-                                    .filter(~Detection.status.in_(Config.DET_IGNORE_STATUSES)) \
-                                    .distinct().all()
-
-                # Import images
-                aid_list = []
-                aid_Translation = {}
-                det_Translation = {}
-                gid_Translation = {}
-                for item in data:
-                    image_id = item[5]
-
-                    if image_id not in gid_Translation.keys():
-                        #Download & import image
-                        path = item[-1]
-                        filename = item[-2]
-                        key = path+'/'+filename
-                        filename = imFolder + '/' + str(image_id) + '.jpg'
-                        GLOBALS.s3client.download_file(Bucket=Config.BUCKET, Key=key, Filename=filename)
-                        gid = ibs.add_images([ut.unixpath(ut.grab_test_imgpath(filename))], auto_localize=False)[0]
-                        gid_Translation[image_id] = gid
-
-                    # Annotations
-                    gid = gid_Translation[image_id]
-                    detection_id = item[0]
-                    left = item[1]
-                    right = item[2]
-                    top = item[3]
-                    bottom = item[4]
-
-                    imWidth = ibs.get_image_widths(gid)
-                    imHeight = ibs.get_image_heights(gid)
-                    w = math.floor(imWidth*(right-left))
-                    h = math.floor(imHeight*(bottom-top))
-                    x = math.floor(imWidth*left)
-                    y = math.floor(imHeight*top)
-
-                    aids = ibs.add_annots([gid],bbox_list=[[x, y, w, h]],species_rowid_list=[hs_label])
-                    aid_list.extend(aids)
-
-                    aid = aids[0]
-                    aid_Translation[detection_id] = aid
-                    det_Translation[aid] = detection_id
-
-                endTime = time.time()
-                if Config.DEBUGGING: app.logger.info("Hotspotter DB set up in {}".format(endTime - startTime))
-                
                 # Run Hotspotter
-                # quaid_list = query ids
-                # daid_list = database ids
-                qaid_list = []
-                for detection in queryDetections:
-                    aid = aid_Translation[detection]
-                    qaid_list.append(aid)
+                lefts = []
+                rights = []
+                for detection in required_detections:
+                    if detection[2] == 'L':
+                        lefts.append(detection[1])
+                    elif detection[2] == 'R':
+                        rights.append(detection[1])
 
-                daid_list = aid_list.copy()
-                qreq_ = ibs.new_query_request(qaid_list, daid_list)
-                cm_list = request_wbia_query_L0(ibs, qreq_)
+
+                #TODO: Potentially need a better way to this or have another queue (need to set this to launch parallel instances)
+                task.survey.images_processing = len(lefts) + len(rights)
+                db.session.commit()
+
+                results = []
+                lefts2 = lefts.copy()
+                rights2 = rights.copy()
+
+                for left in lefts:
+                    lefts2.remove(left)
+                    results.append(calculate_hotspotter_similarity.apply_async(kwargs={'qaid_list': [left], 'daid_list': lefts2}, queue='parallel'))
+
+                for right in rights:
+                    rights2.remove(right)
+                    results.append(calculate_hotspotter_similarity.apply_async(kwargs={'qaid_list': [right], 'daid_list': rights2}, queue='parallel'))
+
+                cm_lists = []
+                GLOBALS.lock.acquire()
+                with allow_join_result():
+                    for result in results:
+                        try:
+                            response = result.get()
+                            cm_lists.append(response)
+                        except Exception:
+                            app.logger.info(' ')
+                            app.logger.info('!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!')
+                            app.logger.info(traceback.format_exc())
+                            app.logger.info('!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!')
+                            app.logger.info(' ')
+                            result.forget()
+                GLOBALS.lock.release()
 
                 # Digest results
-                for cm in cm_list:
-                    startTime = time.time()
-                    detection1_id = det_Translation[cm.qaid]
-                    covered_detections = []
-                    for n in range(len(cm.daid_list)):
-                        score = cm.score_list[n]
-                        aid2 = cm.daid_list[n]
-                        detection2_id = det_Translation[aid2]
-                        covered_detections.append(detection2_id)
+                for cm_list in cm_lists:
+                    for cm in cm_list:
+                        startTime = time.time()
+                        detection1_id = det_Translation[cm.qaid]
+                        covered_detections = []
+                        for n in range(len(cm.daid_list)):
+                            score = cm.score_list[n]
+                            aid2 = cm.daid_list[n]
+                            detection2_id = det_Translation[aid2]
+                            covered_detections.append(detection2_id)
 
-                        detSimilarity = db.session.query(DetSimilarity).filter(\
-                                                    or_(\
-                                                        and_(\
-                                                            DetSimilarity.detection_1==detection1_id,\
-                                                            DetSimilarity.detection_2==detection2_id),\
-                                                        and_(\
-                                                            DetSimilarity.detection_1==detection2_id,\
-                                                            DetSimilarity.detection_2==detection1_id)\
-                                                    )).first()
-
-                        if detSimilarity == None:
-                            detSimilarity = DetSimilarity(detection_1=detection1_id, detection_2=detection2_id)
-                            db.session.add(detSimilarity)
-
-                        detSimilarity.score = float(score)
-
-                    non_covered_detections = [r[0] for r in db.session.query(Detection.id)\
-                                                    .join(Labelgroup)\
-                                                    .join(Task)\
-                                                    .join(Label,Labelgroup.labels)\
-                                                    .filter(Task.id.in_(task_ids))\
-                                                    .filter(Label.description==species)\
-                                                    .filter(or_(and_(Detection.source==model,Detection.score>Config.DETECTOR_THRESHOLDS[model]) for model in Config.DETECTOR_THRESHOLDS)) \
-                                                    .filter(Detection.static == False) \
-                                                    .filter(~Detection.status.in_(Config.DET_IGNORE_STATUSES)) \
-                                                    .filter(~Detection.id.in_(covered_detections))\
-                                                    .filter(Detection.id!=detection1_id)\
-                                                    .distinct().all()]
-
-                    for non_covered in non_covered_detections:
-                        detSimilarity = db.session.query(DetSimilarity).filter(\
+                            detSimilarity = db.session.query(DetSimilarity).filter(\
                                                         or_(\
                                                             and_(\
                                                                 DetSimilarity.detection_1==detection1_id,\
-                                                                DetSimilarity.detection_2==non_covered),\
+                                                                DetSimilarity.detection_2==detection2_id),\
                                                             and_(\
-                                                                DetSimilarity.detection_1==non_covered,\
+                                                                DetSimilarity.detection_1==detection2_id,\
                                                                 DetSimilarity.detection_2==detection1_id)\
                                                         )).first()
 
-                        if detSimilarity == None:
-                            detSimilarity = DetSimilarity(detection_1=detection1_id, detection_2=non_covered)
-                            db.session.add(detSimilarity)
+                            if detSimilarity == None:
+                                detSimilarity = DetSimilarity(detection_1=detection1_id, detection_2=detection2_id)
+                                db.session.add(detSimilarity)
 
-                        if detSimilarity.score == None:
-                            detSimilarity.score = 0
+                            detSimilarity.score = float(score)
 
-                    # db.session.commit()
-                    if Config.DEBUGGING: app.logger.info("Hotspotter run for detection {} in {}s".format(detection1_id,time.time() - startTime))
+                        non_covered_detections = [r[0] for r in db.session.query(Detection.id)\
+                                                        .join(Labelgroup)\
+                                                        .join(Task)\
+                                                        .join(Label,Labelgroup.labels)\
+                                                        .filter(Task.id.in_(task_ids))\
+                                                        .filter(Label.description==species)\
+                                                        .filter(or_(and_(Detection.source==model,Detection.score>Config.DETECTOR_THRESHOLDS[model]) for model in Config.DETECTOR_THRESHOLDS)) \
+                                                        .filter(Detection.static == False) \
+                                                        .filter(~Detection.status.in_(Config.DET_IGNORE_STATUSES)) \
+                                                        .filter(~Detection.id.in_(covered_detections))\
+                                                        .filter(Detection.id!=detection1_id)\
+                                                        .distinct().all()]
 
-                # Delete images & db
-                shutil.rmtree(dbName, ignore_errors=True)
-                shutil.rmtree(imFolder, ignore_errors=True)
+                        for non_covered in non_covered_detections:
+                            detSimilarity = db.session.query(DetSimilarity).filter(\
+                                                            or_(\
+                                                                and_(\
+                                                                    DetSimilarity.detection_1==detection1_id,\
+                                                                    DetSimilarity.detection_2==non_covered),\
+                                                                and_(\
+                                                                    DetSimilarity.detection_1==non_covered,\
+                                                                    DetSimilarity.detection_2==detection1_id)\
+                                                            )).first()
+
+                            if detSimilarity == None:
+                                detSimilarity = DetSimilarity(detection_1=detection1_id, detection_2=non_covered)
+                                db.session.add(detSimilarity)
+
+                            if detSimilarity.score == None:
+                                detSimilarity.score = 0
+
+                        # db.session.commit()
+                        if Config.DEBUGGING: app.logger.info("Hotspotter run for detection {} in {}s".format(detection1_id,time.time() - startTime))
+
 
             elif algorithm == 'none':
+                queryDetections = [r[0] for r in rootQuery.distinct().all()]
                 allDetections = queryDetections.copy()
 
                 for queryDetection in queryDetections:
@@ -282,34 +520,24 @@ def calculate_detection_similarities(self,task_ids,species,algorithm):
 
         app.logger.info("Hotspotter run completed in {}s".format(time.time() - OverallStartTime))
 
-        # if len(task_ids)==1:
-        #     active_jobs = [r.decode() for r in GLOBALS.redisClient.smembers('active_jobs_'+str(task_ids[0]))]
-        #     user_ids = [r[0] for r in db.session.query(User.id)\
-        #                                         .join(Individual, Individual.user_id==User.id)\
-        #                                         .join(Task,Individual.tasks)\
-        #                                         .outerjoin(IndSimilarity, or_(IndSimilarity.individual_1==Individual.id,IndSimilarity.individual_2==Individual.id))\
-        #                                         .filter(Task.id.in_(task_ids))\
-        #                                         .filter(Individual.species==species)\
-        #                                         .filter(IndSimilarity.score==None)\
-        #                                         .filter(~User.username.in_(active_jobs))\
-        #                                         .distinct().all()]
-        # else:
-        #     user_ids = None
 
-        # task.survey.status = 'indprocessing'
-        # db.session.commit()
-
-        # calculate_individual_similarities.delay(task_id=task.id,species=species,user_ids=user_ids)
+        task = db.session.query(Task).get(task_ids[0])
+        task.survey.status = 'indprocessing'
+        task.survey.images_processing = 0
 
         db.session.commit()
-        task = db.session.query(Task).get(task_ids[0])
-        if task.status not in ['PROGRESS','PENDING'] or (len(task_ids)>1 and ('-5' in task.tagging_level)):
-            task.survey.status = 'indprocessing'
-            db.session.commit()
-            calculate_individual_similarities.delay(task_id=task.id,species=species)
-        else:
-            task.survey.status = 'Launched'
-            db.session.commit()
+
+        calculate_individual_similarities.delay(task_id=task.id,species=species)
+
+
+        # task = db.session.query(Task).get(task_ids[0])
+        # if task.status not in ['PROGRESS','PENDING'] or (len(task_ids)>1 and ('-5' in task.tagging_level)):
+        #     task.survey.status = 'indprocessing'
+        #     db.session.commit()
+        #     calculate_individual_similarities.delay(task_id=task.id,species=species)
+        # else:
+        #     task.survey.status = 'Launched'
+        #     db.session.commit()
 
     except Exception as exc:
         app.logger.info(' ')
@@ -1129,3 +1357,163 @@ def check_individual_detection_mismatch(self,task_id,cluster_id=None,celeryTask=
         if celeryTask: db.session.remove()
 
     return True
+
+def process_detections_for_individual_id(task_ids,species):
+    '''
+    Task for processing detections for individual ID purposes. This task is used to segment images and perform pose estimation. It is also used
+    to add the images to the Hotspotter (wbia db) database and calcualte the keypoints for the detections to be used in the similarity calculation.
+
+        Parameters:
+            task_id (int): The task for which the detections are being processed
+            species (str): The species for which the individual ID is being performed
+    '''
+
+    try:
+        task = db.session.query(Task).get(task_ids[0])
+        labelName = species.replace(' ','_').lower()
+        imFolder = 'hots_' + task.survey.name.replace(' ','_').lower() + '_' + task.name.replace(' ','_').lower() + '_' + labelName + '_images'
+
+        data = db.session.query(Detection.id,Detection.left,Detection.right,Detection.top,Detection.bottom,Image.id,Image.filename,Camera.path)\
+                            .join(Image,Detection.image_id==Image.id)\
+                            .join(Camera,Image.camera_id==Camera.id)\
+                            .join(Labelgroup,Labelgroup.detection_id==Detection.id)\
+                            .join(Task,Labelgroup.task_id==Task.id)\
+                            .join(Label,Labelgroup.labels)\
+                            .filter(Task.id.in_(task_ids))\
+                            .filter(Label.description==species)\
+                            .filter(or_(and_(Detection.source==model,Detection.score>Config.DETECTOR_THRESHOLDS[model]) for model in Config.DETECTOR_THRESHOLDS)) \
+                            .filter(Detection.static == False) \
+                            .filter(~Detection.status.in_(Config.DET_IGNORE_STATUSES)) \
+                            .filter(or_(Detection.aid==None,Detection.flank==None))\
+                            .distinct().all()
+
+        det_data = []
+        for d in data:
+            det_data.append({
+                'detection_id': d[0],
+                'image_id': d[5],
+                'bbox': {
+                    'left': d[1],
+                    'right': d[2],
+                    'top': d[3],
+                    'bottom': d[4]
+                },
+                'image_path': d[7] + '/' + d[6]
+            })
+
+        results = []
+        for batch in chunker(det_data,500):
+            results.append(segment_and_pose.apply_async(kwargs={'batch': batch, 'sourceBucket': Config.BUCKET, 'imFolder': imFolder, 'species': species}, queue='similarity', routing_key='similarity.segment_and_pose'))
+            
+
+        GLOBALS.lock.acquire()
+        with allow_join_result():
+            for result in results:
+                try:
+                    response = result.get()
+                    detections = db.session.query(Detection).filter(Detection.id.in_(response.keys())).all()
+                    for detection in detections:
+                        try:
+                            detection.flank = response[str(detection.id)]['flank']
+                            detection.aid = response[str(detection.id)]['aid']
+                        except Exception:
+                            app.logger.info(' ')
+                            app.logger.info('!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!')
+                            app.logger.info(traceback.format_exc())
+                            app.logger.info('!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!')
+                            app.logger.info(' ')
+
+                except Exception:
+                    app.logger.info(' ')
+                    app.logger.info('!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!')
+                    app.logger.info(traceback.format_exc())
+                    app.logger.info('!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!')
+                    app.logger.info(' ')
+
+                result.forget()
+        GLOBALS.lock.release()
+
+        db.session.commit()
+
+    except Exception as exc:
+        app.logger.info(' ')
+        app.logger.info('!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!')
+        app.logger.info(traceback.format_exc())
+        app.logger.info('!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!')
+        app.logger.info(' ')
+
+    return True
+
+
+@celery.task(bind=True,max_retries=5)
+def calculate_hotspotter_similarity(self,qaid_list,daid_list):
+    '''
+    Celery task for calculating the similarity between detections using Hotspotter.
+
+        Parameters:
+            qaid_list (list): WBIA Query IDs
+            daid_list (list): WBIA Database IDs
+
+        Returns:
+            simililarity_scores (list): A list of dictionaries containing the query ID, the database IDs and their associated scores
+    '''
+
+    try:
+        from wbia import opendb
+        from wbia.algo.hots.pipeline import request_wbia_query_L0
+
+        ibs = opendb(db=Config.WBIA_DB_NAME,dbdir=Config.WBIA_DIR,allow_newdir=True)
+
+        qreq_ = ibs.new_query_request(qaid_list, daid_list)
+        cm_list = request_wbia_query_L0(ibs, qreq_)
+
+        tblname = 'featurematches'
+        colnames = ('annot_rowid1', 'annot_rowid2', 'fm', 'fs')
+        superkey_colnames = ['annot_rowid1', 'annot_rowid2']
+        superkey_paramx = [0, 1]
+
+        def get_rowid_from_superkey(aid1_list, aid2_list):
+            tname = 'featurematches'
+            superkey_cols = ['annot_rowid1', 'annot_rowid2']
+            row_ids1 = ibs.db.get_where_eq(tname, ('fm_rowid',), zip(aid1_list, aid2_list), superkey_cols)
+            row_ids2 = ibs.db.get_where_eq(tname, ('fm_rowid',), zip(aid2_list, aid1_list), superkey_cols)
+            row_ids1 = [r for r in row_ids1 if r is not None]
+            row_ids2 = [r for r in row_ids2 if r is not None] # Have to remove None from list otherwise it will add the data even if there is other rows with the same superkey
+            row_ids = row_ids1 + row_ids2
+            if len(row_ids) == 0:
+                row_ids = [None]
+            return row_ids
+
+
+        simililarity_scores = []
+        for cm in cm_list:
+            aid1 = cm.qaid
+
+            simililarity_scores.append({
+                'qaid' : aid1,
+                'daid_list' : cm.daid_list,
+                'score_list' : cm.score_list
+            })
+
+            for n in range(len(cm.daid_list)):
+                aid2 = cm.daid_list[n]
+                fm = cm.fm_list[n]
+                fs = cm.fsv_list[n]
+                params_iter = [(aid1, aid2, fm, fs)]
+                rowid_list = ibs.db.add_cleanly(tblname, colnames, params_iter, get_rowid_from_superkey, superkey_paramx)
+
+        db.session.commit()
+
+    except Exception as exc:
+        app.logger.info(' ')
+        app.logger.info('!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!')
+        app.logger.info(traceback.format_exc())
+        app.logger.info('!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!')
+        app.logger.info(' ')
+        self.retry(exc=exc, countdown= retryTime(self.request.retries))
+
+    finally:
+        db.session.remove()
+
+    return simililarity_scores
+

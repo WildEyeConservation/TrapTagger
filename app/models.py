@@ -229,6 +229,8 @@ class Detection(db.Model):
     class_score = db.Column(db.Float, index=True)
     labelgroups = db.relationship('Labelgroup', backref='detection', lazy=True)
     staticgroup_id = db.Column(db.Integer, db.ForeignKey('staticgroup.id'), index=True)
+    flank = db.Column(db.String(1), index=True) #left/right
+    aid = db.Column(db.Integer, index=True) # annotation id for wbia db 
 
     def __repr__(self):
         return '<Detection of class {} on image {}>'.format(self.category, self.image_id)

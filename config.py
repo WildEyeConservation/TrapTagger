@@ -20,7 +20,7 @@ basedir = os.path.abspath(os.path.dirname(__file__))
 
 class Config(object):
     LOAD_TESTING = False
-    DEBUGGING = False
+    DEBUGGING = True
     MAINTENANCE = False
     INITIAL_SETUP = False
     VERSION = 30
@@ -58,6 +58,12 @@ class Config(object):
     SQLALCHEMY_DATABASE_URI = SQLALCHEMY_DATABASE_SERVER+"/"+SQLALCHEMY_DATABASE_NAME
     SQLALCHEMY_TRACK_MODIFICATIONS = False
 
+    #Postgres Config
+    WBIA_DB_NAME = os.environ.get('WBIA_DB_NAME')
+    WBIA_DB_SERVER = os.environ.get('WBIA_DB_SERVER')
+    WBIA_DB_URI = WBIA_DB_SERVER+"/"+WBIA_DB_NAME
+    WBIA_DIR = os.environ.get('WBIA_DIR')
+
     # Email Config
     MAIL_SERVER = 'smtp.gmail.com'
     SSL_MAIL_PORT = 465
@@ -88,7 +94,8 @@ class Config(object):
         'default':         {'t2.xlarge': 1000, 't3a.xlarge': 1000},  #estimated
         'statistics':         {'t2.xlarge': 1000, 't3a.xlarge': 1000},  #estimated
         'pipeline':         {'t2.xlarge': 1000, 't3a.xlarge': 1000},  #estimated
-        'llava':           {'g5.12xlarge': 3130} #measured. 20 min startup
+        'llava':           {'g5.12xlarge': 3130}, #measured. 20 min startup
+        'similarity':      {'g4dn.xlarge': 4128}
     } #Images per hour
     SG_ID = os.environ.get('SG_ID')
     PUBLIC_SUBNET_ID = os.environ.get('PUBLIC_SUBNET_ID')
@@ -100,6 +107,7 @@ class Config(object):
     MAX_STATS = 4
     MAX_PIPELINE = 8
     MAX_LLAVA = 5
+    MAX_SIMILARITY = 5
     DNS = os.environ.get('DNS')
 
     # Species Classification Config
@@ -142,7 +150,8 @@ class Config(object):
         'default': '300',
         'statistics': '300',
         'pipeline': '300',
-        'llava': '1500'
+        'llava': '1500',
+        'similarity': '300',
     }
 
     #Aurora DB stuff
@@ -158,7 +167,8 @@ class Config(object):
         'default': 12,
         'statistics': 12,
         'pipeline': 12,
-        'llava': 12
+        'llava': 12,
+        'similarity': 12
     }
 
     # Celery Worker concurrency
@@ -212,7 +222,10 @@ class Config(object):
                 IAM_ADMIN_GROUP + "' '" + 
                 PRIVATE_SUBNET_ID + "' '" + 
                 os.environ.get('AWS_S3_DOWNLOAD_ACCESS_KEY_ID') + "' '" + 
-                os.environ.get('AWS_S3_DOWNLOAD_SECRET_ACCESS_KEY') + "'" + 
+                os.environ.get('AWS_S3_DOWNLOAD_SECRET_ACCESS_KEY') + "' '" + 
+                os.environ.get('WBIA_DB_NAME') + "' '" +
+                os.environ.get('WBIA_DB_SERVER') + "' '" +
+                os.environ.get('WBIA_DIR') + "' " +
                 ' -l info'
         },
         'default': {
@@ -255,7 +268,10 @@ class Config(object):
                 IAM_ADMIN_GROUP + "' '" + 
                 PRIVATE_SUBNET_ID + "' '" + 
                 os.environ.get('AWS_S3_DOWNLOAD_ACCESS_KEY_ID') + "' '" + 
-                os.environ.get('AWS_S3_DOWNLOAD_SECRET_ACCESS_KEY') + "'" + 
+                os.environ.get('AWS_S3_DOWNLOAD_SECRET_ACCESS_KEY') + "' '" + 
+                os.environ.get('WBIA_DB_NAME') + "' '" +
+                os.environ.get('WBIA_DB_SERVER') + "' '" +
+                os.environ.get('WBIA_DIR') + "'" +
                 ' -l info'
         },
         'statistics': {
@@ -320,7 +336,10 @@ class Config(object):
                 SETUP_PERIOD['celery'] + " " + 
                 'IDLE_MULTIPLIER' + " '" +
                 os.environ.get('AWS_ACCESS_KEY_ID') + "' '" + 
-                os.environ.get('AWS_SECRET_ACCESS_KEY') + "' " + 
+                os.environ.get('AWS_SECRET_ACCESS_KEY') + "' '" + 
+                os.environ.get('WBIA_DB_NAME') + "' '" +
+                os.environ.get('WBIA_DB_SERVER') + "' '" +
+                os.environ.get('WBIA_DIR') + "' " +
                 '-l info'
         },
         'pipeline': {
@@ -388,6 +407,31 @@ class Config(object):
                 os.environ.get('AWS_SECRET_ACCESS_KEY') + "' " + 
                 '-l info'
         },
+        'similarity': {
+            'type': 'GPU',
+            'ami': PARALLEL_AMI,
+            'instances': GPU_INSTANCE_TYPES,
+            'max_instances': MAX_SIMILARITY,
+            'launch_delay': 600,
+            'rate': 35,
+            'init_size': 0.5,
+            'queue_type': 'rate',
+            'repo': os.environ.get('MAIN_GIT_REPO'),
+            'branch': BRANCH,
+            'user_data': 
+                'bash /home/ubuntu/TrapTagger/gpuworker/launch.sh ' + 
+                'similarity_worker_{}' + ' ' + 
+                HOST_IP + ' ' + 
+                'similarity ' + 
+                SETUP_PERIOD['similarity'] + " " + 
+                'IDLE_MULTIPLIER' + " '" +
+                os.environ.get('AWS_ACCESS_KEY_ID') + "' '" + 
+                os.environ.get('AWS_SECRET_ACCESS_KEY') + "' '" + 
+                os.environ.get('WBIA_DB_NAME') + "' '" +
+                os.environ.get('WBIA_DB_SERVER') + "' '" +
+                os.environ.get('WBIA_DIR') + "' " +
+                '-l info'
+        },
         # 'classification': {
         #     'type': 'GPU',
         #     'ami': PARALLEL_AMI,
@@ -427,7 +471,10 @@ class Config(object):
             SETUP_PERIOD['classification'] + " " + 
             'IDLE_MULTIPLIER' + " '" +
             os.environ.get('AWS_S3_DOWNLOAD_ACCESS_KEY_ID') + "' '" + 
-            os.environ.get('AWS_S3_DOWNLOAD_SECRET_ACCESS_KEY') + "' " + 
+            os.environ.get('AWS_S3_DOWNLOAD_SECRET_ACCESS_KEY') + "' '" + 
+            os.environ.get('WBIA_DB_NAME') + "' '" +
+            os.environ.get('WBIA_DB_SERVER') + "' '" +
+            os.environ.get('WBIA_DIR') + "' " +
             '-l info'
     }
 

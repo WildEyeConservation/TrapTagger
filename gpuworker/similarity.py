@@ -144,129 +144,138 @@ def process_images(ibs,batch,sourceBucket,imFolder,species):
     """
     global predictor, init, model
 
-    if not init:
-        # SAM initialization
-        print('Initializing SAM')
-        starttime = time.time()
-        sam_checkpoint = "sam_vit_h_4b8939.pth"
-        model_type = "vit_h"
-        device = "cuda"
-        sam = sam_model_registry[model_type](checkpoint=sam_checkpoint)
-        sam.to(device=device)
-        predictor = SamPredictor(sam)
-        print('SAM initialized in {} seconds'.format(time.time() - starttime))
-
-        # Pose detection initialization
-        print('Initializing Pose Detection')
-        starttime = time.time()
-        from lib.config import update_config
-        from lib.config import cfg
-        from lib.models.pose_hrnet_part import get_pose_net
-
-        args = argparse.Namespace(cfg='ScarceNet/experiments/ap10k/hrnet/w32_256x192_adam_lr1e-3.yaml',
-                                    opts=['OUTPUT_DIR', 'test', 'TEST.MODEL_FILE',
-                                        'model_best.pth', 'MODEL.NAME',
-                                        'pose_hrnet_part', 'GPUS', '[0,]'],
-                                    modelDir='', logDir='', dataDir='', prevModelDir='', animalpose=True, vis=False)
-        update_config(cfg, args)
-        cudnn.benchmark = True
-        torch.backends.cudnn.deterministic = False
-        torch.backends.cudnn.enabled = True
-
-        checkpoint = torch.load("model_best.pth")
-        model = get_pose_net(cfg, is_train=False)
-
-        model.load_state_dict(checkpoint['state_dict'], strict=True)
-        model = torch.nn.DataParallel(model, device_ids=cfg.GPUS).cuda()
-        print('Pose Detection initialized in {} seconds'.format(time.time() - starttime))
-
-        init = True
-
-    if not os.path.isdir(imFolder):
-        os.mkdir(imFolder)
-
-    # Add species
-    species_nice_list = [species]
-    species_text_list = [species.replace(' ','_').lower()]
-    species_code_list = ['SH']
-    species_ids = ibs.add_species(species_nice_list, species_text_list, species_code_list)
-    hs_label = species_ids[0]
-
-    detection_results = {}
-    aid_list = []
-    for image in batch:
-        image_path = image['image_path']
-        bbox_dict = image['bbox']
-        image_id = image['image_id']
-        detection_id = image['detection_id']
-        with tempfile.NamedTemporaryFile(delete=True, suffix='.JPG') as temp_file:
-            print('Downloading {} from S3'.format(image_path))
-            s3client.download_file(Bucket=sourceBucket, Key=image_path, Filename=temp_file.name)
-            image_data = np.array(Image.open(temp_file.name))
-            h, w, _ = image_data.shape
-            x1, x2, y1, y2 = bbox_dict['left'], bbox_dict['right'], bbox_dict['top'], bbox_dict['bottom']
-            bbox = np.array([x1 * w, y1 * h, x2 * w, y2 * h])
-            print('Segmenting image')
+    try:
+        if not init:
+            # SAM initialization
+            print('Initializing SAM')
             starttime = time.time()
-            predictor.set_image(image_data)
-            masks, _, _ = predictor.predict(
-                point_coords=None,
-                point_labels=None,
-                box=bbox[None, :],
-                multimask_output=False,
-            )
+            sam_checkpoint = "sam_vit_h_4b8939.pth"
+            model_type = "vit_h"
+            device = "cuda"
+            sam = sam_model_registry[model_type](checkpoint=sam_checkpoint)
+            sam.to(device=device)
+            predictor = SamPredictor(sam)
+            print('SAM initialized in {} seconds'.format(time.time() - starttime))
 
-            h, w = masks[0].shape[-2:]
-            mask_image = masks[0].reshape(h, w, 1) * np.array([1., 1., 1.]).reshape(1, 1, -1)
-            segmented_image = (mask_image * image_data).astype('uint8')
-            segmented_image = Image.fromarray(segmented_image[int(y1 * h):int(y2 * h), int(x1 * w):int(x2 * w)])
-            print('Segmentation done in {} seconds'.format(time.time() - starttime))
+            # Pose detection initialization
+            print('Initializing Pose Detection')
+            starttime = time.time()
+            from lib.config import update_config
+            from lib.config import cfg
+            from lib.models.pose_hrnet_part import get_pose_net
 
-            #Save segmented image locally
-            filename = imFolder + '/' + str(detection_id) + '.jpg'
-            segmented_image.save(filename)
+            args = argparse.Namespace(cfg='ScarceNet/experiments/ap10k/hrnet/w32_256x192_adam_lr1e-3.yaml',
+                                        opts=['OUTPUT_DIR', 'test', 'TEST.MODEL_FILE',
+                                            'model_best.pth', 'MODEL.NAME',
+                                            'pose_hrnet_part', 'GPUS', '[0,]'],
+                                        modelDir='', logDir='', dataDir='', prevModelDir='', animalpose=True, vis=False)
+            update_config(cfg, args)
+            cudnn.benchmark = True
+            torch.backends.cudnn.deterministic = False
+            torch.backends.cudnn.enabled = True
 
-            #Get flank from the segmented image
-            flank = get_flank(filename)
-            print('Get flank for detection_id: {} - {}'.format(detection_id, flank))
-            if flank == 'left':
-                flank = 'L'
-            elif flank == 'right':
-                flank = 'R'
-            else: #ambiguous
-                flank = 'A'
+            checkpoint = torch.load("model_best.pth")
+            model = get_pose_net(cfg, is_train=False)
 
-            #Add image and annotation to the wbia database
-            gid = ibs.add_images([ut.unixpath(ut.grab_test_imgpath(filename))], auto_localize=False)[0]
+            model.load_state_dict(checkpoint['state_dict'], strict=True)
+            model = torch.nn.DataParallel(model, device_ids=cfg.GPUS).cuda()
+            print('Pose Detection initialized in {} seconds'.format(time.time() - starttime))
 
-            # Annotations
-            left = 0
-            right = 1
-            top = 0
-            bottom = 1
-            imWidth = ibs.get_image_widths(gid)
-            imHeight = ibs.get_image_heights(gid)
-            w = math.floor(imWidth*(right-left))
-            h = math.floor(imHeight*(bottom-top))
-            x = math.floor(imWidth*left)
-            y = math.floor(imHeight*top)
+            init = True
 
-            aids = ibs.add_annots([gid],bbox_list=[[x, y, w, h]],species_rowid_list=[hs_label])
-            aid_list.extend(aids)
-            aid = aids[0]
+        if not os.path.isdir(imFolder):
+            os.mkdir(imFolder)
 
-            print('Added segmented image and detection (annotation) to the wbia database. Det_id: {}, gid: {} aid: {}'.format(detection_id, gid, aid))
+        # Add species
+        species_nice_list = [species]
+        species_text_list = [species.replace(' ','_').lower()]
+        species_code_list = ['SH']
+        species_ids = ibs.add_species(species_nice_list, species_text_list, species_code_list)
+        hs_label = species_ids[0]
 
-            detection_results[detection_id] = {
-                'flank': flank,
-                'aid': aid,
-                'gid': gid
-            }
+        detection_results = {}
+        aid_list = []
+        for image in batch:
+            image_path = image['image_path']
+            bbox_dict = image['bbox']
+            image_id = image['image_id']
+            detection_id = image['detection_id']
+            with tempfile.NamedTemporaryFile(delete=True, suffix='.JPG') as temp_file:
+                print('Downloading {} from S3'.format(image_path))
+                s3client.download_file(Bucket=sourceBucket, Key=image_path, Filename=temp_file.name)
+                image_data = np.array(Image.open(temp_file.name))
+                h, w, _ = image_data.shape
+                x1, x2, y1, y2 = bbox_dict['left'], bbox_dict['right'], bbox_dict['top'], bbox_dict['bottom']
+                bbox = np.array([x1 * w, y1 * h, x2 * w, y2 * h])
+                print('Segmenting image')
+                starttime = time.time()
+                predictor.set_image(image_data)
+                masks, _, _ = predictor.predict(
+                    point_coords=None,
+                    point_labels=None,
+                    box=bbox[None, :],
+                    multimask_output=False,
+                )
+
+                h, w = masks[0].shape[-2:]
+                mask_image = masks[0].reshape(h, w, 1) * np.array([1., 1., 1.]).reshape(1, 1, -1)
+                segmented_image = (mask_image * image_data).astype('uint8')
+                segmented_image = Image.fromarray(segmented_image[int(y1 * h):int(y2 * h), int(x1 * w):int(x2 * w)])
+                print('Segmentation done in {} seconds'.format(time.time() - starttime))
+
+                #Save segmented image locally
+                filename = imFolder + '/' + str(detection_id) + '.jpg'
+                segmented_image.save(filename)
+
+                #Get flank from the segmented image
+                flank = get_flank(filename)
+                print('Get flank for detection_id: {} - {}'.format(detection_id, flank))
+                if flank == 'left':
+                    flank = 'L'
+                elif flank == 'right':
+                    flank = 'R'
+                else: #ambiguous
+                    flank = 'A'
+
+                #Add image and annotation to the wbia database
+                gid = ibs.add_images([ut.unixpath(ut.grab_test_imgpath(filename))], auto_localize=False)[0]
+
+                # Annotations
+                left = 0
+                right = 1
+                top = 0
+                bottom = 1
+                imWidth = ibs.get_image_widths(gid)
+                imHeight = ibs.get_image_heights(gid)
+                w = math.floor(imWidth*(right-left))
+                h = math.floor(imHeight*(bottom-top))
+                x = math.floor(imWidth*left)
+                y = math.floor(imHeight*top)
+
+                aids = ibs.add_annots([gid],bbox_list=[[x, y, w, h]],species_rowid_list=[hs_label])
+                aid_list.extend(aids)
+                aid = aids[0]
+
+                print('Added segmented image and detection (annotation) to the wbia database. Det_id: {}, gid: {} aid: {}'.format(detection_id, gid, aid))
+
+                detection_results[detection_id] = {
+                    'flank': flank,
+                    'aid': aid,
+                    'gid': gid
+                }
 
 
-    # Calculate image kpts and vecs for hotspotter (automatically done by wbia and added to the database)
-    qreq_ = ibs.new_query_request(aid_list, aid_list)
-    qreq_.lazy_preload(verbose=True)
+        # Calculate image kpts and vecs for hotspotter (automatically done by wbia and added to the database)
+        print('Calculating image keypoints and vectors')
+        starttime = time.time()
+        qreq_ = ibs.new_query_request(aid_list, aid_list)
+        qreq_.lazy_preload(verbose=True)
+        print('Image keypoints and vectors calculated in {} seconds'.format(time.time() - starttime))
+
+    except:
+        print('Error processing images')	
+        detection_results = {}
+
 
     return detection_results
 
