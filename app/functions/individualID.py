@@ -1459,13 +1459,14 @@ def calculate_hotspotter_similarity(self,qaid_list,daid_list):
     '''
 
     try:
-        from wbia import opendb
         from wbia.algo.hots.pipeline import request_wbia_query_L0
 
-        ibs = opendb(db=Config.WBIA_DB_NAME,dbdir=Config.WBIA_DIR+str(qaid_list[0]),allow_newdir=True)
+        if GLOBALS.ibs is None:
+            from wbia import opendb
+            GLOBALS.ibs = opendb(db=Config.WBIA_DB_NAME,dbdir=Config.WBIA_DIR+'_'+Config.WORKER_NAME,allow_newdir=True)
 
-        qreq_ = ibs.new_query_request(qaid_list, daid_list)
-        cm_list = request_wbia_query_L0(ibs, qreq_)
+        qreq_ = GLOBALS.ibs.new_query_request(qaid_list, daid_list)
+        cm_list = request_wbia_query_L0(GLOBALS.ibs, qreq_)
 
         tblname = 'featurematches'
         colnames = ('annot_rowid1', 'annot_rowid2', 'fm', 'fs')
@@ -1475,8 +1476,8 @@ def calculate_hotspotter_similarity(self,qaid_list,daid_list):
         def get_rowid_from_superkey(aid1_list, aid2_list):
             tname = 'featurematches'
             superkey_cols = ['annot_rowid1', 'annot_rowid2']
-            row_ids1 = ibs.db.get_where_eq(tname, ('fm_rowid',), zip(aid1_list, aid2_list), superkey_cols)
-            row_ids2 = ibs.db.get_where_eq(tname, ('fm_rowid',), zip(aid2_list, aid1_list), superkey_cols)
+            row_ids1 = GLOBALS.ibs.db.get_where_eq(tname, ('fm_rowid',), zip(aid1_list, aid2_list), superkey_cols)
+            row_ids2 = GLOBALS.ibs.db.get_where_eq(tname, ('fm_rowid',), zip(aid2_list, aid1_list), superkey_cols)
             row_ids1 = [r for r in row_ids1 if r is not None]
             row_ids2 = [r for r in row_ids2 if r is not None] # Have to remove None from list otherwise it will add the data even if there is other rows with the same superkey
             row_ids = row_ids1 + row_ids2
@@ -1501,7 +1502,7 @@ def calculate_hotspotter_similarity(self,qaid_list,daid_list):
                 fm = cm.fm_list[n]
                 fs = cm.fsv_list[n]
                 params_iter = [(aid1, aid2, fm, fs)]
-                rowid_list = ibs.db.add_cleanly(tblname, colnames, params_iter, get_rowid_from_superkey, superkey_paramx)
+                rowid_list = GLOBALS.ibs.db.add_cleanly(tblname, colnames, params_iter, get_rowid_from_superkey, superkey_paramx)
 
             simililarity_scores.append(cm_dict)
 

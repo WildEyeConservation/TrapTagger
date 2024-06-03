@@ -60,7 +60,7 @@ def launch_task(self,task_id):
                 # elif tL[4]=='n':
                 #     calculate_detection_similarities.delay(task_ids=[task_id],species=label.description,algorithm='none')
                 if tL[4]=='h':
-                    process_detections_for_individual_id(task_id,species)
+                    process_detections_for_individual_id([task_id],species)
                     task = db.session.query(Task).get(task_id)
                 # elif tL[4]=='n':
                     # process_detections_for_individual_id(task_id,species)

@@ -155,9 +155,9 @@ celery = make_celery(app)
 
 # Need db-uri arguement for wbia db
 db_uri = Config.WBIA_DB_URI
-if db_uri:
+if db_uri and '--db-uri' not in sys.argv:
     sys.argv.extend(['--db-uri', db_uri])
-    
+
 from app import routes
 from app.functions.globals import update_label_ids
 if not Config.MAINTENANCE: update_label_ids()

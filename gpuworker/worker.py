@@ -25,8 +25,10 @@ from gpuworker.config import Config
 
 # Need db-uri arguement for wbia db
 db_uri = Config.WBIA_DB_URI
-if db_uri:
+if db_uri and '--db-uri' not in sys.argv:
     sys.argv.extend(['--db-uri', db_uri])
+
+ibs = None
 
 BASE = "/data"
 REDIS_IP = os.environ.get('REDIS_IP') or '127.0.0.1'
@@ -136,7 +138,9 @@ def segment_and_pose(batch,sourceBucket,imFolder,species):
             Returns:
                 results (dict): A dictionary containing the flank, and database ID (wbia) for each detection.
         '''
+    global ibs
     from gpuworker import similarity
-    from wbia import opendb
-    ibs = opendb(db=Config.WBIA_DB_NAME,dbdir=Config.WBIA_DIR,allow_newdir=True)
+    if ibs is None:
+        from wbia import opendb
+        ibs = opendb(db=Config.WBIA_DB_NAME,dbdir=Config.WBIA_DIR,allow_newdir=True)
     return similarity.process_images(ibs,batch,sourceBucket,imFolder,species)
