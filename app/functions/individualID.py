@@ -409,12 +409,14 @@ def calculate_detection_similarities(self,task_ids,species,algorithm):
                 rights2 = rights.copy()
 
                 for left in lefts:
-                    lefts2.remove(left)
-                    results.append(calculate_hotspotter_similarity.apply_async(kwargs={'qaid_list': [left], 'daid_list': lefts2}, queue='parallel'))
+                    if left in lefts2: lefts2.remove(left)
+                    if lefts2:
+                        results.append(calculate_hotspotter_similarity.apply_async(kwargs={'qaid_list': [left], 'daid_list': lefts2}, queue='parallel'))
 
                 for right in rights:
-                    rights2.remove(right)
-                    results.append(calculate_hotspotter_similarity.apply_async(kwargs={'qaid_list': [right], 'daid_list': rights2}, queue='parallel'))
+                    if right in rights2: rights2.remove(right)
+                    if rights2:
+                        results.append(calculate_hotspotter_similarity.apply_async(kwargs={'qaid_list': [right], 'daid_list': rights2}, queue='parallel'))
 
                 cm_lists = []
                 GLOBALS.lock.acquire()
