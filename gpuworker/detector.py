@@ -215,8 +215,9 @@ def infer(batch,sourceBucket,external,model,threshold=0.05,pass_images=False):
                 results.append(detections)
         print('Finished batch')
 
-    except:
+    except Exception as e:
         print('Error with batch... returning empty set of detections.')
+        print(e)
         results=[]
         for n in range(len(batch)):
             detections=[{'top':0.0,
