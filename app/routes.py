@@ -6218,7 +6218,7 @@ def getClustersBySpecies(task_id, species, tag_id, trapgroup_id, annotator_id):
 
         if Config.DEBUGGING: app.logger.info('Get Cluster By species for: task_id:{} species:{} tag_id:{} trapgroup_id:{} annotator_id:{} notes:{} startDate:{} endDate:{}'.format(task_id,species,tag_id,trapgroup_id,annotator_id,notes,startDate,endDate))
 
-        clusters = db.session.query(Cluster.id) \
+        base_query = db.session.query(Cluster) \
                             .filter(Cluster.task_id == int(task_id))\
                             .join(Image,Cluster.images)\
                             .outerjoin(Detection)\
@@ -6227,11 +6227,43 @@ def getClustersBySpecies(task_id, species, tag_id, trapgroup_id, annotator_id):
                             .filter(Labelgroup.task==task)
 
         # If they ask for the nothing clusters, we want to serve the empty clusters too
-        if str(species) != str(GLOBALS.nothing_id): clusters = rDets(clusters)
+        if str(species) != str(GLOBALS.nothing_id): base_query = rDets(base_query)
 
+        if tag_id != '0':
+            tag = db.session.query(Tag).get(int(tag_id))
+            base_query = base_query.filter(Labelgroup.tags.contains(tag))
+
+        if trapgroup_id != '0':
+            base_query = base_query.join(Camera).join(Trapgroup).filter(Trapgroup.id==trapgroup_id)
+
+        if annotator_id != '0':
+            base_query = base_query.join(User, User.id==Cluster.user_id).filter(or_(User.id==annotator_id,User.parent_id==annotator_id))
+
+        if startDate:
+            base_query = base_query.filter(Image.corrected_timestamp>=startDate)
+
+        if endDate:
+            base_query = base_query.filter(Image.corrected_timestamp<=endDate)
+
+        if notesOnly:
+            base_query = base_query.filter(and_(Cluster.notes!='',Cluster.notes!=None))
+
+        if notes:
+            searches = re.split('[ ,]',notes)
+            for search in searches:
+                base_query = base_query.filter(Cluster.notes.contains(search))
+
+        global_ids = []
+        label_ids = []
         if (species != '0'):
-            label_ids = [int(species)]
-            parent_labels = [db.session.query(Label).get(int(species))]
+            label = db.session.query(Label).get(int(species))
+            parent_labels = [label]
+
+            if label.task_id==None:
+                global_ids.append(label.id)
+            else:
+                label_ids.append(label.id)
+
             while parent_labels != []:
                 temp_labels = []
                 for label in parent_labels:
@@ -6239,41 +6271,30 @@ def getClustersBySpecies(task_id, species, tag_id, trapgroup_id, annotator_id):
                     if children_labels != []:
                         temp_labels.extend(children_labels)
                         for lab in children_labels:
-                            label_ids.append(lab.id)
+                            if lab.task_id==None:
+                                global_ids.append(lab.id)
+                            else:
+                                label_ids.append(lab.id)
                 parent_labels = temp_labels
 
-            if str(species) != str(GLOBALS.nothing_id):
-                clusters = clusters.filter(Label.id.in_(label_ids))
-            else:
-                # If they ask for nothing clusters, include the clusters with no labels
-                clusters = clusters.filter(or_(Label.id.in_(label_ids),Label.id==None,Detection.id==None))
+        if global_ids or label_ids:
+            clusters = base_query.filter(Label.id.in_(label_ids)).order_by(Image.corrected_timestamp).distinct(Cluster.id).all()
 
-        if tag_id != '0':
-            tag = db.session.query(Tag).get(int(tag_id))
-            clusters = clusters.filter(Labelgroup.tags.contains(tag))
+            # At scale, filtering the global labels using the .in_(label_ids) approach is too slow - this is faster
+            for global_id in global_ids:
+                if global_id == GLOBALS.nothing_id:
+                    clusters.extend(base_query.filter(or_(Label.id==global_id,Label.id==None,Detection.id==None)).order_by(Image.corrected_timestamp).distinct(Cluster.id).all())
+                else:
+                    clusters.extend(base_query.filter(Label.id==global_id).order_by(Image.corrected_timestamp).distinct(Cluster.id).all())
 
-        if trapgroup_id != '0':
-            clusters = clusters.join(Camera).join(Trapgroup).filter(Trapgroup.id==trapgroup_id)
+            clusters = list(set(clusters))
+            clusters.sort(key=lambda x: x.corrected_timestamp)
+            clusters = [r.id for r in clusters]
+        else:
+            clusters = [r.id for r in base_query.order_by(Image.corrected_timestamp).distinct(Cluster.id).all()]
 
-        if annotator_id != '0':
-            clusters = clusters.join(User, User.id==Cluster.user_id).filter(or_(User.id==annotator_id,User.parent_id==annotator_id))
-
-        if startDate:
-            clusters = clusters.filter(Image.corrected_timestamp>=startDate)
-
-        if endDate:
-            clusters = clusters.filter(Image.corrected_timestamp<=endDate)
-
-        if notesOnly:
-            clusters = clusters.filter(and_(Cluster.notes!='',Cluster.notes!=None))
-
-        if notes:
-            searches = re.split('[ ,]',notes)
-            for search in searches:
-                clusters = clusters.filter(Cluster.notes.contains(search))
-
-        clusters = [r[0] for r in clusters.order_by(Image.corrected_timestamp).distinct(Cluster.id).all()]
         if Config.DEBUGGING: app.logger.info(clusters[:50])
+        
     else:
         clusters = []
 
