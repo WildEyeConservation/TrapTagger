@@ -1371,10 +1371,6 @@ def process_detections_for_individual_id(task_ids,species):
     '''
 
     try:
-        task = db.session.query(Task).get(task_ids[0])
-        labelName = species.replace(' ','_').lower()
-        imFolder = 'hots_' + task.survey.name.replace(' ','_').lower() + '_' + task.name.replace(' ','_').lower() + '_' + labelName + '_images'
-
         data = db.session.query(Detection.id,Detection.left,Detection.right,Detection.top,Detection.bottom,Image.id,Image.filename,Camera.path)\
                             .join(Image,Detection.image_id==Image.id)\
                             .join(Camera,Image.camera_id==Camera.id)\
@@ -1405,7 +1401,7 @@ def process_detections_for_individual_id(task_ids,species):
 
         results = []
         for batch in chunker(det_data,500):
-            results.append(segment_and_pose.apply_async(kwargs={'batch': batch, 'sourceBucket': Config.BUCKET, 'imFolder': imFolder, 'species': species}, queue='similarity', routing_key='similarity.segment_and_pose'))
+            results.append(segment_and_pose.apply_async(kwargs={'batch': batch, 'sourceBucket': Config.BUCKET, 'species': species}, queue='similarity', routing_key='similarity.segment_and_pose'))
             
 
         GLOBALS.lock.acquire()

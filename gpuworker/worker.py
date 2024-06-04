@@ -123,7 +123,7 @@ def classify(batch):
 
 
 @app.task()
-def segment_and_pose(batch,sourceBucket,imFolder,species):
+def segment_and_pose(batch,sourceBucket,species):
     '''
 
     Celery wrapper for running segmentation and pose estimation on the supplied batch of images and detections. Adds the segmented images to the wbia database
@@ -132,7 +132,6 @@ def segment_and_pose(batch,sourceBucket,imFolder,species):
             Parameters:
                 batch (list): A list of detections to be processed.
                 sourceBucket (str): S3 bucket.
-                imFolder (str): The image folder to save the segmented images to locally (only for processing).
                 species (str): The species to segment and estimate pose for.
     
             Returns:
