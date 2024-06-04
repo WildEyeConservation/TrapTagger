@@ -142,4 +142,4 @@ def segment_and_pose(batch,sourceBucket,species):
     if ibs is None:
         from wbia import opendb
         ibs = opendb(db=Config.WBIA_DB_NAME,dbdir=Config.WBIA_DIR,allow_newdir=True)
-    return similarity.process_images(ibs,batch,sourceBucket,imFolder,species)
+    return similarity.process_images(ibs,batch,sourceBucket,species)
