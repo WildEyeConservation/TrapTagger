@@ -6218,7 +6218,7 @@ def getClustersBySpecies(task_id, species, tag_id, trapgroup_id, annotator_id):
 
         if Config.DEBUGGING: app.logger.info('Get Cluster By species for: task_id:{} species:{} tag_id:{} trapgroup_id:{} annotator_id:{} notes:{} startDate:{} endDate:{}'.format(task_id,species,tag_id,trapgroup_id,annotator_id,notes,startDate,endDate))
 
-        base_query = db.session.query(Cluster) \
+        base_query = db.session.query(Cluster.id) \
                             .filter(Cluster.task_id == int(task_id))\
                             .join(Image,Cluster.images)\
                             .outerjoin(Detection)\
@@ -6287,11 +6287,9 @@ def getClustersBySpecies(task_id, species, tag_id, trapgroup_id, annotator_id):
                 else:
                     clusters.extend(base_query.filter(Label.id==global_id).order_by(Image.corrected_timestamp).distinct(Cluster.id).all())
 
-            clusters = list(set(clusters))
-            clusters.sort(key=lambda x: x.corrected_timestamp)
-            clusters = [r.id for r in clusters]
+            clusters = list(set([r[0] for r in clusters]))
         else:
-            clusters = [r.id for r in base_query.order_by(Image.corrected_timestamp).distinct(Cluster.id).all()]
+            clusters = [r[0] for r in base_query.order_by(Image.corrected_timestamp).distinct(Cluster.id).all()]
 
         if Config.DEBUGGING: app.logger.info(clusters[:50])
         
