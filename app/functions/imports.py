@@ -5128,7 +5128,7 @@ def recluster_survey(survey_id):
     results = []
     for task_id in task_ids:
         for trapgroup_id in trapgroup_ids:
-            results.append(recluster_large_clusters.apply_async(kwargs={'task_id':task_id,'updateClassifications':True,'trapgroup_id':trapgroup_id},queue='parallel'))
+            results.append(recluster_large_clusters.apply_async(kwargs={'task':task_id,'updateClassifications':True,'trapgroup_id':trapgroup_id},queue='parallel'))
     
     #Wait for processing to complete
     db.session.remove()
