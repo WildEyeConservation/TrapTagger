@@ -2185,7 +2185,7 @@ def crop_survey_images(self,task_id,min_area,destBucket,include_empties=False):
                 result.forget()
         GLOBALS.lock.release()
 
-        task.survey.images_processing = 0
+        # task.survey.images_processing = 0
         # task.survey.status='Ready'
         db.session.commit()
 

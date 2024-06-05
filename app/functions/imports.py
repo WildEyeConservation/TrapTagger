@@ -827,24 +827,47 @@ def calc_det_iou(detection_id,df):
         return []
 
     return list(df[df['iou']>threshold]['detection_id'])
+
+def compare_static_groups(df,group1,group2):
+    '''Compares two groups of static detections to see if they should be combined.'''
+
+    if IOU(df[df['detection_id']==group1[0]].iloc[0],df[df['detection_id']==group2[0]].iloc[0])<(Config.STATIC_IOU5/2): return False
+    
+    for detection1 in group1:
+        detection = df[df['detection_id']==detection1].iloc[0]
+        area = detection['area']
+        if area <= 0.05:
+            threshold = Config.STATIC_IOU5
+        elif area <= 0.1:
+            threshold = Config.STATIC_IOU10
+        elif area <= 0.3:
+            threshold = Config.STATIC_IOU30
+        elif area <= 0.5:
+            threshold = Config.STATIC_IOU50
+        elif area <= 0.9:
+            threshold = Config.STATIC_IOU90
+        else:
+            continue
+        
+        for detection2 in group2:
+            if IOU(detection,df[df['detection_id']==detection2].iloc[0])>threshold:
+                return True
+
+    return False
     
 @celery.task(bind=True,max_retries=5)
 def processCameraStaticDetections(self,cameragroup_id):
     '''Checks all the detections associated with a given camera ID to see if they are static or not.'''
     try:
-
-        image_count = db.session.query(Image).join(Camera).filter(Camera.cameragroup_id==cameragroup_id).distinct().count()
-        if image_count > 100:
-            match_percentage = round(Config.STATIC_PERCENTAGE / math.log(image_count, 10), 2)
-        else:
-            match_percentage = Config.STATIC_PERCENTAGE
         
-        df = pd.read_sql(db.session.query(
+        #Single db query to be efficient
+        main_df = pd.read_sql(db.session.query(
                             Detection.id.label('detection_id'),
                             Detection.left.label('left'),
                             Detection.right.label('right'),
                             Detection.top.label('top'),
                             Detection.bottom.label('bottom'),
+                            Image.id.label('image_id')
                         )\
                         .join(Image)\
                         .join(Camera)\
@@ -852,37 +875,72 @@ def processCameraStaticDetections(self,cameragroup_id):
                         .filter(or_(and_(Detection.source==model,Detection.score>Config.DETECTOR_THRESHOLDS[model]) for model in Config.DETECTOR_THRESHOLDS))\
                         .statement,db.session.bind)
 
+        #close session to prevent any lock ups (wont need it for quite some time)
         db.session.remove()
 
-        df['area'] = df.apply(lambda x: (x.right - x.left) * (x.bottom - x.top), axis=1)
-        detection_ids = list(df['detection_id'])
-
-        final_static_groups = []
-        for detection_id in detection_ids:
-
-            new_df = df.copy()
-            for group in final_static_groups:
-                if detection_id in group:
-                    new_df = new_df[~(new_df['detection_id'].isin(group) & (new_df['detection_id']!=detection_id))]
-                    break
-
-            if len(new_df) == 0: continue
-
-            group = calc_det_iou(detection_id,new_df)
-
-            # This allows the df to become smaller over the loop (no need to recalculate IOUs from the opposite side)
-            df.drop(df[df['detection_id']==detection_id].index,inplace=True)
-            group.append(detection_id)
+        # pre-calculate areas (to prevent repetition)
+        total_images = len(main_df)
+        main_df['area'] = main_df.apply(lambda x: (x.right - x.left) * (x.bottom - x.top), axis=1)
+        
+        # Divide detections into max 10k detection windows to avoid ON^2 growth
+        grouping = math.ceil(total_images/math.ceil(total_images/10000))
+        static_groups = {}
+        for i in range(0,total_images,grouping):
+            static_groups[i] = []
+            df = main_df.iloc[i:i+grouping]
+        
+            image_count = len(df['image_id'].unique())
+            if image_count > 100:
+                match_percentage = round(Config.STATIC_PERCENTAGE / math.log(image_count, 10), 2)
+            else:
+                match_percentage = Config.STATIC_PERCENTAGE
             
-            if (len(group)>Config.STATIC_MATCHCOUNT) and (len(group)/image_count>=match_percentage):
-                found = False
-                for item in final_static_groups:
-                    if any([d_id in item for d_id in group]):
-                        item.extend(group)
-                        item = list(set(item))
-                        found = True
+            for detection_id in list(df['detection_id']):
+
+                new_df = df.copy()
+                for group in static_groups[i]:
+                    if detection_id in group:
+                        new_df = new_df[~(new_df['detection_id'].isin(group) & (new_df['detection_id']!=detection_id))]
                         break
-                if not found: final_static_groups.append(group)
+
+                if len(new_df) == 0: continue
+
+                group = calc_det_iou(detection_id,new_df)
+
+                # This allows the df to become smaller over the loop (no need to recalculate IOUs from the opposite side)
+                df.drop(df[df['detection_id']==detection_id].index,inplace=True)
+                group.append(detection_id)
+                
+                if (len(group)>Config.STATIC_MATCHCOUNT) and (len(group)/image_count>=match_percentage):
+                    found = False
+                    for item in static_groups[i]:
+                        if any([d_id in item for d_id in group]):
+                            item.extend(group)
+                            item = list(set(item))
+                            found = True
+                            break
+                    if not found: static_groups[i].append(group)
+
+        # Now we need to combine the groups across the windows
+        final_static_groups = static_groups[0].copy()
+        for index in static_groups:
+            if index!=0:
+                temp_static_groups = final_static_groups.copy()
+                for group1 in static_groups[index]:
+                    found = False
+
+                    for group2 in temp_static_groups:
+                        if compare_static_groups(main_df,group1,group2):
+                            #combine
+                            for group in final_static_groups:
+                                if set(group)==set(group2):
+                                    group.extend(group1)
+                                    found = True
+                                    break
+                            temp_static_groups.remove(group2)
+                            break
+
+                    if not found: final_static_groups.append(group1)
 
         static_detections = []
         for group in final_static_groups:
