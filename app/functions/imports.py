@@ -2446,7 +2446,8 @@ def import_folder(s3Folder, survey_id, sourceBucket,destinationBucket,pipeline,m
     results = []
     batch_count = 0
     batch = []
-    chunk_size = round(Config.QUEUES['parallel']['rate']/4)
+    # chunk_size = round(Config.QUEUES['parallel']['rate']/4)
+    chunk_size = round(10000/4)
     remove_gps = False
     any_gps = False
     for dirpath, folders, filenames in s3traverse(sourceBucket, s3Folder):
@@ -2532,7 +2533,8 @@ def import_folder(s3Folder, survey_id, sourceBucket,destinationBucket,pipeline,m
 
                         batch_count += len(chunk)
 
-                        if (batch_count / (((Config.QUEUES['parallel']['rate'])*random.uniform(0.5, 1.5))/2) ) >= 1:
+                        # if (batch_count / (((Config.QUEUES['parallel']['rate'])*random.uniform(0.5, 1.5))/2) ) >= 1:
+                        if (batch_count / (((10000)*random.uniform(0.5, 1.5))/2) ) >= 1:
                             results.append(importImages.apply_async(kwargs={'batch':batch,'csv':False,'pipeline':pipeline,'external':False,'min_area':min_area,'remove_gps':remove_gps,'label_source':label_source},queue='parallel'))
                             app.logger.info('Queued batch with {} images'.format(batch_count))
                             batch_count = 0
@@ -2696,7 +2698,8 @@ def pipeline_csv(df,survey_id,tag,exclusions,source,destBucket,min_area,external
     results = []
     batch_count = 0
     batch = []
-    chunk_size = round(Config.QUEUES['parallel']['rate']/4)
+    # chunk_size = round(Config.QUEUES['parallel']['rate']/4)
+    chunk_size = round(10000/4)
     # for dirpath, folders, filenames in s3traverse(sourceBucket, s3Folder):
     for dirpath in df['dirpath'].unique():
         filenames = df[df['dirpath']==dirpath]['filename'].unique()
@@ -2725,7 +2728,8 @@ def pipeline_csv(df,survey_id,tag,exclusions,source,destBucket,min_area,external
 
                     batch_count += len(chunk)
 
-                    if (batch_count / (((Config.QUEUES['parallel']['rate'])*random.uniform(0.5, 1.5))/2) ) >= 1:
+                    # if (batch_count / (((Config.QUEUES['parallel']['rate'])*random.uniform(0.5, 1.5))/2) ) >= 1:
+                    if (batch_count / (((10000)*random.uniform(0.5, 1.5))/2) ) >= 1:
                         results.append(importImages.apply_async(kwargs={'batch':batch,'csv':False,'pipeline':True,'external':external,'min_area':min_area,'remove_gps':False,'label_source':label_source},queue='parallel'))
                         app.logger.info('Queued batch with {} images'.format(batch_count))
                         batch_count = 0
@@ -2945,7 +2949,8 @@ def classifySurvey(survey_id,sourceBucket,classifier=None,batch_size=200,process
                         .filter(or_(and_(Detection.source==model,Detection.score>Config.DETECTOR_THRESHOLDS[model]) for model in Config.DETECTOR_THRESHOLDS))\
                         .distinct().count()
 
-    chunk_size = round(Config.QUEUES['parallel']['rate']/4)
+    # chunk_size = round(Config.QUEUES['parallel']['rate']/4)
+    chunk_size = round(10000/4)
     number_of_chunks = math.ceil(images/chunk_size)
 
     # for chunk in chunker(images,round(Config.QUEUES['parallel']['rate']/2)):
