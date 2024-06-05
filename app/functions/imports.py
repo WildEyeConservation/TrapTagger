@@ -258,7 +258,8 @@ def importKML(survey_id):
 
     return True
 
-def recluster_large_clusters(task,updateClassifications,session=None,reClusters=None):
+@celery.task(bind=True,max_retries=5,ignore_result=True)
+def recluster_large_clusters(task,updateClassifications,trapgroup_id=None,session=None,reClusters=None):
     '''
     Reclusters all clusters with over 50 images, by more strictly defining clusters based on classifications. Failing that, clusters are simply limited to 50 images.
 
@@ -271,126 +272,152 @@ def recluster_large_clusters(task,updateClassifications,session=None,reClusters=
             newClusters (list): List of cluster IDs that have been added
     '''
 
-    commit = False
-    if session == None:
-        commit = True
-        session = db.session()
-        task = session.query(Task).get(task)
-    
-    downLabel = session.query(Label).get(GLOBALS.knocked_id)
+    try:
+        commit = False
+        if session == None:
+            commit = True
+            session = db.session()
+            task = session.query(Task).get(task)
+        
+        downLabel = session.query(Label).get(GLOBALS.knocked_id)
 
-    subq = session.query(Cluster.id.label('clusterID'),func.count(distinct(Image.id)).label('imCount'))\
-                .join(Image,Cluster.images)\
-                .filter(Cluster.task==task)\
-                .group_by(Cluster.id)\
-                .subquery()
-
-    if reClusters==None:
-        # Handle already-labelled clusters
-        clusters = session.query(Cluster)\
-                    .join(subq,subq.c.clusterID==Cluster.id)\
+        subq = session.query(Cluster.id.label('clusterID'),func.count(distinct(Image.id)).label('imCount'))\
+                    .join(Image,Cluster.images)\
                     .filter(Cluster.task==task)\
-                    .filter(subq.c.imCount>50)\
-                    .filter(~Cluster.labels.contains(downLabel))\
-                    .filter(Cluster.labels.any())\
-                    .distinct().all()
+                    .group_by(Cluster.id)\
+                    .subquery()
+
+        if reClusters==None:
+            # Handle already-labelled clusters
+            clusters = session.query(Cluster)\
+                        .join(subq,subq.c.clusterID==Cluster.id)\
+                        .filter(Cluster.task==task)\
+                        .filter(subq.c.imCount>50)\
+                        .filter(~Cluster.labels.contains(downLabel))\
+                        .filter(Cluster.labels.any())
+
+            if trapgroup_id:
+                clusters = clusters.join(Image,Cluster.images)\
+                        .join(Camera)\
+                        .filter(Camera.trapgroup_id==trapgroup_id)
+
+            clusters = clusters.distinct().all()
+
+            for cluster in clusters:
+                images = session.query(Image).filter(Image.clusters.contains(cluster)).order_by(Image.corrected_timestamp).distinct().all()
+                
+                for n in range(math.ceil(len(images)/50)):
+                    newCluster = Cluster(task=task)
+                    session.add(newCluster)
+                    newCluster.labels=cluster.labels
+                    start_index = (n)*50
+                    
+                    if n==math.ceil(len(images)/50)-1:
+                        newCluster.images = images[start_index:]
+                    else:
+                        end_index = (n+1)*50
+                        newCluster.images = images[start_index:end_index]
+
+                    if updateClassifications:
+                        newCluster.classification = classifyCluster(newCluster)
+
+                cluster.images = []
+                session.delete(cluster)
+                # session.commit()
+            
+            # session.commit()
+                    
+            clusters = session.query(Cluster)\
+                        .join(subq,subq.c.clusterID==Cluster.id)\
+                        .filter(Cluster.task==task)\
+                        .filter(subq.c.imCount>50)\
+                        .filter(~Cluster.labels.any())
+            
+            if trapgroup_id:
+                clusters = clusters.join(Image,Cluster.images)\
+                        .join(Camera)\
+                        .filter(Camera.trapgroup_id==trapgroup_id)
+
+            clusters = clusters.distinct().all()
+
+        else:
+            clusters = reClusters
+
+        classifier = task.survey.classifier
+        newClusters = []
 
         for cluster in clusters:
-            images = session.query(Image).filter(Image.clusters.contains(cluster)).order_by(Image.corrected_timestamp).distinct().all()
-            
-            for n in range(math.ceil(len(images)/50)):
-                newCluster = Cluster(task=task)
-                session.add(newCluster)
-                newCluster.labels=cluster.labels
-                start_index = (n)*50
-                
-                if n==math.ceil(len(images)/50)-1:
-                    newCluster.images = images[start_index:]
-                else:
-                    end_index = (n+1)*50
-                    newCluster.images = images[start_index:end_index]
+            currCluster = None
+            images = session.query(Image).filter(Image.clusters.contains(cluster)).order_by(Image.corrected_timestamp).all()
+            cameras = [str(r[0]) for r in session.query(Cameragroup.id).join(Camera).join(Image).filter(Image.clusters.contains(cluster)).distinct().all()]
 
-                if updateClassifications:
-                    newCluster.classification = classifyCluster(newCluster)
+            prevLabels = {}
+            for cam in cameras:
+                prevLabels[cam] = []
+                    
+            for image in images:
+                detections = session.query(Detection)\
+                                    .filter(Detection.image_id==image.id)\
+                                    .filter(or_(and_(Detection.source==model,Detection.score>Config.DETECTOR_THRESHOLDS[model]) for model in Config.DETECTOR_THRESHOLDS))\
+                                    .filter(Detection.static==False)\
+                                    .filter(~Detection.status.in_(Config.DET_IGNORE_STATUSES))\
+                                    .all()
+
+                if len(detections) == 0:
+                    species = ['nothing']
+                else:
+                    species = []
+                    for detection in detections:
+                        if (detection.class_score > classifier.threshold) and (detection.classification != 'nothing'):
+                            species.append(detection.classification)
+                        else:
+                            species.append('unknown')
+                    species = list(set(species))
+
+                newClusterRequired = True
+
+                for cam in prevLabels.keys():
+                    for label in prevLabels[cam]:
+                        if label in species:
+                            newClusterRequired = False
+                            break
+
+                if currCluster and (len(currCluster.images[:]) >= 50):
+                    newClusterRequired = True
+
+                if newClusterRequired:
+                    if currCluster and updateClassifications:
+                        currCluster.classification = classifyCluster(currCluster)
+                    currCluster = Cluster(task=task)
+                    session.add(currCluster)
+                    newClusters.append(currCluster)
+                    prevLabels = {}
+                    for cam in cameras:
+                        prevLabels[cam] = []
+
+                currCluster.images.append(image)
+                prevLabels[str(image.camera.cameragroup_id)] = species
+
+            if currCluster and updateClassifications:
+                currCluster.classification = classifyCluster(currCluster)
 
             cluster.images = []
             session.delete(cluster)
-            # session.commit()
         
-        # session.commit()
-                
-        clusters = session.query(Cluster)\
-                    .join(subq,subq.c.clusterID==Cluster.id)\
-                    .filter(Cluster.task==task)\
-                    .filter(subq.c.imCount>50)\
-                    .filter(~Cluster.labels.any())\
-                    .all()
+        if commit:
+            session.commit()
+            newClusters = None
 
-    else:
-        clusters = reClusters
+    except Exception as exc:
+        app.logger.info(' ')
+        app.logger.info('!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!')
+        app.logger.info(traceback.format_exc())
+        app.logger.info('!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!')
+        app.logger.info(' ')
+        self.retry(exc=exc, countdown= retryTime(self.request.retries))
 
-    classifier = task.survey.classifier
-    newClusters = []
-
-    for cluster in clusters:
-        currCluster = None
-        images = session.query(Image).filter(Image.clusters.contains(cluster)).order_by(Image.corrected_timestamp).all()
-        cameras = [str(r[0]) for r in session.query(Camera.id).join(Image).filter(Image.clusters.contains(cluster)).distinct().all()]
-
-        prevLabels = {}
-        for cam in cameras:
-            prevLabels[cam] = []
-                
-        for image in images:
-            detections = session.query(Detection)\
-                                .filter(Detection.image_id==image.id)\
-                                .filter(or_(and_(Detection.source==model,Detection.score>Config.DETECTOR_THRESHOLDS[model]) for model in Config.DETECTOR_THRESHOLDS))\
-                                .filter(Detection.static==False)\
-                                .filter(~Detection.status.in_(Config.DET_IGNORE_STATUSES))\
-                                .all()
-
-            if len(detections) == 0:
-                species = ['nothing']
-            else:
-                species = []
-                for detection in detections:
-                    if (detection.class_score > classifier.threshold) and (detection.classification != 'nothing'):
-                        species.append(detection.classification)
-                    else:
-                        species.append('unknown')
-                species = list(set(species))
-
-            newClusterRequired = True
-
-            for cam in prevLabels.keys():
-                for label in prevLabels[cam]:
-                    if label in species:
-                        newClusterRequired = False
-                        break
-
-            if currCluster and (len(currCluster.images[:]) >= 50):
-                newClusterRequired = True
-
-            if newClusterRequired:
-                if currCluster and updateClassifications:
-                    currCluster.classification = classifyCluster(currCluster)
-                currCluster = Cluster(task=task)
-                session.add(currCluster)
-                newClusters.append(currCluster)
-                prevLabels = {}
-                for cam in cameras:
-                    prevLabels[cam] = []
-
-            currCluster.images.append(image)
-            prevLabels[str(image.camera_id)] = species
-
-        if currCluster and updateClassifications:
-            currCluster.classification = classifyCluster(currCluster)
-
-        cluster.images = []
-        session.delete(cluster)
-    
-    if commit: session.commit()
+    finally:
+        if commit: db.session.remove()
 
     return newClusters
 
@@ -3568,8 +3595,7 @@ def import_survey(self,survey_id,preprocess_done=False):
             survey = db.session.query(Survey).get(survey_id)
             survey.status='Re-Clustering'
             db.session.commit()
-            for task in survey.tasks:
-                recluster_large_clusters(task.id,True)
+            recluster_survey(survey_id)
 
         if not preprocess_done and (timestamp_check or static_check):
             survey_status = "Preprocessing,"
@@ -5027,5 +5053,34 @@ def extrapolate_timestamps(self,camera_id,folder=None):
 
     finally:
         db.session.remove()
+
+    return True
+
+def recluster_survey(survey_id):
+    '''Celery wrapper for parallising recluster_large_clusters on the the task and trapgroup levels.'''
+
+    task_ids = [r[0] for r in db.session.query(Task.id).filter(Task.survey_id==survey_id).distinct().all()]
+    trapgroup_ids = [r[0] for r in db.session.query(Trapgroup.id).filter(Trapgroup.survey_id==survey_id).distinct().all()]
+
+    results = []
+    for task_id in task_ids:
+        for trapgroup_id in trapgroup_ids:
+            results.append(recluster_large_clusters.apply_async(kwargs={'task_id':task_id,'updateClassifications':True,'trapgroup_id':trapgroup_id},queue='parallel'))
+    
+    #Wait for processing to complete
+    db.session.remove()
+    GLOBALS.lock.acquire()
+    with allow_join_result():
+        for result in results:
+            try:
+                result.get()
+            except Exception:
+                app.logger.info(' ')
+                app.logger.info('!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!')
+                app.logger.info(traceback.format_exc())
+                app.logger.info('!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!')
+                app.logger.info(' ')
+            result.forget()
+    GLOBALS.lock.release()
 
     return True

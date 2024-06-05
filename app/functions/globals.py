@@ -1098,7 +1098,7 @@ def finish_knockdown(self,rootImageID, task, current_user_id, lastImageID=None, 
 
             if long_clusters:
                 from app.functions.imports import recluster_large_clusters
-                newClusters = recluster_large_clusters(task,True,session,long_clusters)
+                newClusters = recluster_large_clusters(task,True,None,session,long_clusters)
                 clusterList.extend(newClusters)
 
             if clusterList: classifyTask(task,session,clusterList)

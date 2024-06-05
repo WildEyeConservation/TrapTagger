@@ -178,8 +178,8 @@ class Config(object):
             'instances': CPU_INSTANCE_TYPES,
             'max_instances': MAX_PARALLEL,
             'launch_delay': 180,
-            'rate': 10000, #2695
-            'queue_type': 'time',
+            'rate': 4, #2695
+            'queue_type': 'rate',
             'repo': os.environ.get('MAIN_GIT_REPO'),
             'branch': BRANCH,
             'user_data':
