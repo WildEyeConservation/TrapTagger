@@ -883,7 +883,7 @@ def compare_static_groups(df,group1,group2):
     return False
 
 @celery.task(bind=True,max_retries=5)
-def processStaticWindow(cameragroup_id,index,grouping):
+def processStaticWindow(self,cameragroup_id,index,grouping):
 
     try:
         static_groups = []
