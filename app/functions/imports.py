@@ -990,6 +990,23 @@ def processCameraStaticDetections(self,cameragroup_id):
                 result.forget()
         GLOBALS.lock.release()
 
+        df = pd.read_sql(db.session.query(
+                                    Detection.id.label('detection_id'),
+                                    Detection.left.label('left'),
+                                    Detection.right.label('right'),
+                                    Detection.top.label('top'),
+                                    Detection.bottom.label('bottom'),
+                                    Image.id.label('image_id')
+                                )\
+                                .join(Image)\
+                                .join(Camera)\
+                                .filter(Camera.cameragroup_id==cameragroup_id)\
+                                .filter(or_(and_(Detection.source==model,Detection.score>Config.DETECTOR_THRESHOLDS[model]) for model in Config.DETECTOR_THRESHOLDS))\
+                                .order_by(Detection.id)\
+                                .statement,db.session.bind)
+
+        df['area'] = df.apply(lambda x: (x.right - x.left) * (x.bottom - x.top), axis=1)
+
         # Now we need to combine the groups across the windows
         final_static_groups = static_groups[0].copy()
         for index in static_groups:
@@ -999,7 +1016,7 @@ def processCameraStaticDetections(self,cameragroup_id):
                     found = False
 
                     for group2 in temp_static_groups:
-                        if compare_static_groups(main_df,group1,group2):
+                        if compare_static_groups(df,group1,group2):
                             #combine
                             for group in final_static_groups:
                                 if set(group)==set(group2):
