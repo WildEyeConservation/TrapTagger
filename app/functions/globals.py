@@ -2702,7 +2702,7 @@ def inspect_celery(include_spam=False,include_reserved=False):
     for worker in inspector_active:
         for task in inspector_active[worker]:
             if not any(name in task['name'] for name in spam):
-                time_start = datetime.fromtimestamp(task['time_start'])
+                time_start = str(datetime.fromtimestamp(task['time_start']))
                 name = task['name'].split('.')[-1]
                 hostname = task['hostname'].split('celery@')[-1]
                 if 'importImages' in task['name']:
@@ -2738,7 +2738,7 @@ def inspect_celery(include_spam=False,include_reserved=False):
         for worker in inspector_reserved:
             for task in inspector_reserved[worker]:
                 if not any(name in task['name'] for name in spam):
-                    time_start = datetime.fromtimestamp(task['time_start'])
+                    time_start = str(datetime.fromtimestamp(task['time_start']))
                     name = task['name'].split('.')[-1]
                     hostname = task['hostname'].split('celery@')[-1]
                     if 'importImages' in task['name']:
