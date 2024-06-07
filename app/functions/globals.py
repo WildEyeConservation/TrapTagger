@@ -2713,6 +2713,8 @@ def inspect_celery(include_spam=False,include_reserved=False):
                     print('{:{}}{:{}}{:{}}{:{}}  survey_id={}'.format(task['id'],40,name,36,hostname,36,time_start,29,task['kwargs']['survey_id']))
                 elif 'process_video_batch' in task['name']:
                     print('{:{}}{:{}}{:{}}{:{}}  {}'.format(task['id'],40,name,36,hostname,36,time_start,29,task['kwargs']['dirpath']))
+                elif 'prepTask' in task['name']:
+                    print('{:{}}{:{}}{:{}}{:{}}  survey_id={}'.format(task['id'],40,name,36,hostname,36,time_start,29,task['kwargs']['survey_id']))
                 elif '.classify' in task['name']:
                     batch = task['kwargs']['batch']
                     detection_id=batch['detection_ids'][0]
@@ -2749,6 +2751,8 @@ def inspect_celery(include_spam=False,include_reserved=False):
                         print('{:{}}{:{}}{:{}}{:{}}  survey_id={}'.format(task['id'],40,name,36,hostname,36,time_start,29,task['kwargs']['survey_id']))
                     elif 'process_video_batch' in task['name']:
                         print('{:{}}{:{}}{:{}}{:{}}  {}'.format(task['id'],40,name,36,hostname,36,time_start,29,task['kwargs']['dirpath']))
+                    elif 'prepTask' in task['name']:
+                        print('{:{}}{:{}}{:{}}{:{}}  survey_id={}'.format(task['id'],40,name,36,hostname,36,time_start,29,task['kwargs']['survey_id']))
                     elif '.classify' in task['name']:
                         batch = task['kwargs']['batch']
                         detection_id=batch['detection_ids'][0]

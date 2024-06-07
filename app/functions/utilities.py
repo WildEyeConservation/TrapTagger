@@ -24,6 +24,7 @@ from config import Config
 import traceback
 from celery.result import allow_join_result
 import cv2
+from PIL import Image as pilImage
 
 @celery.task(bind=True,max_retries=5)
 def copy_task_trapgroup(self,trapgroup_id,old_task_id,new_task_id):
@@ -986,4 +987,79 @@ def get_still_rate_old(video_fps,video_frames):
     max_frames = 50     # Maximum number of frames to extract
     fps_default = 1     # Default fps to extract frames at (frame per second)
     frames_default_fps = math.ceil(video_frames / video_fps) * fps_default
-    return min(max_frames / frames_default_fps, fps_default)  
+    return min(max_frames / frames_default_fps, fps_default)
+
+@celery.task(bind=True,max_retries=5,ignore_result=True)
+def crop_training_images_parallel(self,key,source_bucket,dest_bucket):
+    '''Parallel function for cropping detections contained in the csv in S3.'''
+
+    try:
+        with tempfile.NamedTemporaryFile(delete=True, suffix='.csv') as temp_file:
+            GLOBALS.s3client.download_file(Bucket=dest_bucket, Key=key, Filename=temp_file.name)
+            df = pd.read_csv(temp_file.name)
+
+        for image_key in df['path'].unique():
+            
+            with tempfile.NamedTemporaryFile(delete=True, suffix='.jpg') as temp_file:
+                GLOBALS.s3client.download_file(Bucket=source_bucket, Key=image_key, Filename=temp_file.name)
+                with pilImage.open(temp_file.name) as img:
+                    img.load()
+
+            if img.mode != 'RGB': img = img.convert(mode='RGB')
+
+            for index, row in df[df['path']==image_key].iterrows():
+                dest_key = row['detection_id']+'.jpg'
+
+                try:
+                    check = GLOBALS.s3client.head_object(Bucket=dest_bucket,Key=dest_key)
+                except:
+                    # file does not exist
+                    bbox = [row['left'],row['top'],(row['right']-row['left']),(row['bottom']-row['top'])]
+                    save_crop(img, bbox_norm=bbox, square_crop=True, bucket=dest_bucket, key=dest_key)
+
+    except Exception as exc:
+        app.logger.info(' ')
+        app.logger.info('!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!')
+        app.logger.info(traceback.format_exc())
+        app.logger.info('!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!')
+        app.logger.info(' ')
+        self.retry(exc=exc, countdown= retryTime(self.request.retries))
+
+    finally:
+        db.session.close()
+
+    return True
+
+def crop_training_images(key,source_bucket,dest_bucket,parallelisation):
+    '''Root funciton for the parallel cropping of training data.'''
+
+    with tempfile.NamedTemporaryFile(delete=True, suffix='.csv') as temp_file:
+        GLOBALS.s3client.download_file(Bucket=dest_bucket, Key=key, Filename=temp_file.name)
+        df = pd.read_csv(temp_file.name)
+
+    results = []
+    detection_count = len(df)
+    grouping = math.ceil(detection_count/parallelisation)
+    for index in range(0,detection_count,grouping):
+        df_temp = df.iloc[index:index+grouping]
+        temp_key = key.replace('.csv','')+'_'+str(index)+'.csv'
+		with tempfile.NamedTemporaryFile(delete=True, suffix='.csv') as temp_file:
+			df_temp.to_csv(temp_file.name,index=False)
+			GLOBALS.s3client.put_object(Bucket=dest_bucket,Key=temp_key,Body=temp_file)
+        results.append(crop_training_images_parallel.apply_async(kwargs={'key':temp_key,'source_bucket':source_bucket,'dest_bucket':dest_bucket}))
+
+    GLOBALS.lock.acquire()
+    with allow_join_result():
+        for result in results:
+            try:
+                result.get()
+            except Exception:
+                app.logger.info(' ')
+                app.logger.info('!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!')
+                app.logger.info(traceback.format_exc())
+                app.logger.info('!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!')
+                app.logger.info(' ')
+            result.forget()
+    GLOBALS.lock.release()
+
+    return True
