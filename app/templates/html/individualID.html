@@ -74,12 +74,17 @@ limitations under the License. -->
         <div id="debugInfo"></div>
         <br>
         <br>
-        <br>
-        <br>
         <div id="distDelta" style="font-size:30px"></div>
         <br>
         <div id="timeDelta" style="font-size:20px"></div>
         <br>
+        <br>
+        <div class="text-center" style="vertical-align: middle;">
+            <label for="cxFeaturesHeatmap">Show matching features heatmap: </label>
+            <label class="switch">
+                <input type="checkbox" id="cxFeaturesHeatmap"><span class="slider round"></span>
+            </label>
+        </div>
         <button id="btnAcceptSuggestion" class="btn btn-primary btn-block" onclick=acceptSuggestion()>Accept Suggestion (Space)</button>
         <button id="btnRejectSuggestion" class="btn btn-primary btn-block" onclick=rejectSuggestion()>(R)eject Suggestion</button>
         <button id="btnSkipSuggestion" class="btn btn-primary btn-block" onclick=skipSuggestion()>(S)kip</button>
@@ -363,4 +368,5 @@ limitations under the License. -->
 <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet-contextmenu/1.4.0/leaflet.contextmenu.js"></script>
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@splidejs/splide@latest/dist/css/splide.min.css">
 <script src="https://cdn.jsdelivr.net/npm/@splidejs/splide@latest/dist/js/splide.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/leaflet.heat@0.2.0/dist/leaflet-heat.min.js"></script>
 {% endblock %}

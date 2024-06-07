@@ -31,6 +31,7 @@ const btnNoteRecon = document.querySelector('#btnNoteRecon');
 const btnDuplicate = document.querySelector('#btnDuplicate');
 var dbDetIds = {}
 var toolTipsOpen = true
+var popUpsOpen = true
 var contextLocation
 
 var globalIndividual = null
@@ -49,6 +50,10 @@ var submittedResponse = false
 var backIndex = 0
 
 var DEBUGGING = false
+
+const detection_flanks = ['Left','Right','Ambiguous']
+var kpts_layer = {'map1':null,'map2':null}
+var savedKpts = {}
 
 function radians(degrees) {
     /** Converts desgres into radians. */
@@ -100,6 +105,7 @@ function acceptSuggestion() {
         }
         clusters['map1'][clusterIndex['map1']].images.push(...clusters['map2'][clusterIndex['map2']].images)
         sliderIndex['map1'] = '-1'
+        savedKpts = {}
         update('map1')
     }
 }
@@ -132,6 +138,7 @@ function suggestionUnidentifiable() {
             modalWait2Hide = false
             modalWait2.modal({backdrop: 'static', keyboard: false});
         }
+        savedKpts = {}
     }
 }
 
@@ -162,6 +169,7 @@ function rejectSuggestion() {
             modalWait2Hide = false
             modalWait2.modal({backdrop: 'static', keyboard: false});
         }
+        savedKpts = {}
     }
 }
 
@@ -192,6 +200,7 @@ function skipSuggestion() {
             modalWait2Hide = false
             modalWait2.modal({backdrop: 'static', keyboard: false});
         }
+        savedKpts = {}
     }
 }
 
@@ -631,7 +640,8 @@ function buildIndividuals() {
     // Clear all
     for (let mapID in dbDetIds) {
         for (let leafletID in dbDetIds[mapID]) {
-            drawnItems[mapID]._layers[leafletID].unbindTooltip()
+            // drawnItems[mapID]._layers[leafletID].unbindTooltip()
+            drawnItems[mapID]._layers[leafletID].unbindPopup()
             drawnItems[mapID]._layers[leafletID].setStyle({color: "rgba(223,105,26,1)"})
         }
 
@@ -650,20 +660,39 @@ function buildIndividuals() {
         for (let mapID in dbDetIds) {
             for (let leafletID in dbDetIds[mapID]) {
                 if (individuals[individualIndex][individualID].detections.includes(parseInt(dbDetIds[mapID][leafletID]))) {
+
+                    // drawnItems[mapID]._layers[leafletID].bindTooltip(individualName,{permanent: true, direction:"center"})
+                    // var center = L.latLng([(drawnItems[mapID]._layers[leafletID]._bounds._northEast.lat+drawnItems[mapID]._layers[leafletID]._bounds._southWest.lat)/2,(drawnItems[mapID]._layers[leafletID]._bounds._northEast.lng+drawnItems[mapID]._layers[leafletID]._bounds._southWest.lng)/2])
+                    // var bottom = L.latLng([drawnItems[mapID]._layers[leafletID]._bounds._southWest.lat,(drawnItems[mapID]._layers[leafletID]._bounds._northEast.lng+drawnItems[mapID]._layers[leafletID]._bounds._southWest.lng)/2])
+                    // var centerPoint = map[mapID].latLngToContainerPoint(center)
+                    // var bottomPoint = map[mapID].latLngToContainerPoint(bottom)
+                    // var offset = [0,centerPoint.y-bottomPoint.y]
+                    // drawnItems[mapID]._layers[leafletID]._tooltip.options.offset = offset
+                    // drawnItems[mapID]._layers[leafletID]._tooltip.options.opacity = 0.8
+                    // drawnItems[mapID]._layers[leafletID].openTooltip()
+                    // if (!toolTipsOpen) {
+                    //     rect.closeTooltip()
+                    // }
+
                     drawnItems[mapID]._layers[leafletID].setStyle({color: colour})
-                    drawnItems[mapID]._layers[leafletID].bindTooltip(individualName,{permanent: true, direction:"center"})
+                    drawnItems[mapID]._layers[leafletID].bindPopup(individualName, {closeButton: false, autoClose: false, closeOnClick: false, autoPan: false, minWidth: 0})
+                    drawnItems[mapID]._layers[leafletID].on('mouseover', function (e) {
+                        this.openPopup();
+                    });
+                    drawnItems[mapID]._layers[leafletID].on('mouseout', function (e) {
+                        this.closePopup();
+                    });
 
                     var center = L.latLng([(drawnItems[mapID]._layers[leafletID]._bounds._northEast.lat+drawnItems[mapID]._layers[leafletID]._bounds._southWest.lat)/2,(drawnItems[mapID]._layers[leafletID]._bounds._northEast.lng+drawnItems[mapID]._layers[leafletID]._bounds._southWest.lng)/2])
-                    var bottom = L.latLng([drawnItems[mapID]._layers[leafletID]._bounds._southWest.lat,(drawnItems[mapID]._layers[leafletID]._bounds._northEast.lng+drawnItems[mapID]._layers[leafletID]._bounds._southWest.lng)/2])
+                    var top = L.latLng([drawnItems[mapID]._layers[leafletID]._bounds._northEast.lat,(drawnItems[mapID]._layers[leafletID]._bounds._northEast.lng+drawnItems[mapID]._layers[leafletID]._bounds._southWest.lng)/2])
                     var centerPoint = map[mapID].latLngToContainerPoint(center)
-                    var bottomPoint = map[mapID].latLngToContainerPoint(bottom)
-                    var offset = [0,centerPoint.y-bottomPoint.y]
-            
-                    drawnItems[mapID]._layers[leafletID]._tooltip.options.offset = offset
-                    drawnItems[mapID]._layers[leafletID]._tooltip.options.opacity = 0.8
-                    drawnItems[mapID]._layers[leafletID].openTooltip()
-                    if (!toolTipsOpen) {
-                        rect.closeTooltip()
+                    var topPoint = map[mapID].latLngToContainerPoint(top)
+                    var offset = [0,topPoint.y-centerPoint.y]
+
+                    drawnItems[mapID]._layers[leafletID]._popup.options.offset = offset
+
+                    if (!popUpsOpen) {
+                        drawnItems[mapID]._layers[leafletID].closePopup()
                     }
                 }
             }
@@ -1253,6 +1282,110 @@ function IDMapPrep(mapID = 'map1') {
     });
 }
 
+function setClusterIDRectOptions() {
+    /** Sets the bounding box options. */
+
+    menuItems = []
+    index = 0
+    for (let i=0;i<detection_flanks.length;i++) {
+        menuItems.push({
+            text: detection_flanks[i],
+            index: index,
+            callback: updateTargetRect
+        })
+        index += 1
+
+        menuItems.push({
+            separator: true,
+            index: index
+        })
+        index += 1
+    }
+
+    rectOptions = {
+        color: "rgba(223,105,26,1)",
+        fill: true,
+        fillOpacity: 0.0,
+        opacity: 0.8,
+        weight:3,
+        contextmenu: true,
+        contextmenuWidth: 140,
+        contextmenuItems: menuItems
+    }
+}
+
+
+function clusterIDMapPrep(mapID = 'map1') {
+    /** Finishes prepping the map for intra-cluster individual ID by adding the dissociate option to the context menu. */
+
+    map[mapID].on('contextmenu.select', function (wrapMapID) {
+        return function(e) {
+            if (targetUpdated) {  
+                detection_id = dbDetIds[wrapMapID][targetRect.toString()]
+                clusters[wrapMapID][clusterIndex[wrapMapID]].images[imageIndex[wrapMapID]].detections[0].flank = e.el.textContent
+                mapID2 = wrapMapID == 'map1' ? 'map2' : 'map1';
+                for (let i = 0; i < clusters[mapID2][clusterIndex[mapID2]].images.length; i++) {
+                    if (clusters[mapID2][clusterIndex[mapID2]].images[i].detections.length > 0){
+                        if (clusters[mapID2][clusterIndex[mapID2]].images[i].detections[0].id == detection_id) {
+                            clusters[mapID2][clusterIndex[mapID2]].images[i].detections[0].flank = e.el.textContent
+                            break
+                        }
+                    }
+                }
+
+                drawnItems[mapID]._layers[targetRect].closeTooltip()
+                drawnItems[mapID]._layers[targetRect]._tooltip._content=e.el.textContent
+                if (toolTipsOpen) {
+                    drawnItems[wrapMapID]._layers[targetRect].openTooltip()
+                }
+
+                for (let leafletID in dbDetIds[mapID2]) {
+                    if (dbDetIds[mapID2][leafletID] == detection_id) {
+                        drawnItems[mapID2]._layers[leafletID].closeTooltip()
+                        drawnItems[mapID2]._layers[leafletID]._tooltip._content=e.el.textContent
+                        if (toolTipsOpen) {
+                            drawnItems[mapID2]._layers[leafletID].openTooltip()
+                        }
+                        break
+                    }
+                }
+
+                editDetectionFlank(detection_id,e.el.textContent)
+                targetUpdated = false
+            } else {
+                alert('Error! Select is being handled before target updated.')
+            }
+        }
+    }(mapID));
+
+    map[mapID].on('contextmenu', function (e) {
+        /** remove duplicate items on more than one right click of contextmenu*/
+        nr_items = 2*detection_flanks.length - 1
+
+        if(map[mapID].contextmenu._items.length > nr_items){
+            for (let i=map[mapID].contextmenu._items.length-1;i>nr_items-1;i--) 
+            {
+                map[mapID].contextmenu.removeItem(i)
+            }
+        } 
+    });
+
+    map[mapID].on('zoom', function(e){
+        /** update position of bounding box labels on zoom */
+        if (toolTipsOpen) {
+            for (let layer in drawnItems[mapID]._layers) {
+                var drawn_layer = drawnItems[mapID]._layers[layer]
+                var center = L.latLng([(drawn_layer._bounds._northEast.lat+drawn_layer._bounds._southWest.lat)/2,(drawn_layer._bounds._northEast.lng+drawn_layer._bounds._southWest.lng)/2])
+                var bottom = L.latLng([drawn_layer._bounds._southWest.lat,(drawn_layer._bounds._northEast.lng+drawn_layer._bounds._southWest.lng)/2])
+                var centerPoint = map[mapID].latLngToContainerPoint(center)
+                var bottomPoint = map[mapID].latLngToContainerPoint(bottom)
+                var offset = [0,centerPoint.y-bottomPoint.y]
+                drawn_layer._tooltip.options.offset = offset
+            }
+        }
+    });
+}
+
 window.addEventListener('load', onload, false);
 
 btnDone.addEventListener('click', ()=>{
@@ -1295,4 +1428,108 @@ modalAlertNextIndividual.on('hidden.bs.modal', function(){
         window.location.replace('done')
     }
     modalActive = false;
+});
+
+function editDetectionFlank(detID,flank) {
+    /** Edits the flank of a detection. */
+    if ((finishedDisplaying['map1']) && (finishedDisplaying['map2']) && (modalActive == false) && (modalActive2 == false)) {
+        var xhttp = new XMLHttpRequest();
+        xhttp.onreadystatechange =
+        function() {
+            if (this.readyState == 4 && this.status == 278) {
+                window.location.replace(JSON.parse(this.responseText)['redirect'])
+            } else if (this.readyState == 4 && this.status == 200) {
+                reply = JSON.parse(this.responseText);
+            }
+        }
+        xhttp.open("GET", '/editDetectionFlank/'+detID+'/'+flank);
+        xhttp.send();
+    }
+}
+
+function getMatchingKpts(detID1, detID2) {
+    /** Retrieves the matching keypoints between two detections. */
+
+    for (let mapID in kpts_layer) {
+        if(kpts_layer[mapID]) {
+            map[mapID].removeLayer(kpts_layer[mapID])
+        }
+    }
+
+    id = detID1 + '_' + detID2
+    if (id in savedKpts) {
+        addHotspotsHeatmap('map1', savedKpts[id].kpts[detID1], savedKpts[id].scores)
+        addHotspotsHeatmap('map2', savedKpts[id].kpts[detID2], savedKpts[id].scores)
+    }
+    else{
+        var xhttp = new XMLHttpRequest();
+        xhttp.onreadystatechange =
+        function(wrapDetID1,wrapDetID2) {
+        return function() {
+            if (this.readyState == 4 && this.status == 278) {
+                window.location.replace(JSON.parse(this.responseText)['redirect'])
+            } else if (this.readyState == 4 && this.status == 200) {
+                reply = JSON.parse(this.responseText);
+                results = reply.results
+                console.log(results)
+
+                id = wrapDetID1 + '_' + wrapDetID2
+                savedKpts[id] = results
+    
+                addHotspotsHeatmap('map1', results.kpts[wrapDetID1], results.scores)
+                addHotspotsHeatmap('map2', results.kpts[wrapDetID2], results.scores)
+            }
+        }}(detID1,detID2);
+        xhttp.open("GET", '/getMatchingKpts/'+detID1+'/'+detID2);
+        xhttp.send();
+    }
+
+}
+
+function addHotspotsHeatmap(mapID, kpts, scores) {
+    /** Adds the heatmap of keypoints to the map. */
+
+    if(kpts_layer[mapID]) {
+        map[mapID].removeLayer(kpts_layer[mapID])
+    }
+
+    var heatMapData = []
+    for (i = 0; i < kpts.length; i++) {
+        x = kpts[i][0] * mapWidth[mapID]
+        y = kpts[i][1] * mapHeight[mapID]
+        heatMapData.push({lat: y, lng: x, count: scores[i]})
+    }
+
+    var heatmap_options = {
+        'radius': 25,
+        'minOpacity': 0.1, 
+        'maxZoom': 10,
+        'max': 1.0,
+        'gradient': {
+            0.2: 'rgba(0, 0, 255, 0.2)',   // Blue 
+            0.4: 'rgba(0, 255, 255, 0.2)', // Cyan 
+            0.6: 'rgba(0, 255, 0, 0.2)',   // Lime 
+            0.8: 'rgba(255, 255, 0, 0.2)', // Yellow 
+            1.0: 'rgba(255, 0, 0, 0.2)'    // Red 
+        },
+        'blur': 10 
+    }
+
+    kpts_layer[mapID] = L.heatLayer(heatMapData, heatmap_options).addTo(map[mapID]);
+}
+
+$('#cxFeaturesHeatmap').on('change', function() {
+    /** Handles the change in the heatmap selection. */
+    if (this.checked) {
+        if (finishedDisplaying['map1'] && finishedDisplaying['map2']) {
+            getMatchingKpts(clusters['map1'][clusterIndex['map1']].images[imageIndex['map1']].detections[0].id, clusters['map2'][clusterIndex['map2']].images[imageIndex['map2']].detections[0].id)
+        }
+    } else {
+        if(kpts_layer['map1']) {
+            map['map1'].removeLayer(kpts_layer['map1'])
+        }
+        if(kpts_layer['map2']) {
+            map['map2'].removeLayer(kpts_layer['map2'])
+        }
+    }
 });

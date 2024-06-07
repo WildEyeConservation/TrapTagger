@@ -71,6 +71,18 @@ GLOBALS.s3UploadClient = boto3.client('s3',
 GLOBALS.redisClient = redis.Redis(host=Config.REDIS_IP, port=6379)
 GLOBALS.lock = Lock()
 
+@app.before_first_request
+def initialise_ibs():
+    '''Initialises the IBS object, which is used to interact with the WBIA database.'''	
+    app.logger.info('Initialising IBS')
+    if not GLOBALS.ibs:
+        import warnings
+        with warnings.catch_warnings():
+            warnings.filterwarnings("ignore")
+            from wbia import opendb
+            GLOBALS.ibs = opendb(db=Config.WBIA_DB_NAME,dbdir=Config.WBIA_DIR, allow_newdir=True)
+        app.logger.info('IBS initialised.')
+
 @app.before_request
 def check_for_maintenance():
     '''Checks if site is in maintenance mode and returns a message accordingly.'''
@@ -645,7 +657,7 @@ def deleteIndividual(individual_id):
                                                 .filter(Individual.active==True)\
                                                 .all()]
 
-            calculate_individual_similarity.delay(individual1=newIndividual.id,individuals2=individuals)
+            calculate_individual_similarity.delay(individual1=newIndividual.id,individuals2=individuals,species=individual.species)
 
         allSimilarities = db.session.query(IndSimilarity).filter(or_(IndSimilarity.individual_1==individual.id,IndSimilarity.individual_2==individual.id)).distinct().all()
         for similarity in allSimilarities:
@@ -4959,8 +4971,8 @@ def dissociateDetection(detection_id):
                                                     .filter(Individual.id != newIndividual.id)\
                                                     .all()]
 
-        calculate_individual_similarity.delay(individual1=individual.id,individuals2=individuals1)
-        calculate_individual_similarity.delay(individual1=newIndividual.id,individuals2=individuals2)
+        calculate_individual_similarity.delay(individual1=individual.id,individuals2=individuals1,species=individual.species)
+        calculate_individual_similarity.delay(individual1=newIndividual.id,individuals2=individuals2,species=individual.species)
 
         newIndSimilarity = IndSimilarity(individual_1=individual.id, individual_2=newIndividual.id, score=0)
         db.session.add(newIndSimilarity)
@@ -5351,7 +5363,8 @@ def getSuggestion(individual_id):
                                     'right': detection.right,
                                     'category': detection.category,
                                     'individual': '-1',
-                                    'static': detection.static}
+                                    'static': detection.static,
+                                    'flank': Config.FLANK_TEXT[detection.flank].capitalize()}
                                     for detection in image.detections if (
                                             (detection.score>Config.DETECTOR_THRESHOLDS[detection.source]) and 
                                             (detection.status not in Config.DET_IGNORE_STATUSES) and 
@@ -13303,3 +13316,101 @@ def getTimestampSitesCameraAndSpecies(survey_id):
             species.append(s[0])
 
     return json.dumps({'sites': sites, 'cameras':cameras, 'species':species})
+
+@app.route('/editDetectionFlank/<detection_id>/<flank>')
+@login_required
+def editDetectionFlank(detection_id,flank):
+    ''' Edits the flank of a detection '''
+
+    if (not current_user.admin) and (not GLOBALS.redisClient.sismember('active_jobs_'+str(current_user.turkcode[0].task_id),current_user.username)): return {'redirect': url_for('done')}, 278
+    
+    if Config.DEBUGGING: app.logger.info('Detection ID: {} Flank: {}'.format(detection_id, flank))
+
+    individual_id = request.args.get('individual_id', None)
+    if individual_id:
+        individual = db.session.query(Individual).get(individual_id)
+        task = db.session.query(Task).join(Individual,Task.individuals).filter(Task.sub_tasks.any()).filter(Individual.id==individual_id).distinct().first()
+        if not task: task = individual.tasks[0]
+    else:
+        task = current_user.turkcode[0].task
+
+    tasks = [r for r in task.sub_tasks]
+    tasks.append(task)
+
+    detection = db.session.query(Detection).get(detection_id)
+    if task and detection and (all(checkSurveyPermission(current_user.id,task.survey_id,'write') for task in tasks) or all(checkAnnotationPermission(current_user.parent_id,task.id) for task in tasks)):
+        if flank.lower() in Config.FLANK_DB.keys():
+            detection.flank = Config.FLANK_DB[flank.lower()]
+            db.session.commit()
+
+    return json.dumps('success')
+
+@app.route('/getMatchingKpts/<det_id1>/<det_id2>')
+@login_required
+def getMatchingKpts(det_id1,det_id2):
+    ''' Gets the matching keypoints for two detections '''
+
+    if (not current_user.admin) and (not GLOBALS.redisClient.sismember('active_jobs_'+str(current_user.turkcode[0].task_id),current_user.username)): return {'redirect': url_for('done')}, 278
+
+    individual_id = request.args.get('individual_id', None)
+    if individual_id:
+        individual = db.session.query(Individual).get(individual_id)
+        task = db.session.query(Task).join(Individual,Task.individuals).filter(Task.sub_tasks.any()).filter(Individual.id==individual_id).distinct().first()
+        if not task: task = individual.tasks[0]
+    else:
+        task = current_user.turkcode[0].task
+
+    tasks = [r for r in task.sub_tasks]
+    tasks.append(task)
+
+    results = {
+        'kpts': {
+            det_id1: [],
+            det_id2: []
+        },
+        'scores': []
+    }
+    det1 = db.session.query(Detection).get(det_id1)
+    det2 = db.session.query(Detection).get(det_id2)
+
+    if Config.DEBUGGING: app.logger.info('Getting matching kpts for Detection 1: {} Detection 2: {}'.format(det_id1, det_id2))
+
+    if det1 and det2 and (all(checkSurveyPermission(current_user.id,task.survey_id,'read') for task in tasks) or all(checkAnnotationPermission(current_user.parent_id,task.id) for task in tasks)):
+        det1_aid = det1.aid
+        det2_aid = det2.aid
+        if det1_aid and det2_aid:
+            data = get_featurematches(det1_aid,det2_aid)
+            if data:
+                aid1 = data[0][0]
+                aid2 = data[0][1]
+                fm = data[0][2]
+                fs = data[0][3]
+
+                kpts1, kpts2 = GLOBALS.ibs.get_annot_kpts([aid1, aid2])
+                chip_size1, chip_size2 = GLOBALS.ibs.get_annot_chip_sizes([aid1, aid2])
+
+                kpts1_m = kpts1[fm.T[0]]
+                kpts2_m = kpts2[fm.T[1]]
+
+                if det1.aid == aid1:
+                    aid1_det = det1
+                    aid2_det = det2
+                else:
+                    aid1_det = det2
+                    aid2_det = det1
+
+                kpts_coords1 = calc_kpt_coords(kpts1_m,chip_size1,aid1_det)
+                kpts_coords2 = calc_kpt_coords(kpts2_m,chip_size2,aid2_det)
+
+                scores = fs.T[0]
+                scores = (scores - scores.min()) / (scores.max() - scores.min()) # normalize score between 0 and 1 
+
+                results = {
+                    'kpts': {
+                        aid1_det.id: kpts_coords1,
+                        aid2_det.id: kpts_coords2
+                    },
+                    'scores': scores.tolist()
+                }
+
+    return json.dumps({'results': results})

@@ -186,9 +186,10 @@ def process_images(ibs,batch,sourceBucket,species):
         if not os.path.isdir(imFolder):
             os.mkdir(imFolder)
 
-        # Add species
-        species_nice_list = [species]
-        species_text_list = [species.replace(' ','_').lower()]
+        # Add species (use one species for all detections)
+        global_species = 'Hyaena'
+        species_nice_list = [global_species]
+        species_text_list = [global_species.replace(' ','_').lower()]
         species_code_list = ['SH']
         species_ids = ibs.add_species(species_nice_list, species_text_list, species_code_list)
         hs_label = species_ids[0]

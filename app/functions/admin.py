@@ -416,8 +416,10 @@ def delete_survey(self,survey_id):
                     db.session.delete(detSimilarity)
                 db.session.commit()
 
+                aid_list = []
                 detections = db.session.query(Detection).join(Image).join(Camera).join(Trapgroup).filter(Trapgroup.survey_id==survey_id).all()
                 for detection in detections:
+                    aid_list.append(detection.aid)
                     db.session.delete(detection)
                 db.session.commit()
 
@@ -425,6 +427,17 @@ def delete_survey(self,survey_id):
                 for staticgroup in staticgroups:
                     db.session.delete(staticgroup)
                 db.session.commit()
+
+                #Delete WBIA data
+                if aid_list:
+                    if not GLOBALS.ibs:
+                        from wbia import opendb
+                        GLOBALS.ibs = opendb(db=Config.WBIA_DB_NAME,dbdir=Config.WBIA_DIR+'_'+Config.WORKER_NAME,allow_newdir=True)
+                    GLOBALS.ibs.db.delete('featurematches', aid_list, 'annot_rowid1')
+                    GLOBALS.ibs.db.delete('featurematches', aid_list, 'annot_rowid2')
+                    gids = [g for g in GLOBALS.ibs.get_annot_gids(aid_list) if g is not None]
+                    GLOBALS.ibs.delete_images(gids)
+                    GLOBALS.ibs.delete_annots(aid_list)  
 
                 # detections = db.session.query(Detection).join(Image).join(Camera).join(Trapgroup).filter(Trapgroup.survey_id==survey_id).all()
                 # for chunk in chunker(detections,1000):

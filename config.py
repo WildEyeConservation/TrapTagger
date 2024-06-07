@@ -142,6 +142,19 @@ class Config(object):
     STATIC_IOU50 = 0.9
     STATIC_IOU90 = 0.95
 
+    # Flank Config (for individual ID)
+    FLANK_TEXT = {  # Database to flank text
+        'L': 'left',
+        'R': 'right',
+        'A': 'ambiguous'
+    }
+
+    FLANK_DB = {  # Flank text to database
+        'left': 'L',
+        'right': 'R',
+        'ambiguous': 'A'
+    }
+
     # Time in seconds allowed for a worker to finish setting up beforte being checked for idleness
     SETUP_PERIOD = {
         'celery': '300',

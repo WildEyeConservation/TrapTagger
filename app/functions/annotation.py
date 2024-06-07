@@ -60,9 +60,13 @@ def launch_task(self,task_id):
                 # elif tL[4]=='n':
                 #     calculate_detection_similarities.delay(task_ids=[task_id],species=label.description,algorithm='none')
                 if tL[4]=='h':
+                    label.algorithm = 'hotspotter'
+                    task.status = 'Processing'
+                    db.session.commit()
                     process_detections_for_individual_id([task_id],species)
                     task = db.session.query(Task).get(task_id)
-                # elif tL[4]=='n':
+                elif tL[4]=='n':
+                    label.algorithm = 'heuristic'
                     # process_detections_for_individual_id(task_id,species)
                     # Not sure if we still need to calculate flank 
 
@@ -970,7 +974,8 @@ def fetch_clusters(taggingLevel,task_id,isBounding,trapgroup_id,session,limit=No
                             Camera.path,
                             Camera.id,
                             Trapgroup.latitude,
-                            Trapgroup.longitude
+                            Trapgroup.longitude,
+                            Detection.flank
                         )\
                         .join(Task,Individual.tasks)\
                         .outerjoin(sq1,sq1.c.indID1==Individual.id)\
@@ -1037,7 +1042,8 @@ def fetch_clusters(taggingLevel,task_id,isBounding,trapgroup_id,session,limit=No
                             'category': row[12],
                             'individuals': [],
                             'static': row[13],
-                            'labels': []
+                            'labels': [],
+                            'flank': Config.FLANK_TEXT[row[18]] if row[18] else 'None'
                         }
 
         return clusterInfo, individuals
@@ -1072,6 +1078,7 @@ def fetch_clusters(taggingLevel,task_id,isBounding,trapgroup_id,session,limit=No
                             Detection.source,
                             Detection.score,
                             Detection.status,
+                            Detection.flank,
                             IndividualTask.c.id,
                             Cluster.user_id,
                             Trapgroup.tag,
@@ -1121,6 +1128,7 @@ def fetch_clusters(taggingLevel,task_id,isBounding,trapgroup_id,session,limit=No
                             Detection.source,
                             Detection.score,
                             Detection.status,
+                            Detection.flank,
                             IndividualTask.c.id
                         )\
                         .join(Image, Cluster.images) \
@@ -1176,7 +1184,7 @@ def fetch_clusters(taggingLevel,task_id,isBounding,trapgroup_id,session,limit=No
                 }
                 if id: 
                     clusterInfo[row[0]]['videos'] = {}
-                    user_id = row[26]
+                    user_id = row[27]
                     if user_id:
                         user = session.query(User.username,User.parent_id).filter(User.id==user_id).first()
                         if user and user[1]:
@@ -1188,9 +1196,9 @@ def fetch_clusters(taggingLevel,task_id,isBounding,trapgroup_id,session,limit=No
                     else:
                         clusterInfo[row[0]]['user'] = 'AI'
                     
-                    clusterInfo[row[0]]['site_tag'] = row[27]
-                    clusterInfo[row[0]]['latitude'] = row[28]
-                    clusterInfo[row[0]]['longitude'] = row[29]
+                    clusterInfo[row[0]]['site_tag'] = row[28]
+                    clusterInfo[row[0]]['latitude'] = row[29]
+                    clusterInfo[row[0]]['longitude'] = row[30]
 
             # Handle images
             if row[2] and (row[2] not in clusterInfo[row[0]]['images'].keys()):
@@ -1218,14 +1226,15 @@ def fetch_clusters(taggingLevel,task_id,isBounding,trapgroup_id,session,limit=No
                         'category': row[14],
                         'individuals': [],
                         'static': row[15],
-                        'labels': []
+                        'labels': [],
+                        'flank': Config.FLANK_TEXT[row[25]] if row[25] else 'None'
                     }
 
             # Handle video
-            if id and row[30] and (row[30] not in clusterInfo[row[0]]['videos'].keys()):
-                clusterInfo[row[0]]['videos'][row[30]] = {
-                    'id': row[30],
-                    'url': row[7].split('/_video_images_')[0] + '/' + row[31],
+            if id and row[31] and (row[31] not in clusterInfo[row[0]]['videos'].keys()):
+                clusterInfo[row[0]]['videos'][row[31]] = {
+                    'id': row[31],
+                    'url': row[7].split('/_video_images_')[0] + '/' + row[32],
                     'timestamp': numify_timestamp(row[4]),
                     'camera': row[6],
                     'rating': 1,
@@ -1247,7 +1256,7 @@ def fetch_clusters(taggingLevel,task_id,isBounding,trapgroup_id,session,limit=No
                     clusterInfo[row[0]]['images'][row[2]]['detections'][row[9]]['labels'].append(row[17])
                 
                 # Handle individuals
-                if row[25] and row[21] and (row[21] not in clusterInfo[row[0]]['images'][row[2]]['detections'][row[9]]['individuals']) and (row[25]==task_id):
+                if row[26] and row[21] and (row[21] not in clusterInfo[row[0]]['images'][row[2]]['detections'][row[9]]['individuals']) and (row[26]==task_id):
                     clusterInfo[row[0]]['images'][row[2]]['detections'][row[9]]['individuals'].append(row[21])
 
         if '-3' in taggingLevel:
@@ -1567,7 +1576,8 @@ def translate_cluster_for_client(clusterInfo,reqId,limit,isBounding,taggingLevel
                                 'individual': clusterInfo[cluster_id]['images'][image_id]['detections'][detection_id]['individuals'][0],
                                 'static': clusterInfo[cluster_id]['images'][image_id]['detections'][detection_id]['static'],
                                 'labels': clusterInfo[cluster_id]['images'][image_id]['detections'][detection_id]['labels'],
-                                'label': clusterInfo[cluster_id]['images'][image_id]['detections'][detection_id]['labels'][0]}
+                                'label': clusterInfo[cluster_id]['images'][image_id]['detections'][detection_id]['labels'][0],
+                                'flank': clusterInfo[cluster_id]['images'][image_id]['detections'][detection_id]['flank'].capitalize()}
                             for detection_id in clusterInfo[cluster_id]['images'][image_id]['detections'] if ((
                                                                     '-4' not in taggingLevel) 
                                                                 or (
@@ -1639,7 +1649,8 @@ def translate_cluster_for_client(clusterInfo,reqId,limit,isBounding,taggingLevel
                                 'individual': clusterInfo[cluster_id]['images'][image_id]['detections'][detection_id]['individuals'][0],
                                 'static': clusterInfo[cluster_id]['images'][image_id]['detections'][detection_id]['static'],
                                 'labels': clusterInfo[cluster_id]['images'][image_id]['detections'][detection_id]['labels'],
-                                'label': clusterInfo[cluster_id]['images'][image_id]['detections'][detection_id]['labels'][0]}
+                                'label': clusterInfo[cluster_id]['images'][image_id]['detections'][detection_id]['labels'][0],
+                                'flank': clusterInfo[cluster_id]['images'][image_id]['detections'][detection_id]['flank'].capitalize()}
                             for detection_id in clusterInfo[cluster_id]['images'][image_id]['detections'] if ((
                                                                 '-4' not in taggingLevel) 
                                                             or (
