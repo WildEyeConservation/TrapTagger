@@ -1231,7 +1231,7 @@ def check_individual_detection_mismatch(self,task_id,cluster_id=None,celeryTask=
         aid_list = []
         for detection in wbia_detections:
             if not detection.individuals:
-                aid_list.append(detection.aid)
+                if detection.aid: aid_list.append(detection.aid)
 
         if aid_list:
             if not GLOBALS.ibs:

@@ -419,7 +419,7 @@ def delete_survey(self,survey_id):
                 aid_list = []
                 detections = db.session.query(Detection).join(Image).join(Camera).join(Trapgroup).filter(Trapgroup.survey_id==survey_id).all()
                 for detection in detections:
-                    aid_list.append(detection.aid)
+                    if detection.aid: aid_list.append(detection.aid)
                     db.session.delete(detection)
                 db.session.commit()
 
@@ -2180,7 +2180,7 @@ def delete_individuals(self,task_ids, species):
 
         # Delete featurematches from WBIA db for detections that are no longer associated with individuals
         wbia_detections = list(set(wbia_detections))
-        aid_list = [r[0] for r in db.session.query(Detection.aid).filter(Detection.id.in_(wbia_detections)).all()]
+        aid_list = [r[0] for r in db.session.query(Detection.aid).filter(Detection.id.in_(wbia_detections)).filter(Detection.aid!=None).all()]
         if aid_list:
             if not GLOBALS.ibs:
                 from wbia import opendb
