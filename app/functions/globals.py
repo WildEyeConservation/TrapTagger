@@ -483,10 +483,10 @@ def importMonitor():
                 
                 # pre-emptively launch GPU instances with the CPU importers to smooth out control loop
                 if queue=='celery':
-                    instances_required[queue] += round(images_processing[queue]/Config.QUEUES['parallel']['rate'])*Config.QUEUES[queue]['init_size']
+                    instances_required[queue] += round(images_processing[queue]/10000)*Config.QUEUES[queue]['init_size']
                     
                 if (queue not in Config.QUEUES.keys()) and (queue in images_processing.keys()):
-                    instances_required[queue] += round(images_processing[queue]/Config.QUEUES['parallel']['rate'])*init_size
+                    instances_required[queue] += round(images_processing[queue]/10000)*init_size
 
                 if instances_required[queue] > max_instances: instances_required[queue] = max_instances
 
@@ -1098,7 +1098,7 @@ def finish_knockdown(self,rootImageID, task, current_user_id, lastImageID=None, 
 
             if long_clusters:
                 from app.functions.imports import recluster_large_clusters
-                newClusters = recluster_large_clusters(task,True,session,long_clusters)
+                newClusters = recluster_large_clusters(task,True,None,session,long_clusters)
                 clusterList.extend(newClusters)
 
             if clusterList: classifyTask(task,session,clusterList)
@@ -2687,28 +2687,76 @@ def fire_up_instances(queue,instance_count):
 def inspect_celery(include_spam=False,include_reserved=False):
     ''' Funcion to manually inspect the running celery tasks'''
     inspector = celery.control.inspect()
-    spam = ['importImages','.detection','.classify','runClassifier','processCameraStaticDetections', 'process_video_batch','cluster_trapgroup']
+    spam = ['importImages','.detection','.classify','runClassifier','processCameraStaticDetections', 'process_video_batch','cluster_trapgroup','processStaticWindow']
     if include_spam: spam = []
 
     print('//////////////////////Active tasks://////////////////////')
+    print('{:{}}{:{}}{:{}}{:{}}{:{}}'.format(
+                    'ID',40,
+                    'Function',36,
+                    'Worker',36,
+                    'Time Start',29,
+                    '  Kwargs',50
+    ))
     inspector_active = inspector.active()
     for worker in inspector_active:
         for task in inspector_active[worker]:
             if not any(name in task['name'] for name in spam):
-                print('')
-                print(task)
+                time_start = str(datetime.fromtimestamp(task['time_start']))
+                name = task['name'].split('.')[-1]
+                hostname = task['hostname'].split('celery@')[-1]
+                if 'importImages' in task['name']:
+                    print('{:{}}{:{}}{:{}}{:{}}  survey_id={}'.format(task['id'],40,name,36,hostname,36,time_start,29,task['kwargs']['batch'][0]['survey_id']))
+                elif '.detection' in task['name']:
+                    print('{:{}}{:{}}{:{}}{:{}}  {}'.format(task['id'],40,name,36,hostname,36,time_start,29,task['kwargs']['batch'][0]))
+                elif 'runClassifier' in task['name']:
+                    print('{:{}}{:{}}{:{}}{:{}}  survey_id={}'.format(task['id'],40,name,36,hostname,36,time_start,29,task['kwargs']['survey_id']))
+                elif 'process_video_batch' in task['name']:
+                    print('{:{}}{:{}}{:{}}{:{}}  {}'.format(task['id'],40,name,36,hostname,36,time_start,29,task['kwargs']['dirpath']))
+                elif '.classify' in task['name']:
+                    batch = task['kwargs']['batch']
+                    detection_id=batch['detection_ids'][0]
+                    image_id=batch['detections'][detection_id]['image_id']
+                    path = batch['images'][image_id]
+                    print('{:{}}{:{}}{:{}}{:{}}  {}'.format(task['id'],40,name,36,hostname,36,time_start,29,path))
+                else:
+                    print('{:{}}{:{}}{:{}}{:{}}  {}'.format(task['id'],40,name,36,hostname,36,time_start,29,task['kwargs']))
 
     if include_reserved:
         print('')
         print('')
         print('')
         print('//////////////////////Reserved tasks://////////////////////')
+        print('{:{}}{:{}}{:{}}{:{}}{:{}}'.format(
+                        'ID',40,
+                        'Function',36,
+                        'Worker',36,
+                        'Time Start',29,
+                        '  Kwargs',50
+        ))
         inspector_reserved = inspector.reserved()
         for worker in inspector_reserved:
             for task in inspector_reserved[worker]:
                 if not any(name in task['name'] for name in spam):
-                    print('')
-                    print(task)
+                    time_start = str(datetime.fromtimestamp(task['time_start']))
+                    name = task['name'].split('.')[-1]
+                    hostname = task['hostname'].split('celery@')[-1]
+                    if 'importImages' in task['name']:
+                        print('{:{}}{:{}}{:{}}{:{}}  survey_id={}'.format(task['id'],40,name,36,hostname,36,time_start,29,task['kwargs']['batch'][0]['survey_id']))
+                    elif '.detection' in task['name']:
+                        print('{:{}}{:{}}{:{}}{:{}}  {}'.format(task['id'],40,name,36,hostname,36,time_start,29,task['kwargs']['batch'][0]))
+                    elif 'runClassifier' in task['name']:
+                        print('{:{}}{:{}}{:{}}{:{}}  survey_id={}'.format(task['id'],40,name,36,hostname,36,time_start,29,task['kwargs']['survey_id']))
+                    elif 'process_video_batch' in task['name']:
+                        print('{:{}}{:{}}{:{}}{:{}}  {}'.format(task['id'],40,name,36,hostname,36,time_start,29,task['kwargs']['dirpath']))
+                    elif '.classify' in task['name']:
+                        batch = task['kwargs']['batch']
+                        detection_id=batch['detection_ids'][0]
+                        image_id=batch['detections'][detection_id]['image_id']
+                        path = batch['images'][image_id]
+                        print('{:{}}{:{}}{:{}}{:{}}  {}'.format(task['id'],40,name,36,hostname,36,time_start,29,path))
+                    else:
+                        print('{:{}}{:{}}{:{}}{:{}}  {}'.format(task['id'],40,name,36,hostname,36,time_start,29,task['kwargs']))
 
     return True
 

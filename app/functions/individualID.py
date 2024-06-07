@@ -768,8 +768,8 @@ def calculate_individual_similarities(self,task_id,species):
 
         total_individual_count = len(individuals2)
 
-        task.survey.images_processing = total_individual_count
-        db.session.commit()
+        # task.survey.images_processing = total_individual_count
+        # db.session.commit()
 
         results = []
         if total_individual_count > 1:
@@ -797,7 +797,7 @@ def calculate_individual_similarities(self,task_id,species):
         app.logger.info("All individual similarities completed in {}".format(endTime - OverallStartTime))
 
         task = db.session.query(Task).get(task_id)
-        task.survey.images_processing = 0
+        # task.survey.images_processing = 0
         if task.sub_tasks and ('-5' in task.tagging_level):
             from app.functions.annotation import launch_task
             task.survey.status = 'Launched'

@@ -1576,13 +1576,13 @@ def re_classify_survey(survey_id,classifier):
     
     survey = db.session.query(Survey).get(survey_id)
     survey.status='Classifying'
-    survey.images_processing = db.session.query(Image).join(Camera).join(Trapgroup).filter(Trapgroup.survey==survey).distinct().count()
+    # survey.images_processing = db.session.query(Image).join(Camera).join(Trapgroup).filter(Trapgroup.survey==survey).distinct().count()
     db.session.commit()
 
     classifySurvey(survey_id=survey_id,sourceBucket=Config.BUCKET,classifier=classifier)
 
     survey = db.session.query(Survey).get(survey_id)
-    survey.images_processing = 0
+    # survey.images_processing = 0
     db.session.commit()
 
     for task in survey.tasks:
