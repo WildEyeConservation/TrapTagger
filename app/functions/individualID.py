@@ -1390,10 +1390,10 @@ def calculate_hotspotter_similarity(self,qaid_list,daid_list,det_translation):
 
         for cm in cm_list:
             aid1 = cm.qaid
-            detection1_id = det_translation[aid1]
+            detection1_id = det_translation[str(aid1)]
             for n in range(len(cm.daid_list)):
                 aid2 = int(cm.daid_list[n])
-                detection2_id = det_translation[aid2]
+                detection2_id = det_translation[str(aid2)]
                 score = float(cm.score_list[n])
 
                 fm = cm.fm_list[n]
