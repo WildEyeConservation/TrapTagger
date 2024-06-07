@@ -1049,9 +1049,9 @@ def crop_training_images(key,source_bucket,dest_bucket,parallelisation):
     for index in range(0,detection_count,grouping):
         df_temp = df.iloc[index:index+grouping]
         temp_key = key.replace('.csv','')+'_'+str(index)+'.csv'
-		with tempfile.NamedTemporaryFile(delete=True, suffix='.csv') as temp_file:
-			df_temp.to_csv(temp_file.name,index=False)
-			GLOBALS.s3client.put_object(Bucket=dest_bucket,Key=temp_key,Body=temp_file)
+        with tempfile.NamedTemporaryFile(delete=True, suffix='.csv') as temp_file:
+            df_temp.to_csv(temp_file.name,index=False)
+            GLOBALS.s3client.put_object(Bucket=dest_bucket,Key=temp_key,Body=temp_file)
         results.append(crop_training_images_parallel.apply_async(kwargs={'key':temp_key,'source_bucket':source_bucket,'dest_bucket':dest_bucket}))
 
     GLOBALS.lock.acquire()
