@@ -1009,13 +1009,15 @@ def crop_training_images_parallel(self,key,source_bucket,dest_bucket):
 
             for index, row in df[df['path']==image_key].iterrows():
                 dest_key = row['detection_id']+'.jpg'
+                bbox = [row['left'],row['top'],(row['right']-row['left']),(row['bottom']-row['top'])]
+                save_crop(img, bbox_norm=bbox, square_crop=True, bucket=dest_bucket, key=dest_key)
 
-                try:
-                    check = GLOBALS.s3client.head_object(Bucket=dest_bucket,Key=dest_key)
-                except:
-                    # file does not exist
-                    bbox = [row['left'],row['top'],(row['right']-row['left']),(row['bottom']-row['top'])]
-                    save_crop(img, bbox_norm=bbox, square_crop=True, bucket=dest_bucket, key=dest_key)
+                # try:
+                #     check = GLOBALS.s3client.head_object(Bucket=dest_bucket,Key=dest_key)
+                # except:
+                #     # file does not exist
+                #     bbox = [row['left'],row['top'],(row['right']-row['left']),(row['bottom']-row['top'])]
+                #     save_crop(img, bbox_norm=bbox, square_crop=True, bucket=dest_bucket, key=dest_key)
 
     except Exception as exc:
         app.logger.info(' ')
@@ -1031,7 +1033,11 @@ def crop_training_images_parallel(self,key,source_bucket,dest_bucket):
     return True
 
 def crop_training_images(key,source_bucket,dest_bucket,parallelisation):
-    '''Root funciton for the parallel cropping of training data.'''
+    '''
+    Root funciton for the parallel cropping of training data.
+    
+    NOTE: Make sure to use previous csvs to to filter new csvs to prevent duplication of cropping effort.
+    '''
 
     with tempfile.NamedTemporaryFile(delete=True, suffix='.csv') as temp_file:
         GLOBALS.s3client.download_file(Bucket=dest_bucket, Key=key, Filename=temp_file.name)
