@@ -398,6 +398,13 @@ def calculate_detection_similarities(self,task_ids,species,algorithm):
                             result.forget()
                 GLOBALS.lock.release()
 
+        labels = db.session.query(Label).filter(Label.description==species).filter(Label.task_id.in_(task_ids)).all()
+        for label in labels:
+            if algorithm == 'none': 
+                label.algorithm = 'heuristic'
+            else:
+                label.algorithm = algorithm
+
         task = db.session.query(Task).get(task_ids[0])
         task.survey.status = 'indprocessing'
         calculate_individual_similarities.delay(task_id=task.id,species=species)
@@ -463,11 +470,12 @@ def calculate_individual_similarity(self,individual1,individuals2,species,sessio
 
         iouWeight = parameters['iouWeight']
 
-        algorithm = session.query(Label.algorithm).filter(Label.description==species).first()[0]
-
         if celeryTask:
             individual1 = session.query(Individual).get(individual1)
             individuals2 = session.query(Individual).filter(Individual.id.in_(individuals2)).all()
+
+        task_ids = [t.id for t in individual1.tasks]
+        algorithm = session.query(Label.algorithm).filter(Label.description==species).filter(Label.task_id.in_(task_ids)).first()[0]
 
         # # Find all family
         # family = []

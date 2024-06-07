@@ -2170,10 +2170,24 @@ def delete_individuals(self,task_ids, species):
                             .filter(det2.c.id.in_(detections))\
                             .distinct().all()
 
+        wbia_detections = []
         for detSim in detSims:
+            wbia_detections.append(detSim.detection_1)
+            wbia_detections.append(detSim.detection_2)
             db.session.delete(detSim)
 
         db.session.commit()
+
+        # Delete featurematches from WBIA db for detections that are no longer associated with individuals
+        wbia_detections = list(set(wbia_detections))
+        aid_list = [r[0] for r in db.session.query(Detection.aid).filter(Detection.id.in_(wbia_detections)).all()]
+        if aid_list:
+            if not GLOBALS.ibs:
+                from wbia import opendb
+                GLOBALS.ibs = opendb(db=Config.WBIA_DB_NAME,dbdir=Config.WBIA_DIR+'_'+Config.WORKER_NAME,allow_newdir=True)
+            GLOBALS.ibs.db.delete('featurematches', aid_list, 'annot_rowid1')
+            GLOBALS.ibs.db.delete('featurematches', aid_list, 'annot_rowid2')
+
                 
         # Update statuses
         for task_id in task_ids:

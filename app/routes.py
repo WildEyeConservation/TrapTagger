@@ -74,6 +74,8 @@ GLOBALS.lock = Lock()
 @app.before_first_request
 def initialise_ibs():
     '''Initialises the IBS object, which is used to interact with the WBIA database.'''	
+    if 'fileHandler' in request.url:
+        return
     app.logger.info('Initialising IBS')
     if not GLOBALS.ibs:
         import warnings
@@ -82,6 +84,7 @@ def initialise_ibs():
             from wbia import opendb
             GLOBALS.ibs = opendb(db=Config.WBIA_DB_NAME,dbdir=Config.WBIA_DIR, allow_newdir=True)
         app.logger.info('IBS initialised.')
+    return
 
 @app.before_request
 def check_for_maintenance():
