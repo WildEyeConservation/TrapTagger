@@ -972,7 +972,7 @@ def processCameraStaticDetections(self,cameragroup_id):
         grouping = math.ceil(total_images/math.ceil(total_images/4000))
         results = []
         for i in range(0,total_images,grouping):
-            results.append(processStaticWindow.apply_async(kwargs={'cameragroup_id':cameragroup_id,'index':i,'grouping':grouping},queue='parallel'))
+            results.append(processStaticWindow.apply_async(kwargs={'cameragroup_id':cameragroup_id,'index':i,'grouping':grouping},queue='parallel_2'))
 
         static_groups = {}
         GLOBALS.lock.acquire()

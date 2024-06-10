@@ -81,6 +81,7 @@ def make_celery(flask_app):
         Queue('local',     routing_key='local.#'),
         Queue('priority',     routing_key='priority.#'),
         Queue('parallel',     routing_key='parallel.#'),
+        Queue('parallel_2',     routing_key='parallel_2.#'),
         Queue('ram_intensive',     routing_key='ram_intensive.#'),
         Queue('statistics',     routing_key='statistics.#'),
         Queue('pipeline',     routing_key='pipeline.#'),

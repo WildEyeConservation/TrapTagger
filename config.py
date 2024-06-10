@@ -85,6 +85,7 @@ class Config(object):
         'celery':           {'p3.2xlarge': 11668, 'g4dn.xlarge': 4128, 'g3s.xlarge': 2600}, #measured
         'classification':   {'p3.2xlarge': 11668, 'g4dn.xlarge': 4128, 'g3s.xlarge': 2600}, #estimated
         'parallel':         {'t2.xlarge': 1000, 't3a.xlarge': 1000},  #estimated
+        'parallel_2':         {'t2.xlarge': 1000, 't3a.xlarge': 1000},  #estimated
         'default':         {'t2.xlarge': 1000, 't3a.xlarge': 1000},  #estimated
         'statistics':         {'t2.xlarge': 1000, 't3a.xlarge': 1000},  #estimated
         'pipeline':         {'t2.xlarge': 1000, 't3a.xlarge': 1000},  #estimated
@@ -96,6 +97,7 @@ class Config(object):
     MAX_INFER = 25
     MAX_CLASSIFICATION = 18
     MAX_PARALLEL = 25
+    MAX_PARALLEL_2 = 8
     MAX_DEFAULT = 8
     MAX_STATS = 4
     MAX_PIPELINE = 8
@@ -139,6 +141,7 @@ class Config(object):
         'celery': '300',
         'classification': '300',
         'parallel': '300',
+        'parallel_2': '300',
         'default': '300',
         'statistics': '300',
         'pipeline': '300',
@@ -154,7 +157,8 @@ class Config(object):
     IDLE_MULTIPLIER = {
         'celery': 12,
         'classification': 12,
-        'parallel': 48,
+        'parallel': 24,
+        'parallel_2': 12,
         'default': 12,
         'statistics': 12,
         'pipeline': 12,
@@ -164,6 +168,7 @@ class Config(object):
     # Celery Worker concurrency
     CONCURRENCY = {
         'parallel': 1,
+        'parallel_2': 1,
         'default': 1,
         'statistics': 1,
         'pipeline': 1,
@@ -207,6 +212,49 @@ class Config(object):
                 'IDLE_MULTIPLIER' + "' '" + 
                 os.environ.get('MAIN_GIT_REPO') + "' '" + 
                 str(CONCURRENCY['parallel']) + "' '" + 
+                MONITORED_EMAIL_ADDRESS + "' '" + 
+                BUCKET + "' '" + 
+                IAM_ADMIN_GROUP + "' '" + 
+                PRIVATE_SUBNET_ID + "' '" + 
+                os.environ.get('AWS_S3_DOWNLOAD_ACCESS_KEY_ID') + "' '" + 
+                os.environ.get('AWS_S3_DOWNLOAD_SECRET_ACCESS_KEY') + "'" + 
+                ' -l info'
+        },
+        'parallel_2': {
+            'type': 'CPU',
+            'ami': PARALLEL_AMI,
+            'instances': CPU_INSTANCE_TYPES,
+            'max_instances': MAX_PARALLEL_2,
+            'launch_delay': 180,
+            'rate': 4, #2695
+            'queue_type': 'rate',
+            'repo': os.environ.get('MAIN_GIT_REPO'),
+            'branch': BRANCH,
+            'user_data':
+                'bash /home/ubuntu/TrapTagger/launch.sh ' + 
+                'parallel_2_worker_{}' + ' ' + 
+                'parallel_2' + " '" + 
+                HOST_IP + "' '" + 
+                SQLALCHEMY_DATABASE_NAME + "' '" + 
+                HOST_IP + "' '" + 
+                DNS + "' '" + 
+                SQLALCHEMY_DATABASE_SERVER + "' '" + 
+                os.environ.get('AWS_ACCESS_KEY_ID') + "' '" + 
+                os.environ.get('AWS_SECRET_ACCESS_KEY') + "' '" + 
+                AWS_REGION + "' '" + 
+                SECRET_KEY + "' '" + 
+                MAIL_USERNAME + "' '" + 
+                MAIL_PASSWORD + "' '" + 
+                BRANCH + "' '" + 
+                SG_ID + "' '" + 
+                PUBLIC_SUBNET_ID + "' '" + 
+                TOKEN + "' '" + 
+                PARALLEL_AMI + "' '" + 
+                KEY_NAME + "' '" + 
+                SETUP_PERIOD['parallel_2'] + "' '" + 
+                'IDLE_MULTIPLIER' + "' '" + 
+                os.environ.get('MAIN_GIT_REPO') + "' '" + 
+                str(CONCURRENCY['parallel_2']) + "' '" + 
                 MONITORED_EMAIL_ADDRESS + "' '" + 
                 BUCKET + "' '" + 
                 IAM_ADMIN_GROUP + "' '" + 
