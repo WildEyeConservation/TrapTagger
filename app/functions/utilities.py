@@ -999,25 +999,26 @@ def crop_training_images_parallel(self,key,source_bucket,dest_bucket):
             df = pd.read_csv(temp_file.name)
 
         for image_key in df['path'].unique():
+            try:
+                with tempfile.NamedTemporaryFile(delete=True, suffix='.jpg') as temp_file:
+                    GLOBALS.s3client.download_file(Bucket=source_bucket, Key=image_key, Filename=temp_file.name)
+                    with pilImage.open(temp_file.name) as img:
+                        img.load()
+
+                if img.mode != 'RGB': img = img.convert(mode='RGB')
+
+                for index, row in df[df['path']==image_key].iterrows():
+                    dest_key = str(row['detection_id'])+'.jpg'
+
+                    try:
+                        check = GLOBALS.s3client.head_object(Bucket=dest_bucket,Key=dest_key)
+                    except:
+                        # file does not exist
+                        bbox = [row['left'],row['top'],(row['right']-row['left']),(row['bottom']-row['top'])]
+                        save_crop(img, bbox_norm=bbox, square_crop=True, bucket=dest_bucket, key=dest_key)
             
-            with tempfile.NamedTemporaryFile(delete=True, suffix='.jpg') as temp_file:
-                GLOBALS.s3client.download_file(Bucket=source_bucket, Key=image_key, Filename=temp_file.name)
-                with pilImage.open(temp_file.name) as img:
-                    img.load()
-
-            if img.mode != 'RGB': img = img.convert(mode='RGB')
-
-            for index, row in df[df['path']==image_key].iterrows():
-                dest_key = str(row['detection_id'])+'.jpg'
-                bbox = [row['left'],row['top'],(row['right']-row['left']),(row['bottom']-row['top'])]
-                save_crop(img, bbox_norm=bbox, square_crop=True, bucket=dest_bucket, key=dest_key)
-
-                # try:
-                #     check = GLOBALS.s3client.head_object(Bucket=dest_bucket,Key=dest_key)
-                # except:
-                #     # file does not exist
-                #     bbox = [row['left'],row['top'],(row['right']-row['left']),(row['bottom']-row['top'])]
-                #     save_crop(img, bbox_norm=bbox, square_crop=True, bucket=dest_bucket, key=dest_key)
+            except:
+                app.logger.info('Error processing {}'.format(image_key))
 
     except Exception as exc:
         app.logger.info(' ')
