@@ -357,7 +357,7 @@ def launch_task(self,task_id):
     return True
 
 # @celery.task(bind=True,max_retries=5,ignore_result=True)
-def freeUpWork(task_id, taggingLevel):
+def freeUpWork(task_id):
     '''Attempts to free up trapgroups etc. to allow task annotation to complete.'''
 
     session = db.session()
@@ -653,7 +653,7 @@ def manage_task(task_id):
             wrapUpTask.delay(task_id=task_id)
             return True, jobs_to_delete
 
-    if '-5' not in taggingLevel: freeUpWork(task_id, taggingLevel)
+    if '-5' not in taggingLevel: freeUpWork(task_id)
 
     return False, jobs_to_delete                     
 
