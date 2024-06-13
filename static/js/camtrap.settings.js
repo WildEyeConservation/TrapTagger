@@ -130,7 +130,7 @@ function buildIntegrationSelect(){
 
     h5 = document.createElement('div')
     h5.setAttribute('style',"font-size: 80%; margin-bottom: 2px")
-    h5.innerHTML = '<i>Select the organisation for which to set up the integration.</i>'
+    h5.innerHTML = '<i>Select the organisation for which you would like to set up the integration.</i>'
     earthRangerDiv.appendChild(h5)
 
     var row = document.createElement('div')
@@ -191,7 +191,7 @@ function buildIntegrationSelect(){
 
     h5 = document.createElement('div')
     h5.setAttribute('style',"font-size: 80%; margin-bottom: 2px")
-    h5.innerHTML = '<i>Select all the species of interest for which to receive data from TrapTagger.</i>'
+    h5.innerHTML = '<i>Select the species you would like synchronised.</i>'
     earthRangerDiv.appendChild(h5)
 
     var earthRangerSpeciesDiv = document.createElement('div')
