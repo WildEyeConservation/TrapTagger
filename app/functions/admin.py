@@ -54,7 +54,7 @@ def delete_task(self,task_id):
         earth_ranger_ids = db.session.query(ERangerID).join(Cluster).filter(Cluster.task_id==task_id).all()
         try:
             for earth_ranger_id in earth_ranger_ids:
-                db.session.delete(earth_ranger_ids)
+                db.session.delete(earth_ranger_id)
             db.session.commit()
             app.logger.info('Earth Ranger IDs deleted successfully.')
         except:
