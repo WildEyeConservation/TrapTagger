@@ -146,13 +146,15 @@ class Config(object):
     FLANK_TEXT = {  # Database to flank text
         'L': 'left',
         'R': 'right',
-        'A': 'ambiguous'
+        'A': 'ambiguous',
+        None: 'none'
     }
 
     FLANK_DB = {  # Flank text to database
         'left': 'L',
         'right': 'R',
-        'ambiguous': 'A'
+        'ambiguous': 'A',
+        'none': None
     }
 
     # Time in seconds allowed for a worker to finish setting up beforte being checked for idleness

@@ -348,55 +348,91 @@ def calculate_detection_similarities(self,task_ids,species,algorithm):
             task.survey.status = 'processing'
             db.session.commit()
 
-            rootQuery = db.session.query(Detection.id, Detection.aid, Detection.flank, func.count(DetSimilarity.score))\
-                                .join(Labelgroup)\
-                                .join(Task)\
-                                .join(Label,Labelgroup.labels)\
-                                .outerjoin(DetSimilarity,or_(DetSimilarity.detection_1==Detection.id,DetSimilarity.detection_2==Detection.id))\
-                                .filter(Task.id.in_(task_ids))\
-                                .filter(Label.description==species)\
-                                .filter(or_(and_(Detection.source==model,Detection.score>Config.DETECTOR_THRESHOLDS[model]) for model in Config.DETECTOR_THRESHOLDS)) \
-                                .filter(Detection.static == False) \
-                                .filter(~Detection.status.in_(Config.DET_IGNORE_STATUSES))\
-                                .group_by(Detection.id)\
-                                .all()
+            base_detection_query = rDets(db.session.query(Detection.aid)\
+                                            .join(Labelgroup)\
+                                            .join(Label,Labelgroup.labels)\
+                                            .filter(Label.description==species))
+            results = []
+            ambiguous_flank = Config.FLANK_DB['ambiguous']
+            flanks = [flank for flank in  Config.FLANK_DB.values() if flank != None and flank != ambiguous_flank]
+            flanks = [ambiguous_flank] + flanks # Ensure ambiguous flank is processed first
+            processed_dets_ambiguous = {task_id1: {task_id2: [] for task_id2 in task_ids} for task_id1 in task_ids}
+            for flank in flanks:
+                if flank == ambiguous_flank: 
+                    required_flanks = flanks
+                else:
+                    required_flanks = [flank,ambiguous_flank]
+                new_dets = {}
+                processed_dets = {}
+                for task_1 in task_ids:
+                    new_dets[task_1] = {}
+                    processed_dets[task_1] = {}
+                    for task_2 in task_ids:
+                        # Get new detections from task 1 that have no detection similarities with detections of the required flank from task 2
+                        task2_dets = rDets(db.session.query(Detection.id)\
+                                            .join(Labelgroup)\
+                                            .join(Label,Labelgroup.labels)\
+                                            .filter(Labelgroup.task_id==task_2)\
+                                            .filter(Label.description==species)\
+                                            .filter(Detection.flank.in_(required_flanks)))\
+                                            .subquery()
+                        sim_dets1 = db.session.query(DetSimilarity.detection_1.label('id'))\
+                                            .join(task2_dets, task2_dets.c.id==DetSimilarity.detection_2)\
+                                            .distinct()
+                        sim_dets2 = db.session.query(DetSimilarity.detection_2.label('id'))\
+                                            .join(task2_dets, task2_dets.c.id==DetSimilarity.detection_1)\
+                                            .distinct()
+                        sim_dets = sim_dets1.union(sim_dets2).subquery()
+                        new_dets[task_1][task_2] = [r[0] for r in base_detection_query\
+                                                        .outerjoin(sim_dets, Detection.id==sim_dets.c.id)\
+                                                        .filter(Labelgroup.task_id==task_1)\
+                                                        .filter(Detection.flank==flank)\
+                                                        .filter(sim_dets.c.id==None)\
+                                                        .distinct().all()]
+                        processed_dets[task_1][task_2] = []
 
-            det_df = pd.DataFrame(rootQuery,columns=['id','aid','flank','count'])
-            required_detections = det_df[det_df['count'] == 0]
+                for task_1 in task_ids:
+                    for task_2 in new_dets[task_1]:
+                        # Calculate similarity between new detections from task 1 and detections from task 2 that have not been processed
+                        dets_1 = new_dets[task_1][task_2]  
+                        if dets_1:                          
+                            dets_2 = [r[0] for r in base_detection_query\
+                                                    .filter(Labelgroup.task_id==task_2)\
+                                                    .filter(Detection.flank.in_(required_flanks))\
+                                                    .distinct().all()]
+                            
+                            if flank == ambiguous_flank:
+                                processed_dets_ambiguous[task_1][task_2] = new_dets[task_1][task_2]
+                            else:
+                                if processed_dets_ambiguous[task_1][task_2]:
+                                    dets_2 = list(set(dets_2) - set(processed_dets_ambiguous[task_1][task_2]))
+                                if processed_dets_ambiguous[task_2][task_1]:
+                                    dets_2 = list(set(dets_2) - set(processed_dets_ambiguous[task_2][task_1]))
+                            
+                            if processed_dets[task_2][task_1]:
+                                dets_2 = list(set(dets_2) - set(processed_dets[task_2][task_1]))
+                            else:
+                                processed_dets[task_1][task_2] = new_dets[task_1][task_2]        
 
-            if len(required_detections)>0:
-                # Run Hotspotter
-                ambiguous_flank = Config.FLANK_DB['ambiguous']
-                flanks = required_detections['flank'].unique()
-                ambiguous_dets = det_df[(det_df['flank'] == ambiguous_flank) & (det_df['count'] != 0)]
-                results = []
-                for flank in flanks:
-                    qaids = required_detections[required_detections['flank'] == flank]['aid'].tolist()
-                    if flank == ambiguous_flank: 
-                        db_detections = det_df.copy()
-                    else:
-                        db_detections = det_df[(det_df['flank'] == flank)]
-                        db_detections = pd.concat([db_detections,ambiguous_dets])
-                    daids = db_detections['aid'].tolist()
-                    det_translation = db_detections.set_index('aid')['id'].to_dict()
-                    for qaid in qaids:
-                        if qaid in daids: daids.remove(qaid)
-                        if daids:
-                            results.append(calculate_hotspotter_similarity.apply_async(kwargs={'qaid_list': [qaid], 'daid_list': daids, 'det_translation': det_translation}, queue='parallel'))
+                            for det_1 in dets_1:
+                                if det_1 in dets_2: dets_2.remove(det_1)
+                                if dets_2:
+                                    #TODO CHANGE BACK TO PARALLEL
+                                    results.append(calculate_hotspotter_similarity.apply_async(kwargs={'qaid_list': [det_1], 'daid_list': dets_2}, queue='default'))
 
-                GLOBALS.lock.acquire()
-                with allow_join_result():
-                    for result in results:
-                        try:
-                            result.get()
-                        except Exception:
-                            app.logger.info(' ')
-                            app.logger.info('!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!')
-                            app.logger.info(traceback.format_exc())
-                            app.logger.info('!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!')
-                            app.logger.info(' ')
-                            result.forget()
-                GLOBALS.lock.release()
+            GLOBALS.lock.acquire()
+            with allow_join_result():
+                for result in results:
+                    try:
+                        result.get()
+                    except Exception:
+                        app.logger.info(' ')
+                        app.logger.info('!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!')
+                        app.logger.info(traceback.format_exc())
+                        app.logger.info('!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!')
+                        app.logger.info(' ')
+                        result.forget()
+            GLOBALS.lock.release()
 
         labels = db.session.query(Label).filter(Label.description==species).filter(Label.task_id.in_(task_ids)).all()
         for label in labels:
@@ -589,32 +625,28 @@ def calculate_individual_similarity(self,individual1,individuals2,species,sessio
                                                         )
                                                     ).distinct().all()
                         else:
-                            detSimilarities = session.query(Detection.id,
-                                        Det1.c.id,Det1.c.left,Det1.c.right,Det1.c.top,Det1.c.bottom,Image1.c.camera_id,Image1.c.corrected_timestamp,Trapgroup1.c.latitude,Trapgroup1.c.longitude,
-                                        Det2.c.id,Det2.c.left,Det2.c.right,Det2.c.top,Det2.c.bottom,Image2.c.camera_id,Image2.c.corrected_timestamp,Trapgroup2.c.latitude,Trapgroup2.c.longitude)\
-                                                    .join(Det1, Det1.c.id==Detection.id)\
-                                                    .join(Det2, Det2.c.id==Detection.id)\
-                                                    .join(Image1, Image1.c.id==Det1.c.image_id)\
-                                                    .join(Image2, Image2.c.id==Det2.c.image_id)\
-                                                    .join(Camera1, Camera1.c.id==Image1.c.camera_id)\
-                                                    .join(Camera2, Camera2.c.id==Image2.c.camera_id)\
-                                                    .join(Trapgroup1, Trapgroup1.c.id==Camera1.c.trapgroup_id)\
-                                                    .join(Trapgroup2, Trapgroup2.c.id==Camera2.c.trapgroup_id)\
-                                                    .join(individualDetections1, individualDetections1.c.detection_id==Det1.c.id)\
-                                                    .join(individualDetections2, individualDetections2.c.detection_id==Det2.c.id)\
-                                                    .filter(
-                                                        or_(
-                                                            and_(individualDetections1.c.individual_id==individual1.id,individualDetections2.c.individual_id==individual2.id),
-                                                            and_(individualDetections1.c.individual_id==individual2.id,individualDetections2.c.individual_id==individual1.id)
-                                                        )
-                                                    ).distinct().all()
+                            detections1 = session.query(Detection.id, Detection.left, Detection.right, Detection.top, Detection.bottom, Image.camera_id, Image.corrected_timestamp, Trapgroup.latitude, Trapgroup.longitude)\
+                                                .join(individualDetections1, individualDetections1.c.detection_id==Detection.id)\
+                                                .join(Image, Image.id==Detection.image_id)\
+                                                .join(Camera, Camera.id==Image.camera_id)\
+                                                .join(Trapgroup, Trapgroup.id==Camera.trapgroup_id)\
+                                                .filter(individualDetections1.c.individual_id==individual1.id).all()
+
+                            detections2 = session.query(Detection.id, Detection.left, Detection.right, Detection.top, Detection.bottom, Image.camera_id, Image.corrected_timestamp, Trapgroup.latitude, Trapgroup.longitude)\
+                                                .join(individualDetections2, individualDetections2.c.detection_id==Detection.id)\
+                                                .join(Image, Image.id==Detection.image_id)\
+                                                .join(Camera, Camera.id==Image.camera_id)\
+                                                .join(Trapgroup, Trapgroup.id==Camera.trapgroup_id)\
+                                                .filter(individualDetections2.c.individual_id==individual2.id).all()
+                            
+                            detSimilarities = []
+                            for det1 in detections1:
+                                for det2 in detections2:
+                                    detSimilarities.append((1,det1.id,det1.left,det1.right,det1.top,det1.bottom,det1.camera_id,det1.corrected_timestamp,det1.latitude,det1.longitude,det2.id,det2.left,det2.right,det2.top,det2.bottom,det2.camera_id,det2.corrected_timestamp,det2.latitude,det2.longitude))
 
                         max_similarity = 0
                         for detSimilarity in detSimilarities:
-                            if algorithm == 'hotspotter':
-                                detSimScore = detSimilarity[0]
-                            else:
-                                detSimScore = 1
+                            detSimScore = detSimilarity[0]
                             det1 = {
                                 'id': detSimilarity[1],
                                 'left': detSimilarity[2],
@@ -1225,13 +1257,16 @@ def check_individual_detection_mismatch(self,task_id,cluster_id=None,celeryTask=
             db.session.delete(individual)
             del individuals_data[individual.id]
             
-        db.session.commit()
 
-        # Clean up WBIA detection featurematches if they are not associated with any other individual for other tasks
+        # Clean up WBIA data & Detection similarities if they are not associated with any other individual for other tasks 
         aid_list = []
         for detection in wbia_detections:
             if not detection.individuals:
                 if detection.aid: aid_list.append(detection.aid)
+                detection.aid = None
+                detSims = db.session.query(DetSimilarity).filter(or_(DetSimilarity.detection_1==detection.id,DetSimilarity.detection_2==detection.id)).all()
+                for detSim in detSims:
+                    db.session.delete(detSim)
 
         if aid_list:
             if not GLOBALS.ibs:
@@ -1239,7 +1274,11 @@ def check_individual_detection_mismatch(self,task_id,cluster_id=None,celeryTask=
                 GLOBALS.ibs = opendb(db=Config.WBIA_DB_NAME,dbdir=Config.WBIA_DIR+'_'+Config.WORKER_NAME,allow_newdir=True)
             GLOBALS.ibs.db.delete('featurematches', aid_list, 'annot_rowid1')
             GLOBALS.ibs.db.delete('featurematches', aid_list, 'annot_rowid2')
+            gids = [g for g in GLOBALS.ibs.get_annot_gids(aid_list) if g is not None]
+            GLOBALS.ibs.delete_images(gids)
+            GLOBALS.ibs.delete_annots(aid_list)  
                 
+        db.session.commit()
 
         # Recalculate similarities where removed detections were used
         individuals_check = []
@@ -1286,6 +1325,10 @@ def process_detections_for_individual_id(task_ids,species):
     '''
 
     try:
+
+        app.logger.info('Process detections for individual ID for task_ids: {}, species: {}'.format(task_ids,species))
+        starttime = time.time()
+
         data = db.session.query(Detection.id,Detection.left,Detection.right,Detection.top,Detection.bottom,Image.id,Image.filename,Camera.path)\
                             .join(Image,Detection.image_id==Image.id)\
                             .join(Camera,Image.camera_id==Camera.id)\
@@ -1348,6 +1391,8 @@ def process_detections_for_individual_id(task_ids,species):
 
         db.session.commit()
 
+        app.logger.info('Finished processing detections for individual ID in {}s'.format(time.time()-starttime))
+
     except Exception:
         app.logger.info(' ')
         app.logger.info('!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!')
@@ -1359,14 +1404,13 @@ def process_detections_for_individual_id(task_ids,species):
 
 
 @celery.task(bind=True,max_retries=5)
-def calculate_hotspotter_similarity(self,qaid_list,daid_list,det_translation):
+def calculate_hotspotter_similarity(self,qaid_list,daid_list):
     '''
     Celery task for calculating the similarity between detections using Hotspotter.
 
         Parameters:
             qaid_list (list): WBIA Query IDs
             daid_list (list): WBIA Database IDs
-            det_translation (dict): A dictionary containing the translation between the detection IDs and the WBIA query IDs
     '''
 
     try:
@@ -1376,6 +1420,9 @@ def calculate_hotspotter_similarity(self,qaid_list,daid_list,det_translation):
         if GLOBALS.ibs is None:
             from wbia import opendb
             GLOBALS.ibs = opendb(db=Config.WBIA_DB_NAME,dbdir=Config.WBIA_DIR+'_'+Config.WORKER_NAME,allow_newdir=True)
+
+        aid_list = qaid_list + daid_list
+        det_translation = {r[1]:r[0] for r in db.session.query(Detection.id,Detection.aid).filter(Detection.aid.in_(aid_list)).distinct().all()}
 
         qreq_ = GLOBALS.ibs.new_query_request(qaid_list, daid_list)
         cm_list = request_wbia_query_L0(GLOBALS.ibs, qreq_)
@@ -1398,10 +1445,10 @@ def calculate_hotspotter_similarity(self,qaid_list,daid_list,det_translation):
 
         for cm in cm_list:
             aid1 = cm.qaid
-            detection1_id = det_translation[str(aid1)]
+            detection1_id = det_translation[aid1]
             for n in range(len(cm.daid_list)):
                 aid2 = int(cm.daid_list[n])
-                detection2_id = det_translation[str(aid2)]
+                detection2_id = det_translation[aid2]
                 score = float(cm.score_list[n])
 
                 fm = cm.fm_list[n]

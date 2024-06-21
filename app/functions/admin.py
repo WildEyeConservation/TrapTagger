@@ -2176,18 +2176,25 @@ def delete_individuals(self,task_ids, species):
             wbia_detections.append(detSim.detection_2)
             db.session.delete(detSim)
 
-        db.session.commit()
-
         # Delete featurematches from WBIA db for detections that are no longer associated with individuals
         wbia_detections = list(set(wbia_detections))
-        aid_list = [r[0] for r in db.session.query(Detection.aid).filter(Detection.id.in_(wbia_detections)).filter(Detection.aid!=None).all()]
+        aid_list = []
+        for detection in detections:
+            if detection.id in wbia_detections:
+                if detection.aid: aid_list.append(detection.aid)
+                detection.aid = None
+
         if aid_list:
             if not GLOBALS.ibs:
                 from wbia import opendb
                 GLOBALS.ibs = opendb(db=Config.WBIA_DB_NAME,dbdir=Config.WBIA_DIR+'_'+Config.WORKER_NAME,allow_newdir=True)
             GLOBALS.ibs.db.delete('featurematches', aid_list, 'annot_rowid1')
             GLOBALS.ibs.db.delete('featurematches', aid_list, 'annot_rowid2')
+            gids = [g for g in GLOBALS.ibs.get_annot_gids(aid_list) if g is not None]
+            GLOBALS.ibs.delete_images(gids)
+            GLOBALS.ibs.delete_annots(aid_list)  
 
+        db.session.commit()
                 
         # Update statuses
         for task_id in task_ids:

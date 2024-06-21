@@ -7067,13 +7067,14 @@ def assignLabel(clusterID):
                     #         session.commit()
                     #         session.close()
 
+                    session.commit()
+
                     if explore:
                         individual_check = session.query(Individual.id).join(Detection, Individual.detections).join(Image).join(Cluster, Image.clusters).filter(Cluster.id==cluster.id).filter(Individual.tasks.contains(task)).first()
                         if individual_check:
                             individual_check = individual_check[0]
                             check_individual_detection_mismatch.apply_async(kwargs={'task_id':task_id,'cluster_id':cluster.id})
 
-                    session.commit()
                     session.close()
 
         else:
@@ -13425,7 +13426,7 @@ def getMatchingKpts(det_id1,det_id2):
                 kpts_coords2 = calc_kpt_coords(kpts2_m,chip_size2,aid2_det)
 
                 scores = fs.T[0]
-                scores = (scores - scores.min()) / (scores.max() - scores.min()) # normalize score between 0 and 1 
+                # scores = (scores - scores.min()) / (scores.max() - scores.min()) # normalize score between 0 and 1 
 
                 results = {
                     'kpts': {

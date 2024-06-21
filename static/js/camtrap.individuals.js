@@ -1284,6 +1284,7 @@ function checkSurvey(){
     /** Checks that the slected surveys and annotation sets are valid */
 
     var duplicateTask = false
+    var duplicateSurvey = false
     var surveyAll = false
     var oneSurvey = false
     var noneSurvey = false
@@ -1317,6 +1318,15 @@ function checkSurvey(){
         }
     }
 
+    for (let i=0;i<allSurveys.length;i++) {
+        currSurveyVal = allSurveys[i].value
+        for (let j=0;j<allSurveys.length;j++) {
+            if(allSurveys[j].value == currSurveyVal && j!=i){
+                duplicateSurvey = true
+            }
+        }
+    }
+
     
     if(allSurveys.length == 1 && surveyAll){
         surveyAll = false
@@ -1336,8 +1346,13 @@ function checkSurvey(){
         newdiv.innerHTML =  'You have duplicate annotation sets, please remove the duplicate.'
         surveyErrors.appendChild(newdiv)
     }
-    
 
+    if (duplicateSurvey) {
+        newdiv = document.createElement('div')
+        newdiv.innerHTML =  'You have duplicate surveys, please remove the duplicate.'
+        surveyErrors.appendChild(newdiv)
+    }
+    
     if(surveyAll){
         newdiv = document.createElement('div')
         newdiv.innerHTML =  'You cannot select all surveys and add additional surveys. Please remove additional surveys or "All" surveys.'
@@ -1356,7 +1371,7 @@ function checkSurvey(){
         surveyErrors.appendChild(newdiv)
     }
 
-    if (duplicateTask||surveyAll||oneSurvey||noneSurvey) {
+    if (duplicateTask||surveyAll||oneSurvey||noneSurvey||duplicateSurvey) {
         legalSurvey = false
     } else {
         legalSurvey = true

@@ -42,6 +42,7 @@ def launch_task(self,task_id):
         task = db.session.query(Task).get(task_id)
         taggingLevel = task.tagging_level
         isBounding = task.is_bounding
+        newIndividualsAdded = False
 
         if task.jobs_finished == None:
             task.jobs_finished = 0
@@ -112,6 +113,7 @@ def launch_task(self,task_id):
                         db.session.add(newIndividual)
                         newIndividual.detections = [detection]
                         newIndividual.tasks = [task]
+                        newIndividualsAdded = True
 
                     # db.session.commit()
 
@@ -269,6 +271,16 @@ def launch_task(self,task_id):
                 for tsk in task.sub_tasks:
                     tsk.status = 'SUCCESS'
                     tsk.survey.status = 'Ready'
+
+                if newIndividualsAdded and '-4' in task.tagging_level:
+                    tL = re.split(',',task.tagging_level)
+                    species = tL[1]
+                    task.survey.status = 'processing'
+                    if tL[4]=='h':
+                        calculate_detection_similarities.delay(task_ids=[task_id],species=species,algorithm='hotspotter')
+                    elif tL[4]=='n':
+                        calculate_detection_similarities.delay(task_ids=[task_id],species=species,algorithm='none')
+
                 db.session.commit()
                 return True
 
