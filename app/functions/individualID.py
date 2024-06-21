@@ -417,8 +417,7 @@ def calculate_detection_similarities(self,task_ids,species,algorithm):
                             for det_1 in dets_1:
                                 if det_1 in dets_2: dets_2.remove(det_1)
                                 if dets_2:
-                                    #TODO CHANGE BACK TO PARALLEL
-                                    results.append(calculate_hotspotter_similarity.apply_async(kwargs={'qaid_list': [det_1], 'daid_list': dets_2}, queue='default'))
+                                    results.append(calculate_hotspotter_similarity.apply_async(kwargs={'qaid_list': [det_1], 'daid_list': dets_2}, queue='parallel'))
 
             GLOBALS.lock.acquire()
             with allow_join_result():
