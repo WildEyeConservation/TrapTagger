@@ -131,7 +131,7 @@ def get_flank(image_path: str) -> str:
     return visibility
 
 
-def process_images(ibs,batch,sourceBucket,species):
+def process_images(ibs,batch,sourceBucket,species,pose_only=False):
     """
     Segments the image using Segment Anything (SAM) - Meta AI research, from a bounding box prompt. Estimates the flank using ScarceNet Keypoint detection. Adds the 
     segmented image and the detection to the wbia database.
@@ -139,22 +139,24 @@ def process_images(ibs,batch,sourceBucket,species):
         - batch (dict): the bacth of images to be segmented including their path, bbox_list, image_id and detection_id
         - sourceBucket (str): the source bucket of the images
         - species (str): the species of the images
+        - pose_only (bool): if True, only the pose detection is performed
     Returns a dictionary containing the flank and the database ID (wbia) for each detection.
     """
     global predictor, init, model
 
     try:
         if not init:
-            # SAM initialization
-            print('Initializing SAM')
-            starttime = time.time()
-            sam_checkpoint = "sam_vit_h_4b8939.pth"
-            model_type = "vit_h"
-            device = "cuda"
-            sam = sam_model_registry[model_type](checkpoint=sam_checkpoint)
-            sam.to(device=device)
-            predictor = SamPredictor(sam)
-            print('SAM initialized in {} seconds'.format(time.time() - starttime))
+            if not pose_only:
+                # SAM initialization
+                print('Initializing SAM')
+                starttime = time.time()
+                sam_checkpoint = "sam_vit_h_4b8939.pth"
+                model_type = "vit_h"
+                device = "cuda"
+                sam = sam_model_registry[model_type](checkpoint=sam_checkpoint)
+                sam.to(device=device)
+                predictor = SamPredictor(sam)
+                print('SAM initialized in {} seconds'.format(time.time() - starttime))
 
             # Pose detection initialization
             print('Initializing Pose Detection')
@@ -186,13 +188,14 @@ def process_images(ibs,batch,sourceBucket,species):
         if not os.path.isdir(imFolder):
             os.mkdir(imFolder)
 
-        # Add species (use one species for all detections)
-        global_species = 'Hyaena'
-        species_nice_list = [global_species]
-        species_text_list = [global_species.replace(' ','_').lower()]
-        species_code_list = ['SH']
-        species_ids = ibs.add_species(species_nice_list, species_text_list, species_code_list)
-        hs_label = species_ids[0]
+        if not pose_only:
+            # Add species (use one species for all detections)
+            global_species = 'Hyaena'
+            species_nice_list = [global_species]
+            species_text_list = [global_species.replace(' ','_').lower()]
+            species_code_list = ['SH']
+            species_ids = ibs.add_species(species_nice_list, species_text_list, species_code_list)
+            hs_label = species_ids[0]
 
         detection_results = {}
         aid_list = []
@@ -208,25 +211,32 @@ def process_images(ibs,batch,sourceBucket,species):
                 h, w, _ = image_data.shape
                 x1, x2, y1, y2 = bbox_dict['left'], bbox_dict['right'], bbox_dict['top'], bbox_dict['bottom']
                 bbox = np.array([x1 * w, y1 * h, x2 * w, y2 * h])
-                print('Segmenting image')
-                starttime = time.time()
-                predictor.set_image(image_data)
-                masks, _, _ = predictor.predict(
-                    point_coords=None,
-                    point_labels=None,
-                    box=bbox[None, :],
-                    multimask_output=False,
-                )
 
-                h, w = masks[0].shape[-2:]
-                mask_image = masks[0].reshape(h, w, 1) * np.array([1., 1., 1.]).reshape(1, 1, -1)
-                segmented_image = (mask_image * image_data).astype('uint8')
-                segmented_image = Image.fromarray(segmented_image[int(y1 * h):int(y2 * h), int(x1 * w):int(x2 * w)])
-                print('Segmentation done in {} seconds'.format(time.time() - starttime))
+                if pose_only:
+                    # Crop the image to the bounding box
+                    cropped_image = Image.fromarray(image_data[int(y1 * h):int(y2 * h), int(x1 * w):int(x2 * w)])
+                    filename = imFolder + '/' + str(detection_id) + '.jpg'
+                    cropped_image.save(filename)
+                else:
+                    print('Segmenting image')
+                    starttime = time.time()
+                    predictor.set_image(image_data)
+                    masks, _, _ = predictor.predict(
+                        point_coords=None,
+                        point_labels=None,
+                        box=bbox[None, :],
+                        multimask_output=False,
+                    )
 
-                #Save segmented image locally
-                filename = imFolder + '/' + str(detection_id) + '.jpg'
-                segmented_image.save(filename)
+                    h, w = masks[0].shape[-2:]
+                    mask_image = masks[0].reshape(h, w, 1) * np.array([1., 1., 1.]).reshape(1, 1, -1)
+                    segmented_image = (mask_image * image_data).astype('uint8')
+                    segmented_image = Image.fromarray(segmented_image[int(y1 * h):int(y2 * h), int(x1 * w):int(x2 * w)])
+                    print('Segmentation done in {} seconds'.format(time.time() - starttime))
+
+                    #Save segmented image locally
+                    filename = imFolder + '/' + str(detection_id) + '.jpg'
+                    segmented_image.save(filename)
 
                 #Get flank from the segmented image
                 flank = get_flank(filename)
@@ -238,30 +248,34 @@ def process_images(ibs,batch,sourceBucket,species):
                 else: #ambiguous
                     flank = 'A'
 
-                #Add image and annotation to the wbia database
-                # gid = ibs.add_images([ut.unixpath(ut.grab_test_imgpath(filename))], auto_localize=False)[0]
-                ut_filename = [ut.unixpath(ut.grab_test_imgpath(filename))]
-                gid = ibs.add_images(ut_filename, auto_localize=False,ensure_loadable=False,ensure_exif=False)[0] # The ensure_loadable and ensure_exif flags are set to False to avoid errors when loading the image (if the image already exist in db but from a differnt path, it will throw an error)
-                ibs.set_image_uris([gid], ut_filename) # Set the image uri to the new path 
-                ibs.set_image_uris_original([gid], ut_filename)
+                if pose_only:
+                    aid = None
+                    gid = None
+                else:
+                    #Add image and annotation to the wbia database
+                    # gid = ibs.add_images([ut.unixpath(ut.grab_test_imgpath(filename))], auto_localize=False)[0]
+                    ut_filename = [ut.unixpath(ut.grab_test_imgpath(filename))]
+                    gid = ibs.add_images(ut_filename, auto_localize=False,ensure_loadable=False,ensure_exif=False)[0] # The ensure_loadable and ensure_exif flags are set to False to avoid errors when loading the image (if the image already exist in db but from a differnt path, it will throw an error)
+                    ibs.set_image_uris([gid], ut_filename) # Set the image uri to the new path 
+                    ibs.set_image_uris_original([gid], ut_filename)
 
-                # Annotations
-                left = 0
-                right = 1
-                top = 0
-                bottom = 1
-                imWidth = ibs.get_image_widths(gid)
-                imHeight = ibs.get_image_heights(gid)
-                w = math.floor(imWidth*(right-left))
-                h = math.floor(imHeight*(bottom-top))
-                x = math.floor(imWidth*left)
-                y = math.floor(imHeight*top)
+                    # Annotations
+                    left = 0
+                    right = 1
+                    top = 0
+                    bottom = 1
+                    imWidth = ibs.get_image_widths(gid)
+                    imHeight = ibs.get_image_heights(gid)
+                    w = math.floor(imWidth*(right-left))
+                    h = math.floor(imHeight*(bottom-top))
+                    x = math.floor(imWidth*left)
+                    y = math.floor(imHeight*top)
 
-                aids = ibs.add_annots([gid],bbox_list=[[x, y, w, h]],species_rowid_list=[hs_label])
-                aid_list.extend(aids)
-                aid = aids[0]
+                    aids = ibs.add_annots([gid],bbox_list=[[x, y, w, h]],species_rowid_list=[hs_label])
+                    aid_list.extend(aids)
+                    aid = aids[0]
 
-                print('Added segmented image and detection (annotation) to the wbia database. Det_id: {}, gid: {} aid: {}'.format(detection_id, gid, aid))
+                    print('Added segmented image and detection (annotation) to the wbia database. Det_id: {}, gid: {} aid: {}'.format(detection_id, gid, aid))
 
                 detection_results[detection_id] = {
                     'flank': flank,
@@ -269,13 +283,13 @@ def process_images(ibs,batch,sourceBucket,species):
                     'gid': gid
                 }
 
-
-        # Calculate image kpts and vecs for hotspotter (automatically done by wbia and added to the database)
-        print('Calculating image keypoints and vectors')
-        starttime = time.time()
-        qreq_ = ibs.new_query_request(aid_list, aid_list)
-        qreq_.lazy_preload(verbose=True)
-        print('Image keypoints and vectors calculated in {} seconds'.format(time.time() - starttime))
+        if not pose_only:
+            # Calculate image kpts and vecs for hotspotter (automatically done by wbia and added to the database)
+            print('Calculating image keypoints and vectors')
+            starttime = time.time()
+            qreq_ = ibs.new_query_request(aid_list, aid_list)
+            qreq_.lazy_preload(verbose=True)
+            print('Image keypoints and vectors calculated in {} seconds'.format(time.time() - starttime))
 
     except:
         print('Error processing images')	

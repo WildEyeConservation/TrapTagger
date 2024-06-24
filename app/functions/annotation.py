@@ -60,17 +60,15 @@ def launch_task(self,task_id):
                 #     calculate_detection_similarities.delay(task_ids=[task_id],species=label.description,algorithm='hotspotter')
                 # elif tL[4]=='n':
                 #     calculate_detection_similarities.delay(task_ids=[task_id],species=label.description,algorithm='none')
+                task.status = 'Processing'
+                db.session.commit()
                 if tL[4]=='h':
                     label.algorithm = 'hotspotter'
-                    task.status = 'Processing'
-                    db.session.commit()
                     process_detections_for_individual_id([task_id],species)
-                    task = db.session.query(Task).get(task_id)
                 elif tL[4]=='n':
                     label.algorithm = 'heuristic'
-                    # process_detections_for_individual_id(task_id,species)
-                    # Not sure if we still need to calculate flank 
-
+                    process_detections_for_individual_id([task_id],species,pose_only=True)
+                task = db.session.query(Task).get(task_id)
                 if tL[3] == 'a':
                     sq = db.session.query(Cluster.id.label('clusterID'),Detection.id.label('detID'),func.count(distinct(Detection.id)).label('detCount'),func.count(distinct(Image.id)).label('imCount'))\
                                         .join(Image,Cluster.images)\

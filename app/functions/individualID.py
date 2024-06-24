@@ -604,8 +604,8 @@ def calculate_individual_similarity(self,individual1,individuals2,species,sessio
 
                         if algorithm == 'hotspotter':
                             detSimilarities = session.query(DetSimilarity.score,
-                                        Det1.c.id,Det1.c.left,Det1.c.right,Det1.c.top,Det1.c.bottom,Image1.c.camera_id,Image1.c.corrected_timestamp,Trapgroup1.c.latitude,Trapgroup1.c.longitude,
-                                        Det2.c.id,Det2.c.left,Det2.c.right,Det2.c.top,Det2.c.bottom,Image2.c.camera_id,Image2.c.corrected_timestamp,Trapgroup2.c.latitude,Trapgroup2.c.longitude)\
+                                        Det1.c.id,Det1.c.left,Det1.c.right,Det1.c.top,Det1.c.bottom,Det1.c.flank,Image1.c.camera_id,Image1.c.corrected_timestamp,Trapgroup1.c.latitude,Trapgroup1.c.longitude,
+                                        Det2.c.id,Det2.c.left,Det2.c.right,Det2.c.top,Det2.c.bottom,Det2.c.flank,Image2.c.camera_id,Image2.c.corrected_timestamp,Trapgroup2.c.latitude,Trapgroup2.c.longitude)\
                                                     .join(Det1, Det1.c.id==DetSimilarity.detection_1)\
                                                     .join(Det2, Det2.c.id==DetSimilarity.detection_2)\
                                                     .join(Image1, Image1.c.id==Det1.c.image_id)\
@@ -624,14 +624,14 @@ def calculate_individual_similarity(self,individual1,individuals2,species,sessio
                                                         )
                                                     ).distinct().all()
                         else:
-                            detections1 = session.query(Detection.id, Detection.left, Detection.right, Detection.top, Detection.bottom, Image.camera_id, Image.corrected_timestamp, Trapgroup.latitude, Trapgroup.longitude)\
+                            detections1 = session.query(Detection.id, Detection.left, Detection.right, Detection.top, Detection.bottom, Detection.flank,Image.camera_id, Image.corrected_timestamp, Trapgroup.latitude, Trapgroup.longitude)\
                                                 .join(individualDetections1, individualDetections1.c.detection_id==Detection.id)\
                                                 .join(Image, Image.id==Detection.image_id)\
                                                 .join(Camera, Camera.id==Image.camera_id)\
                                                 .join(Trapgroup, Trapgroup.id==Camera.trapgroup_id)\
                                                 .filter(individualDetections1.c.individual_id==individual1.id).all()
 
-                            detections2 = session.query(Detection.id, Detection.left, Detection.right, Detection.top, Detection.bottom, Image.camera_id, Image.corrected_timestamp, Trapgroup.latitude, Trapgroup.longitude)\
+                            detections2 = session.query(Detection.id, Detection.left, Detection.right, Detection.top, Detection.bottom, Detection.flank,Image.camera_id, Image.corrected_timestamp, Trapgroup.latitude, Trapgroup.longitude)\
                                                 .join(individualDetections2, individualDetections2.c.detection_id==Detection.id)\
                                                 .join(Image, Image.id==Detection.image_id)\
                                                 .join(Camera, Camera.id==Image.camera_id)\
@@ -651,30 +651,32 @@ def calculate_individual_similarity(self,individual1,individuals2,species,sessio
                                 'left': detSimilarity[2],
                                 'right': detSimilarity[3],
                                 'top': detSimilarity[4],
-                                'bottom': detSimilarity[5]
+                                'bottom': detSimilarity[5],
+                                'flank': detSimilarity[6]
                             }
                             image1 = {
-                                'camera_id': detSimilarity[6],
-                                'corrected_timestamp': detSimilarity[7]
+                                'camera_id': detSimilarity[7],
+                                'corrected_timestamp': detSimilarity[8]
                             }
                             trapgroup1 = {
-                                'latitude': detSimilarity[8],
-                                'longitude': detSimilarity[9]
+                                'latitude': detSimilarity[9],
+                                'longitude': detSimilarity[10]
                             }
                             det2 = {
-                                'id': detSimilarity[10],
-                                'left': detSimilarity[11],
-                                'right': detSimilarity[12],
-                                'top': detSimilarity[13],
-                                'bottom': detSimilarity[14]
+                                'id': detSimilarity[11],
+                                'left': detSimilarity[12],
+                                'right': detSimilarity[13],
+                                'top': detSimilarity[14],
+                                'bottom': detSimilarity[15],
+                                'flank': detSimilarity[16]
                             }
                             image2 = {
-                                'camera_id': detSimilarity[15],
-                                'corrected_timestamp': detSimilarity[16]
+                                'camera_id': detSimilarity[17],
+                                'corrected_timestamp': detSimilarity[18]
                             }
                             trapgroup2 = {
-                                'latitude': detSimilarity[17],
-                                'longitude': detSimilarity[18]
+                                'latitude': detSimilarity[19],
+                                'longitude': detSimilarity[20]
                             }
 
                             iou_factor = 1
@@ -705,6 +707,8 @@ def calculate_individual_similarity(self,individual1,individuals2,species,sessio
                                 time = 0
                             timeScore = 1 + timeWeight - (timeWeight*timeNormFactor*time)
                             if timeScore < 1: timeScore=1
+
+                            #TODO: ADJUST THE SCORE BASED ON DETECTION FLANKS 
 
                             adjusted_score = iou_factor * distanceScore * timeScore * (1 + (tagWeight*tagScore)) * detSimScore
 
@@ -1319,7 +1323,7 @@ def check_individual_detection_mismatch(self,task_id,cluster_id=None,celeryTask=
 
     return True
 
-def process_detections_for_individual_id(task_ids,species):
+def process_detections_for_individual_id(task_ids,species,pose_only=False):
     '''
     Task for processing detections for individual ID purposes. This task is used to segment images and perform pose estimation. It is also used
     to add the images to the Hotspotter (wbia db) database and calcualte the keypoints for the detections to be used in the similarity calculation.
@@ -1364,7 +1368,7 @@ def process_detections_for_individual_id(task_ids,species):
 
         results = []
         for batch in chunker(det_data,500):
-            results.append(segment_and_pose.apply_async(kwargs={'batch': batch, 'sourceBucket': Config.BUCKET, 'species': species}, queue='similarity', routing_key='similarity.segment_and_pose'))
+            results.append(segment_and_pose.apply_async(kwargs={'batch': batch, 'sourceBucket': Config.BUCKET, 'species': species, 'pose_only':pose_only}, queue='similarity', routing_key='similarity.segment_and_pose'))
             
 
         GLOBALS.lock.acquire()
@@ -1376,7 +1380,8 @@ def process_detections_for_individual_id(task_ids,species):
                     for detection in detections:
                         try:
                             detection.flank = response[str(detection.id)]['flank']
-                            detection.aid = response[str(detection.id)]['aid']
+                            if not pose_only:
+                                detection.aid = response[str(detection.id)]['aid']
                         except Exception:
                             app.logger.info(' ')
                             app.logger.info('!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!')

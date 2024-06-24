@@ -123,7 +123,7 @@ def classify(batch):
 
 
 @app.task()
-def segment_and_pose(batch,sourceBucket,species):
+def segment_and_pose(batch,sourceBucket,species,pose_only=False):
     '''
 
     Celery wrapper for running segmentation and pose estimation on the supplied batch of images and detections. Adds the segmented images to the wbia database
@@ -133,13 +133,13 @@ def segment_and_pose(batch,sourceBucket,species):
                 batch (list): A list of detections to be processed.
                 sourceBucket (str): S3 bucket.
                 species (str): The species to segment and estimate pose for.
-    
+                pose_only (bool): Whether to only estimate pose.
             Returns:
                 results (dict): A dictionary containing the flank, and database ID (wbia) for each detection.
         '''
     global ibs
     from gpuworker import similarity
-    if ibs is None:
+    if ibs is None and not pose_only:
         from wbia import opendb
         ibs = opendb(db=Config.WBIA_DB_NAME,dbdir=Config.WBIA_DIR,allow_newdir=True)
-    return similarity.process_images(ibs,batch,sourceBucket,species)
+    return similarity.process_images(ibs,batch,sourceBucket,species,pose_only)
