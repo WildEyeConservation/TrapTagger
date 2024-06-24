@@ -32,7 +32,8 @@ import math
 s3client = boto3.client('s3')
 
 
-init = False
+init_sam = False
+init_pose = False
 predictor = None
 model = None
 
@@ -142,22 +143,23 @@ def process_images(ibs,batch,sourceBucket,species,pose_only=False):
         - pose_only (bool): if True, only the pose detection is performed
     Returns a dictionary containing the flank and the database ID (wbia) for each detection.
     """
-    global predictor, init, model
+    global predictor, model, init_sam, init_pose
 
     try:
-        if not init:
-            if not pose_only:
-                # SAM initialization
-                print('Initializing SAM')
-                starttime = time.time()
-                sam_checkpoint = "sam_vit_h_4b8939.pth"
-                model_type = "vit_h"
-                device = "cuda"
-                sam = sam_model_registry[model_type](checkpoint=sam_checkpoint)
-                sam.to(device=device)
-                predictor = SamPredictor(sam)
-                print('SAM initialized in {} seconds'.format(time.time() - starttime))
+        if not init_sam and not pose_only:
+            # SAM initialization
+            print('Initializing SAM')
+            starttime = time.time()
+            sam_checkpoint = "sam_vit_h_4b8939.pth"
+            model_type = "vit_h"
+            device = "cuda"
+            sam = sam_model_registry[model_type](checkpoint=sam_checkpoint)
+            sam.to(device=device)
+            predictor = SamPredictor(sam)
+            print('SAM initialized in {} seconds'.format(time.time() - starttime))
+            init_sam = True
 
+        if not init_pose:
             # Pose detection initialization
             print('Initializing Pose Detection')
             starttime = time.time()
@@ -181,8 +183,7 @@ def process_images(ibs,batch,sourceBucket,species,pose_only=False):
             model.load_state_dict(checkpoint['state_dict'], strict=True)
             model = torch.nn.DataParallel(model, device_ids=cfg.GPUS).cuda()
             print('Pose Detection initialized in {} seconds'.format(time.time() - starttime))
-
-            init = True
+            init_pose = True
 
         imFolder = 'HS_images_' + species.replace(' ','_').lower()
         if not os.path.isdir(imFolder):
@@ -249,15 +250,16 @@ def process_images(ibs,batch,sourceBucket,species,pose_only=False):
                     flank = 'A'
 
                 if pose_only:
-                    aid = None
-                    gid = None
+                    detection_results[detection_id] = {
+                        'flank': flank
+                    }
                 else:
                     #Add image and annotation to the wbia database
                     # gid = ibs.add_images([ut.unixpath(ut.grab_test_imgpath(filename))], auto_localize=False)[0]
                     ut_filename = [ut.unixpath(ut.grab_test_imgpath(filename))]
                     gid = ibs.add_images(ut_filename, auto_localize=False,ensure_loadable=False,ensure_exif=False)[0] # The ensure_loadable and ensure_exif flags are set to False to avoid errors when loading the image (if the image already exist in db but from a differnt path, it will throw an error)
                     ibs.set_image_uris([gid], ut_filename) # Set the image uri to the new path 
-                    ibs.set_image_uris_original([gid], ut_filename)
+                    ibs.set_image_uris_original([gid], ut_filename, overwrite=True)
 
                     # Annotations
                     left = 0
@@ -277,11 +279,11 @@ def process_images(ibs,batch,sourceBucket,species,pose_only=False):
 
                     print('Added segmented image and detection (annotation) to the wbia database. Det_id: {}, gid: {} aid: {}'.format(detection_id, gid, aid))
 
-                detection_results[detection_id] = {
-                    'flank': flank,
-                    'aid': aid,
-                    'gid': gid
-                }
+                    detection_results[detection_id] = {
+                        'flank': flank,
+                        'aid': aid,
+                        'gid': gid
+                    }
 
         if not pose_only:
             # Calculate image kpts and vecs for hotspotter (automatically done by wbia and added to the database)

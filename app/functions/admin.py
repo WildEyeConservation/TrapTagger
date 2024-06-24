@@ -432,7 +432,7 @@ def delete_survey(self,survey_id):
                 keep_aid_list = [r[0] for r in db.session.query(Detection.aid, func.count(Detection.id))\
                     .filter(Detection.aid.in_(aid_list))\
                     .group_by(Detection.aid)\
-                    .distinct().all() if r[1]>0] # use 0 because detection already deleted
+                    .distinct().all() if r[1]>0]
                 aid_list = list(set(aid_list) - set(keep_aid_list))
                 if aid_list:
                     if not GLOBALS.ibs:
@@ -2175,15 +2175,11 @@ def delete_individuals(self,task_ids, species):
                             .filter(det2.c.id.in_(detections))\
                             .distinct().all()
 
-        wbia_detection_ids = []
         for detSim in detSims:
-            wbia_detection_ids.append(detSim.detection_1)
-            wbia_detection_ids.append(detSim.detection_2)
             db.session.delete(detSim)
 
         # Delete featurematches from WBIA db for detections that are no longer associated with individuals
-        wbia_detection_ids = list(set(wbia_detection_ids))
-        wbia_detections = db.session.query(Detection).filter(Detection.id.in_(wbia_detection_ids)).all()
+        wbia_detections = db.session.query(Detection).outerjoin(individualDetections).filter(Detection.id.in_(detections)).filter(individualDetections.c.detection_id==None).filter(Detection.aid!=None).distinct().all()
         aid_list = []
         for detection in wbia_detections:
             if detection.aid: aid_list.append(detection.aid)
@@ -2192,7 +2188,7 @@ def delete_individuals(self,task_ids, species):
         keep_aid_list = [r[0] for r in db.session.query(Detection.aid, func.count(Detection.id))\
                     .filter(Detection.aid.in_(aid_list))\
                     .group_by(Detection.aid)\
-                    .distinct().all() if r[1]>1]
+                    .distinct().all() if r[1]>0]
         aid_list = list(set(aid_list) - set(keep_aid_list))
         if aid_list:
             if not GLOBALS.ibs:
