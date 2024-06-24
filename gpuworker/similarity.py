@@ -239,7 +239,11 @@ def process_images(ibs,batch,sourceBucket,species):
                     flank = 'A'
 
                 #Add image and annotation to the wbia database
-                gid = ibs.add_images([ut.unixpath(ut.grab_test_imgpath(filename))], auto_localize=False)[0]
+                # gid = ibs.add_images([ut.unixpath(ut.grab_test_imgpath(filename))], auto_localize=False)[0]
+                ut_filename = [ut.unixpath(ut.grab_test_imgpath(filename))]
+                gid = ibs.add_images(ut_filename, auto_localize=False,ensure_loadable=False,ensure_exif=False)[0] # The ensure_loadable and ensure_exif flags are set to False to avoid errors when loading the image (if the image already exist in db but from a differnt path, it will throw an error)
+                ibs.set_image_uris([gid], ut_filename) # Set the image uri to the new path 
+                ibs.set_image_uris_original([gid], ut_filename)
 
                 # Annotations
                 left = 0

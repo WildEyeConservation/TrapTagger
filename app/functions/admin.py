@@ -429,6 +429,11 @@ def delete_survey(self,survey_id):
                 db.session.commit()
 
                 #Delete WBIA data
+                keep_aid_list = [r[0] for r in db.session.query(Detection.aid, func.count(Detection.id))\
+                    .filter(Detection.aid.in_(aid_list))\
+                    .group_by(Detection.aid)\
+                    .distinct().all() if r[1]>0] # use 0 because detection already deleted
+                aid_list = list(set(aid_list) - set(keep_aid_list))
                 if aid_list:
                     if not GLOBALS.ibs:
                         from wbia import opendb
@@ -2184,6 +2189,11 @@ def delete_individuals(self,task_ids, species):
             if detection.aid: aid_list.append(detection.aid)
             detection.aid = None
 
+        keep_aid_list = [r[0] for r in db.session.query(Detection.aid, func.count(Detection.id))\
+                    .filter(Detection.aid.in_(aid_list))\
+                    .group_by(Detection.aid)\
+                    .distinct().all() if r[1]>1]
+        aid_list = list(set(aid_list) - set(keep_aid_list))
         if aid_list:
             if not GLOBALS.ibs:
                 from wbia import opendb

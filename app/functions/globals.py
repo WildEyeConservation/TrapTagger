@@ -2720,6 +2720,8 @@ def inspect_celery(include_spam=False,include_reserved=False):
                     image_id=batch['detections'][detection_id]['image_id']
                     path = batch['images'][image_id]
                     print('{:{}}{:{}}{:{}}{:{}}  {}'.format(task['id'],40,name,36,hostname,36,time_start,29,path))
+                elif 'segment_and_pose' in task['name']:
+                    print('{:{}}{:{}}{:{}}{:{}}  {}'.format(task['id'],40,name,36,hostname,36,time_start,29,task['kwargs']['batch'][0]))
                 else:
                     print('{:{}}{:{}}{:{}}{:{}}  {}'.format(task['id'],40,name,36,hostname,36,time_start,29,task['kwargs']))
 

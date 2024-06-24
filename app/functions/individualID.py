@@ -1267,6 +1267,12 @@ def check_individual_detection_mismatch(self,task_id,cluster_id=None,celeryTask=
                 for detSim in detSims:
                     db.session.delete(detSim)
 
+        
+        keep_aid_list = [r[0] for r in db.session.query(Detection.aid, func.count(Detection.id))\
+                            .filter(Detection.aid.in_(aid_list))\
+                            .group_by(Detection.aid)\
+                            .distinct().all() if r[1]>1]
+        aid_list = list(set(aid_list) - set(keep_aid_list))
         if aid_list:
             if not GLOBALS.ibs:
                 from wbia import opendb
