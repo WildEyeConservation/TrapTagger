@@ -13426,7 +13426,6 @@ def getMatchingKpts(det_id1,det_id2):
                 kpts_coords2 = calc_kpt_coords(kpts2_m,chip_size2,aid2_det)
 
                 scores = fs.T[0]
-                # scores = (scores - scores.min()) / (scores.max() - scores.min()) # normalize score between 0 and 1 
 
                 results = {
                     'kpts': {

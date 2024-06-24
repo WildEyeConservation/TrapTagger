@@ -315,6 +315,20 @@ function buildDetection(image,detection,mapID = 'map1',colour=null) {
             rect._tooltip.options.opacity = 0.8
             rect.openTooltip()
         }
+        else if (isIDing && (document.getElementById('btnSendToBack')==null)) {
+            //Set the map view to fit detection bounds when viewing individual
+            fitBoundsInProcess[mapID] = true
+            map[mapID].fitBounds(rect.getBounds(), {padding: [10,10]});
+            // map[mapID].once('moveend', function(wrapMapID,wrapDetectionID) {
+            //     return function() {
+            //         if (fitBoundsInProcess[wrapMapID]) {
+            //             fitBoundsInProcess[wrapMapID] = false
+            //             detection_zoom[wrapMapID][wrapDetectionID] = map[mapID].getZoom()
+            //             updateKpts()
+            //         }
+            //     }
+            // }(mapID,detection.id));
+        }
 
         drawnItems[mapID].addLayer(rect)
         if (isBounding||isIDing) {
@@ -669,7 +683,9 @@ function addDetections(mapID = 'map1') {
             addDetCnt = 1
         }
         image = currentImage[mapID]
-        map[mapID].setZoom(map[mapID].getMinZoom())
+        if(!isIDing || document.getElementById('btnSendToBack')!=null){
+            map[mapID].setZoom(map[mapID].getMinZoom())
+        }
         fullRes[mapID] = false
         drawnItems[mapID].clearLayers()
         for (let i=0;i<image.detections.length;i++) {
@@ -1050,21 +1066,6 @@ function update(mapID = 'map1'){
     updateButtons(mapID)
     if (isTagging && taggingLevel.includes('-2') && (multipleStatus==false)) {
         activateMultiple()
-    }
-    if (isIDing && (document.getElementById('btnSendToBack')==null)) {
-        if (document.getElementById('cxFeaturesHeatmap').checked){
-            detID1 = clusters['map1'][clusterIndex['map1']].images[imageIndex['map1']].detections[0].id
-            detID2 = clusters['map2'][clusterIndex['map2']].images[imageIndex['map2']].detections[0].id
-            getMatchingKpts(detID1,detID2)
-        }
-        else{
-            if (kpts_layer['map1'] != null){
-                map['map1'].removeLayer(kpts_layer['map1'])
-            }
-            if (kpts_layer['map2'] != null){
-                map['map2'].removeLayer(kpts_layer['map2'])
-            }
-        }
     }
 }
 
@@ -1506,6 +1507,9 @@ function updateSlider(mapID = 'map1') {
                 return function() {
                     imageIndex[wrapMapID] = clusterPositionSplide[wrapMapID].index
                     update(wrapMapID)
+                    if (isIDing && (document.getElementById('btnSendToBack')==null)) {
+                        updateKpts()
+                    }
                 }
             }(mapID));
 
@@ -1516,6 +1520,9 @@ function updateSlider(mapID = 'map1') {
                     imageIndex[wrapMapID] = event.index
                     clusterPositionSplide[wrapMapID].go(imageIndex[wrapMapID])
                     update(wrapMapID)
+                    if (isIDing && (document.getElementById('btnSendToBack')==null)) {
+                        updateKpts()
+                    }
                 }
             }(mapID,track));
 
@@ -2478,6 +2485,10 @@ function prepMap(mapID = 'map1') {
                 
                         mapWidth[wrapMapID] = northEast.lng
                         mapHeight[wrapMapID] = southWest.lat
+
+                        map[wrapMapID].setMaxBounds(bounds);
+                        map[wrapMapID].fitBounds(bounds)
+                        map[wrapMapID].setMinZoom(map[wrapMapID].getZoom())
                 
                         activeImage[wrapMapID] = L.imageOverlay(imageUrl, bounds).addTo(map[wrapMapID]);
                         activeImage[wrapMapID].on('load', function(wrapWrapMapID) {
@@ -2485,9 +2496,6 @@ function prepMap(mapID = 'map1') {
                                 addDetections(wrapWrapMapID)
                             }
                         }(wrapMapID));
-                        map[wrapMapID].setMaxBounds(bounds);
-                        map[wrapMapID].fitBounds(bounds)
-                        map[wrapMapID].setMinZoom(map[wrapMapID].getZoom())
 
                         map[wrapMapID].on('resize', function(wrapWrapMapID){
                             return function () {
@@ -2504,7 +2512,7 @@ function prepMap(mapID = 'map1') {
                                 map[wrapWrapMapID].invalidateSize()
                                 map[wrapWrapMapID].setMaxBounds(bounds)
                                 map[wrapWrapMapID].fitBounds(bounds)
-                                map[wrapWrapMapID].setMinZoom(map[wrapWrapMapID].getZoom())
+                                map[wrapWrapMapID].setMinZoom(map[wrapWrapMapID].getMinZoom())
                                 activeImage[wrapWrapMapID].setBounds(bounds)
 
                                 var isImg = checkImage(activeImage[wrapWrapMapID]._url)

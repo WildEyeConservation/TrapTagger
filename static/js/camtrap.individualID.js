@@ -54,6 +54,10 @@ var DEBUGGING = false
 const detection_flanks = ['Left','Right','Ambiguous']
 var kpts_layer = {'map1':null,'map2':null}
 var savedKpts = {}
+var detection_zoom = {'map1':{},'map2':{}}
+var fitBoundsInProcess = {'map1':false,'map2':false}
+var defaultOpactity = 30
+var defaultRadius = 15
 
 function radians(degrees) {
     /** Converts desgres into radians. */
@@ -364,6 +368,7 @@ function getSuggestions(prevID = null) {
                             }
                             update('map2')
                             goToMax()
+                            updateKpts()
                         }
                     }
                 };
@@ -554,6 +559,8 @@ function idKeys(key) {
                 undoPreviousSuggestion()
                 break;
             case 'n': idNextCluster()
+                break;
+            case 'h': document.getElementById('cxFeaturesHeatmap').click()
                 break;
         }
     }
@@ -1280,6 +1287,17 @@ function IDMapPrep(mapID = 'map1') {
             }
         } 
     });
+
+    map[mapID].on('moveend', function(wrapMapID){
+        return function(){
+            if (fitBoundsInProcess[wrapMapID]) {
+                det_id = clusters[wrapMapID][clusterIndex[wrapMapID]].images[imageIndex[wrapMapID]].detections[0].id
+                detection_zoom[wrapMapID][det_id] = map[mapID].getZoom()
+                fitBoundsInProcess[wrapMapID] = false
+                // updateKpts()
+            }
+        }
+    }(mapID));
 }
 
 function setClusterIDRectOptions() {
@@ -1458,8 +1476,8 @@ function getMatchingKpts(detID1, detID2) {
 
     id = detID1 + '_' + detID2
     if (id in savedKpts) {
-        addHotspotsHeatmap('map1', savedKpts[id].kpts[detID1], savedKpts[id].scores)
-        addHotspotsHeatmap('map2', savedKpts[id].kpts[detID2], savedKpts[id].scores)
+        addHotspotsHeatmap('map1', savedKpts[id].kpts[detID1], savedKpts[id].scores, detection_zoom['map1'][detID1])
+        addHotspotsHeatmap('map2', savedKpts[id].kpts[detID2], savedKpts[id].scores, detection_zoom['map2'][detID2])
     }
     else{
         var xhttp = new XMLHttpRequest();
@@ -1476,8 +1494,8 @@ function getMatchingKpts(detID1, detID2) {
                 id = wrapDetID1 + '_' + wrapDetID2
                 savedKpts[id] = results
     
-                addHotspotsHeatmap('map1', results.kpts[wrapDetID1], results.scores)
-                addHotspotsHeatmap('map2', results.kpts[wrapDetID2], results.scores)
+                addHotspotsHeatmap('map1', results.kpts[wrapDetID1], results.scores,detection_zoom['map1'][wrapDetID1])
+                addHotspotsHeatmap('map2', results.kpts[wrapDetID2], results.scores,detection_zoom['map2'][wrapDetID2])
             }
         }}(detID1,detID2);
         xhttp.open("GET", '/getMatchingKpts/'+detID1+'/'+detID2);
@@ -1486,7 +1504,7 @@ function getMatchingKpts(detID1, detID2) {
 
 }
 
-function addHotspotsHeatmap(mapID, kpts, scores) {
+function addHotspotsHeatmap(mapID, kpts, scores, zoom=0) {
     /** Adds the heatmap of keypoints to the map. */
 
     if(kpts_layer[mapID]) {
@@ -1494,42 +1512,105 @@ function addHotspotsHeatmap(mapID, kpts, scores) {
     }
 
     var heatMapData = []
+    var maxScore = 0
     for (i = 0; i < kpts.length; i++) {
         x = kpts[i][0] * mapWidth[mapID]
         y = kpts[i][1] * mapHeight[mapID]
         heatMapData.push({lat: y, lng: x, count: scores[i]})
+        if (scores[i] > maxScore) {
+            maxScore = scores[i]
+        }
     }
 
-    var heatmap_options = {
-        'radius': 25,
-        'minOpacity': 0.1, 
-        'maxZoom': 10,
-        'max': 1.0,
-        'gradient': {
-            0.2: 'rgba(0, 0, 255, 0.2)',   // Blue 
-            0.4: 'rgba(0, 255, 255, 0.2)', // Cyan 
-            0.6: 'rgba(0, 255, 0, 0.2)',   // Lime 
-            0.8: 'rgba(255, 255, 0, 0.2)', // Yellow 
-            1.0: 'rgba(255, 0, 0, 0.2)'    // Red 
-        },
-        'blur': 10 
+    // zoom = map[mapID].getZoom()
+    scaleFactor = Math.pow(2, zoom)
+    inputRadius = document.getElementById('radiusInput').value
+    if (inputRadius == 0 || inputRadius == null || inputRadius == '') {
+        inputRadius = defaultRadius
+        document.getElementById('radiusInput').value = defaultRadius
+    }
+    radius = inputRadius/scaleFactor
+    opacity = document.getElementById('opacityInput').value
+    if (opacity == 0 || opacity == null || opacity == '') {
+        opacity = defaultOpactity
+        document.getElementById('opacityInput').value = defaultOpactity
     }
 
-    kpts_layer[mapID] = L.heatLayer(heatMapData, heatmap_options).addTo(map[mapID]);
+    var cfg = {
+        "radius": radius,
+        "maxOpacity": opacity/100,
+        "scaleRadius": true,
+        "useLocalExtrema": false,
+        latField: 'lat',
+        lngField: 'lng',
+        valueField: 'count'
+    };
+
+    hm_data = {
+        data: heatMapData,
+        max: maxScore
+    }
+
+    kpts_layer[mapID] = new HeatmapOverlay(cfg);
+    kpts_layer[mapID].addTo(map[mapID]);
+
+    kpts_layer[mapID].setData(hm_data);
+    kpts_layer[mapID]._update()
+
+    //Set z-index of heatmap to be above images
+    kpts_layer[mapID]._el.style.zIndex = 1000
+
 }
 
 $('#cxFeaturesHeatmap').on('change', function() {
     /** Handles the change in the heatmap selection. */
-    if (this.checked) {
-        if (finishedDisplaying['map1'] && finishedDisplaying['map2']) {
-            getMatchingKpts(clusters['map1'][clusterIndex['map1']].images[imageIndex['map1']].detections[0].id, clusters['map2'][clusterIndex['map2']].images[imageIndex['map2']].detections[0].id)
+    updateKpts()
+});
+
+function updateKpts() {
+    /** Updates the keypoints heatmap. */
+    if (isIDing && (document.getElementById('btnSendToBack')==null)) {
+        if (document.getElementById('cxFeaturesHeatmap').checked){
+            document.getElementById('heatmapOptionsDiv').hidden = false
+            detID1 = clusters['map1'][clusterIndex['map1']].images[imageIndex['map1']].detections[0].id
+            detID2 = clusters['map2'][clusterIndex['map2']].images[imageIndex['map2']].detections[0].id
+            getMatchingKpts(detID1,detID2)
         }
-    } else {
-        if(kpts_layer['map1']) {
-            map['map1'].removeLayer(kpts_layer['map1'])
+        else{
+            document.getElementById('heatmapOptionsDiv').hidden = true
+            if (kpts_layer['map1'] != null){
+                map['map1'].removeLayer(kpts_layer['map1'])
+            }
+            if (kpts_layer['map2'] != null){
+                map['map2'].removeLayer(kpts_layer['map2'])
+            }
         }
-        if(kpts_layer['map2']) {
-            map['map2'].removeLayer(kpts_layer['map2'])
-        }
+    }
+}
+
+$('#opacityInput').on('change', function() {
+    /** Handles the change in the heatmap opacity. */
+    document.getElementById('opacityInputSpan').innerHTML = document.getElementById('opacityInput').value
+    updateKpts() // Opacity does not update with _update() so need to remove and re-add the heatmap
+});
+
+$('#radiusInput').on('change', function() {
+    /** Handles the change in the heatmap radius. */
+    var radius = document.getElementById('radiusInput').value
+    document.getElementById('radiusInputSpan').innerHTML = radius 
+
+    if (kpts_layer['map1'] != null){
+        zoom1 = detection_zoom['map1'][clusters['map1'][clusterIndex['map1']].images[imageIndex['map1']].detections[0].id]
+        scaleFactor1 = Math.pow(2, zoom1)
+        radius1 = radius/scaleFactor1
+        kpts_layer['map1'].cfg.radius = radius1
+        kpts_layer['map1']._update()
+    }
+    if (kpts_layer['map2'] != null){
+        zoom2 = detection_zoom['map2'][clusters['map2'][clusterIndex['map2']].images[imageIndex['map2']].detections[0].id]
+        scaleFactor2 = Math.pow(2, zoom2)
+        radius2 = radius/scaleFactor2
+        kpts_layer['map2'].cfg.radius = radius2
+        kpts_layer['map2']._update()
     }
 });
