@@ -641,7 +641,7 @@ def calculate_individual_similarity(self,individual1,individuals2,species,sessio
                             detSimilarities = []
                             for det1 in detections1:
                                 for det2 in detections2:
-                                    detSimilarities.append((1,det1.id,det1.left,det1.right,det1.top,det1.bottom,det1.camera_id,det1.corrected_timestamp,det1.latitude,det1.longitude,det2.id,det2.left,det2.right,det2.top,det2.bottom,det2.camera_id,det2.corrected_timestamp,det2.latitude,det2.longitude))
+                                    detSimilarities.append((1,det1[0],det1[1],det1[2],det1[3],det1[4],det1[5],det1[6],det1[7],det1[8],det1[9],det2[0],det2[1],det2[2],det2[3],det2[4],det2[5],det2[6],det2[7],det2[8],det2[9]))
 
                         max_similarity = 0
                         for detSimilarity in detSimilarities:

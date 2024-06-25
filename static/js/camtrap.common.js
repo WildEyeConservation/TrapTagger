@@ -331,7 +331,14 @@ function buildDetection(image,detection,mapID = 'map1',colour=null) {
         }
 
         drawnItems[mapID].addLayer(rect)
-        if (isBounding||isIDing) {
+        if (isBounding) {
+            if (!toolTipsOpen) {
+                rect.closeTooltip()
+            }
+            dbDetIds[mapID][rect._leaflet_id.toString()] = detection.id.toString()
+        }
+
+        if (isIDing) {
             if (!toolTipsOpen) {
                 rect.closeTooltip()
             }
@@ -340,7 +347,6 @@ function buildDetection(image,detection,mapID = 'map1',colour=null) {
             }
             dbDetIds[mapID][rect._leaflet_id.toString()] = detection.id.toString()
         }
-
 
         if (document.getElementById('btnSendBoundingBack')!=null){
             // Highlights and un-highlight when click on bounding box
