@@ -114,8 +114,8 @@ if response == 'y':
 			if response!='n':
 				translations[label] = response
 		
-		df = df.drop_duplicates(subset=['path'], keep=False).reset_index()
-		df = df.drop_duplicates(subset=['hash'], keep='first').reset_index()
+		# df = df.drop_duplicates(subset=['detection_id'], keep=False).reset_index() #drops multi-labels
+		# df = df.drop_duplicates(subset=['hash'], keep='first').reset_index()
 		df['label'] = df.apply(lambda x: translations[x.dataset_class.lower().strip()] if x.dataset_class in translations.keys() else 'unknown', axis=1)
 		df.dropna(inplace=True)
 

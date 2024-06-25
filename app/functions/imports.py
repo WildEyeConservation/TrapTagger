@@ -858,27 +858,38 @@ def calc_det_iou(detection_id,df):
 def compare_static_groups(df,group1,group2):
     '''Compares two groups of static detections to see if they should be combined.'''
 
+    # if there is no overlap at all, we can abandon the comparison immediately
     if IOU(df[df['detection_id']==group1[0]].iloc[0],df[df['detection_id']==group2[0]].iloc[0])<(Config.STATIC_IOU5/2): return False
     
-    for detection1 in group1:
+    # we only want to compare a limited combination of detections - comparing everything gets out of hand too quickly
+    for detection1 in random.sample(group1,100):
         detection = df[df['detection_id']==detection1].iloc[0]
-        area = detection['area']
-        if area <= 0.05:
+        df2 = df[df['detection_id'].isin(group2)].copy()
+        df2 = df2[
+            (df2['left']<detection['right']) &
+            (df2['right']>detection['left']) &
+            (df2['bottom']>detection['top']) &
+            (df2['top']<detection['bottom'])
+        ].sample(100)
+
+        if len(df2) == 0: continue
+
+        df2['iou'] = df2.apply(lambda x: IOU(detection,x), axis=1)
+
+        if detection['area'] <= 0.05:
             threshold = Config.STATIC_IOU5
-        elif area <= 0.1:
+        elif detection['area'] <= 0.1:
             threshold = Config.STATIC_IOU10
-        elif area <= 0.3:
+        elif detection['area'] <= 0.3:
             threshold = Config.STATIC_IOU30
-        elif area <= 0.5:
+        elif detection['area'] <= 0.5:
             threshold = Config.STATIC_IOU50
-        elif area <= 0.9:
+        elif detection['area'] <= 0.9:
             threshold = Config.STATIC_IOU90
         else:
             continue
-        
-        for detection2 in group2:
-            if IOU(detection,df[df['detection_id']==detection2].iloc[0])>threshold:
-                return True
+
+        if len(df2[df2['iou']>threshold]) > 0: return True
 
     return False
 
@@ -1011,11 +1022,42 @@ def processCameraStaticDetections(self,cameragroup_id):
         final_static_groups = static_groups[0].copy()
         for index in static_groups:
             if index!=0:
-                temp_static_groups = final_static_groups.copy()
-                for group1 in static_groups[index]:
+                temp_final_static_groups = final_static_groups.copy()
+                temp_static_groups = static_groups[index].copy()
+
+                # first try single detection matching to reduce pool size
+                for group1 in temp_static_groups:
+                    for group2 in temp_final_static_groups:
+                        detection = df[df['detection_id']==group1[0]].iloc[0]
+                        area = detection['area']
+                        if area <= 0.05:
+                            threshold = Config.STATIC_IOU5
+                        elif area <= 0.1:
+                            threshold = Config.STATIC_IOU10
+                        elif area <= 0.3:
+                            threshold = Config.STATIC_IOU30
+                        elif area <= 0.5:
+                            threshold = Config.STATIC_IOU50
+                        elif area <= 0.9:
+                            threshold = Config.STATIC_IOU90
+                        else:
+                            continue
+
+                        if IOU(detection,df[df['detection_id']==group2[0]].iloc[0])>threshold:
+                            # match
+                            for group in final_static_groups:
+                                if set(group)==set(group2):
+                                    group.extend(group1)
+                                    break
+                            temp_static_groups.remove(group1)
+                            temp_final_static_groups.remove(group2)
+                            break
+
+                # now more-exhaustively check the remaining groups (which are likely to be non-matches)
+                for group1 in temp_static_groups:
                     found = False
 
-                    for group2 in temp_static_groups:
+                    for group2 in temp_final_static_groups:
                         if compare_static_groups(df,group1,group2):
                             #combine
                             for group in final_static_groups:
@@ -1023,7 +1065,7 @@ def processCameraStaticDetections(self,cameragroup_id):
                                     group.extend(group1)
                                     found = True
                                     break
-                            temp_static_groups.remove(group2)
+                            temp_final_static_groups.remove(group2)
                             break
 
                     if not found: final_static_groups.append(group1)
