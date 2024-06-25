@@ -7362,6 +7362,9 @@ def getAllTaskLabels(task_id1,task_id2):
         labels2.extend(alist)
         labels2.extend(buildOrderedLabels(GLOBALS.vhl_id,task_id2))
 
+        labels1 = [list(item) for item in labels1]
+        labels2 = [list(item) for item in labels2]
+
     return json.dumps({'one':labels1, 'two':labels2})
 
 @app.route('/submitComparison/<groundTruth>/<task_id1>/<task_id2>', methods=['POST'])

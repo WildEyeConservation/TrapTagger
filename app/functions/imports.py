@@ -259,7 +259,7 @@ def importKML(survey_id):
     return True
 
 @celery.task(bind=True,max_retries=5,ignore_result=True)
-def recluster_large_clusters(task,updateClassifications,trapgroup_id=None,session=None,reClusters=None):
+def recluster_large_clusters(self,task,updateClassifications,trapgroup_id=None,session=None,reClusters=None):
     '''
     Reclusters all clusters with over 50 images, by more strictly defining clusters based on classifications. Failing that, clusters are simply limited to 50 images.
 
@@ -972,7 +972,7 @@ def processCameraStaticDetections(self,cameragroup_id):
         grouping = math.ceil(total_images/math.ceil(total_images/4000))
         results = []
         for i in range(0,total_images,grouping):
-            results.append(processStaticWindow.apply_async(kwargs={'cameragroup_id':cameragroup_id,'index':i,'grouping':grouping},queue='parallel'))
+            results.append(processStaticWindow.apply_async(kwargs={'cameragroup_id':cameragroup_id,'index':i,'grouping':grouping},queue='parallel_2'))
 
         static_groups = {}
         GLOBALS.lock.acquire()

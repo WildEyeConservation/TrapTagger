@@ -2714,6 +2714,8 @@ def inspect_celery(include_spam=False,include_reserved=False):
                     print('{:{}}{:{}}{:{}}{:{}}  survey_id={}'.format(task['id'],40,name,36,hostname,36,time_start,29,task['kwargs']['survey_id']))
                 elif 'process_video_batch' in task['name']:
                     print('{:{}}{:{}}{:{}}{:{}}  {}'.format(task['id'],40,name,36,hostname,36,time_start,29,task['kwargs']['dirpath']))
+                elif 'prepTask' in task['name']:
+                    print('{:{}}{:{}}{:{}}{:{}}  survey_id={}'.format(task['id'],40,name,36,hostname,36,time_start,29,task['kwargs']['survey_id']))
                 elif '.classify' in task['name']:
                     batch = task['kwargs']['batch']
                     detection_id=batch['detection_ids'][0]
@@ -2752,6 +2754,8 @@ def inspect_celery(include_spam=False,include_reserved=False):
                         print('{:{}}{:{}}{:{}}{:{}}  survey_id={}'.format(task['id'],40,name,36,hostname,36,time_start,29,task['kwargs']['survey_id']))
                     elif 'process_video_batch' in task['name']:
                         print('{:{}}{:{}}{:{}}{:{}}  {}'.format(task['id'],40,name,36,hostname,36,time_start,29,task['kwargs']['dirpath']))
+                    elif 'prepTask' in task['name']:
+                        print('{:{}}{:{}}{:{}}{:{}}  survey_id={}'.format(task['id'],40,name,36,hostname,36,time_start,29,task['kwargs']['survey_id']))
                     elif '.classify' in task['name']:
                         batch = task['kwargs']['batch']
                         detection_id=batch['detection_ids'][0]
@@ -3191,6 +3195,7 @@ def updateEarthRanger(task_id):
                 'timestamp':'min',
                 'tag': lambda x: x.unique().tolist(),
                 'individual': lambda x: x.unique().tolist(),
+                'notes': 'first',
                 'count':'max',
                 'filename': 'first', # Highest detection rating
                 'path': 'first',
@@ -3267,8 +3272,8 @@ def create_new_er_report(row,er_api_key,er_url):
         }
     }
 
-    if row['notes']: payload['event_details']['notes'] = row['notes']
-    if row['individual']: payload['event_details']['individuals'] = row['individual']
+    if ('notes' in row.keys()) and row['notes']: payload['event_details']['notes'] = row['notes']
+    if ('individual' in row.keys()) and row['individual']: payload['event_details']['individuals'] = row['individual']
 
     # Set headers
     er_header_json = {
