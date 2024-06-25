@@ -245,7 +245,7 @@ class Config(object):
                 os.environ.get('AWS_S3_DOWNLOAD_SECRET_ACCESS_KEY') + "' '" + 
                 os.environ.get('WBIA_DB_NAME') + "' '" +
                 os.environ.get('WBIA_DB_SERVER') + "' '" +
-                os.environ.get('WBIA_DIR') + "' " +
+                os.environ.get('WBIA_DIR') + "'" +
                 ' -l info'
         },
         'parallel_2': {
@@ -288,7 +288,10 @@ class Config(object):
                 IAM_ADMIN_GROUP + "' '" + 
                 PRIVATE_SUBNET_ID + "' '" + 
                 os.environ.get('AWS_S3_DOWNLOAD_ACCESS_KEY_ID') + "' '" + 
-                os.environ.get('AWS_S3_DOWNLOAD_SECRET_ACCESS_KEY') + "'" + 
+                os.environ.get('AWS_S3_DOWNLOAD_SECRET_ACCESS_KEY') + "' '" + 
+                os.environ.get('WBIA_DB_NAME') + "' '" +
+                os.environ.get('WBIA_DB_SERVER') + "' '" +
+                os.environ.get('WBIA_DIR') + "'" +
                 ' -l info'
         },
         'default': {
@@ -445,7 +448,10 @@ class Config(object):
                 IAM_ADMIN_GROUP + "' '" + 
                 PRIVATE_SUBNET_ID + "' '" + 
                 os.environ.get('AWS_S3_DOWNLOAD_ACCESS_KEY_ID') + "' '" + 
-                os.environ.get('AWS_S3_DOWNLOAD_SECRET_ACCESS_KEY') + "'" + 
+                os.environ.get('AWS_S3_DOWNLOAD_SECRET_ACCESS_KEY') + "' '" + 
+                os.environ.get('WBIA_DB_NAME') + "' '" +
+                os.environ.get('WBIA_DB_SERVER') + "' '" +
+                os.environ.get('WBIA_DIR') + "'" + 
                 ' -l info'
         },
         'llava': {
