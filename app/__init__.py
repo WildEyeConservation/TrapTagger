@@ -158,6 +158,29 @@ db_uri = Config.WBIA_DB_URI
 if db_uri and '--db-uri' not in sys.argv:
     sys.argv.extend(['--db-uri', db_uri])
 
+# Create featurematches table in wbia db
+# from wbia import opendb
+# ibs = opendb(db=Config.WBIA_DB_NAME,dbdir=Config.WBIA_DIR, allow_newdir=True)
+# ibs.db.add_table(
+#     'featurematches',
+#     [
+#         ('fm_rowid', 'INTEGER PRIMARY KEY'),
+#         ('annot_rowid1', 'INTEGER NOT NULL'),
+#         ('annot_rowid2', 'INTEGER NOT NULL'),
+#         ('fm', 'NDARRAY'),
+#         ('fs', 'NDARRAY'),
+#     ],
+#     docstr="""
+#     Stores feature matches between two annotations (index of the matching keypoints) and the feature scores
+#     """,
+#     superkeys=[('annot_rowid1', 'annot_rowid2')],
+#     relates=('annotations', 'annotations'),
+#     dependsmap={
+#         'annot_rowid1': ('annotations', ('annot_rowid',), ('annot_visual_uuid',)),
+#         'annot_rowid2': ('annotations', ('annot_rowid',), ('annot_visual_uuid',)),
+#     },
+# )
+
 from app import routes
 from app.functions.globals import update_label_ids
 if not Config.MAINTENANCE: update_label_ids()

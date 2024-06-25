@@ -680,19 +680,19 @@ def calculate_individual_similarity(self,individual1,individuals2,species,sessio
                             }
 
                             iou_factor = 1
-                            if image1['camera_id']==image2['camera_id']:
-                                intersection_left = max(det1['left'],det2['left'])
-                                intersection_right = min(det1['right'],det2['right'])
-                                intersection_top = max(det1['top'],det2['top'])
-                                intersection_bottom = min(det1['bottom'],det2['bottom'])
+                            # if image1['camera_id']==image2['camera_id']:
+                            #     intersection_left = max(det1['left'],det2['left'])
+                            #     intersection_right = min(det1['right'],det2['right'])
+                            #     intersection_top = max(det1['top'],det2['top'])
+                            #     intersection_bottom = min(det1['bottom'],det2['bottom'])
 
-                                if (intersection_right>intersection_left) and (intersection_bottom>intersection_top):
-                                    intersection_area = (intersection_right-intersection_left)*(intersection_bottom-intersection_top)
-                                    detection1_area = (det1['right']-det1['left'])*(det1['bottom']-det1['top'])
-                                    detection2_area = (det2['right']-det2['left'])*(det2['bottom']-det2['top'])
-                                    union_area = detection1_area + detection2_area - intersection_area
-                                    iou = intersection_area/union_area
-                                    iou_factor = (1-(iouWeight*iou))**2
+                            #     if (intersection_right>intersection_left) and (intersection_bottom>intersection_top):
+                            #         intersection_area = (intersection_right-intersection_left)*(intersection_bottom-intersection_top)
+                            #         detection1_area = (det1['right']-det1['left'])*(det1['bottom']-det1['top'])
+                            #         detection2_area = (det2['right']-det2['left'])*(det2['bottom']-det2['top'])
+                            #         union_area = detection1_area + detection2_area - intersection_area
+                            #         iou = intersection_area/union_area
+                            #         iou_factor = (1-(iouWeight*iou))**2
                             
                             if trapgroup1['latitude'] == trapgroup1['longitude'] == 0:
                                 distanceScore = 1

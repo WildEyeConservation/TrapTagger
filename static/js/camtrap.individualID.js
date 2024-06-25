@@ -1489,7 +1489,7 @@ function getMatchingKpts(detID1, detID2) {
             } else if (this.readyState == 4 && this.status == 200) {
                 reply = JSON.parse(this.responseText);
                 results = reply.results
-                console.log(results)
+                // console.log(results)
 
                 id = wrapDetID1 + '_' + wrapDetID2
                 savedKpts[id] = results
