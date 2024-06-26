@@ -348,7 +348,7 @@ def calculate_detection_similarities(self,task_ids,species,algorithm):
             task.survey.status = 'processing'
             db.session.commit()
 
-            base_detection_query = rDets(db.session.query(Detection.aid)\
+            base_detection_query = rDets(db.session.query(Detection.id)\
                                             .join(Labelgroup)\
                                             .join(Label,Labelgroup.labels)\
                                             .filter(Label.description==species))
@@ -417,7 +417,7 @@ def calculate_detection_similarities(self,task_ids,species,algorithm):
                             for det_1 in dets_1:
                                 if det_1 in dets_2: dets_2.remove(det_1)
                                 if dets_2:
-                                    results.append(calculate_hotspotter_similarity.apply_async(kwargs={'qaid_list': [det_1], 'daid_list': dets_2}, queue='parallel'))
+                                    results.append(calculate_hotspotter_similarity.apply_async(kwargs={'query_ids': [det_1], 'db_ids': dets_2}, queue='parallel'))
 
             GLOBALS.lock.acquire()
             with allow_join_result():
@@ -1418,13 +1418,13 @@ def process_detections_for_individual_id(task_ids,species,pose_only=False):
 
 
 @celery.task(bind=True,max_retries=5)
-def calculate_hotspotter_similarity(self,qaid_list,daid_list):
+def calculate_hotspotter_similarity(self,query_ids,db_ids):
     '''
     Celery task for calculating the similarity between detections using Hotspotter.
 
         Parameters:
-            qaid_list (list): WBIA Query IDs
-            daid_list (list): WBIA Database IDs
+            query_ids (list): Detection IDs for the query wbia aids
+            db_ids (list): Detection IDs for the database wbia aids
     '''
 
     try:
@@ -1435,8 +1435,19 @@ def calculate_hotspotter_similarity(self,qaid_list,daid_list):
             from wbia import opendb
             GLOBALS.ibs = opendb(db=Config.WBIA_DB_NAME,dbdir=Config.WBIA_DIR+'_'+Config.WORKER_NAME,allow_newdir=True)
 
-        aid_list = qaid_list + daid_list
-        det_translation = {r[1]:r[0] for r in db.session.query(Detection.id,Detection.aid).filter(Detection.aid.in_(aid_list)).distinct().all()}
+        det_ids = query_ids + db_ids
+        det_translation = {r[1]:r[0] for r in db.session.query(Detection.id,Detection.aid).filter(Detection.id.in_(det_ids)).distinct().all()}
+
+        qaid_list = []
+        daid_list = []
+        for aid, det_id in det_translation.items():
+            if det_id in query_ids:
+                qaid_list.append(aid)
+            else:
+                daid_list.append(aid)
+
+        if not qaid_list or not daid_list:
+            return True
 
         qreq_ = GLOBALS.ibs.new_query_request(qaid_list, daid_list)
         cm_list = request_wbia_query_L0(GLOBALS.ibs, qreq_)

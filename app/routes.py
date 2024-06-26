@@ -5462,19 +5462,19 @@ def getSuggestion(individual_id):
                                 else:
                                     if (detSimilarity != None) and (detSimilarity.score != None):
                                         iou_factor = 1
-                                        if detection1.image.camera==detection2.image.camera:
-                                            intersection_left = max(detection1.left,detection2.left)
-                                            intersection_right = min(detection1.right,detection2.right)
-                                            intersection_top = max(detection1.top,detection2.top)
-                                            intersection_bottom = min(detection1.bottom,detection2.bottom)
+                                        # if detection1.image.camera==detection2.image.camera:
+                                        #     intersection_left = max(detection1.left,detection2.left)
+                                        #     intersection_right = min(detection1.right,detection2.right)
+                                        #     intersection_top = max(detection1.top,detection2.top)
+                                        #     intersection_bottom = min(detection1.bottom,detection2.bottom)
             
-                                            if (intersection_right>intersection_left) and (intersection_bottom>intersection_top):
-                                                intersection_area = (intersection_right-intersection_left)*(intersection_bottom-intersection_top)
-                                                detection1_area = (detection1.right-detection1.left)*(detection1.bottom-detection1.top)
-                                                detection2_area = (detection2.right-detection2.left)*(detection2.bottom-detection2.top)
-                                                union_area = detection1_area + detection2_area - intersection_area
-                                                iou = intersection_area/union_area
-                                                iou_factor = iouWeight*((1-iou)**2)
+                                        #     if (intersection_right>intersection_left) and (intersection_bottom>intersection_top):
+                                        #         intersection_area = (intersection_right-intersection_left)*(intersection_bottom-intersection_top)
+                                        #         detection1_area = (detection1.right-detection1.left)*(detection1.bottom-detection1.top)
+                                        #         detection2_area = (detection2.right-detection2.left)*(detection2.bottom-detection2.top)
+                                        #         union_area = detection1_area + detection2_area - intersection_area
+                                        #         iou = intersection_area/union_area
+                                        #         iou_factor = iouWeight*((1-iou)**2)
 
                                         distance = coordinateDistance(detection1.image.camera.trapgroup.latitude, detection1.image.camera.trapgroup.longitude, detection2.image.camera.trapgroup.latitude, detection2.image.camera.trapgroup.longitude)
                                         
