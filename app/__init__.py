@@ -159,6 +159,17 @@ db_uri = Config.WBIA_DB_URI
 if db_uri and '--db-uri' not in sys.argv:
     sys.argv.extend(['--db-uri', db_uri])
 
+if Config.INITIALISE_IBS=='true':
+    import GLOBALS
+    if not GLOBALS.ibs:
+        import warnings
+        with warnings.catch_warnings():
+            warnings.filterwarnings("ignore")
+            from wbia import opendb
+            GLOBALS.ibs = opendb(db=Config.WBIA_DB_NAME,dbdir=Config.WBIA_DIR, allow_newdir=True)
+        app.logger.info('IBS initialised.')
+
+
 # Create featurematches table in wbia db
 # from wbia import opendb
 # ibs = opendb(db=Config.WBIA_DB_NAME,dbdir=Config.WBIA_DIR, allow_newdir=True)

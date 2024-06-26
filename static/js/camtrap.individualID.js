@@ -1505,7 +1505,7 @@ function getMatchingKpts(detID1, detID2) {
                 addHotspotsHeatmap('map2', results.kpts[wrapDetID2], results.scores,detection_zoom['map2'][wrapDetID2])
             }
         }}(detID1,detID2);
-        xhttp.open("GET", '/getMatchingKpts/'+detID1+'/'+detID2);
+        xhttp.open("GET", '/ibsHandler/getMatchingKpts/'+detID1+'/'+detID2);
         xhttp.send();
     }
 

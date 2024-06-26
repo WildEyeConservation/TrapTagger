@@ -103,6 +103,7 @@ services:
             - WBIA_DB_SERVER=${WBIA_DB_SERVER}
             - WBIA_DB_NAME=${WBIA_DB_NAME}
             - WBIA_DIR=${WBIA_DIR}
+            - INITIALISE_IBS=false
         command: gunicorn -b 0.0.0.0:8000 -w 15 -t 120 -k gevent app:app
         networks:
             my-network:
@@ -161,6 +162,7 @@ services:
             - WBIA_DB_SERVER=${WBIA_DB_SERVER}
             - WBIA_DB_NAME=${WBIA_DB_NAME}
             - WBIA_DIR=${WBIA_DIR}
+            - INITIALISE_IBS=false
         command: gunicorn -b 0.0.0.0:8000 -w 9 -t 120 -k gevent app:app
         networks:
             my-network:
@@ -168,6 +170,65 @@ services:
                     - fileHandler
         ports:
             - "7000:8000"
+
+    ibsHandler:
+        # handles ibs queries
+        restart: always
+        build:
+            context: ./
+            dockerfile: Dockerfile.flask
+        image: traptagger:1.1.1
+        container_name: ibsHandler
+        depends_on:
+            - flask
+        volumes:
+            - ./:/code/
+            - ./wildbook-ia/wbia:/code/wbia
+        environment:
+            - FLASK_APP=/code/TrapTagger.py
+            - GUNICORN_CMD_ARGS="--threads=4"
+            - REDIS_IP=traptagger_redis
+            - DATABASE_NAME=${DATABASE_NAME}
+            - HOST_IP=${HOST_IP}
+            - DNS=${DNS}
+            - DATABASE_SERVER=${DATABASE_SERVER}
+            - AWS_ACCESS_KEY_ID=${AWS_ACCESS_KEY_ID}
+            - AWS_SECRET_ACCESS_KEY=${AWS_SECRET_ACCESS_KEY}
+            - REGION_NAME=${REGION_NAME}
+            - SECRET_KEY=${SECRET_KEY}
+            - MAIL_USERNAME=${MAIL_USERNAME}
+            - MAIL_PASSWORD=${MAIL_PASSWORD}
+            - BRANCH=${BRANCH}
+            - SG_ID=${SG_ID}
+            - PUBLIC_SUBNET_ID=${PUBLIC_SUBNET_ID}
+            - PRIVATE_SUBNET_ID=${PRIVATE_SUBNET_ID}
+            - TOKEN=${TOKEN}
+            - PARALLEL_AMI=${PARALLEL_AMI}
+            - KEY_NAME=${KEY_NAME}
+            - QUEUE=${QUEUE}
+            - WORKER_NAME=${WORKER_NAME}
+            - MAIN_GIT_REPO=${MAIN_GIT_REPO}
+            - MONITORED_EMAIL_ADDRESS=${MONITORED_EMAIL_ADDRESS}
+            - BUCKET=${BUCKET}
+            - DB_CLUSTER_NAME=${DB_CLUSTER_NAME}
+            - IAM_ADMIN_GROUP=${IAM_ADMIN_GROUP}
+            - AWS_S3_DOWNLOAD_ACCESS_KEY_ID=${AWS_S3_DOWNLOAD_ACCESS_KEY_ID}
+            - AWS_S3_DOWNLOAD_SECRET_ACCESS_KEY=${AWS_S3_DOWNLOAD_SECRET_ACCESS_KEY}
+            - AWS_S3_UPLOAD_ACCESS_KEY_ID=${AWS_S3_UPLOAD_ACCESS_KEY_ID}
+            - AWS_S3_UPLOAD_SECRET_ACCESS_KEY=${AWS_S3_UPLOAD_SECRET_ACCESS_KEY}
+            - MONKEY_PATCH=true
+            - LLAVA_AMI=${LLAVA_AMI}
+            - WBIA_DB_SERVER=${WBIA_DB_SERVER}
+            - WBIA_DB_NAME=${WBIA_DB_NAME}
+            - WBIA_DIR=${WBIA_DIR}
+            - INITIALISE_IBS=true
+        command: gunicorn -b 0.0.0.0:8000 -w 1 -t 120 -k gevent app:app
+        networks:
+            my-network:
+                aliases:
+                    - ibsHandler
+        ports:
+            - "6000:8000"
 
     priority_worker:
         # Priority celery worker
@@ -217,6 +278,7 @@ services:
             - WBIA_DB_SERVER=${WBIA_DB_SERVER}
             - WBIA_DB_NAME=${WBIA_DB_NAME}
             - WBIA_DIR=${WBIA_DIR}
+            - INITIALISE_IBS=false
         command: celery -A app.celery worker -B -E -n priority_worker -Q priority -Ofair --concurrency=1 --loglevel=info
         networks:
             - my-network
@@ -269,6 +331,7 @@ services:
             - WBIA_DB_SERVER=${WBIA_DB_SERVER}
             - WBIA_DB_NAME=${WBIA_DB_NAME}
             - WBIA_DIR=${WBIA_DIR}
+            - INITIALISE_IBS=false
         command: nice -10 celery -A app.celery worker -E -n ram_worker -Q ram_intensive -Ofair --concurrency=1 --loglevel=info
         networks:
             - my-network
@@ -321,6 +384,7 @@ services:
             - WBIA_DB_SERVER=${WBIA_DB_SERVER}
             - WBIA_DB_NAME=${WBIA_DB_NAME}
             - WBIA_DIR=${WBIA_DIR}
+            - INITIALISE_IBS=false
         command: nice -10 celery -A app.celery worker -E -n traptagger_worker1 -Q default -Ofair --concurrency=1 --loglevel=info
         networks:
             - my-network

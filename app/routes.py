@@ -71,20 +71,20 @@ GLOBALS.s3UploadClient = boto3.client('s3',
 GLOBALS.redisClient = redis.Redis(host=Config.REDIS_IP, port=6379)
 GLOBALS.lock = Lock()
 
-@app.before_first_request
-def initialise_ibs():
-    '''Initialises the IBS object, which is used to interact with the WBIA database.'''	
-    if 'fileHandler' in request.url:
-        return
-    app.logger.info('Initialising IBS')
-    if not GLOBALS.ibs:
-        import warnings
-        with warnings.catch_warnings():
-            warnings.filterwarnings("ignore")
-            from wbia import opendb
-            GLOBALS.ibs = opendb(db=Config.WBIA_DB_NAME,dbdir=Config.WBIA_DIR, allow_newdir=True)
-        app.logger.info('IBS initialised.')
-    return
+# @app.before_first_request
+# def initialise_ibs():
+#     '''Initialises the IBS object, which is used to interact with the WBIA database.'''	
+#     if 'fileHandler' in request.url:
+#         return
+#     app.logger.info('Initialising IBS')
+#     if not GLOBALS.ibs:
+#         import warnings
+#         with warnings.catch_warnings():
+#             warnings.filterwarnings("ignore")
+#             from wbia import opendb
+#             GLOBALS.ibs = opendb(db=Config.WBIA_DB_NAME,dbdir=Config.WBIA_DIR, allow_newdir=True)
+#         app.logger.info('IBS initialised.')
+#     return
 
 @app.before_request
 def check_for_maintenance():
@@ -13371,7 +13371,7 @@ def editDetectionFlank(detection_id,flank):
 
     return json.dumps('success')
 
-@app.route('/getMatchingKpts/<det_id1>/<det_id2>')
+@app.route('/ibsHandler/getMatchingKpts/<det_id1>/<det_id2>')
 @login_required
 def getMatchingKpts(det_id1,det_id2):
     ''' Gets the matching keypoints for two detections '''
