@@ -307,6 +307,7 @@ function goToMax() {
     for (let i=0;i<clusters['map1'][clusterIndex['map1']].images.length;i++) {
         if (maximums.includes(clusters['map1'][clusterIndex['map1']].images[i].detections[0].id)) {
             clusterPositionSplide['map1'].go(i)
+            imageIndex['map1'] = i
             update('map1')
             break
         }
@@ -314,6 +315,7 @@ function goToMax() {
     for (let i=0;i<clusters['map2'][clusterIndex['map2']].images.length;i++) {
         if (maximums.includes(clusters['map2'][clusterIndex['map2']].images[i].detections[0].id)) {
             clusterPositionSplide['map2'].go(i)
+            imageIndex['map2'] = i
             update('map2')
             break
         }
@@ -695,6 +697,11 @@ function buildIndividuals() {
                     var centerPoint = map[mapID].latLngToContainerPoint(center)
                     var topPoint = map[mapID].latLngToContainerPoint(top)
                     var offset = [0,topPoint.y-centerPoint.y]
+
+                    // If the popup is too close to the top of the map, move it down
+                    if (drawnItems[mapID]._layers[leafletID]._bounds._northEast.lat >= map[mapID].getBounds().getNorth()-15) {
+                        offset = [0, 0]
+                    }
 
                     drawnItems[mapID]._layers[leafletID]._popup.options.offset = offset
 

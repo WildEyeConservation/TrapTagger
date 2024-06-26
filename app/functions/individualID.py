@@ -1120,7 +1120,7 @@ def handleIndividualUndo(indSimilarity,individual1,individual2,task_id):
                             )
                         ).first()
 
-                        if detSim.score >= maxVal:
+                        if detSim and detSim.score >= maxVal:
                             maxVal = detSim.score
                             maxSim = detSim
 
@@ -1331,6 +1331,7 @@ def process_detections_for_individual_id(task_ids,species,pose_only=False):
         Parameters:
             task_id (int): The task for which the detections are being processed
             species (str): The species for which the individual ID is being performed
+            pose_only (bool): If True, only the pose is calculated
     '''
 
     try:
@@ -1338,19 +1339,21 @@ def process_detections_for_individual_id(task_ids,species,pose_only=False):
         app.logger.info('Process detections for individual ID for task_ids: {}, species: {}'.format(task_ids,species))
         starttime = time.time()
 
-        data = db.session.query(Detection.id,Detection.left,Detection.right,Detection.top,Detection.bottom,Image.id,Image.filename,Camera.path)\
+        data = rDets(db.session.query(Detection.id,Detection.left,Detection.right,Detection.top,Detection.bottom,Image.id,Image.filename,Camera.path)\
                             .join(Image,Detection.image_id==Image.id)\
                             .join(Camera,Image.camera_id==Camera.id)\
                             .join(Labelgroup,Labelgroup.detection_id==Detection.id)\
                             .join(Task,Labelgroup.task_id==Task.id)\
                             .join(Label,Labelgroup.labels)\
                             .filter(Task.id.in_(task_ids))\
-                            .filter(Label.description==species)\
-                            .filter(or_(and_(Detection.source==model,Detection.score>Config.DETECTOR_THRESHOLDS[model]) for model in Config.DETECTOR_THRESHOLDS)) \
-                            .filter(Detection.static == False) \
-                            .filter(~Detection.status.in_(Config.DET_IGNORE_STATUSES)) \
-                            .filter(or_(Detection.aid==None,Detection.flank==None))\
-                            .distinct().all()
+                            .filter(Label.description==species))
+        
+        if pose_only:
+            data = data.filter(Detection.flank==None)
+        else:
+            data = data.filter(or_(Detection.aid==None,Detection.flank==None))
+
+        data = data.distinct().all()
 
         det_data = []
         for d in data:
@@ -1379,7 +1382,8 @@ def process_detections_for_individual_id(task_ids,species,pose_only=False):
                     detections = db.session.query(Detection).filter(Detection.id.in_(response.keys())).all()
                     for detection in detections:
                         try:
-                            detection.flank = response[str(detection.id)]['flank']
+                            if detection.flank is None:
+                                detection.flank = response[str(detection.id)]['flank']
                             if not pose_only:
                                 detection.aid = response[str(detection.id)]['aid']
                         except Exception:

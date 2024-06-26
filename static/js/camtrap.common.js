@@ -290,6 +290,11 @@ function buildDetection(image,detection,mapID = 'map1',colour=null) {
                 var centerPoint = map[mapID].latLngToContainerPoint(center)
                 var topPoint = map[mapID].latLngToContainerPoint(top)
                 var offset = [0,topPoint.y-centerPoint.y]
+
+                // If the popup is too close to the top of the map, move it down
+                if (rect._bounds._northEast.lat >= map[mapID].getBounds().getNorth()-15) {
+                    offset = [0, 0]
+                }
         
                 rect.bindPopup(individuals[individualIndex][detection.individual].name,{closeButton: false, autoClose: false, closeOnClick: false, autoPan: false, minWidth: 0})
                 rect._popup.options.offset = offset
@@ -1535,7 +1540,7 @@ function updateSlider(mapID = 'map1') {
         } else {
             clusterPositionSplide[mapID].refresh()
         }
-        if (clusterIndex['map1']!=0) {
+        if (clusterIndex['map1']!=0 && document.getElementById('btnSendToBack')!=null) {
             clusterPositionSplide[mapID].go(0)
         }
     }
