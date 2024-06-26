@@ -1238,7 +1238,7 @@ def fetch_clusters(taggingLevel,task_id,isBounding,trapgroup_id,session,limit=No
                                     .join(Image,Cluster.images)\
                                     .join(Detection)\
                                     .join(Translation,Detection.classification==Translation.classification)\
-                                    .join(Label)\
+                                    .join(Label,Translation.label_id==Label.id)\
                                     .join(Camera)\
                                     .join(Trapgroup)\
                                     .join(Survey)\
