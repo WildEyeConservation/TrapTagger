@@ -245,14 +245,18 @@ function sightingAnalysisMapPrep(mapID = 'map1') {
 
     map[mapID].on('contextmenu', function (e) {
         /** remove duplicate items on more than one right click */
-        nr_items = 2*clusters[mapID][clusterIndex[mapID]].label.length + 1
+        if(!drawControl._toolbars.edit._activeMode && !drawControl._toolbars.draw._activeMode){
+            nr_items = 2*clusters[mapID][clusterIndex[mapID]].label.length + 1
 
-        if(map[mapID].contextmenu._items.length > nr_items){
-            for (let i=map[mapID].contextmenu._items.length-1;i>nr_items-1;i--) 
-            {
-                map[mapID].contextmenu.removeItem(i)
-            }
-        } 
+            if(map[mapID].contextmenu._items.length > nr_items){
+                for (let i=map[mapID].contextmenu._items.length-1;i>nr_items-1;i--) 
+                {
+                    map[mapID].contextmenu.removeItem(i)
+                }
+            } 
+        } else {
+            map[mapID].contextmenu.hide()
+        }
     });
 
     map[mapID].on('contextmenu.select', function (e) {
