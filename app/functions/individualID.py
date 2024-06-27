@@ -348,6 +348,8 @@ def calculate_detection_similarities(self,task_ids,species,algorithm):
             task.survey.status = 'processing'
             db.session.commit()
 
+            process_detections_for_individual_id(task_ids,species)
+
             base_detection_query = rDets(db.session.query(Detection.id)\
                                             .join(Labelgroup)\
                                             .join(Label,Labelgroup.labels)\
@@ -1236,7 +1238,7 @@ def check_individual_detection_mismatch(self,task_id,cluster_id=None,celeryTask=
             individual = db.session.query(Individual).get(d[2])
             if detection in individual.detections:
                 individual.detections.remove(detection)
-                wbia_detections.append(detection)
+                # wbia_detections.append(detection)
 
 
         # Delete individuals with no detections
@@ -1262,30 +1264,30 @@ def check_individual_detection_mismatch(self,task_id,cluster_id=None,celeryTask=
             
 
         # Clean up WBIA data & Detection similarities if they are not associated with any other individual for other tasks 
-        aid_list = []
-        for detection in wbia_detections:
-            if not detection.individuals:
-                if detection.aid: aid_list.append(detection.aid)
-                detection.aid = None
-                detSims = db.session.query(DetSimilarity).filter(or_(DetSimilarity.detection_1==detection.id,DetSimilarity.detection_2==detection.id)).all()
-                for detSim in detSims:
-                    db.session.delete(detSim)
+        # aid_list = []
+        # for detection in wbia_detections:
+        #     if not detection.individuals:
+        #         if detection.aid: aid_list.append(detection.aid)
+        #         detection.aid = None
+        #         detSims = db.session.query(DetSimilarity).filter(or_(DetSimilarity.detection_1==detection.id,DetSimilarity.detection_2==detection.id)).all()
+        #         for detSim in detSims:
+        #             db.session.delete(detSim)
 
         
-        keep_aid_list = [r[0] for r in db.session.query(Detection.aid, func.count(Detection.id))\
-                            .filter(Detection.aid.in_(aid_list))\
-                            .group_by(Detection.aid)\
-                            .distinct().all() if r[1]>0]
-        aid_list = list(set(aid_list) - set(keep_aid_list))
-        if aid_list:
-            if not GLOBALS.ibs:
-                from wbia import opendb
-                GLOBALS.ibs = opendb(db=Config.WBIA_DB_NAME,dbdir=Config.WBIA_DIR+'_'+Config.WORKER_NAME,allow_newdir=True)
-            GLOBALS.ibs.db.delete('featurematches', aid_list, 'annot_rowid1')
-            GLOBALS.ibs.db.delete('featurematches', aid_list, 'annot_rowid2')
-            gids = [g for g in GLOBALS.ibs.get_annot_gids(aid_list) if g is not None]
-            GLOBALS.ibs.delete_images(gids)
-            GLOBALS.ibs.delete_annots(aid_list)  
+        # keep_aid_list = [r[0] for r in db.session.query(Detection.aid, func.count(Detection.id))\
+        #                     .filter(Detection.aid.in_(aid_list))\
+        #                     .group_by(Detection.aid)\
+        #                     .distinct().all() if r[1]>0]
+        # aid_list = list(set(aid_list) - set(keep_aid_list))
+        # if aid_list:
+        #     if not GLOBALS.ibs:
+        #         from wbia import opendb
+        #         GLOBALS.ibs = opendb(db=Config.WBIA_DB_NAME,dbdir=Config.WBIA_DIR+'_'+Config.WORKER_NAME,allow_newdir=True)
+        #     GLOBALS.ibs.db.delete('featurematches', aid_list, 'annot_rowid1')
+        #     GLOBALS.ibs.db.delete('featurematches', aid_list, 'annot_rowid2')
+        #     gids = [g for g in GLOBALS.ibs.get_annot_gids(aid_list) if g is not None]
+        #     GLOBALS.ibs.delete_images(gids)
+        #     GLOBALS.ibs.delete_annots(aid_list)  
                 
         db.session.commit()
 
@@ -1475,27 +1477,27 @@ def calculate_hotspotter_similarity(self,query_ids,db_ids):
                 aid2 = int(cm.daid_list[n])
                 detection2_id = det_translation[aid2]
                 score = float(cm.score_list[n])
+                if score > 0:
+                    fm = cm.fm_list[n]
+                    fs = cm.fsv_list[n]
+                    params_iter = [(aid1, aid2, fm, fs)]
+                    rowid_list = GLOBALS.ibs.db.add_cleanly(tblname, colnames, params_iter, get_rowid_from_superkey, superkey_paramx)
 
-                fm = cm.fm_list[n]
-                fs = cm.fsv_list[n]
-                params_iter = [(aid1, aid2, fm, fs)]
-                rowid_list = GLOBALS.ibs.db.add_cleanly(tblname, colnames, params_iter, get_rowid_from_superkey, superkey_paramx)
+                    detSimilarity = db.session.query(DetSimilarity).filter(\
+                                                or_(\
+                                                    and_(\
+                                                        DetSimilarity.detection_1==detection1_id,\
+                                                        DetSimilarity.detection_2==detection2_id),\
+                                                    and_(\
+                                                        DetSimilarity.detection_1==detection2_id,\
+                                                        DetSimilarity.detection_2==detection1_id)\
+                                                )).first()
 
-                detSimilarity = db.session.query(DetSimilarity).filter(\
-                                            or_(\
-                                                and_(\
-                                                    DetSimilarity.detection_1==detection1_id,\
-                                                    DetSimilarity.detection_2==detection2_id),\
-                                                and_(\
-                                                    DetSimilarity.detection_1==detection2_id,\
-                                                    DetSimilarity.detection_2==detection1_id)\
-                                            )).first()
+                    if detSimilarity == None:
+                        detSimilarity = DetSimilarity(detection_1=detection1_id, detection_2=detection2_id)
+                        db.session.add(detSimilarity)
 
-                if detSimilarity == None:
-                    detSimilarity = DetSimilarity(detection_1=detection1_id, detection_2=detection2_id)
-                    db.session.add(detSimilarity)
-
-                detSimilarity.score = float(score)
+                    detSimilarity.score = float(score)
 
 
         db.session.commit()
