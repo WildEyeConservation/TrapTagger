@@ -7,3 +7,9 @@
 [submodule "LLaVA"]
 	path = LLaVA
 	url = https://github.com/haotian-liu/LLaVA.git
+[submodule "segment-anything"]
+	path = segment-anything
+	url = https://github.com/facebookresearch/segment-anything.git
+[submodule "ScarceNet"]
+	path = ScarceNet
+	url = https://github.com/chaneyddtt/ScarceNet.git
