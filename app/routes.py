@@ -8706,7 +8706,7 @@ def getActiveUserData():
                 'images':               format_count(image_count),
                 'videos':               format_count(video_count),
                 'frames':               format_count(frame_count),
-                'images_this_month':    format_count(frames_this_month),
+                'images_this_month':    format_count(images_this_month),
                 'images_last_month':    format_count(images_last_month),
                 'videos_this_month':    format_count(videos_this_month),
                 'videos_last_month':    format_count(videos_last_month),
