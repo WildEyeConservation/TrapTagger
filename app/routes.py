@@ -7137,10 +7137,18 @@ def getTaggingLevel():
             taggingLabel = 'None'
             taggingLevel = '-1'
             wrongStatus = 'true'
+            taggingAlgorithm = 'None'
     else:
         taggingLabel = 'None'
+        if ',' in taggingLevel:
+            tL = taggingLevel.split(',')
+            species = tL[1]
+            label = db.session.query(Label).filter(Label.task_id==task.id).filter(Label.description==species).first()
+            taggingAlgorithm = label.algorithm
+        else:
+            taggingAlgorithm = 'None'
 
-    return json.dumps({'taggingLevel':taggingLevel, 'taggingLabel':taggingLabel, 'wrongStatus':wrongStatus})
+    return json.dumps({'taggingLevel':taggingLevel, 'taggingLabel':taggingLabel, 'wrongStatus':wrongStatus, 'taggingAlgorithm':taggingAlgorithm})
 
 @app.route('/initKeys')
 @login_required

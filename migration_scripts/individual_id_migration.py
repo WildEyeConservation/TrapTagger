@@ -31,17 +31,88 @@ while labels:
 print('Finished setting label algorithms')
 
 
-#TODO Just check this 
-# Stop and relaunch current active -4 tasks
-tasks = db.session.query(Task.id, Task.tagging_level).filter(Task.tagging_level.contains('-4')).filter(Task.status=='PROGRESS').all()
-for task in tasks:
+# Handle -4 tasks -----------------------------------------
+task_data = db.session.query(Task.id,Task.tagging_level).filter(Task.tagging_level.contains('-4')).filter(Task.status=='PROGRESS').all()
+
+# Stop tasks 
+results = []
+for task in task_data:
+    task_id = task[0]
+    results.append(stop_task.apply_async(kwargs={'task_id':task_id}))
+
+print('All stop tasks (-4) queued. Waiting...')
+GLOBALS.lock.acquire()
+with allow_join_result():
+    for result in results:
+        try:
+            result.get()
+        except Exception:
+            app.logger.info(' ')
+            app.logger.info('!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!')
+            app.logger.info(traceback.format_exc())
+            app.logger.info('!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!')
+            app.logger.info(' ')
+        result.forget()
+GLOBALS.lock.release()
+print('All stop tasks (-4) completed.')
+
+# Delete individuals
+results = []
+for task in task_data:
     task_id = task[0]
     taggingLevel = task[1]
-    # stop task
-    stop_task(task_id)
-    # delete individuals 
     tL = re.split(',',taggingLevel)
     species = tL[1]
-    delete_individuals([task_id],[species])
-    # relaunch task
+    results.append(delete_individuals.apply_async(kwargs={'task_ids':[task_id],'species':[species]}))
+
+print('All delete individuals (-4) queued. Waiting...')
+GLOBALS.lock.acquire()
+with allow_join_result():
+    for result in results:
+        try:
+            result.get()
+        except Exception:
+            app.logger.info(' ')
+            app.logger.info('!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!')
+            app.logger.info(traceback.format_exc())
+            app.logger.info('!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!')
+            app.logger.info(' ')
+        result.forget()
+GLOBALS.lock.release()
+print('All delete individuals (-4) completed.')
+
+
+# Relaunch tasks
+for task in task_data:
+    task_id = task[0]
     launch_task.apply_async(kwargs={'task_id':task_id})
+
+
+# Handle -5 tasks --------------------------------------------------------------------
+task_ids = db.session.query(Task.id).filter(Task.tagging_level.contains('-5')).filter(Task.status=='PROGRESS').all()
+
+# Stop tasks
+results = []
+for task_id in task_ids:
+    results.append(stop_task.apply_async(kwargs={'task_id':task_id}))
+
+print('All stop tasks (-5) queued. Waiting...')
+GLOBALS.lock.acquire()
+with allow_join_result():
+    for result in results:
+        try:
+            result.get()
+        except Exception:
+            app.logger.info(' ')
+            app.logger.info('!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!')
+            app.logger.info(traceback.format_exc())
+            app.logger.info('!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!')
+            app.logger.info(' ')
+        result.forget()
+GLOBALS.lock.release()
+print('All stop tasks (-5) completed.')
+
+# Relaunch tasks
+for task_id in task_ids:
+    launch_task.apply_async(kwargs={'task_id':task_id})
+
