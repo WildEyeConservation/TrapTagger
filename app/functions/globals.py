@@ -1714,7 +1714,7 @@ def checkForIdWork(task_ids,label,theshold):
     '''Returns the number of individuals that need to be examined during inter-cluster indentification for the specified task and label.'''
 
     OtherIndividual = alias(Individual)
-    if theshold=='-1': theshold=Config.SIMILARITY_SCORE
+    if theshold=='-1': theshold=0 #theshold=Config.SIMILARITY_SCORE
 
     relevant_detections = db.session.query(Detection)\
                                     .join(Image)\
@@ -2688,7 +2688,7 @@ def inspect_celery(include_spam=False,include_reserved=False):
     ''' Funcion to manually inspect the running celery tasks'''
     inspector = celery.control.inspect()
     spam = ['importImages','.detection','.classify','runClassifier','processCameraStaticDetections', 'process_video_batch','cluster_trapgroup','processStaticWindow', 
-            'segment_and_pose', 'calculate_hotspotter_similarity', 'calculate_individual_similarity']
+            'segment_and_pose', 'calculate_hotspotter_similarity', 'calculate_individual_similarity','calculate_hotspotter_similarity']
     if include_spam: spam = []
 
     print('//////////////////////Active tasks://////////////////////')
@@ -2724,6 +2724,8 @@ def inspect_celery(include_spam=False,include_reserved=False):
                     print('{:{}}{:{}}{:{}}{:{}}  {}'.format(task['id'],40,name,36,hostname,36,time_start,29,path))
                 elif 'segment_and_pose' in task['name']:
                     print('{:{}}{:{}}{:{}}{:{}}  {}'.format(task['id'],40,name,36,hostname,36,time_start,29,task['kwargs']['batch'][0]))
+                elif 'calculate_hotspotter_similarity' in task['name']:
+                    print('{:{}}{:{}}{:{}}{:{}}  query_id={}'.format(task['id'],40,name,36,hostname,36,time_start,29,task['kwargs']['query_ids'][0]))
                 else:
                     print('{:{}}{:{}}{:{}}{:{}}  {}'.format(task['id'],40,name,36,hostname,36,time_start,29,task['kwargs']))
 
@@ -2777,7 +2779,7 @@ def clean_up_redis():
 
         for key in redisKeys:
 
-            if any(name in key for name in ['active_jobs','job_pool','active_individuals','active_indsims']):
+            if any(name in key for name in ['active_jobs','job_pool','active_individuals','active_indsims','quantiles_']):
                 task_id = key.split('_')[-1]
 
                 if task_id == 'None':

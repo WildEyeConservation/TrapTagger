@@ -1447,7 +1447,7 @@ modalLaunchID.on('shown.bs.modal', function(){
     input.setAttribute('id','idStage')
     col1.appendChild(input)
 
-    fillSelect(input, ['Inter-cluster Identification', 'Exhaustive'], ['-5','-5'])
+    fillSelect(input, ['Inter-cluster Identification'], ['-5'])
 
     col1.appendChild(document.createElement('br'))
 

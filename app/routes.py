@@ -3960,8 +3960,11 @@ def getJobs():
 
             # Get the task type and species-level
             if '-4' in item[1] or '-5' in item[1]:
-                task_type = 'Individual Identification'
+                task_type = 'Individual ID'
                 species = re.split(',',item[1])[1]
+                if '-5' in item[1]:
+                    quantile = re.split(',',item[1])[3]
+                    task_type+=' {}% quantile'.format(round(100-float(quantile)))
             elif '-3' in item[1]:
                 task_type = 'AI Species Check'
                 species = 'All'

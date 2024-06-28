@@ -310,6 +310,7 @@ def stop_task(self,task_id):
                 cleanUpIndividuals(task_id)
                 GLOBALS.redisClient.delete('active_individuals_'+str(task_id))
                 GLOBALS.redisClient.delete('active_indsims_'+str(task_id))
+                GLOBALS.redisClient.delete('quantiles_'+str(task_id))
 
             if ',' not in task.tagging_level and task.init_complete and '-2' not in task.tagging_level:
                 check_individual_detection_mismatch(task_id=task_id,celeryTask=False)

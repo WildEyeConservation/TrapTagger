@@ -39,13 +39,14 @@ launchMTurkTaskBtn.addEventListener('click', ()=>{
             //     allow = false
             // }
             taskTaggingLevel += ',n'
-            if (document.getElementById('autoGenSingles').checked) {
-                taskTaggingLevel += ',a'
-            } else if (document.getElementById('manualSingles').checked) {
-                taskTaggingLevel += ',m'
-            } else {
-                allow = false
-            }
+            taskTaggingLevel += ',m'
+            // if (document.getElementById('autoGenSingles').checked) {
+            //     taskTaggingLevel += ',a'
+            // } else if (document.getElementById('manualSingles').checked) {
+            //     taskTaggingLevel += ',m'
+            // } else {
+            //     allow = false
+            // }
             if (document.getElementById('hotspotter').checked) {
                 taskTaggingLevel += ',h'
             } else if (document.getElementById('heuristic').checked) {
@@ -695,54 +696,54 @@ function buildIndividualOptions() {
     // individualOptionsDiv.appendChild(document.createElement('br'))
 
     // auto single individuals
-    h5 = document.createElement('h5')
-    h5.setAttribute('style','margin-bottom: 2px')
-    h5.innerHTML = 'Single Detections'
-    individualOptionsDiv.appendChild(h5)
+    // h5 = document.createElement('h5')
+    // h5.setAttribute('style','margin-bottom: 2px')
+    // h5.innerHTML = 'Single Detections'
+    // individualOptionsDiv.appendChild(h5)
 
-    div = document.createElement('div')
-    div.setAttribute('style','font-size: 80%; margin-bottom: 2px')
-    div.innerHTML = '<i>Select how you would like clusters containing only one detection to be handled. Select manual if you intend to rely on informational tags and prefer greater accuracy. Select auto-generate if you wish to reply more on the AI, and do things more quickly.</i>'
-    individualOptionsDiv.appendChild(div)
+    // div = document.createElement('div')
+    // div.setAttribute('style','font-size: 80%; margin-bottom: 2px')
+    // div.innerHTML = '<i>Select how you would like clusters containing only one detection to be handled. Select manual if you intend to rely on informational tags and prefer greater accuracy. Select auto-generate if you wish to reply more on the AI, and do things more quickly.</i>'
+    // individualOptionsDiv.appendChild(div)
 
-    row = document.createElement('div')
-    individualOptionsDiv.appendChild(row)
+    // row = document.createElement('div')
+    // individualOptionsDiv.appendChild(row)
 
-    radio = document.createElement('div')
-    radio.setAttribute('class','custom-control custom-radio custom-control-inline')
-    row.appendChild(radio)
+    // radio = document.createElement('div')
+    // radio.setAttribute('class','custom-control custom-radio custom-control-inline')
+    // row.appendChild(radio)
 
-    input = document.createElement('input')
-    input.setAttribute('type','radio')
-    input.setAttribute('class','custom-control-input')
-    input.setAttribute('id','autoGenSingles')
-    input.setAttribute('name','autoGenSelection')
-    input.setAttribute('value','customEx')
-    radio.appendChild(input)
+    // input = document.createElement('input')
+    // input.setAttribute('type','radio')
+    // input.setAttribute('class','custom-control-input')
+    // input.setAttribute('id','autoGenSingles')
+    // input.setAttribute('name','autoGenSelection')
+    // input.setAttribute('value','customEx')
+    // radio.appendChild(input)
 
-    label = document.createElement('label')
-    label.setAttribute('class','custom-control-label')
-    label.setAttribute('for','autoGenSingles')
-    label.innerHTML = 'Auto-Generate'
-    radio.appendChild(label)
+    // label = document.createElement('label')
+    // label.setAttribute('class','custom-control-label')
+    // label.setAttribute('for','autoGenSingles')
+    // label.innerHTML = 'Auto-Generate'
+    // radio.appendChild(label)
     
-    radio = document.createElement('div')
-    radio.setAttribute('class','custom-control custom-radio custom-control-inline')
-    row.appendChild(radio)
+    // radio = document.createElement('div')
+    // radio.setAttribute('class','custom-control custom-radio custom-control-inline')
+    // row.appendChild(radio)
 
-    input = document.createElement('input')
-    input.setAttribute('type','radio')
-    input.setAttribute('class','custom-control-input')
-    input.setAttribute('id','manualSingles')
-    input.setAttribute('name','autoGenSelection')
-    input.setAttribute('value','customEx')
-    radio.appendChild(input)
+    // input = document.createElement('input')
+    // input.setAttribute('type','radio')
+    // input.setAttribute('class','custom-control-input')
+    // input.setAttribute('id','manualSingles')
+    // input.setAttribute('name','autoGenSelection')
+    // input.setAttribute('value','customEx')
+    // radio.appendChild(input)
 
-    label = document.createElement('label')
-    label.setAttribute('class','custom-control-label')
-    label.setAttribute('for','manualSingles')
-    label.innerHTML = 'Manual'
-    radio.appendChild(label)
+    // label = document.createElement('label')
+    // label.setAttribute('class','custom-control-label')
+    // label.setAttribute('for','manualSingles')
+    // label.innerHTML = 'Manual'
+    // radio.appendChild(label)
 }
 
 function openIndividualID() {
@@ -825,7 +826,7 @@ function openIndividualID() {
             }
         })
 
-        fillSelect(input, ['Cluster Identification', 'Inter-cluster Identification', 'Exhaustive'], ['-4','-5','-5'])
+        fillSelect(input, ['Cluster Identification', 'Inter-cluster Identification'], ['-4','-5'])
 
         individualOptionsDiv = document.createElement('div')
         individualOptionsDiv.setAttribute('id','individualOptionsDiv')

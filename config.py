@@ -119,9 +119,6 @@ class Config(object):
     DET_AREA = 0.005
     MIN_CLASSIFICATION_RATIO = 0.2 #the minimum ratio of detection classifications for a classification to be considered
 
-    # Individual ID Config
-    SIMILARITY_SCORE = 0.1
-
     # Task and survey statuses
     TASK_READY_STATUSES = ['ready','success','successinitial','stopped']
     SURVEY_READY_STATUSES = ['ready','failed','stopped','cancelled']

@@ -31,6 +31,8 @@ from config import Config
 import traceback
 import time
 from multiprocessing.pool import ThreadPool as Pool
+import ast
+import numpy
 
 @celery.task(bind=True,max_retries=5,ignore_result=True)
 def launch_task(self,task_id):
@@ -194,12 +196,29 @@ def launch_task(self,task_id):
                         calculate_individual_similarities(task.id,species)
                         task = db.session.query(Task).get(task_id)
 
-                #extract threshold
-                threshold = tL[2]
-                if threshold=='-1':
-                    tL[2] = str(Config.SIMILARITY_SCORE)
-                    task.tagging_level = ','.join(tL)
-                    taggingLevel = task.tagging_level
+                # Define quantile thresholds
+                desired_quantiles = [90, 80, 60, 30, 0]
+                scores = [r[0] for r in db.session.query(IndSimilarity.score)\
+                                            .join(Individual,Individual.id==IndSimilarity.individual_1)\
+                                            .join(Task,Individual.tasks)\
+                                            .filter(Task.id.in_(task_ids))\
+                                            .filter(Individual.species==species)\
+                                            .filter(IndSimilarity.score>=0)\
+                                            .filter(Individual.active==True)\
+                                            .filter(Individual.name!='unidentifiable')\
+                                            .distinct().all()]
+                
+                quantiles = {}
+                for n in desired_quantiles:
+                    quantiles[n] = round(numpy.quantile(scores,n/100),2)
+
+                GLOBALS.redisClient.set('quantiles_'+str(task_id),str(quantiles))
+                
+                threshold = quantiles[desired_quantiles[0]]
+                tL[2] = str(threshold)
+                tL.append(str(desired_quantiles[0]))
+                task.tagging_level = ','.join(tL)
+                taggingLevel = task.tagging_level
 
                 skips = db.session.query(IndSimilarity)\
                                 .join(Individual, IndSimilarity.individual_1==Individual.id)\
@@ -493,6 +512,7 @@ def wrapUpTask(self,task_id):
         if '-5' in task.tagging_level:
             GLOBALS.redisClient.delete('active_individuals_'+str(task_id))
             GLOBALS.redisClient.delete('active_indsims_'+str(task_id))
+            GLOBALS.redisClient.delete('quantiles_'+str(task_id))
 
         elif '-3' in task.tagging_level:
             task.ai_check_complete = True
@@ -553,6 +573,7 @@ def manage_task(task_id):
     taggingLevel = task.tagging_level
     survey_id = task.survey_id
     jobs_to_delete = 0
+    quantiles_finished = False
 
     # if not populateMutex(int(task_id)):
     #     return False, jobs_to_delete
@@ -604,6 +625,42 @@ def manage_task(task_id):
                         .distinct().count()
         
         max_workers_possible = individuals_remaining
+
+        # Dynamic individual ID threshold
+        if individuals_remaining < 1:
+            current_quantile = int(tL[3])
+            
+            if current_quantile==0:
+                quantiles_finished = True
+            
+            else:
+                quantiles = GLOBALS.redisClient.get('quantiles_'+str(task_id))
+                
+                try:
+                    quantiles = ast.literal_eval(quantiles.decode())
+                    available_quantiles = list(quantiles.keys())
+                    available_quantiles.sort(reverse=True)
+                    threshold = quantiles[available_quantiles[available_quantiles.index(current_quantile)+1]]
+
+                    # When quantile is changed, release the skips back into the pool
+                    skips = session.query(IndSimilarity)\
+                                    .join(Individual, IndSimilarity.individual_1==Individual.id)\
+                                    .join(Task,Individual.tasks)\
+                                    .filter(Task.id.in_(task_ids))\
+                                    .filter(Individual.species==species)\
+                                    .filter(IndSimilarity.skipped==True)\
+                                    .distinct().all()
+                    
+                    for skip in skips:
+                        skip.skipped = False
+                
+                except:
+                    threshold = 0
+
+                tL[2] = str(threshold)
+                tL[3] = str(current_quantile)
+                task.tagging_level = ','.join(tL)
+                session.commit()
 
     else:
         max_workers_possible = session.query(Trapgroup) \
@@ -673,7 +730,7 @@ def manage_task(task_id):
     session.commit()
     session.close()
 
-    if (clusters_remaining==0) and (active_jobs==0):
+    if (clusters_remaining==0) and (active_jobs==0) and (('-5' not in taggingLevel) or quantiles_finished):
         processing = session.query(Trapgroup).filter(Trapgroup.survey_id==survey_id).filter(or_(Trapgroup.processing==True,Trapgroup.queueing==True)).first()
 
         if not processing:
