@@ -3964,7 +3964,7 @@ def getJobs():
                 species = re.split(',',item[1])[1]
                 if '-5' in item[1]:
                     quantile = re.split(',',item[1])[3]
-                    task_type+=' {}% quantile'.format(round(100-float(quantile)))
+                    task_type+=' - top {}% quantile'.format(round(100-float(quantile)))
             elif '-3' in item[1]:
                 task_type = 'AI Species Check'
                 species = 'All'
