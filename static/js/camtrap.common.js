@@ -32,6 +32,7 @@ var isSearchNoteActive = false
 var notesOnly = false
 var taggingLevel = '-23'
 var taggingLabel = 'None'
+var taggingAlgorithm = 'None'
 var reachedEnd = false
 var emptyCount = 0
 var disableTime = 30000 //30 seconds
@@ -136,36 +137,54 @@ var globalMasks = {"map1": []}
 var maskMode = false
 var detectionGroups = {}
 
+// var colours = {
+//     'rgba(67,115,98,1)': false,
+//     //'rgba(89,228,170,1)': false,
+//     'rgba(61,105,121,1)': false,
+//     // 'rgba(57,159,113,1)': false,
+//     'rgba(102,172,157,1)': false,
+//     // 'rgba(20,48,55,1)': false,
+//     'rgba(35,108,144,1)': false,
+//     // 'rgba(104,38,137,1)': false,
+//     'rgba(88,63,124,1)': false,
+//     // 'rgba(78,46,176,1)': false,
+//     'rgba(182,92,88,1)': false,
+//     // 'rgba(149,88,63,1)': false,
+//     'rgba(225,158,139,1)': false,
+//     // 'rgba(214,131,97,1)': false,
+//     'rgba(222,156,183,1)': false,
+//     // 'rgba(202,90,156,1)': false,
+//     'rgba(215,61,113,1)': false,
+//     // 'rgba(150,90,115,1)': false,
+//     'rgba(229,177,54,1)': false,
+//     // 'rgba(157,110,35,1)': false,
+//     'rgba(220,173,105,1)': false,
+//     // 'rgba(143,115,79,1)': false,
+//     'rgba(223,138,46,1)': false,
+//     // 'rgba(220,191,155,1)': false,
+//     'rgba(203,218,69,1)': false,
+//     // 'rgba(85,159,58,1)': false,
+//     'rgba(111,129,54,1)': false,
+//     // 'rgba(117,223,84,1)': false,
+//     'rgba(189,218,138,1)': false
+// }
+
 var colours = {
-    'rgba(67,115,98,1)': false,
-    //'rgba(89,228,170,1)': false,
-    'rgba(97,167,152,1)': false,
-    // 'rgba(57,159,113,1)': false,
-    'rgba(35,108,144,1)': false,
-    // 'rgba(20,48,55,1)': false,
-    'rgba(61,105,121,1)': false,
-    // 'rgba(104,38,137,1)': false,
-    'rgba(88,63,124,1)': false,
-    // 'rgba(78,46,176,1)': false,
-    'rgba(182,92,88,1)': false,
-    // 'rgba(149,88,63,1)': false,
-    'rgba(225,158,139,1)': false,
-    // 'rgba(214,131,97,1)': false,
-    'rgba(222,156,183,1)': false,
-    // 'rgba(202,90,156,1)': false,
-    'rgba(215,61,113,1)': false,
-    // 'rgba(150,90,115,1)': false,
-    'rgba(229,177,54,1)': false,
-    // 'rgba(157,110,35,1)': false,
-    'rgba(220,173,105,1)': false,
-    // 'rgba(143,115,79,1)': false,
-    'rgba(223,138,46,1)': false,
-    // 'rgba(220,191,155,1)': false,
-    'rgba(203,218,69,1)': false,
-    // 'rgba(85,159,58,1)': false,
-    'rgba(111,129,54,1)': false,
-    // 'rgba(117,223,84,1)': false,
-    'rgba(189,218,138,1)': false
+    'rgba(70,120,100,1)': false,    // Slightly lighter green-blue
+    'rgba(38,113,150,1)': false,    // Slightly lighter blue
+    'rgba(100,170,155,1)': false,   // Slightly lighter teal
+    'rgba(64,110,125,1)': false,    // Slightly lighter grey-blue
+    'rgba(91,68,128,1)': false,     // Slightly lighter purple
+    'rgba(185,97,92,1)': false,     // Slightly lighter red
+    'rgba(230,163,143,1)': false,   // Slightly lighter peach
+    'rgba(225,161,187,1)': false,   // Slightly lighter pink
+    'rgba(218,66,118,1)': false,    // Slightly lighter magenta
+    'rgba(232,182,58,1)': false,    // Slightly lighter yellow
+    'rgba(223,178,108,1)': false,   // Slightly lighter light brown
+    'rgba(226,143,50,1)': false,    // Slightly lighter orange
+    'rgba(206,223,73,1)': false,    // Slightly lighter light green
+    'rgba(114,134,58,1)': false,    // Slightly lighter olive
+    'rgba(192,223,142,1)': false    // Slightly lighter pale green
 }
 
 function modifyToCompURL(url) {
@@ -975,6 +994,16 @@ function updateCanvas(mapID = 'map1') {
                             distDelta.innerHTML = Math.floor(distance*1000).toString()+'m'
                         } else {
                             distDelta.innerHTML = distance.toFixed(3)+'km'
+                        }
+                    }
+
+                    heatmapDiv = document.getElementById('heatmapDiv')
+                    if (heatmapDiv != null) {
+                        if (taggingAlgorithm == 'hotspotter') {
+                            heatmapDiv.hidden = false
+                        }
+                        else {
+                            heatmapDiv.hidden = true
                         }
                     }
                 }
@@ -2201,6 +2230,7 @@ function fetchTaggingLevel() {
         } else if (this.readyState == 4 && this.status == 200) {
             taggingInfo = JSON.parse(this.responseText);
             taggingLevel = taggingInfo.taggingLevel
+            taggingAlgorithm = taggingInfo.taggingAlgorithm
 
             if (taggingInfo.wrongStatus=='true') {
                 wrongStatus = true

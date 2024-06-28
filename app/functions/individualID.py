@@ -359,6 +359,8 @@ def calculate_detection_similarities(self,task_ids,species,algorithm):
             flanks = [flank for flank in  Config.FLANK_DB.values() if flank != None and flank != ambiguous_flank]
             flanks = [ambiguous_flank] + flanks # Ensure ambiguous flank is processed first
             processed_dets_ambiguous = {task_id1: {task_id2: [] for task_id2 in task_ids} for task_id1 in task_ids}
+            batch = []
+            count_in_batch = 0
             for flank in flanks:
                 if flank == ambiguous_flank: 
                     required_flanks = flanks
@@ -419,7 +421,23 @@ def calculate_detection_similarities(self,task_ids,species,algorithm):
                             for det_1 in dets_1:
                                 if det_1 in dets_2: dets_2.remove(det_1)
                                 if dets_2:
-                                    results.append(calculate_hotspotter_similarity.apply_async(kwargs={'query_ids': [det_1], 'db_ids': dets_2}, queue='parallel'))
+                                    if len(dets_2) > 5000:
+                                        for chunk in chunker(dets_2,5000):
+                                            results.append(calculate_hotspotter_similarity.apply_async(kwargs={'batch': [{'query_ids': [det_1], 'db_ids': chunk}]}, queue='parallel'))
+                                    else:
+                                        if (count_in_batch + len(dets_2)) > 5000:
+                                            results.append(calculate_hotspotter_similarity.apply_async(kwargs={'batch': batch}, queue='parallel'))
+                                            batch = []
+                                            count_in_batch = 0
+                                        
+                                        batch.append({
+                                            'query_ids': [det_1],
+                                            'db_ids': dets_2.copy()
+                                        })
+                                        count_in_batch += len(dets_2)
+                                        
+            if batch:
+                results.append(calculate_hotspotter_similarity.apply_async(kwargs={'batch': batch}, queue='parallel'))
 
             GLOBALS.lock.acquire()
             with allow_join_result():
@@ -1420,87 +1438,96 @@ def process_detections_for_individual_id(task_ids,species,pose_only=False):
 
 
 @celery.task(bind=True,max_retries=5)
-def calculate_hotspotter_similarity(self,query_ids,db_ids):
+def calculate_hotspotter_similarity(self,batch):
     '''
     Celery task for calculating the similarity between detections using Hotspotter.
 
         Parameters:
-            query_ids (list): Detection IDs for the query wbia aids
-            db_ids (list): Detection IDs for the database wbia aids
+            batch (list): List of detection IDs for which the similarity must be calculated. It includes the following:
+            - query_ids (list): Detection IDs for the query wbia aids
+            - db_ids (list): Detection IDs for the database wbia aids
     '''
 
     try:
-
+        starttime = time.time()
         from wbia.algo.hots.pipeline import request_wbia_query_L0
 
         if GLOBALS.ibs is None:
             from wbia import opendb
             GLOBALS.ibs = opendb(db=Config.WBIA_DB_NAME,dbdir=Config.WBIA_DIR+'_'+Config.WORKER_NAME,allow_newdir=True)
 
-        det_ids = query_ids + db_ids
-        det_translation = {r[1]:r[0] for r in db.session.query(Detection.id,Detection.aid).filter(Detection.id.in_(det_ids)).distinct().all()}
+        det_ids = []
+        for item in batch:
+            det_ids.extend(item['query_ids'])
+            det_ids.extend(item['db_ids'])
+        det_ids = list(set(det_ids))
+        det_data = db.session.query(Detection.id,Detection.aid).filter(Detection.id.in_(det_ids)).distinct().all()
+        det_translation = {}
+        aid_translation = {}
+        for d in det_data:
+            det_translation[d[1]] = d[0]
+            aid_translation[d[0]] = d[1]
 
-        qaid_list = []
-        daid_list = []
-        for aid, det_id in det_translation.items():
-            if det_id in query_ids:
-                qaid_list.append(aid)
-            else:
-                daid_list.append(aid)
+        for item in batch:
+            query_ids = item['query_ids']
+            db_ids = item['db_ids']
+            qaid_list = [aid_translation[d] for d in query_ids]
+            daid_list = [aid_translation[d] for d in db_ids]
 
-        if not qaid_list or not daid_list:
-            return True
+            if not qaid_list or not daid_list:
+                return True
 
-        qreq_ = GLOBALS.ibs.new_query_request(qaid_list, daid_list)
-        cm_list = request_wbia_query_L0(GLOBALS.ibs, qreq_)
+            qreq_ = GLOBALS.ibs.new_query_request(qaid_list, daid_list)
+            cm_list = request_wbia_query_L0(GLOBALS.ibs, qreq_)
 
-        tblname = 'featurematches'
-        colnames = ('annot_rowid1', 'annot_rowid2', 'fm', 'fs')
-        superkey_paramx = [0, 1]
+            tblname = 'featurematches'
+            colnames = ('annot_rowid1', 'annot_rowid2', 'fm', 'fs')
+            superkey_paramx = [0, 1]
 
-        def get_rowid_from_superkey(aid1_list, aid2_list):
-            # Check if the data already exists
-            row_ids1 = GLOBALS.ibs.db.get_where_eq('featurematches', ('fm_rowid',), zip(aid1_list, aid2_list), ['annot_rowid1', 'annot_rowid2'])
-            row_ids2 = GLOBALS.ibs.db.get_where_eq('featurematches', ('fm_rowid',), zip(aid2_list, aid1_list), ['annot_rowid1', 'annot_rowid2'])
-            row_ids1 = [r for r in row_ids1 if r is not None]
-            row_ids2 = [r for r in row_ids2 if r is not None] # Have to remove None from list otherwise it will add the data even if there is other rows with the same superkey
-            row_ids = row_ids1 + row_ids2
-            if len(row_ids) == 0:
-                row_ids = [None]
-            return row_ids
+            def get_rowid_from_superkey(aid1_list, aid2_list):
+                # Check if the data already exists
+                row_ids1 = GLOBALS.ibs.db.get_where_eq('featurematches', ('fm_rowid',), zip(aid1_list, aid2_list), ['annot_rowid1', 'annot_rowid2'])
+                row_ids2 = GLOBALS.ibs.db.get_where_eq('featurematches', ('fm_rowid',), zip(aid2_list, aid1_list), ['annot_rowid1', 'annot_rowid2'])
+                row_ids1 = [r for r in row_ids1 if r is not None]
+                row_ids2 = [r for r in row_ids2 if r is not None] # Have to remove None from list otherwise it will add the data even if there is other rows with the same superkey
+                row_ids = row_ids1 + row_ids2
+                if len(row_ids) == 0:
+                    row_ids = [None]
+                return row_ids
 
 
-        for cm in cm_list:
-            aid1 = cm.qaid
-            detection1_id = det_translation[aid1]
-            for n in range(len(cm.daid_list)):
-                aid2 = int(cm.daid_list[n])
-                detection2_id = det_translation[aid2]
-                score = float(cm.score_list[n])
-                if score > 0:
-                    fm = cm.fm_list[n]
-                    fs = cm.fsv_list[n]
-                    params_iter = [(aid1, aid2, fm, fs)]
-                    rowid_list = GLOBALS.ibs.db.add_cleanly(tblname, colnames, params_iter, get_rowid_from_superkey, superkey_paramx)
+            for cm in cm_list:
+                aid1 = cm.qaid
+                detection1_id = det_translation[aid1]
+                for n in range(len(cm.daid_list)):
+                    aid2 = int(cm.daid_list[n])
+                    detection2_id = det_translation[aid2]
+                    score = float(cm.score_list[n])
+                    if score > 0:
+                        fm = cm.fm_list[n]
+                        fs = cm.fsv_list[n]
+                        params_iter = [(aid1, aid2, fm, fs)]
+                        rowid_list = GLOBALS.ibs.db.add_cleanly(tblname, colnames, params_iter, get_rowid_from_superkey, superkey_paramx)
 
-                    detSimilarity = db.session.query(DetSimilarity).filter(\
-                                                or_(\
-                                                    and_(\
-                                                        DetSimilarity.detection_1==detection1_id,\
-                                                        DetSimilarity.detection_2==detection2_id),\
-                                                    and_(\
-                                                        DetSimilarity.detection_1==detection2_id,\
-                                                        DetSimilarity.detection_2==detection1_id)\
-                                                )).first()
+                        detSimilarity = db.session.query(DetSimilarity).filter(\
+                                                    or_(\
+                                                        and_(\
+                                                            DetSimilarity.detection_1==detection1_id,\
+                                                            DetSimilarity.detection_2==detection2_id),\
+                                                        and_(\
+                                                            DetSimilarity.detection_1==detection2_id,\
+                                                            DetSimilarity.detection_2==detection1_id)\
+                                                    )).first()
 
-                    if detSimilarity == None:
-                        detSimilarity = DetSimilarity(detection_1=detection1_id, detection_2=detection2_id)
-                        db.session.add(detSimilarity)
+                        if detSimilarity == None:
+                            detSimilarity = DetSimilarity(detection_1=detection1_id, detection_2=detection2_id)
+                            db.session.add(detSimilarity)
 
-                    detSimilarity.score = float(score)
+                        detSimilarity.score = float(score)
 
 
         db.session.commit()
+        print('Finished calculating hotspotter similarity in {}s'.format(time.time()-starttime))
 
     except Exception as exc:
         app.logger.info(' ')
