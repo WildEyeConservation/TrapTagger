@@ -157,6 +157,9 @@ class Config(object):
         'none': None
     }
 
+    # Individual ID Config
+    ID_QUANTILES = [90, 80, 60, 30, 0]
+
     # Time in seconds allowed for a worker to finish setting up beforte being checked for idleness
     SETUP_PERIOD = {
         'celery': '300',

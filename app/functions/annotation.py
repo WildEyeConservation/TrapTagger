@@ -197,7 +197,7 @@ def launch_task(self,task_id):
                         task = db.session.query(Task).get(task_id)
 
                 # Define quantile thresholds
-                desired_quantiles = [90, 80, 60, 30, 0]
+                desired_quantiles = Config.ID_QUANTILES
                 scores = [r[0] for r in db.session.query(IndSimilarity.score)\
                                             .join(Individual,Individual.id==IndSimilarity.individual_1)\
                                             .join(Task,Individual.tasks)\
@@ -210,7 +210,10 @@ def launch_task(self,task_id):
                 
                 quantiles = {}
                 for n in desired_quantiles:
-                    quantiles[n] = round(numpy.quantile(scores,n/100),2)
+                    if n == 0:
+                        quantiles[n] = 0
+                    else:
+                        quantiles[n] = math.trunc(numpy.quantile(scores,n/100) * 100) / 100 # Truncate to 2 decimal places
 
                 GLOBALS.redisClient.set('quantiles_'+str(task_id),str(quantiles))
                 
@@ -640,7 +643,8 @@ def manage_task(task_id):
                     quantiles = ast.literal_eval(quantiles.decode())
                     available_quantiles = list(quantiles.keys())
                     available_quantiles.sort(reverse=True)
-                    threshold = quantiles[available_quantiles[available_quantiles.index(current_quantile)+1]]
+                    new_quantile = available_quantiles[available_quantiles.index(current_quantile)+1]
+                    threshold = quantiles[new_quantile]
 
                     # When quantile is changed, release the skips back into the pool
                     skips = session.query(IndSimilarity)\
@@ -656,9 +660,10 @@ def manage_task(task_id):
                 
                 except:
                     threshold = 0
+                    new_quantile = 0
 
                 tL[2] = str(threshold)
-                tL[3] = str(current_quantile)
+                tL[3] = str(new_quantile)
                 task.tagging_level = ','.join(tL)
                 session.commit()
 
