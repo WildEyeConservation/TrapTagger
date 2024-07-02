@@ -352,9 +352,9 @@ def launchTask():
         elif len(untranslated) == 0:
             if (len(task_ids) > 1) and ('-5' in taggingLevel):
                 tL = re.split(',',taggingLevel)
-                if tL[3]=='h':
+                if tL[4]=='h':
                     calculate_detection_similarities.delay(task_ids=task_ids,species=tL[1],algorithm='hotspotter')
-                elif tL[3]=='n':
+                elif tL[4]=='n':
                     calculate_detection_similarities.delay(task_ids=task_ids,species=tL[1],algorithm='none')
             else:
                 launch_task.apply_async(kwargs={'task_id':task.id})
@@ -2899,15 +2899,13 @@ def getDetailedTaskStatus(task_id):
                             reply['Individual ID']['Inter-Cluster'] = 'Incomplete'
                             reply['Individual ID']['Exhaustive'] = 'Incomplete'
                         else:
-                            count = label.icID_count
                             reply['Individual ID']['Cluster-Level'] = 'Complete'
-                            if count != 0:
+                            if not label.icID_q1_complete:
                                 reply['Individual ID']['Inter-Cluster'] = 'Incomplete'
                                 reply['Individual ID']['Exhaustive'] = 'Incomplete'
                             else:
                                 reply['Individual ID']['Inter-Cluster'] = 'Complete'
-                                count = checkForIdWork([task_id],label.description,0)
-                                if count !=0:
+                                if label.icID_count !=0:
                                     reply['Individual ID']['Exhaustive'] = 'Incomplete'
                                 else:
                                     reply['Individual ID']['Exhaustive'] = 'Complete'
@@ -4521,9 +4519,9 @@ def editTranslations(task_id):
             task_ids = [r.id for r in task.sub_tasks]
             task_ids.append(task.id)
             tL = re.split(',',task.tagging_level)
-            if tL[3]=='h':
+            if tL[4]=='h':
                 calculate_detection_similarities.delay(task_ids=[task_ids],species=tL[1],algorithm='hotspotter')
-            elif tL[3]=='n':
+            elif tL[4]=='n':
                 calculate_detection_similarities.delay(task_ids=[task_ids],species=tL[1],algorithm='none')
         else:
             launch_task.apply_async(kwargs={'task_id':task.id})
@@ -9275,7 +9273,7 @@ def check_download_available():
 @app.route('/getIndividualIDSurveysTasks', methods=['POST'])
 @login_required
 def getIndividualIDSurveysTasks():
-    '''Returns surveys and tasks available for individual ID for the specified species.'''
+    '''Returns surveys and tasks available for multi-survey individual ID for the specified species.'''
 
     species = request.form['species']
 
@@ -9283,7 +9281,7 @@ def getIndividualIDSurveysTasks():
                         .join(Task)\
                         .join(Label)\
                         .filter(Label.description==species)\
-                        .filter(Label.icID_count==0)\
+                        .filter(Label.icID_q1_complete==True)\
                         .filter(Label.icID_allowed==True)\
                         .filter(Task.status.in_(Config.TASK_READY_STATUSES))\
                         .filter(Survey.status.in_(Config.SURVEY_READY_STATUSES))\
@@ -9294,7 +9292,7 @@ def getIndividualIDSurveysTasks():
         tasks = db.session.query(Task)\
                         .join(Label)\
                         .filter(Label.description==species)\
-                        .filter(Label.icID_count==0)\
+                        .filter(Label.icID_q1_complete==True)\
                         .filter(Label.icID_allowed==True)\
                         .filter(Task.survey==survey)\
                         .filter(Task.status.in_(Config.TASK_READY_STATUSES))\

@@ -219,7 +219,10 @@ def launch_task(self,task_id):
                 
                 threshold = quantiles[desired_quantiles[0]]
                 tL[2] = str(threshold)
-                tL.append(str(desired_quantiles[0]))
+                if task.sub_tasks:
+                    tL[3] = str(desired_quantiles[0])
+                else:
+                    tL.append(str(desired_quantiles[0]))
                 task.tagging_level = ','.join(tL)
                 taggingLevel = task.tagging_level
 
@@ -516,6 +519,9 @@ def wrapUpTask(self,task_id):
             GLOBALS.redisClient.delete('active_individuals_'+str(task_id))
             GLOBALS.redisClient.delete('active_indsims_'+str(task_id))
             GLOBALS.redisClient.delete('quantiles_'+str(task_id))
+            if not task.sub_tasks:
+                label = db.session.query(Label).filter(Label.task_id==task_id).filter(Label.description==task.tagging_level.split(',')[1]).first()
+                label.icID_q1_complete = True
 
         elif '-3' in task.tagging_level:
             task.ai_check_complete = True

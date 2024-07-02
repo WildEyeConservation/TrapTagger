@@ -1535,9 +1535,9 @@ modalLaunchID.on('shown.bs.modal', function(){
         }
 
         if (document.getElementById('idStage')[document.getElementById('idStage').selectedIndex].text == 'Exhaustive') {
-            taskTaggingLevel += ',0'
+            taskTaggingLevel += ',0,100'
         } else {
-            taskTaggingLevel += ',-1'
+            taskTaggingLevel += ',-1,100'
         }
 
         if (document.getElementById('hotspotter').checked) {

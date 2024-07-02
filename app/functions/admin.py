@@ -311,6 +311,17 @@ def stop_task(self,task_id):
                 GLOBALS.redisClient.delete('active_individuals_'+str(task_id))
                 GLOBALS.redisClient.delete('active_indsims_'+str(task_id))
                 GLOBALS.redisClient.delete('quantiles_'+str(task_id))
+                if not task.sub_tasks:
+                    tL = task.tagging_level.split(',')
+                    label = db.session.query(Label).filter(Label.task==task).filter(Label.description==tL[1]).first()
+                    if len(tL) > 3 and tL[3].isdigit():
+                        current_quantile = int(tL[3])
+                        first_quantile = int(Config.ID_QUANTILES[0])
+                        if not label.icID_q1_complete: 
+                            if current_quantile < first_quantile:
+                                label.icID_q1_complete = True
+                            else:
+                                label.icID_q1_complete = False
 
             if ',' not in task.tagging_level and task.init_complete and '-2' not in task.tagging_level:
                 check_individual_detection_mismatch(task_id=task_id,celeryTask=False)
