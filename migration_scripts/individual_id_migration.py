@@ -64,50 +64,20 @@ print('Done!')
 task_data = db.session.query(Task.id,Task.tagging_level).filter(Task.tagging_level.contains('-4')).filter(Task.status=='PROGRESS').all()
 
 # Stop tasks 
-results = []
 for task in task_data:
     task_id = task[0]
-    results.append(stop_task.apply_async(kwargs={'task_id':task_id}))
+    stop_task(task_id)
 
-print('All stop tasks (-4) queued. Waiting...')
-GLOBALS.lock.acquire()
-with allow_join_result():
-    for result in results:
-        try:
-            result.get()
-        except Exception:
-            app.logger.info(' ')
-            app.logger.info('!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!')
-            app.logger.info(traceback.format_exc())
-            app.logger.info('!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!')
-            app.logger.info(' ')
-        result.forget()
-GLOBALS.lock.release()
 print('All stop tasks (-4) completed.')
 
 # Delete individuals
-results = []
 for task in task_data:
     task_id = task[0]
     taggingLevel = task[1]
     tL = re.split(',',taggingLevel)
     species = tL[1]
-    results.append(delete_individuals.apply_async(kwargs={'task_ids':[task_id],'species':[species]}))
+    delete_individuals([task_id],[species])
 
-print('All delete individuals (-4) queued. Waiting...')
-GLOBALS.lock.acquire()
-with allow_join_result():
-    for result in results:
-        try:
-            result.get()
-        except Exception:
-            app.logger.info(' ')
-            app.logger.info('!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!')
-            app.logger.info(traceback.format_exc())
-            app.logger.info('!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!')
-            app.logger.info(' ')
-        result.forget()
-GLOBALS.lock.release()
 print('All delete individuals (-4) completed.')
 
 
@@ -119,27 +89,12 @@ for task in task_data:
 
 
 # Handle -5 tasks --------------------------------------------------------------------
-task_ids = db.session.query(Task.id).filter(Task.tagging_level.contains('-5')).filter(Task.status=='PROGRESS').filter(~Task.sub_tasks.any()).all()
+task_ids = [r[0] for r in db.session.query(Task.id).filter(Task.tagging_level.contains('-5')).filter(Task.status=='PROGRESS').filter(~Task.sub_tasks.any()).all()]
 
 # Stop tasks
-results = []
 for task_id in task_ids:
-    results.append(stop_task.apply_async(kwargs={'task_id':task_id}))
+    stop_task(task_id)
 
-print('All stop tasks (-5) queued. Waiting...')
-GLOBALS.lock.acquire()
-with allow_join_result():
-    for result in results:
-        try:
-            result.get()
-        except Exception:
-            app.logger.info(' ')
-            app.logger.info('!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!')
-            app.logger.info(traceback.format_exc())
-            app.logger.info('!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!')
-            app.logger.info(' ')
-        result.forget()
-GLOBALS.lock.release()
 print('All stop tasks (-5) completed.')
 
 # Relaunch tasks
@@ -150,30 +105,15 @@ for task_id in task_ids:
 
 
 # Handle -5 tasks with sub tasks --------------------------------------------------------------------
-task_ids = db.session.query(Task.id).filter(Task.tagging_level.contains('-5')).filter(Task.status=='PROGRESS').filter(Task.sub_tasks.any()).all()
+task_ids = [r[0] for r in db.session.query(Task.id).filter(Task.tagging_level.contains('-5')).filter(Task.status=='PROGRESS').filter(Task.sub_tasks.any()).all()]
 
 # Stop tasks
-results = []
 task_sub_tasks = {}
 for task_id in task_ids:
     task = db.session.query(Task).get(task_id)
     task_sub_tasks[task_id] = [sub_task.id for sub_task in task.sub_tasks]
-    results.append(stop_task.apply_async(kwargs={'task_id':task_id}))
+    stop_task(task_id)
 
-print('All stop tasks (-5 multi) queued. Waiting...')
-GLOBALS.lock.acquire()
-with allow_join_result():
-    for result in results:
-        try:
-            result.get()
-        except Exception:
-            app.logger.info(' ')
-            app.logger.info('!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!')
-            app.logger.info(traceback.format_exc())
-            app.logger.info('!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!')
-            app.logger.info(' ')
-        result.forget()
-GLOBALS.lock.release()
 print('All stop tasks (-5 multi) completed.')
 
 # Relaunch tasks
