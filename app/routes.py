@@ -7140,7 +7140,7 @@ def getTaggingLevel():
             wrongStatus = 'true'
     else:
         taggingLabel = 'None'
-        if ',' in taggingLevel:
+        if ',' in taggingLevel and ('-4' in taggingLevel or '-5' in taggingLevel):
             tL = taggingLevel.split(',')
             species = tL[1]
             label = db.session.query(Label).filter(Label.task_id==task.id).filter(Label.description==species).first()
