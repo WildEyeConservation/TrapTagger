@@ -38,28 +38,8 @@ print('Setting icID_q1_complete for labels with icID_allowed set to True')
 labels = db.session.query(Label).filter(Label.icID_allowed==True).filter(Label.icID_q1_complete==None).limit(5000).all()
 while labels:
     for label in labels:
-        all_scores = db.session.query(IndSimilarity.score, IndSimilarity.old_score)\
-                                            .join(Individual,Individual.id==IndSimilarity.individual_1)\
-                                            .join(Task,Individual.tasks)\
-                                            .filter(Task.id==label.task_id)\
-                                            .filter(Individual.species==label.description)\
-                                            .filter(or_(IndSimilarity.score>0,IndSimilarity.old_score>0))\
-                                            .filter(Individual.active==True)\
-                                            .filter(Individual.name!='unidentifiable')\
-                                            .distinct().all()
-        scores = []
-        for score in all_scores:
-            if score[1] is None:
-                scores.append(score[0])
-            else:
-                scores.append(score[1])
-        if scores:
-            first_quantile_score = math.trunc(numpy.quantile(scores,Config.ID_QUANTILES[0]/100) * 100) / 100
-            count = checkForIdWork([label.task_id],label.description,first_quantile_score)
-            if count == 0:
-                label.icID_q1_complete = True
-            else:
-                label.icID_q1_complete = False
+        if label.icID_count==0:
+            label.icID_q1_complete = True
         else:
             label.icID_q1_complete = False
         label.icID_count = checkForIdWork([label.task_id],label.description,0) #NOTE: NOT SURE ABOUT THIS 
