@@ -1527,7 +1527,7 @@ def calculate_hotspotter_similarity(self,batch):
 
 
         db.session.commit()
-        print('Finished calculating hotspotter similarity in {}s'.format(time.time()-starttime))
+        app.logger.info('Finished calculating hotspotter similarity in {}s'.format(time.time()-starttime))
 
     except Exception as exc:
         app.logger.info(' ')

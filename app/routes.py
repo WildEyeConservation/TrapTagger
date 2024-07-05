@@ -7126,6 +7126,7 @@ def getTaggingLevel():
     taggingLevel = task.tagging_level
 
     wrongStatus = 'false'
+    taggingAlgorithm = 'None'
     if (',' not in taggingLevel) and (int(taggingLevel) > 0):
         label = db.session.query(Label).get(int(taggingLevel))
         labelChildren = db.session.query(Label).filter(Label.parent==label).filter(Label.task==task).first()
@@ -7137,7 +7138,6 @@ def getTaggingLevel():
             taggingLabel = 'None'
             taggingLevel = '-1'
             wrongStatus = 'true'
-            taggingAlgorithm = 'None'
     else:
         taggingLabel = 'None'
         if ',' in taggingLevel:
@@ -7145,8 +7145,6 @@ def getTaggingLevel():
             species = tL[1]
             label = db.session.query(Label).filter(Label.task_id==task.id).filter(Label.description==species).first()
             taggingAlgorithm = label.algorithm
-        else:
-            taggingAlgorithm = 'None'
 
     return json.dumps({'taggingLevel':taggingLevel, 'taggingLabel':taggingLabel, 'wrongStatus':wrongStatus, 'taggingAlgorithm':taggingAlgorithm})
 
