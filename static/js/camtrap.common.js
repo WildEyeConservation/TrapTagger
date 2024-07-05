@@ -918,6 +918,7 @@ function updateCanvas(mapID = 'map1') {
                     timeDelta = document.getElementById('timeDelta')
                     distDelta = document.getElementById('distDelta')
                     debugInfo = document.getElementById('debugInfo')
+                    sameCluster = document.getElementById('sameCluster')
                     if ((debugInfo != null)&&(DEBUGGING)) {
                         image1 = clusters['map1'][clusterIndex['map1']].images[imageIndex['map1']].id
                         image2 = clusters['map2'][0].images[imageIndex['map2']].id
@@ -950,11 +951,9 @@ function updateCanvas(mapID = 'map1') {
                     }
                     if (sameCam != null) {
                         if (clusters['map1'][clusterIndex['map1']].images[imageIndex['map1']].camera==clusters['map2'][clusterIndex['map2']].images[imageIndex['map2']].camera) {
-                            sameCam.innerHTML = '&isin;'
-                            sameCam.setAttribute('style','color:green;font-size:60px')
+                            sameCam.setAttribute('style','color:green;font-size:40px')
                         } else {
-                            sameCam.innerHTML = '&notin;'
-                            sameCam.setAttribute('style','color:red;font-size:60px')
+                            sameCam.setAttribute('style','color:red;font-size:40px')
                         }
                     }
                     if (timeDelta != null) {
@@ -991,9 +990,16 @@ function updateCanvas(mapID = 'map1') {
                         lon2 = clusters['map2'][clusterIndex['map2']].images[imageIndex['map2']].longitude
                         distance = coordinateDistance(lat1,lon1,lat2,lon2)
                         if (distance<1) {
-                            distDelta.innerHTML = Math.floor(distance*1000).toString()+'m'
+                            distDelta.innerHTML = 'Image distance: '+Math.floor(distance*1000).toString()+'m'
                         } else {
-                            distDelta.innerHTML = distance.toFixed(3)+'km'
+                            distDelta.innerHTML = 'Image distance: '+distance.toFixed(3)+'km'
+                        }
+                    }
+                    if (sameCluster != null) {
+                        if (clusters['map1'][clusterIndex['map1']].images[imageIndex['map1']].cluster_id==clusters['map2'][clusterIndex['map2']].images[imageIndex['map2']].cluster_id) {
+                            sameCluster.setAttribute('style','color:green;font-size:40px')
+                        } else {
+                            sameCluster.setAttribute('style','color:red;font-size:40px')
                         }
                     }
 
@@ -1523,6 +1529,17 @@ function updateSlider(mapID = 'map1') {
             imgli.classList.add('splide__slide')
             imgli.appendChild(img)
             clusterPosition[mapID].appendChild(imgli)
+            if (document.getElementById('btnSendToBack') != null) {
+                // Create a divider between images from different clusters
+                if (i<clusters[mapID][clusterIndex[mapID]].images.length-1 && clusters[mapID][clusterIndex[mapID]].images[i].cluster_id != clusters[mapID][clusterIndex[mapID]].images[i+1].cluster_id) {
+                    divider = document.createElement('vl')
+                    divider.style.borderLeft = '2px solid #DF691A'
+                    divider.style.height = '128px'
+                    divider.style.marginRight = '5px'
+                    clusterPosition[mapID].appendChild(divider)
+                }
+            }
+
         }
     
         if (clusterPositionSplide[mapID]==null) {

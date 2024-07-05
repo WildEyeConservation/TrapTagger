@@ -371,6 +371,27 @@ function getSuggestions(prevID = null) {
                             update('map2')
                             goToMax()
                             updateKpts()
+                            
+                            individualDistance = document.getElementById('individualDistance')
+                            if (individualDistance != null) {
+                                var minDistances = []
+                                for (let i=0;i<clusters['map2'][clusterIndex['map2']].images.length;i++) {
+                                    for (let j=0;j<clusters['map1'][clusterIndex['map1']].images.length;j++) {
+                                        lat1 = clusters['map1'][clusterIndex['map1']].images[j].latitude
+                                        lon1 = clusters['map1'][clusterIndex['map1']].images[j].longitude
+                                        lat2 = clusters['map2'][clusterIndex['map2']].images[i].latitude
+                                        lon2 = clusters['map2'][clusterIndex['map2']].images[i].longitude
+                                        distance = coordinateDistance(lat1,lon1,lat2,lon2)
+                                        minDistances.push(distance)
+                                    }
+                                }
+                                minDistance = Math.min(...minDistances)
+                                if (minDistance<1) {
+                                    individualDistance.innerHTML = 'Individual distance: '+Math.floor(minDistance*1000).toString()+'m'
+                                } else {
+                                    individualDistance.innerHTML = 'Individual distance: '+minDistance.toFixed(3)+'km'
+                                }
+                            }
                         }
                     }
                 };
@@ -384,7 +405,7 @@ function loadNewCluster(mapID = 'map1') {
     /** Loads new individuals for the left-hand panel. Treats an individual as a cluster of images. */
     if (!waitingForClusters[mapID]) {
         waitingForClusters[mapID] = true
-        console.log(mapID)
+        // console.log(mapID)
         var newID = Math.floor(Math.random() * 100000) + 1;
         clusterRequests[mapID].push(newID)
 
@@ -398,10 +419,74 @@ function loadNewCluster(mapID = 'map1') {
                         } else if (this.readyState == 4 && this.status == 200) {
                             waitingForClusters[wrapMapID] = false
                             info = JSON.parse(this.responseText);
+                            // console.log(info)
+                            var new_clusters = []
+                            var new_cluster_index = 0
+                            var new_cluster_ids = {}
+                            if (info.info.length>0) {
+                                if (document.getElementById('btnSendToBack')!=null) {
+                                    //Order the clusters in info by timestamp of the first image
+                                    info.info.sort((a,b) => (a.images[0].timestamp > b.images[0].timestamp) ? 1 : ((b.images[0].timestamp > a.images[0].timestamp) ? -1 : 0))
+                                    for (let j=0;j<info.info[0].images.length;j++) {
+                                        info.info[0].images[j].cluster_id = info.info[0].id
+                                    }
+                                }
+                                new_clusters = [info.info[0]]
+                                new_cluster_ids[info.info[0].id] = [info.info[0].id]
+                                new_cluster_index = 1
+
+                                for (let i=1;i<info.info.length;i++) {
+                                    if (document.getElementById('btnSendToBack')==null) {
+                                        new_clusters.push(info.info[i])
+                                        new_cluster_index += 1
+                                        new_cluster_ids[info.info[i].id] = [info.info[i].id]
+                                    }
+                                    else{
+                                        if (info.info[i].id == '-101') {
+                                            new_clusters.push(info.info[i])
+                                            new_cluster_index += 1
+                                        }
+                                        else{
+                                            current_timestamp = new_clusters[new_cluster_index-1].images[new_clusters[new_cluster_index-1].images.length-1].timestamp
+                                            new_timestamp = info.info[i].images[0].timestamp
+                                            // If timestamp is within 30 minutes of the previous cluster, add to the same cluster
+                                            allow_merge = (new_timestamp==0 || current_timestamp==0) ? false : true
+                                            time_diff = new_timestamp-current_timestamp
+                                            if (allow_merge && time_diff < 1800) {
+                                                for (let j=0;j<info.info[i].images.length;j++) {
+                                                    info.info[i].images[j].cluster_id = info.info[i].id
+                                                    new_clusters[new_cluster_index-1].images.push(info.info[i].images[j])
+                                                }
+                                                if (info.info[i].notes != null) {
+                                                    if (new_clusters[new_cluster_index-1].notes != null) {
+                                                        new_clusters[new_cluster_index-1].notes += ' '+info.info[i].notes
+                                                    }
+                                                    else{
+                                                        new_clusters[new_cluster_index-1].notes = info.info[i].notes
+                                                    }
+                                                }
+                                                new_clusters[new_cluster_index-1].tag_ids.push(...info.info[i].tag_ids)
+                                                new_clusters[new_cluster_index-1].tags.push(...info.info[i].tags)
+                                                new_clusters[new_cluster_index-1].tag_ids = [...new Set(new_clusters[new_cluster_index-1].tag_ids)]
+                                                new_clusters[new_cluster_index-1].tags = [...new Set(new_clusters[new_cluster_index-1].tags)]
+                                                new_cluster_ids[new_clusters[new_cluster_index-1].id].push(info.info[i].id)
+                                            }
+                                            else{
+                                                for (let j=0;j<info.info[i].images.length;j++) {
+                                                    info.info[i].images[j].cluster_id = info.info[i].id
+                                                }
+                                                new_clusters.push(info.info[i])
+                                                new_cluster_index += 1
+                                                new_cluster_ids[info.info[i].id] = [info.info[i].id]
+                                            }
+                                        }
+                                    }
+                                }
+                            }
             
                             if (clusterRequests[wrapMapID].includes(parseInt(info.id))) {
-                                for (let i=0;i<info.info.length;i++) {
-                                    newcluster = info.info[i];
+                                for (let i=0;i<new_clusters.length;i++) {
+                                    newcluster = new_clusters[i]
 
                                     if((newcluster.id == '-101') && (document.getElementById('btnSendToBack')==null)){
                                         idIndiv101 = true
@@ -419,7 +504,7 @@ function loadNewCluster(mapID = 'map1') {
                                         
                                         if (knockedTG==null && maskedTG==null) {
                                             if (true) { //(!clusterIdList.includes(newcluster.id))||(newcluster.id=='-101')
-                                                clusterIdList.push(newcluster.id)
+                                                clusterIdList.push(...new_cluster_ids[newcluster.id])
     
                                                 if ((clusters[wrapMapID].length>0)&&(clusters[wrapMapID][clusters[wrapMapID].length-1].id=='-101')&&(clusterIndex[wrapMapID] < clusters[wrapMapID].length-1)) {
                                                     clusters[wrapMapID].splice(clusters[wrapMapID].length-1, 0, newcluster)

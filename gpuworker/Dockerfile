@@ -37,27 +37,27 @@ RUN gdown https://drive.google.com/uc?id=1MQGyyf1MQjETRG_CRBMEfrV0IFiis_ZQ
 RUN unzip -p ScarceNet_final_models.zip ScarceNet_final_models/output_part25_updatev2/model_best.pth > model_best.pth
 RUN rm ScarceNet_final_models.zip
 RUN pip install \
-    celery\
+    celery==5.4.0\
     -e git+https://github.com/facebookresearch/segment-anything.git@6fdee8f2727f4506cfbbe553e23b895e27956588#egg=segment-anything\
-    humanfriendly\
-    jsonpickle\
+    humanfriendly==10.0\
+    jsonpickle==3.0.4\
     matplotlib==3.3.0\
-    Pillow\
-    requests\
-    redis\
-    tqdm\
+    Pillow==10.3.0\
+    requests==2.32.3\
+    redis==5.0.4\
+    tqdm==4.66.4\
     pandas==1.1.4\
-    progressbar2\
-    pylint\
+    progressbar2==4.4.2\
+    pylint==3.2.2\
     scikit-image==0.18.3\
     scikit-learn==1.0.1\
-    xlrd\
-    pillow-simd\
-    boto3\
-    opencv-python\
-    PyYAML\
+    xlrd==2.0.1\
+    pillow-simd==9.0.0.post1\
+    boto3==1.34.116\
+    opencv-python==4.9.0.80\
+    PyYAML==6.0.1\
     seaborn==0.9.0\
-    yacs\
+    yacs==0.1.8\
     numpy==1.19.3\
     wbia-pyflann==3.3.0\
     wbia-pyhesaff==3.0.2\

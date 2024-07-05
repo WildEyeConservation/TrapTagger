@@ -365,6 +365,7 @@ def create_task_dataframe(task_id,detection_count_levels,label_levels,url_levels
                 Detection.top.label('top'), \
                 Detection.bottom.label('bottom'), \
                 Detection.score.label('score'), \
+                Detection.flank.label('flank'), \
                 Cluster.notes.label('notes'), \
                 Cluster.id.label('cluster'), \
                 Label.description.label('label'), \
@@ -462,6 +463,7 @@ def create_task_dataframe(task_id,detection_count_levels,label_levels,url_levels
                         Detection.top.label('top'), \
                         Detection.bottom.label('bottom'), \
                         Detection.score.label('score'), \
+                        Detection.flank.label('flank'), \
                         Cluster.notes.label('notes'), \
                         Cluster.id.label('cluster'), \
                         Camera.path.label('file_path'), \
@@ -549,6 +551,9 @@ def create_task_dataframe(task_id,detection_count_levels,label_levels,url_levels
     # Create annotator 
     df['annotator'] = df.apply(lambda x: x.parent_username if x.parent_username else x.username, axis=1)
     df['annotator'] = df['annotator'].replace({'Admin': 'AI', 'None': 'AI', None: 'AI'})
+
+    # Replace flank with text & capitalize
+    df['flank'] = df['flank'].replace(Config.FLANK_TEXT).str.capitalize()
 
     #Add capture ID
     df.sort_values(by=['survey', 'trapgroup', 'camera', 'timestamp'], inplace=True, ascending=True)

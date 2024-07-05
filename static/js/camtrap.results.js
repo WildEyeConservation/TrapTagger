@@ -300,6 +300,7 @@ function generateResults(){
         document.getElementById('relativeAbundanceDiv').hidden = false
         document.getElementById('shapefileDiv').hidden = true
         document.getElementById('descriptionDiv').hidden = false
+        document.getElementById('flankDiv').hidden = true 
 
         analysisDescription.innerHTML = '<i>The summary analysis provides a summary or your dataset, diversity indices, species abundance and camera trap effort. </i>'
 
@@ -333,6 +334,7 @@ function generateResults(){
         document.getElementById('relativeAbundanceDiv').hidden = false
         document.getElementById('shapefileDiv').hidden = true
         document.getElementById('descriptionDiv').hidden = false
+        document.getElementById('flankDiv').hidden = true 
 
         analysisDescription.innerHTML = '<i>The naive activity analysis provides a count of your species per hour of the day. </i>'
 
@@ -363,6 +365,7 @@ function generateResults(){
         document.getElementById('relativeAbundanceDiv').hidden = false
         document.getElementById('shapefileDiv').hidden = true
         document.getElementById('descriptionDiv').hidden = false
+        document.getElementById('flankDiv').hidden = true 
 
         analysisDescription.innerHTML = '<i>The spatial analysis provides a heatmap of your species counts per site. </i>'
 
@@ -403,6 +406,7 @@ function generateResults(){
         document.getElementById('relativeAbundanceDiv').hidden = false
         document.getElementById('shapefileDiv').hidden = true
         document.getElementById('descriptionDiv').hidden = false
+        document.getElementById('flankDiv').hidden = true 
 
         analysisDescription.innerHTML = '<i> The numerical analysis provides the total count of your species or the count of your species per site. </i>'
 
@@ -434,6 +438,7 @@ function generateResults(){
         document.getElementById('relativeAbundanceDiv').hidden = false
         document.getElementById('shapefileDiv').hidden = true
         document.getElementById('descriptionDiv').hidden = false
+        document.getElementById('flankDiv').hidden = true 
 
         analysisDescription.innerHTML = '<i> The temporal analysis provides unit counts for your species as a function of time. </i>'
 
@@ -466,6 +471,7 @@ function generateResults(){
         document.getElementById('relativeAbundanceDiv').hidden = true
         document.getElementById('shapefileDiv').hidden = true
         document.getElementById('descriptionDiv').hidden = false
+        document.getElementById('flankDiv').hidden = true 
 
         analysisDescription.innerHTML = '<i> The activity pattern analysis provides a time-of-day activity pattern for your selected species using kernel density functions.</i>'
 
@@ -500,6 +506,7 @@ function generateResults(){
         document.getElementById('relativeAbundanceDiv').hidden = true
         document.getElementById('shapefileDiv').hidden = true
         document.getElementById('descriptionDiv').hidden = false
+        document.getElementById('flankDiv').hidden = true 
 
         analysisDescription.innerHTML = '<i> The occupancy analysis provides occupancy and detection probabilities for your selected species for your areas of interest. </i>'
 
@@ -543,6 +550,7 @@ function generateResults(){
         document.getElementById('relativeAbundanceDiv').hidden = true
         document.getElementById('shapefileDiv').hidden = false
         document.getElementById('descriptionDiv').hidden = false
+        document.getElementById('flankDiv').hidden = false
 
         analysisDescription.innerHTML = '<i> The spatial capture-recapture analysis provides population estimates for your species using capture mark recapture principles. </i>'
 
@@ -583,6 +591,7 @@ function generateResults(){
         document.getElementById('relativeAbundanceDiv').hidden = true
         document.getElementById('shapefileDiv').hidden = true
         document.getElementById('descriptionDiv').hidden = true
+        document.getElementById('flankDiv').hidden = true 
 
         analysisDescription.innerHTML = ''
 
@@ -753,6 +762,7 @@ function disablePanel(){
         document.getElementById('shxfileInput').disabled = true
         document.getElementById('rbDrawPoly').disabled = true
         document.getElementById('rbUploadShp').disabled = true
+        document.getElementById('flankSelector').disabled = true
     }
 
 }
@@ -914,6 +924,7 @@ function enablePanel(){
         document.getElementById('shxfileInput').disabled = false
         document.getElementById('rbDrawPoly').disabled = false
         document.getElementById('rbUploadShp').disabled = false
+        document.getElementById('flankSelector').disabled = false
     }
     else{
         document.getElementById('cameraSelector').disabled = false;
@@ -967,6 +978,7 @@ function enablePanel(){
         document.getElementById('rbDrawPoly').disabled = false
         document.getElementById('rbUploadShp').disabled = false
         document.getElementById('normaliseBySiteEffort').disabled = false
+        document.getElementById('flankSelector').disabled = false
     }
 }
 
@@ -4055,6 +4067,7 @@ function clearResults(){
         document.getElementById('shapefileDiv').hidden = true
         document.getElementById('descriptionDiv').hidden = true
         document.getElementById('analysisDescription').innerHTML = ''
+        document.getElementById('flankDiv').hidden = true 
 
         getLabelsSitesTagsAndGroups()
         enablePanel()
@@ -7878,6 +7891,7 @@ function updateSCR(check=false){
         var endDate = document.getElementById('endDate').value
         var observationWindow = document.getElementById('observationWindow').value
         var indivCharSelect = document.getElementById('indivCharSelector').value
+        var flank = document.getElementById('flankSelector').value
 
         if (indivCharSelect != '-1'){
             var tags = [document.getElementById('maleSelector').value, document.getElementById('femaleSelector').value]
@@ -7902,6 +7916,7 @@ function updateSCR(check=false){
         formData.append('covOptions', JSON.stringify(globalCovariateOptions));
         formData.append('csv', JSON.stringify('0'));
         formData.append('groups', JSON.stringify(groups));
+        formData.append('flank', JSON.stringify(flank));
 
         if(startDate != ''){
             startDate = startDate + ' 00:00:00'
@@ -7994,7 +8009,12 @@ function updateSCR(check=false){
 
                     globalSCRResults = results
 
-                    buildSCRtabs(results)
+                    if (Object.keys(results).length == 0){
+                        document.getElementById('statisticsErrors').innerHTML = 'No results were generated for the selected analysis options. Please ensure that your selected analysis options are valid and try again.'
+                    }
+                    else{
+                        buildSCRtabs(results)
+                    }
                 }
                 else if(reply.status == 'FAILURE'){
                     clearTimeout(timeout)
@@ -9902,6 +9922,7 @@ function getSCRcsv(check=false){
         var endDate = document.getElementById('endDate').value
         var observationWindow = document.getElementById('observationWindow').value
         var indivCharSelect = document.getElementById('indivCharSelector').value
+        var flank = document.getElementById('flankSelector').value
 
         if (indivCharSelect != '-1'){
             var tags = [document.getElementById('maleSelector').value, document.getElementById('femaleSelector').value]
@@ -9926,6 +9947,7 @@ function getSCRcsv(check=false){
         formData.append('covOptions', JSON.stringify(globalCovariateOptions));
         formData.append('csv', JSON.stringify('1'));
         formData.append('groups', JSON.stringify(groups));
+        formData.append('flank', JSON.stringify(flank));
 
         if(startDate != ''){
             startDate = startDate + ' 00:00:00'
@@ -9951,9 +9973,14 @@ function getSCRcsv(check=false){
                 resultsFolder = reply.folder
                 if(reply.status == 'SUCCESS'){
                     clearTimeout(timeout)
-                    csv_urls = reply.results
-                    downloadCSV(csv_urls)      
-                    document.getElementById('rErrors').innerHTML = ''
+                    if ((Array.isArray(reply.results) && reply.results.length == 0) || (!Array.isArray(reply.results) && Object.keys(reply.results).length == 0)){
+                        document.getElementById('rErrors').innerHTML = 'No results were generated for the selected analysis options. Please ensure that your selected analysis options are valid and try again.'
+                    }
+                    else{
+                        csv_urls = reply.results
+                        downloadCSV(csv_urls)      
+                        document.getElementById('rErrors').innerHTML = ''
+                    }
                     enablePanel()
                 }
                 else if(reply.status == 'FAILURE'){

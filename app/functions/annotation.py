@@ -209,11 +209,15 @@ def launch_task(self,task_id):
                                             .distinct().all()]
                 
                 quantiles = {}
-                for n in desired_quantiles:
-                    if n == 0:
-                        quantiles[n] = 0
-                    else:
-                        quantiles[n] = math.trunc(numpy.quantile(scores,n/100) * 100) / 100 # Truncate to 2 decimal places
+                if scores:
+                    for n in desired_quantiles:
+                        if n == 0:
+                            quantiles[n] = 0
+                        else:
+                            quantiles[n] = math.trunc(numpy.quantile(scores,n/100) * 100) / 100 # Truncate to 2 decimal places
+                else:
+                    desired_quantiles = [0]
+                    quantiles = {0:0}
 
                 GLOBALS.redisClient.set('quantiles_'+str(task_id),str(quantiles))
                 
@@ -249,6 +253,7 @@ def launch_task(self,task_id):
             if cluster_count == 0:
                 # Release task if the are no clusters to annotate
                 updateAllStatuses(task_id=task_id, celeryTask=False)
+                GLOBALS.redisClient.delete('quantiles_'+str(task_id))
                 task = db.session.query(Task).get(task_id)
                 task.status = 'SUCCESS'
                 task.survey.status = 'Ready'

@@ -50,6 +50,7 @@ var drawnItems = null
 var jobTimer
 var modalDeleteActive = false
 var legalDelete = false
+// var changed_flanks = {}
 
 function getIndividuals(page = null) {
     /** Gets a page of individuals. Gets the first page if none is specified. */
@@ -839,6 +840,7 @@ function cleanModalIndividual() {
     mapStats = null
     minDate = null
     maxDate = null
+    // changed_flanks = {}
 
     document.getElementById('tgInfo').innerHTML = 'Site: '
     document.getElementById('timeInfo').innerHTML = ''
@@ -1632,6 +1634,8 @@ document.getElementById('btnSubmitInfoChange').addEventListener('click', functio
     if(currentNote != document.getElementById('idNotes').value){
         submitIndividualNotes()
     }
+
+    // submitFlanks()
 });
 
 $('.modal').on("hidden.bs.modal", function (e) { 
@@ -2451,6 +2455,34 @@ modalIndividualsError.on('hidden.bs.modal', function(){
     }
 });
 
+// function submitFlanks(){
+//     /** Submits the flanks for the individual's detections. */
+
+//     var formData = new FormData()
+//     formData.append("individual_id", JSON.stringify(selectedIndividual))
+//     formData.append("flanks", JSON.stringify(changed_flanks))	
+
+//     var xhttp = new XMLHttpRequest();
+//     xhttp.onreadystatechange =
+//     function(){
+//         if (this.readyState == 4 && this.status == 200) {
+//             reply = JSON.parse(this.responseText);  
+//             if (reply.status=='success') {
+//                 for (let i=0;i<individualImages.length;i++) {
+//                     detection_id = individualImages[i].detections[0].id
+//                     if (changed_flanks[detection_id] != undefined) {
+//                         individualImages[i].detections[0].flank = changed_flanks[detection_id]
+//                         delete changed_flanks[detection_id]
+//                     }
+//                 }
+//             }
+//         }
+//     }
+//     xhttp.open("POST", '/submitIndividualFlanks');
+//     xhttp.send(formData);
+
+// }
+
 function onload(){
     /**Function for initialising the page on load.*/
     addSurvey()
@@ -2459,6 +2491,13 @@ function onload(){
     getTasks()
 
 }
+
+// document.onclick = function () {
+//     /** Hides the context menu when clicking outside of it. */
+//     if (map && map.contextmenu.isVisible()) {
+//         map.contextmenu.hide()
+//     }
+// }
 
 window.addEventListener('load', onload, false);
 

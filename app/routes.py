@@ -770,7 +770,8 @@ def getIndividual(individual_id):
                                     'top': detection.top,
                                     'left': detection.left,
                                     'right': detection.right,
-                                    'bottom': detection.bottom
+                                    'bottom': detection.bottom,
+                                    'flank': Config.FLANK_TEXT[detection.flank].capitalize()
                                 }
                             ]
                         })
@@ -5677,10 +5678,11 @@ def submitIndividuals():
                         if int(translations[childID]) != unidentifiable.id:
                             individual.children.append(db.session.query(Individual).get(int(translations[childID])))
 
-            cluster = db.session.query(Cluster).join(Image,Cluster.images).join(Detection).filter(Cluster.task_id==task_id).filter(Detection.id==individuals[individualID]['detections'][0]).first()
-            cluster.user_id = current_user.id
-            cluster.timestamp = datetime.utcnow()
-            cluster.examined = True
+            clusters = db.session.query(Cluster).join(Image,Cluster.images).join(Detection).filter(Cluster.task_id==task_id).filter(Detection.id.in_(individuals[individualID]['detections'])).distinct().all()
+            for cluster in clusters:
+                cluster.user_id = current_user.id
+                cluster.timestamp = datetime.utcnow()
+                cluster.examined = True
             db.session.commit()
 
             num2 = task.size
@@ -10692,6 +10694,12 @@ def getSpatialCaptureRecapture():
         else:
             polygonGeoJSON = None
 
+        if 'flank' in request.form:
+            flank = ast.literal_eval(request.form['flank'])
+            if flank in Config.FLANK_DB.keys(): flank = Config.FLANK_DB[flank]
+        else:
+            flank = None
+
         folder = None
 
         if Config.DEBUGGING: app.logger.info('SCR data requested for tasks:{} species:{} trapgroups:{} groups:{} window:{} tags:{} siteCovs:{} covOptions:{} startDate:{} endDate:{} csv:{}'.format(task_ids,species,trapgroups,groups,window,tags,siteCovs,covOptions,startDate,endDate,csv))
@@ -10752,7 +10760,24 @@ def getSpatialCaptureRecapture():
                     else:
                         shxfile = None
 
-                    result = calculate_spatial_capture_recapture.apply_async(queue='statistics', kwargs={'task_ids': task_ids, 'species': species,'trapgroups': trapgroups, 'groups': groups, 'startDate': startDate, 'endDate': endDate, 'window': window, 'tags': tags, 'siteCovs': siteCovs, 'covOptions': covOptions,'user_id': user_id, 'folder': folder, 'bucket': bucket, 'csv': csv, 'shapefile': shapefile, 'polygonGeoJSON': polygonGeoJSON, 'shxfile': shxfile})
+                    result = calculate_spatial_capture_recapture.apply_async(kwargs={'task_ids': task_ids, 
+                                                                                    'species': species,
+                                                                                    'trapgroups': trapgroups, 
+                                                                                    'groups': groups, 
+                                                                                    'startDate': startDate, 
+                                                                                    'endDate': endDate, 
+                                                                                    'window': window, 
+                                                                                    'tags': tags, 
+                                                                                    'siteCovs': siteCovs, 
+                                                                                    'covOptions': covOptions,
+                                                                                    'user_id': user_id, 
+                                                                                    'folder': folder, 
+                                                                                    'bucket': bucket, 
+                                                                                    'csv': csv, 
+                                                                                    'shapefile': shapefile, 
+                                                                                    'polygonGeoJSON': polygonGeoJSON, 
+                                                                                    'shxfile': shxfile,
+                                                                                    'flank': flank}, queue='statistics')
                     GLOBALS.redisClient.set('analysis_' + str(user_id), result.id)
                     status = 'PENDING'
         else:
@@ -10764,6 +10789,9 @@ def getSpatialCaptureRecapture():
                     celery_result = result.result
                     if celery_result['status'] == 'SUCCESS':
                         scr_results = celery_result['scr_results']
+                        if isinstance(scr_results, dict) and 'summary' in scr_results.keys():
+                            if 'Flank' in scr_results['summary'][0].keys() and scr_results['summary'][0]['Flank'] != 'All':
+                                scr_results['summary'][0]['Flank'] = Config.FLANK_TEXT[scr_results['summary'][0]['Flank']].capitalize()
                         result.forget()
                         GLOBALS.redisClient.delete('analysis_' + str(current_user.id))
                         clean_up_R_results.apply_async(kwargs={'R_type': R_type, 'folder': folder, 'user_name': current_user.username})
@@ -13448,3 +13476,27 @@ def getMatchingKpts(det_id1,det_id2):
                 }
 
     return json.dumps({'results': results})
+
+
+# NOTE: We are currenlty not allowing the users to edit a detection flank on the Individuals page and it can only be edited 
+#     in a Cluster ID (-4 task). The reason we have disallowed this is because of having to recalculate all detection similarities 
+#     and individual similaties associated with the detection whose flank has changed. 
+
+# @app.route('/submitIndividualFlanks', methods=['POST'])
+# @login_required
+# def submitIndividualFlanks():
+#     ''' Edit the flanks of the specified individual's detections. '''
+#     status = 'error'
+#     individual_id = ast.literal_eval(request.form['individual_id'])
+#     flanks = ast.literal_eval(request.form['flanks'])
+#     individual = db.session.query(Individual).get(individual_id)
+#     if flanks:
+#         if individual and all(checkSurveyPermission(current_user.id,task.survey_id,'write') for task in individual.tasks):
+#             detection_ids = list(flanks.keys())
+#             detections = db.session.query(Detection).filter(Detection.id.in_(detection_ids)).all()
+#             for detection in detections:
+#                 detection.flank = Config.FLANK_DB[flanks[str(detection.id)].lower()]
+#             db.session.commit()
+#             status = 'success'
+
+#     return json.dumps({'status': status}) 

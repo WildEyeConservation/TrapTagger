@@ -550,7 +550,7 @@ class Config(object):
 
     # csv options
     CSV_INFO = {
-        '0':{'name': 'Sighting', 'columns': ['ID','Boxes','Labels','Individuals']},
+        '0':{'name': 'Sighting', 'columns': ['ID','Boxes','Labels','Individuals', 'Flank']},
         '1':{'name': 'Image', 'columns': ['Name', 'ID', 'Species Count', 'Labels', 'Sighting Count', 'Tags', 'Timestamp', 'URL', 'Individuals', 'Original Timestamp', 'Video Path']},
         '2':{'name': 'Capture', 'columns': ['Number', 'ID', 'Species Count', 'Labels', 'Sighting Count', 'Tags', 'Timestamp', 'Image Count', 'URL', 'Individuals']},
         '3':{'name': 'Cluster', 'columns': ['ID', 'Species Count', 'Labels', 'Sighting Count', 'Tags', 'Timestamp', 'Notes', 'Image Count', 'URL', 'Individuals', 'Annotator']},
