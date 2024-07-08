@@ -198,14 +198,21 @@ def launch_task(self,task_id):
 
                 # Define quantile thresholds
                 desired_quantiles = Config.ID_QUANTILES
+                OtherIndividual = alias(Individual)
                 scores = [r[0] for r in db.session.query(IndSimilarity.score)\
                                             .join(Individual,Individual.id==IndSimilarity.individual_1)\
                                             .join(Task,Individual.tasks)\
+                                            .join(OtherIndividual,IndSimilarity.individual_2==OtherIndividual.c.id)\
+                                            .join(individualTasks,individualTasks.c.individual_id==OtherIndividual.c.id)\
                                             .filter(Task.id.in_(task_ids))\
+                                            .filter(individualTasks.c.task_id.in_(task_ids))\
                                             .filter(Individual.species==species)\
+                                            .filter(OtherIndividual.c.species==species)\
                                             .filter(IndSimilarity.score>=0)\
                                             .filter(Individual.active==True)\
+                                            .filter(OtherIndividual.c.active==True)\
                                             .filter(Individual.name!='unidentifiable')\
+                                            .filter(OtherIndividual.c.name!='unidentifiable')\
                                             .distinct().all()]
                 
                 quantiles = {}
@@ -233,9 +240,13 @@ def launch_task(self,task_id):
                 skips = db.session.query(IndSimilarity)\
                                 .join(Individual, IndSimilarity.individual_1==Individual.id)\
                                 .join(Task,Individual.tasks)\
+                                .join(OtherIndividual,IndSimilarity.individual_2==OtherIndividual.c.id)\
+                                .join(individualTasks,individualTasks.c.individual_id==OtherIndividual.c.id)\
                                 .filter(Task.id.in_(task_ids))\
                                 .filter(Individual.species==species)\
                                 .filter(IndSimilarity.skipped==True)\
+                                .filter(individualTasks.c.task_id.in_(task_ids))\
+                                .filter(OtherIndividual.c.species==species)\
                                 .distinct().all()
                 
                 for skip in skips:
@@ -599,16 +610,20 @@ def manage_task(task_id):
         tL = re.split(',',taggingLevel)
         species = tL[1]
         OtherIndividual = alias(Individual)
+        OtherIndividualTasks = alias(individualTasks)
 
         sq1 = session.query(Individual.id.label('indID1'))\
                         .join(Task,Individual.tasks)\
                         .join(IndSimilarity,IndSimilarity.individual_1==Individual.id)\
                         .join(OtherIndividual,OtherIndividual.c.id==IndSimilarity.individual_2)\
+                        .join(OtherIndividualTasks,OtherIndividualTasks.c.individual_id==OtherIndividual.c.id)\
                         .filter(OtherIndividual.c.active==True)\
                         .filter(OtherIndividual.c.name!='unidentifiable')\
+                        .filter(OtherIndividual.c.species==species)\
                         .filter(IndSimilarity.score>=tL[2])\
                         .filter(IndSimilarity.skipped==False)\
                         .filter(Task.id.in_(task_ids))\
+                        .filter(OtherIndividualTasks.c.task_id.in_(task_ids))\
                         .filter(Individual.species==species)\
                         .filter(Individual.active==True)\
                         .filter(Individual.name!='unidentifiable')\
@@ -619,11 +634,14 @@ def manage_task(task_id):
                         .join(Task,Individual.tasks)\
                         .join(IndSimilarity,IndSimilarity.individual_2==Individual.id)\
                         .join(OtherIndividual,OtherIndividual.c.id==IndSimilarity.individual_1)\
+                        .join(OtherIndividualTasks,OtherIndividualTasks.c.individual_id==OtherIndividual.c.id)\
                         .filter(OtherIndividual.c.active==True)\
                         .filter(OtherIndividual.c.name!='unidentifiable')\
+                        .filter(OtherIndividual.c.species==species)\
                         .filter(IndSimilarity.score>=tL[2])\
                         .filter(IndSimilarity.skipped==False)\
                         .filter(Task.id.in_(task_ids))\
+                        .filter(OtherIndividualTasks.c.task_id.in_(task_ids))\
                         .filter(Individual.species==species)\
                         .filter(Individual.active==True)\
                         .filter(Individual.name!='unidentifiable')\
@@ -661,9 +679,13 @@ def manage_task(task_id):
                     skips = session.query(IndSimilarity)\
                                     .join(Individual, IndSimilarity.individual_1==Individual.id)\
                                     .join(Task,Individual.tasks)\
+                                    .join(OtherIndividual,IndSimilarity.individual_2==OtherIndividual.c.id)\
+                                    .join(OtherIndividualTasks,OtherIndividualTasks.c.individual_id==OtherIndividual.c.id)\
                                     .filter(Task.id.in_(task_ids))\
                                     .filter(Individual.species==species)\
                                     .filter(IndSimilarity.skipped==True)\
+                                    .filter(OtherIndividualTasks.c.task_id.in_(task_ids))\
+                                    .filter(OtherIndividual.c.species==species)\
                                     .distinct().all()
                     
                     for skip in skips:
@@ -989,6 +1011,7 @@ def fetch_clusters(taggingLevel,task_id,isBounding,trapgroup_id,session,limit=No
         tL = re.split(',',taggingLevel)
         species = tL[1]
         OtherIndividual = alias(Individual)
+        OtherIndividualTasks = alias(individualTasks)
         individuals = []
 
         allocatedIndSims = [int(r.decode()) for r in GLOBALS.redisClient.smembers('active_indsims_'+str(task_id))]
@@ -998,8 +1021,11 @@ def fetch_clusters(taggingLevel,task_id,isBounding,trapgroup_id,session,limit=No
                         .join(Task,Individual.tasks)\
                         .join(IndSimilarity,IndSimilarity.individual_1==Individual.id)\
                         .join(OtherIndividual,OtherIndividual.c.id==IndSimilarity.individual_2)\
+                        .join(OtherIndividualTasks,OtherIndividualTasks.c.individual_id==OtherIndividual.c.id)\
                         .filter(OtherIndividual.c.active==True)\
                         .filter(OtherIndividual.c.name!='unidentifiable')\
+                        .filter(OtherIndividual.c.species==species)\
+                        .filter(OtherIndividualTasks.c.task_id.in_(task_ids))\
                         .filter(~IndSimilarity.id.in_(allocatedIndSims))\
                         .filter(IndSimilarity.score>=tL[2])\
                         .filter(IndSimilarity.skipped==False)\
@@ -1015,8 +1041,11 @@ def fetch_clusters(taggingLevel,task_id,isBounding,trapgroup_id,session,limit=No
                         .join(Task,Individual.tasks)\
                         .join(IndSimilarity,IndSimilarity.individual_2==Individual.id)\
                         .join(OtherIndividual,OtherIndividual.c.id==IndSimilarity.individual_1)\
+                        .join(OtherIndividualTasks,OtherIndividualTasks.c.individual_id==OtherIndividual.c.id)\
                         .filter(OtherIndividual.c.active==True)\
                         .filter(OtherIndividual.c.name!='unidentifiable')\
+                        .filter(OtherIndividual.c.species==species)\
+                        .filter(OtherIndividualTasks.c.task_id.in_(task_ids))\
                         .filter(~IndSimilarity.id.in_(allocatedIndSims))\
                         .filter(IndSimilarity.score>=tL[2])\
                         .filter(IndSimilarity.skipped==False)\

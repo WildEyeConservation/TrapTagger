@@ -85,6 +85,11 @@ print('All delete individuals (-4) completed.')
 print('Relaunching -4 tasks')
 for task in task_data:
     task_id = task[0]
+    task = db.session.query(Task).get(task_id)
+    tL = task.tagging_level.split(',')
+    tL[3] = 'm'
+    task.tagging_level = ','.join(tL)
+    db.session.commit()
     launch_task.apply_async(kwargs={'task_id':task_id})
 
 
