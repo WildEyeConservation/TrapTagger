@@ -1953,26 +1953,31 @@ def get_AWS_costs(startDate,endDate):
     
     costExplorer = boto3.client('ce')
     timePeriod = {'Start': startDate.strftime("%Y-%m-%d"), 'End': endDate.strftime("%Y-%m-%d")}
-    services = ['Amazon Elastic Compute Cloud - Compute','Amazon Simple Storage Service','Amazon Relational Database Service','Total']
-    filter = {
+    services = ['Amazon Elastic Compute Cloud - Compute', 'EC2 - Other', 'Amazon Simple Storage Service', 'Amazon Relational Database Service', 'Amazon Textract', 'Total']
+
+    region_filter = {
+        'Dimensions': {
+            'Key': 'REGION',
+            'Values': [Config.AWS_REGION]
+        }
+    }
+
+    service_filter = {
         'And': [
             {'Dimensions': {
                 'Key': 'SERVICE',
                 'Values': []
             }},
-            {'Dimensions': {
-                'Key': 'REGION',
-                'Values': [Config.AWS_REGION]
-            }}
+            region_filter
         ]
     }
 
     costs = {}
     for service in services:
-        
         if service=='Total':
-            filter = filter['And'][1]
+            filter = region_filter
         else:
+            filter = service_filter
             filter['And'][0]['Dimensions']['Values']=[service]
         
         costs[service] = round(float(costExplorer.get_cost_and_usage(
@@ -1981,6 +1986,13 @@ def get_AWS_costs(startDate,endDate):
             Filter = filter,
             Metrics=['UnblendedCost']
         )['ResultsByTime'][0]['Total']['UnblendedCost']['Amount'])*Config.VAT,2)
+
+
+    costs['Amazon Elastic Compute Cloud'] = round(costs['Amazon Elastic Compute Cloud - Compute'] + costs['EC2 - Other'],2)
+    del costs['Amazon Elastic Compute Cloud - Compute']
+    del costs['EC2 - Other']
+
+    costs['Other'] = round(costs['Total']-sum([value for key,value in costs.items() if key!='Total']),2)
 
     return costs
 
@@ -2081,9 +2093,11 @@ def updateStatistics(self):
                 statistic.image_count=image_count,
                 statistic.video_count=video_count,
                 statistic.frame_count=frame_count,
-                statistic.server_cost=costs['Amazon Elastic Compute Cloud - Compute'],
+                statistic.server_cost=costs['Amazon Elastic Compute Cloud'],
                 statistic.storage_cost=costs['Amazon Simple Storage Service'],
                 statistic.db_cost=costs['Amazon Relational Database Service'],
+                statistic.textract_cost=costs['Amazon Textract'],
+                statistic.other_cost=costs['Other'],
                 statistic.total_cost=costs['Total']
                 statistic.average_daily_logins = average_daily_logins
                 statistic.average_daily_admin_logins = average_daily_admin_logins

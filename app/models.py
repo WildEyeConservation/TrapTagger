@@ -494,6 +494,8 @@ class Statistic(db.Model):
     unique_monthly_logins = db.Column(db.Float, index=False)
     unique_monthly_admin_logins = db.Column(db.Float, index=False)
     unique_monthly_organisation_logins = db.Column(db.Float, index=False)
+    textract_cost = db.Column(db.Float, index=False)
+    other_cost = db.Column(db.Float, index=False)
 
     def __repr__(self):
         return '<Statistic for {}>'.format(self.timestamp)

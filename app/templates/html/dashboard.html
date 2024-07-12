@@ -203,6 +203,18 @@ limitations under the License. -->
                     <td style="font-size: 100%; padding-left: 3px; padding-right: 3px;">{{ db_estimate }}</td>
                   </tr>
                   <tr>
+                    <th scope="row">Textract</th>
+                    <td style="font-size: 100%; padding-left: 3px; padding-right: 3px;">{{ last_months_textract_cost }}</td>
+                    <td style="font-size: 100%; padding-left: 3px; padding-right: 3px;">{{ textract_cost_this_month }}</td>
+                    <td style="font-size: 100%; padding-left: 3px; padding-right: 3px;">{{ textract_estimate }}</td>
+                  </tr>
+                  <tr>
+                    <th scope="row">Other</th>
+                    <td style="font-size: 100%; padding-left: 3px; padding-right: 3px;">{{ last_months_other_cost }}</td>
+                    <td style="font-size: 100%; padding-left: 3px; padding-right: 3px;">{{ other_cost_this_month }}</td>
+                    <td style="font-size: 100%; padding-left: 3px; padding-right: 3px;">{{ other_estimate }}</td>
+                  </tr>
+                  <tr>
                     <th scope="row">Total</th>
                     <td style="font-size: 100%; padding-left: 3px; padding-right: 3px;">{{ last_months_total_cost }}</td>
                     <td style="font-size: 100%; padding-left: 3px; padding-right: 3px;">{{ total_cost_this_month }}</td>
@@ -231,6 +243,8 @@ limitations under the License. -->
                 <option value="server_cost">Monthly Server Cost</option>
                 <option value="storage_cost">Monthly Image-Storage Cost</option>
                 <option value="db_cost">Monthly Database Cost</option>
+                <option value="textract_cost">Monthly Textract Cost</option>
+                <option value="other_cost">Monthly Other Cost</option>
                 <option value="unique_daily_logins">Unique Daily Logins</option>
                 <option value="unique_daily_admin_logins">Unique Daily Admin Logins</option>
                 <option value="unique_daily_organisation_logins">Unique Daily Organisation Logins</option>
