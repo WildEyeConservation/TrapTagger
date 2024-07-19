@@ -32,7 +32,7 @@ ibs = None
 
 BASE = "/data"
 REDIS_IP = os.environ.get('REDIS_IP') or '127.0.0.1'
-app = Celery('megaDetector', broker='redis://'+REDIS_IP,backend='redis://'+REDIS_IP,broker_transport_options={'visibility_timeout': 86400},result_expires=86400,task_acks_late=True)
+app = Celery('megaDetector', broker='redis://'+REDIS_IP,backend='redis://'+REDIS_IP,broker_transport_options={'visibility_timeout': 604800},result_expires=604800,task_acks_late=True)
 workername="default"
 
 @celeryd_after_setup.connect

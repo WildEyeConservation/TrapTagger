@@ -16,8 +16,8 @@ limitations under the License.
 
 '''Cleans up the local worker by stopping its task consumption before re-queueing its active and reserved tasks.'''
 
-from worker import app as celery
-from config import Config
+from gpuworker.worker import app as celery
+from gpuworker.config import Config
 import importlib
 import re
 import sys
@@ -30,7 +30,7 @@ active_tasks.extend(inspector.active()[Config.WORKER_NAME])
 active_tasks.extend(inspector.reserved()[Config.WORKER_NAME])
 
 for active_task in active_tasks:
-    for function_location in ['worker']:
+    for function_location in ['gpuworker.worker']:
         if function_location in active_task['name']:
             module = importlib.import_module(function_location)
             function_name = re.split(function_location+'.',active_task['name'])[1]
