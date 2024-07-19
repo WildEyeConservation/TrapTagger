@@ -25,6 +25,9 @@ export SETUP_PERIOD=$4
 export IDLE_MULTIPLIER=$5
 export AWS_ACCESS_KEY_ID=$6
 export AWS_SECRET_ACCESS_KEY=$7
+export WBIA_DB_NAME=$8
+export WBIA_DB_SERVER=$9
+export WBIA_DIR=${10}
 
 printf \
 'REDIS_IP='$REDIS_IP'\n'\
@@ -32,10 +35,13 @@ printf \
 'SETUP_PERIOD='$SETUP_PERIOD'\n'\
 'IDLE_MULTIPLIER='$IDLE_MULTIPLIER'\n'\
 'AWS_ACCESS_KEY_ID='$AWS_ACCESS_KEY_ID'\n'\
-'AWS_SECRET_ACCESS_KEY='$AWS_SECRET_ACCESS_KEY'\n'
+'AWS_SECRET_ACCESS_KEY='$AWS_SECRET_ACCESS_KEY'\n'\
+'WBIA_DB_NAME='$WBIA_DB_NAME'\n'\
+'WBIA_DB_SERVER='$WBIA_DB_SERVER'\n'\
+'WBIA_DIR='$WBIA_DIR'\n'
 
 for ((i=0;$((i<$NUMGPUS));i++)) do
-  docker run -e AWS_ACCESS_KEY_ID -e AWS_SECRET_ACCESS_KEY -e REDIS_IP --hostname worker$i@$1 -e WORKER_NAME=$1 -e QUEUE -e WORKER_NUMBER=$i -e CUDA_VISIBLE_DEVICES=$i -v /home/ubuntu/TrapTagger/gpuworker:/code/gpuworker -v /home/ubuntu/TrapTagger/CameraTraps/detection:/code/CameraTraps/detection -v /home/ubuntu/TrapTagger/CameraTraps/data_management:/code/CameraTraps/data_management -v /home/ubuntu/TrapTagger/CameraTraps/visualization:/code/CameraTraps/visualization -v /home/ubuntu/TrapTagger/CameraTraps/ct_utils.py:/code/CameraTraps/ct_utils.py --gpus all --ipc=host --name gpuworker$i gpu_worker celery -A gpuworker.worker worker -Q $QUEUE -Ofair --concurrency=1 -l info > worker$i.log 2>&1 &
+  docker run -e AWS_ACCESS_KEY_ID -e AWS_SECRET_ACCESS_KEY -e REDIS_IP --hostname worker$i@$1 -e WORKER_NAME=$1 -e QUEUE -e WORKER_NUMBER=$i -e CUDA_VISIBLE_DEVICES=$i -e WBIA_DB_NAME -e WBIA_DB_SERVER -e WBIA_DIR -v /home/ubuntu/TrapTagger/gpuworker:/code/gpuworker -v /home/ubuntu/TrapTagger/CameraTraps/detection:/code/CameraTraps/detection -v /home/ubuntu/TrapTagger/CameraTraps/data_management:/code/CameraTraps/data_management -v /home/ubuntu/TrapTagger/CameraTraps/visualization:/code/CameraTraps/visualization -v /home/ubuntu/TrapTagger/CameraTraps/ct_utils.py:/code/CameraTraps/ct_utils.py -v /home/ubuntu/TrapTagger/gpuworker/init.py:/code/ScarceNet/lib/models/__init__.py -v /home/ubuntu/TrapTagger/wildbook-ia/wbia:/code/wbia --gpus all --ipc=host --name gpuworker$i gpu_worker celery -A gpuworker.worker worker -Q $QUEUE -Ofair --concurrency=1 -l info > worker$i.log 2>&1 &
   echo "Docker container launched!"
 done
 

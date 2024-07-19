@@ -49,6 +49,9 @@ export IAM_ADMIN_GROUP=${26}
 export PRIVATE_SUBNET_ID=${27}
 export AWS_S3_DOWNLOAD_ACCESS_KEY_ID=${28}
 export AWS_S3_DOWNLOAD_SECRET_ACCESS_KEY=${29}
+export WBIA_DB_NAME=${30}
+export WBIA_DB_SERVER=${31}
+export WBIA_DIR=${32}
 
 printf \
 'BASE_WORKER_NAME='$BASE_WORKER_NAME'\n'\
@@ -79,7 +82,10 @@ printf \
 'IAM_ADMIN_GROUP='$IAM_ADMIN_GROUP'\n'\
 'PRIVATE_SUBNET_ID='$PRIVATE_SUBNET_ID'\n'\
 'AWS_S3_DOWNLOAD_ACCESS_KEY_ID='$AWS_S3_DOWNLOAD_ACCESS_KEY_ID'\n'\
-'AWS_S3_DOWNLOAD_SECRET_ACCESS_KEY='$AWS_S3_DOWNLOAD_SECRET_ACCESS_KEY'\n'
+'AWS_S3_DOWNLOAD_SECRET_ACCESS_KEY='$AWS_S3_DOWNLOAD_SECRET_ACCESS_KEY'\n'\
+'WBIA_DB_NAME='$WBIA_DB_NAME'\n'\
+'WBIA_DB_SERVER='$WBIA_DB_SERVER'\n'\
+'WBIA_DIR='$WBIA_DIR'\n'
 
 num_procs=$(nproc)
 for (( i=1; i<=num_procs; i++ ))
@@ -115,9 +121,12 @@ do
     -e IAM_ADMIN_GROUP\
     -e AWS_S3_DOWNLOAD_ACCESS_KEY_ID\
     -e AWS_S3_DOWNLOAD_SECRET_ACCESS_KEY\
+    -e WBIA_DB_NAME\
+    -e WBIA_DB_SERVER\
+    -e WBIA_DIR\
     -v /home/ubuntu/TrapTagger:/code\
     -v /home/ubuntu/TrapTagger/wildbook-ia/wbia:/code/wbia\
-    --name traptagger$i traptagger:1.1.1\
+    --name traptagger$i traptagger:1.1.2\
     celery -A app.celery worker -E -n ${WORKER_NAME} -Q ${QUEUE} -Ofair --concurrency=${CONCURRENCY} --loglevel=info\
     > worker$i.log 2>&1 &
 done

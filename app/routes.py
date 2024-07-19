@@ -71,6 +71,21 @@ GLOBALS.s3UploadClient = boto3.client('s3',
 GLOBALS.redisClient = redis.Redis(host=Config.REDIS_IP, port=6379)
 GLOBALS.lock = Lock()
 
+# @app.before_first_request
+# def initialise_ibs():
+#     '''Initialises the IBS object, which is used to interact with the WBIA database.'''	
+#     if 'fileHandler' in request.url:
+#         return
+#     app.logger.info('Initialising IBS')
+#     if not GLOBALS.ibs:
+#         import warnings
+#         with warnings.catch_warnings():
+#             warnings.filterwarnings("ignore")
+#             from wbia import opendb
+#             GLOBALS.ibs = opendb(db=Config.WBIA_DB_NAME,dbdir=Config.WBIA_DIR, allow_newdir=True)
+#         app.logger.info('IBS initialised.')
+#     return
+
 @app.before_request
 def check_for_maintenance():
     '''Checks if site is in maintenance mode and returns a message accordingly.'''
@@ -173,22 +188,22 @@ def launchTask():
     if ('-4' in taggingLevel) or ('-5' in taggingLevel):
         species = re.split(',',taggingLevel)[1]
 
-        # Prevent individual ID for too many detections
-        detCount = db.session.query(Detection.id)\
-                            .join(Labelgroup)\
-                            .join(Task)\
-                            .join(Label,Labelgroup.labels)\
-                            .filter(Task.id.in_(task_ids))\
-                            .filter(Label.description==species)\
-                            .filter(or_(and_(Detection.source==model,Detection.score>Config.DETECTOR_THRESHOLDS[model]) for model in Config.DETECTOR_THRESHOLDS)) \
-                            .filter(Detection.static == False) \
-                            .filter(~Detection.status.in_(Config.DET_IGNORE_STATUSES))\
-                            .distinct().count()
+        # # Prevent individual ID for too many detections
+        # detCount = db.session.query(Detection.id)\
+        #                     .join(Labelgroup)\
+        #                     .join(Task)\
+        #                     .join(Label,Labelgroup.labels)\
+        #                     .filter(Task.id.in_(task_ids))\
+        #                     .filter(Label.description==species)\
+        #                     .filter(or_(and_(Detection.source==model,Detection.score>Config.DETECTOR_THRESHOLDS[model]) for model in Config.DETECTOR_THRESHOLDS)) \
+        #                     .filter(Detection.static == False) \
+        #                     .filter(~Detection.status.in_(Config.DET_IGNORE_STATUSES))\
+        #                     .distinct().count()
 
-        if detCount > 2000:
-            return json.dumps({'message':   'There are too many sightings/boxes for your selection, resulting in too many combinations for which similarities '+
-                                            'need to be calculated. For now, individual ID cannot be performed across more than 2000 sightings/boxes (2 million combinations). '+
-                                            'Please try again after future updates, or reduce the size of your dataset.', 'status': 'Error'})
+        # if detCount > 2000:
+        #     return json.dumps({'message':   'There are too many sightings/boxes for your selection, resulting in too many combinations for which similarities '+
+        #                                     'need to be calculated. For now, individual ID cannot be performed across more than 2000 sightings/boxes (2 million combinations). '+
+        #                                     'Please try again after future updates, or reduce the size of your dataset.', 'status': 'Error'})
 
         if '-5' in taggingLevel:
             # Prevent individual ID across fewer than 2 individuals
@@ -337,9 +352,9 @@ def launchTask():
         elif len(untranslated) == 0:
             if (len(task_ids) > 1) and ('-5' in taggingLevel):
                 tL = re.split(',',taggingLevel)
-                if tL[3]=='h':
+                if tL[4]=='h':
                     calculate_detection_similarities.delay(task_ids=task_ids,species=tL[1],algorithm='hotspotter')
-                elif tL[3]=='n':
+                elif tL[4]=='n':
                     calculate_detection_similarities.delay(task_ids=task_ids,species=tL[1],algorithm='none')
             else:
                 launch_task.apply_async(kwargs={'task_id':task.id})
@@ -645,7 +660,7 @@ def deleteIndividual(individual_id):
                                                 .filter(Individual.active==True)\
                                                 .all()]
 
-            calculate_individual_similarity.delay(individual1=newIndividual.id,individuals2=individuals)
+            calculate_individual_similarity.delay(individual1=newIndividual.id,individuals2=individuals,species=individual.species)
 
         allSimilarities = db.session.query(IndSimilarity).filter(or_(IndSimilarity.individual_1==individual.id,IndSimilarity.individual_2==individual.id)).distinct().all()
         for similarity in allSimilarities:
@@ -755,7 +770,8 @@ def getIndividual(individual_id):
                                     'top': detection.top,
                                     'left': detection.left,
                                     'right': detection.right,
-                                    'bottom': detection.bottom
+                                    'bottom': detection.bottom,
+                                    'flank': Config.FLANK_TEXT[detection.flank].capitalize()
                                 }
                             ]
                         })
@@ -2884,15 +2900,13 @@ def getDetailedTaskStatus(task_id):
                             reply['Individual ID']['Inter-Cluster'] = 'Incomplete'
                             reply['Individual ID']['Exhaustive'] = 'Incomplete'
                         else:
-                            count = label.icID_count
                             reply['Individual ID']['Cluster-Level'] = 'Complete'
-                            if count != 0:
+                            if not label.icID_q1_complete:
                                 reply['Individual ID']['Inter-Cluster'] = 'Incomplete'
                                 reply['Individual ID']['Exhaustive'] = 'Incomplete'
                             else:
                                 reply['Individual ID']['Inter-Cluster'] = 'Complete'
-                                count = checkForIdWork([task_id],label.description,0)
-                                if count !=0:
+                                if label.icID_count !=0:
                                     reply['Individual ID']['Exhaustive'] = 'Incomplete'
                                 else:
                                     reply['Individual ID']['Exhaustive'] = 'Complete'
@@ -3945,8 +3959,11 @@ def getJobs():
 
             # Get the task type and species-level
             if '-4' in item[1] or '-5' in item[1]:
-                task_type = 'Individual Identification'
+                task_type = 'Individual ID'
                 species = re.split(',',item[1])[1]
+                if '-5' in item[1]:
+                    quantile = re.split(',',item[1])[3]
+                    task_type+=' - top {}% quantile'.format(round(100-float(quantile)))
             elif '-3' in item[1]:
                 task_type = 'AI Species Check'
                 species = 'All'
@@ -4503,9 +4520,9 @@ def editTranslations(task_id):
             task_ids = [r.id for r in task.sub_tasks]
             task_ids.append(task.id)
             tL = re.split(',',task.tagging_level)
-            if tL[3]=='h':
+            if tL[4]=='h':
                 calculate_detection_similarities.delay(task_ids=[task_ids],species=tL[1],algorithm='hotspotter')
-            elif tL[3]=='n':
+            elif tL[4]=='n':
                 calculate_detection_similarities.delay(task_ids=[task_ids],species=tL[1],algorithm='none')
         else:
             launch_task.apply_async(kwargs={'task_id':task.id})
@@ -4959,8 +4976,8 @@ def dissociateDetection(detection_id):
                                                     .filter(Individual.id != newIndividual.id)\
                                                     .all()]
 
-        calculate_individual_similarity.delay(individual1=individual.id,individuals2=individuals1)
-        calculate_individual_similarity.delay(individual1=newIndividual.id,individuals2=individuals2)
+        calculate_individual_similarity.delay(individual1=individual.id,individuals2=individuals1,species=individual.species)
+        calculate_individual_similarity.delay(individual1=newIndividual.id,individuals2=individuals2,species=individual.species)
 
         newIndSimilarity = IndSimilarity(individual_1=individual.id, individual_2=newIndividual.id, score=0)
         db.session.add(newIndSimilarity)
@@ -5351,7 +5368,8 @@ def getSuggestion(individual_id):
                                     'right': detection.right,
                                     'category': detection.category,
                                     'individual': '-1',
-                                    'static': detection.static}
+                                    'static': detection.static,
+                                    'flank': Config.FLANK_TEXT[detection.flank].capitalize()}
                                     for detection in image.detections if (
                                             (detection.score>Config.DETECTOR_THRESHOLDS[detection.source]) and 
                                             (detection.status not in Config.DET_IGNORE_STATUSES) and 
@@ -5446,19 +5464,19 @@ def getSuggestion(individual_id):
                                 else:
                                     if (detSimilarity != None) and (detSimilarity.score != None):
                                         iou_factor = 1
-                                        if detection1.image.camera==detection2.image.camera:
-                                            intersection_left = max(detection1.left,detection2.left)
-                                            intersection_right = min(detection1.right,detection2.right)
-                                            intersection_top = max(detection1.top,detection2.top)
-                                            intersection_bottom = min(detection1.bottom,detection2.bottom)
+                                        # if detection1.image.camera==detection2.image.camera:
+                                        #     intersection_left = max(detection1.left,detection2.left)
+                                        #     intersection_right = min(detection1.right,detection2.right)
+                                        #     intersection_top = max(detection1.top,detection2.top)
+                                        #     intersection_bottom = min(detection1.bottom,detection2.bottom)
             
-                                            if (intersection_right>intersection_left) and (intersection_bottom>intersection_top):
-                                                intersection_area = (intersection_right-intersection_left)*(intersection_bottom-intersection_top)
-                                                detection1_area = (detection1.right-detection1.left)*(detection1.bottom-detection1.top)
-                                                detection2_area = (detection2.right-detection2.left)*(detection2.bottom-detection2.top)
-                                                union_area = detection1_area + detection2_area - intersection_area
-                                                iou = intersection_area/union_area
-                                                iou_factor = iouWeight*((1-iou)**2)
+                                        #     if (intersection_right>intersection_left) and (intersection_bottom>intersection_top):
+                                        #         intersection_area = (intersection_right-intersection_left)*(intersection_bottom-intersection_top)
+                                        #         detection1_area = (detection1.right-detection1.left)*(detection1.bottom-detection1.top)
+                                        #         detection2_area = (detection2.right-detection2.left)*(detection2.bottom-detection2.top)
+                                        #         union_area = detection1_area + detection2_area - intersection_area
+                                        #         iou = intersection_area/union_area
+                                        #         iou_factor = iouWeight*((1-iou)**2)
 
                                         distance = coordinateDistance(detection1.image.camera.trapgroup.latitude, detection1.image.camera.trapgroup.longitude, detection2.image.camera.trapgroup.latitude, detection2.image.camera.trapgroup.longitude)
                                         
@@ -5660,10 +5678,11 @@ def submitIndividuals():
                         if int(translations[childID]) != unidentifiable.id:
                             individual.children.append(db.session.query(Individual).get(int(translations[childID])))
 
-            cluster = db.session.query(Cluster).join(Image,Cluster.images).join(Detection).filter(Cluster.task_id==task_id).filter(Detection.id==individuals[individualID]['detections'][0]).first()
-            cluster.user_id = current_user.id
-            cluster.timestamp = datetime.utcnow()
-            cluster.examined = True
+            clusters = db.session.query(Cluster).join(Image,Cluster.images).join(Detection).filter(Cluster.task_id==task_id).filter(Detection.id.in_(individuals[individualID]['detections'])).distinct().all()
+            for cluster in clusters:
+                cluster.user_id = current_user.id
+                cluster.timestamp = datetime.utcnow()
+                cluster.examined = True
             db.session.commit()
 
             num2 = task.size
@@ -7051,13 +7070,14 @@ def assignLabel(clusterID):
                     #         session.commit()
                     #         session.close()
 
+                    session.commit()
+
                     if explore:
                         individual_check = session.query(Individual.id).join(Detection, Individual.detections).join(Image).join(Cluster, Image.clusters).filter(Cluster.id==cluster.id).filter(Individual.tasks.contains(task)).first()
                         if individual_check:
                             individual_check = individual_check[0]
                             check_individual_detection_mismatch.apply_async(kwargs={'task_id':task_id,'cluster_id':cluster.id})
 
-                    session.commit()
                     session.close()
 
         else:
@@ -7106,6 +7126,7 @@ def getTaggingLevel():
     taggingLevel = task.tagging_level
 
     wrongStatus = 'false'
+    taggingAlgorithm = 'None'
     if (',' not in taggingLevel) and (int(taggingLevel) > 0):
         label = db.session.query(Label).get(int(taggingLevel))
         labelChildren = db.session.query(Label).filter(Label.parent==label).filter(Label.task==task).first()
@@ -7119,8 +7140,13 @@ def getTaggingLevel():
             wrongStatus = 'true'
     else:
         taggingLabel = 'None'
+        if ',' in taggingLevel and ('-4' in taggingLevel or '-5' in taggingLevel):
+            tL = taggingLevel.split(',')
+            species = tL[1]
+            label = db.session.query(Label).filter(Label.task_id==task.id).filter(Label.description==species).first()
+            taggingAlgorithm = label.algorithm
 
-    return json.dumps({'taggingLevel':taggingLevel, 'taggingLabel':taggingLabel, 'wrongStatus':wrongStatus})
+    return json.dumps({'taggingLevel':taggingLevel, 'taggingLabel':taggingLabel, 'wrongStatus':wrongStatus, 'taggingAlgorithm':taggingAlgorithm})
 
 @app.route('/initKeys')
 @login_required
@@ -8689,7 +8715,7 @@ def getActiveUserData():
                 'images':               format_count(image_count),
                 'videos':               format_count(video_count),
                 'frames':               format_count(frame_count),
-                'images_this_month':    format_count(frames_this_month),
+                'images_this_month':    format_count(images_this_month),
                 'images_last_month':    format_count(images_last_month),
                 'videos_this_month':    format_count(videos_this_month),
                 'videos_last_month':    format_count(videos_last_month),
@@ -9247,7 +9273,7 @@ def check_download_available():
 @app.route('/getIndividualIDSurveysTasks', methods=['POST'])
 @login_required
 def getIndividualIDSurveysTasks():
-    '''Returns surveys and tasks available for individual ID for the specified species.'''
+    '''Returns surveys and tasks available for multi-survey individual ID for the specified species.'''
 
     species = request.form['species']
 
@@ -9255,7 +9281,7 @@ def getIndividualIDSurveysTasks():
                         .join(Task)\
                         .join(Label)\
                         .filter(Label.description==species)\
-                        .filter(Label.icID_count==0)\
+                        .filter(Label.icID_q1_complete==True)\
                         .filter(Label.icID_allowed==True)\
                         .filter(Task.status.in_(Config.TASK_READY_STATUSES))\
                         .filter(Survey.status.in_(Config.SURVEY_READY_STATUSES))\
@@ -9266,7 +9292,7 @@ def getIndividualIDSurveysTasks():
         tasks = db.session.query(Task)\
                         .join(Label)\
                         .filter(Label.description==species)\
-                        .filter(Label.icID_count==0)\
+                        .filter(Label.icID_q1_complete==True)\
                         .filter(Label.icID_allowed==True)\
                         .filter(Task.survey==survey)\
                         .filter(Task.status.in_(Config.TASK_READY_STATUSES))\
@@ -10666,6 +10692,12 @@ def getSpatialCaptureRecapture():
         else:
             polygonGeoJSON = None
 
+        if 'flank' in request.form:
+            flank = ast.literal_eval(request.form['flank'])
+            if flank in Config.FLANK_DB.keys(): flank = Config.FLANK_DB[flank]
+        else:
+            flank = None
+
         folder = None
 
         if Config.DEBUGGING: app.logger.info('SCR data requested for tasks:{} species:{} trapgroups:{} groups:{} window:{} tags:{} siteCovs:{} covOptions:{} startDate:{} endDate:{} csv:{}'.format(task_ids,species,trapgroups,groups,window,tags,siteCovs,covOptions,startDate,endDate,csv))
@@ -10726,7 +10758,24 @@ def getSpatialCaptureRecapture():
                     else:
                         shxfile = None
 
-                    result = calculate_spatial_capture_recapture.apply_async(queue='statistics', kwargs={'task_ids': task_ids, 'species': species,'trapgroups': trapgroups, 'groups': groups, 'startDate': startDate, 'endDate': endDate, 'window': window, 'tags': tags, 'siteCovs': siteCovs, 'covOptions': covOptions,'user_id': user_id, 'folder': folder, 'bucket': bucket, 'csv': csv, 'shapefile': shapefile, 'polygonGeoJSON': polygonGeoJSON, 'shxfile': shxfile})
+                    result = calculate_spatial_capture_recapture.apply_async(kwargs={'task_ids': task_ids, 
+                                                                                    'species': species,
+                                                                                    'trapgroups': trapgroups, 
+                                                                                    'groups': groups, 
+                                                                                    'startDate': startDate, 
+                                                                                    'endDate': endDate, 
+                                                                                    'window': window, 
+                                                                                    'tags': tags, 
+                                                                                    'siteCovs': siteCovs, 
+                                                                                    'covOptions': covOptions,
+                                                                                    'user_id': user_id, 
+                                                                                    'folder': folder, 
+                                                                                    'bucket': bucket, 
+                                                                                    'csv': csv, 
+                                                                                    'shapefile': shapefile, 
+                                                                                    'polygonGeoJSON': polygonGeoJSON, 
+                                                                                    'shxfile': shxfile,
+                                                                                    'flank': flank}, queue='statistics')
                     GLOBALS.redisClient.set('analysis_' + str(user_id), result.id)
                     status = 'PENDING'
         else:
@@ -10738,6 +10787,9 @@ def getSpatialCaptureRecapture():
                     celery_result = result.result
                     if celery_result['status'] == 'SUCCESS':
                         scr_results = celery_result['scr_results']
+                        if isinstance(scr_results, dict) and 'summary' in scr_results.keys():
+                            if 'Flank' in scr_results['summary'][0].keys() and scr_results['summary'][0]['Flank'] != 'All':
+                                scr_results['summary'][0]['Flank'] = Config.FLANK_TEXT[scr_results['summary'][0]['Flank']].capitalize()
                         result.forget()
                         GLOBALS.redisClient.delete('analysis_' + str(current_user.id))
                         clean_up_R_results.apply_async(kwargs={'R_type': R_type, 'folder': folder, 'user_name': current_user.username})
@@ -13325,3 +13377,124 @@ def getTimestampSitesCameraAndSpecies(survey_id):
             species.append(s[0])
 
     return json.dumps({'sites': sites, 'cameras':cameras, 'species':species})
+
+@app.route('/editDetectionFlank/<detection_id>/<flank>')
+@login_required
+def editDetectionFlank(detection_id,flank):
+    ''' Edits the flank of a detection '''
+
+    if (not current_user.admin) and (not GLOBALS.redisClient.sismember('active_jobs_'+str(current_user.turkcode[0].task_id),current_user.username)): return {'redirect': url_for('done')}, 278
+    
+    if Config.DEBUGGING: app.logger.info('Detection ID: {} Flank: {}'.format(detection_id, flank))
+
+    individual_id = request.args.get('individual_id', None)
+    if individual_id:
+        individual = db.session.query(Individual).get(individual_id)
+        task = db.session.query(Task).join(Individual,Task.individuals).filter(Task.sub_tasks.any()).filter(Individual.id==individual_id).distinct().first()
+        if not task: task = individual.tasks[0]
+    else:
+        task = current_user.turkcode[0].task
+
+    tasks = [r for r in task.sub_tasks]
+    tasks.append(task)
+
+    detection = db.session.query(Detection).get(detection_id)
+    if task and detection and (all(checkSurveyPermission(current_user.id,task.survey_id,'write') for task in tasks) or all(checkAnnotationPermission(current_user.parent_id,task.id) for task in tasks)):
+        if flank.lower() in Config.FLANK_DB.keys():
+            detection.flank = Config.FLANK_DB[flank.lower()]
+            db.session.commit()
+
+    return json.dumps('success')
+
+@app.route('/ibsHandler/getMatchingKpts/<det_id1>/<det_id2>')
+@login_required
+def getMatchingKpts(det_id1,det_id2):
+    ''' Gets the matching keypoints for two detections '''
+
+    if (not current_user.admin) and (not GLOBALS.redisClient.sismember('active_jobs_'+str(current_user.turkcode[0].task_id),current_user.username)): return {'redirect': url_for('done')}, 278
+
+    individual_id = request.args.get('individual_id', None)
+    if individual_id:
+        individual = db.session.query(Individual).get(individual_id)
+        task = db.session.query(Task).join(Individual,Task.individuals).filter(Task.sub_tasks.any()).filter(Individual.id==individual_id).distinct().first()
+        if not task: task = individual.tasks[0]
+    else:
+        task = current_user.turkcode[0].task
+
+    tasks = [r for r in task.sub_tasks]
+    tasks.append(task)
+
+    results = {
+        'kpts': {
+            det_id1: [],
+            det_id2: []
+        },
+        'scores': []
+    }
+    det1 = db.session.query(Detection).get(det_id1)
+    det2 = db.session.query(Detection).get(det_id2)
+
+    if Config.DEBUGGING: app.logger.info('Getting matching kpts for Detection 1: {} Detection 2: {}'.format(det_id1, det_id2))
+
+    if det1 and det2 and (all(checkSurveyPermission(current_user.id,task.survey_id,'read') for task in tasks) or all(checkAnnotationPermission(current_user.parent_id,task.id) for task in tasks)):
+        det1_aid = det1.aid
+        det2_aid = det2.aid
+        if det1_aid and det2_aid:
+            data = get_featurematches(det1_aid,det2_aid)
+            if data:
+                aid1 = data[0][0]
+                aid2 = data[0][1]
+                fm = data[0][2]
+                fs = data[0][3]
+
+                kpts1, kpts2 = GLOBALS.ibs.get_annot_kpts([aid1, aid2])
+                chip_size1, chip_size2 = GLOBALS.ibs.get_annot_chip_sizes([aid1, aid2])
+
+                kpts1_m = kpts1[fm.T[0]]
+                kpts2_m = kpts2[fm.T[1]]
+
+                if det1.aid == aid1:
+                    aid1_det = det1
+                    aid2_det = det2
+                else:
+                    aid1_det = det2
+                    aid2_det = det1
+
+                kpts_coords1 = calc_kpt_coords(kpts1_m,chip_size1,aid1_det)
+                kpts_coords2 = calc_kpt_coords(kpts2_m,chip_size2,aid2_det)
+
+                scores = fs.T[0]
+
+                results = {
+                    'kpts': {
+                        aid1_det.id: kpts_coords1,
+                        aid2_det.id: kpts_coords2
+                    },
+                    'scores': scores.tolist()
+                }
+
+    return json.dumps({'results': results})
+
+
+# NOTE: We are currenlty not allowing the users to edit a detection flank on the Individuals page and it can only be edited 
+#     in a Cluster ID (-4 task). The reason we have disallowed this is because of having to recalculate all detection similarities 
+#     and individual similaties associated with the detection whose flank has changed. 
+
+# @app.route('/submitIndividualFlanks', methods=['POST'])
+# @login_required
+# def submitIndividualFlanks():
+#     ''' Edit the flanks of the specified individual's detections. '''
+#     status = 'error'
+#     individual_id = ast.literal_eval(request.form['individual_id'])
+#     flanks = ast.literal_eval(request.form['flanks'])
+#     individual = db.session.query(Individual).get(individual_id)
+#     if flanks:
+#         if individual and all(checkSurveyPermission(current_user.id,task.survey_id,'write') for task in individual.tasks):
+#             detection_ids = list(flanks.keys())
+#             detections = db.session.query(Detection).filter(Detection.id.in_(detection_ids)).all()
+#             for detection in detections:
+#                 detection.flank = Config.FLANK_DB[flanks[str(detection.id)].lower()]
+#             db.session.commit()
+#             status = 'success'
+
+#     return json.dumps({'status': status}) 

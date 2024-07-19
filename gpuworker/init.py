@@ -14,14 +14,13 @@ See the License for the specific language governing permissions and
 limitations under the License.
 '''
 
-import os
+from __future__ import absolute_import
+from __future__ import division
+from __future__ import print_function
 
-class Config(object):
-    WORKER_NAME = 'celery@worker'+str(os.environ.get('WORKER_NUMBER'))+'@'+os.environ.get('WORKER_NAME')
-    QUEUE = os.environ.get('QUEUE')
+from __future__ import absolute_import
+from __future__ import division
+from __future__ import print_function
 
-    # WBIA Configs
-    WBIA_DB_NAME = os.environ.get('WBIA_DB_NAME')
-    WBIA_DB_SERVER = os.environ.get('WBIA_DB_SERVER')
-    WBIA_DB_URI = WBIA_DB_SERVER+"/"+WBIA_DB_NAME
-    WBIA_DIR = os.environ.get('WBIA_DIR')
+# import pose_hrnet
+# import pose_hrnet_part

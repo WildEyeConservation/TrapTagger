@@ -69,17 +69,52 @@ limitations under the License. -->
     <!-- Center column -->
     <div class="col-lg-2" style="text-align: center;">
         <br>
+        <div id="debugInfo" style="font-size: 12px;"></div>
         <br>
         <br>
-        <div id="debugInfo"></div>
+        <div id="distDelta" style="font-size:20px"></div>
         <br>
-        <br>
-        <br>
-        <br>
-        <div id="distDelta" style="font-size:30px"></div>
+        <div id="individualDistance" style="font-size:20px"></div>
         <br>
         <div id="timeDelta" style="font-size:20px"></div>
         <br>
+        <br>
+        <div id="heatmapDiv">
+            <div class="text-center">
+                <label for="cxFeaturesHeatmap">Matching Features Heatmap (H): </label>
+                <label class="switch">
+                    <input type="checkbox" id="cxFeaturesHeatmap"><span class="slider round"></span>
+                </label>
+            </div>
+            <div id="heatmapOptionsDiv" hidden>
+                <div class="row">
+                    <div class="col-lg-3" style="text-align: left">
+                        <label for="radiusInput" align="left">Radius:</label>
+                    </div>
+                    <div class="col-lg-7" align="center">
+                        <div class="justify-content-center">
+                            <input type="range" class="custom-range" id="radiusInput" min="1" max="100" value="15">
+                        </div>
+                    </div>
+                    <div class="col-lg-2" style="text-align: right">
+                        <label id="radiusInputSpan" align="right" style="font-size: 80%">15</label>
+                    </div>
+                </div>
+                <div class="row">
+                    <div class="col-lg-3" style="text-align: left">
+                        <label for="opacityInput" align="left">Opacity:</label>
+                    </div>
+                    <div class="col-lg-7" align="center">
+                        <div class="justify-content-center">
+                            <input type="range" class="custom-range" id="opacityInput" min="1" max="100" value="30">
+                        </div>
+                    </div>
+                    <div class="col-lg-2" style=" text-align: right">
+                        <label id="opacityInputSpan" align="right" style="font-size: 80%">30</label>
+                    </div>
+                </div>
+            </div>
+        </div>
         <button id="btnAcceptSuggestion" class="btn btn-primary btn-block" onclick=acceptSuggestion()>Accept Suggestion (Space)</button>
         <button id="btnRejectSuggestion" class="btn btn-primary btn-block" onclick=rejectSuggestion()>(R)eject Suggestion</button>
         <button id="btnSkipSuggestion" class="btn btn-primary btn-block" onclick=skipSuggestion()>(S)kip</button>
@@ -363,4 +398,9 @@ limitations under the License. -->
 <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet-contextmenu/1.4.0/leaflet.contextmenu.js"></script>
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@splidejs/splide@latest/dist/css/splide.min.css">
 <script src="https://cdn.jsdelivr.net/npm/@splidejs/splide@latest/dist/js/splide.min.js"></script>
+<!-- <script src="https://cdn.jsdelivr.net/npm/leaflet.heat@0.2.0/dist/leaflet-heat.min.js"></script> -->
+<!-- <script src="https://cdn.jsdelivr.net/npm/leaflet-webgl-heatmap@0.2.7/src/leaflet-webgl-heatmap.js"></script> -->
+<!-- <script src="https://cdn.jsdelivr.net/npm/leaflet-webgl-heatmap@0.2.7/src/webgl-heatmap/webgl-heatmap.js"></script> -->
+<script src="js/heatmap.min.js"></script>
+<script src="js/leaflet-heatmap.js"></script>
 {% endblock %}

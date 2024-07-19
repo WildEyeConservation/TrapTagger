@@ -229,6 +229,8 @@ class Detection(db.Model):
     class_score = db.Column(db.Float, index=True)
     labelgroups = db.relationship('Labelgroup', backref='detection', lazy=True)
     staticgroup_id = db.Column(db.Integer, db.ForeignKey('staticgroup.id'), index=True)
+    flank = db.Column(db.String(1), index=True) #left/right
+    aid = db.Column(db.Integer, index=True) # annotation id for wbia db 
 
     def __repr__(self):
         return '<Detection of class {} on image {}>'.format(self.category, self.image_id)
@@ -310,6 +312,8 @@ class Label(db.Model):
     sighting_count = db.Column(db.Integer, index=False)
     unidentified_count = db.Column(db.Integer, index=False)
     task_id = db.Column(db.Integer, db.ForeignKey('task.id'), index=True)
+    algorithm = db.Column(db.String(64), index=False) #hotspotter/heuristic (for Individual ID)
+    icID_q1_complete = db.Column(db.Boolean, default=False, index=False) # Individual ID first quantile complete
     children = db.relationship('Label', backref=db.backref('parent', remote_side=[id]), lazy=True)
     translations = db.relationship('Translation', backref='label', lazy=True)
     individuals = db.relationship('Individual', backref='label', lazy=True)

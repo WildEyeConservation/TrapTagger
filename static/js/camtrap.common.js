@@ -32,6 +32,7 @@ var isSearchNoteActive = false
 var notesOnly = false
 var taggingLevel = '-23'
 var taggingLabel = 'None'
+var taggingAlgorithm = 'None'
 var reachedEnd = false
 var emptyCount = 0
 var disableTime = 30000 //30 seconds
@@ -136,36 +137,54 @@ var globalMasks = {"map1": []}
 var maskMode = false
 var detectionGroups = {}
 
+// var colours = {
+//     'rgba(67,115,98,1)': false,
+//     //'rgba(89,228,170,1)': false,
+//     'rgba(61,105,121,1)': false,
+//     // 'rgba(57,159,113,1)': false,
+//     'rgba(102,172,157,1)': false,
+//     // 'rgba(20,48,55,1)': false,
+//     'rgba(35,108,144,1)': false,
+//     // 'rgba(104,38,137,1)': false,
+//     'rgba(88,63,124,1)': false,
+//     // 'rgba(78,46,176,1)': false,
+//     'rgba(182,92,88,1)': false,
+//     // 'rgba(149,88,63,1)': false,
+//     'rgba(225,158,139,1)': false,
+//     // 'rgba(214,131,97,1)': false,
+//     'rgba(222,156,183,1)': false,
+//     // 'rgba(202,90,156,1)': false,
+//     'rgba(215,61,113,1)': false,
+//     // 'rgba(150,90,115,1)': false,
+//     'rgba(229,177,54,1)': false,
+//     // 'rgba(157,110,35,1)': false,
+//     'rgba(220,173,105,1)': false,
+//     // 'rgba(143,115,79,1)': false,
+//     'rgba(223,138,46,1)': false,
+//     // 'rgba(220,191,155,1)': false,
+//     'rgba(203,218,69,1)': false,
+//     // 'rgba(85,159,58,1)': false,
+//     'rgba(111,129,54,1)': false,
+//     // 'rgba(117,223,84,1)': false,
+//     'rgba(189,218,138,1)': false
+// }
+
 var colours = {
-    'rgba(67,115,98,1)': false,
-    //'rgba(89,228,170,1)': false,
-    'rgba(97,167,152,1)': false,
-    // 'rgba(57,159,113,1)': false,
-    'rgba(35,108,144,1)': false,
-    // 'rgba(20,48,55,1)': false,
-    'rgba(61,105,121,1)': false,
-    // 'rgba(104,38,137,1)': false,
-    'rgba(88,63,124,1)': false,
-    // 'rgba(78,46,176,1)': false,
-    'rgba(182,92,88,1)': false,
-    // 'rgba(149,88,63,1)': false,
-    'rgba(225,158,139,1)': false,
-    // 'rgba(214,131,97,1)': false,
-    'rgba(222,156,183,1)': false,
-    // 'rgba(202,90,156,1)': false,
-    'rgba(215,61,113,1)': false,
-    // 'rgba(150,90,115,1)': false,
-    'rgba(229,177,54,1)': false,
-    // 'rgba(157,110,35,1)': false,
-    'rgba(220,173,105,1)': false,
-    // 'rgba(143,115,79,1)': false,
-    'rgba(223,138,46,1)': false,
-    // 'rgba(220,191,155,1)': false,
-    'rgba(203,218,69,1)': false,
-    // 'rgba(85,159,58,1)': false,
-    'rgba(111,129,54,1)': false,
-    // 'rgba(117,223,84,1)': false,
-    'rgba(189,218,138,1)': false
+    'rgba(70,120,100,1)': false,    // Slightly lighter green-blue
+    'rgba(38,113,150,1)': false,    // Slightly lighter blue
+    'rgba(100,170,155,1)': false,   // Slightly lighter teal
+    'rgba(64,110,125,1)': false,    // Slightly lighter grey-blue
+    'rgba(91,68,128,1)': false,     // Slightly lighter purple
+    'rgba(185,97,92,1)': false,     // Slightly lighter red
+    'rgba(230,163,143,1)': false,   // Slightly lighter peach
+    'rgba(225,161,187,1)': false,   // Slightly lighter pink
+    'rgba(218,66,118,1)': false,    // Slightly lighter magenta
+    'rgba(232,182,58,1)': false,    // Slightly lighter yellow
+    'rgba(223,178,108,1)': false,   // Slightly lighter light brown
+    'rgba(226,143,50,1)': false,    // Slightly lighter orange
+    'rgba(206,223,73,1)': false,    // Slightly lighter light green
+    'rgba(114,134,58,1)': false,    // Slightly lighter olive
+    'rgba(192,223,142,1)': false    // Slightly lighter pale green
 }
 
 function modifyToCompURL(url) {
@@ -273,8 +292,42 @@ function buildDetection(image,detection,mapID = 'map1',colour=null) {
             rect._tooltip.options.opacity = 0.8
             rect.openTooltip()
 
-        } else if ((document.getElementById('btnSendToBack')!=null)&&(detection.individual!='-1')) {
-            rect.bindTooltip(individuals[individualIndex][detection.individual].name,{permanent: true, direction:"center"})
+        } else if ((document.getElementById('btnSendToBack')!=null)&&(isIDing)) {
+            if (detection.individual!='-1') {
+                // rect.bindTooltip(individuals[individualIndex][detection.individual].name,{permanent: true, direction:"center"})
+                // var center = L.latLng([(rect._bounds._northEast.lat+rect._bounds._southWest.lat)/2,(rect._bounds._northEast.lng+rect._bounds._southWest.lng)/2])
+                // var bottom = L.latLng([rect._bounds._southWest.lat,(rect._bounds._northEast.lng+rect._bounds._southWest.lng)/2])
+                // var centerPoint = map[mapID].latLngToContainerPoint(center)
+                // var bottomPoint = map[mapID].latLngToContainerPoint(bottom)
+                // var offset = [0,centerPoint.y-bottomPoint.y]
+                // rect._tooltip.options.offset = offset
+                // rect._tooltip.options.opacity = 0.8
+                // rect.openTooltip()
+
+                var center = L.latLng([(rect._bounds._northEast.lat+rect._bounds._southWest.lat)/2,(rect._bounds._northEast.lng+rect._bounds._southWest.lng)/2])
+                var top = L.latLng([rect._bounds._northEast.lat,(rect._bounds._northEast.lng+rect._bounds._southWest.lng)/2])
+                var centerPoint = map[mapID].latLngToContainerPoint(center)
+                var topPoint = map[mapID].latLngToContainerPoint(top)
+                var offset = [0,topPoint.y-centerPoint.y]
+
+                // If the popup is too close to the top of the map, move it down
+                if (rect._bounds._northEast.lat >= map[mapID].getBounds().getNorth()-15) {
+                    offset = [0, 0]
+                }
+        
+                rect.bindPopup(individuals[individualIndex][detection.individual].name,{closeButton: false, autoClose: false, closeOnClick: false, autoPan: false, minWidth: 0})
+                rect._popup.options.offset = offset
+
+                rect.on('mouseover', function (e) {
+                    this.openPopup();
+                });
+                rect.on('mouseout', function (e) {
+                    this.closePopup();
+                });
+
+            }
+
+            rect.bindTooltip(detection.flank,{permanent: true, direction:"center"})
 
             var center = L.latLng([(rect._bounds._northEast.lat+rect._bounds._southWest.lat)/2,(rect._bounds._northEast.lng+rect._bounds._southWest.lng)/2])
             var bottom = L.latLng([rect._bounds._southWest.lat,(rect._bounds._northEast.lng+rect._bounds._southWest.lng)/2])
@@ -286,15 +339,38 @@ function buildDetection(image,detection,mapID = 'map1',colour=null) {
             rect._tooltip.options.opacity = 0.8
             rect.openTooltip()
         }
+        else if (isIDing && (document.getElementById('btnSendToBack')==null)) {
+            //Set the map view to fit detection bounds when viewing individual
+            fitBoundsInProcess[mapID] = true
+            map[mapID].fitBounds(rect.getBounds(), {padding: [10,10]});
+            // map[mapID].once('moveend', function(wrapMapID,wrapDetectionID) {
+            //     return function() {
+            //         if (fitBoundsInProcess[wrapMapID]) {
+            //             fitBoundsInProcess[wrapMapID] = false
+            //             detection_zoom[wrapMapID][wrapDetectionID] = map[mapID].getZoom()
+            //             updateKpts()
+            //         }
+            //     }
+            // }(mapID,detection.id));
+        }
 
         drawnItems[mapID].addLayer(rect)
-        if (isBounding||isIDing) {
+        if (isBounding) {
             if (!toolTipsOpen) {
                 rect.closeTooltip()
             }
             dbDetIds[mapID][rect._leaflet_id.toString()] = detection.id.toString()
         }
 
+        if (isIDing) {
+            if (!toolTipsOpen) {
+                rect.closeTooltip()
+            }
+            if (!popUpsOpen) {
+                rect.closePopup()
+            }
+            dbDetIds[mapID][rect._leaflet_id.toString()] = detection.id.toString()
+        }
 
         if (document.getElementById('btnSendBoundingBack')!=null){
             // Highlights and un-highlight when click on bounding box
@@ -411,7 +487,8 @@ function buildDetection(image,detection,mapID = 'map1',colour=null) {
                                 if (wrapIndividual != '-1') {
                                     wrapList = individuals[individualIndex][wrapIndividual].images
                                 } else {
-                                    wrapList = [wrapImageID]
+                                    // wrapList = [wrapImageID]
+                                    wrapList = []
                                 }
                                 
                                 for (let i=0;i<prevList.length;i++) {
@@ -421,7 +498,8 @@ function buildDetection(image,detection,mapID = 'map1',colour=null) {
                                 }
                             }
 
-                            if ((disallow)||(previousClick == null)||(previousClick.map==wrapMapID)||(previousClick.image==wrapImageID)||((previousClick.individual==wrapIndividual)&&(wrapIndividual!='-1'))) {
+                            // if ((disallow)||(previousClick == null)||(previousClick.map==wrapMapID)||(previousClick.image==wrapImageID)||((previousClick.individual==wrapIndividual)&&(wrapIndividual!='-1'))) {                            
+                            if ((disallow)||(previousClick == null)||(previousClick.map==wrapMapID)||((previousClick.individual==wrapIndividual)&&(wrapIndividual!='-1'))) {    
                                 if (previousClick != null) {
                                     if (previousClick.individual != '-1') {
                                         colour = individuals[individualIndex][previousClick.individual].colour
@@ -575,51 +653,51 @@ function buildDetection(image,detection,mapID = 'map1',colour=null) {
             rect.addEventListener('contextmenu', function(wrapMapID,wrapDetID,wrapImageID,wrapRect) {
                 return function() {
 
-                    alreadyAllocated = false
-                    for (let individualID in individuals[individualIndex]) {
-                        if (individuals[individualIndex][individualID].detections.includes(wrapDetID)) {
-                            alreadyAllocated = true
-                        }
-                    }
+                    // alreadyAllocated = false
+                    // for (let individualID in individuals[individualIndex]) {
+                    //     if (individuals[individualIndex][individualID].detections.includes(wrapDetID)) {
+                    //         alreadyAllocated = true
+                    //     }
+                    // }
 
-                    if (!alreadyAllocated) {
-                        if (individuals.length>0) {
-                            newSet = JSON.parse(JSON.stringify(individuals[individualIndex]))
-                        } else {
-                            newSet = {}
-                        }
-                        newID = 'n' + wrapDetID.toString()
-                        for (var colour in colours) {
-                            if (colours[colour]==false) {
-                                colours[colour] = true
-                                break
-                            }
-                        }
+                    // if (!alreadyAllocated) {
+                    //     if (individuals.length>0) {
+                    //         newSet = JSON.parse(JSON.stringify(individuals[individualIndex]))
+                    //     } else {
+                    //         newSet = {}
+                    //     }
+                    //     newID = 'n' + wrapDetID.toString()
+                    //     for (var colour in colours) {
+                    //         if (colours[colour]==false) {
+                    //             colours[colour] = true
+                    //             break
+                    //         }
+                    //     }
 
-                        detIdList = [wrapDetID]
-                        imIdList = [wrapImageID]
-                        newSet[newID] = {"colour": colour, "detections": detIdList, "images": imIdList, "children": [], "family": []}
-                        globalIndividual = newID
-                        individuals.push(newSet)
-                        individualIndex += 1
+                    //     detIdList = [wrapDetID]
+                    //     imIdList = [wrapImageID]
+                    //     newSet[newID] = {"colour": colour, "detections": detIdList, "images": imIdList, "children": [], "family": []}
+                    //     globalIndividual = newID
+                    //     individuals.push(newSet)
+                    //     individualIndex += 1
 
-                        if (globalTags==null) {
-                            var xhttp = new XMLHttpRequest();
-                            xhttp.onreadystatechange =
-                                function () {
-                                    if (this.readyState == 4 && this.status == 278) {
-                                        window.location.replace(JSON.parse(this.responseText)['redirect'])
-                                    } else if (this.readyState == 4 && this.status == 200) {
-                                        globalTags = JSON.parse(this.responseText);
-                                        prepIndividualModal()
-                                    }
-                                };
-                            xhttp.open("GET", '/prepNewIndividual');
-                            xhttp.send();
-                        } else {
-                            prepIndividualModal()
-                        }
-                    }
+                    //     if (globalTags==null) {
+                    //         var xhttp = new XMLHttpRequest();
+                    //         xhttp.onreadystatechange =
+                    //             function () {
+                    //                 if (this.readyState == 4 && this.status == 278) {
+                    //                     window.location.replace(JSON.parse(this.responseText)['redirect'])
+                    //                 } else if (this.readyState == 4 && this.status == 200) {
+                    //                     globalTags = JSON.parse(this.responseText);
+                    //                     prepIndividualModal()
+                    //                 }
+                    //             };
+                    //         xhttp.open("GET", '/prepNewIndividual');
+                    //         xhttp.send();
+                    //     } else {
+                    //         prepIndividualModal()
+                    //     }
+                    // }
                 }
             }(mapID,detection.id,image.id,rect));
 
@@ -635,7 +713,9 @@ function addDetections(mapID = 'map1') {
             addDetCnt = 1
         }
         image = currentImage[mapID]
-        map[mapID].setZoom(map[mapID].getMinZoom())
+        if(!isIDing || document.getElementById('btnSendToBack')!=null){
+            map[mapID].setZoom(map[mapID].getMinZoom())
+        }
         fullRes[mapID] = false
         drawnItems[mapID].clearLayers()
         for (let i=0;i<image.detections.length;i++) {
@@ -838,6 +918,7 @@ function updateCanvas(mapID = 'map1') {
                     timeDelta = document.getElementById('timeDelta')
                     distDelta = document.getElementById('distDelta')
                     debugInfo = document.getElementById('debugInfo')
+                    sameCluster = document.getElementById('sameCluster')
                     if ((debugInfo != null)&&(DEBUGGING)) {
                         image1 = clusters['map1'][clusterIndex['map1']].images[imageIndex['map1']].id
                         image2 = clusters['map2'][0].images[imageIndex['map2']].id
@@ -870,11 +951,9 @@ function updateCanvas(mapID = 'map1') {
                     }
                     if (sameCam != null) {
                         if (clusters['map1'][clusterIndex['map1']].images[imageIndex['map1']].camera==clusters['map2'][clusterIndex['map2']].images[imageIndex['map2']].camera) {
-                            sameCam.innerHTML = '&isin;'
-                            sameCam.setAttribute('style','color:green;font-size:60px')
+                            sameCam.setAttribute('style','color:green;font-size:40px')
                         } else {
-                            sameCam.innerHTML = '&notin;'
-                            sameCam.setAttribute('style','color:red;font-size:60px')
+                            sameCam.setAttribute('style','color:red;font-size:40px')
                         }
                     }
                     if (timeDelta != null) {
@@ -911,9 +990,26 @@ function updateCanvas(mapID = 'map1') {
                         lon2 = clusters['map2'][clusterIndex['map2']].images[imageIndex['map2']].longitude
                         distance = coordinateDistance(lat1,lon1,lat2,lon2)
                         if (distance<1) {
-                            distDelta.innerHTML = Math.floor(distance*1000).toString()+'m'
+                            distDelta.innerHTML = 'Image distance: '+Math.floor(distance*1000).toString()+'m'
                         } else {
-                            distDelta.innerHTML = distance.toFixed(3)+'km'
+                            distDelta.innerHTML = 'Image distance: '+distance.toFixed(3)+'km'
+                        }
+                    }
+                    if (sameCluster != null) {
+                        if (clusters['map1'][clusterIndex['map1']].images[imageIndex['map1']].cluster_id==clusters['map2'][clusterIndex['map2']].images[imageIndex['map2']].cluster_id) {
+                            sameCluster.setAttribute('style','color:green;font-size:40px')
+                        } else {
+                            sameCluster.setAttribute('style','color:red;font-size:40px')
+                        }
+                    }
+
+                    heatmapDiv = document.getElementById('heatmapDiv')
+                    if (heatmapDiv != null) {
+                        if (taggingAlgorithm == 'hotspotter') {
+                            heatmapDiv.hidden = false
+                        }
+                        else {
+                            heatmapDiv.hidden = true
                         }
                     }
                 }
@@ -1070,6 +1166,9 @@ function goToPrevCluster(mapID = 'map1') {
 
     imageIndex[mapID]=0
     clusterIndex[mapID] = clusterIndex[mapID] - 1
+    if (batchComplete && isTimestampCheck) {
+        imageIndex[mapID] = clusters[mapID][clusterIndex[mapID]].images.length-1   
+    }
     updateClusterLabels(mapID)
 
     if (isTagging && !isTutorial && (taggingLevel == '-1' || parseInt(taggingLevel) > 0)) {
@@ -1430,6 +1529,17 @@ function updateSlider(mapID = 'map1') {
             imgli.classList.add('splide__slide')
             imgli.appendChild(img)
             clusterPosition[mapID].appendChild(imgli)
+            if (document.getElementById('btnSendToBack') != null) {
+                // Create a divider between images from different clusters
+                if (i<clusters[mapID][clusterIndex[mapID]].images.length-1 && clusters[mapID][clusterIndex[mapID]].images[i].cluster_id != clusters[mapID][clusterIndex[mapID]].images[i+1].cluster_id) {
+                    divider = document.createElement('vl')
+                    divider.style.borderLeft = '2px solid #DF691A'
+                    divider.style.height = '128px'
+                    divider.style.marginRight = '5px'
+                    clusterPosition[mapID].appendChild(divider)
+                }
+            }
+
         }
     
         if (clusterPositionSplide[mapID]==null) {
@@ -1454,6 +1564,9 @@ function updateSlider(mapID = 'map1') {
                 return function() {
                     imageIndex[wrapMapID] = clusterPositionSplide[wrapMapID].index
                     update(wrapMapID)
+                    if (isIDing && (document.getElementById('btnSendToBack')==null)) {
+                        updateKpts()
+                    }
                 }
             }(mapID));
 
@@ -1464,13 +1577,16 @@ function updateSlider(mapID = 'map1') {
                     imageIndex[wrapMapID] = event.index
                     clusterPositionSplide[wrapMapID].go(imageIndex[wrapMapID])
                     update(wrapMapID)
+                    if (isIDing && (document.getElementById('btnSendToBack')==null)) {
+                        updateKpts()
+                    }
                 }
             }(mapID,track));
 
         } else {
             clusterPositionSplide[mapID].refresh()
         }
-        if (clusterIndex['map1']!=0) {
+        if (clusterIndex['map1']!=0 && document.getElementById('btnSendToBack')!=null) {
             clusterPositionSplide[mapID].go(0)
         }
     }
@@ -2131,6 +2247,7 @@ function fetchTaggingLevel() {
         } else if (this.readyState == 4 && this.status == 200) {
             taggingInfo = JSON.parse(this.responseText);
             taggingLevel = taggingInfo.taggingLevel
+            taggingAlgorithm = taggingInfo.taggingAlgorithm
 
             if (taggingInfo.wrongStatus=='true') {
                 wrongStatus = true
@@ -2426,6 +2543,10 @@ function prepMap(mapID = 'map1') {
                 
                         mapWidth[wrapMapID] = northEast.lng
                         mapHeight[wrapMapID] = southWest.lat
+
+                        map[wrapMapID].setMaxBounds(bounds);
+                        map[wrapMapID].fitBounds(bounds)
+                        map[wrapMapID].setMinZoom(map[wrapMapID].getZoom())
                 
                         activeImage[wrapMapID] = L.imageOverlay(imageUrl, bounds).addTo(map[wrapMapID]);
                         activeImage[wrapMapID].on('load', function(wrapWrapMapID) {
@@ -2433,9 +2554,6 @@ function prepMap(mapID = 'map1') {
                                 addDetections(wrapWrapMapID)
                             }
                         }(wrapMapID));
-                        map[wrapMapID].setMaxBounds(bounds);
-                        map[wrapMapID].fitBounds(bounds)
-                        map[wrapMapID].setMinZoom(map[wrapMapID].getZoom())
 
                         map[wrapMapID].on('resize', function(wrapWrapMapID){
                             return function () {
@@ -2452,13 +2570,20 @@ function prepMap(mapID = 'map1') {
                                 map[wrapWrapMapID].invalidateSize()
                                 map[wrapWrapMapID].setMaxBounds(bounds)
                                 map[wrapWrapMapID].fitBounds(bounds)
-                                map[wrapWrapMapID].setMinZoom(map[wrapWrapMapID].getZoom())
+                                map[wrapWrapMapID].setMinZoom(map[wrapWrapMapID].getMinZoom())
                                 activeImage[wrapWrapMapID].setBounds(bounds)
 
                                 var isImg = checkImage(activeImage[wrapWrapMapID]._url)
                                 if (isImg) {
                                     addedDetections[wrapWrapMapID] = false
                                     addDetections(wrapWrapMapID)    
+                                }
+                                if (isIDing && (document.getElementById('btnSendToBack')==null)) {
+                                    if (document.getElementById('cxFeaturesHeatmap').checked){
+                                        detID1 = clusters['map1'][clusterIndex['map1']].images[imageIndex['map1']].detections[0].id
+                                        detID2 = clusters['map2'][clusterIndex['map2']].images[imageIndex['map2']].detections[0].id
+                                        getMatchingKpts(detID1,detID2)
+                                    }
                                 }
                             }
                         }(wrapMapID));
@@ -2495,6 +2620,9 @@ function prepMap(mapID = 'map1') {
                         } else if (isIDing && (document.getElementById('btnSendToBack')==null)) {
                             setRectOptions()
                             IDMapPrep(wrapMapID)
+                        } else if (isIDing && (document.getElementById('btnSendToBack')!=null)) {
+                            setClusterIDRectOptions()
+                            clusterIDMapPrep(wrapMapID)
                         } else {
                             rectOptions = {
                                 color: "rgba(223,105,26,1)",
@@ -3573,6 +3701,17 @@ document.onclick = function (event){
                 map[mapID].contextmenu.hide()
             }
         }
+    } else if (isIDing && (document.getElementById('btnSendToBack')!=null)) {
+        for (let mapID in map) {
+            if (map[mapID].contextmenu.isVisible()) {
+                map[mapID].contextmenu.hide()
+            }
+
+            if (map[mapID]._popup!=undefined) {
+                map[mapID].closePopup()
+            }
+        }
+    
     }
 }
 

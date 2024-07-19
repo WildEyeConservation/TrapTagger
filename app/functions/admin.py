@@ -310,6 +310,18 @@ def stop_task(self,task_id):
                 cleanUpIndividuals(task_id)
                 GLOBALS.redisClient.delete('active_individuals_'+str(task_id))
                 GLOBALS.redisClient.delete('active_indsims_'+str(task_id))
+                GLOBALS.redisClient.delete('quantiles_'+str(task_id))
+                if not task.sub_tasks:
+                    tL = task.tagging_level.split(',')
+                    label = db.session.query(Label).filter(Label.task==task).filter(Label.description==tL[1]).first()
+                    if len(tL) > 3 and tL[3].isdigit():
+                        current_quantile = int(tL[3])
+                        first_quantile = int(Config.ID_QUANTILES[0])
+                        if not label.icID_q1_complete: 
+                            if current_quantile < first_quantile:
+                                label.icID_q1_complete = True
+                            else:
+                                label.icID_q1_complete = False
 
             if ',' not in task.tagging_level and task.init_complete and '-2' not in task.tagging_level:
                 check_individual_detection_mismatch(task_id=task_id,celeryTask=False)
@@ -416,8 +428,10 @@ def delete_survey(self,survey_id):
                     db.session.delete(detSimilarity)
                 db.session.commit()
 
+                aid_list = []
                 detections = db.session.query(Detection).join(Image).join(Camera).join(Trapgroup).filter(Trapgroup.survey_id==survey_id).all()
                 for detection in detections:
+                    if detection.aid: aid_list.append(detection.aid)
                     db.session.delete(detection)
                 db.session.commit()
 
@@ -425,6 +439,22 @@ def delete_survey(self,survey_id):
                 for staticgroup in staticgroups:
                     db.session.delete(staticgroup)
                 db.session.commit()
+
+                #Delete WBIA data
+                # keep_aid_list = [r[0] for r in db.session.query(Detection.aid, func.count(Detection.id))\
+                #     .filter(Detection.aid.in_(aid_list))\
+                #     .group_by(Detection.aid)\
+                #     .distinct().all() if r[1]>0]
+                # aid_list = list(set(aid_list) - set(keep_aid_list))
+                # if aid_list:
+                #     if not GLOBALS.ibs:
+                #         from wbia import opendb
+                #         GLOBALS.ibs = opendb(db=Config.WBIA_DB_NAME,dbdir=Config.WBIA_DIR+'_'+Config.WORKER_NAME,allow_newdir=True)
+                #     GLOBALS.ibs.db.delete('featurematches', aid_list, 'annot_rowid1')
+                #     GLOBALS.ibs.db.delete('featurematches', aid_list, 'annot_rowid2')
+                #     gids = [g for g in GLOBALS.ibs.get_annot_gids(aid_list) if g is not None]
+                #     GLOBALS.ibs.delete_images(gids)
+                #     GLOBALS.ibs.delete_annots(aid_list)  
 
                 # detections = db.session.query(Detection).join(Image).join(Camera).join(Trapgroup).filter(Trapgroup.survey_id==survey_id).all()
                 # for chunk in chunker(detections,1000):
@@ -2159,6 +2189,28 @@ def delete_individuals(self,task_ids, species):
 
         for detSim in detSims:
             db.session.delete(detSim)
+
+        # Delete featurematches from WBIA db for detections that are no longer associated with individuals
+        # wbia_detections = db.session.query(Detection).outerjoin(individualDetections).filter(Detection.id.in_(detections)).filter(individualDetections.c.detection_id==None).filter(Detection.aid!=None).distinct().all()
+        # aid_list = []
+        # for detection in wbia_detections:
+        #     if detection.aid: aid_list.append(detection.aid)
+        #     detection.aid = None
+
+        # keep_aid_list = [r[0] for r in db.session.query(Detection.aid, func.count(Detection.id))\
+        #             .filter(Detection.aid.in_(aid_list))\
+        #             .group_by(Detection.aid)\
+        #             .distinct().all() if r[1]>0]
+        # aid_list = list(set(aid_list) - set(keep_aid_list))
+        # if aid_list:
+        #     if not GLOBALS.ibs:
+        #         from wbia import opendb
+        #         GLOBALS.ibs = opendb(db=Config.WBIA_DB_NAME,dbdir=Config.WBIA_DIR+'_'+Config.WORKER_NAME,allow_newdir=True)
+        #     GLOBALS.ibs.db.delete('featurematches', aid_list, 'annot_rowid1')
+        #     GLOBALS.ibs.db.delete('featurematches', aid_list, 'annot_rowid2')
+        #     gids = [g for g in GLOBALS.ibs.get_annot_gids(aid_list) if g is not None]
+        #     GLOBALS.ibs.delete_images(gids)
+        #     GLOBALS.ibs.delete_annots(aid_list)  
 
         db.session.commit()
                 

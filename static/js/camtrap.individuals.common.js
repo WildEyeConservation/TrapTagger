@@ -12,6 +12,12 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+// const detection_flanks = ['Left','Right','Ambiguous']
+// var targetRect = null
+// var targetUpdated = false
+// var dbDetIds = {}
+// var toolTipsOpen = true
+
 function modifyToCompURL(url) {
     /** Modifies the source URL to the compressed folder of the user */
     var isImage = checkIfImage(url)
@@ -114,7 +120,7 @@ function updateSlider() {
     }
 }
 
-function addDetections(image) {
+function addDetectionsIndividual(image) {
     //** Adds detections to the main image displayed in the individual modal. */
     if (!addedDetections) {
         map.setZoom(map.getMinZoom())
@@ -126,6 +132,28 @@ function addDetections(image) {
                 rectOptions.color = "rgba(223,105,26,1)"
                 rect = L.rectangle([[detection.top*mapHeight,detection.left*mapWidth],[detection.bottom*mapHeight,detection.right*mapWidth]], rectOptions)
                 drawnItems.addLayer(rect)
+                
+                // if (document.getElementById('btnSubmitInfoChange') != null) {
+                //     if (Object.keys(changed_flanks).includes(detection.id.toString())) {
+                //         flank = changed_flanks[detection.id]
+                //     } else {
+                //         flank = detection.flank
+                //     }
+
+                //     rect.bindTooltip(flank,{permanent: true, direction:"center"})
+
+                //     var center = L.latLng([(rect._bounds._northEast.lat+rect._bounds._southWest.lat)/2,(rect._bounds._northEast.lng+rect._bounds._southWest.lng)/2])
+                //     var bottom = L.latLng([rect._bounds._southWest.lat,(rect._bounds._northEast.lng+rect._bounds._southWest.lng)/2])
+                //     var centerPoint = map.latLngToContainerPoint(center)
+                //     var bottomPoint = map.latLngToContainerPoint(bottom)
+                //     var offset = [0,centerPoint.y-bottomPoint.y]
+            
+                //     rect._tooltip.options.offset = offset
+                //     rect._tooltip.options.opacity = 0.8
+                //     rect.openTooltip()
+
+                //     dbDetIds[rect._leaflet_id.toString()] = detection.id.toString()
+                // }
             }
         }
         finishedDisplaying = true
@@ -173,7 +201,7 @@ function prepMapIndividual(image) {
             activeImage = L.imageOverlay(imageUrl, bounds).addTo(map);
             activeImage.on('load', function() {
                 addedDetections = false
-                addDetections(individualImages[individualSplide.index])
+                addDetectionsIndividual(individualImages[individualSplide.index])
             });
             map.setMaxBounds(bounds);
             map.fitBounds(bounds)
@@ -205,7 +233,7 @@ function prepMapIndividual(image) {
                 activeImage.setBounds(bounds)
                 if(checkIfImage(activeImage._url)){
                     addedDetections = false
-                    addDetections(individualImages[individualSplide.index])  
+                    addDetectionsIndividual(individualImages[individualSplide.index])  
                 }  
             });
 
@@ -225,7 +253,22 @@ function prepMapIndividual(image) {
                     }
                 }
             });    
-    
+
+            // if (document.getElementById('btnSubmitInfoChange') != null) {
+            //     updateIndividualRectOptions()
+            //     flankMapPrep()
+            // }
+            // else{
+            //     rectOptions = {
+            //         color: "rgba(223,105,26,1)",
+            //         fill: true,
+            //         fillOpacity: 0.0,
+            //         opacity: 0.8,
+            //         weight:3,
+            //         contextmenu: false,
+            //     }      
+            // }
+
             rectOptions = {
                 color: "rgba(223,105,26,1)",
                 fill: true,
@@ -324,12 +367,27 @@ function updateMapIndividual( url){
             activeImage = L.imageOverlay(imageUrl, bounds).addTo(map);
             activeImage.on('load', function() {
                 addedDetections = false
-                addDetections(individualImages[individualSplide.index])
+                addDetectionsIndividual(individualImages[individualSplide.index])
             });
 
             drawnItems = new L.FeatureGroup();
             map.addLayer(drawnItems);
             
+            // if (document.getElementById('btnSubmitInfoChange') != null) {
+            //     updateIndividualRectOptions()
+            //     flankMapPrep()
+            // }
+            // else{
+            //     rectOptions = {
+            //         color: "rgba(223,105,26,1)",
+            //         fill: true,
+            //         fillOpacity: 0.0,
+            //         opacity: 0.8,
+            //         weight:3,
+            //         contextmenu: false,
+            //     }      
+            // }
+
             rectOptions = {
                 color: "rgba(223,105,26,1)",
                 fill: true,
@@ -507,3 +565,102 @@ function removeImage() {
     
 }
 
+// NOTE: We are currenlty not allowing the users to edit a detection flank on the Individuals page and it can only be edited 
+// in a Cluster ID (-4 task). The reason we have disallowed this is because of having to recalculate all detection similarities 
+// and individual similaties associated with the detection whose flank has changed. 
+
+// function flankMapPrep() {
+//     /** Finishes prepping the map for intra-cluster individual ID by adding the dissociate option to the context menu. */
+
+//     map.on('contextmenu.select', function(e) {
+//         if (targetUpdated) {  
+//             detection_id = dbDetIds[targetRect.toString()]
+//             original_flank = individualImages[individualSplide.index].detections[0].flank
+//             if (original_flank != e.el.textContent) {
+//                 changed_flanks[detection_id] = e.el.textContent
+//             }
+//             else{
+//                 delete changed_flanks[detection_id]
+//             }
+            
+//             drawnItems._layers[targetRect].closeTooltip()
+//             drawnItems._layers[targetRect]._tooltip._content=e.el.textContent
+//             if (toolTipsOpen) {
+//                 drawnItems._layers[targetRect].openTooltip()
+//             }
+
+//             targetUpdated = false
+//         } else {
+//             alert('Error! Select is being handled before target updated.')
+//         }
+//     });
+
+//     map.on('contextmenu', function (e) {
+//         /** remove duplicate items on more than one right click of contextmenu*/
+//         nr_items = 2*detection_flanks.length - 1
+
+//         if(map.contextmenu._items.length > nr_items){
+//             for (let i=map.contextmenu._items.length-1;i>nr_items-1;i--) 
+//             {
+//                 map.contextmenu.removeItem(i)
+//             }
+//         } 
+//     });
+
+//     map.on('zoom', function(e){
+//         /** update position of bounding box labels on zoom */
+//         if (toolTipsOpen) {
+//             for (let layer in drawnItems._layers) {
+//                 var drawn_layer = drawnItems._layers[layer]
+//                 var center = L.latLng([(drawn_layer._bounds._northEast.lat+drawn_layer._bounds._southWest.lat)/2,(drawn_layer._bounds._northEast.lng+drawn_layer._bounds._southWest.lng)/2])
+//                 var bottom = L.latLng([drawn_layer._bounds._southWest.lat,(drawn_layer._bounds._northEast.lng+drawn_layer._bounds._southWest.lng)/2])
+//                 var centerPoint = map.latLngToContainerPoint(center)
+//                 var bottomPoint = map.latLngToContainerPoint(bottom)
+//                 var offset = [0,centerPoint.y-bottomPoint.y]
+//                 drawn_layer._tooltip.options.offset = offset
+//             }
+//         }
+//     });
+// }
+
+// function updateIndividualRectOptions() {
+//     /** Sets the bounding box options. */
+
+//     var menuItems = []
+//     var index = 0
+    
+//     for (let i=0;i<detection_flanks.length;i++) {
+//         menuItems.push({
+//             text: detection_flanks[i],
+//             index: index,
+//             callback: updateTargetRect
+//         })
+//         index += 1
+
+//         menuItems.push({
+//             separator: true,
+//             index: index
+//         })
+//         index += 1
+//     }
+
+//     rectOptions = {
+//         color: "rgba(223,105,26,1)",
+//         fill: true,
+//         fillOpacity: 0.0,
+//         opacity: 0.8,
+//         weight:3,
+//         contextmenu: true,
+//         contextmenuWidth: 140,
+//         contextmenuItems: menuItems
+//     }
+// }
+
+// function updateTargetRect (e) {
+//     /** Updates the targetRect global to the Leaflet ID of the recangle clicked on by the user. */
+//     if (e.relatedTarget) {
+//         targetRect = e.relatedTarget._leaflet_id
+//     }
+//     contextLocation = e.latlng
+//     targetUpdated = true
+// }

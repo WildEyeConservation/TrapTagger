@@ -28,3 +28,4 @@ remove_false_detections_id = 7
 mask_area_id = 8
 results_queue = []
 redisClient = None
+ibs = None

@@ -50,6 +50,7 @@ var drawnItems = null
 var jobTimer
 var modalDeleteActive = false
 var legalDelete = false
+// var changed_flanks = {}
 
 function getIndividuals(page = null) {
     /** Gets a page of individuals. Gets the first page if none is specified. */
@@ -839,6 +840,7 @@ function cleanModalIndividual() {
     mapStats = null
     minDate = null
     maxDate = null
+    // changed_flanks = {}
 
     document.getElementById('tgInfo').innerHTML = 'Site: '
     document.getElementById('timeInfo').innerHTML = ''
@@ -1284,6 +1286,7 @@ function checkSurvey(){
     /** Checks that the slected surveys and annotation sets are valid */
 
     var duplicateTask = false
+    var duplicateSurvey = false
     var surveyAll = false
     var oneSurvey = false
     var noneSurvey = false
@@ -1317,6 +1320,15 @@ function checkSurvey(){
         }
     }
 
+    for (let i=0;i<allSurveys.length;i++) {
+        currSurveyVal = allSurveys[i].value
+        for (let j=0;j<allSurveys.length;j++) {
+            if(allSurveys[j].value == currSurveyVal && j!=i){
+                duplicateSurvey = true
+            }
+        }
+    }
+
     
     if(allSurveys.length == 1 && surveyAll){
         surveyAll = false
@@ -1336,8 +1348,13 @@ function checkSurvey(){
         newdiv.innerHTML =  'You have duplicate annotation sets, please remove the duplicate.'
         surveyErrors.appendChild(newdiv)
     }
-    
 
+    if (duplicateSurvey) {
+        newdiv = document.createElement('div')
+        newdiv.innerHTML =  'You have duplicate surveys, please remove the duplicate.'
+        surveyErrors.appendChild(newdiv)
+    }
+    
     if(surveyAll){
         newdiv = document.createElement('div')
         newdiv.innerHTML =  'You cannot select all surveys and add additional surveys. Please remove additional surveys or "All" surveys.'
@@ -1356,7 +1373,7 @@ function checkSurvey(){
         surveyErrors.appendChild(newdiv)
     }
 
-    if (duplicateTask||surveyAll||oneSurvey||noneSurvey) {
+    if (duplicateTask||surveyAll||oneSurvey||noneSurvey||duplicateSurvey) {
         legalSurvey = false
     } else {
         legalSurvey = true
@@ -1432,7 +1449,7 @@ modalLaunchID.on('shown.bs.modal', function(){
     input.setAttribute('id','idStage')
     col1.appendChild(input)
 
-    fillSelect(input, ['Inter-cluster Identification', 'Exhaustive'], ['-5','-5'])
+    fillSelect(input, ['Inter-cluster Identification'], ['-5'])
 
     col1.appendChild(document.createElement('br'))
 
@@ -1520,9 +1537,9 @@ modalLaunchID.on('shown.bs.modal', function(){
         }
 
         if (document.getElementById('idStage')[document.getElementById('idStage').selectedIndex].text == 'Exhaustive') {
-            taskTaggingLevel += ',0'
+            taskTaggingLevel += ',0,100'
         } else {
-            taskTaggingLevel += ',-1'
+            taskTaggingLevel += ',-1,100'
         }
 
         if (document.getElementById('hotspotter').checked) {
@@ -1617,6 +1634,8 @@ document.getElementById('btnSubmitInfoChange').addEventListener('click', functio
     if(currentNote != document.getElementById('idNotes').value){
         submitIndividualNotes()
     }
+
+    // submitFlanks()
 });
 
 $('.modal').on("hidden.bs.modal", function (e) { 
@@ -2436,6 +2455,34 @@ modalIndividualsError.on('hidden.bs.modal', function(){
     }
 });
 
+// function submitFlanks(){
+//     /** Submits the flanks for the individual's detections. */
+
+//     var formData = new FormData()
+//     formData.append("individual_id", JSON.stringify(selectedIndividual))
+//     formData.append("flanks", JSON.stringify(changed_flanks))	
+
+//     var xhttp = new XMLHttpRequest();
+//     xhttp.onreadystatechange =
+//     function(){
+//         if (this.readyState == 4 && this.status == 200) {
+//             reply = JSON.parse(this.responseText);  
+//             if (reply.status=='success') {
+//                 for (let i=0;i<individualImages.length;i++) {
+//                     detection_id = individualImages[i].detections[0].id
+//                     if (changed_flanks[detection_id] != undefined) {
+//                         individualImages[i].detections[0].flank = changed_flanks[detection_id]
+//                         delete changed_flanks[detection_id]
+//                     }
+//                 }
+//             }
+//         }
+//     }
+//     xhttp.open("POST", '/submitIndividualFlanks');
+//     xhttp.send(formData);
+
+// }
+
 function onload(){
     /**Function for initialising the page on load.*/
     addSurvey()
@@ -2444,6 +2491,13 @@ function onload(){
     getTasks()
 
 }
+
+// document.onclick = function () {
+//     /** Hides the context menu when clicking outside of it. */
+//     if (map && map.contextmenu.isVisible()) {
+//         map.contextmenu.hide()
+//     }
+// }
 
 window.addEventListener('load', onload, false);
 

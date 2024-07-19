@@ -85,7 +85,8 @@ def make_celery(flask_app):
         Queue('ram_intensive',     routing_key='ram_intensive.#'),
         Queue('statistics',     routing_key='statistics.#'),
         Queue('pipeline',     routing_key='pipeline.#'),
-        Queue('llava',     routing_key='llava.#')
+        Queue('llava',     routing_key='llava.#'),
+        Queue('similarity',     routing_key='similarity.#')
     ]
 
     if not Config.INITIAL_SETUP:
@@ -152,6 +153,45 @@ logger.setLevel(logging.INFO)
 logger.info('App Startup')
 
 celery = make_celery(app)
+
+# Need db-uri arguement for wbia db
+db_uri = Config.WBIA_DB_URI
+if db_uri and '--db-uri' not in sys.argv:
+    sys.argv.extend(['--db-uri', db_uri])
+
+if Config.INITIALISE_IBS=='true':
+    import GLOBALS
+    if not GLOBALS.ibs:
+        import warnings
+        with warnings.catch_warnings():
+            warnings.filterwarnings("ignore")
+            from wbia import opendb
+            GLOBALS.ibs = opendb(db=Config.WBIA_DB_NAME,dbdir=Config.WBIA_DIR, allow_newdir=True)
+        app.logger.info('IBS initialised.')
+
+
+# Create featurematches table in wbia db
+# from wbia import opendb
+# ibs = opendb(db=Config.WBIA_DB_NAME,dbdir=Config.WBIA_DIR, allow_newdir=True)
+# ibs.db.add_table(
+#     'featurematches',
+#     [
+#         ('fm_rowid', 'INTEGER PRIMARY KEY'),
+#         ('annot_rowid1', 'INTEGER NOT NULL'),
+#         ('annot_rowid2', 'INTEGER NOT NULL'),
+#         ('fm', 'NDARRAY'),
+#         ('fs', 'NDARRAY'),
+#     ],
+#     docstr="""
+#     Stores feature matches between two annotations (index of the matching keypoints) and the feature scores
+#     """,
+#     superkeys=[('annot_rowid1', 'annot_rowid2')],
+#     relates=('annotations', 'annotations'),
+#     dependsmap={
+#         'annot_rowid1': ('annotations', ('annot_rowid',), ('annot_visual_uuid',)),
+#         'annot_rowid2': ('annotations', ('annot_rowid',), ('annot_visual_uuid',)),
+#     },
+# )
 
 from app import routes
 from app.functions.globals import update_label_ids

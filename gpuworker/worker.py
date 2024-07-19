@@ -19,6 +19,16 @@ from celery import Celery
 from celery.signals import celeryd_after_setup
 from gpuworker import detector
 from gpuworker import classifier
+import sys
+from gpuworker.config import Config
+# from wbia import opendb
+
+# Need db-uri arguement for wbia db
+db_uri = Config.WBIA_DB_URI
+if db_uri and '--db-uri' not in sys.argv:
+    sys.argv.extend(['--db-uri', db_uri])
+
+ibs = None
 
 BASE = "/data"
 REDIS_IP = os.environ.get('REDIS_IP') or '127.0.0.1'
@@ -110,3 +120,26 @@ def classify(batch):
             result (dict): detection-ID-keyed dictionary containing a classification and associated score.
     '''
     return classifier.infer(batch)
+
+
+@app.task()
+def segment_and_pose(batch,sourceBucket,species,pose_only=False):
+    '''
+
+    Celery wrapper for running segmentation and pose estimation on the supplied batch of images and detections. Adds the segmented images to the wbia database
+    and calculates the keypoints for each detection which will be used later in hotspotter for individual identification.
+    
+            Parameters:
+                batch (list): A list of detections to be processed.
+                sourceBucket (str): S3 bucket.
+                species (str): The species to segment and estimate pose for.
+                pose_only (bool): Whether to only estimate pose.
+            Returns:
+                results (dict): A dictionary containing the flank, and database ID (wbia) for each detection.
+        '''
+    global ibs
+    from gpuworker import similarity
+    if ibs is None and not pose_only:
+        from wbia import opendb
+        ibs = opendb(db=Config.WBIA_DB_NAME,dbdir=Config.WBIA_DIR,allow_newdir=True)
+    return similarity.process_images(ibs,batch,sourceBucket,species,pose_only)

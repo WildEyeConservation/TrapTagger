@@ -19,7 +19,7 @@ from app.models import *
 from app.functions.globals import taggingLevelSQ, addChildLabels, resolve_abandoned_jobs, createTurkcodes, deleteTurkcodes, \
                                     updateTaskCompletionStatus, updateLabelCompletionStatus, updateIndividualIdStatus, retryTime, chunker, \
                                     getClusterClassifications, checkForIdWork, numify_timestamp, rDets, prep_required_images, updateAllStatuses
-from app.functions.individualID import calculate_detection_similarities, generateUniqueName, cleanUpIndividuals, calculate_individual_similarities, check_individual_detection_mismatch
+from app.functions.individualID import calculate_detection_similarities, generateUniqueName, cleanUpIndividuals, calculate_individual_similarities, check_individual_detection_mismatch, process_detections_for_individual_id
 # from app.functions.results import resetImageDownloadStatus, resetVideoDownloadStatus
 import GLOBALS
 from sqlalchemy.sql import func, distinct, or_, alias, and_
@@ -31,6 +31,8 @@ from config import Config
 import traceback
 import time
 from multiprocessing.pool import ThreadPool as Pool
+import ast
+import numpy
 
 @celery.task(bind=True,max_retries=5,ignore_result=True)
 def launch_task(self,task_id):
@@ -42,6 +44,7 @@ def launch_task(self,task_id):
         task = db.session.query(Task).get(task_id)
         taggingLevel = task.tagging_level
         isBounding = task.is_bounding
+        newIndividualsAdded = False
 
         if task.jobs_finished == None:
             task.jobs_finished = 0
@@ -55,11 +58,19 @@ def launch_task(self,task_id):
                 label = db.session.query(Label).filter(Label.task==task).filter(Label.description==species).first()
 
                 #Start calculating detection similarities in the background
+                # if tL[4]=='h':
+                #     calculate_detection_similarities.delay(task_ids=[task_id],species=label.description,algorithm='hotspotter')
+                # elif tL[4]=='n':
+                #     calculate_detection_similarities.delay(task_ids=[task_id],species=label.description,algorithm='none')
+                task.status = 'Processing'
+                db.session.commit()
                 if tL[4]=='h':
-                    calculate_detection_similarities.delay(task_ids=[task_id],species=label.description,algorithm='hotspotter')
+                    label.algorithm = 'hotspotter'
+                    process_detections_for_individual_id([task_id],species)
                 elif tL[4]=='n':
-                    calculate_detection_similarities.delay(task_ids=[task_id],species=label.description,algorithm='none')
-
+                    label.algorithm = 'heuristic'
+                    process_detections_for_individual_id([task_id],species,pose_only=True)
+                task = db.session.query(Task).get(task_id)
                 if tL[3] == 'a':
                     sq = db.session.query(Cluster.id.label('clusterID'),Detection.id.label('detID'),func.count(distinct(Detection.id)).label('detCount'),func.count(distinct(Image.id)).label('imCount'))\
                                         .join(Image,Cluster.images)\
@@ -102,6 +113,7 @@ def launch_task(self,task_id):
                         db.session.add(newIndividual)
                         newIndividual.detections = [detection]
                         newIndividual.tasks = [task]
+                        newIndividualsAdded = True
 
                     # db.session.commit()
 
@@ -184,19 +196,57 @@ def launch_task(self,task_id):
                         calculate_individual_similarities(task.id,species)
                         task = db.session.query(Task).get(task_id)
 
-                #extract threshold
-                threshold = tL[2]
-                if threshold=='-1':
-                    tL[2] = str(Config.SIMILARITY_SCORE)
-                    task.tagging_level = ','.join(tL)
-                    taggingLevel = task.tagging_level
+                # Define quantile thresholds
+                desired_quantiles = Config.ID_QUANTILES
+                OtherIndividual = alias(Individual)
+                scores = [r[0] for r in db.session.query(IndSimilarity.score)\
+                                            .join(Individual,Individual.id==IndSimilarity.individual_1)\
+                                            .join(Task,Individual.tasks)\
+                                            .join(OtherIndividual,IndSimilarity.individual_2==OtherIndividual.c.id)\
+                                            .join(individualTasks,individualTasks.c.individual_id==OtherIndividual.c.id)\
+                                            .filter(Task.id.in_(task_ids))\
+                                            .filter(individualTasks.c.task_id.in_(task_ids))\
+                                            .filter(Individual.species==species)\
+                                            .filter(OtherIndividual.c.species==species)\
+                                            .filter(IndSimilarity.score>=0)\
+                                            .filter(Individual.active==True)\
+                                            .filter(OtherIndividual.c.active==True)\
+                                            .filter(Individual.name!='unidentifiable')\
+                                            .filter(OtherIndividual.c.name!='unidentifiable')\
+                                            .distinct().all()]
+                
+                quantiles = {}
+                if scores:
+                    for n in desired_quantiles:
+                        if n == 0:
+                            quantiles[n] = 0
+                        else:
+                            quantiles[n] = math.trunc(numpy.quantile(scores,n/100) * 100) / 100 # Truncate to 2 decimal places
+                else:
+                    desired_quantiles = [0]
+                    quantiles = {0:0}
+
+                GLOBALS.redisClient.set('quantiles_'+str(task_id),str(quantiles))
+                
+                threshold = quantiles[desired_quantiles[0]]
+                tL[2] = str(threshold)
+                if task.sub_tasks:
+                    tL[3] = str(desired_quantiles[0])
+                else:
+                    tL.append(str(desired_quantiles[0]))
+                task.tagging_level = ','.join(tL)
+                taggingLevel = task.tagging_level
 
                 skips = db.session.query(IndSimilarity)\
                                 .join(Individual, IndSimilarity.individual_1==Individual.id)\
                                 .join(Task,Individual.tasks)\
+                                .join(OtherIndividual,IndSimilarity.individual_2==OtherIndividual.c.id)\
+                                .join(individualTasks,individualTasks.c.individual_id==OtherIndividual.c.id)\
                                 .filter(Task.id.in_(task_ids))\
                                 .filter(Individual.species==species)\
                                 .filter(IndSimilarity.skipped==True)\
+                                .filter(individualTasks.c.task_id.in_(task_ids))\
+                                .filter(OtherIndividual.c.species==species)\
                                 .distinct().all()
                 
                 for skip in skips:
@@ -214,6 +264,7 @@ def launch_task(self,task_id):
             if cluster_count == 0:
                 # Release task if the are no clusters to annotate
                 updateAllStatuses(task_id=task_id, celeryTask=False)
+                GLOBALS.redisClient.delete('quantiles_'+str(task_id))
                 task = db.session.query(Task).get(task_id)
                 task.status = 'SUCCESS'
                 task.survey.status = 'Ready'
@@ -259,6 +310,16 @@ def launch_task(self,task_id):
                 for tsk in task.sub_tasks:
                     tsk.status = 'SUCCESS'
                     tsk.survey.status = 'Ready'
+
+                if newIndividualsAdded and '-4' in task.tagging_level:
+                    tL = re.split(',',task.tagging_level)
+                    species = tL[1]
+                    task.survey.status = 'processing'
+                    if tL[4]=='h':
+                        calculate_detection_similarities.delay(task_ids=[task_id],species=species,algorithm='hotspotter')
+                    elif tL[4]=='n':
+                        calculate_detection_similarities.delay(task_ids=[task_id],species=species,algorithm='none')
+
                 db.session.commit()
                 return True
 
@@ -473,18 +534,34 @@ def wrapUpTask(self,task_id):
         if '-5' in task.tagging_level:
             GLOBALS.redisClient.delete('active_individuals_'+str(task_id))
             GLOBALS.redisClient.delete('active_indsims_'+str(task_id))
+            GLOBALS.redisClient.delete('quantiles_'+str(task_id))
+            if not task.sub_tasks:
+                label = db.session.query(Label).filter(Label.task_id==task_id).filter(Label.description==task.tagging_level.split(',')[1]).first()
+                label.icID_q1_complete = True
 
         elif '-3' in task.tagging_level:
             task.ai_check_complete = True
 
         #Accounts for individual ID background processing
+        # if 'processing' not in task.survey.status:
+        #     if '-4' in task.tagging_level:
+        #         tL = re.split(',',task.tagging_level)
+        #         species = tL[1]
+        #         task.survey.status = 'indprocessing'
+        #         db.session.commit()
+        #         calculate_individual_similarities.delay(task.id,species)	
+        #     else:
+        #         task.survey.status = 'Ready'
         if 'processing' not in task.survey.status:
             if '-4' in task.tagging_level:
                 tL = re.split(',',task.tagging_level)
                 species = tL[1]
-                task.survey.status = 'indprocessing'
+                task.survey.status = 'processing'
                 db.session.commit()
-                calculate_individual_similarities.delay(task.id,species)	
+                if tL[4]=='h':
+                    calculate_detection_similarities.delay(task_ids=[task_id],species=species,algorithm='hotspotter')
+                elif tL[4]=='n':
+                    calculate_detection_similarities.delay(task_ids=[task_id],species=species,algorithm='none')
             else:
                 task.survey.status = 'Ready'
 
@@ -521,6 +598,7 @@ def manage_task(task_id):
     taggingLevel = task.tagging_level
     survey_id = task.survey_id
     jobs_to_delete = 0
+    quantiles_finished = False
 
     # if not populateMutex(int(task_id)):
     #     return False, jobs_to_delete
@@ -532,16 +610,20 @@ def manage_task(task_id):
         tL = re.split(',',taggingLevel)
         species = tL[1]
         OtherIndividual = alias(Individual)
+        OtherIndividualTasks = alias(individualTasks)
 
         sq1 = session.query(Individual.id.label('indID1'))\
                         .join(Task,Individual.tasks)\
                         .join(IndSimilarity,IndSimilarity.individual_1==Individual.id)\
                         .join(OtherIndividual,OtherIndividual.c.id==IndSimilarity.individual_2)\
+                        .join(OtherIndividualTasks,OtherIndividualTasks.c.individual_id==OtherIndividual.c.id)\
                         .filter(OtherIndividual.c.active==True)\
                         .filter(OtherIndividual.c.name!='unidentifiable')\
+                        .filter(OtherIndividual.c.species==species)\
                         .filter(IndSimilarity.score>=tL[2])\
                         .filter(IndSimilarity.skipped==False)\
                         .filter(Task.id.in_(task_ids))\
+                        .filter(OtherIndividualTasks.c.task_id.in_(task_ids))\
                         .filter(Individual.species==species)\
                         .filter(Individual.active==True)\
                         .filter(Individual.name!='unidentifiable')\
@@ -552,11 +634,14 @@ def manage_task(task_id):
                         .join(Task,Individual.tasks)\
                         .join(IndSimilarity,IndSimilarity.individual_2==Individual.id)\
                         .join(OtherIndividual,OtherIndividual.c.id==IndSimilarity.individual_1)\
+                        .join(OtherIndividualTasks,OtherIndividualTasks.c.individual_id==OtherIndividual.c.id)\
                         .filter(OtherIndividual.c.active==True)\
                         .filter(OtherIndividual.c.name!='unidentifiable')\
+                        .filter(OtherIndividual.c.species==species)\
                         .filter(IndSimilarity.score>=tL[2])\
                         .filter(IndSimilarity.skipped==False)\
                         .filter(Task.id.in_(task_ids))\
+                        .filter(OtherIndividualTasks.c.task_id.in_(task_ids))\
                         .filter(Individual.species==species)\
                         .filter(Individual.active==True)\
                         .filter(Individual.name!='unidentifiable')\
@@ -572,6 +657,48 @@ def manage_task(task_id):
                         .distinct().count()
         
         max_workers_possible = individuals_remaining
+
+        # Dynamic individual ID threshold
+        if individuals_remaining < 1:
+            current_quantile = int(tL[3])
+            
+            if current_quantile==0:
+                quantiles_finished = True
+            
+            else:
+                quantiles = GLOBALS.redisClient.get('quantiles_'+str(task_id))
+                
+                try:
+                    quantiles = ast.literal_eval(quantiles.decode())
+                    available_quantiles = list(quantiles.keys())
+                    available_quantiles.sort(reverse=True)
+                    new_quantile = available_quantiles[available_quantiles.index(current_quantile)+1]
+                    threshold = quantiles[new_quantile]
+
+                    # When quantile is changed, release the skips back into the pool
+                    skips = session.query(IndSimilarity)\
+                                    .join(Individual, IndSimilarity.individual_1==Individual.id)\
+                                    .join(Task,Individual.tasks)\
+                                    .join(OtherIndividual,IndSimilarity.individual_2==OtherIndividual.c.id)\
+                                    .join(OtherIndividualTasks,OtherIndividualTasks.c.individual_id==OtherIndividual.c.id)\
+                                    .filter(Task.id.in_(task_ids))\
+                                    .filter(Individual.species==species)\
+                                    .filter(IndSimilarity.skipped==True)\
+                                    .filter(OtherIndividualTasks.c.task_id.in_(task_ids))\
+                                    .filter(OtherIndividual.c.species==species)\
+                                    .distinct().all()
+                    
+                    for skip in skips:
+                        skip.skipped = False
+                
+                except:
+                    threshold = 0
+                    new_quantile = 0
+
+                tL[2] = str(threshold)
+                tL[3] = str(new_quantile)
+                task.tagging_level = ','.join(tL)
+                session.commit()
 
     else:
         max_workers_possible = session.query(Trapgroup) \
@@ -641,7 +768,7 @@ def manage_task(task_id):
     session.commit()
     session.close()
 
-    if (clusters_remaining==0) and (active_jobs==0):
+    if (clusters_remaining==0) and (active_jobs==0) and (('-5' not in taggingLevel) or quantiles_finished):
         processing = session.query(Trapgroup).filter(Trapgroup.survey_id==survey_id).filter(or_(Trapgroup.processing==True,Trapgroup.queueing==True)).first()
 
         if not processing:
@@ -884,6 +1011,7 @@ def fetch_clusters(taggingLevel,task_id,isBounding,trapgroup_id,session,limit=No
         tL = re.split(',',taggingLevel)
         species = tL[1]
         OtherIndividual = alias(Individual)
+        OtherIndividualTasks = alias(individualTasks)
         individuals = []
 
         allocatedIndSims = [int(r.decode()) for r in GLOBALS.redisClient.smembers('active_indsims_'+str(task_id))]
@@ -893,8 +1021,11 @@ def fetch_clusters(taggingLevel,task_id,isBounding,trapgroup_id,session,limit=No
                         .join(Task,Individual.tasks)\
                         .join(IndSimilarity,IndSimilarity.individual_1==Individual.id)\
                         .join(OtherIndividual,OtherIndividual.c.id==IndSimilarity.individual_2)\
+                        .join(OtherIndividualTasks,OtherIndividualTasks.c.individual_id==OtherIndividual.c.id)\
                         .filter(OtherIndividual.c.active==True)\
                         .filter(OtherIndividual.c.name!='unidentifiable')\
+                        .filter(OtherIndividual.c.species==species)\
+                        .filter(OtherIndividualTasks.c.task_id.in_(task_ids))\
                         .filter(~IndSimilarity.id.in_(allocatedIndSims))\
                         .filter(IndSimilarity.score>=tL[2])\
                         .filter(IndSimilarity.skipped==False)\
@@ -910,8 +1041,11 @@ def fetch_clusters(taggingLevel,task_id,isBounding,trapgroup_id,session,limit=No
                         .join(Task,Individual.tasks)\
                         .join(IndSimilarity,IndSimilarity.individual_2==Individual.id)\
                         .join(OtherIndividual,OtherIndividual.c.id==IndSimilarity.individual_1)\
+                        .join(OtherIndividualTasks,OtherIndividualTasks.c.individual_id==OtherIndividual.c.id)\
                         .filter(OtherIndividual.c.active==True)\
                         .filter(OtherIndividual.c.name!='unidentifiable')\
+                        .filter(OtherIndividual.c.species==species)\
+                        .filter(OtherIndividualTasks.c.task_id.in_(task_ids))\
                         .filter(~IndSimilarity.id.in_(allocatedIndSims))\
                         .filter(IndSimilarity.score>=tL[2])\
                         .filter(IndSimilarity.skipped==False)\
@@ -952,7 +1086,8 @@ def fetch_clusters(taggingLevel,task_id,isBounding,trapgroup_id,session,limit=No
                             Camera.path,
                             Camera.id,
                             Trapgroup.latitude,
-                            Trapgroup.longitude
+                            Trapgroup.longitude,
+                            Detection.flank
                         )\
                         .join(Task,Individual.tasks)\
                         .outerjoin(sq1,sq1.c.indID1==Individual.id)\
@@ -1019,7 +1154,8 @@ def fetch_clusters(taggingLevel,task_id,isBounding,trapgroup_id,session,limit=No
                             'category': row[12],
                             'individuals': [],
                             'static': row[13],
-                            'labels': []
+                            'labels': [],
+                            'flank': Config.FLANK_TEXT[row[18]] if row[18] else 'None'
                         }
 
         return clusterInfo, individuals
@@ -1054,6 +1190,7 @@ def fetch_clusters(taggingLevel,task_id,isBounding,trapgroup_id,session,limit=No
                             Detection.source,
                             Detection.score,
                             Detection.status,
+                            Detection.flank,
                             IndividualTask.c.id,
                             Cluster.user_id,
                             Trapgroup.tag,
@@ -1103,6 +1240,7 @@ def fetch_clusters(taggingLevel,task_id,isBounding,trapgroup_id,session,limit=No
                             Detection.source,
                             Detection.score,
                             Detection.status,
+                            Detection.flank,
                             IndividualTask.c.id
                         )\
                         .join(Image, Cluster.images) \
@@ -1158,7 +1296,7 @@ def fetch_clusters(taggingLevel,task_id,isBounding,trapgroup_id,session,limit=No
                 }
                 if id: 
                     clusterInfo[row[0]]['videos'] = {}
-                    user_id = row[26]
+                    user_id = row[27]
                     if user_id:
                         user = session.query(User.username,User.parent_id).filter(User.id==user_id).first()
                         if user and user[1]:
@@ -1170,9 +1308,9 @@ def fetch_clusters(taggingLevel,task_id,isBounding,trapgroup_id,session,limit=No
                     else:
                         clusterInfo[row[0]]['user'] = 'AI'
                     
-                    clusterInfo[row[0]]['site_tag'] = row[27]
-                    clusterInfo[row[0]]['latitude'] = row[28]
-                    clusterInfo[row[0]]['longitude'] = row[29]
+                    clusterInfo[row[0]]['site_tag'] = row[28]
+                    clusterInfo[row[0]]['latitude'] = row[29]
+                    clusterInfo[row[0]]['longitude'] = row[30]
 
             # Handle images
             if row[2] and (row[2] not in clusterInfo[row[0]]['images'].keys()):
@@ -1200,14 +1338,15 @@ def fetch_clusters(taggingLevel,task_id,isBounding,trapgroup_id,session,limit=No
                         'category': row[14],
                         'individuals': [],
                         'static': row[15],
-                        'labels': []
+                        'labels': [],
+                        'flank': Config.FLANK_TEXT[row[25]] if row[25] else 'None'
                     }
 
             # Handle video
-            if id and row[30] and (row[30] not in clusterInfo[row[0]]['videos'].keys()):
-                clusterInfo[row[0]]['videos'][row[30]] = {
-                    'id': row[30],
-                    'url': row[7].split('/_video_images_')[0] + '/' + row[31],
+            if id and row[31] and (row[31] not in clusterInfo[row[0]]['videos'].keys()):
+                clusterInfo[row[0]]['videos'][row[31]] = {
+                    'id': row[31],
+                    'url': row[7].split('/_video_images_')[0] + '/' + row[32],
                     'timestamp': numify_timestamp(row[4]),
                     'camera': row[6],
                     'rating': 1,
@@ -1229,7 +1368,7 @@ def fetch_clusters(taggingLevel,task_id,isBounding,trapgroup_id,session,limit=No
                     clusterInfo[row[0]]['images'][row[2]]['detections'][row[9]]['labels'].append(row[17])
                 
                 # Handle individuals
-                if row[25] and row[21] and (row[21] not in clusterInfo[row[0]]['images'][row[2]]['detections'][row[9]]['individuals']) and (row[25]==task_id):
+                if row[26] and row[21] and (row[21] not in clusterInfo[row[0]]['images'][row[2]]['detections'][row[9]]['individuals']) and (row[26]==task_id):
                     clusterInfo[row[0]]['images'][row[2]]['detections'][row[9]]['individuals'].append(row[21])
 
         if '-3' in taggingLevel:
@@ -1549,7 +1688,8 @@ def translate_cluster_for_client(clusterInfo,reqId,limit,isBounding,taggingLevel
                                 'individual': clusterInfo[cluster_id]['images'][image_id]['detections'][detection_id]['individuals'][0],
                                 'static': clusterInfo[cluster_id]['images'][image_id]['detections'][detection_id]['static'],
                                 'labels': clusterInfo[cluster_id]['images'][image_id]['detections'][detection_id]['labels'],
-                                'label': clusterInfo[cluster_id]['images'][image_id]['detections'][detection_id]['labels'][0]}
+                                'label': clusterInfo[cluster_id]['images'][image_id]['detections'][detection_id]['labels'][0],
+                                'flank': clusterInfo[cluster_id]['images'][image_id]['detections'][detection_id]['flank'].capitalize()}
                             for detection_id in clusterInfo[cluster_id]['images'][image_id]['detections'] if ((
                                                                     '-4' not in taggingLevel) 
                                                                 or (
@@ -1621,7 +1761,8 @@ def translate_cluster_for_client(clusterInfo,reqId,limit,isBounding,taggingLevel
                                 'individual': clusterInfo[cluster_id]['images'][image_id]['detections'][detection_id]['individuals'][0],
                                 'static': clusterInfo[cluster_id]['images'][image_id]['detections'][detection_id]['static'],
                                 'labels': clusterInfo[cluster_id]['images'][image_id]['detections'][detection_id]['labels'],
-                                'label': clusterInfo[cluster_id]['images'][image_id]['detections'][detection_id]['labels'][0]}
+                                'label': clusterInfo[cluster_id]['images'][image_id]['detections'][detection_id]['labels'][0],
+                                'flank': clusterInfo[cluster_id]['images'][image_id]['detections'][detection_id]['flank'].capitalize()}
                             for detection_id in clusterInfo[cluster_id]['images'][image_id]['detections'] if ((
                                                                 '-4' not in taggingLevel) 
                                                             or (
