@@ -5610,14 +5610,13 @@ def archive_survey(survey_id):
     for trapgroup_id in trapgroup_ids:
         empty_results.append(archive_empty_images.apply_async(kwargs={'trapgroup_id':trapgroup_id},queue='parallel'))
 
-    site_zip_keys = []
     #Wait for processing to complete
     db.session.remove()
     GLOBALS.lock.acquire()
     with allow_join_result():
         for result in empty_results:
             try:
-                site_zip_keys.extend(result.get())
+                result.get()
             except Exception:
                 app.logger.info(' ')
                 app.logger.info('!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!')
