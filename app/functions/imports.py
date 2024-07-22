@@ -5630,7 +5630,7 @@ def archive_survey(survey_id):
 
     # Raw Animal Images
     image_results = []
-    for trapgroup_id in trapgroup_id:
+    for trapgroup_id in trapgroup_ids:
         image_results.append(archive_images.apply_async(kwargs={'trapgroup_id':trapgroup_id},queue='parallel'))
 
     #Wait for processing to complete

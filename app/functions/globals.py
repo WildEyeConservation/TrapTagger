@@ -2731,7 +2731,7 @@ def inspect_celery(include_spam=False,include_reserved=False,include_scheduled=F
                 elif '.detection' in task['name']:
                     print('{:{}}{:{}}{:{}}{:{}}  {}'.format(task['id'],40,name,36,hostname,36,time_start,29,task['kwargs']['batch'][0]))
                 elif 'runClassifier' in task['name']:
-                    print('{:{}}{:{}}{:{}}{:{}}  survey_id={}'.format(task['id'],40,name,36,hostname,36,time_start,29,task['kwargs']['survey_id']))
+                    print('{:{}}{:{}}{:{}}{:{}}  cameragroup_ids={}'.format(task['id'],40,name,36,hostname,36,time_start,29,task['kwargs']['cameragroup_ids']))
                 elif 'process_video_batch' in task['name']:
                     print('{:{}}{:{}}{:{}}{:{}}  {}'.format(task['id'],40,name,36,hostname,36,time_start,29,task['kwargs']['dirpath']))
                 elif 'prepTask' in task['name']:
@@ -2773,7 +2773,7 @@ def inspect_celery(include_spam=False,include_reserved=False,include_scheduled=F
                     elif '.detection' in task['name']:
                         print('{:{}}{:{}}{:{}}{:{}}  {}'.format(task['id'],40,name,36,hostname,36,time_start,29,task['kwargs']['batch'][0]))
                     elif 'runClassifier' in task['name']:
-                        print('{:{}}{:{}}{:{}}{:{}}  survey_id={}'.format(task['id'],40,name,36,hostname,36,time_start,29,task['kwargs']['survey_id']))
+                        print('{:{}}{:{}}{:{}}{:{}}  cameragroup_ids={}'.format(task['id'],40,name,36,hostname,36,time_start,29,task['kwargs']['cameragroup_ids']))
                     elif 'process_video_batch' in task['name']:
                         print('{:{}}{:{}}{:{}}{:{}}  {}'.format(task['id'],40,name,36,hostname,36,time_start,29,task['kwargs']['dirpath']))
                     elif 'prepTask' in task['name']:
@@ -2817,7 +2817,7 @@ def inspect_celery(include_spam=False,include_reserved=False,include_scheduled=F
                     elif '.detection' in request['name']:
                         print('{:{}}{:{}}{:{}}{:{}}  {}'.format(request['id'],40,name,36,hostname,36,eta,29,request['kwargs']['batch'][0]))
                     elif 'runClassifier' in request['name']:
-                        print('{:{}}{:{}}{:{}}{:{}}  survey_id={}'.format(request['id'],40,name,36,hostname,36,eta,29,request['kwargs']['survey_id']))
+                        print('{:{}}{:{}}{:{}}{:{}}  cameragroup_ids={}'.format(request['id'],40,name,36,hostname,36,eta,29,request['kwargs']['cameragroup_ids']))
                     elif 'process_video_batch' in request['name']:
                         print('{:{}}{:{}}{:{}}{:{}}  {}'.format(request['id'],40,name,36,hostname,36,eta,29,request['kwargs']['dirpath']))
                     elif 'prepTask' in request['name']:
