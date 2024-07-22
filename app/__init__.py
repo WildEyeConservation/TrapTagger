@@ -63,10 +63,10 @@ def make_celery(flask_app):
         backend=REDIS_ADDRESS,
         broker=REDIS_ADDRESS,
         broker_transport_options={
-            'visibility_timeout': 86400,
+            'visibility_timeout': 604800,
             'queue_order_strategy': 'priority'
         },
-        result_expires=86400
+        result_expires=604800
     )
     # worker_prefetch_multiplier=1,
     # task_reject_on_worker_lost=True,
