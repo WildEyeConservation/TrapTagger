@@ -59,7 +59,7 @@ services:
         build:
             context: ./
             dockerfile: Dockerfile.flask
-        image: traptagger:1.1.2
+        image: traptagger:1.1.3
         container_name: flask
         depends_on:
             - traptagger_redis
@@ -118,7 +118,7 @@ services:
         build:
             context: ./
             dockerfile: Dockerfile.flask
-        image: traptagger:1.1.2
+        image: traptagger:1.1.3
         container_name: fileHandler
         depends_on:
             - flask
@@ -177,7 +177,7 @@ services:
         build:
             context: ./
             dockerfile: Dockerfile.flask
-        image: traptagger:1.1.2
+        image: traptagger:1.1.3
         container_name: ibsHandler
         depends_on:
             - flask
@@ -236,7 +236,7 @@ services:
         build:
             context: ./
             dockerfile: Dockerfile.flask
-        image: traptagger:1.1.2
+        image: traptagger:1.1.3
         container_name: priority_worker
         volumes:
             - ./:/code/
@@ -289,7 +289,7 @@ services:
         build:
             context: ./
             dockerfile: Dockerfile.flask
-        image: traptagger:1.1.2
+        image: traptagger:1.1.3
         container_name: ram_worker
         volumes:
             - ./:/code/
@@ -342,7 +342,7 @@ services:
         build:
             context: ./
             dockerfile: Dockerfile.flask
-        image: traptagger:1.1.2
+        image: traptagger:1.1.3
         container_name: traptagger_worker1
         volumes:
             - ./:/code/
@@ -395,7 +395,7 @@ services:
     #     build:
     #         context: ./
     #         dockerfile: Dockerfile.flask
-    #     image: traptagger:1.1.2
+    #     image: traptagger:1.1.3
     #     container_name: traptagger_worker2
     #     volumes:
     #         - ./:/code/
@@ -443,7 +443,7 @@ services:
     #     build:
     #         context: ./
     #         dockerfile: Dockerfile.flask
-    #     image: traptagger:1.1.2
+    #     image: traptagger:1.1.3
     #     container_name: traptagger_worker3
     #     volumes:
     #         - ./:/code/

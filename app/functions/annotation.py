@@ -1343,15 +1343,15 @@ def fetch_clusters(taggingLevel,task_id,isBounding,trapgroup_id,session,limit=No
                     }
 
             # Handle video
-            if id and row[31] and (row[31] not in clusterInfo[row[0]]['videos'].keys()):
-                clusterInfo[row[0]]['videos'][row[31]] = {
-                    'id': row[31],
-                    'url': row[7].split('/_video_images_')[0] + '/' + row[32],
-                    'timestamp': numify_timestamp(row[4]),
-                    'camera': row[6],
-                    'rating': 1,
-                    'detections': {}
-                }
+            # if id and row[31] and (row[31] not in clusterInfo[row[0]]['videos'].keys()):
+            #     clusterInfo[row[0]]['videos'][row[31]] = {
+            #         'id': row[31],
+            #         'url': row[7].split('/_video_images_')[0] + '/' + row[32],
+            #         'timestamp': numify_timestamp(row[4]),
+            #         'camera': row[6],
+            #         'rating': 1,
+            #         'detections': {}
+            #     }
 
             # # Handle classifications
             # if ('-3' in taggingLevel) and row[22] and (row[22] not in clusterInfo[row[0]]['classification'].keys()):

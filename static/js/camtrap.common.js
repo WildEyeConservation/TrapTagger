@@ -2480,7 +2480,7 @@ function prepMap(mapID = 'map1') {
 
                     map[mapID].on('zoomstart', function(wrapMapID) {
                         return function () { 
-                            if ((!fullRes[wrapMapID])&&(!['-101','-99','-782'].includes(clusters[wrapMapID][clusterIndex[wrapMapID]].id))) {
+                            if ((isIDing)&&(!fullRes[wrapMapID])&&(!['-101','-99','-782'].includes(clusters[wrapMapID][clusterIndex[wrapMapID]].id))) {
                                 var isImg = checkImage(clusters[wrapMapID][clusterIndex[wrapMapID]].images[imageIndex[wrapMapID]].url)
                                 if (isImg) {
                                     activeImage[wrapMapID].setUrl("https://"+bucketName+".s3.amazonaws.com/" + clusters[wrapMapID][clusterIndex[wrapMapID]].images[imageIndex[wrapMapID]].url)
@@ -2555,6 +2555,13 @@ function prepMap(mapID = 'map1') {
                             }
                         }(wrapMapID));
 
+                        activeImage[wrapMapID].on('error', function(wrapWrapMapID) {
+                            return function () {
+                                // If image fails to load
+                                finishedDisplaying[wrapWrapMapID] = true
+                            }
+                        }(wrapMapID));
+
                         map[wrapMapID].on('resize', function(wrapWrapMapID){
                             return function () {
                                 h1 = document.getElementById(mapDivs[wrapMapID]).clientHeight
@@ -2603,7 +2610,7 @@ function prepMap(mapID = 'map1') {
                 
                         map[wrapMapID].on('zoomstart', function(wrapWrapMapID) {
                             return function () { 
-                                if ((!fullRes[wrapWrapMapID])&&(!['-101','-99','-782'].includes(clusters[wrapWrapMapID][clusterIndex[wrapWrapMapID]].id))) {
+                                if ((isIDing)&&(!fullRes[wrapWrapMapID])&&(!['-101','-99','-782'].includes(clusters[wrapWrapMapID][clusterIndex[wrapWrapMapID]].id))) {
                                     var isImg = checkImage(clusters[wrapWrapMapID][clusterIndex[wrapWrapMapID]].images[imageIndex[wrapWrapMapID]].url)
                                     if (isImg) {
                                         activeImage[wrapWrapMapID].setUrl("https://"+bucketName+".s3.amazonaws.com/" + clusters[wrapWrapMapID][clusterIndex[wrapWrapMapID]].images[imageIndex[wrapWrapMapID]].url)

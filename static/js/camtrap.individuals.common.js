@@ -203,6 +203,9 @@ function prepMapIndividual(image) {
                 addedDetections = false
                 addDetectionsIndividual(individualImages[individualSplide.index])
             });
+            activeImage.on('error', function() {
+                finishedDisplaying = true
+            });
             map.setMaxBounds(bounds);
             map.fitBounds(bounds)
             map.setMinZoom(map.getZoom())
@@ -245,14 +248,14 @@ function prepMapIndividual(image) {
             drawnItems = new L.FeatureGroup();
             map.addLayer(drawnItems);
     
-            map.on('zoomstart', function() {
-                if (!fullRes) {
-                    if(checkIfImage(activeImage._url)){
-                        activeImage.setUrl("https://"+bucketName+".s3.amazonaws.com/" + individualImages[individualSplide.index].url)
-                        fullRes = true
-                    }
-                }
-            });    
+            // map.on('zoomstart', function() {
+            //     if (!fullRes) {
+            //         if(checkIfImage(activeImage._url)){
+            //             activeImage.setUrl("https://"+bucketName+".s3.amazonaws.com/" + individualImages[individualSplide.index].url)
+            //             fullRes = true
+            //         }
+            //     }
+            // });    
 
             // if (document.getElementById('btnSubmitInfoChange') != null) {
             //     updateIndividualRectOptions()

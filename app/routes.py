@@ -745,8 +745,8 @@ def getIndividual(individual_id):
                             .first()
 
             video_url = None
-            if image.camera.videos:
-                video_url = (image.camera.path.split('_video_images_')[0] + image.camera.videos[0].filename).replace('+','%2B').replace('?','%3F').replace('#','%23')
+            # if image.camera.videos:
+            #     video_url = (image.camera.path.split('_video_images_')[0] + image.camera.videos[0].filename).replace('+','%2B').replace('?','%3F').replace('#','%23')
 
             reply.append({
                             'id': image.id,
@@ -1972,7 +1972,12 @@ def editSurvey():
                 survey.status = 'Processing'
                 db.session.commit()
                 app.logger.info('Edit survey requested for {} with classifier: {}, ignore_small_detections: {}, sky_masked: {}, timestamps: {}, coordData: {}, masks: {}, staticgroups: {}, kml: {}, imageTimestamps: {}'.format(survey.name,classifier,ignore_small_detections,sky_masked,timestamps,coordData,masks,staticgroups,kml,imageTimestamps))
-                edit_survey.delay(survey_id=survey.id,user_id=current_user.id,classifier=classifier,ignore_small_detections=ignore_small_detections,sky_masked=sky_masked,timestamps=timestamps,coord_data=coordData,masks=masks,staticgroups=staticgroups,kml_file=kml,image_timestamps=imageTimestamps)
+                if classifier and survey.classifier.name != classifier:
+                    # Need to restore images from Glacier if classifier is changed. Restoration takes 48 hours.
+                    edit_survey_args = {'survey_id':survey.id,'user_id':current_user.id,'classifier':classifier,'ignore_small_detections':ignore_small_detections,'sky_masked':sky_masked,'timestamps':timestamps,'coord_data':coordData,'masks':masks,'staticgroups':staticgroups,'kml_file':kml,'image_timestamps':imageTimestamps}
+                    restore_images_for_classification.delay(survey_id=survey.id,days=2,edit_survey_args=edit_survey_args)
+                else:
+                    edit_survey.delay(survey_id=survey.id,user_id=current_user.id,classifier=classifier,ignore_small_detections=ignore_small_detections,sky_masked=sky_masked,timestamps=timestamps,coord_data=coordData,masks=masks,staticgroups=staticgroups,kml_file=kml,image_timestamps=imageTimestamps)
 
     else:
         status = 'error'
@@ -6246,7 +6251,8 @@ def getClustersBySpecies(task_id, species, tag_id, trapgroup_id, annotator_id):
                             .filter(Labelgroup.task==task)
 
         # If they ask for the nothing clusters, we want to serve the empty clusters too
-        if str(species) != str(GLOBALS.nothing_id): base_query = rDets(base_query)
+        # if str(species) != str(GLOBALS.nothing_id): base_query = rDets(base_query)
+        base_query = rDets(base_query)
 
         if tag_id != '0':
             tag = db.session.query(Tag).get(int(tag_id))
@@ -12759,7 +12765,7 @@ def finishStaticDetectionCheck(survey_id):
                 survey.status = 'Preprocessing,' + survey.status.split(',')[1] + ',Available'
             else:
                 if survey.status.split(',')[1] in ['N/A', 'Completed', 'Skipped']:	
-                    survey.status = 'Processing'
+                    survey.status = 'Importing'
                     import_survey.delay(survey_id=survey.id,preprocess_done=True)
                 else:
                     survey.status = 'Preprocessing,' + survey.status.split(',')[2] + ',Completed'
@@ -13004,6 +13010,18 @@ def getTimestampCameraIDs(survey_id):
                                 and_(Image.timestamp==None,Image.corrected_timestamp!=None),
                                 and_(Image.extracted==True,Image.timestamp!=Image.corrected_timestamp)
                             ))
+            # Filter out videos from empty clusters
+            cluster_sq = db.session.query(Cluster.id)\
+                                .join(Image, Cluster.images)\
+                                .join(Detection)\
+                                .join(Camera)\
+                                .join(Trapgroup)\
+                                .filter(Trapgroup.survey_id==survey_id)\
+                                .filter(or_(and_(Detection.source==model,Detection.score>Config.DETECTOR_THRESHOLDS[model]) for model in Config.DETECTOR_THRESHOLDS))\
+                                .distinct().subquery() 
+            cameras = cameras.join(Cluster, Image.clusters)\
+                            .join(cluster_sq, Cluster.id==cluster_sq.c.id)\
+                            .filter(cluster_sq.c.id!=None)
         else:
             cameras = cameras.filter(Image.corrected_timestamp==None).filter(Image.skipped!=True)
             total_image_count = db.session.query(Image.id)\
@@ -13074,6 +13092,18 @@ def getTimestampImages(survey_id, reqID):
                                 and_(Image.timestamp==None,Image.corrected_timestamp!=None),
                                 and_(Image.extracted==True,Image.timestamp!=Image.corrected_timestamp)
                             ))
+            # Filter out videos from empty clusters
+            cluster_sq = db.session.query(Cluster.id)\
+                                .join(Image, Cluster.images)\
+                                .join(Detection)\
+                                .join(Camera)\
+                                .join(Trapgroup)\
+                                .filter(Trapgroup.survey_id==survey_id)\
+                                .filter(or_(and_(Detection.source==model,Detection.score>Config.DETECTOR_THRESHOLDS[model]) for model in Config.DETECTOR_THRESHOLDS))\
+                                .distinct().subquery() 
+            image_data = image_data.join(Cluster, Image.clusters)\
+                            .join(cluster_sq, Cluster.id==cluster_sq.c.id)\
+                            .filter(cluster_sq.c.id!=None)
         else:  
             image_data = image_data.filter(Image.corrected_timestamp==None).filter(Image.skipped!=True)
 
@@ -13201,7 +13231,7 @@ def finishTimestampCheck(survey_id):
                 survey.status = 'Preprocessing,Available,' + survey.status.split(',')[2]
             else:
                 if survey.status.split(',')[2] in ['N/A', 'Completed', 'Skipped']:	
-                    survey.status = 'Processing'
+                    survey.status = 'Importing'
                     import_survey.delay(survey_id=survey.id,preprocess_done=True)
                 else:
                     survey.status = 'Preprocessing,Completed,' + survey.status.split(',')[2]
@@ -13220,14 +13250,14 @@ def skipPreprocessing(survey_id,step):
             statusses = survey.status.split(',')
             if step == 'timestamp':
                 if statusses[2].lower() in ['completed', 'skipped', 'n/a']:
-                    survey.status = 'Processing'
+                    survey.status = 'Importing'
                     import_survey.delay(survey_id=survey.id,preprocess_done=True)
                 else:
                     survey.status = 'Preprocessing,Skipped,' + statusses[2]
 
             elif step == 'static':
                 if statusses[1].lower() in ['completed', 'skipped', 'n/a']:
-                    survey.status = 'Processing'
+                    survey.status = 'Importing'
                     import_survey.delay(survey_id=survey.id,preprocess_done=True)
                 else:
                     survey.status = 'Preprocessing,' + statusses[1] + ',Skipped'

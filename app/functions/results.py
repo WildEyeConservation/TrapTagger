@@ -3086,18 +3086,12 @@ def clean_up_R_results(self,R_type, folder, user_name):
                         scheduled_files.append(task['request']['kwargs']['fileName'])
 
         if R_type == 'activity':
-            # isFile = re.compile('^_Activity_Pattern_', re.I)
             isFile = re.compile('^' + user_name + '_Activity_Pattern_', re.I)
-
         elif R_type == 'occupancy':
-            # isFile = re.compile('^Occupancy_', re.I)
             isFile = re.compile('^' + user_name + '_Occupancy_', re.I)
-
         elif R_type == 'scr':
-            # isFile = re.compile('^SCR_', re.I)
             isFile = re.compile('^' + user_name + '_SCR_', re.I)
         else:
-            # isFile = re.compile('^(Activity_Pattern_|Occupancy_|SCR_)', re.I)
             isFile = re.compile('^(' + user_name + '_Activity_Pattern_|' + user_name + '_Occupancy_|' + user_name + '_SCR_)', re.I)
 
         sourceBucket = Config.BUCKET

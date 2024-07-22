@@ -207,7 +207,11 @@ def process_images(ibs,batch,sourceBucket,species,pose_only=False):
             detection_id = image['detection_id']
             with tempfile.NamedTemporaryFile(delete=True, suffix='.JPG') as temp_file:
                 print('Downloading {} from S3'.format(image_path))
-                s3client.download_file(Bucket=sourceBucket, Key=image_path, Filename=temp_file.name)
+                try:
+                    s3client.download_file(Bucket=sourceBucket, Key=image_path, Filename=temp_file.name)
+                except:
+                    print('Error downloading {} from S3'.format(image_path))
+                    continue
                 image_data = np.array(Image.open(temp_file.name))
                 h, w, _ = image_data.shape
                 x1, x2, y1, y2 = bbox_dict['left'], bbox_dict['right'], bbox_dict['top'], bbox_dict['bottom']

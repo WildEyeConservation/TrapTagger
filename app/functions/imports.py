@@ -53,6 +53,7 @@ import piexif
 import ffmpeg
 import json
 from dateutil.parser import parse as dateutil_parse
+import zipfile
 
 def clusterAndLabel(localsession,task_id,user_id,image_id,labels):
     '''
@@ -450,6 +451,9 @@ def cluster_trapgroup(self,trapgroup_id,force=False):
                 cluster = Cluster(task_id=task.id)
                 db.session.add(cluster)
                 cluster.images = video.camera.images
+                for img in video.camera.images:
+                    if not img.corrected_timestamp and not img.skipped:   # Mark as skipped if not already to prevent reprocessing of timestampless images
+                        img.skipped = True
             # db.session.commit()
 
         # Handle the rest of the images without timestamps
@@ -468,6 +472,7 @@ def cluster_trapgroup(self,trapgroup_id,force=False):
                 cluster = Cluster(task_id=task.id)
                 db.session.add(cluster)
                 cluster.images.append(image)
+                if not image.skipped: image.skipped = True   # Mark as skipped if not already to prevent reprocessing of timestampless images
             # db.session.commit()
 
         if previouslyClustered and not force:
@@ -1737,7 +1742,11 @@ def batch_images(camera_id,filenames,sourceBucket,dirpath,destBucket,survey_id,p
             with tempfile.NamedTemporaryFile(delete=True, suffix='.JPG') as temp_file:
                 if not pipeline:
                     print('Downloading {}'.format(filename))
-                    GLOBALS.s3client.download_file(Bucket=sourceBucket, Key=os.path.join(dirpath, filename), Filename=temp_file.name)
+                    try:
+                        GLOBALS.s3client.download_file(Bucket=sourceBucket, Key=os.path.join(dirpath, filename), Filename=temp_file.name)
+                    except:
+                        app.logger.info("Skipping {} could not download...".format(dirpath+'/'+filename))
+                        continue
 
                     try:
                         hash = generate_raw_image_hash(temp_file.name)
@@ -2107,7 +2116,7 @@ def importImages(self,batch,csv,pipeline,external,min_area,remove_gps,label_sour
 #     return True
 
 @celery.task(bind=True,max_retries=5)
-def runClassifier(self,lower_index,upper_index,sourceBucket,batch_size,survey_id,classifier):
+def runClassifier(self,lower_index,upper_index,sourceBucket,batch_size,cameragroup_ids,classifier):
     '''
     Run species classification on a trapgroup.
 
@@ -2118,15 +2127,21 @@ def runClassifier(self,lower_index,upper_index,sourceBucket,batch_size,survey_id
     '''
     
     try:
-        images = [r[0] for r in db.session.query(Image.id)\
+        cam_folders = [r[0] for r in db.session.query(Camera.path).filter(Camera.cameragroup_id.in_(cameragroup_ids)).distinct().all()]
+        unarchived_files = []
+        for s3Folder in cam_folders:
+            for dirpath, folder, filenames in s3traverse(sourceBucket,s3Folder,include_restored=True):
+                unarchived_files.extend([dirpath+'/'+filename for filename in filenames])
+
+        images = db.session.query(Image.id, Image.filename, Camera.path)\
                         .join(Detection)\
                         .join(Camera)\
-                        .join(Trapgroup)\
-                        .filter(Trapgroup.survey_id==survey_id)\
+                        .filter(Camera.cameragroup_id.in_(cameragroup_ids))\
                         .filter(or_(and_(Detection.source==model,Detection.score>Config.DETECTOR_THRESHOLDS[model]) for model in Config.DETECTOR_THRESHOLDS))\
-                        .order_by(Image.id).distinct().all()]
+                        .order_by(Image.id).distinct().all()
 
-        batch = images[lower_index:upper_index]
+        image_batch = images[lower_index:upper_index]
+        batch = [image[0] for image in image_batch if image[2]+'/'+image[1] in unarchived_files]
 
         if classifier=='MegaDetector':
             detections = db.session.query(Detection)\
@@ -2234,22 +2249,25 @@ def runClassifier(self,lower_index,upper_index,sourceBucket,batch_size,survey_id
 
     return True
 
-def s3traverse(bucket,prefix):
+def s3traverse(bucket,prefix,include_size=False,include_restored=False,include_all=False):
     """
     s3 traverse implements a traversal of a s3 bucket broadly interface compatible with os.walk. A delimiter of / is assumed
     
         Parameters:
             bucket (str): The name of the S3 bucket to be traversed
             prefix (str): The common prefix to start the traversal at.(Excluding the training /)
+            include_size (bool): Whether to include the size of the objects in the traversal
+            include_restored (bool): Whether to include the restored objects in the traversal
+            include_all (bool): Whether to include all objects in the traversal
     
         Returns:
             See os.walk docs
     """
 
-    prefixes,contents = list_all(bucket,prefix+'/')
+    prefixes,contents = list_all(bucket,prefix+'/',include_size,include_restored,include_all)
     yield prefix,prefixes,contents
     for prefix in [prefix+'/'+pf for pf in prefixes]:
-        for prefix,prefixes,contents in s3traverse(bucket,prefix):
+        for prefix,prefixes,contents in s3traverse(bucket,prefix,include_size,include_restored,include_all):
             yield prefix, prefixes, contents
 
 def delete_duplicate_videos(videos,skip):
@@ -2573,8 +2591,8 @@ def import_folder(s3Folder, survey_id, sourceBucket,destinationBucket,pipeline,m
                     gps_file = jpegs[0]
                     gps_key = os.path.join(dirpath,gps_file)
                     with tempfile.NamedTemporaryFile(delete=True, suffix='.JPG') as temp_file:
-                        GLOBALS.s3client.download_file(Bucket=sourceBucket, Key=gps_key, Filename=temp_file.name)
                         try:
+                            GLOBALS.s3client.download_file(Bucket=sourceBucket, Key=gps_key, Filename=temp_file.name)
                             exif_data = piexif.load(temp_file.name)
                             if exif_data['GPS']:
                                 any_gps = True
@@ -3042,21 +3060,35 @@ def classifySurvey(survey_id,sourceBucket,classifier=None,batch_size=200,process
     survey.processing_initialised = True
     db.session.commit()
 
-    images = db.session.query(Image)\
-                        .join(Detection)\
-                        .join(Camera)\
-                        .join(Trapgroup)\
-                        .filter(Trapgroup.survey_id==survey_id)\
-                        .filter(or_(and_(Detection.source==model,Detection.score>Config.DETECTOR_THRESHOLDS[model]) for model in Config.DETECTOR_THRESHOLDS))\
-                        .distinct().count()
+    cameragroups = db.session.query(Cameragroup.id, func.count(distinct(Image.id)))\
+                            .join(Camera, Camera.cameragroup_id==Cameragroup.id)\
+                            .join(Trapgroup)\
+                            .join(Image, Image.camera_id==Camera.id)\
+                            .join(Detection)\
+                            .filter(Trapgroup.survey_id==survey_id)\
+                            .filter(or_(and_(Detection.source==model,Detection.score>Config.DETECTOR_THRESHOLDS[model]) for model in Config.DETECTOR_THRESHOLDS))\
+                            .group_by(Cameragroup.id)\
+                            .all()
 
     # chunk_size = round(Config.QUEUES['parallel']['rate']/4)
     chunk_size = round(10000/4)
-    number_of_chunks = math.ceil(images/chunk_size)
+    current_size = 0
+    cameragroup_ids = []
+    for item in cameragroups:
+        if item[1] >= chunk_size:
+            number_of_chunks = math.ceil(item[1]/chunk_size)
+            for n in range(number_of_chunks):
+                results.append(runClassifier.apply_async(kwargs={'lower_index':n*chunk_size,'upper_index':(n+1)*chunk_size,'sourceBucket':sourceBucket,'batch_size':batch_size,'cameragroup_ids':[item[0]],'classifier':classifier},queue='parallel'))
+        else:
+            if current_size + item[1] > chunk_size:
+                results.append(runClassifier.apply_async(kwargs={'lower_index':0,'upper_index':chunk_size,'sourceBucket':sourceBucket,'batch_size':batch_size,'cameragroup_ids':cameragroup_ids,'classifier':classifier},queue='parallel'))
+                cameragroup_ids = []
+                current_size = 0
+            cameragroup_ids.append(item[0])
+            current_size += item[1]
 
-    # for chunk in chunker(images,round(Config.QUEUES['parallel']['rate']/2)):
-    for n in range(number_of_chunks):
-        results.append(runClassifier.apply_async(kwargs={'lower_index':n*chunk_size,'upper_index':(n+1)*chunk_size,'sourceBucket':sourceBucket,'batch_size':batch_size,'survey_id':survey_id,'classifier':classifier},queue='parallel'))
+    if len(cameragroup_ids) > 0:
+        results.append(runClassifier.apply_async(kwargs={'lower_index':0,'upper_index':chunk_size,'sourceBucket':sourceBucket,'batch_size':batch_size,'cameragroup_ids':cameragroup_ids,'classifier':classifier},queue='parallel'))
 
     survey.processing_initialised = False
     db.session.commit()
@@ -3686,8 +3718,12 @@ def import_survey(self,survey_id,preprocess_done=False):
         app.logger.info("Importing survey {}".format(survey_id))
         processes=4
 
+        survey = db.session.query(Survey).get(survey_id)
+        if survey.status.lower() in ['launched', 'processing', 'indprocessing', 'deleting', 'prepping task']:
+            return True
+
         if not preprocess_done:
-            survey = db.session.query(Survey).get(survey_id)
+            # survey = db.session.query(Survey).get(survey_id)
             import_folder(survey.organisation.folder+'/'+survey.folder, survey_id,Config.BUCKET,Config.BUCKET,False,None,[],processes)
             
             survey = db.session.query(Survey).get(survey_id)
@@ -3702,7 +3738,7 @@ def import_survey(self,survey_id,preprocess_done=False):
             timestamp_check = db.session.query(Image.id).join(Camera).join(Trapgroup).filter(Trapgroup.survey_id==survey_id).filter(Image.corrected_timestamp==None).filter(Image.skipped!=True).first()
             skipCluster = timestamp_check
         else:
-            survey = db.session.query(Survey).get(survey_id)
+            # survey = db.session.query(Survey).get(survey_id)
             survey_id = survey.id
             survey.images_processing = survey.image_count + survey.video_count 
             db.session.commit()
@@ -3784,6 +3820,9 @@ def import_survey(self,survey_id,preprocess_done=False):
             for task_id in task_ids:
                 classifyTask(task_id)
                 updateAllStatuses(task_id=task_id, celeryTask=False)
+
+            archive_survey(survey_id)
+
             survey = db.session.query(Survey).get(survey_id)
             survey.status = 'Ready'
             survey.images_processing = 0
@@ -4195,7 +4234,11 @@ def extract_images_from_video(localsession, sourceKey, bucketName, trapgroup_id)
 
         # Download video
         with tempfile.NamedTemporaryFile(delete=True, suffix=video_type) as temp_file:
-            GLOBALS.s3client.download_file(Bucket=bucketName, Key=sourceKey, Filename=temp_file.name)
+            try:
+                GLOBALS.s3client.download_file(Bucket=bucketName, Key=sourceKey, Filename=temp_file.name)
+            except:
+                app.logger.info('Could not download video {}'.format(sourceKey))
+                return True
             
             # Get video timestamp 
             try:
@@ -4816,8 +4859,10 @@ def get_timestamps(self,trapgroup_id,index=None):
                     JobId=job_ids[image.id]
                 )
                 status = response['JobStatus']
+                if status == 'FAILED': break 
                 if status != 'SUCCEEDED': time.sleep(2)
             
+            if status == 'FAILED': continue
             # Combine all text blocks - we want to try and preserve left-to-right order
             temp_text = {}
             for block in response['Blocks']:
@@ -5236,6 +5281,363 @@ def recluster_survey(survey_id):
     GLOBALS.lock.acquire()
     with allow_join_result():
         for result in results:
+            try:
+                result.get()
+            except Exception:
+                app.logger.info(' ')
+                app.logger.info('!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!')
+                app.logger.info(traceback.format_exc())
+                app.logger.info('!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!')
+                app.logger.info(' ')
+            result.forget()
+    GLOBALS.lock.release()
+
+    return True
+
+def upload_zip(zip_folder, zip_file, survey_id, session):
+    '''Uploads a zip file to S3 and then archives it to Deep Archive'''
+    try:
+        retry = True
+        retry_attempts = 0
+        retry_rate = 1
+        new_zip = Zip(survey_id=survey_id)
+        session.add(new_zip)
+        session.commit()
+        zip_key = zip_folder + '/' + str(new_zip.id) + '.zip'
+        while retry and retry_attempts < 5:
+            try:
+                # NOTE: It is cheaper to upload to Standard and then copy to Deep Archive then to upload directly to Deep Archive because of multipart upload costs
+                GLOBALS.s3client.upload_file(Bucket=Config.BUCKET, Key=zip_key, Filename=zip_file)
+                GLOBALS.s3client.copy_object(Bucket=Config.BUCKET, Key=zip_key, CopySource={'Bucket': Config.BUCKET, 'Key': zip_key}, StorageClass='DEEP_ARCHIVE')
+                retry = False
+            except:
+                retry_attempts += 1
+                retry_rate = 2*retry_rate
+                time.sleep(retry_rate)
+
+        if retry:
+            session.delete(new_zip)
+            session.commit()
+            GLOBALS.s3client.delete_object(Bucket=Config.BUCKET, Key=zip_key)
+            return False
+        else:
+            return True
+    except:
+        return False
+
+@celery.task(bind=True,max_retries=5)
+def archive_empty_images(self,trapgroup_id):
+    ''' Archives empty images from a trapgroup that have not been archived yet. It zips them up and uploads them to the survey folder and deletes the original images.'''
+    try:
+        trapgroup = db.session.query(Trapgroup).get(trapgroup_id)
+        camera_paths = list(set([cam.path for cam in trapgroup.cameras])) 
+        survey_id = trapgroup.survey_id
+        zip_folder = trapgroup.survey.organisation.folder + '-comp/' + Config.SURVEY_ZIP_FOLDER 
+        session = db.session()
+
+        # Get all unarchived files
+        unarchived_files = []
+        unarchived_file_sizes = []
+        for cam_path in camera_paths:
+            splits = cam_path.split('/')
+            splits[0] = splits[0]+'-comp'
+            comp_path = '/'.join(splits)
+            for dirpath, folders, filenames in s3traverse(Config.BUCKET, comp_path, include_size=True):
+                for filename in filenames:
+                    unarchived_files.append(dirpath+'/'+filename[0])
+                    unarchived_file_sizes.append(filename[1])
+
+        # Get all images from empty clusters that have not been archived and zip them together
+        cluster_sq = session.query(Cluster.id)\
+                                .join(Image, Cluster.images)\
+                                .join(Detection)\
+                                .join(Camera)\
+                                .filter(Camera.trapgroup_id==trapgroup_id)\
+                                .filter(or_(and_(Detection.source==model,Detection.score>Config.DETECTOR_THRESHOLDS[model]) for model in Config.DETECTOR_THRESHOLDS))\
+                                .distinct().subquery()             
+
+
+        image_data = session.query(Image.id, Image.filename, Camera.path)\
+                            .join(Camera, Image.camera_id==Camera.id)\
+                            .join(Cluster, Image.clusters)\
+                            .outerjoin(cluster_sq, cluster_sq.c.id==Cluster.id)\
+                            .filter(Camera.trapgroup_id==trapgroup_id)\
+                            .filter(cluster_sq.c.id==None)\
+                            .distinct().all()
+
+        images = []
+        for item in image_data:
+            image_key = item[2] + '/' + item[1]
+            splits = image_key.split('/')
+            splits[0] = splits[0]+'-comp'
+            comp_image_key = '/'.join(splits)
+            if comp_image_key in unarchived_files:
+                index = unarchived_files.index(comp_image_key)
+                images.append((item[0], comp_image_key, unarchived_file_sizes[index]))
+
+        if images:
+            size_limit = 3*(2**30) # size limit is 3GB (available space on worker)
+            counter = 0
+            current_zip_size = 0
+            zipped_images = []
+            for image in images:
+                if current_zip_size + image[2] > size_limit:
+                    if zipf: zipf.close()
+                    success = upload_zip(zip_folder, site_zip, survey_id, session)
+                    if success:
+                        # Delete raw & comp images
+                        for key in zipped_images:
+                            comp_image_key = key
+                            image_key = comp_image_key.replace('-comp','')
+                            GLOBALS.s3client.delete_object(Bucket=Config.BUCKET, Key=comp_image_key)
+                            GLOBALS.s3client.delete_object(Bucket=Config.BUCKET, Key=image_key)
+                    os.remove(site_zip)
+                    counter += 1
+                    current_zip_size = 0
+                    zipped_images = []
+
+                if current_zip_size == 0:
+                    if counter == 0:
+                        site_zip = str(trapgroup.id) + '.zip'
+                    else:
+                        site_zip = str(trapgroup.id) + '_' + str(counter) + '.zip'
+                    zipf = zipfile.ZipFile(site_zip, 'w', allowZip64=True)
+
+                image_id = image[0]
+                comp_image_key = image[1]
+                image_size = image[2]
+                image_fn = str(image_id) + '.jpg'
+                GLOBALS.s3client.download_file(Bucket=Config.BUCKET, Key=comp_image_key, Filename=image_fn)
+                zipf.write(image_fn)
+                os.remove(image_fn)
+                current_zip_size += image_size
+                zipped_images.append(comp_image_key)
+
+
+            if current_zip_size > 0:
+                if zipf: zipf.close()
+                success = upload_zip(zip_folder, site_zip, survey_id, session)
+                if success:
+                    # Delete raw & comp images
+                    for key in zipped_images:
+                        comp_image_key = key
+                        image_key = comp_image_key.replace('-comp','')
+                        GLOBALS.s3client.delete_object(Bucket=Config.BUCKET, Key=comp_image_key)
+                        GLOBALS.s3client.delete_object(Bucket=Config.BUCKET, Key=image_key)
+                os.remove(site_zip)
+
+                                   
+    except Exception as exc:
+        app.logger.info(' ')
+        app.logger.info('!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!')
+        app.logger.info(traceback.format_exc())
+        app.logger.info('!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!')
+        app.logger.info(' ')
+        self.retry(exc=exc, countdown= retryTime(self.request.retries))
+
+    finally:
+        session.close()
+
+    return True
+
+@celery.task(bind=True,max_retries=5)
+def archive_images(self,trapgroup_id):
+    ''' Archive all raw images from clusters containing images that has at least one detection above the threshold'''
+    try:
+        trapgroup = db.session.query(Trapgroup).get(trapgroup_id)
+        camera_paths = list(set([cam.path for cam in trapgroup.cameras])) 
+
+        # Get all unarchived files
+        unarchived_files = []
+        for cam_path in camera_paths:
+            for dirpath, folders, filenames in s3traverse(Config.BUCKET, cam_path):
+                unarchived_files.extend([dirpath+'/'+filename for filename in filenames])
+
+        # Get all images from non-empty clusters that have not been archived and archive them
+        cluster_sq = db.session.query(Cluster.id)\
+                                .join(Image, Cluster.images)\
+                                .join(Detection)\
+                                .join(Camera)\
+                                .filter(Camera.trapgroup_id==trapgroup_id)\
+                                .filter(or_(and_(Detection.source==model,Detection.score>Config.DETECTOR_THRESHOLDS[model]) for model in Config.DETECTOR_THRESHOLDS))\
+                                .distinct().subquery()
+
+
+        images = db.session.query(Image.id, Image.filename, Camera.path)\
+                            .join(Camera, Image.camera_id==Camera.id)\
+                            .join(Cluster, Image.clusters)\
+                            .join(cluster_sq, cluster_sq.c.id==Cluster.id)\
+                            .filter(Camera.trapgroup_id==trapgroup_id)\
+                            .filter(cluster_sq.c.id!=None)\
+                            .distinct().all()
+
+        for image in images:     
+            image_key = image[2] + '/' + image[1]
+            if image_key in unarchived_files:
+                copy_source = {
+                    'Bucket': Config.BUCKET,
+                    'Key': image_key
+                }
+                GLOBALS.s3client.copy_object(Bucket=Config.BUCKET, Key=image_key, CopySource=copy_source, StorageClass='DEEP_ARCHIVE')
+                     
+
+    except Exception as exc:
+        app.logger.info(' ')
+        app.logger.info('!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!')
+        app.logger.info(traceback.format_exc())
+        app.logger.info('!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!')
+        app.logger.info(' ')
+        self.retry(exc=exc, countdown= retryTime(self.request.retries))
+
+    finally:
+        db.session.remove()
+
+    return True
+
+@celery.task(bind=True,max_retries=5)
+def archive_videos(self,cameragroup_id):
+    ''' Archive all non-empty compressed videos from a cameragroup that have not been archived yet and delete the empty compressed videos'''
+    try:
+        cameragroup = db.session.query(Cameragroup).get(cameragroup_id)
+        video_paths = []
+        for camera in cameragroup.cameras:
+            if camera.videos:
+                video_path = camera.path.split('/_video_images_')[0]
+                splits = video_path.split('/')
+                splits[0] = splits[0]+'-comp'
+                comp_video_path = '/'.join(splits)
+                if comp_video_path not in video_paths:
+                    video_paths.append(comp_video_path)
+
+        unarchived_files = []
+        for path in video_paths:
+            for dirpath, folders, filenames in s3traverse(Config.BUCKET, path):
+                unarchived_files.extend([dirpath+'/'+filename for filename in filenames if filename.endswith('.mp4')])
+
+
+        cam_sq = db.session.query(Camera.id)\
+                                    .join(Image)\
+                                    .join(Detection)\
+                                    .filter(Camera.videos.any())\
+                                    .filter(Camera.cameragroup_id==cameragroup_id)\
+                                    .filter(or_(and_(Detection.source==model,Detection.score>Config.DETECTOR_THRESHOLDS[model]) for model in Config.DETECTOR_THRESHOLDS))\
+                                    .subquery()
+
+        videos = db.session.query(Video.id,Video.filename,Camera.path)\
+                            .join(Camera)\
+                            .join(cam_sq, cam_sq.c.id==Camera.id)\
+                            .filter(Camera.cameragroup_id==cameragroup_id)\
+                            .filter(cam_sq.c.id!=None)\
+                            .distinct().all()
+
+        empty_videos = db.session.query(Video.id,Video.filename,Camera.path)\
+                        .join(Camera)\
+                        .outerjoin(cam_sq, cam_sq.c.id==Camera.id)\
+                        .filter(Camera.cameragroup_id==cameragroup_id)\
+                        .filter(cam_sq.c.id==None)\
+                        .distinct().all()
+        
+        for video in videos:
+            video_path = video[2].split('/_video_images_/')[0]
+            splits = video_path.split('/')
+            splits[0] = splits[0]+'-comp'
+            video_key = '/'.join(splits) + '/' + video[1].split('.')[0] + '.mp4'
+            if video_key in unarchived_files:
+                copy_source = {
+                    'Bucket': Config.BUCKET,
+                    'Key': video_key
+                }
+                GLOBALS.s3client.copy_object(Bucket=Config.BUCKET, Key=video_key, CopySource=copy_source, StorageClass='DEEP_ARCHIVE')
+
+        
+        for video in empty_videos:
+            video_path = video[2].split('/_video_images_/')[0]
+            splits = video_path.split('/')
+            splits[0] = splits[0]+'-comp'
+            video_key = '/'.join(splits) + '/' + video[1].split('.')[0] + '.mp4'
+            if video_key in unarchived_files:
+                GLOBALS.s3client.delete_object(Bucket=Config.BUCKET, Key=video_key)
+
+
+    except Exception as exc:
+        app.logger.info(' ')
+        app.logger.info('!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!')
+        app.logger.info(traceback.format_exc())
+        app.logger.info('!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!')
+        app.logger.info(' ')
+        self.retry(exc=exc, countdown= retryTime(self.request.retries))
+
+    finally:
+        db.session.remove()
+
+    return True
+
+def archive_survey(survey_id):
+    ''' 
+    Moves the following date to Glacier Deep Archive storage in S3:
+        - Raw animal Images 
+        - Compressed videos
+        - Compressed empty images which are zipped together. (Raw & comp empty images are deleted)
+    '''
+
+    trapgroup_ids = [r[0] for r in db.session.query(Trapgroup.id).filter(Trapgroup.survey_id==survey_id).distinct().all()]
+    cameragroup_ids = [r[0] for r in db.session.query(Cameragroup.id).join(Camera).join(Trapgroup).filter(Trapgroup.survey_id==survey_id).filter(Camera.videos.any()).distinct().all()]
+
+    # Compressed Videos
+    video_results = []
+    for cameragroup_id in cameragroup_ids:
+        video_results.append(archive_videos.apply_async(kwargs={'cameragroup_id':cameragroup_id},queue='parallel'))
+
+    #Wait for processing to complete
+    db.session.remove()
+    GLOBALS.lock.acquire()
+    with allow_join_result():
+        for result in video_results:
+            try:
+                result.get()
+            except Exception:
+                app.logger.info(' ')
+                app.logger.info('!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!')
+                app.logger.info(traceback.format_exc())
+                app.logger.info('!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!')
+                app.logger.info(' ')
+            result.forget()
+    GLOBALS.lock.release()
+
+
+    # Empty Images
+    empty_results = []
+    for trapgroup_id in trapgroup_ids:
+        empty_results.append(archive_empty_images.apply_async(kwargs={'trapgroup_id':trapgroup_id},queue='parallel'))
+
+    site_zip_keys = []
+    #Wait for processing to complete
+    db.session.remove()
+    GLOBALS.lock.acquire()
+    with allow_join_result():
+        for result in empty_results:
+            try:
+                site_zip_keys.extend(result.get())
+            except Exception:
+                app.logger.info(' ')
+                app.logger.info('!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!')
+                app.logger.info(traceback.format_exc())
+                app.logger.info('!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!')
+                app.logger.info(' ')
+            result.forget()
+    GLOBALS.lock.release()
+
+
+    # Raw Animal Images
+    image_results = []
+    for trapgroup_id in trapgroup_id:
+        image_results.append(archive_images.apply_async(kwargs={'trapgroup_id':trapgroup_id},queue='parallel'))
+
+    #Wait for processing to complete
+    db.session.remove()
+    GLOBALS.lock.acquire()
+    with allow_join_result():
+        for result in image_results:
             try:
                 result.get()
             except Exception:

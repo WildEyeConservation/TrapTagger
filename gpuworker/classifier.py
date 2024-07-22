@@ -173,7 +173,11 @@ class SimpleDataset(torch.utils.data.Dataset):
         ###########Local Download appoach
         if image_id not in self.ims.keys():
             with tempfile.NamedTemporaryFile(delete=True, suffix='.JPG') as temp_file:
-                s3client.download_file(Bucket=self.bucket, Key=self.images[image_id], Filename=temp_file.name)
+                try:
+                    s3client.download_file(Bucket=self.bucket, Key=self.images[image_id], Filename=temp_file.name)
+                except:
+                    print('Failed to download image {}'.format(self.images[image_id]))
+                    return None,detection_id
                 print('Downloaded successfuly')
                 img = Image.open(temp_file.name)
                 print('Image opened')

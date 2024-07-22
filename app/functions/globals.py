@@ -2376,19 +2376,38 @@ def save_crop(img, bbox_norm, square_crop, bucket, key):
 
     return True
 
-def list_all(bucket,prefix):
+def list_all(bucket,prefix,include_size=False,include_restored=False,include_all=False):
     """list_all is just a thin wrapper around list_objects_v2 to remove the limitation that only the first 1000 objects
     are returned. list_all will call list_objects_v2 as many times as required in order to return all the results."""
 
     prefixes=[]
     contents=[]
-    resp = GLOBALS.s3client.list_objects_v2(Bucket=bucket, Delimiter='/',Prefix=prefix)
+    resp = GLOBALS.s3client.list_objects_v2(Bucket=bucket, Delimiter='/',Prefix=prefix, OptionalObjectAttributes=['RestoreStatus'])
     lp=len(prefix)
     while True:
         if 'CommonPrefixes' in resp.keys():
             prefixes+=[p['Prefix'][lp:-1] for p in resp['CommonPrefixes']]
         if 'Contents' in resp.keys():
-            contents += [f['Key'].split('/')[-1] for f in resp['Contents']]
+            # contents += [f['Key'].split('/')[-1] for f in resp['Contents']]
+            for f in resp['Contents']:
+                if include_all:
+                    if include_size:
+                        contents.append((f['Key'].split('/')[-1],f['Size']))
+                    else:
+                        contents.append(f['Key'].split('/')[-1])
+                else:
+                    if 'STANDARD' in f['StorageClass']:
+                        if include_size:
+                            contents.append((f['Key'].split('/')[-1],f['Size']))
+                        else:
+                            contents.append(f['Key'].split('/')[-1])
+                    else:
+                        if include_restored:
+                            if 'RestoreStatus' in f.keys() and 'RestoreExpiryDate' in f['RestoreStatus'].keys():
+                                if include_size:
+                                    contents.append((f['Key'].split('/')[-1],f['Size']))
+                                else:
+                                    contents.append(f['Key'].split('/')[-1])
         if resp['IsTruncated']:
             resp = GLOBALS.s3client.list_objects_v2(Bucket=bucket, Delimiter='/',Prefix=prefix, ContinuationToken=resp['NextContinuationToken'])
         else:
@@ -2685,7 +2704,7 @@ def fire_up_instances(queue,instance_count):
 
     return True
 
-def inspect_celery(include_spam=False,include_reserved=False):
+def inspect_celery(include_spam=False,include_reserved=False,include_scheduled=False):
     ''' Funcion to manually inspect the running celery tasks'''
     inspector = celery.control.inspect()
     spam = ['importImages','.detection','.classify','runClassifier','processCameraStaticDetections', 'process_video_batch','cluster_trapgroup','processStaticWindow', 
@@ -2765,8 +2784,56 @@ def inspect_celery(include_spam=False,include_reserved=False):
                         image_id=batch['detections'][detection_id]['image_id']
                         path = batch['images'][image_id]
                         print('{:{}}{:{}}{:{}}{:{}}  {}'.format(task['id'],40,name,36,hostname,36,time_start,29,path))
+                    elif 'segment_and_pose' in task['name']:
+                        print('{:{}}{:{}}{:{}}{:{}}  {}'.format(task['id'],40,name,36,hostname,36,time_start,29,task['kwargs']['batch'][0]))
+                    elif 'calculate_hotspotter_similarity' in task['name']:
+                        print('{:{}}{:{}}{:{}}{:{}}  {}'.format(task['id'],40,name,36,hostname,36,time_start,29,task['kwargs']['batch'][0]))
                     else:
                         print('{:{}}{:{}}{:{}}{:{}}  {}'.format(task['id'],40,name,36,hostname,36,time_start,29,task['kwargs']))
+
+    if include_scheduled:
+        inspector_scheduled = inspector.scheduled()
+        print('')
+        print('')
+        print('')
+        print('//////////////////////Scheduled tasks://////////////////////')
+        print('{:{}}{:{}}{:{}}{:{}}{:{}}'.format(
+                        'ID',40,
+                        'Function',36,
+                        'Worker',36,
+                        'ETA',29,
+                        '  Kwargs',50
+        ))
+
+        for worker in inspector_scheduled:
+            for task in inspector_scheduled[worker]:
+                request = task['request']
+                if not any(name in request['name'] for name in spam):
+                    eta = datetime.fromisoformat(task['eta']).strftime("%Y-%m-%d %H:%M:%S.%f")
+                    name = request['name'].split('.')[-1]
+                    hostname = request['hostname'].split('celery@')[-1]
+                    if 'importImages' in request['name']:
+                        print('{:{}}{:{}}{:{}}{:{}}  survey_id={}'.format(request['id'],40,name,36,hostname,36,eta,29,request['kwargs']['batch'][0]['survey_id']))
+                    elif '.detection' in request['name']:
+                        print('{:{}}{:{}}{:{}}{:{}}  {}'.format(request['id'],40,name,36,hostname,36,eta,29,request['kwargs']['batch'][0]))
+                    elif 'runClassifier' in request['name']:
+                        print('{:{}}{:{}}{:{}}{:{}}  survey_id={}'.format(request['id'],40,name,36,hostname,36,eta,29,request['kwargs']['survey_id']))
+                    elif 'process_video_batch' in request['name']:
+                        print('{:{}}{:{}}{:{}}{:{}}  {}'.format(request['id'],40,name,36,hostname,36,eta,29,request['kwargs']['dirpath']))
+                    elif 'prepTask' in request['name']:
+                        print('{:{}}{:{}}{:{}}{:{}}  survey_id={}'.format(request['id'],40,name,36,hostname,36,eta,29,request['kwargs']['survey_id']))
+                    elif '.classify' in request['name']:
+                        batch = request['kwargs']['batch']
+                        detection_id=batch['detection_ids'][0]
+                        image_id=batch['detections'][detection_id]['image_id']
+                        path = batch['images'][image_id]
+                        print('{:{}}{:{}}{:{}}{:{}}  {}'.format(request['id'],40,name,36,hostname,36,eta,29,path))
+                    elif 'segment_and_pose' in request['name']:
+                        print('{:{}}{:{}}{:{}}{:{}}  {}'.format(request['id'],40,name,36,hostname,36,eta,29,request['kwargs']['batch'][0]))
+                    elif 'calculate_hotspotter_similarity' in request['name']:
+                        print('{:{}}{:{}}{:{}}{:{}}  {}'.format(request['id'],40,name,36,hostname,36,eta,29,request['kwargs']['batch'][0]))
+                    else:
+                        print('{:{}}{:{}}{:{}}{:{}}  {}'.format(request['id'],40,name,36,hostname,36,eta,29,request['kwargs']))
 
     return True
 
@@ -3310,11 +3377,18 @@ def create_new_er_report(row,er_api_key,er_url):
             er_id = ERangerID(id=object_id,api_key=er_api_key,cluster_id=row['cluster_id'])
             db.session.add(er_id)
 
-            image_key = row['path']+'/'+row['filename']
+            splits = row['path'].split('/')
+            splits[0] = splits[0] + '-comp'
+            comp_path = '/'.join(splits)
+            image_key = comp_path+'/'+row['filename']
             er_url_img = er_url + object_id + '/attachments/'
 
             with tempfile.NamedTemporaryFile(delete=True, suffix='.jpg') as temp_file:
-                GLOBALS.s3client.download_file(Bucket=Config.BUCKET, Key=image_key, Filename=temp_file.name)
+                try:
+                    GLOBALS.s3client.download_file(Bucket=Config.BUCKET, Key=image_key, Filename=temp_file.name)
+                except:
+                    if Config.DEBUGGING: app.logger.info('Error downloading image from S3: {}'.format(image_key))
+                    return True
 
                 files = {'file1': open(temp_file.name, 'rb')}
 

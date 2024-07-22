@@ -5530,6 +5530,9 @@ function prepMapMask(image) {
                 addDetections()
                 finishedDisplayingMask = true
             });
+            activeImageMask.on('error', function() {
+                finishedDisplayingMask = true
+            });
             mapMask.setMaxBounds(bounds);
             mapMask.fitBounds(bounds)
             mapMask.setMinZoom(mapMask.getZoom())
@@ -5569,12 +5572,12 @@ function prepMapMask(image) {
                 mapMask.panInsideBounds(bounds, { animate: false });
             });
     
-            mapMask.on('zoomstart', function() {
-                if (!fullRes) {
-                    activeImageMask.setUrl("https://"+bucketName+".s3.amazonaws.com/" + modifyToCompURL(cameras[maskCamIndex].images[maskImgIndex].url))
-                    fullRes = true  
-                }
-            });    
+            // mapMask.on('zoomstart', function() {
+            //     if (!fullRes) {
+            //         activeImageMask.setUrl("https://"+bucketName+".s3.amazonaws.com/" + modifyToCompURL(cameras[maskCamIndex].images[maskImgIndex].url))
+            //         fullRes = true  
+            //     }
+            // });    
 
             drawnItemsMask = new L.FeatureGroup();
             mapMask.addLayer(drawnItemsMask);
@@ -5679,6 +5682,9 @@ function prepMapStatic(image) {
                 addDetections()
                 finishedDisplayingStatic = true
             });
+            activeImageStatic.on('error', function() {
+                finishedDisplayingStatic = true
+            });
             mapStatic.setMaxBounds(bounds);
             mapStatic.fitBounds(bounds)
             mapStatic.setMinZoom(mapStatic.getZoom())
@@ -5718,12 +5724,12 @@ function prepMapStatic(image) {
                 mapStatic.panInsideBounds(bounds, { animate: false });
             });
     
-            mapStatic.on('zoomstart', function() {
-                if (!fullRes) {
-                    activeImageStatic.setUrl("https://"+bucketName+".s3.amazonaws.com/" + modifyToCompURL(staticgroups[staticgroupIndex].images[staticImgIndex].url))
-                    fullRes = true  
-                }
-            });    
+            // mapStatic.on('zoomstart', function() {
+            //     if (!fullRes) {
+            //         activeImageStatic.setUrl("https://"+bucketName+".s3.amazonaws.com/" + modifyToCompURL(staticgroups[staticgroupIndex].images[staticImgIndex].url))
+            //         fullRes = true  
+            //     }
+            // });    
 
             drawnItemsStatic = new L.FeatureGroup();
             mapStatic.addLayer(drawnItemsStatic);
@@ -5787,6 +5793,9 @@ function prepMapTime(image) {
             activeImageTime.on('load', function() {
                 finishedDisplayingTime = true
             });
+            activeImageTime.on('error', function() {
+                finishedDisplayingTime = true
+            });
             mapTime.setMaxBounds(bounds);
             mapTime.fitBounds(bounds)
             mapTime.setMinZoom(mapTime.getZoom())
@@ -5823,12 +5832,12 @@ function prepMapTime(image) {
                 mapTime.panInsideBounds(bounds, { animate: false });
             });
     
-            mapTime.on('zoomstart', function() {
-                if (!fullRes) {
-                    activeImageTime.setUrl("https://"+bucketName+".s3.amazonaws.com/" + modifyToCompURL(images[cameraIndex].images[imageIndex].url))
-                    fullRes = true  
-                }
-            });    
+            // mapTime.on('zoomstart', function() {
+            //     if (!fullRes) {
+            //         activeImageTime.setUrl("https://"+bucketName+".s3.amazonaws.com/" + modifyToCompURL(images[cameraIndex].images[imageIndex].url))
+            //         fullRes = true  
+            //     }
+            // });    
 
             mapReadyTime = true
         };

@@ -621,6 +621,21 @@ def delete_survey(self,survey_id):
                 # message = 'Could not delete images from S3.'
                 app.logger.info('Could not delete images from S3-comp')
 
+        #Delete survey zips 
+        if status != 'error':
+            try:
+                zips = db.session.query(Zip).filter(Zip.survey_id==survey_id).all()
+                for zip in zips:
+                    zip_key = survey.organisation.folder+'-comp/'+Config.SURVEY_ZIP_FOLDER+'/'+str(zip.id)+'.zip'
+                    GLOBALS.s3client.delete_object(Bucket=Config.BUCKET, Key=zip_key)
+                    db.session.delete(zip)
+                db.session.commit()
+                app.logger.info('Survey zips deleted successfully.')
+            except:
+                status = 'error'
+                message = 'Could not delete survey zip files.'
+                app.logger.info('Could not delete survey zip files.')
+                
         #Delete survey
         if status != 'error':
             try:
@@ -2703,5 +2718,54 @@ def check_masked_and_hidden_detections(survey_id):
     for image in set(images):
         image.detection_rating = detection_rating(image)
     db.session.commit()
+
+    return True
+
+@celery.task(bind=True,max_retries=5,ignore_result=True)
+def restore_images_for_classification(self,survey_id,days,edit_survey_args):
+    '''Restores images from Glacier for a specified survey.'''
+    
+    try:
+        app.logger.info('Restoring images (classification) for survey {} for {} days '.format(survey_id))
+
+        survey = db.session.query(Survey).get(survey_id)
+        survey.status = 'Processing'
+        db.session.commit()
+
+        images = db.session.query(Image.filename, Camera.path)\
+                        .join(Camera)\
+                        .join(Trapgroup)\
+                        .join(Detection)\
+                        .filter(Trapgroup.survey_id==survey_id)\
+                        .filter(or_(and_(Detection.source==model,Detection.score>Config.DETECTOR_THRESHOLDS[model]) for model in Config.DETECTOR_THRESHOLDS))\
+                        .distinct().all()
+        
+        restore_request = {
+            'Days': days,
+            'GlacierJobParameters': {
+                'Tier': 'Bulk'
+            }
+        }
+
+        for image in images:     
+            image_key = image[2] + '/' + image[1]
+            try:
+                GLOBALS.s3client.restore_object(Bucket=Config.BUCKET, Key=image_key, RestoreRequest=restore_request)
+            except:
+                continue
+                      
+        # Schedule task to run after the restore is complete (48 + 2 hours)
+        edit_survey.apply_async(kwargs=edit_survey_args,countdown=180000,queue='default')
+
+    except Exception as exc:
+        app.logger.info(' ')
+        app.logger.info('!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!')
+        app.logger.info(traceback.format_exc())
+        app.logger.info('!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!')
+        app.logger.info(' ')
+        self.retry(exc=exc, countdown= retryTime(self.request.retries))
+
+    finally:
+        db.session.remove()
 
     return True

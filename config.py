@@ -160,6 +160,9 @@ class Config(object):
     # Individual ID Config
     ID_QUANTILES = [90, 80, 60, 30, 0]
 
+    # Zip file folders
+    SURVEY_ZIP_FOLDER = '_survey_zip_files_'
+
     # Time in seconds allowed for a worker to finish setting up beforte being checked for idleness
     SETUP_PERIOD = {
         'celery': '300',
