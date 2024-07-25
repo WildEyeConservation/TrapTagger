@@ -1484,7 +1484,7 @@ def createNewSurvey():
                 status = 'error'
                 message = 'Survey name cannot contain slashes or special characters.'
 
-        test = db.session.query(Survey).filter(Survey.organisation_id==organisation_id).filter(or_(Survey.name==surveyName,Survey.folder==newSurveyS3Folder)).first()
+        test = db.session.query(Survey).filter(Survey.organisation_id==organisation_id).filter(Survey.name==surveyName).first()
         if test != None:
             status = 'error'
             message = 'Survey name already in use.'
