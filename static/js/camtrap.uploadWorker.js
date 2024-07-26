@@ -133,13 +133,18 @@ async function listFolder(dirHandle,path){
     for await (const entry of dirHandle.values()) {
         if (entry.kind=='directory'){
             await listFolder(entry,path+'/'+entry.name)
-            folders.push(path+'/'+entry.name)
             updatePathDisplay()
         } else {
-            filecount+=1
-            proposedQueue.push([path,entry])
-            if ((!checkingFiles)&&(proposedQueue.length>=batchSize)&&uploading) {
-                checkFileBatch()
+            // only accept desired video and image file types and ignore hidden files
+            if (/^[^.].*\.(jpe?g|avi|mp4|mov)$/.test(entry.name.toLowerCase())) {
+                filecount+=1
+                proposedQueue.push([path,entry])
+                if (!folders.includes(path)) {
+                    folders.push(path)
+                }
+                if ((!checkingFiles)&&(proposedQueue.length>=batchSize)&&uploading) {
+                    checkFileBatch()
+                }
             }
         }
     }
@@ -173,7 +178,6 @@ async function selectFiles(dirHandle,resuming=false) {
     /** Takes the users selected folder and iterates through it. */
     resetUploadStatusVariables()
     await listFolder(dirHandle,dirHandle.name)
-    folders.push(dirHandle.name)
     if (resuming) {
         uploadFiles()
     } else {

@@ -1432,6 +1432,7 @@ def createNewSurvey():
     organisation_id = request.form['organisation_id']
     newSurvey_id = 0
     surveyName = ''
+    browser_upload = False
 
     organisation = db.session.query(Organisation).get(organisation_id)
     userPermissions = db.session.query(UserPermissions).filter(UserPermissions.user_id==current_user.id).filter(UserPermissions.organisation_id==organisation_id).first()
@@ -1452,6 +1453,11 @@ def createNewSurvey():
             detailed_access = ast.literal_eval(request.form['detailed_access'])
         else:
             detailed_access = None
+
+        surveyName = surveyName.strip()
+        if newSurveyS3Folder=='none':
+            browser_upload = True
+            newSurveyS3Folder=surveyName
 
         if 'kml' in request.files:
             uploaded_file = request.files['kml']
@@ -1519,20 +1525,15 @@ def createNewSurvey():
 
             # Create survey
             classifier = db.session.query(Classifier).filter(Classifier.name==classifier).first()
-            newSurvey = Survey(name=surveyName, description=newSurveyDescription, trapgroup_code=newSurveyTGCode, organisation_id=organisation_id, status='Uploading', correct_timestamps=correctTimestamps, classifier_id=classifier.id, camera_code=newSurveyCamCode)
+            newSurvey = Survey(name=surveyName, description=newSurveyDescription, trapgroup_code=newSurveyTGCode, organisation_id=organisation_id, status='Uploading', correct_timestamps=correctTimestamps, classifier_id=classifier.id, camera_code=newSurveyCamCode, folder=newSurveyS3Folder)
             db.session.add(newSurvey)
-
-            if newSurveyS3Folder=='none':
-                newSurvey.folder=newSurvey.name
-            else:
-                newSurvey.folder=newSurveyS3Folder
 
             # Add permissions
             setup_new_survey_permissions(survey=newSurvey, organisation_id=organisation_id, user_id=current_user.id, permission=permission, annotation=annotation, detailed_access=detailed_access)
 
             db.session.commit()
 
-            if newSurveyS3Folder=='none':
+            if browser_upload:
                 # Browser upload
                 newSurvey_id = newSurvey.id
 
@@ -4474,11 +4475,12 @@ def createTask(survey_id,parentLabel):
 
         translation = request.form['translation']
         translation = ast.literal_eval(translation)
+        taskName = info[0].strip()
 
-        check = db.session.query(Task).filter(Task.survey_id==int(survey_id)).filter(Task.name==info[0]).first()
+        check = db.session.query(Task).filter(Task.survey_id==int(survey_id)).filter(Task.name==taskName).first()
 
-        if (check == None) and checkSurveyPermission(current_user.id,survey_id,'write') and ('_o_l_d_' not in info[0].lower()) and ('_copying' not in info[0].lower()) and (info[0].lower() != 'default'):
-            newTask = Task(name=info[0], survey_id=int(survey_id), status='Prepping', tagging_time=0, test_size=0, size=200, parent_classification=parentLabel)
+        if (check == None) and checkSurveyPermission(current_user.id,survey_id,'write') and ('_o_l_d_' not in taskName.lower()) and ('_copying' not in taskName.lower()) and (taskName.lower() != 'default'):
+            newTask = Task(name=taskName, survey_id=int(survey_id), status='Prepping', tagging_time=0, test_size=0, size=200, parent_classification=parentLabel)
             db.session.add(newTask)
             dbSurvey = db.session.query(Survey).get(int(survey_id))
             dbSurvey.status = 'Prepping Task'

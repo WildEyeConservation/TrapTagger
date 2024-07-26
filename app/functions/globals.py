@@ -3342,7 +3342,7 @@ def create_new_er_report(row,er_api_key,er_url):
         }
     }
 
-    if ('notes' in row.keys()) and row['notes']: payload['event_details']['notes'] = row['notes']
+    if ('notes' in row.keys()) and row['notes']: payload['event_details']['comments'] = row['notes']
     if ('individual' in row.keys()) and row['individual']: payload['event_details']['individuals'] = row['individual']
 
     # Set headers

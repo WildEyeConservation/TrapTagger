@@ -3764,7 +3764,7 @@ def import_survey(self,survey_id,preprocess_done=False):
             processCameras(survey_id, survey.trapgroup_code, survey.camera_code)
             survey = db.session.query(Survey).get(survey_id)
 
-            survey.status='Removing Static Detections'
+            survey.status='Identifying Static Detections'
             db.session.commit()
             processStaticDetections(survey_id)
             survey = db.session.query(Survey).get(survey_id)
@@ -4044,7 +4044,7 @@ def pipeline_survey(self,surveyName,bucketName,dataSource,fileAttached,trapgroup
             import_folder(dataSource,survey_id,sourceBucket,bucketName,True,min_area,exclusions,4,label_source)
 
         survey = db.session.query(Survey).get(survey_id)
-        survey.status='Removing Static Detections'
+        survey.status='Identifying Static Detections'
         db.session.commit()
         processStaticDetections(survey_id)
 
