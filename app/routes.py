@@ -1432,6 +1432,7 @@ def createNewSurvey():
     organisation_id = request.form['organisation_id']
     newSurvey_id = 0
     surveyName = ''
+    browser_upload = False
 
     organisation = db.session.query(Organisation).get(organisation_id)
     userPermissions = db.session.query(UserPermissions).filter(UserPermissions.user_id==current_user.id).filter(UserPermissions.organisation_id==organisation_id).first()
@@ -1454,7 +1455,9 @@ def createNewSurvey():
             detailed_access = None
 
         surveyName = surveyName.strip()
-        if newSurveyS3Folder=='none': newSurveyS3Folder=surveyName
+        if newSurveyS3Folder=='none':
+            browser_upload = True
+            newSurveyS3Folder=surveyName
 
         if 'kml' in request.files:
             uploaded_file = request.files['kml']
@@ -1484,7 +1487,7 @@ def createNewSurvey():
                 status = 'error'
                 message = 'Survey name cannot contain slashes or special characters.'
 
-        test = db.session.query(Survey).filter(Survey.organisation_id==organisation_id).filter(or_(Survey.name==surveyName,Survey.folder==newSurveyS3Folder)).first()
+        test = db.session.query(Survey).filter(Survey.organisation_id==organisation_id).filter(Survey.name==surveyName).first()
         if test != None:
             status = 'error'
             message = 'Survey name already in use.'
@@ -1530,7 +1533,7 @@ def createNewSurvey():
 
             db.session.commit()
 
-            if newSurveyS3Folder=='none':
+            if browser_upload:
                 # Browser upload
                 newSurvey_id = newSurvey.id
 
