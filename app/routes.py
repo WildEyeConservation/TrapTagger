@@ -1432,6 +1432,7 @@ def createNewSurvey():
     organisation_id = request.form['organisation_id']
     newSurvey_id = 0
     surveyName = ''
+    browser_upload = False
 
     organisation = db.session.query(Organisation).get(organisation_id)
     userPermissions = db.session.query(UserPermissions).filter(UserPermissions.user_id==current_user.id).filter(UserPermissions.organisation_id==organisation_id).first()
@@ -1454,7 +1455,9 @@ def createNewSurvey():
             detailed_access = None
 
         surveyName = surveyName.strip()
-        if newSurveyS3Folder=='none': newSurveyS3Folder=surveyName
+        if newSurveyS3Folder=='none':
+            browser_upload = True
+            newSurveyS3Folder=surveyName
 
         if 'kml' in request.files:
             uploaded_file = request.files['kml']
@@ -1530,7 +1533,7 @@ def createNewSurvey():
 
             db.session.commit()
 
-            if newSurveyS3Folder=='none':
+            if browser_upload:
                 # Browser upload
                 newSurvey_id = newSurvey.id
 
@@ -5617,8 +5620,10 @@ def submitIndividuals():
 
             if len(problemNames) > 0:
                 return json.dumps({'status': 'error','message': 'There are duplicate names.', 'data': problemNames})
-                    
+
+            all_detections = [] 
             for individualID in individuals:
+                all_detections.append(individuals[individualID]['detections'])
 
                 if individuals[individualID]['name'] == 'unidentifiable':
                     individual = unidentifiable
@@ -5677,7 +5682,7 @@ def submitIndividuals():
                         if int(translations[childID]) != unidentifiable.id:
                             individual.children.append(db.session.query(Individual).get(int(translations[childID])))
 
-            clusters = db.session.query(Cluster).join(Image,Cluster.images).join(Detection).filter(Cluster.task_id==task_id).filter(Detection.id.in_(individuals[individualID]['detections'])).distinct().all()
+            clusters = db.session.query(Cluster).join(Image,Cluster.images).join(Detection).filter(Cluster.task_id==task_id).filter(Detection.id.in_(all_detections)).distinct().all()
             for cluster in clusters:
                 cluster.user_id = current_user.id
                 cluster.timestamp = datetime.utcnow()
