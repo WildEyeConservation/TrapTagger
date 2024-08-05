@@ -17,7 +17,39 @@ var taskCompletionStatus = 'False'
 
 launchMTurkTaskBtn.addEventListener('click', ()=>{
     /** Event listener for the launch-task button. Submits all info to the server after doing the necessary checks. */
+    if (tabActiveLaunch == 'baseSightingTab') {
+        if (document.getElementById('taskTaggingLevel').value == '-7') {
+            confirmRestore = true
+            modalLaunchTask.modal('hide')
+            document.getElementById('modalConfirmBodyRestore').innerHTML = '<p> Sighting correction on your empty clusters will require the images to be restored from our archival storage. This process will take 48 hours to complete. Please note that the potential animal sightings in these images will be very rare and not of good quality. Would you like to proceed?</p>'
+            modalConfirmRestore.modal({keyboard: true})
+        }
+    }
+    else if (tabActiveLaunch == 'baseIndividualTab') {
+        confirmRestore = true
+        modalLaunchTask.modal('hide')
+        document.getElementById('modalConfirmBodyRestore').innerHTML = '<p>Individual identification tasks require the raw images for the species of interest to be restored from our archival storage. This process will take 48 hours to complete. Would you like to proceed?</p>'
+        modalConfirmRestore.modal({keyboard: true})
+    }
+    else{
+        launchTask()
+    }
+});
 
+btnConfirmRestore.addEventListener('click', ()=>{
+    /** Event listener for the confirmation of the restoration of images. */
+    modalConfirmRestore.modal('hide')
+    confirmRestore = false
+    launchTask()
+});
+
+btnCancelRestore.addEventListener('click', ()=>{
+    /** Event listener for the cancellation of the restoration of images. */
+    modalConfirmRestore.modal('hide')
+    modalLaunchTask.modal({keyboard: true})
+});
+
+function launchTask(){
     taskSize = parseInt(document.getElementById('taskSize').value)
     taskTaggingLevel = document.getElementById('taskTaggingLevel').value
 
@@ -145,7 +177,7 @@ launchMTurkTaskBtn.addEventListener('click', ()=>{
         xhttp.open("POST", '/launchTask');
         xhttp.send(formData);
     }
-});
+}
 
 btnAddTag.addEventListener('click', ()=>{
     /** Event listener to add a new tag row. */
@@ -1079,7 +1111,7 @@ btnSubmitTranslaions.addEventListener('click', ()=>{
 modalLaunchTask.on('shown.bs.modal', function(){
     /** Intitialises the launch-task modal when opened. */
 
-    if (!helpReturn) {
+    if (!helpReturn && !confirmRestore) {
 
         var xhttp = new XMLHttpRequest();
         xhttp.open("GET", '/getTaskCompletionStatus/'+selectedTask);
@@ -1103,12 +1135,13 @@ modalLaunchTask.on('shown.bs.modal', function(){
 
     } else {
         helpReturn = false
+        confirmRestore = false
     }
 });
 
 modalLaunchTask.on('hidden.bs.modal', function(){
     /** Resets the launch-task modal when closed. */
-    if (!helpReturn) {
+    if (!helpReturn && !confirmRestore) {
         resetLaunchTaskPage()
         document.getElementById('launchMTurkTaskBtn').disabled=false
     }

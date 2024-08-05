@@ -3705,13 +3705,15 @@ def correct_timestamps(survey_id,setup_time=31):
 
 
 @celery.task(bind=True,max_retries=5,ignore_result=True)
-def import_survey(self,survey_id,preprocess_done=False):
+def import_survey(self,survey_id,preprocess_done=False,used_lambda=False,lambda_retries=0):
     '''
     Celery task for the importing of surveys. Includes all necessary processes such as animal detection, species classification etc. Handles added images cleanly.
 
         Parameters:
             survey_id (int): The ID of the survey to be processed
             preprocess_done (bool): Whether or not the survey has already been preprocessed
+            used_lambda (bool): Whether or not to use AWS Lambda was used in the upload process
+            lambda_retries (int): Number of retries for the AWS Lambda process
     '''
     
     try:
@@ -3722,9 +3724,22 @@ def import_survey(self,survey_id,preprocess_done=False):
         if survey.status.lower() in ['launched', 'processing', 'indprocessing', 'deleting', 'prepping task']:
             return True
 
+        if used_lambda:
+            # Check if the object counts beteen the raw and compressed folders are the same to check if lambda processing has finished otherwise reschedule the task
+            count = get_image_count(Config.BUCKET, survey.organisation.folder+'/'+survey.folder)
+            count_comp = get_image_count(Config.BUCKET, survey.organisation.folder+'-comp/'+survey.folder)
+            if count==0 or count != count_comp:
+                if lambda_retries < 5:
+                    import_survey.apply_async(kwargs={'survey_id':survey_id,'used_lambda':used_lambda,'preprocess_done':preprocess_done,'lambda_retries':lambda_retries+1},countdown=300)
+                    return True
+
+
         if not preprocess_done:
             # survey = db.session.query(Survey).get(survey_id)
-            import_folder(survey.organisation.folder+'/'+survey.folder, survey_id,Config.BUCKET,Config.BUCKET,False,None,[],processes)
+            if used_lambda:
+                process_folder(survey.organisation.folder+'/'+survey.folder, survey_id,Config.BUCKET,Config.BUCKET,False,None,[],processes)
+            else:
+                import_folder(survey.organisation.folder+'/'+survey.folder, survey_id,Config.BUCKET,Config.BUCKET,False,None,[],processes)
             
             survey = db.session.query(Survey).get(survey_id)
             survey_id = survey.id
@@ -3776,6 +3791,7 @@ def import_survey(self,survey_id,preprocess_done=False):
 
         if not skipCluster:
             task_id=cluster_survey(survey_id)
+            survey = db.session.query(Survey).get(survey_id)
 
         if static_check and preprocess_done:
             survey.status='Processing Static Detections'
@@ -5319,11 +5335,11 @@ def upload_zip(zip_folder, zip_file, survey_id, session):
             session.delete(new_zip)
             session.commit()
             GLOBALS.s3client.delete_object(Bucket=Config.BUCKET, Key=zip_key)
-            return False
+            return None
         else:
-            return True
+            return new_zip.id
     except:
-        return False
+        return None
 
 @celery.task(bind=True,max_retries=5)
 def archive_empty_images(self,trapgroup_id):
@@ -5357,17 +5373,18 @@ def archive_empty_images(self,trapgroup_id):
                                 .distinct().subquery()             
 
 
-        image_data = session.query(Image.id, Image.filename, Camera.path)\
+        image_data = session.query(Image, Camera.path)\
                             .join(Camera, Image.camera_id==Camera.id)\
                             .join(Cluster, Image.clusters)\
                             .outerjoin(cluster_sq, cluster_sq.c.id==Cluster.id)\
                             .filter(Camera.trapgroup_id==trapgroup_id)\
                             .filter(cluster_sq.c.id==None)\
+                            .filter(Image.zip_id==None)\
                             .distinct().all()
 
         images = []
         for item in image_data:
-            image_key = item[2] + '/' + item[1]
+            image_key = item[1] + '/' + item[0].filename
             splits = image_key.split('/')
             splits[0] = splits[0]+'-comp'
             comp_image_key = '/'.join(splits)
@@ -5383,14 +5400,16 @@ def archive_empty_images(self,trapgroup_id):
             for image in images:
                 if current_zip_size + image[2] > size_limit:
                     if zipf: zipf.close()
-                    success = upload_zip(zip_folder, site_zip, survey_id, session)
-                    if success:
+                    zip_id = upload_zip(zip_folder, site_zip, survey_id, session)
+                    if zip_id:
                         # Delete raw & comp images
-                        for key in zipped_images:
+                        for img, key in zipped_images:
+                            img.zip_id = zip_id
                             comp_image_key = key
                             image_key = comp_image_key.replace('-comp','')
                             GLOBALS.s3client.delete_object(Bucket=Config.BUCKET, Key=comp_image_key)
                             GLOBALS.s3client.delete_object(Bucket=Config.BUCKET, Key=image_key)
+                        session.commit()
                     os.remove(site_zip)
                     counter += 1
                     current_zip_size = 0
@@ -5403,7 +5422,7 @@ def archive_empty_images(self,trapgroup_id):
                         site_zip = str(trapgroup.id) + '_' + str(counter) + '.zip'
                     zipf = zipfile.ZipFile(site_zip, 'w', allowZip64=True)
 
-                image_id = image[0]
+                image_id = image[0].id
                 comp_image_key = image[1]
                 image_size = image[2]
                 image_fn = str(image_id) + '.jpg'
@@ -5411,19 +5430,21 @@ def archive_empty_images(self,trapgroup_id):
                 zipf.write(image_fn)
                 os.remove(image_fn)
                 current_zip_size += image_size
-                zipped_images.append(comp_image_key)
+                zipped_images.append((image[0], comp_image_key))
 
 
             if current_zip_size > 0:
                 if zipf: zipf.close()
-                success = upload_zip(zip_folder, site_zip, survey_id, session)
-                if success:
+                zip_id = upload_zip(zip_folder, site_zip, survey_id, session)
+                if zip_id:
                     # Delete raw & comp images
-                    for key in zipped_images:
+                    for img, key in zipped_images:
+                        img.zip_id = zip_id
                         comp_image_key = key
                         image_key = comp_image_key.replace('-comp','')
                         GLOBALS.s3client.delete_object(Bucket=Config.BUCKET, Key=comp_image_key)
                         GLOBALS.s3client.delete_object(Bucket=Config.BUCKET, Key=image_key)
+                    session.commit()
                 os.remove(site_zip)
 
                                    
@@ -5548,6 +5569,9 @@ def archive_videos(self,cameragroup_id):
                     'Key': video_key
                 }
                 GLOBALS.s3client.copy_object(Bucket=Config.BUCKET, Key=video_key, CopySource=copy_source, StorageClass='DEEP_ARCHIVE')
+            # Delete raw video
+            raw_video_key = video_path + '/' + video[1]
+            GLOBALS.s3client.delete_object(Bucket=Config.BUCKET, Key=raw_video_key)
 
         
         for video in empty_videos:
@@ -5557,6 +5581,9 @@ def archive_videos(self,cameragroup_id):
             video_key = '/'.join(splits) + '/' + video[1].split('.')[0] + '.mp4'
             if video_key in unarchived_files:
                 GLOBALS.s3client.delete_object(Bucket=Config.BUCKET, Key=video_key)
+            # Delete raw video
+            raw_video_key = video_path + '/' + video[1]
+            GLOBALS.s3client.delete_object(Bucket=Config.BUCKET, Key=raw_video_key)
 
 
     except Exception as exc:
@@ -5649,3 +5676,289 @@ def archive_survey(survey_id):
     GLOBALS.lock.release()
 
     return True
+
+#TODO: The import functions still need to be completed 
+def process_folder(s3Folder, survey_id, sourceBucket,destinationBucket,pipeline,min_area,exclusions,processes=4,label_source=None):
+    '''
+    Import all images from an AWS S3 folder. Handles re-import of a folder cleanly.
+
+        Parameters:
+            s3Folder (str): folder name to import
+            survey_id (int): The ID of the survey to be processed
+            sourceBucket (str): Bucket from which import takes place
+            destinationBucket (str): Bucket where compressed images are stored
+            pipeline (bool): Whether import is to pipeline training data (only crops will be saved)
+            min_area (float): The minimum area detection to crop if pipelining
+            exclusions (list): A list of folders to exclude
+            processes (int): Optional number of threads used for the import
+            label_source (str): Exif field where labels should be extracted from
+    '''
+    
+    localsession=db.session()
+    survey = localsession.query(Survey).get(survey_id)
+    # survey = Survey.get_or_create(localsession,name=name,organisation_id=organisation_id,trapgroup_code=tag)
+    survey.status = 'Importing'
+    survey.images_processing = 0
+    survey.processing_initialised = True
+
+    localsession.commit()
+    sid=survey.id
+    tag = survey.trapgroup_code
+    tag = re.compile(tag)
+
+    # Create trapgroups for each camera & batch images for detection
+    results = []
+    batch_count = 0
+    batch = []
+    chunk_size = round(10000/4)
+    cameras = localsession.query(Camera).filter(Camera.path.like(s3Folder+'/%')).distinct().all()
+    for camera in cameras:
+        if '/_video_images_/' in camera.path:
+            tags = tag.findall(camera.path.replace(survey.name+'/','').split('/_video_images_/')[0])
+        else:
+            tags = tag.findall(camera.path.replace(survey.name+'/',''))
+        
+        if len(tags) > 0:
+            camera_name = extract_camera_name(survey.camera_code,survey.trapgroup_code,survey.name,tags[0],camera.path)
+            if camera_name:
+                trapgroup = Trapgroup.get_or_create(localsession, tags[0], sid)
+                camera.trapgroup = trapgroup
+
+                images_to_process = [{'id': r[0], 'filename': r[1]} for r in localsession.query(Image.id,Image.filename).filter(Image.camera==camera).filter(~Image.detections.any()).filter(Image.hash!=None).all()]
+                survey.images_processing += len(images_to_process)
+
+                if images_to_process and trapgroup.latitude == 0 and trapgroup.longitude == 0 and trapgroup.altitude == 0:
+                    # Try and extract latitude and longitude and altitude
+                    try:
+                        gps_file = images_to_process[0]['filename']
+                        gps_key = os.path.join(camera.path,gps_file)
+                        with tempfile.NamedTemporaryFile(delete=True, suffix='.JPG') as temp_file:
+                            GLOBALS.s3client.download_file(Bucket=sourceBucket, Key=gps_key, Filename=temp_file.name)
+                            exif_data = piexif.load(temp_file.name)
+                            if exif_data['GPS']:
+                                gps_keys = exif_data['GPS'].keys()
+                                if piexif.GPSIFD.GPSLatitude in gps_keys:
+                                    lat = exif_data['GPS'][piexif.GPSIFD.GPSLatitude]
+                                    trapgroup.latitude = lat[0][0]/lat[0][1] + lat[1][0]/lat[1][1]/60 + lat[2][0]/lat[2][1]/3600
+                                    if piexif.GPSIFD.GPSLatitudeRef in gps_keys:
+                                        lat_ref = exif_data['GPS'][piexif.GPSIFD.GPSLatitudeRef]
+                                        if lat_ref == b'S': trapgroup.latitude = -trapgroup.latitude
+                                if piexif.GPSIFD.GPSLongitude in gps_keys:
+                                    lon = exif_data['GPS'][piexif.GPSIFD.GPSLongitude]
+                                    trapgroup.longitude = lon[0][0]/lon[0][1] + lon[1][0]/lon[1][1]/60 + lon[2][0]/lon[2][1]/3600
+                                    if piexif.GPSIFD.GPSLongitudeRef in gps_keys:
+                                        lon_ref = exif_data['GPS'][piexif.GPSIFD.GPSLongitudeRef]
+                                        if lon_ref == b'W': trapgroup.longitude = -trapgroup.longitude
+                                if piexif.GPSIFD.GPSAltitude in gps_keys:
+                                    alt = exif_data['GPS'][piexif.GPSIFD.GPSAltitude]
+                                    trapgroup.altitude = alt[0]/alt[1]
+                                    if piexif.GPSIFD.GPSAltitudeRef in gps_keys:
+                                        alt_ref = exif_data['GPS'][piexif.GPSIFD.GPSAltitudeRef]
+                                        if alt_ref == 1: trapgroup.altitude = -trapgroup.altitude
+                                if Config.DEBUGGING: app.logger.info('Extracted GPS data from {}'.format(gps_key))	    
+                    except:
+                        pass
+
+                localsession.commit()
+                tid = trapgroup.id
+
+                #Break folders down into chunks to prevent overly-large folders causing issues
+                for chunk in chunker(images_to_process,chunk_size):
+                    batch.append({'sourceBucket':sourceBucket,
+                                    'dirpath':camera.path,
+                                    'images': chunk,
+                                    'trapgroup_id':tid,
+                                    'camera_id': camera.id,
+                                    'survey_id':sid,
+                                    'destBucket':destinationBucket})
+
+                    batch_count += len(chunk)
+
+                    if (batch_count / (((10000)*random.uniform(0.5, 1.5))/2) ) >= 1:
+                        results.append(generateDetections.apply_async(kwargs={'batch':batch},queue='parallel')) 
+                        app.logger.info('Queued batch with {} images'.format(batch_count))
+                        batch_count = 0
+                        batch = []
+
+
+    if batch_count!=0:
+        results.append(generateDetections.apply_async(kwargs={'batch':batch},queue='parallel')) 
+
+    survey.processing_initialised = False
+    localsession.commit()
+    localsession.close()
+    
+    #Wait for import to complete
+    # Using locking here as a workaround. Looks like celery result fetching is not threadsafe.
+    # See https://github.com/celery/celery/issues/4480
+    app.logger.info('Waiting for image processing to complete')
+    GLOBALS.lock.acquire()
+    with allow_join_result():
+        for result in results:
+            try:
+                result.get()
+            except Exception:
+                app.logger.info(' ')
+                app.logger.info('!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!')
+                app.logger.info(traceback.format_exc())
+                app.logger.info('!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!')
+                app.logger.info(' ')
+            result.forget()
+    GLOBALS.lock.release()
+    app.logger.info('Image processing complete')
+
+
+
+    # Cleanup images, videos & cameras from lambda imports
+    remove_duplicate_videos(sid)
+    remove_duplicate_images(sid)
+    handle_duplicate_cameras(sid)
+
+    return True
+
+def handle_duplicate_cameras(survey_id):
+    '''Handles duplicate cameras in a survey by merging them into a single camera object.'''
+
+    sq = db.session.query(Camera.path.label('path'),func.count(distinct(Camera.id)).label('count'))\
+                        .join(Trapgroup)\
+                        .filter(Trapgroup.survey_id==survey_id)\
+                        .group_by(Camera.path)\
+                        .subquery()
+                        
+    duplicates = db.session.query(Camera.path)\
+                        .join(Trapgroup)\
+                        .filter(Trapgroup.survey_id==survey_id)\
+                        .join(sq,sq.c.path==Camera.path)\
+                        .filter(sq.c.count>1)\
+                        .all()
+
+    for path in duplicates:
+        cameras = db.session.query(Camera).join(Trapgroup).filter(Trapgroup.survey_id==survey_id).filter(Camera.path==path).distinct().all()
+        if len(cameras) == 1: continue
+        camera = cameras[0]
+        duplicate_cameras = cameras[1:]
+        for duplicate in duplicate_cameras:
+            for image in duplicate.images:
+                image.camera_id = camera.id
+            for video in duplicate.videos:
+                video.camera_id = camera.id
+            db.session.delete(duplicate)
+        db.session.commit()
+
+    return True
+    
+
+@celery.task(bind=True,max_retries=5)
+def generateDetections(self,batch):
+    '''
+    Generates detections for a batch of images. 
+    '''
+    try:
+        #Prep bacthes
+        GLOBALS.results_queue = []
+        pool = Pool(processes=4)
+        print('Received generateDetections task with {} batches.'.format(len(batch)))
+        for item in batch:
+            sourceBucket = item['sourceBucket']
+            dirpath = item['dirpath']
+            jpegs = item['images']
+            
+            print("Starting import of batch for {} with {} images.".format(dirpath,len(jpegs)))
+                
+            for image_data in chunker(jpegs,100):
+                pool.apply_async(batch_images_for_detection_only, args=(image_data,sourceBucket,dirpath,False))
+
+        pool.close()
+        pool.join()
+
+        # Fetch the results
+        if Config.DEBUGGING: print('{} batch results to fetch'.format(len(GLOBALS.results_queue)))
+        counter = 0
+        GLOBALS.lock.acquire()
+        with allow_join_result():
+            for images, result in GLOBALS.results_queue:
+                try:
+                    counter += 1
+                    if Config.DEBUGGING: print('Fetching result {}'.format(counter))
+                    starttime = datetime.utcnow()
+                    response = result.get()
+                    if Config.DEBUGGING: print('Fetched result {} after {}.'.format(counter,datetime.utcnow()-starttime))
+
+                    for img, detections in zip(images, response):
+                        try:
+                            image = db.session.query(Image).get(img['id'])
+                            image.detections = [Detection(**detection) for detection in detections]
+                            for detection in image.detections:
+                                db.session.add(detection)
+                        
+                        except Exception:
+                            app.logger.info(' ')
+                            app.logger.info('!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!')
+                            app.logger.info(traceback.format_exc())
+                            app.logger.info('!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!')
+                            app.logger.info(' ')
+                            # db.session.rollback()
+                
+                except Exception:
+                    app.logger.info(' ')
+                    app.logger.info('!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!')
+                    app.logger.info(traceback.format_exc())
+                    app.logger.info('!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!')
+                    app.logger.info(' ')
+                    # db.session.rollback()
+                
+                result.forget()
+        GLOBALS.lock.release()
+
+        #Commit the last batch
+        db.session.commit()
+
+    except Exception as exc:
+        app.logger.info(' ')
+        app.logger.info('!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!')
+        app.logger.info(traceback.format_exc())
+        app.logger.info('!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!')
+        app.logger.info(' ')
+        self.retry(exc=exc, countdown= retryTime(self.request.retries))
+    
+    finally:
+        db.session.remove()
+
+    return True
+
+
+def batch_images_for_detection_only(image_data,sourceBucket,dirpath,external):
+    ''' Helper function that batches images and adds them to the queue to be run through the detector. '''
+    try:
+        batch = []
+        images = []
+        for image in image_data:
+            batch.append(dirpath + '/' + image['filename'])
+            images.append(image)
+        
+        if batch:
+            if Config.DEBUGGING: print('Acquiring lock')
+            GLOBALS.lock.acquire()
+            print('Queueing batch')
+            GLOBALS.results_queue.append((images, detection.apply_async(kwargs={'batch': batch,'sourceBucket':sourceBucket,'external':external,'model':Config.DETECTOR}, queue='celery', routing_key='celery.detection')))
+            GLOBALS.lock.release()
+            if Config.DEBUGGING: print('Lock released')
+
+    except Exception:
+        app.logger.info(' ')
+        app.logger.info('!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!')
+        app.logger.info(traceback.format_exc())
+        app.logger.info('!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!')
+        app.logger.info(' ')
+
+    return True
+
+
+def get_image_count(bucket,prefix):
+    ''' Returns the number of objects (images) in a given prefix in a bucket. '''
+    isjpeg = re.compile('(\.jpe?g$)|(_jpe?g$)', re.I)
+    count = 0
+    for dirpath, folders, filenames in s3traverse(bucket, prefix, include_all=True):
+        jpegs = list(filter(isjpeg.search, filenames))
+        count += len(jpegs)
+    return count

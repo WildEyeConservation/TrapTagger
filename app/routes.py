@@ -69,6 +69,7 @@ GLOBALS.s3UploadClient = boto3.client('s3',
                                     aws_access_key_id=Config.AWS_S3_UPLOAD_ACCESS_KEY_ID,
                                     aws_secret_access_key=Config.AWS_S3_UPLOAD_SECRET_ACCESS_KEY)
 GLOBALS.redisClient = redis.Redis(host=Config.REDIS_IP, port=6379)
+GLOBALS.lambdaClient = boto3.client('lambda', region_name=Config.AWS_REGION)
 GLOBALS.lock = Lock()
 
 # @app.before_first_request
@@ -262,6 +263,22 @@ def launchTask():
 
             return json.dumps({'message': message, 'status': 'Error'})
 
+    # Check last restore
+    if ('-4' in taggingLevel) or ('-5' in taggingLevel):
+        last_id_restores = [t.survey.id_restore for t in tasks if t.survey.id_restore]
+        if last_id_restores:
+            last_id_restore = max(last_id_restores)
+            if (datetime.utcnow() - last_id_restore).days < timedelta(days=Config.RESTORE_COOLDOWN).days:
+                return json.dumps({'message': 'Your survey has recently had images restored from archive. The system requires a cooldown period of ' + str(Config.RESTORE_COOLDOWN) + ' days before another restoration can be performed.', 'status': 'Error'})
+            
+    if ('-7' in taggingLevel):
+        last_empty_restores = [t.survey.empty_restore for t in tasks if t.survey.empty_restore]
+        if last_empty_restores:
+            last_empty_restores = max(last_empty_restores)
+            if (datetime.utcnow() - last_empty_restores).days < timedelta(days=Config.RESTORE_COOLDOWN).days:
+                return json.dumps({'message': 'Your survey has recently had images restored from archive. The system requires a cooldown period of ' + str(Config.RESTORE_COOLDOWN) + ' days before another restoration can be performed.', 'status': 'Error'})
+            
+
     task = db.session.query(Task).get(task_ids[0])
     message = 'Task not ready to be launched.'
 
@@ -349,13 +366,21 @@ def launchTask():
             tags = [tuple(row) for row in tags]
             return json.dumps({'status': 'tags', 'tags': tags})
 
+        #TODO: UPDATE THIS TO USE RESTORE 
         elif len(untranslated) == 0:
-            if (len(task_ids) > 1) and ('-5' in taggingLevel):
-                tL = re.split(',',taggingLevel)
-                if tL[4]=='h':
-                    calculate_detection_similarities.delay(task_ids=task_ids,species=tL[1],algorithm='hotspotter')
-                elif tL[4]=='n':
-                    calculate_detection_similarities.delay(task_ids=task_ids,species=tL[1],algorithm='none')
+            if '-4' in taggingLevel or '-5' in taggingLevel:
+                # restore_images.apply_async(kwargs={'task_id':task.id,'days':30})
+                if (len(task_ids) > 1) and ('-5' in taggingLevel):
+                    tL = re.split(',',taggingLevel)
+                    if tL[4]=='h':
+                        calculate_detection_similarities.delay(task_ids=task_ids,species=tL[1],algorithm='hotspotter')
+                    elif tL[4]=='n':
+                        calculate_detection_similarities.delay(task_ids=task_ids,species=tL[1],algorithm='none')
+                else:
+                    launch_task.apply_async(kwargs={'task_id':task.id})
+            elif '-7' in taggingLevel:
+                # restore_empty_zips.apply_async(kwargs={'task_id':task.id})
+                launch_task.apply_async(kwargs={'task_id':task.id})
             else:
                 launch_task.apply_async(kwargs={'task_id':task.id})
             return json.dumps({'status': 'Success'})
@@ -977,6 +1002,14 @@ def getTaggingLevelsbyTask(task_id,task_type):
         texts.append('Vehicles/Humans/Livestock ('+str(vhl_bounding_count)+')')
         values.append(GLOBALS.vhl_id)
 
+        if task.empty_count == None:
+            updateAllStatuses.delay(task_id=task_id)
+            return json.dumps({'texts': [], 'values': [], 'disabled':'false', 'colours':[]})
+        
+        empty_count = task.empty_count
+        texts.append('Empty ('+str(empty_count)+')')
+        values.append('-7')
+
     elif task_type=='clusterTag':
 
         if not task.init_complete:
@@ -1219,7 +1252,7 @@ def updateSurveyStatus(survey_id, status):
                     db.session.commit()
                     GLOBALS.redisClient.delete('upload_ping_'+str(survey_id))
                     GLOBALS.redisClient.delete('upload_user_'+str(survey_id))
-                    import_survey.delay(survey_id=survey.id)
+                    import_survey.delay(survey_id=survey.id, used_lambda=True)
                 else:
                     return json.dumps('error')
             else:
@@ -1970,16 +2003,21 @@ def editSurvey():
 
         if status == 'success':
             if classifier or ignore_small_detections or sky_masked or timestamps or coordData or masks or staticgroups or kml or imageTimestamps:
-                survey.status = 'Processing'
-                db.session.commit()
                 app.logger.info('Edit survey requested for {} with classifier: {}, ignore_small_detections: {}, sky_masked: {}, timestamps: {}, coordData: {}, masks: {}, staticgroups: {}, kml: {}, imageTimestamps: {}'.format(survey.name,classifier,ignore_small_detections,sky_masked,timestamps,coordData,masks,staticgroups,kml,imageTimestamps))
                 if classifier and survey.classifier.name != classifier:
                     # Need to restore images from Glacier if classifier is changed. Restoration takes 48 hours.
-                    edit_survey_args = {'survey_id':survey.id,'user_id':current_user.id,'classifier':classifier,'ignore_small_detections':ignore_small_detections,'sky_masked':sky_masked,'timestamps':timestamps,'coord_data':coordData,'masks':masks,'staticgroups':staticgroups,'kml_file':kml,'image_timestamps':imageTimestamps}
-                    restore_images_for_classification.delay(survey_id=survey.id,days=2,edit_survey_args=edit_survey_args)
+                    if survey.edit_restore and (datetime.utcnow()-survey.edit_restore).days < timedelta(days=Config.RESTORE_COOLDOWN).days:
+                        status = 'error'
+                        message = 'Your survey recently had images restored. The system requires a cooldown period of {} days before another restoration can be requested. Image restoration is required when editing the classifier.'.format(Config.RESTORE_COOLDOWN)
+                    else:
+                        survey.status = 'Processing'
+                        edit_survey_args = {'survey_id':survey.id,'user_id':current_user.id,'classifier':classifier,'ignore_small_detections':ignore_small_detections,'sky_masked':sky_masked,'timestamps':timestamps,'coord_data':coordData,'masks':masks,'staticgroups':staticgroups,'kml_file':kml,'image_timestamps':imageTimestamps}
+                        restore_images_for_classification.delay(survey_id=survey.id,days=2,edit_survey_args=edit_survey_args)
                 else:
+                    survey.status = 'Processing'
                     edit_survey.delay(survey_id=survey.id,user_id=current_user.id,classifier=classifier,ignore_small_detections=ignore_small_detections,sky_masked=sky_masked,timestamps=timestamps,coord_data=coordData,masks=masks,staticgroups=staticgroups,kml_file=kml,image_timestamps=imageTimestamps)
 
+                db.session.commit()
     else:
         status = 'error'
         message = 'You do not have permission to edit this survey.'
@@ -3990,6 +4028,9 @@ def getJobs():
             #     # NOTE: This is not currently used (is for check masked sightings)
             #     task_type = 'Review Masked Sightings'
             #     species = 'All'
+            elif '-7' in item[1]:
+                task_type = 'Sighting Correction'
+                species = 'Empty'
             else:
                 if item[8] == False:
                     task_type = 'Species Labelling'
@@ -4523,14 +4564,13 @@ def editTranslations(task_id):
         task.survey.status = 'Launched'
         db.session.commit()
 
-        if (task.sub_tasks) and ('-5' in task.tagging_level):
-            task_ids = [r.id for r in task.sub_tasks]
-            task_ids.append(task.id)
-            tL = re.split(',',task.tagging_level)
-            if tL[4]=='h':
-                calculate_detection_similarities.delay(task_ids=[task_ids],species=tL[1],algorithm='hotspotter')
-            elif tL[4]=='n':
-                calculate_detection_similarities.delay(task_ids=[task_ids],species=tL[1],algorithm='none')
+        #TODO: UPDATE THIS TO USE RESTORE 
+        if '-4' in task.tagging_level or '-5' in task.tagging_level:
+            # restore_images.apply_async(kwargs={'task_id':task.id,'days':30})
+            launch_task.apply_async(kwargs={'task_id':task.id})
+        elif '-7' in task.tagging_level:
+            # restore_empty_zips.apply_async(kwargs={'task_id':task.id})
+            launch_task.apply_async(kwargs={'task_id':task.id})
         else:
             launch_task.apply_async(kwargs={'task_id':task.id})
 
@@ -7689,8 +7729,16 @@ def submitTags(task_id):
             task.survey.status = 'Launched'
             db.session.commit()
 
+            #TODO: UPDATE THIS TO USE RESTORE 
             app.logger.info('Calling launch_task for task {}'.format(task_id))
-            launch_task.apply_async(kwargs={'task_id':task_id})
+            if '-4' in task.tagging_level or '-5' in task.tagging_level:
+                # restore_images.apply_async(kwargs={'task_id':task.id,'days':30})
+                launch_task.apply_async(kwargs={'task_id':task.id})
+            elif '-7' in task.tagging_level:
+                # restore_empty_zips.apply_async(kwargs={'task_id':task.id})
+                launch_task.apply_async(kwargs={'task_id':task.id})
+            else:
+                launch_task.apply_async(kwargs={'task_id':task.id})
 
             return json.dumps({'status': 'success'})
         except:
@@ -8847,7 +8895,7 @@ def check_upload_files():
     """Checks a list of images to see if they have already been uploaded."""
 
     try:
-        files = request.json['filenames']
+        files = request.json['files']
         survey_id = request.json['survey_id']
         already_uploaded = []
 
@@ -8857,7 +8905,7 @@ def check_upload_files():
             if userPermissions and userPermissions.create:
                 if checkUploadUser(current_user.id,survey_id):
                     for file in files:
-                        result = checkFile(file,organisation_folder)
+                        result = checkFileExist(file,organisation_folder)
                         if result:
                             already_uploaded.append(result)
                     return json.dumps(already_uploaded)
@@ -13536,3 +13584,36 @@ def getMatchingKpts(det_id1,det_id2):
 #             status = 'success'
 
 #     return json.dumps({'status': status}) 
+
+@app.route('/fileHandler/invoke_lambda', methods=['POST'])
+@login_required
+def invoke_lambda():
+    """Invokes a lambda function to process a file."""
+    try:
+        survey_id = request.json['survey_id']
+        organisation_id, organisation_folder, survey_status = db.session.query(Organisation.id,Organisation.folder,Survey.status).join(Survey).filter(Survey.id==survey_id).first()
+        if organisation_id and (survey_status=='Uploading'):
+            userPermissions = db.session.query(UserPermissions).filter(UserPermissions.organisation_id==organisation_id).filter(UserPermissions.user_id==current_user.id).first()
+            if userPermissions and userPermissions.create:
+                if checkUploadUser(current_user.id,survey_id):
+                    if Config.DEBUGGING: app.logger.info('Invoking lambda function for file: {}'.format(organisation_folder + '/' + request.json['filename'].strip('/')))
+                    key = organisation_folder + '/' + request.json['filename'].strip('/')
+                    if Config.DEBUGGING: app.logger.info('Invoking lambda function for file: {}'.format(key))
+                    payload = {'bucket': Config.BUCKET,
+                                'key': key,
+                                'RDS_HOST': Config.RDS_HOST,
+                                'RDS_USER': Config.RDS_USER,
+                                'RDS_PASSWORD': Config.RDS_PASSWORD,
+                                'RDS_DB_NAME': Config.SQLALCHEMY_DATABASE_NAME,
+                    }
+                    file_type = request.json['file_type']
+                    if file_type == 'image':
+                        GLOBALS.lambdaClient.invoke(FunctionName=Config.IMAGE_IMPORT_LAMBDA, InvocationType='Event', Payload=json.dumps(payload))
+                    elif file_type == 'video':
+                        GLOBALS.lambdaClient.invoke(FunctionName=Config.VIDEO_IMPORT_LAMBDA, InvocationType='Event', Payload=json.dumps(payload))
+
+                    return 'success'
+    except:
+        pass
+        
+    return 'error'

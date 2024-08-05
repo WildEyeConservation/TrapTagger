@@ -163,6 +163,18 @@ class Config(object):
     # Zip file folders
     SURVEY_ZIP_FOLDER = '_survey_zip_files_'
 
+    # Glacier Restore 
+    RESTORE_COUNTDOWN= 174600 # 48 hours + 0.5 hours 
+    RESTORE_COOLDOWN = 14 # 14 days
+
+    # Lambda 
+    RDS_HOST = SQLALCHEMY_DATABASE_SERVER.split('@')[1]
+    RDS_USER = SQLALCHEMY_DATABASE_SERVER.split('@')[0].split('//')[1].split(':')[0]
+    RDS_PASSWORD = SQLALCHEMY_DATABASE_SERVER.split('@')[0].split(':')[2]
+    IMAGE_IMPORT_LAMBDA = 'traptaggerImportImage'
+    VIDEO_IMPORT_LAMBDA = 'traptaggerImportVideo'
+    VIDEO_EXTRACT_LAMBDA = 'traptaggerExtractVideo'
+
     # Time in seconds allowed for a worker to finish setting up beforte being checked for idleness
     SETUP_PERIOD = {
         'celery': '300',

@@ -118,6 +118,7 @@ class Image(db.Model):
     camera_id = db.Column(db.Integer, db.ForeignKey('camera.id'), index=True, unique=False)
     skipped = db.Column(db.Boolean, default=False, index=True)
     extracted = db.Column(db.Boolean, default=False, index=True)
+    zip_id = db.Column(db.Integer, db.ForeignKey('zip.id'), index=True, unique=False)
 
     def __repr__(self):
         return '<Image {}>'.format(self.filename)
@@ -167,6 +168,10 @@ class Survey(db.Model):
     shares = db.relationship('SurveyShare', backref='survey', lazy=True)
     camera_code = db.Column(db.String(256), index=False)
     zips = db.relationship('Zip', backref='survey', lazy=True)
+    id_restore = db.Column(db.DateTime, index=False)
+    download_restore = db.Column(db.DateTime, index=False)
+    edit_restore = db.Column(db.DateTime, index=False)
+    empty_restore = db.Column(db.DateTime, index=False)
 
     def __repr__(self):
         return '<Survey {}>'.format(self.name)
@@ -407,6 +412,7 @@ class Task(db.Model):
     vhl_sighting_count = db.Column(db.Integer, index=False)
     cluster_count = db.Column(db.Integer, index=False)
     clusters_remaining = db.Column(db.Integer, index=False)
+    empty_count = db.Column(db.Integer, index=False)
     clusters = db.relationship('Cluster', backref='task', lazy=True)
     turkcodes = db.relationship('Turkcode', backref='task', lazy=True)
     labels = db.relationship('Label', backref='task', lazy=True)
@@ -640,6 +646,7 @@ class Staticgroup(db.Model):
 class Zip(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     survey_id = db.Column(db.Integer, db.ForeignKey('survey.id'), index=True, unique=False)
+    images = db.relationship('Image', backref='zip', lazy=True)
 
     def __repr__(self):
         return '<Zip {}>'.format(self.id)

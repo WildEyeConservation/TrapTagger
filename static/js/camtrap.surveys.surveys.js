@@ -182,6 +182,9 @@ const btnExcelDownload = document.querySelector('#btnExcelDownload');
 const btnCsvDownload = document.querySelector('#btnCsvDownload');
 const modalConfirmEditSpecies = $('#modalConfirmEditSpecies');
 const modalConfirmEditClose = $('#modalConfirmEditClose');
+const modalConfirmRestore = $('#modalConfirmRestore');
+const btnConfirmRestore = document.querySelector('#btnConfirmRestore')
+const btnCancelRestore = document.querySelector('#btnCancelRestore')
 
 var polarColours = {'rgba(10,120,80,0.2)':false,
                     'rgba(255,255,255,0.2)':false,
@@ -313,6 +316,7 @@ var corrected_coordinates = {}
 var timestampSites = []
 var timestampCameras = {}
 var timestampSpecies = []
+var confirmRestore = false
 
 function buildSurveys(survey,disableSurvey) {
     /**

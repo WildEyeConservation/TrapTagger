@@ -12,21 +12,9 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-confusions = {}
-emptyClustered = {}
-megaDetectorMisses = {}
-load_testers = 0
-s3client = None
-s3UploadClient = None
-lock = None
-nothing_id = 1
-knocked_id = 2
-wrong_id = 3
-unknown_id = 4
-vhl_id = 6
-remove_false_detections_id = 7
-mask_area_id = 8
-results_queue = []
-redisClient = None
-ibs = None
-lambdaClient = None
+boto3==1.34.148
+botocore==1.34.148
+ffmpeg-python==0.2.0
+PyMySQL==1.1.1
+s3transfer==0.10.2
+# FFmpeg & FFprobe added as a layer

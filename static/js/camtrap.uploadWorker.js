@@ -14,6 +14,9 @@
 
 importScripts('yoctoQueue.js')
 importScripts('pLimit.js')
+importScripts('crypto-js.min.js')
+var exports = {}
+importScripts('piexif.js')
 
 const limitTT=pLimit(6)
 
@@ -55,12 +58,35 @@ async function checkFileBatch() {
     /** Pulls a batch of files from the proposed queue and checks if they already exist on the server. */
     if (proposedQueue.length>0) {
         checkingFiles = true
-        let fileNames = []
+        let files = []
         let items = []
-        while ((fileNames.length<batchSize)&&(proposedQueue.length>0)) {
+        while ((files.length<batchSize)&&(proposedQueue.length>0)) {
             let item = proposedQueue.pop()
-            items.push(item)
-            fileNames.push(surveyName + '/' + item[0] + '/' + item[1].name)
+            var file = await item[1].getFile()
+            console.log(file.name)
+            var reader = new FileReader();
+            reader.addEventListener("load", function(wrapReader,wrapPath,wrapEntry) {
+                return async function() {
+                    var jpegData = wrapReader.result
+                    try {
+                        var hash = getHash(jpegData, wrapEntry.name)
+                        if (hash == null || hash == '') {
+                            throw new Error('Hash is null')
+                        }
+                        items.push(item)
+                        files.push({
+                            name: surveyName + '/' + wrapPath + '/' + wrapEntry.name,
+                            hash: hash
+                        })
+                    } catch {
+                        filesUploaded += 1
+                        filesQueued += 1
+                        updateUploadProgress(filesUploaded,filecount)
+                    }    
+                }
+            }(reader,item[0],item[1]), false);
+            reader.readAsBinaryString(file)
+
         }
 
         limitTT(()=> fetch('/fileHandler/check_upload_files', {
@@ -70,7 +96,7 @@ async function checkFileBatch() {
                 'Content-Type': 'application/json',
             },
             body: JSON.stringify({
-                filenames: fileNames,
+                files: files,
                 survey_id: uploadID
             })
         }).then((response) => {
@@ -244,4 +270,14 @@ function resetUploadStatusVariables() {
     addingBatch = false
     checkingFiles = false
     folders = []
+}
+
+function getHash(jpegData, filename) {
+    /** Returns the hash of the EXIF-less image */
+    if (['mp4', 'avi', 'mov'].some(element => filename.toLowerCase().includes(element))){
+        return CryptoJS.MD5(CryptoJS.enc.Latin1.parse(jpegData)).toString()
+    }
+    else{
+        return CryptoJS.MD5(CryptoJS.enc.Latin1.parse(exports.piexif.insert(exports.piexif.dump({'0th':{},'1st':{},'Exif':{},'GPS':{},'Interop':{},'thumbnail':null}), jpegData))).toString()
+    }
 }

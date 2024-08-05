@@ -217,6 +217,34 @@ uppy.on('upload-success', (file, response) => {
     /** On successful upload, remove the file from memory and tell the worker to increment the counts and check if finished. */
     uppy.removeFile(file)
     uploadWorker.postMessage({'func': 'fileUploadedSuccessfully', 'args': null});
+    //Send request to invoke a lambda function to process the uploaded file
+    fileSuffix = file.name.split('.')[1]
+    let fileType;
+    if (/jpe?g$/i.test(fileSuffix)) {
+        fileType = 'image';
+    } else if (/(avi|mp4|mov)$/i.test(fileSuffix)) {
+        fileType = 'video';
+    } else {
+        fileType = 'other';
+    }
+    fetch('/fileHandler/invoke_lambda', {
+        method: 'post',
+        headers: {
+            accept: 'application/json',
+            'content-type': 'application/json',
+        },
+        body: JSON.stringify({
+            survey_id: uploadID,
+            filename: file.name,
+            file_type: fileType
+        }),
+    }).then((response) => {
+        if (!response.ok) {
+            throw new Error(response.statusText)
+        }
+    }).catch( (error) => {
+        // pass
+    })
 })
 
 uppy.on('upload-error', function (file, error) {

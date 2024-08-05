@@ -293,11 +293,14 @@ def launch_task(self,task_id):
             #                     .filter(Detection.status == 'masked') \
             #                     .distinct().all()
 
-            clusters = sq.filter(Cluster.task_id == task_id) \
-                            .filter(or_(and_(Detection.source==model,Detection.score>Config.DETECTOR_THRESHOLDS[model]) for model in Config.DETECTOR_THRESHOLDS)) \
-                            .filter(Detection.static == False) \
-                            .filter(~Detection.status.in_(Config.DET_IGNORE_STATUSES)) \
-                            .distinct().all()
+            if '-7' in taggingLevel:	
+                clusters = sq.filter(Cluster.task_id == task_id).distinct().all()
+            else:
+                clusters = sq.filter(Cluster.task_id == task_id) \
+                                .filter(or_(and_(Detection.source==model,Detection.score>Config.DETECTOR_THRESHOLDS[model]) for model in Config.DETECTOR_THRESHOLDS)) \
+                                .filter(Detection.static == False) \
+                                .filter(~Detection.status.in_(Config.DET_IGNORE_STATUSES)) \
+                                .distinct().all()
 
             cluster_count = len(clusters)
 
@@ -945,6 +948,8 @@ def manageTasks():
         # for task_id in wrapUps:
         #     wrapUpTask.delay(task_id=task_id)
 
+        # manage_tasks_with_restore()
+        
     except Exception as exc:
         app.logger.info(' ')
         app.logger.info('!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!')
@@ -2095,5 +2100,87 @@ def skipCameraImages(self,cameragroup_id):
 
     finally:
         db.session.remove()
+
+    return True
+
+def manage_tasks_with_restore():
+    ''' Manages tasks which use images that have been restored from Glacier'''
+
+    # restored_tasks = db.session.query(Task, func.max(User.last_ping).label('last_ping'), Image.filename, Camera.path)\
+    #                     .join(Turkcode,Task.id==Turkcode.task_id)\
+    #                     .join(User)\
+    #                     .join(Cluster,Task.id==Cluster.task_id)\
+    #                     .join(Image,Cluster.images)\
+    #                     .join(Camera)\
+    #                     .filter(User.parent_id!=None)\
+    #                     .filter(Task.status=='PROGRESS')\
+    #                     .filter(or_(Task.tagging_level.contains('-4'),Task.tagging_level.contains('-7')))\
+    #                     .filter(Cluster.examined==False)\
+    #                     .group_by(Task.id)\
+    #                     .distinct().all()
+
+
+    # restored_tasks2 = db.session.query(Task, func.max(User.last_ping).label('last_ping'), Image.filename, Camera.path)\
+    #                 .join(Turkcode,Task.id==Turkcode.task_id)\
+    #                 .join(User)\
+    #                 .join(Individual,Task.individuals)\
+    #                 .join(Detection,Individual.detections)\
+    #                 .join(Image)\
+    #                 .join(Camera)\
+    #                 .filter(User.parent_id!=None)\
+    #                 .filter(Task.status=='PROGRESS')\
+    #                 .filter(Task.tagging_level.contains('-5'))\
+    #                 .filter(Individual.species==func.substring_index(func.substring_index(Task.tagging_level, ',', 2), ',', -1))\
+    #                 .group_by(Task.id)\
+    #                 .distinct().all()
+
+    # restored_tasks.extend(restored_tasks2)
+    # tasks = {}
+    # for task,last_ping,filename,path in restored_tasks:
+    #     if task.id not in tasks.keys():
+    #         if '-7' in task.tagging_level:
+    #             tasks[task.id] = {'last_ping': last_ping, 'expiration': None}
+    #         else:
+    #             response = GLOBALS.s3_client.head_object(Bucket=GLOBALS.s3_bucket, Key=path + '/' + filename)
+    #             if 'Restore' in response.keys() and 'expiry-date' in response['Restore'].keys():
+    #                 expiration = response['Restore']['expiry-date']
+    #             else:
+    #                 expiration = None
+    #             tasks[task.id] = {'last_ping': last_ping, 'expiration': expiration}
+
+
+    # Inactive for a week ? send notification to admins 
+    # If close to expiration, send notification to user, do we extend date or stop task ? 
+
+    
+    # restored_tasks = db.session.query(Task, func.max(User.last_ping).label('last_ping'), Survey.restore_expires)\
+    #                     .join(Turkcode,Task.id==Turkcode.task_id)\
+    #                     .join(User)\
+    #                     .join(Survey)\
+    #                     .filter(User.parent_id!=None)\
+    #                     .filter(Task.status=='PROGRESS')\
+    #                     .filter(or_(Task.tagging_level.contains('-4'),Task.tagging_level.contains('-5'),Task.tagging_level.contains('-7')))\
+    #                     .group_by(Task.id)\
+    #                     .distinct().all()
+
+    # for task,last_ping,expiration in restored_tasks:
+    #     if '-7' in task.tagging_level:
+    #         if (datetime.utcnow()-last_ping).days > 7:
+    #             # Send notification to admins
+    #             pass
+    #     else:
+    #         if expiration:
+    #             time_left = expiration - datetime.utcnow()
+    #             if (time_left.days < 7) and (time_left.days > 0):
+    #                 # Send notification to user
+    #                 pass
+    #             elif time_left.days <= 0:
+    #                 # Stop task or something like that ? 
+    #                 pass
+    #             else:
+    #                 if (datetime.utcnow()-last_ping).days > 7:
+    #                     # Send notification to admins
+    #                     pass
+                    
 
     return True

@@ -1,3 +1,5 @@
+#!/bin/bash
+
 # Copyright 2023
 
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -12,21 +14,17 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-confusions = {}
-emptyClustered = {}
-megaDetectorMisses = {}
-load_testers = 0
-s3client = None
-s3UploadClient = None
-lock = None
-nothing_id = 1
-knocked_id = 2
-wrong_id = 3
-unknown_id = 4
-vhl_id = 6
-remove_false_detections_id = 7
-mask_area_id = 8
-results_queue = []
-redisClient = None
-ibs = None
-lambdaClient = None
+# Script for monitoring the local worker's status.
+# 50 -> busy
+# 23 -> idle
+# 100 -> error state
+{
+  RESPONSE=$(celery -A llavaworker.worker inspect -d celery@worker$WORKER_NUMBER@$WORKER_NAME active)
+} || {
+  exit 100
+}
+PATTERN="celery@worker'"$WORKER_NUMBER@$WORKER_NAME"': OK"$'\n'"    - empty -"
+if grep -q "$PATTERN" <<< "$RESPONSE"; then
+  exit 23
+fi
+exit 50

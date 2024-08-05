@@ -694,7 +694,21 @@ def updateTaskCompletionStatus(task_id):
                                     .filter(Detection.static==False)\
                                     .filter(~Detection.status.in_(Config.DET_IGNORE_STATUSES))\
                                     .distinct().count()
-    
+
+    cluster_sq = db.session.query(Cluster.id)\
+                            .join(Image, Cluster.images)\
+                            .join(Detection)\
+                            .filter(Cluster.task_id==task_id)\
+                            .filter(or_(and_(Detection.source==model,Detection.score>Config.DETECTOR_THRESHOLDS[model]) for model in Config.DETECTOR_THRESHOLDS))\
+                            .distinct().subquery()             
+
+    task.empty_count = db.session.query(Image.id)\
+                        .join(Cluster, Image.clusters)\
+                        .outerjoin(cluster_sq, cluster_sq.c.id==Cluster.id)\
+                        .filter(cluster_sq.c.id==None)\
+                        .filter(Cluster.task_id==task_id)\
+                        .distinct().count()
+
     db.session.commit()
 
     return True
@@ -2001,6 +2015,17 @@ def taggingLevelSQ(sq,taggingLevel,isBounding,task_id):
     #     # Masked sightings
     #     sq = sq.join(Labelgroup).filter(Labelgroup.task_id==task_id).filter(Labelgroup.checked==False)
 
+    elif (taggingLevel == '-7'):
+        # Empty clusters
+        cluster_sq = db.session.query(Cluster.id)\
+                            .join(Image, Cluster.images)\
+                            .join(Detection)\
+                            .filter(Cluster.task_id==task_id)\
+                            .filter(or_(and_(Detection.source==model,Detection.score>Config.DETECTOR_THRESHOLDS[model]) for model in Config.DETECTOR_THRESHOLDS))\
+                            .distinct().subquery()  
+
+        sq = sq.outerjoin(cluster_sq,Cluster.id==cluster_sq.c.id).filter(cluster_sq.c.id==None)
+
     else:
         # Specific label levels
         if ',' in taggingLevel:
@@ -2581,6 +2606,28 @@ def checkFile(file,folder):
         return file
     except:
         if Config.DEBUGGING: print('{} does not exist'.format(folder + '/' + file))
+        # file does not exist
+        return None
+
+def checkFileExist(file,folder):
+    '''Checks if a file exists in db & s3. Returns the filename if it does and None otherwise.'''
+    try:
+        filename = file['name']
+        hash = file['hash']
+        if Config.DEBUGGING: print('checking {} with hash {}'.format(folder + '/' + filename,hash))
+        common_path = folder + '/' + filename.split('/')[0] + '/%' 
+        check = db.session.query(Image).join(Camera).filter(Image.hash==hash).filter(Camera.path.like(common_path)).first()
+        if check:
+            return filename
+        else:
+            try: 
+                s3_check = GLOBALS.s3client.head_object(Bucket=Config.BUCKET,Key=folder + '/' + filename)
+                return filename
+            except:
+                if Config.DEBUGGING: print('{} does not exist'.format(folder + '/' + filename))
+                return None
+    except:
+        if Config.DEBUGGING: print('{} does not exist'.format(folder + '/' + filename))
         # file does not exist
         return None
 

@@ -233,7 +233,7 @@ async function consumeQueue() {
 async function handleLocalFile(entry,dirHandle) {
     /** Opens a local file and calculates its EXIF-less hash */
     local_files_processing += 1
-    if (['jpeg', 'jpg', 'mp4', 'avi'].some(element => entry.name.toLowerCase().includes(element))) {
+    if (['jpeg', 'jpg', 'mp4', 'avi', 'mov'].some(element => entry.name.toLowerCase().includes(element))) {
         var file = await entry.getFile()
         var reader = new FileReader();
         reader.addEventListener("load", function(wrapReader,wrapDirHandle,wrapFileName) {
@@ -512,7 +512,7 @@ async function getBlob(url) {
 
 function getHash(jpegData, filename) {
     /** Returns the hash of the EXIF-less image */
-    if (['mp4', 'avi'].some(element => filename.toLowerCase().includes(element))){
+    if (['mp4', 'avi', 'mov'].some(element => filename.toLowerCase().includes(element))){
         return CryptoJS.MD5(CryptoJS.enc.Latin1.parse(jpegData)).toString()
     }
     else{
