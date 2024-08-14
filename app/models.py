@@ -166,6 +166,7 @@ class Survey(db.Model):
     exceptions = db.relationship('SurveyPermissionException', backref='survey', lazy=True)
     shares = db.relationship('SurveyShare', backref='survey', lazy=True)
     camera_code = db.Column(db.String(256), index=False)
+    api_keys = db.relationship('APIKey', backref='survey', lazy=True)
 
     def __repr__(self):
         return '<Survey {}>'.format(self.name)
@@ -633,6 +634,14 @@ class Staticgroup(db.Model):
 
     def __repr__(self):
         return '<Staticgroup {}>'.format(self.id)
+
+class APIKey(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    api_key = db.Column(db.String(32), index=True, unique=True)
+    survey_id = db.Column(db.Integer, db.ForeignKey('survey.id'), index=False, unique=False)
+
+    def __repr__(self):
+        return '<APIKey for {}>'.format(self.survey_id)
 
 db.Index('ix_det_srce_scre_stc_stat_class_classcre', Detection.source, Detection.score, Detection.static, Detection.status, Detection.classification, Detection.class_score)
 db.Index('ix_cluster_examined_task', Cluster.examined, Cluster.task_id)

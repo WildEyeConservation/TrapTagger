@@ -597,6 +597,19 @@ def delete_survey(self,survey_id):
                 status = 'error'
                 message = 'Could not delete survey permission exceptions.'
                 app.logger.info('Failed to delete survey permission exceptions.')
+
+        #Delete Survey API Keys
+        if status != 'error':
+            try:
+                survey_api_keys = db.session.query(APIKey).filter(APIKey.survey_id==survey_id).all()
+                for api_key in survey_api_keys:
+                    db.session.delete(api_key)
+                db.session.commit()
+                app.logger.info('Survey API keys deleted successfully.')
+            except:
+                status = 'error'
+                message = 'Could not delete survey API keys.'
+                app.logger.info('Failed to delete survey API keys.')
                 
         #Delete images from S3
         if status != 'error':

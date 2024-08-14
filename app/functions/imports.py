@@ -1840,7 +1840,7 @@ def batch_images(camera_id,filenames,sourceBucket,dirpath,destBucket,survey_id,p
     return True
 
 @celery.task(bind=True,max_retries=5)
-def importImages(self,batch,csv,pipeline,external,min_area,remove_gps,label_source=None):
+def importImages(self,batch,csv,pipeline,external,min_area,remove_gps,label_source=None,live=False):
     '''
     Imports all specified images from a directory path under a single camera object in the database. Ignores duplicate image hashes, and duplicate image paths (from previous imports).
 
@@ -1908,11 +1908,23 @@ def importImages(self,batch,csv,pipeline,external,min_area,remove_gps,label_sour
 
                     for img, detections in zip(images, response):
                         try:
-                            image = Image(**img)
-                            db.session.add(image)
-                            image.detections = [Detection(**detection) for detection in detections]
-                            for detection in image.detections:
-                                db.session.add(detection)
+                            if live:
+                                image = db.session.query(Image).filter(Image.hash==img['hash']).filter(Image.camera_id==img['camera_id']).filter(Image.filename==img['filename']).first()
+                                if image:
+                                    if not image.detections:
+                                        image.detections = [Detection(**detection) for detection in detections]
+                                        for detection in image.detections:
+                                            db.session.add(detection)
+
+                                    if not image.corrected_timestamp:
+                                        image.corrected_timestamp = img['corrected_timestamp']
+                                        image.timestamp = img['timestamp']
+                            else:
+                                image = Image(**img)
+                                db.session.add(image)
+                                image.detections = [Detection(**detection) for detection in detections]
+                                for detection in image.detections:
+                                    db.session.add(detection)
                         
                         except Exception:
                             app.logger.info(' ')
@@ -3673,7 +3685,7 @@ def correct_timestamps(survey_id,setup_time=31):
 
 
 @celery.task(bind=True,max_retries=5,ignore_result=True)
-def import_survey(self,survey_id,preprocess_done=False):
+def import_survey(self,survey_id,preprocess_done=False,live=False):
     '''
     Celery task for the importing of surveys. Includes all necessary processes such as animal detection, species classification etc. Handles added images cleanly.
 
@@ -3688,7 +3700,10 @@ def import_survey(self,survey_id,preprocess_done=False):
 
         if not preprocess_done:
             survey = db.session.query(Survey).get(survey_id)
-            import_folder(survey.organisation.folder+'/'+survey.folder, survey_id,Config.BUCKET,Config.BUCKET,False,None,[],processes)
+            if live:
+                import_live_data(survey_id)
+            else:
+                import_folder(survey.organisation.folder+'/'+survey.folder, survey_id,Config.BUCKET,Config.BUCKET,False,None,[],processes)
             
             survey = db.session.query(Survey).get(survey_id)
             survey_id = survey.id
@@ -3728,11 +3743,13 @@ def import_survey(self,survey_id,preprocess_done=False):
             processCameras(survey_id, survey.trapgroup_code, survey.camera_code)
             survey = db.session.query(Survey).get(survey_id)
 
-            survey.status='Identifying Static Detections'
-            db.session.commit()
-            processStaticDetections(survey_id)
-            survey = db.session.query(Survey).get(survey_id)
-            static_check = db.session.query(Staticgroup.id).join(Detection).join(Image).join(Camera).join(Trapgroup).filter(Trapgroup.survey_id==survey_id).filter(Staticgroup.status=='unknown').first()
+            static_check = None
+            if not live:
+                survey.status='Identifying Static Detections'
+                db.session.commit()
+                processStaticDetections(survey_id)
+                survey = db.session.query(Survey).get(survey_id)
+                static_check = db.session.query(Staticgroup.id).join(Detection).join(Image).join(Camera).join(Trapgroup).filter(Trapgroup.survey_id==survey_id).filter(Staticgroup.status=='unknown').first()
 
             survey.status='Importing Coordinates'
             db.session.commit()
@@ -5246,5 +5263,112 @@ def recluster_survey(survey_id):
                 app.logger.info(' ')
             result.forget()
     GLOBALS.lock.release()
+
+    return True
+
+def import_live_data(survey_id):
+    '''Imports live data for the given survey.'''
+
+    results = []
+    batch_count = 0
+    batch = []
+    chunk_size = round(10000/4)
+    survey = db.session.query(Survey).get(survey_id)
+    survey.status = 'Importing'
+    survey.images_processing = 0
+    survey.processing_initialised = True
+    db.session.commit()
+
+    cameras = db.session.query(Camera).join(Trapgroup).filter(Trapgroup.survey_id==survey_id).distinct().all()
+    for camera in cameras:
+        to_process = [r[0] for r in db.session.query(Image.filename).filter(Image.camera_id==camera.id).filter(or_(~Image.clusters.any(),~Image.detections.any())).distinct().all()]
+        survey.images_processing += len(to_process)
+        #Break folders down into chunks to prevent overly-large folders causing issues
+        for chunk in chunker(to_process,chunk_size):
+            batch.append({'sourceBucket':Config.BUCKET,
+                            'dirpath':camera.path,
+                            'filenames': chunk,
+                            'trapgroup_id':camera.trapgroup_id,
+                            'camera_id': camera.id,
+                            'survey_id': survey_id,
+                            'destBucket':Config.BUCKET,
+                        })
+
+            batch_count += len(chunk)
+
+            if (batch_count / (((10000)*random.uniform(0.5, 1.5))/2) ) >= 1:
+                results.append(importImages.apply_async(kwargs={'batch':batch,'csv':False,'pipeline':False,'external':False,'min_area':None,'remove_gps':False,'label_source':None,'live':True},queue='parallel'))
+                app.logger.info('Queued batch with {} images'.format(batch_count))
+                batch_count = 0
+                batch = []
+
+
+        if batch_count!=0:
+            results.append(importImages.apply_async(kwargs={'batch':batch,'csv':False,'pipeline':False,'external':False,'min_area':None, 'remove_gps':False,'label_source':None,'live':True},queue='parallel'))
+
+
+    survey.processing_initialised = False
+    db.session.commit()
+    db.session.close()
+    
+    #Wait for import to complete
+    # Using locking here as a workaround. Looks like celery result fetching is not threadsafe.
+    # See https://github.com/celery/celery/issues/4480
+    app.logger.info('Waiting for image processing to complete')
+    GLOBALS.lock.acquire()
+    with allow_join_result():
+        for result in results:
+            try:
+                result.get()
+            except Exception:
+                app.logger.info(' ')
+                app.logger.info('!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!')
+                app.logger.info(traceback.format_exc())
+                app.logger.info('!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!')
+                app.logger.info(' ')
+            result.forget()
+    GLOBALS.lock.release()
+    app.logger.info('Image (Live) processing complete')
+
+    # Remove any duplicate images that made their way into the database due to the parallel import process.
+    remove_duplicate_images(survey_id)
+
+    return True
+
+
+@celery.task(ignore_result=True)
+def monitor_live_data_surveys():
+    '''Celery task that monitors surveys with live data and schedules and import for them.'''
+    try:
+
+        surveys = [r[0] for r in db.session.query(Survey.id)\
+                            .join(Trapgroup)\
+                            .join(Camera)\
+                            .join(Image)\
+                            .join(APIKey)\
+                            .filter(Survey.status.in_(Config.SURVEY_READY_STATUSES))\
+                            .filter(APIKey.api_key!=None)\
+                            .filter(or_(~Image.clusters.any(),~Image.detections.any()))\
+                            .distinct().all()]
+
+        if Config.DEBUGGING: app.logger.info('Found {} surveys with live data to import'.format(len(surveys)))
+
+        for survey in surveys:
+            survey.status = 'Import Queued'
+            import_survey.delay(survey.id, live=True)
+
+        db.session.commit()
+
+    except Exception as exc:
+        app.logger.info(' ')
+        app.logger.info('!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!')
+        app.logger.info(traceback.format_exc())
+        app.logger.info('!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!')
+        app.logger.info(' ')
+
+    finally:
+        db.session.remove()
+        #Schedule every 24hours
+        monitor_live_data_surveys.apply_async(queue='priority', priority=0,countdown=86400)
 
     return True

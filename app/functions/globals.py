@@ -3919,3 +3919,22 @@ def getParentLabels(task_id,description,parent_labels,addLabel=True):
             getParentLabels(task_id,label.parent.description,parent_labels)
 
     return parent_labels
+
+def generate_api_key():
+    '''Generates a API key for WPS integration'''
+    api_key = ''.join(random.choices(string.ascii_letters + string.digits, k=32))
+    # Encrypt the api_key
+    while db.session.query(APIKey).filter(APIKey.api_key==api_key).first():
+        api_key = ''.join(random.choices(string.ascii_letters + string.digits, k=32))
+    return api_key
+
+def generate_site_name(survey_id):
+    '''Generates a unique site name for a new site'''
+    site_count = db.session.query(Trapgroup).filter(Trapgroup.survey_id==survey_id).count()
+    site_name = 'Site' + str(site_count+1)
+    check = db.session.query(Trapgroup).filter(Trapgroup.survey_id==survey_id).filter(Trapgroup.tag==site_name).first()
+    while check:
+        site_count += 1
+        site_name = 'Site' + str(site_count+1)
+        check = db.session.query(Trapgroup).filter(Trapgroup.survey_id==survey_id).filter(Trapgroup.tag==site_name).first()
+    return site_name

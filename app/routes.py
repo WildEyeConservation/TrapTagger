@@ -3611,7 +3611,7 @@ def getHomeSurveys():
                                     'numVideos': item[4], 
                                     'numFrames': item[5], 
                                     'status': surveyStatus, 
-                                    'numTrapgroups': item[7], 
+                                    'numTrapgroups': item[7] if item[7] else 0,
                                     'organisation': item[17],
                                     'tasks': []}
 
@@ -3739,7 +3739,7 @@ def getHomeSurveys():
                                         'numVideos': item[4], 
                                         'numFrames': item[5], 
                                         'status': surveyStatus, 
-                                        'numTrapgroups': item[7],
+                                        'numTrapgroups': item[7] if item[7] else 0,
                                         'organisation': item[17],
                                         'tasks': []}
 
@@ -10946,49 +10946,74 @@ def saveIntegrations():
     status = 'FAILURE'
     message = 'Unable to save integrations.'
     if current_user and current_user.is_authenticated:
-        admin_orgs = [r[0] for r in db.session.query(Organisation.id).join(UserPermissions).filter(UserPermissions.user_id==current_user.id).filter(UserPermissions.default=='admin').all()]
-        # EarthRanger
-        earth_ranger_integrations = integrations['earthranger']
+        admin_data = db.session.query(Survey.id, Organisation.id).join(Organisation).join(UserPermissions).filter(UserPermissions.user_id==current_user.id).filter(UserPermissions.default=='admin').all()
+        admin_orgs = list(set([r[1] for r in admin_data]))
+        admin_surveys = [r[0] for r in admin_data]
 
-        if Config.DEBUGGING: app.logger.info('Earth ranger integrations {}'.format(earth_ranger_integrations))
+        try:
+            # EarthRanger
+            earth_ranger_integrations = integrations['earthranger']
+            er_deleted = earth_ranger_integrations['deleted']
+            er_edited = earth_ranger_integrations['edited']
+            er_new = earth_ranger_integrations['new']
 
-        er_deleted = earth_ranger_integrations['deleted']
-        er_edited = earth_ranger_integrations['edited']
-        er_new = earth_ranger_integrations['new']
+            if Config.DEBUGGING: app.logger.info('Earth ranger integrations {}'.format(earth_ranger_integrations))
 
-        status = 'SUCCESS'
-        message = 'Integrations saved successfully.'
+            for er in er_deleted:
+                er_integration = db.session.query(EarthRanger).filter(EarthRanger.id==er).first()
+                if er_integration and er_integration.organisation_id in admin_orgs:
+                    db.session.delete(er_integration)
 
-        for er in er_deleted:
-            if int(er['org_id']) in admin_orgs:
-                db.session.query(EarthRanger).filter(EarthRanger.id==er['id']).delete()
-            else:
-                status = 'FAILURE'
-                message = 'Unable to save integrations.'
+            for er in er_edited:
+                if int(er['org_id']) in admin_orgs:
+                    er_integration = db.session.query(EarthRanger).filter(EarthRanger.id==er['id']).first()
+                    if er_integration and er_integration.organisation_id in admin_orgs:
+                        er_integration.label = er['species']
+                        er_integration.api_key = er['api_key']
+                        er_integration.organisation_id = er['org_id']
 
-        for er in er_edited:
-            if int(er['org_id']) in admin_orgs:
-                er_integration = db.session.query(EarthRanger).filter(EarthRanger.id==er['id']).first()
-                if er_integration.organisation_id in admin_orgs:
-                    er_integration.label = er['species']
-                    er_integration.api_key = er['api_key']
-                    er_integration.organisation_id = er['org_id']
-                else:
-                    status = 'FAILURE'
-                    message = 'Unable to save integrations.'
-            else:
-                status = 'FAILURE'
-                message = 'Unable to save integrations.'
+            for er in er_new:
+                if int(er['org_id']) in admin_orgs:
+                    check_er = db.session.query(EarthRanger).filter(EarthRanger.organisation_id==er['org_id']).filter(EarthRanger.label==er['species']).filter(EarthRanger.api_key==er['api_key']).first()
+                    if not check_er:
+                        er_integration = EarthRanger(organisation_id=er['org_id'], api_key=er['api_key'], label=er['species'])
+                        db.session.add(er_integration)
 
-        for er in er_new:
-            if int(er['org_id']) in admin_orgs:
-                er_integration = EarthRanger(organisation_id=er['org_id'], api_key=er['api_key'], label=er['species'])
-                db.session.add(er_integration)
-            else:
-                status = 'FAILURE'
-                message = 'Unable to save integrations.'
 
-        db.session.commit()
+            # Live Data
+            live_integrations = integrations['live']
+            live_deleted = live_integrations['deleted']
+            live_edited = live_integrations['edited']
+            live_new = live_integrations['new']
+
+            if Config.DEBUGGING: app.logger.info('Live integrations {}'.format(live_integrations))
+
+            for live in live_deleted:
+                live_integration = db.session.query(APIKey).filter(APIKey.id==live).first()
+                if live_integration and live_integration.survey_id in admin_surveys:
+                    db.session.delete(live_integration)
+
+            for live in live_edited:
+                live_integration = db.session.query(APIKey).filter(APIKey.id==live['id']).first()
+                if live_integration and live_integration.survey_id in admin_surveys and int(live['survey_id']) in admin_surveys:
+                    live_integration.survey_id = live['survey_id']
+
+            for live in live_new:
+                if int(live['survey_id']) in admin_surveys:
+                    api_key = generate_api_key()
+                    # Encrypt api key with secret key ?
+                    check = db.session.query(APIKey).filter(APIKey.survey_id==live['survey_id']).first()
+                    if not check:
+                        live_integration = APIKey(api_key=api_key, survey_id=live['survey_id'])
+                        db.session.add(live_integration)
+
+            db.session.commit()
+            status = 'SUCCESS'
+            message = 'Integrations saved successfully.'
+
+        except:
+            status = 'FAILURE'
+            message = 'Unable to save integrations.'
 
     return json.dumps({'status': status, 'message': message})
 
@@ -11019,6 +11044,16 @@ def getIntegrations():
                 'species': value['species'],
                 'ids': value['ids'],
                 'organisation': value['organisation']
+            })
+
+        live_integrations = db.session.query(APIKey,).join(Survey).join(Organisation).join(UserPermissions).filter(UserPermissions.default=='admin').filter(UserPermissions.user_id==current_user.id).all()
+        for live_integration in live_integrations:
+            integrations.append({
+                'integration': 'live',
+                'id': live_integration.id,
+                'api_key': live_integration.api_key,
+                'survey_id': live_integration.survey_id,
+                'survey': live_integration.survey.name
             })
 
     return json.dumps({'integrations': integrations})
@@ -11749,13 +11784,32 @@ def getAdminOrganisations():
     ''' Gets all the organisations where the current user is an admin '''
 
     organisations = []
+    include_surveys = request.args.get('include_surveys', False, type=bool)
     if current_user and current_user.is_authenticated:
-        orgs = db.session.query(Organisation.id, Organisation.name).join(UserPermissions).filter(UserPermissions.user_id == current_user.id).filter(UserPermissions.default == 'admin').distinct().all()
-        for org in orgs:
-            organisations.append({
-                'id': org[0],
-                'name': org[1]
-            })
+        if include_surveys:
+            surveys = []
+            org_data = db.session.query(Survey.id, Survey.name, Organisation.id, Organisation.name).join(Organisation).join(UserPermissions).filter(UserPermissions.user_id == current_user.id).filter(UserPermissions.default == 'admin').distinct().all()
+            org_added = []
+            for data in org_data:
+                surveys.append({
+                    'id': data[0],
+                    'name': data[1],
+                })
+                if data[2] not in org_added:
+                    organisations.append({
+                        'id': data[2],
+                        'name': data[3]
+                    })
+                    org_added.append(data[2])
+            
+            return json.dumps({'organisations': organisations, 'surveys': surveys})
+        else:
+            orgs = db.session.query(Organisation.id, Organisation.name).join(UserPermissions).filter(UserPermissions.user_id == current_user.id).filter(UserPermissions.default == 'admin').distinct().all()
+            for org in orgs:
+                organisations.append({
+                    'id': org[0],
+                    'name': org[1]
+                })
 
     return json.dumps({'organisations': organisations})
     
@@ -13502,3 +13556,229 @@ def getMatchingKpts(det_id1,det_id2):
 #             status = 'success'
 
 #     return json.dumps({'status': status}) 
+
+@app.route('/api/v1/addImage', methods=['POST'])
+def addImage():
+    ''' Adds an image to a survey '''
+
+    api_key = request.headers.get('apikey')
+    if api_key is None or api_key == '':
+        return json.dumps({'message': 'Forbidden.'}), 403
+    live_integration = db.session.query(APIKey).filter(APIKey.api_key==api_key).first()
+    if live_integration:
+        survey_id = live_integration.survey_id
+        survey = db.session.query(Survey).get(survey_id)
+        # Get Image & image information 
+        try:
+            image = request.files.get('image')
+
+            if not image:
+                return json.dumps({'message': 'No image provided.'}), 400
+
+            filename = image.filename
+            data = request.form.to_dict()
+
+            site = data.get('site')
+            latitude = data.get('latitude', 0)
+            longitude = data.get('longitude', 0)
+            altitude = data.get('altitude', 0)
+            camera = data.get('camera')
+
+            timestamp = data.get('timestamp')
+            if timestamp:
+                try:
+                    timestamp = datetime.strptime(timestamp, '%Y-%m-%d %H:%M:%S')
+                except:
+                    timestamp = None
+
+            annotations = data.get('annotations')
+            if annotations:
+                try:
+                    annotations = json.loads(annotations)
+                except:
+                    annotations = None
+
+
+            if site is None and latitude == 0 and longitude == 0:
+                return json.dumps({'message': 'Missing site information.'}), 400
+
+            app.logger.info(f'Filename: {filename} Site: {site} Latitude: {latitude} Longitude: {longitude} Altitude: {altitude} Camera: {camera} Timestamp: {timestamp} Annotations: {annotations}')
+
+            with tempfile.NamedTemporaryFile(delete=True, suffix='.JPG') as temp_file:
+                image.save(temp_file.name)
+                try:
+                    image_hash = generate_raw_image_hash(temp_file.name)
+
+                    # Check if the image already exists
+                    survey_folder = survey.organisation.folder + '/' + survey.folder + '/%'
+                    existing_image = db.session.query(Image).join(Camera).filter(Camera.path.like(survey_folder)).filter(Image.hash==image_hash).first()
+                    if existing_image:
+                        return json.dumps({'message': 'Image already exists.', 'image_id': existing_image.id}), 201
+                    else:
+                        # Add to the database
+                        if site:
+                            trapgroup = db.session.query(Trapgroup).filter(Trapgroup.survey_id==survey_id).filter(Trapgroup.tag==site).first()
+                        else:
+                            if latitude and longitude:
+                                coordinate_tolerance = 0.00001
+                                trapgroup = db.session.query(Trapgroup).filter(Trapgroup.survey_id==survey_id).filter(func.abs(Trapgroup.latitude-latitude) <= coordinate_tolerance).filter(func.abs(Trapgroup.longitude-longitude) <= coordinate_tolerance).first()
+                        
+                        if not trapgroup:
+                            if site:
+                                site_name = site
+                            else:
+                                site_name = generate_site_name(survey_id)
+                            # trapgroup = Trapgroup(survey_id=survey_id, tag=site_name, latitude=latitude, longitude=longitude, altitude=altitude)
+                            # db.session.add(trapgroup)
+                        else:
+                            site_name = trapgroup.tag
+
+                        if camera:
+                            camera_path = survey.organisation.folder + '/' + survey.folder + '/' + site_name + '/' + camera
+                        else:
+                            camera_path = survey.organisation.folder + '/' + survey.folder + '/' + site_name
+
+                        # Upload to S3
+                        image_key = camera_path + '/' + filename
+                        # Check if it exists #TODO How to handle this ??
+                        image_exists = False
+                        try:
+                            GLOBALS.s3client.head_object(Bucket=Config.BUCKET, Key=image_key)
+                            image_exists = True
+                        except:
+                            image_exists = False
+
+                        if image_exists:
+                            return json.dumps({'message': 'Image with the same name already exists for the specified site and camera.'}), 400
+
+                        GLOBALS.s3client.upload_file(Bucket=Config.BUCKET, Key=image_key, Filename=temp_file.name)
+
+                        if not trapgroup:
+                            trapgroup = Trapgroup(survey_id=survey_id, tag=site_name, latitude=latitude, longitude=longitude, altitude=altitude)
+                            db.session.add(trapgroup)
+
+                        camera = db.session.query(Camera).filter(Camera.path==camera_path).first()
+                        if not camera:
+                            camera = Camera(trapgroup=trapgroup, path=camera_path)
+                            db.session.add(camera)
+
+                        etag = GLOBALS.s3client.head_object(Bucket=Config.BUCKET, Key=image_key)['ETag'][1:-1]
+                        image = Image(camera=camera, filename=filename, timestamp=timestamp, corrected_timestamp=timestamp, hash=image_hash, etag=etag)
+                        db.session.add(image)
+
+                        if annotations:
+                            for annotation in annotations:
+                                app.logger.info(annotation)
+                                if 'det_score' in annotation:
+                                    det_score = annotation['det_score']
+                                else:
+                                    det_score = 1
+
+                                # TODO: How to handle this ??
+                                # if 'species' in annotation:
+                                #     classification = annotation['species']
+                                #     if 'class_score' in annotation:
+                                #         class_score = annotation['class_score']
+                                #     else:
+                                #         class_score = 1
+                                # else:
+                                #     classification = None
+                                #     class_score = None
+
+                                category = None 
+                                # Category ??? #TODO
+                                if annotation['species'].lower() == 'human':
+                                    category = 2
+                                elif annotation['species'].lower() == 'vehicle':
+                                    category = 3
+                                else:
+                                    category = 1
+                                source = 'user'
+                                status= 'api_added'
+
+                                detection = Detection(image=image, top=annotation['top'], left=annotation['left'], bottom=annotation['bottom'], right=annotation['right'], score=det_score, category=category, source=source, status=status)
+                                db.session.add(detection)
+
+                                #TODO: Not sure how to handle labels ?
+                                # if 'species' in annotation:
+                                #     task_id = db.session.query(Task.id).join(Survey).filter(Survey.id==survey_id).filter(Task.name=='default').first()
+                                #     if 'vehicle' in annotation['species'].lower() or 'human' in annotation['species'].lower():
+                                #         label = db.session.query(Label).get(GLOBALS.vhl_id)
+                                #     else:
+                                #         label = db.session.query(Label).join(Task).filter(Task.id==task_id).filter(Label.description==annotation['species']).first()
+                                #     if not label:
+                                #         label = Label(description=annotation['species'], task_id=task_id)
+                                #         db.session.add(label)
+                                #     labelgroup = Labelgroup(detection=detection, labels=[label], task_id=task_id)
+                                #     db.session.add(labelgroup)
+
+                        db.session.commit()
+
+                        return json.dumps({'image_id': image.id, 'message': 'Image added successfully.'}), 201
+                except Exception as e:
+                    app.logger.error(e)
+                    return json.dumps({'message': 'Error adding image.'}), 400
+        except Exception as e:
+            app.logger.error(e)
+            return json.dumps({'message': 'Request error.'}), 400
+    else:
+        return json.dumps({'message': 'Forbidden.'}), 403
+
+@app.route('/createLiveSurvey', methods=['POST'])
+@login_required
+def createLiveSurvey():
+    ''' Creates a new survey for live data integration '''
+
+    notAllowed = ['/', ',', '.', '"', "'"]
+    status = 'success'
+    message = ''
+    organisation_id = ast.literal_eval(request.form['organisation_id'])
+    organisation = db.session.query(Organisation).get(organisation_id)
+    userPermissions = db.session.query(UserPermissions).filter(UserPermissions.user_id==current_user.id).filter(UserPermissions.organisation_id==organisation_id).first()
+    if organisation and userPermissions and userPermissions.create:
+        survey_name = ast.literal_eval(request.form['survey_name'])
+        survey_description = ast.literal_eval(request.form['survey_description'])
+        classifier = ast.literal_eval(request.form['classifier'])
+        permission = ast.literal_eval(request.form['permission'])
+        annotation = ast.literal_eval(request.form['annotation'])
+        if 'detailed_access' in request.form:
+            detailed_access = ast.literal_eval(request.form['detailed_access'])
+        else:
+            detailed_access = None
+
+        for item in notAllowed:
+            if item in survey_name:
+                status = 'error'
+                message = 'Survey name cannot contain slashes or special characters.'
+
+        name_check = db.session.query(Survey).filter(Survey.organisation_id==organisation_id).filter(Survey.name==survey_name).first()
+        if name_check != None:
+            status = 'error'
+            message = 'Survey name already in use.'
+        else:
+            response = GLOBALS.s3client.list_objects(Bucket=Config.BUCKET, Prefix=organisation.folder+'/'+survey_name, Delimiter='/',MaxKeys=1)
+            if 'CommonPrefixes' in response:
+                status = 'error'
+                message = 'That folder name is already in use in your storage. Please try another name for your survey.' 
+        
+        classifier = db.session.query(Classifier).filter(Classifier.name==classifier).first()
+        if not classifier:
+            status = 'error'
+            message = 'No valid classifier selected.'
+
+        if status == 'success':
+            # Create survey            
+            newSurvey = Survey(name=survey_name, description=survey_description, organisation_id=organisation_id, status='Ready', classifier_id=classifier.id, folder=survey_name)
+            db.session.add(newSurvey)
+
+            # Add permissions
+            setup_new_survey_permissions(survey=newSurvey, organisation_id=organisation_id, user_id=current_user.id, permission=permission, annotation=annotation, detailed_access=detailed_access)
+
+            # Create default task
+            task = Task(name='default', survey=newSurvey, tagging_level='-1', test_size=0, status='Ready')
+            db.session.add(task)
+
+            db.session.commit()
+
+
+    return json.dumps({'status': status, 'message': message})

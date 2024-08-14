@@ -208,7 +208,8 @@ def initialise_periodic_functions(sender, instance, **kwargs):
         # from flask_migrate import upgrade
         from app.functions.imports import setupDatabase
         from app.functions.annotation import manageTasks
-        from app.functions.globals import importMonitor
+        from app.functions.globals import importMonitor, clean_up_redis
+        from app.functions.imports import monitor_live_data_surveys
         import GLOBALS
    
         # Try to create the database in case it does not exist. If it allready exists a sqlalchemy ProgrammingError
@@ -241,4 +242,5 @@ def initialise_periodic_functions(sender, instance, **kwargs):
         # importMonitor.apply_async(queue='priority', priority=0)
         # manageTasks.apply_async(queue='priority', priority=0)
         # clean_up_redis.apply_async(queue='priority', priority=0)
+        # monitor_live_data_surveys.apply_async(queue='priority', priority=0)
         # print('Periodic functions initialised.')
