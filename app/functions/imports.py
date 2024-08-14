@@ -5341,7 +5341,7 @@ def monitor_live_data_surveys():
     '''Celery task that monitors surveys with live data and schedules and import for them.'''
     try:
 
-        surveys = [r[0] for r in db.session.query(Survey.id)\
+        surveys = db.session.query(Survey)\
                             .join(Trapgroup)\
                             .join(Camera)\
                             .join(Image)\
@@ -5349,7 +5349,7 @@ def monitor_live_data_surveys():
                             .filter(Survey.status.in_(Config.SURVEY_READY_STATUSES))\
                             .filter(APIKey.api_key!=None)\
                             .filter(or_(~Image.clusters.any(),~Image.detections.any()))\
-                            .distinct().all()]
+                            .distinct().all()
 
         if Config.DEBUGGING: app.logger.info('Found {} surveys with live data to import'.format(len(surveys)))
 
