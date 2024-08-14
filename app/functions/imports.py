@@ -5303,8 +5303,8 @@ def import_live_data(survey_id):
                 batch = []
 
 
-        if batch_count!=0:
-            results.append(importImages.apply_async(kwargs={'batch':batch,'csv':False,'pipeline':False,'external':False,'min_area':None, 'remove_gps':False,'label_source':None,'live':True},queue='parallel'))
+    if batch_count!=0:
+        results.append(importImages.apply_async(kwargs={'batch':batch,'csv':False,'pipeline':False,'external':False,'min_area':None, 'remove_gps':False,'label_source':None,'live':True},queue='parallel'))
 
 
     survey.processing_initialised = False
