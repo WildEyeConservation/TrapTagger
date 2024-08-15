@@ -227,7 +227,7 @@ uppy.on('upload-success', (file, response) => {
     } else {
         fileType = 'other';
     }
-    fetch('/fileHandler/invoke_lambda', {
+    limitTT(()=>fetch('/fileHandler/invoke_lambda', {
         method: 'post',
         headers: {
             accept: 'application/json',
@@ -245,6 +245,7 @@ uppy.on('upload-success', (file, response) => {
     }).catch( (error) => {
         // pass
     })
+    )
 })
 
 uppy.on('upload-error', function (file, error) {

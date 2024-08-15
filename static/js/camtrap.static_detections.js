@@ -57,9 +57,6 @@ function loadNewCluster(mapID = 'map1') {
                         }
 
                         if (clusterRequests[mapID].includes(parseInt(info.id))) {
-                            if (lastStaticGroup) {
-                                info.static_detections.push({'id': '-101'})
-                            }
 
                             for (let i=0;i<info.static_detections.length;i++) {
                                 newcluster = info.static_detections[i];
@@ -94,6 +91,10 @@ function loadNewCluster(mapID = 'map1') {
                                         knockWait = false
                                     }
                                 }
+                            }
+
+                            if (lastStaticGroup && clusters[mapID].length == staticgroupIDs.length) {
+                                clusters[mapID].push({id: '-101'})
                             }
 
                             var newDetections = info.staticgroup_detections

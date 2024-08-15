@@ -63,30 +63,21 @@ async function checkFileBatch() {
         while ((files.length<batchSize)&&(proposedQueue.length>0)) {
             let item = proposedQueue.pop()
             var file = await item[1].getFile()
-            console.log(file.name)
-            var reader = new FileReader();
-            reader.addEventListener("load", function(wrapReader,wrapPath,wrapEntry) {
-                return async function() {
-                    var jpegData = wrapReader.result
-                    try {
-                        var hash = getHash(jpegData, wrapEntry.name)
-                        if (hash == null || hash == '') {
-                            throw new Error('Hash is null')
-                        }
-                        items.push(item)
-                        files.push({
-                            name: surveyName + '/' + wrapPath + '/' + wrapEntry.name,
-                            hash: hash
-                        })
-                    } catch {
-                        filesUploaded += 1
-                        filesQueued += 1
-                        updateUploadProgress(filesUploaded,filecount)
-                    }    
-                }
-            }(reader,item[0],item[1]), false);
-            reader.readAsBinaryString(file)
+            let fileData = await new Promise((resolve, reject) => {
+                let reader = new FileReader();
+                reader.addEventListener("load", function() {
+                    resolve(reader.result)
+                });
+                reader.addEventListener("error", reject)
+                reader.readAsBinaryString(file)
+            });
 
+            let hash = getHash(fileData, item[1].name)
+            items.push(item)
+            files.push({
+                name: surveyName + '/' + item[0] + '/' + item[1].name,
+                hash: hash
+            })
         }
 
         limitTT(()=> fetch('/fileHandler/check_upload_files', {
@@ -274,10 +265,15 @@ function resetUploadStatusVariables() {
 
 function getHash(jpegData, filename) {
     /** Returns the hash of the EXIF-less image */
-    if (['mp4', 'avi', 'mov'].some(element => filename.toLowerCase().includes(element))){
-        return CryptoJS.MD5(CryptoJS.enc.Latin1.parse(jpegData)).toString()
+    try {
+        if (['mp4', 'avi', 'mov'].some(element => filename.toLowerCase().includes(element))){
+            return CryptoJS.MD5(CryptoJS.enc.Latin1.parse(jpegData)).toString()
+        }
+        else{
+            return CryptoJS.MD5(CryptoJS.enc.Latin1.parse(exports.piexif.insert(exports.piexif.dump({'0th':{},'1st':{},'Exif':{},'GPS':{},'Interop':{},'thumbnail':null}), jpegData))).toString()
+        }
     }
-    else{
-        return CryptoJS.MD5(CryptoJS.enc.Latin1.parse(exports.piexif.insert(exports.piexif.dump({'0th':{},'1st':{},'Exif':{},'GPS':{},'Interop':{},'thumbnail':null}), jpegData))).toString()
+    catch (err) {
+        return ''
     }
 }

@@ -2614,20 +2614,32 @@ def checkFileExist(file,folder):
     try:
         filename = file['name']
         hash = file['hash']
-        if Config.DEBUGGING: print('checking {} with hash {}'.format(folder + '/' + filename,hash))
         common_path = folder + '/' + filename.split('/')[0] + '/%' 
-        check = db.session.query(Image).join(Camera).filter(Image.hash==hash).filter(Camera.path.like(common_path)).first()
+
+        if Config.DEBUGGING: app.logger.info('checking {} with hash {}'.format(folder + '/' + filename,hash))
+
+        if hash == '' or hash == None or len(hash) < 32:
+            if Config.DEBUGGING: app.logger.info('{} does not have a hash'.format(folder + '/' + filename))
+            return filename
+
+        if re.compile('(\.jpe?g$)|(_jpe?g$)', re.I).search(filename):
+            check = db.session.query(Image).join(Camera).filter(Image.hash==hash).filter(Camera.path.like(common_path)).first()
+        elif re.compile('(\.avi$)|(\.mp4$)|(\.mov$)', re.I).search(filename):
+            check = db.session.query(Video).join(Camera).filter(Video.hash==hash).filter(Camera.path.like(common_path)).first()
+
         if check:
+            if Config.DEBUGGING: app.logger.info('{} exists in db'.format(folder + '/' + filename))
             return filename
         else:
             try: 
                 s3_check = GLOBALS.s3client.head_object(Bucket=Config.BUCKET,Key=folder + '/' + filename)
+                if Config.DEBUGGING: app.logger.info('{} exists in S3'.format(folder + '/' + filename))
                 return filename
             except:
-                if Config.DEBUGGING: print('{} does not exist'.format(folder + '/' + filename))
+                if Config.DEBUGGING: app.logger.info('{} does not exist'.format(folder + '/' + filename))
                 return None
     except:
-        if Config.DEBUGGING: print('{} does not exist'.format(folder + '/' + filename))
+        if Config.DEBUGGING: app.logger.info('{} does not exist'.format(folder + '/' + filename))
         # file does not exist
         return None
 
@@ -2793,6 +2805,8 @@ def inspect_celery(include_spam=False,include_reserved=False,include_scheduled=F
                     print('{:{}}{:{}}{:{}}{:{}}  {}'.format(task['id'],40,name,36,hostname,36,time_start,29,task['kwargs']['batch'][0]))
                 elif 'calculate_hotspotter_similarity' in task['name']:
                     print('{:{}}{:{}}{:{}}{:{}}  {}'.format(task['id'],40,name,36,hostname,36,time_start,29,task['kwargs']['batch'][0]))
+                elif 'generateDetections' in task['name']:
+                    print('{:{}}{:{}}{:{}}{:{}}  survey_id={}'.format(task['id'],40,name,36,hostname,36,time_start,29,task['kwargs']['batch'][0]['survey_id']))
                 else:
                     print('{:{}}{:{}}{:{}}{:{}}  {}'.format(task['id'],40,name,36,hostname,36,time_start,29,task['kwargs']))
 
@@ -2812,7 +2826,7 @@ def inspect_celery(include_spam=False,include_reserved=False,include_scheduled=F
         for worker in inspector_reserved:
             for task in inspector_reserved[worker]:
                 if not any(name in task['name'] for name in spam):
-                    time_start = str(datetime.fromtimestamp(task['time_start']))
+                    time_start = str(datetime.fromtimestamp(task['time_start'])) if task['time_start'] else 'None'
                     name = task['name'].split('.')[-1]
                     hostname = task['hostname'].split('celery@')[-1]
                     if 'importImages' in task['name']:
@@ -2835,6 +2849,8 @@ def inspect_celery(include_spam=False,include_reserved=False,include_scheduled=F
                         print('{:{}}{:{}}{:{}}{:{}}  {}'.format(task['id'],40,name,36,hostname,36,time_start,29,task['kwargs']['batch'][0]))
                     elif 'calculate_hotspotter_similarity' in task['name']:
                         print('{:{}}{:{}}{:{}}{:{}}  {}'.format(task['id'],40,name,36,hostname,36,time_start,29,task['kwargs']['batch'][0]))
+                    elif 'generateDetections' in task['name']:
+                        print('{:{}}{:{}}{:{}}{:{}}  survey_id={}'.format(task['id'],40,name,36,hostname,36,time_start,29,task['kwargs']['batch'][0]['survey_id']))
                     else:
                         print('{:{}}{:{}}{:{}}{:{}}  {}'.format(task['id'],40,name,36,hostname,36,time_start,29,task['kwargs']))
 
@@ -2879,6 +2895,8 @@ def inspect_celery(include_spam=False,include_reserved=False,include_scheduled=F
                         print('{:{}}{:{}}{:{}}{:{}}  {}'.format(request['id'],40,name,36,hostname,36,eta,29,request['kwargs']['batch'][0]))
                     elif 'calculate_hotspotter_similarity' in request['name']:
                         print('{:{}}{:{}}{:{}}{:{}}  {}'.format(request['id'],40,name,36,hostname,36,eta,29,request['kwargs']['batch'][0]))
+                    elif 'generateDetections' in request['name']:
+                        print('{:{}}{:{}}{:{}}{:{}}  survey_id={}'.format(request['id'],40,name,36,hostname,36,eta,29,request['kwargs']['batch'][0]['survey_id']))
                     else:
                         print('{:{}}{:{}}{:{}}{:{}}  {}'.format(request['id'],40,name,36,hostname,36,eta,29,request['kwargs']))
 

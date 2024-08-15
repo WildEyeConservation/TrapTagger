@@ -3731,7 +3731,7 @@ def import_survey(self,survey_id,preprocess_done=False,used_lambda=False,lambda_
             if count==0 or count != count_comp:
                 if lambda_retries < 5:
                     import_survey.apply_async(kwargs={'survey_id':survey_id,'used_lambda':used_lambda,'preprocess_done':preprocess_done,'lambda_retries':lambda_retries+1},countdown=300)
-                    return True
+                return True
 
 
         if not preprocess_done:
@@ -3829,6 +3829,7 @@ def import_survey(self,survey_id,preprocess_done=False,used_lambda=False,lambda_
             db.session.commit()
             app.logger.info("Finished importing survey {}. Preprocessing required.".format(survey_id))
         else:
+            survey = db.session.query(Survey).get(survey_id)
             survey.status='Calculating Scores'
             db.session.commit()
             updateSurveyDetectionRatings(survey_id=survey_id)

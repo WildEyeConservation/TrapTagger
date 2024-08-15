@@ -407,6 +407,9 @@ def delete_survey(self,survey_id):
 
         tasks = [r[0] for r in db.session.query(Task.id).filter(Task.survey_id==survey_id).all()]
 
+        survey = db.session.query(Survey).get(survey_id)
+        survey_folder = survey.organisation.folder+'/'+survey.name+'/%'
+
         app.logger.info('Deleting survey {}'.format(survey_id))
 
         if status != 'error':
@@ -490,6 +493,20 @@ def delete_survey(self,survey_id):
                 message = 'Could not delete images.'
                 app.logger.info('Failed to delete images.')
 
+        #Delete floating images (from unfinished upload)
+        if status != 'error':
+            try:
+                images = db.session.query(Image).join(Camera).filter(Camera.path.like(survey_folder)).filter(Camera.trapgroup_id==None).all()
+                for image in images:
+                    db.session.delete(image)
+                db.session.commit()
+                app.logger.info('Floating images deleted successfully.')
+            except:
+                status = 'error'
+                message = 'Could not delete floating images.'
+                app.logger.info('Failed to delete floating images.')
+
+
         #Delete Videos
         if status != 'error':
             try:
@@ -502,6 +519,19 @@ def delete_survey(self,survey_id):
                 status = 'error'
                 message = 'Could not delete videos.'
                 app.logger.info('Failed to delete videos.')
+
+        #Delete floating videos (from unfinished upload)
+        if status != 'error':
+            try:
+                videos = db.session.query(Video).join(Camera).filter(Camera.path.like(survey_folder)).filter(Camera.trapgroup_id==None).all()
+                for video in videos:
+                    db.session.delete(video)
+                db.session.commit()
+                app.logger.info('Floating videos deleted successfully.')
+            except:
+                status = 'error'
+                message = 'Could not delete floating videos.'
+                app.logger.info('Failed to delete floating videos.')
 
         #Delete masks
         if status != 'error':
@@ -543,6 +573,19 @@ def delete_survey(self,survey_id):
                 status = 'error'
                 message = 'Could not delete cameras.'
                 app.logger.info('Failed to delete cameras.')
+
+        #Delete floating cameras (from unfinished upload)
+        if status != 'error':
+            try:
+                cameras = db.session.query(Camera).filter(Camera.path.like(survey_folder)).filter(Camera.trapgroup_id==None).all()
+                for camera in cameras:
+                    db.session.delete(camera)
+                db.session.commit()
+                app.logger.info('Floating cameras deleted successfully.')
+            except:
+                status = 'error'
+                message = 'Could not delete floating cameras.'
+                app.logger.info('Failed to delete floating cameras.')
 
         #Delete trapgroups
         if status != 'error':

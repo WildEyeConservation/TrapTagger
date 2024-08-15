@@ -13596,7 +13596,6 @@ def invoke_lambda():
             userPermissions = db.session.query(UserPermissions).filter(UserPermissions.organisation_id==organisation_id).filter(UserPermissions.user_id==current_user.id).first()
             if userPermissions and userPermissions.create:
                 if checkUploadUser(current_user.id,survey_id):
-                    if Config.DEBUGGING: app.logger.info('Invoking lambda function for file: {}'.format(organisation_folder + '/' + request.json['filename'].strip('/')))
                     key = organisation_folder + '/' + request.json['filename'].strip('/')
                     if Config.DEBUGGING: app.logger.info('Invoking lambda function for file: {}'.format(key))
                     payload = {'bucket': Config.BUCKET,
