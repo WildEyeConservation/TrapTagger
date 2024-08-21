@@ -273,20 +273,19 @@ def recluster_large_clusters(self,task,updateClassifications,trapgroup_id=None,r
     '''
 
     try:
-        session = db.session()
-        task = session.query(Task).get(task)
-        downLabel = session.query(Label).get(GLOBALS.knocked_id)
+        task = db.session.query(Task).get(task)
+        downLabel = db.session.query(Label).get(GLOBALS.knocked_id)
 
         if reClusters==None:
 
-            subq = session.query(Cluster.id.label('clusterID'),func.count(distinct(Image.id)).label('imCount'))\
+            subq = db.session.query(Cluster.id.label('clusterID'),func.count(distinct(Image.id)).label('imCount'))\
                         .join(Image,Cluster.images)\
                         .filter(Cluster.task==task)\
                         .group_by(Cluster.id)\
                         .subquery()
             
             # Handle already-labelled clusters
-            clusters = session.query(Cluster)\
+            clusters = db.session.query(Cluster)\
                         .join(subq,subq.c.clusterID==Cluster.id)\
                         .filter(Cluster.task==task)\
                         .filter(subq.c.imCount>50)\
@@ -301,11 +300,11 @@ def recluster_large_clusters(self,task,updateClassifications,trapgroup_id=None,r
             clusters = clusters.distinct().all()
 
             for cluster in clusters:
-                images = session.query(Image).filter(Image.clusters.contains(cluster)).order_by(Image.corrected_timestamp).distinct().all()
+                images = db.session.query(Image).filter(Image.clusters.contains(cluster)).order_by(Image.corrected_timestamp).distinct().all()
                 
                 for n in range(math.ceil(len(images)/50)):
                     newCluster = Cluster(task=task)
-                    session.add(newCluster)
+                    db.session.add(newCluster)
                     newCluster.labels=cluster.labels
                     start_index = (n)*50
                     
@@ -322,12 +321,12 @@ def recluster_large_clusters(self,task,updateClassifications,trapgroup_id=None,r
                 cluster.tags = []
                 cluster.images = []
                 cluster.required_images = []
-                session.delete(cluster)
-                # session.commit()
+                db.session.delete(cluster)
+                # db.session.commit()
             
-            # session.commit()
+            # db.session.commit()
                     
-            clusters = session.query(Cluster)\
+            clusters = db.session.query(Cluster)\
                         .join(subq,subq.c.clusterID==Cluster.id)\
                         .filter(Cluster.task==task)\
                         .filter(subq.c.imCount>50)\
@@ -341,22 +340,22 @@ def recluster_large_clusters(self,task,updateClassifications,trapgroup_id=None,r
             clusters = clusters.distinct().all()
 
         else:
-            clusters = db.session.query(Cluster).filter(Cluster.id.in_(reClusters)).all()
+            clusters = db.db.session.query(Cluster).filter(Cluster.id.in_(reClusters)).all()
 
         classifier = task.survey.classifier
         newClusters = []
 
         for cluster in clusters:
             currCluster = None
-            images = session.query(Image).filter(Image.clusters.contains(cluster)).order_by(Image.corrected_timestamp).all()
-            cameras = [str(r[0]) for r in session.query(Cameragroup.id).join(Camera).join(Image).filter(Image.clusters.contains(cluster)).distinct().all()]
+            images = db.session.query(Image).filter(Image.clusters.contains(cluster)).order_by(Image.corrected_timestamp).all()
+            cameras = [str(r[0]) for r in db.session.query(Cameragroup.id).join(Camera).join(Image).filter(Image.clusters.contains(cluster)).distinct().all()]
 
             prevLabels = {}
             for cam in cameras:
                 prevLabels[cam] = []
                     
             for image in images:
-                detections = session.query(Detection)\
+                detections = db.session.query(Detection)\
                                     .filter(Detection.image_id==image.id)\
                                     .filter(or_(and_(Detection.source==model,Detection.score>Config.DETECTOR_THRESHOLDS[model]) for model in Config.DETECTOR_THRESHOLDS))\
                                     .filter(Detection.static==False)\
@@ -389,7 +388,7 @@ def recluster_large_clusters(self,task,updateClassifications,trapgroup_id=None,r
                     if currCluster and updateClassifications:
                         currCluster.classification = classifyCluster(currCluster)
                     currCluster = Cluster(task=task)
-                    session.add(currCluster)
+                    db.session.add(currCluster)
                     newClusters.append(currCluster)
                     prevLabels = {}
                     for cam in cameras:
@@ -402,9 +401,9 @@ def recluster_large_clusters(self,task,updateClassifications,trapgroup_id=None,r
                 currCluster.classification = classifyCluster(currCluster)
 
             cluster.images = []
-            session.delete(cluster)
+            db.session.delete(cluster)
         
-        session.commit()
+        db.session.commit()
         newClusters = [r.id for r in newClusters]
 
     except Exception as exc:
@@ -416,7 +415,7 @@ def recluster_large_clusters(self,task,updateClassifications,trapgroup_id=None,r
         self.retry(exc=exc, countdown= retryTime(self.request.retries))
 
     finally:
-        session.remove()
+        db.session.remove()
 
     return newClusters
 
@@ -3782,7 +3781,7 @@ def import_survey(self,survey_id,preprocess_done=False):
             task_ids = [r[0] for r in db.session.query(Task.id).filter(Task.survey_id==survey_id).filter(Task.name!='default').all()]
             for task_id in task_ids:
                 classifyTask(task_id)
-                updateAllStatuses(task_id=task_id, celeryTask=False)
+                updateAllStatuses(task_id=task_id)
             survey = db.session.query(Survey).get(survey_id)
             survey.status = 'Ready'
             survey.images_processing = 0

@@ -305,7 +305,7 @@ def stop_task(self,task_id):
                 clusters = db.session.query(Cluster).filter(Cluster.task_id==task_id).filter(Cluster.skipped==True).distinct().all()
                 for cluster in clusters:
                     cluster.skipped = False
-                db.session.commit()
+                # db.session.commit()
             elif '-5' in task.tagging_level:
                 cleanUpIndividuals(task_id)
                 GLOBALS.redisClient.delete('active_individuals_'+str(task_id))
@@ -323,10 +323,12 @@ def stop_task(self,task_id):
                             else:
                                 label.icID_q1_complete = False
 
-            if ',' not in task.tagging_level and task.init_complete and '-2' not in task.tagging_level:
-                check_individual_detection_mismatch(task_id=task_id,celeryTask=False)
+            db.session.commit()
 
-            updateAllStatuses(task_id=int(task_id), celeryTask=False)
+            if ',' not in task.tagging_level and task.init_complete and '-2' not in task.tagging_level:
+                check_individual_detection_mismatch(task_id=task_id)
+
+            updateAllStatuses(task_id=int(task_id))
 
             # if task_id in GLOBALS.mutex.keys(): GLOBALS.mutex.pop(task_id, None)
 
@@ -863,22 +865,21 @@ def handleTaskEdit(self,task_id,changes,speciesChanges=None):
     return True
 
 @celery.task(bind=True,max_retries=5)
-def copyClusters(self,newTask,trapgroup_id=None,celeryTask=False):
+def copyClusters(self,newTask,trapgroup_id=None):
     '''Copies default task clustering to the specified task.'''
     try:
-        session = db.session()
-        newTask = session.query(Task).get(newTask)
+        newTask = db.session.query(Task).get(newTask)
 
         survey_id = newTask.survey_id
-        default = session.query(Task).filter(Task.name=='default').filter(Task.survey_id==int(survey_id)).first()
+        default = db.session.query(Task).filter(Task.name=='default').filter(Task.survey_id==int(survey_id)).first()
         
-        check = session.query(Cluster).filter(Cluster.task==newTask)
+        check = db.session.query(Cluster).filter(Cluster.task==newTask)
         if trapgroup_id:
             check = check.join(Image,Cluster.images).join(Camera).filter(Camera.trapgroup_id==trapgroup_id)
         check = check.first()
 
         if check == None:
-            detections = session.query(Detection).join(Image).join(Camera)
+            detections = db.session.query(Detection).join(Image).join(Camera)
             if trapgroup_id:
                 detections = detections.filter(Camera.trapgroup_id==trapgroup_id)
             else:
@@ -886,16 +887,16 @@ def copyClusters(self,newTask,trapgroup_id=None,celeryTask=False):
 
             for detection in detections:
                 labelgroup = Labelgroup(detection_id=detection.id,task=newTask,checked=False)
-                session.add(labelgroup)
+                db.session.add(labelgroup)
 
-            clusters = session.query(Cluster).filter(Cluster.task_id==default.id)
+            clusters = db.session.query(Cluster).filter(Cluster.task_id==default.id)
             if trapgroup_id:
                 clusters = clusters.join(Image,Cluster.images).join(Camera).filter(Camera.trapgroup_id==trapgroup_id)
             clusters = clusters.all()
 
             for cluster in clusters:
                 newCluster = Cluster(task=newTask)
-                session.add(newCluster)
+                db.session.add(newCluster)
                 newCluster.images=cluster.images
                 newCluster.classification = cluster.classification
 
@@ -904,12 +905,11 @@ def copyClusters(self,newTask,trapgroup_id=None,celeryTask=False):
                     newCluster.user_id=cluster.user_id
                     newCluster.timestamp = datetime.utcnow()
 
-                    labelgroups = session.query(Labelgroup).join(Detection).join(Image).filter(Image.clusters.contains(cluster)).filter(Labelgroup.task==newTask).all()
+                    labelgroups = db.session.query(Labelgroup).join(Detection).join(Image).filter(Image.clusters.contains(cluster)).filter(Labelgroup.task==newTask).all()
                     for labelgroup in labelgroups:
                         labelgroup.labels = cluster.labels
 
-            # db.session.commit()
-            session.commit()
+            db.session.commit()
 
     except Exception as exc:
         app.logger.info(' ')
@@ -920,7 +920,7 @@ def copyClusters(self,newTask,trapgroup_id=None,celeryTask=False):
         self.retry(exc=exc, countdown= retryTime(self.request.retries))
 
     finally:
-        if celeryTask: session.close()
+        db.session.remove()
 
     return True
 
@@ -951,7 +951,7 @@ def prepTask(self,newTask_id, survey_id, includes, translation,labels,parallel=F
             results = []
             trapgroup_ids = [r[0] for r in db.session.query(Trapgroup.id).filter(Trapgroup.survey_id==survey_id).distinct().all()]
             for trapgroup_id in trapgroup_ids:
-                results.append(copyClusters.apply_async(kwargs={'newTask': newTask_id, 'trapgroup_id':trapgroup_id, 'celeryTask': True},queue='parallel'))
+                results.append(copyClusters.apply_async(kwargs={'newTask': newTask_id, 'trapgroup_id':trapgroup_id},queue='parallel'))
     
             #Wait for processing to complete
             db.session.remove()
@@ -981,7 +981,7 @@ def prepTask(self,newTask_id, survey_id, includes, translation,labels,parallel=F
             results = []
             trapgroup_ids = [r[0] for r in db.session.query(Trapgroup.id).filter(Trapgroup.survey_id==survey_id).distinct().all()]
             for trapgroup_id in trapgroup_ids:
-                results.append(classifyTask.apply_async(kwargs={'task': newTask_id, 'trapgroup_ids':[trapgroup_id], 'celeryTask': True},queue='parallel'))
+                results.append(classifyTask.apply_async(kwargs={'task': newTask_id, 'trapgroup_ids':[trapgroup_id]},queue='parallel'))
             #Wait for processing to complete
             db.session.remove()
             GLOBALS.lock.acquire()
@@ -1001,7 +1001,7 @@ def prepTask(self,newTask_id, survey_id, includes, translation,labels,parallel=F
         else:
             classifyTask(newTask_id)
         
-        updateAllStatuses(task_id=newTask_id, celeryTask=False)
+        updateAllStatuses(task_id=newTask_id)
 
         newTask = db.session.query(Task).get(newTask_id)
         newTask.status = 'Ready'
@@ -2215,10 +2215,9 @@ def delete_individuals(self,task_ids, species):
                 
         # Update statuses
         for task_id in task_ids:
-            updateAllStatuses(task_id=task_id, celeryTask=False)
+            updateAllStatuses(task_id=task_id)
             task = db.session.query(Task).get(task_id)
             task.status = 'Ready'
-            
 
         db.session.commit()
 
@@ -2596,7 +2595,7 @@ def edit_survey(self,survey_id,user_id,classifier,sky_masked,ignore_small_detect
         # Update All statuses
         task_ids = [r[0] for r in db.session.query(Task.id).filter(Task.survey_id==survey_id).filter(Task.name!='default').distinct().all()]
         for task_id in task_ids:
-            updateAllStatuses(task_id=task_id, celeryTask=False)
+            updateAllStatuses(task_id=task_id)
 
         survey = db.session.query(Survey).get(survey_id)
         survey.status = 'Ready'

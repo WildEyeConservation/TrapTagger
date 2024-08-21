@@ -263,7 +263,7 @@ def launch_task(self,task_id):
 
             if cluster_count == 0:
                 # Release task if the are no clusters to annotate
-                updateAllStatuses(task_id=task_id, celeryTask=False)
+                updateAllStatuses(task_id=task_id)
                 GLOBALS.redisClient.delete('quantiles_'+str(task_id))
                 task = db.session.query(Task).get(task_id)
                 task.status = 'SUCCESS'
@@ -303,7 +303,7 @@ def launch_task(self,task_id):
 
             if cluster_count == 0:
                 # Release task if the are no clusters to annotate
-                updateAllStatuses(task_id=task_id, celeryTask=False)
+                updateAllStatuses(task_id=task_id)
                 task = db.session.query(Task).get(task_id)
                 task.status = 'SUCCESS'
                 task.survey.status = 'Ready'
@@ -475,15 +475,17 @@ def wrapUpTask(self,task_id):
 
         if '-5' in task.tagging_level:
             cleanUpIndividuals(task_id)
-        
-        if ',' not in task.tagging_level and task.init_complete and '-2' not in task.tagging_level:
-            check_individual_detection_mismatch(task_id=task_id, celeryTask=False)
 
         clusters = db.session.query(Cluster).filter(Cluster.task_id==task_id).filter(Cluster.skipped==True).distinct().all()
         for cluster in clusters:
             cluster.skipped = False
 
-        updateAllStatuses(task_id=task_id, celeryTask=False)
+        db.session.commit()
+        
+        if ',' not in task.tagging_level and task.init_complete and '-2' not in task.tagging_level:
+            check_individual_detection_mismatch(task_id=task_id)
+
+        updateAllStatuses(task_id=task_id)
 
         task = db.session.query(Task).get(task_id)
         task.current_name = None

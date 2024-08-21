@@ -490,13 +490,6 @@ def calculate_individual_similarity(self,individual1,individuals2,species,parame
     '''
     
     try:
-        # startTime = datetime.utcnow()
-        session = db.session()
-
-        if type(individual1) == int:
-            celeryTask = True
-        else:
-            celeryTask = False
 
         if parameters == None:
             parameters = {}
@@ -523,33 +516,32 @@ def calculate_individual_similarity(self,individual1,individuals2,species,parame
 
         iouWeight = parameters['iouWeight']
 
-        if celeryTask:
-            individual1 = session.query(Individual).get(individual1)
-            individuals2 = session.query(Individual).filter(Individual.id.in_(individuals2)).all()
+        individual1 = db.session.query(Individual).get(individual1)
+        individuals2 = db.session.query(Individual).filter(Individual.id.in_(individuals2)).all()
 
         task_ids = [t.id for t in individual1.tasks]
-        algorithm = session.query(Label.algorithm).filter(Label.description==species).filter(Label.task_id.in_(task_ids)).first()[0]
+        algorithm = db.session.query(Label.algorithm).filter(Label.description==species).filter(Label.task_id.in_(task_ids)).first()[0]
 
         # # Find all family
         # family = []
-        # children = session.query(Individual).filter(Individual.parent==individual1).all()
+        # children = db.session.query(Individual).filter(Individual.parent==individual1).all()
         # while children != []:
         #     family.extend(children)
         #     temp = []
         #     for child in children:
-        #         temp.extend(session.query(Individual).filter(Individual.parent==child).all())
+        #         temp.extend(db.session.query(Individual).filter(Individual.parent==child).all())
         #     children = temp
 
         # # siblings
-        # parents = session.query(Individual).filter(Individual.children.contains(individual1)).all()
+        # parents = db.session.query(Individual).filter(Individual.children.contains(individual1)).all()
         # for parent in parents:
-        #     family.extend(session.query(Individual).filter(Individual.parent==parent).filter(Individual!=individual1).all())
+        #     family.extend(db.session.query(Individual).filter(Individual.parent==parent).filter(Individual!=individual1).all())
 
         # while parents != []:
         #     family.extend(parents)
         #     temp = []
         #     for parent in parents:
-        #         temp.extend(session.query(Individual).filter(Individual.children.contains(parent)).all())
+        #         temp.extend(db.session.query(Individual).filter(Individual.children.contains(parent)).all())
         #     parents = temp
 
         # family = list(set(family))
@@ -569,7 +561,7 @@ def calculate_individual_similarity(self,individual1,individuals2,species,parame
             if individual1 and individual2 != individual1:
                 max_det1 = None
                 max_det2 = None
-                similarity = session.query(IndSimilarity).filter(\
+                similarity = db.session.query(IndSimilarity).filter(\
                                 or_(\
                                     and_(\
                                         IndSimilarity.individual_1==individual1.id,\
@@ -581,8 +573,8 @@ def calculate_individual_similarity(self,individual1,individuals2,species,parame
 
                 if similarity==None:
                     similarity = IndSimilarity(individual_1=individual1.id, individual_2=individual2.id)
-                    session.add(similarity)
-                    # session.commit()
+                    db.session.add(similarity)
+                    # db.session.commit()
                 else:
                     # If similarity has already been rejected etc., then skip
                     # -2500 suggestion unidentifiable
@@ -595,7 +587,7 @@ def calculate_individual_similarity(self,individual1,individuals2,species,parame
                 #     max_similarity = -1500
                 # else:
                 if True:
-                    testImage = session.query(Image)\
+                    testImage = db.session.query(Image)\
                                             .join(Det1, Det1.c.image_id==Image.id)\
                                             .join(Det2, Det2.c.image_id==Image.id)\
                                             .join(individualDetections1,individualDetections1.c.detection_id==Det1.c.id)\
@@ -609,8 +601,8 @@ def calculate_individual_similarity(self,individual1,individuals2,species,parame
                         max_similarity = -1000
                     else:
                         tagScore = 0
-                        individual1_tags = session.query(Tag).filter(Tag.individuals.contains(individual1)).all()
-                        individual2_tags = session.query(Tag).filter(Tag.individuals.contains(individual2)).all()
+                        individual1_tags = db.session.query(Tag).filter(Tag.individuals.contains(individual1)).all()
+                        individual2_tags = db.session.query(Tag).filter(Tag.individuals.contains(individual2)).all()
                         for tag in individual1_tags:
                             if tag in individual2_tags:
                                 tagScore += matchWeight
@@ -621,7 +613,7 @@ def calculate_individual_similarity(self,individual1,individuals2,species,parame
                                 tagScore -= mismatchWeight
 
                         if algorithm == 'hotspotter':
-                            detSimilarities = session.query(DetSimilarity.score,
+                            detSimilarities = db.session.query(DetSimilarity.score,
                                         Det1.c.id,Det1.c.left,Det1.c.right,Det1.c.top,Det1.c.bottom,Det1.c.flank,Image1.c.camera_id,Image1.c.corrected_timestamp,Trapgroup1.c.latitude,Trapgroup1.c.longitude,
                                         Det2.c.id,Det2.c.left,Det2.c.right,Det2.c.top,Det2.c.bottom,Det2.c.flank,Image2.c.camera_id,Image2.c.corrected_timestamp,Trapgroup2.c.latitude,Trapgroup2.c.longitude)\
                                                     .join(Det1, Det1.c.id==DetSimilarity.detection_1)\
@@ -642,14 +634,14 @@ def calculate_individual_similarity(self,individual1,individuals2,species,parame
                                                         )
                                                     ).distinct().all()
                         else:
-                            detections1 = session.query(Detection.id, Detection.left, Detection.right, Detection.top, Detection.bottom, Detection.flank,Image.camera_id, Image.corrected_timestamp, Trapgroup.latitude, Trapgroup.longitude)\
+                            detections1 = db.session.query(Detection.id, Detection.left, Detection.right, Detection.top, Detection.bottom, Detection.flank,Image.camera_id, Image.corrected_timestamp, Trapgroup.latitude, Trapgroup.longitude)\
                                                 .join(individualDetections1, individualDetections1.c.detection_id==Detection.id)\
                                                 .join(Image, Image.id==Detection.image_id)\
                                                 .join(Camera, Camera.id==Image.camera_id)\
                                                 .join(Trapgroup, Trapgroup.id==Camera.trapgroup_id)\
                                                 .filter(individualDetections1.c.individual_id==individual1.id).all()
 
-                            detections2 = session.query(Detection.id, Detection.left, Detection.right, Detection.top, Detection.bottom, Detection.flank,Image.camera_id, Image.corrected_timestamp, Trapgroup.latitude, Trapgroup.longitude)\
+                            detections2 = db.session.query(Detection.id, Detection.left, Detection.right, Detection.top, Detection.bottom, Detection.flank,Image.camera_id, Image.corrected_timestamp, Trapgroup.latitude, Trapgroup.longitude)\
                                                 .join(individualDetections2, individualDetections2.c.detection_id==Detection.id)\
                                                 .join(Image, Image.id==Detection.image_id)\
                                                 .join(Camera, Camera.id==Image.camera_id)\
@@ -743,24 +735,24 @@ def calculate_individual_similarity(self,individual1,individuals2,species,parame
                     similarity.detection_1 = max_det2
                     similarity.detection_2 = max_det1       
 
-                # session.commit()
+                # db.session.commit()
         # endTime = datetime.utcnow()
         # app.logger.info('Finished Calculating Individual Similarity in {}s'.format((endTime - startTime).total_seconds()))
 
         # #Ensure there are no duplicate indsims due to race condition
-        # sq1 = session.query(Individual.id.label('indID'),func.count(IndSimilarity.score).label('count'))\
+        # sq1 = db.session.query(Individual.id.label('indID'),func.count(IndSimilarity.score).label('count'))\
         #                     .join(IndSimilarity, Individual.id==IndSimilarity.individual_1)\
         #                     .filter(IndSimilarity.individual_2==individual1.id)\
         #                     .group_by(Individual.id)\
         #                     .subquery()
 		
-        # sq2 = session.query(Individual.id.label('indID'),func.count(IndSimilarity.score).label('count'))\
+        # sq2 = db.session.query(Individual.id.label('indID'),func.count(IndSimilarity.score).label('count'))\
         #         .join(IndSimilarity, Individual.id==IndSimilarity.individual_2)\
         #         .filter(IndSimilarity.individual_1==individual1.id)\
         #         .group_by(Individual.id)\
         #         .subquery()
 
-        # duplicates = session.query(Individual)\
+        # duplicates = db.session.query(Individual)\
         #         .outerjoin(sq1,sq1.c.indID==Individual.id)\
         #         .outerjoin(sq2,sq2.c.indID==Individual.id)\
         #         .filter(or_(\
@@ -770,16 +762,15 @@ def calculate_individual_similarity(self,individual1,individuals2,species,parame
         #         .distinct().all()
 
         # for duplicate in duplicates:
-        #     indsims = session.query(IndSimilarity)\
+        #     indsims = db.session.query(IndSimilarity)\
         #                     .filter(or_(\
         #                         and_(IndSimilarity.individual_1==individual1.id,IndSimilarity.individual_2==duplicate.id),\
         #                         and_(IndSimilarity.individual_1==duplicate.id,IndSimilarity.individual_2==individual1.id)))\
         #                     .distinct().all()
         #     for indsim in indsims[1:]:
-        #         session.delete(indsim)
+        #         db.session.delete(indsim)
         
-        if celeryTask:
-            session.commit()
+        db.session.commit()
 
     except Exception as exc:
         app.logger.info(' ')
@@ -790,8 +781,7 @@ def calculate_individual_similarity(self,individual1,individuals2,species,parame
         self.retry(exc=exc, countdown= retryTime(self.request.retries))
 
     finally:
-        if celeryTask:
-            session.close()
+        db.session.remove()
 
     return True
 
@@ -1221,8 +1211,9 @@ def getProgress(individual_id,task_id):
     return (completed, total)
 
 @celery.task(bind=True,max_retries=5,ignore_result=True)
-def check_individual_detection_mismatch(self,task_id,cluster_id=None,celeryTask=True):
+def check_individual_detection_mismatch(self,task_id,cluster_id=None):
     ''' Checks for any detections whose labels differ from the their individuals' species'''
+    
     try:
         task = db.session.query(Task).get(task_id)
         
@@ -1334,10 +1325,10 @@ def check_individual_detection_mismatch(self,task_id,cluster_id=None,celeryTask=
         app.logger.info(traceback.format_exc())
         app.logger.info('!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!')
         app.logger.info(' ')
-        if celeryTask: self.retry(exc=exc, countdown= retryTime(self.request.retries))
+        self.retry(exc=exc, countdown= retryTime(self.request.retries))
 
     finally:
-        if celeryTask: db.session.remove()
+        db.session.remove()
 
     return True
 
