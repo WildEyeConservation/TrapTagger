@@ -966,7 +966,7 @@ def removeFalseDetections(self,cluster_id,undo):
 #     return True
 
 @celery.task(bind=True,max_retries=5,ignore_result=True)
-def finish_knockdown(self,rootImageID, task, current_user_id, lastImageID=None, session=None):
+def finish_knockdown(self,rootImageID, task, current_user_id, lastImageID=None):
     '''
     Celery task for marking a camera as knocked down. Combines all images into a new cluster, and reclusters the images from the other cameras.
 
@@ -980,18 +980,14 @@ def finish_knockdown(self,rootImageID, task, current_user_id, lastImageID=None, 
     try:
         if Config.DEBUGGING: app.logger.info('Started finish_knockdown for image ' + str(rootImageID))
 
-        if session == None:
-            celeryTask = True
-            session = db.session()
-            task = session.query(Task).get(task)
-            task_id = task.id
-        else:
-            celeryTask = False
+        session = db.session()
+        task = session.query(Task).get(task)
+        task_id = task.id
 
         # if celeryTask: populateMutex(task_id)
 
         rootImage = session.query(Image).get(rootImageID)
-        trapgroup = db.session.query(Trapgroup).join(Camera).join(Image).filter(Image.id==rootImageID).first()
+        trapgroup = session.query(Trapgroup).join(Camera).join(Image).filter(Image.id==rootImageID).first()
         trapgroup_id = trapgroup.id
         downLabel = session.query(Label).get(GLOBALS.knocked_id)
 
@@ -1004,7 +1000,7 @@ def finish_knockdown(self,rootImageID, task, current_user_id, lastImageID=None, 
         trapgroup.processing = True
         trapgroup.active = False
         trapgroup.user_id = None
-        if celeryTask: session.commit()
+        session.commit()
 
         # if celeryTask and (task_id in GLOBALS.mutex.keys()):
         #     GLOBALS.mutex[task_id]['trapgroup'][trapgroup_id].release()
@@ -1046,7 +1042,7 @@ def finish_knockdown(self,rootImageID, task, current_user_id, lastImageID=None, 
         old_clusters = session.query(Cluster) \
                             .join(Image, Cluster.images) \
                             .join(Camera) \
-                            .filter(Camera.trapgroup_id == rootImage.camera.trapgroup.id) \
+                            .filter(Camera.trapgroup_id == trapgroup_id) \
                             .filter(Image.corrected_timestamp >= rootImage.corrected_timestamp) \
                             .filter(Image.corrected_timestamp <= lastImage.corrected_timestamp) \
                             .filter(Cluster.task == task) \
@@ -1060,12 +1056,28 @@ def finish_knockdown(self,rootImageID, task, current_user_id, lastImageID=None, 
                             .order_by(Image.corrected_timestamp) \
                             .distinct() \
                             .all()
+        
+        labelgroups = session.query(Labelgroup)\
+                            .join(Detection)\
+                            .join(Image)\
+                            .outerjoin(imageSQ, Image.id == imageSQ.c.id) \
+                            .filter(imageSQ.c.id == None) \
+                            .filter(Image.clusters.any(Cluster.id.in_([r.id for r in old_clusters]))) \
+                            .filter(Labelgroup.task==task)\
+                            .distinct() \
+                            .all()
 
         old_clusters.remove(cluster)
 
         for old_cluster in old_clusters:
+            old_cluster.labels = []
+            old_cluster.tags = []
             old_cluster.images = []
+            old_cluster.required_images = []
             session.delete(old_cluster)
+
+        for labelgroup in labelgroups:
+            labelgroup.labels = []
 
         # session.commit()
 
@@ -1095,30 +1107,31 @@ def finish_knockdown(self,rootImageID, task, current_user_id, lastImageID=None, 
             else:
                 clusterList.append(reCluster)
             reCluster.classification = classifyCluster(reCluster)
-            # session.commit()
+            session.commit()
+
+            clusterList = [r.id for r in clusterList]
 
             if long_clusters:
                 from app.functions.imports import recluster_large_clusters
-                newClusters = recluster_large_clusters(task,True,None,session,long_clusters)
+                newClusters = recluster_large_clusters(task,True,None,[r.id for r in long_clusters])
                 clusterList.extend(newClusters)
 
-            if clusterList: classifyTask(task,session,clusterList)
+            if clusterList: classifyTask(task,clusterList)
 
         #Reactivate trapgroup
-        # trapgroup = session.query(Trapgroup).get(trapgroup_id)
+        trapgroup = session.query(Trapgroup).get(trapgroup_id)
 
-        if celeryTask:
-            if trapgroup.queueing:
-                trapgroup.queueing = False
-                session.commit()
-                unknock_cluster.apply_async(kwargs={'image_id':int(rootImageID), 'label_id':None, 'user_id':current_user_id, 'task_id':task_id})
-            else:
-                re_evaluate_trapgroup_examined(trapgroup_id,task_id)
-                trapgroup.active = True
-                trapgroup.processing = False
-                GLOBALS.redisClient.lrem('trapgroups_'+str(task.survey_id),0,trapgroup.id)
-                GLOBALS.redisClient.rpush('trapgroups_'+str(task.survey_id),trapgroup.id)                 
-                session.commit()
+        if trapgroup.queueing:
+            trapgroup.queueing = False
+            session.commit()
+            unknock_cluster.apply_async(kwargs={'image_id':int(rootImageID), 'label_id':None, 'user_id':current_user_id, 'task_id':task_id})
+        else:
+            re_evaluate_trapgroup_examined(trapgroup_id,task_id)
+            trapgroup.active = True
+            trapgroup.processing = False
+            GLOBALS.redisClient.lrem('trapgroups_'+str(task.survey_id),0,trapgroup.id)
+            GLOBALS.redisClient.rpush('trapgroups_'+str(task.survey_id),trapgroup.id)                 
+            session.commit()
 
         if Config.DEBUGGING: app.logger.info('Completed finish_knockdown for image ' + str(rootImageID))
 
@@ -1131,8 +1144,7 @@ def finish_knockdown(self,rootImageID, task, current_user_id, lastImageID=None, 
         self.retry(exc=exc, countdown= retryTime(self.request.retries))
 
     finally:
-        if celeryTask:
-            session.close()
+        session.remove()
 
     return ''
 
@@ -1261,7 +1273,7 @@ def unknock_cluster(self,image_id, label_id, user_id, task_id):
                 db.session.delete(old_cluster)
 
         db.session.commit()
-        classifyTask(task_id,None,clusterList)
+        classifyTask(task_id,clusterList)
 
         #Add label to original cluster
         if label_id != None:
@@ -1318,7 +1330,7 @@ def unknock_cluster(self,image_id, label_id, user_id, task_id):
     return None
 
 @celery.task(bind=True,max_retries=5)
-def classifyTask(self,task,session=None,reClusters=None,trapgroup_ids=None,celeryTask=False):
+def classifyTask(self,task,reClusters=None,trapgroup_ids=None,celeryTask=False):
     '''
     Auto-classifies and labels the species contained in each cluster of a specified task, based on the species selected by the user. Can be given a specific subset of 
     clusters to classify.
@@ -1326,13 +1338,7 @@ def classifyTask(self,task,session=None,reClusters=None,trapgroup_ids=None,celer
     
     try:
         app.logger.info('Classifying task '+str(task))
-
-        commit = False
-        if session == None:
-            commit = True
-            session = db.session()
-        if celeryTask:
-            commit = True
+        session = db.session()
 
         if type(task) == int:
             task = session.query(Task).get(task)
@@ -1398,11 +1404,9 @@ def classifyTask(self,task,session=None,reClusters=None,trapgroup_ids=None,celer
                                 .filter(or_(Cluster.user_id==None,Cluster.user_id==admin.id))
 
             if trapgroup_ids: clusters = clusters.join(Image,Cluster.images).join(Camera).filter(Camera.trapgroup_id.in_(trapgroup_ids))
+            if reClusters: clusters = clusters.filter(Cluster.id.in_(reClusters))
 
             clusters = clusters.distinct().all()
-
-            if reClusters != None:
-                clusters = [cluster for cluster in clusters if cluster in reClusters]
 
             # for chunk in chunker(clusters,1000):
             for cluster in clusters:
@@ -1414,7 +1418,7 @@ def classifyTask(self,task,session=None,reClusters=None,trapgroup_ids=None,celer
                 for labelgroup in labelgroups:
                     if species not in labelgroup.labels: labelgroup.labels.append(species)
         
-        if commit: session.commit()
+        session.commit()
         app.logger.info('Finished classifying task '+str(task))
 
     except Exception as exc:

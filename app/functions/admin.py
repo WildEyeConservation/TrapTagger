@@ -863,12 +863,11 @@ def handleTaskEdit(self,task_id,changes,speciesChanges=None):
     return True
 
 @celery.task(bind=True,max_retries=5)
-def copyClusters(self,newTask,session=None,trapgroup_id=None,celeryTask=False):
+def copyClusters(self,newTask,trapgroup_id=None,celeryTask=False):
     '''Copies default task clustering to the specified task.'''
     try:
-        if session == None:
-            session = db.session()
-            newTask = session.query(Task).get(newTask)
+        session = db.session()
+        newTask = session.query(Task).get(newTask)
 
         survey_id = newTask.survey_id
         default = session.query(Task).filter(Task.name=='default').filter(Task.survey_id==int(survey_id)).first()
@@ -1206,7 +1205,7 @@ def wrapUpAfterTimestampChange(survey_id,trapgroup_ids):
     for task_id in task_ids:
         removeHumans(task_id,trapgroup_ids)
         recluster_large_clusters(task_id,True)
-        classifyTask(task_id,None,None,trapgroup_ids)
+        classifyTask(task_id,None,trapgroup_ids)
 
     return True
 

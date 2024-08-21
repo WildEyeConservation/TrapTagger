@@ -479,7 +479,7 @@ def calculate_detection_similarities(self,task_ids,species,algorithm):
     return True
 
 @celery.task(bind=True,max_retries=5)
-def calculate_individual_similarity(self,individual1,individuals2,species,session=None,parameters=None):
+def calculate_individual_similarity(self,individual1,individuals2,species,parameters=None):
     '''
     Calculates the similarity between a single individual, and a list of individuals.
 
@@ -491,9 +491,7 @@ def calculate_individual_similarity(self,individual1,individuals2,species,sessio
     
     try:
         # startTime = datetime.utcnow()
-
-        if session == None:
-            session = db.session()
+        session = db.session()
 
         if type(individual1) == int:
             celeryTask = True

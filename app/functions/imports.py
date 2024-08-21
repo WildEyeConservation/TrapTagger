@@ -259,7 +259,7 @@ def importKML(survey_id):
     return True
 
 @celery.task(bind=True,max_retries=5,ignore_result=True)
-def recluster_large_clusters(self,task,updateClassifications,trapgroup_id=None,session=None,reClusters=None):
+def recluster_large_clusters(self,task,updateClassifications,trapgroup_id=None,reClusters=None):
     '''
     Reclusters all clusters with over 50 images, by more strictly defining clusters based on classifications. Failing that, clusters are simply limited to 50 images.
 
@@ -273,21 +273,18 @@ def recluster_large_clusters(self,task,updateClassifications,trapgroup_id=None,s
     '''
 
     try:
-        commit = False
-        if session == None:
-            commit = True
-            session = db.session()
-            task = session.query(Task).get(task)
-        
+        session = db.session()
+        task = session.query(Task).get(task)
         downLabel = session.query(Label).get(GLOBALS.knocked_id)
 
-        subq = session.query(Cluster.id.label('clusterID'),func.count(distinct(Image.id)).label('imCount'))\
-                    .join(Image,Cluster.images)\
-                    .filter(Cluster.task==task)\
-                    .group_by(Cluster.id)\
-                    .subquery()
-
         if reClusters==None:
+
+            subq = session.query(Cluster.id.label('clusterID'),func.count(distinct(Image.id)).label('imCount'))\
+                        .join(Image,Cluster.images)\
+                        .filter(Cluster.task==task)\
+                        .group_by(Cluster.id)\
+                        .subquery()
+            
             # Handle already-labelled clusters
             clusters = session.query(Cluster)\
                         .join(subq,subq.c.clusterID==Cluster.id)\
@@ -321,7 +318,10 @@ def recluster_large_clusters(self,task,updateClassifications,trapgroup_id=None,s
                     if updateClassifications:
                         newCluster.classification = classifyCluster(newCluster)
 
+                cluster.labels = []
+                cluster.tags = []
                 cluster.images = []
+                cluster.required_images = []
                 session.delete(cluster)
                 # session.commit()
             
@@ -341,7 +341,7 @@ def recluster_large_clusters(self,task,updateClassifications,trapgroup_id=None,s
             clusters = clusters.distinct().all()
 
         else:
-            clusters = reClusters
+            clusters = db.session.query(Cluster).filter(Cluster.id.in_(reClusters)).all()
 
         classifier = task.survey.classifier
         newClusters = []
@@ -404,9 +404,8 @@ def recluster_large_clusters(self,task,updateClassifications,trapgroup_id=None,s
             cluster.images = []
             session.delete(cluster)
         
-        if commit:
-            session.commit()
-            newClusters = None
+        session.commit()
+        newClusters = [r.id for r in newClusters]
 
     except Exception as exc:
         app.logger.info(' ')
@@ -417,7 +416,7 @@ def recluster_large_clusters(self,task,updateClassifications,trapgroup_id=None,s
         self.retry(exc=exc, countdown= retryTime(self.request.retries))
 
     finally:
-        if commit: db.session.remove()
+        session.remove()
 
     return newClusters
 
