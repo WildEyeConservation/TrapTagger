@@ -3923,10 +3923,11 @@ def getParentLabels(task_id,description,parent_labels,addLabel=True):
 def generate_api_key():
     '''Generates a API key for WPS integration'''
     api_key = ''.join(random.choices(string.ascii_letters + string.digits, k=32))
-    # Encrypt the api_key
-    while db.session.query(APIKey).filter(APIKey.api_key==api_key).first():
+    hashed_key = hashlib.md5(api_key.encode()).hexdigest()
+    while db.session.query(APIKey).filter(APIKey.api_key==hashed_key).first():
         api_key = ''.join(random.choices(string.ascii_letters + string.digits, k=32))
-    return api_key
+        hashed_key = hashlib.md5(api_key.encode()).hexdigest()
+    return {'api_key':api_key,'hashed_key':hashed_key}
 
 def generate_site_name(survey_id):
     '''Generates a unique site name for a new site'''
@@ -3938,3 +3939,22 @@ def generate_site_name(survey_id):
         site_name = 'Site' + str(site_count+1)
         check = db.session.query(Trapgroup).filter(Trapgroup.survey_id==survey_id).filter(Trapgroup.tag==site_name).first()
     return site_name
+
+def generate_hotkey(species, task_id=None):
+    '''Generates a unique hotkey for a new label.'''
+    hotkey = None
+    species = species.lower()
+    invalid_hotkeys = ['0','9','v','q','n','u']
+    if task_id:
+        taken_hotkeys = [r[0] for r in db.session.query(Label.hotkey).filter(Label.task_id==task_id).all()]
+    else:
+        taken_hotkeys = []
+    available_hotkeys = [c for c in (string.digits + string.ascii_lowercase) if c not in taken_hotkeys and c not in invalid_hotkeys]
+
+    if len(available_hotkeys) > 0:
+        if species[0] in available_hotkeys:
+            hotkey = species[0]
+        else:
+            hotkey = available_hotkeys[0]
+
+    return hotkey

@@ -47,7 +47,8 @@ class Config(object):
         'MDv5b': 0.1,
         'error': 1.0,
         'golden': 0.9,
-        'user': 0
+        'user': 0,
+        'api': 0
     }
 
     DISALLOWED_USERNAMES = ['admin','dashboard']

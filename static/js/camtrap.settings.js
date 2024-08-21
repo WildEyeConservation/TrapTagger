@@ -15,6 +15,7 @@
 var globalLabels = []
 var globalOrganisations = []
 var globalSurveys = []
+var surveyNames = {}
 var globalERIntegrations = {}
 var globalLiveIntegrations = {}
 var editedERIntegrations = {}
@@ -27,7 +28,7 @@ var tabActive = 'baseAccountTab'
 var isRoot = false
 
 const modalConfirmChange = $('#modalConfirmChange')
-const modalNewLiveSurvey = $('#modalNewLiveSurvey')
+const modalAPIKey = $('#modalAPIKey')
 
 function getLabels(){
     /** Function for getting the labels from the database. */
@@ -52,6 +53,10 @@ function getOrganisations(){
             reply = JSON.parse(this.responseText);
             globalOrganisations = reply.organisations
             globalSurveys = reply.surveys
+            surveyNames = {}
+            for (let i = 0; i < globalSurveys.length; i++){
+                surveyNames[globalSurveys[i].id] = globalSurveys[i].name
+            }
         }
     }
     xhttp.open("GET", '/getAdminOrganisations?include_surveys=true');
@@ -72,9 +77,9 @@ function buildIntegrationSelect(){
     else if (integrationSelect.value == 'live'){
         var keys = Object.keys(newLiveIntegrations)
         var newId = 'n'+ keys.length.toString()
-        buildLive(newId)
+        buildLive(newId, true)
         var survey_id = document.getElementById('surveySelect-'+newId).value
-        newLiveIntegrations[newId] = {'survey_id': survey_id, 'api_key': ''}
+        newLiveIntegrations[newId] = {'survey_id': survey_id}
     }
 }
 
@@ -259,7 +264,7 @@ function buildEarthRanger(IDNum){
 
 }
 
-function buildLive(IDNum) {
+function buildLive(IDNum, newIntegration=false){
     /** Builds the Live Data Integration */
 
     var liveDiv = document.getElementById('liveDiv')
@@ -296,42 +301,48 @@ function buildLive(IDNum) {
 
     h5 = document.createElement('div')
     h5.setAttribute('style',"font-size: 80%; margin-bottom: 2px")
-    h5.innerHTML = '<i>Select the survey that will receive data from the Live Data integration.</i>'
     surveyDiv.appendChild(h5)
 
-    var surveySelect = document.createElement('select')
-    surveySelect.setAttribute('class','form-control')
-    surveySelect.setAttribute('id','surveySelect-'+String(IDNum))
-    surveySelect.setAttribute('placeholder','Select Survey')
-    surveyDiv.appendChild(surveySelect)
+    if (newIntegration){
+        h5.innerHTML = '<i>Select the survey that will receive data from the Live Data integration.</i>'
 
-    var optionTexts = ['None']
-    var optionValues = ['-1']
+        var surveySelect = document.createElement('select')
+        surveySelect.setAttribute('class','form-control')
+        surveySelect.setAttribute('id','surveySelect-'+String(IDNum))
+        surveySelect.setAttribute('placeholder','Select Survey')
+        surveyDiv.appendChild(surveySelect)
 
-    for (let i=0;i<globalSurveys.length;i++) {
-        optionTexts.push(globalSurveys[i].name)
-        optionValues.push(globalSurveys[i].id)
+        var optionTexts = ['None']
+        var optionValues = ['-1']
+
+        for (let i=0;i<globalSurveys.length;i++) {
+            optionTexts.push(globalSurveys[i].name)
+            optionValues.push(globalSurveys[i].id)
+        }
+        fillSelect(surveySelect, optionTexts, optionValues)
+
+        $('#surveySelect-'+String(IDNum)).on('change', function() {
+            id = this.id.split('-')[1]
+            if (String(id).includes('n')){
+                newLiveIntegrations[id] = {'survey_id': this.value}
+            }
+        });
+
     }
-    fillSelect(surveySelect, optionTexts, optionValues)
-
-    $('#surveySelect-'+String(IDNum)).on('change', function() {
-        id = this.id.split('-')[1]
-        if (String(id).includes('n')){
-            newLiveIntegrations[id] = {'survey_id': this.value, 'api_key': ''}
-        }
-        else{
-            api_key = document.getElementById('keyInput-'+String(id)).value
-            editedLiveIntegrations[id] = {'survey_id': this.value, 'api_key': api_key, 'id': id}
-        }
-    });
-
-    // surveyDiv.appendChild(document.createElement('br'))
+    else{
+        h5.innerHTML = '<i>Survey that will receive data from the Live Data integration.</i>'
+        var surveyInput = document.createElement('input')
+        surveyInput.setAttribute('type','text')
+        surveyInput.setAttribute('class','form-control')
+        surveyInput.setAttribute('id','surveyInput-'+String(IDNum))
+        surveyInput.disabled = true
+        surveyInput.style.backgroundColor = 'white'
+        surveyDiv.appendChild(surveyInput)
+    }
 
     var keyDiv = document.createElement('div')
     keyDiv.setAttribute('id','keyDiv-'+String(IDNum))
     col2.appendChild(keyDiv)
-
-    // keyDiv.appendChild(document.createElement('br'))
 
     var h5 = document.createElement('h5')
     h5.innerHTML = 'API Key'
@@ -340,22 +351,41 @@ function buildLive(IDNum) {
 
     h5 = document.createElement('div')
     h5.setAttribute('style',"font-size: 80%; margin-bottom: 2px")
-    h5.innerHTML = '<i>API Key for the Live Data integration. Will be displayed once saved.</i>'
+    h5.innerHTML = '<i>Select whether you would like to generate a new API Key.</i>'
     keyDiv.appendChild(h5)
 
-    var keyInput = document.createElement('input')
-    keyInput.setAttribute('type','text')
-    keyInput.setAttribute('class','form-control')
-    keyInput.setAttribute('id','keyInput-'+String(IDNum))
-    keyInput.setAttribute('placeholder','API Key')
-    keyInput.disabled = true
-    keyInput.style.backgroundColor = 'white'
-    keyDiv.appendChild(keyInput)
+    var toggle = document.createElement('label');
+    toggle.classList.add('switch');
+    keyDiv.appendChild(toggle);
 
-    // var liveErrors = document.createElement('div')
-    // liveErrors.setAttribute('id','liveErrors-'+String(IDNum))
-    // liveErrors.setAttribute('style','font-size: 80%; color: #DF691A')
-    // col1.appendChild(liveErrors)
+    var checkbox = document.createElement('input');
+    checkbox.setAttribute("type", "checkbox");
+    checkbox.id = 'sApiKey-' + String(IDNum)
+    toggle.appendChild(checkbox);
+
+    var slider = document.createElement('span');
+    slider.classList.add('slider');
+    slider.classList.add('round');
+    toggle.appendChild(slider);
+
+    if (newIntegration){
+        checkbox.checked = true
+        checkbox.disabled = true
+    }
+    else{
+        checkbox.checked = false
+        checkbox.disabled = false
+    }
+
+    checkbox.addEventListener('change', function() {
+        id = this.id.split('-')[1]
+        if (this.checked){
+            editedLiveIntegrations[id] = {'survey_id': globalLiveIntegrations[id].survey_id}
+        }
+        else{
+            delete editedLiveIntegrations[id]
+        }
+    });
 
     btnRemove = document.createElement('button');
     btnRemove.id = 'btnRemoveIntegration-'+IDNum;
@@ -495,17 +525,22 @@ function saveIntegrations(){
                 document.getElementById('settingsErrors').innerHTML = reply.message
 
                 if (reply.status == 'SUCCESS'){
-                    globalERIntegrations = {}
-                    globalLiveIntegrations = {}
-                
-                    newERIntegrations = {}
-                    editedERIntegrations = {}
-                    deletedERIntegrations = []
-                
-                    newLiveIntegrations = {}
-                    editedLiveIntegrations = {}
-                    deletedLiveIntegrations = []
-                    loadIntegrations();
+                    if (reply.new_api_keys && reply.new_api_keys.length > 0){
+                        loadApiKeys(reply.new_api_keys)
+                    }
+                    else{
+                        globalERIntegrations = {}
+                        globalLiveIntegrations = {}
+                    
+                        newERIntegrations = {}
+                        editedERIntegrations = {}
+                        deletedERIntegrations = []
+                    
+                        newLiveIntegrations = {}
+                        editedERIntegrations = {}
+                        deletedLiveIntegrations = []
+                        loadIntegrations();
+                    }
                 }
             }
         }
@@ -552,13 +587,10 @@ function getLiveIntegrations(){
     }
 
     for (var key in editedLiveIntegrations){
-        if (editedLiveIntegrations[key].survey_id != '' && editedLiveIntegrations[key].survey_id != '-1'){
-            if (globalLiveIntegrations[key]){
-                if (globalLiveIntegrations[key].survey_id != editedLiveIntegrations[key].survey_id || globalLiveIntegrations[key].api_key != editedLiveIntegrations[key].api_key){
-                    edited_integrations.push(editedLiveIntegrations[key])
-                }
-            }
-        }
+        edited_integrations.push({
+            'id': key,
+            'survey_id': editedLiveIntegrations[key].survey_id
+        })
     }
 
     return {'new': new_integrations, 'edited': edited_integrations, 'deleted': deletedLiveIntegrations}
@@ -616,9 +648,19 @@ function validateIntegrationSettings(){
 
     //Live Data Validation 
     var surveySelects = document.querySelectorAll('[id^="surveySelect-"]')
+    var surveyInputs = document.querySelectorAll('[id^="surveyInput-"]')
+    for (let i = 0; i < surveyInputs.length; i++){
+        surveyInputs[i].classList.forEach(function(item){
+            if (item.includes('id-')){
+                id_class = item
+            }
+        })
+        let survey_id = id_class.split('-')[1]
+        live_surveys.push(survey_id)
+    }
+    
     for (let i = 0; i < surveySelects.length; i++){
-        let surveySelect = surveySelects[i]
-        let survey = surveySelect.value
+        let survey = surveySelects[i].value
         if (live_surveys.indexOf(survey) == -1){
             live_surveys.push(survey)
         }
@@ -628,7 +670,7 @@ function validateIntegrationSettings(){
         }
     }
 
-    var liveIntegrations = {...newLiveIntegrations, ...editedLiveIntegrations};
+    var liveIntegrations = newLiveIntegrations
     for (var key in liveIntegrations){
         var survey = liveIntegrations[key].survey_id
         if (survey == '-1' || survey == ''){
@@ -647,8 +689,8 @@ function validateIntegrationSettings(){
             for (let i = 0; i < erErrors.length; i++){
                 errorMessage += erErrors[i] + ' '
             }
+            errorMessage += '<br>'
         }
-        errorMessage += '<br>'
         if (liveErrors.length > 0){
             errorMessage += '<b>Live Data Integration:</b> <br>'
             for (let i = 0; i < liveErrors.length; i++){
@@ -682,11 +724,11 @@ function loadEarthRangerIntegration(IDNum, api_key, species, ids, organisation){
     }
 }
 
-function loadLiveIntegration(survey, api_key, id){
+function loadLiveIntegration(survey_id,survey_name,id){
     /** Function for loading the Live data Integration options from the database. */
-    document.getElementById('surveySelect-'+String(id)).value = survey
-    document.getElementById('keyInput-'+String(id)).value = api_key
-    globalLiveIntegrations[id] = {'survey_id': survey, 'api_key': api_key}
+    document.getElementById('surveyInput-'+String(id)).value = survey_name
+    document.getElementById('surveyInput-'+String(id)).classList.add('id-'+String(survey_id))
+    globalLiveIntegrations[id] = {'survey_id': survey_id}
 }
 
 function loadIntegrations(){
@@ -704,14 +746,10 @@ function loadIntegrations(){
 
     var integrationSelect = document.getElementById('integrationSelect')
     if (integrationSelect.value == 'live'){
-        createLiveSurvey = document.getElementById('createLiveSurvey')
-        createLiveSurvey.hidden = false
         erDiv.hidden = true
         liveDiv.hidden = false
     }
     else{
-        createLiveSurvey = document.getElementById('createLiveSurvey')
-        createLiveSurvey.hidden = true
         erDiv.hidden = false
         liveDiv.hidden = true
     }
@@ -731,7 +769,7 @@ function loadIntegrations(){
                 }
                 else if (integrations[i].integration == 'live'){
                     buildLive(integrations[i].id)
-                    loadLiveIntegration(integrations[i].survey_id, integrations[i].api_key, integrations[i].id)
+                    loadLiveIntegration(integrations[i].survey_id, integrations[i].survey, integrations[i].id)
                 }
             }
         }
@@ -916,264 +954,88 @@ $('#btnConfirmChange').on('click', function() {
     saveAccountInfo()
 });
 
-
-$('#btnCreateSurvey').on('click', function() {
-    /** Event listener that opens the new live survey modal. */
-    modalNewLiveSurvey.modal({keyboard: true});
-    speciesClassifierDiv = document.getElementById('speciesClassifierDiv')
-    updateClassifierTable()
-    getCreateOrganisations()
-});
-
-$('#classifierSearch').on('change', function() {
-    var search = document.getElementById('classifierSearch').value;
-    var url = '/getClassifierInfo?search=' + search;
-    updateClassifierTable(url);
-});
-
-function updateClassifierTable(url=null) {
-    /** fetches and updates the classifier selection table*/
-
-    if (!url) {
-        url='/getClassifierInfo'
-    }
-
-    var xhttp = new XMLHttpRequest();
-    xhttp.open("POST", url);
-    xhttp.onreadystatechange =
-    function() {
-        if (this.readyState == 4 && this.status == 200) {
-            reply = JSON.parse(this.responseText);
-            data = reply.data
-
-            classifierSelectionTableInfo = document.getElementById('classifierSelectionTableInfo')
-            while(classifierSelectionTableInfo.firstChild){
-                classifierSelectionTableInfo.removeChild(classifierSelectionTableInfo.firstChild);
-            }
-
-            for (let i=0;i<data.length;i++) {
-                datum = data[i]
-                tr = document.createElement('tr')
-
-                td = document.createElement('td')
-                td.setAttribute('style','text-align:left')
-                div = document.createElement('div')
-                div.setAttribute('class',"custom-control custom-radio custom-control-inline")
-                input = document.createElement('input')
-                input.setAttribute('type','radio')
-                input.setAttribute('class','custom-control-input')
-                input.setAttribute('id',datum.name)
-                input.setAttribute('name','classifierSelection')
-                input.setAttribute('value','customEx')
-                if (datum.active) {
-                    input.checked = true
-                }
-                label = document.createElement('label')
-                label.setAttribute('class','custom-control-label')
-                label.setAttribute('for',datum.name)
-                label.innerHTML = datum.name
-                div.appendChild(input)
-                div.appendChild(label)
-                td.appendChild(div)
-                tr.appendChild(td)
-
-                td = document.createElement('td')
-                td.setAttribute('style','text-align:left')
-                td.innerHTML = datum.source
-                tr.appendChild(td)
-
-                td = document.createElement('td')
-                td.setAttribute('style','text-align:left')
-                td.innerHTML = datum.region
-                tr.appendChild(td)
-
-                td = document.createElement('td')
-                td.setAttribute('style','text-align:left')
-                td.innerHTML = datum.description
-                tr.appendChild(td)
-
-                classifierSelectionTableInfo.appendChild(tr)
-            }
-
-            if (reply.next_url==null) {
-                document.getElementById('classifierBtnNext').style.visibility = 'hidden'
-            } else {
-                document.getElementById('classifierBtnNext').style.visibility = 'visible'
-                next_classifier_url = reply.next_url
-            }
-
-            if (reply.prev_url==null) {
-                document.getElementById('classifierBtnPrev').style.visibility = 'hidden'
-            } else {
-                document.getElementById('classifierBtnPrev').style.visibility = 'visible'
-                prev_classifier_url = reply.prev_url
-            }
-        }
-    }
-    xhttp.send();
-}
-
-function getCreateOrganisations(){
-    /* Gets the organisations for the current user and populates the organisation select for the new survey modal. */
-
-    var xhttp = new XMLHttpRequest();
-    xhttp.onreadystatechange =
-    function(){
-        if (this.readyState == 4 && this.status == 200) {
-            reply = JSON.parse(this.responseText);
-            var organisations = reply.organisations
-            var select = document.getElementById('newSurveyOrg')
-            clearSelect(select)
-            var optionTexts = []
-            var optionValues = []
-            for (var i=0;i<organisations.length;i++) {
-                optionTexts.push(organisations[i].name)
-                optionValues.push(organisations[i].id)
-            }
-            fillSelect(select,optionTexts,optionValues)
-        }
-    }
-    xhttp.open("GET", '/getOrganisations?create=true');
-    xhttp.send();
-    
-}
-
-$('#btnSaveLiveSurvey').on('click', function() {
-    /** Event listener for the save live survey button. */
-
-    var surveyName = document.getElementById('newSurveyName').value
-    var surveyOrg = document.getElementById('newSurveyOrg').value
-    var surveyDescription = document.getElementById('newSurveyDescription').value
-    var surveyClassifier = document.querySelector('input[name="classifierSelection"]:checked')
-    if (surveyClassifier) {
-        surveyClassifier = surveyClassifier.id
-    }
-    else{
-        surveyClassifier = null
-    }
-    var newSurveyPermission = document.getElementById('newSurveyPermission').value
-    var newSurveyAnnotation = document.getElementById('newSurveyAnnotation').value
-    var detailedAccessSurvey = document.getElementById('detailedAccessSurveyCb').checked
-
-    var valid = true
-    var errors = document.getElementById('newSurveyErrors')
-    errors.innerHTML = ''
-
-    if (surveyName == ''){
-        valid = false
-        errors.innerHTML += 'Survey name is required. '
-    }
-    else if ((surveyName.includes('/'))||(surveyName.includes('\\'))) {
-        valid = false
-        errors.innerHTML += 'Survey Name cannot contain slashes. '
-    }
-
-
-    if (surveyOrg == '-1' || surveyOrg == ''){
-        valid = false
-        errors.innerHTML += 'Organisation is required. '
-    }
-
-    if (surveyClassifier == null){
-        valid = false
-        errors.innerHTML += 'Classifier is required. '
-    }
-
-    if ((surveyDescription.includes('/'))||(surveyDescription.includes('\\'))) {
-        valid = false
-        errors.innerHTML += 'Survey description cannot contain slashes. '
-    }
-
-    if (newSurveyPermission == ''){
-        valid = false
-        errors.innerHTML += 'Please select a access level. '
-    }
-
-    if (newSurveyAnnotation == ''){
-        valid = false
-        errors.innerHTML += 'Please select an annotation access level. '
-    }
-
-    var detailed_access = []
-    if (detailedAccessSurvey) {
-        // Get all selectors 
-        var surveyUserPermissions =  document.querySelectorAll('[id^=surveyUserPermission-]')
-        if (surveyUserPermissions.length==0) {
-            errors.innerHTML += 'You must select at least one user to set permission exceptions for. '
-            valid = false
-        } else {
-            var dup_users = []
-            for (let i=0;i<surveyUserPermissions.length;i++) {
-                user_id = surveyUserPermissions[i].value
-                if (dup_users.indexOf(user_id)==-1) {
-                    dup_users.push(user_id)
-                    var id_num = surveyUserPermissions[i].id.split('-')[1]
-                    var user_permission = default_access[document.getElementById('detailedAccessSurvey-'+id_num).value].toLowerCase()
-                    var annotation = document.getElementById('detailedJobAccessSurvey-'+id_num).checked
-                    detailed_access.push({
-                        'user_id': parseInt(user_id),
-                        'permission': user_permission,
-                        'annotation': annotation ? '1' : '0'
-                    })
-                }
-                else{
-                    errors.innerHTML += 'You cannot select the same user twice. '
-                    valid = false
-                }
-            }
-        }
-    }
-
-
-    if (valid){
-        var formData = new FormData();
-        formData.append('survey_name', JSON.stringify(surveyName))
-        formData.append('organisation_id', JSON.stringify(surveyOrg))
-        formData.append('survey_description', JSON.stringify(surveyDescription))
-        formData.append('classifier', JSON.stringify(surveyClassifier))
-        formData.append('permission', JSON.stringify(newSurveyPermission))
-        formData.append('annotation', JSON.stringify(newSurveyAnnotation))
-        if (detailedAccessSurvey) {
-            formData.append('detailed_access', JSON.stringify(detailed_access))
-        }
-        
-
-        var xhttp = new XMLHttpRequest();
-        xhttp.onreadystatechange =
-        function(){
-            if (this.readyState == 4 && this.status == 200) {
-                reply = JSON.parse(this.responseText);
-                console.log(reply)
-                errors.innerHTML = reply.message
-                if (reply.status == 'success'){
-                    modalNewLiveSurvey.modal('hide');
-                    getOrganisations();
-                    loadIntegrations();
-                }
-            }
-        }
-        xhttp.open("POST", '/createLiveSurvey');
-        xhttp.send(formData);
-    }
-
-});
-
 $('#integrationSelect').on('change', function() {
     /** Event listener for the integration select dropdown. */
     var erDiv = document.getElementById('erDiv')
     var liveDiv = document.getElementById('liveDiv')
-    var createLiveSurvey = document.getElementById('createLiveSurvey')
 
     if (this.value == 'live'){
-        createLiveSurvey.hidden = false
         erDiv.hidden = true
         liveDiv.hidden = false
     }
     else{
-        createLiveSurvey.hidden = true
         erDiv.hidden = false
         liveDiv.hidden = true
     }   
+});
+
+function loadApiKeys(api_keys){
+    /** Displays the new API keys in a modal. */
+    var apiKeyDiv = document.getElementById('apiKeyDiv')
+    while (apiKeyDiv.firstChild) {
+        apiKeyDiv.removeChild(apiKeyDiv.firstChild);
+    }
+
+    for (let i = 0; i < api_keys.length; i++){
+        var row = document.createElement('div')
+        row.classList.add('row')
+        apiKeyDiv.appendChild(row)
+    
+        var col1 = document.createElement('div')
+        col1.classList.add('col-lg-5')
+        row.appendChild(col1)
+    
+        var col2 = document.createElement('div')
+        col2.classList.add('col-lg-6')
+        row.appendChild(col2)
+    
+        var col3 = document.createElement('div')
+        col3.classList.add('col-lg-1')
+        col3.style.paddingLeft = '0px'
+        col3.classList.add('justify-content-center')
+        row.appendChild(col3)
+
+        var inputName = document.createElement('input')
+        inputName.setAttribute('type','text')
+        inputName.setAttribute('class','form-control')
+        inputName.value = surveyNames[api_keys[i].survey_id]
+        inputName.disabled = true
+        inputName.style.backgroundColor = 'white'
+        col1.appendChild(inputName)
+
+        var inputKey = document.createElement('input')
+        inputKey.setAttribute('type','text')
+        inputKey.setAttribute('class','form-control')
+        inputKey.id = 'id-'+api_keys[i].survey_id
+        inputKey.value = api_keys[i].api_key
+        inputKey.disabled = true
+        inputKey.style.backgroundColor = 'white'
+        col2.appendChild(inputKey)
+
+        var copyClipboard = document.createElement('button');
+        copyClipboard.setAttribute('type', 'button');
+        copyClipboard.setAttribute('class', 'btn btn-link btn-sm');
+        copyClipboard.setAttribute('align', 'left');
+        copyClipboard.setAttribute('data-toggle', 'tooltip');
+        copyClipboard.setAttribute('title', 'Copy to clipboard');
+        copyClipboard.setAttribute('style', 'font-size: 1.4em; padding: 0px; margin-left: 0px; margin-bottom: 0px;');
+        copyClipboard.innerHTML = '<i class="fa fa-clipboard" aria-hidden="true"></i>';
+        col3.appendChild(copyClipboard);
+
+        copyClipboard.addEventListener('click', function(wrapSurveyID){
+            return function() {
+                var copyText = document.getElementById('id-'+wrapSurveyID).value
+                navigator.clipboard.writeText(copyText)
+            }
+        }(api_keys[i].survey_id));
+    }
+
+    modalAPIKey.modal({keyboard: true});	
+}
+
+modalAPIKey.on('hidden.bs.modal', function () {
+    /** Event listener for the API Key modal close. */
+    loadIntegrations()
 });
 
 function onload(){

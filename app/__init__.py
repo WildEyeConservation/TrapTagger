@@ -209,7 +209,7 @@ def initialise_periodic_functions(sender, instance, **kwargs):
         from app.functions.imports import setupDatabase
         from app.functions.annotation import manageTasks
         from app.functions.globals import importMonitor, clean_up_redis
-        from app.functions.imports import monitor_live_data_surveys
+        from app.functions.admin import monitor_live_data_surveys
         import GLOBALS
    
         # Try to create the database in case it does not exist. If it allready exists a sqlalchemy ProgrammingError

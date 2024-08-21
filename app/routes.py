@@ -1454,6 +1454,13 @@ def createNewSurvey():
         else:
             detailed_access = None
 
+        emptySurvey = False
+        if 'emptySurvey' in request.form:
+            emptySurvey = request.form['emptySurvey']
+            if emptySurvey == 'true':
+                emptySurvey = True
+                newSurveyS3Folder=surveyName
+
         surveyName = surveyName.strip()
         if newSurveyS3Folder=='none':
             browser_upload = True
@@ -1525,23 +1532,32 @@ def createNewSurvey():
 
             # Create survey
             classifier = db.session.query(Classifier).filter(Classifier.name==classifier).first()
-            newSurvey = Survey(name=surveyName, description=newSurveyDescription, trapgroup_code=newSurveyTGCode, organisation_id=organisation_id, status='Uploading', correct_timestamps=correctTimestamps, classifier_id=classifier.id, camera_code=newSurveyCamCode, folder=newSurveyS3Folder)
-            db.session.add(newSurvey)
+
+            if emptySurvey:
+                newSurvey = Survey(name=surveyName, description=newSurveyDescription, organisation_id=organisation_id, status='Ready', correct_timestamps=correctTimestamps, classifier_id=classifier.id, folder=newSurveyS3Folder)
+                db.session.add(newSurvey)
+
+                defaultTask = Task(name='default', survey=newSurvey, tagging_level='-1', test_size=0, status='Ready')
+                db.session.add(defaultTask)
+            else:
+                newSurvey = Survey(name=surveyName, description=newSurveyDescription, trapgroup_code=newSurveyTGCode, organisation_id=organisation_id, status='Uploading', correct_timestamps=correctTimestamps, classifier_id=classifier.id, camera_code=newSurveyCamCode, folder=newSurveyS3Folder)
+                db.session.add(newSurvey)
 
             # Add permissions
             setup_new_survey_permissions(survey=newSurvey, organisation_id=organisation_id, user_id=current_user.id, permission=permission, annotation=annotation, detailed_access=detailed_access)
 
             db.session.commit()
 
-            if browser_upload:
-                # Browser upload
-                newSurvey_id = newSurvey.id
+            if not emptySurvey:
+                if browser_upload:
+                    # Browser upload
+                    newSurvey_id = newSurvey.id
 
-                # Checkout the upload
-                checkUploadUser(current_user.id,newSurvey_id)
-            else:
-                # Bucket upload
-                import_survey.delay(survey_id=newSurvey.id)
+                    # Checkout the upload
+                    checkUploadUser(current_user.id,newSurvey_id)
+                else:
+                    # Bucket upload
+                    import_survey.delay(survey_id=newSurvey.id)
     
         return json.dumps({'status': status, 'message': message, 'newSurvey_id': newSurvey_id, 'surveyName':surveyName})
     else:
@@ -10945,6 +10961,7 @@ def saveIntegrations():
 
     status = 'FAILURE'
     message = 'Unable to save integrations.'
+    new_api_keys = []
     if current_user and current_user.is_authenticated:
         admin_data = db.session.query(Survey.id, Organisation.id).join(Organisation).join(UserPermissions).filter(UserPermissions.user_id==current_user.id).filter(UserPermissions.default=='admin').all()
         admin_orgs = list(set([r[1] for r in admin_data]))
@@ -10994,18 +11011,24 @@ def saveIntegrations():
                     db.session.delete(live_integration)
 
             for live in live_edited:
-                live_integration = db.session.query(APIKey).filter(APIKey.id==live['id']).first()
-                if live_integration and live_integration.survey_id in admin_surveys and int(live['survey_id']) in admin_surveys:
-                    live_integration.survey_id = live['survey_id']
+                live_integration = db.session.query(APIKey).filter(APIKey.id==live['id']).filter(APIKey.survey_id==live['survey_id']).first()
+                if live_integration and live_integration.survey_id in admin_surveys:
+                    keys = generate_api_key()
+                    api_key = keys['api_key']
+                    hashed_key = keys['hashed_key']
+                    live_integration.api_key = hashed_key
+                    new_api_keys.append({'api_key': api_key, 'survey_id': live_integration.survey_id})
 
             for live in live_new:
                 if int(live['survey_id']) in admin_surveys:
-                    api_key = generate_api_key()
-                    # Encrypt api key with secret key ?
                     check = db.session.query(APIKey).filter(APIKey.survey_id==live['survey_id']).first()
                     if not check:
-                        live_integration = APIKey(api_key=api_key, survey_id=live['survey_id'])
+                        keys = generate_api_key()
+                        api_key = keys['api_key']
+                        hashed_key = keys['hashed_key']
+                        live_integration = APIKey(api_key=hashed_key, survey_id=live['survey_id'])
                         db.session.add(live_integration)
+                        new_api_keys.append({'api_key': api_key, 'survey_id': live['survey_id']})
 
             db.session.commit()
             status = 'SUCCESS'
@@ -11015,7 +11038,7 @@ def saveIntegrations():
             status = 'FAILURE'
             message = 'Unable to save integrations.'
 
-    return json.dumps({'status': status, 'message': message})
+    return json.dumps({'status': status, 'message': message, 'new_api_keys': new_api_keys})
 
 @app.route('/getIntegrations')
 @login_required
@@ -11046,14 +11069,13 @@ def getIntegrations():
                 'organisation': value['organisation']
             })
 
-        live_integrations = db.session.query(APIKey,).join(Survey).join(Organisation).join(UserPermissions).filter(UserPermissions.default=='admin').filter(UserPermissions.user_id==current_user.id).all()
+        live_integrations = db.session.query(APIKey.id, Survey.id, Survey.name).join(Survey).join(Organisation).join(UserPermissions).filter(UserPermissions.default=='admin').filter(UserPermissions.user_id==current_user.id).all()
         for live_integration in live_integrations:
             integrations.append({
                 'integration': 'live',
-                'id': live_integration.id,
-                'api_key': live_integration.api_key,
-                'survey_id': live_integration.survey_id,
-                'survey': live_integration.survey.name
+                'id': live_integration[0],
+                'survey_id': live_integration[1],
+                'survey': live_integration[2]
             })
 
     return json.dumps({'integrations': integrations})
@@ -13533,11 +13555,9 @@ def getMatchingKpts(det_id1,det_id2):
 
     return json.dumps({'results': results})
 
-
 # NOTE: We are currenlty not allowing the users to edit a detection flank on the Individuals page and it can only be edited 
 #     in a Cluster ID (-4 task). The reason we have disallowed this is because of having to recalculate all detection similarities 
 #     and individual similaties associated with the detection whose flank has changed. 
-
 # @app.route('/submitIndividualFlanks', methods=['POST'])
 # @login_required
 # def submitIndividualFlanks():
@@ -13562,9 +13582,13 @@ def addImage():
     ''' Adds an image to a survey '''
 
     api_key = request.headers.get('apikey')
-    if api_key is None or api_key == '':
+    try:
+        hashed_key = hashlib.md5(api_key.encode()).hexdigest()
+    except:
+        hashed_key = None
+    if hashed_key is None or hashed_key == '':
         return json.dumps({'message': 'Forbidden.'}), 403
-    live_integration = db.session.query(APIKey).filter(APIKey.api_key==api_key).first()
+    live_integration = db.session.query(APIKey).filter(APIKey.api_key==hashed_key).first()
     if live_integration:
         survey_id = live_integration.survey_id
         survey = db.session.query(Survey).get(survey_id)
@@ -13628,8 +13652,6 @@ def addImage():
                                 site_name = site
                             else:
                                 site_name = generate_site_name(survey_id)
-                            # trapgroup = Trapgroup(survey_id=survey_id, tag=site_name, latitude=latitude, longitude=longitude, altitude=altitude)
-                            # db.session.add(trapgroup)
                         else:
                             site_name = trapgroup.tag
 
@@ -13640,7 +13662,6 @@ def addImage():
 
                         # Upload to S3
                         image_key = camera_path + '/' + filename
-                        # Check if it exists #TODO How to handle this ??
                         image_exists = False
                         try:
                             GLOBALS.s3client.head_object(Bucket=Config.BUCKET, Key=image_key)
@@ -13649,7 +13670,11 @@ def addImage():
                             image_exists = False
 
                         if image_exists:
-                            return json.dumps({'message': 'Image with the same name already exists for the specified site and camera.'}), 400
+                            filename_split = filename.split('.')
+                            dup_filename = filename_split[0] + '_%.' + filename_split[1]
+                            image_dup_count = db.session.query(Image).join(Camera).filter(Camera.path==camera_path).filter(Image.filename.like(dup_filename)).count()
+                            filename = filename_split[0] + '_' + str(image_dup_count+1) + '.' + filename_split[1]
+                            image_key = camera_path + '/' + filename
 
                         GLOBALS.s3client.upload_file(Bucket=Config.BUCKET, Key=image_key, Filename=temp_file.name)
 
@@ -13674,43 +13699,33 @@ def addImage():
                                 else:
                                     det_score = 1
 
-                                # TODO: How to handle this ??
-                                # if 'species' in annotation:
-                                #     classification = annotation['species']
-                                #     if 'class_score' in annotation:
-                                #         class_score = annotation['class_score']
-                                #     else:
-                                #         class_score = 1
-                                # else:
-                                #     classification = None
-                                #     class_score = None
+                                category = 1
+                                source = 'api'
+                                status= 'active'
 
-                                category = None 
-                                # Category ??? #TODO
-                                if annotation['species'].lower() == 'human':
-                                    category = 2
-                                elif annotation['species'].lower() == 'vehicle':
-                                    category = 3
-                                else:
-                                    category = 1
-                                source = 'user'
-                                status= 'api_added'
+                                if 'top' not in annotation or 'left' not in annotation or 'bottom' not in annotation or 'right' not in annotation:
+                                    return json.dumps({'message': 'Incomplete annotation.'}), 400
 
                                 detection = Detection(image=image, top=annotation['top'], left=annotation['left'], bottom=annotation['bottom'], right=annotation['right'], score=det_score, category=category, source=source, status=status)
                                 db.session.add(detection)
 
-                                #TODO: Not sure how to handle labels ?
-                                # if 'species' in annotation:
-                                #     task_id = db.session.query(Task.id).join(Survey).filter(Survey.id==survey_id).filter(Task.name=='default').first()
-                                #     if 'vehicle' in annotation['species'].lower() or 'human' in annotation['species'].lower():
-                                #         label = db.session.query(Label).get(GLOBALS.vhl_id)
-                                #     else:
-                                #         label = db.session.query(Label).join(Task).filter(Task.id==task_id).filter(Label.description==annotation['species']).first()
-                                #     if not label:
-                                #         label = Label(description=annotation['species'], task_id=task_id)
-                                #         db.session.add(label)
-                                #     labelgroup = Labelgroup(detection=detection, labels=[label], task_id=task_id)
-                                #     db.session.add(labelgroup)
+                                if 'species' in annotation:
+                                    task_ids = [r[0] for r in db.session.query(Task.id).join(Survey).filter(Survey.id==survey_id).filter(Task.name!='default').all()]
+                                    if not task_ids:
+                                        new_task = Task(name='Livestream', survey_id=int(survey_id), status='Ready', tagging_time=0, test_size=0, size=200, parent_classification=False)
+                                        db.session.add(new_task)
+                                        label = Label(description=annotation['species'], task=new_task, hotkey=generate_hotkey(annotation['species']))
+                                        db.session.add(label)
+                                        labelgroup = Labelgroup(detection=detection, labels=[label], task=new_task)
+                                        db.session.add(labelgroup)
+                                    else:
+                                        for task_id in task_ids:
+                                            label = db.session.query(Label).join(Task).filter(Task.id==task_id).filter(Label.description==annotation['species']).first()
+                                            if not label:
+                                                label = Label(description=annotation['species'], task_id=task_id, hotkey=generate_hotkey(annotation['species'], task_id))
+                                                db.session.add(label)
+                                            labelgroup = Labelgroup(detection=detection, labels=[label], task_id=task_id)
+                                            db.session.add(labelgroup)
 
                         db.session.commit()
 
@@ -13723,62 +13738,3 @@ def addImage():
             return json.dumps({'message': 'Request error.'}), 400
     else:
         return json.dumps({'message': 'Forbidden.'}), 403
-
-@app.route('/createLiveSurvey', methods=['POST'])
-@login_required
-def createLiveSurvey():
-    ''' Creates a new survey for live data integration '''
-
-    notAllowed = ['/', ',', '.', '"', "'"]
-    status = 'success'
-    message = ''
-    organisation_id = ast.literal_eval(request.form['organisation_id'])
-    organisation = db.session.query(Organisation).get(organisation_id)
-    userPermissions = db.session.query(UserPermissions).filter(UserPermissions.user_id==current_user.id).filter(UserPermissions.organisation_id==organisation_id).first()
-    if organisation and userPermissions and userPermissions.create:
-        survey_name = ast.literal_eval(request.form['survey_name'])
-        survey_description = ast.literal_eval(request.form['survey_description'])
-        classifier = ast.literal_eval(request.form['classifier'])
-        permission = ast.literal_eval(request.form['permission'])
-        annotation = ast.literal_eval(request.form['annotation'])
-        if 'detailed_access' in request.form:
-            detailed_access = ast.literal_eval(request.form['detailed_access'])
-        else:
-            detailed_access = None
-
-        for item in notAllowed:
-            if item in survey_name:
-                status = 'error'
-                message = 'Survey name cannot contain slashes or special characters.'
-
-        name_check = db.session.query(Survey).filter(Survey.organisation_id==organisation_id).filter(Survey.name==survey_name).first()
-        if name_check != None:
-            status = 'error'
-            message = 'Survey name already in use.'
-        else:
-            response = GLOBALS.s3client.list_objects(Bucket=Config.BUCKET, Prefix=organisation.folder+'/'+survey_name, Delimiter='/',MaxKeys=1)
-            if 'CommonPrefixes' in response:
-                status = 'error'
-                message = 'That folder name is already in use in your storage. Please try another name for your survey.' 
-        
-        classifier = db.session.query(Classifier).filter(Classifier.name==classifier).first()
-        if not classifier:
-            status = 'error'
-            message = 'No valid classifier selected.'
-
-        if status == 'success':
-            # Create survey            
-            newSurvey = Survey(name=survey_name, description=survey_description, organisation_id=organisation_id, status='Ready', classifier_id=classifier.id, folder=survey_name)
-            db.session.add(newSurvey)
-
-            # Add permissions
-            setup_new_survey_permissions(survey=newSurvey, organisation_id=organisation_id, user_id=current_user.id, permission=permission, annotation=annotation, detailed_access=detailed_access)
-
-            # Create default task
-            task = Task(name='default', survey=newSurvey, tagging_level='-1', test_size=0, status='Ready')
-            db.session.add(task)
-
-            db.session.commit()
-
-
-    return json.dumps({'status': status, 'message': message})

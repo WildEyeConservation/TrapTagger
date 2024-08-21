@@ -19,7 +19,7 @@ from app.models import *
 from app.functions.globals import classifyTask, update_masks, retryTime, resolve_abandoned_jobs, addChildLabels, updateAllStatuses, \
                                     stringify_timestamp, rDets, update_staticgroups, detection_rating, chunker, verify_label
 from app.functions.individualID import calculate_individual_similarities, cleanUpIndividuals, check_individual_detection_mismatch
-from app.functions.imports import cluster_survey, classifySurvey, s3traverse, recluster_large_clusters, removeHumans, classifyCluster, importKML
+from app.functions.imports import cluster_survey, classifySurvey, s3traverse, recluster_large_clusters, removeHumans, classifyCluster, importKML, import_survey
 import GLOBALS
 from sqlalchemy.sql import func, or_, and_, distinct, alias
 from sqlalchemy import desc, extract
@@ -272,7 +272,7 @@ def delete_task(self,task_id):
     return status, message
 
 @celery.task(bind=True,max_retries=5,ignore_result=True)
-def stop_task(self,task_id):
+def stop_task(self,task_id,live=False):
     '''Celery function that stops a running task.'''
 
     try:
@@ -369,6 +369,10 @@ def stop_task(self,task_id):
 
             #     if not still_processing:
             #         survey.status = 'Ready'
+
+            if live:
+                survey.status = 'Import Queued'
+                import_survey.delay(survey.id,live=True)
 
             db.session.commit()
 
@@ -2702,5 +2706,60 @@ def check_masked_and_hidden_detections(survey_id):
     for image in set(images):
         image.detection_rating = detection_rating(image)
     db.session.commit()
+
+    return True
+
+@celery.task(ignore_result=True)
+def monitor_live_data_surveys():
+    '''Celery task that monitors surveys with live data and schedules and import for them.'''
+    try:
+
+        surveys = db.session.query(Survey)\
+                            .join(Trapgroup)\
+                            .join(Camera)\
+                            .join(Image)\
+                            .join(APIKey)\
+                            .filter(Survey.status.in_(Config.SURVEY_READY_STATUSES))\
+                            .filter(APIKey.api_key!=None)\
+                            .filter(or_(~Image.clusters.any(),~Image.detections.any()))\
+                            .distinct().all()
+
+        if Config.DEBUGGING: app.logger.info('Found {} surveys with live data to import'.format(len(surveys)))
+
+        for survey in surveys:
+            survey.status = 'Import Queued'
+            import_survey.delay(survey.id, live=True)
+
+
+        launched_tasks = db.session.query(Task)\
+                                    .join(Survey)\
+                                    .join(Trapgroup)\
+                                    .join(Camera)\
+                                    .join(Image)\
+                                    .join(APIKey)\
+                                    .filter(Task.status.in_(['PENDING','PROGRESS']))\
+                                    .filter(APIKey.api_key!=None)\
+                                    .filter(or_(~Image.clusters.any(),~Image.detections.any()))\
+                                    .distinct().all()
+
+        if Config.DEBUGGING: app.logger.info('Found {} surveys with live data that are launched'.format(len(launched_tasks)))
+        for task in launched_tasks:
+            task.status = 'Stopping'
+            stop_task.delay(task.id, live=True)
+
+
+        db.session.commit()
+
+    except Exception as exc:
+        app.logger.info(' ')
+        app.logger.info('!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!')
+        app.logger.info(traceback.format_exc())
+        app.logger.info('!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!')
+        app.logger.info(' ')
+
+    finally:
+        db.session.remove()
+        #Schedule every 24hours
+        monitor_live_data_surveys.apply_async(queue='priority', priority=0,countdown=86400)
 
     return True
