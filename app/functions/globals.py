@@ -1959,6 +1959,8 @@ def taggingLevelSQ(sq,taggingLevel,isBounding,task_id):
                 # .filter(~Cluster.labels.contains(db.session.query(Label).get(GLOBALS.vhl_id))) \
     elif (taggingLevel == '-3'):
         # Classifier checking
+        downLabel = db.session.query(Label).get(GLOBALS.vhl_id)
+
         classificationSQ = db.session.query(Cluster.id.label('cluster_id'),Detection.classification.label('classification'),func.count(distinct(Detection.id)).label('count'))\
                                 .join(Image,Cluster.images)\
                                 .join(Camera)\
@@ -1998,7 +2000,8 @@ def taggingLevelSQ(sq,taggingLevel,isBounding,task_id):
                                 .outerjoin(labelstableSQ,and_(labelstableSQ.c.cluster_id==Cluster.id,labelstableSQ.c.classification==classificationSQ.c.classification))\
                                 .filter((classificationSQ.c.count/clusterDetCountSQ.c.count)>Config.MIN_CLASSIFICATION_RATIO)\
                                 .filter(classificationSQ.c.count>1)\
-                                .filter(labelstableSQ.c.classification==None)
+                                .filter(labelstableSQ.c.classification==None)\
+                                .filter(~Cluster.labels.contains(downLabel))
         
     # elif (taggingLevel == '-6'):
     #     # NOTE: This is not currently used (is for check masked sightings)
