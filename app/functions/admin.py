@@ -2728,7 +2728,7 @@ def monitor_live_data_surveys():
 
         for survey in surveys:
             survey.status = 'Import Queued'
-            import_survey.delay(survey.id, live=True)
+            import_survey.delay(survey_id=survey.id, live=True)
 
 
         launched_tasks = db.session.query(Task)\
@@ -2738,6 +2738,7 @@ def monitor_live_data_surveys():
                                     .join(Image)\
                                     .join(APIKey)\
                                     .filter(Task.status.in_(['PENDING','PROGRESS']))\
+                                    .filter(~Survey.status.in_(Config.SURVEY_READY_STATUSES))\
                                     .filter(APIKey.api_key!=None)\
                                     .filter(or_(~Image.clusters.any(),~Image.detections.any()))\
                                     .distinct().all()
@@ -2745,7 +2746,7 @@ def monitor_live_data_surveys():
         if Config.DEBUGGING: app.logger.info('Found {} surveys with live data that are launched'.format(len(launched_tasks)))
         for task in launched_tasks:
             task.status = 'Stopping'
-            stop_task.delay(task.id, live=True)
+            stop_task.delay(task_id=task.id, live=True)
 
 
         db.session.commit()

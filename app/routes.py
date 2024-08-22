@@ -8473,13 +8473,14 @@ def checkNotifications():
                 total_unseen += 1
 
         if global_notification and (allow_global=='true'):
-            global_notification.users_seen.append(current_user)
-            db.session.commit()
+            if current_user not in global_notification.users_seen:
+                global_notification.users_seen.append(current_user)
+                db.session.commit()
 
-            notifcation_contents = {
-                'id': global_notification.id,
-                'contents': global_notification.contents,
-            }
+                notifcation_contents = {
+                    'id': global_notification.id,
+                    'contents': global_notification.contents,
+                }
 
         status = 'success'
     
@@ -9619,11 +9620,11 @@ def results():
     if not current_user.is_authenticated:
         return redirect(url_for('login_page'))
     elif current_user.parent_id != None:
-        if db.session.query(Turkcode).filter(Turkcode.user_id==current_user.username).first().task.is_bounding:
+        if current_user.turkcode[0].task.is_bounding:
             return redirect(url_for('sightings'))
-        elif '-4' in db.session.query(Turkcode).filter(Turkcode.user_id==current_user.username).first().task.tagging_level:
+        elif '-4' in current_user.turkcode[0].task.tagging_level:
             return redirect(url_for('clusterID'))
-        elif '-5' in db.session.query(Turkcode).filter(Turkcode.user_id==current_user.username).first().task.tagging_level:
+        elif '-5' in current_user.turkcode[0].task.tagging_level:
             return redirect(url_for('individualID'))
         else:
             return redirect(url_for('index'))
@@ -10934,11 +10935,11 @@ def settings():
             if not current_user.permissions: return redirect(url_for('landing'))
             return render_template('html/settings.html', title='Settings', helpFile='settings_page', bucket=Config.BUCKET, version=Config.VERSION)   
         else:
-            if db.session.query(Turkcode).filter(Turkcode.user_id==current_user.username).first().task.is_bounding:
+            if current_user.turkcode[0].task.is_bounding:
                 return redirect(url_for('sightings'))
-            elif '-4' in db.session.query(Turkcode).filter(Turkcode.user_id==current_user.username).first().task.tagging_level:
+            elif '-4' in current_user.turkcode[0].task.tagging_level:
                 return redirect(url_for('clusterID'))
-            elif '-5' in db.session.query(Turkcode).filter(Turkcode.user_id==current_user.username).first().task.tagging_level:
+            elif '-5' in current_user.turkcode[0].task.tagging_level:
                 return redirect(url_for('individualID'))
             else:
                 return redirect(url_for('index'))
@@ -11094,11 +11095,11 @@ def permissions():
             if current_user.parent_id == None:
                 return redirect(url_for('jobs'))
             elif current_user.parent_id != None:
-                if db.session.query(Turkcode).filter(Turkcode.user_id==current_user.username).first().task.is_bounding:
+                if current_user.turkcode[0].task.is_bounding:
                     return redirect(url_for('sightings'))
-                elif '-4' in db.session.query(Turkcode).filter(Turkcode.user_id==current_user.username).first().task.tagging_level:
+                elif '-4' in current_user.turkcode[0].task.tagging_level:
                     return redirect(url_for('clusterID'))
-                elif '-5' in db.session.query(Turkcode).filter(Turkcode.user_id==current_user.username).first().task.tagging_level:
+                elif '-5' in current_user.turkcode[0].task.tagging_level:
                     return redirect(url_for('individualID'))
                 else:
                     return redirect(url_for('index'))
@@ -13693,7 +13694,7 @@ def addImage():
 
                         if annotations:
                             for annotation in annotations:
-                                app.logger.info(annotation)
+
                                 if 'det_score' in annotation:
                                     det_score = annotation['det_score']
                                 else:
