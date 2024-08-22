@@ -3931,7 +3931,7 @@ def generate_api_key():
 
 def generate_site_name(survey_id):
     '''Generates a unique site name for a new site'''
-    site_count = db.session.query(Trapgroup).filter(Trapgroup.survey_id==survey_id).count()
+    site_count = db.session.query(Trapgroup).filter(Trapgroup.survey_id==survey_id).filter(Trapgroup.tag.like('Site%')).count()
     site_name = 'Site' + str(site_count+1)
     check = db.session.query(Trapgroup).filter(Trapgroup.survey_id==survey_id).filter(Trapgroup.tag==site_name).first()
     while check:

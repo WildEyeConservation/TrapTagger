@@ -4064,8 +4064,10 @@ modalNewSurvey.on('shown.bs.modal', function(){
 
     if (!helpReturn){
         if (cloudAccess!='False') {
-            document.getElementById('uploadTypeSelect').hidden = false
+            document.getElementById('S3BucketUploadDiv').hidden = false
         }
+        document.getElementById('uploadTypeSelect').hidden = false
+        document.getElementById('codesAndStructureDiv').hidden = false
         speciesClassifierDiv = document.getElementById('speciesClassifierDiv')
         buildClassifierSelectTable(speciesClassifierDiv)
         buildBrowserUpload('newSurveyFormDiv')

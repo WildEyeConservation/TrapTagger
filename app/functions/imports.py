@@ -1858,6 +1858,7 @@ def importImages(self,batch,csv,pipeline,external,min_area,remove_gps,label_sour
                 filenames (list): List of filenames to be processed
             remove_gps (bool): Whether to remove GPS data from the images
             label_source (str): The exif field where labels are to be extracted from
+            live (bool): Whether the images were added live or not. (If true the images exist in db but have not been processed)
     '''
     
     try:
@@ -3757,6 +3758,7 @@ def import_survey(self,survey_id,preprocess_done=False,live=False):
 
         if not skipCluster:
             task_id=cluster_survey(survey_id)
+            survey = db.session.query(Survey).get(survey_id)
 
         if static_check and preprocess_done:
             survey.status='Processing Static Detections'

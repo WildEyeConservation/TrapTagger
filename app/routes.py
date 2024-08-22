@@ -13624,7 +13624,7 @@ def addImage():
                     annotations = None
 
 
-            if site is None and latitude == 0 and longitude == 0:
+            if site is None and float(latitude) == 0 and float(longitude) == 0:
                 return json.dumps({'message': 'Missing site information.'}), 400
 
             app.logger.info(f'Filename: {filename} Site: {site} Latitude: {latitude} Longitude: {longitude} Altitude: {altitude} Camera: {camera} Timestamp: {timestamp} Annotations: {annotations}')
@@ -13673,8 +13673,12 @@ def addImage():
                         if image_exists:
                             filename_split = filename.split('.')
                             dup_filename = filename_split[0] + '_%.' + filename_split[1]
-                            image_dup_count = db.session.query(Image).join(Camera).filter(Camera.path==camera_path).filter(Image.filename.like(dup_filename)).count()
+                            image_dup_names = [r[0] for r in db.session.query(Image.filename).join(Camera).filter(Camera.path==camera_path).filter(Image.filename.like(dup_filename)).distinct().all()]
+                            image_dup_count = len(image_dup_names)
                             filename = filename_split[0] + '_' + str(image_dup_count+1) + '.' + filename_split[1]
+                            while filename in image_dup_names:
+                                image_dup_count += 1
+                                filename = filename_split[0] + '_' + str(image_dup_count+1) + '.' + filename_split[1]
                             image_key = camera_path + '/' + filename
 
                         GLOBALS.s3client.upload_file(Bucket=Config.BUCKET, Key=image_key, Filename=temp_file.name)
