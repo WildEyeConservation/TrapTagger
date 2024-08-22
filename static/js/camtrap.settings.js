@@ -134,7 +134,7 @@ function buildEarthRanger(IDNum){
     }
     fillSelect(earthRangerOrganisation, optionTexts, optionValues)
 
-    $('#earthRangerOrganisation-'+String(IDNum)).on('change', function() {
+    earthRangerOrganisation.addEventListener('change', function() {
         id = this.id.split('-')[1]
         speciesSelects = document.querySelectorAll('[id^="speciesSelectorER_'+id+'-"]')
         for (let i = 0; i < speciesSelects.length; i++){
@@ -174,7 +174,7 @@ function buildEarthRanger(IDNum){
     earthRangerApiKey.setAttribute('placeholder','Enter API Key')
     col2.appendChild(earthRangerApiKey)
 
-    $('#earthRangerApiKey-'+String(IDNum)).on('change', function() {
+    earthRangerApiKey.addEventListener('change', function() {
         id = this.id.split('-')[1]
         speciesSelects = document.querySelectorAll('[id^="speciesSelectorER_'+id+'-"]')
         for (let i = 0; i < speciesSelects.length; i++){
@@ -446,7 +446,7 @@ function buildERSpeciesSelect(ID, IDNum){
 
     fillSelect(speciesSelector, speciesOptionTexts, speciesOptionValues)
 
-    $('#speciesSelectorER_'+String(ID)+'-'+String(IDNum)).on('change', function() {
+    speciesSelector.addEventListener('change', function() {
         id = this.id.split('-')[1]
         if (String(id).includes('n')){
             newERIntegrations[id]['species'] = this.value

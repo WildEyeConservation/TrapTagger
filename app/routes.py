@@ -11048,7 +11048,13 @@ def getIntegrations():
 
     integrations = []
     if current_user and current_user.is_authenticated:
-        earth_ranger_integrations = db.session.query(EarthRanger).join(Organisation).join(UserPermissions).filter(UserPermissions.default=='admin').filter(UserPermissions.user_id==current_user.id).all()
+        earth_ranger_integrations = db.session.query(EarthRanger)\
+                                                .join(Organisation)\
+                                                .join(UserPermissions)\
+                                                .filter(UserPermissions.default=='admin')\
+                                                .filter(UserPermissions.user_id==current_user.id)\
+                                                .order_by(EarthRanger.id).distinct().all()
+        
         er = {}
         for earth_ranger_integration in earth_ranger_integrations:
             api_key = earth_ranger_integration.api_key
@@ -11070,7 +11076,14 @@ def getIntegrations():
                 'organisation': value['organisation']
             })
 
-        live_integrations = db.session.query(APIKey.id, Survey.id, Survey.name).join(Survey).join(Organisation).join(UserPermissions).filter(UserPermissions.default=='admin').filter(UserPermissions.user_id==current_user.id).all()
+        live_integrations = db.session.query(APIKey.id, Survey.id, Survey.name)\
+                                            .join(Survey)\
+                                            .join(Organisation)\
+                                            .join(UserPermissions)\
+                                            .filter(UserPermissions.default=='admin')\
+                                            .filter(UserPermissions.user_id==current_user.id)\
+                                            .order_by(APIKey.id).distinct().all()
+        
         for live_integration in live_integrations:
             integrations.append({
                 'integration': 'live',
