@@ -1009,7 +1009,8 @@ def finish_knockdown(self,rootImageID, task, current_user_id, lastImageID=None):
 
         #Move images to new cluster
         images = db.session.query(Image) \
-                        .filter(Image.camera == rootImage.camera) \
+                        .join(Camera) \
+                        .filter(Camera.cameragroup_id==rootImage.camera.cameragroup_id) \
                         .filter(Image.corrected_timestamp >= rootImage.corrected_timestamp)
 
         if lastImageID:
@@ -1036,7 +1037,7 @@ def finish_knockdown(self,rootImageID, task, current_user_id, lastImageID=None):
         # db.session.commit()
 
         if not lastImageID:
-            lastImage = db.session.query(Image).filter(Image.camera_id == rootImage.camera_id).order_by(desc(Image.corrected_timestamp)).first()
+            lastImage = db.session.query(Image).join(Camera).filter(Camera.cameragroup_id==rootImage.camera.cameragroup_id).order_by(desc(Image.corrected_timestamp)).first()
 
         old_clusters = db.session.query(Cluster) \
                             .join(Image, Cluster.images) \
