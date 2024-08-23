@@ -759,7 +759,7 @@ function loadIntegrations(){
     function(){
         if (this.readyState == 4 && this.status == 200) {
             reply = JSON.parse(this.responseText);
-            console.log(reply)
+            // console.log(reply)
             var integrations = reply.integrations
             for (let i = 0; i < integrations.length; i++){
                 if (integrations[i].integration == 'earthranger'){
@@ -1035,7 +1035,17 @@ function loadApiKeys(api_keys){
 
 modalAPIKey.on('hidden.bs.modal', function () {
     /** Event listener for the API Key modal close. */
-    loadIntegrations()
+    globalERIntegrations = {}
+    globalLiveIntegrations = {}
+
+    newERIntegrations = {}
+    editedERIntegrations = {}
+    deletedERIntegrations = []
+
+    newLiveIntegrations = {}
+    editedERIntegrations = {}
+    deletedLiveIntegrations = []
+    loadIntegrations();
 });
 
 function onload(){

@@ -53,6 +53,7 @@ import io
 import pandas as pd
 import pytz
 import timezonefinder
+import secrets
 
 # def cleanupWorkers(one, two):
 #     '''
@@ -3920,9 +3921,13 @@ def getParentLabels(task_id,description,parent_labels,addLabel=True):
 
     return parent_labels
 
-def generate_api_key():
+def generate_api_key(survey_id=None):
     '''Generates a API key for WPS integration'''
-    api_key = ''.join(random.choices(string.ascii_letters + string.digits, k=32))
+    if survey_id:
+        survey_str = hashlib.md5(str(survey_id).encode()).hexdigest()[0:8]
+        api_key = ''.join(secrets.choice(string.ascii_letters + string.digits) for i in range(32-len(survey_str))) + survey_str
+    else:
+        api_key = ''.join(secrets.choice(string.ascii_letters + string.digits) for i in range(32))
     hashed_key = hashlib.md5(api_key.encode()).hexdigest()
     while db.session.query(APIKey).filter(APIKey.api_key==hashed_key).first():
         api_key = ''.join(random.choices(string.ascii_letters + string.digits, k=32))

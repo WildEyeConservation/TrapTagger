@@ -11014,7 +11014,7 @@ def saveIntegrations():
             for live in live_edited:
                 live_integration = db.session.query(APIKey).filter(APIKey.id==live['id']).filter(APIKey.survey_id==live['survey_id']).first()
                 if live_integration and live_integration.survey_id in admin_surveys:
-                    keys = generate_api_key()
+                    keys = generate_api_key(live_integration.survey_id)
                     api_key = keys['api_key']
                     hashed_key = keys['hashed_key']
                     live_integration.api_key = hashed_key
@@ -11024,7 +11024,7 @@ def saveIntegrations():
                 if int(live['survey_id']) in admin_surveys:
                     check = db.session.query(APIKey).filter(APIKey.survey_id==live['survey_id']).first()
                     if not check:
-                        keys = generate_api_key()
+                        keys = generate_api_key(live['survey_id'])
                         api_key = keys['api_key']
                         hashed_key = keys['hashed_key']
                         live_integration = APIKey(api_key=hashed_key, survey_id=live['survey_id'])
@@ -13601,9 +13601,9 @@ def addImage():
     except:
         hashed_key = None
     if hashed_key is None or hashed_key == '':
-        return json.dumps({'message': 'Forbidden.'}), 403
+        return json.dumps({'message': 'Unauthorized access.'}), 401
     live_integration = db.session.query(APIKey).filter(APIKey.api_key==hashed_key).first()
-    if live_integration:
+    if live_integration and live_integration.survey_id:
         survey_id = live_integration.survey_id
         survey = db.session.query(Survey).get(survey_id)
         # Get Image & image information 
@@ -13651,7 +13651,7 @@ def addImage():
                     survey_folder = survey.organisation.folder + '/' + survey.folder + '/%'
                     existing_image = db.session.query(Image).join(Camera).filter(Camera.path.like(survey_folder)).filter(Image.hash==image_hash).first()
                     if existing_image:
-                        return json.dumps({'message': 'Image already exists.', 'image_id': existing_image.id}), 201
+                        return json.dumps({'message': 'Image already exists.', 'image_id': existing_image.id}), 200
                     else:
                         # Add to the database
                         if site:
@@ -13747,12 +13747,10 @@ def addImage():
 
                         db.session.commit()
 
-                        return json.dumps({'image_id': image.id, 'message': 'Image added successfully.'}), 201
-                except Exception as e:
-                    app.logger.error(e)
+                        return json.dumps({'image_id': image.id, 'message': 'Image added successfully.'}), 200
+                except:
                     return json.dumps({'message': 'Error adding image.'}), 400
-        except Exception as e:
-            app.logger.error(e)
+        except:
             return json.dumps({'message': 'Request error.'}), 400
     else:
-        return json.dumps({'message': 'Forbidden.'}), 403
+        return json.dumps({'message': 'Unauthorized access.'}), 401
