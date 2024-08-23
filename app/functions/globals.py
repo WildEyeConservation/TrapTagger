@@ -1273,6 +1273,7 @@ def unknock_cluster(self,image_id, label_id, user_id, task_id):
                 db.session.delete(old_cluster)
 
         db.session.commit()
+        clusterList = [r.id for r in clusterList]
         classifyTask(task_id,clusterList)
 
         #Add label to original cluster
