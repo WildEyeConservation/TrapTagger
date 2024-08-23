@@ -1301,7 +1301,7 @@ def unknock_cluster(self,image_id, label_id, user_id, task_id):
 
             cluster.user_id = int(user_id)
             cluster.timestamp = datetime.utcnow()
-            db.session.commit()
+            # db.session.commit()
 
         #reactivate trapgroup
         trapgroup = db.session.query(Trapgroup).get(trapgroup_id)
