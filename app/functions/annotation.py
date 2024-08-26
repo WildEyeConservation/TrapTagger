@@ -1199,7 +1199,8 @@ def fetch_clusters(taggingLevel,task_id,isBounding,trapgroup_id,session,limit=No
                             Trapgroup.latitude,
                             Trapgroup.longitude,
                             Video.id,
-                            Video.filename
+                            Video.filename,
+                            Individual.name
                         )\
                         .join(Image, Cluster.images) \
                         .outerjoin(requiredimagestable,requiredimagestable.c.cluster_id==Cluster.id)\
@@ -1294,7 +1295,8 @@ def fetch_clusters(taggingLevel,task_id,isBounding,trapgroup_id,session,limit=No
                     'tag_ids': [],
                     'groundTruth': [],
                     'trapGroup': row[8],
-                    'notes': row[1]
+                    'notes': row[1],
+                    'individuals': []
                 }
                 if id: 
                     clusterInfo[row[0]]['videos'] = {}
@@ -1339,6 +1341,7 @@ def fetch_clusters(taggingLevel,task_id,isBounding,trapgroup_id,session,limit=No
                         'right': row[13],
                         'category': row[14],
                         'individuals': [],
+                        'individual_names': [],
                         'static': row[15],
                         'labels': [],
                         'flank': Config.FLANK_TEXT[row[25]] if row[25] else 'None'
@@ -1372,6 +1375,7 @@ def fetch_clusters(taggingLevel,task_id,isBounding,trapgroup_id,session,limit=No
                 # Handle individuals
                 if row[26] and row[21] and (row[21] not in clusterInfo[row[0]]['images'][row[2]]['detections'][row[9]]['individuals']) and (row[26]==task_id):
                     clusterInfo[row[0]]['images'][row[2]]['detections'][row[9]]['individuals'].append(row[21])
+                    if id: clusterInfo[row[0]]['images'][row[2]]['detections'][row[9]]['individual_names'].append(row[33])
 
         if '-3' in taggingLevel:
             cluster_ids = cluster_ids[:limit]
@@ -1688,6 +1692,7 @@ def translate_cluster_for_client(clusterInfo,reqId,limit,isBounding,taggingLevel
                                 'category': clusterInfo[cluster_id]['images'][image_id]['detections'][detection_id]['category'],
                                 'individuals': clusterInfo[cluster_id]['images'][image_id]['detections'][detection_id]['individuals'],
                                 'individual': clusterInfo[cluster_id]['images'][image_id]['detections'][detection_id]['individuals'][0],
+                                'individual_names': clusterInfo[cluster_id]['images'][image_id]['detections'][detection_id]['individual_names'],
                                 'static': clusterInfo[cluster_id]['images'][image_id]['detections'][detection_id]['static'],
                                 'labels': clusterInfo[cluster_id]['images'][image_id]['detections'][detection_id]['labels'],
                                 'label': clusterInfo[cluster_id]['images'][image_id]['detections'][detection_id]['labels'][0],
@@ -1761,6 +1766,7 @@ def translate_cluster_for_client(clusterInfo,reqId,limit,isBounding,taggingLevel
                                 'category': clusterInfo[cluster_id]['images'][image_id]['detections'][detection_id]['category'],
                                 'individuals': clusterInfo[cluster_id]['images'][image_id]['detections'][detection_id]['individuals'],
                                 'individual': clusterInfo[cluster_id]['images'][image_id]['detections'][detection_id]['individuals'][0],
+                                'individual_names': clusterInfo[cluster_id]['images'][image_id]['detections'][detection_id]['individual_names'],
                                 'static': clusterInfo[cluster_id]['images'][image_id]['detections'][detection_id]['static'],
                                 'labels': clusterInfo[cluster_id]['images'][image_id]['detections'][detection_id]['labels'],
                                 'label': clusterInfo[cluster_id]['images'][image_id]['detections'][detection_id]['labels'][0],
@@ -1806,9 +1812,7 @@ def translate_cluster_for_client(clusterInfo,reqId,limit,isBounding,taggingLevel
                 cluster_dict['latitude'] = clusterInfo[cluster_id]['latitude']
                 cluster_dict['longitude'] = clusterInfo[cluster_id]['longitude']
 
-
             reply['info'].append(cluster_dict)
-
 
         else:
             break
