@@ -1433,6 +1433,7 @@ def createNewSurvey():
     newSurvey_id = 0
     surveyName = ''
     browser_upload = False
+    action = None
 
     organisation = db.session.query(Organisation).get(organisation_id)
     userPermissions = db.session.query(UserPermissions).filter(UserPermissions.user_id==current_user.id).filter(UserPermissions.organisation_id==organisation_id).first()
@@ -1555,11 +1556,15 @@ def createNewSurvey():
 
                     # Checkout the upload
                     checkUploadUser(current_user.id,newSurvey_id)
+                    action = 'upload'
                 else:
                     # Bucket upload
                     import_survey.delay(survey_id=newSurvey.id)
+                    action = 'import'
+            else:
+                action = 'empty'
     
-        return json.dumps({'status': status, 'message': message, 'newSurvey_id': newSurvey_id, 'surveyName':surveyName})
+        return json.dumps({'status': status, 'message': message, 'newSurvey_id': newSurvey_id, 'surveyName':surveyName, 'action': action})
     else:
         return json.dumps({'status': 'error', 'message': 'You do not have permission to create surveys for this organisation.'})
 
@@ -2821,7 +2826,7 @@ def getDetailedTaskStatus(task_id):
                     names, ids = addChildLabels(names,ids,label,task_id)
                 test2 = db.session.query(Cluster).filter(Cluster.task_id==task.id).filter(Cluster.labels.any(Label.id.in_(ids))).first()
 
-                if test2 or (cluster_count != 0):
+                if test2 or (cluster_count != 0 and cluster_count != None):
                     reply['Summary']['Clusters'] = cluster_count
                     reply['Summary']['Images'] = image_count
                     reply['Summary']['Sightings'] = sighting_count
@@ -11001,7 +11006,6 @@ def saveIntegrations():
             # Live Data
             live_integrations = integrations['live']
             live_deleted = live_integrations['deleted']
-            live_edited = live_integrations['edited']
             live_new = live_integrations['new']
 
             if Config.DEBUGGING: app.logger.info('Live integrations {}'.format(live_integrations))
@@ -11010,15 +11014,6 @@ def saveIntegrations():
                 live_integration = db.session.query(APIKey).filter(APIKey.id==live).first()
                 if live_integration and live_integration.survey_id in admin_surveys:
                     db.session.delete(live_integration)
-
-            for live in live_edited:
-                live_integration = db.session.query(APIKey).filter(APIKey.id==live['id']).filter(APIKey.survey_id==live['survey_id']).first()
-                if live_integration and live_integration.survey_id in admin_surveys:
-                    keys = generate_api_key(live_integration.survey_id)
-                    api_key = keys['api_key']
-                    hashed_key = keys['hashed_key']
-                    live_integration.api_key = hashed_key
-                    new_api_keys.append({'api_key': api_key, 'survey_id': live_integration.survey_id})
 
             for live in live_new:
                 if int(live['survey_id']) in admin_surveys:
@@ -13727,21 +13722,34 @@ def addImage():
                                 detection = Detection(image=image, top=annotation['top'], left=annotation['left'], bottom=annotation['bottom'], right=annotation['right'], score=det_score, category=category, source=source, status=status)
                                 db.session.add(detection)
 
-                                if 'species' in annotation:
+                                species = annotation.get('species', None)
+                                if species and species.lower() not in ['skip', 'wrong', 'remove false detections', 'mask area', 'none']:
+                                    label = None 
+                                    if species.lower() == 'vehicles/humans/livestock':
+                                        label = db.session.query(Label).get(GLOBALS.vhl_id)
+                                    elif species.lower() == 'knocked down':
+                                        label = db.session.query(Label).get(GLOBALS.knocked_id)
+                                    elif species.lower() == 'nothing':
+                                        label = db.session.query(Label).get(GLOBALS.nothing_id)
+                                    elif species.lower() == 'unknown':
+                                        label = db.session.query(Label).get(GLOBALS.unknown_id)
+
                                     task_ids = [r[0] for r in db.session.query(Task.id).join(Survey).filter(Survey.id==survey_id).filter(Task.name!='default').all()]
                                     if not task_ids:
                                         new_task = Task(name='Livestream', survey_id=int(survey_id), status='Ready', tagging_time=0, test_size=0, size=200, parent_classification=False)
                                         db.session.add(new_task)
-                                        label = Label(description=annotation['species'], task=new_task, hotkey=generate_hotkey(annotation['species']))
-                                        db.session.add(label)
+                                        if not label:
+                                            label = Label(description=species, task=new_task, hotkey=generate_hotkey(species))
+                                            db.session.add(label)
                                         labelgroup = Labelgroup(detection=detection, labels=[label], task=new_task)
                                         db.session.add(labelgroup)
                                     else:
                                         for task_id in task_ids:
-                                            label = db.session.query(Label).join(Task).filter(Task.id==task_id).filter(Label.description==annotation['species']).first()
                                             if not label:
-                                                label = Label(description=annotation['species'], task_id=task_id, hotkey=generate_hotkey(annotation['species'], task_id))
-                                                db.session.add(label)
+                                                label = db.session.query(Label).join(Task).filter(Task.id==task_id).filter(Label.description==species).first()
+                                                if not label:
+                                                    label = Label(description=species, task_id=task_id, hotkey=generate_hotkey(species, task_id))
+                                                    db.session.add(label)
                                             labelgroup = Labelgroup(detection=detection, labels=[label], task_id=task_id)
                                             db.session.add(labelgroup)
 
@@ -13754,3 +13762,23 @@ def addImage():
             return json.dumps({'message': 'Request error.'}), 400
     else:
         return json.dumps({'message': 'Unauthorized access.'}), 401
+
+@app.route('/generateNewAPIKey/<integration_id>')
+@login_required
+def generateNewAPIKey(integration_id):
+    ''' Generates a new API key for the specified integration '''
+    api_key_info = []
+    if current_user and current_user.is_authenticated:
+        integration = db.session.query(APIKey).get(integration_id)
+        if integration and integration.survey_id and checkSurveyPermission(current_user.id,integration.survey_id,'admin'):
+            api_keys = generate_api_key(integration.survey_id)
+            api_key = api_keys['api_key']
+            hashed_key = api_keys['hashed_key']
+            integration.api_key = hashed_key 
+            db.session.commit()
+            api_key_info.append({
+                'api_key': api_key,
+                'survey_id': integration.survey_id
+            })
+
+    return json.dumps({'api_keys': api_key_info})

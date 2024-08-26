@@ -245,13 +245,9 @@ limitations under the License. -->
                             <input type="radio" class="custom-control-input" id="BrowserUpload" name="newSurveySelection" value="customEx" checked="true">
                             <label class="custom-control-label" for="BrowserUpload">Browser Upload (Recommended)</label>
                         </div>
-                        <div class="custom-control custom-radio custom-control-inline" id="S3BucketUploadDiv" hidden="true">
+                        <div class="custom-control custom-radio custom-control-inline">
                             <input type="radio" class="custom-control-input" id="S3BucketUpload" name="newSurveySelection" value="customEx">
                             <label class="custom-control-label" for="S3BucketUpload">Bucket Upload</label>
-                        </div>
-                        <div class="custom-control custom-radio custom-control-inline">
-                            <input type="radio" class="custom-control-input" id="emptySurvey" name="newSurveySelection" value="customEx">
-                            <label class="custom-control-label" for="emptySurvey">None (Empty Survey)</label>
                         </div>
                         <br>
                         <br>
@@ -259,75 +255,73 @@ limitations under the License. -->
     
                     <div id="newSurveyFormDiv"></div>
 
-                    <div id="codesAndStructureDiv">
-                        <h5 style="margin-bottom: 2px">Site Identifier</h5>
-                        <div style="font-size: 80%; margin-bottom: 2px"><i>
-                            The identifier used to designate a site in your folder structure. Eg. "Site" if your sites are stored in folders named "Site1", "Site2" etc. Becomes 
-                            a <a href="https://www.w3schools.com/python/python_regex.asp">regular expression</a> search query if the advanced option is selected.
-                        </i></div>
-                        <!-- <div id="newSurveyTGInfo" style="font-size: 80%; color: #DF691A"></div> -->
+                    <h5 style="margin-bottom: 2px">Site Identifier</h5>
+                    <div style="font-size: 80%; margin-bottom: 2px"><i>
+                        The identifier used to designate a site in your folder structure. Eg. "Site" if your sites are stored in folders named "Site1", "Site2" etc. Becomes 
+                        a <a href="https://www.w3schools.com/python/python_regex.asp">regular expression</a> search query if the advanced option is selected.
+                    </i></div>
+                    <!-- <div id="newSurveyTGInfo" style="font-size: 80%; color: #DF691A"></div> -->
+                    <div class="row">
+                        <div class='col-lg-4'>
+                            <input type="text" class="form-control" required id="newSurveyTGCode"></input>
+                        </div>
+                        <div class="col-lg-4">
+                            <div class="custom-control custom-checkbox">
+                                <input type="checkbox" class="custom-control-input" id="newSurveyCheckbox" name="newSurveyCheckbox">
+                                <label class="custom-control-label" for="newSurveyCheckbox">Advanced</label>
+                            </div>
+                        </div>
+                    </div>
+                    <div id="newSurveyTgBuilder"></div>
+                    <br>
+
+                    <h5 style="margin-bottom: 2px">Camera Identifier</h5>
+                    <div style="font-size: 80%; margin-bottom: 2px"><i> Select the method you would like to use to identify your cameras.</i></div>
+                    <div style="margin-bottom: 5px">
+                        <div class="custom-control custom-radio custom-control-inline">
+                            <input type="radio" class="custom-control-input" id="camBotLvlFolder" name="camCodeSelection" value='0' checked="true" onchange="updateCamDiv()">
+                            <label class="custom-control-label" for="camBotLvlFolder">Folder</label>
+                        </div> 
+                        <div class="custom-control custom-radio custom-control-inline">
+                            <input type="radio" class="custom-control-input" id="camSameAsSite" name="camCodeSelection" value='0' onchange="updateCamDiv()">
+                            <label class="custom-control-label" for="camSameAsSite">Site Identifier (one camera per site)</label>
+                        </div> 
+                        <div class="custom-control custom-radio custom-control-inline">
+                            <input type="radio" class="custom-control-input" id="camRegExp" name="camCodeSelection" value='2' onchange="updateCamDiv()">
+                            <label class="custom-control-label" for="camRegExp">Camera Identifier </label>
+                        </div>
+                    </div>
+                    <div style="font-size: 80%; margin-bottom: 2px" id="camOptionDesc"><i>Each bottom-level folder in your dataset will be considered a different camera.</i></div>
+                    <div id="camIdDiv" hidden>
                         <div class="row">
                             <div class='col-lg-4'>
-                                <input type="text" class="form-control" required id="newSurveyTGCode"></input>
+                                <input type="text" class="form-control" required id="newSurveyCamCode"></input>
                             </div>
                             <div class="col-lg-4">
                                 <div class="custom-control custom-checkbox">
-                                    <input type="checkbox" class="custom-control-input" id="newSurveyCheckbox" name="newSurveyCheckbox">
-                                    <label class="custom-control-label" for="newSurveyCheckbox">Advanced</label>
+                                    <input type="checkbox" class="custom-control-input" id="camAdvancedCheckbox" name="camAdvancedCheckbox">
+                                    <label class="custom-control-label" for="camAdvancedCheckbox">Advanced</label>
                                 </div>
                             </div>
                         </div>
-                        <div id="newSurveyTgBuilder"></div>
-                        <br>
-
-                        <h5 style="margin-bottom: 2px">Camera Identifier</h5>
-                        <div style="font-size: 80%; margin-bottom: 2px"><i> Select the method you would like to use to identify your cameras.</i></div>
-                        <div style="margin-bottom: 5px">
-                            <div class="custom-control custom-radio custom-control-inline">
-                                <input type="radio" class="custom-control-input" id="camBotLvlFolder" name="camCodeSelection" value='0' checked="true" onchange="updateCamDiv()">
-                                <label class="custom-control-label" for="camBotLvlFolder">Folder</label>
-                            </div> 
-                            <div class="custom-control custom-radio custom-control-inline">
-                                <input type="radio" class="custom-control-input" id="camSameAsSite" name="camCodeSelection" value='0' onchange="updateCamDiv()">
-                                <label class="custom-control-label" for="camSameAsSite">Site Identifier (one camera per site)</label>
-                            </div> 
-                            <div class="custom-control custom-radio custom-control-inline">
-                                <input type="radio" class="custom-control-input" id="camRegExp" name="camCodeSelection" value='2' onchange="updateCamDiv()">
-                                <label class="custom-control-label" for="camRegExp">Camera Identifier </label>
+                        <div id="newSurveyCamBuilder"></div>
+                    </div>      
+                    
+                    <br>
+                    <h5 style="margin-bottom: 2px">Structure</h5>
+                    <div style="font-size: 80%; margin-bottom: 2px"><i>Check the detected structure of your survey. Eg. "Site1 : Camera1, Camera2" etc.</i></div>
+                    <div id="newSurveyStructureDiv" style="font-size: 80%; color: #DF691A"></div>
+                    <div id="newSurveyStructureDiv2">
+                        <div class="row">
+                            <div class="col-lg-1">
+                                <button class="btn btn-primary btn-sm" type="button" id="btnPrevStructure" onclick="prevStructure()" hidden>&lt;</button>
+                            </div>
+                            <div class="col-lg-10"></div>
+                            <div class="col-lg-1">
+                                <button class="btn btn-primary btn-sm pull-right" type="button" id="btnNextStructure" onclick="nextStructure()" hidden>></button>
                             </div>
                         </div>
-                        <div style="font-size: 80%; margin-bottom: 2px" id="camOptionDesc"><i>Each bottom-level folder in your dataset will be considered a different camera.</i></div>
-                        <div id="camIdDiv" hidden>
-                            <div class="row">
-                                <div class='col-lg-4'>
-                                    <input type="text" class="form-control" required id="newSurveyCamCode"></input>
-                                </div>
-                                <div class="col-lg-4">
-                                    <div class="custom-control custom-checkbox">
-                                        <input type="checkbox" class="custom-control-input" id="camAdvancedCheckbox" name="camAdvancedCheckbox">
-                                        <label class="custom-control-label" for="camAdvancedCheckbox">Advanced</label>
-                                    </div>
-                                </div>
-                            </div>
-                            <div id="newSurveyCamBuilder"></div>
-                        </div>      
-                        
-                        <br>
-                        <h5 style="margin-bottom: 2px">Structure</h5>
-                        <div style="font-size: 80%; margin-bottom: 2px"><i>Check the detected structure of your survey. Eg. "Site1 : Camera1, Camera2" etc.</i></div>
-                        <div id="newSurveyStructureDiv" style="font-size: 80%; color: #DF691A"></div>
-                        <div id="newSurveyStructureDiv2">
-                            <div class="row">
-                                <div class="col-lg-1">
-                                    <button class="btn btn-primary btn-sm" type="button" id="btnPrevStructure" onclick="prevStructure()" hidden>&lt;</button>
-                                </div>
-                                <div class="col-lg-10"></div>
-                                <div class="col-lg-1">
-                                    <button class="btn btn-primary btn-sm pull-right" type="button" id="btnNextStructure" onclick="nextStructure()" hidden>></button>
-                                </div>
-                            </div>
-                            <div id="newSurveyStructureBuilder"></div>
-                        </div>
+                        <div id="newSurveyStructureBuilder"></div>
                     </div>
                 </div>
                 <div class='modal-footer'>
@@ -1904,6 +1898,37 @@ limitations under the License. -->
     </div>
 </div>
 
+
+<div id="modalConfirmEmpty" class="modal fade" role="dialog" tabindex="-1">
+    <div class="modal-dialog">
+        <!-- Modal content-->
+        <div class="modal-content">
+            <div class="modal-header">
+                <h4 class="modal-title">Please Confirm</h4>
+                <button id="helpx" type="button" class="close" data-dismiss="modal">&times;</button>
+            </div>
+            <div class="modal-body">
+                <p align="justify">
+                    You have not selected any files to upload for the survey. This will result in an empty survey. 
+                </p>
+                <p align="justify">
+                    You can create an empty survey if you want to add images to a survey through the Live Data Integration feature otherwise 
+                    it is not recommended to create an empty survey.
+                </p>    
+                    Do you wish to continue?
+                </p>
+            </div>
+            <div class="modal-footer">
+                <div class="col-lg-3">
+                    <button id="btnConfirmEmpty" type="button" class="btn btn-danger btn-block" data-dismiss="modal">Confirm</button>
+                </div>
+                <div class="col-lg-3">
+                    <button id="btnCancelEmpty" type="button" class="btn btn-info btn-block" data-dismiss="modal">Cancel</button>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
 
 {% endblock %}
 

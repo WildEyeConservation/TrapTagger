@@ -182,6 +182,7 @@ const btnExcelDownload = document.querySelector('#btnExcelDownload');
 const btnCsvDownload = document.querySelector('#btnCsvDownload');
 const modalConfirmEditSpecies = $('#modalConfirmEditSpecies');
 const modalConfirmEditClose = $('#modalConfirmEditClose');
+const modalConfirmEmpty = $('#modalConfirmEmpty');
 
 var polarColours = {'rgba(10,120,80,0.2)':false,
                     'rgba(255,255,255,0.2)':false,
@@ -313,6 +314,9 @@ var corrected_coordinates = {}
 var timestampSites = []
 var timestampCameras = {}
 var timestampSpecies = []
+var confirmEmptyReturn = false
+var confirmedEmpty = false
+var surveyFormData = null
 
 function buildSurveys(survey,disableSurvey) {
     /**
@@ -959,6 +963,7 @@ btnNewSurvey.addEventListener('click', ()=>{
         document.getElementById('modalAlertBody').innerHTML = "If you wish to add an additional survey, please wait for the current upload to complete, or open a new tab."
         modalAlert.modal({keyboard: true});
     } else {
+        resetNewSurveyPage()
         modalNewSurvey.modal({keyboard: true});
     }
 });
@@ -1064,6 +1069,13 @@ function resetNewSurveyPage() {
     while(surveyPermissionsDiv.firstChild){
         surveyPermissionsDiv.removeChild(surveyPermissionsDiv.firstChild);
     }
+
+    confirmedEmpty = false
+    confirmEmptyReturn = false
+    surveyFormData = null
+
+    document.getElementById('btnSaveSurvey').disabled=false
+    document.getElementById('newSurveyErrors').innerHTML = ''
 }
 
 function resetEditSurveyModal() {
@@ -3528,7 +3540,6 @@ $("#newSurveyCheckbox").change( function() {
 $("#S3BucketUpload").change( function() {
     /** Listens for and initialises the bucket upload form when the option is selected. */
     document.getElementById('newSurveyStructureDiv').innerHTML = ''
-    document.getElementById('codesAndStructureDiv').hidden = false
     S3BucketUpload = document.getElementById('S3BucketUpload')
     org_id = document.getElementById('newSurveyOrg').value
     if (S3BucketUpload.checked) {
@@ -3548,31 +3559,10 @@ $("#S3BucketUpload").change( function() {
 $("#BrowserUpload").change( function() {
     /** Listens for and initialises the browser upload form when the option is selected. */
     document.getElementById('newSurveyStructureDiv').innerHTML = ''
-    document.getElementById('codesAndStructureDiv').hidden = false
     BrowserUpload = document.getElementById('BrowserUpload')
     if (BrowserUpload.checked) {
         buildBrowserUpload('newSurveyFormDiv')
     }
-})
-
-$("#emptySurvey").change( function() {
-    /** Listens for and initialises the browser upload form when the option is selected. */
-    document.getElementById('newSurveyStructureDiv').innerHTML = ''
-    document.getElementById('codesAndStructureDiv').hidden = true
-    var newSurveyFormDiv = document.getElementById('newSurveyFormDiv')
-    while(newSurveyFormDiv.firstChild){
-        newSurveyFormDiv.removeChild(newSurveyFormDiv.firstChild);
-    }
-    document.getElementById('newSurveyTGCode').value = ''
-    document.getElementById('newSurveyCamCode').value = ''
-    document.getElementById('newSurveyCheckbox').checked = false
-    document.getElementById('camAdvancedCheckbox').checked = false
-    document.getElementById('camRegExp').checked = false 
-    document.getElementById('camBotLvlFolder').checked = true
-    document.getElementById('camSameAsSite').checked = false
-    document.getElementById('camIdDiv').hidden = true
-    document.getElementById('camOptionDesc').innerHTML = '<i>Each bottom-level folder in your dataset will be considered a different camera.</i>'
-
 })
 
 // $("#kmlFileUpload").change( function() {
@@ -3868,9 +3858,8 @@ modalStatus.on('hidden.bs.modal', function(){
 modalNewSurvey.on('hidden.bs.modal', function(){
     /** Clears the new-survey modal when closed. */
     
-    if (!helpReturn) {
+    if (!helpReturn && !confirmEmptyReturn) {
         resetNewSurveyPage()
-        document.getElementById('btnSaveSurvey').disabled=false
     } 
 });
 
@@ -4062,12 +4051,10 @@ function buildClassifierSelectTable(speciesClassifierDiv) {
 modalNewSurvey.on('shown.bs.modal', function(){
     /** Populates the new survey modal when opened. */
 
-    if (!helpReturn){
-        if (cloudAccess!='False') {
-            document.getElementById('S3BucketUploadDiv').hidden = false
+    if (!helpReturn && !confirmEmptyReturn) {
+        if (cloudAccess=='True') {
+            document.getElementById('uploadTypeSelect').hidden = false
         }
-        document.getElementById('uploadTypeSelect').hidden = false
-        document.getElementById('codesAndStructureDiv').hidden = false
         speciesClassifierDiv = document.getElementById('speciesClassifierDiv')
         buildClassifierSelectTable(speciesClassifierDiv)
         buildBrowserUpload('newSurveyFormDiv')
@@ -4075,6 +4062,7 @@ modalNewSurvey.on('shown.bs.modal', function(){
     }
     else {
         helpReturn = false
+        confirmEmptyReturn = false
     }
       
 });
@@ -4224,16 +4212,16 @@ document.getElementById('btnSaveSurvey').addEventListener('click', ()=>{
     camBotLvlFolder = document.getElementById('camBotLvlFolder').checked
     camSameAsSite = document.getElementById('camSameAsSite').checked
     newSurveyStructureDiv = document.getElementById('newSurveyStructureDiv')
-
     classifier = document.querySelector('input[name="classifierSelection"]:checked')
+
+    while(document.getElementById('newSurveyErrors').firstChild){
+        document.getElementById('newSurveyErrors').removeChild(document.getElementById('newSurveyErrors').firstChild);
+    }
+
     if (classifier==null) {
         document.getElementById('newSurveyErrors').innerHTML = 'You must select a classifier.'
     } else {
         classifier = classifier.id
-    }
-
-    while(document.getElementById('newSurveyErrors').firstChild){
-        document.getElementById('newSurveyErrors').removeChild(document.getElementById('newSurveyErrors').firstChild);
     }
 
     if (newSurveyDescription == '') {
@@ -4319,16 +4307,15 @@ document.getElementById('btnSaveSurvey').addEventListener('click', ()=>{
     } else if (document.getElementById('BrowserUpload').checked == true) {
         pathDisplay = document.getElementById('pathDisplay')
         if (pathDisplay.options.length == 0) {
-            document.getElementById('newSurveyErrors').innerHTML = 'You must select images to upload.'
+            // document.getElementById('newSurveyErrors').innerHTML = 'You must select images to upload.'
+            emptySurvey = true
+            legalInput = true
+            newSurveyS3Folder = 'none'
         } else {
             legalInput = true
             newSurveyS3Folder = 'none'
             // files = inputFile.files
         }
-    } else if (document.getElementById('emptySurvey').checked == true) {
-        legalInput = true
-        emptySurvey = true
-        newSurveyS3Folder = 'none'
     } else {
         document.getElementById('newSurveyErrors').innerHTML = 'You must select an image upload method.'
     }
@@ -4452,11 +4439,17 @@ document.getElementById('btnSaveSurvey').addEventListener('click', ()=>{
                 formData.append("newSurveyCamCode", newSurveyTGCode)
                 formData.append("camCheckbox", newSurveyCheckbox.checked.toString())
             }
+
             if (emptySurvey) {
                 formData.append("emptySurvey", 'true')
+                surveyFormData = formData
+                confirmEmptyReturn = true
+                modalNewSurvey.modal('hide')
+                modalConfirmEmpty.modal({keyboard: true}); 
             }
-
-            submitNewSurvey(formData)
+            else {
+                submitNewSurvey(formData)
+            }
         }
     }
 });
@@ -4473,7 +4466,7 @@ function submitNewSurvey(formData) {
 
             if (reply.status=='success') {
 
-                if (document.getElementById('BrowserUpload').checked == true) {
+                if (reply.action=='upload') {
                     uploadID = reply.newSurvey_id
                     surveyName = reply.surveyName
 
@@ -4507,7 +4500,7 @@ function submitNewSurvey(formData) {
                     // modalUploadProgress.modal({backdrop: 'static', keyboard: false});
 
                     // uploadSurveyToCloud(surveyName)
-                } else if (document.getElementById('emptySurvey').checked == true) {
+                } else if (reply.action=='empty') {
                     document.getElementById('modalAlertHeader').innerHTML = 'Success'
                     document.getElementById('modalAlertBody').innerHTML = 'Your survey has been created.'
                     alertReload = true
@@ -4529,6 +4522,21 @@ function submitNewSurvey(formData) {
     }
     xhttp.send(formData);
 }
+
+modalConfirmEmpty.on('hidden.bs.modal', function(){
+    /** Clears the empty survey modal when closed. */
+    if (!confirmedEmpty) {	
+        document.getElementById('btnSaveSurvey').disabled = false
+        modalNewSurvey.modal({keyboard: true});
+    }
+});
+
+$('#btnConfirmEmpty').click( function() {
+    /** Event listener for the confirm button on the empty survey modal. */
+    confirmedEmpty = true
+    modalConfirmEmpty.modal('hide')
+    submitNewSurvey(surveyFormData)
+});
 
 document.getElementById('btnAddFiles').addEventListener('click', ()=>{
     /** Handles the submission of the add files modal. */

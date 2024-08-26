@@ -19,7 +19,6 @@ var surveyNames = {}
 var globalERIntegrations = {}
 var globalLiveIntegrations = {}
 var editedERIntegrations = {}
-var editedLiveIntegrations = {}
 var deletedERIntegrations = []
 var deletedLiveIntegrations = []
 var newERIntegrations = {}
@@ -338,54 +337,43 @@ function buildLive(IDNum, newIntegration=false){
         surveyInput.disabled = true
         surveyInput.style.backgroundColor = 'white'
         surveyDiv.appendChild(surveyInput)
+
+        var keyDiv = document.createElement('div')
+        keyDiv.setAttribute('id','keyDiv-'+String(IDNum))
+        col2.appendChild(keyDiv)
+    
+        var h5 = document.createElement('h5')
+        h5.innerHTML = 'API Key'
+        h5.setAttribute('style','margin-bottom: 2px;')
+        keyDiv.appendChild(h5)
+    
+        h5 = document.createElement('div')
+        h5.setAttribute('style',"font-size: 80%; margin-bottom: 2px")
+        h5.innerHTML = '<i>Select whether you would like to generate a new API Key.</i>'
+        keyDiv.appendChild(h5)
+
+        var btnGenerateKey = document.createElement('button')
+        btnGenerateKey.setAttribute('class','btn btn-primary')
+        btnGenerateKey.setAttribute('id','btnGenerateKey-'+String(IDNum))
+        btnGenerateKey.innerHTML = 'Generate Key'
+        keyDiv.appendChild(btnGenerateKey)
+
+        btnGenerateKey.addEventListener('click', function() {
+            id = this.id.split('-')[1]
+            var xhttp = new XMLHttpRequest();
+            xhttp.onreadystatechange = 
+            function() {
+                if (this.readyState == 4 && this.status == 200) {
+                    reply = JSON.parse(this.responseText);
+                    if (reply.api_keys.length > 0) {
+                        loadApiKeys(reply.api_keys)
+                    }
+                }
+            }
+            xhttp.open("GET", '/generateNewAPIKey/'+id);
+            xhttp.send();
+        });
     }
-
-    var keyDiv = document.createElement('div')
-    keyDiv.setAttribute('id','keyDiv-'+String(IDNum))
-    col2.appendChild(keyDiv)
-
-    var h5 = document.createElement('h5')
-    h5.innerHTML = 'API Key'
-    h5.setAttribute('style','margin-bottom: 2px;')
-    keyDiv.appendChild(h5)
-
-    h5 = document.createElement('div')
-    h5.setAttribute('style',"font-size: 80%; margin-bottom: 2px")
-    h5.innerHTML = '<i>Select whether you would like to generate a new API Key.</i>'
-    keyDiv.appendChild(h5)
-
-    var toggle = document.createElement('label');
-    toggle.classList.add('switch');
-    keyDiv.appendChild(toggle);
-
-    var checkbox = document.createElement('input');
-    checkbox.setAttribute("type", "checkbox");
-    checkbox.id = 'sApiKey-' + String(IDNum)
-    toggle.appendChild(checkbox);
-
-    var slider = document.createElement('span');
-    slider.classList.add('slider');
-    slider.classList.add('round');
-    toggle.appendChild(slider);
-
-    if (newIntegration){
-        checkbox.checked = true
-        checkbox.disabled = true
-    }
-    else{
-        checkbox.checked = false
-        checkbox.disabled = false
-    }
-
-    checkbox.addEventListener('change', function() {
-        id = this.id.split('-')[1]
-        if (this.checked){
-            editedLiveIntegrations[id] = {'survey_id': globalLiveIntegrations[id].survey_id}
-        }
-        else{
-            delete editedLiveIntegrations[id]
-        }
-    });
 
     btnRemove = document.createElement('button');
     btnRemove.id = 'btnRemoveIntegration-'+IDNum;
@@ -400,7 +388,6 @@ function buildLive(IDNum, newIntegration=false){
                 delete newLiveIntegrations[wrapIDNum]
             }
             else{
-                delete editedLiveIntegrations[wrapIDNum]
                 deletedLiveIntegrations.push(wrapIDNum)
             }
  
@@ -525,21 +512,19 @@ function saveIntegrations(){
                 document.getElementById('settingsErrors').innerHTML = reply.message
 
                 if (reply.status == 'SUCCESS'){
+                    globalERIntegrations = {}
+                    globalLiveIntegrations = {}
+                
+                    newERIntegrations = {}
+                    editedERIntegrations = {}
+                    deletedERIntegrations = []
+                
+                    newLiveIntegrations = {}
+                    deletedLiveIntegrations = []
+                    loadIntegrations();
+
                     if (reply.new_api_keys && reply.new_api_keys.length > 0){
                         loadApiKeys(reply.new_api_keys)
-                    }
-                    else{
-                        globalERIntegrations = {}
-                        globalLiveIntegrations = {}
-                    
-                        newERIntegrations = {}
-                        editedERIntegrations = {}
-                        deletedERIntegrations = []
-                    
-                        newLiveIntegrations = {}
-                        editedERIntegrations = {}
-                        deletedLiveIntegrations = []
-                        loadIntegrations();
                     }
                 }
             }
@@ -578,7 +563,6 @@ function getLiveIntegrations(){
     /** Get the Live data integrations from the page.  (New, Edited, Deleted) */
 
     var new_integrations = []
-    var edited_integrations = []
 
     for (var key in newLiveIntegrations){
         if (newLiveIntegrations[key].survey_id != '' && newLiveIntegrations[key].survey_id != '-1'){
@@ -586,14 +570,7 @@ function getLiveIntegrations(){
         }
     }
 
-    for (var key in editedLiveIntegrations){
-        edited_integrations.push({
-            'id': key,
-            'survey_id': editedLiveIntegrations[key].survey_id
-        })
-    }
-
-    return {'new': new_integrations, 'edited': edited_integrations, 'deleted': deletedLiveIntegrations}
+    return {'new': new_integrations, 'deleted': deletedLiveIntegrations}
 }
 
 function validateIntegrationSettings(){
@@ -789,7 +766,6 @@ function openSettingsTab(evt, tabName) {
     deletedERIntegrations = []
 
     newLiveIntegrations = {}
-    editedLiveIntegrations = {}
     deletedLiveIntegrations = []
 
     var mainCard = document.getElementById('mainCard')
@@ -1032,21 +1008,6 @@ function loadApiKeys(api_keys){
 
     modalAPIKey.modal({keyboard: true});	
 }
-
-modalAPIKey.on('hidden.bs.modal', function () {
-    /** Event listener for the API Key modal close. */
-    globalERIntegrations = {}
-    globalLiveIntegrations = {}
-
-    newERIntegrations = {}
-    editedERIntegrations = {}
-    deletedERIntegrations = []
-
-    newLiveIntegrations = {}
-    editedERIntegrations = {}
-    deletedLiveIntegrations = []
-    loadIntegrations();
-});
 
 function onload(){
     /**Function for initialising the page on load.*/
