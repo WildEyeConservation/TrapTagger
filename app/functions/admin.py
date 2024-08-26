@@ -372,7 +372,7 @@ def stop_task(self,task_id,live=False):
 
             if live:
                 survey.status = 'Import Queued'
-                import_survey.delay(survey_id=survey.id,live=True,launch_task=task_id)
+                import_survey.delay(survey_id=survey.id,live=True,launch_id=task_id)
 
             db.session.commit()
 

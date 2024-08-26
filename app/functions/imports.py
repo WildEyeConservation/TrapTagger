@@ -3687,7 +3687,7 @@ def correct_timestamps(survey_id,setup_time=31):
 
 
 @celery.task(bind=True,max_retries=5,ignore_result=True)
-def import_survey(self,survey_id,preprocess_done=False,live=False,launch_task=None):
+def import_survey(self,survey_id,preprocess_done=False,live=False,launch_id=None):
     '''
     Celery task for the importing of surveys. Includes all necessary processes such as animal detection, species classification etc. Handles added images cleanly.
 
@@ -3695,7 +3695,7 @@ def import_survey(self,survey_id,preprocess_done=False,live=False,launch_task=No
             survey_id (int): The ID of the survey to be processed
             preprocess_done (bool): Whether or not the survey has already been preprocessed
             live (bool): Whether or not the data being imported was added live
-            launch_task (id): The ID of the task that needs to be launched after the survey is imported
+            launch_id (id): The ID of the task that needs to be launched after the survey is imported
     '''
     
     try:
@@ -3812,12 +3812,15 @@ def import_survey(self,survey_id,preprocess_done=False,live=False,launch_task=No
             db.session.commit()
             app.logger.info("Finished importing survey {}".format(survey_id))
 
-            if launch_task:
-                task = db.session.query(Task).get(launch_task)
+            if launch_id:
+                task = db.session.query(Task).get(launch_id)
                 task.status = 'PENDING'
                 task.survey.status = 'Launched'
+                for sub_task in task.sub_tasks:
+                    sub_task.status = 'Processing'
+                    sub_task.survey.status = 'Launched'
                 db.session.commit()
-                launch_task.delay(task_id=launch_task)
+                launch_task.delay(task_id=launch_id)
 
     except Exception as exc:
         app.logger.info(' ')
