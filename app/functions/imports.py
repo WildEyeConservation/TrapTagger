@@ -3759,7 +3759,7 @@ def import_survey(self,survey_id,preprocess_done=False,live=False,launch_task=No
             db.session.commit()
             importKML(survey.id)
 
-        if not skipCluster:
+        if not skipCluster or live:
             task_id=cluster_survey(survey_id)
             survey = db.session.query(Survey).get(survey_id)
 
@@ -3769,7 +3769,7 @@ def import_survey(self,survey_id,preprocess_done=False,live=False,launch_task=No
             wrapUpStaticDetectionCheck(survey_id)
             survey = db.session.query(Survey).get(survey_id)
 
-        if not skipCluster:
+        if not skipCluster or live:
             survey.status='Removing Humans'
             db.session.commit()
             removeHumans(task_id)
