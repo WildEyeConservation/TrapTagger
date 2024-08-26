@@ -383,7 +383,7 @@ class Task(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     name = db.Column(db.String(256), index=True, unique=False)
     survey_id = db.Column(db.Integer, db.ForeignKey('survey.id'), index=True)
-    tagging_level = db.Column(db.String(32), index=False)
+    tagging_level = db.Column(db.String(80), index=False)
     test_size = db.Column(db.Integer, index=False)
     size = db.Column(db.Integer, index=False)
     status = db.Column(db.String(32), index=True)

@@ -5644,7 +5644,7 @@ def submitIndividuals():
 
             all_detections = [] 
             for individualID in individuals:
-                all_detections.append(individuals[individualID]['detections'])
+                all_detections.extend(individuals[individualID]['detections'])
 
                 if individuals[individualID]['name'] == 'unidentifiable':
                     individual = unidentifiable
