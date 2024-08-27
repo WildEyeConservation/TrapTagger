@@ -1001,7 +1001,7 @@ def allocate_new_trapgroup(task_id,user_id,survey_id,session):
 
     return trapgroup
 
-def fetch_clusters(taggingLevel,task_id,isBounding,trapgroup_id,session,limit=None,id=None):
+def fetch_clusters(taggingLevel,task_id,isBounding,trapgroup_id,limit=None,id=None):
     '''Fetch the clusterInfo for the user'''
 
     clusterInfo = {}
@@ -1166,7 +1166,7 @@ def fetch_clusters(taggingLevel,task_id,isBounding,trapgroup_id,session,limit=No
         IndividualTask = alias(Task)
         if id:
             # need to filter by cluster id and include videos
-            clusters = session.query(
+            clusters = db.session.query(
                             Cluster.id,
                             Cluster.notes,
                             Image.id,
@@ -1217,7 +1217,7 @@ def fetch_clusters(taggingLevel,task_id,isBounding,trapgroup_id,session,limit=No
 
         else:
             # Need to filter by trapgroup id and exclude video
-            clusters = session.query(
+            clusters = db.session.query(
                             Cluster.id,
                             Cluster.notes,
                             Image.id,
@@ -1302,9 +1302,9 @@ def fetch_clusters(taggingLevel,task_id,isBounding,trapgroup_id,session,limit=No
                     clusterInfo[row[0]]['videos'] = {}
                     user_id = row[27]
                     if user_id:
-                        user = session.query(User.username,User.parent_id).filter(User.id==user_id).first()
+                        user = db.session.query(User.username,User.parent_id).filter(User.id==user_id).first()
                         if user and user[1]:
-                            clusterInfo[row[0]]['user'] = session.query(User.username).filter(User.id==user[1]).first()[0]
+                            clusterInfo[row[0]]['user'] = db.session.query(User.username).filter(User.id==user[1]).first()[0]
                         elif user and user[1]==None and user[0] != 'Admin':
                             clusterInfo[row[0]]['user'] = user[0]
                         else:
@@ -1412,7 +1412,7 @@ def fetch_clusters(taggingLevel,task_id,isBounding,trapgroup_id,session,limit=No
                                     .group_by(Cluster.id)\
                                     .subquery()
 
-            clusters2 = rDets(session.query(
+            clusters2 = rDets(db.session.query(
                                     Cluster.id,
                                     classSQ.c.label,
                                     classSQ.c.count/clusterDetCountSQ.c.count
