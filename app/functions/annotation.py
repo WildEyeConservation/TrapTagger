@@ -963,12 +963,12 @@ def manageTasks():
         
     return True
 
-def allocate_new_trapgroup(task_id,user_id,survey_id,session):
+def allocate_new_trapgroup(task_id,user_id,survey_id):
     '''Allocates a new trapgroup to the specified user for the given task. Attempts to free up trapgroups if none are available. Returns the allocate trapgroup.'''
 
     trapgroup = GLOBALS.redisClient.lpop('trapgroups_'+str(survey_id))
     
-    # trapgroup = session.query(Trapgroup) \
+    # trapgroup = db.session.query(Trapgroup) \
     #                 .filter(Trapgroup.survey_id==survey_id)\
     #                 .filter(Trapgroup.active == True) \
     #                 .filter(Trapgroup.user_id == None) \
@@ -976,7 +976,7 @@ def allocate_new_trapgroup(task_id,user_id,survey_id,session):
 
     # if trapgroup == None:
     #     #Try to free up trapgroups
-    #     trapgroups = session.query(Trapgroup) \
+    #     trapgroups = db.session.query(Trapgroup) \
     #                     .join(Camera) \
     #                     .join(Image) \
     #                     .join(Cluster, Image.clusters) \
@@ -995,9 +995,9 @@ def allocate_new_trapgroup(task_id,user_id,survey_id,session):
     #         trapgroup = trapgroups[0]
 
     if trapgroup:
-        trapgroup = session.query(Trapgroup).get(int(trapgroup.decode()))
+        trapgroup = db.session.query(Trapgroup).get(int(trapgroup.decode()))
         trapgroup.user_id = user_id
-        session.commit()
+        db.session.commit()
 
     return trapgroup
 

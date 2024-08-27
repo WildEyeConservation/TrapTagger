@@ -5710,7 +5710,6 @@ def get_clusters():
     OverallStartTime = time.time()
     id = request.args.get('id', None)
     reqId = request.args.get('reqId', None)
-    session = db.session()
     
     if reqId is None:
         reqId = '-99'
@@ -5727,14 +5726,14 @@ def get_clusters():
             else:
                 task_id = current_user.turkcode[0].task_id
     else:
-        cluster = session.query(Cluster).get(id)
+        cluster = db.session.query(Cluster).get(id)
         task_id = cluster.task_id
 
     if (not current_user.admin) and (not GLOBALS.redisClient.sismember('active_jobs_'+str(task_id),current_user.username)): return {'redirect': url_for('done')}, 278
     
     task = None
     try:
-        task = session.query(Task).get(task_id)
+        task = db.session.query(Task).get(task_id)
     except:
         return {'redirect': url_for('done')}, 278
     
@@ -5751,9 +5750,9 @@ def get_clusters():
     if current_user.admin:
         num = 0
     elif '-5' in task.tagging_level:
-        num = session.query(Individual).filter(Individual.user_id==current_user.id).count()
+        num = db.session.query(Individual).filter(Individual.user_id==current_user.id).count()
     else:
-        num = session.query(Cluster).filter(Cluster.user==current_user).count()
+        num = db.session.query(Cluster).filter(Cluster.user==current_user).count()
 
     if (num >= (task.size + task.test_size)): return {'redirect': url_for('done')}, 278
 
@@ -5769,7 +5768,7 @@ def get_clusters():
     if GLOBALS.redisClient.get('clusters_allocated_'+str(current_user.id))==None: GLOBALS.redisClient.set('clusters_allocated_'+str(current_user.id),0)
 
     if (',' not in taggingLevel) and (not isBounding) and int(taggingLevel) > 0:
-        label_description = session.query(Label).get(int(taggingLevel)).description
+        label_description = db.session.query(Label).get(int(taggingLevel)).description
 
     if id:
         clusterInfo, max_request = fetch_clusters(taggingLevel,task_id,isBounding,None,None,id)
@@ -5800,7 +5799,7 @@ def get_clusters():
                 clusters_allocated = int(GLOBALS.redisClient.get('clusters_allocated_'+str(current_user.id)).decode()) + len(individuals)
                 GLOBALS.redisClient.set('clusters_allocated_'+str(current_user.id),clusters_allocated)
                 # current_user.last_ping = datetime.utcnow()
-                session.commit()
+                db.session.commit()
 
             else:
                 # session.close()
@@ -5811,9 +5810,9 @@ def get_clusters():
                 # session.refresh(current_user)
 
                 # this is now fast enough that if the user is coming back, their old trapgroup was finished and they need a new one
-                trapgroup = allocate_new_trapgroup(task_id,current_user.id,survey_id,session)
+                trapgroup = allocate_new_trapgroup(task_id,current_user.id,survey_id)
                 if trapgroup == None:
-                    session.close()
+                    db.session.close()
                     # GLOBALS.mutex[task_id]['global'].release()
                     return json.dumps({'id': reqId, 'info': [Config.FINISHED_CLUSTER]})
 
@@ -5831,8 +5830,8 @@ def get_clusters():
 
                 # current_user.last_ping = datetime.utcnow()
                 
-                session.commit()
-                session.close()
+                db.session.commit()
+                db.session.close()
                 # GLOBALS.mutex[task_id]['global'].release()
 
                 # if current_user.trapgroup[:]:
