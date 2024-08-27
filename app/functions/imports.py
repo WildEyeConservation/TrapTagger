@@ -442,6 +442,7 @@ def cluster_trapgroup(self,trapgroup_id,force=False):
                         .filter(Camera.trapgroup==trapgroup)\
                         .filter(Image.corrected_timestamp==None)\
                         .filter(sq.c.id==None)\
+                        .filter(Image.detections.any())\
                         .distinct().all()
             
             # for chunk in chunker(videos,100):
@@ -460,6 +461,7 @@ def cluster_trapgroup(self,trapgroup_id,force=False):
                         .filter(Camera.trapgroup==trapgroup)\
                         .filter(Image.corrected_timestamp==None)\
                         .filter(sq.c.id==None)\
+                        .filter(Image.detections.any())\
                         .all()
 
             # for chunk in chunker(images,1000):
@@ -478,6 +480,7 @@ def cluster_trapgroup(self,trapgroup_id,force=False):
                                 .join(Camera)\
                                 .filter(Camera.trapgroup==trapgroup)\
                                 .filter(sq.c.id==None)\
+                                .filter(Image.detections.any())\
                                 .order_by(Image.corrected_timestamp)\
                                 .distinct().all()
                 # for chunk in chunker(images,1000):
@@ -578,7 +581,7 @@ def cluster_trapgroup(self,trapgroup_id,force=False):
         else:
             #Clustering with a clean slate
             if not force:
-                images = db.session.query(Image).join(Camera).filter(Camera.trapgroup == trapgroup).filter(Image.corrected_timestamp!=None).order_by(Image.corrected_timestamp).all()
+                images = db.session.query(Image).join(Camera).filter(Camera.trapgroup == trapgroup).filter(Image.corrected_timestamp!=None).filter(Image.detections.any()).order_by(Image.corrected_timestamp).all()
 
             for task in survey.tasks:
                 if force:
