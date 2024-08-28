@@ -1734,8 +1734,8 @@ def batch_images(camera_id,filenames,sourceBucket,dirpath,destBucket,survey_id,p
         images = []
         for filename in filenames:
             if live:
-                image_id = filename.id
-                filename = filename.filename    
+                image_id = filename['id']
+                filename = filename['filename']  
             hash = None
             etag = None
             if not pipeline: etag = GLOBALS.s3client.head_object(Bucket=sourceBucket,Key=os.path.join(dirpath, filename))['ETag'][1:-1]

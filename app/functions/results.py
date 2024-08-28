@@ -1542,7 +1542,10 @@ def generate_excel(self,task_id,user_name):
             sheet[speciesColumns[label.description]+str(currentRow)] = clusterCount
             sheet[speciesColumns[label.description]+str(currentRow)].border = top_border
             sheet[speciesColumns[label.description]+str(currentRow)].fill = greyFill
-            sheet[speciesColumns[label.description]+str(currentRow+1)] = round((clusterCount/totalCount)*100,2)
+            if totalCount > 0:
+                sheet[speciesColumns[label.description]+str(currentRow+1)] = round((clusterCount/totalCount)*100,2)
+            else:
+                sheet[speciesColumns[label.description]+str(currentRow+1)] = 0
             sheet[speciesColumns[label.description]+str(currentRow+1)].border = bottom_border
             sheet[speciesColumns[label.description]+str(currentRow+1)].fill = whiteFill
 
@@ -1601,7 +1604,10 @@ def generate_excel(self,task_id,user_name):
                             .count()
 
             sheet[speciesColumns[label.description]+str(currentRow)] = count
-            sheet[speciesColumns[label.description]+str(currentRow+1)] = round((count/totalCount)*100,2)
+            if totalCount > 0:
+                sheet[speciesColumns[label.description]+str(currentRow+1)] = round((count/totalCount)*100,2)
+            else:
+                sheet[speciesColumns[label.description]+str(currentRow+1)] = 0
 
         for label in labels:
             sheet[speciesColumns[label.description]+str(currentRow)].border = top_border
