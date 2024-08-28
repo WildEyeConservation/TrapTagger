@@ -3713,9 +3713,9 @@ def import_survey(self,survey_id,preprocess_done=False,live=False,launch_id=None
             
             survey = db.session.query(Survey).get(survey_id)
             survey_id = survey.id
-            survey.image_count = db.session.query(Image).join(Camera).join(Trapgroup).outerjoin(Video).filter(Trapgroup.survey==survey).filter(Video.id==None).distinct().count()
+            survey.image_count = db.session.query(Image).join(Camera).join(Trapgroup).outerjoin(Video).filter(Trapgroup.survey==survey).filter(Video.id==None).filter(Image.detections.any()).distinct().count()
             survey.video_count = db.session.query(Video).join(Camera).join(Trapgroup).filter(Trapgroup.survey==survey).distinct().count()
-            survey.frame_count = db.session.query(Image).join(Camera).join(Trapgroup).join(Video).filter(Trapgroup.survey==survey).distinct().count()
+            survey.frame_count = db.session.query(Image).join(Camera).join(Trapgroup).join(Video).filter(Trapgroup.survey==survey).filter(Image.detections.any()).distinct().count()
             survey.status = 'Extracting Timestamps'
             db.session.commit()
 
@@ -3727,8 +3727,7 @@ def import_survey(self,survey_id,preprocess_done=False,live=False,launch_id=None
             survey_id = survey.id
             survey.images_processing = survey.image_count + survey.video_count 
             db.session.commit()
-            # timestamp_check = db.session.query(Image.id).join(Camera).join(Trapgroup).filter(Trapgroup.survey_id==survey_id).filter(Image.timestamp==None).first()
-            timestamp_check = db.session.query(Image.id).join(Camera).join(Trapgroup).filter(Trapgroup.survey_id==survey_id).filter(~Image.clusters.any()).filter(Image.detections.any()).first()
+            timestamp_check = db.session.query(Image.id).join(Camera).join(Trapgroup).filter(Trapgroup.survey_id==survey_id).filter(~Image.clusters.any()).filter(Image.detections.any()).filter(Image.timestamp==None).first()
             static_check = db.session.query(Staticgroup.id).join(Detection).join(Image).join(Camera).join(Trapgroup).filter(Trapgroup.survey_id==survey_id).first()
             skipCluster = not timestamp_check
 
