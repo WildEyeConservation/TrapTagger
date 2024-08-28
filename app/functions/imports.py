@@ -1709,7 +1709,7 @@ def setupDatabase():
 
     db.session.commit()
 
-def batch_images(camera_id,filenames,sourceBucket,dirpath,destBucket,survey_id,pipeline,external,lock,remove_gps):
+def batch_images(camera_id,filenames,sourceBucket,dirpath,destBucket,survey_id,pipeline,external,lock,remove_gps,live=False):
     ''' Helper function for importImages that batches images and adds them to the queue to be run through the detector. '''
 
     try:
@@ -1733,11 +1733,14 @@ def batch_images(camera_id,filenames,sourceBucket,dirpath,destBucket,survey_id,p
         batch = []
         images = []
         for filename in filenames:
+            if live:
+                image_id = filename.id
+                filename = filename.filename    
             hash = None
             etag = None
             if not pipeline: etag = GLOBALS.s3client.head_object(Bucket=sourceBucket,Key=os.path.join(dirpath, filename))['ETag'][1:-1]
             with tempfile.NamedTemporaryFile(delete=True, suffix='.JPG') as temp_file:
-                if not pipeline:
+                if not pipeline and not live:
                     print('Downloading {}'.format(filename))
                     GLOBALS.s3client.download_file(Bucket=sourceBucket, Key=os.path.join(dirpath, filename), Filename=temp_file.name)
 
@@ -1783,7 +1786,7 @@ def batch_images(camera_id,filenames,sourceBucket,dirpath,destBucket,survey_id,p
                     # don't need to download the image or even extract a timestamp if pipelining
                     timestamp = None
                 
-                if not pipeline:
+                if not pipeline and not live:
                     # don't compress and upload the image if its a training-data pipeline
                     if Config.DEBUGGING: print('Compressing {}'.format(filename))
                     
@@ -1822,6 +1825,8 @@ def batch_images(camera_id,filenames,sourceBucket,dirpath,destBucket,survey_id,p
                 batch.append(dirpath + '/' + filename)
 
                 image = {'filename':filename, 'timestamp':timestamp, 'corrected_timestamp':timestamp, 'camera_id':camera_id, 'hash':hash, 'etag':etag}
+                if live:
+                    image['id'] = image_id
                 images.append(image)
         
         if batch:
@@ -1891,7 +1896,7 @@ def importImages(self,batch,csv,pipeline,external,min_area,remove_gps,label_sour
             print("Starting import of batch for {} with {} images.".format(dirpath,len(jpegs)))
                 
             for filenames in chunker(jpegs,100):
-                pool.apply_async(batch_images,(camera_id,filenames,sourceBucket,dirpath,destBucket,survey_id,pipeline,external,GLOBALS.lock,remove_gps))
+                pool.apply_async(batch_images,(camera_id,filenames,sourceBucket,dirpath,destBucket,survey_id,pipeline,external,GLOBALS.lock,remove_gps,live))
 
         pool.close()
         pool.join()
@@ -1912,16 +1917,12 @@ def importImages(self,batch,csv,pipeline,external,min_area,remove_gps,label_sour
                     for img, detections in zip(images, response):
                         try:
                             if live:
-                                image = db.session.query(Image).filter(Image.hash==img['hash']).filter(Image.camera_id==img['camera_id']).filter(Image.filename==img['filename']).first()
+                                image = db.session.query(Image).get(img['id'])
                                 if image:
                                     if not image.detections:
                                         image.detections = [Detection(**detection) for detection in detections]
                                         for detection in image.detections:
                                             db.session.add(detection)
-
-                                    if not image.corrected_timestamp:
-                                        image.corrected_timestamp = img['corrected_timestamp']
-                                        image.timestamp = img['timestamp']
                             else:
                                 image = Image(**img)
                                 db.session.add(image)
@@ -3727,7 +3728,7 @@ def import_survey(self,survey_id,preprocess_done=False,live=False,launch_id=None
             survey.images_processing = survey.image_count + survey.video_count 
             db.session.commit()
             # timestamp_check = db.session.query(Image.id).join(Camera).join(Trapgroup).filter(Trapgroup.survey_id==survey_id).filter(Image.timestamp==None).first()
-            timestamp_check = db.session.query(Image.id).join(Camera).join(Trapgroup).filter(Trapgroup.survey_id==survey_id).filter(~Image.clusters.any()).first()
+            timestamp_check = db.session.query(Image.id).join(Camera).join(Trapgroup).filter(Trapgroup.survey_id==survey_id).filter(~Image.clusters.any()).filter(Image.detections.any()).first()
             static_check = db.session.query(Staticgroup.id).join(Detection).join(Image).join(Camera).join(Trapgroup).filter(Trapgroup.survey_id==survey_id).first()
             skipCluster = not timestamp_check
 
@@ -3745,7 +3746,10 @@ def import_survey(self,survey_id,preprocess_done=False,live=False,launch_id=None
             survey = db.session.query(Survey).get(survey_id)
             survey.status='Processing Cameras'
             db.session.commit()
-            processCameras(survey_id, survey.trapgroup_code, survey.camera_code)
+            if live:
+                processCameras(survey_id, survey.trapgroup_code, None)
+            else:
+                processCameras(survey_id, survey.trapgroup_code, survey.camera_code)
             survey = db.session.query(Survey).get(survey_id)
 
             static_check = None
@@ -5297,7 +5301,7 @@ def import_live_data(survey_id):
 
     cameras = db.session.query(Camera).join(Trapgroup).filter(Trapgroup.survey_id==survey_id).distinct().all()
     for camera in cameras:
-        to_process = [r[0] for r in db.session.query(Image.filename).filter(Image.camera_id==camera.id).filter(or_(~Image.clusters.any(),~Image.detections.any())).distinct().all()]
+        to_process = [{'id': r[0], 'filename': r[1]} for r in db.session.query(Image.id, Image.filename).filter(Image.camera_id==camera.id).filter(~Image.detections.any()).distinct().all()]
         survey.images_processing += len(to_process)
         #Break folders down into chunks to prevent overly-large folders causing issues
         for chunk in chunker(to_process,chunk_size):

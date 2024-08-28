@@ -13666,11 +13666,14 @@ def addImage():
 
                         if camera:
                             camera_path = survey.organisation.folder + '/' + survey.folder + '/' + site_name + '/' + camera
+                            comp_path = survey.organisation.folder + '-comp/' + survey.folder + '/' + site_name + '/' + camera
                         else:
                             camera_path = survey.organisation.folder + '/' + survey.folder + '/' + site_name
+                            comp_path = survey.organisation.folder + '-comp/' + survey.folder + '/' + site_name
 
                         # Upload to S3
                         image_key = camera_path + '/' + filename
+                        comp_key = comp_path + '/' + filename
                         image_exists = False
                         try:
                             GLOBALS.s3client.head_object(Bucket=Config.BUCKET, Key=image_key)
@@ -13688,8 +13691,39 @@ def addImage():
                                 image_dup_count += 1
                                 filename = filename_split[0] + '_' + str(image_dup_count+1) + '.' + filename_split[1]
                             image_key = camera_path + '/' + filename
+                            comp_key = comp_path + '/' + filename
 
                         GLOBALS.s3client.upload_file(Bucket=Config.BUCKET, Key=image_key, Filename=temp_file.name)
+
+                        # Compress image
+                        try:
+                            with wandImage(filename=temp_file.name).convert('jpeg') as img:
+                                # This is required, because if we don't have it ImageMagick gets too clever for it's own good
+                                # and saves images with no color content (i.e. fully black image) as grayscale. But this causes
+                                # problems for MegaDetector which expects a 3 channel image as input.
+                                img.metadata['colorspace:auto-grayscale'] = 'false'
+                                img.transform(resize='800')
+                                GLOBALS.s3client.upload_fileobj(BytesIO(img.make_blob()),Config.BUCKET,comp_key)
+                        except:
+                            return json.dumps({'message': 'Error adding image.'}), 400
+                        
+                        # Get timestamp from EXIF data if not provided
+                        if not timestamp:
+                            try:
+                                t = pyexifinfo.get_json(temp_file.name)[0]
+                                exif_timestamp = None
+                                for field in ['EXIF:DateTimeOriginal','MakerNotes:DateTimeOriginal']:
+                                    if field in t.keys():
+                                        exif_timestamp = datetime.strptime(t[field], '%Y:%m:%d %H:%M:%S')
+                                        break
+                                if exif_timestamp:
+                                    timestamp = exif_timestamp
+                            except:
+                                pass
+
+                        # Check timestamp is not corrupt
+                        if timestamp and (timestamp>datetime.utcnow()): timestamp == None
+                        if timestamp and (timestamp.year<2000): timestamp == None
 
                         if not trapgroup:
                             trapgroup = Trapgroup(survey_id=survey_id, tag=site_name, latitude=latitude, longitude=longitude, altitude=altitude)
