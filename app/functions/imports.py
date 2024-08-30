@@ -3713,9 +3713,9 @@ def import_survey(self,survey_id,preprocess_done=False,live=False,launch_id=None
             
             survey = db.session.query(Survey).get(survey_id)
             survey_id = survey.id
-            survey.image_count = db.session.query(Image).join(Camera).join(Trapgroup).outerjoin(Video).filter(Trapgroup.survey==survey).filter(Video.id==None).filter(Image.detections.any()).distinct().count()
+            survey.image_count = db.session.query(Image).join(Camera).join(Trapgroup).outerjoin(Video).filter(Trapgroup.survey==survey).filter(Video.id==None).distinct().count()
             survey.video_count = db.session.query(Video).join(Camera).join(Trapgroup).filter(Trapgroup.survey==survey).distinct().count()
-            survey.frame_count = db.session.query(Image).join(Camera).join(Trapgroup).join(Video).filter(Trapgroup.survey==survey).filter(Image.detections.any()).distinct().count()
+            survey.frame_count = db.session.query(Image).join(Camera).join(Trapgroup).join(Video).filter(Trapgroup.survey==survey).distinct().count()
             survey.status = 'Extracting Timestamps'
             db.session.commit()
 

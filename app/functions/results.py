@@ -43,6 +43,7 @@ from datetime import datetime, timedelta
 import numpy as np
 from app.functions.imports import s3traverse
 from app.functions.permissions import surveyPermissionsSQ
+import zipfile
 
 def translate(labels, dictionary):
     '''
@@ -1212,46 +1213,54 @@ def generate_wildbook_export(self,task_id, data, user_name):
                         .filter(~Detection.status.in_(Config.DET_IGNORE_STATUSES)) \
                         .statement,db.session.bind)
 
-        df['Encounter.genus'] = data['genus'][:1].upper() + data['genus'][1:].lower()
-        df['Encounter.specificEpithet'] = data['epithet'].lower()
-        df['Encounter.submitterID'] = data['wildbookid']
+        if df.empty:
+            with zipfile.ZipFile(fileName+'.zip', 'w') as zipf:
+                pass
+            GLOBALS.s3client.upload_file(fileName+'.zip', Config.BUCKET, fileName+'.zip')
+            os.remove(fileName+'.zip')
+        else:
+            df['Encounter.genus'] = data['genus'][:1].upper() + data['genus'][1:].lower()
+            df['Encounter.specificEpithet'] = data['epithet'].lower()
+            df['Encounter.submitterID'] = data['wildbookid']
 
-        df['Encounter.year'] = df.apply(lambda x: x.timestamp.year, axis=1)
-        df['Encounter.month'] = df.apply(lambda x: x.timestamp.month, axis=1)
-        df['Encounter.day'] = df.apply(lambda x: x.timestamp.day, axis=1)
-        df['Encounter.hour'] = df.apply(lambda x: x.timestamp.hour, axis=1)
-        df['Encounter.minutes'] = df.apply(lambda x: x.timestamp.minute, axis=1)
+            df['Encounter.year'] = df.apply(lambda x: x.timestamp.year if x.timestamp else None, axis=1)
+            df['Encounter.month'] = df.apply(lambda x: x.timestamp.month if x.timestamp else None, axis=1)
+            df['Encounter.day'] = df.apply(lambda x: x.timestamp.day if x.timestamp else None, axis=1)
+            df['Encounter.hour'] = df.apply(lambda x: x.timestamp.hour if x.timestamp else None, axis=1)
+            df['Encounter.minutes'] = df.apply(lambda x: x.timestamp.minute if x.timestamp else None, axis=1)
 
-        df['Encounter.mediaAsset0'] = df.apply(lambda x: (str(x.camera_id)+'_'+x.filename).replace('(','_').replace(')','_'), axis=1)
-        df = df.drop_duplicates(subset=['Encounter.mediaAsset0'], keep='first').reset_index()
+            df['Encounter.mediaAsset0'] = df.apply(lambda x: (str(x.camera_id)+'_'+x.filename).replace('(','_').replace(')','_'), axis=1)
+            df = df.drop_duplicates(subset=['Encounter.mediaAsset0'], keep='first').reset_index()
 
-        del df['timestamp']
-        del df['detection']
-        del df['camera_id']
-        del df['index']
+            del df['timestamp']
+            del df['detection']
+            del df['camera_id']
+            del df['index']
 
-        if os.path.isdir(tempFolderName):
+            df = df.fillna('None')
+
+            if os.path.isdir(tempFolderName):
+                shutil.rmtree(tempFolderName)
+            os.makedirs(tempFolderName, exist_ok=True)
+
+            for n in range((math.ceil(len(df)/1000))):
+                subsetFolder = tempFolderName+'/'+str(n+1)
+                os.makedirs(subsetFolder, exist_ok=True)
+                tempDF = df.loc[n*1000:(n+1)*1000-1]
+
+                tempDF.apply(lambda x: GLOBALS.s3client.download_file(
+                    Bucket=Config.BUCKET, 
+                    Key=(x['path']+'/'+x['filename']), 
+                    Filename=(subsetFolder+'/'+x['Encounter.mediaAsset0'])
+                ), axis=1)
+
+                del tempDF['path']
+                del tempDF['filename']
+                tempDF.to_csv(subsetFolder+'/metadata.csv',index=False)
+
+            shutil.make_archive(tempFolderName, 'zip', tempFolderName)
+            GLOBALS.s3client.upload_file(tempFolderName+'.zip', Config.BUCKET, fileName+'.zip')
             shutil.rmtree(tempFolderName)
-        os.makedirs(tempFolderName, exist_ok=True)
-
-        for n in range((math.ceil(len(df)/1000))):
-            subsetFolder = tempFolderName+'/'+str(n+1)
-            os.makedirs(subsetFolder, exist_ok=True)
-            tempDF = df.loc[n*1000:(n+1)*1000-1]
-
-            tempDF.apply(lambda x: GLOBALS.s3client.download_file(
-                Bucket=Config.BUCKET, 
-                Key=(x['path']+'/'+x['filename']), 
-                Filename=(subsetFolder+'/'+x['Encounter.mediaAsset0'])
-            ), axis=1)
-
-            del tempDF['path']
-            del tempDF['filename']
-            tempDF.to_csv(subsetFolder+'/metadata.csv',index=False)
-
-        shutil.make_archive(tempFolderName, 'zip', tempFolderName)
-        GLOBALS.s3client.upload_file(tempFolderName+'.zip', Config.BUCKET, fileName+'.zip')
-        shutil.rmtree(tempFolderName)
 
         # Schedule deletion
         deleteFile.apply_async(kwargs={'fileName': fileName+'.zip'}, countdown=3600)

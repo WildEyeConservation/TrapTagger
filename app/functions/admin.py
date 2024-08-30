@@ -2712,22 +2712,23 @@ def monitor_live_data_surveys():
     '''Celery task that monitors surveys with live data and schedules and import for them.'''
     try:
 
+        task_sq = db.session.query(Task.survey_id).filter(Task.status.notin_(Config.TASK_READY_STATUSES)).distinct().subquery()
         surveys = db.session.query(Survey)\
                             .join(Trapgroup)\
                             .join(Camera)\
                             .join(Image)\
                             .join(APIKey)\
+                            .outerjoin(task_sq,task_sq.c.survey_id==Survey.id)\
                             .filter(Survey.status.in_(Config.SURVEY_READY_STATUSES))\
                             .filter(APIKey.api_key!=None)\
                             .filter(or_(~Image.clusters.any(),~Image.detections.any()))\
+                            .filter(task_sq.c.survey_id==None)\
                             .distinct().all()
 
         if Config.DEBUGGING: app.logger.info('Found {} surveys with live data to import'.format(len(surveys)))
 
         for survey in surveys:
             survey.status = 'Import Queued'
-            import_survey.delay(survey_id=survey.id, live=True)
-
 
         launched_tasks = db.session.query(Task)\
                                     .join(Survey)\
@@ -2744,10 +2745,14 @@ def monitor_live_data_surveys():
         if Config.DEBUGGING: app.logger.info('Found {} surveys with live data that are launched'.format(len(launched_tasks)))
         for task in launched_tasks:
             task.status = 'Stopping'
-            stop_task.delay(task_id=task.id, live=True)
-
 
         db.session.commit()
+
+        for survey in surveys:
+            import_survey.delay(survey_id=survey.id, live=True)
+
+        for task in launched_tasks:
+            stop_task.delay(task_id=task.id, live=True)
 
     except Exception as exc:
         app.logger.info(' ')
