@@ -500,14 +500,18 @@ def cluster_trapgroup(self,trapgroup_id,force=False):
                         db.session.add(cluster)
                         image.clusters.append(cluster)
 
-                        for detection in image.detections:
+                        sq = db.session.query(Detection.id).join(Labelgroup).filter(Labelgroup.task_id==task.id).subquery()
+                        image_detections = db.session.query(Detection).outerjoin(sq,sq.c.id==Detection.id).filter(Detection.image_id==image.id).filter(sq.c.id==None).all()
+                        for detection in image_detections:
                             labelgroup = Labelgroup(detection_id=detection.id,task_id=task.id,checked=False)
                             db.session.add(labelgroup)
 
                     elif len(potentialClusters) == 1:
                         potentialClusters[0].images.append(image)
 
-                        for detection in image.detections:
+                        sq = db.session.query(Detection.id).join(Labelgroup).filter(Labelgroup.task_id==task.id).subquery()
+                        image_detections = db.session.query(Detection).outerjoin(sq,sq.c.id==Detection.id).filter(Detection.image_id==image.id).filter(sq.c.id==None).all()
+                        for detection in image_detections:
                             labelgroup = Labelgroup(detection_id=detection.id,task_id=task.id,checked=False)
                             db.session.add(labelgroup)
                             labelgroup.labels = potentialClusters[0].labels
@@ -527,7 +531,9 @@ def cluster_trapgroup(self,trapgroup_id,force=False):
                                 image.clusters.append(db.session.query(Cluster).filter(Cluster.task==task).filter(Cluster.images.contains(knockTest)).first())
                                 allocated = True
 
-                                for detection in image.detections:
+                                sq = db.session.query(Detection.id).join(Labelgroup).filter(Labelgroup.task_id==task.id).subquery()
+                                image_detections = db.session.query(Detection).outerjoin(sq,sq.c.id==Detection.id).filter(Detection.image_id==image.id).filter(sq.c.id==None).all()
+                                for detection in image_detections:
                                     labelgroup = Labelgroup(detection_id=detection.id,task_id=task.id,checked=False)
                                     db.session.add(labelgroup)
                                     labelgroup.labels = [downLabel]
@@ -557,7 +563,9 @@ def cluster_trapgroup(self,trapgroup_id,force=False):
                                     db.session.delete(cluster)
                                 potentialClusters[0].timestamp = datetime.utcnow()
 
-                                for detection in image.detections:
+                                sq = db.session.query(Detection.id).join(Labelgroup).filter(Labelgroup.task_id==task.id).subquery()
+                                image_detections = db.session.query(Detection).outerjoin(sq,sq.c.id==Detection.id).filter(Detection.image_id==image.id).filter(sq.c.id==None).all()
+                                for detection in image_detections:
                                     labelgroup = Labelgroup(detection_id=detection.id,task_id=task.id,checked=False)
                                     db.session.add(labelgroup)
 
@@ -572,7 +580,9 @@ def cluster_trapgroup(self,trapgroup_id,force=False):
                                 db.session.add(cluster)
                                 image.clusters.append(cluster)
 
-                                for detection in image.detections:
+                                sq = db.session.query(Detection.id).join(Labelgroup).filter(Labelgroup.task_id==task.id).subquery()
+                                image_detections = db.session.query(Detection).outerjoin(sq,sq.c.id==Detection.id).filter(Detection.image_id==image.id).filter(sq.c.id==None).all()
+                                for detection in image_detections:
                                     labelgroup = Labelgroup(detection_id=detection.id,task_id=task.id,checked=False)
                                     db.session.add(labelgroup)
 
@@ -3813,6 +3823,8 @@ def import_survey(self,survey_id,preprocess_done=False,live=False,launch_id=None
             survey = db.session.query(Survey).get(survey_id)
             survey.status = 'Ready'
             survey.images_processing = 0
+            if live:
+                survey.image_count = db.session.query(Image).join(Camera).join(Trapgroup).outerjoin(Video).filter(Trapgroup.survey_id==survey_id).filter(Image.clusters.any()).filter(Video.id==None).distinct().count()
             db.session.commit()
             app.logger.info("Finished importing survey {}".format(survey_id))
 
