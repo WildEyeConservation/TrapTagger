@@ -1372,7 +1372,7 @@ def classifyTask(self,task,reClusters=None,trapgroup_ids=None):
             api_clusters = api_clusters.distinct().all()
 
             for cluster in api_clusters:
-                labels = db.session.query(Label).join(Labelgroup, Label.labelgroups).join(Detection).join(Image).filter(Image.clusters.contains(cluster)).filter(Labelgroup.task==task).distinct().all()
+                labels = db.session.query(Label).join(Labelgroup, Label.labelgroups).join(Detection).join(Image).filter(Image.clusters.contains(cluster)).filter(Labelgroup.task==task).filter(Label.task==task).distinct().all()
                 for label in labels:
                     if label not in cluster.labels: 
                         cluster.labels.append(label)
@@ -2746,7 +2746,7 @@ def inspect_celery(include_spam=False,include_reserved=False):
             if not any(name in task['name'] for name in spam):
                 time_start = str(datetime.fromtimestamp(task['time_start']))
                 name = task['name'].split('.')[-1]
-                hostname = task['hostname'].split('celery@')[-1]
+                hostname = task['hostname'].split('@')[-1]
                 if 'importImages' in task['name']:
                     print('{:{}}{:{}}{:{}}{:{}}  survey_id={}'.format(task['id'],40,name,36,hostname,36,time_start,29,task['kwargs']['batch'][0]['survey_id']))
                 elif '.detection' in task['name']:
@@ -2788,7 +2788,7 @@ def inspect_celery(include_spam=False,include_reserved=False):
                 if not any(name in task['name'] for name in spam):
                     time_start = str(datetime.fromtimestamp(task['time_start']))
                     name = task['name'].split('.')[-1]
-                    hostname = task['hostname'].split('celery@')[-1]
+                    hostname = task['hostname'].split('@')[-1]
                     if 'importImages' in task['name']:
                         print('{:{}}{:{}}{:{}}{:{}}  survey_id={}'.format(task['id'],40,name,36,hostname,36,time_start,29,task['kwargs']['batch'][0]['survey_id']))
                     elif '.detection' in task['name']:
