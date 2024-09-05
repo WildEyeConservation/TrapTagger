@@ -1372,7 +1372,7 @@ def classifyTask(self,task,reClusters=None,trapgroup_ids=None):
             api_clusters = api_clusters.distinct().all()
 
             for cluster in api_clusters:
-                labels = db.session.query(Label).join(Labelgroup, Label.labelgroups).join(Detection).join(Image).filter(Image.clusters.contains(cluster)).filter(Labelgroup.task==task).filter(Label.task==task).distinct().all()
+                labels = db.session.query(Label).join(Labelgroup, Label.labelgroups).join(Detection).join(Image).filter(Image.clusters.contains(cluster)).filter(Labelgroup.task==task).filter(or_(Label.task==task,Label.task==None)).distinct().all()
                 for label in labels:
                     if label not in cluster.labels: 
                         cluster.labels.append(label)
