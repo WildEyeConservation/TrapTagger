@@ -2799,7 +2799,7 @@ def clean_up_redis():
                     if (task==None) or (task.status not in ['PENDING','PROGRESS']):
                         GLOBALS.redisClient.delete(key)
 
-            elif any(name in key for name in ['clusters_allocated']): #,'user_individuals','user_indsims']):
+            elif any(name in key for name in ['clusters_allocated']):
                 user_id = key.split('_')[-1]
 
                 if user_id == 'None':
@@ -2941,6 +2941,18 @@ def clean_up_redis():
                                 GLOBALS.redisClient.delete('timestamp_check_ping_'+str(survey_id))
                     except:
                         GLOBALS.redisClient.delete(key)
+
+            elif any(name in key for name in ['user_individuals','user_indsims']):
+                user_id = key.split('_')[-1]
+
+                if not user_id.isdigit():
+                    GLOBALS.redisClient.delete(key)
+                else:
+                    user = db.session.query(User).get(int(user_id))
+                    if user==None:
+                        GLOBALS.redisClient.delete(key)
+                    elif datetime.utcnow() - user.last_ping > timedelta(minutes=3):
+                        resolve_abandoned_jobs([[user,user.turkcode[0].task]])
 
     except Exception as exc:
         app.logger.info(' ')
