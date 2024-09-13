@@ -874,7 +874,8 @@ def compare_static_groups(df,group1,group2):
     if IOU(df[df['detection_id']==group1[0]].iloc[0],df[df['detection_id']==group2[0]].iloc[0])<(Config.STATIC_IOU5/2): return False
     
     # we only want to compare a limited combination of detections - comparing everything gets out of hand too quickly
-    for detection1 in random.sample(group1,100):
+    if len(group1) > 100: group1 = random.sample(group1,100)
+    for detection1 in group1:
         detection = df[df['detection_id']==detection1].iloc[0]
         df2 = df[df['detection_id'].isin(group2)].copy()
         df2 = df2[
@@ -882,9 +883,12 @@ def compare_static_groups(df,group1,group2):
             (df2['right']>detection['left']) &
             (df2['bottom']>detection['top']) &
             (df2['top']<detection['bottom'])
-        ].sample(100)
+        ]
 
-        if len(df2) == 0: continue
+        if len(df2) == 0:
+            continue
+        elif len(df2)>100:
+            df2 = df2.sample(100)
 
         df2['iou'] = df2.apply(lambda x: IOU(detection,x), axis=1)
 
