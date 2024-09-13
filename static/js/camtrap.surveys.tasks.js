@@ -243,12 +243,14 @@ function buildTask(taskDiv, task, disableSurvey, survey) {
         editTaskCol.appendChild(editTaskBtn)
         newTaskDiv.appendChild(editTaskCol)
 
-        editTaskBtn.addEventListener('click', function(wrapTaskId) {
+        editTaskBtn.addEventListener('click', function(wrapTaskId, wrapTaskName, wrapSurveyId) {
             return function() {
                 selectedTask = wrapTaskId
+                document.getElementById('editTaskTitle').innerHTML = 'Edit Task: ' + wrapTaskName
+                selectedSurvey = wrapSurveyId
                 modalEditTask.modal({keyboard: true});
             }
-        }(task.id));
+        }(task.id, task.name, survey.id));
 
         resultsCol = document.createElement('div')
         resultsCol.classList.add('col-lg-2');
@@ -874,6 +876,8 @@ function prepNewTask() {
             
                 $("#prevLabelsTask").change( function() {
                     populatePreviousLabels()
+                    resetModalAddTask2()
+                    prevTaskTranslations = {}
                 });
             }
             updateTasks(surveyElement, taskElement)
@@ -1093,11 +1097,11 @@ btnModalAddTaskBack.addEventListener('click', ()=>{
     modalAddTask.modal({keyboard: true});
 });
 
-btnModalAddTaskBack2.addEventListener('click', ()=>{
-    /** Opens the previous add task modal when the user presses back. */
-    modalAddTask3.modal('hide');
-    modalAddTask2.modal({keyboard: true});
-});
+// btnModalAddTaskBack2.addEventListener('click', ()=>{
+//     /** Opens the previous add task modal when the user presses back. */
+//     modalAddTask3.modal('hide');
+//     modalAddTask2.modal({keyboard: true});
+// });
 
 btnSaveLabelChanges.addEventListener('click', ()=>{
     /** Listener that locally saves label edits to be submitted later. */
@@ -1117,6 +1121,7 @@ btnSaveLabelChanges.addEventListener('click', ()=>{
                     delete taskEditDict[parent]['additional'][sessionDeletes[i]]
                 }
             }
+            delete translationLabels[sessionDeletes[i]]
         }
 
         taskEditDict[parent]['edits']['delete'].push(...sessionDeletes)
@@ -1141,6 +1146,8 @@ btnSaveLabelChanges.addEventListener('click', ()=>{
                         taskEditDict[NID]['edits']['modify'] = {}
                         taskEditDict[NID]['additional'] = {}
                     }
+
+                    translationLabels[NID] = allDescriptions[i].value
                 } else {
                     //edited labels
                     if (allDescriptions[i].getAttribute('data-edited')=='true') {
@@ -1156,6 +1163,8 @@ btnSaveLabelChanges.addEventListener('click', ()=>{
                             taskEditDict[parent]['edits']['modify'][NID]['description'] = allDescriptions[i].value
                             taskEditDict[parent]['edits']['modify'][NID]['hotkey'] = allHotkeys[i].value
                         }
+
+                        translationLabels[NID] = allDescriptions[i].value
                     }
                 }
             }
@@ -1163,6 +1172,156 @@ btnSaveLabelChanges.addEventListener('click', ()=>{
 
         // Clear
         updateEditLabelDisplay()
+    }
+
+    classifications = document.querySelectorAll('[id^=classTranslationTextEdit-]')
+    for (let i=0;i<classifications.length;i++) {
+        // IDNum = classifications[i].id.split("-")[classifications[i].id.split("-").length-1]
+        classification = classifications[i].innerHTML
+        IDNum = classification
+
+        translationSelect = document.getElementById('classTranslationSelectEdit-'+IDNum)
+        translation = translationSelect.options[translationSelect.selectedIndex].text
+        classify = document.getElementById('classificationSelectionEdit-'+IDNum).checked
+        label_id = translationSelect.value
+
+        labelDeleted = false
+        if (label_id in translationLabels) {
+            if (translationLabels[label_id] != translation) {
+                translation = translationLabels[label_id]
+            }
+        }
+        else if (label_id != '0' && label_id != '-1'){
+            labelDeleted = true
+        }
+
+        if (classification in globalTranslations) {
+            if (labelDeleted) {
+                global_label_id = globalTranslations[classification].label_id
+                global_label = globalTranslations[classification].label
+                if (global_label.toLowerCase()=='nothing') {
+                    document.getElementById('classTranslationSelectEdit-'+IDNum).value = 0
+                    document.getElementById('classificationSelectionEdit-'+IDNum).checked = false
+                    delete translationEditDict[classification]
+                } 
+                else if (global_label.toLowerCase()=='vehicles/humans/livestock') {
+                    document.getElementById('classTranslationSelectEdit-'+IDNum).value = -1
+                    document.getElementById('classificationSelectionEdit-'+IDNum).checked = globalTranslations[classification].classify
+                    delete translationEditDict[classification]
+                }
+                else if (global_label_id in translationLabels) {
+                    document.getElementById('classTranslationSelectEdit-'+IDNum).value = global_label_id
+                    document.getElementById('classificationSelectionEdit-'+IDNum).checked = globalTranslations[classification].classify
+                    delete translationEditDict[classification]
+                }
+                else {
+                    document.getElementById('classTranslationSelectEdit-'+IDNum).value = 0
+                    document.getElementById('classificationSelectionEdit-'+IDNum).checked = false
+                    translationEditDict[classification] = {
+                        'label': 'nothing',
+                        'label_id': 0,
+                        'classify': 'False'
+                    }
+                }
+            } 
+            else if (globalTranslations[classification].label_id != label_id || globalTranslations[classification].classify != classify) {
+                if (translation.toLowerCase()=='nothing (ignore)') {
+                    if (globalTranslations[classification].label.toLowerCase() != 'nothing') {
+                        translationEditDict[classification] = {
+                            'label': 'nothing',
+                            'label_id': label_id,
+                            'classify': 'False'
+                        }
+                    }
+                }
+                else if (translation.toLowerCase()=='vehicles/humans/livestock') {
+                    if (globalTranslations[classification].label.toLowerCase() != 'vehicles/humans/livestock') {
+                        translationEditDict[classification] = {
+                            'label': 'vehicles/humans/livestock',
+                            'label_id': label_id,
+                            'classify': classify ? 'True' : 'False'
+                        }
+                    }
+                }
+                else{
+                    translationEditDict[classification] = {
+                        'label': translation,
+                        'label_id': label_id,
+                        'classify': classify ? 'True' : 'False'
+                    }
+                }
+            }
+            else {
+                delete translationEditDict[classification]
+            }
+        }
+        else {
+            if (labelDeleted) {
+                document.getElementById('classTranslationSelectEdit-'+IDNum).value = 0
+                document.getElementById('classificationSelectionEdit-'+IDNum).checked = false
+                translationEditDict[classification] = {
+                    'label': 'nothing',
+                    'label_id': 0,
+                    'classify': 'False'
+                }
+            }
+            else if (translation.toLowerCase()=='nothing (ignore)') {
+                translationEditDict[classification] = {
+                    'label': 'nothing',
+                    'label_id': label_id,
+                    'classify': 'False'
+                }
+            }
+            else{
+                translationEditDict[classification] = {
+                    'label': translation,
+                    'label_id': label_id,
+                    'classify': classify ? 'True' : 'False'
+                }
+            }
+        }
+    }
+
+    updateEditTranslationDisplay()
+
+    checkTags(true)
+    if (legalTags) {
+        allTags = document.querySelectorAll('[id^=tag-]')
+        for (let i=0;i<removedTags.length;i++) {
+            tagID = removedTags[i]
+            if (tagID.includes('n')) {
+                delete tagEditDict['additional'][tagID]
+            } else {
+                tagEditDict['delete'].push(tagID)
+                delete tagEditDict['modify'][tagID]
+            }
+        }
+
+        for (let i=0;i<allTags.length;i++) {
+            tagID  = allTags[i].id.split("-")[1]
+            tagHotkey = document.getElementById('tagHotkey-'+tagID).value
+            if (allTags[i].value != '' && tagHotkey != '') {
+                if (tagID.includes('n')) {
+                    tagEditDict['additional'][tagID] = {
+                        'description': allTags[i].value,
+                        'hotkey': tagHotkey
+                    }
+                }
+                else{
+                    if (globalTags[tagID].description != allTags[i].value || globalTags[tagID].hotkey != tagHotkey) {
+                        tagEditDict['modify'][tagID] = {
+                            'description': allTags[i].value,
+                            'hotkey': tagHotkey
+                        }
+                    }
+                    else {
+                        delete tagEditDict['modify'][tagID]
+                    }
+                }
+            }
+        }
+
+        updateEditTagDisplay()
     }
 });
 
@@ -1179,8 +1338,19 @@ btnEditTaskSubmit.addEventListener('click', ()=>{
     else{
         document.getElementById('btnEditTaskSubmit').disabled = true
 
+        if (Object.keys(tagEditDict).length==0) {
+            tagEditDict['delete'] = []
+            tagEditDict['modify'] = {}
+            tagEditDict['additional'] = {}
+        }
+
+        var delete_label = document.getElementById('deleteClusterLabel').checked ? 'true' : 'false'
+
         var formData = new FormData()
         formData.append("editDict", JSON.stringify(taskEditDict))
+        formData.append("tagsDict", JSON.stringify(tagEditDict))
+        formData.append("translationsDict", JSON.stringify(translationEditDict))
+        formData.append("deleteAutoLabels", JSON.stringify(delete_label))
     
         var xhttp = new XMLHttpRequest();
         xhttp.open("POST", '/editTask/'+selectedTask);
@@ -1201,24 +1371,9 @@ btnEditTaskSubmit.addEventListener('click', ()=>{
 
 btnCreateTask2.addEventListener('click', ()=>{
     /** Opens the next add-task modal when the button is pressed. */
-    modalAddTask2.modal('hide')
-    modalAddTask3.modal({keyboard: true})
-});
+    document.getElementById('btnCreateTask2').disabled=true
 
-btnCreateTask3.addEventListener('click', ()=>{
-    /** Submits the new-task information to the server when the last modal is completed. */
-
-    document.getElementById('btnCreateTask3').disabled=true
-
-    allCheckBoxes = document.querySelectorAll('[id^=classificationSelection-]')
-    includes = []
-    for (let i=0;i<allCheckBoxes.length;i++) {
-        if (allCheckBoxes[i].checked) {
-            classification = allCheckBoxes[i].parentNode.children[1].innerHTML
-            includes.push(classification)
-        }
-    }
-    
+    includes = []    
     allTranslations = document.querySelectorAll('[id^=classTranslationText-]')
     translationInfo = {}
     for (let i=0;i<allTranslations.length;i++) {
@@ -1231,6 +1386,13 @@ btnCreateTask3.addEventListener('click', ()=>{
         if (translation.toLowerCase()=='nothing (ignore)') {
             translation='nothing'
         }
+        else {
+            classificationCheckbox = document.getElementById('classificationSelection-'+IDNum)
+            if (classificationCheckbox.checked) {
+                includes.push(classification)
+            }
+        }
+
         translationInfo[classification] = translation
     }
     
@@ -1239,7 +1401,8 @@ btnCreateTask3.addEventListener('click', ()=>{
     formData.append("includes", includes)
     formData.append("translation", JSON.stringify(translationInfo))
 
-    parentLabel = document.getElementById('parentLabel').checked
+    // parentLabel = document.getElementById('parentLabel').checked
+    parentLabel = false
 
     var xhttp = new XMLHttpRequest();
     xhttp.open("POST", '/createTask/'+selectedSurvey+'/'+parentLabel);
@@ -1248,24 +1411,81 @@ btnCreateTask3.addEventListener('click', ()=>{
         if (this.readyState == 4 && this.status == 200) {
             reply = JSON.parse(this.responseText);  
             if (reply=='success') {
-                modalAddTask3.modal('hide')
+                modalAddTask2.modal('hide')
                 updatePage(current_page)
             } else {
-                document.getElementById('btnCreateTask3').disabled=false
+                document.getElementById('btnCreateTask2').disabled=false
             }
         }
     }
     xhttp.send(formData);
 });
 
+// btnCreateTask3.addEventListener('click', ()=>{
+//     /** Submits the new-task information to the server when the last modal is completed. */
+
+//     document.getElementById('btnCreateTask3').disabled=true
+
+//     allCheckBoxes = document.querySelectorAll('[id^=classificationSelection-]')
+//     includes = []
+//     for (let i=0;i<allCheckBoxes.length;i++) {
+//         if (allCheckBoxes[i].checked) {
+//             classification = allCheckBoxes[i].parentNode.children[1].innerHTML
+//             includes.push(classification)
+//         }
+//     }
+    
+//     allTranslations = document.querySelectorAll('[id^=classTranslationText-]')
+//     translationInfo = {}
+//     for (let i=0;i<allTranslations.length;i++) {
+//         IDNum = allTranslations[i].id.split("-")[allTranslations[i].id.split("-").length-1]
+//         classification = allTranslations[i].innerHTML
+
+//         translationSelect = document.getElementById('classTranslationSelect-'+IDNum)
+//         translation = translationSelect.options[translationSelect.selectedIndex].text
+
+//         if (translation.toLowerCase()=='nothing (ignore)') {
+//             translation='nothing'
+//         }
+//         translationInfo[classification] = translation
+//     }
+    
+//     var formData = new FormData()
+//     formData.append("info", addTaskInfo)
+//     formData.append("includes", includes)
+//     formData.append("translation", JSON.stringify(translationInfo))
+
+//     parentLabel = document.getElementById('parentLabel').checked
+
+//     var xhttp = new XMLHttpRequest();
+//     xhttp.open("POST", '/createTask/'+selectedSurvey+'/'+parentLabel);
+//     xhttp.onreadystatechange =
+//     function(){
+//         if (this.readyState == 4 && this.status == 200) {
+//             reply = JSON.parse(this.responseText);  
+//             if (reply=='success') {
+//                 // modalAddTask3.modal('hide')
+
+//                 updatePage(current_page)
+//             } else {
+//                 document.getElementById('btnCreateTask3').disabled=false
+//             }
+//         }
+//     }
+//     xhttp.send(formData);
+// });
+
 btnCreateTask.addEventListener('click', ()=>{
     /** Checks user info in the first add-task form for legality and packages the info for later submission. Also submits the annotation csv if needed. */
     
     newTaskName = document.getElementById('newTaskName').value
+    document.getElementById('nameErrors').innerHTML = ''
 
     if ((newTaskName.toLowerCase()=='default')||(newTaskName.toLowerCase().includes('_o_l_d_'))||(newTaskName.toLowerCase().includes('_copying'))) {
-        nameUsed = true
+        reservedNameUsed = true
         document.getElementById('nameErrors').innerHTML = 'That task name is reserved. Please choose another.'
+    } else {
+        reservedNameUsed = false
     }
 
     if (taskNames.includes(newTaskName)) {
@@ -1273,7 +1493,6 @@ btnCreateTask.addEventListener('click', ()=>{
         document.getElementById('nameErrors').innerHTML = 'Task name is already in use.'
     } else {
         nameUsed = false
-        document.getElementById('nameErrors').innerHTML = ''
     }
 
     if ((newTaskName.includes('/'))||(newTaskName.includes('\\'))) {
@@ -1281,10 +1500,9 @@ btnCreateTask.addEventListener('click', ()=>{
         document.getElementById('nameErrors').innerHTML = 'Task name cannot contain slashes.'
     } else {
         nameSlash = false
-        document.getElementById('nameErrors').innerHTML = ''
     }
 
-    if ((!nameSlash)&&(!nameUsed)&&(newTaskName.length!=0)) {
+    if ((!nameSlash)&&(!nameUsed)&&(!reservedNameUsed)&&(newTaskName.length!=0)) {
         if (document.getElementById('newTaskSelect').checked) {
             if ((legalLabels)&&(legalTags)) {
                 info = '["'
@@ -1391,12 +1609,6 @@ modalAddTask.on('hidden.bs.modal', function(){
 function resetModalAddTask2() {
     /** Clears the second page of the add-task modal. */
 
-    addTaskHeading = false
-
-    classTranslationHeading = document.getElementById('classTranslationHeading')
-    while(classTranslationHeading.firstChild){
-        classTranslationHeading.removeChild(classTranslationHeading.firstChild);
-    }
 
     classTranslationDiv = document.getElementById('classTranslationDiv')
     while(classTranslationDiv.firstChild){
@@ -1404,19 +1616,19 @@ function resetModalAddTask2() {
     }
 }
 
-function resetModalAddTask3() {
-    /** Clears the third page of the add-task modal. */
+// function resetModalAddTask3() {
+//     /** Clears the third page of the add-task modal. */
 
-    document.getElementById('selectAllClassifications').checked = false
-    document.getElementById('speciesLabel').checked = true
-    document.getElementById('parentLabel').checked = false
-    surveyClassifications = null
+//     document.getElementById('selectAllClassifications').checked = false
+//     document.getElementById('speciesLabel').checked = true
+//     document.getElementById('parentLabel').checked = false
+//     surveyClassifications = null
 
-    classificationSelection = document.getElementById('classificationSelection')
-    while(classificationSelection.firstChild){
-        classificationSelection.removeChild(classificationSelection.firstChild);
-    }
-}
+//     classificationSelection = document.getElementById('classificationSelection')
+//     while(classificationSelection.firstChild){
+//         classificationSelection.removeChild(classificationSelection.firstChild);
+//     }
+// }
 
 modalAddTask2.on('hidden.bs.modal', function(){
     /** Resets the helpReturn variable when the add task modal is closed. */
@@ -1427,17 +1639,17 @@ modalAddTask2.on('hidden.bs.modal', function(){
     }
 });
 
-modalAddTask3.on('hidden.bs.modal', function(){
-    /** Resets the helpReturn variable when the add task modal is closed. */
-    if (!helpReturn) {
-        // pass
-        document.getElementById('btnCreateTask3').disabled = false
-    } else {
-        helpReturn = false
-    }
-});
+// modalAddTask3.on('hidden.bs.modal', function(){
+//     /** Resets the helpReturn variable when the add task modal is closed. */
+//     if (!helpReturn) {
+//         // pass
+//         document.getElementById('btnCreateTask3').disabled = false
+//     } else {
+//         helpReturn = false
+//     }
+// });
 
-function buildTranslationRow(IDNum,classification,translationDiv,taskLabels) {
+function buildTranslationRow(IDNum,classification,translationDiv,taskLabels,edit=false) {
     /**
      * Builds a translation row with the specified information.
      * @param {str} IDNum The ID number for the row
@@ -1450,36 +1662,120 @@ function buildTranslationRow(IDNum,classification,translationDiv,taskLabels) {
 
     div = document.createElement('div')
     div.classList.add('row')
-    div.setAttribute('id','classTranslation-'+IDNum)
+    if (edit) {
+        div.setAttribute('id','classTranslationEdit-'+IDNum)
+    } else {
+        div.setAttribute('id','classTranslation-'+IDNum)
+    }
     classTranslationDiv.appendChild(div)
 
     col1 = document.createElement('div')
     col1.classList.add('col-lg-4')
-    col1.id = 'classTranslationText-'+IDNum
+    if (edit) {
+        col1.id = 'classTranslationTextEdit-'+IDNum
+    } else {
+        col1.id = 'classTranslationText-'+IDNum
+    }
     col1.innerHTML = classification
+    col1.style.display = 'flex';
+    col1.style.flexDirection = 'column';
+    col1.style.justifyContent = 'center';
     div.appendChild(col1)
 
     col2 = document.createElement('div')
     col2.classList.add('col-lg-1')
     col2.innerHTML='&#x276f;'
+    col2.style.display = 'flex';
+    col2.style.flexDirection = 'column';
+    col2.style.justifyContent = 'center';
     div.appendChild(col2)
 
     col3 = document.createElement('div')
-    col3.classList.add('col-lg-4')
+    col3.classList.add('col-lg-5')
     div.appendChild(col3)
+
+    col4 = document.createElement('div')
+    col4.classList.add('col-lg-2')
+    col4.style.display = 'flex';
+    col4.style.flexDirection = 'column';
+    col4.style.justifyContent = 'center';
+    div.appendChild(col4)
 
     select = document.createElement('select')
     select.classList.add('form-control')
-    select.id = 'classTranslationSelect-'+IDNum
+    if (edit) {
+        select.id = 'classTranslationSelectEdit-'+IDNum
+    } else {
+        select.id = 'classTranslationSelect-'+IDNum
+    }
     select.name = select.id
     col3.appendChild(select)
 
-    optionValues = []
-    for (let i=0;i<taskLabels.length;i++) {
-        optionValues.push(i)
+    if (edit) {
+        var optionTexts = ['Nothing (Ignore)', 'Vehicles/Humans/Livestock']
+        var optionValues = ["0", "-1"]
+        for (let i=0;i<taskLabels.length;i++) {
+            optionTexts.push(taskLabels[i][0])
+            optionValues.push(taskLabels[i][1])
+        }
+
+        fillSelect(select, optionTexts, optionValues)
+        
+    } else {
+        optionValues = []
+        for (let i=0;i<taskLabels.length;i++) {
+            optionValues.push(i)
+        }
+
+        fillSelect(select, taskLabels, optionValues)
     }
 
-    fillSelect(select, taskLabels, optionValues)
+    // Auto Classify
+    var toggleDiv = document.createElement('div');
+    toggleDiv.classList.add('text-center');
+    toggleDiv.style.verticalAlign = 'middle';
+    col4.appendChild(toggleDiv);
+
+    var toggle = document.createElement('label');
+    toggle.classList.add('switch');
+    toggleDiv.appendChild(toggle);
+
+    var checkbox = document.createElement('input');
+    checkbox.setAttribute("type", "checkbox");
+    if (edit) {
+        checkbox.id = 'classificationSelectionEdit-' + IDNum;
+    } else {
+        checkbox.id = 'classificationSelection-' + IDNum;
+    }
+    checkbox.checked = true;
+    toggle.appendChild(checkbox);
+
+    var slider = document.createElement('span');
+    slider.classList.add('slider');
+    slider.classList.add('round');
+    toggle.appendChild(slider);
+
+
+    if (!edit) {
+        taskLabels = taskLabels.map(x => x.toLowerCase())
+        classification = classification.toLowerCase()
+        if (prevTaskTranslations && Object.keys(prevTaskTranslations).includes(classification)) {
+            prev_label = prevTaskTranslations[classification].label.toLowerCase()
+            if (taskLabels.includes(prev_label)) {
+                select.value = taskLabels.indexOf(prev_label)
+                checkbox.checked = prevTaskTranslations[classification].classify
+            }
+
+        }
+        else if (taskLabels.includes(classification)) {
+            select.value = taskLabels.indexOf(classification)
+            checkbox.checked = true
+        }
+        else{
+            checkbox.checked = false
+        }
+    }
+
 }
 
 function updateTranslationMatrix() {
@@ -1491,39 +1787,25 @@ function updateTranslationMatrix() {
     for (let i=0;i<addTaskDescriptions.length;i++) {
         optionValues.push(i)
     }
-    classTranslationSelects = document.querySelectorAll('[id^=classTranslationSelect');
+    classTranslationSelects = document.querySelectorAll('[id^=classTranslationSelect-');
     for (let i=0;i<classTranslationSelects.length;i++) {
         selection = classTranslationSelects[i].options[classTranslationSelects[i].selectedIndex].text;
         updatedIndex = addTaskDescriptions.indexOf(selection)
         clearSelect(classTranslationSelects[i])
         fillSelect(classTranslationSelects[i], addTaskDescriptions, optionValues)
         classTranslationSelects[i].selectedIndex = updatedIndex
+        if (updatedIndex==-1) {
+            classTranslationSelects[i].selectedIndex = 0
+            idnum = classTranslationSelects[i].id.split("-")[1]
+            document.getElementById('classificationSelection-'+idnum).checked = false
+        }
     }
 
-    allCheckBoxes = document.querySelectorAll('[id^=classificationSelection-]');
-    for (let i=0;i<allCheckBoxes.length;i++) {
-        IDNum = allCheckBoxes[i].id.split("-")[allCheckBoxes[i].id.split("-").length-1]
-        classification = allCheckBoxes[i].parentNode.children[1].innerHTML
-        if ((!addTaskDescriptions.includes(classification.toLowerCase()))&&(classification!='Vehicles/Humans/Livestock')&&(classification!='Nothing')) {
-            if (!addTaskHeading) {
-                classTranslationHeading = document.getElementById('classTranslationHeading')
-
-                while(classTranslationHeading.firstChild){
-                    classTranslationHeading.removeChild(classTranslationHeading.firstChild);
-                }
-
-                h5 = document.createElement('h5')
-                h5.innerHTML = 'Classification Translations'
-                h5.setAttribute('style','margin-bottom: 2px')
-                classTranslationHeading.appendChild(h5)
-
-                h5 = document.createElement('div')
-                h5.innerHTML = '<i>Translate the AI-generated classifications to your labels. Select nothing (ignore) if you do not expect a species in your region.</i>'
-                h5.setAttribute('style','font-size: 80%; margin-bottom: 2px')
-                classTranslationHeading.appendChild(h5)
-
-                addTaskHeading = true
-            }
+    for (let i=0;i<classificationLabels.length;i++) {
+        IDNum = i
+        classification = classificationLabels[i]
+        
+        if (!['unknown', 'nothing', 'knocked down'].includes(classification)) {
             check = document.getElementById('classTranslation-'+IDNum)
             if (!check) {
                 buildTranslationRow(IDNum,classification,'classTranslationDiv',addTaskDescriptions)
@@ -1535,19 +1817,7 @@ function updateTranslationMatrix() {
             }
         }
     }
-    if (!document.getElementById('classTranslationDiv').firstChild) {
-        classTranslationHeading = document.getElementById('classTranslationHeading')
-        while(classTranslationHeading.firstChild){
-            classTranslationHeading.removeChild(classTranslationHeading.firstChild);
-        }
 
-        h5 = document.createElement('h5')
-        h5.innerHTML = 'All classifications are matched - no translations required.'
-        h5.setAttribute('style','margin-bottom: 2px')
-        classTranslationHeading.appendChild(h5)
-
-        addTaskHeading = false
-    }
 
     document.getElementById('btnCreateTask2').disabled=false
 }
@@ -1579,12 +1849,12 @@ function updateClassificationBoxes() {
     }
 }
 
-modalAddTask3.on('shown.bs.modal', function(){
-    /** Updates the auto-classification form when the modal is opened. */
-    document.getElementById('btnCreateTask2').disabled = true
-    updateClassificationBoxes()
-    document.getElementById('btnCreateTask2').disabled = false
-});
+// modalAddTask3.on('shown.bs.modal', function(){
+//     /** Updates the auto-classification form when the modal is opened. */
+//     document.getElementById('btnCreateTask2').disabled = true
+//     updateClassificationBoxes()
+//     document.getElementById('btnCreateTask2').disabled = false
+// });
 
 function buildClassificationCheckBoxes() {
     /** Build the auto-classification checkboxes in the add task form. */
@@ -1618,24 +1888,35 @@ function buildClassificationCheckBoxes() {
 
 modalAddTask2.on('shown.bs.modal', function(){
     /** Updates the label translation form in the add-task modal when opened. */
-
-    if (surveyClassifications!=null) {
-        buildClassificationCheckBoxes()
-        updateTranslationMatrix()
+    var surveyElement = document.getElementById('prevLabelsSurvey')
+    if (surveyElement.value != '-99999') {
+        var taskElement = document.getElementById('prevLabelsTask')
+        var task = taskElement.options[taskElement.selectedIndex].value;
     } else {
-        document.getElementById('btnCreateTask2').disabled = true
-        var xhttp = new XMLHttpRequest();
-        xhttp.open("GET", '/getSurveyClassifications/'+selectedSurvey);
-        xhttp.onreadystatechange =
-        function(){
-            if (this.readyState == 4 && this.status == 200) {
-                surveyClassifications = JSON.parse(this.responseText);
-                buildClassificationCheckBoxes()
-                updateTranslationMatrix()
-                document.getElementById('btnCreateTask2').disabled = false
+        task = null 
+    }
+    if (prevTaskTranslations == null || Object.keys(prevTaskTranslations).length == 0) {
+        if (task != '-1' && task != null) {
+            var xhttp = new XMLHttpRequest();
+            xhttp.open("GET", '/getTaskTranslations/'+task);
+            xhttp.onreadystatechange =
+            function(){
+                if (this.readyState == 4 && this.status == 200) {
+                    reply = JSON.parse(this.responseText);
+                    prevTaskTranslations = reply.translations;
+                    updateTranslationMatrix()
+                }
             }
+            xhttp.send();
         }
-        xhttp.send();
+        else{
+            prevTaskTranslations = {}
+            updateTranslationMatrix()
+        }
+    }
+    else{
+        prevTaskTranslations = {}
+        updateTranslationMatrix()
     }
 });
 
@@ -1643,6 +1924,34 @@ $("#selectAllClassifications").change( function() {
     /** Listener on the select all species-classification selector on the add-task modal that checks all the boxes if selected, and clears otherwise. */
     allCheckBoxes = document.querySelectorAll('[id^=classificationSelection-]');
     if (document.getElementById('selectAllClassifications').checked) {
+        for (let i=0;i<allCheckBoxes.length;i++) {
+            allCheckBoxes[i].checked = true
+        }
+    } else {
+        for (let i=0;i<allCheckBoxes.length;i++) {
+            allCheckBoxes[i].checked = false
+        }
+    }
+})
+
+$("#selectAllClassificationsL").change( function() {
+    /** Listener on the select all species-classification selector on the add-task modal that checks all the boxes if selected, and clears otherwise. */
+    allCheckBoxes = document.querySelectorAll('[id^=classificationSelection-]');
+    if (document.getElementById('selectAllClassificationsL').checked) {
+        for (let i=0;i<allCheckBoxes.length;i++) {
+            allCheckBoxes[i].checked = true
+        }
+    } else {
+        for (let i=0;i<allCheckBoxes.length;i++) {
+            allCheckBoxes[i].checked = false
+        }
+    }
+})
+
+$("#selectAllClassificationsEdit").change( function() {
+    /** Listener on the select all species-classification selector on the add-task modal that checks all the boxes if selected, and clears otherwise. */
+    allCheckBoxes = document.querySelectorAll('[id^=classificationSelectionEdit-]');
+    if (document.getElementById('selectAllClassificationsEdit').checked) {
         for (let i=0;i<allCheckBoxes.length;i++) {
             allCheckBoxes[i].checked = true
         }
@@ -1749,10 +2058,31 @@ modalEditTask.on('shown.bs.modal', function(){
         helpReturn = false
         confirmCancelled = false
     } else {
+        globalTags = {}
+        taskEditDict = {}
+        tagEditDict = {}
+        translationEditDict = {}
+        removedTags = []
+        sessionDeletes = []
+        sessionIDs = []
+        globalTranslations = {}
+        translationLabels = {}
+        document.getElementById('openLabelsTab').click()
+    }
+});
+
+function openLabelTab(){
+    /** Opens the label-editing tab in the edit-task modal. */
+    if (Object.keys(taskEditDict).length==0) {
         taskEditDict = {}
         sessionDeletes = []
         sessionIDs = []
-    
+        translationLabels = {}
+
+        document.getElementById('openLabelsTab').disabled = true
+        document.getElementById('openTranslationsTab').disabled = true
+        document.getElementById('openTagsTab').disabled = true
+
         var xhttp = new XMLHttpRequest();
         xhttp.onreadystatechange =
         function(){
@@ -1764,16 +2094,17 @@ modalEditTask.on('shown.bs.modal', function(){
                 for (let i=0;i<globalLabels.length;i++) {
                     optionTexts.push(globalLabels[i][0])
                     optionValues.push(globalLabels[i][3])
+                    translationLabels[globalLabels[i][3]] = globalLabels[i][0]
                 }
-    
+        
                 LabelLevelSelector = document.getElementById('LabelLevelSelector')
                 clearSelect(LabelLevelSelector)
                 fillSelect(LabelLevelSelector, optionTexts, optionValues)
-    
+
                 $('#LabelLevelSelector').change( function() {
                     updateEditLabelDisplay()
                 });
-    
+
                 for (let i=0;i<optionValues.length;i++) {
                     taskEditDict[optionValues[i]] = {}
                     taskEditDict[optionValues[i]]['edits'] = {}
@@ -1781,16 +2112,23 @@ modalEditTask.on('shown.bs.modal', function(){
                     taskEditDict[optionValues[i]]['edits']['modify'] = {}
                     taskEditDict[optionValues[i]]['additional'] = {}
                 }
-    
+
                 updateEditLabelDisplay()
 
                 getSpeciesAndTasks()
+
+                openTranslationTab()
+                openTagsTab()
+
+                document.getElementById('openLabelsTab').disabled = false
+                document.getElementById('openTranslationsTab').disabled = false
+                document.getElementById('openTagsTab').disabled = false
             }
         }
         xhttp.open("GET", '/getLabels/'+selectedTask);
         xhttp.send();
     }
-});
+}
 
 modalEditTask.on('hidden.bs.modal', function(){
     /** Clears the label-editing modal when closed. */
@@ -1810,7 +2148,49 @@ modalEditTask.on('hidden.bs.modal', function(){
             labelErrors.removeChild(labelErrors.firstChild);
         }
 
+        var editTranslationsDiv = document.getElementById('editTranslationsDiv')
+        while(editTranslationsDiv.firstChild){
+            editTranslationsDiv.removeChild(editTranslationsDiv.firstChild);
+        }
+
+        var editTagsDiv = document.getElementById('editTagsDiv')
+        while(editTagsDiv.firstChild){
+            editTagsDiv.removeChild(editTagsDiv.firstChild);
+        }
+
+        var addTagsDiv = document.getElementById('addTagsDiv')
+        while(addTagsDiv.firstChild){
+            addTagsDiv.removeChild(addTagsDiv.firstChild);
+        }
+
+        var tagEditErrors = document.getElementById('tagEditErrors')
+        while(tagEditErrors.firstChild){
+            tagEditErrors.removeChild(tagEditErrors.firstChild);
+        }
+
+        var mainModal = document.getElementById('modalEditTask')
+        var tabcontent = mainModal.getElementsByClassName("tabcontent");
+        for (let i = 0; i < tabcontent.length; i++) {
+            tabcontent[i].style.display = "none";
+        }
+    
+        var tablinks = mainModal.getElementsByClassName("tablinks");
+        for (let i = 0; i < tablinks.length; i++) {
+            tablinks[i].className = tablinks[i].className.replace(" active", "");
+        }
+
         document.getElementById('btnEditTaskSubmit').disabled = false
+
+        globalTags = {}
+        taskEditDict = {}
+        tagEditDict = {}
+        translationEditDict = {}
+        removedTags = []
+        sessionDeletes = []
+        sessionIDs = []
+        globalTranslations = {}
+        translationLabels = {}
+
     } else {
         discardOpened = false
         confirmOpened = false
@@ -1859,9 +2239,21 @@ function checkSpeciesChange(){
 document.getElementById('btnConfirmEditSpecies').addEventListener('click', ()=>{
     /** Submits the edited task labels to the server when the user confirms the changes (if species labels have been changed). */
     document.getElementById('btnConfirmEditSpecies').disabled = true
+
+    if (Object.keys(tagEditDict).length==0) {
+        tagEditDict['delete'] = []
+        tagEditDict['modify'] = {}
+        tagEditDict['additional'] = {}
+    }
+
+    var delete_label = document.getElementById('deleteClusterLabel').checked ? 'true' : 'false'
+
     var formData = new FormData()
     formData.append("editDict", JSON.stringify(taskEditDict))
     formData.append("speciesEditDict", JSON.stringify(speciesEditDict))
+    formData.append("tagsDict", JSON.stringify(tagEditDict))
+    formData.append("translationsDict", JSON.stringify(translationEditDict))
+    formData.append("deleteAutoLabels", JSON.stringify(delete_label))
     
     var xhttp = new XMLHttpRequest();
     xhttp.open("POST", '/editTask/'+selectedTask);
@@ -1930,4 +2322,273 @@ function getSpeciesAndTasks() {
     }
     xhttp.open("GET", '/getIndividualSpeciesAndTasksForEdit/'+selectedTask);
     xhttp.send();
+}
+
+function getClassificationLabels(){
+    /** Gets the classification labels for the current survey. */
+    var xhttp = new XMLHttpRequest();
+    xhttp.onreadystatechange =
+    function(){
+        if (this.readyState == 4 && this.status == 200) {
+            reply = JSON.parse(this.responseText);
+            classificationLabels = reply.classifications
+            if (tabActiveEditTask == 'baseTranslationsTab' || modalEditTask.is(':visible')) {
+                updateEditTranslationDisplay()
+                document.getElementById('openTranslationsTab').disabled = false
+                document.getElementById('openLabelsTab').disabled = false
+                document.getElementById('openTagsTab').disabled = false
+            }
+        }
+    }
+    xhttp.open("GET", '/getClassificationLabels/'+selectedSurvey);
+    xhttp.send();
+}
+
+function openTaskEditTab(evt, tabName){       
+    /** Opens the specified tab in the edit task modal. */
+    var mainModal = document.getElementById('modalEditTask')
+    var tabcontent = mainModal.getElementsByClassName("tabcontent");
+    for (let i = 0; i < tabcontent.length; i++) {
+        tabcontent[i].style.display = "none";
+    }
+
+    var tablinks = mainModal.getElementsByClassName("tablinks");
+    for (let i = 0; i < tablinks.length; i++) {
+        tablinks[i].className = tablinks[i].className.replace(" active", "");
+    }
+
+    document.getElementById(tabName).style.display = "block";
+    evt.currentTarget.className += " active";
+    tabActiveEditTask = tabName
+
+    if (tabName == 'baseLabelsTab') {
+        openLabelTab()
+    }
+    else if (tabName == 'baseTranslationsTab') {
+        openTranslationTab()
+    }
+    else if (tabName == 'baseTagsTab') {
+        openTagsTab()
+    }
+
+}
+
+function openTranslationTab(){
+    /** Opens the translations tab in the edit task modal. */
+    
+    if (Object.keys(translationEditDict).length==0 && Object.keys(globalTranslations).length==0) {
+        document.getElementById('openLabelsTab').disabled = true
+        document.getElementById('openTranslationsTab').disabled = true
+        document.getElementById('openTagsTab').disabled = true
+
+        var xhttp = new XMLHttpRequest();
+        xhttp.onreadystatechange =
+        function(){
+            if (this.readyState == 4 && this.status == 200) {
+                reply = JSON.parse(this.responseText);
+                globalTranslations = reply.translations
+                getClassificationLabels()
+            }
+        }
+        xhttp.open("GET", '/getTaskTranslations/'+selectedTask);
+        xhttp.send();
+    }
+}
+
+function openTagsTab(){
+    /** Opens the tags tab in the edit task modal. */
+
+    if (Object.keys(globalTags).length==0 && Object.keys(tagEditDict).length==0) {
+        document.getElementById('openLabelsTab').disabled = true
+        document.getElementById('openTranslationsTab').disabled = true
+        document.getElementById('openTagsTab').disabled = true
+
+        var xhttp = new XMLHttpRequest();
+        xhttp.onreadystatechange =
+        function(){
+            if (this.readyState == 4 && this.status == 200) {
+                reply = JSON.parse(this.responseText);
+                taskTags = reply.tags
+                var editTagsDiv = document.getElementById('editTagsDiv')
+                while(editTagsDiv.firstChild){
+                    editTagsDiv.removeChild(editTagsDiv.firstChild);
+                }
+
+                for (let i=0;i<taskTags.length;i++) {
+                    globalTags[taskTags[i].id] = taskTags[i]
+                }
+
+                tagEditDict = {}
+                tagEditDict['delete'] = []
+                tagEditDict['modify'] = {}
+                tagEditDict['additional'] = {}
+
+                updateEditTagDisplay()
+
+                document.getElementById('openLabelsTab').disabled = false
+                document.getElementById('openTranslationsTab').disabled = false
+                document.getElementById('openTagsTab').disabled = false
+            }
+        }
+        xhttp.open("GET", '/getTaskTags/'+selectedTask);
+        xhttp.send();
+    }
+}
+
+$('#btnNewTag').on('click', ()=>{
+    /** Adds a new tag row to the edit task modal. */
+    IDNum = getIdNumforNext('tag-n');
+    IDNum = 'n'+IDNum
+    buildTag(IDNum)
+});
+
+function buildTag(IDNum,tag=null) {
+    /** Builds tag row in Edit Task (Tags) */
+
+    if (tag == null) {
+        var tagDiv = document.getElementById('addTagsDiv')
+    }
+    else{
+        var tagDiv = document.getElementById('editTagsDiv')
+    }
+
+    var row = document.createElement('div');
+    row.classList.add('row');
+    tagDiv.appendChild(row);
+
+    var col1 = document.createElement('div');
+    col1.classList.add('col-lg-4');
+    row.appendChild(col1);
+
+    var col2 = document.createElement('div');
+    col2.classList.add('col-lg-1');
+    row.appendChild(col2);
+
+    var col3 = document.createElement('div');
+    col3.classList.add('col-lg-4');
+    row.appendChild(col3);
+
+    var col4 = document.createElement('div');
+    col4.classList.add('col-lg-3');
+    row.appendChild(col4);
+
+    var input = document.createElement('input');
+    input.classList.add('form-control');
+    input.setAttribute('type','text');
+    input.setAttribute('id','tag-'+IDNum);
+    input.setAttribute('name','tag-'+IDNum);
+    if (tag != null) {
+        input.value = tag.description
+    }
+    col1.appendChild(input);
+
+    var input = document.createElement('input');
+    input.classList.add('form-control');
+    input.setAttribute('type','text');
+    input.setAttribute('id','tagHotkey-'+IDNum);
+    input.setAttribute('name','tagHotkey-'+IDNum);
+    if (tag != null) {
+        input.value = tag.hotkey
+    }
+    col2.appendChild(input);
+
+    var btnRemove = document.createElement('button');
+    btnRemove.classList.add('btn');
+    btnRemove.classList.add('btn-default');
+    btnRemove.id = 'btnRemoveTag-'+IDNum;
+    btnRemove.innerHTML = '&times;';
+    col4.appendChild(btnRemove);
+
+    btnRemove.addEventListener('click', function(){
+        id = this.id.split('-')[1]
+        removedTags.push(id)
+        this.parentNode.parentNode.remove();
+    });
+}
+
+function updateEditTagDisplay() {
+    /** Updates the tag display in the edit task modal. */
+    var editTagsDiv = document.getElementById('editTagsDiv')
+    while(editTagsDiv.firstChild){
+        editTagsDiv.removeChild(editTagsDiv.firstChild);
+    }
+
+    var addTagsDiv = document.getElementById('addTagsDiv')
+    while(addTagsDiv.firstChild){
+        addTagsDiv.removeChild(addTagsDiv.firstChild);
+    }
+
+    for (tagID in globalTags) {
+        if (!tagEditDict['delete'].includes(tagID)) {
+            if (Object.keys(tagEditDict['modify']).includes(tagID)) {
+                buildTag(tagID,tagEditDict['modify'][tagID])
+            }
+            else{
+                buildTag(tagID,globalTags[tagID])
+            }
+        }
+    }
+
+    for (tagID in tagEditDict['additional']) {
+        buildTag(tagID,tagEditDict['additional'][tagID])
+    }
+
+    IDNum = getIdNumforNext('tag-n');
+    IDNum = 'n'+IDNum
+    buildTag(IDNum)
+}
+
+function updateEditTranslationDisplay(){
+    /** Updates the translation display in the edit task modal. */
+    var editTranslationsDiv = document.getElementById('editTranslationsDiv')
+    while(editTranslationsDiv.firstChild){
+        editTranslationsDiv.removeChild(editTranslationsDiv.firstChild);
+    }
+
+    var label_dict = {}
+    for (key in translationLabels) {
+        label_dict[translationLabels[key]] = key
+    }
+    var labels_list = Object.keys(label_dict).sort()
+    var labels = []
+    for (let i=0;i<labels_list.length;i++) {
+        labels.push([labels_list[i],label_dict[labels_list[i]]])
+    }
+
+    for (let i=0;i<classificationLabels.length;i++) {
+        classification = classificationLabels[i]
+        if (!['unknown', 'nothing', 'knocked down'].includes(classification)) {
+            IDNum = classification
+            buildTranslationRow(IDNum,classification,'editTranslationsDiv',labels,true)
+
+            if (classification in translationEditDict) {
+                if (translationEditDict[classification].label.toLowerCase() == 'vehicles/humans/livestock') {
+                    document.getElementById('classTranslationSelectEdit-'+IDNum).value = -1
+                }
+                else if (translationEditDict[classification].label_id in translationLabels) {
+                    document.getElementById('classTranslationSelectEdit-'+IDNum).value = translationEditDict[classification].label_id
+                }
+                else{
+                    document.getElementById('classTranslationSelectEdit-'+IDNum).value = 0
+                }
+                document.getElementById('classificationSelectionEdit-'+IDNum).checked = translationEditDict[classification].classify == 'True' ? true : false
+            }
+            else if (classification in globalTranslations) {
+                if (globalTranslations[classification].label.toLowerCase() == 'vehicles/humans/livestock') {
+                    document.getElementById('classTranslationSelectEdit-'+IDNum).value = -1
+                }
+                else if (globalTranslations[classification].label_id in translationLabels) {
+                    document.getElementById('classTranslationSelectEdit-'+IDNum).value = globalTranslations[classification].label_id
+                }
+                else{
+                    document.getElementById('classTranslationSelectEdit-'+IDNum).value = 0
+                }
+                document.getElementById('classificationSelectionEdit-'+IDNum).checked = globalTranslations[classification].classify 
+            }
+            else{
+                document.getElementById('classTranslationSelectEdit-'+IDNum).value = 0
+                document.getElementById('classificationSelectionEdit-'+IDNum).checked = false
+            }
+        }
+    }
 }

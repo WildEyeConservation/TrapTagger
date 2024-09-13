@@ -18,7 +18,7 @@ from app import app, db, celery
 from app.models import *
 from app.functions.globals import taggingLevelSQ, addChildLabels, resolve_abandoned_jobs, createTurkcodes, deleteTurkcodes, \
                                     updateTaskCompletionStatus, updateLabelCompletionStatus, updateIndividualIdStatus, retryTime, chunker, \
-                                    getClusterClassifications, checkForIdWork, numify_timestamp, rDets, prep_required_images, updateAllStatuses
+                                    getClusterClassifications, checkForIdWork, numify_timestamp, rDets, prep_required_images, updateAllStatuses, classifyTask
 from app.functions.individualID import calculate_detection_similarities, generateUniqueName, cleanUpIndividuals, calculate_individual_similarities, check_individual_detection_mismatch, process_detections_for_individual_id
 # from app.functions.results import resetImageDownloadStatus, resetVideoDownloadStatus
 import GLOBALS
@@ -35,11 +35,14 @@ import ast
 import numpy
 
 @celery.task(bind=True,max_retries=5,ignore_result=True)
-def launch_task(self,task_id):
+def launch_task(self,task_id,classify=False):
     '''Celery task for launching the specified task for annotation.'''
 
     try:
         app.logger.info('Started LaunchTask for task {}'.format(task_id))
+
+        if classify:
+            classifyTask(int(task_id))
 
         task = db.session.query(Task).get(task_id)
         taggingLevel = task.tagging_level

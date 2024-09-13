@@ -714,6 +714,9 @@ def deleteChildLabels(parent):
         if not has_individuals:
             deleteChildLabels(label)
             db.session.delete(label)
+            labelTranslations = db.session.query(Translation).filter(Translation.label_id==label.id).filter(Translation.task==label.task).all()
+            for translation in labelTranslations:
+                db.session.delete(translation)
     return True
 
 def checkForIndividuals(label,has_individuals=False):
@@ -774,10 +777,13 @@ def processChanges(changes, keys, sessionLabels, task_id, speciesChanges=None):
             for delete_id in changes[parent]['edits']['delete']:
                 if 's' not in delete_id:
                     deleteLabel = db.session.query(Label).get(int(delete_id))
+                    deleteTranslations = db.session.query(Translation).filter(Translation.label_id==deleteLabel.id).filter(Translation.task_id==task_id).all()
                     has_individuals = checkForIndividuals(deleteLabel)
                     if deleteLabel and not has_individuals:
                         deleteChildLabels(deleteLabel)
                         db.session.delete(deleteLabel)
+                        for translation in deleteTranslations:
+                            db.session.delete(translation)
 
             for edit_id in changes[parent]['edits']['modify']:
                 if 's' not in edit_id:
@@ -829,30 +835,109 @@ def processChanges(changes, keys, sessionLabels, task_id, speciesChanges=None):
     return skipped, sessionLabels
 
 @celery.task(bind=True,max_retries=5,ignore_result=True)
-def handleTaskEdit(self,task_id,changes,speciesChanges=None):
+def handleTaskEdit(self,task_id,labelChanges,tagChanges,translationChanges,deleteAutoLabels,speciesChanges=None):
     '''
     Celery task that handles task edits, specifically relating to the editing of labels.
 
         Parameters:
             task_id (int): The task being edited
-            changes (dict): The changes being implemented to a parent label - modifed, deleted, or added
+            labelChanges (dict): The changes being implemented to a parent label - modifed, deleted, or added
+            tagChanges (dict): The changes being implemented to tags - modifed, deleted, or added
+            translationChanges (dict): The changes being implemented to translations
+            deleteAutoLabels (bool): Flag to indicate if auto classified labels should be deleted for edited translations
             speciesChanges (dict): The species that are being changed as well as the associated task IDs
     '''
     
     try:
-        if db.session.query(Task).get(task_id):
-            changes = ast.literal_eval(changes)
+        if Config.DEBUGGING: app.logger.info('Task Edit: {}'.format(task_id))
+        task = db.session.query(Task).get(task_id)
+        if task:
+            # Labels
+            labelChanges = ast.literal_eval(labelChanges)
             if speciesChanges:
                 speciesChanges = ast.literal_eval(speciesChanges)
             sessionLabels = {}
-            skipped, sessionLabels = processChanges(changes, changes.keys(), sessionLabels, task_id, speciesChanges)
+            skipped, sessionLabels = processChanges(labelChanges, labelChanges.keys(), sessionLabels, task_id, speciesChanges)
 
             while skipped != []:
-                skipped, sessionLabels = processChanges(changes, skipped, sessionLabels, task_id, speciesChanges)
+                skipped, sessionLabels = processChanges(labelChanges, skipped, sessionLabels, task_id, speciesChanges)
 
-            translations = db.session.query(Translation).filter(Translation.task_id==task_id).all()
-            for translation in translations:
-                db.session.delete(translation)
+
+            # Tags 
+            for tag_id in tagChanges['delete']:
+                tag = db.session.query(Tag).get(tag_id)
+                tag.individuals = []
+                tag.clusters = []
+                db.session.delete(tag)
+
+            for tag_id in tagChanges['modify']:
+                tag = db.session.query(Tag).get(tag_id)
+                tag.description = tagChanges['modify'][tag_id]['description']
+                tag.hotkey = tagChanges['modify'][tag_id]['hotkey']
+
+            for tag_id in tagChanges['additional']:
+                check = db.session.query(Tag).filter(Tag.task_id==task_id).filter(Tag.description==tagChanges['additional'][tag_id]['description']).first()
+                if not check:
+                    tag = Tag(description=tagChanges['additional'][tag_id]['description'],hotkey=tagChanges['additional'][tag_id]['hotkey'],task_id=task_id)
+                    db.session.add(tag)
+
+            # Translations
+            if len(translationChanges.keys()) > 0:
+                classifications = list(translationChanges.keys())
+
+                prev_labels = []
+                prev_labels_description = []
+                translations = db.session.query(Translation).filter(Translation.task_id==task_id).filter(Translation.classification.in_(classifications)).all()
+                for translation in translations:
+                    if translation.auto_classify: 
+                        prev_labels.append(translation.label_id) 
+                        prev_labels_description.append(translation.label.description)
+                    db.session.delete(translation)
+
+                includes = []
+                translations_dict = {}
+                for classification in translationChanges:
+                    label = translationChanges[classification]['label'].lower()
+                    classify = True if translationChanges[classification]['classify'].lower() == 'true' else False
+                    translations_dict[classification] = label
+                    if classify and label not in ['nothing', 'unknown']:
+                        includes.append(classification)
+
+
+                edit_translations(task_id, translations_dict, includes)
+
+                if deleteAutoLabels:
+                    # Delete auto classified labels from clusters (for edited translations) - only clusters with no individuals
+                    admin = db.session.query(User).filter(User.username=='Admin').first()
+
+                    indiv_sq = db.session.query(Individual)\
+                            .filter(Individual.species.in_(prev_labels_description))\
+                            .filter(Individual.tasks.contains(task))\
+                            .subquery()
+                    
+                    clusters = rDets(db.session.query(Cluster)\
+                                            .join(Label,Cluster.labels)\
+                                            .join(Image,Cluster.images)\
+                                            .join(Detection)\
+                                            .outerjoin(indiv_sq,Detection.individuals)\
+                                            .filter(Cluster.task_id==task_id)\
+                                            .filter(Cluster.user==admin)\
+                                            .filter(Label.id.in_(prev_labels))\
+                                            .filter(Detection.classification.in_(classifications)))\
+                                            .filter(indiv_sq.c.id==None)\
+                                            .distinct().all()
+
+                    for cluster in clusters:
+                        cluster.labels = []
+                        cluster.user = None
+                        labelgroups = db.session.query(Labelgroup).join(Detection).join(Image).filter(Image.clusters.contains(cluster)).filter(Labelgroup.task_id==task_id).all()
+                        for labelgroup in labelgroups:
+                            labelgroup.labels = []
+
+                db.session.commit()
+
+                classifyTask(task.id)
+                updateAllStatuses(task.id)
 
             task = db.session.query(Task).get(task_id)
             task.status = 'Ready'
@@ -1678,6 +1763,8 @@ def setupTranslations(task_id, survey_id, translations, includes):
     '''
     classifications = db.session.query(Detection.classification).join(Image).join(Camera).join(Trapgroup).filter(Trapgroup.survey_id==survey_id).distinct().all()
     classifications = [r[0] for r in classifications if r[0]!=None]
+    classifications.extend(translations.keys())
+    classifications = list(set(classifications))    
 
     for classification in classifications:
         
@@ -1728,7 +1815,7 @@ def setupTranslations(task_id, survey_id, translations, includes):
 
     return True
 
-def edit_translations(task_id, translations):
+def edit_translations(task_id, translations, includes):
     '''Handles the editing of translations for the given set of translations and specified task.'''
 
     for classification in translations:
@@ -1740,6 +1827,26 @@ def edit_translations(task_id, translations):
         if species:
             translation = Translation(classification=classification, label_id=species.id, task_id=task_id)
             db.session.add(translation)
+
+            if classification.lower() in includes:
+                translation.auto_classify = True
+
+    # prepare lower level translations
+    translations = db.session.query(Translation)\
+                            .join(Label)\
+                            .filter(Label.children.any())\
+                            .filter(Label.description != 'Vehicles/Humans/Livestock')\
+                            .filter(Label.description != 'Nothing')\
+                            .filter(Label.description != 'Unknown')\
+                            .filter(Translation.task_id==int(task_id)).all()
+    for translation in translations:
+        check = db.session.query(Translation)\
+                        .filter(Translation.label_id==translation.label_id)\
+                        .filter(Translation.classification!=translation.classification)\
+                        .first()
+        if (check==None) and (not checkChildTranslations(translation.label)):
+            for child in translation.label.children:
+                createChildTranslations(translation.classification,int(task_id),child)    
 
     db.session.commit()
     return True

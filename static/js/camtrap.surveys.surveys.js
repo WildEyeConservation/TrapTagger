@@ -149,14 +149,14 @@ const submitTagsBtn = document.querySelector('#submitTagsBtn');
 const btnAddTag = document.querySelector('#btnAddTag');
 const modalTags = $('#modalTags');
 const modalEditTranslations = $('#modalEditTranslations');
-const btnSubmitTranslaions = document.querySelector('#btnSubmitTranslaions');
+const btnSubmitTranslations = document.querySelector('#btnSubmitTranslations');
 // const btnReClassify = document.querySelector('#btnReClassify');
 const btnModalAddTaskBack = document.querySelector('#btnModalAddTaskBack');
 const btnModalAddTaskBack2 = document.querySelector('#btnModalAddTaskBack2');
 const btnCreateTask2 = document.querySelector('#btnCreateTask2');
 const btnCreateTask3 = document.querySelector('#btnCreateTask3');
 const modalAddTask2 = $('#modalAddTask2');
-const modalAddTask3 = $('#modalAddTask3');
+// const modalAddTask3 = $('#modalAddTask3');
 const modalStatus = $('#modalStatus');
 const analysisSelector = document.getElementById('analysisSelector')
 const modalStatistics = $('#modalStatistics');
@@ -317,6 +317,15 @@ var timestampSpecies = []
 var confirmEmptyReturn = false
 var confirmedEmpty = false
 var surveyFormData = null
+var classificationLabels = []
+var tabActiveEditTask = 'baseLabelsTab'
+var prevTaskTranslations = {}
+var removedTags = []
+var tagEditDict = {}
+var translationEditDict = {}
+var globalTags = {}
+var translationLabels = {}
+var globalTranslations = {}
 
 function buildSurveys(survey,disableSurvey) {
     /**
@@ -746,7 +755,8 @@ function buildSurveys(survey,disableSurvey) {
                 selectedSurvey = wrapSurveyId
                 resetModalAddTask1()
                 resetModalAddTask2()
-                resetModalAddTask3()
+                // resetModalAddTask3()
+                getClassificationLabels()
                 modalAddTask.modal({keyboard: true});
             }
         }(survey.id));

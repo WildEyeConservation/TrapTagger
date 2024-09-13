@@ -1376,7 +1376,7 @@ def classifyTask(self,task,reClusters=None,trapgroup_ids=None):
                 for label in labels:
                     if label not in cluster.labels: 
                         cluster.labels.append(label)
-                        cluster.user_id = admin.id
+                        cluster.user_id = None
                         cluster.timestamp = datetime.utcnow()
 
 
@@ -1434,7 +1434,8 @@ def classifyTask(self,task,reClusters=None,trapgroup_ids=None):
                                 .filter(detCountSQ.c.detCount >= Config.CLUSTER_DET_COUNT) \
                                 .filter(detRatioSQ.c.detRatio > Config.DET_RATIO) \
                                 .filter(Cluster.task==task)\
-                                .filter(or_(Cluster.user_id==None,Cluster.user_id==admin.id))
+                                .filter(Cluster.user_id==None)\
+                                .filter(~Cluster.labels.any())\
 
             if trapgroup_ids: clusters = clusters.join(Image,Cluster.images).join(Camera).filter(Camera.trapgroup_id.in_(trapgroup_ids))
             if reClusters: clusters = clusters.filter(Cluster.id.in_(reClusters))

@@ -289,46 +289,50 @@ def launchTask():
             taskSize = 10000
 
         #Check if all classifications are translated, if not, prompt
-        untranslated = []
         translations = [r[0] for r in db.session.query(Translation.classification).filter(Translation.task==task).all()]
+        translations.extend(['nothing','unknown'])
+        untranslated = [r[0] for r in db.session.query(ClassificationLabel.classification)\
+                                            .filter(ClassificationLabel.classifier_id==task.survey.classifier_id)\
+                                            .filter(~ClassificationLabel.classification.in_(translations))\
+                                            .order_by(ClassificationLabel.classification).distinct().all()]
 
-        untranslated_prior = db.session.query(Detection.classification)\
-                                .join(Image)\
-                                .join(Camera)\
-                                .join(Trapgroup)\
-                                .filter(Trapgroup.survey_id==task.survey_id)\
-                                .filter(~Detection.classification.in_(translations))\
-                                .distinct().all()
+        # untranslated_prior = db.session.query(Detection.classification)\
+        #                         .join(Image)\
+        #                         .join(Camera)\
+        #                         .join(Trapgroup)\
+        #                         .filter(Trapgroup.survey_id==task.survey_id)\
+        #                         .filter(~Detection.classification.in_(translations))\
+        #                         .distinct().all()
 
-        untranslated_prior = [r[0] for r in untranslated_prior if r[0] != None]
+        # untranslated_prior = [r[0] for r in untranslated_prior if r[0] != None]
 
-        if len(untranslated_prior) != 0:
-            #Attempt to auto-translate
-            for classification in untranslated_prior:
-                if classification.lower() not in ['knocked down','nothing','vehicles/humans/livestock','unknown']:
-                    species = db.session.query(Label).filter(Label.task==task).filter(func.lower(Label.description)==func.lower(classification)).first()
-                else:
-                    species = db.session.query(Label).filter(func.lower(Label.description)==func.lower(classification)).first()
+        # if len(untranslated_prior) != 0:
+        #     #Attempt to auto-translate
+        #     for classification in untranslated_prior:
+        #         if classification.lower() not in ['knocked down','nothing','vehicles/humans/livestock','unknown']:
+        #             species = db.session.query(Label).filter(Label.task==task).filter(func.lower(Label.description)==func.lower(classification)).first()
+        #         else:
+        #             species = db.session.query(Label).filter(func.lower(Label.description)==func.lower(classification)).first()
 
-                if species:
-                    translation = Translation(classification=classification, label_id=species.id, task=task)
-                    db.session.add(translation)
-                else:
-                    untranslated.append(classification)
-            # db.session.commit()
+        #         if species:
+        #             translation = Translation(classification=classification, label_id=species.id, task=task)
+        #             db.session.add(translation)
+        #         else:
+        #             untranslated.append(classification)
+        #     # db.session.commit()
 
-            if len(untranslated) != 0:
-                translations = db.session.query(Translation)\
-                                        .join(Label)\
-                                        .filter(Label.children.any())\
-                                        .filter(Label.description != 'Vehicles/Humans/Livestock')\
-                                        .filter(Label.description != 'Nothing')\
-                                        .filter(Label.description != 'Unknown')\
-                                        .filter(Translation.task==task).all()
-                for translation in translations:
-                    if not checkChildTranslations(translation.label):
-                        for child in translation.label.children:
-                            createChildTranslations(translation.classification,task.id,child)    
+        #     if len(untranslated) != 0:
+        #         translations = db.session.query(Translation)\
+        #                                 .join(Label)\
+        #                                 .filter(Label.children.any())\
+        #                                 .filter(Label.description != 'Vehicles/Humans/Livestock')\
+        #                                 .filter(Label.description != 'Nothing')\
+        #                                 .filter(Label.description != 'Unknown')\
+        #                                 .filter(Translation.task==task).all()
+        #         for translation in translations:
+        #             if not checkChildTranslations(translation.label):
+        #                 for child in translation.label.children:
+        #                     createChildTranslations(translation.classification,task.id,child)    
                 # db.session.commit()
 
         # Handle multi-task launch
@@ -4518,21 +4522,22 @@ def editTranslations(task_id):
     if task and checkSurveyPermission(current_user.id,task.survey_id,'write'):
         translation = request.form['translation']
         translation = ast.literal_eval(translation)
-        edit_translations(int(task_id), translation)
+        includes = ast.literal_eval(request.form['includes'])
+        edit_translations(int(task_id), translation, includes)
 
-        # prepare lower level translations
-        translations = db.session.query(Translation)\
-                                .join(Label)\
-                                .filter(Label.children.any())\
-                                .filter(Label.description != 'Vehicles/Humans/Livestock')\
-                                .filter(Label.description != 'Nothing')\
-                                .filter(Label.description != 'Unknown')\
-                                .filter(Translation.task_id==int(task_id)).all()
-        for translation in translations:
-            if not checkChildTranslations(translation.label):
-                for child in translation.label.children:
-                    createChildTranslations(translation.classification,int(task_id),child)    
-        db.session.commit()
+        # # prepare lower level translations
+        # translations = db.session.query(Translation)\
+        #                         .join(Label)\
+        #                         .filter(Label.children.any())\
+        #                         .filter(Label.description != 'Vehicles/Humans/Livestock')\
+        #                         .filter(Label.description != 'Nothing')\
+        #                         .filter(Label.description != 'Unknown')\
+        #                         .filter(Translation.task_id==int(task_id)).all()
+        # for translation in translations:
+        #     if not checkChildTranslations(translation.label):
+        #         for child in translation.label.children:
+        #             createChildTranslations(translation.classification,int(task_id),child)    
+        # db.session.commit()
 
         task.status = 'PENDING'
         task.is_bounding = False
@@ -4548,7 +4553,10 @@ def editTranslations(task_id):
             elif tL[4]=='n':
                 calculate_detection_similarities.delay(task_ids=[task_ids],species=tL[1],algorithm='none')
         else:
-            launch_task.apply_async(kwargs={'task_id':task.id})
+            if len(includes) > 0:
+                launch_task.apply_async(kwargs={'task_id':task.id, 'classify':True})
+            else:
+                launch_task.apply_async(kwargs={'task_id':task.id})
 
     return json.dumps('success')
 
@@ -7629,8 +7637,18 @@ def editTask(task_id):
     '''Edits the labels of a specified task. Returns a success/error state.'''
     try:
         task = db.session.query(Task).get(task_id)
+        app.logger.info('Edit Task: {}'.format(task_id))
         if task and checkSurveyPermission(current_user.id,task.survey_id,'write') and (task.status.lower() in Config.TASK_READY_STATUSES):
             editDict = request.form['editDict']
+            tagsDict = ast.literal_eval(request.form['tagsDict'])
+            translationsDict = ast.literal_eval(request.form['translationsDict'])
+            deleteAutoLabels = ast.literal_eval(request.form['deleteAutoLabels'])
+
+            if deleteAutoLabels=='true': 
+                deleteAutoLabels = True 
+            else: 
+                deleteAutoLabels = False
+
             if 'speciesEditDict' in request.form:
                 speciesEditDict = request.form['speciesEditDict']
                 speciesDict = ast.literal_eval(speciesEditDict)
@@ -7657,13 +7675,13 @@ def editTask(task_id):
                     for s_task in available_tasks:
                         s_task.status = 'Processing'
                     db.session.commit()
-                    handleTaskEdit.delay(task_id=task_id,changes=editDict,speciesChanges=speciesEditDict)
+                    handleTaskEdit.delay(task_id=task_id,labelChanges=editDict, tagChanges=tagsDict, translationChanges=translationsDict, deleteAutoLabels=deleteAutoLabels, speciesChanges=speciesDict)
                 else:
                     return json.dumps('error')
             else:
                 task.status='Processing'
                 db.session.commit()
-                handleTaskEdit.delay(task_id=task_id,changes=editDict)
+                handleTaskEdit.delay(task_id=task_id,labelChanges=editDict, tagChanges=tagsDict, translationChanges=translationsDict, deleteAutoLabels=deleteAutoLabels)
         return json.dumps('success')
     except:
         return json.dumps('error')
@@ -13816,3 +13834,63 @@ def generateNewAPIKey(integration_id):
             })
 
     return json.dumps({'api_keys': api_key_info})
+
+@app.route('/getClassificationLabels/<survey_id>')
+@login_required
+def getClassificationLabels(survey_id):
+    ''' Gets the classification labels for the specified survey '''
+    classifications = []
+    if current_user and current_user.is_authenticated:
+        survey = db.session.query(Survey).get(survey_id)
+        if survey and survey.classifier and checkSurveyPermission(current_user.id,survey.id,'write'):
+            classifications = [r[0] for r in db.session.query(ClassificationLabel.classification).filter(ClassificationLabel.classifier_id==survey.classifier_id).order_by(ClassificationLabel.classification).distinct().all()]
+
+    return json.dumps({'classifications': classifications})
+
+@app.route('/getTaskTranslations/<task_id>')
+@login_required
+def getTaskTranslations(task_id):
+    ''' Gets the translations for the specified task '''	
+    translations_data = {}
+    parent_classification = False
+    if current_user and current_user.is_authenticated:
+        task = db.session.query(Task).get(task_id)
+        if task and checkSurveyPermission(current_user.id,task.survey_id,'write'):
+            parent_classification = task.parent_classification
+            translations = db.session.query(Translation.id, Translation.classification, Label.id, Label.description, Translation.auto_classify, Label.parent_id).join(Label).filter(Translation.task_id==task_id).distinct().all()
+            for translation in translations:
+                if not translation[5]:
+                    translations_data[translation[1]] = {
+                        'id': translation[0],	
+                        'label_id': translation[2],
+                        'label':  translation[3],
+                        'classify': translation[4]
+                    }
+                else:
+                    if translation[1] not in translations_data.keys():
+                        translations_data[translation[1]] = {
+                            'id': translation[0],
+                            'label_id': translation[2],
+                            'label':  translation[3],
+                            'classify': translation[4]
+                        }
+
+    return json.dumps({'translations': translations_data, 'parent_classification': parent_classification})
+
+@app.route('/getTaskTags/<task_id>')
+@login_required
+def getTaskTags(task_id):
+    ''' Gets the tags for the specified task '''
+    tag_data = []
+    if current_user and current_user.is_authenticated:
+        task = db.session.query(Task).get(task_id)
+        if task and checkSurveyPermission(current_user.id,task.survey_id,'write'):
+            tags = db.session.query(Tag).join(Task).filter(Task.id==task_id).distinct().all()
+            for tag in tags:
+                tag_data.append({
+                    'id': tag.id,	
+                    'description': tag.description,
+                    'hotkey': tag.hotkey
+                })
+
+    return json.dumps({'tags': tag_data})

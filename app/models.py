@@ -510,6 +510,7 @@ class Classifier(db.Model):
     active = db.Column(db.Boolean, default=True, index=True)
     threshold = db.Column(db.Float, index=False)
     surveys = db.relationship('Survey', backref='classifier', lazy=True)
+    classification_labels = db.relationship('ClassificationLabel', backref='classifier', lazy=True)
 
     def __repr__(self):
         return '<Classifier {}>'.format(self.name)
@@ -642,6 +643,14 @@ class APIKey(db.Model):
 
     def __repr__(self):
         return '<APIKey for {}>'.format(self.survey_id)
+
+class ClassificationLabel(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    classification = db.Column(db.String(64), index=False)
+    classifier_id = db.Column(db.Integer, db.ForeignKey('classifier.id'), index=False, unique=False)
+
+    def __repr__(self):
+        return '<Classification label {}>'.format(self.label)
 
 db.Index('ix_det_srce_scre_stc_stat_class_classcre', Detection.source, Detection.score, Detection.static, Detection.status, Detection.classification, Detection.class_score)
 db.Index('ix_cluster_examined_task', Cluster.examined, Cluster.task_id)

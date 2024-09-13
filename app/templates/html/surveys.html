@@ -535,7 +535,7 @@ limitations under the License. -->
             
             <div class="modal-header">
                 <div class='col-lg-10' style="padding: 0px">
-                    <h4 class="modal-title">Label Translations</h4>
+                    <h4 class="modal-title">Label Translations and Species Auto-Classification</h4>
                 </div>
                 <div class='col-lg-1' style="padding: 0px">
                     <button class='btn btn-primary btn-sm pull-right' onclick="helpOpen('new_task2')">Help</button>
@@ -546,7 +546,20 @@ limitations under the License. -->
             </div>
             <div class="modal-body">
 
-                <div id="classTranslationHeading"></div>
+                <h5 style="margin-bottom: 2px">Classification Translations</h5>
+                <div style="font-size: 80%; margin-bottom: 2px"><i>Translate the AI-generated classifications to your labels. Select nothing (ignore) if you do not expect a species in your region.</i></div>
+                <div display="flex" align-items="center">
+                    <label style="margin: 0; padding-right: 5px;">Auto Classify All</label>
+                    <label class="switch">
+                        <input type="checkbox" id="selectAllClassifications"><span class="slider round"></span>
+                    </label>
+                </div>
+                <div class="row">
+                    <div class='col-lg-4'>AI Classification</div>
+                    <div class='col-lg-1'></div>
+                    <div class='col-lg-5'>Label</div>
+                    <div class='col-lg-2'>Auto Classify</div>
+                </div>
                 <div id="classTranslationDiv"></div>
 
             </div>
@@ -555,7 +568,7 @@ limitations under the License. -->
                 <div class='col-lg-8'></div>
                 <div class='col-lg-2'>
                     <button class='btn btn-primary btn-block' id='btnCreateTask2'>
-                        Next
+                        Submit
                     </button>
                 </div>
                 <div class='col-lg-2'>
@@ -572,11 +585,11 @@ limitations under the License. -->
 </div>
 
 <!-- Add Task Modal -->
-<div id="modalAddTask3" class="modal fade" role="dialog" tabindex="-1">
-    <div class="modal-dialog modal-lg">
+<!-- <div id="modalAddTask3" class="modal fade" role="dialog" tabindex="-1">
+    <div class="modal-dialog modal-lg"> -->
   
         <!-- Modal content-->
-        <div class="modal-content">
+        <!-- <div class="modal-content">
             
             <div class="modal-header">
                 <div class='col-lg-10' style="padding: 0px">
@@ -633,7 +646,7 @@ limitations under the License. -->
         </div>
   
     </div>
-</div>
+</div> -->
 
 <!-- Add Task Modal -->
 <div id="modalEditTranslations" class="modal fade" role="dialog" tabindex="-1">
@@ -657,6 +670,20 @@ limitations under the License. -->
 
                 <h5 style="margin-bottom: 2px">Classification Translations</h5>
                 <div style="font-size: 80%; margin-bottom: 2px"><i>Update the missing AI classification translations for your task. Select nothing (ignore) if you do not expect a species in your region.</i></div>
+                <div display="flex" align-items="center">
+                    <div display="flex" align-items="center">
+                        <label style="margin: 0; padding-right: 5px;">Auto Classify All</label>
+                        <label class="switch">
+                            <input type="checkbox" id="selectAllClassificationsL"><span class="slider round"></span>
+                        </label>
+                    </div>
+                </div>
+                <div class="row">
+                    <div class='col-lg-4'>AI Classification</div>
+                    <div class='col-lg-1'></div>
+                    <div class='col-lg-5'>Label</div>
+                    <div class='col-lg-2'>Auto Classify</div>
+                </div>
                 <div id="translationsDiv"></div>
 
             </div>
@@ -664,7 +691,7 @@ limitations under the License. -->
 
                 <div class='col-lg-8'></div>
                 <div class='col-lg-2'>
-                    <button class='btn btn-primary btn-block' id='btnSubmitTranslaions'>
+                    <button class='btn btn-primary btn-block' id='btnSubmitTranslations'>
                         Submit
                     </button>
                 </div>
@@ -688,7 +715,7 @@ limitations under the License. -->
             <div class="modal-content">
                 <div class="modal-header">
                     <div class='col-lg-10' style="padding: 0px">
-                        <h4 class="modal-title">Edit Labels</h4>
+                        <h4 class="modal-title" id="editTaskTitle">Edit Task</h4>
                     </div>
                     <div class='col-lg-1' style="padding: 0px">
                         <button class='btn btn-primary btn-sm pull-right' onclick="helpOpen('edit_task')">Help</button>
@@ -697,50 +724,123 @@ limitations under the License. -->
                         <button id="helpx" type="button" class="close" data-dismiss="modal">&times;</button>
                     </div>
                 </div>
+                <div class="tab" id="editSurveyTabs">
+                    <button id="openLabelsTab" class="tablinks" onclick="openTaskEditTab(event, 'baseLabelsTab')">Labels</button>
+                    <button id="openTranslationsTab" class="tablinks" onclick="openTaskEditTab(event, 'baseTranslationsTab')">Translations</button>
+                    <button id="openTagsTab" class="tablinks" onclick="openTaskEditTab(event, 'baseTagsTab')">Informational Tags</button>
+                </div>
                 <div class="modal-body">
-
-                    <div id="labelEditErrors" style="font-size: 80%; color: #DF691A"></div>
-
                     <h5 style="margin-bottom: 2px">Instructions</h5>
                     <div style="font-size: 80%; margin-bottom: 2px"><i>
-                        Select "add changes" to add the changes you have made to the current session, then select "save" to save that 
-                        session. You can discard your changes at any time with the "discard changes" button. Note that if you delete a label
-                        all clusters annotated with that label will lose it.
+                        Select "Add Changes" to add the changes you have made to the current session on all tabs. Select "Save" to permanently save the changes made on all tabs. You can discard your changes at any time with the "Discard Changes" button.
+                        Note that if you delete a label all clusters annotated with that label will lose it. Editing or deleting a label will also affect the translations. Deleting a tag will remove it from all clusters and individuals it is associated with.
                     </i></div>
+                    <div id="taskEditErrors" style="font-size: 80%; color: #DF691A"></div>
                     <br>
 
-                    <h5 style="margin-bottom: 2px">Label Level</h5>
-                    <div style="font-size: 80%; margin-bottom: 2px"><i>Select the level of labels you would like to view and edit.</i></div>
-                    <div class="row">
-                        <div class='col-lg-4'>
-                            <select id="LabelLevelSelector" class='form-control'></select>
+                    <div class="tabcontent" id="baseLabelsTab">
+                        <div id="labelEditErrors" style="font-size: 80%; color: #DF691A"></div>
+                        <h5 style="margin-bottom: 2px">Label Level</h5>
+                        <div style="font-size: 80%; margin-bottom: 2px"><i>Select the level of labels you would like to view and edit.</i></div>
+                        <div class="row">
+                            <div class='col-lg-4'>
+                                <select id="LabelLevelSelector" class='form-control'></select>
+                            </div>
                         </div>
-                    </div>
-                    <br>
+                        <br>
 
-                    <div class='row'>
-                        <div class='col-lg-4'>Label</div>
-                        <div class='col-lg-1'>Hotkey</div>                               
+                        <div class='row'>
+                            <div class='col-lg-4'>Label</div>
+                            <div class='col-lg-1'>Hotkey</div>                               
+                        </div>
+                        <div id="LabelDisplayDiv"></div>
+                        <br>
+        
+                        <h5 style="margin-bottom: 2px">Additional Labels</h5>
+                        <div style="font-size: 80%; margin-bottom: 2px"><i>Specify additional labels you would like to add the selected category.</i></div>
+                        <div class='row'>
+                            <div class='col-lg-4'>Label</div>
+                            <div class='col-lg-1'>Hotkey</div>                               
+                        </div>
+                        <div id="AddLabelDiv"></div>
+                        <div class='row'>
+                            <div class='col-lg-9'></div>
+                            <div class='col-lg-3'>
+                                <button class='btn btn-info' type='button' 
+                                id='btnAddNewLabel'>+</button>
+                            </div>
+                        </div>
+                        <br>
                     </div>
-                    <div id="LabelDisplayDiv"></div>
-                    <br>
-    
-                    <h5 style="margin-bottom: 2px">Additional Labels</h5>
-                    <div style="font-size: 80%; margin-bottom: 2px"><i>Specify additional labels you would like to add the selected category.</i></div>
-                    <div class='row'>
-                        <div class='col-lg-4'>Label</div>
-                        <div class='col-lg-1'>Hotkey</div>                               
+
+                    <div class="tabcontent" id="baseTranslationsTab">
+                        <div id="translationsEditErrors" style="font-size: 80%; color: #DF691A"></div>
+                        <h5 style="margin-bottom: 2px">Classification Handling</h5>
+                        <div style="font-size: 80%; margin-bottom: 2px"><i>Select how auto-classified clusters should be managed when translations are edited. Note that 
+                            human annotated labels will not be deleted. All clusters without labels will be auto-classified again.</i></div>
+                        <div class="custom-control custom-radio custom-control-inline">
+                            <input type="radio" class="custom-control-input" id="deleteClusterLabel" name="clusterLabelSelection" value="customEx" checked="true">
+                            <label class="custom-control-label" for="deleteClusterLabel">Delete auto-classified labels</label>
+                        </div>
+                        <div class="custom-control custom-radio custom-control-inline">
+                            <input type="radio" class="custom-control-input" id="keepClusterLabel" name="clusterLabelSelection" value="customEx">
+                            <label class="custom-control-label" for="keepClusterLabel">Keep auto-classified labels</label>
+                        </div>
+                        <br>
+                        <br>
+
+                        <h5 style="margin-bottom: 2px">Label Translations & Auto-Classification</h5>
+                        <div style="font-size: 80%; margin-bottom: 2px"><i>Edit the translations for your labels and the species auto-classification.</i></div>
+                        <div display="flex" align-items="center">
+                            <label style="margin: 0; padding-right: 5px;">Auto Classify All</label>
+                            <label class="switch">
+                                <input type="checkbox" id="selectAllClassificationsEdit"><span class="slider round"></span>
+                            </label>
+                        </div>
+                        <div class="row">
+                            <div class='col-lg-4'>AI Classification</div>
+                            <div class='col-lg-1'></div>
+                            <div class='col-lg-5'>Label</div>
+                            <div class='col-lg-2'>Auto Classify</div>
+                        </div>
+                        <div id="editTranslationsDiv"></div>
                     </div>
-                    <div id="AddLabelDiv"></div>
-                    <div class='row'>
-                        <div class='col-lg-9'></div>
-                        <div class='col-lg-3'>
-                            <button class='btn btn-info' type='button' 
-                            id='btnAddNewLabel'>+</button>
+
+                    <div class="tabcontent" id="baseTagsTab">
+                        <div id="tagEditErrors" style="font-size: 80%; color: #DF691A"></div>
+                        <h5 style="margin-bottom: 2px">Informational Tags</h5>
+                        <div style="font-size: 80%; margin-bottom: 2px"><i>View and edit the informational tags you would like to associate with animals. Eg. male, female, etc.</i></div>
+                        <div class="row">
+                            <div class='col-lg-4'>
+                                Tag
+                            </div>
+                            <div class='col-lg-1'>
+                                Hotkey
+                            </div>
+                            <div class='col-lg-7'></div>
+                        </div>
+                        <div id="editTagsDiv"></div>
+                        <br>
+
+                        <h5 style="margin-bottom: 2px">Additional Informational Tags</h5>
+                        <div style="font-size: 80%; margin-bottom: 2px"><i>Specify additional informational tags you would like to add.</i></div>
+                        <div class="row">
+                            <div class='col-lg-4'>
+                                Tag
+                            </div>
+                            <div class='col-lg-1'>
+                                Hotkey
+                            </div>
+                            <div class='col-lg-7'></div>
+                        </div>
+                        <div id="addTagsDiv"></div>
+                        <div class="row">
+                            <div class='col-lg-9'></div>
+                            <div class='col-lg-3'>
+                                <button id="btnNewTag" type='button' class='btn btn-info' >+</button>
+                            </div>
                         </div>
                     </div>
-                    <br>
-              
                 </div>
                 <div class='modal-footer'>
 
