@@ -989,7 +989,7 @@ def get_still_rate_old(video_fps,video_frames):
     frames_default_fps = math.ceil(video_frames / video_fps) * fps_default
     return min(max_frames / frames_default_fps, fps_default)
 
-@celery.task(bind=True,max_retries=5,ignore_result=True)
+@celery.task(bind=True,max_retries=5)
 def crop_training_images_parallel(self,key,source_bucket,dest_bucket):
     '''Parallel function for cropping detections contained in the csv in S3.'''
 
@@ -1008,7 +1008,7 @@ def crop_training_images_parallel(self,key,source_bucket,dest_bucket):
                 if img.mode != 'RGB': img = img.convert(mode='RGB')
 
                 for index, row in df[df['path']==image_key].iterrows():
-                    dest_key = str(row['detection_id'])+'.jpg'
+                    dest_key = str(int(row['detection_id']))+'.jpg'
                     bbox = [row['left'],row['top'],(row['right']-row['left']),(row['bottom']-row['top'])]
                     save_crop(img, bbox_norm=bbox, square_crop=True, bucket=dest_bucket, key=dest_key)
 
@@ -1042,9 +1042,11 @@ def crop_training_images(key,source_bucket,dest_bucket,parallelisation):
     NOTE: Make sure to use previous csvs to to filter new csvs to prevent duplication of cropping effort.
     '''
 
-    with tempfile.NamedTemporaryFile(delete=True, suffix='.csv') as temp_file:
-        GLOBALS.s3client.download_file(Bucket=dest_bucket, Key=key, Filename=temp_file.name)
-        df = pd.read_csv(temp_file.name)
+    # with tempfile.NamedTemporaryFile(delete=True, suffix='.csv') as temp_file:
+    #     GLOBALS.s3client.download_file(Bucket=dest_bucket, Key=key, Filename=temp_file.name)
+    #     df = pd.read_csv(temp_file.name)
+
+    df = pd.read_csv(key)
 
     results = []
     detection_count = len(df)
@@ -1056,6 +1058,8 @@ def crop_training_images(key,source_bucket,dest_bucket,parallelisation):
             df_temp.to_csv(temp_file.name,index=False)
             GLOBALS.s3client.put_object(Bucket=dest_bucket,Key=temp_key,Body=temp_file)
         results.append(crop_training_images_parallel.apply_async(kwargs={'key':temp_key,'source_bucket':source_bucket,'dest_bucket':dest_bucket}))
+    
+    df = None
 
     GLOBALS.lock.acquire()
     with allow_join_result():
