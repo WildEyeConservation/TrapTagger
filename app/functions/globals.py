@@ -2726,7 +2726,7 @@ def fire_up_instances(queue,instance_count):
 
     return True
 
-def inspect_celery(include_spam=False,include_reserved=False):
+def inspect_celery(include_spam=False,include_reserved=False,include_scheduled=False):
     ''' Funcion to manually inspect the running celery tasks'''
     inspector = celery.control.inspect()
     spam = ['importImages','.detection','.classify','runClassifier','processCameraStaticDetections', 'process_video_batch','cluster_trapgroup','processStaticWindow', 
@@ -2758,6 +2758,8 @@ def inspect_celery(include_spam=False,include_reserved=False):
                     print('{:{}}{:{}}{:{}}{:{}}  {}'.format(task['id'],40,name,36,hostname,36,time_start,29,task['kwargs']['dirpath']))
                 elif 'prepTask' in task['name']:
                     print('{:{}}{:{}}{:{}}{:{}}  survey_id={}'.format(task['id'],40,name,36,hostname,36,time_start,29,task['kwargs']['survey_id']))
+                elif '.classifyTrapgroup' in task['name']:
+                    print('{:{}}{:{}}{:{}}{:{}}  {}'.format(task['id'],40,name,36,hostname,36,time_start,29,task['kwargs']))
                 elif '.classify' in task['name']:
                     batch = task['kwargs']['batch']
                     detection_id=batch['detection_ids'][0]
@@ -2787,7 +2789,7 @@ def inspect_celery(include_spam=False,include_reserved=False):
         for worker in inspector_reserved:
             for task in inspector_reserved[worker]:
                 if not any(name in task['name'] for name in spam):
-                    time_start = str(datetime.fromtimestamp(task['time_start']))
+                    time_start = str(datetime.fromtimestamp(task['time_start'])) if task['time_start'] else 'None'
                     name = task['name'].split('.')[-1]
                     hostname = task['hostname'].split('@')[-1]
                     if 'importImages' in task['name']:
@@ -2800,14 +2802,66 @@ def inspect_celery(include_spam=False,include_reserved=False):
                         print('{:{}}{:{}}{:{}}{:{}}  {}'.format(task['id'],40,name,36,hostname,36,time_start,29,task['kwargs']['dirpath']))
                     elif 'prepTask' in task['name']:
                         print('{:{}}{:{}}{:{}}{:{}}  survey_id={}'.format(task['id'],40,name,36,hostname,36,time_start,29,task['kwargs']['survey_id']))
+                    elif '.classifyTrapgroup' in task['name']:
+                        print('{:{}}{:{}}{:{}}{:{}}  {}'.format(task['id'],40,name,36,hostname,36,time_start,29,task['kwargs']))
                     elif '.classify' in task['name']:
                         batch = task['kwargs']['batch']
                         detection_id=batch['detection_ids'][0]
                         image_id=batch['detections'][detection_id]['image_id']
                         path = batch['images'][image_id]
                         print('{:{}}{:{}}{:{}}{:{}}  {}'.format(task['id'],40,name,36,hostname,36,time_start,29,path))
+                    elif 'segment_and_pose' in task['name']:
+                        print('{:{}}{:{}}{:{}}{:{}}  {}'.format(task['id'],40,name,36,hostname,36,time_start,29,task['kwargs']['batch'][0]))
+                    elif 'calculate_hotspotter_similarity' in task['name']:
+                        print('{:{}}{:{}}{:{}}{:{}}  {}'.format(task['id'],40,name,36,hostname,36,time_start,29,task['kwargs']['batch'][0]))
                     else:
                         print('{:{}}{:{}}{:{}}{:{}}  {}'.format(task['id'],40,name,36,hostname,36,time_start,29,task['kwargs']))
+
+    if include_scheduled:
+        inspector_scheduled = inspector.scheduled()
+        print('')
+        print('')
+        print('')
+        print('//////////////////////Scheduled tasks://////////////////////')
+        print('{:{}}{:{}}{:{}}{:{}}{:{}}'.format(
+                        'ID',40,
+                        'Function',36,
+                        'Worker',36,
+                        'ETA',29,
+                        '  Kwargs',50
+        ))
+
+        for worker in inspector_scheduled:
+            for task in inspector_scheduled[worker]:
+                request = task['request']
+                if not any(name in request['name'] for name in spam):
+                    eta = datetime.fromisoformat(task['eta']).strftime("%Y-%m-%d %H:%M:%S.%f")
+                    name = request['name'].split('.')[-1]
+                    hostname = request['hostname'].split('celery@')[-1]
+                    if 'importImages' in request['name']:
+                        print('{:{}}{:{}}{:{}}{:{}}  survey_id={}'.format(request['id'],40,name,36,hostname,36,eta,29,request['kwargs']['batch'][0]['survey_id']))
+                    elif '.detection' in request['name']:
+                        print('{:{}}{:{}}{:{}}{:{}}  {}'.format(request['id'],40,name,36,hostname,36,eta,29,request['kwargs']['batch'][0]))
+                    elif 'runClassifier' in request['name']:
+                        print('{:{}}{:{}}{:{}}{:{}}  survey_id={}'.format(task['id'],40,name,36,hostname,36,eta,29,task['kwargs']['survey_id']))
+                    elif 'process_video_batch' in request['name']:
+                        print('{:{}}{:{}}{:{}}{:{}}  {}'.format(request['id'],40,name,36,hostname,36,eta,29,request['kwargs']['dirpath']))
+                    elif 'prepTask' in request['name']:
+                        print('{:{}}{:{}}{:{}}{:{}}  survey_id={}'.format(request['id'],40,name,36,hostname,36,eta,29,request['kwargs']['survey_id']))
+                    elif '.classifyTrapgroup' in request['name']:
+                        print('{:{}}{:{}}{:{}}{:{}}  {}'.format(task['id'],40,name,36,hostname,36,eta,29,task['kwargs']))
+                    elif '.classify' in request['name']:
+                        batch = request['kwargs']['batch']
+                        detection_id=batch['detection_ids'][0]
+                        image_id=batch['detections'][detection_id]['image_id']
+                        path = batch['images'][image_id]
+                        print('{:{}}{:{}}{:{}}{:{}}  {}'.format(request['id'],40,name,36,hostname,36,eta,29,path))
+                    elif 'segment_and_pose' in request['name']:
+                        print('{:{}}{:{}}{:{}}{:{}}  {}'.format(request['id'],40,name,36,hostname,36,eta,29,request['kwargs']['batch'][0]))
+                    elif 'calculate_hotspotter_similarity' in request['name']:
+                        print('{:{}}{:{}}{:{}}{:{}}  {}'.format(request['id'],40,name,36,hostname,36,eta,29,request['kwargs']['batch'][0]))
+                    else:
+                        print('{:{}}{:{}}{:{}}{:{}}  {}'.format(request['id'],40,name,36,hostname,36,eta,29,request['kwargs']))
 
     return True
 
@@ -3974,9 +4028,10 @@ def getParentLabels(task_id,description,parent_labels,addLabel=True):
     return parent_labels
 
 def generate_api_key(survey_id=None):
-    '''Generates a API key for WPS integration'''
+    '''Generates a API key for Live Data integration'''
     if survey_id:
-        survey_str = hashlib.md5(str(survey_id).encode()).hexdigest()[0:8]
+        idx = random.randint(0,24)
+        survey_str = hashlib.md5(str(survey_id).encode()).hexdigest()[idx:idx+random.randint(2,8)]
         api_key = ''.join(secrets.choice(string.ascii_letters + string.digits) for i in range(32-len(survey_str))) + survey_str
     else:
         api_key = ''.join(secrets.choice(string.ascii_letters + string.digits) for i in range(32))

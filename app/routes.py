@@ -7639,7 +7639,7 @@ def editTask(task_id):
         task = db.session.query(Task).get(task_id)
         app.logger.info('Edit Task: {}'.format(task_id))
         if task and checkSurveyPermission(current_user.id,task.survey_id,'write') and (task.status.lower() in Config.TASK_READY_STATUSES):
-            editDict = request.form['editDict']
+            editDict = ast.literal_eval(request.form['editDict'])
             tagsDict = ast.literal_eval(request.form['tagsDict'])
             translationsDict = ast.literal_eval(request.form['translationsDict'])
             deleteAutoLabels = ast.literal_eval(request.form['deleteAutoLabels'])

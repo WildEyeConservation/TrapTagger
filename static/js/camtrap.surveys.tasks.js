@@ -1235,7 +1235,7 @@ btnSaveLabelChanges.addEventListener('click', ()=>{
                     }
                 }
                 else if (translation.toLowerCase()=='vehicles/humans/livestock') {
-                    if (globalTranslations[classification].label.toLowerCase() != 'vehicles/humans/livestock') {
+                    if (globalTranslations[classification].label.toLowerCase() != 'vehicles/humans/livestock' || globalTranslations[classification].classify != classify) {
                         translationEditDict[classification] = {
                             'label': 'vehicles/humans/livestock',
                             'label_id': label_id,
@@ -1360,6 +1360,7 @@ btnEditTaskSubmit.addEventListener('click', ()=>{
                 reply = JSON.parse(this.responseText);  
                 if (reply=='success') {
                     modalEditTask.modal('hide')
+                    updatePage(current_page)
                 } else {
                     document.getElementById('btnEditTaskSubmit').disabled = false
                 }
@@ -2067,6 +2068,7 @@ modalEditTask.on('shown.bs.modal', function(){
         sessionIDs = []
         globalTranslations = {}
         translationLabels = {}
+        document.getElementById('deleteClusterLabel').checked = true
         document.getElementById('openLabelsTab').click()
     }
 });
@@ -2265,6 +2267,7 @@ document.getElementById('btnConfirmEditSpecies').addEventListener('click', ()=>{
             if (reply=='success') {
                 modalConfirmEditSpecies.modal('hide')
                 modalEditTask.modal('hide')
+                updatePage(current_page)
             } 
             else{
                 document.getElementById('modalConfirmEditSpeciesError').innerHTML = 'There was an error submitting your changes. Please try again.'

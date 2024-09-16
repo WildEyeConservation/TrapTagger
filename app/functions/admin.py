@@ -853,9 +853,6 @@ def handleTaskEdit(self,task_id,labelChanges,tagChanges,translationChanges,delet
         task = db.session.query(Task).get(task_id)
         if task:
             # Labels
-            labelChanges = ast.literal_eval(labelChanges)
-            if speciesChanges:
-                speciesChanges = ast.literal_eval(speciesChanges)
             sessionLabels = {}
             skipped, sessionLabels = processChanges(labelChanges, labelChanges.keys(), sessionLabels, task_id, speciesChanges)
 
@@ -889,7 +886,7 @@ def handleTaskEdit(self,task_id,labelChanges,tagChanges,translationChanges,delet
                 prev_labels_description = []
                 translations = db.session.query(Translation).filter(Translation.task_id==task_id).filter(Translation.classification.in_(classifications)).all()
                 for translation in translations:
-                    if translation.auto_classify: 
+                    if translation.auto_classify and translation.label_id:
                         prev_labels.append(translation.label_id) 
                         prev_labels_description.append(translation.label.description)
                     db.session.delete(translation)
@@ -937,6 +934,8 @@ def handleTaskEdit(self,task_id,labelChanges,tagChanges,translationChanges,delet
                 db.session.commit()
 
                 classifyTask(task.id)
+                if GLOBALS.vhl_id in prev_labels:
+                    removeHumans(task.id)
                 updateAllStatuses(task.id)
 
             task = db.session.query(Task).get(task_id)
