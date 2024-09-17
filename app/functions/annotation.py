@@ -966,12 +966,12 @@ def manageTasks():
         
     return True
 
-def allocate_new_trapgroup(task_id,user_id,survey_id,session):
+def allocate_new_trapgroup(task_id,user_id,survey_id):
     '''Allocates a new trapgroup to the specified user for the given task. Attempts to free up trapgroups if none are available. Returns the allocate trapgroup.'''
 
     trapgroup = GLOBALS.redisClient.lpop('trapgroups_'+str(survey_id))
     
-    # trapgroup = session.query(Trapgroup) \
+    # trapgroup = db.session.query(Trapgroup) \
     #                 .filter(Trapgroup.survey_id==survey_id)\
     #                 .filter(Trapgroup.active == True) \
     #                 .filter(Trapgroup.user_id == None) \
@@ -979,7 +979,7 @@ def allocate_new_trapgroup(task_id,user_id,survey_id,session):
 
     # if trapgroup == None:
     #     #Try to free up trapgroups
-    #     trapgroups = session.query(Trapgroup) \
+    #     trapgroups = db.session.query(Trapgroup) \
     #                     .join(Camera) \
     #                     .join(Image) \
     #                     .join(Cluster, Image.clusters) \
@@ -998,13 +998,13 @@ def allocate_new_trapgroup(task_id,user_id,survey_id,session):
     #         trapgroup = trapgroups[0]
 
     if trapgroup:
-        trapgroup = session.query(Trapgroup).get(int(trapgroup.decode()))
+        trapgroup = db.session.query(Trapgroup).get(int(trapgroup.decode()))
         trapgroup.user_id = user_id
-        session.commit()
+        db.session.commit()
 
     return trapgroup
 
-def fetch_clusters(taggingLevel,task_id,isBounding,trapgroup_id,session,limit=None,id=None):
+def fetch_clusters(taggingLevel,task_id,isBounding,trapgroup_id,limit=None,id=None):
     '''Fetch the clusterInfo for the user'''
 
     clusterInfo = {}
@@ -1169,7 +1169,7 @@ def fetch_clusters(taggingLevel,task_id,isBounding,trapgroup_id,session,limit=No
         IndividualTask = alias(Task)
         if id:
             # need to filter by cluster id and include videos
-            clusters = session.query(
+            clusters = db.session.query(
                             Cluster.id,
                             Cluster.notes,
                             Image.id,
@@ -1202,7 +1202,8 @@ def fetch_clusters(taggingLevel,task_id,isBounding,trapgroup_id,session,limit=No
                             Trapgroup.latitude,
                             Trapgroup.longitude,
                             Video.id,
-                            Video.filename
+                            Video.filename,
+                            Individual.name
                         )\
                         .join(Image, Cluster.images) \
                         .outerjoin(requiredimagestable,requiredimagestable.c.cluster_id==Cluster.id)\
@@ -1219,7 +1220,7 @@ def fetch_clusters(taggingLevel,task_id,isBounding,trapgroup_id,session,limit=No
 
         else:
             # Need to filter by trapgroup id and exclude video
-            clusters = session.query(
+            clusters = db.session.query(
                             Cluster.id,
                             Cluster.notes,
                             Image.id,
@@ -1297,15 +1298,16 @@ def fetch_clusters(taggingLevel,task_id,isBounding,trapgroup_id,session,limit=No
                     'tag_ids': [],
                     'groundTruth': [],
                     'trapGroup': row[8],
-                    'notes': row[1]
+                    'notes': row[1],
+                    'individuals': []
                 }
                 if id: 
                     clusterInfo[row[0]]['videos'] = {}
                     user_id = row[27]
                     if user_id:
-                        user = session.query(User.username,User.parent_id).filter(User.id==user_id).first()
+                        user = db.session.query(User.username,User.parent_id).filter(User.id==user_id).first()
                         if user and user[1]:
-                            clusterInfo[row[0]]['user'] = session.query(User.username).filter(User.id==user[1]).first()[0]
+                            clusterInfo[row[0]]['user'] = db.session.query(User.username).filter(User.id==user[1]).first()[0]
                         elif user and user[1]==None and user[0] != 'Admin':
                             clusterInfo[row[0]]['user'] = user[0]
                         else:
@@ -1342,6 +1344,7 @@ def fetch_clusters(taggingLevel,task_id,isBounding,trapgroup_id,session,limit=No
                         'right': row[13],
                         'category': row[14],
                         'individuals': [],
+                        'individual_names': [],
                         'static': row[15],
                         'labels': [],
                         'flank': Config.FLANK_TEXT[row[25]] if row[25] else 'None'
@@ -1375,6 +1378,7 @@ def fetch_clusters(taggingLevel,task_id,isBounding,trapgroup_id,session,limit=No
                 # Handle individuals
                 if row[26] and row[21] and (row[21] not in clusterInfo[row[0]]['images'][row[2]]['detections'][row[9]]['individuals']) and (row[26]==task_id):
                     clusterInfo[row[0]]['images'][row[2]]['detections'][row[9]]['individuals'].append(row[21])
+                    if id: clusterInfo[row[0]]['images'][row[2]]['detections'][row[9]]['individual_names'].append(row[33])
 
         if '-3' in taggingLevel:
             cluster_ids = cluster_ids[:limit]
@@ -1411,7 +1415,7 @@ def fetch_clusters(taggingLevel,task_id,isBounding,trapgroup_id,session,limit=No
                                     .group_by(Cluster.id)\
                                     .subquery()
 
-            clusters2 = rDets(session.query(
+            clusters2 = rDets(db.session.query(
                                     Cluster.id,
                                     classSQ.c.label,
                                     classSQ.c.count/clusterDetCountSQ.c.count
@@ -1691,6 +1695,7 @@ def translate_cluster_for_client(clusterInfo,reqId,limit,isBounding,taggingLevel
                                 'category': clusterInfo[cluster_id]['images'][image_id]['detections'][detection_id]['category'],
                                 'individuals': clusterInfo[cluster_id]['images'][image_id]['detections'][detection_id]['individuals'],
                                 'individual': clusterInfo[cluster_id]['images'][image_id]['detections'][detection_id]['individuals'][0],
+                                'individual_names': clusterInfo[cluster_id]['images'][image_id]['detections'][detection_id]['individual_names'],
                                 'static': clusterInfo[cluster_id]['images'][image_id]['detections'][detection_id]['static'],
                                 'labels': clusterInfo[cluster_id]['images'][image_id]['detections'][detection_id]['labels'],
                                 'label': clusterInfo[cluster_id]['images'][image_id]['detections'][detection_id]['labels'][0],
@@ -1764,6 +1769,7 @@ def translate_cluster_for_client(clusterInfo,reqId,limit,isBounding,taggingLevel
                                 'category': clusterInfo[cluster_id]['images'][image_id]['detections'][detection_id]['category'],
                                 'individuals': clusterInfo[cluster_id]['images'][image_id]['detections'][detection_id]['individuals'],
                                 'individual': clusterInfo[cluster_id]['images'][image_id]['detections'][detection_id]['individuals'][0],
+                                'individual_names': clusterInfo[cluster_id]['images'][image_id]['detections'][detection_id]['individual_names'],
                                 'static': clusterInfo[cluster_id]['images'][image_id]['detections'][detection_id]['static'],
                                 'labels': clusterInfo[cluster_id]['images'][image_id]['detections'][detection_id]['labels'],
                                 'label': clusterInfo[cluster_id]['images'][image_id]['detections'][detection_id]['labels'][0],
@@ -1809,9 +1815,7 @@ def translate_cluster_for_client(clusterInfo,reqId,limit,isBounding,taggingLevel
                 cluster_dict['latitude'] = clusterInfo[cluster_id]['latitude']
                 cluster_dict['longitude'] = clusterInfo[cluster_id]['longitude']
 
-
             reply['info'].append(cluster_dict)
-
 
         else:
             break

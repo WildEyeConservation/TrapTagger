@@ -1355,6 +1355,19 @@ function updateDebugInfo(mapID = 'map1',updateLabels = true) {
                 document.getElementById('debugCoords').innerHTML = clusters[mapID][clusterIndex[mapID]].latitude + ", " + clusters[mapID][clusterIndex[mapID]].longitude
             }
 
+            if (isReviewing && document.getElementById('imageIndividuals')){
+                imageIndividuals = []
+                for (let i=0;i<clusters[mapID][clusterIndex[mapID]].images[imageIndex[mapID]].detections.length;i++) {
+                    imageIndividuals.push(...clusters[mapID][clusterIndex[mapID]].images[imageIndex[mapID]].detections[i]['individual_names'])
+                }
+                if (imageIndividuals.length>0) {
+                    document.getElementById('imageIndividualsParent').hidden = false
+                } else {
+                    document.getElementById('imageIndividualsParent').hidden = true
+                }
+                document.getElementById('imageIndividuals').innerHTML = imageIndividuals.join(',')
+            }
+
             if (isReviewing && document.getElementById('imageTimestamp')){
                 timestamp = clusters[mapID][clusterIndex[mapID]].images[imageIndex[mapID]].timestamp
 
