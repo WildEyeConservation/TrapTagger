@@ -2126,7 +2126,7 @@ def newWorkerAccount(token):
         return render_template("html/block.html",text="Error.", helpFile='block', version=Config.VERSION)
 
     if 'username' in info.keys():
-        username = info['username']
+        username = info['username'].strip()
         email = info['email']
 
         if username.lower() not in Config.DISALLOWED_USERNAMES:
@@ -3003,7 +3003,8 @@ def createAccount(token):
     except:
         return render_template("html/block.html",text="Error.", helpFile='block', version=Config.VERSION)
 
-    if ('organisation' in info.keys()) and (info['organisation'].lower() not in Config.DISALLOWED_USERNAMES):
+    if ('organisation' in info.keys()) and (info['organisation'].lower().strip() not in Config.DISALLOWED_USERNAMES):
+        info['organisation'] = info['organisation'].strip()
         folder = info['organisation'].lower().replace(' ','-').replace('_','-')
 
         check = db.session.query(Organisation).filter(or_(
@@ -3264,6 +3265,7 @@ def TTRegisterAdmin():
         enquiryForm = EnquiryForm()
         if enquiryForm.validate_on_submit():
             if enquiryForm.info.data == '':
+                enquiryForm.organisation.data = enquiryForm.organisation.data.strip()
                 folder = enquiryForm.organisation.data.lower().replace(' ','-').replace('_','-')
 
                 check = db.session.query(Organisation).filter(or_(
