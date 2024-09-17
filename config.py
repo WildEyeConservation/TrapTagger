@@ -35,7 +35,7 @@ class Config(object):
     SKY_CONST = 0.33
     DETECTOR = 'MDv5b'
     VAT=1.15
-    ADMIN_USERS = ['Admin','WildEye','Dashboard','Wild Parks','Nicholas','Marguerite']
+    ADMIN_USERS = ['Admin','WildEye','Dashboard','Wild Parks','Nicholas','Marguerite','API']
     AWS_S3_UPLOAD_ACCESS_KEY_ID = os.environ.get('AWS_S3_UPLOAD_ACCESS_KEY_ID')
     AWS_S3_UPLOAD_SECRET_ACCESS_KEY = os.environ.get('AWS_S3_UPLOAD_SECRET_ACCESS_KEY')
     MONKEY_PATCH = os.environ.get('MONKEY_PATCH')
@@ -51,7 +51,7 @@ class Config(object):
         'api': 0
     }
 
-    DISALLOWED_USERNAMES = ['admin','dashboard']
+    DISALLOWED_USERNAMES = ['admin','dashboard','api']
 
     # SQLAlchemy Config
     SECRET_KEY = os.environ.get('SECRET_KEY')

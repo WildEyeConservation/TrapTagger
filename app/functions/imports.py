@@ -1311,6 +1311,11 @@ def setupDatabase():
         user = User(username = 'Dashboard', passed = 'pending', admin=True)
         user.set_password(Config.SECRET_KEY)
         db.session.add(user)
+
+    if db.session.query(User).filter(User.username=='API').first()==None:
+        user = User(username = 'API', passed = 'pending', admin=True)
+        user.set_password(Config.SECRET_KEY)
+        db.session.add(user)
     
     if db.session.query(Label).filter(Label.description=='Remove False Detections').first()==None:
         nothing = Label(description='Remove False Detections', hotkey='-')

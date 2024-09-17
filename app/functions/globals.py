@@ -1353,6 +1353,7 @@ def classifyTask(self,task,reClusters=None,trapgroup_ids=None):
         api_check = db.session.query(Detection).join(Image).join(Camera).join(Trapgroup).filter(Trapgroup.survey_id==survey_id).filter(Detection.source=='api').first()
         if api_check:
             #Handle API added labels
+            api_user = db.session.query(User).filter(User.username == 'API').first()
             api_clusters = db.session.query(Cluster)\
                                     .join(Image,Cluster.images)\
                                     .join(Detection)\
@@ -1363,7 +1364,6 @@ def classifyTask(self,task,reClusters=None,trapgroup_ids=None):
                                     .filter(Detection.source=='api')\
                                     .filter(Detection.static==False)\
                                     .filter(~Detection.status.in_(Config.DET_IGNORE_STATUSES))\
-                                    .filter(or_(Cluster.user_id==None,Cluster.user_id==admin.id))\
                                     .filter(~Cluster.labels.any())\
 
             if trapgroup_ids: api_clusters = api_clusters.join(Camera).filter(Camera.trapgroup_id.in_(trapgroup_ids))
@@ -1376,7 +1376,7 @@ def classifyTask(self,task,reClusters=None,trapgroup_ids=None):
                 for label in labels:
                     if label not in cluster.labels: 
                         cluster.labels.append(label)
-                        cluster.user_id = None
+                        cluster.user_id = api_user.id
                         cluster.timestamp = datetime.utcnow()
 
 
