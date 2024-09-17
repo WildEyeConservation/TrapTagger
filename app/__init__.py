@@ -63,10 +63,10 @@ def make_celery(flask_app):
         backend=REDIS_ADDRESS,
         broker=REDIS_ADDRESS,
         broker_transport_options={
-            'visibility_timeout': 259200,
+            'visibility_timeout': 1209600,
             'queue_order_strategy': 'priority'
         },
-        result_expires=259200
+        result_expires=1209600
     )
     # worker_prefetch_multiplier=1,
     # task_reject_on_worker_lost=True,
@@ -95,7 +95,7 @@ def make_celery(flask_app):
             task_queues.append(Queue(classifier.name,routing_key=classifier.name+'.#'))
 
     ####
-    celery.conf.task_acks_late = False
+    celery.conf.task_acks_late = True
     celery.conf.worker_prefetch_multiplier = 1
     celery.conf.task_default_queue = 'default'
     celery.conf.task_queues = task_queues

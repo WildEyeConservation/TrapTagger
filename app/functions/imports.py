@@ -1354,6 +1354,20 @@ def setupDatabase():
                                 description='Basic classification of vehicles, humans, and animals. The default choice for biomes without a dedicated classifier.')
         db.session.add(classifier)
 
+    megadetector = db.session.query(Classifier).filter(Classifier.name=='MegaDetector').first()
+    if not megadetector.classification_labels:
+        if db.session.query(ClassificationLabel).filter(ClassificationLabel.classifier==megadetector).filter(ClassificationLabel.classification=='animal').first() is None:
+            animal_class = ClassificationLabel(classifier=megadetector, classification='animal')
+            db.session.add(animal_class)
+
+        if db.session.query(ClassificationLabel).filter(ClassificationLabel.classifier==megadetector).filter(ClassificationLabel.classification=='vehicle').first() is None:
+            vehicle_class = ClassificationLabel(classifier=megadetector, classification='vehicle')
+            db.session.add(vehicle_class)
+
+        if db.session.query(ClassificationLabel).filter(ClassificationLabel.classifier==megadetector).filter(ClassificationLabel.classification=='human').first() is None:
+            human_class = ClassificationLabel(classifier=megadetector, classification='human')
+            db.session.add(human_class)
+
     if db.session.query(Task).filter(Task.name=='template_southern_africa').first()==None:
         task = Task(name='template_southern_africa')
         db.session.add(task)
