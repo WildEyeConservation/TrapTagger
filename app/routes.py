@@ -7829,10 +7829,10 @@ def editSightings(image_id,task_id):
                             else:
                                 # edit old detection
                                 detection = db.session.query(Detection).get(int(detID))
-                                detection.top = max(0.0, min(1.0, float(detectionsDict[detID]['top']))),
-                                detection.bottom = max(0.0, min(1.0, float(detectionsDict[detID]['bottom']))),
-                                detection.left = max(0.0, min(1.0, float(detectionsDict[detID]['left']))),
-                                detection.right = max(0.0, min(1.0, float(detectionsDict[detID]['right']))),
+                                detection.top = max(0.0, min(1.0, float(detectionsDict[detID]['top'])))
+                                detection.bottom = max(0.0, min(1.0, float(detectionsDict[detID]['bottom'])))
+                                detection.left = max(0.0, min(1.0, float(detectionsDict[detID]['left'])))
+                                detection.right = max(0.0, min(1.0, float(detectionsDict[detID]['right'])))
                                 detection.source='user'
                                 detection.status = 'edited'
                                 labelgroup = db.session.query(Labelgroup).filter(Labelgroup.detection_id==int(detID)).filter(Labelgroup.task_id==int(task_id)).first()
