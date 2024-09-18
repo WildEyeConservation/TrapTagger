@@ -201,89 +201,95 @@ def process_images(ibs,batch,sourceBucket,species,pose_only=False):
         detection_results = {}
         aid_list = []
         for image in batch:
-            image_path = image['image_path']
-            bbox_dict = image['bbox']
-            image_id = image['image_id']
-            detection_id = image['detection_id']
-            with tempfile.NamedTemporaryFile(delete=True, suffix='.JPG') as temp_file:
-                print('Downloading {} from S3'.format(image_path))
-                s3client.download_file(Bucket=sourceBucket, Key=image_path, Filename=temp_file.name)
-                image_data = np.array(Image.open(temp_file.name))
-                h, w, _ = image_data.shape
-                x1, x2, y1, y2 = bbox_dict['left'], bbox_dict['right'], bbox_dict['top'], bbox_dict['bottom']
-                bbox = np.array([x1 * w, y1 * h, x2 * w, y2 * h])
+            try:
+                image_path = image['image_path']
+                bbox_dict = image['bbox']
+                image_id = image['image_id']
+                detection_id = image['detection_id']
+                with tempfile.NamedTemporaryFile(delete=True, suffix='.JPG') as temp_file:
+                    print('Downloading {} from S3'.format(image_path))
+                    s3client.download_file(Bucket=sourceBucket, Key=image_path, Filename=temp_file.name)
+                    image_data = np.array(Image.open(temp_file.name))
+                    h, w, _ = image_data.shape
+                    x1, x2, y1, y2 = max(0, min(1, bbox_dict['left'])), max(0, min(1, bbox_dict['right'])), max(0, min(1, bbox_dict['top'])), max(0, min(1, bbox_dict['bottom']))
+                    bbox = np.array([x1 * w, y1 * h, x2 * w, y2 * h])
 
-                if pose_only:
-                    # Crop the image to the bounding box
-                    cropped_image = Image.fromarray(image_data[int(y1 * h):int(y2 * h), int(x1 * w):int(x2 * w)])
-                    filename = imFolder + '/' + str(detection_id) + '.jpg'
-                    cropped_image.save(filename)
-                else:
-                    print('Segmenting image')
-                    starttime = time.time()
-                    predictor.set_image(image_data)
-                    masks, _, _ = predictor.predict(
-                        point_coords=None,
-                        point_labels=None,
-                        box=bbox[None, :],
-                        multimask_output=False,
-                    )
+                    if pose_only:
+                        # Crop the image to the bounding box
+                        cropped_image = Image.fromarray(image_data[int(y1 * h):int(y2 * h), int(x1 * w):int(x2 * w)])
+                        filename = imFolder + '/' + str(detection_id) + '.jpg'
+                        cropped_image.save(filename)
+                    else:
+                        print('Segmenting image')
+                        starttime = time.time()
+                        predictor.set_image(image_data)
+                        masks, _, _ = predictor.predict(
+                            point_coords=None,
+                            point_labels=None,
+                            box=bbox[None, :],
+                            multimask_output=False,
+                        )
 
-                    h, w = masks[0].shape[-2:]
-                    mask_image = masks[0].reshape(h, w, 1) * np.array([1., 1., 1.]).reshape(1, 1, -1)
-                    segmented_image = (mask_image * image_data).astype('uint8')
-                    segmented_image = Image.fromarray(segmented_image[int(y1 * h):int(y2 * h), int(x1 * w):int(x2 * w)])
-                    print('Segmentation done in {} seconds'.format(time.time() - starttime))
+                        h, w = masks[0].shape[-2:]
+                        mask_image = masks[0].reshape(h, w, 1) * np.array([1., 1., 1.]).reshape(1, 1, -1)
+                        segmented_image = (mask_image * image_data).astype('uint8')
+                        segmented_image = Image.fromarray(segmented_image[int(y1 * h):int(y2 * h), int(x1 * w):int(x2 * w)])
+                        print('Segmentation done in {} seconds'.format(time.time() - starttime))
 
-                    #Save segmented image locally
-                    filename = imFolder + '/' + str(detection_id) + '.jpg'
-                    segmented_image.save(filename)
+                        #Save segmented image locally
+                        filename = imFolder + '/' + str(detection_id) + '.jpg'
+                        segmented_image.save(filename)
 
-                #Get flank from the segmented image
-                flank = get_flank(filename)
-                print('Get flank for detection_id: {} - {}'.format(detection_id, flank))
-                if flank == 'left':
-                    flank = 'L'
-                elif flank == 'right':
-                    flank = 'R'
-                else: #ambiguous
-                    flank = 'A'
+                    #Get flank from the segmented image
+                    flank = get_flank(filename)
+                    print('Get flank for detection_id: {} - {}'.format(detection_id, flank))
+                    if flank == 'left':
+                        flank = 'L'
+                    elif flank == 'right':
+                        flank = 'R'
+                    else: #ambiguous
+                        flank = 'A'
 
-                if pose_only:
-                    detection_results[detection_id] = {
-                        'flank': flank
-                    }
-                else:
-                    #Add image and annotation to the wbia database
-                    # gid = ibs.add_images([ut.unixpath(ut.grab_test_imgpath(filename))], auto_localize=False)[0]
-                    ut_filename = [ut.unixpath(ut.grab_test_imgpath(filename))]
-                    gid = ibs.add_images(ut_filename, auto_localize=False,ensure_loadable=False,ensure_exif=False)[0] # The ensure_loadable and ensure_exif flags are set to False to avoid errors when loading the image (if the image already exist in db but from a differnt path, it will throw an error)
-                    ibs.set_image_uris([gid], ut_filename) # Set the image uri to the new path 
-                    ibs.set_image_uris_original([gid], ut_filename, overwrite=True)
+                    if pose_only:
+                        detection_results[detection_id] = {
+                            'flank': flank
+                        }
+                    else:
+                        #Add image and annotation to the wbia database
+                        # gid = ibs.add_images([ut.unixpath(ut.grab_test_imgpath(filename))], auto_localize=False)[0]
+                        ut_filename = [ut.unixpath(ut.grab_test_imgpath(filename))]
+                        gid = ibs.add_images(ut_filename, auto_localize=False,ensure_loadable=False,ensure_exif=False)[0] # The ensure_loadable and ensure_exif flags are set to False to avoid errors when loading the image (if the image already exist in db but from a differnt path, it will throw an error)
+                        ibs.set_image_uris([gid], ut_filename) # Set the image uri to the new path 
+                        ibs.set_image_uris_original([gid], ut_filename, overwrite=True)
 
-                    # Annotations
-                    left = 0
-                    right = 1
-                    top = 0
-                    bottom = 1
-                    imWidth = ibs.get_image_widths(gid)
-                    imHeight = ibs.get_image_heights(gid)
-                    w = math.floor(imWidth*(right-left))
-                    h = math.floor(imHeight*(bottom-top))
-                    x = math.floor(imWidth*left)
-                    y = math.floor(imHeight*top)
+                        # Annotations
+                        left = 0
+                        right = 1
+                        top = 0
+                        bottom = 1
+                        imWidth = ibs.get_image_widths(gid)
+                        imHeight = ibs.get_image_heights(gid)
+                        w = math.floor(imWidth*(right-left))
+                        h = math.floor(imHeight*(bottom-top))
+                        x = math.floor(imWidth*left)
+                        y = math.floor(imHeight*top)
 
-                    aids = ibs.add_annots([gid],bbox_list=[[x, y, w, h]],species_rowid_list=[hs_label])
-                    aid_list.extend(aids)
-                    aid = aids[0]
+                        aids = ibs.add_annots([gid],bbox_list=[[x, y, w, h]],species_rowid_list=[hs_label])
+                        aid = aids[0]
+                        aid_list.append(aid)
 
-                    print('Added segmented image and detection (annotation) to the wbia database. Det_id: {}, gid: {} aid: {}'.format(detection_id, gid, aid))
+                        print('Added segmented image and detection (annotation) to the wbia database. Det_id: {}, gid: {} aid: {}'.format(detection_id, gid, aid))
 
-                    detection_results[detection_id] = {
-                        'flank': flank,
-                        'aid': aid,
-                        'gid': gid
-                    }
+                        detection_results[detection_id] = {
+                            'flank': flank,
+                            'aid': aid,
+                            'gid': gid
+                        }
+                    
+            except Exception as e:
+                print('Error processing image: {}'.format(e))
+                if 'detection_id' in image and image['detection_id'] in detection_results:
+                    del detection_results[image['detection_id']]
 
         if not pose_only:
             # Calculate image kpts and vecs for hotspotter (automatically done by wbia and added to the database)

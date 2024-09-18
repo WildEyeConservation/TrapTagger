@@ -4382,7 +4382,7 @@ def convertBBox(api_box):
     x_min, y_min, width_of_box, height_of_box = api_box
     x_max = x_min + width_of_box
     y_max = y_min + height_of_box
-    return [y_min, x_min, y_max, x_max]
+    return [max(0, min(1, y_min)), max(0, min(1, x_min)), max(0, min(1, y_max)), max(0, min(1, x_max))]
 
 def commitAndCrop(images,source,min_area,destBucket,external,update_image_info,check=False):
     '''Helper function for pipelineLILA that commits the db and then kicks off image cropping'''

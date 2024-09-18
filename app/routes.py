@@ -7790,10 +7790,10 @@ def editSightings(image_id,task_id):
                             if 'n' in detID:
                                 # Add new detection
                                 detection = Detection(
-                                    top=detectionsDict[detID]['top'],
-                                    bottom=detectionsDict[detID]['bottom'],
-                                    left=detectionsDict[detID]['left'],
-                                    right=detectionsDict[detID]['right'],
+                                    top=max(0.0, min(1.0, float(detectionsDict[detID]['top']))),
+                                    bottom=max(0.0, min(1.0, float(detectionsDict[detID]['bottom']))),
+                                    left=max(0.0, min(1.0, float(detectionsDict[detID]['left']))),
+                                    right=max(0.0, min(1.0, float(detectionsDict[detID]['right']))),
                                     score=1,
                                     static=False,
                                     image_id=int(image_id),
@@ -7829,10 +7829,10 @@ def editSightings(image_id,task_id):
                             else:
                                 # edit old detection
                                 detection = db.session.query(Detection).get(int(detID))
-                                detection.top = detectionsDict[detID]['top']
-                                detection.bottom = detectionsDict[detID]['bottom']
-                                detection.left = detectionsDict[detID]['left']
-                                detection.right = detectionsDict[detID]['right']
+                                detection.top = max(0.0, min(1.0, float(detectionsDict[detID]['top']))),
+                                detection.bottom = max(0.0, min(1.0, float(detectionsDict[detID]['bottom']))),
+                                detection.left = max(0.0, min(1.0, float(detectionsDict[detID]['left']))),
+                                detection.right = max(0.0, min(1.0, float(detectionsDict[detID]['right']))),
                                 detection.source='user'
                                 detection.status = 'edited'
                                 labelgroup = db.session.query(Labelgroup).filter(Labelgroup.detection_id==int(detID)).filter(Labelgroup.task_id==int(task_id)).first()
@@ -13772,7 +13772,12 @@ def addImage():
                                 if 'top' not in annotation or 'left' not in annotation or 'bottom' not in annotation or 'right' not in annotation:
                                     return json.dumps({'message': 'Incomplete annotation.'}), 400
 
-                                detection = Detection(image=image, top=annotation['top'], left=annotation['left'], bottom=annotation['bottom'], right=annotation['right'], score=det_score, category=category, source=source, status=status)
+                                top = max(0.0, min(1.0, float(annotation['top'])))
+                                left = max(0.0, min(1.0, float(annotation['left'])))
+                                bottom = max(0.0, min(1.0, float(annotation['bottom'])))
+                                right = max(0.0, min(1.0, float(annotation['right'])))
+
+                                detection = Detection(image=image, top=top, left=left, bottom=bottom, right=right, score=det_score, category=category, source=source, status=status)
                                 db.session.add(detection)
 
                                 species = annotation.get('species', None)

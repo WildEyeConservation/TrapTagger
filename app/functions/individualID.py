@@ -353,7 +353,8 @@ def calculate_detection_similarities(self,task_ids,species,algorithm):
             base_detection_query = rDets(db.session.query(Detection.id)\
                                             .join(Labelgroup)\
                                             .join(Label,Labelgroup.labels)\
-                                            .filter(Label.description==species))
+                                            .filter(Label.description==species))\
+                                            .filter(Detection.aid!=None)
             results = []
             ambiguous_flank = Config.FLANK_DB['ambiguous']
             flanks = [flank for flank in  Config.FLANK_DB.values() if flank != None and flank != ambiguous_flank]
@@ -379,6 +380,7 @@ def calculate_detection_similarities(self,task_ids,species,algorithm):
                                             .filter(Labelgroup.task_id==task_2)\
                                             .filter(Label.description==species)\
                                             .filter(Detection.flank.in_(required_flanks)))\
+                                            .filter(Detection.aid!=None)\
                                             .subquery()
                         sim_dets1 = db.session.query(DetSimilarity.detection_1.label('id'))\
                                             .join(task2_dets, task2_dets.c.id==DetSimilarity.detection_2)\
@@ -1450,7 +1452,7 @@ def calculate_hotspotter_similarity(self,batch):
             det_ids.extend(item['query_ids'])
             det_ids.extend(item['db_ids'])
         det_ids = list(set(det_ids))
-        det_data = db.session.query(Detection.id,Detection.aid).filter(Detection.id.in_(det_ids)).distinct().all()
+        det_data = db.session.query(Detection.id,Detection.aid).filter(Detection.id.in_(det_ids)).filter(Detection.aid!=None).all()
         det_translation = {}
         aid_translation = {}
         for d in det_data:
@@ -1460,8 +1462,8 @@ def calculate_hotspotter_similarity(self,batch):
         for item in batch:
             query_ids = item['query_ids']
             db_ids = item['db_ids']
-            qaid_list = [aid_translation[d] for d in query_ids]
-            daid_list = [aid_translation[d] for d in db_ids]
+            qaid_list = [aid_translation[d] for d in query_ids if d in aid_translation.keys()]
+            daid_list = [aid_translation[d] for d in db_ids if d in aid_translation.keys()]
 
             if not qaid_list or not daid_list:
                 return True
