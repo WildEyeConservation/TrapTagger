@@ -650,7 +650,7 @@ class ClassificationLabel(db.Model):
     classifier_id = db.Column(db.Integer, db.ForeignKey('classifier.id'), index=False, unique=False)
 
     def __repr__(self):
-        return '<Classification label {}>'.format(self.label)
+        return '<Classification label {}>'.format(self.classification)
 
 db.Index('ix_det_srce_scre_stc_stat_class_classcre', Detection.source, Detection.score, Detection.static, Detection.status, Detection.classification, Detection.class_score)
 db.Index('ix_cluster_examined_task', Cluster.examined, Cluster.task_id)
