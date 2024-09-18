@@ -1158,6 +1158,7 @@ def fetch_clusters(taggingLevel,task_id,isBounding,trapgroup_id,limit=None,id=No
                             'right': row[11],
                             'category': row[12],
                             'individuals': [],
+                            'individual_names': [],
                             'static': row[13],
                             'labels': [],
                             'flank': Config.FLANK_TEXT[row[18]] if row[18] else 'None'
