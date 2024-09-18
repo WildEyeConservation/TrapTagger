@@ -7661,28 +7661,31 @@ def editTask(task_id):
                 species_tasks = []
                 for species in speciesDict:
                     species_tasks.extend(speciesDict[species]['tasks'])
-
+                
+                if task_id in species_tasks: species_tasks.remove(task_id) #already checked
+                
                 species_tasks = list(set(species_tasks))
                 available_tasks = []
-                if len(species_tasks) > 1:
-                    for s_tid in species_tasks:
-                        s_task = db.session.query(Task).get(s_tid)
-                        if s_task and checkSurveyPermission(current_user.id,s_task.survey_id,'write') and (s_task.status.lower() in Config.TASK_READY_STATUSES):
-                            available_tasks.append(s_task)
-                else:
-                    available_tasks = [task]
+                for s_tid in species_tasks:
+                    s_task = db.session.query(Task).get(s_tid)
+                    if s_task and checkSurveyPermission(current_user.id,s_task.survey_id,'write') and (s_task.status.lower() in Config.TASK_READY_STATUSES):
+                        available_tasks.append(s_task)
+                    else:
+                        return json.dumps('error')
+                
+                available_tasks.append(task)
 
-                if len(available_tasks) == len(species_tasks):  
-                    for s_task in available_tasks:
-                        s_task.status = 'Processing'
-                    db.session.commit()
-                    handleTaskEdit.delay(task_id=task_id,labelChanges=editDict, tagChanges=tagsDict, translationChanges=translationsDict, deleteAutoLabels=deleteAutoLabels, speciesChanges=speciesDict)
-                else:
-                    return json.dumps('error')
+                for s_task in available_tasks:
+                    s_task.status = 'Processing'
+                db.session.commit()
+                handleTaskEdit.delay(task_id=task_id,labelChanges=editDict, tagChanges=tagsDict, translationChanges=translationsDict, deleteAutoLabels=deleteAutoLabels, speciesChanges=speciesDict)
+
             else:
                 task.status='Processing'
                 db.session.commit()
                 handleTaskEdit.delay(task_id=task_id,labelChanges=editDict, tagChanges=tagsDict, translationChanges=translationsDict, deleteAutoLabels=deleteAutoLabels)
+        else:
+            return json.dumps('error')
         return json.dumps('success')
     except:
         return json.dumps('error')
