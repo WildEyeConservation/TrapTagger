@@ -757,7 +757,7 @@ def processChanges(changes, keys, sessionLabels, task_id, speciesChanges=None):
             skipped (list): List of labels that cannot be added yet
             sessionLabels (dict): Labels that have been added this session
     '''
-
+    task_id = int(task_id)
     skipped = []
     newSessionLabels = {}
     for parent in keys:
@@ -857,6 +857,7 @@ def handleTaskEdit(self,task_id,labelChanges,tagChanges,translationChanges,delet
     
     try:
         if Config.DEBUGGING: app.logger.info('Task Edit: {}'.format(task_id))
+        task_id = int(task_id)
         task = db.session.query(Task).get(task_id)
         if task:
             # Labels
@@ -941,7 +942,7 @@ def handleTaskEdit(self,task_id,labelChanges,tagChanges,translationChanges,delet
                                             .filter(Cluster.user==admin)\
                                             .filter(Label.id.in_(prev_labels))\
                                             .filter(indiv_sq.c.id==None)\
-                                            .distinct().al()
+                                            .distinct().all()
 
                     for cluster in clusters:
                         cluster.labels = []
