@@ -1610,11 +1610,13 @@ modalAddTask.on('hidden.bs.modal', function(){
 function resetModalAddTask2() {
     /** Clears the second page of the add-task modal. */
 
-
     classTranslationDiv = document.getElementById('classTranslationDiv')
     while(classTranslationDiv.firstChild){
         classTranslationDiv.removeChild(classTranslationDiv.firstChild);
     }
+
+    document.getElementById('btnCreateTask2').disabled = false
+    document.getElementById('selectAllClassifications').checked = false
 }
 
 // function resetModalAddTask3() {
@@ -1721,6 +1723,19 @@ function buildTranslationRow(IDNum,classification,translationDiv,taskLabels,edit
         }
 
         fillSelect(select, optionTexts, optionValues)
+
+        document.getElementById('classTranslationSelectEdit-'+IDNum).addEventListener('change', function() {
+            if (this.value=='0') {
+                document.getElementById('classificationSelectionEdit-'+IDNum).checked = false
+                document.getElementById('classificationSelectionEdit-'+IDNum).disabled = true
+            }
+            else{
+                document.getElementById('classificationSelectionEdit-'+IDNum).disabled = false
+                if (document.getElementById('selectAllClassificationsEdit').checked) {
+                    document.getElementById('classificationSelectionEdit-'+IDNum).checked = true
+                }
+            }
+        });
         
     } else {
         optionValues = []
@@ -1729,6 +1744,22 @@ function buildTranslationRow(IDNum,classification,translationDiv,taskLabels,edit
         }
 
         fillSelect(select, taskLabels, optionValues)
+
+        document.getElementById('classTranslationSelect-'+IDNum).addEventListener('change', function() {
+            if (this.value=='0') {
+                document.getElementById('classificationSelection-'+IDNum).checked = false
+                document.getElementById('classificationSelection-'+IDNum).disabled = true
+            }
+            else{
+                document.getElementById('classificationSelection-'+IDNum).disabled = false
+                if (translationDiv == 'classTranslationDiv' && document.getElementById('selectAllClassifications').checked){
+                    document.getElementById('classificationSelection-'+IDNum).checked = true
+                }
+                else if (translationDiv == 'translationsDiv' && document.getElementById('selectAllClassificationsL').checked){
+                    document.getElementById('classificationSelection-'+IDNum).checked = true
+                }
+            }
+        });
     }
 
     // Auto Classify
@@ -1764,7 +1795,12 @@ function buildTranslationRow(IDNum,classification,translationDiv,taskLabels,edit
             prev_label = prevTaskTranslations[classification].label.toLowerCase()
             if (taskLabels.includes(prev_label)) {
                 select.value = taskLabels.indexOf(prev_label)
-                checkbox.checked = prevTaskTranslations[classification].classify
+                if (select.value == 0) {
+                    checkbox.checked = false
+                    checkbox.disabled = true
+                } else {
+                    checkbox.checked = prevTaskTranslations[classification].classify
+                }
             }
 
         }
@@ -1774,6 +1810,7 @@ function buildTranslationRow(IDNum,classification,translationDiv,taskLabels,edit
         }
         else{
             checkbox.checked = false
+            checkbox.disabled = true
         }
     }
 
@@ -1783,6 +1820,10 @@ function updateTranslationMatrix() {
     /** Updates the label translation selectors in the new task form. */
 
     document.getElementById('btnCreateTask2').disabled=true
+
+    let defaultLabels = addTaskDescriptions.slice(0,2)
+    let otherLabels = addTaskDescriptions.slice(2).sort()
+    addTaskDescriptions = defaultLabels.concat(otherLabels)
     
     optionValues = []
     for (let i=0;i<addTaskDescriptions.length;i++) {
@@ -1926,7 +1967,9 @@ $("#selectAllClassifications").change( function() {
     allCheckBoxes = document.querySelectorAll('[id^=classificationSelection-]');
     if (document.getElementById('selectAllClassifications').checked) {
         for (let i=0;i<allCheckBoxes.length;i++) {
-            allCheckBoxes[i].checked = true
+            if (!allCheckBoxes[i].disabled) {
+                allCheckBoxes[i].checked = true
+            }
         }
     } else {
         for (let i=0;i<allCheckBoxes.length;i++) {
@@ -1940,7 +1983,9 @@ $("#selectAllClassificationsL").change( function() {
     allCheckBoxes = document.querySelectorAll('[id^=classificationSelection-]');
     if (document.getElementById('selectAllClassificationsL').checked) {
         for (let i=0;i<allCheckBoxes.length;i++) {
-            allCheckBoxes[i].checked = true
+            if (!allCheckBoxes[i].disabled) {
+                allCheckBoxes[i].checked = true
+            }
         }
     } else {
         for (let i=0;i<allCheckBoxes.length;i++) {
@@ -1954,7 +1999,9 @@ $("#selectAllClassificationsEdit").change( function() {
     allCheckBoxes = document.querySelectorAll('[id^=classificationSelectionEdit-]');
     if (document.getElementById('selectAllClassificationsEdit').checked) {
         for (let i=0;i<allCheckBoxes.length;i++) {
-            allCheckBoxes[i].checked = true
+            if (!allCheckBoxes[i].disabled) {
+                allCheckBoxes[i].checked = true
+            }
         }
     } else {
         for (let i=0;i<allCheckBoxes.length;i++) {
@@ -2069,6 +2116,7 @@ modalEditTask.on('shown.bs.modal', function(){
         globalTranslations = {}
         translationLabels = {}
         document.getElementById('deleteClusterLabel').checked = true
+        document.getElementById('selectAllClassificationsEdit').checked = false
         document.getElementById('openLabelsTab').click()
     }
 });
@@ -2567,30 +2615,37 @@ function updateEditTranslationDisplay(){
             if (classification in translationEditDict) {
                 if (translationEditDict[classification].label.toLowerCase() == 'vehicles/humans/livestock') {
                     document.getElementById('classTranslationSelectEdit-'+IDNum).value = -1
+                    document.getElementById('classificationSelectionEdit-'+IDNum).checked = translationEditDict[classification].classify == 'True' ? true : false
                 }
                 else if (translationEditDict[classification].label_id in translationLabels) {
                     document.getElementById('classTranslationSelectEdit-'+IDNum).value = translationEditDict[classification].label_id
+                    document.getElementById('classificationSelectionEdit-'+IDNum).checked = translationEditDict[classification].classify == 'True' ? true : false
                 }
                 else{
                     document.getElementById('classTranslationSelectEdit-'+IDNum).value = 0
+                    document.getElementById('classificationSelectionEdit-'+IDNum).checked = false
+                    document.getElementById('classificationSelectionEdit-'+IDNum).disabled = true
                 }
-                document.getElementById('classificationSelectionEdit-'+IDNum).checked = translationEditDict[classification].classify == 'True' ? true : false
             }
             else if (classification in globalTranslations) {
                 if (globalTranslations[classification].label.toLowerCase() == 'vehicles/humans/livestock') {
                     document.getElementById('classTranslationSelectEdit-'+IDNum).value = -1
+                    document.getElementById('classificationSelectionEdit-'+IDNum).checked = globalTranslations[classification].classify 
                 }
                 else if (globalTranslations[classification].label_id in translationLabels) {
                     document.getElementById('classTranslationSelectEdit-'+IDNum).value = globalTranslations[classification].label_id
+                    document.getElementById('classificationSelectionEdit-'+IDNum).checked = globalTranslations[classification].classify 
                 }
                 else{
                     document.getElementById('classTranslationSelectEdit-'+IDNum).value = 0
+                    document.getElementById('classificationSelectionEdit-'+IDNum).checked = false
+                    document.getElementById('classificationSelectionEdit-'+IDNum).disabled = true
                 }
-                document.getElementById('classificationSelectionEdit-'+IDNum).checked = globalTranslations[classification].classify 
             }
             else{
                 document.getElementById('classTranslationSelectEdit-'+IDNum).value = 0
                 document.getElementById('classificationSelectionEdit-'+IDNum).checked = false
+                document.getElementById('classificationSelectionEdit-'+IDNum).disabled = true
             }
         }
     }

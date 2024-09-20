@@ -1061,6 +1061,7 @@ modalEditTranslations.on('hidden.bs.modal', function(){
         while(translationsDiv.firstChild){
             translationsDiv.removeChild(translationsDiv.firstChild);
         }
+        document.getElementById('selectAllClassificationsL').checked = false
     }
 });
 
