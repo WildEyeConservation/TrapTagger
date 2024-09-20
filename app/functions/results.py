@@ -550,7 +550,7 @@ def create_task_dataframe(task_id,detection_count_levels,label_levels,url_levels
     df['label'] = df['label'].replace({'Nothing': 'None'}, regex=True)
 
     # Create annotator 
-    df['annotator'] = df.apply(lambda x: x.parent_username if x.parent_username else x.username, axis=1)
+    df['annotator'] = df.apply(lambda x: x.parent_username if x.parent_username not in [None,'None'] else x.username, axis=1)
     df['annotator'] = df['annotator'].replace({'Admin': 'AI', 'None': 'AI', None: 'AI'})
 
     # Replace flank with text & capitalize
