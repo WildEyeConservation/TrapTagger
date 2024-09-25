@@ -28,7 +28,7 @@ classifier_ids = [r[0] for r in db.session.query(Classifier.id).all()]
 for classifier_id in classifier_ids:
     print('Classifier:', classifier_id)
     classifications = [r[0] for r in db.session.query(ClassificationLabel.classification).filter(ClassificationLabel.classifier_id==classifier_id).all()]
-    task_ids = [r[0] for r in db.session.query(Task.id).join(Survey).filter(Survey.classifier_id==classifier_id).filter(Task.name != 'default').filter(~Task.name.contains('_o_l_d_')).filter(~Task.name.contains('_copying'))]
+    task_ids = [r[0] for r in db.session.query(Task.id).join(Survey).filter(Survey.classifier_id==classifier_id).filter(Task.name != 'default').filter(~Task.name.contains('_o_l_d_')).filter(~Task.name.contains('_copying')).distinct().all()]
     for task_id in task_ids:
         translations = [r[0] for r in db.session.query(Translation.classification).filter(Translation.task_id==task_id).all()]
         translations.extend(['nothing','unknown'])
