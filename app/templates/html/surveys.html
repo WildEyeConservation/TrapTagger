@@ -776,8 +776,8 @@ limitations under the License. -->
                     <div class="tabcontent" id="baseTranslationsTab">
                         <div id="translationsEditErrors" style="font-size: 80%; color: #DF691A"></div>
                         <h5 style="margin-bottom: 2px">Classification Handling</h5>
-                        <div style="font-size: 80%; margin-bottom: 2px"><i>Select how auto-classified clusters should be managed when translations are edited. Note that 
-                            human annotated labels will not be deleted. All clusters without labels will be auto-classified again.</i></div>
+                        <div style="font-size: 80%; margin-bottom: 2px"><i>Select how previously auto-classified clusters should be handled when translations are edited. Note that 
+                            human-annotated labels will never be deleted. All clusters left without labels will then undergo auto-classification with the new translation schema.</i></div>
                         <div class="custom-control custom-radio custom-control-inline">
                             <input type="radio" class="custom-control-input" id="deleteClusterLabel" name="clusterLabelSelection" value="customEx" checked="true">
                             <label class="custom-control-label" for="deleteClusterLabel">Delete auto-classified labels</label>
