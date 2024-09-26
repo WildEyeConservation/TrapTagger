@@ -1793,7 +1793,12 @@ function buildTranslationRow(IDNum,classification,translationDiv,taskLabels,edit
         classification = classification.toLowerCase()
         if (prevTaskTranslations && Object.keys(prevTaskTranslations).includes(classification)) {
             prev_label = prevTaskTranslations[classification].label.toLowerCase()
-            if (taskLabels.includes(prev_label)) {
+            if (prev_label == 'nothing') {
+                select.value = 0
+                checkbox.checked = false
+                checkbox.disabled = true
+            }
+            else if (taskLabels.includes(prev_label)) {
                 select.value = taskLabels.indexOf(prev_label)
                 if (select.value == 0) {
                     checkbox.checked = false
@@ -1802,9 +1807,12 @@ function buildTranslationRow(IDNum,classification,translationDiv,taskLabels,edit
                     checkbox.checked = prevTaskTranslations[classification].classify
                 }
             }
-
+            else{
+                checkbox.checked = false
+                checkbox.disabled = true
+            }
         }
-        else if (taskLabels.includes(classification)) {
+        else if (taskLabels.includes(classification) && classification != 'nothing') {
             select.value = taskLabels.indexOf(classification)
             checkbox.checked = true
         }
