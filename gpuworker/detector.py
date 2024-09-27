@@ -103,10 +103,10 @@ def infer(batch,sourceBucket,external,model,threshold=0.05,pass_images=False):
                     for detection in result['detections']:
                         bbox = ct_utils.convert_xywh_to_tf(detection['bbox'])
                         detections.append(
-                                    {'top':float(bbox[0]),
-                                    'left':float(bbox[1]),
-                                    'bottom':float(bbox[2]),
-                                    'right':float(bbox[3]),
+                                    {'top':max(0.0, min(1.0, float(bbox[0]))),
+                                    'left':max(0.0, min(1.0, float(bbox[1]))),
+                                    'bottom':max(0.0, min(1.0, float(bbox[2]))),
+                                    'right':max(0.0, min(1.0, float(bbox[3]))),
                                     'category':int(detection['category']),
                                     'score': float(detection['conf']),
                                     'status': 'active',
@@ -194,10 +194,10 @@ def infer(batch,sourceBucket,external,model,threshold=0.05,pass_images=False):
                 for j, scr in enumerate(score_np[i, :]):
                     if scr < threshold:
                         break
-                    detections.append( {'top':float(box_np[i, j, 0]),
-                                        'left':float(box_np[i, j, 1]),
-                                        'bottom':float(box_np[i, j, 2]),
-                                        'right':float(box_np[i, j, 3]),
+                    detections.append( {'top':max(0.0, min(1.0, float(box_np[i, j, 0]))),
+                                        'left':max(0.0, min(1.0, float(box_np[i, j, 1]))),
+                                        'bottom':max(0.0, min(1.0, float(box_np[i, j, 2]))),
+                                        'right':max(0.0, min(1.0, float(box_np[i, j, 3]))),
                                         'category':int(clss_np[i, j]),
                                         'score': float(score_np[i, j]),
                                         'status': 'active',

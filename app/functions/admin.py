@@ -19,7 +19,7 @@ from app.models import *
 from app.functions.globals import classifyTask, update_masks, retryTime, resolve_abandoned_jobs, addChildLabels, updateAllStatuses, \
                                     stringify_timestamp, rDets, update_staticgroups, detection_rating, chunker, verify_label
 from app.functions.individualID import calculate_detection_similarities, cleanUpIndividuals, check_individual_detection_mismatch
-from app.functions.imports import cluster_survey, classifySurvey, s3traverse, recluster_large_clusters, removeHumans, classifyCluster, importKML
+from app.functions.imports import cluster_survey, classifySurvey, s3traverse, recluster_large_clusters, removeHumans, classifyCluster, importKML, import_survey
 from app.functions.annotation import launch_task
 import GLOBALS
 from sqlalchemy.sql import func, or_, and_, distinct, alias
@@ -275,7 +275,7 @@ def delete_task(self,task_id):
     return status, message
 
 @celery.task(bind=True,max_retries=5,ignore_result=True)
-def stop_task(self,task_id):
+def stop_task(self,task_id,live=False):
     '''Celery function that stops a running task.'''
 
     try:
@@ -308,7 +308,7 @@ def stop_task(self,task_id):
                 clusters = db.session.query(Cluster).filter(Cluster.task_id==task_id).filter(Cluster.skipped==True).distinct().all()
                 for cluster in clusters:
                     cluster.skipped = False
-                db.session.commit()
+                # db.session.commit()
             elif '-5' in task.tagging_level:
                 cleanUpIndividuals(task_id)
                 GLOBALS.redisClient.delete('active_individuals_'+str(task_id))
@@ -326,10 +326,12 @@ def stop_task(self,task_id):
                             else:
                                 label.icID_q1_complete = False
 
-            if ',' not in task.tagging_level and task.init_complete and '-2' not in task.tagging_level:
-                check_individual_detection_mismatch(task_id=task_id,celeryTask=False)
+            db.session.commit()
 
-            updateAllStatuses(task_id=int(task_id), celeryTask=False)
+            if ',' not in task.tagging_level and task.init_complete and '-2' not in task.tagging_level:
+                check_individual_detection_mismatch(task_id=task_id)
+
+            updateAllStatuses(task_id=int(task_id))
 
             # if task_id in GLOBALS.mutex.keys(): GLOBALS.mutex.pop(task_id, None)
 
@@ -372,6 +374,10 @@ def stop_task(self,task_id):
 
             #     if not still_processing:
             #         survey.status = 'Ready'
+
+            if live:
+                survey.status = 'Import Queued'
+                import_survey.delay(survey_id=survey.id,live=True,launch_id=task_id)
 
             db.session.commit()
 
@@ -643,6 +649,19 @@ def delete_survey(self,survey_id):
                 status = 'error'
                 message = 'Could not delete survey permission exceptions.'
                 app.logger.info('Failed to delete survey permission exceptions.')
+
+        #Delete Survey API Keys
+        if status != 'error':
+            try:
+                survey_api_keys = db.session.query(APIKey).filter(APIKey.survey_id==survey_id).all()
+                for api_key in survey_api_keys:
+                    db.session.delete(api_key)
+                db.session.commit()
+                app.logger.info('Survey API keys deleted successfully.')
+            except:
+                status = 'error'
+                message = 'Could not delete survey API keys.'
+                app.logger.info('Failed to delete survey API keys.')
                 
         #Delete images from S3
         if status != 'error':
@@ -755,7 +774,12 @@ def deleteChildLabels(parent):
         has_individuals = checkForIndividuals(label)
         if not has_individuals:
             deleteChildLabels(label)
+            label.labelgroups = []
+            label.clusters = []
             db.session.delete(label)
+            labelTranslations = db.session.query(Translation).filter(Translation.label_id==label.id).filter(Translation.task==label.task).all()
+            for translation in labelTranslations:
+                db.session.delete(translation)
     return True
 
 def checkForIndividuals(label,has_individuals=False):
@@ -794,7 +818,7 @@ def processChanges(changes, keys, sessionLabels, task_id, speciesChanges=None):
             skipped (list): List of labels that cannot be added yet
             sessionLabels (dict): Labels that have been added this session
     '''
-
+    task_id = int(task_id)
     skipped = []
     newSessionLabels = {}
     for parent in keys:
@@ -806,9 +830,13 @@ def processChanges(changes, keys, sessionLabels, task_id, speciesChanges=None):
                 parentLabel = db.session.query(Label).get(GLOBALS.vhl_id)
             else:
                 parentLabel = db.session.query(Label).get(parent)
+                # The user was screened for write access to the task_id. We need to ensure that the user has the necessary permissions for the specified label.
+                if parentLabel.task_id!=task_id: continue
         else:
             if parent in sessionLabels.keys():
                 parentLabel = sessionLabels[parent]
+                # The user was screened for write access to the task_id. We need to ensure that the user has the necessary permissions for the specified label.
+                if parentLabel.task_id!=task_id: continue
             else:
                 skipped.append(parent)
 
@@ -816,51 +844,55 @@ def processChanges(changes, keys, sessionLabels, task_id, speciesChanges=None):
             for delete_id in changes[parent]['edits']['delete']:
                 if 's' not in delete_id:
                     deleteLabel = db.session.query(Label).get(int(delete_id))
-                    has_individuals = checkForIndividuals(deleteLabel)
-                    if deleteLabel and not has_individuals:
-                        deleteChildLabels(deleteLabel)
-                        db.session.delete(deleteLabel)
+                    if deleteLabel and deleteLabel.task_id==task_id: #here we are checking write access again.
+                        has_individuals = checkForIndividuals(deleteLabel)
+                        if not has_individuals:
+                            deleteTranslations = db.session.query(Translation).filter(Translation.label_id==deleteLabel.id).filter(Translation.task_id==task_id).all()
+                            deleteChildLabels(deleteLabel)
+                            deleteLabel.clusters = []
+                            deleteLabel.labelgroups = []
+                            db.session.delete(deleteLabel)
+                            for translation in deleteTranslations:
+                                db.session.delete(translation)
 
             for edit_id in changes[parent]['edits']['modify']:
                 if 's' not in edit_id:
                     editLabel = db.session.query(Label).get(int(edit_id))
-                    valid = verify_label(changes[parent]['edits']['modify'][edit_id]['description'],changes[parent]['edits']['modify'][edit_id]['hotkey'],editLabel.parent_id)
-                    if editLabel and valid:
-                        oldLabel = editLabel.description    
-                        editLabel.description = changes[parent]['edits']['modify'][edit_id]['description']
-                        editLabel.hotkey = changes[parent]['edits']['modify'][edit_id]['hotkey']
+                    if editLabel and editLabel.task_id==task_id: #here we are checking write access again.
+                        valid = verify_label(changes[parent]['edits']['modify'][edit_id]['description'],changes[parent]['edits']['modify'][edit_id]['hotkey'],editLabel.parent_id)
+                        if valid:
+                            oldLabel = editLabel.description    
+                            editLabel.description = changes[parent]['edits']['modify'][edit_id]['description']
+                            editLabel.hotkey = changes[parent]['edits']['modify'][edit_id]['hotkey']
 
-                        # Find individuals with this label as their species and update their species and update the label in other tasks
-                        if speciesChanges and oldLabel in speciesChanges:
-                            individuals = db.session.query(Individual).join(Task,Individual.tasks).filter(Task.id.in_(speciesChanges[oldLabel]['tasks'])).filter(Individual.species==oldLabel).all()
-                            for individual in individuals:
-                                individual.species = editLabel.description
+                            # Find individuals with this label as their species and update their species and update the label in other tasks
+                            # We have already checked write permission on all the tasks in speciesChanges
+                            if speciesChanges and (oldLabel in speciesChanges):
+                                individuals = db.session.query(Individual).join(Task,Individual.tasks).filter(Task.id.in_(speciesChanges[oldLabel]['tasks'])).filter(Individual.species==oldLabel).all()
+                                for individual in individuals:
+                                    individual.species = editLabel.description
 
-                            for t_id in speciesChanges[oldLabel]['tasks']:
-                                if t_id != task_id:
-                                    checkLabel = db.session.query(Label).filter(Label.task_id==t_id).filter(Label.description==editLabel.description).first()
-                                    if not checkLabel:
-                                        taskLabel = db.session.query(Label).filter(Label.task_id==t_id).filter(Label.description==oldLabel).first()
-                                        if taskLabel:
-                                            taskLabel.description = editLabel.description
-                                        
+                                for t_id in speciesChanges[oldLabel]['tasks']:
+                                    if t_id != task_id:
+                                        checkLabel = db.session.query(Label).filter(Label.task_id==t_id).filter(Label.description==editLabel.description).first()
+                                        if not checkLabel:
+                                            taskLabel = db.session.query(Label).filter(Label.task_id==t_id).filter(Label.description==oldLabel).first()
+                                            if taskLabel:
+                                                taskLabel.description = editLabel.description
 
             for additional_id in changes[parent]['additional']:
                 check = db.session.query(Label) \
                                 .filter(Label.task_id==task_id) \
-                                .filter(Label.description==changes[parent]['additional'][additional_id]['description'])
+                                .filter(Label.description==changes[parent]['additional'][additional_id]['description']) \
+                                .first()
 
                 if parentLabel != 'None':
-                    check = check.filter(Label.parent==parentLabel)
                     valueNeeded = parentLabel
                 else:
-                    check = check.filter(Label.parent_id==None)
                     valueNeeded = None
 
-                check = check.first()
-
                 valid = verify_label(changes[parent]['additional'][additional_id]['description'],changes[parent]['additional'][additional_id]['hotkey'],valueNeeded)
-                if not check and valid:
+                if (not check) and valid:
                     newLabel = Label(description=changes[parent]['additional'][additional_id]['description'],hotkey=changes[parent]['additional'][additional_id]['hotkey'],parent=valueNeeded,task_id=task_id)
                     db.session.add(newLabel)
                     newSessionLabels[additional_id] = newLabel
@@ -871,30 +903,121 @@ def processChanges(changes, keys, sessionLabels, task_id, speciesChanges=None):
     return skipped, sessionLabels
 
 @celery.task(bind=True,max_retries=5,ignore_result=True)
-def handleTaskEdit(self,task_id,changes,speciesChanges=None):
+def handleTaskEdit(self,task_id,labelChanges,tagChanges,translationChanges,deleteAutoLabels,speciesChanges=None):
     '''
-    Celery task that handles task edits, specifically relating to the editing of labels.
+    Celery task that handles task edits, relating to the editing of labels, tags and translations.
 
         Parameters:
             task_id (int): The task being edited
-            changes (dict): The changes being implemented to a parent label - modifed, deleted, or added
+            labelChanges (dict): The changes being implemented to a parent label - modifed, deleted, or added
+            tagChanges (dict): The changes being implemented to tags - modifed, deleted, or added
+            translationChanges (dict): The changes being implemented to translations
+            deleteAutoLabels (bool): Flag to indicate if auto classified labels should be deleted for edited translations
             speciesChanges (dict): The species that are being changed as well as the associated task IDs
     '''
     
     try:
-        if db.session.query(Task).get(task_id):
-            changes = ast.literal_eval(changes)
-            if speciesChanges:
-                speciesChanges = ast.literal_eval(speciesChanges)
+        if Config.DEBUGGING: app.logger.info('Task Edit: {}'.format(task_id))
+        task_id = int(task_id)
+        task = db.session.query(Task).get(task_id)
+        if task:
+            # Labels
             sessionLabels = {}
-            skipped, sessionLabels = processChanges(changes, changes.keys(), sessionLabels, task_id, speciesChanges)
+            skipped, sessionLabels = processChanges(labelChanges, labelChanges.keys(), sessionLabels, task_id, speciesChanges)
 
             while skipped != []:
-                skipped, sessionLabels = processChanges(changes, skipped, sessionLabels, task_id, speciesChanges)
+                skipped, sessionLabels = processChanges(labelChanges, skipped, sessionLabels, task_id, speciesChanges)
 
-            translations = db.session.query(Translation).filter(Translation.task_id==task_id).all()
-            for translation in translations:
-                db.session.delete(translation)
+            # Tags 
+            for tag_id in tagChanges['delete']:
+                tag = db.session.query(Tag).get(tag_id)
+                if tag and (tag.task_id==task_id): #the user has only been screen for write access to task_id
+                    tag.individuals = []
+                    tag.clusters = []
+                    db.session.delete(tag)
+
+            for tag_id in tagChanges['modify']:
+                tag = db.session.query(Tag).get(tag_id)
+                if tag and (tag.task_id==task_id): #the user has only been screen for write access to task_id
+                    tag.description = tagChanges['modify'][tag_id]['description']
+                    tag.hotkey = tagChanges['modify'][tag_id]['hotkey']
+
+            for tag_id in tagChanges['additional']:
+                check = db.session.query(Tag).filter(Tag.task_id==task_id).filter(Tag.description==tagChanges['additional'][tag_id]['description']).first()
+                if not check:
+                    tag = Tag(description=tagChanges['additional'][tag_id]['description'],hotkey=tagChanges['additional'][tag_id]['hotkey'],task_id=task_id)
+                    db.session.add(tag)
+
+            # Translations
+            if len(translationChanges.keys()) > 0:
+                classifications = list(translationChanges.keys())
+
+                prev_labels = []
+                prev_labels_description = []
+                translations = db.session.query(Translation).filter(Translation.task_id==task_id).filter(Translation.classification.in_(classifications)).all()
+                for translation in translations:
+                    if translation.auto_classify and translation.label_id:
+                        prev_labels.append(translation.label_id) 
+                        prev_labels_description.append(translation.label.description)
+                    db.session.delete(translation)
+
+                includes = []
+                translations_dict = {}
+                for classification in translationChanges:
+                    label = translationChanges[classification]['label'].lower()
+                    classify = True if translationChanges[classification]['classify'].lower() == 'true' else False
+                    translations_dict[classification] = label
+                    if classify and label not in ['nothing', 'unknown']:
+                        includes.append(classification)
+
+                edit_translations(task_id, translations_dict, includes)
+
+                if deleteAutoLabels:
+                    # Delete auto classified labels from clusters (for edited translations) - only clusters with no individuals
+                    admin = db.session.query(User).filter(User.username=='Admin').first()
+
+                    indiv_sq = db.session.query(Individual)\
+                            .filter(Individual.species.in_(prev_labels_description))\
+                            .filter(Individual.tasks.contains(task))\
+                            .subquery()
+                    
+                    clusters = db.session.query(Cluster)\
+                                            .join(Label,Cluster.labels)\
+                                            .join(Image,Cluster.images)\
+                                            .join(Detection)\
+                                            .outerjoin(indiv_sq,Detection.individuals)\
+                                            .filter(Cluster.task_id==task_id)\
+                                            .filter(Cluster.user==admin)\
+                                            .filter(Label.id.in_(prev_labels))\
+                                            .filter(indiv_sq.c.id==None)\
+                                            .distinct().all()
+                    
+                    labelgroups = db.session.query(Labelgroup)\
+                                            .join(Detection)\
+                                            .join(Image)\
+                                            .join(Cluster,Image.clusters)\
+                                            .join(Label,Cluster.labels)\
+                                            .outerjoin(indiv_sq,Detection.individuals)\
+                                            .filter(Labelgroup.task_id==task_id)\
+                                            .filter(Cluster.task_id==task_id)\
+                                            .filter(Cluster.user==admin)\
+                                            .filter(Label.id.in_(prev_labels))\
+                                            .filter(indiv_sq.c.id==None)\
+                                            .distinct().all()
+
+                    for cluster in clusters:
+                        cluster.labels = []
+                        cluster.user = None
+
+                    for labelgroup in labelgroups:
+                        labelgroup.labels = []
+
+                db.session.commit()
+
+                classifyTask(task.id)
+                if GLOBALS.vhl_id in prev_labels:
+                    removeHumans(task.id)
+                updateAllStatuses(task.id)
 
             task = db.session.query(Task).get(task_id)
             task.status = 'Ready'
@@ -924,23 +1047,21 @@ def handleTaskEdit(self,task_id,changes,speciesChanges=None):
     return True
 
 @celery.task(bind=True,max_retries=5)
-def copyClusters(self,newTask,session=None,trapgroup_id=None,celeryTask=False):
+def copyClusters(self,newTask,trapgroup_id=None):
     '''Copies default task clustering to the specified task.'''
     try:
-        if session == None:
-            session = db.session()
-            newTask = session.query(Task).get(newTask)
+        newTask = db.session.query(Task).get(newTask)
 
         survey_id = newTask.survey_id
-        default = session.query(Task).filter(Task.name=='default').filter(Task.survey_id==int(survey_id)).first()
+        default = db.session.query(Task).filter(Task.name=='default').filter(Task.survey_id==int(survey_id)).first()
         
-        check = session.query(Cluster).filter(Cluster.task==newTask)
+        check = db.session.query(Cluster).filter(Cluster.task==newTask)
         if trapgroup_id:
             check = check.join(Image,Cluster.images).join(Camera).filter(Camera.trapgroup_id==trapgroup_id)
         check = check.first()
 
         if check == None:
-            detections = session.query(Detection).join(Image).join(Camera)
+            detections = db.session.query(Detection).join(Image).join(Camera)
             if trapgroup_id:
                 detections = detections.filter(Camera.trapgroup_id==trapgroup_id)
             else:
@@ -948,16 +1069,16 @@ def copyClusters(self,newTask,session=None,trapgroup_id=None,celeryTask=False):
 
             for detection in detections:
                 labelgroup = Labelgroup(detection_id=detection.id,task=newTask,checked=False)
-                session.add(labelgroup)
+                db.session.add(labelgroup)
 
-            clusters = session.query(Cluster).filter(Cluster.task_id==default.id)
+            clusters = db.session.query(Cluster).filter(Cluster.task_id==default.id)
             if trapgroup_id:
                 clusters = clusters.join(Image,Cluster.images).join(Camera).filter(Camera.trapgroup_id==trapgroup_id)
             clusters = clusters.all()
 
             for cluster in clusters:
                 newCluster = Cluster(task=newTask)
-                session.add(newCluster)
+                db.session.add(newCluster)
                 newCluster.images=cluster.images
                 newCluster.classification = cluster.classification
 
@@ -966,12 +1087,11 @@ def copyClusters(self,newTask,session=None,trapgroup_id=None,celeryTask=False):
                     newCluster.user_id=cluster.user_id
                     newCluster.timestamp = datetime.utcnow()
 
-                    labelgroups = session.query(Labelgroup).join(Detection).join(Image).filter(Image.clusters.contains(cluster)).filter(Labelgroup.task==newTask).all()
+                    labelgroups = db.session.query(Labelgroup).join(Detection).join(Image).filter(Image.clusters.contains(cluster)).filter(Labelgroup.task==newTask).all()
                     for labelgroup in labelgroups:
                         labelgroup.labels = cluster.labels
 
-            # db.session.commit()
-            session.commit()
+            db.session.commit()
 
     except Exception as exc:
         app.logger.info(' ')
@@ -982,7 +1102,7 @@ def copyClusters(self,newTask,session=None,trapgroup_id=None,celeryTask=False):
         self.retry(exc=exc, countdown= retryTime(self.request.retries))
 
     finally:
-        if celeryTask: session.close()
+        db.session.remove()
 
     return True
 
@@ -1013,7 +1133,7 @@ def prepTask(self,newTask_id, survey_id, includes, translation,labels,parallel=F
             results = []
             trapgroup_ids = [r[0] for r in db.session.query(Trapgroup.id).filter(Trapgroup.survey_id==survey_id).distinct().all()]
             for trapgroup_id in trapgroup_ids:
-                results.append(copyClusters.apply_async(kwargs={'newTask': newTask_id, 'trapgroup_id':trapgroup_id, 'celeryTask': True},queue='parallel'))
+                results.append(copyClusters.apply_async(kwargs={'newTask': newTask_id, 'trapgroup_id':trapgroup_id},queue='parallel'))
     
             #Wait for processing to complete
             db.session.remove()
@@ -1043,7 +1163,7 @@ def prepTask(self,newTask_id, survey_id, includes, translation,labels,parallel=F
             results = []
             trapgroup_ids = [r[0] for r in db.session.query(Trapgroup.id).filter(Trapgroup.survey_id==survey_id).distinct().all()]
             for trapgroup_id in trapgroup_ids:
-                results.append(classifyTask.apply_async(kwargs={'task': newTask_id, 'trapgroup_ids':[trapgroup_id], 'celeryTask': True},queue='parallel'))
+                results.append(classifyTask.apply_async(kwargs={'task': newTask_id, 'trapgroup_ids':[trapgroup_id]},queue='parallel'))
             #Wait for processing to complete
             db.session.remove()
             GLOBALS.lock.acquire()
@@ -1063,7 +1183,7 @@ def prepTask(self,newTask_id, survey_id, includes, translation,labels,parallel=F
         else:
             classifyTask(newTask_id)
         
-        updateAllStatuses(task_id=newTask_id, celeryTask=False)
+        updateAllStatuses(task_id=newTask_id)
 
         newTask = db.session.query(Task).get(newTask_id)
         newTask.status = 'Ready'
@@ -1267,7 +1387,7 @@ def wrapUpAfterTimestampChange(survey_id,trapgroup_ids):
     for task_id in task_ids:
         removeHumans(task_id,trapgroup_ids)
         recluster_large_clusters(task_id,True)
-        classifyTask(task_id,None,None,trapgroup_ids)
+        classifyTask(task_id,None,trapgroup_ids)
 
     return True
 
@@ -1723,6 +1843,8 @@ def setupTranslations(task_id, survey_id, translations, includes):
     '''
     classifications = db.session.query(Detection.classification).join(Image).join(Camera).join(Trapgroup).filter(Trapgroup.survey_id==survey_id).distinct().all()
     classifications = [r[0] for r in classifications if r[0]!=None]
+    classifications.extend(translations.keys())
+    classifications = list(set(classifications))    
 
     for classification in classifications:
         
@@ -1757,9 +1879,7 @@ def setupTranslations(task_id, survey_id, translations, includes):
     translations = db.session.query(Translation)\
                             .join(Label)\
                             .filter(Label.children.any())\
-                            .filter(Label.description != 'Vehicles/Humans/Livestock')\
-                            .filter(Label.description != 'Nothing')\
-                            .filter(Label.description != 'Unknown')\
+                            .filter(Label.task_id==task_id)\
                             .filter(Translation.task_id==task_id).all()
     for translation in translations:
         check = db.session.query(Translation)\
@@ -1773,7 +1893,7 @@ def setupTranslations(task_id, survey_id, translations, includes):
 
     return True
 
-def edit_translations(task_id, translations):
+def edit_translations(task_id, translations, includes):
     '''Handles the editing of translations for the given set of translations and specified task.'''
 
     for classification in translations:
@@ -1785,6 +1905,24 @@ def edit_translations(task_id, translations):
         if species:
             translation = Translation(classification=classification, label_id=species.id, task_id=task_id)
             db.session.add(translation)
+
+            if classification.lower() in includes:
+                translation.auto_classify = True
+
+    # prepare lower level translations (exclude global labels)
+    translations = db.session.query(Translation)\
+                            .join(Label)\
+                            .filter(Label.children.any())\
+                            .filter(Label.task_id==task_id)\
+                            .filter(Translation.task_id==int(task_id)).all()
+    for translation in translations:
+        check = db.session.query(Translation)\
+                        .filter(Translation.label_id==translation.label_id)\
+                        .filter(Translation.classification!=translation.classification)\
+                        .first()
+        if (check==None) and (not checkChildTranslations(translation.label)):
+            for child in translation.label.children:
+                createChildTranslations(translation.classification,int(task_id),child)    
 
     db.session.commit()
     return True
@@ -2291,10 +2429,9 @@ def delete_individuals(self,task_ids, species):
                 
         # Update statuses
         for task_id in task_ids:
-            updateAllStatuses(task_id=task_id, celeryTask=False)
+            updateAllStatuses(task_id=task_id)
             task = db.session.query(Task).get(task_id)
             task.status = 'Ready'
-            
 
         db.session.commit()
 
@@ -2672,7 +2809,7 @@ def edit_survey(self,survey_id,user_id,classifier,sky_masked,ignore_small_detect
         # Update All statuses
         task_ids = [r[0] for r in db.session.query(Task.id).filter(Task.survey_id==survey_id).filter(Task.name!='default').distinct().all()]
         for task_id in task_ids:
-            updateAllStatuses(task_id=task_id, celeryTask=False)
+            updateAllStatuses(task_id=task_id)
 
         survey = db.session.query(Survey).get(survey_id)
         survey.status = 'Ready'
@@ -2764,6 +2901,67 @@ def check_masked_and_hidden_detections(survey_id):
     for image in set(images):
         image.detection_rating = detection_rating(image)
     db.session.commit()
+
+    return True
+
+@celery.task(ignore_result=True)
+def monitor_live_data_surveys():
+    '''Celery task that monitors surveys with live data and schedules and import for them.'''
+    try:
+
+        task_sq = db.session.query(Task.survey_id).filter(Task.status.notin_(Config.TASK_READY_STATUSES)).distinct().subquery()
+        surveys = db.session.query(Survey)\
+                            .join(Trapgroup)\
+                            .join(Camera)\
+                            .join(Image)\
+                            .join(APIKey)\
+                            .outerjoin(task_sq,task_sq.c.survey_id==Survey.id)\
+                            .filter(Survey.status.in_(Config.SURVEY_READY_STATUSES))\
+                            .filter(APIKey.api_key!=None)\
+                            .filter(or_(~Image.clusters.any(),~Image.detections.any()))\
+                            .filter(task_sq.c.survey_id==None)\
+                            .distinct().all()
+
+        if Config.DEBUGGING: app.logger.info('Found {} surveys with live data to import'.format(len(surveys)))
+
+        for survey in surveys:
+            survey.status = 'Import Queued'
+
+        launched_tasks = db.session.query(Task)\
+                                    .join(Survey)\
+                                    .join(Trapgroup)\
+                                    .join(Camera)\
+                                    .join(Image)\
+                                    .join(APIKey)\
+                                    .filter(Task.status.in_(['PENDING','PROGRESS']))\
+                                    .filter(~Survey.status.in_(Config.SURVEY_READY_STATUSES))\
+                                    .filter(APIKey.api_key!=None)\
+                                    .filter(or_(~Image.clusters.any(),~Image.detections.any()))\
+                                    .distinct().all()
+
+        if Config.DEBUGGING: app.logger.info('Found {} surveys with live data that are launched'.format(len(launched_tasks)))
+        for task in launched_tasks:
+            task.status = 'Stopping'
+
+        db.session.commit()
+
+        for survey in surveys:
+            import_survey.delay(survey_id=survey.id, live=True)
+
+        for task in launched_tasks:
+            stop_task.delay(task_id=task.id, live=True)
+
+    except Exception as exc:
+        app.logger.info(' ')
+        app.logger.info('!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!')
+        app.logger.info(traceback.format_exc())
+        app.logger.info('!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!')
+        app.logger.info(' ')
+
+    finally:
+        db.session.remove()
+        #Schedule every 24hours
+        monitor_live_data_surveys.apply_async(queue='priority', priority=0,countdown=86400)
 
     return True
 

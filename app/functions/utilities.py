@@ -989,7 +989,7 @@ def get_still_rate_old(video_fps,video_frames):
     frames_default_fps = math.ceil(video_frames / video_fps) * fps_default
     return min(max_frames / frames_default_fps, fps_default)
 
-@celery.task(bind=True,max_retries=5,ignore_result=True)
+@celery.task(bind=True,max_retries=5)
 def crop_training_images_parallel(self,key,source_bucket,dest_bucket):
     '''Parallel function for cropping detections contained in the csv in S3.'''
 
@@ -1008,7 +1008,7 @@ def crop_training_images_parallel(self,key,source_bucket,dest_bucket):
                 if img.mode != 'RGB': img = img.convert(mode='RGB')
 
                 for index, row in df[df['path']==image_key].iterrows():
-                    dest_key = str(row['detection_id'])+'.jpg'
+                    dest_key = str(int(row['detection_id']))+'.jpg'
                     bbox = [row['left'],row['top'],(row['right']-row['left']),(row['bottom']-row['top'])]
                     save_crop(img, bbox_norm=bbox, square_crop=True, bucket=dest_bucket, key=dest_key)
 
@@ -1042,9 +1042,11 @@ def crop_training_images(key,source_bucket,dest_bucket,parallelisation):
     NOTE: Make sure to use previous csvs to to filter new csvs to prevent duplication of cropping effort.
     '''
 
-    with tempfile.NamedTemporaryFile(delete=True, suffix='.csv') as temp_file:
-        GLOBALS.s3client.download_file(Bucket=dest_bucket, Key=key, Filename=temp_file.name)
-        df = pd.read_csv(temp_file.name)
+    # with tempfile.NamedTemporaryFile(delete=True, suffix='.csv') as temp_file:
+    #     GLOBALS.s3client.download_file(Bucket=dest_bucket, Key=key, Filename=temp_file.name)
+    #     df = pd.read_csv(temp_file.name)
+
+    df = pd.read_csv(key)
 
     results = []
     detection_count = len(df)
@@ -1056,6 +1058,8 @@ def crop_training_images(key,source_bucket,dest_bucket,parallelisation):
             df_temp.to_csv(temp_file.name,index=False)
             GLOBALS.s3client.put_object(Bucket=dest_bucket,Key=temp_key,Body=temp_file)
         results.append(crop_training_images_parallel.apply_async(kwargs={'key':temp_key,'source_bucket':source_bucket,'dest_bucket':dest_bucket}))
+    
+    df = None
 
     GLOBALS.lock.acquire()
     with allow_join_result():
@@ -1070,5 +1074,73 @@ def crop_training_images(key,source_bucket,dest_bucket,parallelisation):
                 app.logger.info(' ')
             result.forget()
     GLOBALS.lock.release()
+
+    return True
+
+def check_import(survey_id):
+    '''A function for checking if a survey what fully and correctly imported.'''
+
+    survey = db.session.query(Survey).get(survey_id)
+    isjpeg = re.compile('(\.jpe?g$)|(_jpe?g$)', re.I)
+
+    # Check that images all imported correctly
+    problems = []
+    for dirpath, folders, filenames in s3traverse(Config.BUCKET, survey.organisation.folder+'/'+survey.folder):
+        jpegs = list(filter(isjpeg.search, filenames))
+        if jpegs:
+            db_filenames = [r[0] for r in db.session.query(Image.filename).join(Camera).join(Trapgroup).filter(Trapgroup.survey_id==survey_id).filter(Camera.path==dirpath).distinct().all()]
+            problems.extend([dirpath+'/'+filename for filename in db_filenames if filename not in jpegs])
+    
+    if problems:
+        print('WARNING: {} files not imported.'.format(len(problems)))
+    else:
+        print('All image files imported correctly.')
+    
+    # Check all images have detections
+    count = db.session.query(Image).join(Camera).join(Trapgroup).filter(Trapgroup.survey_id==survey_id).filter(~Image.detections.any()).distinct().count()
+    
+    if count:
+        print('WARNING: {} images are without detections.'.format(count))
+    else:
+        print('All images have detections.')
+    
+    #Check classification
+    count = rDets(db.session.query(Detection).join(Image).join(Camera).join(Trapgroup).filter(Trapgroup.survey_id==survey_id)\
+                .filter(Detection.classification==None).filter(Detection.left!=Detection.right).filter(Detection.top!=Detection.bottom)).distinct().count()
+    
+    if count:
+        print('WARNING: {} detections are unclassified.'.format(count))
+    else:
+        print('All detections are classified.')
+    
+    # Check clustering
+    sq = db.session.query(Image).join(Cluster,Image.clusters).join(Task).filter(Task.name=='default').filter(Task.survey_id==survey_id).subquery()
+    
+    count = db.session.query(Image).outerjoin(sq,sq.c.id==Image.id).join(Camera).join(Trapgroup).filter(Trapgroup.survey_id==survey_id)\
+                .filter(sq.c.id==None).distinct().count()
+    
+    if count:
+        print('WARNING: {} images are unclustered.'.format(count))
+    else:
+        print('All images are clustered.')
+    
+    #Check labelgroups
+    sq = db.session.query(Detection).join(Labelgroup,Detection.labelgroups).join(Task).filter(Task.name=='default').filter(Task.survey_id==survey_id).subquery()
+    
+    count = db.session.query(Detection).outerjoin(sq,sq.c.id==Detection.id).join(Image).join(Camera).join(Trapgroup).filter(Trapgroup.survey_id==survey_id)\
+                .filter(sq.c.id==None).distinct().count()
+    
+    if count:
+        print('WARNING: {} detections are missing labelgroups.'.format(count))
+    else:
+        print('All detections have labelgroups.')
+
+    # Check image scoring
+    count = db.session.query(Image).join(Camera).join(Trapgroup).filter(Trapgroup.survey_id==survey_id).filter(Image.detection_rating==None).distinct().count()
+
+    if count:
+        print('WARNING: {} images are missing detection ratings.'.format(count))
+    else:
+        print('All detections have detection ratings.')
 
     return True

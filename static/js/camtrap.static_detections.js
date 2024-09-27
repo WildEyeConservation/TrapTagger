@@ -96,7 +96,7 @@ function loadNewCluster(mapID = 'map1') {
                             if (lastStaticGroup && clusters[mapID].length == staticgroupIDs.length) {
                                 clusters[mapID].push({id: '-101'})
                             }
-
+                            
                             var newDetections = info.staticgroup_detections
                             var group_keys = Object.keys(newDetections)
                             for (let i=0;i<group_keys.length;i++) {

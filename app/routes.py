@@ -306,46 +306,50 @@ def launchTask():
             taskSize = 10000
 
         #Check if all classifications are translated, if not, prompt
-        untranslated = []
         translations = [r[0] for r in db.session.query(Translation.classification).filter(Translation.task==task).all()]
+        translations.extend(['nothing','unknown'])
+        untranslated = [r[0] for r in db.session.query(ClassificationLabel.classification)\
+                                            .filter(ClassificationLabel.classifier_id==task.survey.classifier_id)\
+                                            .filter(~ClassificationLabel.classification.in_(translations))\
+                                            .order_by(ClassificationLabel.classification).distinct().all()]
 
-        untranslated_prior = db.session.query(Detection.classification)\
-                                .join(Image)\
-                                .join(Camera)\
-                                .join(Trapgroup)\
-                                .filter(Trapgroup.survey_id==task.survey_id)\
-                                .filter(~Detection.classification.in_(translations))\
-                                .distinct().all()
+        # untranslated_prior = db.session.query(Detection.classification)\
+        #                         .join(Image)\
+        #                         .join(Camera)\
+        #                         .join(Trapgroup)\
+        #                         .filter(Trapgroup.survey_id==task.survey_id)\
+        #                         .filter(~Detection.classification.in_(translations))\
+        #                         .distinct().all()
 
-        untranslated_prior = [r[0] for r in untranslated_prior if r[0] != None]
+        # untranslated_prior = [r[0] for r in untranslated_prior if r[0] != None]
 
-        if len(untranslated_prior) != 0:
-            #Attempt to auto-translate
-            for classification in untranslated_prior:
-                if classification.lower() not in ['knocked down','nothing','vehicles/humans/livestock','unknown']:
-                    species = db.session.query(Label).filter(Label.task==task).filter(func.lower(Label.description)==func.lower(classification)).first()
-                else:
-                    species = db.session.query(Label).filter(func.lower(Label.description)==func.lower(classification)).first()
+        # if len(untranslated_prior) != 0:
+        #     #Attempt to auto-translate
+        #     for classification in untranslated_prior:
+        #         if classification.lower() not in ['knocked down','nothing','vehicles/humans/livestock','unknown']:
+        #             species = db.session.query(Label).filter(Label.task==task).filter(func.lower(Label.description)==func.lower(classification)).first()
+        #         else:
+        #             species = db.session.query(Label).filter(func.lower(Label.description)==func.lower(classification)).first()
 
-                if species:
-                    translation = Translation(classification=classification, label_id=species.id, task=task)
-                    db.session.add(translation)
-                else:
-                    untranslated.append(classification)
-            # db.session.commit()
+        #         if species:
+        #             translation = Translation(classification=classification, label_id=species.id, task=task)
+        #             db.session.add(translation)
+        #         else:
+        #             untranslated.append(classification)
+        #     # db.session.commit()
 
-            if len(untranslated) != 0:
-                translations = db.session.query(Translation)\
-                                        .join(Label)\
-                                        .filter(Label.children.any())\
-                                        .filter(Label.description != 'Vehicles/Humans/Livestock')\
-                                        .filter(Label.description != 'Nothing')\
-                                        .filter(Label.description != 'Unknown')\
-                                        .filter(Translation.task==task).all()
-                for translation in translations:
-                    if not checkChildTranslations(translation.label):
-                        for child in translation.label.children:
-                            createChildTranslations(translation.classification,task.id,child)    
+        #     if len(untranslated) != 0:
+        #         translations = db.session.query(Translation)\
+        #                                 .join(Label)\
+        #                                 .filter(Label.children.any())\
+        #                                 .filter(Label.description != 'Vehicles/Humans/Livestock')\
+        #                                 .filter(Label.description != 'Nothing')\
+        #                                 .filter(Label.description != 'Unknown')\
+        #                                 .filter(Translation.task==task).all()
+        #         for translation in translations:
+        #             if not checkChildTranslations(translation.label):
+        #                 for child in translation.label.children:
+        #                     createChildTranslations(translation.classification,task.id,child)    
                 # db.session.commit()
 
         # Handle multi-task launch
@@ -1466,6 +1470,7 @@ def createNewSurvey():
     newSurvey_id = 0
     surveyName = ''
     browser_upload = False
+    action = None
 
     organisation = db.session.query(Organisation).get(organisation_id)
     userPermissions = db.session.query(UserPermissions).filter(UserPermissions.user_id==current_user.id).filter(UserPermissions.organisation_id==organisation_id).first()
@@ -1486,6 +1491,13 @@ def createNewSurvey():
             detailed_access = ast.literal_eval(request.form['detailed_access'])
         else:
             detailed_access = None
+
+        emptySurvey = False
+        if 'emptySurvey' in request.form:
+            emptySurvey = request.form['emptySurvey']
+            if emptySurvey == 'true':
+                emptySurvey = True
+                newSurveyS3Folder=surveyName
 
         surveyName = surveyName.strip()
         if newSurveyS3Folder=='none':
@@ -1558,25 +1570,38 @@ def createNewSurvey():
 
             # Create survey
             classifier = db.session.query(Classifier).filter(Classifier.name==classifier).first()
-            newSurvey = Survey(name=surveyName, description=newSurveyDescription, trapgroup_code=newSurveyTGCode, organisation_id=organisation_id, status='Uploading', correct_timestamps=correctTimestamps, classifier_id=classifier.id, camera_code=newSurveyCamCode, folder=newSurveyS3Folder)
-            db.session.add(newSurvey)
+
+            if emptySurvey:
+                newSurvey = Survey(name=surveyName, description=newSurveyDescription, organisation_id=organisation_id, status='Ready', correct_timestamps=correctTimestamps, classifier_id=classifier.id, folder=newSurveyS3Folder)
+                db.session.add(newSurvey)
+
+                defaultTask = Task(name='default', survey=newSurvey, tagging_level='-1', test_size=0, status='Ready')
+                db.session.add(defaultTask)
+            else:
+                newSurvey = Survey(name=surveyName, description=newSurveyDescription, trapgroup_code=newSurveyTGCode, organisation_id=organisation_id, status='Uploading', correct_timestamps=correctTimestamps, classifier_id=classifier.id, camera_code=newSurveyCamCode, folder=newSurveyS3Folder)
+                db.session.add(newSurvey)
 
             # Add permissions
             setup_new_survey_permissions(survey=newSurvey, organisation_id=organisation_id, user_id=current_user.id, permission=permission, annotation=annotation, detailed_access=detailed_access)
 
             db.session.commit()
 
-            if browser_upload:
-                # Browser upload
-                newSurvey_id = newSurvey.id
+            if not emptySurvey:
+                if browser_upload:
+                    # Browser upload
+                    newSurvey_id = newSurvey.id
 
-                # Checkout the upload
-                checkUploadUser(current_user.id,newSurvey_id)
+                    # Checkout the upload
+                    checkUploadUser(current_user.id,newSurvey_id)
+                    action = 'upload'
+                else:
+                    # Bucket upload
+                    import_survey.delay(survey_id=newSurvey.id)
+                    action = 'import'
             else:
-                # Bucket upload
-                import_survey.delay(survey_id=newSurvey.id)
+                action = 'empty'
     
-        return json.dumps({'status': status, 'message': message, 'newSurvey_id': newSurvey_id, 'surveyName':surveyName})
+        return json.dumps({'status': status, 'message': message, 'newSurvey_id': newSurvey_id, 'surveyName':surveyName, 'action': action})
     else:
         return json.dumps({'status': 'error', 'message': 'You do not have permission to create surveys for this organisation.'})
 
@@ -2144,7 +2169,7 @@ def newWorkerAccount(token):
         return render_template("html/block.html",text="Error.", helpFile='block', version=Config.VERSION)
 
     if 'username' in info.keys():
-        username = info['username']
+        username = info['username'].strip()
         email = info['email']
 
         if username.lower() not in Config.DISALLOWED_USERNAMES:
@@ -2848,7 +2873,7 @@ def getDetailedTaskStatus(task_id):
                     names, ids = addChildLabels(names,ids,label,task_id)
                 test2 = db.session.query(Cluster).filter(Cluster.task_id==task.id).filter(Cluster.labels.any(Label.id.in_(ids))).first()
 
-                if test2 or (cluster_count != 0):
+                if test2 or (cluster_count != 0 and cluster_count != None):
                     reply['Summary']['Clusters'] = cluster_count
                     reply['Summary']['Images'] = image_count
                     reply['Summary']['Sightings'] = sighting_count
@@ -3021,7 +3046,8 @@ def createAccount(token):
     except:
         return render_template("html/block.html",text="Error.", helpFile='block', version=Config.VERSION)
 
-    if ('organisation' in info.keys()) and (info['organisation'].lower() not in Config.DISALLOWED_USERNAMES):
+    if ('organisation' in info.keys()) and (info['organisation'].lower().strip() not in Config.DISALLOWED_USERNAMES):
+        info['organisation'] = info['organisation'].strip()
         folder = info['organisation'].lower().replace(' ','-').replace('_','-')
 
         check = db.session.query(Organisation).filter(or_(
@@ -3282,6 +3308,7 @@ def TTRegisterAdmin():
         enquiryForm = EnquiryForm()
         if enquiryForm.validate_on_submit():
             if enquiryForm.info.data == '':
+                enquiryForm.organisation.data = enquiryForm.organisation.data.strip()
                 folder = enquiryForm.organisation.data.lower().replace(' ','-').replace('_','-')
 
                 check = db.session.query(Organisation).filter(or_(
@@ -3654,7 +3681,7 @@ def getHomeSurveys():
                                     'numVideos': item[4], 
                                     'numFrames': item[5], 
                                     'status': surveyStatus, 
-                                    'numTrapgroups': item[7], 
+                                    'numTrapgroups': item[7] if item[7] else 0,
                                     'organisation': item[17],
                                     'tasks': []}
 
@@ -3782,7 +3809,7 @@ def getHomeSurveys():
                                         'numVideos': item[4], 
                                         'numFrames': item[5], 
                                         'status': surveyStatus, 
-                                        'numTrapgroups': item[7],
+                                        'numTrapgroups': item[7] if item[7] else 0,
                                         'organisation': item[17],
                                         'tasks': []}
 
@@ -4543,21 +4570,22 @@ def editTranslations(task_id):
     if task and checkSurveyPermission(current_user.id,task.survey_id,'write'):
         translation = request.form['translation']
         translation = ast.literal_eval(translation)
-        edit_translations(int(task_id), translation)
+        includes = ast.literal_eval(request.form['includes'])
+        edit_translations(int(task_id), translation, includes)
 
-        # prepare lower level translations
-        translations = db.session.query(Translation)\
-                                .join(Label)\
-                                .filter(Label.children.any())\
-                                .filter(Label.description != 'Vehicles/Humans/Livestock')\
-                                .filter(Label.description != 'Nothing')\
-                                .filter(Label.description != 'Unknown')\
-                                .filter(Translation.task_id==int(task_id)).all()
-        for translation in translations:
-            if not checkChildTranslations(translation.label):
-                for child in translation.label.children:
-                    createChildTranslations(translation.classification,int(task_id),child)    
-        db.session.commit()
+        # # prepare lower level translations
+        # translations = db.session.query(Translation)\
+        #                         .join(Label)\
+        #                         .filter(Label.children.any())\
+        #                         .filter(Label.description != 'Vehicles/Humans/Livestock')\
+        #                         .filter(Label.description != 'Nothing')\
+        #                         .filter(Label.description != 'Unknown')\
+        #                         .filter(Translation.task_id==int(task_id)).all()
+        # for translation in translations:
+        #     if not checkChildTranslations(translation.label):
+        #         for child in translation.label.children:
+        #             createChildTranslations(translation.classification,int(task_id),child)    
+        # db.session.commit()
 
         task.status = 'PENDING'
         task.is_bounding = False
@@ -4572,7 +4600,10 @@ def editTranslations(task_id):
             # restore_empty_zips.apply_async(kwargs={'task_id':task.id})
             launch_task.apply_async(kwargs={'task_id':task.id})
         else:
-            launch_task.apply_async(kwargs={'task_id':task.id})
+            if len(includes) > 0:
+                launch_task.apply_async(kwargs={'task_id':task.id, 'classify':True})
+            else:
+                launch_task.apply_async(kwargs={'task_id':task.id})
 
     return json.dumps('success')
 
@@ -5665,8 +5696,10 @@ def submitIndividuals():
 
             if len(problemNames) > 0:
                 return json.dumps({'status': 'error','message': 'There are duplicate names.', 'data': problemNames})
-                    
+
+            all_detections = [] 
             for individualID in individuals:
+                all_detections.extend(individuals[individualID]['detections'])
 
                 if individuals[individualID]['name'] == 'unidentifiable':
                     individual = unidentifiable
@@ -5725,7 +5758,7 @@ def submitIndividuals():
                         if int(translations[childID]) != unidentifiable.id:
                             individual.children.append(db.session.query(Individual).get(int(translations[childID])))
 
-            clusters = db.session.query(Cluster).join(Image,Cluster.images).join(Detection).filter(Cluster.task_id==task_id).filter(Detection.id.in_(individuals[individualID]['detections'])).distinct().all()
+            clusters = db.session.query(Cluster).join(Image,Cluster.images).join(Detection).filter(Cluster.task_id==task_id).filter(Detection.id.in_(all_detections)).distinct().all()
             for cluster in clusters:
                 cluster.user_id = current_user.id
                 cluster.timestamp = datetime.utcnow()
@@ -5753,7 +5786,6 @@ def get_clusters():
     OverallStartTime = time.time()
     id = request.args.get('id', None)
     reqId = request.args.get('reqId', None)
-    session = db.session()
     
     if reqId is None:
         reqId = '-99'
@@ -5770,14 +5802,14 @@ def get_clusters():
             else:
                 task_id = current_user.turkcode[0].task_id
     else:
-        cluster = session.query(Cluster).get(id)
+        cluster = db.session.query(Cluster).get(id)
         task_id = cluster.task_id
 
     if (not current_user.admin) and (not GLOBALS.redisClient.sismember('active_jobs_'+str(task_id),current_user.username)): return {'redirect': url_for('done')}, 278
     
     task = None
     try:
-        task = session.query(Task).get(task_id)
+        task = db.session.query(Task).get(task_id)
     except:
         return {'redirect': url_for('done')}, 278
     
@@ -5794,9 +5826,9 @@ def get_clusters():
     if current_user.admin:
         num = 0
     elif '-5' in task.tagging_level:
-        num = session.query(Individual).filter(Individual.user_id==current_user.id).count()
+        num = db.session.query(Individual).filter(Individual.user_id==current_user.id).count()
     else:
-        num = session.query(Cluster).filter(Cluster.user==current_user).count()
+        num = db.session.query(Cluster).filter(Cluster.user==current_user).count()
 
     if (num >= (task.size + task.test_size)): return {'redirect': url_for('done')}, 278
 
@@ -5812,10 +5844,10 @@ def get_clusters():
     if GLOBALS.redisClient.get('clusters_allocated_'+str(current_user.id))==None: GLOBALS.redisClient.set('clusters_allocated_'+str(current_user.id),0)
 
     if (',' not in taggingLevel) and (not isBounding) and int(taggingLevel) > 0:
-        label_description = session.query(Label).get(int(taggingLevel)).description
+        label_description = db.session.query(Label).get(int(taggingLevel)).description
 
     if id:
-        clusterInfo, max_request = fetch_clusters(taggingLevel,task_id,isBounding,None,session,None,id)
+        clusterInfo, max_request = fetch_clusters(taggingLevel,task_id,isBounding,None,None,id)
 
     else:
 
@@ -5831,7 +5863,7 @@ def get_clusters():
                 # session.add(current_user)
                 # session.refresh(current_user)
                 
-                clusterInfo, individuals = fetch_clusters(taggingLevel,task_id,isBounding,None,session)
+                clusterInfo, individuals = fetch_clusters(taggingLevel,task_id,isBounding,None)
 
                 # Handle buffer
                 for individual in individuals:
@@ -5843,7 +5875,7 @@ def get_clusters():
                 clusters_allocated = int(GLOBALS.redisClient.get('clusters_allocated_'+str(current_user.id)).decode()) + len(individuals)
                 GLOBALS.redisClient.set('clusters_allocated_'+str(current_user.id),clusters_allocated)
                 # current_user.last_ping = datetime.utcnow()
-                session.commit()
+                db.session.commit()
 
             else:
                 # session.close()
@@ -5854,14 +5886,14 @@ def get_clusters():
                 # session.refresh(current_user)
 
                 # this is now fast enough that if the user is coming back, their old trapgroup was finished and they need a new one
-                trapgroup = allocate_new_trapgroup(task_id,current_user.id,survey_id,session)
+                trapgroup = allocate_new_trapgroup(task_id,current_user.id,survey_id)
                 if trapgroup == None:
-                    session.close()
+                    db.session.close()
                     # GLOBALS.mutex[task_id]['global'].release()
                     return json.dumps({'id': reqId, 'info': [Config.FINISHED_CLUSTER]})
 
                 limit = task_size - int(GLOBALS.redisClient.get('clusters_allocated_'+str(current_user.id)).decode())
-                clusterInfo, max_request = fetch_clusters(taggingLevel,task_id,isBounding,trapgroup.id,session,limit)
+                clusterInfo, max_request = fetch_clusters(taggingLevel,task_id,isBounding,trapgroup.id,limit)
 
                 # if len(clusterInfo)==0: current_user.trapgroup = []
                 if (len(clusterInfo) <= limit) and not max_request:
@@ -5874,8 +5906,8 @@ def get_clusters():
 
                 # current_user.last_ping = datetime.utcnow()
                 
-                session.commit()
-                session.close()
+                db.session.commit()
+                db.session.close()
                 # GLOBALS.mutex[task_id]['global'].release()
 
                 # if current_user.trapgroup[:]:
@@ -7652,8 +7684,18 @@ def editTask(task_id):
     '''Edits the labels of a specified task. Returns a success/error state.'''
     try:
         task = db.session.query(Task).get(task_id)
+        app.logger.info('Edit Task: {}'.format(task_id))
         if task and checkSurveyPermission(current_user.id,task.survey_id,'write') and (task.status.lower() in Config.TASK_READY_STATUSES):
-            editDict = request.form['editDict']
+            editDict = ast.literal_eval(request.form['editDict'])
+            tagsDict = ast.literal_eval(request.form['tagsDict'])
+            translationsDict = ast.literal_eval(request.form['translationsDict'])
+            deleteAutoLabels = ast.literal_eval(request.form['deleteAutoLabels'])
+
+            if deleteAutoLabels=='true': 
+                deleteAutoLabels = True 
+            else: 
+                deleteAutoLabels = False
+
             if 'speciesEditDict' in request.form:
                 speciesEditDict = request.form['speciesEditDict']
                 speciesDict = ast.literal_eval(speciesEditDict)
@@ -7665,28 +7707,31 @@ def editTask(task_id):
                 species_tasks = []
                 for species in speciesDict:
                     species_tasks.extend(speciesDict[species]['tasks'])
-
+                
+                if task_id in species_tasks: species_tasks.remove(task_id) #already checked
+                
                 species_tasks = list(set(species_tasks))
                 available_tasks = []
-                if len(species_tasks) > 1:
-                    for s_tid in species_tasks:
-                        s_task = db.session.query(Task).get(s_tid)
-                        if s_task and checkSurveyPermission(current_user.id,s_task.survey_id,'write') and (s_task.status.lower() in Config.TASK_READY_STATUSES):
-                            available_tasks.append(s_task)
-                else:
-                    available_tasks = [task]
+                for s_tid in species_tasks:
+                    s_task = db.session.query(Task).get(s_tid)
+                    if s_task and checkSurveyPermission(current_user.id,s_task.survey_id,'write') and (s_task.status.lower() in Config.TASK_READY_STATUSES):
+                        available_tasks.append(s_task)
+                    else:
+                        return json.dumps('error')
+                
+                available_tasks.append(task)
 
-                if len(available_tasks) == len(species_tasks):  
-                    for s_task in available_tasks:
-                        s_task.status = 'Processing'
-                    db.session.commit()
-                    handleTaskEdit.delay(task_id=task_id,changes=editDict,speciesChanges=speciesEditDict)
-                else:
-                    return json.dumps('error')
+                for s_task in available_tasks:
+                    s_task.status = 'Processing'
+                db.session.commit()
+                handleTaskEdit.delay(task_id=task_id,labelChanges=editDict, tagChanges=tagsDict, translationChanges=translationsDict, deleteAutoLabels=deleteAutoLabels, speciesChanges=speciesDict)
+
             else:
                 task.status='Processing'
                 db.session.commit()
-                handleTaskEdit.delay(task_id=task_id,changes=editDict)
+                handleTaskEdit.delay(task_id=task_id,labelChanges=editDict, tagChanges=tagsDict, translationChanges=translationsDict, deleteAutoLabels=deleteAutoLabels)
+        else:
+            return json.dumps('error')
         return json.dumps('success')
     except:
         return json.dumps('error')
@@ -7802,10 +7847,10 @@ def editSightings(image_id,task_id):
                             if 'n' in detID:
                                 # Add new detection
                                 detection = Detection(
-                                    top=detectionsDict[detID]['top'],
-                                    bottom=detectionsDict[detID]['bottom'],
-                                    left=detectionsDict[detID]['left'],
-                                    right=detectionsDict[detID]['right'],
+                                    top=max(0.0, min(1.0, float(detectionsDict[detID]['top']))),
+                                    bottom=max(0.0, min(1.0, float(detectionsDict[detID]['bottom']))),
+                                    left=max(0.0, min(1.0, float(detectionsDict[detID]['left']))),
+                                    right=max(0.0, min(1.0, float(detectionsDict[detID]['right']))),
                                     score=1,
                                     static=False,
                                     image_id=int(image_id),
@@ -7841,10 +7886,10 @@ def editSightings(image_id,task_id):
                             else:
                                 # edit old detection
                                 detection = db.session.query(Detection).get(int(detID))
-                                detection.top = detectionsDict[detID]['top']
-                                detection.bottom = detectionsDict[detID]['bottom']
-                                detection.left = detectionsDict[detID]['left']
-                                detection.right = detectionsDict[detID]['right']
+                                detection.top = max(0.0, min(1.0, float(detectionsDict[detID]['top'])))
+                                detection.bottom = max(0.0, min(1.0, float(detectionsDict[detID]['bottom'])))
+                                detection.left = max(0.0, min(1.0, float(detectionsDict[detID]['left'])))
+                                detection.right = max(0.0, min(1.0, float(detectionsDict[detID]['right'])))
                                 detection.source='user'
                                 detection.status = 'edited'
                                 labelgroup = db.session.query(Labelgroup).filter(Labelgroup.detection_id==int(detID)).filter(Labelgroup.task_id==int(task_id)).first()
@@ -8509,13 +8554,14 @@ def checkNotifications():
                 total_unseen += 1
 
         if global_notification and (allow_global=='true'):
-            global_notification.users_seen.append(current_user)
-            db.session.commit()
+            if current_user not in global_notification.users_seen:
+                global_notification.users_seen.append(current_user)
+                db.session.commit()
 
-            notifcation_contents = {
-                'id': global_notification.id,
-                'contents': global_notification.contents,
-            }
+                notifcation_contents = {
+                    'id': global_notification.id,
+                    'contents': global_notification.contents,
+                }
 
         status = 'success'
     
@@ -9661,11 +9707,11 @@ def results():
     if not current_user.is_authenticated:
         return redirect(url_for('login_page'))
     elif current_user.parent_id != None:
-        if db.session.query(Turkcode).filter(Turkcode.user_id==current_user.username).first().task.is_bounding:
+        if current_user.turkcode[0].task.is_bounding:
             return redirect(url_for('sightings'))
-        elif '-4' in db.session.query(Turkcode).filter(Turkcode.user_id==current_user.username).first().task.tagging_level:
+        elif '-4' in current_user.turkcode[0].task.tagging_level:
             return redirect(url_for('clusterID'))
-        elif '-5' in db.session.query(Turkcode).filter(Turkcode.user_id==current_user.username).first().task.tagging_level:
+        elif '-5' in current_user.turkcode[0].task.tagging_level:
             return redirect(url_for('individualID'))
         else:
             return redirect(url_for('index'))
@@ -10976,11 +11022,11 @@ def settings():
             if not current_user.permissions: return redirect(url_for('landing'))
             return render_template('html/settings.html', title='Settings', helpFile='settings_page', bucket=Config.BUCKET, version=Config.VERSION)   
         else:
-            if db.session.query(Turkcode).filter(Turkcode.user_id==current_user.username).first().task.is_bounding:
+            if current_user.turkcode[0].task.is_bounding:
                 return redirect(url_for('sightings'))
-            elif '-4' in db.session.query(Turkcode).filter(Turkcode.user_id==current_user.username).first().task.tagging_level:
+            elif '-4' in current_user.turkcode[0].task.tagging_level:
                 return redirect(url_for('clusterID'))
-            elif '-5' in db.session.query(Turkcode).filter(Turkcode.user_id==current_user.username).first().task.tagging_level:
+            elif '-5' in current_user.turkcode[0].task.tagging_level:
                 return redirect(url_for('individualID'))
             else:
                 return redirect(url_for('index'))
@@ -11003,52 +11049,74 @@ def saveIntegrations():
 
     status = 'FAILURE'
     message = 'Unable to save integrations.'
+    new_api_keys = []
     if current_user and current_user.is_authenticated:
-        admin_orgs = [r[0] for r in db.session.query(Organisation.id).join(UserPermissions).filter(UserPermissions.user_id==current_user.id).filter(UserPermissions.default=='admin').all()]
-        # EarthRanger
-        earth_ranger_integrations = integrations['earthranger']
+        admin_data = db.session.query(Survey.id, Organisation.id).join(Organisation).join(UserPermissions).filter(UserPermissions.user_id==current_user.id).filter(UserPermissions.default=='admin').all()
+        admin_orgs = list(set([r[1] for r in admin_data]))
+        admin_surveys = [r[0] for r in admin_data]
 
-        if Config.DEBUGGING: app.logger.info('Earth ranger integrations {}'.format(earth_ranger_integrations))
+        try:
+            # EarthRanger
+            earth_ranger_integrations = integrations['earthranger']
+            er_deleted = earth_ranger_integrations['deleted']
+            er_edited = earth_ranger_integrations['edited']
+            er_new = earth_ranger_integrations['new']
 
-        er_deleted = earth_ranger_integrations['deleted']
-        er_edited = earth_ranger_integrations['edited']
-        er_new = earth_ranger_integrations['new']
+            if Config.DEBUGGING: app.logger.info('Earth ranger integrations {}'.format(earth_ranger_integrations))
 
-        status = 'SUCCESS'
-        message = 'Integrations saved successfully.'
+            for er in er_deleted:
+                er_integration = db.session.query(EarthRanger).filter(EarthRanger.id==er).first()
+                if er_integration and er_integration.organisation_id in admin_orgs:
+                    db.session.delete(er_integration)
 
-        for er in er_deleted:
-            if int(er['org_id']) in admin_orgs:
-                db.session.query(EarthRanger).filter(EarthRanger.id==er['id']).delete()
-            else:
-                status = 'FAILURE'
-                message = 'Unable to save integrations.'
+            for er in er_edited:
+                if int(er['org_id']) in admin_orgs:
+                    er_integration = db.session.query(EarthRanger).filter(EarthRanger.id==er['id']).first()
+                    if er_integration and er_integration.organisation_id in admin_orgs:
+                        er_integration.label = er['species']
+                        er_integration.api_key = er['api_key']
+                        er_integration.organisation_id = er['org_id']
 
-        for er in er_edited:
-            if int(er['org_id']) in admin_orgs:
-                er_integration = db.session.query(EarthRanger).filter(EarthRanger.id==er['id']).first()
-                if er_integration.organisation_id in admin_orgs:
-                    er_integration.label = er['species']
-                    er_integration.api_key = er['api_key']
-                    er_integration.organisation_id = er['org_id']
-                else:
-                    status = 'FAILURE'
-                    message = 'Unable to save integrations.'
-            else:
-                status = 'FAILURE'
-                message = 'Unable to save integrations.'
+            for er in er_new:
+                if int(er['org_id']) in admin_orgs:
+                    check_er = db.session.query(EarthRanger).filter(EarthRanger.organisation_id==er['org_id']).filter(EarthRanger.label==er['species']).filter(EarthRanger.api_key==er['api_key']).first()
+                    if not check_er:
+                        er_integration = EarthRanger(organisation_id=er['org_id'], api_key=er['api_key'], label=er['species'])
+                        db.session.add(er_integration)
 
-        for er in er_new:
-            if int(er['org_id']) in admin_orgs:
-                er_integration = EarthRanger(organisation_id=er['org_id'], api_key=er['api_key'], label=er['species'])
-                db.session.add(er_integration)
-            else:
-                status = 'FAILURE'
-                message = 'Unable to save integrations.'
 
-        db.session.commit()
+            # Live Data
+            live_integrations = integrations['live']
+            live_deleted = live_integrations['deleted']
+            live_new = live_integrations['new']
 
-    return json.dumps({'status': status, 'message': message})
+            if Config.DEBUGGING: app.logger.info('Live integrations {}'.format(live_integrations))
+
+            for live in live_deleted:
+                live_integration = db.session.query(APIKey).filter(APIKey.id==live).first()
+                if live_integration and live_integration.survey_id in admin_surveys:
+                    db.session.delete(live_integration)
+
+            for live in live_new:
+                if int(live['survey_id']) in admin_surveys:
+                    check = db.session.query(APIKey).filter(APIKey.survey_id==live['survey_id']).first()
+                    if not check:
+                        keys = generate_api_key(live['survey_id'])
+                        api_key = keys['api_key']
+                        hashed_key = keys['hashed_key']
+                        live_integration = APIKey(api_key=hashed_key, survey_id=live['survey_id'])
+                        db.session.add(live_integration)
+                        new_api_keys.append({'api_key': api_key, 'survey_id': live['survey_id']})
+
+            db.session.commit()
+            status = 'SUCCESS'
+            message = 'Integrations saved successfully.'
+
+        except:
+            status = 'FAILURE'
+            message = 'Unable to save integrations.'
+
+    return json.dumps({'status': status, 'message': message, 'new_api_keys': new_api_keys})
 
 @app.route('/getIntegrations')
 @login_required
@@ -11057,7 +11125,13 @@ def getIntegrations():
 
     integrations = []
     if current_user and current_user.is_authenticated:
-        earth_ranger_integrations = db.session.query(EarthRanger).join(Organisation).join(UserPermissions).filter(UserPermissions.default=='admin').filter(UserPermissions.user_id==current_user.id).all()
+        earth_ranger_integrations = db.session.query(EarthRanger)\
+                                                .join(Organisation)\
+                                                .join(UserPermissions)\
+                                                .filter(UserPermissions.default=='admin')\
+                                                .filter(UserPermissions.user_id==current_user.id)\
+                                                .order_by(EarthRanger.id).distinct().all()
+        
         er = {}
         for earth_ranger_integration in earth_ranger_integrations:
             api_key = earth_ranger_integration.api_key
@@ -11079,6 +11153,22 @@ def getIntegrations():
                 'organisation': value['organisation']
             })
 
+        live_integrations = db.session.query(APIKey.id, Survey.id, Survey.name)\
+                                            .join(Survey)\
+                                            .join(Organisation)\
+                                            .join(UserPermissions)\
+                                            .filter(UserPermissions.default=='admin')\
+                                            .filter(UserPermissions.user_id==current_user.id)\
+                                            .order_by(APIKey.id).distinct().all()
+        
+        for live_integration in live_integrations:
+            integrations.append({
+                'integration': 'live',
+                'id': live_integration[0],
+                'survey_id': live_integration[1],
+                'survey': live_integration[2]
+            })
+
     return json.dumps({'integrations': integrations})
 
 @app.route('/permissions')
@@ -11095,11 +11185,11 @@ def permissions():
             if current_user.parent_id == None:
                 return redirect(url_for('jobs'))
             elif current_user.parent_id != None:
-                if db.session.query(Turkcode).filter(Turkcode.user_id==current_user.username).first().task.is_bounding:
+                if current_user.turkcode[0].task.is_bounding:
                     return redirect(url_for('sightings'))
-                elif '-4' in db.session.query(Turkcode).filter(Turkcode.user_id==current_user.username).first().task.tagging_level:
+                elif '-4' in current_user.turkcode[0].task.tagging_level:
                     return redirect(url_for('clusterID'))
-                elif '-5' in db.session.query(Turkcode).filter(Turkcode.user_id==current_user.username).first().task.tagging_level:
+                elif '-5' in current_user.turkcode[0].task.tagging_level:
                     return redirect(url_for('individualID'))
                 else:
                     return redirect(url_for('index'))
@@ -11807,13 +11897,32 @@ def getAdminOrganisations():
     ''' Gets all the organisations where the current user is an admin '''
 
     organisations = []
+    include_surveys = request.args.get('include_surveys', False, type=bool)
     if current_user and current_user.is_authenticated:
-        orgs = db.session.query(Organisation.id, Organisation.name).join(UserPermissions).filter(UserPermissions.user_id == current_user.id).filter(UserPermissions.default == 'admin').distinct().all()
-        for org in orgs:
-            organisations.append({
-                'id': org[0],
-                'name': org[1]
-            })
+        if include_surveys:
+            surveys = []
+            org_data = db.session.query(Survey.id, Survey.name, Organisation.id, Organisation.name).join(Organisation).join(UserPermissions).filter(UserPermissions.user_id == current_user.id).filter(UserPermissions.default == 'admin').distinct().all()
+            org_added = []
+            for data in org_data:
+                surveys.append({
+                    'id': data[0],
+                    'name': data[1],
+                })
+                if data[2] not in org_added:
+                    organisations.append({
+                        'id': data[2],
+                        'name': data[3]
+                    })
+                    org_added.append(data[2])
+            
+            return json.dumps({'organisations': organisations, 'surveys': surveys})
+        else:
+            orgs = db.session.query(Organisation.id, Organisation.name).join(UserPermissions).filter(UserPermissions.user_id == current_user.id).filter(UserPermissions.default == 'admin').distinct().all()
+            for org in orgs:
+                organisations.append({
+                    'id': org[0],
+                    'name': org[1]
+                })
 
     return json.dumps({'organisations': organisations})
     
@@ -13561,11 +13670,9 @@ def getMatchingKpts(det_id1,det_id2):
 
     return json.dumps({'results': results})
 
-
 # NOTE: We are currenlty not allowing the users to edit a detection flank on the Individuals page and it can only be edited 
 #     in a Cluster ID (-4 task). The reason we have disallowed this is because of having to recalculate all detection similarities 
 #     and individual similaties associated with the detection whose flank has changed. 
-
 # @app.route('/submitIndividualFlanks', methods=['POST'])
 # @login_required
 # def submitIndividualFlanks():
@@ -13584,6 +13691,302 @@ def getMatchingKpts(det_id1,det_id2):
 #             status = 'success'
 
 #     return json.dumps({'status': status}) 
+
+@app.route('/api/v1/addImage', methods=['POST'])
+def addImage():
+    ''' Adds an image to a survey '''
+
+    api_key = request.headers.get('apikey')
+    try:
+        hashed_key = hashlib.md5(api_key.encode()).hexdigest()
+    except:
+        hashed_key = None
+    if hashed_key is None or hashed_key == '':
+        return json.dumps({'message': 'Unauthorized access.'}), 401
+    live_integration = db.session.query(APIKey).filter(APIKey.api_key==hashed_key).first()
+    if live_integration and live_integration.survey_id:
+        survey_id = live_integration.survey_id
+        survey = db.session.query(Survey).get(survey_id)
+        # Get Image & image information 
+        try:
+            image = request.files.get('image')
+
+            if not image:
+                return json.dumps({'message': 'No image provided.'}), 400
+
+            filename = image.filename
+            data = request.form.to_dict()
+
+            site = data.get('site')
+            latitude = data.get('latitude', 0)
+            longitude = data.get('longitude', 0)
+            altitude = data.get('altitude', 0)
+            camera = data.get('camera')
+
+            timestamp = data.get('timestamp')
+            if timestamp:
+                try:
+                    timestamp = datetime.strptime(timestamp, '%Y-%m-%d %H:%M:%S')
+                except:
+                    timestamp = None
+
+            annotations = data.get('annotations')
+            if annotations:
+                try:
+                    annotations = json.loads(annotations)
+                except:
+                    annotations = None
+
+
+            if site is None and float(latitude) == 0 and float(longitude) == 0:
+                return json.dumps({'message': 'Missing site information.'}), 400
+
+            app.logger.info(f'Filename: {filename} Site: {site} Latitude: {latitude} Longitude: {longitude} Altitude: {altitude} Camera: {camera} Timestamp: {timestamp} Annotations: {annotations}')
+
+            with tempfile.NamedTemporaryFile(delete=True, suffix='.JPG') as temp_file:
+                image.save(temp_file.name)
+                try:
+                    image_hash = generate_raw_image_hash(temp_file.name)
+
+                    # Check if the image already exists
+                    survey_folder = survey.organisation.folder + '/' + survey.folder + '/%'
+                    existing_image = db.session.query(Image).join(Camera).filter(Camera.path.like(survey_folder)).filter(Image.hash==image_hash).first()
+                    if existing_image:
+                        return json.dumps({'message': 'Image already exists.', 'image_id': existing_image.id}), 200
+                    else:
+                        # Add to the database
+                        if site:
+                            trapgroup = db.session.query(Trapgroup).filter(Trapgroup.survey_id==survey_id).filter(Trapgroup.tag==site).first()
+                        else:
+                            if latitude and longitude:
+                                coordinate_tolerance = 0.00001
+                                trapgroup = db.session.query(Trapgroup).filter(Trapgroup.survey_id==survey_id).filter(func.abs(Trapgroup.latitude-latitude) <= coordinate_tolerance).filter(func.abs(Trapgroup.longitude-longitude) <= coordinate_tolerance).first()
+                        
+                        if not trapgroup:
+                            if site:
+                                site_name = site
+                            else:
+                                site_name = generate_site_name(survey_id)
+                        else:
+                            site_name = trapgroup.tag
+
+                        if camera:
+                            camera_path = survey.organisation.folder + '/' + survey.folder + '/' + site_name + '/' + camera
+                            comp_path = survey.organisation.folder + '-comp/' + survey.folder + '/' + site_name + '/' + camera
+                        else:
+                            camera_path = survey.organisation.folder + '/' + survey.folder + '/' + site_name
+                            comp_path = survey.organisation.folder + '-comp/' + survey.folder + '/' + site_name
+
+                        # Upload to S3
+                        image_key = camera_path + '/' + filename
+                        comp_key = comp_path + '/' + filename
+                        image_exists = False
+                        try:
+                            GLOBALS.s3client.head_object(Bucket=Config.BUCKET, Key=image_key)
+                            image_exists = True
+                        except:
+                            image_exists = False
+
+                        if image_exists:
+                            filename_split = filename.split('.')
+                            dup_filename = filename_split[0] + '_%.' + filename_split[1]
+                            image_dup_names = [r[0] for r in db.session.query(Image.filename).join(Camera).filter(Camera.path==camera_path).filter(Image.filename.like(dup_filename)).distinct().all()]
+                            image_dup_count = len(image_dup_names)
+                            filename = filename_split[0] + '_' + str(image_dup_count+1) + '.' + filename_split[1]
+                            while filename in image_dup_names:
+                                image_dup_count += 1
+                                filename = filename_split[0] + '_' + str(image_dup_count+1) + '.' + filename_split[1]
+                            image_key = camera_path + '/' + filename
+                            comp_key = comp_path + '/' + filename
+
+                        GLOBALS.s3client.upload_file(Bucket=Config.BUCKET, Key=image_key, Filename=temp_file.name)
+
+                        # Compress image
+                        try:
+                            with wandImage(filename=temp_file.name).convert('jpeg') as img:
+                                # This is required, because if we don't have it ImageMagick gets too clever for it's own good
+                                # and saves images with no color content (i.e. fully black image) as grayscale. But this causes
+                                # problems for MegaDetector which expects a 3 channel image as input.
+                                img.metadata['colorspace:auto-grayscale'] = 'false'
+                                img.transform(resize='800')
+                                GLOBALS.s3client.upload_fileobj(BytesIO(img.make_blob()),Config.BUCKET,comp_key)
+                        except:
+                            return json.dumps({'message': 'Error adding image.'}), 400
+                        
+                        # Get timestamp from EXIF data if not provided
+                        if not timestamp:
+                            try:
+                                t = pyexifinfo.get_json(temp_file.name)[0]
+                                exif_timestamp = None
+                                for field in ['EXIF:DateTimeOriginal','MakerNotes:DateTimeOriginal']:
+                                    if field in t.keys():
+                                        exif_timestamp = datetime.strptime(t[field], '%Y:%m:%d %H:%M:%S')
+                                        break
+                                if exif_timestamp:
+                                    timestamp = exif_timestamp
+                            except:
+                                pass
+
+                        # Check timestamp is not corrupt
+                        if timestamp and (timestamp>datetime.utcnow()): timestamp == None
+                        if timestamp and (timestamp.year<2000): timestamp == None
+
+                        if not trapgroup:
+                            trapgroup = Trapgroup(survey_id=survey_id, tag=site_name, latitude=latitude, longitude=longitude, altitude=altitude)
+                            db.session.add(trapgroup)
+
+                        camera = db.session.query(Camera).filter(Camera.path==camera_path).first()
+                        if not camera:
+                            camera = Camera(trapgroup=trapgroup, path=camera_path)
+                            db.session.add(camera)
+
+                        etag = GLOBALS.s3client.head_object(Bucket=Config.BUCKET, Key=image_key)['ETag'][1:-1]
+                        image = Image(camera=camera, filename=filename, timestamp=timestamp, corrected_timestamp=timestamp, hash=image_hash, etag=etag)
+                        db.session.add(image)
+
+                        if annotations:
+                            for annotation in annotations:
+
+                                if 'det_score' in annotation:
+                                    det_score = annotation['det_score']
+                                else:
+                                    det_score = 1
+
+                                category = 1
+                                source = 'api'
+                                status= 'active'
+
+                                if 'top' not in annotation or 'left' not in annotation or 'bottom' not in annotation or 'right' not in annotation:
+                                    return json.dumps({'message': 'Incomplete annotation.'}), 400
+
+                                top = max(0.0, min(1.0, float(annotation['top'])))
+                                left = max(0.0, min(1.0, float(annotation['left'])))
+                                bottom = max(0.0, min(1.0, float(annotation['bottom'])))
+                                right = max(0.0, min(1.0, float(annotation['right'])))
+
+                                detection = Detection(image=image, top=top, left=left, bottom=bottom, right=right, score=det_score, category=category, source=source, status=status)
+                                db.session.add(detection)
+
+                                species = annotation.get('species', None)
+                                if species and species.lower() not in ['skip', 'wrong', 'remove false detections', 'mask area', 'none']:
+                                    label = None 
+                                    if species.lower() == 'vehicles/humans/livestock':
+                                        label = db.session.query(Label).get(GLOBALS.vhl_id)
+                                    elif species.lower() == 'knocked down':
+                                        label = db.session.query(Label).get(GLOBALS.knocked_id)
+                                    elif species.lower() == 'nothing':
+                                        label = db.session.query(Label).get(GLOBALS.nothing_id)
+                                    elif species.lower() == 'unknown':
+                                        label = db.session.query(Label).get(GLOBALS.unknown_id)
+
+                                    task_ids = [r[0] for r in db.session.query(Task.id).join(Survey).filter(Survey.id==survey_id).filter(Task.name!='default').all()]
+                                    if not task_ids:
+                                        new_task = Task(name='Livestream', survey_id=int(survey_id), status='Ready', tagging_time=0, test_size=0, size=200, parent_classification=False)
+                                        db.session.add(new_task)
+                                        if not label:
+                                            label = Label(description=species, task=new_task, hotkey=generate_hotkey(species))
+                                            db.session.add(label)
+                                        labelgroup = Labelgroup(detection=detection, labels=[label], task=new_task)
+                                        db.session.add(labelgroup)
+                                    else:
+                                        for task_id in task_ids:
+                                            if not label:
+                                                label = db.session.query(Label).join(Task).filter(Task.id==task_id).filter(Label.description==species).first()
+                                                if not label:
+                                                    label = Label(description=species, task_id=task_id, hotkey=generate_hotkey(species, task_id))
+                                                    db.session.add(label)
+                                            labelgroup = Labelgroup(detection=detection, labels=[label], task_id=task_id)
+                                            db.session.add(labelgroup)
+
+                        db.session.commit()
+
+                        return json.dumps({'image_id': image.id, 'message': 'Image added successfully.'}), 200
+                except:
+                    return json.dumps({'message': 'Error adding image.'}), 400
+        except:
+            return json.dumps({'message': 'Request error.'}), 400
+    else:
+        return json.dumps({'message': 'Unauthorized access.'}), 401
+
+@app.route('/generateNewAPIKey/<integration_id>')
+@login_required
+def generateNewAPIKey(integration_id):
+    ''' Generates a new API key for the specified integration '''
+    api_key_info = []
+    if current_user and current_user.is_authenticated:
+        integration = db.session.query(APIKey).get(integration_id)
+        if integration and integration.survey_id and checkSurveyPermission(current_user.id,integration.survey_id,'admin'):
+            api_keys = generate_api_key(integration.survey_id)
+            api_key = api_keys['api_key']
+            hashed_key = api_keys['hashed_key']
+            integration.api_key = hashed_key 
+            db.session.commit()
+            api_key_info.append({
+                'api_key': api_key,
+                'survey_id': integration.survey_id
+            })
+
+    return json.dumps({'api_keys': api_key_info})
+
+@app.route('/getClassificationLabels/<survey_id>')
+@login_required
+def getClassificationLabels(survey_id):
+    ''' Gets the classification labels for the specified survey '''
+    classifications = []
+    if current_user and current_user.is_authenticated:
+        survey = db.session.query(Survey).get(survey_id)
+        if survey and survey.classifier and checkSurveyPermission(current_user.id,survey.id,'write'):
+            classifications = [r[0] for r in db.session.query(ClassificationLabel.classification).filter(ClassificationLabel.classifier_id==survey.classifier_id).order_by(ClassificationLabel.classification).distinct().all()]
+
+    return json.dumps({'classifications': classifications})
+
+@app.route('/getTaskTranslations/<task_id>')
+@login_required
+def getTaskTranslations(task_id):
+    ''' Gets the translations for the specified task '''	
+    translations_data = {}
+    parent_classification = False
+    if current_user and current_user.is_authenticated:
+        task = db.session.query(Task).get(task_id)
+        if task and checkSurveyPermission(current_user.id,task.survey_id,'write'):
+            parent_classification = task.parent_classification
+            translations = db.session.query(Translation.id, Translation.classification, Label.id, Label.description, Translation.auto_classify, Label.parent_id).join(Label).filter(Translation.task_id==task_id).distinct().all()
+            for translation in translations:
+                if not translation[5]:
+                    translations_data[translation[1]] = {
+                        'id': translation[0],	
+                        'label_id': translation[2],
+                        'label':  translation[3],
+                        'classify': translation[4]
+                    }
+                else:
+                    if translation[1] not in translations_data.keys():
+                        translations_data[translation[1]] = {
+                            'id': translation[0],
+                            'label_id': translation[2],
+                            'label':  translation[3],
+                            'classify': translation[4]
+                        }
+
+    return json.dumps({'translations': translations_data, 'parent_classification': parent_classification})
+
+@app.route('/getTaskTags/<task_id>')
+@login_required
+def getTaskTags(task_id):
+    ''' Gets the tags for the specified task '''
+    tag_data = []
+    if current_user and current_user.is_authenticated:
+        task = db.session.query(Task).get(task_id)
+        if task and checkSurveyPermission(current_user.id,task.survey_id,'write'):
+            tags = db.session.query(Tag).join(Task).filter(Task.id==task_id).distinct().all()
+            for tag in tags:
+                tag_data.append({
+                    'id': tag.id,	
+                    'description': tag.description,
+                    'hotkey': tag.hotkey
+                })
+
+    return json.dumps({'tags': tag_data})
 
 @app.route('/fileHandler/invoke_lambda', methods=['POST'])
 @login_required

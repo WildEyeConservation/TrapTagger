@@ -55,6 +55,8 @@ function getIdNumforNext(text) {
                 idNum = idNum.split("s")[idNum.split("s").length-1]
             } else if (idNum.includes('_')) {
                 idNum = idNum.split("_")[idNum.split(":").length-1]
+            } else if (idNum.includes('n')) {
+                idNum = idNum.split("n")[idNum.split("n").length-1]
             }
             idNum = parseInt(idNum)
             if (idNum > maxNum){

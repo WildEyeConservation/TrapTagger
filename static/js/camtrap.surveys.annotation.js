@@ -229,11 +229,19 @@ submitTagsBtn.addEventListener('click', ()=>{
     }
 });
 
-function checkTags() {
+function checkTags(edit=false) {
     /** Checks the legality of the user-specified tags by looking for duplicates etc. */
 
-    allHotkeys = document.querySelectorAll('[id^=taghotkey-]');
-    allDescriptions = document.querySelectorAll('[id^=tagdescription-]');
+    if (edit) {
+        var allHotkeys = document.querySelectorAll('[id^=tagHotkey-]');
+        var allDescriptions = document.querySelectorAll('[id^=tag-]');
+        var tagErrors = document.getElementById('tagEditErrors')   
+    }
+    else{
+        var allHotkeys = document.querySelectorAll('[id^=taghotkey-]');
+        var allDescriptions = document.querySelectorAll('[id^=tagdescription-]');
+        var tagErrors = document.getElementById('tagErrors')   
+    }
 
     var duplicateDescriptions = []
     var duplicateKeys = []
@@ -289,7 +297,6 @@ function checkTags() {
     }
 
     // Print
-    tagErrors = document.getElementById('tagErrors')   
     while(tagErrors.firstChild){
         tagErrors.removeChild(tagErrors.firstChild);
     }
@@ -329,6 +336,18 @@ function checkTags() {
     if (descriptionSlash) {
         newdiv = document.createElement('div')
         newdiv.innerHTML = 'A tag name cannot include slashes.'
+        tagErrors.appendChild(newdiv)
+    }
+
+    if (emptyDescription) {
+        newdiv = document.createElement('div')
+        newdiv.innerHTML = 'A tag name cannot be empty.'
+        tagErrors.appendChild(newdiv)
+    }
+
+    if (emptyHotkey) {
+        newdiv = document.createElement('div')
+        newdiv.innerHTML = 'A hotkey cannot be empty.'
         tagErrors.appendChild(newdiv)
     }
 
@@ -1068,13 +1087,22 @@ modalEditTranslations.on('hidden.bs.modal', function(){
 	    xhttp.open("GET", '/releaseTask/'+selectedTask);
 	    xhttp.send();
 	}
+    
+    if (!helpReturn) {
+        translationsDiv = document.getElementById('translationsDiv')
+        while(translationsDiv.firstChild){
+            translationsDiv.removeChild(translationsDiv.firstChild);
+        }
+        document.getElementById('selectAllClassificationsL').checked = false
+    }
 });
 
-btnSubmitTranslaions.addEventListener('click', ()=>{
+btnSubmitTranslations.addEventListener('click', ()=>{
     /** Submits the user's translations to the server. */
     
     allTranslations = document.querySelectorAll('[id^=classTranslationText-]')
     translationInfo = {}
+    includes = []
     for (let i=0;i<allTranslations.length;i++) {
         IDNum = allTranslations[i].id.split("-")[allTranslations[i].id.split("-").length-1]
         classification = allTranslations[i].innerHTML
@@ -1084,6 +1112,11 @@ btnSubmitTranslaions.addEventListener('click', ()=>{
 
         if (translation.toLowerCase()=='nothing (ignore)') {
             translation='nothing'
+        }else{
+            classificationSelection = document.getElementById('classificationSelection-'+IDNum)
+            if (classificationSelection.checked) {
+                includes.push(classification)
+            }
         }
 
         translationInfo[classification] = translation
@@ -1091,6 +1124,7 @@ btnSubmitTranslaions.addEventListener('click', ()=>{
     
     var formData = new FormData()
     formData.append("translation", JSON.stringify(translationInfo))
+    formData.append("includes", JSON.stringify(includes))
 
     var xhttp = new XMLHttpRequest();
     xhttp.open("POST", '/editTranslations/'+selectedTask);
@@ -1101,6 +1135,10 @@ btnSubmitTranslaions.addEventListener('click', ()=>{
             if (reply=='success') {
                 editTranslationsSubmitted = true
                 modalEditTranslations.modal('hide')
+                translationsDiv = document.getElementById('translationsDiv')
+                while(translationsDiv.firstChild){
+                    translationsDiv.removeChild(translationsDiv.firstChild);
+                }
                 updatePage(current_page)
             }
         }

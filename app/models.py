@@ -167,6 +167,7 @@ class Survey(db.Model):
     exceptions = db.relationship('SurveyPermissionException', backref='survey', lazy=True)
     shares = db.relationship('SurveyShare', backref='survey', lazy=True)
     camera_code = db.Column(db.String(256), index=False)
+    api_keys = db.relationship('APIKey', backref='survey', lazy=True)
     zips = db.relationship('Zip', backref='survey', lazy=True)
     id_restore = db.Column(db.DateTime, index=False)
     download_restore = db.Column(db.DateTime, index=False)
@@ -388,7 +389,7 @@ class Task(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     name = db.Column(db.String(256), index=True, unique=False)
     survey_id = db.Column(db.Integer, db.ForeignKey('survey.id'), index=True)
-    tagging_level = db.Column(db.String(32), index=False)
+    tagging_level = db.Column(db.String(80), index=False)
     test_size = db.Column(db.Integer, index=False)
     size = db.Column(db.Integer, index=False)
     status = db.Column(db.String(32), index=True)
@@ -518,6 +519,7 @@ class Classifier(db.Model):
     active = db.Column(db.Boolean, default=True, index=True)
     threshold = db.Column(db.Float, index=False)
     surveys = db.relationship('Survey', backref='classifier', lazy=True)
+    classification_labels = db.relationship('ClassificationLabel', backref='classifier', lazy=True)
 
     def __repr__(self):
         return '<Classifier {}>'.format(self.name)
@@ -642,6 +644,22 @@ class Staticgroup(db.Model):
 
     def __repr__(self):
         return '<Staticgroup {}>'.format(self.id)
+
+class APIKey(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    api_key = db.Column(db.String(32), index=True, unique=True)
+    survey_id = db.Column(db.Integer, db.ForeignKey('survey.id'), index=False, unique=False)
+
+    def __repr__(self):
+        return '<APIKey for {}>'.format(self.survey_id)
+
+class ClassificationLabel(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    classification = db.Column(db.String(64), index=False)
+    classifier_id = db.Column(db.Integer, db.ForeignKey('classifier.id'), index=False, unique=False)
+
+    def __repr__(self):
+        return '<Classification label {}>'.format(self.classification)
 
 class Zip(db.Model):
     id = db.Column(db.Integer, primary_key=True)

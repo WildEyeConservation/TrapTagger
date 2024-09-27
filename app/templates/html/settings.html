@@ -89,9 +89,21 @@ limitations under the License. -->
                                 <button class="btn btn-primary btn-block" type="button" id="btnAddIntegration" onclick="buildIntegrationSelect()">Add Integration</button>
                             </div>
                         </div>
-                        <div id="settingsErrors" style=" font:80%; color: #DF691A"></div>
+                        <div class="row">
+                            <div class="col-lg-6">
+                                <select class="form-control" id="integrationSelect">
+                                    <option value="earthranger">EarthRanger</option>
+                                    <option value="live">Live Data</option>	
+                                </select>
+                            </div>
+                            <div class="col-lg-6"></div>
+                        </div>
+                        <div id="settingsErrors" style="font-size: 80%; color: #DF691A"></div>
                     </div>
-                    <div id="integrationsDiv"></div>
+                    <div id="integrationsDiv">
+                        <div id="erDiv" hidden></div>
+                        <div id="liveDiv" hidden></div>
+                    </div>
                 </div>
             </div>
 
@@ -144,9 +156,44 @@ limitations under the License. -->
     </div>
 </div>
 
+<!-- Add new Survey Modal -->
+<div id="modalAPIKey" class="modal fade" role="dialog" tabindex="-1">
+    <div class="modal-dialog", style="max-width: 50%">
+        <!-- Modal content-->
+        <div class="modal-content">
+            <div class="modal-header">
+                <h4 class="modal-title">API Keys</h4>
+                <button id="helpx" type="button" class="close" data-dismiss="modal">&times;</button>
+            </div>
+            <div class="modal-body">   
+                <p align="justify">
+                    Your API keys will be displayed here. The API key is used to authenticate your requests to the server. Please note that you 
+                    will not be able to view the API keys again once you close this modal. If you lose your API key, you will need to generate a new one. Please keep it safe.
+                </p>
+                <div class="row">
+                    <div class="col-lg-5">
+                        <h5 style="margin-bottom: 2px">Survey</h5>
+                    </div>
+                    <div class="col-lg-6">
+                        <h5 style="margin-bottom: 2px">API Key</h5>
+                    </div>
+                </div>
+                <div id="apiKeyDiv"></div>
+            </div>
+            <div class='modal-footer'>
+                <div class='col-lg-3'>
+                    <button type='button' class='btn btn-info btn-block' data-dismiss='modal'>Close</button>
+                </div>
+            </div>
+        </div>
+  
+    </div>
+</div>
+
 {% endblock %}
 
 {% block page_scripts %}
 <script src="js/camtrap.admin.commons.v{{ version }}.js"></script>
 <script src="js/camtrap.settings.v{{ version }}.js"></script>
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.2/css/all.min.css">
 {% endblock %}

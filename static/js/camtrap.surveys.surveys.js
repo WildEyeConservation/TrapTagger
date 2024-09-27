@@ -149,14 +149,14 @@ const submitTagsBtn = document.querySelector('#submitTagsBtn');
 const btnAddTag = document.querySelector('#btnAddTag');
 const modalTags = $('#modalTags');
 const modalEditTranslations = $('#modalEditTranslations');
-const btnSubmitTranslaions = document.querySelector('#btnSubmitTranslaions');
+const btnSubmitTranslations = document.querySelector('#btnSubmitTranslations');
 // const btnReClassify = document.querySelector('#btnReClassify');
 const btnModalAddTaskBack = document.querySelector('#btnModalAddTaskBack');
 const btnModalAddTaskBack2 = document.querySelector('#btnModalAddTaskBack2');
 const btnCreateTask2 = document.querySelector('#btnCreateTask2');
 const btnCreateTask3 = document.querySelector('#btnCreateTask3');
 const modalAddTask2 = $('#modalAddTask2');
-const modalAddTask3 = $('#modalAddTask3');
+// const modalAddTask3 = $('#modalAddTask3');
 const modalStatus = $('#modalStatus');
 const analysisSelector = document.getElementById('analysisSelector')
 const modalStatistics = $('#modalStatistics');
@@ -182,6 +182,7 @@ const btnExcelDownload = document.querySelector('#btnExcelDownload');
 const btnCsvDownload = document.querySelector('#btnCsvDownload');
 const modalConfirmEditSpecies = $('#modalConfirmEditSpecies');
 const modalConfirmEditClose = $('#modalConfirmEditClose');
+const modalConfirmEmpty = $('#modalConfirmEmpty');
 const modalConfirmRestore = $('#modalConfirmRestore');
 const btnConfirmRestore = document.querySelector('#btnConfirmRestore')
 const btnCancelRestore = document.querySelector('#btnCancelRestore')
@@ -316,6 +317,18 @@ var corrected_coordinates = {}
 var timestampSites = []
 var timestampCameras = {}
 var timestampSpecies = []
+var confirmEmptyReturn = false
+var confirmedEmpty = false
+var surveyFormData = null
+var classificationLabels = []
+var tabActiveEditTask = 'baseLabelsTab'
+var prevTaskTranslations = {}
+var removedTags = []
+var tagEditDict = {}
+var translationEditDict = {}
+var globalTags = {}
+var translationLabels = {}
+var globalTranslations = {}
 var confirmRestore = false
 
 function buildSurveys(survey,disableSurvey) {
@@ -746,7 +759,8 @@ function buildSurveys(survey,disableSurvey) {
                 selectedSurvey = wrapSurveyId
                 resetModalAddTask1()
                 resetModalAddTask2()
-                resetModalAddTask3()
+                // resetModalAddTask3()
+                getClassificationLabels()
                 modalAddTask.modal({keyboard: true});
             }
         }(survey.id));
@@ -963,6 +977,7 @@ btnNewSurvey.addEventListener('click', ()=>{
         document.getElementById('modalAlertBody').innerHTML = "If you wish to add an additional survey, please wait for the current upload to complete, or open a new tab."
         modalAlert.modal({keyboard: true});
     } else {
+        resetNewSurveyPage()
         modalNewSurvey.modal({keyboard: true});
     }
 });
@@ -1068,6 +1083,13 @@ function resetNewSurveyPage() {
     while(surveyPermissionsDiv.firstChild){
         surveyPermissionsDiv.removeChild(surveyPermissionsDiv.firstChild);
     }
+
+    confirmedEmpty = false
+    confirmEmptyReturn = false
+    surveyFormData = null
+
+    document.getElementById('btnSaveSurvey').disabled=false
+    document.getElementById('newSurveyErrors').innerHTML = ''
 }
 
 function resetEditSurveyModal() {
@@ -3850,9 +3872,8 @@ modalStatus.on('hidden.bs.modal', function(){
 modalNewSurvey.on('hidden.bs.modal', function(){
     /** Clears the new-survey modal when closed. */
     
-    if (!helpReturn) {
+    if (!helpReturn && !confirmEmptyReturn) {
         resetNewSurveyPage()
-        document.getElementById('btnSaveSurvey').disabled=false
     } 
 });
 
@@ -4044,8 +4065,8 @@ function buildClassifierSelectTable(speciesClassifierDiv) {
 modalNewSurvey.on('shown.bs.modal', function(){
     /** Populates the new survey modal when opened. */
 
-    if (!helpReturn){
-        if (cloudAccess!='False') {
+    if (!helpReturn && !confirmEmptyReturn) {
+        if (cloudAccess=='True') {
             document.getElementById('uploadTypeSelect').hidden = false
         }
         speciesClassifierDiv = document.getElementById('speciesClassifierDiv')
@@ -4055,6 +4076,7 @@ modalNewSurvey.on('shown.bs.modal', function(){
     }
     else {
         helpReturn = false
+        confirmEmptyReturn = false
     }
       
 });
@@ -4204,16 +4226,16 @@ document.getElementById('btnSaveSurvey').addEventListener('click', ()=>{
     camBotLvlFolder = document.getElementById('camBotLvlFolder').checked
     camSameAsSite = document.getElementById('camSameAsSite').checked
     newSurveyStructureDiv = document.getElementById('newSurveyStructureDiv')
-
     classifier = document.querySelector('input[name="classifierSelection"]:checked')
+
+    while(document.getElementById('newSurveyErrors').firstChild){
+        document.getElementById('newSurveyErrors').removeChild(document.getElementById('newSurveyErrors').firstChild);
+    }
+
     if (classifier==null) {
         document.getElementById('newSurveyErrors').innerHTML = 'You must select a classifier.'
     } else {
         classifier = classifier.id
-    }
-
-    while(document.getElementById('newSurveyErrors').firstChild){
-        document.getElementById('newSurveyErrors').removeChild(document.getElementById('newSurveyErrors').firstChild);
     }
 
     if (newSurveyDescription == '') {
@@ -4282,50 +4304,8 @@ document.getElementById('btnSaveSurvey').addEventListener('click', ()=>{
         }
     }
 
-
-    legalTGCode = true
-    if (newSurveyTGCode == '') {
-        legalTGCode = false
-        document.getElementById('newSurveyErrors').innerHTML = 'The site identifier field cannot be empty.'
-    }
-    else{
-        if (newSurveyTGCode.endsWith('.*') || newSurveyTGCode.endsWith('.+') || newSurveyTGCode.endsWith('.*[0-9]+') || newSurveyTGCode.endsWith('.+[0-9]+' )) {
-            legalTGCode = false
-            error_message = 'Your site identifier is invalid. Please try again or send an email for assistance.'
-            document.getElementById('newSurveyErrors').innerHTML = error_message 
-        }   
-    }
-
-    legalCamCode = true
-    if (camRegExp) {
-        // Regular expression
-        var newSurveyCamCode = document.getElementById('newSurveyCamCode').value
-        if (newSurveyCamCode == '') {
-            legalCamCode = false
-            document.getElementById('newSurveyErrors').innerHTML = 'The camera code field cannot be empty.'
-        }
-        else{
-            if (newSurveyCamCode.endsWith('.*') || newSurveyCamCode.endsWith('.+') || newSurveyCamCode.endsWith('.*[0-9]+') || newSurveyCamCode.endsWith('.+[0-9]+' )) {
-                legalCamCode = false
-                error_message = 'Your camera code is invalid. Please try again or send an email for assistance.'
-                document.getElementById('newSurveyErrors').innerHTML = error_message 
-            }   
-        }
-    }
-    else if (camBotLvlFolder) {
-        // Bottom-level folder
-        legalCamCode = true
-    }
-    else if (camSameAsSite) {
-        // Site identifier
-        legalCamCode = legalTGCode
-    }
-    else {
-        legalCamCode = false
-        document.getElementById('newSurveyErrors').innerHTML = 'You must select a camera code option.'
-    }
-    
     legalInput = false
+    var emptySurvey = false
     if (document.getElementById('S3BucketUpload').checked == true) {
         S3FolderInput = document.getElementById('S3FolderInput')
         newSurveyS3Folder = S3FolderInput.options[S3FolderInput.selectedIndex].text
@@ -4341,7 +4321,10 @@ document.getElementById('btnSaveSurvey').addEventListener('click', ()=>{
     } else if (document.getElementById('BrowserUpload').checked == true) {
         pathDisplay = document.getElementById('pathDisplay')
         if (pathDisplay.options.length == 0) {
-            document.getElementById('newSurveyErrors').innerHTML = 'You must select images to upload.'
+            // document.getElementById('newSurveyErrors').innerHTML = 'You must select images to upload.'
+            emptySurvey = true
+            legalInput = true
+            newSurveyS3Folder = 'none'
         } else {
             legalInput = true
             newSurveyS3Folder = 'none'
@@ -4351,16 +4334,75 @@ document.getElementById('btnSaveSurvey').addEventListener('click', ()=>{
         document.getElementById('newSurveyErrors').innerHTML = 'You must select an image upload method.'
     }
 
-    structureCheckReady = true
-    if ((newSurveyStructureDiv!=null)&&(newSurveyStructureDiv.innerHTML=='Checking...')) {
-        structureCheckReady = false
-        document.getElementById('newSurveyErrors').innerHTML = 'Please wait for your structure check to finish.'
+
+    legalTGCode = true
+    if (emptySurvey){
+        legalTGCode = true
+        newSurveyTGCode = ''
+    } else {
+        if (newSurveyTGCode == '') {
+            legalTGCode = false
+            document.getElementById('newSurveyErrors').innerHTML = 'The site identifier field cannot be empty.'
+        }
+        else{
+            if (newSurveyTGCode.endsWith('.*') || newSurveyTGCode.endsWith('.+') || newSurveyTGCode.endsWith('.*[0-9]+') || newSurveyTGCode.endsWith('.+[0-9]+' )) {
+                legalTGCode = false
+                error_message = 'Your site identifier is invalid. Please try again or send an email for assistance.'
+                document.getElementById('newSurveyErrors').innerHTML = error_message 
+            }   
+        }
     }
 
-    if ((newSurveyStructureDiv!=null)&&(newSurveyStructureDiv.innerHTML == '')||(newSurveyStructureDiv.innerHTML == 'Malformed expression. Please try again.')||(newSurveyStructureDiv.innerHTML == 'Invalid structure. Please check your site and camera identifiers.')) {
-        legalTGCode = false
-        legalCamCode = false
-        document.getElementById('newSurveyErrors').innerHTML = 'Your specified site or camera identifiers are invalid. Please try again.'
+
+    legalCamCode = true
+    if (emptySurvey) {
+        legalCamCode = true
+    }
+    else{
+        if (camRegExp) {
+            // Regular expression
+            var newSurveyCamCode = document.getElementById('newSurveyCamCode').value
+            if (newSurveyCamCode == '') {
+                legalCamCode = false
+                document.getElementById('newSurveyErrors').innerHTML = 'The camera code field cannot be empty.'
+            }
+            else{
+                if (newSurveyCamCode.endsWith('.*') || newSurveyCamCode.endsWith('.+') || newSurveyCamCode.endsWith('.*[0-9]+') || newSurveyCamCode.endsWith('.+[0-9]+' )) {
+                    legalCamCode = false
+                    error_message = 'Your camera code is invalid. Please try again or send an email for assistance.'
+                    document.getElementById('newSurveyErrors').innerHTML = error_message 
+                }   
+            }
+        }
+        else if (camBotLvlFolder) {
+            // Bottom-level folder
+            legalCamCode = true
+        }
+        else if (camSameAsSite) {
+            // Site identifier
+            legalCamCode = legalTGCode
+        }
+        else {
+            legalCamCode = false
+            document.getElementById('newSurveyErrors').innerHTML = 'You must select a camera code option.'
+        }
+    }
+
+    structureCheckReady = true
+    if (emptySurvey) {
+        structureCheckReady = true
+    }
+    else {
+        if ((newSurveyStructureDiv!=null)&&(newSurveyStructureDiv.innerHTML=='Checking...')) {
+            structureCheckReady = false
+            document.getElementById('newSurveyErrors').innerHTML = 'Please wait for your structure check to finish.'
+        }
+    
+        if ((newSurveyStructureDiv!=null)&&(newSurveyStructureDiv.innerHTML == '')||(newSurveyStructureDiv.innerHTML == 'Malformed expression. Please try again.')||(newSurveyStructureDiv.innerHTML == 'Invalid structure. Please check your site and camera identifiers.')) {
+            legalTGCode = false
+            legalCamCode = false
+            document.getElementById('newSurveyErrors').innerHTML = 'Your specified site or camera identifiers are invalid. Please try again.'
+        }
     }
 
     if (legalName&&legalOrganisation&&legalDescription&&legalPermission&&legalTGCode&&legalInput&&structureCheckReady&&classifier&&legalCamCode) {
@@ -4412,8 +4454,16 @@ document.getElementById('btnSaveSurvey').addEventListener('click', ()=>{
                 formData.append("camCheckbox", newSurveyCheckbox.checked.toString())
             }
 
-
-            submitNewSurvey(formData)
+            if (emptySurvey) {
+                formData.append("emptySurvey", 'true')
+                surveyFormData = formData
+                confirmEmptyReturn = true
+                modalNewSurvey.modal('hide')
+                modalConfirmEmpty.modal({keyboard: true}); 
+            }
+            else {
+                submitNewSurvey(formData)
+            }
         }
     }
 });
@@ -4430,7 +4480,7 @@ function submitNewSurvey(formData) {
 
             if (reply.status=='success') {
 
-                if (document.getElementById('BrowserUpload').checked == true) {
+                if (reply.action=='upload') {
                     uploadID = reply.newSurvey_id
                     surveyName = reply.surveyName
 
@@ -4464,6 +4514,12 @@ function submitNewSurvey(formData) {
                     // modalUploadProgress.modal({backdrop: 'static', keyboard: false});
 
                     // uploadSurveyToCloud(surveyName)
+                } else if (reply.action=='empty') {
+                    document.getElementById('modalAlertHeader').innerHTML = 'Success'
+                    document.getElementById('modalAlertBody').innerHTML = 'Your survey has been created.'
+                    alertReload = true
+                    modalNewSurvey.modal('hide')
+                    modalAlert.modal({keyboard: true});
                 } else {
                     document.getElementById('modalAlertHeader').innerHTML = 'Success'
                     document.getElementById('modalAlertBody').innerHTML = 'Your survey is being imported.'
@@ -4480,6 +4536,21 @@ function submitNewSurvey(formData) {
     }
     xhttp.send(formData);
 }
+
+modalConfirmEmpty.on('hidden.bs.modal', function(){
+    /** Clears the empty survey modal when closed. */
+    if (!confirmedEmpty) {	
+        document.getElementById('btnSaveSurvey').disabled = false
+        modalNewSurvey.modal({keyboard: true});
+    }
+});
+
+$('#btnConfirmEmpty').click( function() {
+    /** Event listener for the confirm button on the empty survey modal. */
+    confirmedEmpty = true
+    modalConfirmEmpty.modal('hide')
+    submitNewSurvey(surveyFormData)
+});
 
 document.getElementById('btnAddFiles').addEventListener('click', ()=>{
     /** Handles the submission of the add files modal. */

@@ -27,6 +27,7 @@ var prevAnnotator = '0'
 var prevStartDate = null
 var prevEndDate = null
 var editingEnabled = false
+var getClusterAttempts = 0
 isTagging = false
 isReviewing = true
 isKnockdown = false
@@ -207,9 +208,13 @@ function getClusterIDs(mapID = 'map1'){
                         document.getElementById('expEndDate').value = currentEndDate ? currentEndDate.split(' ')[0] : ''
                         document.getElementById('noteboxExpSearch').value = ''
                         document.getElementById('notif1').innerHTML = ''
-                        getClusterIDs()
+                        if (getClusterAttempts<5){
+                            getClusterAttempts += 1
+                            getClusterIDs()
+                        }
                     }
                     else{
+                        getClusterAttempts = 0
                         for (let i=0;i<3;i++){
                             loadNewCluster()
                         }

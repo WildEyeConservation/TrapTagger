@@ -34,6 +34,7 @@ class RegistrationForm(FlaskForm):
     submit = SubmitField('Register')
 
     def validate_username(self, username):
+        username.data = username.data.strip()
         user = User.query.filter_by(username=username.data).first()
         folder = username.data.lower().replace(' ','-').replace('_','-')
         folder_check = Organisation.query.filter_by(folder=folder).first()

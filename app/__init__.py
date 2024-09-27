@@ -63,10 +63,10 @@ def make_celery(flask_app):
         backend=REDIS_ADDRESS,
         broker=REDIS_ADDRESS,
         broker_transport_options={
-            'visibility_timeout': 259200,
+            'visibility_timeout': 1209600,
             'queue_order_strategy': 'priority'
         },
-        result_expires=259200
+        result_expires=1209600
     )
     # worker_prefetch_multiplier=1,
     # task_reject_on_worker_lost=True,
@@ -95,7 +95,7 @@ def make_celery(flask_app):
             task_queues.append(Queue(classifier.name,routing_key=classifier.name+'.#'))
 
     ####
-    celery.conf.task_acks_late = False
+    celery.conf.task_acks_late = True
     celery.conf.worker_prefetch_multiplier = 1
     celery.conf.task_default_queue = 'default'
     celery.conf.task_queues = task_queues
@@ -208,7 +208,8 @@ def initialise_periodic_functions(sender, instance, **kwargs):
         # from flask_migrate import upgrade
         from app.functions.imports import setupDatabase
         from app.functions.annotation import manageTasks
-        from app.functions.globals import importMonitor
+        from app.functions.globals import importMonitor, clean_up_redis
+        from app.functions.admin import monitor_live_data_surveys
         import GLOBALS
    
         # Try to create the database in case it does not exist. If it allready exists a sqlalchemy ProgrammingError
@@ -241,4 +242,5 @@ def initialise_periodic_functions(sender, instance, **kwargs):
         # importMonitor.apply_async(queue='priority', priority=0)
         # manageTasks.apply_async(queue='priority', priority=0)
         # clean_up_redis.apply_async(queue='priority', priority=0)
+        # monitor_live_data_surveys.apply_async(queue='priority', priority=0)
         # print('Periodic functions initialised.')
