@@ -229,6 +229,8 @@ function buildTask(taskDiv, task, disableSurvey, survey) {
             launchTaskBtn.addEventListener('click', function(wrapTaskId) {
                 return function() {
                     selectedTask = wrapTaskId
+                    resetLaunchTaskPage()
+                    document.getElementById('launchMTurkTaskBtn').disabled=false
                     modalLaunchTask.modal({keyboard: true});
                 }
             }(task.id));

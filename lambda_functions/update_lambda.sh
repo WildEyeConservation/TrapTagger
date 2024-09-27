@@ -35,7 +35,7 @@ for dir in "${!lambda_functions[@]}"; do
     if [ $dir == "importImage" ]; then
         pip install --platform manylinux2014_x86_64 --target=package --implementation cp --python-version 3.12 --only-binary=:all: --upgrade -r requirements.txt
     else 
-        pip install --platform manylinux2014_x86_64 --target=package --implementation cp --python-version 3.8 --only-binary=:all: --upgrade -r requirements.txt
+        pip install --platform manylinux2014_x86_64 --target=package --implementation cp --python-version 3.9 --only-binary=:all: --upgrade -r requirements.txt
     fi
     
     # Zip the package and the lambda function

@@ -170,8 +170,10 @@ function launchTask(){
                     document.getElementById('modalAlertBody').innerHTML = reply.message
                     modalLaunchTask.modal('hide')
                     modalAlert.modal({keyboard: true});
-                    document.getElementById('launchMTurkTaskBtn').disabled=false
                 }
+
+                resetLaunchTaskPage()
+                document.getElementById('launchMTurkTaskBtn').disabled=false
             }
         }
         xhttp.open("POST", '/launchTask');
@@ -1177,13 +1179,13 @@ modalLaunchTask.on('shown.bs.modal', function(){
     }
 });
 
-modalLaunchTask.on('hidden.bs.modal', function(){
-    /** Resets the launch-task modal when closed. */
-    if (!helpReturn && !confirmRestore) {
-        resetLaunchTaskPage()
-        document.getElementById('launchMTurkTaskBtn').disabled=false
-    }
-});
+// modalLaunchTask.on('hidden.bs.modal', function(){
+//     /** Resets the launch-task modal when closed. */
+//     if (!helpReturn && !confirmRestore) {
+//         resetLaunchTaskPage()
+//         document.getElementById('launchMTurkTaskBtn').disabled=false
+//     }
+// });
 
 function changeAnnotationTab(evt, tabName) {
     /** Opens the permissions tab */

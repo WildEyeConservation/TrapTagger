@@ -19,6 +19,7 @@ from app.models import *
 # from app.functions.admin import setup_new_survey_permissions
 from app.functions.globals import detection_rating, randomString, updateTaskCompletionStatus, updateLabelCompletionStatus, updateIndividualIdStatus, retryTime,\
                                  chunker, save_crops, list_all, classifyTask, all_equal, taggingLevelSQ, generate_raw_image_hash, updateAllStatuses, setup_new_survey_permissions
+from app.functions.annotation import launch_task
 import GLOBALS
 from sqlalchemy.sql import func, or_, distinct, and_
 from sqlalchemy import desc
@@ -53,7 +54,6 @@ import piexif
 import ffmpeg
 import json
 from dateutil.parser import parse as dateutil_parse
-from app.functions.annotation import launch_task
 import zipfile
 
 def clusterAndLabel(localsession,task_id,user_id,image_id,labels):
@@ -3788,7 +3788,7 @@ def import_survey(self,survey_id,preprocess_done=False,live=False,launch_id=None
         if not preprocess_done:
             # survey = db.session.query(Survey).get(survey_id)
             if used_lambda:
-                process_folder(survey.organisation.folder+'/'+survey.folder, survey_id,Config.BUCKET,Config.BUCKET,False,None,[],processes)
+                process_folder(survey.organisation.folder+'/'+survey.folder, survey_id,Config.BUCKET)
             elif live:
                 import_live_data(survey_id)
             else:
@@ -5818,7 +5818,7 @@ def archive_survey(survey_id):
     return True
 
 #TODO: The import functions still need to be completed 
-def process_folder(s3Folder, survey_id, sourceBucket,destinationBucket,pipeline,min_area,exclusions,processes=4,label_source=None):
+def process_folder(s3Folder, survey_id, sourceBucket):
     '''
     Import all images from an AWS S3 folder. Handles re-import of a folder cleanly.
 
@@ -5826,12 +5826,6 @@ def process_folder(s3Folder, survey_id, sourceBucket,destinationBucket,pipeline,
             s3Folder (str): folder name to import
             survey_id (int): The ID of the survey to be processed
             sourceBucket (str): Bucket from which import takes place
-            destinationBucket (str): Bucket where compressed images are stored
-            pipeline (bool): Whether import is to pipeline training data (only crops will be saved)
-            min_area (float): The minimum area detection to crop if pipelining
-            exclusions (list): A list of folders to exclude
-            processes (int): Optional number of threads used for the import
-            label_source (str): Exif field where labels should be extracted from
     '''
     
     localsession=db.session()
@@ -5900,37 +5894,27 @@ def process_folder(s3Folder, survey_id, sourceBucket,destinationBucket,pipeline,
                         pass
 
                 localsession.commit()
-                tid = trapgroup.id
 
                 #Break folders down into chunks to prevent overly-large folders causing issues
                 for chunk in chunker(images_to_process,chunk_size):
-                    batch.append({'sourceBucket':sourceBucket,
-                                    'dirpath':camera.path,
-                                    'images': chunk,
-                                    'trapgroup_id':tid,
-                                    'camera_id': camera.id,
-                                    'survey_id':sid,
-                                    'destBucket':destinationBucket})
-
+                    batch.append({'images': chunk,'dirpath': camera.path})
                     batch_count += len(chunk)
 
                     if (batch_count / (((10000)*random.uniform(0.5, 1.5))/2) ) >= 1:
-                        results.append(generateDetections.apply_async(kwargs={'batch':batch},queue='parallel')) 
+                        results.append(generateDetections.apply_async(kwargs={'batch':batch, 'sourceBucket':sourceBucket},queue='parallel'))
                         app.logger.info('Queued batch with {} images'.format(batch_count))
                         batch_count = 0
                         batch = []
 
 
     if batch_count!=0:
-        results.append(generateDetections.apply_async(kwargs={'batch':batch},queue='parallel')) 
+        results.append(generateDetections.apply_async(kwargs={'batch':batch, 'sourceBucket':sourceBucket},queue='parallel'))
 
     survey.processing_initialised = False
     localsession.commit()
     localsession.close()
     
     #Wait for import to complete
-    # Using locking here as a workaround. Looks like celery result fetching is not threadsafe.
-    # See https://github.com/celery/celery/issues/4480
     app.logger.info('Waiting for image processing to complete')
     GLOBALS.lock.acquire()
     with allow_join_result():
@@ -5989,7 +5973,7 @@ def handle_duplicate_cameras(survey_id):
     
 
 @celery.task(bind=True,max_retries=5)
-def generateDetections(self,batch):
+def generateDetections(self,batch, sourceBucket):
     '''
     Generates detections for a batch of images. 
     '''
@@ -5999,14 +5983,13 @@ def generateDetections(self,batch):
         pool = Pool(processes=4)
         print('Received generateDetections task with {} batches.'.format(len(batch)))
         for item in batch:
-            sourceBucket = item['sourceBucket']
             dirpath = item['dirpath']
             jpegs = item['images']
             
-            print("Starting import of batch for {} with {} images.".format(dirpath,len(jpegs)))
+            print("Generating detctions for {} with batch of {} images.".format(dirpath,len(jpegs)))
                 
             for image_data in chunker(jpegs,100):
-                pool.apply_async(batch_images_for_detection_only, args=(image_data,sourceBucket,dirpath,False))
+                pool.apply_async(batch_images_for_detection_only, args=(image_data,sourceBucket,dirpath))
 
         pool.close()
         pool.join()
@@ -6066,8 +6049,7 @@ def generateDetections(self,batch):
 
     return True
 
-
-def batch_images_for_detection_only(image_data,sourceBucket,dirpath,external):
+def batch_images_for_detection_only(image_data,sourceBucket,dirpath,external=False):
     ''' Helper function that batches images and adds them to the queue to be run through the detector. '''
     try:
         batch = []

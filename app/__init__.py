@@ -207,9 +207,7 @@ def initialise_periodic_functions(sender, instance, **kwargs):
         from app.models import Classifier
         # from flask_migrate import upgrade
         from app.functions.imports import setupDatabase
-        from app.functions.annotation import manageTasks
-        from app.functions.globals import importMonitor, clean_up_redis
-        from app.functions.admin import monitor_live_data_surveys
+        from app.functions.periodic import importMonitor, manageTasks, clean_up_redis, monitor_live_data_surveys
         import GLOBALS
    
         # Try to create the database in case it does not exist. If it allready exists a sqlalchemy ProgrammingError

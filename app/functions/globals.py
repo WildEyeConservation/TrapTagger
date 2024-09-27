@@ -433,120 +433,6 @@ def launch_instances(queue,ami,user_data,instances_required,idle_multiplier,ec2,
 
     return True
 
-@celery.task(ignore_result=True)
-def importMonitor():
-    '''Periodic Celery task that monitors the length of the celery queues, and fires up EC2 instances as needed.'''
-    
-    try:
-        startTime = datetime.utcnow()
-        queues = getQueueLengths()
-        commit = None
-
-        if queues:
-            ec2 = boto3.resource('ec2', region_name=Config.AWS_REGION)
-            client = boto3.client('ec2',region_name=Config.AWS_REGION)
-            images_processing, commit = getImagesProcessing()
-            if Config.DEBUGGING: print('Images being imported: {}'.format(images_processing))
-
-            current_instances = {}
-            instances_required = {'default':0,'parallel':0}
-            for queue in queues:
-                if queue in Config.QUEUES.keys():
-                    ami = Config.QUEUES[queue]['ami']
-                    instances = Config.QUEUES[queue]['instances']
-                    rate = Config.QUEUES[queue]['rate']
-                    launch_delay = Config.QUEUES[queue]['launch_delay']
-                    queue_type = Config.QUEUES[queue]['queue_type']
-                    max_instances = Config.QUEUES[queue]['max_instances']
-                else:
-                    classifier = db.session.query(Classifier).filter(Classifier.name==queue).first()
-                    ami = classifier.ami_id
-                    instances = Config.GPU_INSTANCE_TYPES
-                    rate = Config.CLASSIFIER['rate']
-                    launch_delay = Config.CLASSIFIER['launch_delay']
-                    queue_type = Config.CLASSIFIER['queue_type']
-                    init_size = Config.CLASSIFIER['init_size']
-                    max_instances = Config.CLASSIFIER['max_instances']
-
-                current_instances[queue] = getInstanceCount(client,queue,ami,Config.HOST_IP,instances)
-                
-                if not GLOBALS.redisClient.get(queue+'_last_launch'):
-                    GLOBALS.redisClient.set(queue+'_last_launch',0)
-
-                instances_required[queue] = getInstancesRequired(current_instances[queue],
-                                                                queue_type,
-                                                                queues[queue],
-                                                                images_processing['total'],
-                                                                int(GLOBALS.redisClient.get(queue+'_last_launch').decode()),
-                                                                rate,
-                                                                launch_delay,
-                                                                max_instances)
-                
-                # pre-emptively launch GPU instances with the CPU importers to smooth out control loop
-                if queue=='celery':
-                    instances_required[queue] += round(images_processing[queue]/10000)*Config.QUEUES[queue]['init_size']
-                    
-                if (queue not in Config.QUEUES.keys()) and (queue in images_processing.keys()):
-                    instances_required[queue] += round(images_processing[queue]/10000)*init_size
-
-                if instances_required[queue] > max_instances: instances_required[queue] = max_instances
-
-            if Config.DEBUGGING: print('Instances required: {}'.format(instances_required))
-
-            # # Check database capacity requirement (parallel & default)
-            # required_capacity = 1*(instances_required['default'] + instances_required['parallel'])
-            # current_capacity = scaleDbCapacity(required_capacity)
-
-            # # Get time since last db scaling request
-            # aurora_request_count = GLOBALS.redisClient.get('aurora_request_count')
-            # if not aurora_request_count:
-            #     aurora_request_count = 0
-            # else:
-            #     aurora_request_count = int(aurora_request_count.decode())
-
-            # Launch Instances
-            # if (current_capacity >= required_capacity) or (aurora_request_count >= 2):
-            #     GLOBALS.redisClient.set('aurora_request_count',0)
-            
-            for queue in queues:
-                instance_count = instances_required[queue]-current_instances[queue]
-                if instance_count > 0:
-                    if queue in Config.QUEUES.keys():
-                        ami = Config.QUEUES[queue]['ami']
-                        instances = Config.QUEUES[queue]['instances']
-                        user_data = Config.QUEUES[queue]['user_data']
-                        idle_multiplier = Config.IDLE_MULTIPLIER[queue]
-                        instance_rates = Config.INSTANCE_RATES[queue]
-                        git_pull = True
-                        subnet = Config.PUBLIC_SUBNET_ID
-                    else:
-                        classifier = db.session.query(Classifier).filter(Classifier.name==queue).first()
-                        ami = classifier.ami_id
-                        instances = Config.GPU_INSTANCE_TYPES
-                        user_data = Config.CLASSIFIER['user_data']
-                        idle_multiplier = Config.IDLE_MULTIPLIER['classification']
-                        instance_rates = Config.INSTANCE_RATES['classification']
-                        git_pull = False
-                        subnet = Config.PRIVATE_SUBNET_ID
-                    launch_instances(queue,ami,user_data,instance_count,idle_multiplier,ec2,instances,instance_rates,git_pull,subnet)
-
-    except Exception as exc:
-        app.logger.info(' ')
-        app.logger.info('!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!')
-        app.logger.info(traceback.format_exc())
-        app.logger.info('!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!')
-        app.logger.info(' ')
-        # self.retry(exc=exc, countdown= retryTime(self.request.retries))
-
-    finally:
-        if commit: db.session.commit()
-        db.session.remove()
-        countdown = 20 - (datetime.utcnow()-startTime).total_seconds()
-        if countdown < 0: countdown=0
-        importMonitor.apply_async(queue='priority', priority=0, countdown=countdown)
-
-    return True
-
 def updateTaskCompletionStatus(task_id):
     '''
     Updates the various task-level counts and completion statuses.
@@ -2950,196 +2836,6 @@ def inspect_celery(include_spam=False,include_reserved=False,include_scheduled=F
 
     return True
 
-@celery.task(ignore_result=True)
-def clean_up_redis():
-    ''' Periodic function to manually clean up redis cache'''
-
-    try:
-        startTime = datetime.utcnow()
-        redisKeys = [r.decode() for r in GLOBALS.redisClient.keys()]
-
-        for key in redisKeys:
-
-            if any(name in key for name in ['active_jobs','job_pool','active_individuals','active_indsims','quantiles_']):
-                task_id = key.split('_')[-1]
-
-                if task_id == 'None':
-                    GLOBALS.redisClient.delete(key)
-                else:
-                    task = db.session.query(Task).get(int(task_id))
-                    if (task==None) or (task.status not in ['PENDING','PROGRESS']):
-                        GLOBALS.redisClient.delete(key)
-
-            elif any(name in key for name in ['clusters_allocated']):
-                user_id = key.split('_')[-1]
-
-                if user_id == 'None':
-                    GLOBALS.redisClient.delete(key)
-                else:
-                    user = db.session.query(User).get(int(user_id))
-                    if (user==None) or (datetime.utcnow() - user.last_ping > timedelta(minutes=3)):
-                        GLOBALS.redisClient.delete(key)
-
-            elif any(name in key for name in ['trapgroups']):
-                survey_id = key.split('_')[-1]
-
-                if survey_id == 'None':
-                    GLOBALS.redisClient.delete(key)
-                else:
-                    task = db.session.query(Task).filter(Task.survey_id==int(survey_id)).filter(Task.status.in_(['PENDING','PROGRESS'])).first()
-                    if not task:
-                        GLOBALS.redisClient.delete(key)
-
-            elif any(name in key for name in ['analysis']):
-                user_id = key.split('_')[-1]
-
-                if user_id == 'None':
-                    GLOBALS.redisClient.delete(key)
-                else:
-                    user = db.session.query(User).get(int(user_id))
-                    if datetime.utcnow() - user.last_ping > timedelta(minutes=15):   # Not sure what to use for timedelta here
-                        app.logger.info('Deleting analysis key {}'.format(key))
-                        try:
-                            result_id = GLOBALS.redisClient.get(key).decode()
-                            celery.control.revoke(result_id, terminate=True)
-                        except:
-                            pass
-                        GLOBALS.redisClient.delete(key)
-
-            # clusters_remaining = int(GLOBALS.redisClient.get('clusters_remaining_'+str(item[0])).decode())
-            elif any(name in key for name in ['clusters_remaining_']):
-                task_id = key.split('_')[-1]
-
-                if task_id == 'None':
-                    GLOBALS.redisClient.delete(key)
-                else:
-                    task = db.session.query(Task).get(int(task_id))
-                    if (task==None) or (task.status not in ['PROGRESS']):
-                        GLOBALS.redisClient.delete(key)
-
-            # Manage downloads here
-            elif any(name in key for name in ['download_ping']):
-                task_id = key.split('_')[-1]
-
-                if task_id == 'None':
-                    GLOBALS.redisClient.delete(key)
-                else:
-                    try:
-                        timestamp = GLOBALS.redisClient.get(key)
-                        if timestamp:
-                            timestamp = datetime.fromtimestamp(float(timestamp.decode()))
-                            if datetime.utcnow() - timestamp > timedelta(minutes=10):
-                                manageDownload(task_id)
-                    except:
-                        GLOBALS.redisClient.delete(key)
-
-            # Manage uploads here
-            elif any(name in key for name in ['upload_ping']):
-                survey_id = key.split('_')[-1]
-
-                if survey_id == 'None':
-                    GLOBALS.redisClient.delete(key)
-                    GLOBALS.redisClient.delete('upload_user_'+str(survey_id))
-                else:
-                    try:
-                        timestamp = GLOBALS.redisClient.get(key)
-                        if timestamp:
-                            timestamp = datetime.fromtimestamp(float(timestamp.decode()))
-                            if datetime.utcnow() - timestamp > timedelta(minutes=10):
-                                GLOBALS.redisClient.delete('upload_ping_'+str(survey_id))
-                                GLOBALS.redisClient.delete('upload_user_'+str(survey_id))
-                    except:
-                        GLOBALS.redisClient.delete(key)
-                        GLOBALS.redisClient.delete('upload_user_'+str(survey_id))
-
-            # Manage Knockdown here
-            elif any(name in key for name in ['knockdown_ping']):
-                task_id = key.split('_')[-1]
-
-                if task_id == 'None':
-                    GLOBALS.redisClient.delete(key)
-                else:
-                    try:
-                        timestamp = GLOBALS.redisClient.get(key)
-                        if timestamp:
-                            timestamp = datetime.fromtimestamp(float(timestamp.decode()))
-                            if datetime.utcnow() - timestamp > timedelta(minutes=5):
-                                # Add wrap up knockdown function here or whatever
-                                task = db.session.query(Task).get(int(task_id))
-                                if task.status == 'Knockdown Analysis':
-                                    task.status = 'successInitial'
-                                    db.session.commit()
-                                GLOBALS.redisClient.delete('knockdown_ping_'+str(task_id))
-                    except:
-                        GLOBALS.redisClient.delete(key)
-
-            # Manage Static Detection Check here
-            elif any(name in key for name in ['static_check_ping']):
-                survey_id = key.split('_')[-1]
-
-                if survey_id == 'None':
-                    GLOBALS.redisClient.delete(key)
-                else:
-                    try:
-                        timestamp = GLOBALS.redisClient.get(key)
-                        if timestamp:
-                            timestamp = datetime.fromtimestamp(float(timestamp.decode()))
-                            if datetime.utcnow() - timestamp > timedelta(minutes=5):
-                                survey = db.session.query(Survey).get(int(survey_id))
-                                if 'preprocessing' in survey.status.lower():
-                                    survey.status = "Preprocessing," + survey.status.split(',')[1] + ",Available"
-                                    db.session.commit()
-                                GLOBALS.redisClient.delete('static_check_ping_'+str(survey_id))
-                    except:
-                        GLOBALS.redisClient.delete(key)
-
-            # Manage Video Timestamp Check here
-            elif any(name in key for name in ['timestamp_check_ping']):
-                survey_id = key.split('_')[-1]
-
-                if survey_id == 'None':
-                    GLOBALS.redisClient.delete(key)
-                else:
-                    try:
-                        timestamp = GLOBALS.redisClient.get(key)
-                        if timestamp:
-                            timestamp = datetime.fromtimestamp(float(timestamp.decode()))
-                            if datetime.utcnow() - timestamp > timedelta(minutes=5):
-                                survey = db.session.query(Survey).get(int(survey_id))
-                                if 'preprocessing' in survey.status.lower():
-                                    survey.status = "Preprocessing,Available," + survey.status.split(',')[2]
-                                    db.session.commit()
-                                GLOBALS.redisClient.delete('timestamp_check_ping_'+str(survey_id))
-                    except:
-                        GLOBALS.redisClient.delete(key)
-
-            elif any(name in key for name in ['user_individuals','user_indsims']):
-                user_id = key.split('_')[-1]
-
-                if not user_id.isdigit():
-                    GLOBALS.redisClient.delete(key)
-                else:
-                    user = db.session.query(User).get(int(user_id))
-                    if user==None:
-                        GLOBALS.redisClient.delete(key)
-                    elif datetime.utcnow() - user.last_ping > timedelta(minutes=3):
-                        resolve_abandoned_jobs([[user,user.turkcode[0].task]])
-
-    except Exception as exc:
-        app.logger.info(' ')
-        app.logger.info('!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!')
-        app.logger.info(traceback.format_exc())
-        app.logger.info('!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!')
-        app.logger.info(' ')
-
-    finally:
-        db.session.remove()
-        countdown = 20 - (datetime.utcnow()-startTime).total_seconds()
-        if countdown < 0: countdown=0
-        clean_up_redis.apply_async(queue='priority', priority=0, countdown=countdown)
-
-    return True
-
 def format_count(count):
     '''Formats counts for display.'''
     if count>=1000000:
@@ -4162,3 +3858,47 @@ def generate_hotkey(species, task_id=None):
             hotkey = available_hotkeys[0]
 
     return hotkey
+
+@celery.task(bind=True,max_retries=5,ignore_result=True)
+def cleanup_empty_restored_images(self,task_id):
+    ''' Deletes empty images that have been restored from the zip files. '''
+
+    try:
+
+        cluster_sq = db.session.query(Cluster.id)\
+                        .join(Image, Cluster.images)\
+                        .join(Detection)\
+                        .filter(Cluster.task_id==task_id)\
+                        .filter(or_(and_(Detection.source==model,Detection.score>Config.DETECTOR_THRESHOLDS[model]) for model in Config.DETECTOR_THRESHOLDS))\
+                        .distinct().subquery()             
+
+
+        image_data = db.session.query(Image.id, Image.filename, Camera.path)\
+                            .join(Camera, Image.camera_id==Camera.id)\
+                            .join(Cluster, Image.clusters)\
+                            .outerjoin(cluster_sq, cluster_sq.c.id==Cluster.id)\
+                            .filter(Cluster.task_id==task_id)\
+                            .filter(cluster_sq.c.id==None)\
+                            .filter(Image.zip_id!=None)\
+                            .distinct().all()
+
+        for image in image_data:
+            image_path = image[2] + '/' + image[1]
+            splits = image_path.split('/')
+            splits[0] = splits[0] + '-comp'
+            image_key = '/'.join(splits)
+            GLOBALS.s3client.delete_object(Bucket=Config.BUCKET, Key=image_key)
+
+
+    except Exception as exc:
+        app.logger.info(' ')
+        app.logger.info('!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!')
+        app.logger.info(traceback.format_exc())
+        app.logger.info('!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!')
+        app.logger.info(' ')
+        self.retry(exc=exc, countdown= retryTime(self.request.retries))
+
+    finally:
+        db.session.remove()
+
+    return True 

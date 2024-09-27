@@ -167,6 +167,7 @@ class Config(object):
     # Glacier Restore 
     RESTORE_COUNTDOWN= 174600 # 48 hours + 0.5 hours 
     RESTORE_COOLDOWN = 14 # 14 days
+    ID_RESTORE_DAYS=30 
 
     # Lambda 
     RDS_HOST = SQLALCHEMY_DATABASE_SERVER.split('@')[1]

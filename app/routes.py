@@ -26,6 +26,8 @@ from app.functions.annotation import *
 from app.functions.imports import *
 from app.functions.permissions import *
 from app.functions.utilities import *
+from app.functions.archive import *
+from app.functions.periodic import *
 import GLOBALS
 import json
 from flask import render_template, redirect, url_for, flash, request, send_from_directory, send_file
@@ -373,7 +375,7 @@ def launchTask():
         #TODO: UPDATE THIS TO USE RESTORE 
         elif len(untranslated) == 0:
             if '-4' in taggingLevel or '-5' in taggingLevel:
-                # restore_images.apply_async(kwargs={'task_id':task.id,'days':30})
+                # restore_images_for_id.apply_async(kwargs={'task_id':task.id,'days':Config.ID_RESTORE_DAYS})
                 if (len(task_ids) > 1) and ('-5' in taggingLevel):
                     tL = re.split(',',taggingLevel)
                     if tL[4]=='h':
@@ -4594,7 +4596,7 @@ def editTranslations(task_id):
 
         #TODO: UPDATE THIS TO USE RESTORE 
         if '-4' in task.tagging_level or '-5' in task.tagging_level:
-            # restore_images.apply_async(kwargs={'task_id':task.id,'days':30})
+            # restore_images_for_id.apply_async(kwargs={'task_id':task.id,'days':Config.ID_RESTORE_DAYS})
             launch_task.apply_async(kwargs={'task_id':task.id})
         elif '-7' in task.tagging_level:
             # restore_empty_zips.apply_async(kwargs={'task_id':task.id})
@@ -7777,7 +7779,7 @@ def submitTags(task_id):
             #TODO: UPDATE THIS TO USE RESTORE 
             app.logger.info('Calling launch_task for task {}'.format(task_id))
             if '-4' in task.tagging_level or '-5' in task.tagging_level:
-                # restore_images.apply_async(kwargs={'task_id':task.id,'days':30})
+                # restore_images_for_id.apply_async(kwargs={'task_id':task.id,'days':Config.ID_RESTORE_DAYS})
                 launch_task.apply_async(kwargs={'task_id':task.id})
             elif '-7' in task.tagging_level:
                 # restore_empty_zips.apply_async(kwargs={'task_id':task.id})
