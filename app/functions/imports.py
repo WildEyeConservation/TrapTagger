@@ -2215,10 +2215,7 @@ def runClassifier(self,lower_index,upper_index,sourceBucket,batch_size,survey_id
                     try:
                         image_id = str(detection[5])
                         if image_id not in batch['images'].keys():
-                            splits = detection[7].split('/')
-                            splits[0] = splits[0]+'-comp'
-                            newpath = '/'.join(splits)
-                            batch['images'][image_id] = os.path.join(newpath, detection[6])
+                            batch['images'][image_id] = detection[7] + '/' + detection[6]
                         detection_id = str(detection[0])
                         batch['detection_ids'].append(detection_id)
                         batch['detections'][detection_id] = {'image_id': image_id, 'left': detection[1], 'right': detection[2], 'top': detection[3], 'bottom': detection[4]}
