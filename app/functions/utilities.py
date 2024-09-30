@@ -739,8 +739,10 @@ def print_survey_summary(survey,survey_name,task_name=None):
     dets_above_thresh = rDets(db.session.query(Detection)\
                     .join(Image).join(Camera)\
                     .join(Trapgroup)\
+                    .join(ClassificationLabel,ClassificationLabel.classification==Detection.classification) \
+                    .filter(ClassificationLabel.classifier_id==survey.classifier_id) \
+                    .filter(Detection.class_score>ClassificationLabel.threshold) \
                     .filter(Trapgroup.survey==survey)\
-                    .filter(Detection.class_score>survey.classifier.threshold))\
                     .distinct().count()
     
     night_images = db.session.query(Image)\
@@ -754,8 +756,10 @@ def print_survey_summary(survey,survey_name,task_name=None):
                     .join(Detection)\
                     .join(Camera)\
                     .join(Trapgroup)\
+                    .join(ClassificationLabel,ClassificationLabel.classification==Detection.classification) \
+                    .filter(ClassificationLabel.classifier_id==survey.classifier_id) \
+                    .filter(Detection.class_score>ClassificationLabel.threshold) \
                     .filter(Trapgroup.survey==survey)\
-                    .filter(Detection.class_score>survey.classifier.threshold))\
                     .group_by(Image.id).subquery()
     
     average_classes_per_image = float(db.session.query(func.sum(sq.c.count)/func.count(distinct(Image.id)))\

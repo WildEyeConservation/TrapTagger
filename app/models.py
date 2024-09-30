@@ -508,7 +508,7 @@ class Classifier(db.Model):
     description = db.Column(db.String(1024), index=False)
     region = db.Column(db.String(64), index=True)
     active = db.Column(db.Boolean, default=True, index=True)
-    threshold = db.Column(db.Float, index=False)
+    # threshold = db.Column(db.Float, index=False)
     surveys = db.relationship('Survey', backref='classifier', lazy=True)
     classification_labels = db.relationship('ClassificationLabel', backref='classifier', lazy=True)
 
@@ -648,6 +648,7 @@ class ClassificationLabel(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     classification = db.Column(db.String(64), index=False)
     classifier_id = db.Column(db.Integer, db.ForeignKey('classifier.id'), index=False, unique=False)
+    threshold = db.Column(db.Float, index=False)
 
     def __repr__(self):
         return '<Classification label {}>'.format(self.classification)

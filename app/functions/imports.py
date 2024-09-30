@@ -343,8 +343,13 @@ def recluster_large_clusters(self,task,updateClassifications,trapgroup_id=None,r
         else:
             clusters = db.db.session.query(Cluster).filter(Cluster.id.in_(reClusters)).all()
 
-        classifier = task.survey.classifier
+        classifier_id = task.survey.classifier_id
         newClusters = []
+
+        class_threshold = {}
+        classifierLabels = db.session.query(ClassificationLabel).filter(ClassificationLabel.classifier_id==classifier_id).all()
+        for classifierLabel in classifierLabels:
+            class_threshold[classifierLabel.classification] = classifierLabel.threshold
 
         for cluster in clusters:
             currCluster = None
@@ -368,7 +373,7 @@ def recluster_large_clusters(self,task,updateClassifications,trapgroup_id=None,r
                 else:
                     species = []
                     for detection in detections:
-                        if (detection.class_score > classifier.threshold) and (detection.classification != 'nothing'):
+                        if (detection.class_score > class_threshold[detection.classification]) and (detection.classification != 'nothing'):
                             species.append(detection.classification)
                         else:
                             species.append('unknown')
@@ -2933,17 +2938,37 @@ def classifyCluster(cluster):
                                 .join(Camera)\
                                 .join(Trapgroup)\
                                 .join(Survey)\
-                                .join(Classifier)\
+                                .join(ClassificationLabel,ClassificationLabel.classification==Detection.classification) \
+                                .filter(ClassificationLabel.classifier_id==Survey.classifier_id) \
+                                .filter(Detection.class_score>ClassificationLabel.threshold) \
                                 .filter(Translation.task==cluster.task)\
                                 .filter(Image.clusters.contains(cluster))\
                                 .filter(or_(and_(Detection.source==model,Detection.score>Config.DETECTOR_THRESHOLDS[model]) for model in Config.DETECTOR_THRESHOLDS)) \
                                 .filter(Detection.static == False) \
                                 .filter(~Detection.status.in_(Config.DET_IGNORE_STATUSES)) \
                                 .filter(((Detection.right-Detection.left)*(Detection.bottom-Detection.top)) > Config.DET_AREA)\
-                                .filter(Detection.class_score>Classifier.threshold) \
                                 .group_by(Label.id)\
                                 .order_by(func.count(distinct(Detection.id)).desc())\
                                 .first()
+
+        # classification, count = db.session.query(Label.description,func.count(distinct(Detection.id)))\
+        #                         .join(Translation)\
+        #                         .join(Detection,Detection.classification==Translation.classification)\
+        #                         .join(Image)\
+        #                         .join(Camera)\
+        #                         .join(Trapgroup)\
+        #                         .join(Survey)\
+        #                         .join(Classifier)\
+        #                         .filter(Translation.task==cluster.task)\
+        #                         .filter(Image.clusters.contains(cluster))\
+        #                         .filter(or_(and_(Detection.source==model,Detection.score>Config.DETECTOR_THRESHOLDS[model]) for model in Config.DETECTOR_THRESHOLDS)) \
+        #                         .filter(Detection.static == False) \
+        #                         .filter(~Detection.status.in_(Config.DET_IGNORE_STATUSES)) \
+        #                         .filter(((Detection.right-Detection.left)*(Detection.bottom-Detection.top)) > Config.DET_AREA)\
+        #                         .filter(Detection.class_score>Classifier.threshold) \
+        #                         .group_by(Label.id)\
+        #                         .order_by(func.count(distinct(Detection.id)).desc())\
+        #                         .first()
     
         if count > 0:
             return classification
