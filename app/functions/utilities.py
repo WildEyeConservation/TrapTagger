@@ -743,7 +743,7 @@ def print_survey_summary(survey,survey_name,task_name=None):
                     .filter(ClassificationLabel.classifier_id==survey.classifier_id) \
                     .filter(Detection.class_score>ClassificationLabel.threshold) \
                     .filter(Trapgroup.survey==survey)\
-                    .distinct().count()
+                    ).distinct().count()
     
     night_images = db.session.query(Image)\
                     .join(Camera)\
@@ -760,7 +760,7 @@ def print_survey_summary(survey,survey_name,task_name=None):
                     .filter(ClassificationLabel.classifier_id==survey.classifier_id) \
                     .filter(Detection.class_score>ClassificationLabel.threshold) \
                     .filter(Trapgroup.survey==survey)\
-                    .group_by(Image.id).subquery()
+                    ).group_by(Image.id).subquery()
     
     average_classes_per_image = float(db.session.query(func.sum(sq.c.count)/func.count(distinct(Image.id)))\
                     .join(Camera)\
