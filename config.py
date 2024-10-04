@@ -23,7 +23,7 @@ class Config(object):
     DEBUGGING = False
     MAINTENANCE = False
     INITIAL_SETUP = False
-    VERSION = 32
+    VERSION = 33
 
     HOST_IP = os.environ.get('HOST_IP')
     REDIS_IP = os.environ.get('REDIS_IP')
@@ -117,7 +117,7 @@ class Config(object):
     # Species Classification Config
     CLUSTER_DET_COUNT = 1
     DET_RATIO = 0.5
-    DET_AREA = 0.001
+    DET_AREA = 0.0025
     MIN_CLASSIFICATION_RATIO = 0.2 #the minimum ratio of detection classifications for a classification to be considered
 
     # Task and survey statuses

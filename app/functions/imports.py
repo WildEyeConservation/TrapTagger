@@ -2203,6 +2203,7 @@ def runClassifier(self,lower_index,upper_index,sourceBucket,batch_size,survey_id
             db.session.remove()
 
         else:
+            classifier_queue = db.session.query(Classifier.queue).filter(Classifier.name==classifier).first()[0]
             GLOBALS.results_queue = []
 
             detections = db.session.query(Detection.id,Detection.left,Detection.right,Detection.top,Detection.bottom,Image.id,Image.filename,Camera.path)\
@@ -2233,7 +2234,7 @@ def runClassifier(self,lower_index,upper_index,sourceBucket,batch_size,survey_id
 
                 if len(batch['images'].keys()) >= 0:
                     # GLOBALS.lock.acquire()
-                    GLOBALS.results_queue.append(classify.apply_async(kwargs={'batch': batch}, queue=classifier, routing_key='classification.classify'))
+                    GLOBALS.results_queue.append(classify.apply_async(kwargs={'batch': batch}, queue=classifier_queue, routing_key='classification.classify'))
                     # GLOBALS.lock.release()
 
             if Config.DEBUGGING: print('{} results to fetch'.format(len(GLOBALS.results_queue)))

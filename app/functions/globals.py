@@ -459,7 +459,7 @@ def importMonitor():
                     queue_type = Config.QUEUES[queue]['queue_type']
                     max_instances = Config.QUEUES[queue]['max_instances']
                 else:
-                    classifier = db.session.query(Classifier).filter(Classifier.name==queue).first()
+                    classifier = db.session.query(Classifier).filter(Classifier.queue==queue).first()
                     ami = classifier.ami_id
                     instances = Config.GPU_INSTANCE_TYPES
                     rate = Config.CLASSIFIER['rate']

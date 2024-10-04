@@ -8834,6 +8834,7 @@ def getClassifierInfo():
                     'source':survey.classifier.source,
                     'region':survey.classifier.region,
                     'description':survey.classifier.description,
+                    'version':survey.classifier.version,
                     'active': True
                 })
         
@@ -8844,6 +8845,7 @@ def getClassifierInfo():
                     'source':classifier.source,
                     'region':classifier.region,
                     'description':classifier.description,
+                    'version':classifier.version,
                     'active': False
                 })
 

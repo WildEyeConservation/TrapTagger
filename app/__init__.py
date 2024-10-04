@@ -89,10 +89,10 @@ def make_celery(flask_app):
         Queue('similarity',     routing_key='similarity.#')
     ]
 
-    if not Config.INITIAL_SETUP:
-        from app.models import Classifier
-        for classifier in db.session.query(Classifier).filter(Classifier.active==True).filter(Classifier.name!='MegaDetector').all():
-            task_queues.append(Queue(classifier.name,routing_key=classifier.name+'.#'))
+    # if not Config.INITIAL_SETUP:
+    #     from app.models import Classifier
+    #     for classifier in db.session.query(Classifier).filter(Classifier.active==True).filter(Classifier.name!='MegaDetector').all():
+    #         task_queues.append(Queue(classifier.queue,routing_key=classifier.name+'.#'))
 
     ####
     celery.conf.task_acks_late = True
