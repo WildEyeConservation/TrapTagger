@@ -7276,11 +7276,13 @@ def getTasks(survey_id):
         return json.dumps(tasks)
     else:
         if int(survey_id) == -1:
-            return json.dumps([(-1, 'Southern African')])
+            # templates
+            tasks = [tuple(row) for row in db.session.query(Task.id, Task.name).filter(Task.survey_id==None).distinct().all()]
+            # return json.dumps([(-1, 'Southern African')])
         else:
             tasks = [tuple(row) for row in surveyPermissionsSQ(db.session.query(Task.id, Task.name).join(Survey).filter(Survey.id == int(survey_id)).filter(Task.name != 'default').filter(~Task.name.contains('_o_l_d_')).filter(~Task.name.contains('_copying')),current_user.id,'read').distinct().all()]
             #TODO: Will need to update similar return statements to this to fix the new TypeError: Object of type Row is not JSON serializable
-            return json.dumps(tasks)
+        return json.dumps(tasks)
 
 @app.route('/getOtherTasks/<task_id>')
 @login_required
@@ -7601,10 +7603,10 @@ def getLabels(task_id):
     reply = []
     task = db.session.query(Task).get(task_id)
     # if (int(task_id) == -1) or (task and (current_user==task.survey.user)):
-    if (int(task_id) == -1) or (task and checkSurveyPermission(current_user.id,task.survey_id,'read')):
-        if int(task_id) == -1: #template
-            task = db.session.query(Task).filter(Task.name=='template_southern_africa').filter(Task.survey==None).first()
-            task_id = task.id
+    if task and ((task.survey_id==None) or checkSurveyPermission(current_user.id,task.survey_id,'read')):
+        # if int(task_id) == -1: #template
+        #     task = db.session.query(Task).filter(Task.name=='template_southern_africa').filter(Task.survey==None).first()
+        #     task_id = task.id
         
         tempLabels = db.session.query(Label).filter(Label.task_id == int(task_id)).filter(Label.parent_id==None).all()
         vhl = db.session.query(Label).get(GLOBALS.vhl_id)

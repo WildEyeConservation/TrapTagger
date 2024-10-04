@@ -1373,12 +1373,12 @@ def setupDatabase():
             human_class = ClassificationLabel(classifier=megadetector, classification='human')
             db.session.add(human_class)
 
-    if db.session.query(Task).filter(Task.name=='template_southern_africa').first()==None:
-        task = Task(name='template_southern_africa')
+    if db.session.query(Task).filter(Task.name=='Southern Africa').first()==None:
+        task = Task(name='Southern Africa')
         db.session.add(task)
 
 
-    sa_id = db.session.query(Task).filter(Task.name=='template_southern_africa').filter(Task.survey==None).first().id
+    sa_id = db.session.query(Task).filter(Task.name=='Southern Africa').filter(Task.survey==None).first().id
 
     if db.session.query(Label).filter(Label.description=='Lion').filter(Label.task_id==sa_id).first()==None:
         lion = Label(description='Lion', hotkey='1', task_id=sa_id)
