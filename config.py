@@ -533,7 +533,7 @@ class Config(object):
         'queue_type': 'rate',
         'init_size': 2,
         'max_instances': MAX_CLASSIFICATION,
-        'rate': 4,
+        'rate': 35,
         'user_data':
             'bash /home/ubuntu/TrapTagger/gpuworker/launch.sh ' + 
             'classification_worker_{}' + ' ' + 
