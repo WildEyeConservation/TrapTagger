@@ -263,7 +263,7 @@ def launchTask():
             return json.dumps({'message': message, 'status': 'Error'})
 
     task = db.session.query(Task).get(task_ids[0])
-    message = 'Task not ready to be launched.'
+    message = 'Annotation set not ready to be launched.'
 
     if (task==None) or (taskSize in ['','none','null']) or (taggingLevel.lower() in ['','none','null']):
         message = 'An unexpected error has occurred. Please check your form and try again.'
