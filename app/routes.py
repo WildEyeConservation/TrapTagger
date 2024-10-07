@@ -8829,23 +8829,29 @@ def getClassifierInfo():
         if showCurrent:
             survey = db.session.query(Survey).get(showCurrent)
             if survey.classifier:
+                labels = [classification_label.classification for classification_label in survey.classifier.classification_labels if classification_label.classification not in ['nothing','unknown']]
+                labels.sort()
                 data.append({
                     'name':survey.classifier.name,
                     'source':survey.classifier.source,
                     'region':survey.classifier.region,
                     'description':survey.classifier.description,
                     'version':survey.classifier.version,
+                    'labels':', '.join(labels),
                     'active': True
                 })
         
         for classifier in classifiers.items:
             if (not showCurrent) or (classifier!=survey.classifier):
+                labels = [classification_label.classification for classification_label in classifier.classification_labels if classification_label.classification not in ['nothing','unknown']]
+                labels.sort()
                 data.append({
                     'name':classifier.name,
                     'source':classifier.source,
                     'region':classifier.region,
                     'description':classifier.description,
                     'version':classifier.version,
+                    'labels':', '.join(labels),
                     'active': False
                 })
 

@@ -3943,6 +3943,11 @@ function updateClassifierTable(url=null) {
 
                 td = document.createElement('td')
                 td.setAttribute('style','text-align:left')
+                td.innerHTML = datum.labels
+                tr.appendChild(td)
+
+                td = document.createElement('td')
+                td.setAttribute('style','text-align:left')
                 td.innerHTML = datum.description
                 tr.appendChild(td)
 
@@ -4007,6 +4012,11 @@ function buildClassifierSelectTable(speciesClassifierDiv) {
     th = document.createElement('th')
     th.classList.add('th-sm')
     th.innerHTML='Region'
+    tr.appendChild(th)
+
+    th = document.createElement('th')
+    th.classList.add('th-sm')
+    th.innerHTML='Labels'
     tr.appendChild(th)
 
     th = document.createElement('th')
