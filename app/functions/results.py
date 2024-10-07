@@ -16,7 +16,8 @@ limitations under the License.
 
 from app import app, db, celery
 from app.models import *
-from app.functions.globals import retryTime, list_all, chunker, batch_crops, rDets, randomString, stringify_timestamp, getChildList, resetImageDownloadStatus, resetVideoDownloadStatus
+from app.functions.globals import retryTime, list_all, chunker, batch_crops, rDets, randomString, stringify_timestamp, getChildList, \
+    resetImageDownloadStatus, resetVideoDownloadStatus, deleteFile
 import GLOBALS
 from sqlalchemy.sql import alias, func, or_, and_, distinct
 import re
@@ -1155,7 +1156,14 @@ def generate_csv(self,selectedTasks, selectedLevel, requestedColumns, custom_col
         os.remove(randomness+fileName)
 
         # Schedule deletion
-        deleteFile.apply_async(kwargs={'fileName': filePath+fileName}, countdown=86400)
+        # deleteFile.apply_async(kwargs={'fileName': filePath+fileName}, countdown=86400)
+
+        # Set request status to complete
+        download_request = db.session.query(DownloadRequest).join(User).filter(DownloadRequest.task_id==selectedTasks[0]).filter(User.username==user_name).filter(DownloadRequest.type=='csv').first()
+        if download_request:
+            download_request.status = 'Available'
+            download_request.timestamp = datetime.now()
+            db.session.commit()
 
     except Exception as exc:
         app.logger.info(' ')
@@ -1263,7 +1271,13 @@ def generate_wildbook_export(self,task_id, data, user_name):
             shutil.rmtree(tempFolderName)
 
         # Schedule deletion
-        deleteFile.apply_async(kwargs={'fileName': fileName+'.zip'}, countdown=3600)
+        # deleteFile.apply_async(kwargs={'fileName': fileName+'.zip'}, countdown=3600)
+
+        download_request = db.session.query(DownloadRequest).join(User).filter(DownloadRequest.task_id==task_id).filter(User.username==user_name).filter(DownloadRequest.type=='export').first()
+        if download_request:
+            download_request.status = 'Available'
+            download_request.timestamp = datetime.now()
+            db.session.commit()
 
     except Exception as exc:
         app.logger.info(' ')
@@ -1278,39 +1292,6 @@ def generate_wildbook_export(self,task_id, data, user_name):
 
     return True
 
-@celery.task(bind=True,max_retries=5,ignore_result=True)
-def deleteFile(self,fileName):
-    '''
-    Celery task that periodically checks for and attempts to delete specified file on S3. Used to cleanup files after successful download.
-
-        Parameters:
-            filename (str): The path of the file to be deleted
-    '''
-    
-    # try:
-    #     if os.path.isfile(fileName):
-    #         try:
-    #             os.remove(fileName)
-    #         except:
-    #             deleteFile.apply_async(kwargs={'fileName': fileName}, countdown=300)
-
-    # except Exception as exc:
-    #     app.logger.info(' ')
-    #     app.logger.info('!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!')
-    #     app.logger.info(traceback.format_exc())
-    #     app.logger.info('!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!')
-    #     app.logger.info(' ')
-    #     self.retry(exc=exc, countdown= retryTime(self.request.retries))
-
-    try:
-        GLOBALS.s3client.delete_object(Bucket=Config.BUCKET, Key=fileName)
-    except:
-        pass
-
-    finally:
-        db.session.remove()
-
-    return True
 
 def num_to_excel_col(n):
     '''Converts a numerical column index into an Excel format column.'''
@@ -1641,7 +1622,13 @@ def generate_excel(self,task_id,user_name):
             GLOBALS.s3client.put_object(Bucket=Config.BUCKET,Key=fileName,Body=temp_file)
 
         # Schedule deletion
-        deleteFile.apply_async(kwargs={'fileName': fileName}, countdown=3600)
+        # deleteFile.apply_async(kwargs={'fileName': fileName}, countdown=3600)
+
+        download_request = db.session.query(DownloadRequest).join(User).filter(DownloadRequest.task_id==task_id).filter(User.username==user_name).filter(DownloadRequest.type=='excel').first()
+        if download_request:
+            download_request.status = 'Available'
+            download_request.timestamp = datetime.now()
+            db.session.commit()
 
     except Exception as exc:
         app.logger.info(' ')
@@ -2415,7 +2402,13 @@ def generate_coco(self,task_id,user_name):
             GLOBALS.s3client.put_object(Bucket=Config.BUCKET,Key=fileName,Body=temp_file)
 
         # Schedule deletion
-        deleteFile.apply_async(kwargs={'fileName': fileName}, countdown=3600)
+        # deleteFile.apply_async(kwargs={'fileName': fileName}, countdown=3600)
+
+        download_request = db.session.query(DownloadRequest).join(User).filter(DownloadRequest.task_id==task_id).filter(User.username==user_name).filter(DownloadRequest.type=='coco').first()
+        if download_request:
+            download_request.status = 'Available'
+            download_request.timestamp = datetime.now() 
+            db.session.commit()
 
     except Exception as exc:
         app.logger.info(' ')

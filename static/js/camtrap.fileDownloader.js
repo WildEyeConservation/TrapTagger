@@ -70,6 +70,7 @@ async function initiateDownload() {
         })
 
         if (response=='available') {
+            raw_files = document.getElementById('rawFiles').checked
             species_sorted = document.getElementById('speciesSorted').checked
             individual_sorted = document.getElementById('individualSorted').checked
             flat_structure = document.getElementById('flatStructure').checked
@@ -97,29 +98,73 @@ async function initiateDownload() {
             for (let i=0;i<downloadSpecies.length;i++) {
                 species.push(downloadSpecies[i].options[downloadSpecies[i].selectedIndex].value)
             }
-    
-            try {
-                var topLevelHandle = await window.showDirectoryPicker({
-                    writable: true //ask for write permission
-                });
-            
-                await verifyPermission(topLevelHandle)
-            
-                checkingDownload = false
-                if (!currentDownloadTasks.includes(taskName)) {
-                    currentDownloadTasks.push(taskName)
-                    currentDownloads.push(selectedSurvey)
+
+            restore_required = raw_files || include_video || include_empties
+
+            if (restore_required) {
+                var restore_response = await fetch('/fileHandler/restore_for_download', {
+                    method: 'post',
+                    headers: {
+                        accept: 'application/json',
+                        'content-type': 'application/json',
+                    },
+                    body: JSON.stringify({
+                        task_id: selectedTask,
+                        species: species,
+                        species_sorted: species_sorted,
+                        individual_sorted: individual_sorted,
+                        flat_structure: flat_structure,
+                        include_empties: include_empties,
+                        delete_items: delete_items,
+                        include_video: include_video,
+                        include_frames: include_frames,
+                        raw_files: raw_files
+                    }),
+                }).then((response) => {
+                    if (!response.ok) {
+                        throw new Error(response.statusText)
+                    } else {
+                        return response.json()
+                    }
+                }).catch( (error) => {
+                    // pass
+                })
+
+                document.getElementById('modalAlertHeader').innerHTML = 'Alert'
+                document.getElementById('modalAlertBody').innerHTML = restore_response.message
+                modalDownload.modal('hide')
+                modalAlert.modal({keyboard: true});
+
+                if (restore_response.status=='success') {
+                    alertReload = true
                 }
-    
-                globalDownloaded = 0
-                globalToDownload = 0
-                global_count_initialised = false
-            
-                downloadWorker.postMessage({'func': 'startDownload', 'args': [topLevelHandle,selectedTask,surveyName,taskName,species,species_sorted,individual_sorted,flat_structure,include_empties,delete_items, include_video, include_frames, selectedSurvey]})
-            
-            } catch {
-                document.getElementById('btnDownloadStart').disabled = false
+
             }
+            else{
+                try {
+                    var topLevelHandle = await window.showDirectoryPicker({
+                        writable: true //ask for write permission
+                    });
+                
+                    await verifyPermission(topLevelHandle)
+                
+                    checkingDownload = false
+                    if (!currentDownloadTasks.includes(taskName)) {
+                        currentDownloadTasks.push(taskName)
+                        currentDownloads.push(selectedSurvey)
+                    }
+        
+                    globalDownloaded = 0
+                    globalToDownload = 0
+                    global_count_initialised = false
+                
+                    downloadWorker.postMessage({'func': 'startDownload', 'args': [topLevelHandle,selectedTask,surveyName,taskName,species,species_sorted,individual_sorted,flat_structure,include_empties,delete_items, include_video, include_frames, selectedSurvey, raw_files]})
+                
+                } catch {
+                    document.getElementById('btnDownloadStart').disabled = false
+                }
+            }
+
         } else {
             document.getElementById('modalAlertHeader').innerHTML = 'Alert'
             document.getElementById('modalAlertBody').innerHTML = 'This survey is currently being downloaded. Please try again later.'
@@ -199,4 +244,85 @@ async function verifyPermission(fileHandle) {
         return true
     }
     return false
+}
+
+async function initiateDownloadAfterRestore(request_id) {
+    // Select the download folder & get access
+
+    if (currentDownloads.length==0) {
+        // document.getElementById('btnLaunchDownload-'+selectedTask.toString()).disabled = true
+
+
+        var response = await fetch('/fileHandler/init_download_after_restore', {
+            method: 'post',
+            headers: {
+                accept: 'application/json',
+                'content-type': 'application/json',
+            },
+            body: JSON.stringify({
+                download_request_id: request_id
+            }),
+        }).then((response) => {
+            if (!response.ok) {
+                throw new Error(response.statusText)
+            } else {
+                return response.json()
+            }
+        }).catch( (error) => {
+            // pass
+        })
+
+        if (response.status=='success') {
+            selectedTask = response.download_params.task_id
+            selectedSurvey = response.download_params.survey_id
+            taskName = response.download_params.task_name
+            raw_files = response.download_params.raw_files
+            species_sorted = response.download_params.species_sorted
+            individual_sorted = response.download_params.individual_sorted
+            flat_structure = response.download_params.flat_structure
+            include_empties = response.download_params.include_empties
+            delete_items = response.download_params.delete_items
+            include_video = response.download_params.include_video
+            include_frames = response.download_params.include_frames
+            species = response.download_params.species
+
+            console.log(response.download_params)
+
+            try {
+                var topLevelHandle = await window.showDirectoryPicker({
+                    writable: true //ask for write permission
+                });
+            
+                await verifyPermission(topLevelHandle)
+            
+                checkingDownload = false
+                if (!currentDownloadTasks.includes(taskName)) {
+                    currentDownloadTasks.push(taskName)
+                    currentDownloads.push(selectedSurvey)
+                }
+    
+                globalDownloaded = 0
+                globalToDownload = 0
+                global_count_initialised = false
+            
+                downloadWorker.postMessage({'func': 'startDownload', 'args': [topLevelHandle,selectedTask,surveyName,taskName,species,species_sorted,individual_sorted,flat_structure,include_empties,delete_items, include_video, include_frames, selectedSurvey, raw_files]})
+            
+            } catch {
+                document.getElementById('btnLaunchDownload-'+selectedTask.toString()).disabled = false
+            }
+            
+
+        } else {
+            document.getElementById('modalAlertHeader').innerHTML = 'Alert'
+            document.getElementById('modalAlertBody').innerHTML = response.message
+            modalDownload.modal('hide')
+            modalAlert.modal({keyboard: true});
+        }
+
+    } else {
+        document.getElementById('modalAlertHeader').innerHTML = 'Alert'
+        document.getElementById('modalAlertBody').innerHTML = 'You already have a download in progress. Please wait for that to complete before initiating a new one, or open a new tab.'
+        modalDownload.modal('hide')
+        modalAlert.modal({keyboard: true});
+    }
 }

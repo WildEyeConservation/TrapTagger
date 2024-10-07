@@ -186,6 +186,7 @@ const modalConfirmEmpty = $('#modalConfirmEmpty');
 const modalConfirmRestore = $('#modalConfirmRestore');
 const btnConfirmRestore = document.querySelector('#btnConfirmRestore')
 const btnCancelRestore = document.querySelector('#btnCancelRestore')
+const modalConfirmDownload = $('#modalConfirmDownload');
 
 var polarColours = {'rgba(10,120,80,0.2)':false,
                     'rgba(255,255,255,0.2)':false,
@@ -330,6 +331,7 @@ var globalTags = {}
 var translationLabels = {}
 var globalTranslations = {}
 var confirmRestore = false
+var confirmDownloadReturn = false
 
 function buildSurveys(survey,disableSurvey) {
     /**

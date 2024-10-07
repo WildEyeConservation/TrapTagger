@@ -24,6 +24,9 @@ launchMTurkTaskBtn.addEventListener('click', ()=>{
             document.getElementById('modalConfirmBodyRestore').innerHTML = '<p> Sighting correction on your empty clusters will require the images to be restored from our archival storage. This process will take 48 hours to complete. Please note that the potential animal sightings in these images will be very rare and not of good quality. Would you like to proceed?</p>'
             modalConfirmRestore.modal({keyboard: true})
         }
+        else{
+            launchTask()
+        }
     }
     else if (tabActiveLaunch == 'baseIndividualTab') {
         confirmRestore = true

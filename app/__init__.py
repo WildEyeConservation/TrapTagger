@@ -241,4 +241,5 @@ def initialise_periodic_functions(sender, instance, **kwargs):
         # manageTasks.apply_async(queue='priority', priority=0)
         # clean_up_redis.apply_async(queue='priority', priority=0)
         # monitor_live_data_surveys.apply_async(queue='priority', priority=0)
+        # manageDownloadRequests.apply_async(queue='priority', priority=0)
         # print('Periodic functions initialised.')

@@ -168,6 +168,7 @@ class Config(object):
     RESTORE_COUNTDOWN= 174600 # 48 hours + 0.5 hours 
     RESTORE_COOLDOWN = 14 # 14 days
     ID_RESTORE_DAYS=30 
+    DOWNLOAD_RESTORE_DAYS=7
 
     # Lambda 
     RDS_HOST = SQLALCHEMY_DATABASE_SERVER.split('@')[1]
@@ -176,6 +177,14 @@ class Config(object):
     IMAGE_IMPORT_LAMBDA = 'traptaggerImportImage'
     VIDEO_IMPORT_LAMBDA = 'traptaggerImportVideo'
     VIDEO_EXTRACT_LAMBDA = 'traptaggerExtractVideo'
+
+    # Result File Type 
+    RESULT_TYPES = {
+        'csv': 'csv',
+        'excel': 'xlsx',
+        'coco': 'json',
+        'export': 'zip'
+    }
 
     # Time in seconds allowed for a worker to finish setting up beforte being checked for idleness
     SETUP_PERIOD = {

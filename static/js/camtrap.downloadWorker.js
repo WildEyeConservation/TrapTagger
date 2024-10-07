@@ -53,6 +53,7 @@ var include_video
 var include_video_init
 var include_frames
 var downloadSurveyID
+var raw_files
 
 onmessage = function (evt) {
     /** Take instructions from main js */
@@ -70,6 +71,7 @@ onmessage = function (evt) {
         include_video_init = evt.data.args[10]
         include_frames = evt.data.args[11]
         downloadSurveyID = evt.data.args[12]
+        raw_files = evt.data.args[13]
         startDownload(evt.data.args[1],evt.data.args[3])
     } else if (evt.data.func=='checkDownloadStatus') {
         checkDownloadStatus()
@@ -240,7 +242,20 @@ async function handleLocalFile(entry,dirHandle) {
             return async function() {
                 var jpegData = wrapReader.result
                 try {
-                    var hash = getHash(jpegData,wrapFileName)
+                    //Try to get hash from exif
+                    try {
+                        var exifObj = exports.piexif.load(jpegData)
+                        var hash = exifObj['Exif'][42016]
+                        if (hash && hash.length==32) {
+                            hash = hash.toString()
+                            console.log(hash)
+                        }else{
+                            throw 'error'
+                        }
+                    } catch {
+                        //If no hash in exif, calculate it
+                        var hash = getHash(jpegData,wrapFileName)
+                    }
                     getLocalImageInfo(hash,downloadingTask,jpegData,wrapDirHandle,wrapFileName)
                 } catch {
                     // delete malformed/corrupted files
@@ -308,7 +323,7 @@ async function getLocalImageInfo(hash,downloadingTask,jpegData,dirHandle,fileNam
             }
     
             for (let i=0;i<data.length;i++) {
-                await writeFile(jpegData,data[i].path,data[i].labels,data[i].fileName)
+                await writeFile(jpegData,data[i].path,data[i].labels,data[i].fileName,hash)
             }
             
             local_files_processing -= 1
@@ -317,7 +332,7 @@ async function getLocalImageInfo(hash,downloadingTask,jpegData,dirHandle,fileNam
     }
 }
 
-async function writeFile(jpegData,path,labels,fileName) {
+async function writeFile(jpegData,path,labels,fileName,hash) {
     /** Writes the specified labels into the image EXIF data and saves it to the specified path */
 
     // Handle folders
@@ -334,10 +349,11 @@ async function writeFile(jpegData,path,labels,fileName) {
         jpegData = jpegData
 
     } else {
-        // If it's an image, save the labels in the EXIF
+        // If it's an image, save the labels and hash in the EXIF
         try {
             var exifObj = exports.piexif.load(jpegData)
             exifObj['Exif'][37510] = labels.toString()
+            exifObj['Exif'][42016] = hash.toString()
             var exifStr = exports.piexif.dump(exifObj)
             jpegData = exports.piexif.insert(exifStr, jpegData)
         } catch {
@@ -386,7 +402,8 @@ async function fetchRemainingImages() {
             flat_structure: flat_structure,
             include_empties: include_empties,
             include_video: include_video,
-            include_frames: include_frames
+            include_frames: include_frames,
+            raw_files: raw_files
         }),
     }).then((response) => {
         if (!response.ok) {
@@ -461,17 +478,17 @@ async function getRequiredImages(requiredImages) {
         if (imageInfo.paths.length>1) {
             filesToDownload += imageInfo.paths.length-1
         }
-        downloadFile(imageInfo.url,imageInfo.paths,imageInfo.labels)
+        downloadFile(imageInfo.url,imageInfo.paths,imageInfo.labels,imageInfo.hash)
     }
 }
 
-async function downloadFile(url,paths,labels,count=0) {
+async function downloadFile(url,paths,labels,hash,count=0) {
     /** Downloads the specified file to the given paths */
     if (paths.length>0) {
         var blob = await getBlob(url)
         if (blob!='error') {
             var reader = new FileReader();
-            reader.addEventListener("load", function(wrapReader,wrapPaths,wrapLabels) {
+            reader.addEventListener("load", function(wrapReader,wrapPaths,wrapLabels,wrapHash) {
                 return async function() {
                     var jpegData = wrapReader.result
     
@@ -480,11 +497,11 @@ async function downloadFile(url,paths,labels,count=0) {
                         fileName = splits[splits.length-1]
                         splits.pop()
                         path = splits.join('/')
-                        writeFile(jpegData,path,wrapLabels,fileName)
+                        writeFile(jpegData,path,wrapLabels,fileName,wrapHash)
                         filesActuallyDownloaded += 1
                     }
                 }
-            }(reader,paths,labels));
+            }(reader,paths,labels,hash));
             limitFiles(()=> reader.readAsBinaryString(blob));
         } else if (count>5) {
             errorEcountered = true

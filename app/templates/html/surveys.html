@@ -1191,7 +1191,7 @@ limitations under the License. -->
             </div>
             <div class="modal-body">
 
-                <h5 style="margin-bottom: 2px">Datasets</h5>
+                <!-- <h5 style="margin-bottom: 2px">Datasets</h5>
                 <div style="font-size: 80%; margin-bottom: 2px"><i>Select additional datasets to add to the csv.</i></div>
                 <div class="row">
                     <div class='col-lg-3'>Survey</div>
@@ -1200,7 +1200,7 @@ limitations under the License. -->
                 <div id="addSurveyDiv"></div>
                 <div id="addSurveyBtnDiv"></div>
                 <div id="taskError" style="font-size: 80%; color: #DF691A"></div>
-                <br>
+                <br> -->
 
                 <h5 style="margin-bottom: 2px">Row</h5>
                 <div style="font-size: 80%; margin-bottom: 2px"><i>Select the level of data represented by each row in the CSV file.</i></div>
@@ -1400,6 +1400,24 @@ limitations under the License. -->
                 </div>
                 <br>
 
+                <h5 style="margin-bottom: 2px">File Preference</h5>
+                <div style="font-size: 80%; margin-bottom: 2px"><i>Select whether you would like to download the compressed or raw files. If you have the files locally you can point the downloader to that 
+                    folder where it will be sorted and labelled locally.  Raw files require 48 hours to be dearchived and made available for download.</i></div>
+                <div class="custom-control custom-radio custom-control-inline">
+                    <input type="radio" class="custom-control-input" id="localFiles" name="fileSelection" value="customEx">
+                    <label class="custom-control-label" for="localFiles">Local Files</label>
+                </div>
+                <div class="custom-control custom-radio custom-control-inline">
+                    <input type="radio" class="custom-control-input" id="compFiles" name="fileSelection" value="customEx">
+                    <label class="custom-control-label" for="compFiles">Compressed Files</label>
+                </div>
+                <div class="custom-control custom-radio custom-control-inline">
+                    <input type="radio" class="custom-control-input" id="rawFiles" name="fileSelection" value="customEx">
+                    <label class="custom-control-label" for="rawFiles">Raw Files</label>
+                </div>
+                <br>
+                <br>
+
                 <h5 style="margin-bottom: 2px">Folder Structure</h5>
                 <div style="font-size: 80%; margin-bottom: 2px"><i>Select whether you would like to maintain your original folder structure, or use a flat one with all information contained in the file names.</i></div>
                 <div class="custom-control custom-radio custom-control-inline">
@@ -1440,7 +1458,7 @@ limitations under the License. -->
                 <br>
 
                 <h5 style="margin-bottom: 2px">Empty Files</h5>
-                <div style="font-size: 80%; margin-bottom: 2px"><i>Select whether you would like your empty files to be included or not.</i></div>
+                <div style="font-size: 80%; margin-bottom: 2px"><i>Select whether you would like your empty files to be included or not. Empty files only have compressed versions available and require 48 hours to be dearchived and made available for download.</i></div>
                 <div class="custom-control custom-radio custom-control-inline">
                     <input type="radio" class="custom-control-input" id="emptyExclude" name="emptiesSelection" value="customEx">
                     <label class="custom-control-label" for="emptyExclude">Exclude</label>
@@ -1466,7 +1484,7 @@ limitations under the License. -->
                 <br>
 
                 <h5 style="margin-bottom: 2px">Video Content</h5>
-                <div style="font-size: 80%; margin-bottom: 2px"><i>Select how you would like your video content to be included. </i></div>
+                <div style="font-size: 80%; margin-bottom: 2px"><i>Select how you would like your video content to be included. Videos only have compressed versions available and require 48 hours to be dearchived and made available for download.</i></div>
                 <div class="custom-control custom-radio custom-control-inline">
                     <input type="radio" class="custom-control-input" id="videoFramesTrue" name="videoSelection" value="customEx">
                     <label class="custom-control-label" for="videoFramesTrue">Video Frames</label>
@@ -1481,7 +1499,6 @@ limitations under the License. -->
                 </div>
                 <br>
                 <br>
-          
             </div>
             <div class='modal-footer'>
 
@@ -1491,12 +1508,41 @@ limitations under the License. -->
                 </div>
 
                 <div class='col-lg-2'>
-                    <button id="btnDownloadStart" type='button' class='btn btn-primary btn-block' onclick=initiateDownload()>Download</button>
+                    <button id="btnDownloadStart" type='button' class='btn btn-primary btn-block' onclick=checkDownload()>Download</button>
                 </div>
 
             </div>
         </div>
   
+    </div>
+</div>
+
+<div id="modalConfirmDownload" class="modal fade" role="dialog" tabindex="-1">
+    <div class="modal-dialog">
+        <!-- Modal content-->
+        <div class="modal-content">
+            <div class="modal-header">
+                <h4 class="modal-title">Please Confirm</h4>
+                <button id="helpx" type="button" class="close" data-dismiss="modal">&times;</button>
+            </div>
+            <div class="modal-body">
+                <p align="justify">
+                    The file download preferences that you have selected require the files to be restored from our archival storage. The process will take 48 hours to complete. 
+                    You can monitor the progress of the download request on the downloads menu. After the files have been restored, you will be able to start the download process.
+                    Do you wish to proceed?
+                </p>
+            </div>
+            <div class="modal-footer">
+                <div class="col-lg-3">
+                    <button id="btnCancelDownload" type="button" class="btn btn-info btn-block" 
+                    data-dismiss="modal">Cancel</button>
+                </div>
+                <div class="col-lg-3">
+                    <button id="btnConfirmDownload" type="button" class="btn btn-danger btn-block" 
+                    data-dismiss="modal" onclick="initiateDownload()">Confirm</button>
+                </div>
+            </div>
+        </div>
     </div>
 </div>
 

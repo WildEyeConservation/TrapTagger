@@ -212,7 +212,15 @@ def process_images(ibs,batch,sourceBucket,species,pose_only=False):
                         s3client.download_file(Bucket=sourceBucket, Key=image_path, Filename=temp_file.name)
                     except:
                         print('Error downloading {} from S3'.format(image_path))
-                        continue
+                        try:
+                            splits = image_path.split('/')
+                            splits[0] = splits[0] + '-comp'
+                            comp_image_path = '/'.join(splits)
+                            print('Downloading {} from S3'.format(comp_image_path))
+                            s3client.download_file(Bucket=sourceBucket, Key=comp_image_path, Filename=temp_file.name)
+                        except:
+                            print('Error downloading {} from S3'.format(comp_image_path))
+                            continue
                     image_data = np.array(Image.open(temp_file.name))
                     h, w, _ = image_data.shape
                     x1, x2, y1, y2 = max(0, min(1, bbox_dict['left'])), max(0, min(1, bbox_dict['right'])), max(0, min(1, bbox_dict['top'])), max(0, min(1, bbox_dict['bottom']))

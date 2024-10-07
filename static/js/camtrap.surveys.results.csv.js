@@ -227,15 +227,15 @@ function checkCSV() {
     invalidName = false
 
     // Handles the selection of duplicate annototation tasks
-    allTasks = document.querySelectorAll('[id^=csvTaskSelect-]')
-    for (let i=0;i<allTasks.length;i++) {
-        currTaskVal = allTasks[i].value
-        for (let j=0;j<allTasks.length;j++) {
-            if(allTasks[j].value == currTaskVal && j!=i){
-                duplicateTask = true
-            }
-        }
-    }
+    // allTasks = document.querySelectorAll('[id^=csvTaskSelect-]')
+    // for (let i=0;i<allTasks.length;i++) {
+    //     currTaskVal = allTasks[i].value
+    //     for (let j=0;j<allTasks.length;j++) {
+    //         if(allTasks[j].value == currTaskVal && j!=i){
+    //             duplicateTask = true
+    //         }
+    //     }
+    // }
 
     // Handle include/exclude
     if (document.getElementById('excludeLabels').checked) {
@@ -367,11 +367,11 @@ function checkCSV() {
         csvErrors.appendChild(newdiv)
     }
 
-    if (duplicateTask) {
-        document.getElementById('taskError').innerHTML = 'You have duplicate annotation sets, please remove the duplicate.'
-    } else {
-        document.getElementById('taskError').innerHTML = ''
-    }
+    // if (duplicateTask) {
+    //     document.getElementById('taskError').innerHTML = 'You have duplicate annotation sets, please remove the duplicate.'
+    // } else {
+    //     document.getElementById('taskError').innerHTML = ''
+    // }
 
     if (invalidDate) {
         document.getElementById('dateErrorsCSV').innerHTML = 'The start date must be before the end date.'
@@ -511,14 +511,15 @@ btnCsvDownload.addEventListener('click', ()=>{
             }
         }
 
-        selectedTasks = []
-        allTasks = document.querySelectorAll('[id^=csvTaskSelect-]')
-        for (let i=0;i<allTasks.length;i++) {
-            task_id = allTasks[i].options[allTasks[i].selectedIndex].value
-            if (task_id != '-99999') {
-                selectedTasks.push(task_id)
-            }
-        }
+        // selectedTasks = []
+        // allTasks = document.querySelectorAll('[id^=csvTaskSelect-]')
+        // for (let i=0;i<allTasks.length;i++) {
+        //     task_id = allTasks[i].options[allTasks[i].selectedIndex].value
+        //     if (task_id != '-99999') {
+        //         selectedTasks.push(task_id)
+        //     }
+        // }
+        selectedTasks = [selectedTask]
 
         // Handle include/exclude
         includes = []
@@ -633,7 +634,7 @@ btnCsvDownload.addEventListener('click', ()=>{
                             modalCSVGenerate.modal('hide')
                             modalPW.modal({keyboard: true});
                             csv_task_ids.push(selectedtask)
-                            waitForDownload()
+                            // waitForDownload()
                         } else {
                             document.getElementById('modalPWH').innerHTML = 'Error'
                             if(reply.message == null){
@@ -677,7 +678,7 @@ function downloadPreFormattedCSV() {
                     modalResults.modal('hide')
                     modalPW.modal({keyboard: true});
                     csv_task_ids.push(selectedtask)
-                    waitForDownload()
+                    // waitForDownload()
                 } else {
                     document.getElementById('modalPWH').innerHTML = 'Error'
                     if(reply.message == null){
@@ -706,16 +707,21 @@ function downloadCOCO() {
         return function() {
             if (this.readyState == 4 && this.status == 200) {
                 reply = JSON.parse(this.responseText);  
-                if (reply=='success') {
+                if (reply.status=='success') {
                     document.getElementById('modalPWH').innerHTML = 'Please Wait'
                     document.getElementById('modalPWB').innerHTML = 'Your COCO file is being generated and the download will commence shortly. Please note that this may take a while, especially for larger data sets. Do not navigate away from this page.'
                     modalResults.modal('hide')
                     modalPW.modal({keyboard: true});
                     coco_task_ids.push(selectedtask)
-                    waitForDownload()
+                    // waitForDownload()
                 } else {
                     document.getElementById('modalPWH').innerHTML = 'Error'
-                    document.getElementById('modalPWB').innerHTML = 'An unexpected error has occurred. Please try again.'
+                    if(reply.message != null){
+                        document.getElementById('modalPWB').innerHTML = reply.message
+                    }
+                    else{
+                        document.getElementById('modalPWB').innerHTML = 'An unexpected error has occurred. Please try again.'
+                    }
                     modalPW.modal({keyboard: true});
                 }
             }
@@ -1126,115 +1132,115 @@ function buildCustColRow(IDNum1,IDNum2) {
     });
 }
 
-function buildCSVsurveyRow() {
-    /** Builds a survey row in the csv form. */
+// function buildCSVsurveyRow() {
+//     /** Builds a survey row in the csv form. */
     
-    IDNum = getIdNumforNext('csvSurveySelect-')
-    addSurveyDiv = document.getElementById('addSurveyDiv')
+//     IDNum = getIdNumforNext('csvSurveySelect-')
+//     addSurveyDiv = document.getElementById('addSurveyDiv')
 
-    row = document.createElement('div')
-    row.classList.add('row')
-    addSurveyDiv.appendChild(row)
+//     row = document.createElement('div')
+//     row.classList.add('row')
+//     addSurveyDiv.appendChild(row)
 
-    col1 = document.createElement('div')
-    col1.classList.add('col-lg-3')
-    row.appendChild(col1)
+//     col1 = document.createElement('div')
+//     col1.classList.add('col-lg-3')
+//     row.appendChild(col1)
 
-    col2 = document.createElement('div')
-    col2.classList.add('col-lg-3')
-    row.appendChild(col2)
+//     col2 = document.createElement('div')
+//     col2.classList.add('col-lg-3')
+//     row.appendChild(col2)
 
-    col3 = document.createElement('div')
-    col3.classList.add('col-lg-3')
-    row.appendChild(col3)
+//     col3 = document.createElement('div')
+//     col3.classList.add('col-lg-3')
+//     row.appendChild(col3)
 
-    col4 = document.createElement('div')
-    col4.classList.add('col-lg-3')
-    row.appendChild(col4)
+//     col4 = document.createElement('div')
+//     col4.classList.add('col-lg-3')
+//     row.appendChild(col4)
 
-    csvSurveySelect = document.createElement('select')
-    csvSurveySelect.classList.add('form-control')
-    csvSurveySelect.id = 'csvSurveySelect-'+String(IDNum)
-    csvSurveySelect.name = csvSurveySelect.id
-    col1.appendChild(csvSurveySelect)
+//     csvSurveySelect = document.createElement('select')
+//     csvSurveySelect.classList.add('form-control')
+//     csvSurveySelect.id = 'csvSurveySelect-'+String(IDNum)
+//     csvSurveySelect.name = csvSurveySelect.id
+//     col1.appendChild(csvSurveySelect)
 
-    csvTaskSelect = document.createElement('select')
-    csvTaskSelect.classList.add('form-control')
-    csvTaskSelect.id = 'csvTaskSelect-'+String(IDNum)
-    csvTaskSelect.name = csvTaskSelect.id
-    col2.appendChild(csvTaskSelect)
+//     csvTaskSelect = document.createElement('select')
+//     csvTaskSelect.classList.add('form-control')
+//     csvTaskSelect.id = 'csvTaskSelect-'+String(IDNum)
+//     csvTaskSelect.name = csvTaskSelect.id
+//     col2.appendChild(csvTaskSelect)
 
-    if (surveys != null) {
-        if (IDNum==0) {
-            clearSelect(csvSurveySelect)
-            csvSurveySelect.disabled = true
-            csvTaskSelect.disabled = true
-            fillSelect(csvSurveySelect, [surveyName], [String(selectedSurvey)])
-            fillSelect(csvTaskSelect, [taskName], [String(selectedTask)])
-        } else {
-            optionTexts = ['None']
-            optionValues = ["-99999"]           
-            for (let i=0;i<surveys.length;i++) {
-                optionTexts.push(surveys[i][1])
-                optionValues.push(surveys[i][0])
-            }
-            clearSelect(csvSurveySelect)
-            fillSelect(csvSurveySelect, optionTexts, optionValues)
-            fillSelect(csvTaskSelect, [''], ['-99999'])
-        }
-    }
+//     if (surveys != null) {
+//         if (IDNum==0) {
+//             clearSelect(csvSurveySelect)
+//             csvSurveySelect.disabled = true
+//             csvTaskSelect.disabled = true
+//             fillSelect(csvSurveySelect, [surveyName], [String(selectedSurvey)])
+//             fillSelect(csvTaskSelect, [taskName], [String(selectedTask)])
+//         } else {
+//             optionTexts = ['None']
+//             optionValues = ["-99999"]           
+//             for (let i=0;i<surveys.length;i++) {
+//                 optionTexts.push(surveys[i][1])
+//                 optionValues.push(surveys[i][0])
+//             }
+//             clearSelect(csvSurveySelect)
+//             fillSelect(csvSurveySelect, optionTexts, optionValues)
+//             fillSelect(csvTaskSelect, [''], ['-99999'])
+//         }
+//     }
 
-    if (IDNum!=0) {
-        btnRemove = document.createElement('button');
-        btnRemove.classList.add('btn');
-        btnRemove.classList.add('btn-default');
-        btnRemove.innerHTML = '&times;';
-        btnRemove.addEventListener('click', (evt)=>{
-            evt.target.parentNode.parentNode.remove();
-            updateCustomRows()
-        });
-        col4.appendChild(btnRemove);
-    }
+//     if (IDNum!=0) {
+//         btnRemove = document.createElement('button');
+//         btnRemove.classList.add('btn');
+//         btnRemove.classList.add('btn-default');
+//         btnRemove.innerHTML = '&times;';
+//         btnRemove.addEventListener('click', (evt)=>{
+//             evt.target.parentNode.parentNode.remove();
+//             updateCustomRows()
+//         });
+//         col4.appendChild(btnRemove);
+//     }
 
-    $("#"+csvSurveySelect.id).change( function(wrapIDNum) {
-        return function() {
-            csvSurveySelect = document.getElementById('csvSurveySelect-'+String(wrapIDNum))
-            csvTaskSelect = document.getElementById('csvTaskSelect-'+String(wrapIDNum))
-            survey = csvSurveySelect.options[csvSurveySelect.selectedIndex].value
-            if (survey=="-99999") {
-                clearSelect(csvTaskSelect)
-                fillSelect(csvTaskSelect, [''], ['-99999'])
-                csvSurveyUpdates()
-            } else {
-                var xhttp = new XMLHttpRequest();
-                xhttp.onreadystatechange =
-                function(wrapCsvTaskSelect){
-                    return function() {
-                        if (this.readyState == 4 && this.status == 200) {
-                            tasks = JSON.parse(this.responseText);  
-                            optionTexts = []      
-                            optionValues = []
-                            for (let i=0;i<tasks.length;i++) {
-                                optionTexts.push(tasks[i][1])
-                                optionValues.push(tasks[i][0])
-                            }
-                            clearSelect(wrapCsvTaskSelect)
-                            fillSelect(wrapCsvTaskSelect, optionTexts, optionValues)
-                            csvSurveyUpdates()
-                        }
-                    }
-                }(csvTaskSelect)
-                xhttp.open("GET", '/getTasks/'+survey);
-                xhttp.send();
-            }
-        }
-    }(IDNum));
+//     $("#"+csvSurveySelect.id).change( function(wrapIDNum) {
+//         return function() {
+//             csvSurveySelect = document.getElementById('csvSurveySelect-'+String(wrapIDNum))
+//             csvTaskSelect = document.getElementById('csvTaskSelect-'+String(wrapIDNum))
+//             survey = csvSurveySelect.options[csvSurveySelect.selectedIndex].value
+//             if (survey=="-99999") {
+//                 clearSelect(csvTaskSelect)
+//                 fillSelect(csvTaskSelect, [''], ['-99999'])
+//                 csvSurveyUpdates()
+//             } else {
+//                 var xhttp = new XMLHttpRequest();
+//                 xhttp.onreadystatechange =
+//                 function(wrapCsvTaskSelect){
+//                     return function() {
+//                         if (this.readyState == 4 && this.status == 200) {
+//                             tasks = JSON.parse(this.responseText);  
+//                             optionTexts = []      
+//                             optionValues = []
+//                             for (let i=0;i<tasks.length;i++) {
+//                                 optionTexts.push(tasks[i][1])
+//                                 optionValues.push(tasks[i][0])
+//                             }
+//                             clearSelect(wrapCsvTaskSelect)
+//                             fillSelect(wrapCsvTaskSelect, optionTexts, optionValues)
+//                             csvSurveyUpdates()
+//                         }
+//                     }
+//                 }(csvTaskSelect)
+//                 xhttp.open("GET", '/getTasks/'+survey);
+//                 xhttp.send();
+//             }
+//         }
+//     }(IDNum));
 
-    $("#"+csvTaskSelect.id).change( function() {
-        csvSurveyUpdates()
-        checkCSV()
-    })
-}
+//     $("#"+csvTaskSelect.id).change( function() {
+//         csvSurveyUpdates()
+//         checkCSV()
+//     })
+// }
 
 function updateIncludeFields() {
     /** Updates all include/exclude fields */
@@ -1350,36 +1356,36 @@ function finishCSVprep() {
     /** Finishes the prep of the csv form after the necessary information has been recieved from the server. */
 
     // Prep survey selector
-    var xhttp = new XMLHttpRequest();
-    xhttp.onreadystatechange =
-    function(){
-        if (this.readyState == 4 && this.status == 200) {
-            surveys = JSON.parse(this.responseText);  
-            buildCSVsurveyRow()
-        }
-    }
-    xhttp.open("GET", '/getSurveys');
-    xhttp.send();
+    // var xhttp = new XMLHttpRequest();
+    // xhttp.onreadystatechange =
+    // function(){
+    //     if (this.readyState == 4 && this.status == 200) {
+    //         surveys = JSON.parse(this.responseText);  
+    //         buildCSVsurveyRow()
+    //     }
+    // }
+    // xhttp.open("GET", '/getSurveys');
+    // xhttp.send();
 
-    // add survey button
-    addSurveyBtnDiv = document.getElementById('addSurveyBtnDiv')
-    row = document.createElement('div')
-    row.classList.add('row')
-    addSurveyBtnDiv.appendChild(row)
+    // // add survey button
+    // addSurveyBtnDiv = document.getElementById('addSurveyBtnDiv')
+    // row = document.createElement('div')
+    // row.classList.add('row')
+    // addSurveyBtnDiv.appendChild(row)
 
-    col = document.createElement('div')
-    col.classList.add('col-lg-2')
-    row.appendChild(col)
+    // col = document.createElement('div')
+    // col.classList.add('col-lg-2')
+    // row.appendChild(col)
 
-    btnAdd = document.createElement('button');
-    btnAdd.classList.add('btn');
-    btnAdd.classList.add('btn-primary');
-    btnAdd.classList.add('btn-block');
-    btnAdd.innerHTML = 'Add Survey';
-    btnAdd.addEventListener('click', ()=>{
-        buildCSVsurveyRow()
-    });
-    col.appendChild(btnAdd);
+    // btnAdd = document.createElement('button');
+    // btnAdd.classList.add('btn');
+    // btnAdd.classList.add('btn-primary');
+    // btnAdd.classList.add('btn-block');
+    // btnAdd.innerHTML = 'Add Survey';
+    // btnAdd.addEventListener('click', ()=>{
+    //     buildCSVsurveyRow()
+    // });
+    // col.appendChild(btnAdd);
 
     // add new custom column button
     customColumnBtnDiv = document.getElementById('customColumnBtnDiv')
@@ -1552,10 +1558,10 @@ modalCSVGenerate.on('hidden.bs.modal', function(){
         while(csvErrors.firstChild){
             csvErrors.removeChild(csvErrors.firstChild);
         }
-        addSurveyDiv = document.getElementById('addSurveyDiv')
-        while(addSurveyDiv.firstChild){
-            addSurveyDiv.removeChild(addSurveyDiv.firstChild);
-        }
+        // addSurveyDiv = document.getElementById('addSurveyDiv')
+        // while(addSurveyDiv.firstChild){
+        //     addSurveyDiv.removeChild(addSurveyDiv.firstChild);
+        // }
         customColumnDiv = document.getElementById('customColumnDiv')
         while(customColumnDiv.firstChild){
             customColumnDiv.removeChild(customColumnDiv.firstChild);
@@ -1564,10 +1570,10 @@ modalCSVGenerate.on('hidden.bs.modal', function(){
         while(customColumnHeadingDiv.firstChild){
             customColumnHeadingDiv.removeChild(customColumnHeadingDiv.firstChild);
         }
-        addSurveyBtnDiv = document.getElementById('addSurveyBtnDiv')
-        while(addSurveyBtnDiv.firstChild){
-            addSurveyBtnDiv.removeChild(addSurveyBtnDiv.firstChild);
-        }
+        // addSurveyBtnDiv = document.getElementById('addSurveyBtnDiv')
+        // while(addSurveyBtnDiv.firstChild){
+        //     addSurveyBtnDiv.removeChild(addSurveyBtnDiv.firstChild);
+        // }
         customColumnBtnDiv = document.getElementById('customColumnBtnDiv')
         while(customColumnBtnDiv.firstChild){
             customColumnBtnDiv.removeChild(customColumnBtnDiv.firstChild);

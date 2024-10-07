@@ -188,6 +188,18 @@ def launchTask():
     else:
         statusPass = True
 
+
+    # Check if any surveys are busy with a dearchival process
+    surveys = [task.survey for task in tasks]
+    restore_times = [survey.id_restore for survey in surveys if survey.id_restore]
+    restore_times.extend([survey.empty_restore for survey in surveys if survey.empty_restore])
+    restore_times.extend([survey.download_restore for survey in surveys if survey.download_restore])
+    restore_times.extend([survey.edit_restore for survey in surveys if survey.edit_restore])
+    date_now = datetime.utcnow()
+    if any((date_now - restore_time).total_seconds() < Config.RESTORE_COUNTDOWN for restore_time in restore_times):
+        return json.dumps({'message': 'Files from one or more of the surveys associated with your selection are being restored from archival storage. Launching an annotation set is not possible during this process. Please wait until the 48 hour restoration period has completed.', 'status': 'Error'})
+
+
     if ('-4' in taggingLevel) or ('-5' in taggingLevel):
         species = re.split(',',taggingLevel)[1]
 
@@ -372,21 +384,11 @@ def launchTask():
             tags = [tuple(row) for row in tags]
             return json.dumps({'status': 'tags', 'tags': tags})
 
-        #TODO: UPDATE THIS TO USE RESTORE 
         elif len(untranslated) == 0:
             if '-4' in taggingLevel or '-5' in taggingLevel:
-                # restore_images_for_id.apply_async(kwargs={'task_id':task.id,'days':Config.ID_RESTORE_DAYS})
-                if (len(task_ids) > 1) and ('-5' in taggingLevel):
-                    tL = re.split(',',taggingLevel)
-                    if tL[4]=='h':
-                        calculate_detection_similarities.delay(task_ids=task_ids,species=tL[1],algorithm='hotspotter')
-                    elif tL[4]=='n':
-                        calculate_detection_similarities.delay(task_ids=task_ids,species=tL[1],algorithm='none')
-                else:
-                    launch_task.apply_async(kwargs={'task_id':task.id})
+                restore_images_for_id.apply_async(kwargs={'task_id':task.id,'days':Config.ID_RESTORE_DAYS})
             elif '-7' in taggingLevel:
-                # restore_empty_zips.apply_async(kwargs={'task_id':task.id})
-                launch_task.apply_async(kwargs={'task_id':task.id})
+                restore_empty_zips.apply_async(kwargs={'task_id':task.id})
             else:
                 launch_task.apply_async(kwargs={'task_id':task.id})
             return json.dumps({'status': 'Success'})
@@ -1156,13 +1158,24 @@ def deleteTask(task_id):
                 status = 'error'
                 message = 'The task is currently in use. Please stop it first.'
             else:  
-                task.status = 'Deleting'
-                db.session.commit()
-                status = 'success'
-                message = ''
 
-                app.logger.info('Deleting task {}.'.format(task_id))
-                delete_task.delay(task_id=task_id)
+                # Check if any surveys are busy with a dearchival process
+                survey = task.survey
+                restore_times = [survey.id_restore, survey.edit_restore, survey.download_restore, survey.empty_restore]
+                restore_times = [restore_time for restore_time in restore_times if restore_time]
+                date_now = datetime.utcnow()
+                if any((date_now - restore_time).total_seconds() < Config.RESTORE_COUNTDOWN for restore_time in restore_times):
+                    status = 'error'
+                    message = 'Your survey is currently having files restored from archive. Deleting an annotation set is not possible during this process. Please wait until the 48 hour restoration period has completed.'
+
+                else:
+                    task.status = 'Deleting'
+                    db.session.commit()
+                    status = 'success'
+                    message = ''
+
+                    app.logger.info('Deleting task {}.'.format(task_id))
+                    delete_task.delay(task_id=task_id)
         else:
             status = 'error'
             message = 'Task cannot be deleted.'
@@ -1196,6 +1209,16 @@ def deleteSurvey(survey_id):
                 if 'In Progress' in prep_statusses:
                     status = 'error'
                     message = 'The survey is currently being preprocessed by another user.'
+
+
+            # Check if any surveys are busy with a dearchival process
+            restore_times = [survey.id_restore, survey.edit_restore, survey.download_restore, survey.empty_restore]
+            restore_times = [restore_time for restore_time in restore_times if restore_time]
+            date_now = datetime.utcnow()
+            if any((date_now - restore_time).total_seconds() < Config.RESTORE_COUNTDOWN for restore_time in restore_times):
+                status = 'error'
+                message = 'Your survey is currently having files restored from archive. Deleting your survey is not possible during this process. Please wait until the 48 hour restoration period has completed.'
+
 
             #Check that survey is not in use
             if status != 'error':
@@ -1955,6 +1978,15 @@ def editSurvey():
     organisation = survey.organisation
     if survey and checkSurveyPermission(current_user.id,survey_id,'write'):
 
+
+        # Check if any surveys are busy with a dearchival process
+        restore_times = [survey.id_restore, survey.edit_restore, survey.download_restore, survey.empty_restore]
+        restore_times = [restore_time for restore_time in restore_times if restore_time]
+        date_now = datetime.utcnow()
+        if any((date_now - restore_time).total_seconds() < Config.RESTORE_COUNTDOWN for restore_time in restore_times):
+            status = 'error'
+            message = 'Files from your survey are currently being restored from archival storage. Editing your survey is not possible during this process. Please wait until the 48 hour restoration period has completed.'
+
         classifier = None
         if 'classifier' in request.form:
             classifier = request.form['classifier']
@@ -2038,13 +2070,14 @@ def editSurvey():
                         message = 'Your survey recently had images restored. The system requires a cooldown period of {} days before another restoration can be requested. Image restoration is required when editing the classifier.'.format(Config.RESTORE_COOLDOWN)
                     else:
                         survey.status = 'Processing'
+                        db.session.commit()
                         edit_survey_args = {'survey_id':survey.id,'user_id':current_user.id,'classifier':classifier,'ignore_small_detections':ignore_small_detections,'sky_masked':sky_masked,'timestamps':timestamps,'coord_data':coordData,'masks':masks,'staticgroups':staticgroups,'kml_file':kml,'image_timestamps':imageTimestamps}
                         restore_images_for_classification.delay(survey_id=survey.id,days=2,edit_survey_args=edit_survey_args)
                 else:
                     survey.status = 'Processing'
+                    db.session.commit()
                     edit_survey.delay(survey_id=survey.id,user_id=current_user.id,classifier=classifier,ignore_small_detections=ignore_small_detections,sky_masked=sky_masked,timestamps=timestamps,coord_data=coordData,masks=masks,staticgroups=staticgroups,kml_file=kml,image_timestamps=imageTimestamps)
 
-                db.session.commit()
     else:
         status = 'error'
         message = 'You do not have permission to edit this survey.'
@@ -2078,41 +2111,50 @@ def addFiles():
         
         userPermissions = db.session.query(UserPermissions).filter(UserPermissions.organisation_id==survey.organisation_id).filter(UserPermissions.user_id==current_user.id).first()
         if userPermissions and userPermissions.create:
-            newSurveyTGCode = request.form['newSurveyTGCode']
-            newSurveyS3Folder = request.form['newSurveyS3Folder']
-            checkbox = request.form['checkbox']
-            newSurveyCamCode = request.form['newSurveyCamCode']
-            camCheckbox = request.form['camCheckbox']
+            # Check if any surveys are busy with a dearchival process
+            restore_times = [survey.id_restore, survey.edit_restore, survey.download_restore, survey.empty_restore]
+            restore_times = [restore_time for restore_time in restore_times if restore_time]
+            date_now = datetime.utcnow()
+            if any((date_now - restore_time).total_seconds() < Config.RESTORE_COUNTDOWN for restore_time in restore_times):
+                status = 'error'
+                message = 'Files from your survey are currently being restored from archival storage. Adding files to your survey is not possible during this process. Please wait until the 48 hour restoration period has completed.'
 
-            if newSurveyTGCode!=' ' and newSurveyCamCode!=' ':
-                if checkbox=='false':
-                    newSurveyTGCode = newSurveyTGCode+'[0-9]+'
+            if status == 'success':
+                newSurveyTGCode = request.form['newSurveyTGCode']
+                newSurveyS3Folder = request.form['newSurveyS3Folder']
+                checkbox = request.form['checkbox']
+                newSurveyCamCode = request.form['newSurveyCamCode']
+                camCheckbox = request.form['camCheckbox']
 
-                if camCheckbox=='false' and newSurveyCamCode!='None':
-                    newSurveyCamCode = newSurveyCamCode+'[0-9]+'
+                if newSurveyTGCode!=' ' and newSurveyCamCode!=' ':
+                    if checkbox=='false':
+                        newSurveyTGCode = newSurveyTGCode+'[0-9]+'
 
-                survey.trapgroup_code=newSurveyTGCode
+                    if camCheckbox=='false' and newSurveyCamCode!='None':
+                        newSurveyCamCode = newSurveyCamCode+'[0-9]+'
 
-                if newSurveyS3Folder!='none':
-                    survey.folder = newSurveyS3Folder
-                else:
-                    survey.folder = survey.name
-                
-                if newSurveyCamCode!='None':
-                    survey.camera_code=newSurveyCamCode
-                else:
-                    survey.camera_code=None
-                    newSurveyCamCode=None
+                    survey.trapgroup_code=newSurveyTGCode
 
-                db.session.commit()
-                
-                if newSurveyS3Folder!='none':
-                    import_survey.delay(survey_id=survey.id)
-                else:
-                    survey.status = 'Uploading'
+                    if newSurveyS3Folder!='none':
+                        survey.folder = newSurveyS3Folder
+                    else:
+                        survey.folder = survey.name
+                    
+                    if newSurveyCamCode!='None':
+                        survey.camera_code=newSurveyCamCode
+                    else:
+                        survey.camera_code=None
+                        newSurveyCamCode=None
+
                     db.session.commit()
-                    upload_survey_id = survey.id
-                    upload_survey_name = survey.name
+                    
+                    if newSurveyS3Folder!='none':
+                        import_survey.delay(survey_id=survey.id)
+                    else:
+                        survey.status = 'Uploading'
+                        db.session.commit()
+                        upload_survey_id = survey.id
+                        upload_survey_name = survey.name
         
         else:
             status = 'error'
@@ -4508,12 +4550,21 @@ def exportRequest():
                 GLOBALS.s3client.delete_object(Bucket=Config.BUCKET, Key=fileName+'.zip')
             except:
                 pass
+            
+            # Create Download request
+            old_download_requests = db.session.query(DownloadRequest).filter(DownloadRequest.user_id==current_user.id).filter(DownloadRequest.task_id==task_id).filter(DownloadRequest.type=='export').all()
+            for old_download_request in old_download_requests:
+                db.session.delete(old_download_request)
+
+            download_request = DownloadRequest(type='export', user_id=current_user.id, task_id=task_id, status='Pending', timestamp=datetime.utcnow())
+            db.session.add(download_request)
+            db.session.commit()
 
             generate_wildbook_export.delay(task_id=task_id,data=data,user_name=current_user.username)
 
-        return json.dumps('Success')
+        return json.dumps({'status':'success', 'message':None})
 
-    return json.dumps('Error')
+    return json.dumps({'status':'error', 'message': None})
 
 @app.route('/createTask/<survey_id>/<parentLabel>', methods=['POST'])
 @login_required
@@ -4547,6 +4598,16 @@ def createTask(survey_id,parentLabel):
         translation = ast.literal_eval(translation)
         taskName = info[0].strip()
 
+        # Check if any surveys are busy with a dearchival process
+        survey = db.session.query(Survey).get(int(survey_id))
+        restore_times = [survey.id_restore, survey.edit_restore, survey.download_restore, survey.empty_restore]
+        restore_times = [restore_time for restore_time in restore_times if restore_time]
+        date_now = datetime.utcnow()
+        if any((date_now - restore_time).total_seconds() < Config.RESTORE_COUNTDOWN for restore_time in restore_times):
+            status = 'error'
+            message = 'Your survey is currently having files restored from archive. Adding an annotation set is not possible during this process. Please wait until the 48 hour restoration period has completed.'
+            return json.dumps({'status':status, 'message':message})
+
         check = db.session.query(Task).filter(Task.survey_id==int(survey_id)).filter(Task.name==taskName).first()
 
         if (check == None) and checkSurveyPermission(current_user.id,survey_id,'write') and ('_o_l_d_' not in taskName.lower()) and ('_copying' not in taskName.lower()) and (taskName.lower() != 'default'):
@@ -4558,9 +4619,9 @@ def createTask(survey_id,parentLabel):
             
             prepTask.delay(newTask_id=newTask.id, survey_id=survey_id, includes=includes, translation=translation, labels=info[1])
 
-        return json.dumps('success')
+        return json.dumps({'status':'success', 'message':None})
     except:
-        return json.dumps('error')
+        return json.dumps({'status':'error', 'message':'An error occurred while creating the annotation set. '})
 
 @app.route('/editTranslations/<task_id>', methods=['POST'])
 @login_required
@@ -4594,13 +4655,10 @@ def editTranslations(task_id):
         task.survey.status = 'Launched'
         db.session.commit()
 
-        #TODO: UPDATE THIS TO USE RESTORE 
         if '-4' in task.tagging_level or '-5' in task.tagging_level:
-            # restore_images_for_id.apply_async(kwargs={'task_id':task.id,'days':Config.ID_RESTORE_DAYS})
-            launch_task.apply_async(kwargs={'task_id':task.id})
+            restore_images_for_id.apply_async(kwargs={'task_id':task.id,'days':Config.ID_RESTORE_DAYS})
         elif '-7' in task.tagging_level:
-            # restore_empty_zips.apply_async(kwargs={'task_id':task.id})
-            launch_task.apply_async(kwargs={'task_id':task.id})
+            restore_empty_zips.apply_async(kwargs={'task_id':task.id})
         else:
             if len(includes) > 0:
                 launch_task.apply_async(kwargs={'task_id':task.id, 'classify':True})
@@ -7327,7 +7385,6 @@ def getTasks(survey_id):
             return json.dumps([(-1, 'Southern African')])
         else:
             tasks = [tuple(row) for row in surveyPermissionsSQ(db.session.query(Task.id, Task.name).join(Survey).filter(Survey.id == int(survey_id)).filter(Task.name != 'default').filter(~Task.name.contains('_o_l_d_')).filter(~Task.name.contains('_copying')),current_user.id,'read').distinct().all()]
-            #TODO: Will need to update similar return statements to this to fix the new TypeError: Object of type Row is not JSON serializable
             return json.dumps(tasks)
 
 @app.route('/getOtherTasks/<task_id>')
@@ -7693,6 +7750,16 @@ def editTask(task_id):
             translationsDict = ast.literal_eval(request.form['translationsDict'])
             deleteAutoLabels = ast.literal_eval(request.form['deleteAutoLabels'])
 
+            # Check if any surveys are busy with a dearchival process
+            survey = task.survey
+            restore_times = [survey.id_restore, survey.edit_restore, survey.download_restore, survey.empty_restore]
+            restore_times = [restore_time for restore_time in restore_times if restore_time]
+            date_now = datetime.utcnow()
+            if any((date_now - restore_time).total_seconds() < Config.RESTORE_COUNTDOWN for restore_time in restore_times):
+                status = 'error'
+                message = 'Your survey is currently having files restored from archive. Editing an annotation set is not possible during this process. Please wait until the 48 hour restoration period has completed.'
+                return json.dumps({'status': status, 'message': message})
+
             if deleteAutoLabels=='true': 
                 deleteAutoLabels = True 
             else: 
@@ -7733,10 +7800,10 @@ def editTask(task_id):
                 db.session.commit()
                 handleTaskEdit.delay(task_id=task_id,labelChanges=editDict, tagChanges=tagsDict, translationChanges=translationsDict, deleteAutoLabels=deleteAutoLabels)
         else:
-            return json.dumps('error')
-        return json.dumps('success')
+            return json.dumps({'status': 'error', 'message': 'An error occurred while editing the task.'})
+        return json.dumps({'status': 'success'})
     except:
-        return json.dumps('error')
+        return json.dumps({'status': 'error', 'message': 'An error occurred while editing the task.'})
 
 @app.route('/submitTags/<task_id>', methods=['POST'])
 @login_required
@@ -7776,14 +7843,11 @@ def submitTags(task_id):
             task.survey.status = 'Launched'
             db.session.commit()
 
-            #TODO: UPDATE THIS TO USE RESTORE 
             app.logger.info('Calling launch_task for task {}'.format(task_id))
             if '-4' in task.tagging_level or '-5' in task.tagging_level:
-                # restore_images_for_id.apply_async(kwargs={'task_id':task.id,'days':Config.ID_RESTORE_DAYS})
-                launch_task.apply_async(kwargs={'task_id':task.id})
+                restore_images_for_id.apply_async(kwargs={'task_id':task.id,'days':Config.ID_RESTORE_DAYS})
             elif '-7' in task.tagging_level:
-                # restore_empty_zips.apply_async(kwargs={'task_id':task.id})
-                launch_task.apply_async(kwargs={'task_id':task.id})
+                restore_empty_zips.apply_async(kwargs={'task_id':task.id})
             else:
                 launch_task.apply_async(kwargs={'task_id':task.id})
 
@@ -7882,6 +7946,15 @@ def editSightings(image_id,task_id):
                                     detection.classification = translation.classification
                                 else:
                                     detection.classification = 'nothing'
+
+                                if image.zip_id:
+                                    # Empty image getting a detection needs to be copied to the raw folder
+                                    image.zip_id = None
+                                    image_key = image.camera.path + '/' + image.filename
+                                    splits = image_key.split('/')
+                                    splits[0] = splits[0] + '-comp'
+                                    comp_key = splits.join('/')
+                                    GLOBALS.s3client.copy_object(Bucket=Config.BUCKET, CopySource={'Bucket': Config.BUCKET, 'Key': comp_key}, Key=image_key, STORAGE_CLASS='DEEP_ARCHIVE')
 
                                 db.session.commit()
                                 detDbIDs[detID] = detection.id
@@ -8105,7 +8178,7 @@ def generateExcel(selectedTask):
 
     # if (task == None) or (task.survey.user != current_user):
     if (task == None) or (not checkSurveyPermission(current_user.id,task.survey_id,'read')):
-        return json.dumps('error')
+        return json.dumps({'status':'error',  'message': None})
 
     # fileName = task.survey.user.folder+'/docs/'+task.survey.user.username+'_'+task.survey.name+'_'+task.name+'.xlsx'
     fileName = task.survey.organisation.folder+'/docs/'+task.survey.organisation.name+'_'+current_user.username+'_'+task.survey.name+'_'+task.name+'.xlsx'
@@ -8116,10 +8189,19 @@ def generateExcel(selectedTask):
     except:
         pass
 
+    # Create Download request
+    old_download_requests = db.session.query(DownloadRequest).filter(DownloadRequest.user_id==current_user.id).filter(DownloadRequest.task_id==selectedTask).filter(DownloadRequest.type=='excel').all()
+    for old_download_request in old_download_requests:
+        db.session.delete(old_download_request)
+
+    download_request = DownloadRequest(type='excel', user_id=current_user.id, task_id=selectedTask, status='Pending', timestamp=datetime.utcnow())
+    db.session.add(download_request)
+    db.session.commit()
+
     app.logger.info('Calling generate_excel')
     generate_excel.delay(task_id=int(selectedTask), user_name=current_user.username)
 
-    return json.dumps('success')
+    return json.dumps({'status':'success', 'message': None})
 
 @app.route('/generateCSV', methods=['POST'])
 @login_required
@@ -8195,6 +8277,15 @@ def generateCSV():
     else:
         queue='default'
 
+    # Create Download request
+    old_download_requests = db.session.query(DownloadRequest).filter(DownloadRequest.user_id==current_user.id).filter(DownloadRequest.task_id==selectedTasks[0]).filter(DownloadRequest.type=='csv').all()
+    for old_download_request in old_download_requests:
+        db.session.delete(old_download_request)
+
+    download_request = DownloadRequest(type='csv', user_id=current_user.id, task_id=selectedTasks[0], status='Pending', timestamp=datetime.utcnow())
+    db.session.add(download_request)
+    db.session.commit()
+
     app.logger.info('Calling generate_csv: {}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {}'.format(selectedTasks, level, columns, custom_columns, label_type, includes, excludes, start_date, end_date, column_translations,current_user.username))
     generate_csv.apply_async(kwargs={'selectedTasks':selectedTasks, 'selectedLevel':level, 'requestedColumns':columns, 'custom_columns':custom_columns, 'label_type':label_type, 'includes':includes, 'excludes':excludes, 'startDate':start_date, 'endDate':end_date, 'column_translations': column_translations, 'user_name': current_user.username}, queue=queue)
 
@@ -8210,7 +8301,7 @@ def generateCOCO():
 
     # if (task == None) or (task.survey.user != current_user):
     if (task == None) or (not checkSurveyPermission(current_user.id,task.survey_id,'read')):
-        return json.dumps('error')
+        return json.dumps({'status':'error',  'message': None})
 
     # fileName = task.survey.user.folder+'/docs/'+task.survey.user.username+'_'+task.survey.name+'_'+task.name+'.json'
     fileName = task.survey.organisation.folder+'/docs/'+task.survey.organisation.name+'_'+current_user.username+'_'+task.survey.name+'_'+task.name+'.json'
@@ -8221,9 +8312,18 @@ def generateCOCO():
     except:
         pass
 
+    # Create Download request
+    old_download_requests = db.session.query(DownloadRequest).filter(DownloadRequest.user_id==current_user.id).filter(DownloadRequest.task_id==task_id).filter(DownloadRequest.type=='coco').all()
+    for old_download_request in old_download_requests:
+        db.session.delete(old_download_request)
+
+    download_request = DownloadRequest(type='coco', user_id=current_user.id, task_id=task_id, status='Pending', timestamp=datetime.utcnow())
+    db.session.add(download_request)
+    db.session.commit()
+
     generate_coco.delay(task_id=task_id, user_name=current_user.username)
 
-    return json.dumps('success')
+    return json.dumps({'status':'success', 'message': None})
 
 @app.route('/getCSVinfo')
 @login_required
@@ -9066,6 +9166,7 @@ def get_required_files():
         flat_structure = request.json['flat_structure']
         include_empties = request.json['include_empties']
         labels = request.json['species']
+        raw_files = request.json['raw_files']
 
         if task.status == 'Processing':
             # Try speed things up while waiting for download to prep
@@ -9242,7 +9343,12 @@ def get_required_files():
                 imagePaths, imageLabels, imageTags = get_image_paths_and_labels(image,task,individual_sorted,species_sorted,flat_structure,labels,include_empties)
                 imageLabels.extend(imageTags)
                 file_ids.append(image.id)
-                reply.append({'url':'https://'+Config.BUCKET+'.s3.amazonaws.com/'+(image.camera.path+'/'+image.filename).replace('+','%2B').replace('?','%3F').replace('#','%23'),'paths':imagePaths,'labels':imageLabels})
+                if raw_files and not image.zip_id: # If image is empty (zip_id) it will only be in the comp folder
+                    reply.append({'url':'https://'+Config.BUCKET+'.s3.amazonaws.com/'+(image.camera.path+'/'+image.filename).replace('+','%2B').replace('?','%3F').replace('#','%23'),'paths':imagePaths,'labels':imageLabels, 'hash':image.hash})
+                else:
+                    pathSplit  = image.camera.path.split('/',1)
+                    path = pathSplit[0] + '-comp/' + pathSplit[1] + '/' + image.filename
+                    reply.append({'url':'https://'+Config.BUCKET+'.s3.amazonaws.com/'+ path.replace('+','%2B').replace('?','%3F').replace('#','%23'),'paths':imagePaths,'labels':imageLabels, 'hash':image.hash})
             db.session.commit()
 
     return json.dumps({'ids':file_ids,'requiredFiles':reply})
@@ -9373,7 +9479,8 @@ def check_download_available():
     task = db.session.query(Task).get(task_id)
     if task and checkSurveyPermission(current_user.id,task.survey_id,'read'):
         check = db.session.query(Trapgroup.id).join(Camera).join(Image).outerjoin(Video).filter(Trapgroup.survey_id==task.survey_id).filter(or_(Image.downloaded==True,Video.downloaded==True)).first()
-        if check:
+        check2 = db.session.query(DownloadRequest).join(Task).filter(Task.survey_id==task.survey_id).filter(DownloadRequest.type=='file').first()
+        if check or check2:
             return json.dumps('unavailable')
         else:
             return json.dumps('available')
@@ -14021,3 +14128,162 @@ def invoke_lambda():
         pass
         
     return 'error'
+
+@app.route('/getDownloadRequests')
+@login_required
+def getDownloadRequests():
+    ''' Gets the download requests for the user '''
+    download_requests = []
+    page = request.args.get('page', 1, type=int)
+    next = None
+    prev = None
+    if current_user and current_user.is_authenticated:
+        expiry = datetime.now() - timedelta(days=7)
+        requests = surveyPermissionsSQ(db.session.query(DownloadRequest.id, DownloadRequest.type, DownloadRequest.status, DownloadRequest.timestamp, Task.name, Survey.name, Organisation.name, Organisation.folder)\
+                                .join(Task, DownloadRequest.task_id==Task.id)\
+                                .join(Survey)\
+                                .filter(DownloadRequest.user_id==current_user.id)\
+                                .filter(or_(and_(DownloadRequest.status=='Available', DownloadRequest.timestamp>expiry), DownloadRequest.status!='Available'))\
+                                ,current_user.id,'read').order_by(DownloadRequest.id.desc()).distinct().paginate(page,6,False)
+        
+
+        for d in requests.items:
+            if d[1] == 'file':
+                file = 'FILES - ' + d[5] + ' ' + d[4]
+                restore_time = 0
+                if d[3] and d[2] == 'Restoring Files':
+                    restore_time = math.floor(((datetime.utcnow() - d[3]).total_seconds() / 3600))
+                download_requests.append({
+                    'id': d[0],
+                    'status': d[2],
+                    'file': file,
+                    'type': d[1],
+                    'restore': restore_time
+                })
+                    
+            else:
+                file = d[1].upper() + ' - ' + d[5] + ' ' + d[4]
+                if d[2] == 'Available':
+                    download_requests.append({
+                        'id': d[0],
+                        'status': d[2],
+                        'expires': (d[3] + timedelta(days=Config.DOWNLOAD_RESTORE_DAYS)).strftime('%Y-%m-%dT%H:%M:%SZ') if d[1] == file else (d[3] + timedelta(days=7)).strftime('%Y-%m-%dT%H:%M:%SZ'),
+                        'file': file,
+                        'type': d[1],
+                        'url': 'https://'+Config.BUCKET+'.s3.amazonaws.com/'+(d[7]+'/docs/'+ d[6]+'_'+current_user.username+'_'+d[5]+'_'+d[4] + '.'+ Config.RESULT_TYPES[d[1]]).replace('+','%2B').replace('?','%3F').replace('#','%23'),
+                    })
+                else:
+                    download_requests.append({
+                        'id': d[0],
+                        'status': d[2],
+                        'file': file,
+                        'type': d[1]
+                    })
+
+        next = requests.next_num if requests.has_next else None
+        prev = requests.prev_num if requests.has_prev else None
+
+    return json.dumps({'download_requests': download_requests, 'next': next, 'prev': prev})
+
+@app.route('/checkAvailableDownloads')
+@login_required
+def checkDownloadRequests():
+    ''' Checks the number of available downloads for the user '''
+    available_downloads = 0
+    if current_user and current_user.is_authenticated:
+        expiry = datetime.now() - timedelta(days=7)
+        available_downloads = db.session.query(DownloadRequest)\
+                                .filter(DownloadRequest.user_id==current_user.id)\
+                                .filter(DownloadRequest.status=='Available')\
+                                .filter(DownloadRequest.timestamp>expiry)\
+                                .distinct().count()
+
+    return json.dumps({'available_downloads': available_downloads})
+
+@app.route('/fileHandler/restore_for_download', methods=['POST'])
+@login_required
+def restore_for_download():
+    """Restores images for download."""
+
+    task_id = request.json['task_id']
+    task = db.session.query(Task).get(task_id)
+    survey = task.survey
+    status = 'error'
+    message = 'An error occurred while processing the download request. Please try again.'
+
+    if task and checkSurveyPermission(current_user.id,task.survey_id,'read') and task.status.lower() in Config.TASK_READY_STATUSES:
+        individual_sorted = request.json['individual_sorted']
+        species_sorted = request.json['species_sorted']
+        flat_structure = request.json['flat_structure']
+        include_empties = request.json['include_empties']
+        species = request.json['species']
+        include_video = request.json['include_video']
+        include_frames = request.json['include_frames']
+        raw_files = request.json['raw_files']
+        delete_items = request.json['delete_items']
+
+        app.logger.info('Individual Sorted: {} Species Sorted: {} Flat Structure: {} Include Empties: {} Species: {} Include Video: {} Include Frames: {} Raw Files: {} Delete Items: {}'.format(individual_sorted, species_sorted, flat_structure, include_empties, species, include_video, include_frames, raw_files, delete_items))
+
+        if raw_files or include_video or include_empties:
+
+            check = db.session.query(Trapgroup.id).join(Camera).join(Image).outerjoin(Video).filter(Trapgroup.survey_id==task.survey_id).filter(or_(Image.downloaded==True,Video.downloaded==True)).first()
+            check2 = db.session.query(DownloadRequest).join(Task).filter(Task.survey_id==task.survey_id).filter(DownloadRequest.type=='file').first()
+            if check or check2:
+                status = 'error'
+                message = 'A download is already in progress for this survey. Please try again later.'
+            elif survey.download_restore and (datetime.utcnow()-survey.download_restore).days < timedelta(days=Config.RESTORE_COOLDOWN).days:
+                status = 'error'
+                message = 'Your survey recently had images restored. The system requires a cooldown period of {} days before another restoration can be requested.'.format(Config.RESTORE_COOLDOWN)
+            else:
+                download_dict = {
+                    'individual_sorted': individual_sorted,
+                    'species_sorted': species_sorted,
+                    'flat_structure': flat_structure,
+                    'include_empties': include_empties,
+                    'species': species,
+                    'include_video': include_video,
+                    'include_frames': include_frames,
+                    'raw_files': raw_files,
+                    'delete_items': delete_items
+                }
+
+                GLOBALS.redisClient.set('fileDownloadParams_'+str(task_id)+'_'+str(current_user.id),json.dumps(download_dict))
+
+                new_request = DownloadRequest(user_id=current_user.id, task_id=task_id, type='file', status='Initiated', timestamp=datetime.utcnow())
+                db.session.add(new_request)
+                
+                db.session.commit()
+
+                restore_files_for_download.apply_async(kwargs={'task_id': task_id, 'user_id': current_user.id, 'download_params': download_dict, 'days': Config.DOWNLOAD_RESTORE_DAYS})
+
+                status = 'success'
+                message = 'Your download request has been initiated. A wait time 48 hours is required for the download to be prepared. Your download request can be viewed in the downloads menu.'
+    
+    return json.dumps({'status': status, 'message': message})
+
+@app.route('/fileHandler/init_download_after_restore', methods=['POST'])
+@login_required
+def init_download_after_restore():
+    """Gets the download request after the images have been restored."""
+
+    download_request_id = request.json['download_request_id']
+    download_request = db.session.query(DownloadRequest).get(download_request_id)
+    if download_request:
+        task_id = download_request.task_id
+        task = db.session.query(Task).get(task_id)
+        if task and checkSurveyPermission(current_user.id,task.survey_id,'read'):
+            try:
+                download_dict = GLOBALS.redisClient.get('fileDownloadParams_'+str(task_id)+'_'+str(current_user.id))
+                if download_dict:
+                    download_dict = json.loads(download_dict)
+                    download_dict['task_id'] = task_id
+                    download_dict['survey_id'] = task.survey_id
+                    download_dict['task_name'] = task.name
+                    download_request.status = 'Downloading'
+                    db.session.commit()
+
+                    return json.dumps({'status': 'success', 'download_params': download_dict})
+            except:
+                pass
+
+    return json.dumps({'status': 'error', 'message': 'An error occurred while processing the download request. Please try again.'})

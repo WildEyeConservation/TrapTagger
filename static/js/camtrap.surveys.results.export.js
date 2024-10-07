@@ -237,15 +237,20 @@ function submitExportRequest() {
                 reply = JSON.parse(this.responseText); 
                 modalExport.modal('hide')
                 
-                if (reply=='Success') {
+                if (reply.status=='success') {
                     document.getElementById('modalPWH').innerHTML = 'Please Wait'
                     document.getElementById('modalPWB').innerHTML = 'Your export file is being generated and the download will commence shortly. Please note that this may take a while, especially for larger data sets. Do not navigate away from this page.'
                     modalPW.modal({keyboard: true});
                     export_task_ids.push(selectedTask)
-                    waitForDownload()
+                    // waitForDownload()
                 } else {
                     document.getElementById('modalPWH').innerHTML = 'Error'
-                    document.getElementById('modalPWB').innerHTML = 'An unexpected error has occurred. Please try again.'
+                    if (reply.message != null) {
+                        document.getElementById('modalPWB').innerHTML = reply.message
+                    }
+                    else {
+                        document.getElementById('modalPWB').innerHTML = 'An unexpected error has occurred. Please try again.'
+                    }
                     modalPW.modal({keyboard: true});
                     document.getElementById('btnExportDownload').disabled = false
                 }

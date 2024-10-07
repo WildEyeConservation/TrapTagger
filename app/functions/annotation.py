@@ -49,6 +49,15 @@ def launch_task(self,task_id,classify=False):
         isBounding = task.is_bounding
         newIndividualsAdded = False
 
+        if task.status != 'PENDING':
+            task.status = 'PENDING'
+            task.survey.status = 'Launched'
+            for tsk in task.sub_tasks:
+                tsk.status = 'Processing'
+                tsk.survey.status = 'Launched'
+
+            db.session.commit()
+
         if task.jobs_finished == None:
             task.jobs_finished = 0
 
@@ -551,9 +560,8 @@ def wrapUpTask(self,task_id):
             task.ai_check_complete = True
 
         elif '-7' in task.tagging_level:
-            pass
-            # TODO: Cleanup for -7
-            # cleanup_empty_restored_images.delay(task_id)
+            # Cleanup for -7
+            cleanup_empty_restored_images.delay(task_id)
 
         #Accounts for individual ID background processing
         # if 'processing' not in task.survey.status:

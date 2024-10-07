@@ -17,10 +17,11 @@ limitations under the License.
 from app import app, db, celery
 from app.models import *
 from app.functions.globals import getQueueLengths, getImagesProcessing, getInstanceCount, getInstancesRequired, launch_instances, manageDownload, resolve_abandoned_jobs, \
-deleteTurkcodes, createTurkcodes
+deleteTurkcodes, createTurkcodes, deleteFile
 from app.functions.imports import import_survey
 from app.functions.admin import stop_task
 from app.functions.annotation import freeUpWork, wrapUpTask
+from app.functions.archive import restore_images_for_id, restore_files_for_download
 import GLOBALS
 from sqlalchemy.sql import func, distinct, or_, alias, and_
 from sqlalchemy import desc
@@ -226,6 +227,8 @@ def clean_up_redis():
                             timestamp = datetime.fromtimestamp(float(timestamp.decode()))
                             if datetime.utcnow() - timestamp > timedelta(minutes=10):
                                 manageDownload(task_id)
+                            else:
+                                checkRestoreDownloads(task_id)
                     except:
                         GLOBALS.redisClient.delete(key)
 
@@ -497,7 +500,7 @@ def manageTasks():
         # for task_id in wrapUps:
         #     wrapUpTask.delay(task_id=task_id)
 
-        # manage_tasks_with_restore()
+        manage_tasks_with_restore()
         
     except Exception as exc:
         app.logger.info(' ')
@@ -710,68 +713,55 @@ def manage_task(task_id):
     return False, jobs_to_delete  
 
 def manage_tasks_with_restore():
-    ''' Manages tasks which use images that have been restored from Glacier'''
+    ''' Manages tasks which use images that have been restored from Glacier '''
 
-    restored_tasks = db.session.query(Task.id, Task.tagging_level, Survey.id, Survey.name, Survey.id_restore, Survey.empty_restore)\
-                        .join(Survey, Task.survey_id==Survey.id)\
-                        .filter(Task.status=='PROGRESS')\
-                        .filter(or_(Task.tagging_level.contains('-4'),Task.tagging_level.contains('-5'),Task.tagging_level.contains('-7')))\
-                        .group_by(Task.id)\
-                        .distinct().all()
+    restored_tasks = db.session.query(Task.id, Task.tagging_level, Survey.id, Survey.id_restore, Survey.empty_restore, func.max(User.last_ping).label('last_active'))\
+                    .join(Survey, Task.survey_id==Survey.id)\
+                    .outerjoin(Turkcode, Turkcode.task_id==Task.id)\
+                    .outerjoin(User, Turkcode.user_id==User.id)\
+                    .filter(Task.status=='PROGRESS')\
+                    .filter(or_(Task.tagging_level.contains('-4'),Task.tagging_level.contains('-5'),Task.tagging_level.contains('-7')))\
+                    .filter(or_(User.parent_id!=None,User.id==None))\
+                    .group_by(Task.id)\
+                    .distinct().all()
 
+    
     for data in restored_tasks:
         task_id = data[0]
         tagging_level = data[1]
         survey_id = data[2]
-        survey_name = data[3]
-        id_restore = data[4]
-        empty_restore = data[5]
-        notif = None
+        id_restore = data[3]
+        empty_restore = data[4]
+        last_active = data[5]
+        date_now = datetime.utcnow()
+
         if '-7' in tagging_level:
             if empty_restore:
                 expiry_date = (empty_restore + timedelta(days=30)).replace(hour=23,minute=59,second=59,microsecond=999999)
-                task_active = datetime.utcnow() - empty_restore 
-                if task_active.days == 14:
-                    # Send notification to admins
-                    notif = '<p> You have 14 days left to complete your Empty Image Sighting Correction task from Survey {} before the images are moved back into Archival Storage on {}.</p>'.format(survey_name,expiry_date.strftime('%d/%m/%Y'))
-                elif task_active.days == 21:
-                    # Send notification to admins
-                    notif = '<p> You have 7 days left to complete your Empty Image Sighting Correction task from Survey {} before the images are moved back into Archival Storage on {}.</p>'.format(survey_name,expiry_date.strftime('%d/%m/%Y'))
-                elif task_active.days == 29:
-                    # Send notification to admins
-                    notif = '<p> You have 1 day left to complete your Empty Image Sighting Correction task from Survey {} before the images are moved back into Archival Storage on {}.</p>'.format(survey_name,expiry_date.strftime('%d/%m/%Y'))
-                elif task_active.days >= 30:
-                    # Send notification to admins & stop task or something like that ? 
-                    notif = '<p> Your Empty Image Sighting Correction task from Survey {} has expired on {} and the images have been moved back into Archival Storage. The task has been stopped.</p>'.format(survey_name,expiry_date.strftime('%d/%m/%Y'))
-                    stop_task.delay(task_id=task_id)
+                time_left = expiry_date - date_now
+
+                if time_left.days < 1:
+                    if last_active:
+                        if (date_now - last_active).days > 5:
+                            stop_task.delay(task_id=task_id)
+                    else:
+                        stop_task.delay(task_id=task_id)
         else:
             if id_restore:
-                expiry_date = (id_restore + timedelta(days=Config.ID_RESTORE_DAYS+2)).replace(hour=23,minute=59,second=59,microsecond=999999)
-                time_left = expiry_date - datetime.utcnow()
-                if time_left.days < 0:
-                    # Stop task or something like that ? 
-                    notif = '<p>Your Individual ID task from Survey {} has expired on {} and the RAW images have been moved back into Archival Storage. The task has been stopped.</p>'.format(survey_name,expiry_date.strftime('%d/%m/%Y'))
-                    stop_task.delay(task_id=task_id)
-                elif time_left.days == 1:
-                    # Send notification to admins
-                    notif = '<p>Your Individual ID task from Survey {} has 1 day left before the RAW images are moved back into Archival Storage on {}.</p>'.format(survey_name,expiry_date.strftime('%d/%m/%Y'))
-                elif time_left.days == 7:
-                    # Send notification to admins
-                    notif = '<p>Your Individual ID task from Survey {} has 7 days left before the RAW images are moved back into Archival Storage on {}.</p>'.format(survey_name,expiry_date.strftime('%d/%m/%Y'))
-                elif time_left.days == 14:
-                    # Send notification to admins
-                    notif = '<p>Your Individual ID task from Survey {} has 14 days left before the RAW images are moved back into Archival Storage on {}.</p>'.format(survey_name,expiry_date.strftime('%d/%m/%Y'))
+                expiry_date = (id_restore + timedelta(days=Config.ID_RESTORE_DAYS)).replace(hour=23,minute=59,second=59,microsecond=999999)
+                time_left = expiry_date - date_now
 
-            if notif:
-                notif_check = Notification.query.filter(Notification.contents==notif).first()
-                if not notif_check:
-                    admin_users = [r[0] for r in db.session.query(User.id).join(UserPermissions).join(Organisation).join(Survey).filter(Survey.id==survey_id).filter(UserPermissions.default=='admin').all()]
-                    for user_id in admin_users:
-                        new_notif = Notification(contents=notif,user_id=user_id,seen=False)
-                        db.session.add(new_notif)
-        
-
-    db.session.commit() 
+                if time_left.days < 1:
+                    if last_active:
+                        if (date_now - last_active).days > 5:
+                            stop_task.delay(task_id=task_id)
+                        else:
+                            survey = db.session.query(Survey).get(survey_id)
+                            survey.id_restore = date_now
+                            db.session.commit()
+                            restore_images_for_id.apply_async(kwargs={'task_id':task_id,'days':Config.ID_RESTORE_DAYS, 'extend':True})
+                    else:
+                        stop_task.delay(task_id=task_id)
 
     return True
 
@@ -833,5 +823,60 @@ def monitor_live_data_surveys():
         db.session.remove()
         #Schedule every 24hours
         monitor_live_data_surveys.apply_async(queue='priority', priority=0,countdown=86400)
+
+    return True
+
+@celery.task(ignore_result=True)
+def manageDownloadRequests():
+    '''Celery task that manages download requests for users'''	
+
+    try:
+        download_requests = db.session.query(DownloadRequest).filter(DownloadRequest.status == 'Available').all()
+        for request in download_requests:
+            if request.type == 'file':
+                if request.timestamp + timedelta(days=Config.DOWNLOAD_RESTORE_DAYS+2) < datetime.utcnow():
+                    db.session.delete(request)
+            else:
+                if request.timestamp + timedelta(days=7) < datetime.utcnow():
+                    fileName = request.task.survey.organisation.folder+'/docs/'+request.task.survey.organisation.name+'_'+request.user.username+'_'+request.task.survey.name+'_'+request.task.name + '.' + Config.RESULT_TYPES[request.type]
+                    deleteFile.apply_async(kwargs={'fileName': fileName})
+                    db.session.delete(request)
+
+        db.session.commit()            
+
+    except Exception as exc:
+        app.logger.info(' ')
+        app.logger.info('!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!')
+        app.logger.info(traceback.format_exc())
+        app.logger.info('!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!')
+        app.logger.info(' ')
+
+    finally:
+        db.session.remove()
+        #Schedule every 24hours
+        manageDownloadRequests.apply_async(queue='priority', priority=0,countdown=86400)
+
+
+    return True
+
+def checkRestoreDownloads(task_id):
+    '''Function that checks if there are any downloads with restored images that require the files restoration to be extended'''
+
+    survey = db.session.query(Survey).join(Task).filter(Task.id==task_id).first()
+    if survey.dowload_restore:
+        expiry_date = (survey.dowload_restore + timedelta(days=Config.DOWNLOAD_RESTORE_DAYS)).replace(hour=23,minute=59,second=59,microsecond=999999)
+        date_now = datetime.utcnow()
+        if (expiry_date - date_now).days < 1:
+            download_requests = db.session.query(DownloadRequest).filter(DownloadRequest.task_id == task_id).filter(DownloadRequest.type == 'file').filter(DownloadRequest.status == 'Downloading').all()
+            for request in download_requests:
+                try:
+                    user_id = request.user_id
+                    download_params = GLOBALS.redisClient.get('fileDownloadParams_'+str(task_id)+'_'+str(user_id))
+                    download_params = download_params.decode()
+                    survey.dowload_restore = date_now
+                    db.session.commit()
+                    restore_files_for_download.apply_async(kwargs={'task_id':task_id,'user_id':user_id,'days':Config.DOWNLOAD_RESTORE_DAYS,'download_params':download_params,'extend':True})
+                except:
+                    continue
 
     return True

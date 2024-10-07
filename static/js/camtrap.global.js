@@ -19,6 +19,10 @@ var notificationTimer = null
 var notifications_next = null
 var notifications_prev = null
 var notifications_current_page = 1
+var downloadsTimer = null
+var downloads_next = null
+var downloads_prev = null
+var downloads_current_page = 1
 const modalHelp = $('#modalHelp');
 const modalNotification = $('#modalNotification');
 
@@ -98,6 +102,10 @@ function takeJob(jobID) {
 function openNotifications() {
     /** Builds a notification dropdown menu and opens it. */
     checkNotifications()
+
+    if (notifications_current_page == null){
+        notifications_current_page = 1
+    }
 
     // Get the notifications
     var xhttp = new XMLHttpRequest();
@@ -283,10 +291,256 @@ function checkNotifications() {
     }
 }
 
+function openDownloads(){
+    /** Opens the downloads modal. */
+
+    checkDownloads()
+
+    if (downloads_current_page == null){
+        downloads_current_page = 1
+    }
+    
+    var xhttp = new XMLHttpRequest();
+    xhttp.onreadystatechange = function () {
+        if (this.readyState == 4 && this.status == 200) {
+            reply = JSON.parse(this.responseText);
+            var download_requests = reply.download_requests;
+
+            var downloadsMenu = document.getElementById('downloadsMenu');
+            while (downloadsMenu.firstChild) {
+                downloadsMenu.removeChild(downloadsMenu.firstChild);
+            }
+
+            if (download_requests.length == 0) {
+                var downloadsCard = document.getElementById('downloadsCard')
+                downloadsCard.getElementsByClassName('card-footer')[0].setAttribute('style', 'border-top: 1px solid rgb(60,74,89);');
+            }
+            else {
+                var downloadsCard = document.getElementById('downloadsCard')
+                downloadsCard.getElementsByClassName('card-footer')[0].setAttribute('style', 'border-top: none;');
+            }
+
+            for (let i = 0; i < download_requests.length; i++) {
+                buildDownloadRequest(download_requests[i]);
+            }
+
+            downloads_next = reply.next;
+            if( downloads_next == null){
+                document.getElementById('btnNextDownloads').disabled = true;
+            }
+            else{
+                document.getElementById('btnNextDownloads').disabled = false;
+            }
+
+            downloads_prev = reply.prev;
+            if( downloads_prev == null){
+                document.getElementById('btnPrevDownloads').disabled = true;
+            }
+            else{
+                document.getElementById('btnPrevDownloads').disabled = false;
+            }
+        }
+    }
+    xhttp.open('GET', '/getDownloadRequests?page=' + downloads_current_page);
+    xhttp.send();
+
+}
+
+function buildDownloadRequest(download){
+    /** Builds a download request element. */
+
+    var downloadsMenu = document.getElementById('downloadsMenu');
+
+    var downloadRequest = document.createElement('div');
+    downloadRequest.setAttribute('class', 'row');
+    downloadRequest.id = 'downloadRequest-' + download.id;
+    // downloadRequest.setAttribute('style','border-bottom: 1px solid rgb(60,74,89); padding: 10px; height: auto; cursor: pointer;');
+    downloadRequest.setAttribute('style','border-bottom: 1px solid rgb(60,74,89); margin: 0px; padding: 10px;');
+    downloadsMenu.appendChild(downloadRequest);
+
+
+
+
+    if (download.status == 'Available'){
+        var col1 = document.createElement('div');
+        col1.setAttribute('class', 'col-lg-10');
+        col1.setAttribute('style', 'padding: 0px;');
+        downloadRequest.appendChild(col1);
+    
+        var col2 = document.createElement('div');
+        col2.setAttribute('class', 'col-lg-2');
+        col2.setAttribute('style', 'padding: 0px; align-items: center; display: flex; justify-content: center;');
+        downloadRequest.appendChild(col2);
+    
+        var h6 = document.createElement('h7');
+        h6.innerHTML = download.file;
+        h6.setAttribute('style', 'margin: 0px;');
+        col1.appendChild(h6);
+
+        if (download.type == 'file'){    
+            var div = document.createElement('div');
+            div.setAttribute('style', 'margin: 0px; padding: 0px; font-size: 80%;');
+            div.innerHTML = '<i>Status: '+ download.status +'</i>';
+            col1.appendChild(div);
+    
+            var downloadBtn = document.createElement('a');
+            downloadBtn.innerHTML = '<i class="fa-solid fa-circle-arrow-down fa-2xl"></i>';
+            downloadBtn.setAttribute('style', 'cursor: pointer; color: #DF691A;');
+            downloadBtn.setAttribute('title', 'Download');
+            downloadBtn.setAttribute('onclick', 'initiateDownloadAfterRestore("'+download.id+'")');
+            col2.appendChild(downloadBtn);
+        }
+        else{
+            expiry_date = new Date(download.expires).toLocaleString();
+            ed = expiry_date.split(',')[0]
+            et = expiry_date.split(',')[1]
+            expiry_date = ed.split('/')[2] + '-' + ed.split('/')[1] + '-' + ed.split('/')[0] + et
+    
+            var div = document.createElement('div');
+            div.setAttribute('style', 'margin: 0px; padding: 0px; font-size: 80%;');
+            div.innerHTML = '<i>Status: '+ download.status + '<br>Expires: ' + expiry_date + '</i>';
+            col1.appendChild(div);
+    
+            var downloadBtn = document.createElement('a');
+            downloadBtn.innerHTML = '<i class="fa-solid fa-circle-arrow-down fa-2xl"></i>';
+            downloadBtn.setAttribute('style', 'cursor: pointer;');
+            downloadBtn.setAttribute('title', 'Download');
+            downloadBtn.setAttribute('href', download.url);
+            col2.appendChild(downloadBtn);
+        }
+    }
+    else if (download.status == 'Restoring Files'){
+        var col1 = document.createElement('div');
+        col1.setAttribute('class', 'col-lg-4');
+        col1.setAttribute('style', 'padding: 0px;');
+        downloadRequest.appendChild(col1);
+    
+        var col2 = document.createElement('div');
+        col2.setAttribute('class', 'col-lg-8');
+        col2.setAttribute('style', 'padding: 0px; align-items: center; display: flex; justify-content: center;');
+        downloadRequest.appendChild(col2);
+    
+        var h6 = document.createElement('h7');
+        h6.innerHTML = download.file;
+        h6.setAttribute('style', 'margin: 0px;');
+        col1.appendChild(h6);
+
+        var div = document.createElement('div');
+        div.setAttribute('style', 'margin: 0px; padding: 0px; font-size: 80%;');
+        div.innerHTML = '<i>Status: ' + download.status + '</i>';
+        col1.appendChild(div);
+
+        var progCol = document.createElement('div');
+        progCol.setAttribute('class', 'col-lg-12');
+        col2.appendChild(progCol);
+
+        var progDiv = document.createElement('div');
+        progCol.appendChild(progDiv);
+
+        var newProg = document.createElement('div');
+        newProg.classList.add('progress');
+        newProg.setAttribute('style','background-color: #3C4A59')
+        progDiv.appendChild(newProg);
+    
+        var newProgInner = document.createElement('div');
+        newProgInner.classList.add('progress-bar');
+        newProgInner.classList.add('progress-bar-striped');
+        newProgInner.classList.add('progress-bar-animated');
+        newProgInner.classList.add('active');
+        newProgInner.setAttribute("role", "progressbar");
+        newProgInner.setAttribute("id", "progBar"+download.id);
+        newProgInner.setAttribute("aria-valuemin", "0");
+        newProgInner.setAttribute("aria-valuenow", 0);
+        newProgInner.setAttribute("aria-valuemax", 48);
+        time_left = 48 - download.restore
+        if (time_left<0) {
+            time_left = 0
+        }
+        newProgInner.setAttribute("style", "width:"+(download.restore/48)*100+"%;transition:none");
+        newProgInner.innerHTML = time_left + ' hours remaining'
+        newProg.appendChild(newProgInner);
+
+    }
+    else{
+        var col1 = document.createElement('div');
+        col1.setAttribute('class', 'col-lg-10');
+        col1.setAttribute('style', 'padding: 0px;');
+        downloadRequest.appendChild(col1);
+    
+        var col2 = document.createElement('div');
+        col2.setAttribute('class', 'col-lg-2');
+        col2.setAttribute('style', 'padding: 0px; align-items: center; display: flex; justify-content: center;');
+        downloadRequest.appendChild(col2);
+    
+        var h6 = document.createElement('h7');
+        h6.innerHTML = download.file;
+        h6.setAttribute('style', 'margin: 0px;');
+        col1.appendChild(h6);
+
+        var div = document.createElement('div');
+        div.setAttribute('style', 'margin: 0px; padding: 0px; font-size: 80%;');
+        div.innerHTML = '<i>Status: ' + download.status; + '</i>';
+        col1.appendChild(div);
+
+        col2.innerHTML = '<i class="fa-solid fa-spinner fa-spin fa-2xl" style="color: #DF694A"></i>';
+    
+    }
+}
+
+$('#downloadsDropdown').click(function(){
+    event.stopPropagation()
+});
+
+function checkDownloads(){
+    /** Checks for new downloads. */
+    if (document.getElementById('downloadsBadge')) {
+        var xhttp = new XMLHttpRequest();
+        xhttp.open('GET', '/checkAvailableDownloads');
+        xhttp.onreadystatechange = function () {
+            if (this.readyState == 4 && this.status == 200) {
+                reply = JSON.parse(this.responseText);
+                var downloadsBadge = document.getElementById('downloadsBadge');
+                downloadsBadge.innerHTML = reply.available_downloads;
+                if (downloadsTimer) {
+                    clearTimeout(downloadsTimer)
+                }
+                downloadsTimer = setTimeout(checkDownloads, 300000)
+            }
+        }
+        xhttp.send();
+    }
+    else{
+        if (downloadsTimer) {
+            clearTimeout(downloadsTimer)
+        }
+        downloadsTimer = setTimeout(checkDownloads, 300000)
+    }
+}
+
+$('#btnNextDownloads').click(function(event){
+    downloads_current_page = downloads_next
+    openDownloads()
+});
+
+$('#btnPrevDownloads').click(function(event){
+    downloads_current_page = downloads_prev
+    openDownloads()
+});
+
+$('#notificationsButton').click(function(){
+    notifications_current_page = 1
+    openNotifications()
+});
+
+$('#downloadsBtn').click(function(){
+    downloads_current_page = 1
+    openDownloads()
+});
 
 function onload() {
     /** Sets up the notification badge and timer and checks for global notifications. */
     checkNotifications()
+    checkDownloads()
 }
 
 window.addEventListener('load', onload, false);

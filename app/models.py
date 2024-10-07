@@ -287,6 +287,7 @@ class User(db.Model, UserMixin):
                                     primaryjoin=id==workersTable.c.worker_id,
                                     secondaryjoin=id==workersTable.c.user_id,
                                     backref="workers")
+    download_requests = db.relationship('DownloadRequest', backref='user', lazy=True)
 
     def __repr__(self):
         return '<User {}>'.format(self.username)
@@ -427,6 +428,7 @@ class Task(db.Model):
                         secondaryjoin=id==taskGroupings.c.sub_id,
                         backref="master"
     )
+    download_requests = db.relationship('DownloadRequest', backref='task', lazy=True)
 
     def __repr__(self):
         return '<Task {} for survey {}>'.format(self.name,self.survey_id)
@@ -668,6 +670,17 @@ class Zip(db.Model):
 
     def __repr__(self):
         return '<Zip {}>'.format(self.id)
+
+class DownloadRequest(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    type = db.Column(db.String(8), index=False) # file/csv/excel/json/zip
+    status = db.Column(db.String(32), index=False) 
+    timestamp = db.Column(db.DateTime, default=datetime.utcnow, index=False)
+    user_id = db.Column(db.Integer, db.ForeignKey('user.id'), index=True, unique=False)
+    task_id = db.Column(db.Integer, db.ForeignKey('task.id'), index=False, unique=False)
+
+    def __repr__(self):
+        return '<Download request {}>'.format(self.id)
 
 db.Index('ix_det_srce_scre_stc_stat_class_classcre', Detection.source, Detection.score, Detection.static, Detection.status, Detection.classification, Detection.class_score)
 db.Index('ix_cluster_examined_task', Cluster.examined, Cluster.task_id)

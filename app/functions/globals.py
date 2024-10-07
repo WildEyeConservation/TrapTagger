@@ -2736,7 +2736,7 @@ def inspect_celery(include_spam=False,include_reserved=False,include_scheduled=F
                 elif 'calculate_hotspotter_similarity' in task['name']:
                     print('{:{}}{:{}}{:{}}{:{}}  {}'.format(task['id'],40,name,36,hostname,36,time_start,29,task['kwargs']['batch'][0]))
                 elif 'generateDetections' in task['name']:
-                    print('{:{}}{:{}}{:{}}{:{}}  survey_id={}'.format(task['id'],40,name,36,hostname,36,time_start,29,task['kwargs']['batch'][0]['survey_id']))
+                    print('{:{}}{:{}}{:{}}{:{}}  {}'.format(task['id'],40,name,36,hostname,36,time_start,29,task['kwargs']['batch'][0]['dirpath']))
                 else:
                     print('{:{}}{:{}}{:{}}{:{}}  {}'.format(task['id'],40,name,36,hostname,36,time_start,29,task['kwargs']))
 
@@ -2782,7 +2782,7 @@ def inspect_celery(include_spam=False,include_reserved=False,include_scheduled=F
                     elif 'calculate_hotspotter_similarity' in task['name']:
                         print('{:{}}{:{}}{:{}}{:{}}  {}'.format(task['id'],40,name,36,hostname,36,time_start,29,task['kwargs']['batch'][0]))
                     elif 'generateDetections' in task['name']:
-                        print('{:{}}{:{}}{:{}}{:{}}  survey_id={}'.format(task['id'],40,name,36,hostname,36,time_start,29,task['kwargs']['batch'][0]['survey_id']))
+                        print('{:{}}{:{}}{:{}}{:{}}  {}'.format(task['id'],40,name,36,hostname,36,time_start,29,task['kwargs']['batch'][0]['dirpath']))
                     else:
                         print('{:{}}{:{}}{:{}}{:{}}  {}'.format(task['id'],40,name,36,hostname,36,time_start,29,task['kwargs']))
 
@@ -2830,7 +2830,7 @@ def inspect_celery(include_spam=False,include_reserved=False,include_scheduled=F
                     elif 'calculate_hotspotter_similarity' in request['name']:
                         print('{:{}}{:{}}{:{}}{:{}}  {}'.format(request['id'],40,name,36,hostname,36,eta,29,request['kwargs']['batch'][0]))
                     elif 'generateDetections' in request['name']:
-                        print('{:{}}{:{}}{:{}}{:{}}  survey_id={}'.format(request['id'],40,name,36,hostname,36,eta,29,request['kwargs']['batch'][0]['survey_id']))
+                        print('{:{}}{:{}}{:{}}{:{}}  {}'.format(request['id'],40,name,36,hostname,36,eta,29,request['kwargs']['batch'][0]['dirpath']))
                     else:
                         print('{:{}}{:{}}{:{}}{:{}}  {}'.format(request['id'],40,name,36,hostname,36,eta,29,request['kwargs']))
 
@@ -3482,6 +3482,27 @@ def manageDownload(task_id):
     resetImageDownloadStatus.delay(task_id=task_id,then_set=False,labels=None,include_empties=None, include_frames=True)
     resetVideoDownloadStatus.delay(task_id=task_id,then_set=False,labels=None,include_empties=None, include_frames=True)
     GLOBALS.redisClient.delete('download_ping_'+str(task_id))
+
+    download_requests = db.session.query(DownloadRequest).filter(DownloadRequest.task_id==task_id).filter(DownloadRequest.type=='file').filter(DownloadRequest.status=='Downloading').all()
+    if download_requests:
+        cleanup = False
+        for request in download_requests:
+            user_id = request.user_id
+            try:
+                download_params = GLOBALS.redisClient.get('fileDownloadParams_'+str(task_id)+'_'+str(user_id))
+                if download_params:
+                    if download_params['include_empties']:
+                        cleanup = True
+            except:
+                pass
+
+            GLOBALS.redisClient.delete('fileDownloadParams_'+str(task_id)+'_'+str(user_id))
+            db.session.delete(request)
+
+        if cleanup:
+            cleanup_empty_restored_images.delay(task_id=task_id)
+
+        db.session.commit()
     
     return True
 
@@ -3859,7 +3880,7 @@ def generate_hotkey(species, task_id=None):
 
     return hotkey
 
-@celery.task(bind=True,max_retries=5,ignore_result=True)
+@celery.task(bind=True,max_retries=2,ignore_result=True)
 def cleanup_empty_restored_images(self,task_id):
     ''' Deletes empty images that have been restored from the zip files. '''
 
@@ -3887,7 +3908,10 @@ def cleanup_empty_restored_images(self,task_id):
             splits = image_path.split('/')
             splits[0] = splits[0] + '-comp'
             image_key = '/'.join(splits)
-            GLOBALS.s3client.delete_object(Bucket=Config.BUCKET, Key=image_key)
+            try:
+                GLOBALS.s3client.delete_object(Bucket=Config.BUCKET, Key=image_key)
+            except:
+                pass
 
 
     except Exception as exc:
@@ -3902,3 +3926,37 @@ def cleanup_empty_restored_images(self,task_id):
         db.session.remove()
 
     return True 
+
+@celery.task(bind=True,max_retries=5,ignore_result=True)
+def deleteFile(self,fileName):
+    '''
+    Celery task that periodically checks for and attempts to delete specified file on S3. Used to cleanup files after successful download.
+
+        Parameters:
+            filename (str): The path of the file to be deleted
+    '''
+    
+    # try:
+    #     if os.path.isfile(fileName):
+    #         try:
+    #             os.remove(fileName)
+    #         except:
+    #             deleteFile.apply_async(kwargs={'fileName': fileName}, countdown=300)
+
+    # except Exception as exc:
+    #     app.logger.info(' ')
+    #     app.logger.info('!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!')
+    #     app.logger.info(traceback.format_exc())
+    #     app.logger.info('!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!')
+    #     app.logger.info(' ')
+    #     self.retry(exc=exc, countdown= retryTime(self.request.retries))
+
+    try:
+        GLOBALS.s3client.delete_object(Bucket=Config.BUCKET, Key=fileName)
+    except:
+        pass
+
+    finally:
+        db.session.remove()
+
+    return True

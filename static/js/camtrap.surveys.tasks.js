@@ -1360,11 +1360,15 @@ btnEditTaskSubmit.addEventListener('click', ()=>{
         function(){
             if (this.readyState == 4 && this.status == 200) {
                 reply = JSON.parse(this.responseText);  
-                if (reply=='success') {
+                if (reply.status=='success') {
                     modalEditTask.modal('hide')
                     updatePage(current_page)
                 } else {
                     document.getElementById('btnEditTaskSubmit').disabled = false
+                    modalEditTask.modal('hide')
+                    document.getElementById('modalAlertHeader').innerHTML = 'Error'
+                    document.getElementById('modalAlertBody').innerHTML = reply.message
+                    modalAlert.modal({keyboard: true});
                 }
             }
         }
@@ -1413,11 +1417,15 @@ btnCreateTask2.addEventListener('click', ()=>{
     function(){
         if (this.readyState == 4 && this.status == 200) {
             reply = JSON.parse(this.responseText);  
-            if (reply=='success') {
+            if (reply.status=='success') {
                 modalAddTask2.modal('hide')
                 updatePage(current_page)
             } else {
                 document.getElementById('btnCreateTask2').disabled=false
+                document.getElementById('modalAlertHeader').innerHTML = 'Error'
+                document.getElementById('modalAlertBody').innerHTML = reply.message
+                modalAddTask2.modal('hide')
+                modalAlert.modal({keyboard: true})
             }
         }
     }
@@ -2321,14 +2329,18 @@ document.getElementById('btnConfirmEditSpecies').addEventListener('click', ()=>{
     function(){
         if (this.readyState == 4 && this.status == 200) {
             reply = JSON.parse(this.responseText);  
-            console.log(reply)
-            if (reply=='success') {
+            if (reply.status=='success') {
                 modalConfirmEditSpecies.modal('hide')
                 modalEditTask.modal('hide')
                 updatePage(current_page)
             } 
             else{
-                document.getElementById('modalConfirmEditSpeciesError').innerHTML = 'There was an error submitting your changes. Please try again.'
+                // document.getElementById('modalConfirmEditSpeciesError').innerHTML = 'There was an error submitting your changes. Please try again.'
+                modalConfirmEditSpecies.modal('hide')
+                modalEditTask.modal('hide')
+                document.getElementById('modalAlertHeader').innerHTML = 'Error'
+                document.getElementById('modalAlertBody').innerHTML = reply.message
+                modalAlert.modal({keyboard: true});
             }
             document.getElementById('btnConfirmEditSpecies').disabled = false
         }

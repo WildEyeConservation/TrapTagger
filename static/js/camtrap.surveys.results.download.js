@@ -57,7 +57,10 @@ modalDownload.on('shown.bs.modal', function(){
     /** Initialises the download modal when it is opened. */
     if (helpReturn) {
         helpReturn = false
+    } else if (confirmDownloadReturn) {
+        confirmDownloadReturn = false
     } else {
+        document.getElementById('localFiles').checked = true
         document.getElementById('originalStructure').checked = true
         document.getElementById('flatStructure').checked = false
         document.getElementById('originalSorted').checked = true
@@ -71,6 +74,8 @@ modalDownload.on('shown.bs.modal', function(){
         document.getElementById('videoFramesTrue').checked = true
         document.getElementById('videoTrue').checked = false
         document.getElementById('videoAndFramesTrue').checked = false
+
+        confirmDownloadReturn = false
 
         var xhttp = new XMLHttpRequest();
         xhttp.open("GET", '/getSpeciesandIDs/'+selectedTask);
@@ -89,7 +94,8 @@ modalDownload.on('shown.bs.modal', function(){
 
 modalDownload.on('hidden.bs.modal', function(){
     /** Clears the download modal when it is closed. */
-    if (!helpReturn) {
+    if (!helpReturn && !confirmDownloadReturn) {
+        document.getElementById('localFiles').checked = true
         document.getElementById('originalStructure').checked = true
         document.getElementById('flatStructure').checked = false
         document.getElementById('originalSorted').checked = true
@@ -175,3 +181,19 @@ function openDownloadModal() {
 //     }
 //     xhttp.send(formData);
 // }
+
+
+function checkDownload(){
+    /** Checks the download options and opens the confirm download modal. */
+    if (document.getElementById('rawFiles').checked || document.getElementById('emptyInclude').checked || document.getElementById('videoTrue').checked || document.getElementById('videoAndFramesTrue').checked) {
+        console.log('checkDownload')
+        confirmDownloadReturn = true
+        modalDownload.modal('hide')
+        modalConfirmDownload.modal({keyboard: true});
+    }
+    else{
+        confirmDownloadReturn = false
+        initiateDownload()
+    }
+}
+

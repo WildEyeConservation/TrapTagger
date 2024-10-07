@@ -16,7 +16,7 @@ limitations under the License.
 
 from app import app, db, celery
 from app.models import *
-from app.functions.globals import classifyTask, update_masks, retryTime, resolve_abandoned_jobs, addChildLabels, updateAllStatuses, \
+from app.functions.globals import classifyTask, update_masks, retryTime, resolve_abandoned_jobs, addChildLabels, updateAllStatuses, deleteFile,\
                                     stringify_timestamp, rDets, update_staticgroups, detection_rating, chunker, verify_label, cleanup_empty_restored_images
 from app.functions.individualID import calculate_detection_similarities, cleanUpIndividuals, check_individual_detection_mismatch
 from app.functions.imports import cluster_survey, classifySurvey, s3traverse, recluster_large_clusters, removeHumans, classifyCluster, importKML, import_survey
@@ -246,6 +246,22 @@ def delete_task(self,task_id):
                 message = 'Could not delete turkcodes and users.'
                 app.logger.info('Failed to delete turkcodes and workers.')
 
+        #Delete download requests
+        if status != 'error':
+            try:
+                download_requests = db.session.query(DownloadRequest).filter(DownloadRequest.task_id==task_id).all()
+                for request in download_requests:
+                    if request.status == 'Available' and request.type != 'file':
+                        fileName = request.task.survey.organisation.folder+'/docs/'+request.task.survey.organisation.name+'_'+request.user.username+'_'+request.task.survey.name+'_'+request.task.name + '.' + Config.RESULT_TYPES[request.type]
+                        deleteFile.apply_async(kwargs={'fileName': fileName})
+                    db.session.delete(request)
+                db.session.commit()
+                app.logger.info('Download requests deleted successfully.')
+            except:
+                status = 'error'
+                message = 'Could not delete download requests.'
+                app.logger.info('Failed to delete download requests.')
+
         #delete tasks
         if status != 'error':
             try:
@@ -373,9 +389,8 @@ def stop_task(self,task_id,live=False):
             #         survey.status = 'Ready'
 
             if '-7' in task.tagging_level:
-                pass
-                # TODO: Cleanup for -7
-                # cleanup_empty_restored_images.delay(task_id)
+                # Cleanup for -7
+                cleanup_empty_restored_images.delay(task_id)
 
             if live:
                 survey.status = 'Import Queued'

@@ -31,8 +31,54 @@ from celery.result import allow_join_result
 import os 
 import zipfile
 
-@celery.task(bind=True,max_retries=5,ignore_result=True)
-def restore_empty_zips(task_id):
+def check_restore(key):
+    '''Check if a object has been restored or is in the process of being restored from Glacier.'''
+    try:
+        response = GLOBALS.s3client.head_object(Bucket=Config.BUCKET, Key=key)
+        if response['StorageClass'] == 'STANDARD':
+            return True
+
+        if 'Restore' in response:
+            if 'ongoing-request="true"' in response['Restore']:
+                return True
+            else:
+                if 'expiry-date' in response['Restore']:
+                    return True
+                else:
+                    return False
+        else:
+            return False
+    except:
+        return False
+
+
+def binary_search_restored_objects(keys):
+    '''Check progress of restore requests for a list of objects and return index of first object that is not restored.'''
+
+    if not keys:
+        return 0
+
+    if not check_restore(keys[0]):
+        return 0
+    
+    if check_restore(keys[-1]):
+        return len(keys)
+
+    low = 0
+    high = len(keys) - 1
+        
+    while low <= high:
+        mid = (low + high) // 2
+        if check_restore(keys[mid]):
+            low = mid + 1
+        else:
+            high = mid - 1
+    return low
+
+
+
+@celery.task(bind=True,max_retries=2,ignore_result=True)
+def restore_empty_zips(self,task_id):
     '''Restores zips from Glacier that contain empty images.'''
     
     try:
@@ -48,15 +94,25 @@ def restore_empty_zips(task_id):
         }
 
         if survey.zips:
-            for zip in survey.zips:
-                zip_key = zip_folder + '/' + str(zip.id) + '.zip'
+            zip_ids = [zip.id for zip in survey.zips].sort()
+            zip_keys = [zip_folder + '/' + str(zip_id) + '.zip' for zip_id in zip_ids]
+            restore_index = binary_search_restored_objects(zip_keys)
+            zip_ids = zip_ids[restore_index:]
+
+            restore_zip = False
+            for zip_id in zip_ids:
+                zip_key = zip_folder + '/' + str(zip_id) + '.zip'
                 try:
                     GLOBALS.s3client.restore_object(Bucket=Config.BUCKET, Key=zip_key, RestoreRequest=restore_request)
+                    restore_zip = True
                 except:
                     continue
 
-            survey.empty_restore = datetime.utcnow()       
-            extract_zips.apply_async(kwargs={'task_id':task_id},countdown=Config.RESTORE_COUNTDOWN)
+            if restore_zip:
+                survey.empty_restore = datetime.utcnow()       
+                extract_zips.apply_async(kwargs={'task_id':task_id},countdown=Config.RESTORE_COUNTDOWN)
+            else:
+                extract_zips.apply_async(kwargs={'task_id':task_id})
         else:
             survey.status = 'Ready'
             task = db.session.query(Task).get(task_id)
@@ -70,13 +126,14 @@ def restore_empty_zips(task_id):
         app.logger.info(traceback.format_exc())
         app.logger.info('!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!')
         app.logger.info(' ')
+        self.retry(exc=exc, countdown= retryTime(self.request.retries))
 
     finally:
         db.session.remove()
 
     return True
 
-@celery.task(bind=True,max_retries=5,ignore_result=True)
+@celery.task(bind=True,max_retries=2,ignore_result=True)
 def extract_zips(self,task_id):
     '''Handles zips from Glacier that contain empty images.'''
     
@@ -121,7 +178,7 @@ def extract_zips(self,task_id):
 
     return True
 
-@celery.task(bind=True,max_retries=5,ignore_result=True)
+@celery.task(bind=True,max_retries=2)
 def extract_zip(self,zip_key):
     '''Handles a zip from Glacier that contains empty images.'''
     
@@ -140,14 +197,16 @@ def extract_zip(self,zip_key):
                 image_ids.append(image_id)
 
 
-        image_data = {r[0]: r[2]+'/'+r[1] for r in db.session.query(Image.id, Image.filename, Camera.path)\
+        image_data = db.session.query(Image.id, Image.filename, Camera.path)\
                         .join(Camera)\
                         .filter(Image.id.in_(image_ids))\
-                        .distinct().all()}
+                        .filter(Image.zip_id!=None)\
+                        .distinct().all()
 
         # Extract images from zip and upload to S3
-        for image_id in image_ids:
-            image_path = image_data[image_id]
+        for image in image_data:
+            image_id = image[0]
+            image_path = image[2] + '/' + image[1]
             splits = image_path.split('/')
             splits[0] = splits[0] + '-comp'
             image_key = '/'.join(splits)
@@ -174,8 +233,8 @@ def extract_zip(self,zip_key):
 
     return True
 
-@celery.task(bind=True,max_retries=5,ignore_result=True)
-def restore_images_for_id(self,task_id,days):
+@celery.task(bind=True,max_retries=2,ignore_result=True)
+def restore_images_for_id(self,task_id,days,extend=False):
     '''Restores images from Glacier for a specified species in the specified tasks.'''
     
     try:
@@ -192,21 +251,23 @@ def restore_images_for_id(self,task_id,days):
         cluster_sq = db.session.query(Cluster.id)\
                     .join(Image,Cluster.images)\
                     .join(Detection)\
+                    .join(Labelgroup)\
+                    .join(Label,Labelgroup.labels)\
                     .filter(Cluster.task_id.in_(task_ids))\
-                    .filter(or_(and_(Detection.source==model,Detection.score>Config.DETECTOR_THRESHOLDS[model]) for model in Config.DETECTOR_THRESHOLDS))\
-                    .distinct().subquery()
+                    .filter(Label.description==species)\
+                    .filter(Labelgroup.task_id.in_(task_ids))\
+                    .filter(or_(and_(Detection.source==model,Detection.score>Config.DETECTOR_THRESHOLDS[model]) for model in Config.DETECTOR_THRESHOLDS)) \
+                    .filter(Detection.static == False) \
+                    .filter(~Detection.status.in_(Config.DET_IGNORE_STATUSES)) \
+                    .subquery()
 
         images = db.session.query(Image.filename, Camera.path)\
-                        .join(Cluster,Image.clusters)\
                         .join(Camera)\
-                        .join(Detection)\
-                        .join(Labelgroup)\
-                        .join(Label,Labelgroup.labels)\
+                        .join(Cluster,Image.clusters)\
                         .join(cluster_sq,Cluster.id==cluster_sq.c.id)\
-                        .filter(Label.description==species)\
                         .filter(Cluster.task_id.in_(task_ids))\
-                        .filter(Labelgroup.task_id.in_(task_ids))\
                         .filter(cluster_sq.c.id!=None)\
+                        .order_by(Image.id)\
                         .distinct().all()
         
         restore_request = {
@@ -216,37 +277,54 @@ def restore_images_for_id(self,task_id,days):
             }
         }
 
+        image_keys = [image[1] + '/' + image[0] for image in images]
+        if extend:
+            restore_index = 0
+        else:
+            restore_index = binary_search_restored_objects(image_keys)
+        image_keys = image_keys[restore_index:]
+
         restored_image = False
-        for image in images:     
-            image_key = image[2] + '/' + image[1]
+        for image_key in image_keys:
             try:
                 GLOBALS.s3client.restore_object(Bucket=Config.BUCKET, Key=image_key, RestoreRequest=restore_request)
                 restored_image = True
             except:
                 continue
         
-        if restored_image:
-            task.survey.id_restore = datetime.utcnow()
-            db.session.commit()
-
-            # Schedule launch_task to run after the restore is complete 
-            if (len(task_ids) > 1) and ('-5' in taggingLevel):
-                if tL[4]=='h':
-                    algorithm = 'hotspotter'
-                elif tL[4]=='n':
-                    algorithm = 'none'
-                calculate_detection_similarities.apply_async(kwargs={'task_ids':task_ids,'species':species,'algorithm':algorithm},countdown=Config.RESTORE_COUNTDOWN)
-            else:
-                launch_task.apply_async(kwargs={'task_id':task_id},countdown=Config.RESTORE_COUNTDOWN)
+        if extend:
+            if restored_image:
+                task.survey.id_restore = datetime.utcnow()
+                db.session.commit()
         else:
-            if (len(task_ids) > 1) and ('-5' in taggingLevel):
-                if tL[4]=='h':
-                    algorithm = 'hotspotter'
-                elif tL[4]=='n':
-                    algorithm = 'none'
-                calculate_detection_similarities.apply_async(kwargs={'task_ids':task_ids,'species':species,'algorithm':algorithm})
+            if restored_image:
+                task.survey.id_restore = datetime.utcnow()
+                task.survey.status = 'Ready'
+                task.status = 'Ready'
+                for sub_task in task.sub_tasks:
+                    sub_task.status = 'Ready'
+                    sub_task.survey.status = 'Ready'
+                    sub_task.survey.id_restore = datetime.utcnow()
+                db.session.commit()
+
+                # Schedule launch_task to run after the restore is complete 
+                if (len(task_ids) > 1) and ('-5' in taggingLevel):
+                    if tL[4]=='h':
+                        algorithm = 'hotspotter'
+                    elif tL[4]=='n':
+                        algorithm = 'none'
+                    calculate_detection_similarities.apply_async(kwargs={'task_ids':task_ids,'species':species,'algorithm':algorithm},countdown=Config.RESTORE_COUNTDOWN)
+                else:
+                    launch_task.apply_async(kwargs={'task_id':task_id},countdown=Config.RESTORE_COUNTDOWN)
             else:
-                launch_task.apply_async(kwargs={'task_id':task_id})
+                if (len(task_ids) > 1) and ('-5' in taggingLevel):
+                    if tL[4]=='h':
+                        algorithm = 'hotspotter'
+                    elif tL[4]=='n':
+                        algorithm = 'none'
+                    calculate_detection_similarities.apply_async(kwargs={'task_ids':task_ids,'species':species,'algorithm':algorithm})
+                else:
+                    launch_task.apply_async(kwargs={'task_id':task_id})
 
     except Exception as exc:
         app.logger.info(' ')
@@ -261,12 +339,12 @@ def restore_images_for_id(self,task_id,days):
 
     return True
 
-@celery.task(bind=True,max_retries=5,ignore_result=True)
+@celery.task(bind=True,max_retries=2,ignore_result=True)
 def restore_images_for_classification(self,survey_id,days,edit_survey_args):
     '''Restores images from Glacier for a specified survey.'''
     
     try:
-        app.logger.info('Restoring images (classification) for survey {} for {} days '.format(survey_id))
+        app.logger.info('Restoring images (classification) for survey {} for {} days '.format(survey_id,days))
 
         survey = db.session.query(Survey).get(survey_id)
         survey.status = 'Processing'
@@ -281,6 +359,11 @@ def restore_images_for_classification(self,survey_id,days,edit_survey_args):
                         .distinct().all()
         
         if images:
+
+            image_keys = [image[1] + '/' + image[0] for image in images]
+            restore_index = binary_search_restored_objects(image_keys)
+            image_keys = image_keys[restore_index:]
+
             restore_request = {
                 'Days': days,
                 'GlacierJobParameters': {
@@ -297,13 +380,224 @@ def restore_images_for_classification(self,survey_id,days,edit_survey_args):
                     continue
             
             if restored_image:
-                survey.edit_restore = datetime.utcnow()        
+                survey.edit_restore = datetime.utcnow()  
+                survey.status = 'Ready'      
                 db.session.commit()       
                 edit_survey.apply_async(kwargs=edit_survey_args,countdown=Config.RESTORE_COUNTDOWN)
             else:
                 edit_survey.apply_async(kwargs=edit_survey_args)
         else:
             edit_survey.apply_async(kwargs=edit_survey_args)
+
+    except Exception as exc:
+        app.logger.info(' ')
+        app.logger.info('!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!')
+        app.logger.info(traceback.format_exc())
+        app.logger.info('!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!')
+        app.logger.info(' ')
+        self.retry(exc=exc, countdown= retryTime(self.request.retries))
+
+    finally:
+        db.session.remove()
+
+    return True
+
+@celery.task(bind=True,max_retries=2,ignore_result=True)
+def restore_files_for_download(self,task_id,user_id,download_params,days,extend=False):
+    '''Restores files from Glacier for a specified task.'''
+    try:
+        task = db.session.query(Task).get(task_id)
+        survey = task.survey
+        species = download_params['species']
+        include_empties = download_params['include_empties']
+        include_frames = download_params['include_frames']
+        include_video = download_params['include_video']
+        raw_files = download_params['raw_files']
+
+        if '0' in species:
+            localLabels = [r.id for r in task.labels]
+            localLabels.append(GLOBALS.vhl_id)
+            localLabels.append(GLOBALS.knocked_id)
+            localLabels.append(GLOBALS.unknown_id)
+        else:
+            localLabels = [int(r) for r in species]
+
+
+        if include_empties: 
+            localLabels.append(GLOBALS.nothing_id)
+            images = db.session.query(Image.filename, Camera.path)\
+                                    .join(Camera)\
+                                    .join(Detection)\
+                                    .outerjoin(Labelgroup)\
+                                    .outerjoin(Label,Labelgroup.labels)\
+                                    .filter(or_(Labelgroup.task_id==task_id,Labelgroup.id==None))\
+                                    .filter(or_(Label.id.in_(localLabels),Label.id==None))\
+                                    .filter(Image.zip_id==None)
+
+        else:
+            images = db.session.query(Image.filename, Camera.path)\
+                                .join(Camera)\
+                                .join(Detection)\
+                                .join(Labelgroup)\
+                                .join(Label,Labelgroup.labels)\
+                                .filter(Labelgroup.task_id==task_id)\
+                                .filter(Label.id.in_(localLabels))\
+            
+        if include_frames:
+            images = images.distinct().all()
+        else:
+            images = images.outerjoin(Video)\
+                            .filter(Video.id==None)\
+                            .distinct().all()
+
+        if include_video:
+            videos = db.session.query(Video.filename, Camera.path)\
+                                .join(Camera)\
+                                .join(Image)\
+                                .join(Detection)\
+                                .join(Labelgroup)\
+                                .join(Label,Labelgroup.labels)\
+                                .filter(Labelgroup.task_id==task_id)\
+                                .filter(Label.id.in_(localLabels))\
+                                .distinct().all()
+            
+
+        restore_request = {
+            'Days': days,
+            'GlacierJobParameters': {
+                'Tier': 'Bulk'
+            }
+        }
+        
+        image_keys = [image[1] + '/' + image[0] for image in images]
+        if extend:
+            restore_index = 0
+        else:
+            restore_index = binary_search_restored_objects(image_keys)
+        image_keys = image_keys[restore_index:]
+
+        restored_image = False
+        for image_key in image_keys:
+            try:
+                GLOBALS.s3client.restore_object(Bucket=Config.BUCKET, Key=image_key, RestoreRequest=restore_request)
+                restored_image = True
+            except:
+                continue
+
+        restored_video = False
+        if include_video:
+            video_keys = []
+            for video in videos:
+                pathSplit  = video[1].split('/',1)
+                video_key = pathSplit[0] + '-comp/' + pathSplit[1].split('_video_images_')[0] + video[0].split('.')[0] + '.mp4'
+                video_keys.append(video_key)
+            if extend:
+                restore_index = 0
+            else:
+                restore_index = binary_search_restored_objects(video_keys)
+            video_keys = video_keys[restore_index:]
+
+            for video_key in video_keys:
+                try:
+                    GLOBALS.s3client.restore_object(Bucket=Config.BUCKET, Key=video_key, RestoreRequest=restore_request)
+                    restored_video = True
+                except:
+                    continue
+        
+        restored_zip = False
+        if include_empties and not extend:
+            if survey.zips:
+                zip_folder = survey.organisation.folder + '-comp/' + Config.SURVEY_ZIP_FOLDER
+                zip_keys = [zip_folder + '/' + str(zip.id) + '.zip' for zip in survey.zips]
+                restore_index = binary_search_restored_objects(zip_keys)
+                zip_keys = zip_keys[restore_index:]
+
+                zip_restore_request = {
+                    'Days': 1,
+                    'GlacierJobParameters': {
+                        'Tier': 'Bulk'
+                    }
+                }
+
+                for zip_key in zip_keys:
+                    try:
+                        GLOBALS.s3client.restore_object(Bucket=Config.BUCKET, Key=zip_key, RestoreRequest=zip_restore_request)
+                        restored_zip = True
+                    except:
+                        continue
+
+        if extend:
+            survey.download_restore = datetime.utcnow()
+            db.session.commit()
+        else:
+            if restored_image or restored_video or restored_zip:
+                date_now = datetime.now()
+                survey.download_restore = date_now
+
+                download_request = db.session.query(DownloadRequest).filter(DownloadRequest.task_id==task_id).filter(DownloadRequest.user_id==user_id).filter(DownloadRequest.type=='file').first()
+                download_request.status = 'Restoring Files'
+                download_request.timestamp = date_now
+
+                db.session.commit()
+
+                process_files_for_download.apply_async(kwargs={'task_id':task_id,'user_id':user_id, 'zips':restored_zip},countdown=Config.RESTORE_COUNTDOWN)
+                
+            else:
+                download_request = db.session.query(DownloadRequest).filter(DownloadRequest.task_id==task_id).filter(DownloadRequest.user_id==user_id).filter(DownloadRequest.type=='file').first()
+                download_request.status = 'Available'
+
+                db.session.commit()
+        
+
+    except Exception as exc:
+        app.logger.info(' ')
+        app.logger.info('!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!')
+        app.logger.info(traceback.format_exc())
+        app.logger.info('!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!')
+        app.logger.info(' ')
+        self.retry(exc=exc, countdown= retryTime(self.request.retries))
+
+    finally:
+        db.session.remove()
+
+    return True
+
+
+@celery.task(bind=True,max_retries=2,ignore_result=True)
+def process_files_for_download(self,task_id,user_id,zips):
+    '''Processes files for download after they have been restored from Glacier.'''
+    try:
+        task = db.session.query(Task).get(task_id)
+        survey = task.survey
+
+        if zips:
+            zip_folder = survey.organisation.folder + '-comp/' + Config.SURVEY_ZIP_FOLDER
+            zip_keys = [zip_folder + '/' + str(zip.id) + '.zip' for zip in survey.zips]
+
+            results = []
+            for zip_key in zip_keys:
+                results.append(extract_zip.apply_async(kwargs={'zip_key':zip_key},queue='parallel'))
+                
+            #Wait for processing to complete
+            db.session.remove()
+            GLOBALS.lock.acquire()
+            with allow_join_result():
+                for result in results:
+                    try:
+                        result.get()
+                    except Exception:
+                        app.logger.info(' ')
+                        app.logger.info('!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!')
+                        app.logger.info(traceback.format_exc())
+                        app.logger.info('!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!')
+                        app.logger.info(' ')
+                    result.forget()
+            GLOBALS.lock.release()
+
+        download_request = db.session.query(DownloadRequest).filter(DownloadRequest.task_id==task_id).filter(DownloadRequest.user_id==user_id).filter(DownloadRequest.status=='Restoring files').filter(DownloadRequest.type=='file').first()
+        download_request.status = 'Available'
+        download_request.timestamp = datetime.now()
+        db.session.commit()
 
     except Exception as exc:
         app.logger.info(' ')
