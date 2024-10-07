@@ -223,7 +223,7 @@ def getQueueLengths():
         if Config.DEBUGGING: print('{} queue length: {}'.format(queue,queueLength))
         if queueLength: queues[queue] = queueLength
 
-    for queue in [r[0] for r in db.session.query(Classifier.name).all()]:
+    for queue in [r[0] for r in db.session.query(Classifier.queue).filter(Classifier.queue!=None).filter(Classifier.active==True).distinct().all()]:
         queueLength = GLOBALS.redisClient.llen(queue)
         if Config.DEBUGGING: print('{} queue length: {}'.format(queue,queueLength))
         if queueLength: queues[queue] = queueLength
@@ -459,7 +459,7 @@ def importMonitor():
                     queue_type = Config.QUEUES[queue]['queue_type']
                     max_instances = Config.QUEUES[queue]['max_instances']
                 else:
-                    classifier = db.session.query(Classifier).filter(Classifier.queue==queue).first()
+                    classifier = db.session.query(Classifier).filter(Classifier.queue==queue).filter(Classifier.active==True).first()
                     ami = classifier.ami_id
                     instances = Config.GPU_INSTANCE_TYPES
                     rate = Config.CLASSIFIER['rate']
@@ -520,7 +520,7 @@ def importMonitor():
                         git_pull = True
                         subnet = Config.PUBLIC_SUBNET_ID
                     else:
-                        classifier = db.session.query(Classifier).filter(Classifier.name==queue).first()
+                        classifier = db.session.query(Classifier).filter(Classifier.queue==queue).filter(Classifier.active==True).first()
                         ami = classifier.ami_id
                         instances = Config.GPU_INSTANCE_TYPES
                         user_data = Config.CLASSIFIER['user_data']
