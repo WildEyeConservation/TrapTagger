@@ -54,6 +54,7 @@ var include_video_init
 var include_frames
 var downloadSurveyID
 var raw_files
+var downloadingRequest 
 
 onmessage = function (evt) {
     /** Take instructions from main js */
@@ -72,7 +73,7 @@ onmessage = function (evt) {
         include_frames = evt.data.args[11]
         downloadSurveyID = evt.data.args[12]
         raw_files = evt.data.args[13]
-        startDownload(evt.data.args[1],evt.data.args[3])
+        startDownload(evt.data.args[1],evt.data.args[3], evt.data.args[14])
     } else if (evt.data.func=='checkDownloadStatus') {
         checkDownloadStatus()
     } else if (evt.data.func=='updateDownloadProgress') {
@@ -82,13 +83,14 @@ onmessage = function (evt) {
     }
 };
 
-async function startDownload(selectedTask,taskName,count=0) {
+async function startDownload(selectedTask,taskName, downloadID, count=0) {
     /** Begins the download */
 
     console.log('Started Download')
 
     downloadingTask = selectedTask
     downloadingTaskName = taskName
+    downloadingRequest = downloadID
     consuming = false
     downloading = false
     errorEcountered = false
@@ -104,7 +106,7 @@ async function startDownload(selectedTask,taskName,count=0) {
     filesToDownload = 0
     count_initialised = false
 
-    postMessage({'func': 'initDisplayForDownload', 'args': [downloadingTask]})
+    postMessage({'func': 'initDisplayForDownload', 'args': [downloadingRequest]})
     updateDownloadProgress()
 
     var reply = await limitTT(()=> fetch('/fileHandler/set_download_status', {
@@ -128,7 +130,7 @@ async function startDownload(selectedTask,taskName,count=0) {
         }
     }).catch( (error) => {
         if (count<=5) {
-            setTimeout(function() { startDownload(selectedTask,taskName,count+1); }, 1000*(5**count));
+            setTimeout(function() { startDownload(selectedTask,taskName,downloadingRequest,count+1); }, 1000*(5**count));
         }
     })
 
@@ -205,7 +207,7 @@ function updateDownloadProgress() {
     if (!count_initialised) {
         totalCount = filesDownloaded
     }
-    postMessage({'func': 'updateDownloadProgress', 'args': [downloadingTask,filesDownloaded,totalCount,count_initialised]})
+    postMessage({'func': 'updateDownloadProgress', 'args': [downloadingRequest,filesDownloaded,totalCount,count_initialised]})
     if (!downloading) {
         consumeQueue()
         if ((local_files_processing==0) && (!init) && (checking_local_folder==0) && (localQueue.length==0)) {
@@ -248,7 +250,6 @@ async function handleLocalFile(entry,dirHandle) {
                         var hash = exifObj['Exif'][42016]
                         if (hash && hash.length==32) {
                             hash = hash.toString()
-                            console.log(hash)
                         }else{
                             throw 'error'
                         }
@@ -614,5 +615,5 @@ async function cleanEmptyFolders(dirHandle) {
 function resetDownloadState() {
     /** Wrapper function for resetDownloadState so that the main js can update the page. */
     downloadingTask = null
-    postMessage({'func': 'resetDownloadState', 'args': [downloadSurveyID,downloadingTaskName]})
+    postMessage({'func': 'resetDownloadState', 'args': [downloadingRequest]})
 }

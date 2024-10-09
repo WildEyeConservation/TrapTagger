@@ -3489,15 +3489,20 @@ def manageDownload(task_id):
         for request in download_requests:
             user_id = request.user_id
             try:
-                download_params = GLOBALS.redisClient.get('fileDownloadParams_'+str(task_id)+'_'+str(user_id))
-                if download_params:
-                    if download_params['include_empties']:
-                        cleanup = True
-            except:
-                pass
+                download_params = json.loads(GLOBALS.redisClient.get('fileDownloadParams_'+str(task_id)+'_'+str(user_id)).decode())
+                survey_restore = request.task.survey.download_restore
+                expiry_date = (survey_restore + timedelta(days=Config.DOWNLOAD_RESTORE_DAYS+3)).replace(hour=0,minute=0,second=0,microsecond=0) if survey_restore else None
+                if expiry_date and datetime.utcnow() < expiry_date:
+                    request.status = 'Available'
+                    request.timestamp = datetime.utcnow()
+                else:
+                    cleanup = download_params['include_empties']
 
-            GLOBALS.redisClient.delete('fileDownloadParams_'+str(task_id)+'_'+str(user_id))
-            db.session.delete(request)
+                    GLOBALS.redisClient.delete('fileDownloadParams_'+str(task_id)+'_'+str(user_id))
+                    db.session.delete(request)
+            except:
+                GLOBALS.redisClient.delete('fileDownloadParams_'+str(task_id)+'_'+str(user_id))
+                db.session.delete(request)
 
         if cleanup:
             cleanup_empty_restored_images.delay(task_id=task_id)

@@ -53,75 +53,63 @@ function buildDownloadSpeciesRow() {
     });
 }
 
-modalDownload.on('shown.bs.modal', function(){
-    /** Initialises the download modal when it is opened. */
-    if (helpReturn) {
-        helpReturn = false
-    } else if (confirmDownloadReturn) {
-        confirmDownloadReturn = false
-    } else {
-        document.getElementById('localFiles').checked = true
-        document.getElementById('originalStructure').checked = true
-        document.getElementById('flatStructure').checked = false
-        document.getElementById('originalSorted').checked = true
-        document.getElementById('speciesSorted').checked = false
-        document.getElementById('individualUnSorted').checked = true
-        document.getElementById('individualSorted').checked = false
-        document.getElementById('emptyExclude').checked = true
-        document.getElementById('emptyInclude').checked = false
-        document.getElementById('deleteTrue').checked = true
-        document.getElementById('deleteFalse').checked = false
-        document.getElementById('videoFramesTrue').checked = true
-        document.getElementById('videoTrue').checked = false
-        document.getElementById('videoAndFramesTrue').checked = false
+// modalDownload.on('shown.bs.modal', function(){
+//     /** Initialises the download modal when it is opened. */
+//     if (helpReturn) {
+//         helpReturn = false
+//     } else if (confirmDownloadReturn) {
+//         confirmDownloadReturn = false
+//     } else {
+//         resetDownloadForm()
 
-        confirmDownloadReturn = false
+//         confirmDownloadReturn = false
 
-        var xhttp = new XMLHttpRequest();
-        xhttp.open("GET", '/getSpeciesandIDs/'+selectedTask);
-        xhttp.onreadystatechange =
-        function(){
-            if (this.readyState == 4 && this.status == 200) {
-                reply = JSON.parse(this.responseText);
-                speciesChoiceTexts = reply.names
-                speciesChoiceValues = reply.ids
-                buildDownloadSpeciesRow()
-            }
-        }
-        xhttp.send();
-    }
-});
+//         var xhttp = new XMLHttpRequest();
+//         xhttp.open("GET", '/getSpeciesandIDs/'+selectedTask);
+//         xhttp.onreadystatechange =
+//         function(){
+//             if (this.readyState == 4 && this.status == 200) {
+//                 reply = JSON.parse(this.responseText);
+//                 speciesChoiceTexts = reply.names
+//                 speciesChoiceValues = reply.ids
+//                 buildDownloadSpeciesRow()
+//             }
+//         }
+//         xhttp.send();
+//     }
+// });
 
 modalDownload.on('hidden.bs.modal', function(){
     /** Clears the download modal when it is closed. */
     if (!helpReturn && !confirmDownloadReturn) {
-        document.getElementById('localFiles').checked = true
-        document.getElementById('originalStructure').checked = true
-        document.getElementById('flatStructure').checked = false
-        document.getElementById('originalSorted').checked = true
-        document.getElementById('speciesSorted').checked = false
-        document.getElementById('individualUnSorted').checked = true
-        document.getElementById('individualSorted').checked = false
-        document.getElementById('emptyExclude').checked = true
-        document.getElementById('emptyInclude').checked = false
-        document.getElementById('deleteTrue').checked = true
-        document.getElementById('deleteFalse').checked = false
-        document.getElementById('videoFramesTrue').checked = true
-        document.getElementById('videoTrue').checked = false
-        document.getElementById('videoAndFramesTrue').checked = false
-
-        downloadSpeciesDiv = document.getElementById('downloadSpeciesDiv')
-        while(downloadSpeciesDiv.firstChild){
-            downloadSpeciesDiv.removeChild(downloadSpeciesDiv.firstChild);
-        }
-        document.getElementById('btnDownloadStart').disabled = false
+        resetDownloadForm()
+    }
+    else if (helpReturn) {
+        helpReturn = false
+    }
+    else {
+        confirmDownloadReturn = false
     }
 })
 
 function openDownloadModal() {
     /** Closes the results modal and opens the download modal. */
     modalResults.modal('hide')
+    resetDownloadForm()
     modalDownload.modal({keyboard: true});
+
+    var xhttp = new XMLHttpRequest();
+    xhttp.open("GET", '/getSpeciesandIDs/'+selectedTask);
+    xhttp.onreadystatechange =
+    function(){
+        if (this.readyState == 4 && this.status == 200) {
+            reply = JSON.parse(this.responseText);
+            speciesChoiceTexts = reply.names
+            speciesChoiceValues = reply.ids
+            buildDownloadSpeciesRow()
+        }
+    }
+    xhttp.send();
 }
 
 // function submitDownloadRequest() {
@@ -182,11 +170,36 @@ function openDownloadModal() {
 //     xhttp.send(formData);
 // }
 
+function resetDownloadForm() {
+    /** Resets the download form. */
+    document.getElementById('localFiles').checked = true
+    document.getElementById('originalStructure').checked = true
+    document.getElementById('flatStructure').checked = false
+    document.getElementById('originalSorted').checked = true
+    document.getElementById('speciesSorted').checked = false
+    document.getElementById('individualUnSorted').checked = true
+    document.getElementById('individualSorted').checked = false
+    document.getElementById('emptyExclude').checked = true
+    document.getElementById('emptyInclude').checked = false
+    document.getElementById('deleteTrue').checked = true
+    document.getElementById('deleteFalse').checked = false
+    document.getElementById('videoFramesTrue').checked = true
+    document.getElementById('videoTrue').checked = false
+    document.getElementById('videoAndFramesTrue').checked = false
+
+    downloadSpeciesDiv = document.getElementById('downloadSpeciesDiv')
+    while(downloadSpeciesDiv.firstChild){
+        downloadSpeciesDiv.removeChild(downloadSpeciesDiv.firstChild);
+    }
+
+    document.getElementById('btnDownloadStart').disabled = false
+
+    confirmDownloadReturn = false
+}
 
 function checkDownload(){
     /** Checks the download options and opens the confirm download modal. */
     if (document.getElementById('rawFiles').checked || document.getElementById('emptyInclude').checked || document.getElementById('videoTrue').checked || document.getElementById('videoAndFramesTrue').checked) {
-        console.log('checkDownload')
         confirmDownloadReturn = true
         modalDownload.modal('hide')
         modalConfirmDownload.modal({keyboard: true});
@@ -197,3 +210,8 @@ function checkDownload(){
     }
 }
 
+$('#btnCancelDownload').click(function(){
+    /** Cancels the download request that requires images to be restored from archive. */
+    modalConfirmDownload.modal('hide')
+    modalDownload.modal({keyboard: true});
+});

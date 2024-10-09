@@ -32,13 +32,14 @@ downloadWorker.onmessage = function(evt){
     }
 }
 
-async function initDisplayForDownload(task_id) {
+async function initDisplayForDownload(download_id) {
     /** Prepares the display for download status */
     if (!checkingDownload) {
-        updatePage(generate_url())
+        // updatePage(generate_url())
         modalDownload.modal('hide')
+        updateDownloads()
     }
-    progBar = document.getElementById('progBar'+task_id)
+    progBar = document.getElementById('progBar'+download_id)
     if (progBar) {
         progBar.innerHTML = 'Initialising...'
     }
@@ -148,24 +149,54 @@ async function initiateDownload() {
                 
                     await verifyPermission(topLevelHandle)
                 
-                    checkingDownload = false
-                    if (!currentDownloadTasks.includes(taskName)) {
-                        currentDownloadTasks.push(taskName)
-                        currentDownloads.push(selectedSurvey)
+                    // Create a new download request
+                    var response = await fetch('/fileHandler/init_download_request', {
+                        method: 'post',
+                        headers: {
+                            accept: 'application/json',
+                            'content-type': 'application/json',
+                        },
+                        body: JSON.stringify({
+                            task_id: selectedTask,
+                        }),
+                    }).then((response) => {
+                        if (!response.ok) {
+                            throw new Error(response.statusText)
+                        } else {
+                            return response.json()
+                        }
+                    }).catch( (error) => {
+                        // pass
+                    })
+
+                    if (response.status=='success') {
+                        download_id = response.download_id
+
+                        checkingDownload = false
+                        // if (!currentDownloadTasks.includes(taskName)) {
+                            // currentDownloadTasks.push(taskName)
+                            // currentDownloads.push(selectedSurvey)
+                        // }
+                        if (!currentDownloads.includes(download_id)) {
+                            currentDownloads.push(download_id)
+                        }
+            
+                        globalDownloaded = 0
+                        globalToDownload = 0
+                        global_count_initialised = false
+
+                        downloadWorker.postMessage({'func': 'startDownload', 'args': [topLevelHandle,selectedTask,surveyName,taskName,species,species_sorted,individual_sorted,flat_structure,include_empties,delete_items, include_video, include_frames, selectedSurvey, raw_files, download_id]})
                     }
-        
-                    globalDownloaded = 0
-                    globalToDownload = 0
-                    global_count_initialised = false
-                
-                    downloadWorker.postMessage({'func': 'startDownload', 'args': [topLevelHandle,selectedTask,surveyName,taskName,species,species_sorted,individual_sorted,flat_structure,include_empties,delete_items, include_video, include_frames, selectedSurvey, raw_files]})
+                    else {
+                        document.getElementById('btnDownloadStart').disabled = false
+                    }
                 
                 } catch {
                     document.getElementById('btnDownloadStart').disabled = false
                 }
             }
 
-        } else {
+        }  else {
             document.getElementById('modalAlertHeader').innerHTML = 'Alert'
             document.getElementById('modalAlertBody').innerHTML = 'This survey is currently being downloaded. Please try again later.'
             modalDownload.modal('hide')
@@ -180,25 +211,20 @@ async function initiateDownload() {
     }
 }
 
-function resetDownloadState(survey,task) {
+async function resetDownloadState(download_id) {
     /** Cleans up after a download is complete */
 
     checkingDownload = false
 
-    var index = currentDownloadTasks.indexOf(task)
-    if (index > -1) {
-        currentDownloadTasks.splice(index, 1)
-    }
-
-    var index = currentDownloads.indexOf(survey)
+    var index = currentDownloads.indexOf(download_id)
     if (index > -1) {
         currentDownloads.splice(index, 1)
     }
 
-    updatePage(generate_url())
+    updateDownloads()
 }
 
-function updateDownloadProgress(task_id,downloaded,toDownload,count_initialised) {
+function updateDownloadProgress(download_id,downloaded,toDownload,count_initialised) {
     /** Updates the download progress bar with the given information */
     globalDownloaded = downloaded
     globalToDownload = toDownload
@@ -207,7 +233,7 @@ function updateDownloadProgress(task_id,downloaded,toDownload,count_initialised)
         // Not an issue if an image is downloaded twice - just hide it from the user
         downloaded = toDownload
     }
-    progBar = document.getElementById('progBar'+task_id)
+    progBar = document.getElementById('progBar'+download_id)
     if (progBar) {
         progBar.setAttribute("aria-valuenow", downloaded);
     
@@ -246,21 +272,22 @@ async function verifyPermission(fileHandle) {
     return false
 }
 
-async function initiateDownloadAfterRestore(request_id) {
+async function initiateDownloadAfterRestore(request_id,task_id) {
     // Select the download folder & get access
 
     if (currentDownloads.length==0) {
-        // document.getElementById('btnLaunchDownload-'+selectedTask.toString()).disabled = true
 
+        document.getElementById('launchRestoreDownloadBtn-'+request_id.toString()).disabled = true
 
-        var response = await fetch('/fileHandler/init_download_after_restore', {
+        var response = await fetch('/fileHandler/check_download_available', {
             method: 'post',
             headers: {
                 accept: 'application/json',
                 'content-type': 'application/json',
             },
             body: JSON.stringify({
-                download_request_id: request_id
+                task_id: task_id,
+                restore: true
             }),
         }).then((response) => {
             if (!response.ok) {
@@ -272,21 +299,8 @@ async function initiateDownloadAfterRestore(request_id) {
             // pass
         })
 
-        if (response.status=='success') {
-            selectedTask = response.download_params.task_id
-            selectedSurvey = response.download_params.survey_id
-            taskName = response.download_params.task_name
-            raw_files = response.download_params.raw_files
-            species_sorted = response.download_params.species_sorted
-            individual_sorted = response.download_params.individual_sorted
-            flat_structure = response.download_params.flat_structure
-            include_empties = response.download_params.include_empties
-            delete_items = response.download_params.delete_items
-            include_video = response.download_params.include_video
-            include_frames = response.download_params.include_frames
-            species = response.download_params.species
 
-            console.log(response.download_params)
+        if (response=='available') {
 
             try {
                 var topLevelHandle = await window.showDirectoryPicker({
@@ -294,29 +308,68 @@ async function initiateDownloadAfterRestore(request_id) {
                 });
             
                 await verifyPermission(topLevelHandle)
-            
-                checkingDownload = false
-                if (!currentDownloadTasks.includes(taskName)) {
-                    currentDownloadTasks.push(taskName)
-                    currentDownloads.push(selectedSurvey)
+
+                var response = await fetch('/fileHandler/init_download_after_restore', {
+                    method: 'post',
+                    headers: {
+                        accept: 'application/json',
+                        'content-type': 'application/json',
+                    },
+                    body: JSON.stringify({
+                        download_request_id: request_id
+                    }),
+                }).then((response) => {
+                    if (!response.ok) {
+                        throw new Error(response.statusText)
+                    } else {
+                        return response.json()
+                    }
+                }).catch( (error) => {
+                    // pass
+                })
+
+                if (response.status=='success') {
+
+                    selectedTask = response.download_params.task_id
+                    selectedSurvey = response.download_params.survey_id
+                    taskName = response.download_params.task_name
+                    raw_files = response.download_params.raw_files
+                    species_sorted = response.download_params.species_sorted
+                    individual_sorted = response.download_params.individual_sorted
+                    flat_structure = response.download_params.flat_structure
+                    include_empties = response.download_params.include_empties
+                    delete_items = response.download_params.delete_items
+                    include_video = response.download_params.include_video
+                    include_frames = response.download_params.include_frames
+                    species = response.download_params.species
+                
+                    checkingDownload = false
+                    if (!currentDownloads.includes(request_id)) {
+                        currentDownloads.push(request_id)
+                    }
+        
+                    globalDownloaded = 0
+                    globalToDownload = 0
+                    global_count_initialised = false
+                
+                    downloadWorker.postMessage({'func': 'startDownload', 'args': [topLevelHandle,selectedTask,surveyName,taskName,species,species_sorted,individual_sorted,flat_structure,include_empties,delete_items, include_video, include_frames, selectedSurvey, raw_files, request_id]})
                 }
-    
-                globalDownloaded = 0
-                globalToDownload = 0
-                global_count_initialised = false
-            
-                downloadWorker.postMessage({'func': 'startDownload', 'args': [topLevelHandle,selectedTask,surveyName,taskName,species,species_sorted,individual_sorted,flat_structure,include_empties,delete_items, include_video, include_frames, selectedSurvey, raw_files]})
-            
+                else {
+                    document.getElementById('launchRestoreDownloadBtn-'+request_id.toString()).disabled = false
+                }
+
             } catch {
-                document.getElementById('btnLaunchDownload-'+selectedTask.toString()).disabled = false
+                document.getElementById('launchRestoreDownloadBtn-'+request_id.toString()).disabled = false
             }
             
 
         } else {
             document.getElementById('modalAlertHeader').innerHTML = 'Alert'
-            document.getElementById('modalAlertBody').innerHTML = response.message
+            document.getElementById('modalAlertBody').innerHTML = 'This survey is currently being downloaded. Please try again later.'
             modalDownload.modal('hide')
             modalAlert.modal({keyboard: true});
+
+            document.getElementById('launchRestoreDownloadBtn-'+request_id.toString()).disabled = false
         }
 
     } else {
@@ -324,5 +377,7 @@ async function initiateDownloadAfterRestore(request_id) {
         document.getElementById('modalAlertBody').innerHTML = 'You already have a download in progress. Please wait for that to complete before initiating a new one, or open a new tab.'
         modalDownload.modal('hide')
         modalAlert.modal({keyboard: true});
+
+        document.getElementById('launchRestoreDownloadBtn-'+request_id.toString()).disabled = true
     }
 }

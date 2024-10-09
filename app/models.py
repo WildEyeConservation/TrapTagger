@@ -680,7 +680,7 @@ class DownloadRequest(db.Model):
     task_id = db.Column(db.Integer, db.ForeignKey('task.id'), index=False, unique=False)
 
     def __repr__(self):
-        return '<Download request {}>'.format(self.id)
+        return '<Download request type {} for task {} and user {}>'.format(self.type,self.task_id,self.user_id)
 
 db.Index('ix_det_srce_scre_stc_stat_class_classcre', Detection.source, Detection.score, Detection.static, Detection.status, Detection.classification, Detection.class_score)
 db.Index('ix_cluster_examined_task', Cluster.examined, Cluster.task_id)

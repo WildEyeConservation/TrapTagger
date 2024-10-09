@@ -31,37 +31,47 @@ from celery.result import allow_join_result
 import os 
 import zipfile
 
-def check_restore(key):
+def check_restore(key,days=None):
     '''Check if a object has been restored or is in the process of being restored from Glacier.'''
     try:
         response = GLOBALS.s3client.head_object(Bucket=Config.BUCKET, Key=key)
-        if response['StorageClass'] == 'STANDARD':
-            return True
-
-        if 'Restore' in response:
-            if 'ongoing-request="true"' in response['Restore']:
-                return True
-            else:
-                if 'expiry-date' in response['Restore']:
+        if 'StorageClass' in response and response['StorageClass'] == 'DEEP_ARCHIVE':
+            if 'Restore' in response:
+                if 'ongoing-request="true"' in response['Restore']:
                     return True
                 else:
-                    return False
+                    if 'expiry-date' in response['Restore']:
+                        if days:
+                            try:
+                                object_expiry_date = datetime.strptime(response['Restore']['expiry-date'], '%a, %d %b %Y %H:%M:%S %Z')
+                                available_days = (object_expiry_date - datetime.utcnow().replace(hour=0, minute=0, second=0, microsecond=0)).days
+                                if available_days < days:
+                                    return False
+                                else:
+                                    return True
+                            except:
+                                return False
+                        else:
+                            return True
+                    else:
+                        return False
+            else:
+                return False
         else:
-            return False
+            return True
     except:
-        return False
+        return True
 
-
-def binary_search_restored_objects(keys):
+def binary_search_restored_objects(keys,days=None):
     '''Check progress of restore requests for a list of objects and return index of first object that is not restored.'''
 
     if not keys:
         return 0
 
-    if not check_restore(keys[0]):
+    if not check_restore(keys[0],days):
         return 0
     
-    if check_restore(keys[-1]):
+    if check_restore(keys[-1],days):
         return len(keys)
 
     low = 0
@@ -69,13 +79,11 @@ def binary_search_restored_objects(keys):
         
     while low <= high:
         mid = (low + high) // 2
-        if check_restore(keys[mid]):
+        if check_restore(keys[mid],days):
             low = mid + 1
         else:
             high = mid - 1
     return low
-
-
 
 @celery.task(bind=True,max_retries=2,ignore_result=True)
 def restore_empty_zips(self,task_id):
@@ -278,10 +286,7 @@ def restore_images_for_id(self,task_id,days,extend=False):
         }
 
         image_keys = [image[1] + '/' + image[0] for image in images]
-        if extend:
-            restore_index = 0
-        else:
-            restore_index = binary_search_restored_objects(image_keys)
+        restore_index = binary_search_restored_objects(image_keys,days)
         image_keys = image_keys[restore_index:]
 
         restored_image = False
@@ -361,7 +366,7 @@ def restore_images_for_classification(self,survey_id,days,edit_survey_args):
         if images:
 
             image_keys = [image[1] + '/' + image[0] for image in images]
-            restore_index = binary_search_restored_objects(image_keys)
+            restore_index = binary_search_restored_objects(image_keys,days)
             image_keys = image_keys[restore_index:]
 
             restore_request = {
@@ -422,34 +427,36 @@ def restore_files_for_download(self,task_id,user_id,download_params,days,extend=
         else:
             localLabels = [int(r) for r in species]
 
+        images = []
+        if raw_files:
+            if include_empties: 
+                localLabels.append(GLOBALS.nothing_id)
+                images = db.session.query(Image.filename, Camera.path)\
+                                        .join(Camera)\
+                                        .join(Detection)\
+                                        .outerjoin(Labelgroup)\
+                                        .outerjoin(Label,Labelgroup.labels)\
+                                        .filter(or_(Labelgroup.task_id==task_id,Labelgroup.id==None))\
+                                        .filter(or_(Label.id.in_(localLabels),Label.id==None))\
+                                        .filter(Image.zip_id==None)
 
-        if include_empties: 
-            localLabels.append(GLOBALS.nothing_id)
-            images = db.session.query(Image.filename, Camera.path)\
+            else:
+                images = db.session.query(Image.filename, Camera.path)\
                                     .join(Camera)\
                                     .join(Detection)\
-                                    .outerjoin(Labelgroup)\
-                                    .outerjoin(Label,Labelgroup.labels)\
-                                    .filter(or_(Labelgroup.task_id==task_id,Labelgroup.id==None))\
-                                    .filter(or_(Label.id.in_(localLabels),Label.id==None))\
-                                    .filter(Image.zip_id==None)
+                                    .join(Labelgroup)\
+                                    .join(Label,Labelgroup.labels)\
+                                    .filter(Labelgroup.task_id==task_id)\
+                                    .filter(Label.id.in_(localLabels))\
+                
+            if include_frames:
+                images = images.distinct().all()
+            else:
+                images = images.outerjoin(Video)\
+                                .filter(Video.id==None)\
+                                .distinct().all()
 
-        else:
-            images = db.session.query(Image.filename, Camera.path)\
-                                .join(Camera)\
-                                .join(Detection)\
-                                .join(Labelgroup)\
-                                .join(Label,Labelgroup.labels)\
-                                .filter(Labelgroup.task_id==task_id)\
-                                .filter(Label.id.in_(localLabels))\
-            
-        if include_frames:
-            images = images.distinct().all()
-        else:
-            images = images.outerjoin(Video)\
-                            .filter(Video.id==None)\
-                            .distinct().all()
-
+        videos = []
         if include_video:
             videos = db.session.query(Video.filename, Camera.path)\
                                 .join(Camera)\
@@ -470,10 +477,7 @@ def restore_files_for_download(self,task_id,user_id,download_params,days,extend=
         }
         
         image_keys = [image[1] + '/' + image[0] for image in images]
-        if extend:
-            restore_index = 0
-        else:
-            restore_index = binary_search_restored_objects(image_keys)
+        restore_index = binary_search_restored_objects(image_keys,days)
         image_keys = image_keys[restore_index:]
 
         restored_image = False
@@ -491,10 +495,8 @@ def restore_files_for_download(self,task_id,user_id,download_params,days,extend=
                 pathSplit  = video[1].split('/',1)
                 video_key = pathSplit[0] + '-comp/' + pathSplit[1].split('_video_images_')[0] + video[0].split('.')[0] + '.mp4'
                 video_keys.append(video_key)
-            if extend:
-                restore_index = 0
-            else:
-                restore_index = binary_search_restored_objects(video_keys)
+
+            restore_index = binary_search_restored_objects(video_keys,days)
             video_keys = video_keys[restore_index:]
 
             for video_key in video_keys:
@@ -545,6 +547,7 @@ def restore_files_for_download(self,task_id,user_id,download_params,days,extend=
             else:
                 download_request = db.session.query(DownloadRequest).filter(DownloadRequest.task_id==task_id).filter(DownloadRequest.user_id==user_id).filter(DownloadRequest.type=='file').first()
                 download_request.status = 'Available'
+                download_request.timestamp = datetime.now()
 
                 db.session.commit()
         

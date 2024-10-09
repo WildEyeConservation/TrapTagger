@@ -76,7 +76,7 @@ limitations under the License. -->
                         <li class="nav-item"><a class="nav-link" href="{{ url_for('logout') }}">Logout</a></li>
                         {% if current_user.parent_id is none %}
                             <li class="nav-item" data-toggle="tooltip" title="Settings"><a class="nav-link" href="{{ url_for('settings') }}"><i class="fa-solid fa-gear"></i></a></li>
-                            <li class="nav-item">
+                            <li class="nav-item" id='downloadsNav' hidden>
                                 <div class="dropdown">
                                     <a class="btn btn-link" id="downloadsBtn" data-toggle="dropdown" aria-haspopup="true" aria-expanded="false" style="padding: 5.5px 8px;">
                                         <div style="position: relative;" data-toggle="tooltip" title="Downloads">

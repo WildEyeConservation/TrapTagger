@@ -9476,10 +9476,17 @@ def check_download_available():
     """Checks whether a download is available for a particular task (ie. that no other user has a download in progress for that survey)."""
 
     task_id = request.json['task_id']
+    if 'restore' in request.json:
+        restore = request.json['restore']
+    else:
+        restore = False
     task = db.session.query(Task).get(task_id)
     if task and checkSurveyPermission(current_user.id,task.survey_id,'read'):
         check = db.session.query(Trapgroup.id).join(Camera).join(Image).outerjoin(Video).filter(Trapgroup.survey_id==task.survey_id).filter(or_(Image.downloaded==True,Video.downloaded==True)).first()
-        check2 = db.session.query(DownloadRequest).join(Task).filter(Task.survey_id==task.survey_id).filter(DownloadRequest.type=='file').first()
+        if restore:
+            check2 = db.session.query(DownloadRequest).join(Task).filter(Task.survey_id==task.survey_id).filter(DownloadRequest.type=='file').filter(DownloadRequest.task_id!=task_id).filter(DownloadRequest.user_id!=current_user.id).first()
+        else:
+            check2 = db.session.query(DownloadRequest).join(Task).filter(Task.survey_id==task.survey_id).filter(DownloadRequest.type=='file').first()
         if check or check2:
             return json.dumps('unavailable')
         else:
@@ -14138,50 +14145,83 @@ def getDownloadRequests():
     next = None
     prev = None
     if current_user and current_user.is_authenticated:
-        expiry = datetime.now() - timedelta(days=7)
-        requests = surveyPermissionsSQ(db.session.query(DownloadRequest.id, DownloadRequest.type, DownloadRequest.status, DownloadRequest.timestamp, Task.name, Survey.name, Organisation.name, Organisation.folder)\
+        requests = surveyPermissionsSQ(db.session.query(
+                                    DownloadRequest.id, 
+                                    DownloadRequest.type, 
+                                    DownloadRequest.status, 
+                                    DownloadRequest.timestamp, 
+                                    Task.id,
+                                    Task.name, 
+                                    Survey.name, 
+                                    Organisation.name, 
+                                    Organisation.folder,
+                                    Survey.download_restore
+                                )\
                                 .join(Task, DownloadRequest.task_id==Task.id)\
                                 .join(Survey)\
                                 .filter(DownloadRequest.user_id==current_user.id)\
-                                .filter(or_(and_(DownloadRequest.status=='Available', DownloadRequest.timestamp>expiry), DownloadRequest.status!='Available'))\
-                                ,current_user.id,'read').order_by(DownloadRequest.id.desc()).distinct().paginate(page,6,False)
+                                ,current_user.id,'read').order_by(DownloadRequest.id.desc()).distinct().all()
         
+        current_download_requests = []
+        date_now = datetime.utcnow()
+        for d in requests:
+            request_id = d[0]
+            req_type = d[1]
+            status = d[2]
+            timestamp = d[3]
+            task_id = d[4]
+            task_name = d[5]
+            survey_name = d[6]
+            org_name = d[7]
+            org_folder = d[8]
+            survey_restore = d[9]
 
-        for d in requests.items:
-            if d[1] == 'file':
-                file = 'FILES - ' + d[5] + ' ' + d[4]
-                restore_time = 0
-                if d[3] and d[2] == 'Restoring Files':
-                    restore_time = math.floor(((datetime.utcnow() - d[3]).total_seconds() / 3600))
-                download_requests.append({
-                    'id': d[0],
-                    'status': d[2],
-                    'file': file,
-                    'type': d[1],
-                    'restore': restore_time
-                })
-                    
-            else:
-                file = d[1].upper() + ' - ' + d[5] + ' ' + d[4]
-                if d[2] == 'Available':
-                    download_requests.append({
-                        'id': d[0],
-                        'status': d[2],
-                        'expires': (d[3] + timedelta(days=Config.DOWNLOAD_RESTORE_DAYS)).strftime('%Y-%m-%dT%H:%M:%SZ') if d[1] == file else (d[3] + timedelta(days=7)).strftime('%Y-%m-%dT%H:%M:%SZ'),
-                        'file': file,
-                        'type': d[1],
-                        'url': 'https://'+Config.BUCKET+'.s3.amazonaws.com/'+(d[7]+'/docs/'+ d[6]+'_'+current_user.username+'_'+d[5]+'_'+d[4] + '.'+ Config.RESULT_TYPES[d[1]]).replace('+','%2B').replace('?','%3F').replace('#','%23'),
-                    })
+            req_dict = {
+                'id': request_id,
+                'status': status,
+                'file': '',
+                'type': req_type,
+                'task_id': task_id,
+                'restore': 0,
+                'expires': None,
+                'url': None
+            }
+
+            if req_type == 'file':
+                file = 'FILES - ' + survey_name + ' ' + task_name
+                req_dict['file'] = file
+
+                if status == 'Downloading':
+                    current_download_requests.append(req_dict)
                 else:
-                    download_requests.append({
-                        'id': d[0],
-                        'status': d[2],
-                        'file': file,
-                        'type': d[1]
-                    })
+                    expires = (survey_restore + timedelta(days=Config.DOWNLOAD_RESTORE_DAYS+3)).replace(hour=0, minute=0, second=0, microsecond=0) if survey_restore else None
+                    if expires:
+                        if expires > date_now:
+                            if timestamp and status == 'Restoring Files':
+                                restore_time = math.floor(((datetime.utcnow() - timestamp).total_seconds() / 3600))
+                                req_dict['restore'] = restore_time
+                            
+                            req_dict['expires'] = expires.strftime('%Y-%m-%dT%H:%M:%SZ')
+                            download_requests.append(req_dict)
+                    else:
+                        if timestamp + timedelta(days=Config.DOWNLOAD_RESTORE_DAYS) > date_now:
+                            download_requests.append(req_dict)       
+            else:
+                if timestamp + timedelta(days=7) > date_now:
+                    file = req_type.upper() + ' - ' + survey_name + ' ' + task_name
+                    req_dict['file'] = file
+                    if status == 'Available':
+                        req_dict['expires'] = (timestamp + timedelta(days=7)).strftime('%Y-%m-%dT%H:%M:%SZ')
+                        req_dict['url'] = 'https://'+Config.BUCKET+'.s3.amazonaws.com/'+(org_folder+'/docs/'+ org_name+'_'+current_user.username+'_'+survey_name+'_'+task_name + '.'+ Config.RESULT_TYPES[req_type]).replace('+','%2B').replace('?','%3F').replace('#','%23')
+                        download_requests.append(req_dict)
+                    else:
+                        download_requests.append(req_dict)
 
-        next = requests.next_num if requests.has_next else None
-        prev = requests.prev_num if requests.has_prev else None
+        download_requests = current_download_requests + download_requests
+        count = len(download_requests)
+        download_requests = download_requests[(page-1)*6:page*6]
+        next = page + 1 if count > page*6 else None
+        prev = page - 1 if page > 1 else None
 
     return json.dumps({'download_requests': download_requests, 'next': next, 'prev': prev})
 
@@ -14191,12 +14231,24 @@ def checkDownloadRequests():
     ''' Checks the number of available downloads for the user '''
     available_downloads = 0
     if current_user and current_user.is_authenticated:
-        expiry = datetime.now() - timedelta(days=7)
-        available_downloads = db.session.query(DownloadRequest)\
+        date_now = datetime.utcnow()
+        requests = db.session.query(DownloadRequest.id,DownloadRequest.timestamp,DownloadRequest.type,Survey.download_restore)\
+                                .join(Task, DownloadRequest.task_id==Task.id)\
+                                .join(Survey)\
                                 .filter(DownloadRequest.user_id==current_user.id)\
                                 .filter(DownloadRequest.status=='Available')\
-                                .filter(DownloadRequest.timestamp>expiry)\
-                                .distinct().count()
+                                .distinct().all()
+
+        for r in requests:
+            if r[2] == 'file':
+                if r[3] and (r[3] + timedelta(days=Config.DOWNLOAD_RESTORE_DAYS+3)).replace(hour=0, minute=0, second=0, microsecond=0) > date_now:
+                    available_downloads += 1
+                elif not r[3]:
+                    if r[1] + timedelta(days=Config.DOWNLOAD_RESTORE_DAYS) > date_now:
+                        available_downloads += 1
+            else:
+                if r[1] + timedelta(days=7) > date_now:
+                    available_downloads += 1
 
     return json.dumps({'available_downloads': available_downloads})
 
@@ -14281,9 +14333,31 @@ def init_download_after_restore():
                     download_dict['task_name'] = task.name
                     download_request.status = 'Downloading'
                     db.session.commit()
+                    GLOBALS.redisClient.set('download_ping_'+str(task_id),datetime.utcnow().timestamp())
 
                     return json.dumps({'status': 'success', 'download_params': download_dict})
             except:
                 pass
 
     return json.dumps({'status': 'error', 'message': 'An error occurred while processing the download request. Please try again.'})
+
+@app.route('/fileHandler/init_download_request', methods=['POST'])
+@login_required
+def init_download_request():
+    """Initialises a download request."""
+
+    task_id = request.json['task_id']
+    task = db.session.query(Task).get(task_id)
+    status = 'error'
+    if task and checkSurveyPermission(current_user.id,task.survey_id,'read'):
+        try:
+            GLOBALS.redisClient.set('download_ping_'+str(task_id),datetime.utcnow().timestamp())
+            download_request = DownloadRequest(user_id=current_user.id, task_id=task_id, type='file', status='Downloading', timestamp=datetime.utcnow())
+            db.session.add(download_request)
+            db.session.commit()
+            status = 'success'
+            return json.dumps({'status': status, 'download_id': download_request.id})
+        except:
+            pass
+
+    return json.dumps({'status': status})

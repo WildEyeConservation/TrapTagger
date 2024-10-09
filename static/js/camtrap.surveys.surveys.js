@@ -108,8 +108,8 @@ var global_original_timestamps = {}
 var checkingTrapgroupCode = false
 var next_classifier_url
 var prev_classifier_url
-var currentDownloads = []
-var currentDownloadTasks = []
+// var currentDownloads = []
+// var currentDownloadTasks = []
 var checkingTGC = false
 var checkingCameraCode = false
 var checkingCamC = false
@@ -838,6 +838,7 @@ function buildSurveys(survey,disableSurvey) {
 
 function onload(){
     /**Function for initialising the page on load.*/
+    document.getElementById('downloadsNav').hidden = false
     updatePage(current_page)
 }
 
@@ -889,7 +890,8 @@ function updatePage(url){
                         taskProcessing = true
                     }
                 }
-                if (disabledSurveyStatuses.includes(reply.surveys[i].status.toLowerCase())||(currentDownloads.includes(reply.surveys[i].id))) {
+                // if (disabledSurveyStatuses.includes(reply.surveys[i].status.toLowerCase())||(currentDownloads.includes(reply.surveys[i].id))) {
+                if (disabledSurveyStatuses.includes(reply.surveys[i].status.toLowerCase())) {
                     disableSurvey = true
                     taskProcessing = true
                 }
@@ -4143,7 +4145,8 @@ function generate_url() {
     /** Generates the url based on the current order selection and search query */
     order = orderSelect.options[orderSelect.selectedIndex].value
     search = document.getElementById('surveySearch').value
-    return '/getHomeSurveys?page=1&order='+order+'&search='+search.toString()+'&downloads='+currentDownloads.toString()
+    // return '/getHomeSurveys?page=1&order='+order+'&search='+search.toString()+'&downloads='+currentDownloads.toString()
+    return '/getHomeSurveys?page=1&order='+order+'&search='+search.toString()
 }
 
 $('#orderSelect').change( function() {

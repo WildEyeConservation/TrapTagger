@@ -25,6 +25,7 @@ var downloads_prev = null
 var downloads_current_page = 1
 const modalHelp = $('#modalHelp');
 const modalNotification = $('#modalNotification');
+var currentDownloads = []
 
 function getActiveModal() {
     /** Returns the ID of the currently active modal. Returns null otherwise. */
@@ -377,30 +378,37 @@ function buildDownloadRequest(download){
         h6.setAttribute('style', 'margin: 0px;');
         col1.appendChild(h6);
 
-        if (download.type == 'file'){    
-            var div = document.createElement('div');
-            div.setAttribute('style', 'margin: 0px; padding: 0px; font-size: 80%;');
-            div.innerHTML = '<i>Status: '+ download.status +'</i>';
-            col1.appendChild(div);
-    
-            var downloadBtn = document.createElement('a');
-            downloadBtn.innerHTML = '<i class="fa-solid fa-circle-arrow-down fa-2xl"></i>';
-            downloadBtn.setAttribute('style', 'cursor: pointer; color: #DF691A;');
-            downloadBtn.setAttribute('title', 'Download');
-            downloadBtn.setAttribute('onclick', 'initiateDownloadAfterRestore("'+download.id+'")');
-            col2.appendChild(downloadBtn);
-        }
-        else{
+        if (download.expires != null){
             expiry_date = new Date(download.expires).toLocaleString();
             ed = expiry_date.split(',')[0]
             et = expiry_date.split(',')[1]
             expiry_date = ed.split('/')[2] + '-' + ed.split('/')[1] + '-' + ed.split('/')[0] + et
-    
+
             var div = document.createElement('div');
             div.setAttribute('style', 'margin: 0px; padding: 0px; font-size: 80%;');
             div.innerHTML = '<i>Status: '+ download.status + '<br>Expires: ' + expiry_date + '</i>';
             col1.appendChild(div);
-    
+        }
+        else{
+            var div = document.createElement('div');
+            div.setAttribute('style', 'margin: 0px; padding: 0px; font-size: 80%;');
+            div.innerHTML = '<i>Status: '+ download.status + '</i>';
+            col1.appendChild(div);
+        }
+
+        if (download.type == 'file'){        
+            var downloadBtn = document.createElement('a');
+            downloadBtn.innerHTML = '<i class="fa-solid fa-circle-arrow-down fa-2xl"></i>';
+            downloadBtn.setAttribute('style', 'cursor: pointer; color: #DF691A;');
+            downloadBtn.setAttribute('title', 'Download');
+            downloadBtn.id = 'launchRestoreDownloadBtn-' + download.id;
+            col2.appendChild(downloadBtn);
+
+            downloadBtn.addEventListener('click', function(){
+                initiateDownloadAfterRestore(download.id,download.task_id)
+            });
+        }
+        else{
             var downloadBtn = document.createElement('a');
             downloadBtn.innerHTML = '<i class="fa-solid fa-circle-arrow-down fa-2xl"></i>';
             downloadBtn.setAttribute('style', 'cursor: pointer;');
@@ -409,7 +417,7 @@ function buildDownloadRequest(download){
             col2.appendChild(downloadBtn);
         }
     }
-    else if (download.status == 'Restoring Files'){
+    else if (download.status == 'Restoring Files' || (download.status == 'Downloading' && currentDownloads.includes(download.id))){
         var col1 = document.createElement('div');
         col1.setAttribute('class', 'col-lg-4');
         col1.setAttribute('style', 'padding: 0px;');
@@ -449,16 +457,24 @@ function buildDownloadRequest(download){
         newProgInner.classList.add('active');
         newProgInner.setAttribute("role", "progressbar");
         newProgInner.setAttribute("id", "progBar"+download.id);
-        newProgInner.setAttribute("aria-valuemin", "0");
-        newProgInner.setAttribute("aria-valuenow", 0);
-        newProgInner.setAttribute("aria-valuemax", 48);
-        time_left = 48 - download.restore
-        if (time_left<0) {
-            time_left = 0
+
+        if (download.status == 'Restoring Files') {
+            newProgInner.setAttribute("aria-valuemin", "0");
+            newProgInner.setAttribute("aria-valuenow", download.restore);
+            newProgInner.setAttribute("aria-valuemax", 48);
+            time_left = 48 - download.restore
+            if (time_left<0) {
+                time_left = 0
+            }
+            newProgInner.setAttribute("style", "width:"+(download.restore/48)*100+"%;transition:none");
+            newProgInner.innerHTML = time_left + ' hours remaining'
+            newProg.appendChild(newProgInner);
         }
-        newProgInner.setAttribute("style", "width:"+(download.restore/48)*100+"%;transition:none");
-        newProgInner.innerHTML = time_left + ' hours remaining'
-        newProg.appendChild(newProgInner);
+        else{
+            newProg.appendChild(newProgInner);
+            updateDownloadProgress(download.id,globalDownloaded,globalToDownload,global_count_initialised)
+            downloadWorker.postMessage({'func': 'updateDownloadProgress', 'args': null})
+        }
 
     }
     else{
@@ -504,7 +520,7 @@ function checkDownloads(){
                 if (downloadsTimer) {
                     clearTimeout(downloadsTimer)
                 }
-                downloadsTimer = setTimeout(checkDownloads, 300000)
+                downloadsTimer = setTimeout(checkDownloads, 60000)
             }
         }
         xhttp.send();
@@ -513,7 +529,7 @@ function checkDownloads(){
         if (downloadsTimer) {
             clearTimeout(downloadsTimer)
         }
-        downloadsTimer = setTimeout(checkDownloads, 300000)
+        downloadsTimer = setTimeout(checkDownloads, 60000)
     }
 }
 
@@ -536,6 +552,15 @@ $('#downloadsBtn').click(function(){
     downloads_current_page = 1
     openDownloads()
 });
+
+function updateDownloads(){
+    //if already open, update the downloads
+    document.getElementById('downloadsBtn').click()
+    classList = document.getElementById('downloadsDropdown').classList
+    if (!classList.contains('show')){
+        document.getElementById('downloadsBtn').click()
+    }
+}
 
 function onload() {
     /** Sets up the notification badge and timer and checks for global notifications. */

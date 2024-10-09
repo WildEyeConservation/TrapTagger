@@ -17,7 +17,7 @@ limitations under the License.
 from app import app, db, celery
 from app.models import *
 from app.functions.globals import getQueueLengths, getImagesProcessing, getInstanceCount, getInstancesRequired, launch_instances, manageDownload, resolve_abandoned_jobs, \
-deleteTurkcodes, createTurkcodes, deleteFile
+deleteTurkcodes, createTurkcodes, deleteFile, cleanup_empty_restored_images
 from app.functions.imports import import_survey
 from app.functions.admin import stop_task
 from app.functions.annotation import freeUpWork, wrapUpTask
@@ -32,6 +32,7 @@ import boto3
 import re
 import math 
 import ast
+import json
 
 @celery.task(ignore_result=True)
 def importMonitor():
@@ -737,7 +738,7 @@ def manage_tasks_with_restore():
 
         if '-7' in tagging_level:
             if empty_restore:
-                expiry_date = (empty_restore + timedelta(days=30)).replace(hour=23,minute=59,second=59,microsecond=999999)
+                expiry_date = (empty_restore + timedelta(days=31)).replace(hour=0,minute=0,second=0,microsecond=0)
                 time_left = expiry_date - date_now
 
                 if time_left.days < 1:
@@ -748,7 +749,7 @@ def manage_tasks_with_restore():
                         stop_task.delay(task_id=task_id)
         else:
             if id_restore:
-                expiry_date = (id_restore + timedelta(days=Config.ID_RESTORE_DAYS)).replace(hour=23,minute=59,second=59,microsecond=999999)
+                expiry_date = (id_restore + timedelta(days=Config.ID_RESTORE_DAYS+3)).replace(hour=0,minute=0,second=0,microsecond=0)
                 time_left = expiry_date - date_now
 
                 if time_left.days < 1:
@@ -759,7 +760,7 @@ def manage_tasks_with_restore():
                             survey = db.session.query(Survey).get(survey_id)
                             survey.id_restore = date_now
                             db.session.commit()
-                            restore_images_for_id.apply_async(kwargs={'task_id':task_id,'days':Config.ID_RESTORE_DAYS, 'extend':True})
+                            restore_images_for_id.apply_async(kwargs={'task_id':task_id,'days':Config.ID_RESTORE_DAYS+2, 'extend':True})
                     else:
                         stop_task.delay(task_id=task_id)
 
@@ -831,18 +832,46 @@ def manageDownloadRequests():
     '''Celery task that manages download requests for users'''	
 
     try:
-        download_requests = db.session.query(DownloadRequest).filter(DownloadRequest.status == 'Available').all()
-        for request in download_requests:
+        date_now = datetime.utcnow()
+        download_requests = db.session.query(DownloadRequest, Survey.download_restore).join(Task,DownloadRequest.task_id==Task.id).join(Survey).distinct().all()
+        for req in download_requests:
+            request = req[0]
+            survey_restore = req[1]
+            expiry_date = (survey_restore + timedelta(days=Config.DOWNLOAD_RESTORE_DAYS+3)).replace(hour=0,minute=0,second=0,microsecond=0) if survey_restore else None
             if request.type == 'file':
-                if request.timestamp + timedelta(days=Config.DOWNLOAD_RESTORE_DAYS+2) < datetime.utcnow():
-                    db.session.delete(request)
+                task_id = request.task_id
+                if request.status == 'Downloading':
+                    # Check if the download is still active
+                    redis_keys = [r.decode() for r in GLOBALS.redisClient.keys()]
+                    if 'download_ping_'+str(task_id) not in redis_keys:
+                        if expiry_date and expiry_date > date_now and 'fileDownloadParams_'+str(task_id)+'_'+str(request.user_id) in redis_keys:
+                            request.status = 'Available'
+                            request.timestamp = date_now
+                            db.session.commit()
+                        else:
+                            try:
+                                include_empties = json.loads(GLOBALS.redisClient.get('fileDownloadParams_'+str(task_id)+'_'+str(request.user_id)).decode())['include_empties']
+                                if include_empties: cleanup_empty_restored_images.delay(task_id=task_id)
+                            except:
+                                pass
+                            GLOBALS.redisClient.delete('fileDownloadParams_'+str(task_id)+'_'+str(request.user_id))
+                            db.session.delete(request)
+                else:
+                    if expiry_date and expiry_date <= date_now:
+                        GLOBALS.redisClient.delete('fileDownloadParams_'+str(task_id)+'_'+str(request.user_id))
+                        db.session.delete(request)
+                    elif not expiry_date:
+                        if request.timestamp + timedelta(days=Config.DOWNLOAD_RESTORE_DAYS) <= date_now:
+                            GLOBALS.redisClient.delete('fileDownloadParams_'+str(task_id)+'_'+str(request.user_id))
+                            db.session.delete(request)
             else:
-                if request.timestamp + timedelta(days=7) < datetime.utcnow():
-                    fileName = request.task.survey.organisation.folder+'/docs/'+request.task.survey.organisation.name+'_'+request.user.username+'_'+request.task.survey.name+'_'+request.task.name + '.' + Config.RESULT_TYPES[request.type]
-                    deleteFile.apply_async(kwargs={'fileName': fileName})
-                    db.session.delete(request)
-
-        db.session.commit()            
+                if request.status == 'Available':
+                    if request.timestamp + timedelta(days=7) <= date_now:
+                        fileName = request.task.survey.organisation.folder+'/docs/'+request.task.survey.organisation.name+'_'+request.user.username+'_'+request.task.survey.name+'_'+request.task.name + '.' + Config.RESULT_TYPES[request.type]
+                        deleteFile.apply_async(kwargs={'fileName': fileName})
+                        db.session.delete(request)
+        
+        db.session.commit() 
 
     except Exception as exc:
         app.logger.info(' ')
@@ -854,7 +883,7 @@ def manageDownloadRequests():
     finally:
         db.session.remove()
         #Schedule every 24hours
-        manageDownloadRequests.apply_async(queue='priority', priority=0,countdown=86400)
+        # manageDownloadRequests.apply_async(queue='priority', priority=0,countdown=86400)
 
 
     return True
@@ -863,19 +892,19 @@ def checkRestoreDownloads(task_id):
     '''Function that checks if there are any downloads with restored images that require the files restoration to be extended'''
 
     survey = db.session.query(Survey).join(Task).filter(Task.id==task_id).first()
-    if survey.dowload_restore:
-        expiry_date = (survey.dowload_restore + timedelta(days=Config.DOWNLOAD_RESTORE_DAYS)).replace(hour=23,minute=59,second=59,microsecond=999999)
-        date_now = datetime.utcnow()
+    date_now = datetime.utcnow()
+    if survey.download_restore and survey.download_restore >= (date_now - timedelta(days=Config.DOWNLOAD_RESTORE_DAYS+2)): 
+        expiry_date = (survey.download_restore + timedelta(days=Config.DOWNLOAD_RESTORE_DAYS+3)).replace(hour=0,minute=0,second=0,microsecond=0)
         if (expiry_date - date_now).days < 1:
             download_requests = db.session.query(DownloadRequest).filter(DownloadRequest.task_id == task_id).filter(DownloadRequest.type == 'file').filter(DownloadRequest.status == 'Downloading').all()
             for request in download_requests:
                 try:
                     user_id = request.user_id
-                    download_params = GLOBALS.redisClient.get('fileDownloadParams_'+str(task_id)+'_'+str(user_id))
-                    download_params = download_params.decode()
-                    survey.dowload_restore = date_now
+                    download_params = GLOBALS.redisClient.get('fileDownloadParams_'+str(task_id)+'_'+str(user_id)).decode()
+                    download_params = json.loads(download_params)
+                    survey.download_restore = date_now
                     db.session.commit()
-                    restore_files_for_download.apply_async(kwargs={'task_id':task_id,'user_id':user_id,'days':Config.DOWNLOAD_RESTORE_DAYS,'download_params':download_params,'extend':True})
+                    restore_files_for_download.apply_async(kwargs={'task_id':task_id,'user_id':user_id,'days':Config.DOWNLOAD_RESTORE_DAYS+2,'download_params':download_params,'extend':True})
                 except:
                     continue
 
