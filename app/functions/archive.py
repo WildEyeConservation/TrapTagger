@@ -38,7 +38,11 @@ def check_restore(key,days=None):
         if 'StorageClass' in response and response['StorageClass'] == 'DEEP_ARCHIVE':
             if 'Restore' in response:
                 if 'ongoing-request="true"' in response['Restore']:
-                    return True
+                    try:
+                        restore_date = datetime.strptime(response['x-amz-restore-request-date'], '%a, %d %b %Y %H:%M:%S %Z')
+                    except:
+                        restore_date = None
+                    return True, restore_date
                 else:
                     if 'expiry-date' in response['Restore']:
                         if days:
@@ -46,44 +50,49 @@ def check_restore(key,days=None):
                                 object_expiry_date = datetime.strptime(response['Restore']['expiry-date'], '%a, %d %b %Y %H:%M:%S %Z')
                                 available_days = (object_expiry_date - datetime.utcnow().replace(hour=0, minute=0, second=0, microsecond=0)).days
                                 if available_days < days:
-                                    return False
+                                    return False, None
                                 else:
-                                    return True
+                                    return True, None
                             except:
-                                return False
+                                return False, None
                         else:
-                            return True
+                            return True, None
                     else:
-                        return False
+                        return False, None
             else:
-                return False
+                return False, None
         else:
-            return True
+            return True, None
     except:
-        return True
+        return True, None
 
 def binary_search_restored_objects(keys,days=None):
     '''Check progress of restore requests for a list of objects and return index of first object that is not restored.'''
-
-    if not keys:
-        return 0
-
-    if not check_restore(keys[0],days):
-        return 0
     
-    if check_restore(keys[-1],days):
-        return len(keys)
+    restoring = False
+    if not keys:
+        return 0, restoring
+
+    first, restoring = check_restore(keys[0],days)
+    if not first:
+        return 0, restoring
+    
+    last, restoring = check_restore(keys[-1],days)
+    if last:
+        return len(keys), restoring
 
     low = 0
     high = len(keys) - 1
         
     while low <= high:
         mid = (low + high) // 2
-        if check_restore(keys[mid],days):
+        check = check_restore(keys[mid],days)
+        restoring = check[1] if check[1] else restoring
+        if check[0]:
             low = mid + 1
         else:
             high = mid - 1
-    return low
+    return low, restoring
 
 @celery.task(bind=True,max_retries=2,ignore_result=True)
 def restore_empty_zips(self,task_id):
@@ -102,9 +111,10 @@ def restore_empty_zips(self,task_id):
         }
 
         if survey.zips:
-            zip_ids = [zip.id for zip in survey.zips].sort()
+            zip_ids = [zip.id for zip in survey.zips]
+            zip_ids = sorted(zip_ids)
             zip_keys = [zip_folder + '/' + str(zip_id) + '.zip' for zip_id in zip_ids]
-            restore_index = binary_search_restored_objects(zip_keys)
+            restore_index, restore_date = binary_search_restored_objects(zip_keys)
             zip_ids = zip_ids[restore_index:]
 
             restore_zip = False
@@ -117,8 +127,14 @@ def restore_empty_zips(self,task_id):
                     continue
 
             if restore_zip:
+                survey.status = 'Ready'
                 survey.empty_restore = datetime.utcnow()       
                 extract_zips.apply_async(kwargs={'task_id':task_id},countdown=Config.RESTORE_COUNTDOWN)
+            elif restore_date:
+                survey.status = 'Ready'
+                survey.empty_restore = restore_date
+                restore_diff = (datetime.utcnow() - restore_date).total_seconds()
+                extract_zips.apply_async(kwargs={'task_id':task_id},countdown=Config.RESTORE_COUNTDOWN-restore_diff)       
             else:
                 extract_zips.apply_async(kwargs={'task_id':task_id})
         else:
@@ -195,7 +211,11 @@ def extract_zip(self,zip_key):
         app.logger.info('Handling zip {}'.format(zip_key))
 
         zip_path = zip_key.split('/')[-1]
-        GLOBALS.s3client.download_file(Bucket=Config.BUCKET, Key=zip_key, Filename=zip_path)
+        zip_id = zip_path.split('.')[0]
+        try:
+            GLOBALS.s3client.download_file(Bucket=Config.BUCKET, Key=zip_key, Filename=zip_path)
+        except:
+            return True
 
         # Unzip & get all image ids from filenames
         image_ids = []  
@@ -208,7 +228,7 @@ def extract_zip(self,zip_key):
         image_data = db.session.query(Image.id, Image.filename, Camera.path)\
                         .join(Camera)\
                         .filter(Image.id.in_(image_ids))\
-                        .filter(Image.zip_id!=None)\
+                        .filter(Image.zip_id==zip_id)\
                         .distinct().all()
 
         # Extract images from zip and upload to S3
@@ -286,7 +306,7 @@ def restore_images_for_id(self,task_id,days,extend=False):
         }
 
         image_keys = [image[1] + '/' + image[0] for image in images]
-        restore_index = binary_search_restored_objects(image_keys,days)
+        restore_index , restore_date = binary_search_restored_objects(image_keys,days)
         image_keys = image_keys[restore_index:]
 
         restored_image = False
@@ -321,6 +341,26 @@ def restore_images_for_id(self,task_id,days,extend=False):
                     calculate_detection_similarities.apply_async(kwargs={'task_ids':task_ids,'species':species,'algorithm':algorithm},countdown=Config.RESTORE_COUNTDOWN)
                 else:
                     launch_task.apply_async(kwargs={'task_id':task_id},countdown=Config.RESTORE_COUNTDOWN)
+            elif restore_date:
+                task.survey.id_restore = restore_date
+                task.survey.status = 'Ready'
+                task.status = 'Ready'
+                for sub_task in task.sub_tasks:
+                    sub_task.status = 'Ready'
+                    sub_task.survey.status = 'Ready'
+                    sub_task.survey.id_restore = restore_date
+                db.session.commit()
+
+                restore_diff = (datetime.utcnow() - restore_date).total_seconds()
+                db.session.commit()
+                if (len(task_ids) > 1) and ('-5' in taggingLevel):
+                    if tL[4]=='h':
+                        algorithm = 'hotspotter'
+                    elif tL[4]=='n':
+                        algorithm = 'none'
+                    calculate_detection_similarities.apply_async(kwargs={'task_ids':task_ids,'species':species,'algorithm':algorithm},countdown=Config.RESTORE_COUNTDOWN-restore_diff)
+                else:
+                    launch_task.apply_async(kwargs={'task_id':task_id},countdown=Config.RESTORE_COUNTDOWN-restore_diff)
             else:
                 if (len(task_ids) > 1) and ('-5' in taggingLevel):
                     if tL[4]=='h':
@@ -361,12 +401,13 @@ def restore_images_for_classification(self,survey_id,days,edit_survey_args):
                         .join(Detection)\
                         .filter(Trapgroup.survey_id==survey_id)\
                         .filter(or_(and_(Detection.source==model,Detection.score>Config.DETECTOR_THRESHOLDS[model]) for model in Config.DETECTOR_THRESHOLDS))\
+                        .order_by(Image.id)\
                         .distinct().all()
         
         if images:
 
             image_keys = [image[1] + '/' + image[0] for image in images]
-            restore_index = binary_search_restored_objects(image_keys,days)
+            restore_index, restore_date = binary_search_restored_objects(image_keys,days)
             image_keys = image_keys[restore_index:]
 
             restore_request = {
@@ -389,6 +430,12 @@ def restore_images_for_classification(self,survey_id,days,edit_survey_args):
                 survey.status = 'Ready'      
                 db.session.commit()       
                 edit_survey.apply_async(kwargs=edit_survey_args,countdown=Config.RESTORE_COUNTDOWN)
+            elif restore_date:
+                survey.edit_restore = restore_date
+                survey.status = 'Ready'
+                db.session.commit()
+                restore_diff = (datetime.utcnow() - restore_date).total_seconds()
+                edit_survey.apply_async(kwargs=edit_survey_args,countdown=Config.RESTORE_COUNTDOWN-restore_diff)
             else:
                 edit_survey.apply_async(kwargs=edit_survey_args)
         else:
@@ -450,10 +497,11 @@ def restore_files_for_download(self,task_id,user_id,download_params,days,extend=
                                     .filter(Label.id.in_(localLabels))\
                 
             if include_frames:
-                images = images.distinct().all()
+                images = images.order_by(Image.id).distinct().all()
             else:
                 images = images.outerjoin(Video)\
                                 .filter(Video.id==None)\
+                                .order_by(Image.id)\
                                 .distinct().all()
 
         videos = []
@@ -466,6 +514,7 @@ def restore_files_for_download(self,task_id,user_id,download_params,days,extend=
                                 .join(Label,Labelgroup.labels)\
                                 .filter(Labelgroup.task_id==task_id)\
                                 .filter(Label.id.in_(localLabels))\
+                                .order_by(Video.id)\
                                 .distinct().all()
             
 
@@ -477,7 +526,7 @@ def restore_files_for_download(self,task_id,user_id,download_params,days,extend=
         }
         
         image_keys = [image[1] + '/' + image[0] for image in images]
-        restore_index = binary_search_restored_objects(image_keys,days)
+        restore_index, restore_date_img = binary_search_restored_objects(image_keys,days)
         image_keys = image_keys[restore_index:]
 
         restored_image = False
@@ -489,6 +538,7 @@ def restore_files_for_download(self,task_id,user_id,download_params,days,extend=
                 continue
 
         restored_video = False
+        restore_date_vid = None
         if include_video:
             video_keys = []
             for video in videos:
@@ -496,7 +546,7 @@ def restore_files_for_download(self,task_id,user_id,download_params,days,extend=
                 video_key = pathSplit[0] + '-comp/' + pathSplit[1].split('_video_images_')[0] + video[0].split('.')[0] + '.mp4'
                 video_keys.append(video_key)
 
-            restore_index = binary_search_restored_objects(video_keys,days)
+            restore_index, restore_date_vid = binary_search_restored_objects(video_keys,days)
             video_keys = video_keys[restore_index:]
 
             for video_key in video_keys:
@@ -507,11 +557,14 @@ def restore_files_for_download(self,task_id,user_id,download_params,days,extend=
                     continue
         
         restored_zip = False
+        restore_date_zip = None
         if include_empties and not extend:
             if survey.zips:
                 zip_folder = survey.organisation.folder + '-comp/' + Config.SURVEY_ZIP_FOLDER
-                zip_keys = [zip_folder + '/' + str(zip.id) + '.zip' for zip in survey.zips]
-                restore_index = binary_search_restored_objects(zip_keys)
+                zip_ids = [zip.id for zip in survey.zips]
+                zip_ids = sorted(zip_ids)
+                zip_keys = [zip_folder + '/' + str(zip_id) + '.zip' for zip_id in zip_ids]
+                restore_index, restore_date_zip = binary_search_restored_objects(zip_keys)
                 zip_keys = zip_keys[restore_index:]
 
                 zip_restore_request = {
@@ -543,6 +596,21 @@ def restore_files_for_download(self,task_id,user_id,download_params,days,extend=
                 db.session.commit()
 
                 process_files_for_download.apply_async(kwargs={'task_id':task_id,'user_id':user_id, 'zips':restored_zip},countdown=Config.RESTORE_COUNTDOWN)
+
+            elif restore_date_img or restore_date_vid or restore_date_zip:
+                restore_date = [restore_date_img,restore_date_vid,restore_date_zip]
+                restore_date = [date for date in restore_date if date]
+                restore_date = max(restore_date)
+                survey.download_restore = restore_date
+
+                download_request = db.session.query(DownloadRequest).filter(DownloadRequest.task_id==task_id).filter(DownloadRequest.user_id==user_id).filter(DownloadRequest.type=='file').first()
+                download_request.status = 'Restoring Files'
+                download_request.timestamp = restore_date
+
+                restore_diff = (datetime.utcnow() - restore_date).total_seconds()
+                db.session.commit()
+
+                process_files_for_download.apply_async(kwargs={'task_id':task_id,'user_id':user_id, 'zips':restored_zip},countdown=Config.RESTORE_COUNTDOWN-restore_diff)
                 
             else:
                 download_request = db.session.query(DownloadRequest).filter(DownloadRequest.task_id==task_id).filter(DownloadRequest.user_id==user_id).filter(DownloadRequest.type=='file').first()
