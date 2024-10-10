@@ -34,6 +34,8 @@ def lambda_handler(event, context):
     conn = pymysql.connect(host=event['RDS_HOST'], user=event['RDS_USER'], password=event['RDS_PASSWORD'], db=event['RDS_DB_NAME'], port=3306, connect_timeout=5)
     cursor = conn.cursor()
 
+    print('Importing image:', key)
+
     # Download the file from S3
     download_path = '/tmp/' + key.split('/')[-1]
     s3.download_file(Bucket=bucket, Key=key, Filename=download_path)
@@ -42,6 +44,7 @@ def lambda_handler(event, context):
     try:
         hash = generate_raw_image_hash(download_path)
     except:
+        print('Image corrupted.')
         s3.delete_object(Bucket=bucket, Key=key)
         os.remove(download_path)
         conn.close()
@@ -61,6 +64,9 @@ def lambda_handler(event, context):
     rows = cursor.fetchall()
 
     if len(rows) > 0:
+        print('Image already exists in the database.')
+        os.remove(download_path)
+        conn.close()
         return {
             'statusCode': 200,
             'body': 'Image already exists in the database.'
@@ -127,6 +133,8 @@ def lambda_handler(event, context):
         insert_query = 'INSERT INTO image (filename,timestamp,corrected_timestamp,camera_id,hash,etag,detection_rating,downloaded,skipped,extracted) VALUES (%s,%s,%s,%s,%s,%s,0,0,0,0)'
         cursor.execute(insert_query, (image_filename, timestamp, timestamp, camera_id, hash, etag))
         conn.commit()
+
+        print('Image imported successfully.')
     
     os.remove(download_path)
     conn.close()        

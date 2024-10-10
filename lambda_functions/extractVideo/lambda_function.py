@@ -47,6 +47,8 @@ def lambda_handler(event, context):
     filename = key.split('/')[-1]
     camera_path = video_path + '/_video_images_/' + video_name
 
+    print('Extracting frames from video:', key)
+
     # Download the file from S3
     download_path = '/tmp/' + filename
     s3.download_file(Bucket=bucket, Key=key, Filename=download_path)
@@ -109,6 +111,8 @@ def lambda_handler(event, context):
             count += 1
 
         video.release()
+
+        print('Frames extracted and uploaded to S3.')
 
     except Exception as e:
         print('Video extraction failed:', e)

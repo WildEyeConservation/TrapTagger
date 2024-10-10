@@ -44,6 +44,8 @@ def lambda_handler(event, context):
     comp_video_path = '/'.join(split_path)
     hash = None
 
+    print('Importing video:', key)
+
     # Download the file from S3
     download_path = '/tmp/' + filename
     s3.download_file(Bucket=bucket, Key=key, Filename=download_path)
@@ -52,6 +54,7 @@ def lambda_handler(event, context):
     try:
         hash = generate_raw_image_hash(download_path)
     except:
+        print('Video corrupted.')
         s3.delete_object(Bucket=bucket, Key=key)
         os.remove(download_path)
         conn.close()
@@ -71,6 +74,9 @@ def lambda_handler(event, context):
     rows = cursor.fetchall()
 
     if len(rows) > 0:
+        print('Video already exists in the database.')
+        os.remove(download_path)
+        conn.close()
         return {
             'statusCode': 200,
             'body': 'Video already exists in the database.'
@@ -147,7 +153,7 @@ def lambda_handler(event, context):
             insert_query = 'INSERT INTO video (filename, hash, still_rate, camera_id, downloaded) VALUES (%s, %s, %s, %s, 0)'
             cursor.execute(insert_query, (filename, hash, still_rate, camera_id))
             conn.commit()
-            print('Video added to database.')
+            print('Video imported successfully.')
 
             payload = event
             payload['camera_id'] = camera_id

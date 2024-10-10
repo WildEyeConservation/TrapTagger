@@ -883,7 +883,7 @@ def manageDownloadRequests():
     finally:
         db.session.remove()
         #Schedule every 24hours
-        # manageDownloadRequests.apply_async(queue='priority', priority=0,countdown=86400)
+        manageDownloadRequests.apply_async(queue='priority', priority=0,countdown=86400)
 
 
     return True
