@@ -99,8 +99,8 @@ def restore_empty_zips(self,task_id):
     '''Restores zips from Glacier that contain empty images.'''
     
     try:
-
-        survey = db.session.query(Survey).join(Task).filter(Task.id==task_id).first()
+        task = db.session.query(Task).get(task_id)
+        survey = task.survey
         zip_folder = survey.organisation.folder + '-comp/' + Config.SURVEY_ZIP_FOLDER
         
         restore_request = {
@@ -128,10 +128,12 @@ def restore_empty_zips(self,task_id):
 
             if restore_zip:
                 survey.status = 'Ready'
+                task.status = 'Ready'
                 survey.empty_restore = datetime.utcnow()       
                 extract_zips.apply_async(kwargs={'task_id':task_id},countdown=Config.RESTORE_COUNTDOWN)
             elif restore_date:
                 survey.status = 'Ready'
+                task.status = 'Ready'
                 survey.empty_restore = restore_date
                 restore_diff = (datetime.utcnow() - restore_date).total_seconds()
                 extract_zips.apply_async(kwargs={'task_id':task_id},countdown=Config.RESTORE_COUNTDOWN-restore_diff)       

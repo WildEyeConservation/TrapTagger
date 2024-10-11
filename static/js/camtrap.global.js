@@ -417,7 +417,7 @@ function buildDownloadRequest(download){
             col2.appendChild(downloadBtn);
         }
     }
-    else if (download.status == 'Restoring Files' || (download.status == 'Downloading' && currentDownloads.includes(download.id))){
+    else if (download.status == 'Restoring Files'){
         var col1 = document.createElement('div');
         col1.setAttribute('class', 'col-lg-4');
         col1.setAttribute('style', 'padding: 0px;');
@@ -458,24 +458,77 @@ function buildDownloadRequest(download){
         newProgInner.setAttribute("role", "progressbar");
         newProgInner.setAttribute("id", "progBar"+download.id);
 
-        if (download.status == 'Restoring Files') {
-            newProgInner.setAttribute("aria-valuemin", "0");
-            newProgInner.setAttribute("aria-valuenow", download.restore);
-            newProgInner.setAttribute("aria-valuemax", 48);
-            time_left = 48 - download.restore
-            if (time_left<0) {
-                time_left = 0
-            }
-            newProgInner.setAttribute("style", "width:"+(download.restore/48)*100+"%;transition:none");
-            newProgInner.innerHTML = time_left + ' hours remaining'
-            newProg.appendChild(newProgInner);
-        }
-        else{
-            newProg.appendChild(newProgInner);
-            updateDownloadProgress(download.id,globalDownloaded,globalToDownload,global_count_initialised)
-            downloadWorker.postMessage({'func': 'updateDownloadProgress', 'args': null})
-        }
 
+        newProgInner.setAttribute("aria-valuemin", "0");
+        newProgInner.setAttribute("aria-valuenow", download.restore);
+        newProgInner.setAttribute("aria-valuemax", 48);
+        time_left = 48 - download.restore
+        if (time_left<0) {
+            time_left = 0
+        }
+        newProgInner.setAttribute("style", "width:"+(download.restore/48)*100+"%;transition:none");
+        newProgInner.innerHTML = time_left + ' hours remaining'
+        newProg.appendChild(newProgInner);
+    }
+    else if (download.status == 'Downloading' && currentDownloads.includes(download.id)){
+        var col1 = document.createElement('div');
+        col1.setAttribute('class', 'col-lg-4');
+        col1.setAttribute('style', 'padding: 0px;');
+        downloadRequest.appendChild(col1);
+    
+        var col2 = document.createElement('div');
+        col2.setAttribute('class', 'col-lg-7');
+        col2.setAttribute('style', 'padding: 0px; align-items: center; display: flex; justify-content: center;');
+        downloadRequest.appendChild(col2);
+
+        var col3 = document.createElement('div');
+        col3.setAttribute('class', 'col-lg-1');
+        col3.setAttribute('style', 'padding: 0px; align-items: center; display: flex; justify-content: center;');
+        downloadRequest.appendChild(col3);
+    
+        var h6 = document.createElement('h7');
+        h6.innerHTML = download.file;
+        h6.setAttribute('style', 'margin: 0px;');
+        col1.appendChild(h6);
+
+        var div = document.createElement('div');
+        div.setAttribute('style', 'margin: 0px; padding: 0px; font-size: 80%;');
+        div.innerHTML = '<i>Status: ' + download.status + '</i>';
+        col1.appendChild(div);
+
+        var progCol = document.createElement('div');
+        progCol.setAttribute('class', 'col-lg-12');
+        col2.appendChild(progCol);
+
+        var progDiv = document.createElement('div');
+        progCol.appendChild(progDiv);
+
+        var newProg = document.createElement('div');
+        newProg.classList.add('progress');
+        newProg.setAttribute('style','background-color: #3C4A59')
+        progDiv.appendChild(newProg);
+    
+        var newProgInner = document.createElement('div');
+        newProgInner.classList.add('progress-bar');
+        newProgInner.classList.add('progress-bar-striped');
+        newProgInner.classList.add('progress-bar-animated');
+        newProgInner.classList.add('active');
+        newProgInner.setAttribute("role", "progressbar");
+        newProgInner.setAttribute("id", "progBar"+download.id);
+        newProg.appendChild(newProgInner);
+
+        updateDownloadProgress(download.id,globalDownloaded,globalToDownload,global_count_initialised)
+        downloadWorker.postMessage({'func': 'updateDownloadProgress', 'args': null})
+        
+        var stopTaskBtn = document.createElement('button')
+        stopTaskBtn.setAttribute("class","btn btn-danger btn-block btn-sm")
+        stopTaskBtn.innerHTML = '&times;'
+        col3.appendChild(stopTaskBtn)
+
+        stopTaskBtn.addEventListener('click', ()=>{
+            downloadWorker.postMessage({'func': 'wrapUpDownload', 'args': [true]})
+        })
+    
     }
     else{
         var col1 = document.createElement('div');
