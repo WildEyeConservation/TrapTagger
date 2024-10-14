@@ -857,9 +857,13 @@ def calculate_individual_similarities(self,task_id,species):
             db.session.commit()
             launch_task.apply_async(kwargs={'task_id':task_id})
         elif task.status != 'PROGRESS' and task.status != 'PENDING':
+            from app.functions.annotation import launch_task
             updateIndividualIdStatus(task_id)
-            task.survey.status = 'Ready'
+            task.survey.status = 'Launched'
+            task.status = 'PENDING'
+            task.tagging_level = '-5,'+species+',-1'
             db.session.commit()
+            launch_task.apply_async(kwargs={'task_id':task_id})
         else:
             task.survey.status = 'Launched'
             db.session.commit()

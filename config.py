@@ -122,7 +122,7 @@ class Config(object):
 
     # Task and survey statuses
     TASK_READY_STATUSES = ['ready','success','successinitial','stopped']
-    SURVEY_READY_STATUSES = ['ready','failed','stopped','cancelled']
+    SURVEY_READY_STATUSES = ['ready','failed','stopped','cancelled','restoring files']
 
     # Detection statuses
     DET_IGNORE_STATUSES = ['deleted','hidden','masked']
@@ -165,7 +165,7 @@ class Config(object):
     SURVEY_ZIP_FOLDER = '_survey_zip_files_'
 
     # Glacier Restore 
-    RESTORE_COUNTDOWN= 174600 # 48 hours + 0.5 hours 
+    RESTORE_COUNTDOWN= 172800 # 48 hours
     RESTORE_COOLDOWN = 14 # 14 days
     ID_RESTORE_DAYS=30 
     DOWNLOAD_RESTORE_DAYS=7

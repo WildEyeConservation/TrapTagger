@@ -19,9 +19,10 @@ from app.models import *
 from app.functions.globals import getQueueLengths, getImagesProcessing, getInstanceCount, getInstancesRequired, launch_instances, manageDownload, resolve_abandoned_jobs, \
 deleteTurkcodes, createTurkcodes, deleteFile, cleanup_empty_restored_images
 from app.functions.imports import import_survey
-from app.functions.admin import stop_task
-from app.functions.annotation import freeUpWork, wrapUpTask
-from app.functions.archive import restore_images_for_id, restore_files_for_download
+from app.functions.admin import stop_task, edit_survey
+from app.functions.annotation import freeUpWork, wrapUpTask, launch_task
+from app.functions.archive import restore_images_for_id, restore_files_for_download, process_files_for_download, extract_zips
+from app.functions.individualID import calculate_detection_similarities
 import GLOBALS
 from sqlalchemy.sql import func, distinct, or_, alias, and_
 from sqlalchemy import desc
@@ -749,7 +750,7 @@ def manage_tasks_with_restore():
                         stop_task.delay(task_id=task_id)
         else:
             if id_restore:
-                expiry_date = (id_restore + timedelta(days=Config.ID_RESTORE_DAYS+3)).replace(hour=0,minute=0,second=0,microsecond=0)
+                expiry_date = (id_restore + timedelta(days=Config.ID_RESTORE_DAYS+2)).replace(hour=0,minute=0,second=0,microsecond=0)
                 time_left = expiry_date - date_now
 
                 if time_left.days < 1:
@@ -760,7 +761,7 @@ def manage_tasks_with_restore():
                             survey = db.session.query(Survey).get(survey_id)
                             survey.id_restore = date_now
                             db.session.commit()
-                            restore_images_for_id.apply_async(kwargs={'task_id':task_id,'days':Config.ID_RESTORE_DAYS+2, 'extend':True})
+                            restore_images_for_id.apply_async(kwargs={'task_id':task_id,'days':Config.ID_RESTORE_DAYS+1, 'extend':True})
                     else:
                         stop_task.delay(task_id=task_id)
 
@@ -837,7 +838,7 @@ def manageDownloadRequests():
         for req in download_requests:
             request = req[0]
             survey_restore = req[1]
-            expiry_date = (survey_restore + timedelta(days=Config.DOWNLOAD_RESTORE_DAYS+3)).replace(hour=0,minute=0,second=0,microsecond=0) if survey_restore else None
+            expiry_date = (survey_restore + timedelta(days=Config.DOWNLOAD_RESTORE_DAYS+2)).replace(hour=0,minute=0,second=0,microsecond=0) if survey_restore else None
             if request.type == 'file':
                 task_id = request.task_id
                 if request.status == 'Downloading':
@@ -867,9 +868,10 @@ def manageDownloadRequests():
             else:
                 if request.status == 'Available':
                     if request.timestamp + timedelta(days=7) <= date_now:
-                        fileName = request.task.survey.organisation.folder+'/docs/'+request.task.survey.organisation.name+'_'+request.user.username+'_'+request.task.survey.name+'_'+request.task.name + '.' + Config.RESULT_TYPES[request.type]
-                        deleteFile.apply_async(kwargs={'fileName': fileName})
-                        db.session.delete(request)
+                        if request.name:
+                            fileName = request.task.survey.organisation.folder+'/docs/'+request.task.survey.organisation.name+'_'+request.user.username+'_'+request.task.survey.name+'_'+request.task.name +'_'+ request.name +'.' + Config.RESULT_TYPES[request.type]
+                            deleteFile.apply_async(kwargs={'fileName': fileName})
+                            db.session.delete(request)
         
         db.session.commit() 
 
@@ -894,7 +896,7 @@ def checkRestoreDownloads(task_id):
     survey = db.session.query(Survey).join(Task).filter(Task.id==task_id).first()
     date_now = datetime.utcnow()
     if survey.download_restore and survey.download_restore >= (date_now - timedelta(days=Config.DOWNLOAD_RESTORE_DAYS+2)): 
-        expiry_date = (survey.download_restore + timedelta(days=Config.DOWNLOAD_RESTORE_DAYS+3)).replace(hour=0,minute=0,second=0,microsecond=0)
+        expiry_date = (survey.download_restore + timedelta(days=Config.DOWNLOAD_RESTORE_DAYS+2)).replace(hour=0,minute=0,second=0,microsecond=0)
         if (expiry_date - date_now).days < 1:
             download_requests = db.session.query(DownloadRequest).filter(DownloadRequest.task_id == task_id).filter(DownloadRequest.type == 'file').filter(DownloadRequest.status == 'Downloading').all()
             for request in download_requests:
@@ -904,8 +906,77 @@ def checkRestoreDownloads(task_id):
                     download_params = json.loads(download_params)
                     survey.download_restore = date_now
                     db.session.commit()
-                    restore_files_for_download.apply_async(kwargs={'task_id':task_id,'user_id':user_id,'days':Config.DOWNLOAD_RESTORE_DAYS+2,'download_params':download_params,'extend':True})
+                    restore_files_for_download.apply_async(kwargs={'task_id':task_id,'user_id':user_id,'days':Config.DOWNLOAD_RESTORE_DAYS+1,'download_params':download_params,'extend':True})
                 except:
                     continue
+
+    return True
+
+@celery.task(ignore_result=True)
+def monitorFileRestores():
+    '''Celery task that monitors restores and schedules tasks for restored images that require processing'''
+    try:
+        start_restore = datetime.now() - timedelta(seconds=Config.RESTORE_COUNTDOWN)
+
+        surveys = db.session.query(Survey)\
+                            .filter(Survey.require_launch==True)\
+                            .filter(Survey.status.in_(Config.SURVEY_READY_STATUSES))\
+                            .filter(or_(
+                                Survey.download_restore<start_restore,
+                                Survey.id_restore<start_restore,
+                                Survey.empty_restore<start_restore,
+                                Survey.edit_restore<start_restore
+                            ))\
+                            .distinct().all()
+        
+        for survey in surveys: 
+            try:
+                if survey.download_restore and survey.download_restore<start_restore:
+                    launch_kwargs = GLOBALS.redisClient.get('download_launch_kwargs_'+str(survey.id)).decode()
+                    launch_kwargs = json.loads(launch_kwargs)  
+                    survey.require_launch = False
+                    process_files_for_download.apply_async(kwargs=launch_kwargs)
+                    GLOBALS.redisClient.delete('download_launch_kwargs_'+str(survey.id))
+
+                elif survey.id_restore and survey.id_restore<start_restore:
+                    launch_kwargs = GLOBALS.redisClient.get('id_launch_kwargs_'+str(survey.id)).decode()
+                    launch_kwargs = json.loads(launch_kwargs)                  
+                    survey.require_launch = False
+                    if 'algorithm' in launch_kwargs.keys():
+                        calculate_detection_similarities.apply_async(kwargs=launch_kwargs)
+                    else:
+                        launch_task.apply_async(kwargs=launch_kwargs)
+                    GLOBALS.redisClient.delete('id_launch_kwargs_'+str(survey.id))
+
+                elif survey.empty_restore and survey.empty_restore<start_restore:
+                    launch_kwargs = GLOBALS.redisClient.get('empty_launch_kwargs_'+str(survey.id)).decode()
+                    launch_kwargs = json.loads(launch_kwargs)  
+                    survey.require_launch = False
+                    extract_zips.apply_async(kwargs=launch_kwargs)
+                    GLOBALS.redisClient.delete('empty_launch_kwargs_'+str(survey.id))
+
+                elif survey.edit_restore and survey.edit_restore<start_restore:
+                    launch_kwargs = GLOBALS.redisClient.get('edit_launch_kwargs_'+str(survey.id)).decode()
+                    launch_kwargs = json.loads(launch_kwargs)  
+                    survey.require_launch = False
+                    edit_survey.apply_async(kwargs=launch_kwargs)
+                    GLOBALS.redisClient.delete('edit_kwargs_'+str(survey.id))
+            except:
+                continue
+               
+        if surveys:
+            db.session.commit()
+
+    except Exception as exc:
+        app.logger.info(' ')
+        app.logger.info('!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!')
+        app.logger.info(traceback.format_exc())
+        app.logger.info('!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!')
+        app.logger.info(' ')
+
+    finally:
+        db.session.remove()
+        #Schedule every 15 minutes
+        monitorFileRestores.apply_async(queue='priority', priority=0,countdown=900)
 
     return True

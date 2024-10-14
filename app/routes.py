@@ -4543,24 +4543,23 @@ def exportRequest():
 
         if exportType == 'WildBook':
             # fileName = task.survey.user.folder+'/docs/'+task.survey.user.username+'_'+task.survey.name+'_'+task.name
-            fileName = task.survey.organisation.folder+'/docs/'+task.survey.organisation.name+'_'+current_user.username+'_'+task.survey.name+'_'+task.name
+            # fileName = task.survey.organisation.folder+'/docs/'+task.survey.organisation.name+'_'+current_user.username+'_'+task.survey.name+'_'+task.name
 
-            # Delete old file if exists
-            try:
-                GLOBALS.s3client.delete_object(Bucket=Config.BUCKET, Key=fileName+'.zip')
-            except:
-                pass
+            # # Delete old file if exists
+            # try:
+            #     GLOBALS.s3client.delete_object(Bucket=Config.BUCKET, Key=fileName+'.zip')
+            # except:
+            #     pass
             
             # Create Download request
-            old_download_requests = db.session.query(DownloadRequest).filter(DownloadRequest.user_id==current_user.id).filter(DownloadRequest.task_id==task_id).filter(DownloadRequest.type=='export').all()
-            for old_download_request in old_download_requests:
-                db.session.delete(old_download_request)
-
             download_request = DownloadRequest(type='export', user_id=current_user.id, task_id=task_id, status='Pending', timestamp=datetime.utcnow())
             db.session.add(download_request)
             db.session.commit()
 
-            generate_wildbook_export.delay(task_id=task_id,data=data,user_name=current_user.username)
+            response = generate_wildbook_export.delay(task_id=task_id,data=data,user_name=current_user.username,download_id=download_request.id)
+
+            download_request.celery_id = response.id
+            db.session.commit()
 
         return json.dumps({'status':'success', 'message':None})
 
@@ -8181,25 +8180,24 @@ def generateExcel(selectedTask):
         return json.dumps({'status':'error',  'message': None})
 
     # fileName = task.survey.user.folder+'/docs/'+task.survey.user.username+'_'+task.survey.name+'_'+task.name+'.xlsx'
-    fileName = task.survey.organisation.folder+'/docs/'+task.survey.organisation.name+'_'+current_user.username+'_'+task.survey.name+'_'+task.name+'.xlsx'
+    # fileName = task.survey.organisation.folder+'/docs/'+task.survey.organisation.name+'_'+current_user.username+'_'+task.survey.name+'_'+task.name+'.xlsx'
 
-    # Delete old file if exists
-    try:
-        GLOBALS.s3client.delete_object(Bucket=Config.BUCKET, Key=fileName)
-    except:
-        pass
+    # # Delete old file if exists
+    # try:
+    #     GLOBALS.s3client.delete_object(Bucket=Config.BUCKET, Key=fileName)
+    # except:
+    #     pass
 
     # Create Download request
-    old_download_requests = db.session.query(DownloadRequest).filter(DownloadRequest.user_id==current_user.id).filter(DownloadRequest.task_id==selectedTask).filter(DownloadRequest.type=='excel').all()
-    for old_download_request in old_download_requests:
-        db.session.delete(old_download_request)
-
     download_request = DownloadRequest(type='excel', user_id=current_user.id, task_id=selectedTask, status='Pending', timestamp=datetime.utcnow())
     db.session.add(download_request)
     db.session.commit()
 
     app.logger.info('Calling generate_excel')
-    generate_excel.delay(task_id=int(selectedTask), user_name=current_user.username)
+    response = generate_excel.delay(task_id=int(selectedTask), user_name=current_user.username, download_id=download_request.id)
+
+    download_request.celery_id = response.id
+    db.session.commit()
 
     return json.dumps({'status':'success', 'message': None})
 
@@ -8263,13 +8261,13 @@ def generateCSV():
 
     task = db.session.query(Task).get(selectedTasks[0])
     # fileName = task.survey.user.folder+'/docs/'+task.survey.user.username+'_'+task.survey.name+'_'+task.name+'.csv'
-    fileName = task.survey.organisation.folder+'/docs/'+task.survey.organisation.name+'_'+current_user.username+'_'+task.survey.name+'_'+task.name+'.csv'
+    # fileName = task.survey.organisation.folder+'/docs/'+task.survey.organisation.name+'_'+current_user.username+'_'+task.survey.name+'_'+task.name+'.csv'
 
-    # Delete old file if exists
-    try:
-        GLOBALS.s3client.delete_object(Bucket=Config.BUCKET, Key=fileName)
-    except:
-        pass
+    # # Delete old file if exists
+    # try:
+    #     GLOBALS.s3client.delete_object(Bucket=Config.BUCKET, Key=fileName)
+    # except:
+    #     pass
 
     det_count = rDets(db.session.query(Detection).join(Image).join(Camera).join(Trapgroup).filter(Trapgroup.survey_id==task.survey_id)).distinct().count()
     if det_count>300000:
@@ -8278,16 +8276,15 @@ def generateCSV():
         queue='default'
 
     # Create Download request
-    old_download_requests = db.session.query(DownloadRequest).filter(DownloadRequest.user_id==current_user.id).filter(DownloadRequest.task_id==selectedTasks[0]).filter(DownloadRequest.type=='csv').all()
-    for old_download_request in old_download_requests:
-        db.session.delete(old_download_request)
-
     download_request = DownloadRequest(type='csv', user_id=current_user.id, task_id=selectedTasks[0], status='Pending', timestamp=datetime.utcnow())
     db.session.add(download_request)
     db.session.commit()
 
     app.logger.info('Calling generate_csv: {}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {}'.format(selectedTasks, level, columns, custom_columns, label_type, includes, excludes, start_date, end_date, column_translations,current_user.username))
-    generate_csv.apply_async(kwargs={'selectedTasks':selectedTasks, 'selectedLevel':level, 'requestedColumns':columns, 'custom_columns':custom_columns, 'label_type':label_type, 'includes':includes, 'excludes':excludes, 'startDate':start_date, 'endDate':end_date, 'column_translations': column_translations, 'user_name': current_user.username}, queue=queue)
+    response = generate_csv.apply_async(kwargs={'selectedTasks':selectedTasks, 'selectedLevel':level, 'requestedColumns':columns, 'custom_columns':custom_columns, 'label_type':label_type, 'includes':includes, 'excludes':excludes, 'startDate':start_date, 'endDate':end_date, 'column_translations': column_translations, 'user_name': current_user.username, 'download_id': download_request.id}, queue=queue)
+
+    download_request.celery_id = response.id
+    db.session.commit()
 
     return json.dumps({'status':'success', 'message': None})
 
@@ -8304,24 +8301,23 @@ def generateCOCO():
         return json.dumps({'status':'error',  'message': None})
 
     # fileName = task.survey.user.folder+'/docs/'+task.survey.user.username+'_'+task.survey.name+'_'+task.name+'.json'
-    fileName = task.survey.organisation.folder+'/docs/'+task.survey.organisation.name+'_'+current_user.username+'_'+task.survey.name+'_'+task.name+'.json'
+    # fileName = task.survey.organisation.folder+'/docs/'+task.survey.organisation.name+'_'+current_user.username+'_'+task.survey.name+'_'+task.name+'.json'
 
-    # Delete old file if exists
-    try:
-        GLOBALS.s3client.delete_object(Bucket=Config.BUCKET, Key=fileName)
-    except:
-        pass
+    # # Delete old file if exists
+    # try:
+    #     GLOBALS.s3client.delete_object(Bucket=Config.BUCKET, Key=fileName)
+    # except:
+    #     pass
 
     # Create Download request
-    old_download_requests = db.session.query(DownloadRequest).filter(DownloadRequest.user_id==current_user.id).filter(DownloadRequest.task_id==task_id).filter(DownloadRequest.type=='coco').all()
-    for old_download_request in old_download_requests:
-        db.session.delete(old_download_request)
-
     download_request = DownloadRequest(type='coco', user_id=current_user.id, task_id=task_id, status='Pending', timestamp=datetime.utcnow())
     db.session.add(download_request)
     db.session.commit()
 
-    generate_coco.delay(task_id=task_id, user_name=current_user.username)
+    response = generate_coco.delay(task_id=task_id, user_name=current_user.username, download_id=download_request.id)
+
+    download_request.celery_id = response.id
+    db.session.commit()
 
     return json.dumps({'status':'success', 'message': None})
 
@@ -14125,12 +14121,20 @@ def invoke_lambda():
                                 'RDS_DB_NAME': Config.SQLALCHEMY_DATABASE_NAME,
                     }
                     file_type = request.json['file_type']
-                    if file_type == 'image':
-                        GLOBALS.lambdaClient.invoke(FunctionName=Config.IMAGE_IMPORT_LAMBDA, InvocationType='Event', Payload=json.dumps(payload))
-                    elif file_type == 'video':
-                        GLOBALS.lambdaClient.invoke(FunctionName=Config.VIDEO_IMPORT_LAMBDA, InvocationType='Event', Payload=json.dumps(payload))
+                    try:
+                        if file_type == 'image':
+                            response = GLOBALS.lambdaClient.invoke(FunctionName=Config.IMAGE_IMPORT_LAMBDA, InvocationType='Event', Payload=json.dumps(payload))
+                        elif file_type == 'video':
+                            response = GLOBALS.lambdaClient.invoke(FunctionName=Config.VIDEO_IMPORT_LAMBDA, InvocationType='Event', Payload=json.dumps(payload))
 
-                    return 'success'
+                        if response and response['ResponseMetadata']['HTTPStatusCode'] == 202:
+                            if Config.DEBUGGING: app.logger.info('Lambda function invoked successfully for file: {}'.format(key))
+                            return 'success'
+                        else:
+                            if Config.DEBUGGING: app.logger.info('Lambda function failed to invoke for file: {} with error: {}'.format(key, response['ResponseMetadata']['HTTPStatusCode']))
+                            return 'error', 400
+                    except:
+                        return 'error', 400
     except:
         pass
         
@@ -14155,7 +14159,8 @@ def getDownloadRequests():
                                     Survey.name, 
                                     Organisation.name, 
                                     Organisation.folder,
-                                    Survey.download_restore
+                                    Survey.download_restore,
+                                    DownloadRequest.name
                                 )\
                                 .join(Task, DownloadRequest.task_id==Task.id)\
                                 .join(Survey)\
@@ -14175,6 +14180,7 @@ def getDownloadRequests():
             org_name = d[7]
             org_folder = d[8]
             survey_restore = d[9]
+            name = d[10] if d[10] else ''
 
             req_dict = {
                 'id': request_id,
@@ -14194,7 +14200,7 @@ def getDownloadRequests():
                 if status == 'Downloading':
                     current_download_requests.append(req_dict)
                 else:
-                    expires = (survey_restore + timedelta(days=Config.DOWNLOAD_RESTORE_DAYS+3)).replace(hour=0, minute=0, second=0, microsecond=0) if survey_restore else None
+                    expires = (survey_restore + timedelta(days=Config.DOWNLOAD_RESTORE_DAYS+2)).replace(hour=0, minute=0, second=0, microsecond=0) if survey_restore else None
                     if expires:
                         if expires > date_now:
                             if timestamp and status == 'Restoring Files':
@@ -14212,7 +14218,7 @@ def getDownloadRequests():
                     req_dict['file'] = file
                     if status == 'Available':
                         req_dict['expires'] = (timestamp + timedelta(days=7)).strftime('%Y-%m-%dT%H:%M:%SZ')
-                        req_dict['url'] = 'https://'+Config.BUCKET+'.s3.amazonaws.com/'+(org_folder+'/docs/'+ org_name+'_'+current_user.username+'_'+survey_name+'_'+task_name + '.'+ Config.RESULT_TYPES[req_type]).replace('+','%2B').replace('?','%3F').replace('#','%23')
+                        req_dict['url'] = 'https://'+Config.BUCKET+'.s3.amazonaws.com/'+(org_folder+'/docs/'+ org_name+'_'+current_user.username+'_'+survey_name+'_'+task_name +'_' + name + '.'+ Config.RESULT_TYPES[req_type]).replace('+','%2B').replace('?','%3F').replace('#','%23')
                         download_requests.append(req_dict)
                     else:
                         download_requests.append(req_dict)
@@ -14241,7 +14247,7 @@ def checkDownloadRequests():
 
         for r in requests:
             if r[2] == 'file':
-                if r[3] and (r[3] + timedelta(days=Config.DOWNLOAD_RESTORE_DAYS+3)).replace(hour=0, minute=0, second=0, microsecond=0) > date_now:
+                if r[3] and (r[3] + timedelta(days=Config.DOWNLOAD_RESTORE_DAYS+2)).replace(hour=0, minute=0, second=0, microsecond=0) > date_now:
                     available_downloads += 1
                 elif not r[3]:
                     if r[1] + timedelta(days=Config.DOWNLOAD_RESTORE_DAYS) > date_now:
@@ -14287,6 +14293,16 @@ def restore_for_download():
                 status = 'error'
                 message = 'Your survey recently had images restored. The system requires a cooldown period of {} days before another restoration can be requested.'.format(Config.RESTORE_COOLDOWN)
             else:
+                # Check if any surveys are busy with a dearchival process
+                survey = task.survey
+                restore_times = [survey.id_restore, survey.edit_restore, survey.download_restore, survey.empty_restore]
+                restore_times = [restore_time for restore_time in restore_times if restore_time]
+                date_now = datetime.utcnow()
+                if any((date_now - restore_time).total_seconds() < Config.RESTORE_COUNTDOWN for restore_time in restore_times):
+                    status = 'error'
+                    message = 'Your survey is currently having files restored from archive. Initiating a new download request that requires file restoration is not possible at this time. Please wait for the current restoration process to complete.'
+                    return json.dumps({'status': status, 'message': message})
+                
                 download_dict = {
                     'individual_sorted': individual_sorted,
                     'species_sorted': species_sorted,
@@ -14323,7 +14339,7 @@ def init_download_after_restore():
     if download_request:
         task_id = download_request.task_id
         task = db.session.query(Task).get(task_id)
-        if task and checkSurveyPermission(current_user.id,task.survey_id,'read'):
+        if task and checkSurveyPermission(current_user.id,task.survey_id,'read') and task.status.lower() in Config.TASK_READY_STATUSES:
             try:
                 download_dict = GLOBALS.redisClient.get('fileDownloadParams_'+str(task_id)+'_'+str(current_user.id))
                 if download_dict:
@@ -14349,7 +14365,7 @@ def init_download_request():
     task_id = request.json['task_id']
     task = db.session.query(Task).get(task_id)
     status = 'error'
-    if task and checkSurveyPermission(current_user.id,task.survey_id,'read'):
+    if task and checkSurveyPermission(current_user.id,task.survey_id,'read') and task.status.lower() in Config.TASK_READY_STATUSES:
         try:
             GLOBALS.redisClient.set('download_ping_'+str(task_id),datetime.utcnow().timestamp())
             download_request = DownloadRequest(user_id=current_user.id, task_id=task_id, type='file', status='Downloading', timestamp=datetime.utcnow())
@@ -14359,5 +14375,32 @@ def init_download_request():
             return json.dumps({'status': status, 'download_id': download_request.id})
         except:
             pass
+
+    return json.dumps({'status': status})
+
+@app.route('/deleteDownloadRequest/<download_request_id>')
+@login_required
+def deleteDownloadRequest(download_request_id):
+    """Deletes a download request."""
+    
+    status = 'error'	
+    download_request = db.session.query(DownloadRequest).get(download_request_id)
+    task = download_request.task
+    if download_request and download_request.user_id == current_user.id and checkSurveyPermission(current_user.id,task.survey_id,'read'):
+        celery_id = download_request.celery_id
+        try:
+            if celery_id: celery.control.revoke(celery_id, terminate=True)
+        except:
+            pass
+
+        try:
+            fileName = task.survey.organisation.folder+'/docs/' + task.survey.organisation.name+'_'+current_user.username+'_'+task.survey.name+'_'+task.name+'_'+download_request.name+'.'+Config.RESULT_TYPES[download_request.type]
+            GLOBALS.s3client.delete_object(Bucket=Config.BUCKET, Key=fileName)
+        except:
+            pass
+
+        db.session.delete(download_request)
+        db.session.commit()
+        status = 'success'
 
     return json.dumps({'status': status})

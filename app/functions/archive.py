@@ -30,6 +30,7 @@ import re
 from celery.result import allow_join_result
 import os 
 import zipfile
+import json
 
 def check_restore(key,days=None):
     '''Check if a object has been restored or is in the process of being restored from Glacier.'''
@@ -127,16 +128,19 @@ def restore_empty_zips(self,task_id):
                     continue
 
             if restore_zip:
-                survey.status = 'Ready'
+                survey.status = 'Restoring Files'
                 task.status = 'Ready'
                 survey.empty_restore = datetime.utcnow()       
-                extract_zips.apply_async(kwargs={'task_id':task_id},countdown=Config.RESTORE_COUNTDOWN)
+                launch_kwargs = {'task_id':task_id}
+                survey.require_launch = True
+                GLOBALS.redisClient.set('empty_launch_kwargs_'+str(survey.id),json.dumps(launch_kwargs))
             elif restore_date:
-                survey.status = 'Ready'
+                survey.status = 'Restoring Files'
                 task.status = 'Ready'
-                survey.empty_restore = restore_date
-                restore_diff = (datetime.utcnow() - restore_date).total_seconds()
-                extract_zips.apply_async(kwargs={'task_id':task_id},countdown=Config.RESTORE_COUNTDOWN-restore_diff)       
+                survey.empty_restore = restore_date      
+                launch_kwargs = {'task_id':task_id}
+                survey.require_launch = True
+                GLOBALS.redisClient.set('empty_launch_kwargs_'+str(survey.id),json.dumps(launch_kwargs))
             else:
                 extract_zips.apply_async(kwargs={'task_id':task_id})
         else:
@@ -326,13 +330,12 @@ def restore_images_for_id(self,task_id,days,extend=False):
         else:
             if restored_image:
                 task.survey.id_restore = datetime.utcnow()
-                task.survey.status = 'Ready'
+                task.survey.status = 'Restoring Files'
                 task.status = 'Ready'
                 for sub_task in task.sub_tasks:
                     sub_task.status = 'Ready'
-                    sub_task.survey.status = 'Ready'
+                    sub_task.survey.status = 'Restoring Files'
                     sub_task.survey.id_restore = datetime.utcnow()
-                db.session.commit()
 
                 # Schedule launch_task to run after the restore is complete 
                 if (len(task_ids) > 1) and ('-5' in taggingLevel):
@@ -340,29 +343,38 @@ def restore_images_for_id(self,task_id,days,extend=False):
                         algorithm = 'hotspotter'
                     elif tL[4]=='n':
                         algorithm = 'none'
-                    calculate_detection_similarities.apply_async(kwargs={'task_ids':task_ids,'species':species,'algorithm':algorithm},countdown=Config.RESTORE_COUNTDOWN)
+                    launch_kwargs = {'task_ids':task_ids,'species':species,'algorithm':algorithm}
                 else:
-                    launch_task.apply_async(kwargs={'task_id':task_id},countdown=Config.RESTORE_COUNTDOWN)
+                    launch_kwargs = {'task_id':task_id}
+
+                task.survey.require_launch = True
+                GLOBALS.redisClient.set('id_launch_kwargs_'+str(task.survey.id),json.dumps(launch_kwargs))
+
+                db.session.commit()
+
             elif restore_date:
                 task.survey.id_restore = restore_date
-                task.survey.status = 'Ready'
+                task.survey.status = 'Restoring Files'
                 task.status = 'Ready'
                 for sub_task in task.sub_tasks:
                     sub_task.status = 'Ready'
-                    sub_task.survey.status = 'Ready'
+                    sub_task.survey.status = 'Restoring Files'
                     sub_task.survey.id_restore = restore_date
                 db.session.commit()
 
-                restore_diff = (datetime.utcnow() - restore_date).total_seconds()
-                db.session.commit()
                 if (len(task_ids) > 1) and ('-5' in taggingLevel):
                     if tL[4]=='h':
                         algorithm = 'hotspotter'
                     elif tL[4]=='n':
                         algorithm = 'none'
-                    calculate_detection_similarities.apply_async(kwargs={'task_ids':task_ids,'species':species,'algorithm':algorithm},countdown=Config.RESTORE_COUNTDOWN-restore_diff)
+                    launch_kwargs = {'task_ids':task_ids,'species':species,'algorithm':algorithm}
                 else:
-                    launch_task.apply_async(kwargs={'task_id':task_id},countdown=Config.RESTORE_COUNTDOWN-restore_diff)
+                    launch_kwargs = {'task_id':task_id}
+
+                task.survey.require_launch = True
+                GLOBALS.redisClient.set('id_launch_kwargs_'+str(task.survey.id),json.dumps(launch_kwargs))
+
+                db.session.commit()
             else:
                 if (len(task_ids) > 1) and ('-5' in taggingLevel):
                     if tL[4]=='h':
@@ -429,15 +441,16 @@ def restore_images_for_classification(self,survey_id,days,edit_survey_args):
             
             if restored_image:
                 survey.edit_restore = datetime.utcnow()  
-                survey.status = 'Ready'      
+                survey.status = 'Restoring Files'   
+                survey.require_launch = True
+                GLOBALS.redisClient.set('edit_launch_kwargs_'+str(survey.id),json.dumps(edit_survey_args))
                 db.session.commit()       
-                edit_survey.apply_async(kwargs=edit_survey_args,countdown=Config.RESTORE_COUNTDOWN)
             elif restore_date:
                 survey.edit_restore = restore_date
-                survey.status = 'Ready'
+                survey.status = 'Restoring Files'
+                survey.require_launch = True
+                GLOBALS.redisClient.set('edit_launch_kwargs_'+str(survey.id),json.dumps(edit_survey_args))
                 db.session.commit()
-                restore_diff = (datetime.utcnow() - restore_date).total_seconds()
-                edit_survey.apply_async(kwargs=edit_survey_args,countdown=Config.RESTORE_COUNTDOWN-restore_diff)
             else:
                 edit_survey.apply_async(kwargs=edit_survey_args)
         else:
@@ -595,9 +608,11 @@ def restore_files_for_download(self,task_id,user_id,download_params,days,extend=
                 download_request.status = 'Restoring Files'
                 download_request.timestamp = date_now
 
-                db.session.commit()
+                survey.require_launch = True
+                launch_kwargs = {'task_id':task_id,'user_id':user_id,'zips':restored_zip}
+                GLOBALS.redisClient.set('download_launch_kwargs_'+str(survey.id),json.dumps(launch_kwargs))
 
-                process_files_for_download.apply_async(kwargs={'task_id':task_id,'user_id':user_id, 'zips':restored_zip},countdown=Config.RESTORE_COUNTDOWN)
+                db.session.commit()
 
             elif restore_date_img or restore_date_vid or restore_date_zip:
                 restore_date = [restore_date_img,restore_date_vid,restore_date_zip]
@@ -609,10 +624,11 @@ def restore_files_for_download(self,task_id,user_id,download_params,days,extend=
                 download_request.status = 'Restoring Files'
                 download_request.timestamp = restore_date
 
-                restore_diff = (datetime.utcnow() - restore_date).total_seconds()
+                survey.require_launch = True
+                launch_kwargs = {'task_id':task_id,'user_id':user_id,'zips':restored_zip}
+                GLOBALS.redisClient.set('download_launch_kwargs_'+str(survey.id),json.dumps(launch_kwargs))
+                
                 db.session.commit()
-
-                process_files_for_download.apply_async(kwargs={'task_id':task_id,'user_id':user_id, 'zips':restored_zip},countdown=Config.RESTORE_COUNTDOWN-restore_diff)
                 
             else:
                 download_request = db.session.query(DownloadRequest).filter(DownloadRequest.task_id==task_id).filter(DownloadRequest.user_id==user_id).filter(DownloadRequest.type=='file').first()
@@ -642,6 +658,7 @@ def process_files_for_download(self,task_id,user_id,zips):
     try:
         task = db.session.query(Task).get(task_id)
         survey = task.survey
+        survey_id = survey.id
 
         if zips:
             zip_folder = survey.organisation.folder + '-comp/' + Config.SURVEY_ZIP_FOLDER
@@ -670,6 +687,9 @@ def process_files_for_download(self,task_id,user_id,zips):
         download_request = db.session.query(DownloadRequest).filter(DownloadRequest.task_id==task_id).filter(DownloadRequest.user_id==user_id).filter(DownloadRequest.status=='Restoring files').filter(DownloadRequest.type=='file').first()
         download_request.status = 'Available'
         download_request.timestamp = datetime.now()
+
+        survey = db.session.query(Survey).get(survey_id)
+        survey.status = 'Ready'
         db.session.commit()
 
     except Exception as exc:

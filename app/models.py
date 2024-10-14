@@ -173,6 +173,7 @@ class Survey(db.Model):
     download_restore = db.Column(db.DateTime, index=False)
     edit_restore = db.Column(db.DateTime, index=False)
     empty_restore = db.Column(db.DateTime, index=False)
+    require_launch = db.Column(db.Boolean, default=False, index=False)
 
     def __repr__(self):
         return '<Survey {}>'.format(self.name)
@@ -676,6 +677,8 @@ class DownloadRequest(db.Model):
     type = db.Column(db.String(8), index=False) # file/csv/excel/json/zip
     status = db.Column(db.String(32), index=False) 
     timestamp = db.Column(db.DateTime, default=datetime.utcnow, index=False)
+    name = db.Column(db.String(64), index=False)
+    celery_id = db.Column(db.String(64), index=False)
     user_id = db.Column(db.Integer, db.ForeignKey('user.id'), index=True, unique=False)
     task_id = db.Column(db.Integer, db.ForeignKey('task.id'), index=False, unique=False)
 

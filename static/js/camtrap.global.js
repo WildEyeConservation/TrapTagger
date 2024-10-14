@@ -355,23 +355,29 @@ function buildDownloadRequest(download){
     var downloadRequest = document.createElement('div');
     downloadRequest.setAttribute('class', 'row');
     downloadRequest.id = 'downloadRequest-' + download.id;
-    // downloadRequest.setAttribute('style','border-bottom: 1px solid rgb(60,74,89); padding: 10px; height: auto; cursor: pointer;');
     downloadRequest.setAttribute('style','border-bottom: 1px solid rgb(60,74,89); margin: 0px; padding: 10px;');
     downloadsMenu.appendChild(downloadRequest);
 
-
-
-
     if (download.status == 'Available'){
         var col1 = document.createElement('div');
-        col1.setAttribute('class', 'col-lg-10');
+        col1.setAttribute('class', 'col-lg-9');
         col1.setAttribute('style', 'padding: 0px;');
         downloadRequest.appendChild(col1);
     
         var col2 = document.createElement('div');
-        col2.setAttribute('class', 'col-lg-2');
+        col2.setAttribute('class', 'col-lg-1');
         col2.setAttribute('style', 'padding: 0px; align-items: center; display: flex; justify-content: center;');
         downloadRequest.appendChild(col2);
+
+        var filler = document.createElement('div');
+        filler.setAttribute('class', 'col-lg-1');
+        filler.setAttribute('style', 'padding: 0px;');
+        downloadRequest.appendChild(filler);
+
+        var col3 = document.createElement('div');
+        col3.setAttribute('class', 'col-lg-1');
+        col3.setAttribute('style', 'padding: 0px; align-items: center; display: flex; justify-content: center;');
+        downloadRequest.appendChild(col3);
     
         var h6 = document.createElement('h7');
         h6.innerHTML = download.file;
@@ -415,6 +421,18 @@ function buildDownloadRequest(download){
             downloadBtn.setAttribute('title', 'Download');
             downloadBtn.setAttribute('href', download.url);
             col2.appendChild(downloadBtn);
+
+            var deleteBtn = document.createElement('a');
+            deleteBtn.innerHTML = '<i class="fa-solid fa-circle-xmark fa-2xl"></i>';
+            deleteBtn.setAttribute('style', 'cursor: pointer; color: #D9534F;');
+            deleteBtn.setAttribute('title', 'Delete');
+            deleteBtn.id = 'deleteDownloadBtn-' + download.id;
+            col3.appendChild(deleteBtn);
+
+            deleteBtn.addEventListener('click', function(){
+                let download_id = this.id.split('-')[1]
+                deleteDownload(download_id)
+            });
         }
     }
     else if (download.status == 'Restoring Files'){
@@ -532,14 +550,24 @@ function buildDownloadRequest(download){
     }
     else{
         var col1 = document.createElement('div');
-        col1.setAttribute('class', 'col-lg-10');
+        col1.setAttribute('class', 'col-lg-9');
         col1.setAttribute('style', 'padding: 0px;');
         downloadRequest.appendChild(col1);
     
         var col2 = document.createElement('div');
-        col2.setAttribute('class', 'col-lg-2');
+        col2.setAttribute('class', 'col-lg-1');
         col2.setAttribute('style', 'padding: 0px; align-items: center; display: flex; justify-content: center;');
         downloadRequest.appendChild(col2);
+
+        var filler = document.createElement('div');
+        filler.setAttribute('class', 'col-lg-1');
+        filler.setAttribute('style', 'padding: 0px;');
+        downloadRequest.appendChild(filler);
+
+        var col3 = document.createElement('div');
+        col3.setAttribute('class', 'col-lg-1');
+        col3.setAttribute('style', 'padding: 0px; align-items: center; display: flex; justify-content: center;');
+        downloadRequest.appendChild(col3);
     
         var h6 = document.createElement('h7');
         h6.innerHTML = download.file;
@@ -552,7 +580,20 @@ function buildDownloadRequest(download){
         col1.appendChild(div);
 
         col2.innerHTML = '<i class="fa-solid fa-spinner fa-spin fa-2xl" style="color: #DF694A"></i>';
-    
+
+        if (download.type != 'file'){
+            var deleteBtn = document.createElement('a');
+            deleteBtn.innerHTML = '<i class="fa-solid fa-circle-xmark fa-2xl"></i>';
+            deleteBtn.setAttribute('style', 'cursor: pointer; color: #D9534F;');
+            deleteBtn.setAttribute('title', 'Delete');
+            deleteBtn.id = 'deleteDownloadBtn-' + download.id;
+            col3.appendChild(deleteBtn);
+
+            deleteBtn.addEventListener('click', function(){
+                let download_id = this.id.split('-')[1]
+                deleteDownload(download_id)
+            });
+        }
     }
 }
 
@@ -584,6 +625,19 @@ function checkDownloads(){
         }
         downloadsTimer = setTimeout(checkDownloads, 60000)
     }
+}
+
+function deleteDownload(download_id){
+    /** Deletes a download request. */
+    var xhttp = new XMLHttpRequest();
+    xhttp.onreadystatechange = function () {
+        if (this.readyState == 4 && this.status == 200) {
+            reply = JSON.parse(this.responseText);
+            openDownloads()
+        }
+    };
+    xhttp.open('GET', '/deleteDownloadRequest/' + download_id);
+    xhttp.send();
 }
 
 $('#btnNextDownloads').click(function(event){

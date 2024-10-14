@@ -355,6 +355,10 @@ async function initiateDownloadAfterRestore(request_id,task_id) {
                     downloadWorker.postMessage({'func': 'startDownload', 'args': [topLevelHandle,selectedTask,surveyName,taskName,species,species_sorted,individual_sorted,flat_structure,include_empties,delete_items, include_video, include_frames, selectedSurvey, raw_files, request_id]})
                 }
                 else {
+                    document.getElementById('modalAlertHeader').innerHTML = 'Alert'
+                    document.getElementById('modalAlertBody').innerHTML = response.message
+                    document.getElementById('downloadsBtn').click()
+                    modalAlert.modal({keyboard: true});
                     document.getElementById('launchRestoreDownloadBtn-'+request_id.toString()).disabled = false
                 }
 
@@ -366,7 +370,7 @@ async function initiateDownloadAfterRestore(request_id,task_id) {
         } else {
             document.getElementById('modalAlertHeader').innerHTML = 'Alert'
             document.getElementById('modalAlertBody').innerHTML = 'This survey is currently being downloaded. Please try again later.'
-            modalDownload.modal('hide')
+            document.getElementById('downloadsBtn').click()
             modalAlert.modal({keyboard: true});
 
             document.getElementById('launchRestoreDownloadBtn-'+request_id.toString()).disabled = false
@@ -375,7 +379,7 @@ async function initiateDownloadAfterRestore(request_id,task_id) {
     } else {
         document.getElementById('modalAlertHeader').innerHTML = 'Alert'
         document.getElementById('modalAlertBody').innerHTML = 'You already have a download in progress. Please wait for that to complete before initiating a new one, or open a new tab.'
-        modalDownload.modal('hide')
+        document.getElementById('downloadsBtn').click()
         modalAlert.modal({keyboard: true});
 
         document.getElementById('launchRestoreDownloadBtn-'+request_id.toString()).disabled = true

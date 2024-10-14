@@ -730,7 +730,7 @@ def combine_list(list):
     return reply
 
 @celery.task(bind=True,max_retries=1,ignore_result=True)
-def generate_csv(self,selectedTasks, selectedLevel, requestedColumns, custom_columns, label_type, includes, excludes, startDate, endDate, column_translations, user_name):
+def generate_csv(self,selectedTasks, selectedLevel, requestedColumns, custom_columns, label_type, includes, excludes, startDate, endDate, column_translations, user_name, download_id):
     '''
     Celery task for generating a csv file. Locally saves a csv file for the requested tasks, with the requested column and row information.
 
@@ -745,6 +745,7 @@ def generate_csv(self,selectedTasks, selectedLevel, requestedColumns, custom_col
             startDate (dateTime): The start date for the data to be included in the csv
             endDate (dateTime): The end date for the data to be included in the csv
             user_name (str): The name of the user that has requested the csv
+            download_id (int): The id of the download request in the database
     '''
     
     try:
@@ -752,8 +753,8 @@ def generate_csv(self,selectedTasks, selectedLevel, requestedColumns, custom_col
         # filePath = task.survey.user.folder+'/docs/'
         # fileName = task.survey.user.username+'_'+task.survey.name+'_'+task.name+'.csv'
         filePath = task.survey.organisation.folder+'/docs/'
-        fileName = task.survey.organisation.name+'_'+user_name+'_'+task.survey.name+'_'+task.name+'.csv'
         randomness = randomString()
+        fileName = task.survey.organisation.name+'_'+user_name+'_'+task.survey.name+'_'+task.name+'_'+randomness+'.csv'
 
         # # Delete old file if exists
         # try:
@@ -1159,10 +1160,11 @@ def generate_csv(self,selectedTasks, selectedLevel, requestedColumns, custom_col
         # deleteFile.apply_async(kwargs={'fileName': filePath+fileName}, countdown=86400)
 
         # Set request status to complete
-        download_request = db.session.query(DownloadRequest).join(User).filter(DownloadRequest.task_id==selectedTasks[0]).filter(User.username==user_name).filter(DownloadRequest.type=='csv').first()
+        download_request = db.session.query(DownloadRequest).get(download_id)
         if download_request:
             download_request.status = 'Available'
             download_request.timestamp = datetime.now()
+            download_request.name = randomness
             db.session.commit()
 
     except Exception as exc:
@@ -1179,7 +1181,7 @@ def generate_csv(self,selectedTasks, selectedLevel, requestedColumns, custom_col
     return True
 
 @celery.task(bind=True,max_retries=5,ignore_result=True)
-def generate_wildbook_export(self,task_id, data, user_name):
+def generate_wildbook_export(self,task_id, data, user_name, download_id):
     '''
     Celery task for generating the WildBook export format. Saves export in zip file locally.
 
@@ -1192,14 +1194,15 @@ def generate_wildbook_export(self,task_id, data, user_name):
         os.makedirs('docs', exist_ok=True)
         task = db.session.query(Task).get(task_id)
         # fileName = task.survey.user.folder+'/docs/'+task.survey.user.username+'_'+task.survey.name+'_'+task.name
-        fileName = task.survey.organisation.folder+'/docs/'+task.survey.organisation.name+'_'+user_name+'_'+task.survey.name+'_'+task.name
+        randomness = randomString()
+        fileName = task.survey.organisation.folder+'/docs/'+task.survey.organisation.name+'_'+user_name+'_'+task.survey.name+'_'+task.name + '_' + randomness
         # # Delete old file if exists
         # try:
         #     GLOBALS.s3client.delete_object(Bucket=Config.BUCKET, Key=fileName+'.zip')
         # except:
         #     pass
 
-        tempFolderName = fileName+'_temp'
+        tempFolderName = fileName+'_'+randomness+'_temp'
         species = db.session.query(Label).get(int(data['species']))
 
         df = pd.read_sql(db.session.query( \
@@ -1273,10 +1276,11 @@ def generate_wildbook_export(self,task_id, data, user_name):
         # Schedule deletion
         # deleteFile.apply_async(kwargs={'fileName': fileName+'.zip'}, countdown=3600)
 
-        download_request = db.session.query(DownloadRequest).join(User).filter(DownloadRequest.task_id==task_id).filter(User.username==user_name).filter(DownloadRequest.type=='export').first()
+        download_request = db.session.query(DownloadRequest).get(download_id)
         if download_request:
             download_request.status = 'Available'
             download_request.timestamp = datetime.now()
+            download_request.name = randomness
             db.session.commit()
 
     except Exception as exc:
@@ -1342,7 +1346,7 @@ def child_headings(task_id, label, currentCol, speciesColumns, sheet):
 
 
 @celery.task(bind=True,max_retries=5,ignore_result=True)
-def generate_excel(self,task_id,user_name):
+def generate_excel(self,task_id,user_name,download_id):
     '''Celery task for generating an Excel summary of a specified task. Saves the file locally for download.'''
     try:
         app.logger.info('generate_excel commenced')
@@ -1614,7 +1618,8 @@ def generate_excel(self,task_id,user_name):
         sheet[finalColumn+str(currentRow+1)].border = Border(right=Side(style='thin'), bottom=Side(style='thin'), left=Side(style='thin'))
 
         # fileName = user.folder+'/docs/'+user.username+'_'+survey.name+'_'+task.name+'.xlsx'
-        fileName = organisation.folder+'/docs/'+organisation.name+'_'+user_name+'_'+survey.name+'_'+task.name+'.xlsx'
+        randomness = randomString()
+        fileName = organisation.folder+'/docs/'+organisation.name+'_'+user_name+'_'+survey.name+'_'+task.name+'_'+randomness+'.xlsx'
 
         # Write new file to S3 for fetching
         with tempfile.NamedTemporaryFile(delete=True, suffix='.xlsx') as temp_file:
@@ -1624,10 +1629,11 @@ def generate_excel(self,task_id,user_name):
         # Schedule deletion
         # deleteFile.apply_async(kwargs={'fileName': fileName}, countdown=3600)
 
-        download_request = db.session.query(DownloadRequest).join(User).filter(DownloadRequest.task_id==task_id).filter(User.username==user_name).filter(DownloadRequest.type=='excel').first()
+        download_request = db.session.query(DownloadRequest).get(download_id)
         if download_request:
             download_request.status = 'Available'
             download_request.timestamp = datetime.now()
+            download_request.name = randomness
             db.session.commit()
 
     except Exception as exc:
@@ -2307,13 +2313,14 @@ def generate_label_spec(self,sourceBucket,translations):
     return True
 
 @celery.task(bind=True,max_retries=1,ignore_result=True)
-def generate_coco(self,task_id,user_name):
+def generate_coco(self,task_id,user_name,download_id):
     '''Generates a COCO export of a task.'''
 
     try:
         task = db.session.query(Task).get(task_id)
         # fileName = task.survey.user.folder+'/docs/'+task.survey.user.username+'_'+task.survey.name+'_'+task.name+'.json'
-        fileName = task.survey.organisation.folder+'/docs/'+task.survey.organisation.name+'_'+user_name+'_'+task.survey.name+'_'+task.name+'.json'
+        randomness = randomString()
+        fileName = task.survey.organisation.folder+'/docs/'+task.survey.organisation.name+'_'+user_name+'_'+task.survey.name+'_'+task.name+'_'+randomness+'.json'
 
         # # Delete old file if exists
         # try:
@@ -2404,10 +2411,11 @@ def generate_coco(self,task_id,user_name):
         # Schedule deletion
         # deleteFile.apply_async(kwargs={'fileName': fileName}, countdown=3600)
 
-        download_request = db.session.query(DownloadRequest).join(User).filter(DownloadRequest.task_id==task_id).filter(User.username==user_name).filter(DownloadRequest.type=='coco').first()
+        download_request = db.session.query(DownloadRequest).get(download_id)
         if download_request:
             download_request.status = 'Available'
             download_request.timestamp = datetime.now() 
+            download_request.name = randomness
             db.session.commit()
 
     except Exception as exc:
