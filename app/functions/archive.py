@@ -244,7 +244,7 @@ def extract_zip(self,zip_key):
             splits = image_path.split('/')
             splits[0] = splits[0] + '-comp'
             image_key = '/'.join(splits)
-            image_fn = image_id + '.jpg'
+            image_fn = str(image_id) + '.jpg'
             with zipfile.ZipFile(zip_path, 'r') as zip_ref:
                 zip_ref.extract(image_fn)
                 GLOBALS.s3client.upload_file(Bucket=Config.BUCKET, Key=image_key, Filename=image_fn)

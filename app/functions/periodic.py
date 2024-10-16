@@ -931,14 +931,17 @@ def monitorFileRestores():
         
         for survey in surveys: 
             try:
-                if survey.download_restore and survey.download_restore<start_restore:
+                restore_dates = [survey.download_restore,survey.id_restore,survey.empty_restore,survey.edit_restore]
+                restore_dates = [r for r in restore_dates if r]
+                max_restore = max(restore_dates)
+                if survey.download_restore and survey.download_restore<start_restore and survey.download_restore==max_restore:
                     launch_kwargs = GLOBALS.redisClient.get('download_launch_kwargs_'+str(survey.id)).decode()
                     launch_kwargs = json.loads(launch_kwargs)  
                     survey.require_launch = False
                     process_files_for_download.apply_async(kwargs=launch_kwargs)
                     GLOBALS.redisClient.delete('download_launch_kwargs_'+str(survey.id))
 
-                elif survey.id_restore and survey.id_restore<start_restore:
+                elif survey.id_restore and survey.id_restore<start_restore and survey.id_restore==max_restore:
                     launch_kwargs = GLOBALS.redisClient.get('id_launch_kwargs_'+str(survey.id)).decode()
                     launch_kwargs = json.loads(launch_kwargs)                  
                     survey.require_launch = False
@@ -948,14 +951,14 @@ def monitorFileRestores():
                         launch_task.apply_async(kwargs=launch_kwargs)
                     GLOBALS.redisClient.delete('id_launch_kwargs_'+str(survey.id))
 
-                elif survey.empty_restore and survey.empty_restore<start_restore:
+                elif survey.empty_restore and survey.empty_restore<start_restore and survey.empty_restore==max_restore:
                     launch_kwargs = GLOBALS.redisClient.get('empty_launch_kwargs_'+str(survey.id)).decode()
                     launch_kwargs = json.loads(launch_kwargs)  
                     survey.require_launch = False
                     extract_zips.apply_async(kwargs=launch_kwargs)
                     GLOBALS.redisClient.delete('empty_launch_kwargs_'+str(survey.id))
 
-                elif survey.edit_restore and survey.edit_restore<start_restore:
+                elif survey.edit_restore and survey.edit_restore<start_restore and survey.edit_restore==max_restore:
                     launch_kwargs = GLOBALS.redisClient.get('edit_launch_kwargs_'+str(survey.id)).decode()
                     launch_kwargs = json.loads(launch_kwargs)  
                     survey.require_launch = False
