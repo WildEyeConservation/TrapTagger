@@ -1349,7 +1349,7 @@ def classifyTask(self,task,reClusters=None,trapgroup_ids=None):
         admin = db.session.query(User).filter(User.username == 'Admin').first()
         parentLabel = task.parent_classification
         survey_id = task.survey_id
-        classifier_id = task.survey.classifier_id
+        classifier_id = db.session.query(Classifier.id).join(Survey).join(Task).filter(Task.id==task.id).first()[0]
 
         api_check = db.session.query(Detection).join(Image).join(Camera).join(Trapgroup).filter(Trapgroup.survey_id==survey_id).filter(Detection.source=='api').first()
         if api_check:
@@ -2576,7 +2576,7 @@ def getClusterClassifications(cluster_id):
     startTime=time.time()
     cluster = db.session.query(Cluster).get(cluster_id)
     task = cluster.task
-    classifier_id = task.survey.classifier_id
+    classifier_id = db.session.query(Classifier.id).join(Survey).join(Task).filter(Task.id==cluster.task_id).first()[0]
     
     classSQ = db.session.query(Label.id.label('label_id'),func.count(distinct(Detection.id)).label('count'))\
                             .join(Translation)\
@@ -3120,7 +3120,7 @@ def required_images(cluster,relevent_classifications,transDict):
     '''
     
     sortedImages = db.session.query(Image).filter(Image.clusters.contains(cluster)).order_by(desc(Image.detection_rating)).all()
-    classifier_id = cluster.task.survey.classifier_id
+    classifier_id = db.session.query(Classifier.id).join(Survey).join(Task).filter(Task.id==cluster.task_id).first()[0]
 
     species = db.session.query(Detection.classification)\
                         .join(Image)\

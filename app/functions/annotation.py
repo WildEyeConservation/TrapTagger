@@ -1383,7 +1383,7 @@ def fetch_clusters(taggingLevel,task_id,isBounding,trapgroup_id,limit=None,id=No
 
         if '-3' in taggingLevel:
             task = db.session.query(Task).get(task_id)
-            classifier_id = task.survey.classifier_id
+            classifier_id = db.session.query(Classifier.id).join(Survey).join(Task).filter(Task.id==task_id).first()[0]
             cluster_ids = cluster_ids[:limit]
             classSQ = db.session.query(Cluster.id,Label.description.label('label'),func.count(distinct(Detection.id)).label('count'))\
                                     .join(Image,Cluster.images)\

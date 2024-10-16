@@ -2932,15 +2932,13 @@ def classifyCluster(cluster):
     '''
     
     try:
+        classifier_id = db.session.query(Classifier.id).join(Survey).join(Task).filter(Task.id==cluster.task_id).first()[0]
         classification, count = db.session.query(Label.description,func.count(distinct(Detection.id)))\
                                 .join(Translation)\
                                 .join(Detection,Detection.classification==Translation.classification)\
                                 .join(Image)\
-                                .join(Camera)\
-                                .join(Trapgroup)\
-                                .join(Survey)\
                                 .join(ClassificationLabel,ClassificationLabel.classification==Detection.classification) \
-                                .filter(ClassificationLabel.classifier_id==Survey.classifier_id) \
+                                .filter(ClassificationLabel.classifier_id==classifier_id) \
                                 .filter(Detection.class_score>ClassificationLabel.threshold) \
                                 .filter(Translation.task==cluster.task)\
                                 .filter(Image.clusters.contains(cluster))\
