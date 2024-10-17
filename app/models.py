@@ -648,8 +648,8 @@ class APIKey(db.Model):
 
 class ClassificationLabel(db.Model):
     id = db.Column(db.Integer, primary_key=True)
-    classification = db.Column(db.String(64), index=False)
-    classifier_id = db.Column(db.Integer, db.ForeignKey('classifier.id'), index=False, unique=False)
+    classification = db.Column(db.String(64), index=True)
+    classifier_id = db.Column(db.Integer, db.ForeignKey('classifier.id'), index=True, unique=False)
     threshold = db.Column(db.Float, index=False)
 
     def __repr__(self):
