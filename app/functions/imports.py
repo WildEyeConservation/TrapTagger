@@ -1373,376 +1373,376 @@ def setupDatabase():
             human_class = ClassificationLabel(classifier=megadetector, classification='human')
             db.session.add(human_class)
 
-    if db.session.query(Task).filter(Task.name=='Southern Africa').first()==None:
-        task = Task(name='Southern Africa')
-        db.session.add(task)
+    # if db.session.query(Task).filter(Task.name=='Southern Africa').first()==None:
+    #     task = Task(name='Southern Africa')
+    #     db.session.add(task)
 
 
-    sa_id = db.session.query(Task).filter(Task.name=='Southern Africa').filter(Task.survey==None).first().id
+    # sa_id = db.session.query(Task).filter(Task.name=='Southern Africa').filter(Task.survey==None).first().id
 
-    if db.session.query(Label).filter(Label.description=='Lion').filter(Label.task_id==sa_id).first()==None:
-        lion = Label(description='Lion', hotkey='1', task_id=sa_id)
-        db.session.add(lion)
+    # if db.session.query(Label).filter(Label.description=='Lion').filter(Label.task_id==sa_id).first()==None:
+    #     lion = Label(description='Lion', hotkey='1', task_id=sa_id)
+    #     db.session.add(lion)
 
-    if db.session.query(Label).filter(Label.description=='Leopard').filter(Label.task_id==sa_id).first()==None:
-        leopard = Label(description='Leopard', hotkey='2',task_id=sa_id)
-        db.session.add(leopard)
+    # if db.session.query(Label).filter(Label.description=='Leopard').filter(Label.task_id==sa_id).first()==None:
+    #     leopard = Label(description='Leopard', hotkey='2',task_id=sa_id)
+    #     db.session.add(leopard)
 
-    if db.session.query(Label).filter(Label.description=='Cheetah').filter(Label.task_id==sa_id).first()==None:
-        cheetah = Label(description='Cheetah', hotkey='c', task_id=sa_id)
-        db.session.add(cheetah)
+    # if db.session.query(Label).filter(Label.description=='Cheetah').filter(Label.task_id==sa_id).first()==None:
+    #     cheetah = Label(description='Cheetah', hotkey='c', task_id=sa_id)
+    #     db.session.add(cheetah)
 
-    if db.session.query(Label).filter(Label.description=='Wild Dog').filter(Label.task_id==sa_id).first()==None:
-        wilddog = Label(description='Wild Dog', hotkey='3', task_id=sa_id)
-        db.session.add(wilddog)
+    # if db.session.query(Label).filter(Label.description=='Wild Dog').filter(Label.task_id==sa_id).first()==None:
+    #     wilddog = Label(description='Wild Dog', hotkey='3', task_id=sa_id)
+    #     db.session.add(wilddog)
 
-    if db.session.query(Label).filter(Label.description=='Elephant').filter(Label.task_id==sa_id).first()==None:
-        elephant = Label(description='Elephant', hotkey='e', task_id=sa_id)
-        db.session.add(elephant)
+    # if db.session.query(Label).filter(Label.description=='Elephant').filter(Label.task_id==sa_id).first()==None:
+    #     elephant = Label(description='Elephant', hotkey='e', task_id=sa_id)
+    #     db.session.add(elephant)
 
-    if db.session.query(Label).filter(Label.description=='Hippo').filter(Label.task_id==sa_id).first()==None:
-        hippo = Label(description='Hippo', hotkey='4', task_id=sa_id)
-        db.session.add(hippo)
+    # if db.session.query(Label).filter(Label.description=='Hippo').filter(Label.task_id==sa_id).first()==None:
+    #     hippo = Label(description='Hippo', hotkey='4', task_id=sa_id)
+    #     db.session.add(hippo)
 
-    if db.session.query(Label).filter(Label.description=='Giraffe').filter(Label.task_id==sa_id).first()==None:
-        giraffe = Label(description='Giraffe', hotkey='g', task_id=sa_id)
-        db.session.add(giraffe)
+    # if db.session.query(Label).filter(Label.description=='Giraffe').filter(Label.task_id==sa_id).first()==None:
+    #     giraffe = Label(description='Giraffe', hotkey='g', task_id=sa_id)
+    #     db.session.add(giraffe)
 
-    if db.session.query(Label).filter(Label.description=='Buffalo').filter(Label.task_id==sa_id).first()==None:
-        buffalo = Label(description='Buffalo', hotkey='5', task_id=sa_id)
-        db.session.add(buffalo)
+    # if db.session.query(Label).filter(Label.description=='Buffalo').filter(Label.task_id==sa_id).first()==None:
+    #     buffalo = Label(description='Buffalo', hotkey='5', task_id=sa_id)
+    #     db.session.add(buffalo)
 
-    if db.session.query(Label).filter(Label.description=='Zebra').filter(Label.task_id==sa_id).first()==None:
-        zebra = Label(description='Zebra', hotkey='z', task_id=sa_id)
-        db.session.add(zebra)
+    # if db.session.query(Label).filter(Label.description=='Zebra').filter(Label.task_id==sa_id).first()==None:
+    #     zebra = Label(description='Zebra', hotkey='z', task_id=sa_id)
+    #     db.session.add(zebra)
 
-    if db.session.query(Label).filter(Label.description=='Small & Medium Cats').filter(Label.task_id==sa_id).first()==None:
-        smc = Label(description='Small & Medium Cats', hotkey='6', task_id=sa_id)
-        db.session.add(smc)
+    # if db.session.query(Label).filter(Label.description=='Small & Medium Cats').filter(Label.task_id==sa_id).first()==None:
+    #     smc = Label(description='Small & Medium Cats', hotkey='6', task_id=sa_id)
+    #     db.session.add(smc)
 
-    smc_id = db.session.query(Label).filter(Label.description=='Small & Medium Cats').filter(Label.task_id==sa_id).first().id
+    # smc_id = db.session.query(Label).filter(Label.description=='Small & Medium Cats').filter(Label.task_id==sa_id).first().id
 
-    if db.session.query(Label).filter(Label.description=='Wildcat').filter(Label.task_id==sa_id).first()==None:
-        wildcat = Label(description='Wildcat', hotkey='w', parent_id=smc_id, task_id=sa_id)
-        db.session.add(wildcat)
+    # if db.session.query(Label).filter(Label.description=='Wildcat').filter(Label.task_id==sa_id).first()==None:
+    #     wildcat = Label(description='Wildcat', hotkey='w', parent_id=smc_id, task_id=sa_id)
+    #     db.session.add(wildcat)
 
-    if db.session.query(Label).filter(Label.description=='Civet').filter(Label.task_id==sa_id).first()==None:
-        civet = Label(description='Civet', hotkey='1', parent_id=smc_id, task_id=sa_id)
-        db.session.add(civet)
+    # if db.session.query(Label).filter(Label.description=='Civet').filter(Label.task_id==sa_id).first()==None:
+    #     civet = Label(description='Civet', hotkey='1', parent_id=smc_id, task_id=sa_id)
+    #     db.session.add(civet)
 
-    if db.session.query(Label).filter(Label.description=='L-spotted Genet').filter(Label.task_id==sa_id).first()==None:
-        genet = Label(description='L-spotted Genet', hotkey='g', parent_id=smc_id, task_id=sa_id)
-        db.session.add(genet)
+    # if db.session.query(Label).filter(Label.description=='L-spotted Genet').filter(Label.task_id==sa_id).first()==None:
+    #     genet = Label(description='L-spotted Genet', hotkey='g', parent_id=smc_id, task_id=sa_id)
+    #     db.session.add(genet)
 
-    if db.session.query(Label).filter(Label.description=='Caracal').filter(Label.task_id==sa_id).first()==None:
-        caracal = Label(description='Caracal', hotkey='2', parent_id=smc_id, task_id=sa_id)
-        db.session.add(caracal)
+    # if db.session.query(Label).filter(Label.description=='Caracal').filter(Label.task_id==sa_id).first()==None:
+    #     caracal = Label(description='Caracal', hotkey='2', parent_id=smc_id, task_id=sa_id)
+    #     db.session.add(caracal)
 
-    if db.session.query(Label).filter(Label.description=='Serval').filter(Label.task_id==sa_id).first()==None:
-        serval = Label(description='Serval', hotkey='s', parent_id=smc_id, task_id=sa_id)
-        db.session.add(serval)
+    # if db.session.query(Label).filter(Label.description=='Serval').filter(Label.task_id==sa_id).first()==None:
+    #     serval = Label(description='Serval', hotkey='s', parent_id=smc_id, task_id=sa_id)
+    #     db.session.add(serval)
 
-    if db.session.query(Label).filter(Label.description=='Hyeana').filter(Label.task_id==sa_id).first()==None:
-        hyena = Label(description='Hyeana', hotkey='7', task_id=sa_id)
-        db.session.add(hyena)
+    # if db.session.query(Label).filter(Label.description=='Hyeana').filter(Label.task_id==sa_id).first()==None:
+    #     hyena = Label(description='Hyeana', hotkey='7', task_id=sa_id)
+    #     db.session.add(hyena)
 
-    hyena_id = db.session.query(Label).filter(Label.description=='Hyeana').filter(Label.task_id==sa_id).first().id
+    # hyena_id = db.session.query(Label).filter(Label.description=='Hyeana').filter(Label.task_id==sa_id).first().id
 
-    if db.session.query(Label).filter(Label.description=='Aardwolf').filter(Label.task_id==sa_id).first()==None:
-        awolf = Label(description='Aardwolf', hotkey='a', parent_id=hyena_id, task_id=sa_id)
-        db.session.add(awolf)
+    # if db.session.query(Label).filter(Label.description=='Aardwolf').filter(Label.task_id==sa_id).first()==None:
+    #     awolf = Label(description='Aardwolf', hotkey='a', parent_id=hyena_id, task_id=sa_id)
+    #     db.session.add(awolf)
 
-    if db.session.query(Label).filter(Label.description=='Spotted hyeana').filter(Label.task_id==sa_id).first()==None:
-        spothyena = Label(description='Spotted hyeana', hotkey='s', parent_id=hyena_id, task_id=sa_id)
-        db.session.add(spothyena)
+    # if db.session.query(Label).filter(Label.description=='Spotted hyeana').filter(Label.task_id==sa_id).first()==None:
+    #     spothyena = Label(description='Spotted hyeana', hotkey='s', parent_id=hyena_id, task_id=sa_id)
+    #     db.session.add(spothyena)
 
-    if db.session.query(Label).filter(Label.description=='Brown hyeana').filter(Label.task_id==sa_id).first()==None:
-        bhyena = Label(description='Brown hyeana', hotkey='b', parent_id=hyena_id, task_id=sa_id)
-        db.session.add(bhyena)
+    # if db.session.query(Label).filter(Label.description=='Brown hyeana').filter(Label.task_id==sa_id).first()==None:
+    #     bhyena = Label(description='Brown hyeana', hotkey='b', parent_id=hyena_id, task_id=sa_id)
+    #     db.session.add(bhyena)
 
-    if db.session.query(Label).filter(Label.description=='Jackal').filter(Label.task_id==sa_id).first()==None:
-        jacal = Label(description='Jackal', hotkey='j', task_id=sa_id)
-        db.session.add(jacal)
+    # if db.session.query(Label).filter(Label.description=='Jackal').filter(Label.task_id==sa_id).first()==None:
+    #     jacal = Label(description='Jackal', hotkey='j', task_id=sa_id)
+    #     db.session.add(jacal)
 
-    jackal_id = db.session.query(Label).filter(Label.description=='Jackal').filter(Label.task_id==sa_id).first().id
+    # jackal_id = db.session.query(Label).filter(Label.description=='Jackal').filter(Label.task_id==sa_id).first().id
 
-    if db.session.query(Label).filter(Label.description=='Black-backed jackal').filter(Label.task_id==sa_id).first()==None:
-        bjac = Label(description='Black-backed jackal', hotkey='b', parent_id=jackal_id, task_id=sa_id)
-        db.session.add(bjac)
+    # if db.session.query(Label).filter(Label.description=='Black-backed jackal').filter(Label.task_id==sa_id).first()==None:
+    #     bjac = Label(description='Black-backed jackal', hotkey='b', parent_id=jackal_id, task_id=sa_id)
+    #     db.session.add(bjac)
 
-    if db.session.query(Label).filter(Label.description=='Side-striped jackal').filter(Label.task_id==sa_id).first()==None:
-        sjac = Label(description='Side-striped jackal', hotkey='s', parent_id=jackal_id, task_id=sa_id)
-        db.session.add(sjac)
+    # if db.session.query(Label).filter(Label.description=='Side-striped jackal').filter(Label.task_id==sa_id).first()==None:
+    #     sjac = Label(description='Side-striped jackal', hotkey='s', parent_id=jackal_id, task_id=sa_id)
+    #     db.session.add(sjac)
 
-    if db.session.query(Label).filter(Label.description=='Mongoose').filter(Label.task_id==sa_id).first()==None:
-        mongoose = Label(description='Mongoose', hotkey='m', task_id=sa_id)
-        db.session.add(mongoose)
+    # if db.session.query(Label).filter(Label.description=='Mongoose').filter(Label.task_id==sa_id).first()==None:
+    #     mongoose = Label(description='Mongoose', hotkey='m', task_id=sa_id)
+    #     db.session.add(mongoose)
 
-    mongoose_id = db.session.query(Label).filter(Label.description=='Mongoose').filter(Label.task_id==sa_id).first().id
+    # mongoose_id = db.session.query(Label).filter(Label.description=='Mongoose').filter(Label.task_id==sa_id).first().id
 
-    if db.session.query(Label).filter(Label.description=='White-tailed mongoose').filter(Label.task_id==sa_id).first()==None:
-        wtmongoose = Label(description='White-tailed mongoose', hotkey='w', parent_id=mongoose_id, task_id=sa_id)
-        db.session.add(wtmongoose)
+    # if db.session.query(Label).filter(Label.description=='White-tailed mongoose').filter(Label.task_id==sa_id).first()==None:
+    #     wtmongoose = Label(description='White-tailed mongoose', hotkey='w', parent_id=mongoose_id, task_id=sa_id)
+    #     db.session.add(wtmongoose)
 
-    if db.session.query(Label).filter(Label.description=='Selous mongoose').filter(Label.task_id==sa_id).first()==None:
-        semongoose = Label(description='Selous mongoose', hotkey='1', parent_id=mongoose_id, task_id=sa_id)
-        db.session.add(semongoose)
+    # if db.session.query(Label).filter(Label.description=='Selous mongoose').filter(Label.task_id==sa_id).first()==None:
+    #     semongoose = Label(description='Selous mongoose', hotkey='1', parent_id=mongoose_id, task_id=sa_id)
+    #     db.session.add(semongoose)
 
-    if db.session.query(Label).filter(Label.description=="Meller's mongoose").filter(Label.task_id==sa_id).first()==None:
-        memong = Label(description="Meller's mongoose", hotkey='m', parent_id=mongoose_id, task_id=sa_id)
-        db.session.add(memong)
+    # if db.session.query(Label).filter(Label.description=="Meller's mongoose").filter(Label.task_id==sa_id).first()==None:
+    #     memong = Label(description="Meller's mongoose", hotkey='m', parent_id=mongoose_id, task_id=sa_id)
+    #     db.session.add(memong)
 
-    if db.session.query(Label).filter(Label.description=='Bushy-tailed mongoose').filter(Label.task_id==sa_id).first()==None:
-        btmongoose = Label(description='Bushy-tailed mongoose', hotkey='2', parent_id=mongoose_id, task_id=sa_id)
-        db.session.add(btmongoose)
+    # if db.session.query(Label).filter(Label.description=='Bushy-tailed mongoose').filter(Label.task_id==sa_id).first()==None:
+    #     btmongoose = Label(description='Bushy-tailed mongoose', hotkey='2', parent_id=mongoose_id, task_id=sa_id)
+    #     db.session.add(btmongoose)
 
-    if db.session.query(Label).filter(Label.description=='Slender mongoose').filter(Label.task_id==sa_id).first()==None:
-        slmongoose = Label(description='Slender mongoose', hotkey='3', parent_id=mongoose_id, task_id=sa_id)
-        db.session.add(slmongoose)
+    # if db.session.query(Label).filter(Label.description=='Slender mongoose').filter(Label.task_id==sa_id).first()==None:
+    #     slmongoose = Label(description='Slender mongoose', hotkey='3', parent_id=mongoose_id, task_id=sa_id)
+    #     db.session.add(slmongoose)
 
-    if db.session.query(Label).filter(Label.description=='Dwarf mongoose').filter(Label.task_id==sa_id).first()==None:
-        dwmongoose = Label(description='Dwarf mongoose', hotkey='d', parent_id=mongoose_id, task_id=sa_id)
-        db.session.add(dwmongoose)
+    # if db.session.query(Label).filter(Label.description=='Dwarf mongoose').filter(Label.task_id==sa_id).first()==None:
+    #     dwmongoose = Label(description='Dwarf mongoose', hotkey='d', parent_id=mongoose_id, task_id=sa_id)
+    #     db.session.add(dwmongoose)
 
-    if db.session.query(Label).filter(Label.description=='Banded mongoose').filter(Label.task_id==sa_id).first()==None:
-        bandedmongoose = Label(description='Banded mongoose', hotkey='4', parent_id=mongoose_id, task_id=sa_id)
-        db.session.add(bandedmongoose)
+    # if db.session.query(Label).filter(Label.description=='Banded mongoose').filter(Label.task_id==sa_id).first()==None:
+    #     bandedmongoose = Label(description='Banded mongoose', hotkey='4', parent_id=mongoose_id, task_id=sa_id)
+    #     db.session.add(bandedmongoose)
 
-    if db.session.query(Label).filter(Label.description=='Yellow mongoose').filter(Label.task_id==sa_id).first()==None:
-        ymongoose = Label(description='Yellow mongoose', hotkey='y', parent_id=mongoose_id, task_id=sa_id)
-        db.session.add(ymongoose)
+    # if db.session.query(Label).filter(Label.description=='Yellow mongoose').filter(Label.task_id==sa_id).first()==None:
+    #     ymongoose = Label(description='Yellow mongoose', hotkey='y', parent_id=mongoose_id, task_id=sa_id)
+    #     db.session.add(ymongoose)
 
-    if db.session.query(Label).filter(Label.description=='Pig').filter(Label.task_id==sa_id).first()==None:
-        pig = Label(description='Pig', hotkey='8', task_id=sa_id)
-        db.session.add(pig)
+    # if db.session.query(Label).filter(Label.description=='Pig').filter(Label.task_id==sa_id).first()==None:
+    #     pig = Label(description='Pig', hotkey='8', task_id=sa_id)
+    #     db.session.add(pig)
 
-    pig_id = db.session.query(Label).filter(Label.description=='Pig').filter(Label.task_id==sa_id).first().id
+    # pig_id = db.session.query(Label).filter(Label.description=='Pig').filter(Label.task_id==sa_id).first().id
 
-    if db.session.query(Label).filter(Label.description=='Warthog').filter(Label.task_id==sa_id).first()==None:
-        warthog = Label(description='Warthog', hotkey='w', parent_id=pig_id, task_id=sa_id)
-        db.session.add(warthog)
+    # if db.session.query(Label).filter(Label.description=='Warthog').filter(Label.task_id==sa_id).first()==None:
+    #     warthog = Label(description='Warthog', hotkey='w', parent_id=pig_id, task_id=sa_id)
+    #     db.session.add(warthog)
 
-    if db.session.query(Label).filter(Label.description=='Bushpig').filter(Label.task_id==sa_id).first()==None:
-        bushpig = Label(description='Bushpig', hotkey='b', parent_id=pig_id, task_id=sa_id)
-        db.session.add(bushpig)
+    # if db.session.query(Label).filter(Label.description=='Bushpig').filter(Label.task_id==sa_id).first()==None:
+    #     bushpig = Label(description='Bushpig', hotkey='b', parent_id=pig_id, task_id=sa_id)
+    #     db.session.add(bushpig)
 
-    if db.session.query(Label).filter(Label.description=='Antelope').filter(Label.task_id==sa_id).first()==None:
-        antelope = Label(description='Antelope', hotkey='a', task_id=sa_id)
-        db.session.add(antelope)
+    # if db.session.query(Label).filter(Label.description=='Antelope').filter(Label.task_id==sa_id).first()==None:
+    #     antelope = Label(description='Antelope', hotkey='a', task_id=sa_id)
+    #     db.session.add(antelope)
 
-    antelope_id = db.session.query(Label).filter(Label.description=='Antelope').filter(Label.task_id==sa_id).first().id
+    # antelope_id = db.session.query(Label).filter(Label.description=='Antelope').filter(Label.task_id==sa_id).first().id
 
-    if db.session.query(Label).filter(Label.description=='Eland').filter(Label.task_id==sa_id).first()==None:
-        eland = Label(description='Eland', hotkey='e', parent_id = antelope_id, task_id=sa_id)
-        db.session.add(eland)
+    # if db.session.query(Label).filter(Label.description=='Eland').filter(Label.task_id==sa_id).first()==None:
+    #     eland = Label(description='Eland', hotkey='e', parent_id = antelope_id, task_id=sa_id)
+    #     db.session.add(eland)
 
-    if db.session.query(Label).filter(Label.description=='Roan').filter(Label.task_id==sa_id).first()==None:
-        roan = Label(description='Roan', hotkey='1', parent_id = antelope_id, task_id=sa_id)
-        db.session.add(roan)
+    # if db.session.query(Label).filter(Label.description=='Roan').filter(Label.task_id==sa_id).first()==None:
+    #     roan = Label(description='Roan', hotkey='1', parent_id = antelope_id, task_id=sa_id)
+    #     db.session.add(roan)
 
-    if db.session.query(Label).filter(Label.description=='Sable').filter(Label.task_id==sa_id).first()==None:
-        sable = Label(description='Sable', hotkey='2', parent_id = antelope_id, task_id=sa_id)
-        db.session.add(sable)
+    # if db.session.query(Label).filter(Label.description=='Sable').filter(Label.task_id==sa_id).first()==None:
+    #     sable = Label(description='Sable', hotkey='2', parent_id = antelope_id, task_id=sa_id)
+    #     db.session.add(sable)
 
-    if db.session.query(Label).filter(Label.description=='Kudu').filter(Label.task_id==sa_id).first()==None:
-        kudu = Label(description='Kudu', hotkey='3', parent_id = antelope_id, task_id=sa_id)
-        db.session.add(kudu)
+    # if db.session.query(Label).filter(Label.description=='Kudu').filter(Label.task_id==sa_id).first()==None:
+    #     kudu = Label(description='Kudu', hotkey='3', parent_id = antelope_id, task_id=sa_id)
+    #     db.session.add(kudu)
 
-    if db.session.query(Label).filter(Label.description=='Tsessebe').filter(Label.task_id==sa_id).first()==None:
-        tsessebe = Label(description='Tsessebe', hotkey='t', parent_id = antelope_id, task_id=sa_id)
-        db.session.add(tsessebe)
+    # if db.session.query(Label).filter(Label.description=='Tsessebe').filter(Label.task_id==sa_id).first()==None:
+    #     tsessebe = Label(description='Tsessebe', hotkey='t', parent_id = antelope_id, task_id=sa_id)
+    #     db.session.add(tsessebe)
 
-    if db.session.query(Label).filter(Label.description=='Wildebeest').filter(Label.task_id==sa_id).first()==None:
-        wildebeest = Label(description='Wildebeest', hotkey='w', parent_id = antelope_id, task_id=sa_id)
-        db.session.add(wildebeest)
+    # if db.session.query(Label).filter(Label.description=='Wildebeest').filter(Label.task_id==sa_id).first()==None:
+    #     wildebeest = Label(description='Wildebeest', hotkey='w', parent_id = antelope_id, task_id=sa_id)
+    #     db.session.add(wildebeest)
 
-    if db.session.query(Label).filter(Label.description=='Impala').filter(Label.task_id==sa_id).first()==None:
-        impala = Label(description='Impala', hotkey='i', parent_id = antelope_id, task_id=sa_id)
-        db.session.add(impala)
+    # if db.session.query(Label).filter(Label.description=='Impala').filter(Label.task_id==sa_id).first()==None:
+    #     impala = Label(description='Impala', hotkey='i', parent_id = antelope_id, task_id=sa_id)
+    #     db.session.add(impala)
 
-    if db.session.query(Label).filter(Label.description=='Reedbuck').filter(Label.task_id==sa_id).first()==None:
-        Reedbuck = Label(description='Reedbuck', hotkey='4', parent_id = antelope_id, task_id=sa_id)
-        db.session.add(Reedbuck)
+    # if db.session.query(Label).filter(Label.description=='Reedbuck').filter(Label.task_id==sa_id).first()==None:
+    #     Reedbuck = Label(description='Reedbuck', hotkey='4', parent_id = antelope_id, task_id=sa_id)
+    #     db.session.add(Reedbuck)
 
-    if db.session.query(Label).filter(Label.description=='Bushbuck').filter(Label.task_id==sa_id).first()==None:
-        Bushbuck = Label(description='Bushbuck', hotkey='b', parent_id = antelope_id, task_id=sa_id)
-        db.session.add(Bushbuck)
+    # if db.session.query(Label).filter(Label.description=='Bushbuck').filter(Label.task_id==sa_id).first()==None:
+    #     Bushbuck = Label(description='Bushbuck', hotkey='b', parent_id = antelope_id, task_id=sa_id)
+    #     db.session.add(Bushbuck)
 
-    if db.session.query(Label).filter(Label.description=='Duiker').filter(Label.task_id==sa_id).first()==None:
-        Duiker = Label(description='Duiker', hotkey='d', parent_id = antelope_id, task_id=sa_id)
-        db.session.add(Duiker)
+    # if db.session.query(Label).filter(Label.description=='Duiker').filter(Label.task_id==sa_id).first()==None:
+    #     Duiker = Label(description='Duiker', hotkey='d', parent_id = antelope_id, task_id=sa_id)
+    #     db.session.add(Duiker)
 
-    if db.session.query(Label).filter(Label.description=='Klipspringer').filter(Label.task_id==sa_id).first()==None:
-        Klipspringer = Label(description='Klipspringer', hotkey='5', parent_id = antelope_id, task_id=sa_id)
-        db.session.add(Klipspringer)
+    # if db.session.query(Label).filter(Label.description=='Klipspringer').filter(Label.task_id==sa_id).first()==None:
+    #     Klipspringer = Label(description='Klipspringer', hotkey='5', parent_id = antelope_id, task_id=sa_id)
+    #     db.session.add(Klipspringer)
 
-    if db.session.query(Label).filter(Label.description=='Steenbok').filter(Label.task_id==sa_id).first()==None:
-        Steenbok = Label(description='Steenbok', hotkey='6', parent_id = antelope_id, task_id=sa_id)
-        db.session.add(Steenbok)
+    # if db.session.query(Label).filter(Label.description=='Steenbok').filter(Label.task_id==sa_id).first()==None:
+    #     Steenbok = Label(description='Steenbok', hotkey='6', parent_id = antelope_id, task_id=sa_id)
+    #     db.session.add(Steenbok)
 
-    if db.session.query(Label).filter(Label.description=='Sitatunga').filter(Label.task_id==sa_id).first()==None:
-        Sitatunga = Label(description='Sitatunga', hotkey='7', parent_id = antelope_id, task_id=sa_id)
-        db.session.add(Sitatunga)
+    # if db.session.query(Label).filter(Label.description=='Sitatunga').filter(Label.task_id==sa_id).first()==None:
+    #     Sitatunga = Label(description='Sitatunga', hotkey='7', parent_id = antelope_id, task_id=sa_id)
+    #     db.session.add(Sitatunga)
 
-    if db.session.query(Label).filter(Label.description=='Lechwe').filter(Label.task_id==sa_id).first()==None:
-        Lechwe = Label(description='Lechwe', hotkey='l', parent_id = antelope_id, task_id=sa_id)
-        db.session.add(Lechwe)
+    # if db.session.query(Label).filter(Label.description=='Lechwe').filter(Label.task_id==sa_id).first()==None:
+    #     Lechwe = Label(description='Lechwe', hotkey='l', parent_id = antelope_id, task_id=sa_id)
+    #     db.session.add(Lechwe)
 
-    if db.session.query(Label).filter(Label.description=='Waterbuck').filter(Label.task_id==sa_id).first()==None:
-        Waterbuck = Label(description='Waterbuck', hotkey='8', parent_id = antelope_id, task_id=sa_id)
-        db.session.add(Waterbuck)
+    # if db.session.query(Label).filter(Label.description=='Waterbuck').filter(Label.task_id==sa_id).first()==None:
+    #     Waterbuck = Label(description='Waterbuck', hotkey='8', parent_id = antelope_id, task_id=sa_id)
+    #     db.session.add(Waterbuck)
 
-    if db.session.query(Label).filter(Label.description=='Sharpes grysbok').filter(Label.task_id==sa_id).first()==None:
-        grysbok = Label(description='Sharpes grysbok', hotkey='g', parent_id = antelope_id, task_id=sa_id)
-        db.session.add(grysbok)
+    # if db.session.query(Label).filter(Label.description=='Sharpes grysbok').filter(Label.task_id==sa_id).first()==None:
+    #     grysbok = Label(description='Sharpes grysbok', hotkey='g', parent_id = antelope_id, task_id=sa_id)
+    #     db.session.add(grysbok)
 
-    if db.session.query(Label).filter(Label.description=='Gemsbok').filter(Label.task_id==sa_id).first()==None:
-        Gemsbok = Label(description='Gemsbok', hotkey='m', parent_id = antelope_id, task_id=sa_id)
-        db.session.add(Gemsbok)
+    # if db.session.query(Label).filter(Label.description=='Gemsbok').filter(Label.task_id==sa_id).first()==None:
+    #     Gemsbok = Label(description='Gemsbok', hotkey='m', parent_id = antelope_id, task_id=sa_id)
+    #     db.session.add(Gemsbok)
 
-    if db.session.query(Label).filter(Label.description=='Red Hartebeest').filter(Label.task_id==sa_id).first()==None:
-        Hartebeest = Label(description='Red Hartebeest', hotkey='r', parent_id = antelope_id, task_id=sa_id)
-        db.session.add(Hartebeest)
+    # if db.session.query(Label).filter(Label.description=='Red Hartebeest').filter(Label.task_id==sa_id).first()==None:
+    #     Hartebeest = Label(description='Red Hartebeest', hotkey='r', parent_id = antelope_id, task_id=sa_id)
+    #     db.session.add(Hartebeest)
 
-    if db.session.query(Label).filter(Label.description=='Springbok').filter(Label.task_id==sa_id).first()==None:
-        Springbok = Label(description='Springbok', hotkey='s', parent_id = antelope_id, task_id=sa_id)
-        db.session.add(Springbok)
+    # if db.session.query(Label).filter(Label.description=='Springbok').filter(Label.task_id==sa_id).first()==None:
+    #     Springbok = Label(description='Springbok', hotkey='s', parent_id = antelope_id, task_id=sa_id)
+    #     db.session.add(Springbok)
 
-    if db.session.query(Label).filter(Label.description=='Primate').filter(Label.task_id==sa_id).first()==None:
-        primate = Label(description='Primate', hotkey='p', task_id=sa_id)
-        db.session.add(primate)
+    # if db.session.query(Label).filter(Label.description=='Primate').filter(Label.task_id==sa_id).first()==None:
+    #     primate = Label(description='Primate', hotkey='p', task_id=sa_id)
+    #     db.session.add(primate)
 
-    primate_id = db.session.query(Label).filter(Label.description=='Primate').filter(Label.task_id==sa_id).first().id
+    # primate_id = db.session.query(Label).filter(Label.description=='Primate').filter(Label.task_id==sa_id).first().id
 
-    if db.session.query(Label).filter(Label.description=='Baboon').filter(Label.task_id==sa_id).first()==None:
-        Baboon = Label(description='Baboon', hotkey='b', parent_id = primate_id, task_id=sa_id)
-        db.session.add(Baboon)
+    # if db.session.query(Label).filter(Label.description=='Baboon').filter(Label.task_id==sa_id).first()==None:
+    #     Baboon = Label(description='Baboon', hotkey='b', parent_id = primate_id, task_id=sa_id)
+    #     db.session.add(Baboon)
 
-    if db.session.query(Label).filter(Label.description=='Monkey').filter(Label.task_id==sa_id).first()==None:
-        Monkey = Label(description='Monkey', hotkey='m', parent_id = primate_id, task_id=sa_id)
-        db.session.add(Monkey)
+    # if db.session.query(Label).filter(Label.description=='Monkey').filter(Label.task_id==sa_id).first()==None:
+    #     Monkey = Label(description='Monkey', hotkey='m', parent_id = primate_id, task_id=sa_id)
+    #     db.session.add(Monkey)
 
-    if db.session.query(Label).filter(Label.description=='Lesser Galago').filter(Label.task_id==sa_id).first()==None:
-        Galago = Label(description='Lesser Galago', hotkey='g', parent_id = primate_id, task_id=sa_id)
-        db.session.add(Galago)
+    # if db.session.query(Label).filter(Label.description=='Lesser Galago').filter(Label.task_id==sa_id).first()==None:
+    #     Galago = Label(description='Lesser Galago', hotkey='g', parent_id = primate_id, task_id=sa_id)
+    #     db.session.add(Galago)
 
-    if db.session.query(Label).filter(Label.description=='Bird').filter(Label.task_id==sa_id).first()==None:
-        bird = Label(description='Bird', hotkey='9', task_id=sa_id)
-        db.session.add(bird)
+    # if db.session.query(Label).filter(Label.description=='Bird').filter(Label.task_id==sa_id).first()==None:
+    #     bird = Label(description='Bird', hotkey='9', task_id=sa_id)
+    #     db.session.add(bird)
 
-    bird_id = db.session.query(Label).filter(Label.description=='Bird').filter(Label.task_id==sa_id).first().id
+    # bird_id = db.session.query(Label).filter(Label.description=='Bird').filter(Label.task_id==sa_id).first().id
 
-    if db.session.query(Label).filter(Label.description=='Secretary bird').filter(Label.task_id==sa_id).first()==None:
-        Secretarybird = Label(description='Secretary bird', hotkey='1', parent_id = bird_id, task_id=sa_id)
-        db.session.add(Secretarybird)
+    # if db.session.query(Label).filter(Label.description=='Secretary bird').filter(Label.task_id==sa_id).first()==None:
+    #     Secretarybird = Label(description='Secretary bird', hotkey='1', parent_id = bird_id, task_id=sa_id)
+    #     db.session.add(Secretarybird)
 
-    if db.session.query(Label).filter(Label.description=='Ground Hornbill').filter(Label.task_id==sa_id).first()==None:
-        GroundHornbill = Label(description='Ground Hornbill', hotkey='2', parent_id = bird_id, task_id=sa_id)
-        db.session.add(GroundHornbill)
+    # if db.session.query(Label).filter(Label.description=='Ground Hornbill').filter(Label.task_id==sa_id).first()==None:
+    #     GroundHornbill = Label(description='Ground Hornbill', hotkey='2', parent_id = bird_id, task_id=sa_id)
+    #     db.session.add(GroundHornbill)
 
-    if db.session.query(Label).filter(Label.description=='White Stork').filter(Label.task_id==sa_id).first()==None:
-        WhiteStork = Label(description='White Stork', hotkey='w', parent_id = bird_id, task_id=sa_id)
-        db.session.add(WhiteStork)
+    # if db.session.query(Label).filter(Label.description=='White Stork').filter(Label.task_id==sa_id).first()==None:
+    #     WhiteStork = Label(description='White Stork', hotkey='w', parent_id = bird_id, task_id=sa_id)
+    #     db.session.add(WhiteStork)
 
-    if db.session.query(Label).filter(Label.description=='Saddle-billed Stork').filter(Label.task_id==sa_id).first()==None:
-        SaddlebilledStork = Label(description='Saddle-billed Stork', hotkey='3', parent_id = bird_id, task_id=sa_id)
-        db.session.add(SaddlebilledStork)
+    # if db.session.query(Label).filter(Label.description=='Saddle-billed Stork').filter(Label.task_id==sa_id).first()==None:
+    #     SaddlebilledStork = Label(description='Saddle-billed Stork', hotkey='3', parent_id = bird_id, task_id=sa_id)
+    #     db.session.add(SaddlebilledStork)
 
-    if db.session.query(Label).filter(Label.description=="Abdim's Stork").filter(Label.task_id==sa_id).first()==None:
-        abdim = Label(description="Abdim's Stork", hotkey='a', parent_id = bird_id, task_id=sa_id)
-        db.session.add(abdim)
+    # if db.session.query(Label).filter(Label.description=="Abdim's Stork").filter(Label.task_id==sa_id).first()==None:
+    #     abdim = Label(description="Abdim's Stork", hotkey='a', parent_id = bird_id, task_id=sa_id)
+    #     db.session.add(abdim)
 
-    if db.session.query(Label).filter(Label.description=='Koorhaan').filter(Label.task_id==sa_id).first()==None:
-        Koorhaan = Label(description='Koorhaan', hotkey='k', parent_id = bird_id, task_id=sa_id)
-        db.session.add(Koorhaan)
+    # if db.session.query(Label).filter(Label.description=='Koorhaan').filter(Label.task_id==sa_id).first()==None:
+    #     Koorhaan = Label(description='Koorhaan', hotkey='k', parent_id = bird_id, task_id=sa_id)
+    #     db.session.add(Koorhaan)
 
-    if db.session.query(Label).filter(Label.description=='Guineafowl').filter(Label.task_id==sa_id).first()==None:
-        Guineafowl = Label(description='Guineafowl', hotkey='g', parent_id = bird_id, task_id=sa_id)
-        db.session.add(Guineafowl)
+    # if db.session.query(Label).filter(Label.description=='Guineafowl').filter(Label.task_id==sa_id).first()==None:
+    #     Guineafowl = Label(description='Guineafowl', hotkey='g', parent_id = bird_id, task_id=sa_id)
+    #     db.session.add(Guineafowl)
 
-    if db.session.query(Label).filter(Label.description=='Spurfowl Francolin').filter(Label.task_id==sa_id).first()==None:
-        SpurfowlFrancolin = Label(description='Spurfowl Francolin', hotkey='f', parent_id = bird_id, task_id=sa_id)
-        db.session.add(SpurfowlFrancolin)
+    # if db.session.query(Label).filter(Label.description=='Spurfowl Francolin').filter(Label.task_id==sa_id).first()==None:
+    #     SpurfowlFrancolin = Label(description='Spurfowl Francolin', hotkey='f', parent_id = bird_id, task_id=sa_id)
+    #     db.session.add(SpurfowlFrancolin)
 
-    if db.session.query(Label).filter(Label.description=='Ostrich').filter(Label.task_id==sa_id).first()==None:
-        Ostrich = Label(description='Ostrich', hotkey='o', parent_id = bird_id, task_id=sa_id)
-        db.session.add(Ostrich)
+    # if db.session.query(Label).filter(Label.description=='Ostrich').filter(Label.task_id==sa_id).first()==None:
+    #     Ostrich = Label(description='Ostrich', hotkey='o', parent_id = bird_id, task_id=sa_id)
+    #     db.session.add(Ostrich)
 
-    if db.session.query(Label).filter(Label.description=='Bat').filter(Label.task_id==sa_id).first()==None:
-        Bat = Label(description='Bat', hotkey='b', parent_id = bird_id, task_id=sa_id)
-        db.session.add(Bat)
+    # if db.session.query(Label).filter(Label.description=='Bat').filter(Label.task_id==sa_id).first()==None:
+    #     Bat = Label(description='Bat', hotkey='b', parent_id = bird_id, task_id=sa_id)
+    #     db.session.add(Bat)
 
-    if db.session.query(Label).filter(Label.description=='Other bird').filter(Label.task_id==sa_id).first()==None:
-        Otherbird = Label(description='Other bird', hotkey='4', parent_id = bird_id, task_id=sa_id)
-        db.session.add(Otherbird)
+    # if db.session.query(Label).filter(Label.description=='Other bird').filter(Label.task_id==sa_id).first()==None:
+    #     Otherbird = Label(description='Other bird', hotkey='4', parent_id = bird_id, task_id=sa_id)
+    #     db.session.add(Otherbird)
 
-    if db.session.query(Label).filter(Label.description=='Sundry').filter(Label.task_id==sa_id).first()==None:
-        sundry = Label(description='Sundry', hotkey=' ', task_id=sa_id)
-        db.session.add(sundry)
+    # if db.session.query(Label).filter(Label.description=='Sundry').filter(Label.task_id==sa_id).first()==None:
+    #     sundry = Label(description='Sundry', hotkey=' ', task_id=sa_id)
+    #     db.session.add(sundry)
 
-    sundry_id = db.session.query(Label).filter(Label.description=='Sundry').filter(Label.task_id==sa_id).first().id
+    # sundry_id = db.session.query(Label).filter(Label.description=='Sundry').filter(Label.task_id==sa_id).first().id
 
-    if db.session.query(Label).filter(Label.description=='Bat-eared Fox').filter(Label.task_id==sa_id).first()==None:
-        BatearedFox = Label(description='Bat-eared Fox', hotkey='b', parent_id = sundry_id, task_id=sa_id)
-        db.session.add(BatearedFox)
+    # if db.session.query(Label).filter(Label.description=='Bat-eared Fox').filter(Label.task_id==sa_id).first()==None:
+    #     BatearedFox = Label(description='Bat-eared Fox', hotkey='b', parent_id = sundry_id, task_id=sa_id)
+    #     db.session.add(BatearedFox)
 
-    if db.session.query(Label).filter(Label.description=='Ratel').filter(Label.task_id==sa_id).first()==None:
-        Ratel = Label(description='Ratel', hotkey='r', parent_id = sundry_id, task_id=sa_id)
-        db.session.add(Ratel)
+    # if db.session.query(Label).filter(Label.description=='Ratel').filter(Label.task_id==sa_id).first()==None:
+    #     Ratel = Label(description='Ratel', hotkey='r', parent_id = sundry_id, task_id=sa_id)
+    #     db.session.add(Ratel)
 
-    if db.session.query(Label).filter(Label.description=='Striped Polecat').filter(Label.task_id==sa_id).first()==None:
-        StripedPolecat = Label(description='Striped Polecat', hotkey='1', parent_id = sundry_id, task_id=sa_id)
-        db.session.add(StripedPolecat)
+    # if db.session.query(Label).filter(Label.description=='Striped Polecat').filter(Label.task_id==sa_id).first()==None:
+    #     StripedPolecat = Label(description='Striped Polecat', hotkey='1', parent_id = sundry_id, task_id=sa_id)
+    #     db.session.add(StripedPolecat)
 
-    if db.session.query(Label).filter(Label.description=='Aardvark').filter(Label.task_id==sa_id).first()==None:
-        Aardvark = Label(description='Aardvark', hotkey='a', parent_id = sundry_id, task_id=sa_id)
-        db.session.add(Aardvark)
+    # if db.session.query(Label).filter(Label.description=='Aardvark').filter(Label.task_id==sa_id).first()==None:
+    #     Aardvark = Label(description='Aardvark', hotkey='a', parent_id = sundry_id, task_id=sa_id)
+    #     db.session.add(Aardvark)
 
-    if db.session.query(Label).filter(Label.description=='Porcupine').filter(Label.task_id==sa_id).first()==None:
-        Porcupine = Label(description='Porcupine', hotkey='p', parent_id = sundry_id, task_id=sa_id)
-        db.session.add(Porcupine)
+    # if db.session.query(Label).filter(Label.description=='Porcupine').filter(Label.task_id==sa_id).first()==None:
+    #     Porcupine = Label(description='Porcupine', hotkey='p', parent_id = sundry_id, task_id=sa_id)
+    #     db.session.add(Porcupine)
 
-    if db.session.query(Label).filter(Label.description=='Springhare').filter(Label.task_id==sa_id).first()==None:
-        Springhare = Label(description='Springhare', hotkey='2', parent_id = sundry_id, task_id=sa_id)
-        db.session.add(Springhare)
+    # if db.session.query(Label).filter(Label.description=='Springhare').filter(Label.task_id==sa_id).first()==None:
+    #     Springhare = Label(description='Springhare', hotkey='2', parent_id = sundry_id, task_id=sa_id)
+    #     db.session.add(Springhare)
 
-    if db.session.query(Label).filter(Label.description=='Scrub Hare').filter(Label.task_id==sa_id).first()==None:
-        ScrubHare = Label(description='Scrub Hare', hotkey='3', parent_id = sundry_id, task_id=sa_id)
-        db.session.add(ScrubHare)
+    # if db.session.query(Label).filter(Label.description=='Scrub Hare').filter(Label.task_id==sa_id).first()==None:
+    #     ScrubHare = Label(description='Scrub Hare', hotkey='3', parent_id = sundry_id, task_id=sa_id)
+    #     db.session.add(ScrubHare)
 
-    if db.session.query(Label).filter(Label.description=='Cane Rat').filter(Label.task_id==sa_id).first()==None:
-        CaneRat = Label(description='Cane Rat', hotkey='4', parent_id = sundry_id, task_id=sa_id)
-        db.session.add(CaneRat)
+    # if db.session.query(Label).filter(Label.description=='Cane Rat').filter(Label.task_id==sa_id).first()==None:
+    #     CaneRat = Label(description='Cane Rat', hotkey='4', parent_id = sundry_id, task_id=sa_id)
+    #     db.session.add(CaneRat)
 
-    if db.session.query(Label).filter(Label.description=='Other Sundry').filter(Label.task_id==sa_id).first()==None:
-        OtherSundry = Label(description='Other Sundry', hotkey=' ', parent_id = sundry_id, task_id=sa_id)
-        db.session.add(OtherSundry)
+    # if db.session.query(Label).filter(Label.description=='Other Sundry').filter(Label.task_id==sa_id).first()==None:
+    #     OtherSundry = Label(description='Other Sundry', hotkey=' ', parent_id = sundry_id, task_id=sa_id)
+    #     db.session.add(OtherSundry)
 
-    if db.session.query(Label).filter(Label.description=='Cape Fox').filter(Label.task_id==sa_id).first()==None:
-        CapeFox = Label(description='Cape Fox', hotkey='5', parent_id = sundry_id, task_id=sa_id)
-        db.session.add(CapeFox)
+    # if db.session.query(Label).filter(Label.description=='Cape Fox').filter(Label.task_id==sa_id).first()==None:
+    #     CapeFox = Label(description='Cape Fox', hotkey='5', parent_id = sundry_id, task_id=sa_id)
+    #     db.session.add(CapeFox)
 
-    if db.session.query(Label).filter(Label.description=='Otter').filter(Label.task_id==sa_id).first()==None:
-        Otter = Label(description='Otter', hotkey='o', parent_id = sundry_id, task_id=sa_id)
-        db.session.add(Otter)
+    # if db.session.query(Label).filter(Label.description=='Otter').filter(Label.task_id==sa_id).first()==None:
+    #     Otter = Label(description='Otter', hotkey='o', parent_id = sundry_id, task_id=sa_id)
+    #     db.session.add(Otter)
 
-    if db.session.query(Label).filter(Label.description=='Pangolin').filter(Label.task_id==sa_id).first()==None:
-        pangolin = Label(description='Pangolin', hotkey='6', parent_id = sundry_id, task_id=sa_id)
-        db.session.add(pangolin)
+    # if db.session.query(Label).filter(Label.description=='Pangolin').filter(Label.task_id==sa_id).first()==None:
+    #     pangolin = Label(description='Pangolin', hotkey='6', parent_id = sundry_id, task_id=sa_id)
+    #     db.session.add(pangolin)
 
-    if db.session.query(Label).filter(Label.description=='Rhinoceros').filter(Label.task_id==sa_id).first()==None:
-        Rhinoceros = Label(description='Rhinoceros', hotkey='r', task_id=sa_id)
-        db.session.add(Rhinoceros)
+    # if db.session.query(Label).filter(Label.description=='Rhinoceros').filter(Label.task_id==sa_id).first()==None:
+    #     Rhinoceros = Label(description='Rhinoceros', hotkey='r', task_id=sa_id)
+    #     db.session.add(Rhinoceros)
 
-    rhino_id = db.session.query(Label).filter(Label.description=='Rhinoceros').filter(Label.task_id==sa_id).first().id
+    # rhino_id = db.session.query(Label).filter(Label.description=='Rhinoceros').filter(Label.task_id==sa_id).first().id
 
-    if db.session.query(Label).filter(Label.description=='White Rhino').filter(Label.task_id==sa_id).first()==None:
-        WhiteRhino = Label(description='White Rhino', hotkey='w', parent_id = rhino_id, task_id=sa_id)
-        db.session.add(WhiteRhino)
+    # if db.session.query(Label).filter(Label.description=='White Rhino').filter(Label.task_id==sa_id).first()==None:
+    #     WhiteRhino = Label(description='White Rhino', hotkey='w', parent_id = rhino_id, task_id=sa_id)
+    #     db.session.add(WhiteRhino)
 
-    if db.session.query(Label).filter(Label.description=='Black Rhino').filter(Label.task_id==sa_id).first()==None:
-        BlackRhino = Label(description='Black Rhino', hotkey='b', parent_id = rhino_id, task_id=sa_id)
-        db.session.add(BlackRhino)
+    # if db.session.query(Label).filter(Label.description=='Black Rhino').filter(Label.task_id==sa_id).first()==None:
+    #     BlackRhino = Label(description='Black Rhino', hotkey='b', parent_id = rhino_id, task_id=sa_id)
+    #     db.session.add(BlackRhino)
 
 
     db.session.commit()

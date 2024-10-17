@@ -13,7 +13,7 @@ for file_name in file_names:
         check = db.session.query(Task).filter(Task.name==template_name).filter(Task.survey_id==None).first()
         if check==None:
             print('Template not found. Adding...')
-            with open(file_name,'r') as f:
+            with open('templates_and_thresholds/'+file_name,'r') as f:
                 data=f.read()
             data=data[2:-3].split('],[')
             labels = [item.split(',') for item in data]
@@ -37,7 +37,7 @@ for file_name in file_names:
         if classifier:
             print('Classifier found. Adding thresholds...')
             classifier_id = classifier.id
-            with open(file_name,'r') as f:
+            with open('templates_and_thresholds/'+file_name,'r') as f:
                 data=json.load(f)
             for classification in data:
                 print('Adding threshold {}: {}'.format(classification,data[classification]))
