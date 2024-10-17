@@ -107,7 +107,7 @@ def restore_empty_zips(self,task_id):
         restore_request = {
             'Days': 1,
             'GlacierJobParameters': {
-                'Tier': 'Bulk'
+                'Tier': Config.RESTORE_TIER
             }
         }
 
@@ -307,7 +307,7 @@ def restore_images_for_id(self,task_id,days,extend=False):
         restore_request = {
             'Days': days,
             'GlacierJobParameters': {
-                'Tier': 'Bulk'
+                'Tier': Config.RESTORE_TIER
             }
         }
 
@@ -427,12 +427,11 @@ def restore_images_for_classification(self,survey_id,days,edit_survey_args):
             restore_request = {
                 'Days': days,
                 'GlacierJobParameters': {
-                    'Tier': 'Bulk'
+                    'Tier': Config.RESTORE_TIER
                 }
             }
             restored_image = False
-            for image in images:     
-                image_key = image[2] + '/' + image[1]
+            for image_key in image_keys:
                 try:
                     GLOBALS.s3client.restore_object(Bucket=Config.BUCKET, Key=image_key, RestoreRequest=restore_request)
                     restored_image = True
@@ -536,7 +535,7 @@ def restore_files_for_download(self,task_id,user_id,download_params,days,extend=
         restore_request = {
             'Days': days,
             'GlacierJobParameters': {
-                'Tier': 'Bulk'
+                'Tier': Config.RESTORE_TIER
             }
         }
         
@@ -585,7 +584,7 @@ def restore_files_for_download(self,task_id,user_id,download_params,days,extend=
                 zip_restore_request = {
                     'Days': 1,
                     'GlacierJobParameters': {
-                        'Tier': 'Bulk'
+                        'Tier': Config.RESTORE_TIER
                     }
                 }
 

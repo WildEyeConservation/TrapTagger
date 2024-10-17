@@ -72,6 +72,8 @@ GLOBALS.s3UploadClient = boto3.client('s3',
                                     aws_secret_access_key=Config.AWS_S3_UPLOAD_SECRET_ACCESS_KEY)
 GLOBALS.redisClient = redis.Redis(host=Config.REDIS_IP, port=6379)
 GLOBALS.lambdaClient = boto3.client('lambda', region_name=Config.AWS_REGION)
+GLOBALS.sqsClient = boto3.client('sqs', region_name=Config.AWS_REGION)
+GLOBALS.sqsQueueUrl = GLOBALS.sqsClient.get_queue_url(QueueName=Config.SQS_QUEUE)['QueueUrl']
 GLOBALS.lock = Lock()
 
 # @app.before_first_request
@@ -196,7 +198,7 @@ def launchTask():
     restore_times.extend([survey.download_restore for survey in surveys if survey.download_restore])
     restore_times.extend([survey.edit_restore for survey in surveys if survey.edit_restore])
     date_now = datetime.utcnow()
-    if any((date_now - restore_time).total_seconds() < Config.RESTORE_COUNTDOWN for restore_time in restore_times):
+    if any((date_now - restore_time).total_seconds() < Config.RESTORE_TIME for restore_time in restore_times):
         return json.dumps({'message': 'Files from one or more of the surveys associated with your selection are being restored from archival storage. Launching an annotation set is not possible during this process. Please wait until the 48 hour restoration period has completed.', 'status': 'Error'})
 
 
@@ -1164,7 +1166,7 @@ def deleteTask(task_id):
                 restore_times = [survey.id_restore, survey.edit_restore, survey.download_restore, survey.empty_restore]
                 restore_times = [restore_time for restore_time in restore_times if restore_time]
                 date_now = datetime.utcnow()
-                if any((date_now - restore_time).total_seconds() < Config.RESTORE_COUNTDOWN for restore_time in restore_times):
+                if any((date_now - restore_time).total_seconds() < Config.RESTORE_TIME for restore_time in restore_times):
                     status = 'error'
                     message = 'Your survey is currently having files restored from archive. Deleting an annotation set is not possible during this process. Please wait until the 48 hour restoration period has completed.'
 
@@ -1215,7 +1217,7 @@ def deleteSurvey(survey_id):
             restore_times = [survey.id_restore, survey.edit_restore, survey.download_restore, survey.empty_restore]
             restore_times = [restore_time for restore_time in restore_times if restore_time]
             date_now = datetime.utcnow()
-            if any((date_now - restore_time).total_seconds() < Config.RESTORE_COUNTDOWN for restore_time in restore_times):
+            if any((date_now - restore_time).total_seconds() < Config.RESTORE_TIME for restore_time in restore_times):
                 status = 'error'
                 message = 'Your survey is currently having files restored from archive. Deleting your survey is not possible during this process. Please wait until the 48 hour restoration period has completed.'
 
@@ -1619,6 +1621,8 @@ def createNewSurvey():
                     # Checkout the upload
                     checkUploadUser(current_user.id,newSurvey_id)
                     action = 'upload'
+                    GLOBALS.redisClient.set('lambda_invoked_'+str(newSurvey_id),0)
+                    GLOBALS.redisClient.set('lambda_completed_'+str(newSurvey_id),0)
                 else:
                     # Bucket upload
                     import_survey.delay(survey_id=newSurvey.id)
@@ -1983,7 +1987,7 @@ def editSurvey():
         restore_times = [survey.id_restore, survey.edit_restore, survey.download_restore, survey.empty_restore]
         restore_times = [restore_time for restore_time in restore_times if restore_time]
         date_now = datetime.utcnow()
-        if any((date_now - restore_time).total_seconds() < Config.RESTORE_COUNTDOWN for restore_time in restore_times):
+        if any((date_now - restore_time).total_seconds() < Config.RESTORE_TIME for restore_time in restore_times):
             status = 'error'
             message = 'Files from your survey are currently being restored from archival storage. Editing your survey is not possible during this process. Please wait until the 48 hour restoration period has completed.'
 
@@ -2115,7 +2119,7 @@ def addFiles():
             restore_times = [survey.id_restore, survey.edit_restore, survey.download_restore, survey.empty_restore]
             restore_times = [restore_time for restore_time in restore_times if restore_time]
             date_now = datetime.utcnow()
-            if any((date_now - restore_time).total_seconds() < Config.RESTORE_COUNTDOWN for restore_time in restore_times):
+            if any((date_now - restore_time).total_seconds() < Config.RESTORE_TIME for restore_time in restore_times):
                 status = 'error'
                 message = 'Files from your survey are currently being restored from archival storage. Adding files to your survey is not possible during this process. Please wait until the 48 hour restoration period has completed.'
 
@@ -2155,6 +2159,8 @@ def addFiles():
                         db.session.commit()
                         upload_survey_id = survey.id
                         upload_survey_name = survey.name
+                        GLOBALS.redisClient.set('lambda_invoked_'+str(survey_id),0)
+                        GLOBALS.redisClient.set('lambda_completed_'+str(survey_id),0)
         
         else:
             status = 'error'
@@ -4602,7 +4608,7 @@ def createTask(survey_id,parentLabel):
         restore_times = [survey.id_restore, survey.edit_restore, survey.download_restore, survey.empty_restore]
         restore_times = [restore_time for restore_time in restore_times if restore_time]
         date_now = datetime.utcnow()
-        if any((date_now - restore_time).total_seconds() < Config.RESTORE_COUNTDOWN for restore_time in restore_times):
+        if any((date_now - restore_time).total_seconds() < Config.RESTORE_TIME for restore_time in restore_times):
             status = 'error'
             message = 'Your survey is currently having files restored from archive. Adding an annotation set is not possible during this process. Please wait until the 48 hour restoration period has completed.'
             return json.dumps({'status':status, 'message':message})
@@ -7754,7 +7760,7 @@ def editTask(task_id):
             restore_times = [survey.id_restore, survey.edit_restore, survey.download_restore, survey.empty_restore]
             restore_times = [restore_time for restore_time in restore_times if restore_time]
             date_now = datetime.utcnow()
-            if any((date_now - restore_time).total_seconds() < Config.RESTORE_COUNTDOWN for restore_time in restore_times):
+            if any((date_now - restore_time).total_seconds() < Config.RESTORE_TIME for restore_time in restore_times):
                 status = 'error'
                 message = 'Your survey is currently having files restored from archive. Editing an annotation set is not possible during this process. Please wait until the 48 hour restoration period has completed.'
                 return json.dumps({'status': status, 'message': message})
@@ -9042,6 +9048,7 @@ def check_upload_files():
         files = request.json['files']
         survey_id = request.json['survey_id']
         already_uploaded = []
+        require_lambda = []
 
         organisation_id, organisation_folder, survey_status = db.session.query(Organisation.id,Organisation.folder,Survey.status).join(Survey).filter(Survey.id==survey_id).first()
         if organisation_id and (survey_status=='Uploading'):
@@ -9049,10 +9056,13 @@ def check_upload_files():
             if userPermissions and userPermissions.create:
                 if checkUploadUser(current_user.id,survey_id):
                     for file in files:
-                        result = checkFileExist(file,organisation_folder)
+                        result, req_lambda = checkFileExist(file,organisation_folder)
                         if result:
                             already_uploaded.append(result)
-                    return json.dumps(already_uploaded)
+                            if req_lambda:
+                                require_lambda.append(result)
+
+                    return json.dumps((already_uploaded,require_lambda))
     except:
         pass
 
@@ -14106,36 +14116,55 @@ def invoke_lambda():
     """Invokes a lambda function to process a file."""
     try:
         survey_id = request.json['survey_id']
+        files = request.json['files']
         organisation_id, organisation_folder, survey_status = db.session.query(Organisation.id,Organisation.folder,Survey.status).join(Survey).filter(Survey.id==survey_id).first()
         if organisation_id and (survey_status=='Uploading'):
             userPermissions = db.session.query(UserPermissions).filter(UserPermissions.organisation_id==organisation_id).filter(UserPermissions.user_id==current_user.id).first()
             if userPermissions and userPermissions.create:
                 if checkUploadUser(current_user.id,survey_id):
-                    key = organisation_folder + '/' + request.json['filename'].strip('/')
-                    if Config.DEBUGGING: app.logger.info('Invoking lambda function for file: {}'.format(key))
-                    payload = {'bucket': Config.BUCKET,
-                                'key': key,
-                                'RDS_HOST': Config.RDS_HOST,
-                                'RDS_USER': Config.RDS_USER,
-                                'RDS_PASSWORD': Config.RDS_PASSWORD,
-                                'RDS_DB_NAME': Config.SQLALCHEMY_DATABASE_NAME,
-                    }
-                    file_type = request.json['file_type']
-                    try:
-                        if file_type == 'image':
-                            response = GLOBALS.lambdaClient.invoke(FunctionName=Config.IMAGE_IMPORT_LAMBDA, InvocationType='Event', Payload=json.dumps(payload))
-                        elif file_type == 'video':
-                            response = GLOBALS.lambdaClient.invoke(FunctionName=Config.VIDEO_IMPORT_LAMBDA, InvocationType='Event', Payload=json.dumps(payload))
+                    if Config.DEBUGGING: app.logger.info('Invoking lambda function for files: {}'.format(len(files)))
+                    image_keys = []
+                    video_keys = []
 
-                        if response and response['ResponseMetadata']['HTTPStatusCode'] == 202:
-                            if Config.DEBUGGING: app.logger.info('Lambda function invoked successfully for file: {}'.format(key))
-                            return 'success'
-                        else:
-                            if Config.DEBUGGING: app.logger.info('Lambda function failed to invoke for file: {} with error: {}'.format(key, response['ResponseMetadata']['HTTPStatusCode']))
-                            return 'error', 400
+                    for file in files:
+                        key = organisation_folder + '/' + file['filename'].strip('/')
+                        if file['type'] == 'image':
+                            image_keys.append(key)
+                        elif file['type'] == 'video':
+                            video_keys.append(key)
+
+                    payload = {
+                        'bucket': Config.BUCKET,
+                        'RDS_HOST': Config.RDS_HOST,
+                        'RDS_USER': Config.RDS_USER,
+                        'RDS_PASSWORD': Config.RDS_PASSWORD,
+                        'RDS_DB_NAME': Config.SQLALCHEMY_DATABASE_NAME,
+                        'survey_id': survey_id
+                    }
+
+                    app.logger.info(files)
+                    app.logger.info('Image keys {}'.format(image_keys))
+                    app.logger.info('Video keys {}'.format(video_keys))
+                    invoked_lambdas = 0
+                    for batch in chunker(image_keys, 500):
+                        payload['keys'] = batch
+                        GLOBALS.lambdaClient.invoke(FunctionName=Config.IMAGE_IMPORT_LAMBDA, InvocationType='Event', Payload=json.dumps(payload))
+                        invoked_lambdas += 1
+
+                    for batch in chunker(video_keys, 15):
+                        payload['keys'] = batch
+                        GLOBALS.lambdaClient.invoke(FunctionName=Config.VIDEO_IMPORT_LAMBDA, InvocationType='Event', Payload=json.dumps(payload))
+                        invoked_lambdas += 2
+
+                    try:
+                        GLOBALS.redisClient.incrby('lambda_invoked_'+str(survey_id),invoked_lambdas)
                     except:
-                        return 'error', 400
-    except:
+                        GLOBALS.redisClient.set('lambda_invoked'+str(survey_id),invoked_lambdas)
+
+                    return 'success'
+
+    except Exception as e:
+        app.logger.error('Error invoking lambda function: {}'.format(e))
         pass
         
     return 'error'
@@ -14200,7 +14229,7 @@ def getDownloadRequests():
                 if status == 'Downloading':
                     current_download_requests.append(req_dict)
                 else:
-                    expires = (survey_restore + timedelta(days=Config.DOWNLOAD_RESTORE_DAYS+2)).replace(hour=0, minute=0, second=0, microsecond=0) if survey_restore else None
+                    expires = (survey_restore + timedelta(days=Config.DOWNLOAD_RESTORE_DAYS, seconds=Config.RESTORE_TIME)).replace(hour=0, minute=0, second=0, microsecond=0) if survey_restore else None
                     if expires:
                         if expires > date_now:
                             if timestamp and status == 'Restoring Files':
@@ -14247,7 +14276,7 @@ def checkDownloadRequests():
 
         for r in requests:
             if r[2] == 'file':
-                if r[3] and (r[3] + timedelta(days=Config.DOWNLOAD_RESTORE_DAYS+2)).replace(hour=0, minute=0, second=0, microsecond=0) > date_now:
+                if r[3] and (r[3] + timedelta(days=Config.DOWNLOAD_RESTORE_DAYS, seconds=Config.RESTORE_TIME)).replace(hour=0, minute=0, second=0, microsecond=0) > date_now:
                     available_downloads += 1
                 elif not r[3]:
                     if r[1] + timedelta(days=Config.DOWNLOAD_RESTORE_DAYS) > date_now:
@@ -14298,7 +14327,7 @@ def restore_for_download():
                 restore_times = [survey.id_restore, survey.edit_restore, survey.download_restore, survey.empty_restore]
                 restore_times = [restore_time for restore_time in restore_times if restore_time]
                 date_now = datetime.utcnow()
-                if any((date_now - restore_time).total_seconds() < Config.RESTORE_COUNTDOWN for restore_time in restore_times):
+                if any((date_now - restore_time).total_seconds() < Config.RESTORE_TIME for restore_time in restore_times):
                     status = 'error'
                     message = 'Your survey is currently having files restored from archive. Initiating a new download request that requires file restoration is not possible at this time. Please wait for the current restoration process to complete.'
                     return json.dumps({'status': status, 'message': message})

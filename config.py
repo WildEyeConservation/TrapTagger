@@ -165,10 +165,17 @@ class Config(object):
     SURVEY_ZIP_FOLDER = '_survey_zip_files_'
 
     # Glacier Restore 
-    RESTORE_COUNTDOWN= 172800 # 48 hours
+    if DEBUGGING:
+        RESTORE_TIME = 43200 # 12 hours
+    else:
+        RESTORE_TIME= 172800 # 48 hours
     RESTORE_COOLDOWN = 14 # 14 days
     ID_RESTORE_DAYS=30 
     DOWNLOAD_RESTORE_DAYS=7
+    if DEBUGGING:
+        RESTORE_TIER = 'Standard'
+    else:
+        RESTORE_TIER = 'Bulk'
 
     # Lambda 
     RDS_HOST = SQLALCHEMY_DATABASE_SERVER.split('@')[1]
@@ -177,6 +184,7 @@ class Config(object):
     IMAGE_IMPORT_LAMBDA = 'traptaggerImportImage'
     VIDEO_IMPORT_LAMBDA = 'traptaggerImportVideo'
     VIDEO_EXTRACT_LAMBDA = 'traptaggerExtractVideo'
+    SQS_QUEUE = 'traptaggerLambdaDLQ'
 
     # Result File Type 
     RESULT_TYPES = {

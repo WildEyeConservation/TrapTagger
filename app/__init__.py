@@ -207,7 +207,7 @@ def initialise_periodic_functions(sender, instance, **kwargs):
         from app.models import Classifier
         # from flask_migrate import upgrade
         from app.functions.imports import setupDatabase
-        from app.functions.periodic import importMonitor, manageTasks, clean_up_redis, monitor_live_data_surveys, manageDownloadRequests, monitorFileRestores
+        from app.functions.periodic import importMonitor, manageTasks, clean_up_redis, monitor_live_data_surveys, manageDownloadRequests, monitorFileRestores, monitorSQS
         import GLOBALS
    
         # Try to create the database in case it does not exist. If it allready exists a sqlalchemy ProgrammingError
@@ -243,4 +243,5 @@ def initialise_periodic_functions(sender, instance, **kwargs):
         # monitor_live_data_surveys.apply_async(queue='priority', priority=0)
         # manageDownloadRequests.apply_async(queue='priority', priority=0)
         # monitorFileRestores.apply_async(queue='priority', priority=0)
+        # monitorSQS.apply_async(queue='priority', priority=0)
         # print('Periodic functions initialised.')

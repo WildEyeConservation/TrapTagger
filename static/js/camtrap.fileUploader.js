@@ -216,9 +216,7 @@ uppy.use(Uppy.AwsS3, {
 uppy.on('upload-success', (file, response) => {
     /** On successful upload, remove the file from memory and tell the worker to increment the counts and check if finished. */
     uppy.removeFile(file)
-    uploadWorker.postMessage({'func': 'fileUploadedSuccessfully', 'args': null});
-    //Send request to invoke a lambda function to process the uploaded file
-    invokeLambda(file)
+    uploadWorker.postMessage({'func': 'fileUploadedSuccessfully', 'args': [file.name]});
 })
 
 uppy.on('upload-error', function (file, error) {
@@ -312,38 +310,4 @@ async function checkUploadAvailable(survey_id,survey_name) {
             modalAlert.modal({keyboard: true});
         }
     }
-}
-
-function invokeLambda(file,count=0) {
-    /** Invokes the lambda function to process the uploaded file */
-    fileSuffix = file.name.split('.')[1]
-    let fileType;
-    if (/jpe?g$/i.test(fileSuffix)) {
-        fileType = 'image';
-    } else if (/(avi|mp4|mov)$/i.test(fileSuffix)) {
-        fileType = 'video';
-    } else {
-        fileType = 'other';
-    }
-    limitTT(()=>fetch('/fileHandler/invoke_lambda', {
-        method: 'post',
-        headers: {
-            accept: 'application/json',
-            'content-type': 'application/json',
-        },
-        body: JSON.stringify({
-            survey_id: uploadID,
-            filename: file.name,
-            file_type: fileType
-        }),
-    }).then((response) => {
-        if (!response.ok) {
-            throw new Error(response.statusText)
-        }
-    }).catch( (error) => {
-        if (count<=5) {
-            setTimeout(function() { invokeLambda(file,count+1); }, 10000 *(count+1));
-        }
-    })
-    )
 }

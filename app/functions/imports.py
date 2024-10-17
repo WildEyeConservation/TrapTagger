@@ -3754,7 +3754,7 @@ def correct_timestamps(survey_id,setup_time=31):
 
 
 @celery.task(bind=True,max_retries=5,ignore_result=True)
-def import_survey(self,survey_id,preprocess_done=False,live=False,launch_id=None,used_lambda=False,lambda_retries=0):
+def import_survey(self,survey_id,preprocess_done=False,live=False,launch_id=None,used_lambda=False):
     '''
     Celery task for the importing of surveys. Includes all necessary processes such as animal detection, species classification etc. Handles added images cleanly.
 
@@ -3763,8 +3763,7 @@ def import_survey(self,survey_id,preprocess_done=False,live=False,launch_id=None
             preprocess_done (bool): Whether or not the survey has already been preprocessed
             live (bool): Whether or not the data being imported was added live
             launch_id (id): The ID of the task that needs to be launched after the survey is imported
-            used_lambda (bool): Whether or not to use AWS Lambda was used in the upload process
-            lambda_retries (int): Number of retries for the AWS Lambda process
+            used_lambda (bool): Whether or not to AWS Lambda was used in the upload process
     '''
     
     try:
@@ -3772,16 +3771,31 @@ def import_survey(self,survey_id,preprocess_done=False,live=False,launch_id=None
         processes=4
 
         survey = db.session.query(Survey).get(survey_id)
-        if survey.status.lower() in ['launched', 'processing', 'indprocessing', 'deleting', 'prepping task']:
+        if (survey and survey.status.lower() in ['launched', 'processing', 'indprocessing', 'deleting', 'prepping task']) or not survey:
             return True
 
         if used_lambda:
-            # Check if the object counts beteen the raw and compressed folders are the same to check if lambda processing has finished otherwise reschedule the task
-            count = get_image_count(Config.BUCKET, survey.organisation.folder+'/'+survey.folder)
-            count_comp = get_image_count(Config.BUCKET, survey.organisation.folder+'-comp/'+survey.folder)
-            if count==0 or count != count_comp:
-                if lambda_retries < 5:
-                    import_survey.apply_async(kwargs={'survey_id':survey_id,'used_lambda':used_lambda,'preprocess_done':preprocess_done,'lambda_retries':lambda_retries+1},countdown=300)
+            lambda_retries = 0
+            start_import = False
+            while lambda_retries < 6 and not start_import:
+                try:
+                    lambda_invoked = int(GLOBALS.redisClient.get('lambda_invoked_'+str(survey_id)).decode())
+                    lambda_completed = int(GLOBALS.redisClient.get('lambda_completed_'+str(survey_id)).decode())
+                except:
+                    lambda_invoked = None
+                    lambda_completed = None
+                    start_import = True 
+
+                if lambda_invoked == lambda_completed:
+                    app.logger.info("Lambda processing complete for survey {}".format(survey_id))
+                    start_import = True
+                else:
+                    app.logger.info("Waiting for Lambda processing to complete for survey {}".format(survey_id))
+                    lambda_retries += 1
+                    time.sleep(300*lambda_retries)
+
+            if not start_import:
+                app.logger.info("Could not start import for survey {}. Potential error with lambda processing.".format(survey_id))
                 return True
 
 
@@ -3904,6 +3918,9 @@ def import_survey(self,survey_id,preprocess_done=False,live=False,launch_id=None
                 survey.image_count = db.session.query(Image).join(Camera).join(Trapgroup).outerjoin(Video).filter(Trapgroup.survey_id==survey_id).filter(Image.clusters.any()).filter(Video.id==None).distinct().count()
             db.session.commit()
             app.logger.info("Finished importing survey {}".format(survey_id))
+
+            GLOBALS.redisClient.delete('lambda_invoked_'+str(survey_id))
+            GLOBALS.redisClient.delete('lambda_completed_'+str(survey_id))
 
             if launch_id:
                 task = db.session.query(Task).get(launch_id)
@@ -6074,13 +6091,3 @@ def batch_images_for_detection_only(image_data,sourceBucket,dirpath,external=Fal
         app.logger.info(' ')
 
     return True
-
-
-def get_image_count(bucket,prefix):
-    ''' Returns the number of objects (images) in a given prefix in a bucket. '''
-    isjpeg = re.compile('(\.jpe?g$)|(_jpe?g$)', re.I)
-    count = 0
-    for dirpath, folders, filenames in s3traverse(bucket, prefix, include_all=True):
-        jpegs = list(filter(isjpeg.search, filenames))
-        count += len(jpegs)
-    return count

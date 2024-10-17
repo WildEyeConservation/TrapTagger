@@ -2548,7 +2548,7 @@ def checkFileExist(file,folder):
 
         if hash == '' or hash == None or len(hash) < 32:
             if Config.DEBUGGING: app.logger.info('{} does not have a hash'.format(folder + '/' + filename))
-            return filename
+            return filename, False
 
         if re.compile('(\.jpe?g$)|(_jpe?g$)', re.I).search(filename):
             check = db.session.query(Image).join(Camera).filter(Image.hash==hash).filter(Camera.path.like(common_path)).first()
@@ -2557,19 +2557,19 @@ def checkFileExist(file,folder):
 
         if check:
             if Config.DEBUGGING: app.logger.info('{} exists in db'.format(folder + '/' + filename))
-            return filename
+            return filename, False
         else:
             try: 
                 s3_check = GLOBALS.s3client.head_object(Bucket=Config.BUCKET,Key=folder + '/' + filename)
                 if Config.DEBUGGING: app.logger.info('{} exists in S3'.format(folder + '/' + filename))
-                return filename
+                return filename, True
             except:
                 if Config.DEBUGGING: app.logger.info('{} does not exist'.format(folder + '/' + filename))
-                return None
+                return None, False
     except:
         if Config.DEBUGGING: app.logger.info('{} does not exist'.format(folder + '/' + filename))
         # file does not exist
-        return None
+        return None, False
 
 def rDets(sq):
     '''Adds the necessary SQLAlchemy filters for a detection to be considered 'relevent'. ie. non-static, not deleted and of sufficient confidence.'''
@@ -3491,7 +3491,7 @@ def manageDownload(task_id):
             try:
                 download_params = json.loads(GLOBALS.redisClient.get('fileDownloadParams_'+str(task_id)+'_'+str(user_id)).decode())
                 survey_restore = request.task.survey.download_restore
-                expiry_date = (survey_restore + timedelta(days=Config.DOWNLOAD_RESTORE_DAYS+3)).replace(hour=0,minute=0,second=0,microsecond=0) if survey_restore else None
+                expiry_date = (survey_restore + timedelta(days=Config.DOWNLOAD_RESTORE_DAYS, seconds=Config.RESTORE_TIME)).replace(hour=0,minute=0,second=0,microsecond=0) if survey_restore else None
                 if expiry_date and datetime.utcnow() < expiry_date:
                     request.status = 'Available'
                     request.timestamp = datetime.utcnow()

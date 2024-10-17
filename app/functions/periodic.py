@@ -739,7 +739,7 @@ def manage_tasks_with_restore():
 
         if '-7' in tagging_level:
             if empty_restore:
-                expiry_date = (empty_restore + timedelta(days=31)).replace(hour=0,minute=0,second=0,microsecond=0)
+                expiry_date = (empty_restore + timedelta(days=30, seconds=Config.RESTORE_TIME)).replace(hour=0,minute=0,second=0,microsecond=0)
                 time_left = expiry_date - date_now
 
                 if time_left.days < 1:
@@ -750,7 +750,7 @@ def manage_tasks_with_restore():
                         stop_task.delay(task_id=task_id)
         else:
             if id_restore:
-                expiry_date = (id_restore + timedelta(days=Config.ID_RESTORE_DAYS+2)).replace(hour=0,minute=0,second=0,microsecond=0)
+                expiry_date = (id_restore + timedelta(days=Config.ID_RESTORE_DAYS, seconds=Config.RESTORE_TIME)).replace(hour=0,minute=0,second=0,microsecond=0)
                 time_left = expiry_date - date_now
 
                 if time_left.days < 1:
@@ -838,7 +838,7 @@ def manageDownloadRequests():
         for req in download_requests:
             request = req[0]
             survey_restore = req[1]
-            expiry_date = (survey_restore + timedelta(days=Config.DOWNLOAD_RESTORE_DAYS+2)).replace(hour=0,minute=0,second=0,microsecond=0) if survey_restore else None
+            expiry_date = (survey_restore + timedelta(days=Config.DOWNLOAD_RESTORE_DAYS, seconds=Config.RESTORE_TIME)).replace(hour=0,minute=0,second=0,microsecond=0) if survey_restore else None
             if request.type == 'file':
                 task_id = request.task_id
                 if request.status == 'Downloading':
@@ -895,8 +895,8 @@ def checkRestoreDownloads(task_id):
 
     survey = db.session.query(Survey).join(Task).filter(Task.id==task_id).first()
     date_now = datetime.utcnow()
-    if survey.download_restore and survey.download_restore >= (date_now - timedelta(days=Config.DOWNLOAD_RESTORE_DAYS+2)): 
-        expiry_date = (survey.download_restore + timedelta(days=Config.DOWNLOAD_RESTORE_DAYS+2)).replace(hour=0,minute=0,second=0,microsecond=0)
+    if survey.download_restore and survey.download_restore >= (date_now - timedelta(days=Config.DOWNLOAD_RESTORE_DAYS, seconds=Config.RESTORE_TIME)): 
+        expiry_date = (survey.download_restore + timedelta(days=Config.DOWNLOAD_RESTORE_DAYS, seconds=Config.RESTORE_TIME)).replace(hour=0,minute=0,second=0,microsecond=0)
         if (expiry_date - date_now).days < 1:
             download_requests = db.session.query(DownloadRequest).filter(DownloadRequest.task_id == task_id).filter(DownloadRequest.type == 'file').filter(DownloadRequest.status == 'Downloading').all()
             for request in download_requests:
@@ -916,7 +916,7 @@ def checkRestoreDownloads(task_id):
 def monitorFileRestores():
     '''Celery task that monitors restores and schedules tasks for restored images that require processing'''
     try:
-        start_restore = datetime.now() - timedelta(seconds=Config.RESTORE_COUNTDOWN)
+        start_restore = datetime.now() - timedelta(seconds=Config.RESTORE_TIME)
 
         surveys = db.session.query(Survey)\
                             .filter(Survey.require_launch==True)\
@@ -981,5 +981,108 @@ def monitorFileRestores():
         db.session.remove()
         #Schedule every 15 minutes
         monitorFileRestores.apply_async(queue='priority', priority=0,countdown=900)
+
+    return True
+
+@celery.task(ignore_result=True)
+def monitorSQS():
+    '''Celery task that monitors the SQS queue for new messages'''
+    try:
+    
+        response = GLOBALS.sqsClient.receive_message(
+            QueueUrl=GLOBALS.sqsQueueUrl,
+            AttributeNames=[
+                'All'
+            ],
+            MaxNumberOfMessages=10,
+            MessageAttributeNames=[
+                'All'
+            ],
+            VisibilityTimeout=60,
+            WaitTimeSeconds=20
+        )
+        messages = response.get('Messages', [])
+        while messages:
+            for message in messages:
+                if 'MessageAttributes' in message.keys():
+                    message_attributes = message['MessageAttributes']
+                    if 'ErrorCode' in message_attributes.keys():
+                        error_code = message_attributes['ErrorCode']['StringValue']
+                        if error_code in ['429','503']:
+                            payload = json.loads(message['Body'])
+                            if 'batch' in payload.keys():
+                                GLOBALS.lambdaClient.invoke(FunctionName=Config.VIDEO_EXTRACT_LAMBDA, InvocationType='Event', Payload=json.dumps(payload))
+                                GLOBALS.sqsClient.delete_message(QueueUrl=GLOBALS.sqsQueueUrl, ReceiptHandle=message['ReceiptHandle'])
+                            else:
+                                key = payload['keys'][0]
+                                if key.split('.')[-1].lower() in ['mp4','mov','avi']:
+                                    GLOBALS.lambdaClient.invoke(FunctionName=Config.VIDEO_IMPORT_LAMBDA, InvocationType='Event', Payload=json.dumps(payload))
+                                    GLOBALS.sqsClient.delete_message(QueueUrl=GLOBALS.sqsQueueUrl, ReceiptHandle=message['ReceiptHandle'])
+                                else:
+                                    GLOBALS.lambdaClient.invoke(FunctionName=Config.IMAGE_IMPORT_LAMBDA, InvocationType='Event', Payload=json.dumps(payload))
+                                    GLOBALS.sqsClient.delete_message(QueueUrl=GLOBALS.sqsQueueUrl, ReceiptHandle=message['ReceiptHandle'])
+
+                        else:
+                            #TODO: Handle other message types
+                            # GLOBALS.sqsClient.delete_message(QueueUrl=GLOBALS.sqsQueueUrl, ReceiptHandle=message['ReceiptHandle'])
+                            pass
+
+                elif "Body" in message.keys():
+                    body = json.loads(message['Body'])
+                    response_payload = body['responsePayload']
+                    function=body['requestContext']['functionArn'].split(':')[-1]
+                    if response_payload['status'] == 'success':
+                        survey_id = response_payload['survey_id']
+                        count = 0
+                        if function == Config.VIDEO_EXTRACT_LAMBDA:
+                            invoked = response_payload['invoked']
+                            if invoked:
+                                count = 1
+                            else:
+                                count = 2
+                        else:
+                            count = 1
+
+                        try:
+                            GLOBALS.redisClient.incrby('lambda_completed_'+str(survey_id),count)
+                        except:
+                            GLOBALS.redisClient.set('lambda_completed_'+str(survey_id),count)
+
+                        GLOBALS.sqsClient.delete_message(QueueUrl=GLOBALS.sqsQueueUrl, ReceiptHandle=message['ReceiptHandle'])
+
+                    else:
+                        # GLOBALS.sqsClient.delete_message(QueueUrl=GLOBALS.sqsQueueUrl, ReceiptHandle=message['ReceiptHandle'])
+                        pass
+
+                else:
+                    # GLOBALS.sqsClient.delete_message(QueueUrl=GLOBALS.sqsQueueUrl, ReceiptHandle=message['ReceiptHandle'])
+                    pass
+            
+            # Check for more messages
+            response = GLOBALS.sqsClient.receive_message(
+                QueueUrl=GLOBALS.sqsQueueUrl,
+                AttributeNames=[
+                    'All'
+                ],
+                MaxNumberOfMessages=10,
+                MessageAttributeNames=[
+                    'All'
+                ],
+                VisibilityTimeout=60,
+                WaitTimeSeconds=20
+            )
+            messages = response.get('Messages', [])
+
+    except Exception as exc:
+        app.logger.info(' ')
+        app.logger.info('!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!')
+        app.logger.info(traceback.format_exc())
+        app.logger.info('!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!')
+        app.logger.info(' ')
+
+    finally:
+        db.session.remove()
+        #Schedule every 5 minutes
+        monitorSQS.apply_async(queue='priority', priority=0,countdown=300)
 
     return True

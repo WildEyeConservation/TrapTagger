@@ -20,7 +20,7 @@ importScripts('piexif.js')
 
 const limitTT=pLimit(6)
 
-batchSize = 200
+batchSize = 500
 surveyName = null
 uploadID = null
 filesUploaded = 0
@@ -32,6 +32,8 @@ filecount=0
 addingBatch = false
 checkingFiles = false
 folders = []
+lambdaQueue = []
+checkingLambda = false
 
 onmessage = function (evt) {
     /** Take instructions from main js */
@@ -46,7 +48,8 @@ onmessage = function (evt) {
     } else if (evt.data.func=='checkFinishedUpload') {
         checkFinishedUpload()
     } else if (evt.data.func=='fileUploadedSuccessfully') {
-        fileUploadedSuccessfully()
+        file_name = evt.data.args[0]
+        fileUploadedSuccessfully(file_name)
     } else if (evt.data.func=='resetUploadStatusVariables') {
         resetUploadStatusVariables()
     } else if (evt.data.func=='buildUploadProgress') {
@@ -97,14 +100,20 @@ async function checkFileBatch() {
                 return response.json()
             }
         }).then((data) => {
+            uploaded = data[0]
+            require_lambda = data[1]
             for (let i=0;i<items.length;i++) {
                 let item = items[i]
-                if (!data.includes(surveyName + '/' + item[0] + '/' + item[1].name)) {
+                if (!uploaded.includes(surveyName + '/' + item[0] + '/' + item[1].name)) {
                     uploadQueue.push(item)
                 } else {
                     filesUploaded += 1
                     filesQueued += 1
                     updateUploadProgress(filesUploaded,filecount)
+                }
+
+                if (require_lambda.includes(surveyName + '/' + item[0] + '/' + item[1].name)) {
+                    lambdaQueue.push(surveyName + '/' + item[0] + '/' + item[1].name)
                 }
             }
             checkFinishedUpload()
@@ -183,10 +192,11 @@ function updateUploadProgress(value,total) {
     postMessage({'func': 'updateUploadProgress', 'args': [value,total]})
 }
 
-function fileUploadedSuccessfully() {
+function fileUploadedSuccessfully(filename) {
     /** Update counts etc. when Uppy successfully uploads a file. */
     filesUploaded += 1
     filesActuallyUploaded += 1
+    lambdaQueue.push(filename)
     updateUploadProgress(filesUploaded,filecount)
     checkFinishedUpload()
 }
@@ -217,7 +227,7 @@ async function uploadFiles() {
 
 async function checkFinishedUpload() {
     /** Check if the upload is finished. Initiate an upload check, and then change survey status if all good. */
-    if ((filesUploaded==filesQueued)&&(filesUploaded==filecount)&&(uploadQueue.length==0)&&(proposedQueue.length==0)) {
+    if ((filesUploaded==filesQueued)&&(filesUploaded==filecount)&&(uploadQueue.length==0)&&(proposedQueue.length==0)&&(lambdaQueue.length==0)) {
         //completely done
 
         if (filesActuallyUploaded==0) {
@@ -246,6 +256,9 @@ async function checkFinishedUpload() {
             checkFileBatch()
         }
         addBatch()
+        if (!checkingLambda&&lambdaQueue.length>0) {
+            checkLambdaQueue()
+        }
     }
 }
 
@@ -261,6 +274,8 @@ function resetUploadStatusVariables() {
     addingBatch = false
     checkingFiles = false
     folders = []
+    lambdaQueue = []
+    checkingLambda = false
 }
 
 function getHash(jpegData, filename) {
@@ -276,4 +291,86 @@ function getHash(jpegData, filename) {
     catch (err) {
         return ''
     }
+}
+
+async function checkLambdaQueue(count=0) {
+    /** Check if the lambda queue is empty. If not, send the next file to the lambda function. */
+    var files = []
+    if (lambdaQueue.length>= batchSize) {
+        checkingLambda = true
+        while (files.length<batchSize) {
+            let file = lambdaQueue.pop()
+            fileSuffix = file.split('.')[1]
+            let fileType;
+            if (/jpe?g$/i.test(fileSuffix)) {
+                fileType = 'image';
+            } else if (/(avi|mp4|mov)$/i.test(fileSuffix)) {
+                fileType = 'video';
+            } else {
+                fileType = 'other';
+            }
+            files.push({
+                filename: file,
+                type: fileType
+            })
+        }
+    }
+    else if ((lambdaQueue.length>0)&&(filesUploaded==filesQueued)&&(filesUploaded==filecount)&&(uploadQueue.length==0)&&(proposedQueue.length==0)){
+        checkingLambda = true
+        while (lambdaQueue.length>0) {
+            let file = lambdaQueue.pop()
+            fileSuffix = file.split('.')[1]
+            let fileType;
+            if (/jpe?g$/i.test(fileSuffix)) {
+                fileType = 'image';
+            } else if (/(avi|mp4|mov)$/i.test(fileSuffix)) {
+                fileType = 'video';
+            } else {
+                fileType = 'other';
+            }
+            files.push({
+                filename: file,
+                type: fileType
+            })
+        }
+    }
+
+    if (files.length>0) {
+        console.log('Invoking Lambda')
+        limitTT(()=> fetch('/fileHandler/invoke_lambda', {
+            method: 'post',
+            headers: {
+                accept: 'application/json',
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+                files: files,
+                survey_id: uploadID
+            })
+        }).then((response) => {
+            if (!response.ok) {
+                throw new Error(response.statusText)
+            }
+            checkingLambda = false
+            if (lambdaQueue.length==0){
+                checkFinishedUpload()
+            }
+        }).catch( (error) => {
+            if (count<=5) {
+                lambdaQueue.push(...files)
+                setTimeout(function() { checkLambdaQueue(count+1); }, 10000);
+            }
+            else{
+                checkingLambda = false
+                if (lambdaQueue.length==0){
+                    checkFinishedUpload()
+                }
+            }
+        }))
+    }
+    else {
+        checkingLambda = false
+    }
+
+    return true
 }

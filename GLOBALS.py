@@ -30,3 +30,5 @@ results_queue = []
 redisClient = None
 ibs = None
 lambdaClient = None
+sqsClient = None
+sqsQueueUrl = None
