@@ -27,7 +27,7 @@ from app.models import *
 # Stop all task consumption
 allQueues = ['default'] #default needs to be first
 allQueues.extend([queue for queue in Config.QUEUES if queue not in allQueues])
-allQueues.extend([r[0] for r in db.session.query(Classifier.name).all()])
+allQueues.extend([r[0] for r in db.session.query(Classifier.queue).filter(Classifier.active==True).filter(Classifier.queue!=None).distinct().all()])
 for queue in allQueues:
     celery.control.cancel_consumer(queue)
 

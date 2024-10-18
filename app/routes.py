@@ -296,7 +296,7 @@ def launchTask():
             
 
     task = db.session.query(Task).get(task_ids[0])
-    message = 'Task not ready to be launched.'
+    message = 'Annotation set not ready to be launched.'
 
     if (task==None) or (taskSize in ['','none','null']) or (taggingLevel.lower() in ['','none','null']):
         message = 'An unexpected error has occurred. Please check your form and try again.'
@@ -7387,10 +7387,12 @@ def getTasks(survey_id):
         return json.dumps(tasks)
     else:
         if int(survey_id) == -1:
-            return json.dumps([(-1, 'Southern African')])
+            # templates
+            tasks = [tuple(row) for row in db.session.query(Task.id, Task.name).filter(Task.survey_id==None).distinct().all()]
+            # return json.dumps([(-1, 'Southern African')])
         else:
             tasks = [tuple(row) for row in surveyPermissionsSQ(db.session.query(Task.id, Task.name).join(Survey).filter(Survey.id == int(survey_id)).filter(Task.name != 'default').filter(~Task.name.contains('_o_l_d_')).filter(~Task.name.contains('_copying')),current_user.id,'read').distinct().all()]
-            return json.dumps(tasks)
+        return json.dumps(tasks)
 
 @app.route('/getOtherTasks/<task_id>')
 @login_required
@@ -7711,10 +7713,10 @@ def getLabels(task_id):
     reply = []
     task = db.session.query(Task).get(task_id)
     # if (int(task_id) == -1) or (task and (current_user==task.survey.user)):
-    if (int(task_id) == -1) or (task and checkSurveyPermission(current_user.id,task.survey_id,'read')):
-        if int(task_id) == -1: #template
-            task = db.session.query(Task).filter(Task.name=='template_southern_africa').filter(Task.survey==None).first()
-            task_id = task.id
+    if task and ((task.survey_id==None) or checkSurveyPermission(current_user.id,task.survey_id,'read')):
+        # if int(task_id) == -1: #template
+        #     task = db.session.query(Task).filter(Task.name=='template_southern_africa').filter(Task.survey==None).first()
+        #     task_id = task.id
         
         tempLabels = db.session.query(Label).filter(Label.task_id == int(task_id)).filter(Label.parent_id==None).all()
         vhl = db.session.query(Label).get(GLOBALS.vhl_id)
@@ -8991,21 +8993,29 @@ def getClassifierInfo():
         if showCurrent:
             survey = db.session.query(Survey).get(showCurrent)
             if survey.classifier:
+                labels = [classification_label.classification for classification_label in survey.classifier.classification_labels if classification_label.classification not in ['nothing','unknown']]
+                labels.sort()
                 data.append({
                     'name':survey.classifier.name,
                     'source':survey.classifier.source,
                     'region':survey.classifier.region,
                     'description':survey.classifier.description,
+                    'version':survey.classifier.version,
+                    'labels':', '.join(labels),
                     'active': True
                 })
         
         for classifier in classifiers.items:
             if (not showCurrent) or (classifier!=survey.classifier):
+                labels = [classification_label.classification for classification_label in classifier.classification_labels if classification_label.classification not in ['nothing','unknown']]
+                labels.sort()
                 data.append({
                     'name':classifier.name,
                     'source':classifier.source,
                     'region':classifier.region,
                     'description':classifier.description,
+                    'version':classifier.version,
+                    'labels':', '.join(labels),
                     'active': False
                 })
 

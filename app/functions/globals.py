@@ -223,7 +223,7 @@ def getQueueLengths():
         if Config.DEBUGGING: print('{} queue length: {}'.format(queue,queueLength))
         if queueLength: queues[queue] = queueLength
 
-    for queue in [r[0] for r in db.session.query(Classifier.name).all()]:
+    for queue in [r[0] for r in db.session.query(Classifier.queue).filter(Classifier.queue!=None).filter(Classifier.active==True).distinct().all()]:
         queueLength = GLOBALS.redisClient.llen(queue)
         if Config.DEBUGGING: print('{} queue length: {}'.format(queue,queueLength))
         if queueLength: queues[queue] = queueLength
@@ -1250,6 +1250,7 @@ def classifyTask(self,task,reClusters=None,trapgroup_ids=None):
         admin = db.session.query(User).filter(User.username == 'Admin').first()
         parentLabel = task.parent_classification
         survey_id = task.survey_id
+        classifier_id = db.session.query(Classifier.id).join(Survey).join(Task).filter(Task.id==task.id).first()[0]
 
         api_check = db.session.query(Detection).join(Image).join(Camera).join(Trapgroup).filter(Trapgroup.survey_id==survey_id).filter(Detection.source=='api').first()
         if api_check:
@@ -1309,12 +1310,10 @@ def classifyTask(self,task,reClusters=None,trapgroup_ids=None):
 
             detCountSQ = db.session.query(Cluster.id.label('clusID'), func.count(distinct(Detection.id)).label('detCount')) \
                                 .join(Image, Cluster.images) \
-                                .join(Camera)\
-                                .join(Trapgroup)\
-                                .join(Survey)\
-                                .join(Classifier)\
                                 .join(Detection) \
-                                .filter(Detection.class_score>Classifier.threshold) \
+                                .join(ClassificationLabel,ClassificationLabel.classification==Detection.classification) \
+                                .filter(ClassificationLabel.classifier_id==classifier_id) \
+                                .filter(Detection.class_score>ClassificationLabel.threshold) \
                                 .filter(or_(and_(Detection.source==model,Detection.score>Config.DETECTOR_THRESHOLDS[model]) for model in Config.DETECTOR_THRESHOLDS)) \
                                 .filter(Detection.static == False) \
                                 .filter(~Detection.status.in_(Config.DET_IGNORE_STATUSES)) \
@@ -1322,6 +1321,22 @@ def classifyTask(self,task,reClusters=None,trapgroup_ids=None):
                                 .filter(Detection.classification.in_(parentGroupings[species])) \
                                 .filter(Cluster.task==task) \
                                 .group_by(Cluster.id).subquery()
+
+            # detCountSQ = db.session.query(Cluster.id.label('clusID'), func.count(distinct(Detection.id)).label('detCount')) \
+            #                     .join(Image, Cluster.images) \
+            #                     .join(Camera)\
+            #                     .join(Trapgroup)\
+            #                     .join(Survey)\
+            #                     .join(Classifier)\
+            #                     .join(Detection) \
+            #                     .filter(Detection.class_score>Classifier.threshold) \
+            #                     .filter(or_(and_(Detection.source==model,Detection.score>Config.DETECTOR_THRESHOLDS[model]) for model in Config.DETECTOR_THRESHOLDS)) \
+            #                     .filter(Detection.static == False) \
+            #                     .filter(~Detection.status.in_(Config.DET_IGNORE_STATUSES)) \
+            #                     .filter(((Detection.right-Detection.left)*(Detection.bottom-Detection.top)) > Config.DET_AREA)\
+            #                     .filter(Detection.classification.in_(parentGroupings[species])) \
+            #                     .filter(Cluster.task==task) \
+            #                     .group_by(Cluster.id).subquery()
 
             detRatioSQ = db.session.query(Cluster.id.label('clusID'), (detCountSQ.c.detCount/totalDetSQ.c.detCountTotal).label('detRatio')) \
                                 .join(detCountSQ, detCountSQ.c.clusID==Cluster.id) \
@@ -1895,22 +1910,37 @@ def taggingLevelSQ(sq,taggingLevel,isBounding,task_id):
     elif (taggingLevel == '-3'):
         # Classifier checking
         downLabel = db.session.query(Label).get(GLOBALS.vhl_id)
+        classifier_id = db.session.query(Classifier.id).join(Survey).join(Task).filter(Task.id==task_id).first()[0]
 
         classificationSQ = db.session.query(Cluster.id.label('cluster_id'),Detection.classification.label('classification'),func.count(distinct(Detection.id)).label('count'))\
                                 .join(Image,Cluster.images)\
-                                .join(Camera)\
-                                .join(Trapgroup)\
-                                .join(Survey)\
-                                .join(Classifier)\
                                 .join(Detection)\
+                                .join(ClassificationLabel,ClassificationLabel.classification==Detection.classification) \
+                                .filter(ClassificationLabel.classifier_id==classifier_id) \
+                                .filter(Detection.class_score>ClassificationLabel.threshold) \
                                 .filter(Cluster.task_id==task_id)\
                                 .filter(or_(and_(Detection.source==model,Detection.score>Config.DETECTOR_THRESHOLDS[model]) for model in Config.DETECTOR_THRESHOLDS)) \
                                 .filter(Detection.static == False) \
                                 .filter(~Detection.status.in_(Config.DET_IGNORE_STATUSES)) \
                                 .filter(((Detection.right-Detection.left)*(Detection.bottom-Detection.top)) > Config.DET_AREA)\
-                                .filter(Detection.class_score>Classifier.threshold) \
                                 .group_by(Cluster.id,Detection.classification)\
                                 .subquery()
+
+        # classificationSQ = db.session.query(Cluster.id.label('cluster_id'),Detection.classification.label('classification'),func.count(distinct(Detection.id)).label('count'))\
+        #                         .join(Image,Cluster.images)\
+        #                         .join(Camera)\
+        #                         .join(Trapgroup)\
+        #                         .join(Survey)\
+        #                         .join(Classifier)\
+        #                         .join(Detection)\
+        #                         .filter(Cluster.task_id==task_id)\
+        #                         .filter(or_(and_(Detection.source==model,Detection.score>Config.DETECTOR_THRESHOLDS[model]) for model in Config.DETECTOR_THRESHOLDS)) \
+        #                         .filter(Detection.static == False) \
+        #                         .filter(~Detection.status.in_(Config.DET_IGNORE_STATUSES)) \
+        #                         .filter(((Detection.right-Detection.left)*(Detection.bottom-Detection.top)) > Config.DET_AREA)\
+        #                         .filter(Detection.class_score>Classifier.threshold) \
+        #                         .group_by(Cluster.id,Detection.classification)\
+        #                         .subquery()
 
         clusterDetCountSQ = db.session.query(Cluster.id.label('cluster_id'),func.count(Detection.id).label('count'))\
                                 .join(Image,Cluster.images)\
@@ -2477,24 +2507,41 @@ def getClusterClassifications(cluster_id):
     startTime=time.time()
     cluster = db.session.query(Cluster).get(cluster_id)
     task = cluster.task
+    classifier_id = db.session.query(Classifier.id).join(Survey).join(Task).filter(Task.id==cluster.task_id).first()[0]
     
     classSQ = db.session.query(Label.id.label('label_id'),func.count(distinct(Detection.id)).label('count'))\
                             .join(Translation)\
                             .join(Detection,Detection.classification==Translation.classification)\
                             .join(Image)\
-                            .join(Camera)\
-                            .join(Trapgroup)\
-                            .join(Survey)\
-                            .join(Classifier)\
+                            .join(ClassificationLabel,ClassificationLabel.classification==Detection.classification) \
+                            .filter(ClassificationLabel.classifier_id==classifier_id) \
+                            .filter(Detection.class_score>ClassificationLabel.threshold) \
                             .filter(Translation.task==task)\
                             .filter(Image.clusters.contains(cluster))\
                             .filter(or_(and_(Detection.source==model,Detection.score>Config.DETECTOR_THRESHOLDS[model]) for model in Config.DETECTOR_THRESHOLDS)) \
                             .filter(Detection.static == False) \
                             .filter(~Detection.status.in_(Config.DET_IGNORE_STATUSES)) \
                             .filter(((Detection.right-Detection.left)*(Detection.bottom-Detection.top)) > Config.DET_AREA)\
-                            .filter(Detection.class_score>Classifier.threshold) \
                             .group_by(Label.id)\
                             .subquery()
+    
+    # classSQ = db.session.query(Label.id.label('label_id'),func.count(distinct(Detection.id)).label('count'))\
+    #                         .join(Translation)\
+    #                         .join(Detection,Detection.classification==Translation.classification)\
+    #                         .join(Image)\
+    #                         .join(Camera)\
+    #                         .join(Trapgroup)\
+    #                         .join(Survey)\
+    #                         .join(Classifier)\
+    #                         .filter(Translation.task==task)\
+    #                         .filter(Image.clusters.contains(cluster))\
+    #                         .filter(or_(and_(Detection.source==model,Detection.score>Config.DETECTOR_THRESHOLDS[model]) for model in Config.DETECTOR_THRESHOLDS)) \
+    #                         .filter(Detection.static == False) \
+    #                         .filter(~Detection.status.in_(Config.DET_IGNORE_STATUSES)) \
+    #                         .filter(((Detection.right-Detection.left)*(Detection.bottom-Detection.top)) > Config.DET_AREA)\
+    #                         .filter(Detection.class_score>Classifier.threshold) \
+    #                         .group_by(Label.id)\
+    #                         .subquery()
     
     clusterDetCount = db.session.query(Detection)\
                             .join(Image)\
@@ -2854,21 +2901,35 @@ def required_images(cluster,relevent_classifications,transDict):
     '''
     
     sortedImages = db.session.query(Image).filter(Image.clusters.contains(cluster)).order_by(desc(Image.detection_rating)).all()
+    classifier_id = db.session.query(Classifier.id).join(Survey).join(Task).filter(Task.id==cluster.task_id).first()[0]
 
     species = db.session.query(Detection.classification)\
                         .join(Image)\
-                        .join(Camera)\
-                        .join(Trapgroup)\
-                        .join(Survey)\
-                        .join(Classifier)\
+                        .join(ClassificationLabel,ClassificationLabel.classification==Detection.classification) \
+                        .filter(ClassificationLabel.classifier_id==classifier_id) \
+                        .filter(Detection.class_score>ClassificationLabel.threshold) \
                         .filter(Image.clusters.contains(cluster))\
                         .filter(or_(and_(Detection.source==model,Detection.score>Config.DETECTOR_THRESHOLDS[model]) for model in Config.DETECTOR_THRESHOLDS))\
                         .filter(Detection.static==False)\
                         .filter(~Detection.status.in_(Config.DET_IGNORE_STATUSES))\
-                        .filter(Detection.class_score>Classifier.threshold)\
                         .filter(Detection.classification!=None)\
                         .filter(Detection.classification.in_(relevent_classifications))\
                         .distinct().all()
+    
+    # species = db.session.query(Detection.classification)\
+    #                     .join(Image)\
+    #                     .join(Camera)\
+    #                     .join(Trapgroup)\
+    #                     .join(Survey)\
+    #                     .join(Classifier)\
+    #                     .filter(Image.clusters.contains(cluster))\
+    #                     .filter(or_(and_(Detection.source==model,Detection.score>Config.DETECTOR_THRESHOLDS[model]) for model in Config.DETECTOR_THRESHOLDS))\
+    #                     .filter(Detection.static==False)\
+    #                     .filter(~Detection.status.in_(Config.DET_IGNORE_STATUSES))\
+    #                     .filter(Detection.class_score>Classifier.threshold)\
+    #                     .filter(Detection.classification!=None)\
+    #                     .filter(Detection.classification.in_(relevent_classifications))\
+    #                     .distinct().all()
 
     species = set([transDict[r[0]] for r in species])
 
@@ -2877,18 +2938,31 @@ def required_images(cluster,relevent_classifications,transDict):
     for image in sortedImages:
         imageSpecies = db.session.query(Detection.classification)\
                         .join(Image)\
-                        .join(Camera)\
-                        .join(Trapgroup)\
-                        .join(Survey)\
-                        .join(Classifier)\
+                        .join(ClassificationLabel,ClassificationLabel.classification==Detection.classification) \
+                        .filter(ClassificationLabel.classifier_id==classifier_id) \
+                        .filter(Detection.class_score>ClassificationLabel.threshold) \
                         .filter(Detection.image_id==image.id)\
                         .filter(or_(and_(Detection.source==model,Detection.score>Config.DETECTOR_THRESHOLDS[model]) for model in Config.DETECTOR_THRESHOLDS))\
                         .filter(Detection.static==False)\
                         .filter(~Detection.status.in_(Config.DET_IGNORE_STATUSES))\
-                        .filter(Detection.class_score>Classifier.threshold)\
                         .filter(Detection.classification!=None)\
                         .filter(Detection.classification.in_(relevent_classifications))\
                         .distinct().all()
+
+        # imageSpecies = db.session.query(Detection.classification)\
+        #                 .join(Image)\
+        #                 .join(Camera)\
+        #                 .join(Trapgroup)\
+        #                 .join(Survey)\
+        #                 .join(Classifier)\
+        #                 .filter(Detection.image_id==image.id)\
+        #                 .filter(or_(and_(Detection.source==model,Detection.score>Config.DETECTOR_THRESHOLDS[model]) for model in Config.DETECTOR_THRESHOLDS))\
+        #                 .filter(Detection.static==False)\
+        #                 .filter(~Detection.status.in_(Config.DET_IGNORE_STATUSES))\
+        #                 .filter(Detection.class_score>Classifier.threshold)\
+        #                 .filter(Detection.classification!=None)\
+        #                 .filter(Detection.classification.in_(relevent_classifications))\
+        #                 .distinct().all()
 
         imageSpecies = [transDict[r[0]] for r in imageSpecies]
 

@@ -1027,6 +1027,8 @@ def fetch_clusters(taggingLevel,task_id,isBounding,trapgroup_id,limit=None,id=No
                     if id: clusterInfo[row[0]]['images'][row[2]]['detections'][row[9]]['individual_names'].append(row[33])
 
         if '-3' in taggingLevel:
+            task = db.session.query(Task).get(task_id)
+            classifier_id = db.session.query(Classifier.id).join(Survey).join(Task).filter(Task.id==task_id).first()[0]
             cluster_ids = cluster_ids[:limit]
             classSQ = db.session.query(Cluster.id,Label.description.label('label'),func.count(distinct(Detection.id)).label('count'))\
                                     .join(Image,Cluster.images)\
@@ -1034,20 +1036,40 @@ def fetch_clusters(taggingLevel,task_id,isBounding,trapgroup_id,limit=None,id=No
                                     .join(Translation,Detection.classification==Translation.classification)\
                                     .join(Label,Translation.label_id==Label.id)\
                                     .join(Camera)\
-                                    .join(Trapgroup)\
-                                    .join(Survey)\
-                                    .join(Classifier)\
+                                    .join(ClassificationLabel,ClassificationLabel.classification==Detection.classification) \
+                                    .filter(ClassificationLabel.classifier_id==classifier_id) \
+                                    .filter(Detection.class_score>ClassificationLabel.threshold) \
                                     .filter(Cluster.task_id==task_id)\
                                     .filter(Translation.task_id==task_id)\
-                                    .filter(Trapgroup.id==trapgroup_id)\
+                                    .filter(Camera.trapgroup_id==trapgroup_id)\
                                     .filter(or_(and_(Detection.source==model,Detection.score>Config.DETECTOR_THRESHOLDS[model]) for model in Config.DETECTOR_THRESHOLDS)) \
                                     .filter(Detection.static == False) \
                                     .filter(~Detection.status.in_(Config.DET_IGNORE_STATUSES)) \
                                     .filter(((Detection.right-Detection.left)*(Detection.bottom-Detection.top)) > Config.DET_AREA)\
-                                    .filter(Detection.class_score>Classifier.threshold) \
                                     .filter(Cluster.id.in_(cluster_ids))\
                                     .group_by(Cluster.id,Label.id)\
                                     .subquery()
+
+            # classSQ = db.session.query(Cluster.id,Label.description.label('label'),func.count(distinct(Detection.id)).label('count'))\
+            #                         .join(Image,Cluster.images)\
+            #                         .join(Detection)\
+            #                         .join(Translation,Detection.classification==Translation.classification)\
+            #                         .join(Label,Translation.label_id==Label.id)\
+            #                         .join(Camera)\
+            #                         .join(Trapgroup)\
+            #                         .join(Survey)\
+            #                         .join(Classifier)\
+            #                         .filter(Cluster.task_id==task_id)\
+            #                         .filter(Translation.task_id==task_id)\
+            #                         .filter(Trapgroup.id==trapgroup_id)\
+            #                         .filter(or_(and_(Detection.source==model,Detection.score>Config.DETECTOR_THRESHOLDS[model]) for model in Config.DETECTOR_THRESHOLDS)) \
+            #                         .filter(Detection.static == False) \
+            #                         .filter(~Detection.status.in_(Config.DET_IGNORE_STATUSES)) \
+            #                         .filter(((Detection.right-Detection.left)*(Detection.bottom-Detection.top)) > Config.DET_AREA)\
+            #                         .filter(Detection.class_score>Classifier.threshold) \
+            #                         .filter(Cluster.id.in_(cluster_ids))\
+            #                         .group_by(Cluster.id,Label.id)\
+            #                         .subquery()
             
             clusterDetCountSQ = db.session.query(Cluster.id,func.count(distinct(Detection.id)).label('count'))\
                                     .join(Image,Cluster.images)\

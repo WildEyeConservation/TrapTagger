@@ -91,8 +91,8 @@ def make_celery(flask_app):
 
     if not Config.INITIAL_SETUP:
         from app.models import Classifier
-        for classifier in db.session.query(Classifier).filter(Classifier.active==True).filter(Classifier.name!='MegaDetector').all():
-            task_queues.append(Queue(classifier.name,routing_key=classifier.name+'.#'))
+        for classifier in db.session.query(Classifier).filter(Classifier.queue!=None).filter(Classifier.active==True).filter(Classifier.name!='MegaDetector').distinct().all():
+            task_queues.append(Queue(classifier.queue,routing_key=classifier.queue+'.#'))
 
     ####
     celery.conf.task_acks_late = True

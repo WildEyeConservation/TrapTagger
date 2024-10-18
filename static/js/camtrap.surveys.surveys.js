@@ -3936,12 +3936,22 @@ function updateClassifierTable(url=null) {
 
                 td = document.createElement('td')
                 td.setAttribute('style','text-align:left')
+                td.innerHTML = datum.version
+                tr.appendChild(td)
+
+                td = document.createElement('td')
+                td.setAttribute('style','text-align:left')
                 td.innerHTML = datum.source
                 tr.appendChild(td)
 
                 td = document.createElement('td')
                 td.setAttribute('style','text-align:left')
                 td.innerHTML = datum.region
+                tr.appendChild(td)
+
+                td = document.createElement('td')
+                td.setAttribute('style','text-align:left')
+                td.innerHTML = datum.labels
                 tr.appendChild(td)
 
                 td = document.createElement('td')
@@ -3975,7 +3985,7 @@ function buildClassifierSelectTable(speciesClassifierDiv) {
 
     tableDiv = document.createElement('div')
     tableDiv.setAttribute('class','table-responsive')
-    tableDiv.setAttribute('style','max-height:300px')
+    tableDiv.setAttribute('style','max-height:500px')
     speciesClassifierDiv.appendChild(tableDiv)
 
     table = document.createElement('table')
@@ -3996,6 +4006,11 @@ function buildClassifierSelectTable(speciesClassifierDiv) {
     th.classList.add('th-sm')
     th.innerHTML='Name'
     tr.appendChild(th)
+
+    th = document.createElement('th')
+    th.classList.add('th-sm')
+    th.innerHTML='Version'
+    tr.appendChild(th)
     
     th = document.createElement('th')
     th.classList.add('th-sm')
@@ -4005,6 +4020,11 @@ function buildClassifierSelectTable(speciesClassifierDiv) {
     th = document.createElement('th')
     th.classList.add('th-sm')
     th.innerHTML='Region'
+    tr.appendChild(th)
+
+    th = document.createElement('th')
+    th.classList.add('th-sm')
+    th.innerHTML='Labels'
     tr.appendChild(th)
 
     th = document.createElement('th')
