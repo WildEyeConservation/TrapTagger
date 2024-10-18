@@ -14152,9 +14152,6 @@ def invoke_lambda():
                         'survey_id': survey_id
                     }
 
-                    app.logger.info(files)
-                    app.logger.info('Image keys {}'.format(image_keys))
-                    app.logger.info('Video keys {}'.format(video_keys))
                     invoked_lambdas = 0
                     for batch in chunker(image_keys, 500):
                         payload['keys'] = batch
@@ -14174,7 +14171,7 @@ def invoke_lambda():
                     return 'success'
 
     except Exception as e:
-        app.logger.error('Error invoking lambda function: {}'.format(e))
+        if Config.DEBUGGING: app.logger.error('Error invoking lambda function: {}'.format(e))
         pass
         
     return 'error'

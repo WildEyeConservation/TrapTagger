@@ -1,7 +1,7 @@
 """Added more aws cost columns
 
 Revision ID: 54bdbcdbc0b2
-Revises: 1172a4cef6c4
+Revises: bdbf400554db
 Create Date: 2024-07-11 14:04:09.714141
 
 """
@@ -11,7 +11,7 @@ from sqlalchemy.dialects import mysql
 
 # revision identifiers, used by Alembic.
 revision = '54bdbcdbc0b2'
-down_revision = '1172a4cef6c4'
+down_revision = 'bdbf400554db'
 branch_labels = None
 depends_on = None
 

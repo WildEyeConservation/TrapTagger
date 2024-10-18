@@ -294,7 +294,7 @@ function getHash(jpegData, filename) {
 }
 
 async function checkLambdaQueue(count=0) {
-    /** Check if the lambda queue is empty. If not, send the next file to the lambda function. */
+    /** Check if the lambda queue is empty. If not, send the next batch to the lambda function. */
     var files = []
     if (lambdaQueue.length>= batchSize) {
         checkingLambda = true
@@ -336,7 +336,7 @@ async function checkLambdaQueue(count=0) {
     }
 
     if (files.length>0) {
-        console.log('Invoking Lambda')
+
         limitTT(()=> fetch('/fileHandler/invoke_lambda', {
             method: 'post',
             headers: {

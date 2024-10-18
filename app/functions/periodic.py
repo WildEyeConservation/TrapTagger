@@ -761,7 +761,8 @@ def manage_tasks_with_restore():
                             survey = db.session.query(Survey).get(survey_id)
                             survey.id_restore = date_now
                             db.session.commit()
-                            restore_images_for_id.apply_async(kwargs={'task_id':task_id,'days':Config.ID_RESTORE_DAYS+1, 'extend':True})
+                            days = timedelta(days=Config.ID_RESTORE_DAYS, seconds=Config.RESTORE_TIME).days - 1
+                            restore_images_for_id.apply_async(kwargs={'task_id':task_id,'days':days, 'extend':True})
                     else:
                         stop_task.delay(task_id=task_id)
 
@@ -906,7 +907,8 @@ def checkRestoreDownloads(task_id):
                     download_params = json.loads(download_params)
                     survey.download_restore = date_now
                     db.session.commit()
-                    restore_files_for_download.apply_async(kwargs={'task_id':task_id,'user_id':user_id,'days':Config.DOWNLOAD_RESTORE_DAYS+1,'download_params':download_params,'extend':True})
+                    days = timedelta(days=Config.DOWNLOAD_RESTORE_DAYS, seconds=Config.RESTORE_TIME).days - 1
+                    restore_files_for_download.apply_async(kwargs={'task_id':task_id,'user_id':user_id,'days':days,'download_params':download_params,'extend':True})
                 except:
                     continue
 
