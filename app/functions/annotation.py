@@ -1385,24 +1385,21 @@ def fetch_clusters(taggingLevel,task_id,isBounding,trapgroup_id,limit=None,id=No
             task = db.session.query(Task).get(task_id)
             classifier_id = db.session.query(Classifier.id).join(Survey).join(Task).filter(Task.id==task_id).first()[0]
             cluster_ids = cluster_ids[:limit]
-            classSQ = db.session.query(Cluster.id,Label.description.label('label'),func.count(distinct(Detection.id)).label('count'))\
+            classSQ = db.session.query(Cluster.id,Detection.classification.label('label'),func.count(distinct(Detection.id)).label('count'))\
                                     .join(Image,Cluster.images)\
                                     .join(Detection)\
-                                    .join(Translation,Detection.classification==Translation.classification)\
-                                    .join(Label,Translation.label_id==Label.id)\
                                     .join(Camera)\
                                     .join(ClassificationLabel,ClassificationLabel.classification==Detection.classification) \
                                     .filter(ClassificationLabel.classifier_id==classifier_id) \
                                     .filter(Detection.class_score>ClassificationLabel.threshold) \
                                     .filter(Cluster.task_id==task_id)\
-                                    .filter(Translation.task_id==task_id)\
                                     .filter(Camera.trapgroup_id==trapgroup_id)\
                                     .filter(or_(and_(Detection.source==model,Detection.score>Config.DETECTOR_THRESHOLDS[model]) for model in Config.DETECTOR_THRESHOLDS)) \
                                     .filter(Detection.static == False) \
                                     .filter(~Detection.status.in_(Config.DET_IGNORE_STATUSES)) \
                                     .filter(((Detection.right-Detection.left)*(Detection.bottom-Detection.top)) > Config.DET_AREA)\
                                     .filter(Cluster.id.in_(cluster_ids))\
-                                    .group_by(Cluster.id,Label.id)\
+                                    .group_by(Cluster.id,Detection.classification)\
                                     .subquery()
 
             # classSQ = db.session.query(Cluster.id,Label.description.label('label'),func.count(distinct(Detection.id)).label('count'))\
@@ -1454,10 +1451,34 @@ def fetch_clusters(taggingLevel,task_id,isBounding,trapgroup_id,limit=None,id=No
                                 .filter(Cluster.task_id == task_id) \
                                 .order_by(desc(Cluster.classification), Cluster.id)\
                                 ).distinct().limit(25000).all()
+            
+            # The below code handles the case where there are multiple hierarchical translations for a single classification.
+            # If a label's parent is also a translation of a classification, the label is dropped in favour of its parent
+            # eg. if mongoose, banded mongoose, and yelow mongoose are all translations of the mongoose classification. Just mongoose is returned as a suggestion.
+            data = db.session.query(Translation.classification,Label.id,Label.description,Label.parent_id)\
+                                .join(Label)\
+                                .filter(Translation.task_id==task_id).all()
+            
+            label_id_description_conversion = {}
+            for item in data: label_id_description_conversion[item[1]] = item[2]
+
+            translations = {}
+            classifications = list(set([item[0] for item in data]))
+            for classification in classifications:
+                label_ids = [item[1] for item in data if item[0] == classification]
+                all_label_ids = label_ids.copy()
+                for item in data:
+                    if item[0]==classification:
+                        if item[3] in all_label_ids:
+                            label_ids.remove(item[1])
+                if label_ids:
+                    translations[classification] = label_id_description_conversion[label_ids[0]]
 
             for row in clusters2:
-                if row[0] and (row[0] in clusterInfo.keys()) and row[1] and (row[1] not in clusterInfo[row[0]]['classification'].keys()):
-                    clusterInfo[row[0]]['classification'][row[1]] = float(row[2])
+                if row[0] and (row[0] in clusterInfo.keys()) and row[1]:
+                    classification = translations[row[1]] if row[1] in translations.keys() else None
+                    if classification and (classification not in clusterInfo[row[0]]['classification'].keys()):
+                        clusterInfo[row[0]]['classification'][classification] = float(row[2])
 
         # If its a max request, the last cluster is probably missing info
         if max_request and (len(clusterInfo.keys())>1): del clusterInfo[clusters[-1][0]]

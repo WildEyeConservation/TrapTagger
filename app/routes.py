@@ -4505,7 +4505,7 @@ def createTask(survey_id,parentLabel):
             newTask = Task(name=taskName, survey_id=int(survey_id), status='Prepping', tagging_time=0, test_size=0, size=200, parent_classification=parentLabel)
             db.session.add(newTask)
             dbSurvey = db.session.query(Survey).get(int(survey_id))
-            dbSurvey.status = 'Prepping Task'
+            dbSurvey.status = 'Prepping Annotation Set'
             db.session.commit()
             
             prepTask.delay(newTask_id=newTask.id, survey_id=survey_id, includes=includes, translation=translation, labels=info[1])

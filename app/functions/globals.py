@@ -2015,6 +2015,9 @@ def taggingLevelSQ(sq,taggingLevel,isBounding,task_id):
                                 .join(Image,Cluster.images)\
                                 .join(Detection)\
                                 .join(ClassificationLabel,ClassificationLabel.classification==Detection.classification) \
+                                .join(Translation,Translation.classification==Detection.classification)\
+                                .filter(Translation.task_id==task_id)\
+                                .filter(Translation.label_id!=GLOBALS.nothing_id)\
                                 .filter(ClassificationLabel.classifier_id==classifier_id) \
                                 .filter(Detection.class_score>ClassificationLabel.threshold) \
                                 .filter(Cluster.task_id==task_id)\
