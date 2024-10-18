@@ -1669,14 +1669,14 @@ def updateLabelCompletionStatus(task_id):
                             .filter(~Labelgroup.tags.any())\
                             .distinct().count() 
 
-        sq = db.session.query(Cluster)\
-                        .join(Translation,Cluster.classification==Translation.classification)\
-                        .filter(Translation.label_id==label.id)\
-                        .filter(Cluster.task==task)
+        # sq = db.session.query(Cluster)\
+        #                 .join(Translation,Cluster.classification==Translation.classification)\
+        #                 .filter(Translation.label_id==label.id)\
+        #                 .filter(Cluster.task==task)
 
-        sq = taggingLevelSQ(sq,'-3',False,task.id)
+        # sq = taggingLevelSQ(sq,'-3',False,task.id)
 
-        label.potential_clusters = sq.distinct().count() 
+        # label.potential_clusters = sq.distinct().count() 
         
         label.image_count = db.session.query(Image)\
                                         .join(Detection)\

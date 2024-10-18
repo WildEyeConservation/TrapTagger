@@ -2762,8 +2762,8 @@ def getDetailedTaskStatus(task_id):
                 'Complete'
             ],
             'AI Check': [
-                'Status',
-                'Potential Clusters'
+                'Status'
+                # 'Potential Clusters'
             ],
             'Informational Tagging': [
                 'Tagged'
@@ -2814,14 +2814,14 @@ def getDetailedTaskStatus(task_id):
                     sighting_count = task.vhl_sighting_count
                     bounding_count = task.vhl_bounding_count
                     info_tag_count = task.infoless_vhl_count
-                    potential_clusters = task.potential_vhl_clusters
+                    # potential_clusters = task.potential_vhl_clusters
                 else:
                     cluster_count = label.cluster_count
                     image_count = label.image_count
                     sighting_count = label.sighting_count
                     bounding_count = label.bounding_count
                     info_tag_count = label.info_tag_count
-                    potential_clusters = label.potential_clusters
+                    # potential_clusters = label.potential_clusters
                 
                 #check if one of its child labels in the survey
                 names = []
@@ -2908,7 +2908,7 @@ def getDetailedTaskStatus(task_id):
                     else:
                         reply['AI Check']['Status'] = 'Not Checked'
 
-                    reply['AI Check']['Potential Clusters'] = potential_clusters
+                    # reply['AI Check']['Potential Clusters'] = potential_clusters
 
                     # Individual ID
                     if label_id==GLOBALS.vhl_id:
@@ -2946,7 +2946,7 @@ def getDetailedTaskStatus(task_id):
                     reply['Species Annotation']['Complete'] = '-'
                     reply['Species Annotation']['Tagged'] = '-'
                     reply['AI Check']['Status'] = '-'
-                    reply['AI Check']['Potential Clusters'] = '-'
+                    # reply['AI Check']['Potential Clusters'] = '-'
                     reply['Informational Tagging']['Tagged'] = '-'
                     reply['Sighting Correction']['Checked Sightings'] = '-'
                     reply['Individual ID']['Cluster-Level'] = '-'
