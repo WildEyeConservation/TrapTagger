@@ -14161,7 +14161,7 @@ def invoke_lambda():
                     for batch in chunker(video_keys, 15):
                         payload['keys'] = batch
                         GLOBALS.lambdaClient.invoke(FunctionName=Config.VIDEO_IMPORT_LAMBDA, InvocationType='Event', Payload=json.dumps(payload))
-                        invoked_lambdas += 2
+                        invoked_lambdas += 1
 
                     try:
                         GLOBALS.redisClient.incrby('lambda_invoked_'+str(survey_id),invoked_lambdas)

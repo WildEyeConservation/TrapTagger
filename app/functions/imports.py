@@ -3807,7 +3807,7 @@ def import_survey(self,survey_id,preprocess_done=False,live=False,launch_id=None
                     lambda_completed = None
                     start_import = True 
 
-                if lambda_invoked == lambda_completed:
+                if lambda_completed >= lambda_invoked:
                     app.logger.info("Lambda processing complete for survey {}".format(survey_id))
                     start_import = True
                 else:

@@ -49,18 +49,20 @@ def lambda_handler(event, context):
                 invoked = False
                 if extract_batch:
                     payload['batch'] = extract_batch
+                    payload['reinvoked'] = True
                     del payload['keys']
                     lambda_client.invoke(FunctionName='traptaggerExtractVideo', InvocationType='Event', Payload=json.dumps(payload))
                     invoked = True
 
                 print('Lambda invoked with remaining keys.')
                 return {
-                    'status': 'extending',
+                    'status': 'success',
                     'processed': processed,
                     'imported': imported,
                     'total': len(keys),
                     'survey_id': event['survey_id'],
-                    'invoked': invoked
+                    'invoked': invoked,
+                    'reinvoked': True
                 }
 
             splits = key.rsplit('/', 1)
@@ -210,7 +212,8 @@ def lambda_handler(event, context):
         'imported': imported,
         'total': len(keys),
         'survey_id': event['survey_id'],
-        'invoked': invoked
+        'invoked': invoked,
+        'reinvoked': False
     }
 
 

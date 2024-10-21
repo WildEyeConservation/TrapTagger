@@ -48,11 +48,12 @@ def lambda_handler(event, context):
                 lambda_client.invoke(FunctionName=context.function_name, InvocationType='Event', Payload=json.dumps(payload))
                 print('Lambda invoked with remaining batch.')
                 return {
-                    'status': 'extending',
+                    'status': 'success',
                     'processed': processed,
                     'extracted': extracted,
                     'total': len(batch),
-                    'survey_id': event['survey_id']
+                    'survey_id': event['survey_id'],
+                    'reinvoked': True
                 }
 
 
@@ -168,7 +169,8 @@ def lambda_handler(event, context):
         'status': 'success',
         'extracted': extracted,
         'total': len(batch),
-        'survey_id': event['survey_id']
+        'survey_id': event['survey_id'],
+        'reinvoked': event['reinvoked'] if 'reinvoked' in event.keys() else False
     }
 
 

@@ -326,6 +326,16 @@ def clean_up_redis():
                     elif datetime.utcnow() - user.last_ping > timedelta(minutes=3):
                         resolve_abandoned_jobs([[user,user.turkcode[0].task]])
 
+            elif any(name in key for name in ['lambda_invoked', 'lambda_completed']):
+                survey_id = key.split('_')[-1]
+
+                if not survey_id.isdigit():
+                    GLOBALS.redisClient.delete(key)
+                else:
+                    survey = db.session.query(Survey).get(int(survey_id))
+                    if (survey==None) or (survey.status in Config.SURVEY_READY_STATUSES):
+                        GLOBALS.redisClient.delete(key)
+
     except Exception as exc:
         app.logger.info(' ')
         app.logger.info('!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!')
@@ -1038,39 +1048,39 @@ def monitorSQS():
 
                         else:
                             #TODO: Handle other message types
-                            # GLOBALS.sqsClient.delete_message(QueueUrl=GLOBALS.sqsQueueUrl, ReceiptHandle=message['ReceiptHandle'])
-                            pass
+                            GLOBALS.sqsClient.delete_message(QueueUrl=GLOBALS.sqsQueueUrl, ReceiptHandle=message['ReceiptHandle'])
 
                 elif "Body" in message.keys():
                     body = json.loads(message['Body'])
                     response_payload = body['responsePayload']
-                    function=body['requestContext']['functionArn'].split(':')[-1]
+                    function=body['requestContext']['functionArn'].split(':')[-2]
                     if response_payload['status'] == 'success':
                         survey_id = response_payload['survey_id']
+                        reinvoked = response_payload['reinvoked']
                         count = 0
-                        if function == Config.VIDEO_EXTRACT_LAMBDA:
-                            invoked = response_payload['invoked']
-                            if invoked:
-                                count = 1
+                        if not reinvoked:
+                            if function == Config.VIDEO_IMPORT_LAMBDA:
+                                invoked = response_payload['invoked']
+                                if invoked:
+                                    count = 0 # Need to wait for the video to be extracted to be considered complete
+                                else:
+                                    count = 1
                             else:
-                                count = 2
-                        else:
-                            count = 1
+                                count = 1
 
-                        try:
-                            GLOBALS.redisClient.incrby('lambda_completed_'+str(survey_id),count)
-                        except:
-                            GLOBALS.redisClient.set('lambda_completed_'+str(survey_id),count)
+                        if count:
+                            try:
+                                GLOBALS.redisClient.incrby('lambda_completed_'+str(survey_id),count)
+                            except:
+                                GLOBALS.redisClient.set('lambda_completed_'+str(survey_id),count)
 
                         GLOBALS.sqsClient.delete_message(QueueUrl=GLOBALS.sqsQueueUrl, ReceiptHandle=message['ReceiptHandle'])
 
                     else:
-                        # GLOBALS.sqsClient.delete_message(QueueUrl=GLOBALS.sqsQueueUrl, ReceiptHandle=message['ReceiptHandle'])
-                        pass
+                        GLOBALS.sqsClient.delete_message(QueueUrl=GLOBALS.sqsQueueUrl, ReceiptHandle=message['ReceiptHandle'])
 
                 else:
-                    # GLOBALS.sqsClient.delete_message(QueueUrl=GLOBALS.sqsQueueUrl, ReceiptHandle=message['ReceiptHandle'])
-                    pass
+                    GLOBALS.sqsClient.delete_message(QueueUrl=GLOBALS.sqsQueueUrl, ReceiptHandle=message['ReceiptHandle'])
             
             # Check for more messages
             response = GLOBALS.sqsClient.receive_message(

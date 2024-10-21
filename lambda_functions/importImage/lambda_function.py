@@ -48,11 +48,12 @@ def lambda_handler(event, context):
                 lambda_client.invoke(FunctionName=context.function_name, InvocationType='Event', Payload=json.dumps(payload))
                 print('Lambda invoked with remaining keys.')
                 return {
-                    'status': 'extending',
+                    'status': 'success',
                     'processed': processed,
                     'imported': imported,
                     'total': len(keys),
-                    'survey_id': event['survey_id']
+                    'survey_id': event['survey_id'],
+                    'reinvoked': True
                 }
 
             # Download the file from S3
@@ -171,7 +172,8 @@ def lambda_handler(event, context):
         'status': 'success',
         'imported': imported,
         'total': len(keys),
-        'survey_id': event['survey_id']
+        'survey_id': event['survey_id'],
+        'reinvoked': False
     }
 
 
