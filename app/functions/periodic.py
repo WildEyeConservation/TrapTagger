@@ -717,7 +717,7 @@ def manage_task(task_id):
 def manage_tasks_with_restore():
     ''' Manages tasks which use images that have been restored from Glacier '''
 
-    restored_tasks = db.session.query(Task.id, Task.tagging_level, Survey.id, Survey.id_restore, Survey.empty_restore, func.max(User.last_ping).label('last_active'))\
+    restored_tasks = db.session.query(Task.id, Task.tagging_level, Survey.id, Survey.id_restore, Survey.empty_restore, func.max(User.last_ping).label('last_active'),Survey.name)\
                     .join(Survey, Task.survey_id==Survey.id)\
                     .outerjoin(Turkcode, Turkcode.task_id==Task.id)\
                     .outerjoin(User, Turkcode.user_id==User.id)\
@@ -735,8 +735,9 @@ def manage_tasks_with_restore():
         id_restore = data[3]
         empty_restore = data[4]
         last_active = data[5]
+        survey_name = data[6]
         date_now = datetime.utcnow()
-
+        msg = None
         if '-7' in tagging_level:
             if empty_restore:
                 expiry_date = (empty_restore + timedelta(days=30, seconds=Config.RESTORE_TIME)).replace(hour=0,minute=0,second=0,microsecond=0)
@@ -745,8 +746,10 @@ def manage_tasks_with_restore():
                 if time_left.days < 1:
                     if last_active:
                         if (date_now - last_active).days > 5:
+                            msg = '<p>Your Empty Image Sighting Correction job for {} has been stopped because the empty images\' restoration from archival storage has expired.</p>'.format(survey_name)
                             stop_task.delay(task_id=task_id)
                     else:
+                        msg = '<p>Your Empty Image Sighting Correction job for {} has been stopped because the empty images\' restoration from archival storage has expired.</p>'.format(survey_name)
                         stop_task.delay(task_id=task_id)
         else:
             if id_restore:
@@ -756,6 +759,7 @@ def manage_tasks_with_restore():
                 if time_left.days < 1:
                     if last_active:
                         if (date_now - last_active).days > 5:
+                            msg = '<p>Your Individual ID job for {} has been stopped because the RAW images\' restoration from archival storage has expired.</p>'.format(survey_name)
                             stop_task.delay(task_id=task_id)
                         else:
                             survey = db.session.query(Survey).get(survey_id)
@@ -764,7 +768,15 @@ def manage_tasks_with_restore():
                             days = timedelta(days=Config.ID_RESTORE_DAYS, seconds=Config.RESTORE_TIME).days - 1
                             restore_images_for_id.apply_async(kwargs={'task_id':task_id,'days':days, 'extend':True})
                     else:
+                        msg = '<p>Your Individual ID job for {} has been stopped because the RAW images\' restoration from archival storage has expired.</p>'.format(survey_name)
                         stop_task.delay(task_id=task_id)
+
+        if msg:
+            org_admins = [r[0] for r in db.session.query(User.id).join(UserPermissions).join(Organisation).join(Survey).filter(Survey.id==survey_id).filter(UserPermissions.default=='admin').distinct().all()]    
+            for org_admin in org_admins:
+                notif = Notification(user_id=org_admin, contents=msg, seen=False)
+                db.session.add(notif)
+            db.session.commit()
 
     return True
 

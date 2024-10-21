@@ -476,15 +476,14 @@ function buildDownloadRequest(download){
         newProgInner.setAttribute("role", "progressbar");
         newProgInner.setAttribute("id", "progBar"+download.id);
 
-
         newProgInner.setAttribute("aria-valuemin", "0");
         newProgInner.setAttribute("aria-valuenow", download.restore);
-        newProgInner.setAttribute("aria-valuemax", 48);
-        time_left = 48 - download.restore
+        newProgInner.setAttribute("aria-valuemax", download.total_restore);
+        time_left = download.total_restore - download.restore
         if (time_left<0) {
             time_left = 0
         }
-        newProgInner.setAttribute("style", "width:"+(download.restore/48)*100+"%;transition:none");
+        newProgInner.setAttribute("style", "width:"+(download.restore/download.total_restore)*100+"%;transition:none");
         newProgInner.innerHTML = time_left + ' hours remaining'
         newProg.appendChild(newProgInner);
     }

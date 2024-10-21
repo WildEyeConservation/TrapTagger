@@ -287,7 +287,7 @@ async function initiateDownloadAfterRestore(request_id,task_id) {
             },
             body: JSON.stringify({
                 task_id: task_id,
-                restore: true
+                download_request_id: request_id
             }),
         }).then((response) => {
             if (!response.ok) {

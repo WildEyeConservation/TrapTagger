@@ -9492,15 +9492,15 @@ def check_download_available():
     """Checks whether a download is available for a particular task (ie. that no other user has a download in progress for that survey)."""
 
     task_id = request.json['task_id']
-    if 'restore' in request.json:
-        restore = request.json['restore']
+    if 'download_request_id' in request.json:
+        download_request_id = request.json['download_request_id']
     else:
-        restore = False
+        download_request_id = None
     task = db.session.query(Task).get(task_id)
     if task and checkSurveyPermission(current_user.id,task.survey_id,'read'):
         check = db.session.query(Trapgroup.id).join(Camera).join(Image).outerjoin(Video).filter(Trapgroup.survey_id==task.survey_id).filter(or_(Image.downloaded==True,Video.downloaded==True)).first()
-        if restore:
-            check2 = db.session.query(DownloadRequest).join(Task).filter(Task.survey_id==task.survey_id).filter(DownloadRequest.type=='file').filter(DownloadRequest.task_id!=task_id).filter(DownloadRequest.user_id!=current_user.id).first()
+        if download_request_id:
+            check2 = db.session.query(DownloadRequest).join(Task).filter(Task.survey_id==task.survey_id).filter(DownloadRequest.type=='file').filter(DownloadRequest.id!=download_request_id).first()
         else:
             check2 = db.session.query(DownloadRequest).join(Task).filter(Task.survey_id==task.survey_id).filter(DownloadRequest.type=='file').first()
         if check or check2:
@@ -14225,6 +14225,7 @@ def getDownloadRequests():
                 'type': req_type,
                 'task_id': task_id,
                 'restore': 0,
+                'total_restore': 0,
                 'expires': None,
                 'url': None
             }
@@ -14242,6 +14243,7 @@ def getDownloadRequests():
                             if timestamp and status == 'Restoring Files':
                                 restore_time = math.floor(((datetime.utcnow() - timestamp).total_seconds() / 3600))
                                 req_dict['restore'] = restore_time
+                                req_dict['total_restore'] = Config.RESTORE_TIME/3600
                             
                             req_dict['expires'] = expires.strftime('%Y-%m-%dT%H:%M:%SZ')
                             download_requests.append(req_dict)
