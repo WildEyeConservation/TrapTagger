@@ -1017,7 +1017,7 @@ def monitorFileRestores():
                 except:
                     if survey.status == 'Restoring Files': survey.status = 'Ready'
                 survey.require_launch = False
-                GLOBALS.redisClient.delete('edit_kwargs_'+str(survey.id))
+                GLOBALS.redisClient.delete('edit_launch_kwargs_'+str(survey.id))
                
         if surveys:
             db.session.commit()
