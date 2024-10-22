@@ -33,67 +33,77 @@ import zipfile
 import json
 
 def check_restore(key,days=None):
-    '''Check if a object has been restored or is in the process of being restored from Glacier.'''
+    '''
+    Check if a object has been restored or is in the process of being restored from Glacier Deep Archive.
+    Returns a tuple of three values:
+    - A boolean indicating whether an object is restored/available or requires restoration (True if restored/available, False if not)
+    - A datetime object indicating the date the object was restored, if it is in the process of being restored
+    - A boolean indicating whether a wait is required for the object to be restored
+    
+    '''
     try:
         response = GLOBALS.s3client.head_object(Bucket=Config.BUCKET, Key=key)
-        if 'StorageClass' in response and response['StorageClass'] == 'DEEP_ARCHIVE':
-            if 'Restore' in response:
-                if 'ongoing-request="true"' in response['Restore']:
+        if response.get('StorageClass') != 'DEEP_ARCHIVE':
+            return True, None, False
+        
+        restore_info = response.get('Restore')
+        if restore_info:
+            if 'ongoing-request="true"' in restore_info:
+                try:
+                    restore_date = datetime.strptime(response['ResponseMetadata']['HTTPHeaders']['x-amz-restore-request-date'], '%a, %d %b %Y %H:%M:%S %Z')
+                except:
+                    restore_date = None
+                return True, restore_date, True
+            
+            elif 'expiry-date' in restore_info:
+                if days:
                     try:
-                        restore_date = datetime.strptime(response['x-amz-restore-request-date'], '%a, %d %b %Y %H:%M:%S %Z')
+                        expiry_string = restore_info.split('expiry-date="')[1].split('"')[0]
+                        object_expiry_date = datetime.strptime(expiry_string, '%a, %d %b %Y %H:%M:%S %Z')
+                        available_days = (object_expiry_date - datetime.utcnow()).days
                     except:
-                        restore_date = None
-                    return True, restore_date
-                else:
-                    if 'expiry-date' in response['Restore']:
-                        if days:
-                            try:
-                                object_expiry_date = datetime.strptime(response['Restore']['expiry-date'], '%a, %d %b %Y %H:%M:%S %Z')
-                                available_days = (object_expiry_date - datetime.utcnow().replace(hour=0, minute=0, second=0, microsecond=0)).days
-                                if available_days < days:
-                                    return False, None
-                                else:
-                                    return True, None
-                            except:
-                                return False, None
-                        else:
-                            return True, None
-                    else:
-                        return False, None
-            else:
-                return False, None
-        else:
-            return True, None
+                        available_days = None
+                    if available_days and available_days < days:
+                        return False, None, False
+                    
+                return True, None, False
+            
+        return False, None, True
     except:
-        return True, None
+        return True, None, False
 
 def binary_search_restored_objects(keys,days=None):
     '''Check progress of restore requests for a list of objects and return index of first object that is not restored.'''
     
-    restoring = False
+    restoring = None
+    require_wait = False
     if not keys:
-        return 0, restoring
+        return 0, restoring, require_wait
 
-    first, restoring = check_restore(keys[0],days)
+    first, restoring, require_wait = check_restore(keys[0],days)
     if not first:
-        return 0, restoring
+        return 0, restoring, require_wait
     
-    last, restoring = check_restore(keys[-1],days)
+    check = check_restore(keys[-1],days)
+    last = check[0]
+    restoring = check[1] if check[1] else restoring
+    require_wait = check[2] if check[2] else require_wait
     if last:
-        return len(keys), restoring
+        return len(keys), restoring, require_wait
 
-    low = 0
-    high = len(keys) - 1
+    low = 1
+    high = len(keys) - 2
         
     while low <= high:
         mid = (low + high) // 2
         check = check_restore(keys[mid],days)
         restoring = check[1] if check[1] else restoring
+        require_wait = check[2] if check[2] else require_wait
         if check[0]:
             low = mid + 1
         else:
             high = mid - 1
-    return low, restoring
+    return low, restoring, require_wait
 
 @celery.task(bind=True,max_retries=2,ignore_result=True)
 def restore_empty_zips(self,task_id):
@@ -115,7 +125,7 @@ def restore_empty_zips(self,task_id):
             zip_ids = [zip.id for zip in survey.zips]
             zip_ids = sorted(zip_ids)
             zip_keys = [zip_folder + '/' + str(zip_id) + '.zip' for zip_id in zip_ids]
-            restore_index, restore_date = binary_search_restored_objects(zip_keys)
+            restore_index, restore_date, require_wait = binary_search_restored_objects(zip_keys,2)
             zip_ids = zip_ids[restore_index:]
 
             restore_zip = False
@@ -128,12 +138,17 @@ def restore_empty_zips(self,task_id):
                     continue
 
             if restore_zip:
-                survey.status = 'Restoring Files'
-                task.status = 'Ready'
-                survey.empty_restore = datetime.utcnow()       
-                launch_kwargs = {'task_id':task_id}
-                survey.require_launch = True
-                GLOBALS.redisClient.set('empty_launch_kwargs_'+str(survey.id),json.dumps(launch_kwargs))
+                survey.empty_restore = datetime.utcnow()
+                if require_wait:
+                    survey.status = 'Restoring Files'
+                    task.status = 'Ready'
+                    launch_kwargs = {'task_id':task_id}
+                    survey.require_launch = True
+                    GLOBALS.redisClient.set('empty_launch_kwargs_'+str(survey.id),json.dumps(launch_kwargs))
+                    db.session.commit()
+                else:
+                    db.session.commit()
+                    extract_zips.apply_async(kwargs={'task_id':task_id})
             elif restore_date:
                 survey.status = 'Restoring Files'
                 task.status = 'Ready'
@@ -141,14 +156,14 @@ def restore_empty_zips(self,task_id):
                 launch_kwargs = {'task_id':task_id}
                 survey.require_launch = True
                 GLOBALS.redisClient.set('empty_launch_kwargs_'+str(survey.id),json.dumps(launch_kwargs))
+                db.session.commit()
             else:
                 extract_zips.apply_async(kwargs={'task_id':task_id})
         else:
             survey.status = 'Ready'
             task = db.session.query(Task).get(task_id)
             task.status = 'Ready'
-
-        db.session.commit()
+            db.session.commit()
 
     except Exception as exc:
         app.logger.info(' ')
@@ -312,7 +327,7 @@ def restore_images_for_id(self,task_id,days,extend=False):
         }
 
         image_keys = [image[1] + '/' + image[0] for image in images]
-        restore_index , restore_date = binary_search_restored_objects(image_keys,days)
+        restore_index, restore_date, require_wait = binary_search_restored_objects(image_keys,days)
         image_keys = image_keys[restore_index:]
 
         restored_image = False
@@ -329,28 +344,41 @@ def restore_images_for_id(self,task_id,days,extend=False):
                 db.session.commit()
         else:
             if restored_image:
-                task.survey.id_restore = datetime.utcnow()
-                task.survey.status = 'Restoring Files'
-                task.status = 'Ready'
+                date_now = datetime.now()
+                task.survey.id_restore = date_now
                 for sub_task in task.sub_tasks:
-                    sub_task.status = 'Ready'
-                    sub_task.survey.status = 'Restoring Files'
-                    sub_task.survey.id_restore = datetime.utcnow()
+                    sub_task.survey.id_restore = date_now
 
-                # Schedule launch_task to run after the restore is complete 
-                if (len(task_ids) > 1) and ('-5' in taggingLevel):
-                    if tL[4]=='h':
-                        algorithm = 'hotspotter'
-                    elif tL[4]=='n':
-                        algorithm = 'none'
-                    launch_kwargs = {'task_ids':task_ids,'species':species,'algorithm':algorithm}
+                if require_wait:
+                    task.survey.status = 'Restoring Files'
+                    task.status = 'Ready'
+                    for sub_task in task.sub_tasks:
+                        sub_task.status = 'Ready'
+                        sub_task.survey.status = 'Restoring Files'
+
+                    if (len(task_ids) > 1) and ('-5' in taggingLevel):
+                        if tL[4]=='h':
+                            algorithm = 'hotspotter'
+                        elif tL[4]=='n':
+                            algorithm = 'none'
+                        launch_kwargs = {'task_ids':task_ids,'species':species,'algorithm':algorithm}
+                    else:
+                        launch_kwargs = {'task_id':task_id}
+
+                    task.survey.require_launch = True
+                    GLOBALS.redisClient.set('id_launch_kwargs_'+str(task.survey.id),json.dumps(launch_kwargs))
+
+                    db.session.commit()
                 else:
-                    launch_kwargs = {'task_id':task_id}
-
-                task.survey.require_launch = True
-                GLOBALS.redisClient.set('id_launch_kwargs_'+str(task.survey.id),json.dumps(launch_kwargs))
-
-                db.session.commit()
+                    db.session.commit()
+                    if (len(task_ids) > 1) and ('-5' in taggingLevel):
+                        if tL[4]=='h':
+                            algorithm = 'hotspotter'
+                        elif tL[4]=='n':
+                            algorithm = 'none'
+                        calculate_detection_similarities.apply_async(kwargs={'task_ids':task_ids,'species':species,'algorithm':algorithm})
+                    else:
+                        launch_task.apply_async(kwargs={'task_id':task_id})
 
             elif restore_date:
                 task.survey.id_restore = restore_date
@@ -421,7 +449,7 @@ def restore_images_for_classification(self,survey_id,days,edit_survey_args):
         if images:
 
             image_keys = [image[1] + '/' + image[0] for image in images]
-            restore_index, restore_date = binary_search_restored_objects(image_keys,days)
+            restore_index, restore_date, require_wait = binary_search_restored_objects(image_keys,days)
             image_keys = image_keys[restore_index:]
 
             restore_request = {
@@ -440,10 +468,14 @@ def restore_images_for_classification(self,survey_id,days,edit_survey_args):
             
             if restored_image:
                 survey.edit_restore = datetime.utcnow()  
-                survey.status = 'Restoring Files'   
-                survey.require_launch = True
-                GLOBALS.redisClient.set('edit_launch_kwargs_'+str(survey.id),json.dumps(edit_survey_args))
-                db.session.commit()       
+                if require_wait:
+                    survey.status = 'Restoring Files'   
+                    survey.require_launch = True
+                    GLOBALS.redisClient.set('edit_launch_kwargs_'+str(survey.id),json.dumps(edit_survey_args))
+                    db.session.commit()   
+                else:
+                    db.session.commit()
+                    edit_survey.apply_async(kwargs=edit_survey_args)   
             elif restore_date:
                 survey.edit_restore = restore_date
                 survey.status = 'Restoring Files'
@@ -540,7 +572,7 @@ def restore_files_for_download(self,task_id,user_id,download_params,days,extend=
         }
         
         image_keys = [image[1] + '/' + image[0] for image in images]
-        restore_index, restore_date_img = binary_search_restored_objects(image_keys,days)
+        restore_index, restore_date_img, require_wait_img = binary_search_restored_objects(image_keys,days)
         image_keys = image_keys[restore_index:]
 
         restored_image = False
@@ -553,6 +585,7 @@ def restore_files_for_download(self,task_id,user_id,download_params,days,extend=
 
         restored_video = False
         restore_date_vid = None
+        require_wait_vid = False
         if include_video:
             video_keys = []
             for video in videos:
@@ -560,7 +593,7 @@ def restore_files_for_download(self,task_id,user_id,download_params,days,extend=
                 video_key = pathSplit[0] + '-comp/' + pathSplit[1].split('_video_images_')[0] + video[0].split('.')[0] + '.mp4'
                 video_keys.append(video_key)
 
-            restore_index, restore_date_vid = binary_search_restored_objects(video_keys,days)
+            restore_index, restore_date_vid, require_wait_vid = binary_search_restored_objects(video_keys,days)
             video_keys = video_keys[restore_index:]
 
             for video_key in video_keys:
@@ -572,13 +605,14 @@ def restore_files_for_download(self,task_id,user_id,download_params,days,extend=
         
         restored_zip = False
         restore_date_zip = None
+        require_wait_zip = False
         if include_empties and not extend:
             if survey.zips:
                 zip_folder = survey.organisation.folder + '-comp/' + Config.SURVEY_ZIP_FOLDER
                 zip_ids = [zip.id for zip in survey.zips]
                 zip_ids = sorted(zip_ids)
                 zip_keys = [zip_folder + '/' + str(zip_id) + '.zip' for zip_id in zip_ids]
-                restore_index, restore_date_zip = binary_search_restored_objects(zip_keys)
+                restore_index, restore_date_zip, require_wait_zip = binary_search_restored_objects(zip_keys,2)
                 zip_keys = zip_keys[restore_index:]
 
                 zip_restore_request = {
@@ -603,17 +637,21 @@ def restore_files_for_download(self,task_id,user_id,download_params,days,extend=
             if restored_image or restored_video or restored_zip:
                 date_now = datetime.now()
                 survey.download_restore = date_now
-                survey.status = 'Restoring Files'
+                if require_wait_img or require_wait_vid or require_wait_zip:
+                    survey.status = 'Restoring Files'
 
-                download_request = db.session.query(DownloadRequest).filter(DownloadRequest.task_id==task_id).filter(DownloadRequest.user_id==user_id).filter(DownloadRequest.type=='file').first()
-                download_request.status = 'Restoring Files'
-                download_request.timestamp = date_now
+                    download_request = db.session.query(DownloadRequest).filter(DownloadRequest.task_id==task_id).filter(DownloadRequest.user_id==user_id).filter(DownloadRequest.type=='file').first()
+                    download_request.status = 'Restoring Files'
+                    download_request.timestamp = date_now
 
-                survey.require_launch = True
-                launch_kwargs = {'task_id':task_id,'user_id':user_id,'zips':restored_zip}
-                GLOBALS.redisClient.set('download_launch_kwargs_'+str(survey.id),json.dumps(launch_kwargs))
+                    survey.require_launch = True
+                    launch_kwargs = {'task_id':task_id,'user_id':user_id,'zips':restored_zip}
+                    GLOBALS.redisClient.set('download_launch_kwargs_'+str(survey.id),json.dumps(launch_kwargs))
 
-                db.session.commit()
+                    db.session.commit()
+                else:
+                    db.session.commit()
+                    process_files_for_download.apply_async(kwargs={'task_id':task_id,'user_id':user_id,'zips':restored_zip})
 
             elif restore_date_img or restore_date_vid or restore_date_zip:
                 restore_date = [restore_date_img,restore_date_vid,restore_date_zip]
