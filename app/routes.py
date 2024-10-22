@@ -193,12 +193,7 @@ def launchTask():
 
     # Check if any surveys are busy with a dearchival process
     surveys = [task.survey for task in tasks]
-    restore_times = [survey.id_restore for survey in surveys if survey.id_restore]
-    restore_times.extend([survey.empty_restore for survey in surveys if survey.empty_restore])
-    restore_times.extend([survey.download_restore for survey in surveys if survey.download_restore])
-    restore_times.extend([survey.edit_restore for survey in surveys if survey.edit_restore])
-    date_now = datetime.utcnow()
-    if any((date_now - restore_time).total_seconds() < Config.RESTORE_TIME for restore_time in restore_times):
+    if any(survey.status == 'Restoring Files' for survey in surveys):
         return json.dumps({'message': 'Files from one or more of the surveys associated with your selection are being restored from archival storage. Launching an annotation set is not possible during this process. Please wait until the 48 hour restoration period has completed.', 'status': 'Error'})
 
 
@@ -1162,11 +1157,7 @@ def deleteTask(task_id):
             else:  
 
                 # Check if any surveys are busy with a dearchival process
-                survey = task.survey
-                restore_times = [survey.id_restore, survey.edit_restore, survey.download_restore, survey.empty_restore]
-                restore_times = [restore_time for restore_time in restore_times if restore_time]
-                date_now = datetime.utcnow()
-                if any((date_now - restore_time).total_seconds() < Config.RESTORE_TIME for restore_time in restore_times):
+                if task.survey.status == 'Restoring Files':
                     status = 'error'
                     message = 'Your survey is currently having files restored from archive. Deleting an annotation set is not possible during this process. Please wait until the 48 hour restoration period has completed.'
 
@@ -1214,10 +1205,7 @@ def deleteSurvey(survey_id):
 
 
             # Check if any surveys are busy with a dearchival process
-            restore_times = [survey.id_restore, survey.edit_restore, survey.download_restore, survey.empty_restore]
-            restore_times = [restore_time for restore_time in restore_times if restore_time]
-            date_now = datetime.utcnow()
-            if any((date_now - restore_time).total_seconds() < Config.RESTORE_TIME for restore_time in restore_times):
+            if survey.status == 'Restoring Files':
                 status = 'error'
                 message = 'Your survey is currently having files restored from archive. Deleting your survey is not possible during this process. Please wait until the 48 hour restoration period has completed.'
 
@@ -1984,10 +1972,7 @@ def editSurvey():
 
 
         # Check if any surveys are busy with a dearchival process
-        restore_times = [survey.id_restore, survey.edit_restore, survey.download_restore, survey.empty_restore]
-        restore_times = [restore_time for restore_time in restore_times if restore_time]
-        date_now = datetime.utcnow()
-        if any((date_now - restore_time).total_seconds() < Config.RESTORE_TIME for restore_time in restore_times):
+        if survey.status == 'Restoring Files':
             status = 'error'
             message = 'Files from your survey are currently being restored from archival storage. Editing your survey is not possible during this process. Please wait until the 48 hour restoration period has completed.'
 
@@ -2116,10 +2101,7 @@ def addFiles():
         userPermissions = db.session.query(UserPermissions).filter(UserPermissions.organisation_id==survey.organisation_id).filter(UserPermissions.user_id==current_user.id).first()
         if userPermissions and userPermissions.create:
             # Check if any surveys are busy with a dearchival process
-            restore_times = [survey.id_restore, survey.edit_restore, survey.download_restore, survey.empty_restore]
-            restore_times = [restore_time for restore_time in restore_times if restore_time]
-            date_now = datetime.utcnow()
-            if any((date_now - restore_time).total_seconds() < Config.RESTORE_TIME for restore_time in restore_times):
+            if survey.status == 'Restoring Files':
                 status = 'error'
                 message = 'Files from your survey are currently being restored from archival storage. Adding files to your survey is not possible during this process. Please wait until the 48 hour restoration period has completed.'
 
@@ -4605,10 +4587,7 @@ def createTask(survey_id,parentLabel):
 
         # Check if any surveys are busy with a dearchival process
         survey = db.session.query(Survey).get(int(survey_id))
-        restore_times = [survey.id_restore, survey.edit_restore, survey.download_restore, survey.empty_restore]
-        restore_times = [restore_time for restore_time in restore_times if restore_time]
-        date_now = datetime.utcnow()
-        if any((date_now - restore_time).total_seconds() < Config.RESTORE_TIME for restore_time in restore_times):
+        if survey.status == 'Restoring Files':
             status = 'error'
             message = 'Your survey is currently having files restored from archive. Adding an annotation set is not possible during this process. Please wait until the 48 hour restoration period has completed.'
             return json.dumps({'status':status, 'message':message})
@@ -7758,11 +7737,7 @@ def editTask(task_id):
             deleteAutoLabels = ast.literal_eval(request.form['deleteAutoLabels'])
 
             # Check if any surveys are busy with a dearchival process
-            survey = task.survey
-            restore_times = [survey.id_restore, survey.edit_restore, survey.download_restore, survey.empty_restore]
-            restore_times = [restore_time for restore_time in restore_times if restore_time]
-            date_now = datetime.utcnow()
-            if any((date_now - restore_time).total_seconds() < Config.RESTORE_TIME for restore_time in restore_times):
+            if task.survey.status == 'Restoring Files':
                 status = 'error'
                 message = 'Your survey is currently having files restored from archive. Editing an annotation set is not possible during this process. Please wait until the 48 hour restoration period has completed.'
                 return json.dumps({'status': status, 'message': message})
@@ -14333,11 +14308,7 @@ def restore_for_download():
                 message = 'Your survey recently had images restored. The system requires a cooldown period of {} days before another restoration can be requested.'.format(Config.RESTORE_COOLDOWN)
             else:
                 # Check if any surveys are busy with a dearchival process
-                survey = task.survey
-                restore_times = [survey.id_restore, survey.edit_restore, survey.download_restore, survey.empty_restore]
-                restore_times = [restore_time for restore_time in restore_times if restore_time]
-                date_now = datetime.utcnow()
-                if any((date_now - restore_time).total_seconds() < Config.RESTORE_TIME for restore_time in restore_times):
+                if survey.status == 'Restoring Files':
                     status = 'error'
                     message = 'Your survey is currently having files restored from archive. Initiating a new download request that requires file restoration is not possible at this time. Please wait for the current restoration process to complete.'
                     return json.dumps({'status': status, 'message': message})

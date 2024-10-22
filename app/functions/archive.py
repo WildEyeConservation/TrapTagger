@@ -105,7 +105,7 @@ def restore_empty_zips(self,task_id):
         zip_folder = survey.organisation.folder + '-comp/' + Config.SURVEY_ZIP_FOLDER
         
         restore_request = {
-            'Days': 1,
+            'Days': 2,
             'GlacierJobParameters': {
                 'Tier': Config.RESTORE_TIER
             }
@@ -582,7 +582,7 @@ def restore_files_for_download(self,task_id,user_id,download_params,days,extend=
                 zip_keys = zip_keys[restore_index:]
 
                 zip_restore_request = {
-                    'Days': 1,
+                    'Days': 2,
                     'GlacierJobParameters': {
                         'Tier': Config.RESTORE_TIER
                     }

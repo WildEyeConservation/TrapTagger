@@ -967,42 +967,57 @@ def monitorFileRestores():
                             .distinct().all()
         
         for survey in surveys: 
-            try:
-                restore_dates = [survey.download_restore,survey.id_restore,survey.empty_restore,survey.edit_restore]
-                restore_dates = [r for r in restore_dates if r]
-                max_restore = max(restore_dates)
-                if survey.download_restore and survey.download_restore<start_restore and survey.download_restore==max_restore:
+            restore_dates = [survey.download_restore,survey.id_restore,survey.empty_restore,survey.edit_restore]
+            restore_dates = [r for r in restore_dates if r]
+            max_restore = max(restore_dates)
+            if survey.download_restore and survey.download_restore<start_restore and survey.download_restore==max_restore:
+                try:
                     launch_kwargs = GLOBALS.redisClient.get('download_launch_kwargs_'+str(survey.id)).decode()
                     launch_kwargs = json.loads(launch_kwargs)  
-                    survey.require_launch = False
                     process_files_for_download.apply_async(kwargs=launch_kwargs)
-                    GLOBALS.redisClient.delete('download_launch_kwargs_'+str(survey.id))
+                except:
+                    if survey.status == 'Restoring Files': survey.status = 'Ready'
+                survey.require_launch = False
+                GLOBALS.redisClient.delete('download_launch_kwargs_'+str(survey.id))
 
-                elif survey.id_restore and survey.id_restore<start_restore and survey.id_restore==max_restore:
+            elif survey.id_restore and survey.id_restore<start_restore and survey.id_restore==max_restore:
+                try:
                     launch_kwargs = GLOBALS.redisClient.get('id_launch_kwargs_'+str(survey.id)).decode()
                     launch_kwargs = json.loads(launch_kwargs)                  
-                    survey.require_launch = False
                     if 'algorithm' in launch_kwargs.keys():
                         calculate_detection_similarities.apply_async(kwargs=launch_kwargs)
                     else:
                         launch_task.apply_async(kwargs=launch_kwargs)
-                    GLOBALS.redisClient.delete('id_launch_kwargs_'+str(survey.id))
+                except:
+                    if survey.status == 'Restoring Files': 
+                        survey.status = 'Ready'
+                        if any(task.sub_tasks for task in survey.tasks):
+                            for task in survey.tasks:
+                                for sub_task in task.sub_tasks:
+                                    if sub_task.survey.status == 'Restoring Files':
+                                        sub_task.survey.status = 'Ready'
+                survey.require_launch = False
+                GLOBALS.redisClient.delete('id_launch_kwargs_'+str(survey.id))
 
-                elif survey.empty_restore and survey.empty_restore<start_restore and survey.empty_restore==max_restore:
+            elif survey.empty_restore and survey.empty_restore<start_restore and survey.empty_restore==max_restore:
+                try:
                     launch_kwargs = GLOBALS.redisClient.get('empty_launch_kwargs_'+str(survey.id)).decode()
                     launch_kwargs = json.loads(launch_kwargs)  
-                    survey.require_launch = False
                     extract_zips.apply_async(kwargs=launch_kwargs)
-                    GLOBALS.redisClient.delete('empty_launch_kwargs_'+str(survey.id))
+                except:
+                    if survey.status == 'Restoring Files': survey.status = 'Ready'
+                survey.require_launch = False
+                GLOBALS.redisClient.delete('empty_launch_kwargs_'+str(survey.id))
 
-                elif survey.edit_restore and survey.edit_restore<start_restore and survey.edit_restore==max_restore:
+            elif survey.edit_restore and survey.edit_restore<start_restore and survey.edit_restore==max_restore:
+                try:
                     launch_kwargs = GLOBALS.redisClient.get('edit_launch_kwargs_'+str(survey.id)).decode()
                     launch_kwargs = json.loads(launch_kwargs)  
-                    survey.require_launch = False
                     edit_survey.apply_async(kwargs=launch_kwargs)
-                    GLOBALS.redisClient.delete('edit_kwargs_'+str(survey.id))
-            except:
-                continue
+                except:
+                    if survey.status == 'Restoring Files': survey.status = 'Ready'
+                survey.require_launch = False
+                GLOBALS.redisClient.delete('edit_kwargs_'+str(survey.id))
                
         if surveys:
             db.session.commit()
@@ -1025,7 +1040,7 @@ def monitorFileRestores():
 def monitorSQS():
     '''Celery task that monitors the SQS queue for new messages'''
     try:
-    
+        starttime = datetime.utcnow()
         response = GLOBALS.sqsClient.receive_message(
             QueueUrl=GLOBALS.sqsQueueUrl,
             AttributeNames=[
@@ -1036,10 +1051,10 @@ def monitorSQS():
                 'All'
             ],
             VisibilityTimeout=60,
-            WaitTimeSeconds=20
+            WaitTimeSeconds=10
         )
         messages = response.get('Messages', [])
-        while messages:
+        while messages and (datetime.utcnow()-starttime).total_seconds() < 180:
             for message in messages:
                 if 'MessageAttributes' in message.keys():
                     message_attributes = message['MessageAttributes']
@@ -1106,7 +1121,7 @@ def monitorSQS():
                     'All'
                 ],
                 VisibilityTimeout=60,
-                WaitTimeSeconds=20
+                WaitTimeSeconds=10
             )
             messages = response.get('Messages', [])
 
