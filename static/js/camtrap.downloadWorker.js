@@ -531,7 +531,17 @@ async function getBlob(url) {
 function getHash(jpegData, filename) {
     /** Returns the hash of the EXIF-less image */
     if (['mp4', 'avi', 'mov'].some(element => filename.toLowerCase().includes(element))){
-        return CryptoJS.MD5(CryptoJS.enc.Latin1.parse(jpegData)).toString()
+        if (jpegData.length>5000000) {
+            md5Hash = CryptoJS.algo.MD5.create()
+            for (let i=0;i<jpegData.length;i+=1000000) {
+                md5Hash.update(CryptoJS.enc.Latin1.parse(jpegData.slice(i,i+1000000)))
+            }
+            hash = md5Hash.finalize().toString()
+        }
+        else {
+            hash = CryptoJS.MD5(CryptoJS.enc.Latin1.parse(jpegData)).toString()   
+        }
+        return hash
     }
     else{
         return CryptoJS.MD5(CryptoJS.enc.Latin1.parse(exports.piexif.insert(exports.piexif.dump({'0th':{},'1st':{},'Exif':{},'GPS':{},'Interop':{},'thumbnail':null}), jpegData))).toString()

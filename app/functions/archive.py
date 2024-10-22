@@ -596,12 +596,14 @@ def restore_files_for_download(self,task_id,user_id,download_params,days,extend=
                         continue
 
         if extend:
-            survey.download_restore = datetime.utcnow()
-            db.session.commit()
+            if restored_image or restored_video:
+                survey.download_restore = datetime.utcnow()
+                db.session.commit()
         else:
             if restored_image or restored_video or restored_zip:
                 date_now = datetime.now()
                 survey.download_restore = date_now
+                survey.status = 'Restoring Files'
 
                 download_request = db.session.query(DownloadRequest).filter(DownloadRequest.task_id==task_id).filter(DownloadRequest.user_id==user_id).filter(DownloadRequest.type=='file').first()
                 download_request.status = 'Restoring Files'
@@ -618,6 +620,7 @@ def restore_files_for_download(self,task_id,user_id,download_params,days,extend=
                 restore_date = [date for date in restore_date if date]
                 restore_date = max(restore_date)
                 survey.download_restore = restore_date
+                survey.status = 'Restoring Files'
 
                 download_request = db.session.query(DownloadRequest).filter(DownloadRequest.task_id==task_id).filter(DownloadRequest.user_id==user_id).filter(DownloadRequest.type=='file').first()
                 download_request.status = 'Restoring Files'

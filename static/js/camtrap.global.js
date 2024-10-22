@@ -422,18 +422,19 @@ function buildDownloadRequest(download){
             downloadBtn.setAttribute('href', download.url);
             col2.appendChild(downloadBtn);
 
-            var deleteBtn = document.createElement('a');
-            deleteBtn.innerHTML = '<i class="fa-solid fa-circle-xmark fa-2xl"></i>';
-            deleteBtn.setAttribute('style', 'cursor: pointer; color: #D9534F;');
-            deleteBtn.setAttribute('title', 'Delete');
-            deleteBtn.id = 'deleteDownloadBtn-' + download.id;
-            col3.appendChild(deleteBtn);
-
-            deleteBtn.addEventListener('click', function(){
-                let download_id = this.id.split('-')[1]
-                deleteDownload(download_id)
-            });
         }
+
+        var deleteBtn = document.createElement('a');
+        deleteBtn.innerHTML = '<i class="fa-solid fa-circle-xmark fa-2xl"></i>';
+        deleteBtn.setAttribute('style', 'cursor: pointer; color: #D9534F;');
+        deleteBtn.setAttribute('title', 'Delete');
+        deleteBtn.id = 'deleteDownloadBtn-' + download.id;
+        col3.appendChild(deleteBtn);
+
+        deleteBtn.addEventListener('click', function(){
+            let download_id = this.id.split('-')[1]
+            deleteDownload(download_id)
+        });
     }
     else if (download.status == 'Restoring Files'){
         var col1 = document.createElement('div');

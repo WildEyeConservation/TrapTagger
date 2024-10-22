@@ -17,7 +17,7 @@ limitations under the License.
 from app import app, db, celery
 from app.models import *
 from app.functions.globals import getQueueLengths, getImagesProcessing, getInstanceCount, getInstancesRequired, launch_instances, manageDownload, resolve_abandoned_jobs, \
-deleteTurkcodes, createTurkcodes, deleteFile, cleanup_empty_restored_images
+deleteTurkcodes, createTurkcodes, deleteFile, cleanup_empty_restored_images, calculate_restore_expiry_date
 from app.functions.imports import import_survey
 from app.functions.admin import stop_task, edit_survey
 from app.functions.annotation import freeUpWork, wrapUpTask, launch_task
@@ -750,36 +750,48 @@ def manage_tasks_with_restore():
         msg = None
         if '-7' in tagging_level:
             if empty_restore:
-                expiry_date = (empty_restore + timedelta(days=30, seconds=Config.RESTORE_TIME)).replace(hour=0,minute=0,second=0,microsecond=0)
+                expiry_date = calculate_restore_expiry_date(empty_restore, Config.RESTORE_TIME, 30)
                 time_left = expiry_date - date_now
 
-                if time_left.days < 1:
+                if time_left.days < 0:
+                    msg = '<p> Your Sigting Correction job on empty clusters for survey {} has been stopped due to the expiration of the empty images restoration from archival storage and lack of activity.</p>'.format(survey_name)
+                    task = db.session.query(Task).get(task_id)
+                    task.status = 'Stopping'
+                    db.session.commit()
+                    stop_task.delay(task_id=task_id)
+                elif time_left.days < 1:
                     if last_active:
                         if (date_now - last_active).days > 5:
-                            msg = '<p>Your Empty Image Sighting Correction job for {} has been stopped because the empty images\' restoration from archival storage has expired.</p>'.format(survey_name)
+                            msg = '<p> Your Sigting Correction job on empty clusters for survey {} has been stopped due to the expiration of the empty images restoration from archival storage and lack of activity.</p>'.format(survey_name)
+                            task = db.session.query(Task).get(task_id)
+                            task.status = 'Stopping'
+                            db.session.commit()
                             stop_task.delay(task_id=task_id)
-                    else:
-                        msg = '<p>Your Empty Image Sighting Correction job for {} has been stopped because the empty images\' restoration from archival storage has expired.</p>'.format(survey_name)
-                        stop_task.delay(task_id=task_id)
         else:
             if id_restore:
-                expiry_date = (id_restore + timedelta(days=Config.ID_RESTORE_DAYS, seconds=Config.RESTORE_TIME)).replace(hour=0,minute=0,second=0,microsecond=0)
+                expiry_date = calculate_restore_expiry_date(id_restore, Config.RESTORE_TIME, Config.ID_RESTORE_DAYS)
                 time_left = expiry_date - date_now
-
-                if time_left.days < 1:
+                if time_left.days < 0:
+                    msg = '<p>Your Individual ID job for survey {} has been stopped due to the expiration of the RAW images restoration from archival storage and lack of activity.</p>'.format(survey_name)
+                    task = db.session.query(Task).get(task_id)
+                    task.status = 'Stopping'
+                    db.session.commit()
+                    stop_task.delay(task_id=task_id)
+                elif time_left.days < 1:
                     if last_active:
                         if (date_now - last_active).days > 5:
-                            msg = '<p>Your Individual ID job for {} has been stopped because the RAW images\' restoration from archival storage has expired.</p>'.format(survey_name)
+                            msg = '<p>Your Individual ID job for survey {} has been stopped due to the expiration of the RAW images restoration from archival storage and lack of activity.</p>'.format(survey_name)
+                            task = db.session.query(Task).get(task_id)
+                            task.status = 'Stopping'
+                            db.session.commit()
                             stop_task.delay(task_id=task_id)
                         else:
                             survey = db.session.query(Survey).get(survey_id)
                             survey.id_restore = date_now
                             db.session.commit()
-                            days = timedelta(days=Config.ID_RESTORE_DAYS, seconds=Config.RESTORE_TIME).days - 1
+                            days = timedelta(days=Config.ID_RESTORE_DAYS, seconds=Config.RESTORE_TIME).days
+                            if days > Config.ID_RESTORE_DAYS: days = days - 1
                             restore_images_for_id.apply_async(kwargs={'task_id':task_id,'days':days, 'extend':True})
-                    else:
-                        msg = '<p>Your Individual ID job for {} has been stopped because the RAW images\' restoration from archival storage has expired.</p>'.format(survey_name)
-                        stop_task.delay(task_id=task_id)
 
         if msg:
             org_admins = [r[0] for r in db.session.query(User.id).join(UserPermissions).join(Organisation).join(Survey).filter(Survey.id==survey_id).filter(UserPermissions.default=='admin').distinct().all()]    
@@ -861,7 +873,7 @@ def manageDownloadRequests():
         for req in download_requests:
             request = req[0]
             survey_restore = req[1]
-            expiry_date = (survey_restore + timedelta(days=Config.DOWNLOAD_RESTORE_DAYS, seconds=Config.RESTORE_TIME)).replace(hour=0,minute=0,second=0,microsecond=0) if survey_restore else None
+            expiry_date = calculate_restore_expiry_date(survey_restore, Config.RESTORE_TIME, Config.DOWNLOAD_RESTORE_DAYS)
             if request.type == 'file':
                 task_id = request.task_id
                 if request.status == 'Downloading':
@@ -919,7 +931,7 @@ def checkRestoreDownloads(task_id):
     survey = db.session.query(Survey).join(Task).filter(Task.id==task_id).first()
     date_now = datetime.utcnow()
     if survey.download_restore and survey.download_restore >= (date_now - timedelta(days=Config.DOWNLOAD_RESTORE_DAYS, seconds=Config.RESTORE_TIME)): 
-        expiry_date = (survey.download_restore + timedelta(days=Config.DOWNLOAD_RESTORE_DAYS, seconds=Config.RESTORE_TIME)).replace(hour=0,minute=0,second=0,microsecond=0)
+        expiry_date = calculate_restore_expiry_date(survey.download_restore, Config.RESTORE_TIME, Config.DOWNLOAD_RESTORE_DAYS)
         if (expiry_date - date_now).days < 1:
             download_requests = db.session.query(DownloadRequest).filter(DownloadRequest.task_id == task_id).filter(DownloadRequest.type == 'file').filter(DownloadRequest.status == 'Downloading').all()
             for request in download_requests:
@@ -929,7 +941,8 @@ def checkRestoreDownloads(task_id):
                     download_params = json.loads(download_params)
                     survey.download_restore = date_now
                     db.session.commit()
-                    days = timedelta(days=Config.DOWNLOAD_RESTORE_DAYS, seconds=Config.RESTORE_TIME).days - 1
+                    days = timedelta(days=Config.DOWNLOAD_RESTORE_DAYS, seconds=Config.RESTORE_TIME).days
+                    if days > Config.DOWNLOAD_RESTORE_DAYS: days = days - 1
                     restore_files_for_download.apply_async(kwargs={'task_id':task_id,'user_id':user_id,'days':days,'download_params':download_params,'extend':True})
                 except:
                     continue

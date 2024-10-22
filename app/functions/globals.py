@@ -2728,7 +2728,7 @@ def fire_up_instances(queue,instance_count):
         git_pull = True
         subnet = Config.PUBLIC_SUBNET_ID
     else:
-        classifier = db.session.query(Classifier).filter(Classifier.name==queue).first()
+        classifier = db.session.query(Classifier).filter(Classifier.queue==queue).first()
         ami = classifier.ami_id
         instances = Config.GPU_INSTANCE_TYPES
         user_data = Config.CLASSIFIER['user_data']
@@ -3568,7 +3568,7 @@ def manageDownload(task_id):
             try:
                 download_params = json.loads(GLOBALS.redisClient.get('fileDownloadParams_'+str(task_id)+'_'+str(user_id)).decode())
                 survey_restore = request.task.survey.download_restore
-                expiry_date = (survey_restore + timedelta(days=Config.DOWNLOAD_RESTORE_DAYS, seconds=Config.RESTORE_TIME)).replace(hour=0,minute=0,second=0,microsecond=0) if survey_restore else None
+                expiry_date = calculate_restore_expiry_date(survey_restore,Config.RESTORE_TIME,Config.DOWNLOAD_RESTORE_DAYS)
                 if expiry_date and datetime.utcnow() < expiry_date:
                     request.status = 'Available'
                     request.timestamp = datetime.utcnow()
@@ -4042,3 +4042,20 @@ def deleteFile(self,fileName):
         db.session.remove()
 
     return True
+
+def calculate_restore_expiry_date(restore_date,restore_time,days):
+    '''Calculates the expiry date for objects in Glacier DEEP ARCHIVE after a restore request.'''
+    
+    expiry_date = None
+    try:
+        available_date = restore_date + timedelta(seconds=restore_time)
+        # if the available date and restore date is on the same day we need to add an extra day
+        if available_date.date() == restore_date.date():
+            expiry_date = available_date + timedelta(days=days+1)
+        else:
+            expiry_date = available_date + timedelta(days=days)
+        expiry_date = expiry_date.replace(hour=0,minute=0,second=0,microsecond=0)
+    except:
+        expiry_date = None
+
+    return expiry_date

@@ -14237,7 +14237,7 @@ def getDownloadRequests():
                 if status == 'Downloading':
                     current_download_requests.append(req_dict)
                 else:
-                    expires = (survey_restore + timedelta(days=Config.DOWNLOAD_RESTORE_DAYS, seconds=Config.RESTORE_TIME)).replace(hour=0, minute=0, second=0, microsecond=0) if survey_restore else None
+                    expires = calculate_restore_expiry_date(survey_restore,Config.RESTORE_TIME,Config.DOWNLOAD_RESTORE_DAYS)
                     if expires:
                         if expires > date_now:
                             if timestamp and status == 'Restoring Files':
@@ -14285,7 +14285,8 @@ def checkDownloadRequests():
 
         for r in requests:
             if r[2] == 'file':
-                if r[3] and (r[3] + timedelta(days=Config.DOWNLOAD_RESTORE_DAYS, seconds=Config.RESTORE_TIME)).replace(hour=0, minute=0, second=0, microsecond=0) > date_now:
+                expiry = calculate_restore_expiry_date(r[3],Config.RESTORE_TIME,Config.DOWNLOAD_RESTORE_DAYS)
+                if expiry and expiry > date_now:
                     available_downloads += 1
                 elif not r[3]:
                     if r[1] + timedelta(days=Config.DOWNLOAD_RESTORE_DAYS) > date_now:
@@ -14430,12 +14431,20 @@ def deleteDownloadRequest(download_request_id):
             if celery_id: celery.control.revoke(celery_id, terminate=True)
         except:
             pass
-
-        try:
-            fileName = task.survey.organisation.folder+'/docs/' + task.survey.organisation.name+'_'+current_user.username+'_'+task.survey.name+'_'+task.name+'_'+download_request.name+'.'+Config.RESULT_TYPES[download_request.type]
-            GLOBALS.s3client.delete_object(Bucket=Config.BUCKET, Key=fileName)
-        except:
-            pass
+        
+        if download_request.type == 'file':
+            try:
+                download_params = json.loads(GLOBALS.redisClient.get('fileDownloadParams_'+str(download_request.task_id)+'_'+str(download_request.user_id)).decode())
+                if download_params['include_emtpies']: cleanup_empty_restored_images.delay(task_id=task.id)
+            except:
+                pass
+            GLOBALS.redisClient.delete('fileDownloadParams_'+str(task.id)+'_'+str(current_user.id))
+        else:
+            try:
+                fileName = task.survey.organisation.folder+'/docs/' + task.survey.organisation.name+'_'+current_user.username+'_'+task.survey.name+'_'+task.name+'_'+download_request.name+'.'+Config.RESULT_TYPES[download_request.type]
+                GLOBALS.s3client.delete_object(Bucket=Config.BUCKET, Key=fileName)
+            except:
+                pass
 
         db.session.delete(download_request)
         db.session.commit()

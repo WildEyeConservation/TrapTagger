@@ -31,7 +31,7 @@ launchMTurkTaskBtn.addEventListener('click', ()=>{
     else if (tabActiveLaunch == 'baseIndividualTab') {
         confirmRestore = true
         modalLaunchTask.modal('hide')
-        document.getElementById('modalConfirmBodyRestore').innerHTML = '<p>Individual identification tasks require the raw images for the species of interest to be restored from our archival storage. This process will take 48 hours to complete. Would you like to proceed?</p>'
+        document.getElementById('modalConfirmBodyRestore').innerHTML = '<p>Individual identification jobs require the raw images of the species of interest to be restored from our archival storage. This process will take 48 hours to complete. Would you like to proceed?</p>'
         modalConfirmRestore.modal({keyboard: true})
     }
     else{
