@@ -5626,12 +5626,17 @@ function prepMapMask(image) {
     
             activeImageMask = L.imageOverlay(imageUrl, bounds).addTo(mapMask);
             activeImageMask.on('load', function() {
-                addedDetectionsMask = false
+                // addedDetectionsMask = false
                 addDetections()
                 finishedDisplayingMask = true
             });
             activeImageMask.on('error', function() {
-                finishedDisplayingMask = true
+                if (this._url.includes('-comp')) {
+                    finishedDisplayingMask = true
+                }
+                else{
+                    this.setUrl("https://'+bucketName+'.s3.amazonaws.com/"+modifyToCompURL(cameras[maskCamIndex].images[maskImgIndex].url))
+                }
             });
             mapMask.setMaxBounds(bounds);
             mapMask.fitBounds(bounds)
@@ -5672,12 +5677,12 @@ function prepMapMask(image) {
                 mapMask.panInsideBounds(bounds, { animate: false });
             });
     
-            // mapMask.on('zoomstart', function() {
-            //     if (!fullRes) {
-            //         activeImageMask.setUrl("https://"+bucketName+".s3.amazonaws.com/" + modifyToCompURL(cameras[maskCamIndex].images[maskImgIndex].url))
-            //         fullRes = true  
-            //     }
-            // });    
+            mapMask.on('zoomstart', function() {
+                if (!fullRes) {
+                    activeImageMask.setUrl("https://"+bucketName+".s3.amazonaws.com/" + cameras[maskCamIndex].images[maskImgIndex].url)
+                    fullRes = true  
+                }
+            });    
 
             drawnItemsMask = new L.FeatureGroup();
             mapMask.addLayer(drawnItemsMask);
@@ -5778,12 +5783,17 @@ function prepMapStatic(image) {
     
             activeImageStatic = L.imageOverlay(imageUrl, bounds).addTo(mapStatic);
             activeImageStatic.on('load', function() {
-                addedDetectionsStatic = false
+                // addedDetectionsStatic = false
                 addDetections()
                 finishedDisplayingStatic = true
             });
             activeImageStatic.on('error', function() {
-                finishedDisplayingStatic = true
+                if (this._url.includes('-comp')) {
+                    finishedDisplayingStatic = true
+                }
+                else{
+                    this.setUrl("https://"+bucketName+".s3.amazonaws.com/" + modifyToCompURL(staticgroups[staticgroupIndex].images[staticImgIndex].url))
+                }
             });
             mapStatic.setMaxBounds(bounds);
             mapStatic.fitBounds(bounds)
@@ -5824,12 +5834,12 @@ function prepMapStatic(image) {
                 mapStatic.panInsideBounds(bounds, { animate: false });
             });
     
-            // mapStatic.on('zoomstart', function() {
-            //     if (!fullRes) {
-            //         activeImageStatic.setUrl("https://"+bucketName+".s3.amazonaws.com/" + modifyToCompURL(staticgroups[staticgroupIndex].images[staticImgIndex].url))
-            //         fullRes = true  
-            //     }
-            // });    
+            mapStatic.on('zoomstart', function() {
+                if (!fullRes) {
+                    activeImageStatic.setUrl("https://"+bucketName+".s3.amazonaws.com/" + staticgroups[staticgroupIndex].images[staticImgIndex].url)
+                    fullRes = true  
+                }
+            });    
 
             drawnItemsStatic = new L.FeatureGroup();
             mapStatic.addLayer(drawnItemsStatic);
@@ -5894,7 +5904,12 @@ function prepMapTime(image) {
                 finishedDisplayingTime = true
             });
             activeImageTime.on('error', function() {
-                finishedDisplayingTime = true
+                if (this._url.includes('-comp')) {
+                    finishedDisplayingTime = true
+                }
+                else{
+                    this.setUrl("https://"+bucketName+".s3.amazonaws.com/" + modifyToCompURL(images[cameraIndex].images[imageIndex].url))
+                }
             });
             mapTime.setMaxBounds(bounds);
             mapTime.fitBounds(bounds)
@@ -5932,12 +5947,12 @@ function prepMapTime(image) {
                 mapTime.panInsideBounds(bounds, { animate: false });
             });
     
-            // mapTime.on('zoomstart', function() {
-            //     if (!fullRes) {
-            //         activeImageTime.setUrl("https://"+bucketName+".s3.amazonaws.com/" + modifyToCompURL(images[cameraIndex].images[imageIndex].url))
-            //         fullRes = true  
-            //     }
-            // });    
+            mapTime.on('zoomstart', function() {
+                if (!fullRes) {
+                    activeImageTime.setUrl("https://"+bucketName+".s3.amazonaws.com/" + images[cameraIndex].images[imageIndex].url)
+                    fullRes = true  
+                }
+            });    
 
             mapReadyTime = true
         };
@@ -5950,6 +5965,7 @@ function addDetections() {
 
     if (tabActiveEditSurvey=='baseEditMasksTab') {
         if (addedDetectionsMask == false) {
+            fullRes = false
             drawnItemsMask.clearLayers()
             drawnMaskItems.clearLayers()
             mapMask.setZoom(mapMask.getMinZoom())
@@ -5979,6 +5995,7 @@ function addDetections() {
     }
     else if (tabActiveEditSurvey=='baseStaticTab') {
         if (addedDetectionsStatic == false) {
+            fullRes = false
             drawnItemsStatic.clearLayers()
             mapStatic.setZoom(mapStatic.getMinZoom())
 
@@ -6007,6 +6024,9 @@ function updateMaskMap() {
     /** Updates the mask map after an action has been performed. */
 
     finishedDisplayingMask = false
+    fullRes = false
+    addedDetectionsMask = false
+
     document.getElementById('mapTitle_mask').innerHTML = cameras[maskCamIndex].images[maskImgIndex].url.split('/').slice(1).join('/')
 
     document.getElementById('maskUsers').value = ''
@@ -6093,7 +6113,7 @@ function maskEditPrep() {
             }
         });
 
-        if (isOverlapping) {
+        if (isOverlapping && document.getElementById('modalAlertText') != null) {
             document.getElementById('modalAlertText').innerHTML = "The masked area you've outlined overlaps with another masked area. A detection will only be considered masked if it is fully within the boundaries of a single mask. It is recommended that you either adjust the existing mask to cover the entire detection area or delete it and create a new one."
             modalAlert.modal({keyboard: true});
             drawnMaskItems.removeLayer(newLayer);
@@ -6803,6 +6823,9 @@ function updateStaticMap() {
     /** Updates the static map after an action has been performed. */
 
     finishedDisplayingStatic = false
+    fullRes = false
+    addedDetectionsStatic = false
+
     document.getElementById('mapTitle_static').innerHTML = staticgroups[staticgroupIndex].images[staticImgIndex].url.split('/').slice(1).join('/')
     if (staticgroups[staticgroupIndex].user){
         document.getElementById('staticCheckedBy').value = staticgroups[staticgroupIndex].user
@@ -8142,11 +8165,13 @@ function getTimestampImages(){
 
 function updateImageMap(){
     /** Updates the image map with the current image. */
-
+    fullRes = false 
+    finishedDisplayingTime = false
     document.getElementById('year').focus()
 
     document.getElementById('mapTitle_time').innerHTML = images[cameraIndex].images[imageIndex].name.split('/').slice(1).join('/')
     if (mapTime != null) {
+        mapTime.setZoom(mapTime.getMinZoom())
         activeImageTime.setUrl("https://"+bucketName+".s3.amazonaws.com/" + modifyToCompURL(images[cameraIndex].images[imageIndex].url))
     }
     else{

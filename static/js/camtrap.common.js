@@ -2454,6 +2454,10 @@ function prepMap(mapID = 'map1') {
                         
                         finishedDisplaying[mapID] = true
                     });
+
+                    activeImage[mapID].on('error', function () {
+                        finishedDisplaying[mapID] = true
+                    });
                     
                     map[mapID].setMaxBounds(bounds);
                     map[mapID].fitBounds(bounds);
@@ -2493,7 +2497,7 @@ function prepMap(mapID = 'map1') {
 
                     map[mapID].on('zoomstart', function(wrapMapID) {
                         return function () { 
-                            if ((isIDing)&&(!fullRes[wrapMapID])&&(!['-101','-99','-782'].includes(clusters[wrapMapID][clusterIndex[wrapMapID]].id))) {
+                            if ((!fullRes[wrapMapID])&&(!['-101','-99','-782'].includes(clusters[wrapMapID][clusterIndex[wrapMapID]].id))) {
                                 var isImg = checkImage(clusters[wrapMapID][clusterIndex[wrapMapID]].images[imageIndex[wrapMapID]].url)
                                 if (isImg) {
                                     activeImage[wrapMapID].setUrl("https://"+bucketName+".s3.amazonaws.com/" + clusters[wrapMapID][clusterIndex[wrapMapID]].images[imageIndex[wrapMapID]].url)
@@ -2570,8 +2574,14 @@ function prepMap(mapID = 'map1') {
 
                         activeImage[wrapMapID].on('error', function(wrapWrapMapID) {
                             return function () {
-                                // If image fails to load
-                                finishedDisplaying[wrapWrapMapID] = true
+                                if (this._url.includes('-comp')) {
+                                    // If image already compressed, then it is likely that the image is not available   
+                                    finishedDisplaying[wrapWrapMapID] = true
+                                }
+                                else{
+                                    // If raw image not available, then try loading the compressed version
+                                    this.setUrl("https://"+bucketName+".s3.amazonaws.com/" + modifyToCompURL(clusters[wrapWrapMapID][clusterIndex[wrapWrapMapID]].images[imageIndex[wrapWrapMapID]].url))
+                                }
                             }
                         }(wrapMapID));
 
@@ -2623,7 +2633,7 @@ function prepMap(mapID = 'map1') {
                 
                         map[wrapMapID].on('zoomstart', function(wrapWrapMapID) {
                             return function () { 
-                                if ((isIDing)&&(!fullRes[wrapWrapMapID])&&(!['-101','-99','-782'].includes(clusters[wrapWrapMapID][clusterIndex[wrapWrapMapID]].id))) {
+                                if ((!fullRes[wrapWrapMapID])&&(!['-101','-99','-782'].includes(clusters[wrapWrapMapID][clusterIndex[wrapWrapMapID]].id))) {
                                     var isImg = checkImage(clusters[wrapWrapMapID][clusterIndex[wrapWrapMapID]].images[imageIndex[wrapWrapMapID]].url)
                                     if (isImg) {
                                         activeImage[wrapWrapMapID].setUrl("https://"+bucketName+".s3.amazonaws.com/" + clusters[wrapWrapMapID][clusterIndex[wrapWrapMapID]].images[imageIndex[wrapWrapMapID]].url)

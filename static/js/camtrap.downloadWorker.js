@@ -508,7 +508,7 @@ async function downloadFile(url,paths,labels,hash,count=0) {
             errorEcountered = true
             filesDownloaded += paths.length
         } else {
-            setTimeout(function() { downloadFile(url,paths,labels,count+1); }, 1000*(5**count));
+            setTimeout(function() { downloadFile(url,paths,labels,hash,count+1); }, 1000*(5**count));
         }
     }
 }

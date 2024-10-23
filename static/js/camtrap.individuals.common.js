@@ -200,11 +200,16 @@ function prepMapIndividual(image) {
     
             activeImage = L.imageOverlay(imageUrl, bounds).addTo(map);
             activeImage.on('load', function() {
-                addedDetections = false
+                // addedDetections = false
                 addDetectionsIndividual(individualImages[individualSplide.index])
             });
             activeImage.on('error', function() {
-                finishedDisplaying = true
+                if (this._url.includes('-comp')) {
+                    finishedDisplaying = true
+                }
+                else{
+                    this.setUrl("https://"+bucketName+".s3.amazonaws.com/" + modifyToCompURL(individualImages[individualSplide.index].url))
+                }
             });
             map.setMaxBounds(bounds);
             map.fitBounds(bounds)
@@ -248,14 +253,14 @@ function prepMapIndividual(image) {
             drawnItems = new L.FeatureGroup();
             map.addLayer(drawnItems);
     
-            // map.on('zoomstart', function() {
-            //     if (!fullRes) {
-            //         if(checkIfImage(activeImage._url)){
-            //             activeImage.setUrl("https://"+bucketName+".s3.amazonaws.com/" + individualImages[individualSplide.index].url)
-            //             fullRes = true
-            //         }
-            //     }
-            // });    
+            map.on('zoomstart', function() {
+                if (!fullRes) {
+                    if(checkIfImage(activeImage._url)){
+                        activeImage.setUrl("https://"+bucketName+".s3.amazonaws.com/" + individualImages[individualSplide.index].url)
+                        fullRes = true
+                    }
+                }
+            });    
 
             // if (document.getElementById('btnSubmitInfoChange') != null) {
             //     updateIndividualRectOptions()
@@ -369,7 +374,7 @@ function updateMapIndividual( url){
     
             activeImage = L.imageOverlay(imageUrl, bounds).addTo(map);
             activeImage.on('load', function() {
-                addedDetections = false
+                // addedDetections = false
                 addDetectionsIndividual(individualImages[individualSplide.index])
             });
 

@@ -50,6 +50,14 @@ var drawnItems = null
 var jobTimer
 var modalDeleteActive = false
 var legalDelete = false
+var addedDetections = false
+var finishedDisplaying = false
+var fullRes = false
+var mapReady = false
+var activeImage = null
+var rectOptions = null
+var mapWidth = null
+var mapHeight = null
 // var changed_flanks = {}
 
 function getIndividuals(page = null) {
@@ -840,6 +848,7 @@ function cleanModalIndividual() {
     mapStats = null
     minDate = null
     maxDate = null
+    addedDetections = false
     // changed_flanks = {}
 
     document.getElementById('tgInfo').innerHTML = 'Site: '
