@@ -1449,7 +1449,7 @@ def createNewSurvey():
         newSurveyS3Folder = request.form['newSurveyS3Folder']
         checkbox = request.form['checkbox']
         correctTimestamps = request.form['correctTimestamps']
-        classifier = request.form['classifier']
+        classifier_id = request.form['classifier_id']
         permission = request.form['permission']
         annotation = request.form['annotation']
         newSurveyCamCode = request.form['newSurveyCamCode']
@@ -1536,16 +1536,14 @@ def createNewSurvey():
                     GLOBALS.s3client.put_object(Bucket=Config.BUCKET,Key=key,Body=temp_file)
 
             # Create survey
-            classifier = db.session.query(Classifier).filter(Classifier.name==classifier).first()
-
             if emptySurvey:
-                newSurvey = Survey(name=surveyName, description=newSurveyDescription, organisation_id=organisation_id, status='Ready', correct_timestamps=correctTimestamps, classifier_id=classifier.id, folder=newSurveyS3Folder)
+                newSurvey = Survey(name=surveyName, description=newSurveyDescription, organisation_id=organisation_id, status='Ready', correct_timestamps=correctTimestamps, classifier_id=int(classifier_id), folder=newSurveyS3Folder)
                 db.session.add(newSurvey)
 
                 defaultTask = Task(name='default', survey=newSurvey, tagging_level='-1', test_size=0, status='Ready')
                 db.session.add(defaultTask)
             else:
-                newSurvey = Survey(name=surveyName, description=newSurveyDescription, trapgroup_code=newSurveyTGCode, organisation_id=organisation_id, status='Uploading', correct_timestamps=correctTimestamps, classifier_id=classifier.id, camera_code=newSurveyCamCode, folder=newSurveyS3Folder)
+                newSurvey = Survey(name=surveyName, description=newSurveyDescription, trapgroup_code=newSurveyTGCode, organisation_id=organisation_id, status='Uploading', correct_timestamps=correctTimestamps, classifier_id=int(classifier_id), camera_code=newSurveyCamCode, folder=newSurveyS3Folder)
                 db.session.add(newSurvey)
 
             # Add permissions
@@ -1920,10 +1918,14 @@ def editSurvey():
     organisation = survey.organisation
     if survey and checkSurveyPermission(current_user.id,survey_id,'write'):
 
-        classifier = None
-        if 'classifier' in request.form:
-            classifier = request.form['classifier']
-            if classifier.lower() == 'none': classifier = None 
+        classifier_id = None
+        if 'classifier_id' in request.form:
+            classifier_id = request.form['classifier_id']
+            if type(classifier_id)==str:
+                if classifier_id.isdigit():
+                    classifier_id = int(classifier_id)
+                else:
+                    classifier_id = None
 
         timestamps = None
         if 'timestamps' in request.form:
@@ -1994,11 +1996,11 @@ def editSurvey():
 
 
         if status == 'success':
-            if classifier or ignore_small_detections or sky_masked or timestamps or coordData or masks or staticgroups or kml or imageTimestamps:
+            if classifier_id or ignore_small_detections or sky_masked or timestamps or coordData or masks or staticgroups or kml or imageTimestamps:
                 survey.status = 'Processing'
                 db.session.commit()
-                app.logger.info('Edit survey requested for {} with classifier: {}, ignore_small_detections: {}, sky_masked: {}, timestamps: {}, coordData: {}, masks: {}, staticgroups: {}, kml: {}, imageTimestamps: {}'.format(survey.name,classifier,ignore_small_detections,sky_masked,timestamps,coordData,masks,staticgroups,kml,imageTimestamps))
-                edit_survey.delay(survey_id=survey.id,user_id=current_user.id,classifier=classifier,ignore_small_detections=ignore_small_detections,sky_masked=sky_masked,timestamps=timestamps,coord_data=coordData,masks=masks,staticgroups=staticgroups,kml_file=kml,image_timestamps=imageTimestamps)
+                app.logger.info('Edit survey requested for {} with classifier: {}, ignore_small_detections: {}, sky_masked: {}, timestamps: {}, coordData: {}, masks: {}, staticgroups: {}, kml: {}, imageTimestamps: {}'.format(survey.name,classifier_id,ignore_small_detections,sky_masked,timestamps,coordData,masks,staticgroups,kml,imageTimestamps))
+                edit_survey.delay(survey_id=survey.id,user_id=current_user.id,classifier_id=classifier_id,ignore_small_detections=ignore_small_detections,sky_masked=sky_masked,timestamps=timestamps,coord_data=coordData,masks=masks,staticgroups=staticgroups,kml_file=kml,image_timestamps=imageTimestamps)
 
     else:
         status = 'error'
@@ -8832,6 +8834,7 @@ def getClassifierInfo():
                 labels = [classification_label.classification for classification_label in survey.classifier.classification_labels if classification_label.classification not in ['nothing','unknown']]
                 labels.sort()
                 data.append({
+                    'id':survey.classifier.id,
                     'name':survey.classifier.name,
                     'source':survey.classifier.source,
                     'region':survey.classifier.region,
@@ -8846,6 +8849,7 @@ def getClassifierInfo():
                 labels = [classification_label.classification for classification_label in classifier.classification_labels if classification_label.classification not in ['nothing','unknown']]
                 labels.sort()
                 data.append({
+                    'id':classifier.id,
                     'name':classifier.name,
                     'source':classifier.source,
                     'region':classifier.region,

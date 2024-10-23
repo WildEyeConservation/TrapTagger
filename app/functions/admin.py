@@ -1708,7 +1708,7 @@ def changeTimestamps(survey_id,timestamps):
     
     return overlaps, camera_ids
 
-def re_classify_survey(survey_id,classifier):
+def re_classify_survey(survey_id,classifier_id):
     '''Re-classifies a survey using a specified classifier.'''
     
     survey = db.session.query(Survey).get(survey_id)
@@ -1716,7 +1716,7 @@ def re_classify_survey(survey_id,classifier):
     # survey.images_processing = db.session.query(Image).join(Camera).join(Trapgroup).filter(Trapgroup.survey==survey).distinct().count()
     db.session.commit()
 
-    classifySurvey(survey_id=survey_id,sourceBucket=Config.BUCKET,classifier=classifier)
+    classifySurvey(survey_id=survey_id,sourceBucket=Config.BUCKET,classifier_id=classifier_id)
 
     survey = db.session.query(Survey).get(survey_id)
     # survey.images_processing = 0
@@ -2662,7 +2662,7 @@ def recluster_after_image_timestamp_change(survey_id,image_timestamps):
 
 
 @celery.task(bind=True,max_retries=5,ignore_result=True)
-def edit_survey(self,survey_id,user_id,classifier,sky_masked,ignore_small_detections,masks,staticgroups,timestamps,image_timestamps,coord_data,kml_file):
+def edit_survey(self,survey_id,user_id,classifier_id,sky_masked,ignore_small_detections,masks,staticgroups,timestamps,image_timestamps,coord_data,kml_file):
     '''Celery task that handles the editing of a survey.'''
     try:
         survey = db.session.query(Survey).get(survey_id)
@@ -2705,10 +2705,11 @@ def edit_survey(self,survey_id,user_id,classifier,sky_masked,ignore_small_detect
             check_masked_and_hidden_detections(survey_id=survey_id)
 
         # Classify survey
-        if classifier:
+        if classifier_id:
+            classifier_id = int(classifier_id)
             survey = db.session.query(Survey).get(survey_id)
-            if survey.classifier.name != classifier:
-                re_classify_survey(survey_id=survey_id,classifier=classifier)
+            if survey.classifier_id != classifier_id:
+                re_classify_survey(survey_id=survey_id,classifier_id=classifier_id)
 
         # File Timestamps
         trapgroup_ids = []

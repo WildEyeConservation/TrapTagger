@@ -2161,7 +2161,7 @@ def importImages(self,batch,csv,pipeline,external,min_area,remove_gps,label_sour
 #     return True
 
 @celery.task(bind=True,max_retries=5)
-def runClassifier(self,lower_index,upper_index,sourceBucket,batch_size,survey_id,classifier):
+def runClassifier(self,lower_index,upper_index,sourceBucket,batch_size,survey_id,classifier_id):
     '''
     Run species classification on a trapgroup.
 
@@ -2182,7 +2182,10 @@ def runClassifier(self,lower_index,upper_index,sourceBucket,batch_size,survey_id
 
         batch = images[lower_index:upper_index]
 
-        if classifier=='MegaDetector':
+        classifier = db.session.query(Classifier).get(classifier_id)
+        if classifier == None: return False
+
+        if classifier.name=='MegaDetector':
             detections = db.session.query(Detection)\
                                     .join(Image)\
                                     .filter(Image.id.in_(batch))\
@@ -2203,7 +2206,7 @@ def runClassifier(self,lower_index,upper_index,sourceBucket,batch_size,survey_id
             db.session.remove()
 
         else:
-            classifier_queue = db.session.query(Classifier.queue).filter(Classifier.name==classifier).first()[0]
+            classifier_queue = classifier.queue
             GLOBALS.results_queue = []
 
             detections = db.session.query(Detection.id,Detection.left,Detection.right,Detection.top,Detection.bottom,Image.id,Image.filename,Camera.path)\
@@ -3088,7 +3091,7 @@ def updateSurveyDetectionRatings(survey_id):
 
     return True
 
-def classifySurvey(survey_id,sourceBucket,classifier=None,batch_size=200,processes=4):
+def classifySurvey(survey_id,sourceBucket,classifier_id=None,batch_size=200,processes=4):
     '''
     Runs the classifier on the survey, and then updates cluster classifications.
 
@@ -3096,19 +3099,17 @@ def classifySurvey(survey_id,sourceBucket,classifier=None,batch_size=200,process
             survey_id (int): Survey to process
             sourceBucket (str): AWS S3 Bucket where images are located
             batch_size (int): Optional batch size to use for species classifier. Default is 200.
-            classifier (str): The name of the classifier to use
+            classifier_id (int): The classifier to use
             processes (int): Optional number of threads to use. Default is 4.
     '''
 
     results = []
     survey = db.session.query(Survey).get(survey_id)
 
-    if classifier == None:
-        classifier = survey.classifier.name
+    if classifier_id == None: classifier_id = survey.classifier_id
 
     # survey.images_processing = db.session.query(Image).join(Camera).join(Trapgroup).filter(Trapgroup.survey==survey).distinct().count()
-    classifier_object = db.session.query(Classifier).filter(Classifier.name==classifier).first()
-    survey.classifier = classifier_object
+    survey.classifier_id = classifier_id
     survey.processing_initialised = True
     db.session.commit()
 
@@ -3126,7 +3127,7 @@ def classifySurvey(survey_id,sourceBucket,classifier=None,batch_size=200,process
 
     # for chunk in chunker(images,round(Config.QUEUES['parallel']['rate']/2)):
     for n in range(number_of_chunks):
-        results.append(runClassifier.apply_async(kwargs={'lower_index':n*chunk_size,'upper_index':(n+1)*chunk_size,'sourceBucket':sourceBucket,'batch_size':batch_size,'survey_id':survey_id,'classifier':classifier},queue='parallel'))
+        results.append(runClassifier.apply_async(kwargs={'lower_index':n*chunk_size,'upper_index':(n+1)*chunk_size,'sourceBucket':sourceBucket,'batch_size':batch_size,'survey_id':survey_id,'classifier_id':classifier_id},queue='parallel'))
 
     survey.processing_initialised = False
     db.session.commit()

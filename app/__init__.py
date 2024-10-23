@@ -91,7 +91,7 @@ def make_celery(flask_app):
 
     if not Config.INITIAL_SETUP:
         from app.models import Classifier
-        for classifier in db.session.query(Classifier).filter(Classifier.queue!=None).filter(Classifier.name!='MegaDetector').distinct().all():
+        for classifier in db.session.query(Classifier).filter(Classifier.queue!=None).distinct().all():
             task_queues.append(Queue(classifier.queue,routing_key=classifier.queue+'.#'))
 
     ####
@@ -229,7 +229,7 @@ def initialise_periodic_functions(sender, instance, **kwargs):
         # Flush all other (non-default) queues
         allQueues = ['default'] #default needs to be first
         allQueues.extend([queue for queue in Config.QUEUES if queue not in allQueues])
-        allQueues.extend([r[0] for r in db.session.query(Classifier.name).all()])
+        allQueues.extend([r[0] for r in db.session.query(Classifier.queue).filter(Classifier.queue!=None).distinct().all()])
         for queue in allQueues:
             if queue not in ['default','ram_intensive']:
                 while True:
