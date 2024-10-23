@@ -791,7 +791,7 @@ def manage_tasks_with_restore():
                             db.session.commit()
                             days = timedelta(days=Config.ID_RESTORE_DAYS, seconds=Config.RESTORE_TIME).days
                             if days > Config.ID_RESTORE_DAYS: days = days - 1
-                            restore_images_for_id.apply_async(kwargs={'task_id':task_id,'days':days, 'extend':True})
+                            restore_images_for_id.apply_async(kwargs={'task_id':task_id,'days':days,'tier':Config.RESTORE_TIER,'extend':True})
 
         if msg:
             org_admins = [r[0] for r in db.session.query(User.id).join(UserPermissions).join(Organisation).join(Survey).filter(Survey.id==survey_id).filter(UserPermissions.default=='admin').distinct().all()]    
@@ -943,7 +943,7 @@ def checkRestoreDownloads(task_id):
                     db.session.commit()
                     days = timedelta(days=Config.DOWNLOAD_RESTORE_DAYS, seconds=Config.RESTORE_TIME).days
                     if days > Config.DOWNLOAD_RESTORE_DAYS: days = days - 1
-                    restore_files_for_download.apply_async(kwargs={'task_id':task_id,'user_id':user_id,'days':days,'download_params':download_params,'extend':True})
+                    restore_files_for_download.apply_async(kwargs={'task_id':task_id,'user_id':user_id,'days':days,'download_params':download_params,'tier':Config.RESTORE_TIER,'extend':True})
                 except:
                     continue
 

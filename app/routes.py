@@ -383,9 +383,9 @@ def launchTask():
 
         elif len(untranslated) == 0:
             if '-4' in taggingLevel or '-5' in taggingLevel:
-                restore_images_for_id.apply_async(kwargs={'task_id':task.id,'days':Config.ID_RESTORE_DAYS})
+                restore_images_for_id.apply_async(kwargs={'task_id':task.id,'days':Config.ID_RESTORE_DAYS, 'tier':Config.RESTORE_TIER})
             elif '-7' in taggingLevel:
-                restore_empty_zips.apply_async(kwargs={'task_id':task.id})
+                restore_empty_zips.apply_async(kwargs={'task_id':task.id,'tier':Config.RESTORE_TIER})
             else:
                 launch_task.apply_async(kwargs={'task_id':task.id})
             return json.dumps({'status': 'Success'})
@@ -2061,7 +2061,7 @@ def editSurvey():
                         survey.status = 'Processing'
                         db.session.commit()
                         edit_survey_args = {'survey_id':survey.id,'user_id':current_user.id,'classifier':classifier,'ignore_small_detections':ignore_small_detections,'sky_masked':sky_masked,'timestamps':timestamps,'coord_data':coordData,'masks':masks,'staticgroups':staticgroups,'kml_file':kml,'image_timestamps':imageTimestamps}
-                        restore_images_for_classification.delay(survey_id=survey.id,days=2,edit_survey_args=edit_survey_args)
+                        restore_images_for_classification.delay(survey_id=survey.id,days=2,edit_survey_args=edit_survey_args,tier=Config.RESTORE_TIER)
                 else:
                     survey.status = 'Processing'
                     db.session.commit()
@@ -4640,9 +4640,9 @@ def editTranslations(task_id):
         db.session.commit()
 
         if '-4' in task.tagging_level or '-5' in task.tagging_level:
-            restore_images_for_id.apply_async(kwargs={'task_id':task.id,'days':Config.ID_RESTORE_DAYS})
+            restore_images_for_id.apply_async(kwargs={'task_id':task.id,'days':Config.ID_RESTORE_DAYS,'tier':Config.RESTORE_TIER})
         elif '-7' in task.tagging_level:
-            restore_empty_zips.apply_async(kwargs={'task_id':task.id})
+            restore_empty_zips.apply_async(kwargs={'task_id':task.id,'tier':Config.RESTORE_TIER})
         else:
             if len(includes) > 0:
                 launch_task.apply_async(kwargs={'task_id':task.id, 'classify':True})
@@ -7827,9 +7827,9 @@ def submitTags(task_id):
 
             app.logger.info('Calling launch_task for task {}'.format(task_id))
             if '-4' in task.tagging_level or '-5' in task.tagging_level:
-                restore_images_for_id.apply_async(kwargs={'task_id':task.id,'days':Config.ID_RESTORE_DAYS})
+                restore_images_for_id.apply_async(kwargs={'task_id':task.id,'days':Config.ID_RESTORE_DAYS,'tier':Config.RESTORE_TIER})
             elif '-7' in task.tagging_level:
-                restore_empty_zips.apply_async(kwargs={'task_id':task.id})
+                restore_empty_zips.apply_async(kwargs={'task_id':task.id,'tier':Config.RESTORE_TIER})
             else:
                 launch_task.apply_async(kwargs={'task_id':task.id})
 
@@ -14332,7 +14332,7 @@ def restore_for_download():
                 
                 db.session.commit()
 
-                restore_files_for_download.apply_async(kwargs={'task_id': task_id, 'user_id': current_user.id, 'download_params': download_dict, 'days': Config.DOWNLOAD_RESTORE_DAYS})
+                restore_files_for_download.apply_async(kwargs={'task_id': task_id, 'user_id': current_user.id, 'download_params': download_dict, 'days': Config.DOWNLOAD_RESTORE_DAYS, 'tier': Config.RESTORE_TIER})
 
                 status = 'success'
                 message = 'Your download request has been initiated. A wait time 48 hours is required for the download to be prepared. Your download request can be viewed in the downloads menu.'

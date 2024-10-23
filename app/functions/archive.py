@@ -106,7 +106,7 @@ def binary_search_restored_objects(keys,days=None):
     return low, restoring, require_wait
 
 @celery.task(bind=True,max_retries=2,ignore_result=True)
-def restore_empty_zips(self,task_id):
+def restore_empty_zips(self,task_id,tier):
     '''Restores zips from Glacier that contain empty images.'''
     
     try:
@@ -117,7 +117,7 @@ def restore_empty_zips(self,task_id):
         restore_request = {
             'Days': 2,
             'GlacierJobParameters': {
-                'Tier': Config.RESTORE_TIER
+                'Tier': tier
             }
         }
 
@@ -283,7 +283,7 @@ def extract_zip(self,zip_key):
     return True
 
 @celery.task(bind=True,max_retries=2,ignore_result=True)
-def restore_images_for_id(self,task_id,days,extend=False):
+def restore_images_for_id(self,task_id,days,tier,extend=False):
     '''Restores images from Glacier for a specified species in the specified tasks.'''
     
     try:
@@ -322,7 +322,7 @@ def restore_images_for_id(self,task_id,days,extend=False):
         restore_request = {
             'Days': days,
             'GlacierJobParameters': {
-                'Tier': Config.RESTORE_TIER
+                'Tier': tier
             }
         }
 
@@ -427,7 +427,7 @@ def restore_images_for_id(self,task_id,days,extend=False):
     return True
 
 @celery.task(bind=True,max_retries=2,ignore_result=True)
-def restore_images_for_classification(self,survey_id,days,edit_survey_args):
+def restore_images_for_classification(self,survey_id,days,edit_survey_args,tier):
     '''Restores images from Glacier for a specified survey.'''
     
     try:
@@ -455,7 +455,7 @@ def restore_images_for_classification(self,survey_id,days,edit_survey_args):
             restore_request = {
                 'Days': days,
                 'GlacierJobParameters': {
-                    'Tier': Config.RESTORE_TIER
+                    'Tier': tier
                 }
             }
             restored_image = False
@@ -501,7 +501,7 @@ def restore_images_for_classification(self,survey_id,days,edit_survey_args):
     return True
 
 @celery.task(bind=True,max_retries=2,ignore_result=True)
-def restore_files_for_download(self,task_id,user_id,download_params,days,extend=False):
+def restore_files_for_download(self,task_id,user_id,download_params,days,tier,extend=False):
     '''Restores files from Glacier for a specified task.'''
     try:
         task = db.session.query(Task).get(task_id)
@@ -567,7 +567,7 @@ def restore_files_for_download(self,task_id,user_id,download_params,days,extend=
         restore_request = {
             'Days': days,
             'GlacierJobParameters': {
-                'Tier': Config.RESTORE_TIER
+                'Tier': tier
             }
         }
         
@@ -618,7 +618,7 @@ def restore_files_for_download(self,task_id,user_id,download_params,days,extend=
                 zip_restore_request = {
                     'Days': 2,
                     'GlacierJobParameters': {
-                        'Tier': Config.RESTORE_TIER
+                        'Tier': tier
                     }
                 }
 
