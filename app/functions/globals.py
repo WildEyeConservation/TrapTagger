@@ -223,7 +223,7 @@ def getQueueLengths():
         if Config.DEBUGGING: print('{} queue length: {}'.format(queue,queueLength))
         if queueLength: queues[queue] = queueLength
 
-    for queue in [r[0] for r in db.session.query(Classifier.queue).filter(Classifier.queue!=None).filter(Classifier.active==True).distinct().all()]:
+    for queue in [r[0] for r in db.session.query(Classifier.queue).filter(Classifier.queue!=None).distinct().all()]:
         queueLength = GLOBALS.redisClient.llen(queue)
         if Config.DEBUGGING: print('{} queue length: {}'.format(queue,queueLength))
         if queueLength: queues[queue] = queueLength

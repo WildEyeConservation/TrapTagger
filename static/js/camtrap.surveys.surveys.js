@@ -3921,7 +3921,7 @@ function updateClassifierTable(url=null) {
                 input.setAttribute('class','custom-control-input')
                 input.setAttribute('id',datum.name)
                 input.setAttribute('name','classifierSelection')
-                input.setAttribute('value','customEx')
+                input.setAttribute('value',datum.id)
                 if (datum.active) {
                     input.checked = true
                 }
@@ -4251,16 +4251,16 @@ document.getElementById('btnSaveSurvey').addEventListener('click', ()=>{
     camBotLvlFolder = document.getElementById('camBotLvlFolder').checked
     camSameAsSite = document.getElementById('camSameAsSite').checked
     newSurveyStructureDiv = document.getElementById('newSurveyStructureDiv')
-    classifier = document.querySelector('input[name="classifierSelection"]:checked')
+    classifier_id = document.querySelector('input[name="classifierSelection"]:checked')
 
     while(document.getElementById('newSurveyErrors').firstChild){
         document.getElementById('newSurveyErrors').removeChild(document.getElementById('newSurveyErrors').firstChild);
     }
 
-    if (classifier==null) {
+    if (classifier_id==null) {
         document.getElementById('newSurveyErrors').innerHTML = 'You must select a classifier.'
     } else {
-        classifier = classifier.id
+        classifier_id = classifier_id.value
     }
 
     if (newSurveyDescription == '') {
@@ -4430,7 +4430,7 @@ document.getElementById('btnSaveSurvey').addEventListener('click', ()=>{
         }
     }
 
-    if (legalName&&legalOrganisation&&legalDescription&&legalPermission&&legalTGCode&&legalInput&&structureCheckReady&&classifier&&legalCamCode) {
+    if (legalName&&legalOrganisation&&legalDescription&&legalPermission&&legalTGCode&&legalInput&&structureCheckReady&&classifier_id&&legalCamCode) {
         document.getElementById('btnSaveSurvey').disabled = true
         if (false) {
             var reader = new FileReader()
@@ -4459,7 +4459,7 @@ document.getElementById('btnSaveSurvey').addEventListener('click', ()=>{
             formData.append("newSurveyS3Folder", newSurveyS3Folder)
             formData.append("checkbox", newSurveyCheckbox.checked.toString())
             formData.append("correctTimestamps", 'false')
-            formData.append("classifier", classifier)
+            formData.append("classifier_id", classifier_id)
             formData.append("organisation_id", surveyOrganisation)
             formData.append("permission", newSurveyPermission)
             formData.append("annotation", newSurveyAnnotation)
@@ -4764,13 +4764,13 @@ document.getElementById('btnEditSurvey').addEventListener('click', ()=>{
     
     //Classifier
     legalClassifier = true
-    classifier = document.querySelector('input[name="classifierSelection"]:checked')
-    if (classifier==null) {
+    classifier_id = document.querySelector('input[name="classifierSelection"]:checked')
+    if (classifier_id==null) {
         // document.getElementById('editSurveyErrors').innerHTML = 'You must select a classifier.'
         // legalClassifier = false
-        classifier = 'none'
+        classifier_id = 'none'
     } else {
-        classifier = classifier.id
+        classifier_id = classifier_id.value
     }
     
 
@@ -4831,7 +4831,7 @@ document.getElementById('btnEditSurvey').addEventListener('click', ()=>{
 
         var formData = new FormData()
         formData.append("survey_id", selectedSurvey)
-        formData.append("classifier", classifier)          
+        formData.append("classifier_id", classifier_id)          
         formData.append("timestamps", JSON.stringify(timestampData))     
         formData.append("imageTimestamps", JSON.stringify(imageTimestampData))
         formData.append("masks", JSON.stringify(mask_dict))

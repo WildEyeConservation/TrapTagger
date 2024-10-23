@@ -1497,7 +1497,7 @@ def createNewSurvey():
         newSurveyS3Folder = request.form['newSurveyS3Folder']
         checkbox = request.form['checkbox']
         correctTimestamps = request.form['correctTimestamps']
-        classifier = request.form['classifier']
+        classifier_id = request.form['classifier_id']
         permission = request.form['permission']
         annotation = request.form['annotation']
         newSurveyCamCode = request.form['newSurveyCamCode']
@@ -1584,16 +1584,14 @@ def createNewSurvey():
                     GLOBALS.s3client.put_object(Bucket=Config.BUCKET,Key=key,Body=temp_file)
 
             # Create survey
-            classifier = db.session.query(Classifier).filter(Classifier.name==classifier).first()
-
             if emptySurvey:
-                newSurvey = Survey(name=surveyName, description=newSurveyDescription, organisation_id=organisation_id, status='Ready', correct_timestamps=correctTimestamps, classifier_id=classifier.id, folder=newSurveyS3Folder)
+                newSurvey = Survey(name=surveyName, description=newSurveyDescription, organisation_id=organisation_id, status='Ready', correct_timestamps=correctTimestamps, classifier_id=int(classifier_id), folder=newSurveyS3Folder)
                 db.session.add(newSurvey)
 
                 defaultTask = Task(name='default', survey=newSurvey, tagging_level='-1', test_size=0, status='Ready')
                 db.session.add(defaultTask)
             else:
-                newSurvey = Survey(name=surveyName, description=newSurveyDescription, trapgroup_code=newSurveyTGCode, organisation_id=organisation_id, status='Uploading', correct_timestamps=correctTimestamps, classifier_id=classifier.id, camera_code=newSurveyCamCode, folder=newSurveyS3Folder)
+                newSurvey = Survey(name=surveyName, description=newSurveyDescription, trapgroup_code=newSurveyTGCode, organisation_id=organisation_id, status='Uploading', correct_timestamps=correctTimestamps, classifier_id=int(classifier_id), camera_code=newSurveyCamCode, folder=newSurveyS3Folder)
                 db.session.add(newSurvey)
 
             # Add permissions
@@ -1976,10 +1974,14 @@ def editSurvey():
             status = 'error'
             message = 'Files from your survey are currently being restored from archival storage. Editing your survey is not possible during this process. Please wait until the 48 hour restoration period has completed.'
 
-        classifier = None
-        if 'classifier' in request.form:
-            classifier = request.form['classifier']
-            if classifier.lower() == 'none': classifier = None 
+        classifier_id = None
+        if 'classifier_id' in request.form:
+            classifier_id = request.form['classifier_id']
+            if type(classifier_id)==str:
+                if classifier_id.isdigit():
+                    classifier_id = int(classifier_id)
+                else:
+                    classifier_id = None
 
         timestamps = None
         if 'timestamps' in request.form:
@@ -2050,9 +2052,9 @@ def editSurvey():
 
 
         if status == 'success':
-            if classifier or ignore_small_detections or sky_masked or timestamps or coordData or masks or staticgroups or kml or imageTimestamps:
-                app.logger.info('Edit survey requested for {} with classifier: {}, ignore_small_detections: {}, sky_masked: {}, timestamps: {}, coordData: {}, masks: {}, staticgroups: {}, kml: {}, imageTimestamps: {}'.format(survey.name,classifier,ignore_small_detections,sky_masked,timestamps,coordData,masks,staticgroups,kml,imageTimestamps))
-                if classifier and survey.classifier.name != classifier:
+            if classifier_id or ignore_small_detections or sky_masked or timestamps or coordData or masks or staticgroups or kml or imageTimestamps:
+                app.logger.info('Edit survey requested for {} with classifier: {}, ignore_small_detections: {}, sky_masked: {}, timestamps: {}, coordData: {}, masks: {}, staticgroups: {}, kml: {}, imageTimestamps: {}'.format(survey.name,classifier_id,ignore_small_detections,sky_masked,timestamps,coordData,masks,staticgroups,kml,imageTimestamps))
+                if classifier_id and survey.classifier_id != classifier_id:
                     # Need to restore images from Glacier if classifier is changed. Restoration takes 48 hours.
                     if survey.edit_restore and (datetime.utcnow()-survey.edit_restore).days < timedelta(days=Config.RESTORE_COOLDOWN).days:
                         status = 'error'
@@ -2060,12 +2062,12 @@ def editSurvey():
                     else:
                         survey.status = 'Processing'
                         db.session.commit()
-                        edit_survey_args = {'survey_id':survey.id,'user_id':current_user.id,'classifier':classifier,'ignore_small_detections':ignore_small_detections,'sky_masked':sky_masked,'timestamps':timestamps,'coord_data':coordData,'masks':masks,'staticgroups':staticgroups,'kml_file':kml,'image_timestamps':imageTimestamps}
+                        edit_survey_args = {'survey_id':survey.id,'user_id':current_user.id,'classifier_id':classifier_id,'ignore_small_detections':ignore_small_detections,'sky_masked':sky_masked,'timestamps':timestamps,'coord_data':coordData,'masks':masks,'staticgroups':staticgroups,'kml_file':kml,'image_timestamps':imageTimestamps}
                         restore_images_for_classification.delay(survey_id=survey.id,days=2,edit_survey_args=edit_survey_args,tier=Config.RESTORE_TIER)
                 else:
                     survey.status = 'Processing'
                     db.session.commit()
-                    edit_survey.delay(survey_id=survey.id,user_id=current_user.id,classifier=classifier,ignore_small_detections=ignore_small_detections,sky_masked=sky_masked,timestamps=timestamps,coord_data=coordData,masks=masks,staticgroups=staticgroups,kml_file=kml,image_timestamps=imageTimestamps)
+                    edit_survey.delay(survey_id=survey.id,user_id=current_user.id,classifier_id=classifier_id,ignore_small_detections=ignore_small_detections,sky_masked=sky_masked,timestamps=timestamps,coord_data=coordData,masks=masks,staticgroups=staticgroups,kml_file=kml,image_timestamps=imageTimestamps)
 
     else:
         status = 'error'
@@ -8971,6 +8973,7 @@ def getClassifierInfo():
                 labels = [classification_label.classification for classification_label in survey.classifier.classification_labels if classification_label.classification not in ['nothing','unknown']]
                 labels.sort()
                 data.append({
+                    'id':survey.classifier.id,
                     'name':survey.classifier.name,
                     'source':survey.classifier.source,
                     'region':survey.classifier.region,
@@ -8985,6 +8988,7 @@ def getClassifierInfo():
                 labels = [classification_label.classification for classification_label in classifier.classification_labels if classification_label.classification not in ['nothing','unknown']]
                 labels.sort()
                 data.append({
+                    'id':classifier.id,
                     'name':classifier.name,
                     'source':classifier.source,
                     'region':classifier.region,

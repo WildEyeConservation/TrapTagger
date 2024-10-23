@@ -61,7 +61,7 @@ def importMonitor():
                     queue_type = Config.QUEUES[queue]['queue_type']
                     max_instances = Config.QUEUES[queue]['max_instances']
                 else:
-                    classifier = db.session.query(Classifier).filter(Classifier.queue==queue).filter(Classifier.active==True).first()
+                    classifier = db.session.query(Classifier).filter(Classifier.queue==queue).first()
                     ami = classifier.ami_id
                     instances = Config.GPU_INSTANCE_TYPES
                     rate = Config.CLASSIFIER['rate']
@@ -122,7 +122,7 @@ def importMonitor():
                         git_pull = True
                         subnet = Config.PUBLIC_SUBNET_ID
                     else:
-                        classifier = db.session.query(Classifier).filter(Classifier.queue==queue).filter(Classifier.active==True).first()
+                        classifier = db.session.query(Classifier).filter(Classifier.queue==queue).first()
                         ami = classifier.ami_id
                         instances = Config.GPU_INSTANCE_TYPES
                         user_data = Config.CLASSIFIER['user_data']
