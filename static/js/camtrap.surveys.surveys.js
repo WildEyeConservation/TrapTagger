@@ -332,6 +332,9 @@ var translationLabels = {}
 var globalTranslations = {}
 var confirmRestore = false
 var confirmDownloadReturn = false
+var surveyClassifier = null
+var surveyClassifierName = null
+var confirmClassifierChange = false
 
 function buildSurveys(survey,disableSurvey) {
     /**
@@ -3382,6 +3385,10 @@ function clearEditSurveyModal() {
     timestampSites = []
     timestampCameras = {}
     timestampSpecies = []
+    surveyClassifier = null
+    surveyClassifierName = null
+    confirmClassifierChange = false
+    confirmRestore = false
 }
 
 function clearAddFilesModal(){
@@ -3924,6 +3931,8 @@ function updateClassifierTable(url=null) {
                 input.setAttribute('value',datum.id)
                 if (datum.active) {
                     input.checked = true
+                    surveyClassifier = datum.id
+                    surveyClassifierName = datum.name
                 }
                 label = document.createElement('label')
                 label.setAttribute('class','custom-control-label')
@@ -3933,6 +3942,21 @@ function updateClassifierTable(url=null) {
                 div.appendChild(label)
                 td.appendChild(div)
                 tr.appendChild(td)
+
+                input.addEventListener('change', function() {
+                    if (this.checked) {
+                        if (this.value != surveyClassifier && !confirmClassifierChange) {
+                            confirmRestore = true 
+                            removeRestoreEventListeners()
+                            document.getElementById('modalConfirmBodyRestore').innerHTML = '<p>Changing the classifier will require the raw images to be restored from archival storage. This process takes 48 hours. Are you sure you want to continue?</p>'
+                            modalEditSurvey.modal('hide')
+                            modalConfirmRestore.modal({keyboard: true})
+                            
+                            btnConfirmRestore.addEventListener('click', confirmRestoreEdit);
+                            btnCancelRestore.addEventListener('click', cancelRestoreEdit);
+                        }
+                    }
+                });
 
                 td = document.createElement('td')
                 td.setAttribute('style','text-align:left')
@@ -4129,9 +4153,9 @@ modalEditSurvey.on('shown.bs.modal', function(){
 modalEditSurvey.on('hidden.bs.modal', function(){
     /** Clears the edit-survey modal when closed. */
 
-    if (!helpReturn && !alertReload) {
+    if (!helpReturn && !alertReload &&!confirmRestore) {
         modalConfirmEditClose.modal({keyboard: true});
-    } else if (!helpReturn && alertReload) {
+    } else if (!helpReturn && !confirmRestore && alertReload) {
         resetEditSurveyModal()
         document.getElementById('btnEditSurvey').disabled = false
     } else {
@@ -6271,6 +6295,7 @@ function updateButtons() {
 function updatePaginationCircles(){
     /** Updates pagination circles on the edit survey modal. */
 
+    clusterPosition = null
     if (tabActiveEditSurvey=='baseEditMasksTab'){
         cirNum = cameras[maskCamIndex].images.length
         circlesIndex = maskImgIndex
@@ -8609,3 +8634,45 @@ function getTimestampSitesCameraAndSpecies(){
     xhttp.open("GET", '/getTimestampSitesCameraAndSpecies/'+selectedSurvey);
     xhttp.send();
 }
+
+function confirmRestoreEdit() {
+    /** Event listener for the confirmation of the restoration of images. */
+    confirmClassifierChange = true 
+    modalConfirmRestore.modal('hide')
+    modalEditSurvey.modal({keyboard: true})
+}
+
+function cancelRestoreEdit() {
+    /** Event listener for the cancellation of the restoration of images. */
+    confirmClassifierChange = false
+    modalConfirmRestore.modal('hide')
+}
+
+function removeRestoreEventListeners() {
+    /** Removes the event listeners from the buttons on the confirm restore modal. */
+
+    btnConfirmRestore.removeEventListener('click', confirmRestoreLaunch)
+    btnCancelRestore.removeEventListener('click', cancelRestoreLaunch)
+
+    btnConfirmRestore.removeEventListener('click', confirmRestoreEdit)
+    btnCancelRestore.removeEventListener('click', cancelRestoreEdit)
+
+}
+
+modalConfirmRestore.on('hidden.bs.modal', function () {
+    /** Event listener for the closing of the confirm restore modal. */
+    if (document.getElementById('modalConfirmBodyRestore').innerHTML.includes('classifier')){
+        if (!confirmClassifierChange){
+            document.getElementById(surveyClassifierName).checked = true
+        }
+        confirmRestore = false
+        removeRestoreEventListeners()
+        modalEditSurvey.modal({keyboard: true})
+    }
+    else{
+        removeRestoreEventListeners()
+        if (confirmRestore){
+            modalLaunchTask.modal({keyboard: true})
+        }
+    }
+});

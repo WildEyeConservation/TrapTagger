@@ -5248,6 +5248,7 @@ def updateTrapgroupStaticDetections(self,trapgroup_id):
                                     .join(Staticgroup)\
                                     .filter(Camera.trapgroup_id==trapgroup_id)\
                                     .filter(or_(Staticgroup.status=='accepted',Staticgroup.status=='unknown'))\
+                                    .filter(Detection.static!=True)\
                                     .distinct().all()
 
         for detection in static_detections:
@@ -5259,6 +5260,7 @@ def updateTrapgroupStaticDetections(self,trapgroup_id):
                                     .join(Staticgroup)\
                                     .filter(Camera.trapgroup_id==trapgroup_id)\
                                     .filter(Staticgroup.status=='rejected')\
+                                    .filter(Detection.static!=False)\
                                     .distinct().all()
 
         for detection in rejected_detections:

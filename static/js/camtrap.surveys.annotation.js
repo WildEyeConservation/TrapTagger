@@ -23,6 +23,11 @@ launchMTurkTaskBtn.addEventListener('click', ()=>{
             modalLaunchTask.modal('hide')
             document.getElementById('modalConfirmBodyRestore').innerHTML = '<p> Sighting correction on your empty clusters will require the images to be restored from our archival storage. This process will take 48 hours to complete. Please note that the potential animal sightings in these images will be very rare and not of good quality. Would you like to proceed?</p>'
             modalConfirmRestore.modal({keyboard: true})
+
+            removeRestoreEventListeners()
+
+            btnConfirmRestore.addEventListener('click', confirmRestoreLaunch);
+            btnCancelRestore.addEventListener('click', cancelRestoreLaunch);
         }
         else{
             launchTask()
@@ -33,24 +38,29 @@ launchMTurkTaskBtn.addEventListener('click', ()=>{
         modalLaunchTask.modal('hide')
         document.getElementById('modalConfirmBodyRestore').innerHTML = '<p>Individual identification jobs require the raw images of the species of interest to be restored from our archival storage. This process will take 48 hours to complete. Would you like to proceed?</p>'
         modalConfirmRestore.modal({keyboard: true})
+
+        removeRestoreEventListeners()
+
+        btnConfirmRestore.addEventListener('click', confirmRestoreLaunch);
+        btnCancelRestore.addEventListener('click', cancelRestoreLaunch);
     }
     else{
         launchTask()
     }
 });
 
-btnConfirmRestore.addEventListener('click', ()=>{
+function confirmRestoreLaunch() {
     /** Event listener for the confirmation of the restoration of images. */
     modalConfirmRestore.modal('hide')
     confirmRestore = false
     launchTask()
-});
+}
 
-btnCancelRestore.addEventListener('click', ()=>{
+function cancelRestoreLaunch() {
     /** Event listener for the cancellation of the restoration of images. */
     modalConfirmRestore.modal('hide')
     modalLaunchTask.modal({keyboard: true})
-});
+}
 
 function launchTask(){
     taskSize = parseInt(document.getElementById('taskSize').value)

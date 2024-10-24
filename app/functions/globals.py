@@ -591,11 +591,14 @@ def updateTaskCompletionStatus(task_id):
 
     task.empty_count = db.session.query(Image.id)\
                         .join(Cluster, Image.clusters)\
+                        .join(Detection)\
+                        .join(Labelgroup)\
                         .outerjoin(cluster_sq, cluster_sq.c.id==Cluster.id)\
                         .filter(cluster_sq.c.id==None)\
                         .filter(Cluster.task_id==task_id)\
+                        .filter(Labelgroup.task_id==task_id)\
+                        .filter(Labelgroup.checked==False)\
                         .distinct().count()
-    
 
     db.session.commit()
 
@@ -1985,7 +1988,7 @@ def taggingLevelSQ(sq,taggingLevel,isBounding,task_id):
                             .filter(or_(and_(Detection.source==model,Detection.score>Config.DETECTOR_THRESHOLDS[model]) for model in Config.DETECTOR_THRESHOLDS))\
                             .distinct().subquery()  
 
-        sq = sq.outerjoin(cluster_sq,Cluster.id==cluster_sq.c.id).filter(cluster_sq.c.id==None)
+        sq = sq.outerjoin(cluster_sq,Cluster.id==cluster_sq.c.id).filter(cluster_sq.c.id==None).join(Labelgroup).filter(Labelgroup.task_id==task_id).filter(Labelgroup.checked==False)
 
     else:
         # Specific label levels

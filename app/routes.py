@@ -7932,13 +7932,15 @@ def editSightings(image_id,task_id):
                                     detection.classification = 'nothing'
 
                                 if image.zip_id:
-                                    # Empty image getting a detection needs to be copied to the raw folder
-                                    image.zip_id = None
-                                    image_key = image.camera.path + '/' + image.filename
-                                    splits = image_key.split('/')
-                                    splits[0] = splits[0] + '-comp'
-                                    comp_key = splits.join('/')
-                                    GLOBALS.s3client.copy_object(Bucket=Config.BUCKET, CopySource={'Bucket': Config.BUCKET, 'Key': comp_key}, Key=image_key, STORAGE_CLASS='DEEP_ARCHIVE')
+                                    # Empty image getting a detection needs to be copied to the raw folder as well as the other images in the cluster
+                                    for img in cluster.images:
+                                        img.zip_id = None
+                                        image_key = img.camera.path + '/' + img.filename
+                                        splits = image_key.split('/')
+                                        splits[0] = splits[0] + '-comp'
+                                        comp_key = '/'.join(splits)
+                                        if Config.DEBUGGING: app.logger.info('Copying {} to {}'.format(image_key,comp_key))
+                                        GLOBALS.s3client.copy_object(Bucket=Config.BUCKET, CopySource={'Bucket': Config.BUCKET, 'Key': comp_key}, Key=image_key, StorageClass='DEEP_ARCHIVE')
 
                                 db.session.commit()
                                 detDbIDs[detID] = detection.id

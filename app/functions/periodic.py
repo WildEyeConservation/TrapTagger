@@ -967,24 +967,33 @@ def monitorFileRestores():
                             .distinct().all()
         
         for survey in surveys: 
-            restore_dates = [survey.download_restore,survey.id_restore,survey.empty_restore,survey.edit_restore]
-            restore_dates = [r for r in restore_dates if r]
+            restore_dates = [r for r in [survey.download_restore,survey.id_restore,survey.empty_restore,survey.edit_restore] if r]
             max_restore = max(restore_dates)
             if survey.download_restore and survey.download_restore<start_restore and survey.download_restore==max_restore:
                 try:
                     launch_kwargs = GLOBALS.redisClient.get('download_launch_kwargs_'+str(survey.id)).decode()
                     launch_kwargs = json.loads(launch_kwargs)  
+                    survey.require_launch = False
+                    survey.status = 'Processing'
+                    db.session.commit()
                     process_files_for_download.apply_async(kwargs=launch_kwargs)
                 except:
                     if survey.status == 'Restoring Files': survey.status = 'Ready'
-                survey.require_launch = False
+                    survey.require_launch = False
                 GLOBALS.redisClient.delete('download_launch_kwargs_'+str(survey.id))
 
             elif survey.id_restore and survey.id_restore<start_restore and survey.id_restore==max_restore:
                 try:
                     launch_kwargs = GLOBALS.redisClient.get('id_launch_kwargs_'+str(survey.id)).decode()
-                    launch_kwargs = json.loads(launch_kwargs)                  
+                    launch_kwargs = json.loads(launch_kwargs)   
+                    task = db.session.query(Task).get(launch_kwargs['task_id'])
+                    task.tagging_level = launch_kwargs['tagging_level']  
+                    survey.require_launch = False
+                    survey.status = 'Processing'
+                    db.session.commit()        
+                    del launch_kwargs['tagging_level']   
                     if 'algorithm' in launch_kwargs.keys():
+                        del launch_kwargs['task_id']
                         calculate_detection_similarities.apply_async(kwargs=launch_kwargs)
                     else:
                         launch_task.apply_async(kwargs=launch_kwargs)
@@ -996,27 +1005,36 @@ def monitorFileRestores():
                                 for sub_task in task.sub_tasks:
                                     if sub_task.survey.status == 'Restoring Files':
                                         sub_task.survey.status = 'Ready'
-                survey.require_launch = False
+                    survey.require_launch = False
                 GLOBALS.redisClient.delete('id_launch_kwargs_'+str(survey.id))
 
             elif survey.empty_restore and survey.empty_restore<start_restore and survey.empty_restore==max_restore:
                 try:
                     launch_kwargs = GLOBALS.redisClient.get('empty_launch_kwargs_'+str(survey.id)).decode()
                     launch_kwargs = json.loads(launch_kwargs)  
+                    task = db.session.query(Task).get(launch_kwargs['task_id'])
+                    task.tagging_level = launch_kwargs['tagging_level']
+                    survey.require_launch = False
+                    survey.status = 'Processing'
+                    db.session.commit()
+                    del launch_kwargs['tagging_level']
                     extract_zips.apply_async(kwargs=launch_kwargs)
                 except:
                     if survey.status == 'Restoring Files': survey.status = 'Ready'
-                survey.require_launch = False
+                    survey.require_launch = False
                 GLOBALS.redisClient.delete('empty_launch_kwargs_'+str(survey.id))
 
             elif survey.edit_restore and survey.edit_restore<start_restore and survey.edit_restore==max_restore:
                 try:
                     launch_kwargs = GLOBALS.redisClient.get('edit_launch_kwargs_'+str(survey.id)).decode()
                     launch_kwargs = json.loads(launch_kwargs)  
+                    survey.require_launch = False
+                    survey.status = 'Processing'
+                    db.session.commit()
                     edit_survey.apply_async(kwargs=launch_kwargs)
                 except:
                     if survey.status == 'Restoring Files': survey.status = 'Ready'
-                survey.require_launch = False
+                    survey.require_launch = False
                 GLOBALS.redisClient.delete('edit_launch_kwargs_'+str(survey.id))
                
         if surveys:
