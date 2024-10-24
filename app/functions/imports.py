@@ -3888,6 +3888,7 @@ def import_survey(self,survey_id,preprocess_done=False,live=False,launch_id=None
             db.session.commit()
             recluster_survey(survey_id)
 
+            survey = db.session.query(Survey).get(survey_id)
             survey.status='Calculating Scores'
             db.session.commit()
             updateSurveyDetectionRatings(survey_id=survey_id)

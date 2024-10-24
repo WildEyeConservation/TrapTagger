@@ -3943,20 +3943,22 @@ function updateClassifierTable(url=null) {
                 td.appendChild(div)
                 tr.appendChild(td)
 
-                input.addEventListener('change', function() {
-                    if (this.checked) {
-                        if (this.value != surveyClassifier && !confirmClassifierChange) {
-                            confirmRestore = true 
-                            removeRestoreEventListeners()
-                            document.getElementById('modalConfirmBodyRestore').innerHTML = '<p>Changing the classifier will require the raw images to be restored from archival storage. This process takes 48 hours. Are you sure you want to continue?</p>'
-                            modalEditSurvey.modal('hide')
-                            modalConfirmRestore.modal({keyboard: true})
-                            
-                            btnConfirmRestore.addEventListener('click', confirmRestoreEdit);
-                            btnCancelRestore.addEventListener('click', cancelRestoreEdit);
+                if (modalEditSurvey.is(':visible')) {
+                    input.addEventListener('change', function() {
+                        if (this.checked) {
+                            if (this.value != surveyClassifier && !confirmClassifierChange && tabActiveEditSurvey=='baseEditClassifierTab') {
+                                confirmRestore = true 
+                                removeRestoreEventListeners()
+                                document.getElementById('modalConfirmBodyRestore').innerHTML = '<p>Changing the classifier will require the raw images to be restored from archival storage. This process takes 48 hours. Are you sure you want to continue?</p>'
+                                modalEditSurvey.modal('hide')
+                                modalConfirmRestore.modal({keyboard: true})
+                                
+                                btnConfirmRestore.addEventListener('click', confirmRestoreEdit);
+                                btnCancelRestore.addEventListener('click', cancelRestoreEdit);
+                            }
                         }
-                    }
-                });
+                    });
+                }
 
                 td = document.createElement('td')
                 td.setAttribute('style','text-align:left')

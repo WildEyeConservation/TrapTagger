@@ -612,7 +612,8 @@ def restore_files_for_download(self,task_id,user_id,download_params,days,tier,ex
                         continue
         
         restored_files = any([restored_image,restored_video,restored_zip])
-        restore_date = max([date for date in [restore_date_img,restore_date_vid,restore_date_zip] if date])
+        restore_dates = [date for date in [restore_date_img,restore_date_vid,restore_date_zip] if date]
+        restore_date = max(restore_dates) if restore_dates else None
         require_wait = any([require_wait_img,require_wait_vid,require_wait_zip])
         if extend:
             if restored_files:

@@ -968,7 +968,7 @@ def monitorFileRestores():
         
         for survey in surveys: 
             restore_dates = [r for r in [survey.download_restore,survey.id_restore,survey.empty_restore,survey.edit_restore] if r]
-            max_restore = max(restore_dates)
+            max_restore = max(restore_dates) if restore_dates else None
             if survey.download_restore and survey.download_restore<start_restore and survey.download_restore==max_restore:
                 try:
                     launch_kwargs = GLOBALS.redisClient.get('download_launch_kwargs_'+str(survey.id)).decode()
