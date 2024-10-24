@@ -3820,9 +3820,12 @@ def import_survey(self,survey_id,preprocess_done=False,live=False,launch_id=None
                 app.logger.info("Could not start import for survey {}. Potential error with lambda processing.".format(survey_id))
                 return True
 
+        survey.images_processing = survey.image_count + survey.video_count 
+        db.session.commit()
 
+        # First half import -> always performed
         if not preprocess_done:
-            # survey = db.session.query(Survey).get(survey_id)
+
             if used_lambda:
                 process_folder(survey.organisation.folder+'/'+survey.folder, survey_id,Config.BUCKET)
             elif live:
@@ -3840,27 +3843,7 @@ def import_survey(self,survey_id,preprocess_done=False,live=False,launch_id=None
 
             extract_missing_timestamps(survey_id)
             timestamp_check = db.session.query(Image.id).join(Camera).join(Trapgroup).filter(Trapgroup.survey_id==survey_id).filter(Image.corrected_timestamp==None).filter(Image.skipped!=True).first()
-            skipCluster = timestamp_check
-        else:
-            # survey = db.session.query(Survey).get(survey_id)
-            survey_id = survey.id
-            survey.images_processing = survey.image_count + survey.video_count 
-            db.session.commit()
-            timestamp_check = db.session.query(Image.id).join(Camera).join(Trapgroup).filter(Trapgroup.survey_id==survey_id).filter(~Image.clusters.any()).filter(Image.detections.any()).filter(Image.timestamp==None).first()
-            static_check = db.session.query(Staticgroup.id).join(Detection).join(Image).join(Camera).join(Trapgroup).filter(Trapgroup.survey_id==survey_id).first()
-            skipCluster = not timestamp_check
 
-        # skip = False
-        # if correctTimestamps:
-        #     survey.status='Correcting Timestamps'
-        #     db.session.commit()
-        #     correct_timestamps(survey_id)
-        #     if addingImages:
-        #         from app.functions.admin import reclusterAfterTimestampChange
-        #         reclusterAfterTimestampChange(survey_id)
-        #         skip = True
-        
-        if not preprocess_done:
             survey = db.session.query(Survey).get(survey_id)
             survey.status='Processing Cameras'
             db.session.commit()
@@ -3882,17 +3865,16 @@ def import_survey(self,survey_id,preprocess_done=False,live=False,launch_id=None
             db.session.commit()
             importKML(survey.id)
 
-        if not skipCluster or live:
+        # Second half import -> performed after preprocessing. Also performed if there is no preprocessing required (which is also the case for live surveys)
+        if preprocess_done or not (timestamp_check or static_check) or live:
             task_id=cluster_survey(survey_id)
             survey = db.session.query(Survey).get(survey_id)
 
-        if static_check and preprocess_done:
             survey.status='Processing Static Detections'
             db.session.commit()
             wrapUpStaticDetectionCheck(survey_id)
             survey = db.session.query(Survey).get(survey_id)
 
-        if not skipCluster or live:
             survey.status='Removing Humans'
             db.session.commit()
             removeHumans(task_id)
@@ -3906,26 +3888,10 @@ def import_survey(self,survey_id,preprocess_done=False,live=False,launch_id=None
             db.session.commit()
             recluster_survey(survey_id)
 
-        if not preprocess_done and (timestamp_check or static_check) and not live:
-            survey_status = "Preprocessing,"
-            if timestamp_check:
-                survey_status += "Available,"
-            else:
-                survey_status += "N/A,"
-            if static_check:
-                survey_status += "Available"
-            else:
-                survey_status += "N/A"
-            survey = db.session.query(Survey).get(survey_id)
-            survey.status = survey_status
-            survey.images_processing = 0
-            db.session.commit()
-            app.logger.info("Finished importing survey {}. Preprocessing required.".format(survey_id))
-        else:
-            survey = db.session.query(Survey).get(survey_id)
             survey.status='Calculating Scores'
             db.session.commit()
             updateSurveyDetectionRatings(survey_id=survey_id)
+
             task_ids = [r[0] for r in db.session.query(Task.id).filter(Task.survey_id==survey_id).filter(Task.name!='default').all()]
             for task_id in task_ids:
                 classifyTask(task_id)
@@ -3953,6 +3919,25 @@ def import_survey(self,survey_id,preprocess_done=False,live=False,launch_id=None
                     sub_task.survey.status = 'Launched'
                 db.session.commit()
                 launch_task.delay(task_id=launch_id)
+
+        else:
+            # Pre-prcocessing is required
+            survey_status = "Preprocessing,"
+
+            if timestamp_check:
+                survey_status += "Available,"
+            else:
+                survey_status += "N/A,"
+            if static_check:
+                survey_status += "Available"
+            else:
+                survey_status += "N/A"
+
+            survey = db.session.query(Survey).get(survey_id)
+            survey.status = survey_status
+            survey.images_processing = 0
+            db.session.commit()
+            app.logger.info("Finished importing survey {}. Preprocessing required.".format(survey_id))
 
     except Exception as exc:
         app.logger.info(' ')
@@ -5215,26 +5200,27 @@ def wrapUpStaticDetectionCheck(survey_id):
     '''Wraps up the static status for detections after the static detections have been reviewed in the Preprocessing stage.'''	
 
     results = []
-    trapgroup_ids = [r[0] for r in db.session.query(Trapgroup.id).filter(Trapgroup.survey_id==survey_id).distinct().all()]
+    trapgroup_ids = [r[0] for r in db.session.query(Trapgroup.id).join(Camera).join(Image).join(Detection).join(Staticgroup).filter(Trapgroup.survey_id==survey_id).distinct().all()]
     for trapgroup_id in trapgroup_ids:
         results.append(updateTrapgroupStaticDetections.apply_async(kwargs={'trapgroup_id':trapgroup_id},queue='parallel'))
     
-    #Wait for processing to complete
-    db.session.remove()
-    GLOBALS.lock.acquire()
-    with allow_join_result():
-        for result in results:
-            try:
-                result.get()
-            except Exception:
-                app.logger.info(' ')
-                app.logger.info('!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!')
-                app.logger.info(traceback.format_exc())
-                app.logger.info('!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!')
-                app.logger.info(' ')
-            
-            result.forget()
-    GLOBALS.lock.release()
+    if results:
+        #Wait for processing to complete
+        db.session.remove()
+        GLOBALS.lock.acquire()
+        with allow_join_result():
+            for result in results:
+                try:
+                    result.get()
+                except Exception:
+                    app.logger.info(' ')
+                    app.logger.info('!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!')
+                    app.logger.info(traceback.format_exc())
+                    app.logger.info('!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!')
+                    app.logger.info(' ')
+                
+                result.forget()
+        GLOBALS.lock.release()
 
     return True
 
