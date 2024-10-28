@@ -3426,7 +3426,7 @@ def updateEarthRanger(task_id):
                     for er_api_key in er_api_keys:
                         if (er_api_key in row['er_id_dict'].keys()) and (row['er_id_dict'][er_api_key]):
                             # Update report
-                            update_existing_er_report(row)
+                            update_existing_er_report(row,er_api_key,row['er_id_dict'][er_api_key])
                         else:
                             # Create a new report
                             create_new_er_report(row,er_api_key,er_url)
@@ -3435,9 +3435,51 @@ def updateEarthRanger(task_id):
 
     return True
 
-def update_existing_er_report(row):
+def update_existing_er_report(row,er_api_key,er_object_id):
     '''Updates the existing Earth Ranger report for a cluster'''
-    #TODO: we are waiting for this to be supported in the API
+
+    payload = {
+        "recorded_at": row['timestamp'].isoformat(),
+        "location": {
+            "lat": row['trapgroup_lat'],
+            "lon": row['trapgroup_lon']
+        },
+        "event_details": { 
+            "location": row['trapgroup_tag'],
+            "species": row['species'].lower(),
+            "tags": row['tag'],
+            "group_size": row['count']
+        }
+    }
+
+    if ('notes' in row.keys()) and row['notes']: payload['event_details']['comments'] = row['notes']
+    if ('individual' in row.keys()) and row['individual']: payload['event_details']['individuals'] = row['individual']
+
+    # Set header
+    er_header_json = {
+        'Content-Type': 'application/json',
+        'apikey': er_api_key
+    }
+
+    # Patch payload to EarthRanger
+    update_url = 'https://sensors.api.gundiservice.org/v2/events/' + er_object_id + '/'
+    retry = True
+    attempts = 0
+    max_attempts = 10
+    while retry and (attempts < max_attempts):
+        attempts += 1
+        try:
+            response = requests.patch(update_url, headers=er_header_json, json=payload)
+            assert response.status_code == 200
+            retry = False
+        except:
+            retry = True
+
+    if response.status_code == 200:
+        if Config.DEBUGGING: app.logger.info('Event updated in EarthRanger: {}'.format(er_object_id))
+    else:
+        if Config.DEBUGGING: app.logger.info('Error updating event in EarthRanger: {}'.format(response.status_code))
+    
     return True
 
 def create_new_er_report(row,er_api_key,er_url):
