@@ -175,6 +175,7 @@ btnExcelDownload.addEventListener('click', ()=>{
                 else {
                     document.getElementById('modalPWB').innerHTML = 'An unexpected error has occurred. Please try again.'
                 }
+                modalResults.modal('hide')
                 modalPW.modal({keyboard: true});
             }
         }

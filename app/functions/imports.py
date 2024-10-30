@@ -3796,30 +3796,6 @@ def import_survey(self,survey_id,preprocess_done=False,live=False,launch_id=None
         if (survey and survey.status.lower() in ['launched', 'processing', 'indprocessing', 'deleting', 'prepping task']) or not survey:
             return True
 
-        if used_lambda:
-            lambda_retries = 0
-            start_import = False
-            while lambda_retries < 6 and not start_import:
-                try:
-                    lambda_invoked = int(GLOBALS.redisClient.get('lambda_invoked_'+str(survey_id)).decode())
-                    lambda_completed = int(GLOBALS.redisClient.get('lambda_completed_'+str(survey_id)).decode())
-                except:
-                    lambda_invoked = None
-                    lambda_completed = None
-                    start_import = True 
-
-                if lambda_completed >= lambda_invoked:
-                    app.logger.info("Lambda processing complete for survey {}".format(survey_id))
-                    start_import = True
-                else:
-                    app.logger.info("Waiting for Lambda processing to complete for survey {}".format(survey_id))
-                    lambda_retries += 1
-                    time.sleep(300*lambda_retries)
-
-            if not start_import:
-                app.logger.info("Could not start import for survey {}. Potential error with lambda processing.".format(survey_id))
-                return True
-
         survey.images_processing = survey.image_count + survey.video_count 
         db.session.commit()
 
@@ -3910,6 +3886,7 @@ def import_survey(self,survey_id,preprocess_done=False,live=False,launch_id=None
 
             GLOBALS.redisClient.delete('lambda_invoked_'+str(survey_id))
             GLOBALS.redisClient.delete('lambda_completed_'+str(survey_id))
+            GLOBALS.redisClient.delete('upload_complete_'+str(survey_id))
 
             if launch_id:
                 task = db.session.query(Task).get(launch_id)

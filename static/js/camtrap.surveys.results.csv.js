@@ -643,6 +643,7 @@ btnCsvDownload.addEventListener('click', ()=>{
                             else{
                                 document.getElementById('modalPWB').innerHTML = reply.message
                             }
+                            modalCSVGenerate.modal('hide')
                             modalPW.modal({keyboard: true});
                             document.getElementById('btnCsvDownload').disabled = false
                         }
@@ -687,6 +688,7 @@ function downloadPreFormattedCSV() {
                     else{
                         document.getElementById('modalPWB').innerHTML = reply.message
                     }
+                    modalResults.modal('hide')
                     modalPW.modal({keyboard: true});
                 }
             }
@@ -722,6 +724,7 @@ function downloadCOCO() {
                     else{
                         document.getElementById('modalPWB').innerHTML = 'An unexpected error has occurred. Please try again.'
                     }
+                    modalResults.modal('hide')
                     modalPW.modal({keyboard: true});
                 }
             }

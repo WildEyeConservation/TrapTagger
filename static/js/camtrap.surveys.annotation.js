@@ -17,11 +17,11 @@ var taskCompletionStatus = 'False'
 
 launchMTurkTaskBtn.addEventListener('click', ()=>{
     /** Event listener for the launch-task button. Submits all info to the server after doing the necessary checks. */
-    if (tabActiveLaunch == 'baseSightingTab') {
+    if (tabActiveLaunch == 'baseEmptyTab') {
         if (document.getElementById('taskTaggingLevel').value == '-7') {
             confirmRestore = true
             modalLaunchTask.modal('hide')
-            document.getElementById('modalConfirmBodyRestore').innerHTML = '<p> Sighting correction on your empty clusters will require the images to be restored from our archival storage. This process will take 48 hours to complete. Please note that the potential animal sightings in these images will be very rare and not of good quality. Would you like to proceed?</p>'
+            document.getElementById('modalConfirmBodyRestore').innerHTML = '<p>Checking your empty clusters will require the images to be restored from our archival storage. This process will take 48 hours to complete. Please note that the potential animal sightings in these images will be very rare and not of good quality.You will have 30 days to complete the empty label check. If you are still actively working on it at the end of this period, we will extend the restoration to allow you to finish. However, if there is no activity by the end of the restoration period, we will stop the job and return the images to archival storage. Would you like to proceed?</p>'
             modalConfirmRestore.modal({keyboard: true})
 
             removeRestoreEventListeners()
@@ -36,7 +36,7 @@ launchMTurkTaskBtn.addEventListener('click', ()=>{
     else if (tabActiveLaunch == 'baseIndividualTab') {
         confirmRestore = true
         modalLaunchTask.modal('hide')
-        document.getElementById('modalConfirmBodyRestore').innerHTML = '<p>Individual identification jobs require the raw images of the species of interest to be restored from our archival storage. This process will take 48 hours to complete. Would you like to proceed?</p>'
+        document.getElementById('modalConfirmBodyRestore').innerHTML = '<p>Individual identification jobs require the restoration of raw images for the species of interest from our archival storage. This process will take 48 hours to complete. You will have 30 days to complete the identification job. If you are still actively working on it at the end of this period, we will extend the restoration to allow you to finish. However, if there is no activity by the end of the restoration period, we will stop the job and return the images to archival storage. Would you like to proceed?</p>'
         modalConfirmRestore.modal({keyboard: true})
 
         removeRestoreEventListeners()
@@ -66,7 +66,7 @@ function launchTask(){
     taskSize = parseInt(document.getElementById('taskSize').value)
     taskTaggingLevel = document.getElementById('taskTaggingLevel').value
 
-    if (tabActiveLaunch == 'baseSightingTab' || tabActiveLaunch == 'baseMultiSpeciesTab') {
+    if (tabActiveLaunch == 'baseSightingTab' || tabActiveLaunch == 'baseMultiSpeciesTab' || tabActiveLaunch == 'baseEmptyTab') {
         isBounding = true
     } else {
         isBounding = false
@@ -528,6 +528,7 @@ function resetLaunchTaskPage() {
     document.getElementById('openAISpeciesTab').disabled = true
     document.getElementById('openInfoTab').disabled = true
     document.getElementById('openSpeciesLabellingTab').disabled = false
+    document.getElementById('openEmptyTab').disabled = true
     // document.getElementById('openMaskedTab').disabled = true
     clearSelect(document.getElementById('taskTaggingLevel'))
 
@@ -559,6 +560,7 @@ function openClusterTag() {
         document.getElementById('openIndividualTab').disabled = true
         document.getElementById('openAISpeciesTab').disabled = true
         document.getElementById('openInfoTab').disabled = true
+        document.getElementById('openEmptyTab').disabled = true
         // document.getElementById('openMaskedTab').disabled = true
 
         document.getElementById('annotationDescription').innerHTML = "<i>Label the species contained in each unlabelled image cluster.</i>"
@@ -585,6 +587,7 @@ function openClusterTag() {
                     document.getElementById('openIndividualTab').disabled = false
                     document.getElementById('openAISpeciesTab').disabled = false
                     document.getElementById('openInfoTab').disabled = false
+                    document.getElementById('openEmptyTab').disabled = false
                     // document.getElementById('openMaskedTab').disabled = false
                 }
             }
@@ -607,6 +610,7 @@ function openInfoTag() {
         document.getElementById('openIndividualTab').disabled = true
         document.getElementById('openAISpeciesTab').disabled = true
         document.getElementById('openSpeciesLabellingTab').disabled = true
+        document.getElementById('openEmptyTab').disabled = true
         // document.getElementById('openMaskedTab').disabled = true
 
         document.getElementById('annotationDescription').innerHTML = "<i>Add additional informational tags to each cluster containing a chosen species. You will be able to set up and edit these tags on launch.</i>"
@@ -632,6 +636,7 @@ function openInfoTag() {
                 document.getElementById('openIndividualTab').disabled = false
                 document.getElementById('openAISpeciesTab').disabled = false
                 document.getElementById('openSpeciesLabellingTab').disabled = false
+                document.getElementById('openEmptyTab').disabled = false
                 // document.getElementById('openMaskedTab').disabled = false
             }
         }
@@ -822,6 +827,7 @@ function openIndividualID() {
         document.getElementById('openSpeciesLabellingTab').disabled = true
         document.getElementById('openAISpeciesTab').disabled = true
         document.getElementById('openInfoTab').disabled = true
+        document.getElementById('openEmptyTab').disabled = true
         // document.getElementById('openMaskedTab').disabled = true
 
         document.getElementById('annotationDescription').innerHTML = "<i>Identify specific individuals for a chosen individual. Begin by identifying individuals on a cluster-by-cluster basis to try combine multiple viewing angles. Then identify individuals across different clusters based on suggested matches. It is recommended that you correct your sightings (boxes) for your species of interest before beginning this process/</i>"
@@ -847,6 +853,7 @@ function openIndividualID() {
                 document.getElementById('openInfoTab').disabled = false
                 document.getElementById('openAISpeciesTab').disabled = false
                 document.getElementById('openSpeciesLabellingTab').disabled = false
+                document.getElementById('openEmptyTab').disabled = false
                 // document.getElementById('openMaskedTab').disabled = false
                 
             }
@@ -922,6 +929,7 @@ function openClassTag() {
         document.getElementById('openIndividualTab').disabled = true
         document.getElementById('openInfoTab').disabled = true
         document.getElementById('openSpeciesLabellingTab').disabled = true
+        document.getElementById('openEmptyTab').disabled = true
         // document.getElementById('openMaskedTab').disabled = true
 
         document.getElementById('annotationDescription').innerHTML = "<i>Check your cluster-level species labels against the AI to find mistakes.</i>"
@@ -947,6 +955,7 @@ function openClassTag() {
                 document.getElementById('openIndividualTab').disabled = false
                 document.getElementById('openInfoTab').disabled = false
                 document.getElementById('openSpeciesLabellingTab').disabled = false
+                document.getElementById('openEmptyTab').disabled = false
                 // document.getElementById('openMaskedTab').disabled = false
             }
         }
@@ -968,6 +977,7 @@ function openSightingTag() {
         document.getElementById('openAISpeciesTab').disabled = true
         document.getElementById('openInfoTab').disabled = true
         document.getElementById('openSpeciesLabellingTab').disabled = true
+        document.getElementById('openEmptyTab').disabled = true
         // document.getElementById('openMaskedTab').disabled = true
 
         document.getElementById('annotationDescription').innerHTML = "<i>Correct the AI-generated boxes for a particular species. Use this to obtain more accurate animal counts or to prepare for individual identification.</i>"
@@ -993,6 +1003,7 @@ function openSightingTag() {
                 document.getElementById('openAISpeciesTab').disabled = false
                 document.getElementById('openInfoTab').disabled = false
                 document.getElementById('openSpeciesLabellingTab').disabled = false
+                document.getElementById('openEmptyTab').disabled = false
                 // document.getElementById('openMaskedTab').disabled = false
 
             }
@@ -1015,6 +1026,7 @@ function openMultiSpeciesTag() {
         document.getElementById('openAISpeciesTab').disabled = true
         document.getElementById('openInfoTab').disabled = true
         document.getElementById('openSpeciesLabellingTab').disabled = true
+        document.getElementById('openEmptyTab').disabled = true
         // document.getElementById('openMaskedTab').disabled = true
 
         document.getElementById('annotationDescription').innerHTML = "<i>Differentiate which species each box/sighting contains in clusters that contain multiple species. Do this to obatin more accurate animal counts, and more accurate image-level labelling. Also necessary preparation for individual identification</i>"
@@ -1040,6 +1052,7 @@ function openMultiSpeciesTag() {
                 document.getElementById('openAISpeciesTab').disabled = false
                 document.getElementById('openInfoTab').disabled = false
                 document.getElementById('openSpeciesLabellingTab').disabled = false
+                document.getElementById('openEmptyTab').disabled = false
                 // document.getElementById('openMaskedTab').disabled = false
             }
         }
@@ -1224,6 +1237,9 @@ function changeAnnotationTab(evt, tabName) {
     else if (tabName == 'baseAISpeciesTab') {
         openClassTag()
     }
+    else if (tabName == 'baseEmptyTab') {
+        openEmptyTag()
+    }
     // else if (tabName == 'baseMaskedTab') {
     //     openMaskedTag()
     // }
@@ -1240,4 +1256,51 @@ function changeAnnotationTab(evt, tabName) {
         openIndividualID()
     }
 
+}
+
+function openEmptyTag() {
+    /** Listens for the bounding-box correction task being selected, and populates the form accordingly. */
+
+    if (tabActiveLaunch == 'baseEmptyTab') {
+        individualLevel = document.getElementById('individualLevel')
+        while(individualLevel.firstChild){
+            individualLevel.removeChild(individualLevel.firstChild);
+        }
+
+        document.getElementById('openSightingTab').disabled = true
+        document.getElementById('openIndividualTab').disabled = true
+        document.getElementById('openAISpeciesTab').disabled = true
+        document.getElementById('openInfoTab').disabled = true
+        document.getElementById('openSpeciesLabellingTab').disabled = true
+        document.getElementById('openMultiSpeciesTab').disabled = true
+        // document.getElementById('openMaskedTab').disabled = true
+
+        document.getElementById('annotationDescription').innerHTML = "<i>Check your clusters where no sightings were detected. This can be to check for any missed sightings, please note that the chances of missed sightings are very low. Any potential missed sightings will be of low quality. To check for missed sightings, the empty images needs to be restored from archival storage that will require a 48 hour wait time.</i>"
+        clearSelect(document.getElementById('taskTaggingLevel'))
+        var xhttp = new XMLHttpRequest();
+        xhttp.open("GET", '/getTaggingLevelsbyTask/'+selectedTask+'/empty');
+        xhttp.onreadystatechange =
+        function(){
+            if (this.readyState == 4 && this.status == 200) {
+                reply = JSON.parse(this.responseText);  
+                clearSelect(document.getElementById('taskTaggingLevel'))
+                fillSelect(document.getElementById('taskTaggingLevel'), reply.texts, reply.values, reply.colours)
+    
+                if (reply.disabled == 'true') {
+                    document.getElementById('taskTaggingLevel').disabled = true
+                } else {
+                    document.getElementById('taskTaggingLevel').disabled = false
+                }
+
+                document.getElementById('openSightingTab').disabled = false
+                document.getElementById('openIndividualTab').disabled = false
+                document.getElementById('openAISpeciesTab').disabled = false
+                document.getElementById('openInfoTab').disabled = false
+                document.getElementById('openSpeciesLabellingTab').disabled = false
+                document.getElementById('openMultiSpeciesTab').disabled = false
+                // document.getElementById('openMaskedTab').disabled = false
+            }
+        }
+        xhttp.send();
+    }
 }

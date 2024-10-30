@@ -275,19 +275,19 @@ def launchTask():
             return json.dumps({'message': message, 'status': 'Error'})
 
     # Check last restore
-    if ('-4' in taggingLevel) or ('-5' in taggingLevel):
-        last_id_restores = [t.survey.id_restore for t in tasks if t.survey.id_restore]
-        if last_id_restores:
-            last_id_restore = max(last_id_restores)
-            if (datetime.utcnow() - last_id_restore).days < timedelta(days=Config.RESTORE_COOLDOWN).days:
-                return json.dumps({'message': 'Your survey has recently had images restored from archive. The system requires a cooldown period of ' + str(Config.RESTORE_COOLDOWN) + ' days before another restoration can be performed.', 'status': 'Error'})
+    # if ('-4' in taggingLevel) or ('-5' in taggingLevel):
+    #     last_id_restores = [t.survey.id_restore for t in tasks if t.survey.id_restore]
+    #     if last_id_restores:
+    #         last_id_restore = max(last_id_restores)
+    #         if (datetime.utcnow() - last_id_restore).days < timedelta(days=Config.RESTORE_COOLDOWN).days:
+    #             return json.dumps({'message': 'Your survey has recently had images restored from archive. The system requires a cooldown period of ' + str(Config.RESTORE_COOLDOWN) + ' days before another restoration can be performed.', 'status': 'Error'})
             
-    if ('-7' in taggingLevel):
-        last_empty_restores = [t.survey.empty_restore for t in tasks if t.survey.empty_restore]
-        if last_empty_restores:
-            last_empty_restores = max(last_empty_restores)
-            if (datetime.utcnow() - last_empty_restores).days < timedelta(days=Config.RESTORE_COOLDOWN).days:
-                return json.dumps({'message': 'Your survey has recently had images restored from archive. The system requires a cooldown period of ' + str(Config.RESTORE_COOLDOWN) + ' days before another restoration can be performed.', 'status': 'Error'})
+    # if ('-7' in taggingLevel):
+    #     last_empty_restores = [t.survey.empty_restore for t in tasks if t.survey.empty_restore]
+    #     if last_empty_restores:
+    #         last_empty_restores = max(last_empty_restores)
+    #         if (datetime.utcnow() - last_empty_restores).days < timedelta(days=Config.RESTORE_COOLDOWN).days:
+    #             return json.dumps({'message': 'Your survey has recently had images restored from archive. The system requires a cooldown period of ' + str(Config.RESTORE_COOLDOWN) + ' days before another restoration can be performed.', 'status': 'Error'})
             
 
     task = db.session.query(Task).get(task_ids[0])
@@ -1007,13 +1007,6 @@ def getTaggingLevelsbyTask(task_id,task_type):
         texts.append('Vehicles/Humans/Livestock ('+str(vhl_bounding_count)+')')
         values.append(GLOBALS.vhl_id)
 
-        if task.empty_count == None:
-            updateAllStatuses.delay(task_id=task_id)
-            return json.dumps({'texts': [], 'values': [], 'disabled':'false', 'colours':[]})
-        
-        empty_count = task.empty_count
-        texts.append('Empty ('+str(empty_count)+')')
-        values.append('-7')
 
     elif task_type=='clusterTag':
 
@@ -1095,6 +1088,25 @@ def getTaggingLevelsbyTask(task_id,task_type):
         count = task.infoless_vhl_count
         texts.append('Vehicles/Humans/Livestock ('+str(count)+')')
         values.append('-2,'+str(label.id))
+
+    
+    elif task_type=='empty':
+        values = ['-7']
+        disabled = 'true'
+
+        if task.empty_count == None:
+            updateAllStatuses.delay(task_id=task_id)
+            return json.dumps({'texts': [], 'values': [], 'disabled':'false', 'colours':[]})
+        
+        check = task.empty_count
+
+        texts = ['Empty ('+str(check)+')']
+
+        if check>0:
+            colours = ['#000000']
+        else:
+            colours = ['#0A7850']
+
 
     # elif task_type=='maskedTag':
     #     # NOTE: This is not currently used (is for check masked sightings)
@@ -1271,7 +1283,8 @@ def updateSurveyStatus(survey_id, status):
                     db.session.commit()
                     GLOBALS.redisClient.delete('upload_ping_'+str(survey_id))
                     GLOBALS.redisClient.delete('upload_user_'+str(survey_id))
-                    import_survey.delay(survey_id=survey.id, used_lambda=True)
+                    # import_survey.delay(survey_id=survey.id, used_lambda=True)
+                    GLOBALS.redisClient.set('upload_complete_'+str(survey_id), datetime.utcnow().timestamp())
                 else:
                     return json.dumps('error')
             else:
@@ -1609,6 +1622,7 @@ def createNewSurvey():
                     action = 'upload'
                     GLOBALS.redisClient.set('lambda_invoked_'+str(newSurvey_id),0)
                     GLOBALS.redisClient.set('lambda_completed_'+str(newSurvey_id),0)
+                    GLOBALS.redisClient.set('upload_complete_'+str(newSurvey_id), 'False')
                 else:
                     # Bucket upload
                     import_survey.delay(survey_id=newSurvey.id)
@@ -2056,14 +2070,14 @@ def editSurvey():
                 app.logger.info('Edit survey requested for {} with classifier: {}, ignore_small_detections: {}, sky_masked: {}, timestamps: {}, coordData: {}, masks: {}, staticgroups: {}, kml: {}, imageTimestamps: {}'.format(survey.name,classifier_id,ignore_small_detections,sky_masked,timestamps,coordData,masks,staticgroups,kml,imageTimestamps))
                 if classifier_id and survey.classifier_id != classifier_id:
                     # Need to restore images from Glacier if classifier is changed. Restoration takes 48 hours.
-                    if survey.edit_restore and (datetime.utcnow()-survey.edit_restore).days < timedelta(days=Config.RESTORE_COOLDOWN).days:
-                        status = 'error'
-                        message = 'Your survey recently had images restored. The system requires a cooldown period of {} days before another restoration can be requested. Image restoration is required when editing the classifier.'.format(Config.RESTORE_COOLDOWN)
-                    else:
-                        survey.status = 'Processing'
-                        db.session.commit()
-                        edit_survey_args = {'survey_id':survey.id,'user_id':current_user.id,'classifier_id':classifier_id,'ignore_small_detections':ignore_small_detections,'sky_masked':sky_masked,'timestamps':timestamps,'coord_data':coordData,'masks':masks,'staticgroups':staticgroups,'kml_file':kml,'image_timestamps':imageTimestamps}
-                        restore_images_for_classification.delay(survey_id=survey.id,days=2,edit_survey_args=edit_survey_args,tier=Config.RESTORE_TIER)
+                    # if survey.edit_restore and (datetime.utcnow()-survey.edit_restore).days < timedelta(days=Config.RESTORE_COOLDOWN).days:
+                    #     status = 'error'
+                    #     message = 'Your survey recently had images restored. The system requires a cooldown period of {} days before another restoration can be requested. Image restoration is required when editing the classifier.'.format(Config.RESTORE_COOLDOWN)
+                    # else:
+                    survey.status = 'Processing'
+                    db.session.commit()
+                    edit_survey_args = {'survey_id':survey.id,'user_id':current_user.id,'classifier_id':classifier_id,'ignore_small_detections':ignore_small_detections,'sky_masked':sky_masked,'timestamps':timestamps,'coord_data':coordData,'masks':masks,'staticgroups':staticgroups,'kml_file':kml,'image_timestamps':imageTimestamps}
+                    restore_images_for_classification.delay(survey_id=survey.id,days=Config.EDIT_RESTORE_DAYS,edit_survey_args=edit_survey_args,tier=Config.RESTORE_TIER)
                 else:
                     survey.status = 'Processing'
                     db.session.commit()
@@ -2145,6 +2159,7 @@ def addFiles():
                         upload_survey_name = survey.name
                         GLOBALS.redisClient.set('lambda_invoked_'+str(survey_id),0)
                         GLOBALS.redisClient.set('lambda_completed_'+str(survey_id),0)
+                        GLOBALS.redisClient.set('upload_complete_'+str(survey_id), 'False')
         
         else:
             status = 'error'
@@ -3687,7 +3702,11 @@ def getHomeSurveys():
                                 ShareUserPermissions.c.user_id,
                                 ShareUserPermissions.c.default,
                                 SurveyShare.permission,
-                                UserPermissions.create
+                                UserPermissions.create,
+                                Survey.id_restore,
+                                Survey.edit_restore,
+                                Survey.empty_restore,
+                                Survey.download_restore,
                             ).outerjoin(Task,Task.survey_id==Survey.id)\
                             .outerjoin(siteSQ,siteSQ.c.id==Survey.id)\
                             .outerjoin(completeJobsSQ,completeJobsSQ.c.id==Task.id)\
@@ -3731,6 +3750,14 @@ def getHomeSurveys():
                 else:
                     prep_progress = 2
                 survey_data[item[0]]['prep_progress'] = prep_progress
+            elif surveyStatus.lower() == 'restoring files':
+                survey_data[item[0]]['restore'] = 0
+                survey_data[item[0]]['total_restore'] = Config.RESTORE_TIME/3600
+                restore_dates = [i for i in [item[27], item[28], item[29], item[30]] if i]
+                max_date = max(restore_dates) if restore_dates else None
+                if max_date:
+                    restore_time = math.floor(((datetime.utcnow() - max_date).total_seconds() / 3600))
+                    survey_data[item[0]]['restore'] = restore_time
 
         if item[8] and (item[9]!='default') and (item[8] not in handled_tasks):
             handled_tasks.append(item[8])
@@ -3859,6 +3886,14 @@ def getHomeSurveys():
                     else:
                         prep_progress = 2
                     survey_data2[item[0]]['prep_progress'] = prep_progress
+                elif surveyStatus.lower() == 'restoring files':
+                    survey_data2[item[0]]['restore'] = 0
+                    survey_data2[item[0]]['total_restore'] = Config.RESTORE_TIME/3600
+                    restore_dates = [i for i in [item[27], item[28], item[29], item[30]] if i]
+                    max_date = max(restore_dates) if restore_dates else None
+                    if max_date:
+                        restore_time = math.floor(((datetime.utcnow() - max_date).total_seconds() / 3600))
+                        survey_data2[item[0]]['restore'] = restore_time
 
             if item[8] and (item[9]!='default') and (item[8] not in handled_tasks):
                 handled_tasks.append(item[8])
@@ -4090,8 +4125,8 @@ def getJobs():
             #     task_type = 'Review Masked Sightings'
             #     species = 'All'
             elif '-7' in item[1]:
-                task_type = 'Sighting Correction'
-                species = 'Empty'
+                task_type = 'Empty Label Check'
+                species = 'All'
             else:
                 if item[8] == False:
                     task_type = 'Species Labelling'
@@ -4540,7 +4575,11 @@ def exportRequest():
             #     GLOBALS.s3client.delete_object(Bucket=Config.BUCKET, Key=fileName+'.zip')
             # except:
             #     pass
-            
+
+            check = db.session.query(DownloadRequest).filter(DownloadRequest.task_id==task_id).filter(DownloadRequest.user_id==current_user.id).filter(DownloadRequest.type=='export').filter(DownloadRequest.status=='Pending').first()
+            if check:
+                return json.dumps({'status':'error',  'message': 'A download request for this task is already pending. Please wait for the previous request to complete.'})
+                    
             # Create Download request
             download_request = DownloadRequest(type='export', user_id=current_user.id, task_id=task_id, status='Pending', timestamp=datetime.utcnow())
             db.session.add(download_request)
@@ -8175,6 +8214,11 @@ def generateExcel(selectedTask):
     # except:
     #     pass
 
+    # Check if already requested
+    check = db.session.query(DownloadRequest).filter(DownloadRequest.task_id==selectedTask).filter(DownloadRequest.user_id==current_user.id).filter(DownloadRequest.type=='excel').filter(DownloadRequest.status=='Pending').first()
+    if check:
+        return json.dumps({'status':'error',  'message': 'A download request for this task is already pending. Please wait for the previous request to complete.'})
+    
     # Create Download request
     download_request = DownloadRequest(type='excel', user_id=current_user.id, task_id=selectedTask, status='Pending', timestamp=datetime.utcnow())
     db.session.add(download_request)
@@ -8262,6 +8306,10 @@ def generateCSV():
     else:
         queue='default'
 
+    check = db.session.query(DownloadRequest).filter(DownloadRequest.task_id==selectedTasks[0]).filter(DownloadRequest.user_id==current_user.id).filter(DownloadRequest.type=='csv').filter(DownloadRequest.status=='Pending').first()
+    if check:
+        return json.dumps({'status':'error',  'message': 'A download request for this task is already pending. Please wait for the previous request to complete.'})
+
     # Create Download request
     download_request = DownloadRequest(type='csv', user_id=current_user.id, task_id=selectedTasks[0], status='Pending', timestamp=datetime.utcnow())
     db.session.add(download_request)
@@ -8295,6 +8343,10 @@ def generateCOCO():
     #     GLOBALS.s3client.delete_object(Bucket=Config.BUCKET, Key=fileName)
     # except:
     #     pass
+
+    check = db.session.query(DownloadRequest).filter(DownloadRequest.task_id==task_id).filter(DownloadRequest.user_id==current_user.id).filter(DownloadRequest.type=='coco').filter(DownloadRequest.status=='Pending').first()
+    if check:
+        return json.dumps({'status':'error',  'message': 'A download request for this task is already pending. Please wait for the previous request to complete.'})
 
     # Create Download request
     download_request = DownloadRequest(type='coco', user_id=current_user.id, task_id=task_id, status='Pending', timestamp=datetime.utcnow())
@@ -8750,18 +8802,21 @@ def dashboard():
                         last_months_storage_cost = latest_statistic.storage_cost,
                         last_months_db_cost = latest_statistic.db_cost,
                         last_months_textract_cost = latest_statistic.textract_cost,
+                        last_months_lambda_cost = latest_statistic.lambda_cost,
                         last_months_other_cost = latest_statistic.other_cost,
                         last_months_total_cost = latest_statistic.total_cost,
                         server_cost_this_month = costs['Amazon Elastic Compute Cloud'],
                         storage_cost_this_month = costs['Amazon Simple Storage Service'],
                         db_cost_this_month = costs['Amazon Relational Database Service'],
                         textract_cost_this_month = costs['Amazon Textract'],
+                        lambda_cost_this_month = costs['AWS Lambda'],
                         other_cost_this_month = costs['Other'],
                         total_cost_this_month = costs['Total'],
                         server_estimate = round(factor*costs['Amazon Elastic Compute Cloud'],2),
                         storage_estimate = round(factor*costs['Amazon Simple Storage Service'],2),
                         db_estimate = round(factor*costs['Amazon Relational Database Service'],2),
                         textract_estimate = round(factor*costs['Amazon Textract'],2),	
+                        lambda_estimate = round(factor*costs['AWS Lambda'],2),
                         other_estimate = round(factor*costs['Other'],2),
                         total_estimate = round(factor*costs['Total'],2),
                         unique_logins_24h = unique_logins_24h,
@@ -9040,20 +9095,15 @@ def check_upload_files():
         survey_id = request.json['survey_id']
         already_uploaded = []
         require_lambda = []
+        new_names = {}
 
         organisation_id, organisation_folder, survey_status = db.session.query(Organisation.id,Organisation.folder,Survey.status).join(Survey).filter(Survey.id==survey_id).first()
         if organisation_id and (survey_status=='Uploading'):
             userPermissions = db.session.query(UserPermissions).filter(UserPermissions.organisation_id==organisation_id).filter(UserPermissions.user_id==current_user.id).first()
             if userPermissions and userPermissions.create:
                 if checkUploadUser(current_user.id,survey_id):
-                    for file in files:
-                        result, req_lambda = checkFileExist(file,organisation_folder)
-                        if result:
-                            already_uploaded.append(result)
-                            if req_lambda:
-                                require_lambda.append(result)
-
-                    return json.dumps((already_uploaded,require_lambda))
+                    already_uploaded, require_lambda, new_names = checkFilesExist(files,organisation_folder)
+                    return json.dumps((already_uploaded,require_lambda,new_names))
     except:
         pass
 
@@ -9483,7 +9533,12 @@ def check_download_available():
         if download_request_id:
             check2 = db.session.query(DownloadRequest).join(Task).filter(Task.survey_id==task.survey_id).filter(DownloadRequest.type=='file').filter(DownloadRequest.id!=download_request_id).first()
         else:
-            check2 = db.session.query(DownloadRequest).join(Task).filter(Task.survey_id==task.survey_id).filter(DownloadRequest.type=='file').first()
+            check2 = db.session.query(DownloadRequest)\
+                                .join(Task)\
+                                .filter(Task.survey_id==task.survey_id)\
+                                .filter(DownloadRequest.type=='file')\
+                                .filter(DownloadRequest.status.in_(['Downloading','Initialising']))\
+                                .first()
         if check or check2:
             return json.dumps('unavailable')
         else:
@@ -14134,7 +14189,7 @@ def invoke_lambda():
                     }
 
                     invoked_lambdas = 0
-                    for batch in chunker(image_keys, 500):
+                    for batch in chunker(image_keys, 400):
                         payload['keys'] = batch
                         GLOBALS.lambdaClient.invoke(FunctionName=Config.IMAGE_IMPORT_LAMBDA, InvocationType='Event', Payload=json.dumps(payload))
                         invoked_lambdas += 1
@@ -14309,9 +14364,9 @@ def restore_for_download():
             if check or check2:
                 status = 'error'
                 message = 'A download is already in progress for this survey. Please try again later.'
-            elif survey.download_restore and (datetime.utcnow()-survey.download_restore).days < timedelta(days=Config.RESTORE_COOLDOWN).days:
-                status = 'error'
-                message = 'Your survey recently had images restored. The system requires a cooldown period of {} days before another restoration can be requested.'.format(Config.RESTORE_COOLDOWN)
+            # elif survey.download_restore and (datetime.utcnow()-survey.download_restore).days < timedelta(days=Config.RESTORE_COOLDOWN).days:
+            #     status = 'error'
+            #     message = 'Your survey recently had images restored. The system requires a cooldown period of {} days before another restoration can be requested.'.format(Config.RESTORE_COOLDOWN)
             else:
                 # Check if any surveys are busy with a dearchival process
                 if survey.status == 'Restoring Files':
@@ -14333,12 +14388,15 @@ def restore_for_download():
 
                 GLOBALS.redisClient.set('fileDownloadParams_'+str(task_id)+'_'+str(current_user.id),json.dumps(download_dict))
 
-                new_request = DownloadRequest(user_id=current_user.id, task_id=task_id, type='file', status='Initiated', timestamp=datetime.utcnow())
+                new_request = DownloadRequest(user_id=current_user.id, task_id=task_id, type='file', status='Initialising', timestamp=datetime.utcnow(), name='restore')
                 db.session.add(new_request)
                 
                 db.session.commit()
 
-                restore_files_for_download.apply_async(kwargs={'task_id': task_id, 'user_id': current_user.id, 'download_params': download_dict, 'days': Config.DOWNLOAD_RESTORE_DAYS, 'tier': Config.RESTORE_TIER})
+                response = restore_files_for_download.apply_async(kwargs={'task_id': task_id, 'download_request_id': new_request.id, 'download_params': download_dict, 'days': Config.DOWNLOAD_RESTORE_DAYS, 'tier': Config.RESTORE_TIER})
+
+                new_request.celery_id = response.id
+                db.session.commit()
 
                 status = 'success'
                 message = 'Your download request has been initiated. A wait time 48 hours is required for the download to be prepared. Your download request can be viewed in the downloads menu.'
@@ -14410,12 +14468,19 @@ def deleteDownloadRequest(download_request_id):
             pass
         
         if download_request.type == 'file':
-            try:
-                download_params = json.loads(GLOBALS.redisClient.get('fileDownloadParams_'+str(download_request.task_id)+'_'+str(download_request.user_id)).decode())
-                if download_params['include_emtpies']: cleanup_empty_restored_images.delay(task_id=task.id)
-            except:
-                pass
-            GLOBALS.redisClient.delete('fileDownloadParams_'+str(task.id)+'_'+str(current_user.id))
+            if download_request.name == 'restore':
+                try:
+                    download_params = json.loads(GLOBALS.redisClient.get('fileDownloadParams_'+str(download_request.task_id)+'_'+str(download_request.user_id)).decode())
+                    if download_params['include_emtpies']: cleanup_empty_restored_images.delay(task_id=task.id)
+                except:
+                    pass
+                GLOBALS.redisClient.delete('fileDownloadParams_'+str(task.id)+'_'+str(current_user.id))
+
+            if download_request.status == 'Downloading':
+                GLOBALS.redisClient.delete('download_ping_'+str(task.id))
+                resetImageDownloadStatus.delay(task_id=task.id,then_set=False,labels=None,include_empties=None, include_frames=True)
+                resetVideoDownloadStatus.delay(task_id=task.id,then_set=False,labels=None,include_empties=None, include_frames=True)
+                
         else:
             try:
                 fileName = task.survey.organisation.folder+'/docs/' + task.survey.organisation.name+'_'+current_user.username+'_'+task.survey.name+'_'+task.name+'_'+download_request.name+'.'+Config.RESULT_TYPES[download_request.type]
@@ -14428,3 +14493,30 @@ def deleteDownloadRequest(download_request_id):
         status = 'success'
 
     return json.dumps({'status': status})
+
+@app.route('/cancelRestore/<survey_id>')
+@login_required
+def cancelRestore(survey_id):
+    ''' Cancels the restore process for the specified survey '''
+    status = 'error'
+    survey = db.session.query(Survey).get(survey_id)
+    if survey and checkSurveyPermission(current_user.id,survey_id,'write'):
+
+        survey.require_launch = False
+        survey.status = 'Ready'
+
+        restoring_download_requests = db.session.query(DownloadRequest).join(Task).filter(Task.survey_id==survey_id).filter(DownloadRequest.status=='Restoring Files').all()
+        for request in restoring_download_requests:
+            GLOBALS.redisClient.delete('fileDownloadParams_'+str(request.task_id)+'_'+str(request.user_id))
+            db.session.delete(request)
+    
+        db.session.commit()
+
+        GLOBALS.redisClient.delete('download_launch_kwargs_'+str(survey.id))
+        GLOBALS.redisClient.delete('id_launch_kwargs_'+str(survey.id))
+        GLOBALS.redisClient.delete('empty_launch_kwargs_'+str(survey.id))
+        GLOBALS.redisClient.delete('edit_launch_kwargs_'+str(survey.id))
+
+        status = 'success'
+        
+    return json.dumps(status)

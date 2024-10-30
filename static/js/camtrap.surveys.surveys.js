@@ -399,14 +399,6 @@ function buildSurveys(survey,disableSurvey) {
     infoCol.classList.add('col-lg-4');
     surveyRow.appendChild(infoCol)
 
-    var buttonCol = document.createElement('div')
-    buttonCol.classList.add('col-lg-8');
-    surveyRow.appendChild(buttonCol)
-
-    var buttonRow = document.createElement('div')
-    buttonRow.classList.add('row');
-    buttonCol.appendChild(buttonRow)
-
     infoElementRow1 = document.createElement('div')
     infoElementRow1.classList.add('row');
     infoElementRow1.classList.add('center');
@@ -484,37 +476,121 @@ function buildSurveys(survey,disableSurvey) {
         infoElementRow0.appendChild(infoElementFiller)
     }
 
-    editCol = document.createElement('div')
-    editCol.classList.add('col-lg-2');
-    buttonRow.appendChild(editCol)
+    if (survey.status.toLowerCase()=='restoring files') {
+        // var buttonCol = document.createElement('div')
+        // buttonCol.classList.add('col-lg-8');
+        // buttonCol.setAttribute('style','align-items: center; display: flex; justify-content: center;');
+        // surveyRow.appendChild(buttonCol)
+    
+        // var buttonRow = document.createElement('div')
+        // buttonRow.classList.add('row');
+        // buttonCol.appendChild(buttonRow)
 
-    addImagesCol = document.createElement('div')
-    addImagesCol.classList.add('col-lg-3');
-    buttonRow.appendChild(addImagesCol)
+        var progBarCol = document.createElement('div')
+        progBarCol.classList.add('col-lg-7');
+        surveyRow.appendChild(progBarCol)
 
-    addTaskCol = document.createElement('div')
-    addTaskCol.classList.add('col-lg-4');
-    buttonRow.appendChild(addTaskCol)
+        // Restore
+        var restoreBarDiv = document.createElement('div')
+        restoreBarDiv.setAttribute("id","restoreProgDiv"+survey.id)
+        progBarCol.appendChild(restoreBarDiv)
 
-    deleteSurveyCol = document.createElement('div')
-    deleteSurveyCol.classList.add('col-lg-3');
-    deleteSurveyBtn = document.createElement('button')
-    deleteSurveyBtn.setAttribute("class","btn btn-danger btn-block btn-sm")
-    deleteSurveyBtn.setAttribute("id","deleteSurveyBtn"+survey.id)
-    deleteSurveyBtn.innerHTML = 'Delete'
-    deleteSurveyCol.appendChild(deleteSurveyBtn)
-    buttonRow.appendChild(deleteSurveyCol)
+        var newProg = document.createElement('div');
+        newProg.classList.add('progress');
+        newProg.setAttribute('style','background-color: #3C4A59')
+        restoreBarDiv.appendChild(newProg)
 
-    deleteSurveyBtn.addEventListener('click', function(wrapSurveyName,wrapSurveyId) {
-        return function() {
-            selectedSurvey = wrapSurveyId
-            document.getElementById('modalConfirmHeader').innerHTML = 'Confirmation Required'
-            document.getElementById('modalConfirmBody').innerHTML = 'Do you wish to delete ' + wrapSurveyName + '?'
-            document.getElementById('btnConfirm').addEventListener('click', confirmSurveyDelete);
-            document.getElementById('confirmclose').addEventListener('click', removeSurveyDeleteListeners);
-            modalConfirm.modal({keyboard: true});
+        var newProgInner = document.createElement('div');
+        newProgInner.classList.add('progress-bar');
+        newProgInner.classList.add('progress-bar-striped');
+        newProgInner.classList.add('progress-bar-animated');
+        newProgInner.classList.add('active');
+        newProgInner.setAttribute("role", "progressbar");
+        newProgInner.setAttribute("id", "restoreProgress"+survey.id);
+        newProgInner.setAttribute("aria-valuenow", "0");
+        newProgInner.setAttribute("aria-valuemin", "0");
+        newProgInner.setAttribute("aria-valuemin", "0");
+        newProgInner.setAttribute("aria-valuenow", survey.restore);
+        newProgInner.setAttribute("aria-valuemax", survey.total_restore);
+        time_left = survey.total_restore - survey.restore
+        if (time_left<0) {
+            time_left = 0
         }
-    }(survey.name, survey.id));
+        newProgInner.setAttribute("style", "width:"+(survey.restore/survey.total_restore)*100+"%;transition:none");
+        if (time_left == 1) {	
+            newProgInner.innerHTML = time_left + ' hour remaining'
+        } else {
+            newProgInner.innerHTML = time_left + ' hours remaining'
+        }
+        newProg.appendChild(newProgInner);
+
+        var cancelCol = document.createElement('div')
+        cancelCol.classList.add('col-lg-1');
+        surveyRow.appendChild(cancelCol)
+
+        var cancelRestoreBtn = document.createElement('button')
+        cancelRestoreBtn.setAttribute("class","btn btn-danger btn-block btn-sm")
+        cancelRestoreBtn.innerHTML = '&times;'
+        cancelCol.appendChild(cancelRestoreBtn)
+
+        cancelRestoreBtn.addEventListener('click', function(wrapSurveyId) {
+            return function() {
+                var xhttp = new XMLHttpRequest();
+                xhttp.onreadystatechange =
+                function(){
+                    if (this.readyState == 4 && this.status == 200) {
+                        reply = JSON.parse(this.responseText);   
+                        if (reply=='success') {
+                            updatePage(current_page)
+                        }
+                    }
+                }
+                xhttp.open("GET", '/cancelRestore/'+wrapSurveyId);
+                xhttp.send();
+            }
+        }(survey.id));
+
+    } else {
+        var buttonCol = document.createElement('div')
+        buttonCol.classList.add('col-lg-8');
+        surveyRow.appendChild(buttonCol)
+    
+        var buttonRow = document.createElement('div')
+        buttonRow.classList.add('row');
+        buttonCol.appendChild(buttonRow)
+
+        editCol = document.createElement('div')
+        editCol.classList.add('col-lg-2');
+        buttonRow.appendChild(editCol)
+    
+        addImagesCol = document.createElement('div')
+        addImagesCol.classList.add('col-lg-3');
+        buttonRow.appendChild(addImagesCol)
+    
+        addTaskCol = document.createElement('div')
+        addTaskCol.classList.add('col-lg-4');
+        buttonRow.appendChild(addTaskCol)
+    
+        deleteSurveyCol = document.createElement('div')
+        deleteSurveyCol.classList.add('col-lg-3');
+        deleteSurveyBtn = document.createElement('button')
+        deleteSurveyBtn.setAttribute("class","btn btn-danger btn-block btn-sm")
+        deleteSurveyBtn.setAttribute("id","deleteSurveyBtn"+survey.id)
+        deleteSurveyBtn.innerHTML = 'Delete'
+        deleteSurveyCol.appendChild(deleteSurveyBtn)
+        buttonRow.appendChild(deleteSurveyCol)
+    
+        deleteSurveyBtn.addEventListener('click', function(wrapSurveyName,wrapSurveyId) {
+            return function() {
+                selectedSurvey = wrapSurveyId
+                document.getElementById('modalConfirmHeader').innerHTML = 'Confirmation Required'
+                document.getElementById('modalConfirmBody').innerHTML = 'Do you wish to delete ' + wrapSurveyName + '?'
+                document.getElementById('btnConfirm').addEventListener('click', confirmSurveyDelete);
+                document.getElementById('confirmclose').addEventListener('click', removeSurveyDeleteListeners);
+                modalConfirm.modal({keyboard: true});
+            }
+        }(survey.name, survey.id));
+    }
 
     // surveyDiv.appendChild(infoElementRow)
     // surveyDiv.appendChild(infoElementRow2)
@@ -708,7 +784,14 @@ function buildSurveys(survey,disableSurvey) {
                 modalConfirm.modal({keyboard: true});
             }
         }(survey.id, survey.prep_progress));
-    
+    } else if (survey.status.toLowerCase()=='restoring files') {
+        taskDivHeading.innerHTML = 'Annotation Sets:'
+        for (let i=0;i<survey.tasks.length;i++) {
+            buildTask(taskDiv, survey.tasks[i], disableSurvey, survey)
+            if (i < survey.tasks.length-1) {
+                taskDiv.appendChild(document.createElement('br'))
+            }
+        }
     } else {
         taskDivHeading.innerHTML = 'Annotation Sets:'
         for (let i=0;i<survey.tasks.length;i++) {

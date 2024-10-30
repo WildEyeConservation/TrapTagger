@@ -2169,7 +2169,15 @@ def get_AWS_costs(startDate,endDate):
     
     costExplorer = boto3.client('ce')
     timePeriod = {'Start': startDate.strftime("%Y-%m-%d"), 'End': endDate.strftime("%Y-%m-%d")}
-    services = ['Amazon Elastic Compute Cloud - Compute', 'EC2 - Other', 'Amazon Simple Storage Service', 'Amazon Relational Database Service', 'Amazon Textract', 'Total']
+    services = [
+        'Amazon Elastic Compute Cloud - Compute', 
+        'EC2 - Other', 
+        'Amazon Simple Storage Service', 
+        'Amazon Relational Database Service', 
+        'Amazon Textract', 
+        'AWS Lambda',
+        'Total'
+    ]
 
     region_filter = {
         'Dimensions': {
@@ -2313,6 +2321,7 @@ def updateStatistics(self):
                 statistic.storage_cost=costs['Amazon Simple Storage Service'],
                 statistic.db_cost=costs['Amazon Relational Database Service'],
                 statistic.textract_cost=costs['Amazon Textract'],
+                statistic.lambda_cost=costs['AWS Lambda'],
                 statistic.other_cost=costs['Other'],
                 statistic.total_cost=costs['Total']
                 statistic.average_daily_logins = average_daily_logins

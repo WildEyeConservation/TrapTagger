@@ -462,7 +462,7 @@ def freeUpWork(task_id):
                     .filter(or_(clusterSQ.c.timestamp<datetime.utcnow()-timedelta(minutes=3),clusterSQ.c.timestamp==None))\
                     .distinct().all()
 
-    if Config.DEBUGGING: app.logger.info('{} inactive trapgroups identified for survey {}'.format(len(trapgroups),task.survey.name))
+    if Config.DEBUGGING: print('{} inactive trapgroups identified for survey {}'.format(len(trapgroups),task.survey.name))
 
     for trapgroup in trapgroups:
         trapgroup.active = True

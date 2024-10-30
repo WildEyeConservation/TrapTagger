@@ -115,7 +115,7 @@ def restore_empty_zips(self,task_id,tier):
         zip_folder = survey.organisation.folder + '-comp/' + Config.SURVEY_ZIP_FOLDER
         
         restore_request = {
-            'Days': 2,
+            'Days': Config.EMPTY_RESTORE_DAYS,
             'GlacierJobParameters': {
                 'Tier': tier
             }
@@ -133,7 +133,7 @@ def restore_empty_zips(self,task_id,tier):
         if zip_ids:
             zip_ids = sorted(zip_ids)
             zip_keys = [zip_folder + '/' + str(zip_id) + '.zip' for zip_id in zip_ids]
-            restore_index, restore_date, require_wait = binary_search_restored_objects(zip_keys,2)
+            restore_index, restore_date, require_wait = binary_search_restored_objects(zip_keys,Config.EMPTY_RESTORE_DAYS)
             zip_ids = zip_ids[restore_index:]
 
             restore_zip = False
@@ -483,7 +483,7 @@ def restore_images_for_classification(self,survey_id,days,edit_survey_args,tier)
     return True
 
 @celery.task(bind=True,max_retries=2,ignore_result=True)
-def restore_files_for_download(self,task_id,user_id,download_params,days,tier,extend=False):
+def restore_files_for_download(self,task_id,download_request_id,download_params,days,tier,extend=False):
     '''Restores files from Glacier for a specified task.'''
     try:
         task = db.session.query(Task).get(task_id)
@@ -594,11 +594,11 @@ def restore_files_for_download(self,task_id,user_id,download_params,days,tier,ex
                 zip_ids = [zip.id for zip in survey.zips]
                 zip_ids = sorted(zip_ids)
                 zip_keys = [zip_folder + '/' + str(zip_id) + '.zip' for zip_id in zip_ids]
-                restore_index, restore_date_zip, require_wait_zip = binary_search_restored_objects(zip_keys,2)
+                restore_index, restore_date_zip, require_wait_zip = binary_search_restored_objects(zip_keys,Config.EMPTY_RESTORE_DAYS)
                 zip_keys = zip_keys[restore_index:]
 
                 zip_restore_request = {
-                    'Days': 2,
+                    'Days': Config.EMPTY_RESTORE_DAYS,
                     'GlacierJobParameters': {
                         'Tier': tier
                     }
@@ -626,21 +626,21 @@ def restore_files_for_download(self,task_id,user_id,download_params,days,tier,ex
                 if require_wait or restore_date:
                     survey.status = 'Restoring Files'
 
-                    download_request = db.session.query(DownloadRequest).filter(DownloadRequest.task_id==task_id).filter(DownloadRequest.user_id==user_id).filter(DownloadRequest.type=='file').first()
+                    download_request = db.session.query(DownloadRequest).get(download_request_id)
                     download_request.status = 'Restoring Files'
                     download_request.timestamp = date_now
 
                     survey.require_launch = True
-                    launch_kwargs = {'task_id':task_id,'user_id':user_id,'zips':restored_zip}
+                    launch_kwargs = {'task_id':task_id,'download_request_id':download_request_id,'zips':restored_zip}
                     GLOBALS.redisClient.set('download_launch_kwargs_'+str(survey.id),json.dumps(launch_kwargs))
 
                     db.session.commit()
                 else:
                     db.session.commit()
-                    process_files_for_download.apply_async(kwargs={'task_id':task_id,'user_id':user_id,'zips':restored_zip})
+                    process_files_for_download.apply_async(kwargs={'task_id':task_id,'download_request_id':download_request_id,'zips':restored_zip})
                 
             else:
-                download_request = db.session.query(DownloadRequest).filter(DownloadRequest.task_id==task_id).filter(DownloadRequest.user_id==user_id).filter(DownloadRequest.type=='file').first()
+                download_request = db.session.query(DownloadRequest).get(download_request_id)
                 download_request.status = 'Available'
                 download_request.timestamp = datetime.now()
 
@@ -661,7 +661,7 @@ def restore_files_for_download(self,task_id,user_id,download_params,days,tier,ex
 
 
 @celery.task(bind=True,max_retries=2,ignore_result=True)
-def process_files_for_download(self,task_id,user_id,zips):
+def process_files_for_download(self,task_id,download_request_id,zips):
     '''Processes files for download after they have been restored from Glacier.'''
     try:
         task = db.session.query(Task).get(task_id)
@@ -692,7 +692,7 @@ def process_files_for_download(self,task_id,user_id,zips):
                     result.forget()
             GLOBALS.lock.release()
 
-        download_request = db.session.query(DownloadRequest).filter(DownloadRequest.task_id==task_id).filter(DownloadRequest.user_id==user_id).filter(DownloadRequest.status=='Restoring files').filter(DownloadRequest.type=='file').first()
+        download_request = db.session.query(DownloadRequest).get(download_request_id)
         download_request.status = 'Available'
         download_request.timestamp = datetime.now()
 

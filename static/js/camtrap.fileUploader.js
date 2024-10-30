@@ -43,6 +43,12 @@ uploadWorker.onmessage = function(evt){
         retrying = false
         uploading= false
         updatePage(generate_url())
+        largeFiles = evt.data.args[0]
+        if (largeFiles>0) {
+            document.getElementById('modalAlertHeader').innerHTML = 'Alert'
+            document.getElementById('modalAlertBody').innerHTML = 'You have ' + largeFiles.toString() + ' file(s) that are too large to upload. '
+            modalAlert.modal({keyboard: true});
+        }
     }
 };
 

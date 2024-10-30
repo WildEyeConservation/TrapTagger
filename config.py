@@ -172,6 +172,8 @@ class Config(object):
     RESTORE_COOLDOWN = 14 # 14 days
     ID_RESTORE_DAYS=30 
     DOWNLOAD_RESTORE_DAYS=7
+    EDIT_RESTORE_DAYS=7
+    EMPTY_RESTORE_DAYS=7
     if DEBUGGING:
         RESTORE_TIER = 'Standard'
     else:

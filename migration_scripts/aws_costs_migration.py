@@ -12,11 +12,13 @@ for statistic in statistics:
     if startDate < cutoff_date:
         statistic.textract_cost = 0
         statistic.other_cost = 0
+        statistic.lambda_cost = 0
     else:
         costs = get_AWS_costs(startDate,endDate)
         statistic.textract_cost=costs['Amazon Textract']
         statistic.other_cost=costs['Other']
         statistic.server_cost=costs['Amazon Elastic Compute Cloud']
+        statistic.lambda_cost=costs['AWS Lambda']
 
 db.session.commit()
 

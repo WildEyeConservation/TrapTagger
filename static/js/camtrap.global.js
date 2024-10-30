@@ -443,7 +443,7 @@ function buildDownloadRequest(download){
         downloadRequest.appendChild(col1);
     
         var col2 = document.createElement('div');
-        col2.setAttribute('class', 'col-lg-8');
+        col2.setAttribute('class', 'col-lg-7');
         col2.setAttribute('style', 'padding: 0px; align-items: center; display: flex; justify-content: center;');
         downloadRequest.appendChild(col2);
     
@@ -487,6 +487,21 @@ function buildDownloadRequest(download){
         newProgInner.setAttribute("style", "width:"+(download.restore/download.total_restore)*100+"%;transition:none");
         newProgInner.innerHTML = time_left + ' hours remaining'
         newProg.appendChild(newProgInner);
+
+        var col3 = document.createElement('div');
+        col3.setAttribute('class', 'col-lg-1');
+        col3.setAttribute('style', 'padding: 0px; align-items: center; display: flex; justify-content: center;');
+        downloadRequest.appendChild(col3);
+
+        var stopTaskBtn = document.createElement('button')
+        stopTaskBtn.setAttribute("class","btn btn-danger btn-block btn-sm")
+        stopTaskBtn.innerHTML = '&times;'
+        col3.appendChild(stopTaskBtn)
+
+        stopTaskBtn.addEventListener('click', ()=>{
+            let download_id = this.id.split('-')[1]
+            deleteDownload(download_id)
+        })
     }
     else if (download.status == 'Downloading' && currentDownloads.includes(download.id)){
         var col1 = document.createElement('div');
@@ -581,19 +596,18 @@ function buildDownloadRequest(download){
 
         col2.innerHTML = '<i class="fa-solid fa-spinner fa-spin fa-2xl" style="color: #DF694A"></i>';
 
-        if (download.type != 'file'){
-            var deleteBtn = document.createElement('a');
-            deleteBtn.innerHTML = '<i class="fa-solid fa-circle-xmark fa-2xl"></i>';
-            deleteBtn.setAttribute('style', 'cursor: pointer; color: #D9534F;');
-            deleteBtn.setAttribute('title', 'Delete');
-            deleteBtn.id = 'deleteDownloadBtn-' + download.id;
-            col3.appendChild(deleteBtn);
+        var deleteBtn = document.createElement('a');
+        deleteBtn.innerHTML = '<i class="fa-solid fa-circle-xmark fa-2xl"></i>';
+        deleteBtn.setAttribute('style', 'cursor: pointer; color: #D9534F;');
+        deleteBtn.setAttribute('title', 'Delete');
+        deleteBtn.id = 'deleteDownloadBtn-' + download.id;
+        col3.appendChild(deleteBtn);
 
-            deleteBtn.addEventListener('click', function(){
-                let download_id = this.id.split('-')[1]
-                deleteDownload(download_id)
-            });
-        }
+        deleteBtn.addEventListener('click', function(){
+            let download_id = this.id.split('-')[1]
+            deleteDownload(download_id)
+        });
+        
     }
 }
 

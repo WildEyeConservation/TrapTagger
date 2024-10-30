@@ -289,7 +289,7 @@ function buildTask(taskDiv, task, disableSurvey, survey) {
             deleteBtn.disabled = true
             taskStatusBtn.disabled = true
         } else {
-            if (survey.access=='read') {
+            if (survey.access=='read' || survey.status.toLowerCase()=='restoring files') {
                 launchTaskBtn.disabled = true
                 editTaskBtn.disabled = true
                 resultsBtn.disabled = false

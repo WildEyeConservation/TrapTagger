@@ -20,7 +20,7 @@ importScripts('piexif.js')
 
 const limitTT=pLimit(6)
 
-batchSize = 500
+batchSize = 400
 surveyName = null
 uploadID = null
 filesUploaded = 0
@@ -34,6 +34,8 @@ checkingFiles = false
 folders = []
 lambdaQueue = []
 checkingLambda = false
+largeFiles = 0
+fileRenames = {}
 
 onmessage = function (evt) {
     /** Take instructions from main js */
@@ -64,7 +66,7 @@ async function checkFileBatch() {
         let files = []
         let items = []
         while ((files.length<batchSize)&&(proposedQueue.length>0)) {
-            let item = proposedQueue.pop()
+            let item = proposedQueue.pop(0)
             var file = await item[1].getFile()
             let fileData = await new Promise((resolve, reject) => {
                 let reader = new FileReader();
@@ -76,11 +78,17 @@ async function checkFileBatch() {
             });
 
             let hash = getHash(fileData, item[1].name)
-            items.push(item)
-            files.push({
-                name: surveyName + '/' + item[0] + '/' + item[1].name,
-                hash: hash
-            })
+            if (hash=='') {
+                filesUploaded += 1
+                filesQueued += 1
+                updateUploadProgress(filesUploaded,filecount)
+            } else {
+                items.push(item)
+                files.push({
+                    name: surveyName + '/' + item[0] + '/' + item[1].name,
+                    hash: hash
+                })
+            }
         }
 
         limitTT(()=> fetch('/fileHandler/check_upload_files', {
@@ -102,9 +110,14 @@ async function checkFileBatch() {
         }).then((data) => {
             uploaded = data[0]
             require_lambda = data[1]
+            new_names = data[2]
             for (let i=0;i<items.length;i++) {
                 let item = items[i]
                 if (!uploaded.includes(surveyName + '/' + item[0] + '/' + item[1].name)) {
+                    if ((surveyName + '/' + item[0] + '/' + item[1].name) in new_names) {
+                        filepath = surveyName + '/' + item[0] + '/' 
+                        fileRenames[filepath + item[1].name] = filepath + new_names[filepath + item[1].name]
+                    }
                     uploadQueue.push(item)
                 } else {
                     filesUploaded += 1
@@ -138,6 +151,10 @@ async function addBatch() {
             let item = uploadQueue.pop()
             let file = await item[1].getFile()
             let filename = surveyName + '/' + item[0] + '/' + item[1].name
+            if (filename in fileRenames) {
+                filename = fileRenames[filename]
+                delete fileRenames[filename]
+            }
             filesToAdd.push({
                 name: filename,
                 type: file.type,
@@ -248,9 +265,10 @@ async function checkFinishedUpload() {
         }
         xhttp.send();
 
-        resetUploadStatusVariables()
         console.log('Upload Complete')
-        postMessage({'func': 'reloadPage', 'args': null})
+        postMessage({'func': 'reloadPage', 'args': [largeFiles]})
+        resetUploadStatusVariables()
+
     } else {
         if (!checkingFiles&&(proposedQueue.length!=0)) {
             checkFileBatch()
@@ -276,18 +294,17 @@ function resetUploadStatusVariables() {
     folders = []
     lambdaQueue = []
     checkingLambda = false
+    largeFiles = 0
+    fileRenames = {}
 }
 
 function getHash(jpegData, filename) {
     /** Returns the hash of the EXIF-less image */
     try {
         if (['mp4', 'avi', 'mov'].some(element => filename.toLowerCase().includes(element))){
-            if (jpegData.length>5000000) {
-                md5Hash = CryptoJS.algo.MD5.create()
-                for (let i=0;i<jpegData.length;i+=1000000) {
-                    md5Hash.update(CryptoJS.enc.Latin1.parse(jpegData.slice(i,i+1000000)))
-                }
-                hash = md5Hash.finalize().toString()
+            if (jpegData.length>500000000) { // 500MB
+                hash = ''
+                largeFiles += 1
             }
             else {
                 hash = CryptoJS.MD5(CryptoJS.enc.Latin1.parse(jpegData)).toString()   
@@ -295,7 +312,13 @@ function getHash(jpegData, filename) {
             return hash
         }
         else{
-            return CryptoJS.MD5(CryptoJS.enc.Latin1.parse(exports.piexif.insert(exports.piexif.dump({'0th':{},'1st':{},'Exif':{},'GPS':{},'Interop':{},'thumbnail':null}), jpegData))).toString()
+            if (jpegData.length>10000000) { // 10MB
+                largeFiles += 1
+                return ''
+            }
+            else {
+                return CryptoJS.MD5(CryptoJS.enc.Latin1.parse(exports.piexif.insert(exports.piexif.dump({'0th':{},'1st':{},'Exif':{},'GPS':{},'Interop':{},'thumbnail':null}), jpegData))).toString()
+            }
         }
     }
     catch (err) {

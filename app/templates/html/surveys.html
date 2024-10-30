@@ -1527,9 +1527,11 @@ limitations under the License. -->
             </div>
             <div class="modal-body">
                 <p align="justify">
-                    The file download preferences that you have selected require the files to be restored from our archival storage. The process will take 48 hours to complete. 
-                    You can monitor the progress of the download request on the downloads menu. After the files have been restored, you will be able to start the download process.
-                    Do you wish to proceed?
+                    The file download preferences that you have selected require the files to be restored from our archival storage. 
+                    The process will take 48 hours to complete. You can monitor the progress of the download request on the downloads menu. 
+                    After the files have been restored, you will be able to start the download process. The download will be available for 7 days, 
+                    if the download is still busy at the time when the restoration expires we will extend the restoration so that the download can 
+                    complete. Would you like to proceed ?
                 </p>
             </div>
             <div class="modal-footer">
@@ -1538,7 +1540,7 @@ limitations under the License. -->
                     data-dismiss="modal">Cancel</button>
                 </div>
                 <div class="col-lg-3">
-                    <button id="btnConfirmDownload" type="button" class="btn btn-danger btn-block" 
+                    <button id="btnConfirmDownload" type="button" class="btn btn-primary btn-block" 
                     data-dismiss="modal" onclick="initiateDownload()">Confirm</button>
                 </div>
             </div>
@@ -1876,6 +1878,7 @@ limitations under the License. -->
             <div class="tab" id="annotationTabs" style="border-top: 1px solid rgb(60, 74, 89);">
                 <button id="openSpeciesLabellingTab" class="tablinks" onclick="changeAnnotationTab(event, 'baseSpeciesLabellingTab')">Species Labelling</button>
                 <button id="openAISpeciesTab" class="tablinks" onclick="changeAnnotationTab(event, 'baseAISpeciesTab')">AI Species Check</button>
+                <button id="openEmptyTab" class="tablinks" onclick="changeAnnotationTab(event, 'baseEmptyTab')">Empty Label Check</button>
                 <button id="openInfoTab" class="tablinks" onclick="changeAnnotationTab(event, 'baseInfoTab')">Informational Tagging</button>
                 <button id="openMultiSpeciesTab" class="tablinks" onclick="changeAnnotationTab(event, 'baseMultiSpeciesTab')">Multi-Species Differentiation</button>
                 <button id="openSightingTab" class="tablinks" onclick="changeAnnotationTab(event, 'baseSightingTab')">Sighting (Box) Correction</button>
@@ -2062,7 +2065,7 @@ limitations under the License. -->
                     data-dismiss="modal">Cancel</button>
                 </div>
                 <div class="col-lg-3">
-                    <button id="btnConfirmRestore" type="button" class="btn btn-danger btn-block" 
+                    <button id="btnConfirmRestore" type="button" class="btn btn-primary btn-block" 
                     data-dismiss="modal">Confirm</button>
                 </div>
             </div>

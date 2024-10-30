@@ -326,7 +326,7 @@ def clean_up_redis():
                     elif datetime.utcnow() - user.last_ping > timedelta(minutes=3):
                         resolve_abandoned_jobs([[user,user.turkcode[0].task]])
 
-            elif any(name in key for name in ['lambda_invoked', 'lambda_completed']):
+            elif any(name in key for name in ['lambda_invoked', 'lambda_completed', 'upload_complete']):
                 survey_id = key.split('_')[-1]
 
                 if not survey_id.isdigit():
@@ -669,10 +669,10 @@ def manage_task(task_id):
     task_jobs += active_jobs
 
     if task_jobs < max_workers_possible:
-        if Config.DEBUGGING: app.logger.info('Creating {} new jobs.'.format(max_workers_possible - task_jobs))
+        if Config.DEBUGGING: print('Creating {} new jobs.'.format(max_workers_possible - task_jobs))
         createTurkcodes(max_workers_possible - task_jobs, task_id, session)
     elif (task_jobs > max_workers_possible):
-        if Config.DEBUGGING: app.logger.info('Removing {} excess jobs.'.format(task_jobs - max_workers_possible))
+        if Config.DEBUGGING: print('Removing {} excess jobs.'.format(task_jobs - max_workers_possible))
         jobs_to_delete = task_jobs - max_workers_possible
         # deleteTurkcodes(task_jobs - max_workers_possible, task_id, session)
 
@@ -880,18 +880,22 @@ def manageDownloadRequests():
                     # Check if the download is still active
                     redis_keys = [r.decode() for r in GLOBALS.redisClient.keys()]
                     if 'download_ping_'+str(task_id) not in redis_keys:
-                        if expiry_date and expiry_date > date_now and 'fileDownloadParams_'+str(task_id)+'_'+str(request.user_id) in redis_keys:
-                            request.status = 'Available'
-                            request.timestamp = date_now
-                            db.session.commit()
+                        if request.name=='restore':
+                            if expiry_date and expiry_date > date_now and 'fileDownloadParams_'+str(task_id)+'_'+str(request.user_id) in redis_keys:
+                                request.status = 'Available'
+                                request.timestamp = date_now
+                                db.session.commit()
+                            else:
+                                try:
+                                    include_empties = json.loads(GLOBALS.redisClient.get('fileDownloadParams_'+str(task_id)+'_'+str(request.user_id)).decode())['include_empties']
+                                    if include_empties: cleanup_empty_restored_images.delay(task_id=task_id)
+                                except:
+                                    pass
+                                GLOBALS.redisClient.delete('fileDownloadParams_'+str(task_id)+'_'+str(request.user_id))
+                                db.session.delete(request)
                         else:
-                            try:
-                                include_empties = json.loads(GLOBALS.redisClient.get('fileDownloadParams_'+str(task_id)+'_'+str(request.user_id)).decode())['include_empties']
-                                if include_empties: cleanup_empty_restored_images.delay(task_id=task_id)
-                            except:
-                                pass
-                            GLOBALS.redisClient.delete('fileDownloadParams_'+str(task_id)+'_'+str(request.user_id))
-                            db.session.delete(request)
+                            if request.timestamp + timedelta(days=7) <= date_now:
+                                db.session.delete(request)
                 else:
                     if expiry_date and expiry_date <= date_now:
                         GLOBALS.redisClient.delete('fileDownloadParams_'+str(task_id)+'_'+str(request.user_id))
@@ -935,17 +939,18 @@ def checkRestoreDownloads(task_id):
         if (expiry_date - date_now).days < 1:
             download_requests = db.session.query(DownloadRequest).filter(DownloadRequest.task_id == task_id).filter(DownloadRequest.type == 'file').filter(DownloadRequest.status == 'Downloading').all()
             for request in download_requests:
-                try:
-                    user_id = request.user_id
-                    download_params = GLOBALS.redisClient.get('fileDownloadParams_'+str(task_id)+'_'+str(user_id)).decode()
-                    download_params = json.loads(download_params)
-                    survey.download_restore = date_now
-                    db.session.commit()
-                    days = timedelta(days=Config.DOWNLOAD_RESTORE_DAYS, seconds=Config.RESTORE_TIME).days
-                    if days > Config.DOWNLOAD_RESTORE_DAYS: days = days - 1
-                    restore_files_for_download.apply_async(kwargs={'task_id':task_id,'user_id':user_id,'days':days,'download_params':download_params,'tier':Config.RESTORE_TIER,'extend':True})
-                except:
-                    continue
+                if request.name=='restore':
+                    try:
+                        user_id = request.user_id
+                        download_params = GLOBALS.redisClient.get('fileDownloadParams_'+str(task_id)+'_'+str(user_id)).decode()
+                        download_params = json.loads(download_params)
+                        survey.download_restore = date_now
+                        db.session.commit()
+                        days = timedelta(days=Config.DOWNLOAD_RESTORE_DAYS, seconds=Config.RESTORE_TIME).days
+                        if days > Config.DOWNLOAD_RESTORE_DAYS: days = days - 1
+                        restore_files_for_download.apply_async(kwargs={'task_id':task_id,'download_request_id':request.id,'days':days,'download_params':download_params,'tier':Config.RESTORE_TIER,'extend':True})
+                    except:
+                        continue
 
     return True
 
@@ -1121,6 +1126,30 @@ def monitorSQS():
                                 GLOBALS.redisClient.set('lambda_completed_'+str(survey_id),count)
 
                         GLOBALS.sqsClient.delete_message(QueueUrl=GLOBALS.sqsQueueUrl, ReceiptHandle=message['ReceiptHandle'])
+
+
+                        # Check if upload complete and all lambdas have completed - start import
+                        try:
+                            upload_complete = GLOBALS.redisClient.get('upload_complete_'+str(survey_id)).decode()
+                            if upload_complete != 'False':
+                                timestamp = datetime.fromtimestamp(float(upload_complete))
+                                lambda_completed = int(GLOBALS.redisClient.get('lambda_completed_'+str(survey_id)).decode())
+                                lambda_invoked = int(GLOBALS.redisClient.get('lambda_invoked_'+str(survey_id)).decode())
+                                if lambda_completed >= lambda_invoked:
+                                    GLOBALS.redisClient.delete('upload_complete_'+str(survey_id))
+                                    GLOBALS.redisClient.delete('lambda_completed_'+str(survey_id))
+                                    GLOBALS.redisClient.delete('lambda_invoked_'+str(survey_id))
+                                    import_survey.delay(survey_id=survey_id,used_lambda=True)
+                                else:
+                                    # If 24 hours since upload complete and lambdas not complete, put survey in failed state
+                                    if (datetime.utcnow()-timestamp).total_seconds() > 86400:
+                                        survey = db.session.query(Survey).get(survey_id)
+                                        if survey.status == 'Import Queued':
+                                            survey.status = 'Failed'
+                                            db.session.commit()
+                                            GLOBALS.redisClient.delete('upload_complete_'+str(survey_id))
+                        except:
+                            pass
 
                     else:
                         GLOBALS.sqsClient.delete_message(QueueUrl=GLOBALS.sqsQueueUrl, ReceiptHandle=message['ReceiptHandle'])
