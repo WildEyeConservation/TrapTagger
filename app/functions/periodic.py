@@ -1063,6 +1063,12 @@ def monitorFileRestores():
 def monitorSQS():
     '''Celery task that monitors the SQS queue for new messages'''
     try:
+        if not GLOBALS.sqsQueueUrl:
+            try:
+                GLOBALS.sqsQueueUrl = GLOBALS.sqsClient.get_queue_url(QueueName=Config.SQS_QUEUE_NAME)['QueueUrl']
+            except:
+                return False
+
         starttime = datetime.utcnow()
         response = GLOBALS.sqsClient.receive_message(
             QueueUrl=GLOBALS.sqsQueueUrl,

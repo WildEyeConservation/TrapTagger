@@ -31,6 +31,7 @@ def lambda_handler(event, context):
 
     bucket = event['bucket']
     keys = event['keys']
+    extract_function = event['extract_function']
 
     conn = pymysql.connect(host=event['RDS_HOST'], user=event['RDS_USER'], password=event['RDS_PASSWORD'], db=event['RDS_DB_NAME'], port=3306, connect_timeout=5)
     cursor = conn.cursor()
@@ -51,7 +52,7 @@ def lambda_handler(event, context):
                     payload['batch'] = extract_batch
                     payload['reinvoked'] = True
                     del payload['keys']
-                    lambda_client.invoke(FunctionName='traptaggerExtractVideo', InvocationType='Event', Payload=json.dumps(payload))
+                    lambda_client.invoke(FunctionName=extract_function, InvocationType='Event', Payload=json.dumps(payload))
                     invoked = True
 
                 print('Lambda invoked with remaining keys.')
@@ -201,7 +202,7 @@ def lambda_handler(event, context):
         payload['batch'] = extract_batch
         del payload['keys']
         lambda_client = boto3.client('lambda')
-        lambda_client.invoke(FunctionName='traptaggerExtractVideo', InvocationType='Event', Payload=json.dumps(payload))
+        lambda_client.invoke(FunctionName=extract_function, InvocationType='Event', Payload=json.dumps(payload))
         print('Invoked lambda to extract frames from videos.')
         invoked = True
     

@@ -101,12 +101,13 @@ Once your server has launched:
     |------------|-------|----------------------------------------------------------------|
     |Custom TCP  |6379   |Custom (Enter your security group ID into the search box)       |
     |MYSQL/Aurora|3306   |Custom (Enter your security group ID into the search box)       |
+    |PostgreSQL  |5432   |Custom (Enter your security group ID into the search box)       |
 
 - Save rules
 
 ### Virtual Private Cloud (VPC)
 
-For security reasons, one wants to ensure that third-party classifiers do not have access to the internet. This is achived using your VPC by creating two different subnets - a private one without internet access and a public one with access. 
+For security reasons, one wants to ensure that third-party classifiers do not have access to the internet. This is achived using your VPC by creating two different subnets - a private one without internet access and a public one with access. An additional subnet is created for Lambda. 
 
 - Open the AWS console. 
 - Select the subnets option in the side tab and view the list of subnets. 
@@ -114,6 +115,9 @@ For security reasons, one wants to ensure that third-party classifiers do not ha
 - Give the subnet a useful name 
 - Save the name and ID of the subnet for later
 - Choose another subnet from the list as your private subnet
+- Give the subnet a useful name
+- Save the name and ID of the subnet for later
+- Choose another subnet from the list as your lambda subnet
 - Give the subnet a useful name
 - Save the name and ID of the subnet for later
 
@@ -125,7 +129,7 @@ If there are not enough default subnets created, create a new subnet:
 - Click create subnet
 - Save the name and ID of this subnet for later
 
-You now need to control what access those subnets have. This is done with route tables. Your default route table should (by default) route your default subnet to the VPC's internet gateway. This means you need to create a new route table for your private subnet that does not route it to the internet:
+You now need to control what access those subnets have. This is done with route tables. Your default route table should (by default) route your default subnet to the VPC's internet gateway. This means you need to create a new route table for your private subnet that does not route it to the internet as well as your lambda subnet:
 
 - Navigate to the route tables in the VPC console
 - Click create new route table
@@ -140,8 +144,15 @@ You now need to control what access those subnets have. This is done with route 
 - Open the subnet associations tab and click on the edit associations button
 - Find and select your default subnet (public subnet) where you created your server
 - Save this association
+- Click create new route table 
+- Select the VPC where you launched the server
+- Click create
+- Select your new lambda route table you created
+- Select the subnet associations tab
+- Click edit subnet associations
+- Find and select your lambda subnet and save the association
 
-Lastly, your instances typically connect to other AWS services through the internet, so in order for your classifiers in your private subnet to access your images in S3, you need to set up a private gateway to S3:
+Your instances typically connect to other AWS services through the internet, so in order for your classifiers in your private subnet to access your images in S3 as well as your lambda functions, you need to set up a private gateway to S3:
 
 - Navigate to the Endpoints section in your VPC console
 - Click create endpoint
@@ -149,7 +160,22 @@ Lastly, your instances typically connect to other AWS services through the inter
 - Select the 'AWS services' service category
 - Search for the S3 service and select the only gateway option
 - Select your VPC
-- Select your private route table and a 'full access' policy
+- Select your private route table
+- Select your lambda route table 
+- Select a 'full access' policy
+- Create endpoint
+
+Lastly, your Lambda functions needs the ability to invoke other lambda functions without using the internet, you need to setup a interface endpoint to lambda:
+
+- Navigate to the Endpoints section in your VPC console
+- Click create endpoint
+- Give this enpoint a useful name
+- Select the 'AWS services' service category
+- Search for the Lambda service and select the only interface option
+- Select your VPC
+- Select your lambda subnet
+- Select the security group that you created earlier
+- Select a 'full access' policy
 - Create endpoint
 
 ### Database
@@ -166,6 +192,18 @@ Open the RDS service on your AWS console, and create a new database. Use the fol
 - Leave all other settings to their default
 
 Once you have created your instance, select it to see your database endpoint. Save this for later user - this forms the basis of your DATABASE_SERVER environmental variable. If more than one endpoint available, save the endpoint of the writer instance.
+
+Create another database to interact with WBIA:
+- Engine type: Amazon Aurora
+- Edition: PostgreSQL-compatible
+- Version: Latest
+- Choose your own identifier, username and password
+- Instance configuration: Serverless (if not available choose a version that has the serverless option)
+- Leave the default capacity settings
+- Set the VPC, subnet, and security group to the ones associated with your server (the security group might be by name rather than ID)
+- Leave all other settings to their default
+
+Save the endpoint of the writer instance.
 
 ### Domain
 
@@ -344,6 +382,65 @@ In order to manage the access permissions of you admin users, you must create a 
 - Give your user group a useful name, and save it for later
 - Search for and select the policy you just created and click 'create group'
 
+### Lambda 
+In order to run Lambda functions you need to create the neccesary permissions for the other aws services the lambda functions interact with:
+- Go to the AWS IAM web console
+- Select 'policies' on the left-hand menu
+- Select 'create policy'
+- Select the JSON editor and enter the following, replacing 'bucketName' with your bucket name, 'lambdaFunctionArn' and 'sqsArn' with Arn of the resources:
+```
+{
+    "Version": "2012-10-17",
+    "Statement": [
+        {
+            "Sid": "S3",
+            "Effect": "Allow",
+            "Action": [
+                "s3:GetObject",
+                "s3:PutObject",
+                "s3:DeleteObject"
+            ],
+            "Resource": "arn:aws:s3:::bucketName/*"
+        },
+        {
+            "Sid": "Lambda",
+            "Effect": "Allow",
+            "Action": [
+                "lambda:InvokeFunction"
+            ],
+            "Resource": [
+                lambdaFunctionArn1,
+                lambdaFunctionArn2,
+                lambdaFunctionArn3,
+            ]
+        },
+        {
+            "Sid": "SQS",
+            "Effect": "Allow",
+            "Action": [
+                "sqs:SendMessage",
+                "sqs:ReceiveMessage",
+                "sqs:DeleteMessage",
+                "sqs:GetQueueAttributes"
+            ],
+            "Resource": sqsArn
+        }
+    ]
+}
+- Click next (add tags)
+- Give the policy a useful name
+- Click create policy
+- Select 'roles' on the left hand menu 
+- Select 'create role'
+- Select AWS service and search Lambda
+- Select lambda and click next 
+- Select the following policies: AWSLambdaBasicExecutionRole, AWSLambdaVPCAccessExecutionRole, and the policy that you created. 
+- Click next and give your role a useful name
+- Click 'create role'
+- Save the name for later to be used in the config
+
+Note the name of the Lambda functions and SQS queue can be found in the config file. The names can be changed accoring to your preferences. 
+
 ## System Email Support
 
 In order for users to be added, or for them to be able to reset their passwords etc. you need an email functionality set up. If you have your own email server, you can simply set the MAIL_SERVER, MAIL_PORT, MAIL_USE_TLS, MAIL_USERNAME, and MAIL_PASSWORD variables in the config file.
@@ -413,6 +510,7 @@ env_variables.sh, and then simply set them using the command `. env_variables.sh
 - SG_ID:                                The ID of your security group.
 - PUBLIC_SUBNET_ID:                     The ID of your public subnet
 - PRIVATE_SUBNET_ID:                    The ID of your private subnet
+- LAMBDA_SUBNET_ID:                     The ID of you lambda subnet
 - TOKEN:                                A secret token key.
 - KEY_NAME:                             The name of the private key file you use on your EC2 instances. (without the .pem)
 - QUEUE:                                The queue name for the local worker - set to default for your server instance.
@@ -426,6 +524,10 @@ env_variables.sh, and then simply set them using the command `. env_variables.sh
 - AWS_S3_DOWNLOAD_SECRET_ACCESS_KEY:    The AWS secret access key for your S3-only IAM user
 - AWS_S3_UPLOAD_ACCESS_KEY_ID:          The AWS ID of your S3-only IAM user
 - AWS_S3_UPLOAD_SECRET_ACCESS_KEY:      The AWS secret access key for your S3-only IAM user
+- WBIA_DB_NAME                          The name of your WBIA database.
+- WBIA_DB_SERVER                        The server where the WBIA database is hosted. postgresql://username:password@endpoint
+- WBIA_DIR                              The name of the directory where WBIA will store files
+- AWS_ACCOUNT_ID                        The ID of your AWS account. 
 
 ### SSL Certificate
 

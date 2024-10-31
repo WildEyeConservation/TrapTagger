@@ -104,6 +104,8 @@ services:
             - WBIA_DB_NAME=${WBIA_DB_NAME}
             - WBIA_DIR=${WBIA_DIR}
             - INITIALISE_IBS=false
+            - LAMBDA_SUBNET_ID=${LAMBDA_SUBNET_ID}
+            - AWS_ACCOUNT_ID=${AWS_ACCOUNT_ID}
         command: gunicorn -b 0.0.0.0:8000 -w 15 -t 120 -k gevent app:app
         networks:
             my-network:
@@ -163,6 +165,8 @@ services:
             - WBIA_DB_NAME=${WBIA_DB_NAME}
             - WBIA_DIR=${WBIA_DIR}
             - INITIALISE_IBS=false
+            - LAMBDA_SUBNET_ID=${LAMBDA_SUBNET_ID}
+            - AWS_ACCOUNT_ID=${AWS_ACCOUNT_ID}
         command: gunicorn -b 0.0.0.0:8000 -w 9 -t 120 -k gevent app:app
         networks:
             my-network:
@@ -222,6 +226,8 @@ services:
             - WBIA_DB_NAME=${WBIA_DB_NAME}
             - WBIA_DIR=${WBIA_DIR}
             - INITIALISE_IBS=true
+            - LAMBDA_SUBNET_ID=${LAMBDA_SUBNET_ID}
+            - AWS_ACCOUNT_ID=${AWS_ACCOUNT_ID}
         command: gunicorn -b 0.0.0.0:8000 -w 2 -t 120 -k gevent app:app
         networks:
             my-network:
@@ -279,6 +285,8 @@ services:
             - WBIA_DB_NAME=${WBIA_DB_NAME}
             - WBIA_DIR=${WBIA_DIR}
             - INITIALISE_IBS=false
+            - LAMBDA_SUBNET_ID=${LAMBDA_SUBNET_ID}
+            - AWS_ACCOUNT_ID=${AWS_ACCOUNT_ID}
         command: celery -A app.celery worker -B -E -n priority_worker -Q priority -Ofair --concurrency=1 --loglevel=info
         networks:
             - my-network
@@ -332,6 +340,8 @@ services:
             - WBIA_DB_NAME=${WBIA_DB_NAME}
             - WBIA_DIR=${WBIA_DIR}
             - INITIALISE_IBS=false
+            - LAMBDA_SUBNET_ID=${LAMBDA_SUBNET_ID}
+            - AWS_ACCOUNT_ID=${AWS_ACCOUNT_ID}
         command: nice -10 celery -A app.celery worker -E -n ram_worker -Q ram_intensive -Ofair --concurrency=1 --loglevel=info
         networks:
             - my-network
@@ -385,6 +395,8 @@ services:
             - WBIA_DB_NAME=${WBIA_DB_NAME}
             - WBIA_DIR=${WBIA_DIR}
             - INITIALISE_IBS=false
+            - LAMBDA_SUBNET_ID=${LAMBDA_SUBNET_ID}
+            - AWS_ACCOUNT_ID=${AWS_ACCOUNT_ID}
         command: nice -10 celery -A app.celery worker -E -n traptagger_worker1 -Q default -Ofair --concurrency=1 --loglevel=info
         networks:
             - my-network

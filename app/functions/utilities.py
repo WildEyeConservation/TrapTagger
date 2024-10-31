@@ -25,6 +25,7 @@ import traceback
 from celery.result import allow_join_result
 import cv2
 from PIL import Image as pilImage
+import os
 
 @celery.task(bind=True,max_retries=5)
 def copy_task_trapgroup(self,trapgroup_id,old_task_id,new_task_id):
@@ -1146,5 +1147,185 @@ def check_import(survey_id):
         print('WARNING: {} images are missing detection ratings.'.format(count))
     else:
         print('All detections have detection ratings.')
+
+    return True
+
+
+def setup_sqs():
+    '''Function that checks if the SQS queue exists and creates it if not.'''
+    try:
+        # Check if the queue exists
+        response = GLOBALS.sqsClient.list_queues(QueueNamePrefix=Config.SQS_QUEUE)
+        if 'QueueUrls' in response:
+            GLOBALS.sqsQueueUrl = response['QueueUrls'][0]
+            return True
+        
+        # Create the queue
+        response = GLOBALS.sqsClient.create_queue(
+                                        QueueName=Config.SQS_QUEUE,
+                                        Attributes={
+                                            'VisibilityTimeout': '30',
+                                            'MessageRetentionPeriod': '1209600' # 14 days
+                                        })
+        GLOBALS.sqsQueueUrl = response['QueueUrl']
+    except:
+        pass
+
+    return True
+
+def setup_lambda():
+    '''Function that checks if the lambda function exists and creates it if not.'''
+    try:
+        # NOTE: Run the build_lambda.sh script to create the lambda functions in terminal before running this function
+        for lambda_function in Config.LAMBDA_FUNCTIONS:
+            app.logger.info('Creating/Updating lambda function {}'.format(lambda_function))
+            try:
+                function_exists = False
+                try:
+                    response = GLOBALS.lambdaClient.get_function(FunctionName=lambda_function)
+                    function_exists = True
+                except:
+                    pass
+
+                code_path = 'lambda_functions/{}/lambda_function.zip'.format(Config.LAMBDA_DIR[lambda_function])
+
+                if not function_exists:
+                    GLOBALS.lambdaClient.create_function(
+                        FunctionName=lambda_function,
+                        Runtime=Config.LAMBDA_FUNCTIONS[lambda_function]['Runtime'],
+                        Role=Config.LAMBDA_FUNCTIONS[lambda_function]['Role'],
+                        Handler=Config.LAMBDA_FUNCTIONS[lambda_function]['Handler'],
+                        Timeout=Config.LAMBDA_FUNCTIONS[lambda_function]['Timeout'],
+                        MemorySize=Config.LAMBDA_FUNCTIONS[lambda_function]['MemorySize'],
+                        EphemeralStorage=Config.LAMBDA_FUNCTIONS[lambda_function]['EphemeralStorage'],
+                        Layers=Config.LAMBDA_FUNCTIONS[lambda_function]['Layers'],
+                        VpcConfig=Config.LAMBDA_FUNCTIONS[lambda_function]['VpcConfig'],
+                        DeadLetterConfig=Config.LAMBDA_FUNCTIONS[lambda_function]['DeadLetterConfig'],
+                        Code={
+                            'ZipFile': open(code_path,'rb').read()
+                        }
+                    )
+                else:
+                    # Update the lambda function
+                    GLOBALS.lambdaClient.update_function_code(
+                        FunctionName=lambda_function,
+                        ZipFile=open(code_path,'rb').read()
+                    )
+
+                    # wait for the update to complete
+                    function_ready = False
+                    while not function_ready:
+                        response = GLOBALS.lambdaClient.get_function(FunctionName=lambda_function)
+                        if response['Configuration']['LastUpdateStatus'] == 'Successful':
+                            function_ready = True
+
+                    GLOBALS.lambdaClient.update_function_configuration(
+                        FunctionName=lambda_function,
+                        Runtime=Config.LAMBDA_FUNCTIONS[lambda_function]['Runtime'],
+                        Role=Config.LAMBDA_FUNCTIONS[lambda_function]['Role'],
+                        Handler=Config.LAMBDA_FUNCTIONS[lambda_function]['Handler'],
+                        Timeout=Config.LAMBDA_FUNCTIONS[lambda_function]['Timeout'],
+                        MemorySize=Config.LAMBDA_FUNCTIONS[lambda_function]['MemorySize'],
+                        EphemeralStorage=Config.LAMBDA_FUNCTIONS[lambda_function]['EphemeralStorage'],
+                        Layers=Config.LAMBDA_FUNCTIONS[lambda_function]['Layers'],
+                        VpcConfig=Config.LAMBDA_FUNCTIONS[lambda_function]['VpcConfig'],
+                        DeadLetterConfig=Config.LAMBDA_FUNCTIONS[lambda_function]['DeadLetterConfig'],
+                    )
+
+                # Wait for the function to be ready
+                function_ready = False
+                while not function_ready:
+                    response = GLOBALS.lambdaClient.get_function(FunctionName=lambda_function)
+                    if response['Configuration']['LastUpdateStatus'] == 'Successful':
+                        function_ready = True
+
+                # ADd destination
+                GLOBALS.lambdaClient.put_function_event_invoke_config(
+                    FunctionName=lambda_function,
+                    MaximumRetryAttempts=2,
+                    DestinationConfig=Config.LAMBDA_FUNCTIONS[lambda_function]['DestinationConfig']
+                )
+
+                if os.path.exists(code_path): os.remove(code_path)
+                app.logger.info('Lambda function {} created/updated'.format(lambda_function))
+            except Exception as e:
+                app.logger.info('Failed to create/update lambda function {}'.format(lambda_function))
+                print(e)
+                pass         
+            
+    except Exception as e:
+        print(e)
+        pass
+    return True
+
+def update_lambda_code():
+    '''Function that updates the code of the lambda functions.'''
+    try:
+        #NOTE: Run the build_lambda.sh script to create the lambda functions in terminal before running this function
+        for lambda_function in Config.LAMBDA_FUNCTIONS:
+            app.logger.info('Updating lambda function {} code'.format(lambda_function))
+            try:
+                code_path = 'lambda_functions/{}/lambda_function.zip'.format(Config.LAMBDA_DIR[lambda_function])
+                GLOBALS.lambdaClient.update_function_code(
+                    FunctionName=lambda_function,
+                    ZipFile=open(code_path,'rb').read()
+                )
+
+                # wait for the update to complete
+                function_ready = False
+                while not function_ready:
+                    response = GLOBALS.lambdaClient.get_function(FunctionName=lambda_function)
+                    if response['Configuration']['LastUpdateStatus'] == 'Successful':
+                        function_ready = True
+
+                if os.path.exists(code_path): os.remove(code_path)
+                app.logger.info('Lambda function {} code updated'.format(lambda_function))
+            except:
+                app.logger.info('Failed to update lambda function {} code'.format(lambda_function))
+                pass
+    except:
+        pass
+
+    return True
+
+def setup_layers():
+    '''Function that checks if the lambda layers exist and creates them if not.'''
+    try:
+        #NOTE: Run the build_lambda_layers.sh script to create the lambda layers in terminal before running this function
+        for layer in Config.LAMBDA_LAYERS:
+            try:
+                zip_file = 'lambda_functions/'+ layer.split('_')[0] + '.zip'
+                zip_contents = open(zip_file,'rb').read()
+                # Check if file size greater than 50MB
+                if len(zip_contents) > 50000000:
+                    key = 'admin-comp/_lambda_layers_/'+ layer.split('_')[0] + '.zip'
+                    GLOBALS.s3client.upload_file(Bucket=Config.BUCKET, Key=key, Filename=zip_file)
+                    response = GLOBALS.lambdaClient.publish_layer_version(
+                        LayerName=Config.LAMBDA_LAYERS[layer]['LayerName'],
+                        Content={
+                            'S3Bucket': Config.BUCKET,
+                            'S3Key': key
+                        },
+                        CompatibleRuntimes=Config.LAMBDA_LAYERS[layer]['CompatibleRuntimes'],
+                        CompatibleArchitectures=Config.LAMBDA_LAYERS[layer]['CompatibleArchitectures']
+                    )
+                    GLOBALS.s3client.delete_object(Bucket=Config.BUCKET, Key=key)
+                else:
+                    response = GLOBALS.lambdaClient.publish_layer_version(
+                        LayerName=Config.LAMBDA_LAYERS[layer]['LayerName'],
+                        Content={
+                            'ZipFile': zip_contents
+                        },
+                        CompatibleRuntimes=Config.LAMBDA_LAYERS[layer]['CompatibleRuntimes'],
+                        CompatibleArchitectures=Config.LAMBDA_LAYERS[layer]['CompatibleArchitectures']
+                    ) 
+
+                app.logger.info('Lambda layer {} created'.format(layer))
+                if os.path.exists(zip_file): os.remove(zip_file)
+            except:
+                app.logger.info('Failed to create lambda layer {}'.format(layer))
+                pass
+    except:
+        pass
 
     return True

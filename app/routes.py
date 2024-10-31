@@ -73,7 +73,10 @@ GLOBALS.s3UploadClient = boto3.client('s3',
 GLOBALS.redisClient = redis.Redis(host=Config.REDIS_IP, port=6379)
 GLOBALS.lambdaClient = boto3.client('lambda', region_name=Config.AWS_REGION)
 GLOBALS.sqsClient = boto3.client('sqs', region_name=Config.AWS_REGION)
-GLOBALS.sqsQueueUrl = GLOBALS.sqsClient.get_queue_url(QueueName=Config.SQS_QUEUE)['QueueUrl']
+try:
+    GLOBALS.sqsQueueUrl = GLOBALS.sqsClient.get_queue_url(QueueName=Config.SQS_QUEUE)['QueueUrl']
+except:
+    GLOBALS.sqsQueueUrl = None
 GLOBALS.lock = Lock()
 
 # @app.before_first_request
@@ -14196,6 +14199,7 @@ def invoke_lambda():
 
                     for batch in chunker(video_keys, 15):
                         payload['keys'] = batch
+                        payload['extract_function'] = Config.VIDEO_EXTRACT_LAMBDA
                         GLOBALS.lambdaClient.invoke(FunctionName=Config.VIDEO_IMPORT_LAMBDA, InvocationType='Event', Payload=json.dumps(payload))
                         invoked_lambdas += 1
 
@@ -14480,6 +14484,12 @@ def deleteDownloadRequest(download_request_id):
                 GLOBALS.redisClient.delete('download_ping_'+str(task.id))
                 resetImageDownloadStatus.delay(task_id=task.id,then_set=False,labels=None,include_empties=None, include_frames=True)
                 resetVideoDownloadStatus.delay(task_id=task.id,then_set=False,labels=None,include_empties=None, include_frames=True)
+            elif download_request.status == 'Restoring Files':
+                survey = task.survey
+                if survey.status == 'Restoring Files':
+                    survey.status = 'Ready'
+                    survey.require_launch = False
+                    GLOBALS.redisClient.delete('download_launch_kwargs_'+str(survey.id))
                 
         else:
             try:

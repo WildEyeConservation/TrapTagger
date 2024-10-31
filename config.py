@@ -40,6 +40,7 @@ class Config(object):
     AWS_S3_UPLOAD_SECRET_ACCESS_KEY = os.environ.get('AWS_S3_UPLOAD_SECRET_ACCESS_KEY')
     MONKEY_PATCH = os.environ.get('MONKEY_PATCH')
     INITIALISE_IBS = os.environ.get('INITIALISE_IBS')
+    AWS_ACCOUNT_ID = str(os.environ.get('AWS_ACCOUNT_ID'))
 
     DETECTOR_THRESHOLDS = {
         'MDv4': 0.8,
@@ -183,10 +184,125 @@ class Config(object):
     RDS_HOST = SQLALCHEMY_DATABASE_SERVER.split('@')[1]
     RDS_USER = SQLALCHEMY_DATABASE_SERVER.split('@')[0].split('//')[1].split(':')[0]
     RDS_PASSWORD = SQLALCHEMY_DATABASE_SERVER.split('@')[0].split(':')[2]
-    IMAGE_IMPORT_LAMBDA = 'traptaggerImportImage'
-    VIDEO_IMPORT_LAMBDA = 'traptaggerImportVideo'
-    VIDEO_EXTRACT_LAMBDA = 'traptaggerExtractVideo'
-    SQS_QUEUE = 'traptaggerLambdaDLQ'
+    if DEBUGGING:
+        IMAGE_IMPORT_LAMBDA = 'traptaggerImportImageDev'
+        VIDEO_IMPORT_LAMBDA = 'traptaggerImportVideoDev'
+        VIDEO_EXTRACT_LAMBDA = 'traptaggerExtractVideoDev'
+        SQS_QUEUE = 'traptaggerLambdaDLQDev'
+    else:
+        IMAGE_IMPORT_LAMBDA = 'traptaggerImportImage'
+        VIDEO_IMPORT_LAMBDA = 'traptaggerImportVideo'
+        VIDEO_EXTRACT_LAMBDA = 'traptaggerExtractVideo'
+        SQS_QUEUE = 'traptaggerLambdaDLQ'
+    FFMPEG_LAYER = 'ffmpeg_layer:5'
+    FFPROBE_LAYER = 'ffprobe_layer:6'
+    OPENCV_LAYER = 'opencv_layer:2'
+    LAMBDA_SUBNET_ID = os.environ.get('LAMBDA_SUBNET_ID')
+    LAMBDA_ROLE = 'TrapTaggerImportLambdaRole'
+    LAMBDA_DIR = {
+        IMAGE_IMPORT_LAMBDA: 'importImage',
+        VIDEO_IMPORT_LAMBDA: 'importVideo',
+        VIDEO_EXTRACT_LAMBDA: 'extractVideo'
+    }
+
+    # LAMBDA CONFIG
+    LAMBDA_FUNCTIONS = {
+        IMAGE_IMPORT_LAMBDA: {
+            'FunctionName': IMAGE_IMPORT_LAMBDA,
+            'Handler': 'lambda_function.lambda_handler',
+            'Role': 'arn:aws:iam::'+AWS_ACCOUNT_ID+':role/'+LAMBDA_ROLE,
+            'Runtime': 'python3.12',
+            'Timeout': 900,
+            'MemorySize': 256,
+            'EphemeralStorage': {
+                'Size': 512
+            },
+            'Layers': [],
+            'VpcConfig': {
+                'SubnetIds': [LAMBDA_SUBNET_ID],
+                'SecurityGroupIds': [SG_ID]
+            },
+            'DeadLetterConfig': {
+                'TargetArn': 'arn:aws:sqs:'+AWS_REGION+':'+AWS_ACCOUNT_ID+':'+SQS_QUEUE
+            },
+            'DestinationConfig': {
+                'OnSuccess': {
+                    'Destination': 'arn:aws:sqs:'+AWS_REGION+':'+AWS_ACCOUNT_ID+':'+SQS_QUEUE
+                }
+            }
+        },
+        VIDEO_IMPORT_LAMBDA: {
+            'FunctionName': VIDEO_IMPORT_LAMBDA,	
+            'Handler': 'lambda_function.lambda_handler',
+            'Role': 'arn:aws:iam::'+AWS_ACCOUNT_ID+':role/'+LAMBDA_ROLE,
+            'Runtime': 'python3.9',
+            'Timeout': 900,
+            'MemorySize': 1024,
+            'EphemeralStorage': {
+                'Size': 640
+            },
+            'Layers': [
+                'arn:aws:lambda:'+AWS_REGION+':'+AWS_ACCOUNT_ID+':layer:'+FFMPEG_LAYER,
+                'arn:aws:lambda:'+AWS_REGION+':'+AWS_ACCOUNT_ID+':layer:'+FFPROBE_LAYER
+            ],
+            'VpcConfig': {
+                'SubnetIds': [LAMBDA_SUBNET_ID],
+                'SecurityGroupIds': [SG_ID]
+            },
+            'DeadLetterConfig': {
+                'TargetArn': 'arn:aws:sqs:'+AWS_REGION+':'+AWS_ACCOUNT_ID+':'+SQS_QUEUE
+            },
+            'DestinationConfig': {
+                'OnSuccess': {
+                    'Destination': 'arn:aws:sqs:'+AWS_REGION+':'+AWS_ACCOUNT_ID+':'+SQS_QUEUE
+                }
+            }
+        },
+        VIDEO_EXTRACT_LAMBDA: {
+            'FunctionName': VIDEO_EXTRACT_LAMBDA,
+            'Handler': 'lambda_function.lambda_handler',
+            'Role': 'arn:aws:iam::'+AWS_ACCOUNT_ID+':role/'+LAMBDA_ROLE,	
+            'Runtime': 'python3.9',
+            'Timeout': 900,
+            'MemorySize': 512,
+            'EphemeralStorage': {
+                'Size': 512
+            },
+            'Layers': [
+                'arn:aws:lambda:'+AWS_REGION+':'+AWS_ACCOUNT_ID+':layer:'+OPENCV_LAYER
+            ],
+            'VpcConfig': {
+                'SubnetIds': [LAMBDA_SUBNET_ID],
+                'SecurityGroupIds': [SG_ID]
+            },
+            'DeadLetterConfig': {
+                'TargetArn': 'arn:aws:sqs:'+AWS_REGION+':'+AWS_ACCOUNT_ID+':'+SQS_QUEUE
+            },
+            'DestinationConfig': {
+                'OnSuccess': {
+                    'Destination': 'arn:aws:sqs:'+AWS_REGION+':'+AWS_ACCOUNT_ID+':'+SQS_QUEUE
+                }
+            }
+        }
+    }
+
+    LAMBDA_LAYERS = {
+        FFMPEG_LAYER: {
+            'LayerName': 'ffmpeg_layer',
+            'CompatibleRuntimes': ['python3.9', 'python3.12'],
+            'CompatibleArchitectures': ['x86_64'],
+        },
+        FFPROBE_LAYER: {
+            'LayerName': 'ffprobe_layer',
+            'CompatibleRuntimes': ['python3.9', 'python3.12'],
+            'CompatibleArchitectures': ['x86_64'],
+        },
+        OPENCV_LAYER: {
+            'LayerName': 'opencv_layer',
+            'CompatibleRuntimes': ['python3.9'],
+            'CompatibleArchitectures': ['x86_64'],
+        }
+    }
 
     # Result File Type 
     RESULT_TYPES = {

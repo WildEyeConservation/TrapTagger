@@ -245,3 +245,13 @@ def initialise_periodic_functions(sender, instance, **kwargs):
         # monitorFileRestores.apply_async(queue='priority', priority=0)
         # monitorSQS.apply_async(queue='priority', priority=0)
         # print('Periodic functions initialised.')
+
+
+        # Setup LAMBDA
+        # import time
+        # from app.functions.utilities import setup_sqs, setup_layers, setup_lambda
+        # setup_sqs()
+        # setup_layers()
+        # time.sleep(10) # Wait for layers to be created
+        # NOTE: The layer versions need to be setup in Config before running the below function
+        # setup_lambda()    
