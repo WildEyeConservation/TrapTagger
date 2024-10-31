@@ -427,6 +427,7 @@ In order to run Lambda functions you need to create the neccesary permissions fo
         }
     ]
 }
+```
 - Click next (add tags)
 - Give the policy a useful name
 - Click create policy

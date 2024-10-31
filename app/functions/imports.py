@@ -5538,7 +5538,7 @@ def archive_empty_images(self,trapgroup_id):
                 images.append((item[0], comp_image_key, unarchived_file_sizes[index]))
 
         if images:
-            size_limit = 3*(2**30) # size limit is 3GB (available space on worker)
+            size_limit = 1.5*(2**30) # size limit is 1.5GB (available on worker)
             counter = 0
             current_zip_size = 0
             zipped_images = []
