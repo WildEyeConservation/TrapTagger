@@ -573,12 +573,13 @@ function buildSurveys(survey,disableSurvey) {
     
         deleteSurveyCol = document.createElement('div')
         deleteSurveyCol.classList.add('col-lg-3');
-        deleteSurveyBtn = document.createElement('button')
+        buttonRow.appendChild(deleteSurveyCol)
+
+        var deleteSurveyBtn = document.createElement('button')
         deleteSurveyBtn.setAttribute("class","btn btn-danger btn-block btn-sm")
         deleteSurveyBtn.setAttribute("id","deleteSurveyBtn"+survey.id)
         deleteSurveyBtn.innerHTML = 'Delete'
         deleteSurveyCol.appendChild(deleteSurveyBtn)
-        buttonRow.appendChild(deleteSurveyCol)
     
         deleteSurveyBtn.addEventListener('click', function(wrapSurveyName,wrapSurveyId) {
             return function() {
@@ -602,8 +603,8 @@ function buildSurveys(survey,disableSurvey) {
     if (survey.status.toLowerCase()=='uploading') {
         // uploadID = survey.id
         // surveyName = survey.name
-        addImagesBtn = null
-        addTaskBtn = null
+        var addImagesBtn = null
+        var addTaskBtn = null
         
         if (survey.id==uploadID) {
             uploadWorker.postMessage({'func': 'buildUploadProgress', 'args': null});
@@ -631,7 +632,7 @@ function buildSurveys(survey,disableSurvey) {
             col2.appendChild(btnResume)
         }
     } else if (survey.status.toLowerCase()=='preprocessing') {
-        addTaskBtn = null
+        var addTaskBtn = null
 
         taskDivHeading.innerHTML = 'Preprocessing Steps:'
 
@@ -785,6 +786,8 @@ function buildSurveys(survey,disableSurvey) {
             }
         }(survey.id, survey.prep_progress));
     } else if (survey.status.toLowerCase()=='restoring files') {
+        var addTaskBtn = null
+        var deleteSurveyBtn = null
         taskDivHeading.innerHTML = 'Annotation Sets:'
         for (let i=0;i<survey.tasks.length;i++) {
             buildTask(taskDiv, survey.tasks[i], disableSurvey, survey)
@@ -801,7 +804,7 @@ function buildSurveys(survey,disableSurvey) {
             }
         }
 
-        editSurveyBtn = document.createElement('button')
+        var editSurveyBtn = document.createElement('button')
         editSurveyBtn.setAttribute("class","btn btn-primary btn-block btn-sm")
         editSurveyBtn.setAttribute("id","editSurveyBtn"+survey.id)
         editSurveyBtn.innerHTML = 'Edit'
@@ -817,7 +820,7 @@ function buildSurveys(survey,disableSurvey) {
             }
         }(survey.name,survey.id));
 
-        addImagesBtn = document.createElement('button')
+        var addImagesBtn = document.createElement('button')
         addImagesBtn.setAttribute("class","btn btn-primary btn-block btn-sm")
         addImagesBtn.setAttribute("id","addImagesBtn"+survey.id)
         addImagesBtn.setAttribute("style","white-space: normal; word-wrap: break-word;")
@@ -835,7 +838,7 @@ function buildSurveys(survey,disableSurvey) {
             }
         }(survey.name,survey.id));
 
-        addTaskBtn = document.createElement('button')
+        var addTaskBtn = document.createElement('button')
         addTaskBtn.setAttribute("class","btn btn-primary btn-block btn-sm")
         addTaskBtn.setAttribute("id","addTaskBtn"+survey.id)
         addTaskBtn.setAttribute("style","white-space: normal; word-wrap: break-word;")
@@ -853,14 +856,15 @@ function buildSurveys(survey,disableSurvey) {
             }
         }(survey.id));
     }
-
     if (disableSurvey) {
         if (addTaskBtn) {
             addImagesBtn.disabled = true
             addTaskBtn.disabled = true
             editSurveyBtn.disabled = true
         }
-        deleteSurveyBtn.disabled = true
+        if (deleteSurveyBtn) {
+            deleteSurveyBtn.disabled = true
+        }
     } else {
         if (survey.access == 'read'){
             if (addTaskBtn) {
@@ -868,7 +872,9 @@ function buildSurveys(survey,disableSurvey) {
                 addTaskBtn.disabled = true
                 editSurveyBtn.disabled = true
             }
-            deleteSurveyBtn.disabled = true
+            if (deleteSurveyBtn) {
+                deleteSurveyBtn.disabled = true
+            }
 
             if (survey.status.toLowerCase()=='uploading' && !uploading) {
                 if (survey.create) {
@@ -894,12 +900,13 @@ function buildSurveys(survey,disableSurvey) {
                     btnResume.disabled = true
                 }
             }
-
-            if (survey.delete){
-                deleteSurveyBtn.disabled = false
-            }
-            else{
-                deleteSurveyBtn.disabled = true
+            if (deleteSurveyBtn) {
+                if (survey.delete){
+                    deleteSurveyBtn.disabled = false
+                }
+                else{
+                    deleteSurveyBtn.disabled = true
+                }
             }
         }
         else{
@@ -908,8 +915,9 @@ function buildSurveys(survey,disableSurvey) {
                 addTaskBtn.disabled = true
                 editSurveyBtn.disabled = true
             }
-            deleteSurveyBtn.disabled = true
-
+            if (deleteSurveyBtn) {
+                deleteSurveyBtn.disabled = true
+            }
             if (survey.status.toLowerCase()=='uploading' && !uploading) {
                 if (survey.create) {
                     btnResume.disabled = false
