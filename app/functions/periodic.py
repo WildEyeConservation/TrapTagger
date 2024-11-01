@@ -754,7 +754,7 @@ def manage_tasks_with_restore():
                 time_left = expiry_date - date_now
 
                 if time_left.days < 0:
-                    msg = '<p> Your Sigting Correction job on empty clusters for survey {} has been stopped due to the expiration of the empty images restoration from archival storage and lack of activity.</p>'.format(survey_name)
+                    msg = '<p> Your Empty Label Check job for survey {} has been stopped due to the expiration of the empty images restoration from archival storage and lack of activity.</p>'.format(survey_name)
                     task = db.session.query(Task).get(task_id)
                     task.status = 'Stopping'
                     db.session.commit()
@@ -762,7 +762,7 @@ def manage_tasks_with_restore():
                 elif time_left.days < 1:
                     if last_active:
                         if (date_now - last_active).days > 5:
-                            msg = '<p> Your Sigting Correction job on empty clusters for survey {} has been stopped due to the expiration of the empty images restoration from archival storage and lack of activity.</p>'.format(survey_name)
+                            msg = '<p> Your Empty Label Check job on empty clusters for survey {} has been stopped due to the expiration of the empty images restoration from archival storage and lack of activity.</p>'.format(survey_name)
                             task = db.session.query(Task).get(task_id)
                             task.status = 'Stopping'
                             db.session.commit()

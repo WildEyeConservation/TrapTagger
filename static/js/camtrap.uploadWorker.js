@@ -20,7 +20,8 @@ importScripts('piexif.js')
 
 const limitTT=pLimit(6)
 
-batchSize = 400
+batchSize = 200
+lambdaBatchSize = 400
 surveyName = null
 uploadID = null
 filesUploaded = 0
@@ -126,7 +127,12 @@ async function checkFileBatch() {
                 }
 
                 if (require_lambda.includes(surveyName + '/' + item[0] + '/' + item[1].name)) {
-                    lambdaQueue.push(surveyName + '/' + item[0] + '/' + item[1].name)
+                    if ((surveyName + '/' + item[0] + '/' + item[1].name) in new_names) {
+                        filepath = surveyName + '/' + item[0] + '/'
+                        lambdaQueue.push(filepath + new_names[filepath + item[1].name])
+                    } else {
+                        lambdaQueue.push(surveyName + '/' + item[0] + '/' + item[1].name)
+                    }
                 }
             }
             checkFinishedUpload()
@@ -329,9 +335,9 @@ function getHash(jpegData, filename) {
 async function checkLambdaQueue(count=0) {
     /** Check if the lambda queue is empty. If not, send the next batch to the lambda function. */
     var files = []
-    if (lambdaQueue.length>= batchSize) {
+    if (lambdaQueue.length>= lambdaBatchSize) {
         checkingLambda = true
-        while (files.length<batchSize) {
+        while (files.length<lambdaBatchSize) {
             let file = lambdaQueue.pop()
             fileSuffix = file.split('.')[1]
             let fileType;

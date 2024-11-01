@@ -9253,20 +9253,21 @@ def get_required_files():
                                     .filter(Video.downloaded==False)\
                                     .distinct().limit(50).all()
                 
-                if videos == [] and include_empties:
-                    sq = rDets(db.session.query(Image.id.label('image_id'))\
-                                        .join(Detection)\
-                                        .join(Camera)\
-                                        .join(Trapgroup)\
-                                        .filter(Trapgroup.survey==task.survey))\
-                                        .subquery()
+                # NOTE: WE DO NOT KEEP EMPTY VIDEOS ANYMORE IN S3 (CAN"T BE DOWNLOADED)
+                # if videos == [] and include_empties:
+                #     sq = rDets(db.session.query(Image.id.label('image_id'))\
+                #                         .join(Detection)\
+                #                         .join(Camera)\
+                #                         .join(Trapgroup)\
+                #                         .filter(Trapgroup.survey==task.survey))\
+                #                         .subquery()
 
-                    videos = db.session.query(Video)\
-                                        .join(Camera)\
-                                        .join(Image)\
-                                        .join(sq, sq.c.image_id == Image.id)\
-                                        .filter(Video.downloaded==False)\
-                                        .distinct().limit(50).all()
+                #     videos = db.session.query(Video)\
+                #                         .join(Camera)\
+                #                         .join(Image)\
+                #                         .join(sq, sq.c.image_id == Image.id)\
+                #                         .filter(Video.downloaded==False)\
+                #                         .distinct().limit(50).all()
                                     
             else:
                 if include_frames:
@@ -9359,7 +9360,8 @@ def get_required_files():
                                     .join(Trapgroup)\
                                     .filter(Trapgroup.survey==task.survey)\
                                     .filter(Video.downloaded==False)\
-                                    .distinct().limit(50).all()
+                                    .filter(Image.zip_id==None)\
+                                    .distinct().limit(50).all() # NOTE: WE DO NOT KEEP EMPTY VIDEOS ANYMORE IN S3 (CAN"T BE DOWNLOADED)
             else:
                 if include_frames:
                     images = db.session.query(Image)\

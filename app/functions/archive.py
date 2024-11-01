@@ -508,9 +508,11 @@ def restore_files_for_download(self,task_id,download_request_id,download_params,
                 localLabels.append(GLOBALS.nothing_id)
                 images = db.session.query(Image.filename, Camera.path)\
                                         .join(Camera)\
+                                        .join(Trapgroup)\
                                         .join(Detection)\
                                         .outerjoin(Labelgroup)\
                                         .outerjoin(Label,Labelgroup.labels)\
+                                        .filter(Trapgroup.survey_id==survey.id)\
                                         .filter(or_(Labelgroup.task_id==task_id,Labelgroup.id==None))\
                                         .filter(or_(Label.id.in_(localLabels),Label.id==None))\
                                         .filter(Image.zip_id==None)
@@ -518,9 +520,11 @@ def restore_files_for_download(self,task_id,download_request_id,download_params,
             else:
                 images = db.session.query(Image.filename, Camera.path)\
                                     .join(Camera)\
+                                    .join(Trapgroup)\
                                     .join(Detection)\
                                     .join(Labelgroup)\
                                     .join(Label,Labelgroup.labels)\
+                                    .filter(Trapgroup.survey_id==survey.id)\
                                     .filter(Labelgroup.task_id==task_id)\
                                     .filter(Label.id.in_(localLabels))\
                 
@@ -534,12 +538,15 @@ def restore_files_for_download(self,task_id,download_request_id,download_params,
 
         videos = []
         if include_video:
+            # NOTE: WE DO NOT KEEP EMPTY VIDEOS IN S3 (CAN"T BE DOWNLOADED)
             videos = db.session.query(Video.filename, Camera.path)\
                                 .join(Camera)\
+                                .join(Trapgroup)\
                                 .join(Image)\
                                 .join(Detection)\
                                 .join(Labelgroup)\
                                 .join(Label,Labelgroup.labels)\
+                                .filter(Trapgroup.survey_id==survey.id)\
                                 .filter(Labelgroup.task_id==task_id)\
                                 .filter(Label.id.in_(localLabels))\
                                 .order_by(Video.id)\
@@ -615,6 +622,7 @@ def restore_files_for_download(self,task_id,download_request_id,download_params,
         restore_dates = [date for date in [restore_date_img,restore_date_vid,restore_date_zip] if date]
         restore_date = max(restore_dates) if restore_dates else None
         require_wait = any([require_wait_img,require_wait_vid,require_wait_zip])
+        if Config.DEBUGGING: app.logger.info('Restored files: {}, Restore date: {}, Require wait: {}, Extend: {}'.format(restored_files,restore_date,require_wait,extend))
         if extend:
             if restored_files:
                 survey.download_restore = datetime.utcnow()

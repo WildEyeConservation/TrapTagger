@@ -496,9 +496,10 @@ function buildDownloadRequest(download){
         var stopTaskBtn = document.createElement('button')
         stopTaskBtn.setAttribute("class","btn btn-danger btn-block btn-sm")
         stopTaskBtn.innerHTML = '&times;'
+        stopTaskBtn.id = 'stopTaskBtn-' + download.id
         col3.appendChild(stopTaskBtn)
 
-        stopTaskBtn.addEventListener('click', ()=>{
+        stopTaskBtn.addEventListener('click', function(){
             let download_id = this.id.split('-')[1]
             deleteDownload(download_id)
         })

@@ -2639,79 +2639,94 @@ def checkFilesExist(files,folder):
     for file in files:
         file_dict[file['hash']] = folder + '/' + file['name']
         hash_dict[folder + '/' +file['name']] = file['hash']
-        camera_paths.append(folder + '/' + file['name'].rsplit('/',1)[0])
 
+    survey_path = folder + '/' + files[0]['name'].split('/')[0] + '/%'
 
-    camera_paths = list(set(camera_paths))
-    common_path = folder + '/' + files[0]['name'].split('/')[0] + '/%'
-
-    hash_check = db.session.query(Image.hash).join(Camera).filter(Image.hash.in_(file_dict.keys())).filter(Camera.path.like(common_path))
-    vid_hash_check = db.session.query(Video.hash).join(Camera).filter(Video.hash.in_(file_dict.keys())).filter(Camera.path.like(common_path))
+    hash_check = db.session.query(Image.hash).join(Camera).filter(Image.hash.in_(file_dict.keys())).filter(Camera.path.like(survey_path))
+    vid_hash_check = db.session.query(Video.hash).join(Camera).filter(Video.hash.in_(file_dict.keys())).filter(Camera.path.like(survey_path))
     hash_check = hash_check.union(vid_hash_check).distinct().all()
 
-    for hash in hash_check:
-        filename = file_dict.get(hash[0])
-        if filename: already_uploaded.append(filename)
-
+    already_uploaded = [file_dict.get(hash[0]) for hash in hash_check]
     not_imported = list(set(file_dict.values()) - set(already_uploaded))
 
     if not_imported:
-        in_s3 = []
-        in_s3_videos = []
-        other_s3 = []
-        isVideo = re.compile('(\.avi$)|(\.mp4$)|(\.mov$)', re.I)
-        for camera_path in camera_paths:
-            folders, filenames = list_all(Config.BUCKET,camera_path+'/',include_all=True)
-            for filename in filenames:
-                file = camera_path + '/' + filename
-                if file in not_imported:
-                    if isVideo.search(file):
-                        in_s3_videos.append(camera_path + '/_video_images_/' + filename.split('.')[0])
-                    in_s3.append(file)
-                elif '_(' in file:
-                    other_s3.append(file)
+        camera_paths = [file.rsplit('/',1)[0] for file in not_imported]
+        common_camera_path = os.path.commonpath(camera_paths)
 
-        if in_s3:
-            filename_in_db = {d[1]+'/'+d[0]:d[2] for d in db.session.query(Image.filename,Camera.path, Image.hash)\
-                                        .join(Camera)\
-                                        .filter(Camera.path.like(common_path))\
-                                        .filter(Image.hash.notin_(file_dict.keys()))\
-                                        .filter((Camera.path + '/' + Image.filename).in_(in_s3))\
-                                        .distinct().all()}
-
-            if in_s3_videos:
-                vid_filename_in_db = db.session.query(Video.filename,Camera.path, Video.hash)\
-                                            .join(Camera)\
-                                            .filter(Camera.path.in_(in_s3_videos))\
-                                            .filter(Video.hash.notin_(file_dict.keys()))\
-                                            .distinct().all()
-                for d in vid_filename_in_db:
-                    filename_in_db[d[1].split('/_video_images_/')[0] + '/' + d[0]] = d[2]
-
-            for name, hash in filename_in_db.items():
-                fn_hash = hash_dict[name]
-                if fn_hash and fn_hash != hash:
+        files_in_db = db.session.query(Image.filename,Camera.path, Image.hash)\
+                                .join(Camera)\
+                                .filter(Camera.path.in_(camera_paths))\
+                                .filter(Image.hash.notin_(file_dict.keys()))\
+                                .filter(~Camera.videos.any())
+        
+        videos_in_db = db.session.query(Video.filename,Camera.path, Video.hash)\
+                                .join(Camera)\
+                                .filter(Camera.path.like(common_camera_path + '/%'))\
+                                .filter(Video.hash.notin_(file_dict.keys()))
+        
+        files_in_db = {r[1].split('/_video_images_/')[0] + '/' + r[0]: r[2] for r in files_in_db.union(videos_in_db).distinct().all()}
+                                
+        for file in not_imported:
+            req_new_name = False
+            try:
+                file_db = files_in_db.get(file)
+                if file_db:
+                    if file_db != hash_dict[file]:
+                        req_new_name = True
+                    else:
+                        already_uploaded.append(file)
+                else:
+                    s3_hash = generate_hash_from_s3(Config.BUCKET,file)
+                    if s3_hash:
+                        if s3_hash == hash_dict[file]:
+                            already_uploaded.append(file)
+                            req_lambda.append(file.split('/',1)[1])
+                        else:
+                            req_new_name = True
+                if req_new_name:
                     counter = 1 
-                    filename, ext = name.rsplit('.',1)
+                    filename, ext = file.rsplit('.',1)
                     new_name = filename + '_(' + str(counter) + ').' + ext
-                    while new_name in other_s3:
+                    while files_in_db.get(new_name):
                         counter += 1
                         new_name =  filename + '_(' + str(counter) + ').' + ext
-                    new_names[name] = new_name.rsplit('/',1)[1]
-
-            req_lambda = list(set(in_s3) - set(new_names.keys()))
-            already_uploaded = list(set(already_uploaded+req_lambda))  
+                    s3_nn_hash = generate_hash_from_s3(Config.BUCKET,new_name)
+                    if s3_nn_hash:
+                        if s3_nn_hash == hash_dict[file]:
+                            already_uploaded.append(file)
+                            req_lambda.append(file.split('/',1)[1])
+                            new_names[file.split('/', 1)[1]] = new_name.rsplit('/',1)[1]
+                        else:
+                            counter += 1
+                            new_name = filename + '_(' + str(counter) + ').' + ext
+                            new_names[file.split('/', 1)[1]] = new_name.rsplit('/',1)[1]
+                    else:
+                        new_names[file.split('/', 1)[1]] = new_name.rsplit('/',1)[1]
+            except:
+                pass
 
     # Remove the folder name by splitting the first part of the path
     already_uploaded = [x.split('/', 1)[1] for x in already_uploaded]
-    req_lambda = [x.split('/', 1)[1] for x in req_lambda]
-    new_names = {k.split('/', 1)[1]: v for k, v in new_names.items()}
 
     if Config.DEBUGGING: 
         app.logger.info('Checked files in {} seconds'.format(time.time()-starttime))
         app.logger.info('Already uploaded: {}, Required Lambda: {}, Req new names: {}'.format(len(already_uploaded),len(req_lambda),len(new_names)))
 
     return already_uploaded, req_lambda, new_names
+
+def generate_hash_from_s3(bucket,key):
+    '''Generates a hash of an image stored in S3.'''
+    try:
+        response = GLOBALS.s3client.get_object(Bucket=bucket,Key=key)
+        if re.compile('(\.avi$)|(\.mp4$)|(\.mov$)', re.I).search(key):
+            hash = hashlib.md5(response['Body'].read()).hexdigest()
+        else:
+            output=io.BytesIO()
+            piexif.insert(piexif.dump({'0th': {}, '1st': {}, 'Exif': {}, 'GPS': {}, 'Interop': {}, 'thumbnail': None}),response['Body'].read(),output)
+            hash = hashlib.md5(output.getbuffer()).hexdigest()
+        return hash
+    except:
+        return None
 
 def rDets(sq):
     '''Adds the necessary SQLAlchemy filters for a detection to be considered 'relevent'. ie. non-static, not deleted and of sufficient confidence.'''
