@@ -789,9 +789,7 @@ def manage_tasks_with_restore():
                             survey = db.session.query(Survey).get(survey_id)
                             survey.id_restore = date_now
                             db.session.commit()
-                            days = timedelta(days=Config.ID_RESTORE_DAYS, seconds=Config.RESTORE_TIME).days
-                            if days > Config.ID_RESTORE_DAYS: days = days - 1
-                            restore_images_for_id.apply_async(kwargs={'task_id':task_id,'days':days,'tier':Config.RESTORE_TIER,'extend':True})
+                            restore_images_for_id.apply_async(kwargs={'task_id':task_id,'days':Config.ID_RESTORE_DAYS,'tier':Config.RESTORE_TIER,'extend':True})
 
         if msg:
             org_admins = [r[0] for r in db.session.query(User.id).join(UserPermissions).join(Organisation).join(Survey).filter(Survey.id==survey_id).filter(UserPermissions.default=='admin').distinct().all()]    
@@ -869,10 +867,11 @@ def manageDownloadRequests():
 
     try:
         date_now = datetime.utcnow()
-        download_requests = db.session.query(DownloadRequest, Survey.download_restore).join(Task,DownloadRequest.task_id==Task.id).join(Survey).distinct().all()
+        download_requests = db.session.query(DownloadRequest, Survey.download_restore, Survey.id).join(Task,DownloadRequest.task_id==Task.id).join(Survey).distinct().all()
         for req in download_requests:
             request = req[0]
             survey_restore = req[1]
+            survey_id = req[2]
             expiry_date = calculate_restore_expiry_date(survey_restore, Config.RESTORE_TIME, Config.DOWNLOAD_RESTORE_DAYS)
             if request.type == 'file':
                 task_id = request.task_id
@@ -888,7 +887,10 @@ def manageDownloadRequests():
                             else:
                                 try:
                                     include_empties = json.loads(GLOBALS.redisClient.get('fileDownloadParams_'+str(task_id)+'_'+str(request.user_id)).decode())['include_empties']
-                                    if include_empties: cleanup_empty_restored_images.delay(task_id=task_id)
+                                    if include_empties:
+                                        check = db.session.query(Task.id).filter(Task.survey_id==survey_id).filter(Task.tagging_level=='-7').filter(Task.status.in_(['PROGRESS','PENDING'])).first()
+                                        if not check:
+                                            cleanup_empty_restored_images.delay(task_id=task_id)
                                 except:
                                     pass
                                 GLOBALS.redisClient.delete('fileDownloadParams_'+str(task_id)+'_'+str(request.user_id))
@@ -946,9 +948,7 @@ def checkRestoreDownloads(task_id):
                         download_params = json.loads(download_params)
                         survey.download_restore = date_now
                         db.session.commit()
-                        days = timedelta(days=Config.DOWNLOAD_RESTORE_DAYS, seconds=Config.RESTORE_TIME).days
-                        if days > Config.DOWNLOAD_RESTORE_DAYS: days = days - 1
-                        restore_files_for_download.apply_async(kwargs={'task_id':task_id,'download_request_id':request.id,'days':days,'download_params':download_params,'tier':Config.RESTORE_TIER,'extend':True})
+                        restore_files_for_download.apply_async(kwargs={'task_id':task_id,'download_request_id':request.id,'days':Config.DOWNLOAD_RESTORE_DAYS,'download_params':download_params,'tier':Config.RESTORE_TIER,'extend':True})
                     except:
                         continue
 

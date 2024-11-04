@@ -16,7 +16,7 @@ limitations under the License.
 
 from app import app, db, celery
 from app.models import *
-from app.functions.globals import retryTime, checkForIdWork, taggingLevelSQ, updateAllStatuses, rDets
+from app.functions.globals import retryTime, checkForIdWork, taggingLevelSQ, updateAllStatuses, rDets, calculate_restore_expiry_date
 from app.functions.annotation import launch_task
 from app.functions.individualID import calculate_detection_similarities
 from app.functions.admin import edit_survey
@@ -32,7 +32,7 @@ import os
 import zipfile
 import json
 
-def check_restore_status(key,days=None):
+def check_restore_status(key):
     '''
     Check if a object has been restored or is in the process of being restored from Glacier Deep Archive.
     Returns a tuple of three values:
@@ -56,54 +56,17 @@ def check_restore_status(key,days=None):
                 return True, restore_date, True
             
             elif 'expiry-date' in restore_info:
-                if days:
-                    try:
-                        expiry_string = restore_info.split('expiry-date="')[1].split('"')[0]
-                        object_expiry_date = datetime.strptime(expiry_string, '%a, %d %b %Y %H:%M:%S %Z')
-                        available_days = (object_expiry_date - datetime.utcnow()).days
-                    except:
-                        available_days = None
-                    if available_days and available_days < days:
-                        return False, None, False
+                try:
+                    expiry_string = restore_info.split('expiry-date="')[1].split('"')[0]
+                    expiry_date = datetime.strptime(expiry_string, '%a, %d %b %Y %H:%M:%S %Z')
+                except:
+                    expiry_date = None
                     
-                return True, None, False
+                return True, expiry_date, False
             
         return False, None, True
     except:
         return True, None, False
-
-def binary_search_restored_objects(keys,days=None):
-    '''Check progress of restore requests for a list of objects and return index of first object that is not restored.'''
-    
-    restore_date = None
-    require_wait = False
-    if not keys:
-        return 0, restore_date, require_wait
-
-    first, restore_date, require_wait = check_restore_status(keys[0],days)
-    if not first:
-        return 0, restore_date, require_wait
-    
-    check = check_restore_status(keys[-1],days)
-    last = check[0]
-    restore_date = check[1] if check[1] else restore_date
-    require_wait = check[2] if check[2] else require_wait
-    if last:
-        return len(keys), restore_date, require_wait
-
-    low = 1
-    high = len(keys) - 2
-        
-    while low <= high:
-        mid = (low + high) // 2
-        check = check_restore_status(keys[mid],days)
-        restore_date = check[1] if check[1] else restore_date
-        require_wait = check[2] if check[2] else require_wait
-        if check[0]:
-            low = mid + 1
-        else:
-            high = mid - 1
-    return low, restore_date, require_wait
 
 @celery.task(bind=True,max_retries=2,ignore_result=True)
 def restore_empty_zips(self,task_id,tier):
@@ -133,15 +96,27 @@ def restore_empty_zips(self,task_id,tier):
         if zip_ids:
             zip_ids = sorted(zip_ids)
             zip_keys = [zip_folder + '/' + str(zip_id) + '.zip' for zip_id in zip_ids]
-            restore_index, restore_date, require_wait = binary_search_restored_objects(zip_keys,Config.EMPTY_RESTORE_DAYS)
-            zip_ids = zip_ids[restore_index:]
 
+            expected_expiry_date = calculate_restore_expiry_date(datetime.utcnow(), Config.RESTORE_TIME, Config.EMPTY_RESTORE_DAYS)
             restore_zip = False
-            for zip_id in zip_ids:
-                zip_key = zip_folder + '/' + str(zip_id) + '.zip'
+            restore_date = None
+            require_wait = False
+            for zip_key in zip_keys:
                 try:
-                    GLOBALS.s3client.restore_object(Bucket=Config.BUCKET, Key=zip_key, RestoreRequest=restore_request)
-                    restore_zip = True
+                    file_restored, file_date, file_wait = check_restore_status(zip_key)
+                    if file_restored:
+                        if file_wait:
+                            require_wait = True
+                            if file_date: restore_date = file_date
+                        else:
+                            if file_date and file_date < expected_expiry_date:
+                                request = restore_request.copy()
+                                request['Days'] = (datetime.utcnow() - file_date).days
+                                GLOBALS.s3client.restore_object(Bucket=Config.BUCKET, Key=zip_key, RestoreRequest=request)
+                                restore_zip = True
+                    else:
+                        GLOBALS.s3client.restore_object(Bucket=Config.BUCKET, Key=zip_key, RestoreRequest=restore_request)
+                        restore_zip = True
                 except:
                     continue
 
@@ -342,15 +317,28 @@ def restore_images_for_id(self,task_id,days,tier,extend=False):
                 }
             }
 
-            image_keys = [image[1] + '/' + image[0] for image in images]
-            restore_index, restore_date, require_wait = binary_search_restored_objects(image_keys,days)
-            image_keys = image_keys[restore_index:]
-
+            expected_expiry_date = calculate_restore_expiry_date(datetime.utcnow(), Config.RESTORE_TIME, days)
             restored_image = False
-            for image_key in image_keys:
+            restore_date = None
+            require_wait = False
+            for image in images:
                 try:
-                    GLOBALS.s3client.restore_object(Bucket=Config.BUCKET, Key=image_key, RestoreRequest=restore_request)
-                    restored_image = True
+                    image_key = image[1] + '/' + image[0]
+                    file_restored, file_date, file_wait = check_restore_status(image_key)
+                    if file_restored:
+                        if file_wait:
+                            require_wait = True
+                            if file_date: restore_date = file_date
+                        else:
+                            if file_date and file_date < expected_expiry_date:
+                                request = restore_request.copy()
+                                request['Days'] = (expected_expiry_date - datetime.utcnow()).days
+                                GLOBALS.s3client.restore_object(Bucket=Config.BUCKET, Key=image_key, RestoreRequest=request)
+                                restored_image = True
+                    else:
+                        GLOBALS.s3client.restore_object(Bucket=Config.BUCKET, Key=image_key, RestoreRequest=restore_request)
+                        restored_image = True
+                        require_wait = True
                 except:
                     continue
             
@@ -436,21 +424,35 @@ def restore_images_for_classification(self,survey_id,days,edit_survey_args,tier)
                         .distinct().all()
         
         if images:
-            image_keys = [image[1] + '/' + image[0] for image in images]
-            restore_index, restore_date, require_wait = binary_search_restored_objects(image_keys,days)
-            image_keys = image_keys[restore_index:]
-
             restore_request = {
                 'Days': days,
                 'GlacierJobParameters': {
                     'Tier': tier
                 }
             }
+
+            expected_expiry_date = calculate_restore_expiry_date(datetime.utcnow(), Config.RESTORE_TIME, days)
             restored_image = False
-            for image_key in image_keys:
+            restore_date = None
+            require_wait = False
+            for image in images:
                 try:
-                    GLOBALS.s3client.restore_object(Bucket=Config.BUCKET, Key=image_key, RestoreRequest=restore_request)
-                    restored_image = True
+                    image_key = image[1] + '/' + image[0]
+                    file_restored, file_date, file_wait = check_restore_status(image_key)
+                    if file_restored:
+                        if file_wait:
+                            require_wait = True
+                            if file_date: restore_date = file_date
+                        else:
+                            if file_date and file_date < expected_expiry_date:
+                                request = restore_request.copy()
+                                request['Days'] = (expected_expiry_date - datetime.utcnow()).days
+                                GLOBALS.s3client.restore_object(Bucket=Config.BUCKET, Key=image_key, RestoreRequest=request)
+                                restored_image = True
+                    else:
+                        GLOBALS.s3client.restore_object(Bucket=Config.BUCKET, Key=image_key, RestoreRequest=restore_request)
+                        restored_image = True
+                        require_wait = True
                 except:
                     continue
             
@@ -554,16 +556,30 @@ def restore_files_for_download(self,task_id,download_request_id,download_params,
                 'Tier': tier
             }
         }
-        
-        image_keys = [image[1] + '/' + image[0] for image in images]
-        restore_index, restore_date_img, require_wait_img = binary_search_restored_objects(image_keys,days)
-        image_keys = image_keys[restore_index:]
+
+        expected_expiry_date = calculate_restore_expiry_date(datetime.utcnow(), Config.RESTORE_TIME, days)
 
         restored_image = False
-        for image_key in image_keys:
+        restore_date_img = None
+        require_wait_img = False
+        for image in images:
             try:
-                GLOBALS.s3client.restore_object(Bucket=Config.BUCKET, Key=image_key, RestoreRequest=restore_request)
-                restored_image = True
+                image_key = image[1] + '/' + image[0]
+                file_restored, file_date, file_wait = check_restore_status(image_key)
+                if file_restored:
+                    if file_wait:
+                        require_wait_img = True
+                        if file_date: restore_date_img = file_date
+                    else:
+                        if file_date and file_date < expected_expiry_date:
+                            request = restore_request.copy()
+                            request['Days'] = (expected_expiry_date - datetime.utcnow()).days
+                            GLOBALS.s3client.restore_object(Bucket=Config.BUCKET, Key=image_key, RestoreRequest=request)
+                            restored_image = True
+                else:
+                    GLOBALS.s3client.restore_object(Bucket=Config.BUCKET, Key=image_key, RestoreRequest=restore_request)
+                    restored_image = True
+                    require_wait_img = True
             except:
                 continue
 
@@ -571,19 +587,24 @@ def restore_files_for_download(self,task_id,download_request_id,download_params,
         restore_date_vid = None
         require_wait_vid = False
         if include_video:
-            video_keys = []
             for video in videos:
-                pathSplit  = video[1].split('/',1)
-                video_key = pathSplit[0] + '-comp/' + pathSplit[1].split('_video_images_')[0] + video[0].split('.')[0] + '.mp4'
-                video_keys.append(video_key)
-
-            restore_index, restore_date_vid, require_wait_vid = binary_search_restored_objects(video_keys,days)
-            video_keys = video_keys[restore_index:]
-
-            for video_key in video_keys:
                 try:
-                    GLOBALS.s3client.restore_object(Bucket=Config.BUCKET, Key=video_key, RestoreRequest=restore_request)
-                    restored_video = True
+                    video_key = video[1] + '/' + video[0]
+                    file_restored, file_date, file_wait = check_restore_status(video_key)
+                    if file_restored:
+                        if file_wait:
+                            require_wait_vid = True
+                            if file_date: restore_date_vid = file_date
+                        else:
+                            if file_date and file_date < expected_expiry_date:
+                                request = restore_request.copy()
+                                request['Days'] = (expected_expiry_date - datetime.utcnow()).days
+                                GLOBALS.s3client.restore_object(Bucket=Config.BUCKET, Key=video_key, RestoreRequest=request)
+                                restored_video = True
+                    else:
+                        GLOBALS.s3client.restore_object(Bucket=Config.BUCKET, Key=video_key, RestoreRequest=restore_request)
+                        restored_video = True
+                        require_wait_vid = True
                 except:
                     continue
         
@@ -596,8 +617,6 @@ def restore_files_for_download(self,task_id,download_request_id,download_params,
                 zip_ids = [zip.id for zip in survey.zips]
                 zip_ids = sorted(zip_ids)
                 zip_keys = [zip_folder + '/' + str(zip_id) + '.zip' for zip_id in zip_ids]
-                restore_index, restore_date_zip, require_wait_zip = binary_search_restored_objects(zip_keys,Config.EMPTY_RESTORE_DAYS)
-                zip_keys = zip_keys[restore_index:]
 
                 zip_restore_request = {
                     'Days': Config.EMPTY_RESTORE_DAYS,
@@ -605,11 +624,24 @@ def restore_files_for_download(self,task_id,download_request_id,download_params,
                         'Tier': tier
                     }
                 }
+                expected_zip_expiry_date = calculate_restore_expiry_date(datetime.utcnow(), Config.RESTORE_TIME, Config.EMPTY_RESTORE_DAYS)
 
                 for zip_key in zip_keys:
                     try:
-                        GLOBALS.s3client.restore_object(Bucket=Config.BUCKET, Key=zip_key, RestoreRequest=zip_restore_request)
-                        restored_zip = True
+                        file_restored, file_date, file_wait = check_restore_status(zip_key)
+                        if file_restored:
+                            if file_wait:
+                                require_wait_zip = True
+                                if file_date: restore_date_zip = file_date
+                            else:
+                                if file_date and file_date < expected_zip_expiry_date:
+                                    request = zip_restore_request.copy()
+                                    request['Days'] = (expected_zip_expiry_date - datetime.utcnow()).days
+                                    GLOBALS.s3client.restore_object(Bucket=Config.BUCKET, Key=zip_key, RestoreRequest=request)
+                                    restored_zip = True
+                        else:
+                            GLOBALS.s3client.restore_object(Bucket=Config.BUCKET, Key=zip_key, RestoreRequest=zip_restore_request)
+                            restored_zip = True
                     except:
                         continue
         

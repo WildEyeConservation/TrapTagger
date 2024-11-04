@@ -14477,7 +14477,10 @@ def deleteDownloadRequest(download_request_id):
             if download_request.name == 'restore':
                 try:
                     download_params = json.loads(GLOBALS.redisClient.get('fileDownloadParams_'+str(download_request.task_id)+'_'+str(download_request.user_id)).decode())
-                    if download_params['include_emtpies']: cleanup_empty_restored_images.delay(task_id=task.id)
+                    if download_params['include_empties']: 
+                        check = db.session.query(Task.id).filter(Task.survey_id==task.survey_id).filter(Task.tagging_level=='-7').filter(Task.status.in_(['PROGRESS','PENDING'])).first()
+                        if not check:
+                            cleanup_empty_restored_images.delay(task_id=task.id)
                 except:
                     pass
                 GLOBALS.redisClient.delete('fileDownloadParams_'+str(task.id)+'_'+str(current_user.id))

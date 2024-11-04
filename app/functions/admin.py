@@ -390,11 +390,19 @@ def stop_task(self,task_id,live=False):
 
             if '-7' in task.tagging_level:
                 # Cleanup for -7
-                cleanup_empty_restored_images.delay(task_id)
+                # Only cleanup if there are no download requests that include empty images
+                cleanup = True
+                download_requests = db.session.query(DownloadRequest).join(Task).filter(Task.survey_id==task.survey_id).filter(DownloadRequest.name=='restore').all()
+                for download_request in download_requests:
+                    try:
+                        download_params = json.loads(GLOBALS.redisClient.get('fileDownloadParams_'+str(download_request.task_id)+'_'+str(download_request.user_id)).decode())
+                        if download_params['include_empties'] == True:
+                            cleanup = False
+                            break
+                    except:
+                        pass
 
-            if live:
-                survey.status = 'Import Queued'
-                import_survey.delay(survey_id=survey.id,live=True,launch_id=task_id)
+                if cleanup: cleanup_empty_restored_images.delay(task_id)
 
             db.session.commit()
 

@@ -3692,7 +3692,10 @@ def manageDownload(task_id):
                 db.session.delete(request)
 
         if cleanup:
-            cleanup_empty_restored_images.delay(task_id=task_id)
+            task = db.session.query(Task).get(task_id)
+            check = db.session.query(Task.id).filter(Task.survey_id==task.survey_id).filter(Task.tagging_level=='-7').filter(Task.status.in_(['PROGRESS','PENDING'])).first()
+            if not check:
+                cleanup_empty_restored_images.delay(task_id=task_id)
 
         db.session.commit()
     

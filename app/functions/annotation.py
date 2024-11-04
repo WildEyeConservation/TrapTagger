@@ -33,6 +33,7 @@ import time
 from multiprocessing.pool import ThreadPool as Pool
 import ast
 import numpy
+import json
 
 @celery.task(bind=True,max_retries=5,ignore_result=True)
 def launch_task(self,task_id,classify=False):
@@ -561,7 +562,19 @@ def wrapUpTask(self,task_id):
 
         elif '-7' in task.tagging_level:
             # Cleanup for -7
-            cleanup_empty_restored_images.delay(task_id)
+            # Only cleanup if there are no download requests that include empty images
+            cleanup = True
+            download_requests = db.session.query(DownloadRequest).join(Task).filter(Task.survey_id==task.survey_id).filter(DownloadRequest.name=='restore').all()
+            for download_request in download_requests:
+                try:
+                    download_params = json.loads(GLOBALS.redisClient.get('fileDownloadParams_'+str(download_request.task_id)+'_'+str(download_request.user_id)).decode())
+                    if download_params['include_empties'] == True:
+                        cleanup = False
+                        break
+                except:
+                    pass
+
+            if cleanup: cleanup_empty_restored_images.delay(task_id)
 
         #Accounts for individual ID background processing
         # if 'processing' not in task.survey.status:

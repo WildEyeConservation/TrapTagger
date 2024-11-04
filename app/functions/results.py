@@ -1250,6 +1250,8 @@ def generate_wildbook_export(self,task_id, data, user_name, download_id):
 
             df = df.fillna('None')
 
+            df['path'] = df.apply(lambda x: x['path'].split('/',1)[0] + '-comp/' + x['path'].split('/',1)[1], axis=1)
+
             if os.path.isdir(tempFolderName):
                 shutil.rmtree(tempFolderName)
             os.makedirs(tempFolderName, exist_ok=True)
