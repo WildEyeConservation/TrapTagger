@@ -504,29 +504,20 @@ def restore_files_for_download(self,task_id,download_request_id,download_params,
 
         images = []
         if raw_files:
+            images = db.session.query(Image.filename, Camera.path)\
+                                .join(Camera)\
+                                .join(Trapgroup)\
+                                .join(Detection)\
+                                .join(Labelgroup)\
+                                .outerjoin(Label,Labelgroup.labels)\
+                                .filter(Trapgroup.survey_id==survey.id)\
+                                .filter(Labelgroup.task_id==task_id)
+
             if include_empties: 
                 localLabels.append(GLOBALS.nothing_id)
-                images = db.session.query(Image.filename, Camera.path)\
-                                        .join(Camera)\
-                                        .join(Trapgroup)\
-                                        .join(Detection)\
-                                        .outerjoin(Labelgroup)\
-                                        .outerjoin(Label,Labelgroup.labels)\
-                                        .filter(Trapgroup.survey_id==survey.id)\
-                                        .filter(or_(Labelgroup.task_id==task_id,Labelgroup.id==None))\
-                                        .filter(or_(Label.id.in_(localLabels),Label.id==None))\
-                                        .filter(Image.zip_id==None)
-
+                images = images.filter(or_(Label.id.in_(localLabels),Label.id==None)).filter(Image.zip_id==None)
             else:
-                images = db.session.query(Image.filename, Camera.path)\
-                                    .join(Camera)\
-                                    .join(Trapgroup)\
-                                    .join(Detection)\
-                                    .join(Labelgroup)\
-                                    .join(Label,Labelgroup.labels)\
-                                    .filter(Trapgroup.survey_id==survey.id)\
-                                    .filter(Labelgroup.task_id==task_id)\
-                                    .filter(Label.id.in_(localLabels))\
+                images = images.filter(Label.id.in_(localLabels))
                 
             if include_frames:
                 images = images.order_by(Image.id).distinct().all()
@@ -545,14 +536,18 @@ def restore_files_for_download(self,task_id,download_request_id,download_params,
                                 .join(Image)\
                                 .join(Detection)\
                                 .join(Labelgroup)\
-                                .join(Label,Labelgroup.labels)\
+                                .outerjoin(Label,Labelgroup.labels)\
                                 .filter(Trapgroup.survey_id==survey.id)\
-                                .filter(Labelgroup.task_id==task_id)\
-                                .filter(Label.id.in_(localLabels))\
-                                .order_by(Video.id)\
-                                .distinct().all()
-            
+                                .filter(Labelgroup.task_id==task_id)
 
+            if include_empties:
+                localLabels.append(GLOBALS.nothing_id)
+                videos = videos.filter(or_(Label.id.in_(localLabels),Label.id==None)).filter(Image.zip_id==None)
+            else:
+                videos = videos.filter(Label.id.in_(localLabels))
+
+            videos = videos.order_by(Video.id).distinct().all()
+            
         restore_request = {
             'Days': days,
             'GlacierJobParameters': {

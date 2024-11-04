@@ -3847,7 +3847,8 @@ def setImageDownloadStatus(self,task_id,labels,include_empties, include_video, i
                                 Label.id.in_(labels),\
                                 ~Labelgroup.labels.any(),\
                                 rDetImages.c.image_id==None
-                            ))
+                            ))\
+                            .filter(Image.zip_id==None) # NOTE: WE DO NOT KEEP EMPTY VIDEOS ANYMORE IN S3 (CAN"T BE DOWNLOADED)
         else:
             wantedImages = rDets(wantedImages.filter(Label.id.in_(labels)))
             if include_video:
