@@ -666,13 +666,13 @@ def restore_files_for_download(self,task_id,download_request_id,download_params,
                     download_request.timestamp = date_now
 
                     survey.require_launch = True
-                    launch_kwargs = {'task_id':task_id,'download_request_id':download_request_id,'zips':restored_zip}
+                    launch_kwargs = {'task_id':task_id,'download_request_id':download_request_id,'zips':include_empties}
                     GLOBALS.redisClient.set('download_launch_kwargs_'+str(survey.id),json.dumps(launch_kwargs))
 
                     db.session.commit()
                 else:
                     db.session.commit()
-                    process_files_for_download.apply_async(kwargs={'task_id':task_id,'download_request_id':download_request_id,'zips':restored_zip})
+                    process_files_for_download.apply_async(kwargs={'task_id':task_id,'download_request_id':download_request_id,'zips':include_empties})
                 
             else:
                 download_request = db.session.query(DownloadRequest).get(download_request_id)
