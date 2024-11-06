@@ -539,7 +539,7 @@ def getAllIndividuals():
             reply.append({
                             'id': individual.id,
                             'name': individual.name,
-                            'url': (image.camera.path + '/' + image.filename).replace('+','%2B').replace('?','%3F').replace('#','%23')
+                            'url': (image.camera.path + '/' + image.filename).replace('+','%2B').replace('?','%3F').replace('#','%23').replace('\\','%5C')
                         })
 
     next = individuals.next_num if individuals.has_next else None
@@ -607,7 +607,7 @@ def getIndividuals(task_id,species):
             reply.append({
                             'id': individual.id,
                             'name': individual.name,
-                            'url': (image.camera.path + '/' + image.filename).replace('+','%2B').replace('?','%3F').replace('#','%23')
+                            'url': (image.camera.path + '/' + image.filename).replace('+','%2B').replace('?','%3F').replace('#','%23').replace('\\','%5C')
                         })
 
         next = individuals.next_num if individuals.has_next else None
@@ -750,11 +750,11 @@ def getIndividual(individual_id):
 
             video_url = None
             if image.camera.videos:
-                video_url = (image.camera.path.split('_video_images_')[0] + image.camera.videos[0].filename).replace('+','%2B').replace('?','%3F').replace('#','%23')
+                video_url = (image.camera.path.split('_video_images_')[0] + image.camera.videos[0].filename).replace('+','%2B').replace('?','%3F').replace('#','%23').replace('\\','%5C')
 
             reply.append({
                             'id': image.id,
-                            'url': (image.camera.path + '/' + image.filename).replace('+','%2B').replace('?','%3F').replace('#','%23'),
+                            'url': (image.camera.path + '/' + image.filename).replace('+','%2B').replace('?','%3F').replace('#','%23').replace('\\','%5C'),
                             'video_url': video_url,
                             'timestamp': stringify_timestamp(image.corrected_timestamp), 
                             'trapgroup': 
@@ -1377,7 +1377,7 @@ def imageViewer():
             return render_template("html/block.html",text="You do not have permission to view this item.", helpFile='block', version=Config.VERSION)
 
         images = [{'id': image.id,
-                'url': (image.camera.path + '/' + image.filename).replace('+','%2B').replace('?','%3F').replace('#','%23'),
+                'url': (image.camera.path + '/' + image.filename).replace('+','%2B').replace('?','%3F').replace('#','%23').replace('\\','%5C'),
                 'detections': [{'id': detection.id,
                                         'top': detection.top,
                                         'bottom': detection.bottom,
@@ -4891,7 +4891,7 @@ def undoPreviousSuggestion(individual_1,individual_2):
             images = []
             for image in sortedImages:
                 output = {'id': image.id,
-                        'url': (image.camera.path + '/' + image.filename).replace('+','%2B').replace('?','%3F').replace('#','%23'),
+                        'url': (image.camera.path + '/' + image.filename).replace('+','%2B').replace('?','%3F').replace('#','%23').replace('\\','%5C'),
                         'timestamp': numify_timestamp(image.corrected_timestamp),
                         'camera': image.camera_id,
                         'rating': image.detection_rating,
@@ -5390,7 +5390,7 @@ def getSuggestion(individual_id):
             sortedImages = db.session.query(Image).join(Detection).filter(Detection.individuals.contains(individual)).all()
 
             images = [{'id': image.id,
-                    'url': (image.camera.path + '/' + image.filename).replace('+','%2B').replace('?','%3F').replace('#','%23'),
+                    'url': (image.camera.path + '/' + image.filename).replace('+','%2B').replace('?','%3F').replace('#','%23').replace('\\','%5C'),
                     'timestamp': numify_timestamp(image.corrected_timestamp),
                     'camera': image.camera_id,
                     'rating': image.detection_rating,
@@ -5925,7 +5925,7 @@ def getImage():
     # if image and (current_user == image.camera.trapgroup.survey.user):
     if image and checkSurveyPermission(current_user.id,image.camera.trapgroup.survey_id,'read'):
         images = [{'id': image.id,
-                'url': (image.camera.path + '/' + image.filename).replace('+','%2B').replace('?','%3F').replace('#','%23'),
+                'url': (image.camera.path + '/' + image.filename).replace('+','%2B').replace('?','%3F').replace('#','%23').replace('\\','%5C'),
                 'rating': image.detection_rating,
                 'detections': [{'top': detection.top,
                                 'bottom': detection.bottom,
@@ -6101,7 +6101,7 @@ def getKnockCluster(task_id, knockedstatus, clusterID, index, imageIndex, T_inde
 
         if sortedImages != None:
             images = [{'id': image.id,
-                    'url': (image.camera.path + '/' + image.filename).replace('+','%2B').replace('?','%3F').replace('#','%23'),
+                    'url': (image.camera.path + '/' + image.filename).replace('+','%2B').replace('?','%3F').replace('#','%23').replace('\\','%5C'),
                     'rating': image.detection_rating,
                     'detections': [{'top': detection.top,
                                     'bottom': detection.bottom,
@@ -8243,7 +8243,7 @@ def checkDownload(fileType,selectedTask):
     try:
         check = GLOBALS.s3client.head_object(Bucket=Config.BUCKET,Key=fileName)
         # deleteFile.apply_async(kwargs={'fileName': fileName}, countdown=3600)
-        return json.dumps('https://'+Config.BUCKET+'.s3.amazonaws.com/'+fileName.replace('+','%2B').replace('?','%3F').replace('#','%23'))
+        return json.dumps('https://'+Config.BUCKET+'.s3.amazonaws.com/'+fileName.replace('+','%2B').replace('?','%3F').replace('#','%23').replace('\\','%5C'))
     except:
         # file does not exist
         return json.dumps('not ready yet')
@@ -9186,7 +9186,7 @@ def get_required_files():
                 file_ids.append(video.id)
                 pathSplit  = video.camera.path.split('/',1)
                 path = pathSplit[0] + '-comp/' + pathSplit[1].split('_video_images_')[0] + video.filename.split('.')[0] + '.mp4'
-                reply.append({'url':'https://'+Config.BUCKET+'.s3.amazonaws.com/'+ path.replace('+','%2B').replace('?','%3F').replace('#','%23'),'paths':videoPaths,'labels':videoLabels})
+                reply.append({'url':'https://'+Config.BUCKET+'.s3.amazonaws.com/'+ path.replace('+','%2B').replace('?','%3F').replace('#','%23').replace('\\','%5C'),'paths':videoPaths,'labels':videoLabels})
             db.session.commit()
 
         else:
@@ -9194,7 +9194,7 @@ def get_required_files():
                 imagePaths, imageLabels, imageTags = get_image_paths_and_labels(image,task,individual_sorted,species_sorted,flat_structure,labels,include_empties)
                 imageLabels.extend(imageTags)
                 file_ids.append(image.id)
-                reply.append({'url':'https://'+Config.BUCKET+'.s3.amazonaws.com/'+(image.camera.path+'/'+image.filename).replace('+','%2B').replace('?','%3F').replace('#','%23'),'paths':imagePaths,'labels':imageLabels})
+                reply.append({'url':'https://'+Config.BUCKET+'.s3.amazonaws.com/'+(image.camera.path+'/'+image.filename).replace('+','%2B').replace('?','%3F').replace('#','%23').replace('\\','%5C'),'paths':imagePaths,'labels':imageLabels})
             db.session.commit()
 
     return json.dumps({'ids':file_ids,'requiredFiles':reply})
@@ -9645,7 +9645,7 @@ def getIndividualAssociations(individual_id, order):
                     'name': association[1],
                     'cluster_count': association[2],
                     'image_count': association[3],	
-                    'url': (image.camera.path + '/' + image.filename).replace('+','%2B').replace('?','%3F').replace('#','%23')
+                    'url': (image.camera.path + '/' + image.filename).replace('+','%2B').replace('?','%3F').replace('#','%23').replace('\\','%5C')
                 }
             )
 
@@ -10704,7 +10704,7 @@ def getCovariateCSV():
                     covs.to_csv(temp_file.name, index=False)
                     fileName = folder +'/docs/' + current_user.username + '_Occupancy_Covariates.csv'
                     GLOBALS.s3client.put_object(Bucket=Config.BUCKET,Key=fileName,Body=temp_file)
-                    cov_url = "https://"+ Config.BUCKET + ".s3.amazonaws.com/" + fileName.replace('+','%2B').replace('?','%3F').replace('#','%23')
+                    cov_url = "https://"+ Config.BUCKET + ".s3.amazonaws.com/" + fileName.replace('+','%2B').replace('?','%3F').replace('#','%23').replace('\\','%5C')
 
                     # Schedule deletion
                     deleteFile.apply_async(kwargs={'fileName': fileName}, countdown=3600)
@@ -12625,7 +12625,7 @@ def getStaticDetections(survey_id, reqID):
                     'id': data[10],
                     'images': [{	
                         'id': data[5],
-                        'url': (data[8]+'/'+data[6]).replace('+','%2B').replace('?','%3F').replace('#','%23'),
+                        'url': (data[8]+'/'+data[6]).replace('+','%2B').replace('?','%3F').replace('#','%23').replace('\\','%5C'),
                         'detections': []
                     }],
                     'labels': ['None'],
@@ -12647,7 +12647,7 @@ def getStaticDetections(survey_id, reqID):
             else:
                 static_detections[staticgroup_keys[data[10]]]['images'].append({
                     'id': data[5],
-                    'url': (data[8]+'/'+data[6]).replace('+','%2B').replace('?','%3F').replace('#','%23'),
+                    'url': (data[8]+'/'+data[6]).replace('+','%2B').replace('?','%3F').replace('#','%23').replace('\\','%5C'),
                     'detections': []
                 })
 
@@ -12768,7 +12768,7 @@ def getSurveyMasks(survey_id):
                     'id': data[8],
                     'images': [{
                         'id': data[5],
-                        'url': (data[7]+'/'+data[6]).replace('+','%2B').replace('?','%3F').replace('#','%23'),
+                        'url': (data[7]+'/'+data[6]).replace('+','%2B').replace('?','%3F').replace('#','%23').replace('\\','%5C'),
                         'detections': [{
                             'id': data[0],
                             'top': data[1],
@@ -12791,7 +12791,7 @@ def getSurveyMasks(survey_id):
                 if not image_exists:
                     masks[cam_idx]['images'].append({
                         'id': data[5],
-                        'url': (data[7]+'/'+data[6]).replace('+','%2B').replace('?','%3F').replace('#','%23'),
+                        'url': (data[7]+'/'+data[6]).replace('+','%2B').replace('?','%3F').replace('#','%23').replace('\\','%5C'),
                         'detections': [{
                             'id': data[0],
                             'top': data[1],
@@ -13236,7 +13236,7 @@ def getTimestampImages(survey_id, reqID):
             images[camera_keys[d[4]]]['images'].append({
                 'id': d[0],
                 'detections': [],
-                'url': (d[5]+'/'+d[1]).replace('+','%2B').replace('?','%3F').replace('#','%23'),
+                'url': (d[5]+'/'+d[1]).replace('+','%2B').replace('?','%3F').replace('#','%23').replace('\\','%5C'),
                 'timestamp': d[2].strftime('%Y-%m-%d %H:%M:%S') if d[2] else None,
                 'name': d[5].split('/_video_images_/')[0]+'/'+d[3] if d[3] else d[5]+'/'+d[1],
                 'extracted_data': d[6]
