@@ -14473,7 +14473,6 @@ def deleteDownloadRequest(download_request_id):
                 survey = task.survey
                 if survey.status == 'Restoring Files':
                     survey.status = 'Ready'
-                    survey.require_launch = None
                     GLOBALS.redisClient.delete('download_launch_kwargs_'+str(survey.id))
                 
         else:
@@ -14496,8 +14495,6 @@ def cancelRestore(survey_id):
     status = 'error'
     survey = db.session.query(Survey).get(survey_id)
     if survey and checkSurveyPermission(current_user.id,survey_id,'write'):
-
-        survey.require_launch = None
         survey.status = 'Ready'
 
         restoring_download_requests = db.session.query(DownloadRequest).join(Task).filter(Task.survey_id==survey_id).filter(DownloadRequest.status=='Restoring Files').all()

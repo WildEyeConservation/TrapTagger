@@ -126,7 +126,6 @@ def restore_empty_zips(self,task_id,tier):
                         .filter(Labelgroup.task_id==task_id)\
                         .filter(Labelgroup.checked==False)\
                         .filter(Zip.survey_id==survey.id)\
-                        .filter(or_(Zip.expiry_date==None,Zip.expiry_date<=expected_expiry_date))\
                         .order_by(Zip.id)\
                         .distinct().all()
         
@@ -134,7 +133,12 @@ def restore_empty_zips(self,task_id,tier):
         restore_date = None
         require_wait = False
         zip_ids = []
+        other_zips = []
         for zip in zips:
+            if zip.expiry_date and zip.expiry_date >= expected_expiry_date:
+                other_zips.append(zip.id)
+                continue
+
             try:
                 zip_key = zip_folder + '/' + str(zip.id) + '.zip'
                 response = GLOBALS.s3client.restore_object(Bucket=Config.BUCKET, Key=zip_key, RestoreRequest=restore_request)
@@ -158,8 +162,15 @@ def restore_empty_zips(self,task_id,tier):
                 continue
         
         db.session.commit()
+
+        zip_ids = zip_ids.extend(other_zips)
+
+        survey_restoring = False
+        if not restore_zip and not restore_date and not require_wait and other_zips:
+            survey_restoring = survey.require_launch and survey.require_launch > datetime.utcnow()
+
         if zip_ids:
-            if (restore_zip or restore_date) and require_wait:
+            if ((restore_zip or restore_date) and require_wait) or survey_restoring:
                 survey.status = 'Restoring Files'
                 task.status = 'Ready'
                 launch_kwargs = {'task_id':task_id, 'tagging_level':task.tagging_level, 'zip_ids':zip_ids}
@@ -343,16 +354,15 @@ def restore_images_for_id(self,task_id,days,tier,extend=False):
                         .filter(Labelgroup.task_id.in_(task_ids))\
                         ).subquery()
 
-            images = db.session.query(Image, Image.filename, Camera.path)\
+            image_query = db.session.query(Image, Image.filename, Camera.path)\
                             .join(Camera)\
                             .join(Cluster,Image.clusters)\
                             .join(cluster_sq,Cluster.id==cluster_sq.c.id)\
                             .filter(Cluster.task_id.in_(task_ids))\
-                            .filter(cluster_sq.c.id!=None)\
-                            .filter(or_(Image.expiry_date==None,Image.expiry_date<=expected_expiry_date))\
-                            .order_by(Image.id)\
-                            .distinct().all()
-        
+                            .filter(cluster_sq.c.id!=None)
+
+            images = image_query.filter(or_(Image.expiry_date==None,Image.expiry_date<expected_expiry_date)).order_by(Image.id).distinct().all()
+
             restore_request = {
                 'Days': days,
                 'GlacierJobParameters': {
@@ -396,17 +406,27 @@ def restore_images_for_id(self,task_id,days,tier,extend=False):
                 task.survey.require_launch = None
                 db.session.commit()
             else:
-                if (restored_image or restore_date) and require_wait:
+                restoring_survey = False
+                if not restored_image and not restore_date and not require_wait:
+                    other_images = image_query.filter(Image.expiry_date>=expected_expiry_date).first()
+                    if other_images:
+                        restoring_survey = task.survey.require_launch and task.survey.require_launch > datetime.utcnow()
+
+                if ((restored_image or restore_date) and require_wait) or restoring_survey:
                     if restored_image:
                         date_value = datetime.utcnow() + timedelta(seconds=Config.RESTORE_TIME)
                     elif restore_date:
                         date_value = restore_date + timedelta(seconds=Config.RESTORE_TIME)
+                    elif restoring_survey:
+                        date_value = task.survey.require_launch
+
                     task.survey.require_launch = date_value
                     task.survey.status = 'Restoring Files'
                     task.status = 'Ready'
                     for sub_task in task.sub_tasks:
                         sub_task.status = 'Ready'
                         sub_task.survey.status = 'Restoring Files'
+                        sub_task.survey.require_launch = date_value
 
                     if algorithm:
                         launch_kwargs = {'task_ids':task_ids,'species':species,'algorithm':algorithm, 'tagging_level':taggingLevel, 'task_id':task_id}
@@ -456,15 +476,14 @@ def restore_images_for_classification(self,survey_id,days,edit_survey_args,tier)
 
         expected_expiry_date = calculate_restore_expiry_date(datetime.utcnow(), Config.RESTORE_TIME, days)
 
-        images = db.session.query(Image, Image.filename, Camera.path)\
+        image_query = db.session.query(Image, Image.filename, Camera.path)\
                         .join(Camera)\
                         .join(Trapgroup)\
                         .join(Detection)\
                         .filter(Trapgroup.survey_id==survey_id)\
-                        .filter(or_(and_(Detection.source==model,Detection.score>Config.DETECTOR_THRESHOLDS[model]) for model in Config.DETECTOR_THRESHOLDS))\
-                        .filter(or_(Image.expiry_date==None,Image.expiry_date<=expected_expiry_date))\
-                        .order_by(Image.id)\
-                        .distinct().all()
+                        .filter(or_(and_(Detection.source==model,Detection.score>Config.DETECTOR_THRESHOLDS[model]) for model in Config.DETECTOR_THRESHOLDS))
+
+        images = image_query.filter(or_(Image.expiry_date==None,Image.expiry_date<expected_expiry_date)).order_by(Image.id).distinct().all()
         
         if images:
             restore_request = {
@@ -505,8 +524,15 @@ def restore_images_for_classification(self,survey_id,days,edit_survey_args,tier)
                 for image in images:
                     if image[0].expiry_date: image[0].expiry_date = None
                 db.session.commit()
+
+
+            restoring_survey = False
+            if not restored_image and not restore_date and not require_wait:
+                other_images = image_query.filter(Image.expiry_date>=expected_expiry_date).first()
+                if other_images:
+                    restoring_survey = survey.require_launch and survey.require_launch > datetime.utcnow()
             
-            if (restored_image or restore_date) and require_wait:
+            if ((restored_image or restore_date) and require_wait) or restoring_survey:
                 survey.status = 'Restoring Files'   
                 if restored_image:
                     survey.require_launch = datetime.utcnow() + timedelta(seconds=Config.RESTORE_TIME)
@@ -559,35 +585,33 @@ def restore_files_for_download(self,task_id,download_request_id,download_params,
         min_expiry_date = expected_expiry_date
 
         images = []
+        images_query = None
         if raw_files:
-            images = db.session.query(Image,Image.filename, Camera.path)\
+            images_query = db.session.query(Image,Image.filename, Camera.path)\
                                 .join(Camera)\
                                 .join(Trapgroup)\
                                 .join(Detection)\
                                 .join(Labelgroup)\
                                 .outerjoin(Label,Labelgroup.labels)\
                                 .filter(Trapgroup.survey_id==survey.id)\
-                                .filter(Labelgroup.task_id==task_id)\
-                                .filter(or_(Image.expiry_date==None,Image.expiry_date<=expected_expiry_date))
+                                .filter(Labelgroup.task_id==task_id)
 
             if include_empties: 
                 localLabels.append(GLOBALS.nothing_id)
-                images = images.filter(or_(Label.id.in_(localLabels),Label.id==None)).filter(Image.zip_id==None)
+                images_query = images_query.filter(or_(Label.id.in_(localLabels),Label.id==None)).filter(Image.zip_id==None)
             else:
-                images = images.filter(Label.id.in_(localLabels))
-                
-            if include_frames:
-                images = images.order_by(Image.id).distinct().all()
-            else:
-                images = images.outerjoin(Video)\
-                                .filter(Video.id==None)\
-                                .order_by(Image.id)\
-                                .distinct().all()
+                images_query = images_query.filter(Label.id.in_(localLabels))
+            
+            if not include_frames:
+                images_query = images_query.outerjoin(Video).filter(Video.id==None)
+
+            images = images_query.filter(or_(Image.expiry_date==None,Image.expiry_date<expected_expiry_date)).order_by(Image.id).distinct().all()
 
         videos = []
+        videos_query = None
         if include_video:
             # NOTE: WE DO NOT KEEP EMPTY VIDEOS IN S3 (CAN"T BE DOWNLOADED)
-            videos = db.session.query(Video,Video.filename, Camera.path)\
+            videos_query = db.session.query(Video,Video.filename, Camera.path)\
                                 .join(Camera)\
                                 .join(Trapgroup)\
                                 .join(Image)\
@@ -595,16 +619,15 @@ def restore_files_for_download(self,task_id,download_request_id,download_params,
                                 .join(Labelgroup)\
                                 .outerjoin(Label,Labelgroup.labels)\
                                 .filter(Trapgroup.survey_id==survey.id)\
-                                .filter(Labelgroup.task_id==task_id)\
-                                .filter(or_(Video.expiry_date==None,Video.expiry_date<=expected_expiry_date))
-
+                                .filter(Labelgroup.task_id==task_id)
+                                
             if include_empties:
                 localLabels.append(GLOBALS.nothing_id)
-                videos = videos.filter(or_(Label.id.in_(localLabels),Label.id==None)).filter(Image.zip_id==None)
+                videos_query = videos_query.filter(or_(Label.id.in_(localLabels),Label.id==None)).filter(Image.zip_id==None)
             else:
-                videos = videos.filter(Label.id.in_(localLabels))
+                videos_query = videos_query.filter(Label.id.in_(localLabels))
 
-            videos = videos.order_by(Video.id).distinct().all()
+            videos = videos_query.filter(or_(Video.expiry_date==None,Video.expiry_date<expected_expiry_date)).order_by(Video.id).distinct().all()
             
         restore_request = {
             'Days': days,
@@ -695,7 +718,7 @@ def restore_files_for_download(self,task_id,download_request_id,download_params,
         if include_empties and not extend:
             if survey.zips:
                 zip_folder = survey.organisation.folder + '-comp/' + Config.SURVEY_ZIP_FOLDER
-                zips = [zip for zip in survey.zips if zip.expiry_date==None or zip.expiry_date<=expected_expiry_date]
+                zips = [zip for zip in survey.zips if zip.expiry_date==None or zip.expiry_date<expected_expiry_date]
 
                 zip_restore_request = {
                     'Days': Config.EMPTY_RESTORE_DAYS,
@@ -738,13 +761,29 @@ def restore_files_for_download(self,task_id,download_request_id,download_params,
             download_request.timestamp = min_expiry_date
             db.session.commit()
         else:
-            if (restored_files or restore_date) and require_wait:
+            restoring_survey = False
+            if not restored_files and not restore_date and not require_wait:
+                if images_query:
+                    other_images = images_query.filter(Image.expiry_date>=expected_expiry_date).first()
+                    if other_images:
+                        restoring_survey = survey.require_launch and survey.require_launch > datetime.utcnow()
+
+                if videos_query and not restoring_survey:
+                    other_videos = videos_query.filter(Video.expiry_date>=expected_expiry_date).first()
+                    if other_videos:
+                        restoring_survey = survey.require_launch and survey.require_launch > datetime.utcnow()
+
+                if include_empties and not restoring_survey:
+                    other_zips = [zip for zip in survey.zips if zip.expiry_date>=expected_expiry_date]
+                    if other_zips:
+                        restoring_survey = survey.require_launch and survey.require_launch > datetime.utcnow()
+
+            if ((restored_files or restore_date) and require_wait) or restoring_survey:
                 survey.status = 'Restoring Files'
                 if restored_files:
-                    date_value = datetime.utcnow() + timedelta(seconds=Config.RESTORE_TIME)
+                    survey.require_launch  = datetime.utcnow() + timedelta(seconds=Config.RESTORE_TIME)
                 elif restore_date:
-                    date_value = restore_date + timedelta(seconds=Config.RESTORE_TIME)
-                survey.require_launch = date_value
+                    survey.require_launch  = restore_date + timedelta(seconds=Config.RESTORE_TIME)
 
                 download_request = db.session.query(DownloadRequest).get(download_request_id)
                 download_request.status = 'Restoring Files'
@@ -851,17 +890,18 @@ def restore_images_for_export(self,task_id, data, user_name, download_request_id
         expected_expiry_date = calculate_restore_expiry_date(datetime.utcnow(), Config.RESTORE_TIME, days)
         min_expiry_date = expected_expiry_date  
 
-        images = rDets(db.session.query(Image,Image.filename, Camera.path)\
+        image_query = rDets(db.session.query(Image,Image.filename, Camera.path)\
                         .join(Camera)\
                         .join(Trapgroup)\
                         .join(Detection)\
                         .join(Labelgroup)\
                         .filter(Labelgroup.task_id==task_id)\
                         .filter(Labelgroup.labels.contains(species))\
-                        .filter(or_(Image.expiry_date==None,Image.expiry_date<=expected_expiry_date))\
                         .filter(Trapgroup.survey_id==task.survey_id)\
                         .order_by(Image.id)\
-                        ).distinct().all()
+                        )
+        
+        images = image_query.filter(or_(Image.expiry_date==None,Image.expiry_date<expected_expiry_date)).distinct().all()
 
         restore_request = {
             'Days': days,
@@ -904,7 +944,13 @@ def restore_images_for_export(self,task_id, data, user_name, download_request_id
                     if image[0].expiry_date: image[0].expiry_date = None
                 db.session.commit()
 
-        if (restored_image or restore_date) and require_wait:
+        restoring_survey = False
+        if not restored_image and not restore_date and not require_wait:
+            other_images = image_query.filter(Image.expiry_date>=expected_expiry_date).first()
+            if other_images:
+                restoring_survey = task.survey.require_launch and task.survey.require_launch > datetime.utcnow()
+
+        if ((restored_image or restore_date) and require_wait) or restoring_survey:
             task.survey.status = 'Restoring Files'
             task.status = 'Ready'
             if restored_image:
