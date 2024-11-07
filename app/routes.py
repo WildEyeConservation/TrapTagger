@@ -14267,7 +14267,10 @@ def getDownloadRequests():
                     current_download_requests.append(req_dict)
                 else:
                     if status == 'Restoring Files':
-                        restore_time = math.floor(((survey_launch-datetime.now()).total_seconds() / 3600))
+                        if survey_launch:
+                            restore_time = math.floor(((Config.RESTORE_TIME-(survey_launch-datetime.now()).total_seconds()) / 3600))
+                        else:
+                            restore_time = 0
                         req_dict['restore'] = restore_time
                         req_dict['total_restore'] = Config.RESTORE_TIME/3600
                             
@@ -14382,7 +14385,7 @@ def restore_for_download():
                 db.session.commit()
 
                 status = 'success'
-                message = 'Your download request has been initiated. A wait time 48 hours is required for the download to be prepared. Your download request can be viewed in the downloads menu.'
+                message = 'Your download request has been initiated. A wait time of 48 hours is required for the download to be prepared. Your download request can be viewed in the Downloads menu.'
     
     return json.dumps({'status': status, 'message': message})
 
@@ -14470,7 +14473,7 @@ def deleteDownloadRequest(download_request_id):
                 survey = task.survey
                 if survey.status == 'Restoring Files':
                     survey.status = 'Ready'
-                    survey.require_launch = False
+                    survey.require_launch = None
                     GLOBALS.redisClient.delete('download_launch_kwargs_'+str(survey.id))
                 
         else:
@@ -14494,7 +14497,7 @@ def cancelRestore(survey_id):
     survey = db.session.query(Survey).get(survey_id)
     if survey and checkSurveyPermission(current_user.id,survey_id,'write'):
 
-        survey.require_launch = False
+        survey.require_launch = None
         survey.status = 'Ready'
 
         restoring_download_requests = db.session.query(DownloadRequest).join(Task).filter(Task.survey_id==survey_id).filter(DownloadRequest.status=='Restoring Files').all()

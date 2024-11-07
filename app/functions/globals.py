@@ -2710,7 +2710,7 @@ def checkFilesExist(files,folder):
 
     if Config.DEBUGGING: 
         app.logger.info('Checked files in {} seconds'.format(time.time()-starttime))
-        app.logger.info('Already uploaded: {}, Required Lambda: {}, Req new names: {}'.format(len(already_uploaded),len(req_lambda),len(new_names)))
+        app.logger.info('Already uploaded: {}, Req Lambda: {}, New names: {}'.format(len(already_uploaded),len(req_lambda),len(new_names)))
 
     return already_uploaded, req_lambda, new_names
 

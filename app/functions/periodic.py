@@ -758,7 +758,7 @@ def manage_tasks_with_restore():
                 date_launched = expiry_date - timedelta(days=Config.EMPTY_RESTORE_DAYS)
                 if (date_now - date_launched).days > 30:
                     if not last_active or (date_now - last_active).days > 5:
-                        msg = '<p> Your Empty Label Check job on empty clusters for survey {} has been stopped due to the expiration of the empty images restoration from archival storage and lack of activity.</p>'.format(survey_name)
+                        msg = '<p>Your Empty Label Check job for survey {} has been stopped because the restoration period from archival storage has expired for your empty images and there was no recent activity.</p>'.format(survey_name)
                         task = db.session.query(Task).get(task_id)
                         task.status = 'Stopping'
                         db.session.commit()
@@ -777,7 +777,7 @@ def manage_tasks_with_restore():
                 expiry_date = expiry_date[0]
                 time_left = expiry_date - date_now
                 if time_left.days < 0:
-                    msg = '<p>Your Individual ID job for survey {} has been stopped due to the expiration of the RAW images restoration from archival storage and lack of activity.</p>'.format(survey_name)
+                    msg = '<p>Your Individual ID job for survey {} has been stopped because the restoration period from archival storage has expired for your raw images and there was no recent activity.</p>'.format(survey_name)
                     task = db.session.query(Task).get(task_id)
                     task.status = 'Stopping'
                     db.session.commit()
@@ -785,7 +785,7 @@ def manage_tasks_with_restore():
                 elif time_left.days < 1:
                     if last_active:
                         if (date_now - last_active).days > 5:
-                            msg = '<p>Your Individual ID job for survey {} has been stopped due to the expiration of the RAW images restoration from archival storage and lack of activity.</p>'.format(survey_name)
+                            msg = '<p>Your Individual ID job for survey {} has been stopped because the restoration period from archival storage has expired for your raw images and there was no recent activity.</p>'.format(survey_name)
                             task = db.session.query(Task).get(task_id)
                             task.status = 'Stopping'
                             db.session.commit()

@@ -126,7 +126,7 @@ def restore_empty_zips(self,task_id,tier):
                         .filter(Labelgroup.task_id==task_id)\
                         .filter(Labelgroup.checked==False)\
                         .filter(Zip.survey_id==survey.id)\
-                        .filter(or_(Zip.expiry_date==None,Zip.expiry_date<expected_expiry_date))\
+                        .filter(or_(Zip.expiry_date==None,Zip.expiry_date<=expected_expiry_date))\
                         .order_by(Zip.id)\
                         .distinct().all()
         
@@ -349,7 +349,7 @@ def restore_images_for_id(self,task_id,days,tier,extend=False):
                             .join(cluster_sq,Cluster.id==cluster_sq.c.id)\
                             .filter(Cluster.task_id.in_(task_ids))\
                             .filter(cluster_sq.c.id!=None)\
-                            .filter(or_(Image.expiry_date==None,Image.expiry_date<expected_expiry_date))\
+                            .filter(or_(Image.expiry_date==None,Image.expiry_date<=expected_expiry_date))\
                             .order_by(Image.id)\
                             .distinct().all()
         
@@ -462,7 +462,7 @@ def restore_images_for_classification(self,survey_id,days,edit_survey_args,tier)
                         .join(Detection)\
                         .filter(Trapgroup.survey_id==survey_id)\
                         .filter(or_(and_(Detection.source==model,Detection.score>Config.DETECTOR_THRESHOLDS[model]) for model in Config.DETECTOR_THRESHOLDS))\
-                        .filter(or_(Image.expiry_date==None,Image.expiry_date<expected_expiry_date))\
+                        .filter(or_(Image.expiry_date==None,Image.expiry_date<=expected_expiry_date))\
                         .order_by(Image.id)\
                         .distinct().all()
         
@@ -568,7 +568,7 @@ def restore_files_for_download(self,task_id,download_request_id,download_params,
                                 .outerjoin(Label,Labelgroup.labels)\
                                 .filter(Trapgroup.survey_id==survey.id)\
                                 .filter(Labelgroup.task_id==task_id)\
-                                .filter(or_(Image.expiry_date==None,Image.expiry_date<expected_expiry_date))
+                                .filter(or_(Image.expiry_date==None,Image.expiry_date<=expected_expiry_date))
 
             if include_empties: 
                 localLabels.append(GLOBALS.nothing_id)
@@ -596,7 +596,7 @@ def restore_files_for_download(self,task_id,download_request_id,download_params,
                                 .outerjoin(Label,Labelgroup.labels)\
                                 .filter(Trapgroup.survey_id==survey.id)\
                                 .filter(Labelgroup.task_id==task_id)\
-                                .filter(or_(Video.expiry_date==None,Video.expiry_date<expected_expiry_date))
+                                .filter(or_(Video.expiry_date==None,Video.expiry_date<=expected_expiry_date))
 
             if include_empties:
                 localLabels.append(GLOBALS.nothing_id)
@@ -651,7 +651,12 @@ def restore_files_for_download(self,task_id,download_request_id,download_params,
         restore_date_vid = None
         require_wait_vid = False
         if include_video and videos:
-            storage_class = check_storage_class(videos[0][2] + '/' + videos[0][1])
+            first_video_path = videos[0][2].split('/_video_images_/')[0]
+            splits = first_video_path.split('/')
+            splits[0] = splits[0] + '-comp'
+            first_video_path = '/'.join(splits)
+            first_video_key = first_video_path + '/' + videos[0][1].split('.')[0] + '.mp4'
+            storage_class = check_storage_class(first_video_key)
             if storage_class == 'DEEP_ARCHIVE':
                 for chunk in chunker(videos, 1000):
                     for video in chunk:
@@ -659,7 +664,7 @@ def restore_files_for_download(self,task_id,download_request_id,download_params,
                             splits = video[2].split('/')
                             splits[0] = splits[0] + '-comp'
                             path = '/'.join(splits)
-                            video_key = path + '/' + video[1]
+                            video_key = path.split('/_video_images_/')[0] + '/' + video[1].split('.')[0] + '.mp4'
                             response = GLOBALS.s3client.restore_object(Bucket=Config.BUCKET, Key=video_key, RestoreRequest=restore_request)
                             restored_video = True
                             http_code = response['ResponseMetadata']['HTTPStatusCode']
@@ -690,7 +695,7 @@ def restore_files_for_download(self,task_id,download_request_id,download_params,
         if include_empties and not extend:
             if survey.zips:
                 zip_folder = survey.organisation.folder + '-comp/' + Config.SURVEY_ZIP_FOLDER
-                zips = [zip for zip in survey.zips if zip.expiry_date==None or zip.expiry_date<expected_expiry_date]
+                zips = [zip for zip in survey.zips if zip.expiry_date==None or zip.expiry_date<=expected_expiry_date]
 
                 zip_restore_request = {
                     'Days': Config.EMPTY_RESTORE_DAYS,
@@ -745,7 +750,6 @@ def restore_files_for_download(self,task_id,download_request_id,download_params,
                 download_request.status = 'Restoring Files'
                 download_request.timestamp = min_expiry_date
 
-                survey.require_launch = True
                 launch_kwargs = {'task_id':task_id,'download_request_id':download_request_id,'zips':include_empties}
                 GLOBALS.redisClient.set('download_launch_kwargs_'+str(survey.id),json.dumps(launch_kwargs))
 
@@ -854,7 +858,7 @@ def restore_images_for_export(self,task_id, data, user_name, download_request_id
                         .join(Labelgroup)\
                         .filter(Labelgroup.task_id==task_id)\
                         .filter(Labelgroup.labels.contains(species))\
-                        .filter(or_(Image.expiry_date==None,Image.expiry_date<expected_expiry_date))\
+                        .filter(or_(Image.expiry_date==None,Image.expiry_date<=expected_expiry_date))\
                         .filter(Trapgroup.survey_id==task.survey_id)\
                         .order_by(Image.id)\
                         ).distinct().all()

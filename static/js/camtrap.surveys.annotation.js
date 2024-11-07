@@ -1278,7 +1278,7 @@ function openEmptyTag() {
         document.getElementById('openMultiSpeciesTab').disabled = true
         // document.getElementById('openMaskedTab').disabled = true
 
-        document.getElementById('annotationDescription').innerHTML = "<i>Check your clusters where no sightings were detected. This can be to check for any missed sightings, please note that the chances of missed sightings are very low. Any potential missed sightings will be of low quality. To check for missed sightings, the empty images needs to be restored from archival storage that will require a 48 hour wait time.</i>"
+        document.getElementById('annotationDescription').innerHTML = "<i>Check your clusters where no sightings were detected to review any potential missed sightings. Please note that the chances of missed sightings are very low, and any that may have been missed are likely to be of low quality. To check for missed sightings, the empty images need to be restored from archival storage, which requires a 48-hour wait time.</i>"
         clearSelect(document.getElementById('taskTaggingLevel'))
         var xhttp = new XMLHttpRequest();
         xhttp.open("GET", '/getTaggingLevelsbyTask/'+selectedTask+'/empty');
