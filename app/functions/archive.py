@@ -101,7 +101,7 @@ def check_storage_class(key):
         return None
 
 @celery.task(bind=True,max_retries=2,ignore_result=True)
-def restore_empty_zips(self,task_id,tier):
+def restore_empty_zips(self,task_id,tier,restore_time):
     '''Restores zips from Glacier that contain empty images.'''
     
     try:
@@ -117,7 +117,7 @@ def restore_empty_zips(self,task_id,tier):
             }
         }
 
-        expected_expiry_date = calculate_restore_expiry_date(datetime.utcnow(), Config.RESTORE_TIME, Config.EMPTY_RESTORE_DAYS)
+        expected_expiry_date = calculate_restore_expiry_date(datetime.utcnow(), restore_time, Config.EMPTY_RESTORE_DAYS)
 
         zips = db.session.query(Zip)\
                         .join(Image)\
@@ -146,7 +146,7 @@ def restore_empty_zips(self,task_id,tier):
                 http_code = response['ResponseMetadata']['HTTPStatusCode']
                 if http_code == 202: # 202 - Accepted (restore in progress), 200 - OK (restore completed - expiry date set)
                     require_wait = True
-                    zip.expiry_date = calculate_restore_expiry_date(datetime.utcnow(), Config.RESTORE_TIME, Config.EMPTY_RESTORE_DAYS)
+                    zip.expiry_date = calculate_restore_expiry_date(datetime.utcnow(), restore_time, Config.EMPTY_RESTORE_DAYS)
                 elif http_code == 200:
                     zip.expiry_date = calculate_restore_expiry_date(datetime.utcnow(), 0, Config.EMPTY_RESTORE_DAYS)
                 zip_ids.append(zip.id)
@@ -154,7 +154,7 @@ def restore_empty_zips(self,task_id,tier):
                 if e.response['Error']['Code'] == 'RestoreAlreadyInProgress':
                     require_wait = True
                     file_restore_date, file_restore_days = get_restore_info(zip_key)
-                    zip.expiry_date = calculate_restore_expiry_date(file_restore_date, Config.RESTORE_TIME, file_restore_days)
+                    zip.expiry_date = calculate_restore_expiry_date(file_restore_date, restore_time, file_restore_days)
                     if not restore_date or file_restore_date > restore_date: restore_date = file_restore_date
                     zip_ids.append(zip.id)
                 continue
@@ -175,9 +175,9 @@ def restore_empty_zips(self,task_id,tier):
                 task.status = 'Ready'
                 launch_kwargs = {'task_id':task_id, 'tagging_level':task.tagging_level, 'zip_ids':zip_ids}
                 if restore_zip:
-                    survey.require_launch = datetime.utcnow() + timedelta(seconds=Config.RESTORE_TIME)
+                    survey.require_launch = datetime.utcnow() + timedelta(seconds=restore_time)
                 elif restore_date:
-                    survey.require_launch = restore_date + timedelta(seconds=Config.RESTORE_TIME)
+                    survey.require_launch = restore_date + timedelta(seconds=restore_time)
                 GLOBALS.redisClient.set('empty_launch_kwargs_'+str(survey.id),json.dumps(launch_kwargs))
                 db.session.commit()
             else:
@@ -305,7 +305,7 @@ def extract_zip(self,zip_key):
     return True
 
 @celery.task(bind=True,max_retries=2,ignore_result=True)
-def restore_images_for_id(self,task_id,days,tier,extend=False):
+def restore_images_for_id(self,task_id,days,tier,restore_time,extend=False):
     '''Restores images from Glacier for a specified species in the specified tasks.'''
     
     try:
@@ -342,7 +342,7 @@ def restore_images_for_id(self,task_id,days,tier,extend=False):
             if extend:
                 expected_expiry_date = calculate_restore_expiry_date(datetime.utcnow(), 0, days)
             else:
-                expected_expiry_date = calculate_restore_expiry_date(datetime.utcnow(), Config.RESTORE_TIME, days)
+                expected_expiry_date = calculate_restore_expiry_date(datetime.utcnow(), restore_time, days)
             
             cluster_sq = rDets(db.session.query(Cluster.id)\
                         .join(Image,Cluster.images)\
@@ -385,14 +385,14 @@ def restore_images_for_id(self,task_id,days,tier,extend=False):
                                 http_code = response['ResponseMetadata']['HTTPStatusCode']
                                 if http_code == 202: # 202 - Accepted (restore in progress), 200 - OK (restore completed - expiry date set)
                                     require_wait = True
-                                    image[0].expiry_date = calculate_restore_expiry_date(datetime.utcnow(), Config.RESTORE_TIME, days)
+                                    image[0].expiry_date = calculate_restore_expiry_date(datetime.utcnow(), restore_time, days)
                                 elif http_code == 200:
                                     image[0].expiry_date = calculate_restore_expiry_date(datetime.utcnow(), 0, days)
                             except ClientError as e:
                                 if e.response['Error']['Code'] == 'RestoreAlreadyInProgress':
                                     require_wait = True
                                     file_restore_date, file_restore_days = get_restore_info(image_key)
-                                    image[0].expiry_date = calculate_restore_expiry_date(file_restore_date, Config.RESTORE_TIME, file_restore_days)
+                                    image[0].expiry_date = calculate_restore_expiry_date(file_restore_date, restore_time, file_restore_days)
                                     if not restore_date or file_restore_date > restore_date: restore_date = file_restore_date
                             except:
                                 continue
@@ -414,9 +414,9 @@ def restore_images_for_id(self,task_id,days,tier,extend=False):
 
                 if ((restored_image or restore_date) and require_wait) or restoring_survey:
                     if restored_image:
-                        date_value = datetime.utcnow() + timedelta(seconds=Config.RESTORE_TIME)
+                        date_value = datetime.utcnow() + timedelta(seconds=restore_time)
                     elif restore_date:
-                        date_value = restore_date + timedelta(seconds=Config.RESTORE_TIME)
+                        date_value = restore_date + timedelta(seconds=restore_time)
                     elif restoring_survey:
                         date_value = task.survey.require_launch
 
@@ -464,7 +464,7 @@ def restore_images_for_id(self,task_id,days,tier,extend=False):
     return True
 
 @celery.task(bind=True,max_retries=2,ignore_result=True)
-def restore_images_for_classification(self,survey_id,days,edit_survey_args,tier):
+def restore_images_for_classification(self,survey_id,days,edit_survey_args,tier,restore_time):
     '''Restores images from Glacier for a specified survey.'''
     
     try:
@@ -474,7 +474,7 @@ def restore_images_for_classification(self,survey_id,days,edit_survey_args,tier)
         survey.status = 'Processing'
         db.session.commit()
 
-        expected_expiry_date = calculate_restore_expiry_date(datetime.utcnow(), Config.RESTORE_TIME, days)
+        expected_expiry_date = calculate_restore_expiry_date(datetime.utcnow(), restore_time, days)
 
         image_query = db.session.query(Image, Image.filename, Camera.path)\
                         .join(Camera)\
@@ -508,14 +508,14 @@ def restore_images_for_classification(self,survey_id,days,edit_survey_args,tier)
                             http_code = response['ResponseMetadata']['HTTPStatusCode']
                             if http_code == 202: # 202 - Accepted (restore in progress), 200 - OK (restore completed - expiry date set)
                                 require_wait = True
-                                image[0].expiry_date = calculate_restore_expiry_date(datetime.utcnow(), Config.RESTORE_TIME, days)
+                                image[0].expiry_date = calculate_restore_expiry_date(datetime.utcnow(), restore_time, days)
                             elif http_code == 200:
                                 image[0].expiry_date = calculate_restore_expiry_date(datetime.utcnow(), 0, days)
                         except ClientError as e:
                             if e.response['Error']['Code'] == 'RestoreAlreadyInProgress':
                                 require_wait = True
                                 file_restore_date, file_restore_days = get_restore_info(image_key)
-                                image[0].expiry_date = calculate_restore_expiry_date(file_restore_date, Config.RESTORE_TIME, file_restore_days)
+                                image[0].expiry_date = calculate_restore_expiry_date(file_restore_date, restore_time, file_restore_days)
                                 if not restore_date or file_restore_date > restore_date: restore_date = file_restore_date
                         except:
                             continue
@@ -535,9 +535,9 @@ def restore_images_for_classification(self,survey_id,days,edit_survey_args,tier)
             if ((restored_image or restore_date) and require_wait) or restoring_survey:
                 survey.status = 'Restoring Files'   
                 if restored_image:
-                    survey.require_launch = datetime.utcnow() + timedelta(seconds=Config.RESTORE_TIME)
+                    survey.require_launch = datetime.utcnow() + timedelta(seconds=restore_time)
                 elif restore_date:
-                    survey.require_launch = restore_date + timedelta(seconds=Config.RESTORE_TIME)
+                    survey.require_launch = restore_date + timedelta(seconds=restore_time)
                 GLOBALS.redisClient.set('edit_launch_kwargs_'+str(survey.id),json.dumps(edit_survey_args))
                 db.session.commit()   
             else:
@@ -559,7 +559,7 @@ def restore_images_for_classification(self,survey_id,days,edit_survey_args,tier)
     return True
 
 @celery.task(bind=True,max_retries=2,ignore_result=True)
-def restore_files_for_download(self,task_id,download_request_id,download_params,days,tier,extend=False):
+def restore_files_for_download(self,task_id,download_request_id,download_params,days,tier,restore_time,extend=False):
     '''Restores files from Glacier for a specified task.'''
     try:
         task = db.session.query(Task).get(task_id)
@@ -581,7 +581,7 @@ def restore_files_for_download(self,task_id,download_request_id,download_params,
         if extend:
             expected_expiry_date = calculate_restore_expiry_date(datetime.utcnow(), 0, days)
         else:
-            expected_expiry_date = calculate_restore_expiry_date(datetime.utcnow(), Config.RESTORE_TIME, days)
+            expected_expiry_date = calculate_restore_expiry_date(datetime.utcnow(), restore_time, days)
         min_expiry_date = expected_expiry_date
 
         images = []
@@ -651,7 +651,7 @@ def restore_files_for_download(self,task_id,download_request_id,download_params,
                             http_code = response['ResponseMetadata']['HTTPStatusCode']
                             if http_code == 202: # 202 - Accepted (restore in progress), 200 - OK (restore completed - expiry date set)
                                 require_wait_img = True
-                                image[0].expiry_date = calculate_restore_expiry_date(datetime.utcnow(), Config.RESTORE_TIME, days)
+                                image[0].expiry_date = calculate_restore_expiry_date(datetime.utcnow(), restore_time, days)
                             elif http_code == 200:
                                 image[0].expiry_date = calculate_restore_expiry_date(datetime.utcnow(), 0, days)
                             if image[0].expiry_date and image[0].expiry_date < min_expiry_date: min_expiry_date = image[0].expiry_date
@@ -659,7 +659,7 @@ def restore_files_for_download(self,task_id,download_request_id,download_params,
                             if e.response['Error']['Code'] == 'RestoreAlreadyInProgress':
                                 require_wait_img = True
                                 file_restore_date, file_restore_days = get_restore_info(image_key)
-                                image[0].expiry_date = calculate_restore_expiry_date(file_restore_date, Config.RESTORE_TIME, file_restore_days)
+                                image[0].expiry_date = calculate_restore_expiry_date(file_restore_date, restore_time, file_restore_days)
                                 if not restore_date_img or file_restore_date > restore_date_img: restore_date_img = file_restore_date
                                 if image[0].expiry_date and image[0].expiry_date < min_expiry_date: min_expiry_date = image[0].expiry_date
                         except:
@@ -693,7 +693,7 @@ def restore_files_for_download(self,task_id,download_request_id,download_params,
                             http_code = response['ResponseMetadata']['HTTPStatusCode']
                             if http_code == 202: # 202 - Accepted (restore in progress), 200 - OK (restore completed - expiry date set)
                                 require_wait_vid = True
-                                video[0].expiry_date = calculate_restore_expiry_date(datetime.utcnow(), Config.RESTORE_TIME, days)
+                                video[0].expiry_date = calculate_restore_expiry_date(datetime.utcnow(), restore_time, days)
                             elif http_code == 200:
                                 video[0].expiry_date = calculate_restore_expiry_date(datetime.utcnow(), 0, days)
                             if video[0].expiry_date and video[0].expiry_date < min_expiry_date: min_expiry_date = video[0].expiry_date
@@ -701,7 +701,7 @@ def restore_files_for_download(self,task_id,download_request_id,download_params,
                             if e.response['Error']['Code'] == 'RestoreAlreadyInProgress':
                                 require_wait_vid = True
                                 file_restore_date, file_restore_days = get_restore_info(video_key)
-                                video[0].expiry_date = calculate_restore_expiry_date(file_restore_date, Config.RESTORE_TIME, file_restore_days)
+                                video[0].expiry_date = calculate_restore_expiry_date(file_restore_date, restore_time, file_restore_days)
                                 if not restore_date_vid or file_restore_date > restore_date_vid: restore_date_vid = file_restore_date
                                 if video[0].expiry_date and video[0].expiry_date < min_expiry_date: min_expiry_date = video[0].expiry_date
                         except:
@@ -735,14 +735,14 @@ def restore_files_for_download(self,task_id,download_request_id,download_params,
                         http_code = response['ResponseMetadata']['HTTPStatusCode']
                         if http_code == 202: # 202 - Accepted (restore in progress), 200 - OK (restore completed - expiry date set)
                             require_wait_zip = True
-                            zip.expiry_date = calculate_restore_expiry_date(datetime.utcnow(), Config.RESTORE_TIME, Config.EMPTY_RESTORE_DAYS)
+                            zip.expiry_date = calculate_restore_expiry_date(datetime.utcnow(), restore_time, Config.EMPTY_RESTORE_DAYS)
                         elif http_code == 200:
                             zip.expiry_date = calculate_restore_expiry_date(datetime.utcnow(), 0, Config.EMPTY_RESTORE_DAYS)
                     except ClientError as e:
                         if e.response['Error']['Code'] == 'RestoreAlreadyInProgress':
                             require_wait_zip = True
                             file_restore_date, file_restore_days = get_restore_info(zip_key)
-                            zip.expiry_date = calculate_restore_expiry_date(file_restore_date, Config.RESTORE_TIME, file_restore_days)
+                            zip.expiry_date = calculate_restore_expiry_date(file_restore_date, restore_time, file_restore_days)
                             if not restore_date_zip or file_restore_date > restore_date_zip: restore_date_zip = file_restore_date
                         continue
                     except:
@@ -781,9 +781,9 @@ def restore_files_for_download(self,task_id,download_request_id,download_params,
             if ((restored_files or restore_date) and require_wait) or restoring_survey:
                 survey.status = 'Restoring Files'
                 if restored_files:
-                    survey.require_launch  = datetime.utcnow() + timedelta(seconds=Config.RESTORE_TIME)
+                    survey.require_launch  = datetime.utcnow() + timedelta(seconds=restore_time)
                 elif restore_date:
-                    survey.require_launch  = restore_date + timedelta(seconds=Config.RESTORE_TIME)
+                    survey.require_launch  = restore_date + timedelta(seconds=restore_time)
 
                 download_request = db.session.query(DownloadRequest).get(download_request_id)
                 download_request.status = 'Restoring Files'
@@ -881,13 +881,13 @@ def process_files_for_download(self,task_id,download_request_id,zips):
     return True
 
 @celery.task(bind=True,max_retries=2,ignore_result=True)
-def restore_images_for_export(self,task_id, data, user_name, download_request_id, days, tier):
+def restore_images_for_export(self,task_id, data, user_name, download_request_id, days, tier, restore_time):
 
     try:
         task = db.session.query(Task).get(task_id)
         species = db.session.query(Label).get(int(data['species']))
 
-        expected_expiry_date = calculate_restore_expiry_date(datetime.utcnow(), Config.RESTORE_TIME, days)
+        expected_expiry_date = calculate_restore_expiry_date(datetime.utcnow(), restore_time, days)
         min_expiry_date = expected_expiry_date  
 
         image_query = rDets(db.session.query(Image,Image.filename, Camera.path)\
@@ -925,7 +925,7 @@ def restore_images_for_export(self,task_id, data, user_name, download_request_id
                             http_code = response['ResponseMetadata']['HTTPStatusCode']
                             if http_code == 202: # 202 - Accepted (restore in progress), 200 - OK (restore completed - expiry date set)
                                 require_wait = True
-                                image[0].expiry_date = calculate_restore_expiry_date(datetime.utcnow(), Config.RESTORE_TIME, days)
+                                image[0].expiry_date = calculate_restore_expiry_date(datetime.utcnow(), restore_time, days)
                             elif http_code == 200:
                                 image[0].expiry_date = calculate_restore_expiry_date(datetime.utcnow(), 0, days)
                             if image[0].expiry_date and image[0].expiry_date < min_expiry_date: min_expiry_date = image[0].expiry_date
@@ -933,7 +933,7 @@ def restore_images_for_export(self,task_id, data, user_name, download_request_id
                             if e.response['Error']['Code'] == 'RestoreAlreadyInProgress':
                                 require_wait = True
                                 file_restore_date, file_restore_days = get_restore_info(image_key)
-                                image[0].expiry_date = calculate_restore_expiry_date(file_restore_date, Config.RESTORE_TIME, file_restore_days)
+                                image[0].expiry_date = calculate_restore_expiry_date(file_restore_date, restore_time, file_restore_days)
                                 if not restore_date or file_restore_date > restore_date: restore_date = file_restore_date
                                 if image[0].expiry_date and image[0].expiry_date < min_expiry_date: min_expiry_date = image[0].expiry_date
                         except:
@@ -954,9 +954,9 @@ def restore_images_for_export(self,task_id, data, user_name, download_request_id
             task.survey.status = 'Restoring Files'
             task.status = 'Ready'
             if restored_image:
-                task.survey.require_launch = datetime.utcnow() + timedelta(seconds=Config.RESTORE_TIME)
+                task.survey.require_launch = datetime.utcnow() + timedelta(seconds=restore_time)
             elif restore_date:
-                task.survey.require_launch = restore_date + timedelta(seconds=Config.RESTORE_TIME)
+                task.survey.require_launch = restore_date + timedelta(seconds=restore_time)
 
             launch_kwargs = {'task_id':task_id, 'data':data, 'user_name':user_name, 'download_request_id':download_request_id}
             GLOBALS.redisClient.set('export_launch_kwargs_'+str(task.survey.id),json.dumps(launch_kwargs))

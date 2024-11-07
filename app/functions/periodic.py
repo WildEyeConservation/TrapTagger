@@ -794,7 +794,7 @@ def manage_tasks_with_restore():
                             survey = db.session.query(Survey).get(survey_id)
                             survey.require_launch = date_now
                             db.session.commit()
-                            restore_images_for_id.apply_async(kwargs={'task_id':task_id,'days':Config.ID_RESTORE_DAYS,'tier':Config.RESTORE_TIER,'extend':True})
+                            restore_images_for_id.apply_async(kwargs={'task_id':task_id,'days':Config.ID_RESTORE_DAYS,'tier':Config.RESTORE_TIER, 'restore_time':Config.RESTORE_TIME, 'extend':True})
 
         if msg:
             org_admins = [r[0] for r in db.session.query(User.id).join(UserPermissions).join(Organisation).join(Survey).filter(Survey.id==survey_id).filter(UserPermissions.default=='admin').distinct().all()]    
@@ -936,7 +936,7 @@ def checkRestoreDownloads(task_id):
             download_params = json.loads(download_params)
             download_request.timestamp = date_now + timedelta(days=Config.DOWNLOAD_RESTORE_DAYS)
             db.session.commit()
-            restore_files_for_download.apply_async(kwargs={'task_id':task_id,'download_request_id':download_request.id,'days':Config.DOWNLOAD_RESTORE_DAYS,'download_params':download_params,'tier':Config.RESTORE_TIER,'extend':True})
+            restore_files_for_download.apply_async(kwargs={'task_id':task_id,'download_request_id':download_request.id,'days':Config.DOWNLOAD_RESTORE_DAYS,'download_params':download_params,'tier':Config.RESTORE_TIER,'restore_time':Config.RESTORE_TIME,'extend':True})
         except:
             pass
 
