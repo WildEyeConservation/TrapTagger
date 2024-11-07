@@ -21,7 +21,7 @@ importScripts('piexif.js')
 const limitTT=pLimit(6)
 
 batchSize = 200
-lambdaBatchSize = 400
+lambdaBatchSize = 350
 surveyName = null
 uploadID = null
 filesUploaded = 0

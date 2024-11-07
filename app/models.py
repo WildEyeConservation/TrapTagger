@@ -119,6 +119,7 @@ class Image(db.Model):
     skipped = db.Column(db.Boolean, default=False, index=True)
     extracted = db.Column(db.Boolean, default=False, index=True)
     zip_id = db.Column(db.Integer, db.ForeignKey('zip.id'), index=True, unique=False)
+    expiry_date = db.Column(db.DateTime, index=True)
 
     def __repr__(self):
         return '<Image {}>'.format(self.filename)
@@ -169,11 +170,7 @@ class Survey(db.Model):
     camera_code = db.Column(db.String(256), index=False)
     api_keys = db.relationship('APIKey', backref='survey', lazy=True)
     zips = db.relationship('Zip', backref='survey', lazy=True)
-    id_restore = db.Column(db.DateTime, index=False)
-    download_restore = db.Column(db.DateTime, index=False)
-    edit_restore = db.Column(db.DateTime, index=False)
-    empty_restore = db.Column(db.DateTime, index=False)
-    require_launch = db.Column(db.Boolean, default=False, index=False)
+    require_launch = db.Column(db.DateTime, index=True)
 
     def __repr__(self):
         return '<Survey {}>'.format(self.name)
@@ -539,6 +536,7 @@ class Video(db.Model):
     camera_id = db.Column(db.Integer, db.ForeignKey('camera.id'), index=True, unique=False)
     extracted_text = db.Column(db.String(64), index=False)
     still_rate = db.Column(db.Float, index=False)
+    expiry_date = db.Column(db.DateTime, index=True)
 
     def __repr__(self):
         return '<Video {}>'.format(self.filename)
@@ -671,6 +669,7 @@ class ClassificationLabel(db.Model):
 class Zip(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     survey_id = db.Column(db.Integer, db.ForeignKey('survey.id'), index=True, unique=False)
+    expiry_date = db.Column(db.DateTime, index=True)
     images = db.relationship('Image', backref='zip', lazy=True)
 
     def __repr__(self):

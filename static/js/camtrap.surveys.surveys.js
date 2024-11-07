@@ -187,6 +187,7 @@ const modalConfirmRestore = $('#modalConfirmRestore');
 const btnConfirmRestore = document.querySelector('#btnConfirmRestore')
 const btnCancelRestore = document.querySelector('#btnCancelRestore')
 const modalConfirmDownload = $('#modalConfirmDownload');
+const modalConfirmExport = $('#modalConfirmExport');
 
 var polarColours = {'rgba(10,120,80,0.2)':false,
                     'rgba(255,255,255,0.2)':false,
@@ -335,6 +336,7 @@ var confirmDownloadReturn = false
 var surveyClassifier = null
 var surveyClassifierName = null
 var confirmClassifierChange = false
+var confirmExportReturn = false
 
 function buildSurveys(survey,disableSurvey) {
     /**
@@ -4042,6 +4044,7 @@ function updateClassifierTable(url=null) {
                                 removeRestoreEventListeners()
                                 document.getElementById('modalConfirmBodyRestore').innerHTML = '<p>Changing the classifier will require the raw images to be restored from archival storage. This process takes 48 hours. Are you sure you want to continue?</p>'
                                 modalEditSurvey.modal('hide')
+                                btnConfirmRestore.disabled = false
                                 modalConfirmRestore.modal({keyboard: true})
                                 
                                 btnConfirmRestore.addEventListener('click', confirmRestoreEdit);

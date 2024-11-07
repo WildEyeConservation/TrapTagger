@@ -1,8 +1,8 @@
-"""Added download request table
+"""added download requests
 
-Revision ID: 3835de1a3d6d
-Revises: c772fca1e336
-Create Date: 2024-09-30 07:52:43.357754
+Revision ID: e46fa2e0e726
+Revises: 0930654cca55
+Create Date: 2024-11-06 11:14:17.828502
 
 """
 from alembic import op
@@ -10,8 +10,8 @@ import sqlalchemy as sa
 from sqlalchemy.dialects import mysql
 
 # revision identifiers, used by Alembic.
-revision = '3835de1a3d6d'
-down_revision = 'c772fca1e336'
+revision = 'e46fa2e0e726'
+down_revision = '0930654cca55'
 branch_labels = None
 depends_on = None
 
@@ -21,8 +21,10 @@ def upgrade():
     op.create_table('download_request',
     sa.Column('id', sa.Integer(), nullable=False),
     sa.Column('type', sa.String(length=8), nullable=True),
-    sa.Column('status', sa.String(length=16), nullable=True),
+    sa.Column('status', sa.String(length=32), nullable=True),
     sa.Column('timestamp', sa.DateTime(), nullable=True),
+    sa.Column('name', sa.String(length=64), nullable=True),
+    sa.Column('celery_id', sa.String(length=64), nullable=True),
     sa.Column('user_id', sa.Integer(), nullable=True),
     sa.Column('task_id', sa.Integer(), nullable=True),
     sa.ForeignKeyConstraint(['task_id'], ['task.id'], ),
@@ -30,7 +32,6 @@ def upgrade():
     sa.PrimaryKeyConstraint('id')
     )
     op.create_index(op.f('ix_download_request_user_id'), 'download_request', ['user_id'], unique=False)
-    
     # ### end Alembic commands ###
 
 

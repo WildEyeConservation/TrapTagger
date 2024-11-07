@@ -3675,11 +3675,9 @@ def manageDownload(task_id):
                 user_id = request.user_id
                 try:
                     download_params = json.loads(GLOBALS.redisClient.get('fileDownloadParams_'+str(task_id)+'_'+str(user_id)).decode())
-                    survey_restore = request.task.survey.download_restore
-                    expiry_date = calculate_restore_expiry_date(survey_restore,Config.RESTORE_TIME,Config.DOWNLOAD_RESTORE_DAYS)
+                    expiry_date = request.timestamp
                     if expiry_date and datetime.utcnow() < expiry_date:
                         request.status = 'Available'
-                        request.timestamp = datetime.utcnow()
                     else:
                         cleanup = download_params['include_empties']
 

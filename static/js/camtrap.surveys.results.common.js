@@ -161,8 +161,8 @@ btnExcelDownload.addEventListener('click', ()=>{
         if (this.readyState == 4 && this.status == 200) {
             reply = JSON.parse(this.responseText);  
             if (reply.status=='success') {
-                document.getElementById('modalPWH').innerHTML = 'Please Wait'
-                document.getElementById('modalPWB').innerHTML = 'Your Excel file is being generated and the download will commence shortly. Please note that this may take a while, especially for larger datasets. Do not navigate away from this page.'
+                document.getElementById('modalPWH').innerHTML = 'Alert'
+                document.getElementById('modalPWB').innerHTML = 'Your Excel file is being generated. You can monitor its progress in the Downloads menu. Once completed, it will be available for download for 7 days. Please note that this may take a while, especially for larger datasets.'
                 modalResults.modal('hide')
                 modalPW.modal({keyboard: true});
                 excel_task_ids.push(selectedTask)

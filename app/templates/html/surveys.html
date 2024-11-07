@@ -1360,7 +1360,7 @@ limitations under the License. -->
                 </div>
 
                 <div class='col-lg-2'>
-                    <button id="btnExportDownload" type='button' class='btn btn-primary btn-block' onclick=submitExportRequest()>Download</button>
+                    <button id="btnExportDownload" type='button' class='btn btn-primary btn-block' onclick=confirmExportRequest()>Download</button>
                 </div>
 
             </div>
@@ -1548,6 +1548,34 @@ limitations under the License. -->
     </div>
 </div>
 
+<div id="modalConfirmExport" class="modal fade" role="dialog" tabindex="-1">
+    <div class="modal-dialog">
+        <!-- Modal content-->
+        <div class="modal-content">
+            <div class="modal-header">
+                <h4 class="modal-title">Please Confirm</h4>
+                <button id="helpx" type="button" class="close" data-dismiss="modal">&times;</button>
+            </div>
+            <div class="modal-body">
+                <p align="justify">
+                    The WildBook export requires the images of the selected species to be restored from our archival storage. 
+                    The process will take 48 hours to complete. You can monitor the progress of the download request on the downloads menu. After the images have
+                    been restored the export will be generated and available for download for 7 days. Would you like to proceed ?
+                </p>
+            </div>
+            <div class="modal-footer">
+                <div class="col-lg-3">
+                    <button id="btnCancelExport" type="button" class="btn btn-info btn-block" 
+                    data-dismiss="modal">Cancel</button>
+                </div>
+                <div class="col-lg-3">
+                    <button id="btnConfirmExport" type="button" class="btn btn-primary btn-block" 
+                    data-dismiss="modal" onclick="submitExportRequest()">Confirm</button>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
 
 <!-- compare Modal -->
 <div id="modalCompare" class="modal fade" role="dialog" tabindex="-1">

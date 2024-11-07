@@ -23,6 +23,8 @@ modalExport.on('shown.bs.modal', function(){
 
     if (helpReturn) {
         helpReturn = false
+    } else if (confirmExportReturn) {
+        confirmExportReturn = false
     } else {
 
         divExport = document.getElementById('divExport')
@@ -168,6 +170,8 @@ modalExport.on('shown.bs.modal', function(){
                 divExport.appendChild(document.createElement('br'))
             }
         })
+
+        confirmExportReturn = false
         
     }
 });
@@ -175,7 +179,7 @@ modalExport.on('shown.bs.modal', function(){
 modalExport.on('hidden.bs.modal', function(){
     /** Clears the export modal when closed. */
     
-    if (!helpReturn) {
+    if (!helpReturn && !confirmExportReturn) {
         clearSelect(document.getElementById('exportSelector'))
 
         divExport = document.getElementById('divExport')
@@ -189,7 +193,7 @@ modalExport.on('hidden.bs.modal', function(){
 
 function submitExportRequest() {
     /** Submites an export request to the server based on the data contained in the export form. */
-    
+    confirmRestore = true
     allow = true
     exportSelector = document.getElementById('exportSelector')
     selection = exportSelector.options[exportSelector.selectedIndex].text
@@ -238,8 +242,8 @@ function submitExportRequest() {
                 modalExport.modal('hide')
                 
                 if (reply.status=='success') {
-                    document.getElementById('modalPWH').innerHTML = 'Please Wait'
-                    document.getElementById('modalPWB').innerHTML = 'Your export file is being generated and the download will commence shortly. Please note that this may take a while, especially for larger data sets. Do not navigate away from this page.'
+                    document.getElementById('modalPWH').innerHTML = 'Alert'
+                    document.getElementById('modalPWB').innerHTML = 'Your export request has been initiated. A wait time 48 hours is required for the images to restored from archival storage.You can monitor its progress in the Downloads menu. Once completed, your export will be available for download for 7 days. Please note that this may take a while, especially for larger data sets.'
                     modalPW.modal({keyboard: true});
                     export_task_ids.push(selectedTask)
                     // waitForDownload()
@@ -254,9 +258,26 @@ function submitExportRequest() {
                     modalPW.modal({keyboard: true});
                     document.getElementById('btnExportDownload').disabled = false
                 }
+
+                confirmRestore = false
             }
         }
         xhttp.open("POST", '/exportRequest');
         xhttp.send(formData);
     }
 }
+
+function confirmExportRequest() {
+    /** Confirms the export request and submits it to the server. */
+    confirmExportReturn = true
+    confirmRestore = false
+    modalExport.modal('hide')
+    modalConfirmExport.modal({keyboard: true});
+}
+
+modalConfirmExport.on('hidden.bs.modal', function(){
+    /** Clears the confirm export modal when closed. */
+    if (!confirmRestore) {
+        modalExport.modal({keyboard: true});
+    }
+});

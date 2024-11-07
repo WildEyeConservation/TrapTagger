@@ -629,8 +629,8 @@ btnCsvDownload.addEventListener('click', ()=>{
                     if (this.readyState == 4 && this.status == 200) {
                         reply = JSON.parse(this.responseText);  
                         if (reply.status=='success') {
-                            document.getElementById('modalPWH').innerHTML = 'Please Wait'
-                            document.getElementById('modalPWB').innerHTML = 'Your CSV file is being generated and the download will commence shortly. Please note that this may take a while, especially for larger data sets. Do not navigate away from this page.'
+                            document.getElementById('modalPWH').innerHTML = 'Alert'
+                            document.getElementById('modalPWB').innerHTML = 'Your CSV file is being generated. You can monitor its progress in the Downloads menu. Once completed, it will be available for download for 7 days. Please note that this may take a while, especially for larger data sets.'
                             modalCSVGenerate.modal('hide')
                             modalPW.modal({keyboard: true});
                             csv_task_ids.push(selectedtask)
@@ -674,8 +674,8 @@ function downloadPreFormattedCSV() {
             if (this.readyState == 4 && this.status == 200) {
                 reply = JSON.parse(this.responseText);  
                 if (reply.status=='success') {
-                    document.getElementById('modalPWH').innerHTML = 'Please Wait'
-                    document.getElementById('modalPWB').innerHTML = 'Your CSV file is being generated and the download will commence shortly. Please note that this may take a while, especially for larger data sets. Do not navigate away from this page.'
+                    document.getElementById('modalPWH').innerHTML = 'Alert'
+                    document.getElementById('modalPWB').innerHTML = 'Your CSV file is being generated. You can monitor its progress in the Downloads menu. Once completed, it will be available for download for 7 days. Please note that this may take a while, especially for larger data sets.'
                     modalResults.modal('hide')
                     modalPW.modal({keyboard: true});
                     csv_task_ids.push(selectedtask)
@@ -710,8 +710,8 @@ function downloadCOCO() {
             if (this.readyState == 4 && this.status == 200) {
                 reply = JSON.parse(this.responseText);  
                 if (reply.status=='success') {
-                    document.getElementById('modalPWH').innerHTML = 'Please Wait'
-                    document.getElementById('modalPWB').innerHTML = 'Your COCO file is being generated and the download will commence shortly. Please note that this may take a while, especially for larger data sets. Do not navigate away from this page.'
+                    document.getElementById('modalPWH').innerHTML = 'Alert'
+                    document.getElementById('modalPWB').innerHTML = 'Your COCO file is being generated. You can monitor its progress in the Downloads menu. Once completed, it will be available for download for 7 days. Please note that this may take a while, especially for larger data sets.'
                     modalResults.modal('hide')
                     modalPW.modal({keyboard: true});
                     coco_task_ids.push(selectedtask)

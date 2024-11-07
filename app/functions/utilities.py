@@ -17,6 +17,7 @@ limitations under the License.
 from app import app, db, celery
 from app.models import *
 from app.functions.globals import *
+from app.functions.imports import archive_images, archive_empty_images, archive_videos
 import GLOBALS
 from sqlalchemy.sql import func, or_, and_, alias
 from sqlalchemy import desc, extract
@@ -1327,5 +1328,126 @@ def setup_layers():
                 pass
     except:
         pass
+
+    return True
+
+@celery.task(bind=True,max_retries=5)
+def archive_survey_and_update_counts(self,survey_id):
+    ''' 
+    Moves the following date to Glacier Deep Archive storage in S3:
+        - Raw animal Images 
+        - Compressed videos
+        - Compressed empty images which are zipped together. (Raw & comp empty images are deleted)
+    '''
+    try:
+        app.logger.info('Archiving survey {}'.format(survey_id))
+        trapgroup_ids = [r[0] for r in db.session.query(Trapgroup.id).filter(Trapgroup.survey_id==survey_id).distinct().all()]
+        cameragroup_ids = [r[0] for r in db.session.query(Cameragroup.id).join(Camera).join(Trapgroup).filter(Trapgroup.survey_id==survey_id).filter(Camera.videos.any()).distinct().all()]
+
+        # Compressed Videos
+        video_results = []
+        for cameragroup_id in cameragroup_ids:
+            video_results.append(archive_videos.apply_async(kwargs={'cameragroup_id':cameragroup_id},queue='parallel'))
+
+        if video_results:
+            #Wait for processing to complete
+            db.session.remove()
+            GLOBALS.lock.acquire()
+            with allow_join_result():
+                for result in video_results:
+                    try:
+                        result.get()
+                    except Exception:
+                        app.logger.info(' ')
+                        app.logger.info('!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!')
+                        app.logger.info(traceback.format_exc())
+                        app.logger.info('!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!')
+                        app.logger.info(' ')
+                    result.forget()
+            GLOBALS.lock.release()
+
+        # Empty Images
+        empty_results = []
+        for trapgroup_id in trapgroup_ids:
+            empty_results.append(archive_empty_images.apply_async(kwargs={'trapgroup_id':trapgroup_id},queue='parallel'))
+
+        if empty_results:
+            #Wait for processing to complete
+            db.session.remove()
+            GLOBALS.lock.acquire()
+            with allow_join_result():
+                for result in empty_results:
+                    try:
+                        result.get()
+                    except Exception:
+                        app.logger.info(' ')
+                        app.logger.info('!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!')
+                        app.logger.info(traceback.format_exc())
+                        app.logger.info('!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!')
+                        app.logger.info(' ')
+                    result.forget()
+            GLOBALS.lock.release()
+
+
+        # Raw Animal Images
+        image_results = []
+        for trapgroup_id in trapgroup_ids:
+            image_results.append(archive_images.apply_async(kwargs={'trapgroup_id':trapgroup_id},queue='parallel'))
+
+        if image_results:
+            #Wait for processing to complete
+            db.session.remove()
+            GLOBALS.lock.acquire()
+            with allow_join_result():
+                for result in image_results:
+                    try:
+                        result.get()
+                    except Exception:
+                        app.logger.info(' ')
+                        app.logger.info('!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!')
+                        app.logger.info(traceback.format_exc())
+                        app.logger.info('!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!')
+                        app.logger.info(' ')
+                    result.forget()
+            GLOBALS.lock.release()
+
+        app.logger.info('Survey {} archived'.format(survey_id))
+        app.logger.info('Updating task empty image counts')
+
+        # Update task empty image counts
+        tasks = db.session.query(Task).filter(Task.survey_id==survey_id).filter(Task.name != 'default').filter(~Task.name.contains('_o_l_d_')).filter(~Task.name.contains('_copying')).distinct().all()
+        for task in tasks:
+            task_id = task.id
+            cluster_sq = db.session.query(Cluster.id)\
+                        .join(Image, Cluster.images)\
+                        .join(Detection)\
+                        .filter(Cluster.task_id==task_id)\
+                        .filter(or_(and_(Detection.source==model,Detection.score>Config.DETECTOR_THRESHOLDS[model]) for model in Config.DETECTOR_THRESHOLDS))\
+                        .distinct().subquery()             
+
+            task.empty_count = db.session.query(Image.id)\
+                                .join(Cluster, Image.clusters)\
+                                .join(Detection)\
+                                .join(Labelgroup)\
+                                .outerjoin(cluster_sq, cluster_sq.c.id==Cluster.id)\
+                                .filter(cluster_sq.c.id==None)\
+                                .filter(Cluster.task_id==task_id)\
+                                .filter(Labelgroup.task_id==task_id)\
+                                .filter(Labelgroup.checked==False)\
+                                .distinct().count()
+
+        db.session.commit()
+        app.logger.info('Task empty image counts updated')
+
+    except Exception as exc:
+        app.logger.info(' ')
+        app.logger.info('!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!')
+        app.logger.info(traceback.format_exc())
+        app.logger.info('!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!')
+        app.logger.info(' ')
+        self.retry(exc=exc, countdown= retryTime(self.request.retries))
+
+    finally:
+        db.session.remove()
 
     return True

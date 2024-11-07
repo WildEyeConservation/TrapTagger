@@ -276,23 +276,11 @@ def launchTask():
             message = message[:-2] + '.'
 
             return json.dumps({'message': message, 'status': 'Error'})
-
-    # Check last restore
-    # if ('-4' in taggingLevel) or ('-5' in taggingLevel):
-    #     last_id_restores = [t.survey.id_restore for t in tasks if t.survey.id_restore]
-    #     if last_id_restores:
-    #         last_id_restore = max(last_id_restores)
-    #         if (datetime.utcnow() - last_id_restore).days < timedelta(days=Config.RESTORE_COOLDOWN).days:
-    #             return json.dumps({'message': 'Your survey has recently had images restored from archive. The system requires a cooldown period of ' + str(Config.RESTORE_COOLDOWN) + ' days before another restoration can be performed.', 'status': 'Error'})
+    
+    if ('-4' in taggingLevel) or ('-5' in taggingLevel) or ('-7' in taggingLevel):
+        if Config.DISABLE_RESTORE:
+            return json.dumps({'message': 'No restoration of files from archival storage is allowed at this time. Please try again later.', 'status': 'Error'})
             
-    # if ('-7' in taggingLevel):
-    #     last_empty_restores = [t.survey.empty_restore for t in tasks if t.survey.empty_restore]
-    #     if last_empty_restores:
-    #         last_empty_restores = max(last_empty_restores)
-    #         if (datetime.utcnow() - last_empty_restores).days < timedelta(days=Config.RESTORE_COOLDOWN).days:
-    #             return json.dumps({'message': 'Your survey has recently had images restored from archive. The system requires a cooldown period of ' + str(Config.RESTORE_COOLDOWN) + ' days before another restoration can be performed.', 'status': 'Error'})
-            
-
     task = db.session.query(Task).get(task_ids[0])
     message = 'Annotation set not ready to be launched.'
 
@@ -1224,6 +1212,9 @@ def deleteSurvey(survey_id):
                 status = 'error'
                 message = 'Your survey is currently having files restored from archive. Deleting your survey is not possible during this process. Please wait until the 48 hour restoration period has completed.'
 
+            if Config.DISABLE_RESTORE:
+                status = 'error'
+                message = 'Deleting surveys is currently disabled. Please try again later.'
 
             #Check that survey is not in use
             if status != 'error':
@@ -2072,15 +2063,14 @@ def editSurvey():
             if classifier_id or ignore_small_detections or sky_masked or timestamps or coordData or masks or staticgroups or kml or imageTimestamps:
                 app.logger.info('Edit survey requested for {} with classifier: {}, ignore_small_detections: {}, sky_masked: {}, timestamps: {}, coordData: {}, masks: {}, staticgroups: {}, kml: {}, imageTimestamps: {}'.format(survey.name,classifier_id,ignore_small_detections,sky_masked,timestamps,coordData,masks,staticgroups,kml,imageTimestamps))
                 if classifier_id and survey.classifier_id != classifier_id:
-                    # Need to restore images from Glacier if classifier is changed. Restoration takes 48 hours.
-                    # if survey.edit_restore and (datetime.utcnow()-survey.edit_restore).days < timedelta(days=Config.RESTORE_COOLDOWN).days:
-                    #     status = 'error'
-                    #     message = 'Your survey recently had images restored. The system requires a cooldown period of {} days before another restoration can be requested. Image restoration is required when editing the classifier.'.format(Config.RESTORE_COOLDOWN)
-                    # else:
-                    survey.status = 'Processing'
-                    db.session.commit()
-                    edit_survey_args = {'survey_id':survey.id,'user_id':current_user.id,'classifier_id':classifier_id,'ignore_small_detections':ignore_small_detections,'sky_masked':sky_masked,'timestamps':timestamps,'coord_data':coordData,'masks':masks,'staticgroups':staticgroups,'kml_file':kml,'image_timestamps':imageTimestamps}
-                    restore_images_for_classification.delay(survey_id=survey.id,days=Config.EDIT_RESTORE_DAYS,edit_survey_args=edit_survey_args,tier=Config.RESTORE_TIER)
+                    if Config.DISABLE_RESTORE:
+                        status = 'error'
+                        message = 'No restoration of files from archival storage is allowed at this time. Please try again later.'
+                    else:
+                        survey.status = 'Processing'
+                        db.session.commit()
+                        edit_survey_args = {'survey_id':survey.id,'user_id':current_user.id,'classifier_id':classifier_id,'ignore_small_detections':ignore_small_detections,'sky_masked':sky_masked,'timestamps':timestamps,'coord_data':coordData,'masks':masks,'staticgroups':staticgroups,'kml_file':kml,'image_timestamps':imageTimestamps}
+                        restore_images_for_classification.delay(survey_id=survey.id,days=Config.EDIT_RESTORE_DAYS,edit_survey_args=edit_survey_args,tier=Config.RESTORE_TIER)
                 else:
                     survey.status = 'Processing'
                     db.session.commit()
@@ -3706,10 +3696,7 @@ def getHomeSurveys():
                                 ShareUserPermissions.c.default,
                                 SurveyShare.permission,
                                 UserPermissions.create,
-                                Survey.id_restore,
-                                Survey.edit_restore,
-                                Survey.empty_restore,
-                                Survey.download_restore,
+                                Survey.require_launch,
                             ).outerjoin(Task,Task.survey_id==Survey.id)\
                             .outerjoin(siteSQ,siteSQ.c.id==Survey.id)\
                             .outerjoin(completeJobsSQ,completeJobsSQ.c.id==Task.id)\
@@ -3756,10 +3743,9 @@ def getHomeSurveys():
             elif surveyStatus.lower() == 'restoring files':
                 survey_data[item[0]]['restore'] = 0
                 survey_data[item[0]]['total_restore'] = Config.RESTORE_TIME/3600
-                restore_dates = [i for i in [item[27], item[28], item[29], item[30]] if i]
-                max_date = max(restore_dates) if restore_dates else None
-                if max_date:
-                    restore_time = math.floor(((datetime.utcnow() - max_date).total_seconds() / 3600))
+                require_launch = item[27]
+                if require_launch:
+                    restore_time = math.floor(((Config.RESTORE_TIME-(require_launch-datetime.now()).total_seconds()) / 3600))
                     survey_data[item[0]]['restore'] = restore_time
 
         if item[8] and (item[9]!='default') and (item[8] not in handled_tasks):
@@ -3892,10 +3878,9 @@ def getHomeSurveys():
                 elif surveyStatus.lower() == 'restoring files':
                     survey_data2[item[0]]['restore'] = 0
                     survey_data2[item[0]]['total_restore'] = Config.RESTORE_TIME/3600
-                    restore_dates = [i for i in [item[27], item[28], item[29], item[30]] if i]
-                    max_date = max(restore_dates) if restore_dates else None
-                    if max_date:
-                        restore_time = math.floor(((datetime.utcnow() - max_date).total_seconds() / 3600))
+                    require_launch = item[27]
+                    if require_launch:
+                        restore_time = math.floor(((Config.RESTORE_TIME-(require_launch-datetime.now()).total_seconds()) / 3600))
                         survey_data2[item[0]]['restore'] = restore_time
 
             if item[8] and (item[9]!='default') and (item[8] not in handled_tasks):
@@ -4583,13 +4568,15 @@ def exportRequest():
             if check:
                 return json.dumps({'status':'error',  'message': 'A download request for this task is already pending. Please wait for the previous request to complete.'})
                     
+            if Config.DISABLE_RESTORE:
+                return json.dumps({'status':'error', 'message': 'No restoration of files from archival storage is allowed at this time. Please try again later.'})
+
             # Create Download request
             download_request = DownloadRequest(type='export', user_id=current_user.id, task_id=task_id, status='Pending', timestamp=datetime.utcnow())
             db.session.add(download_request)
             db.session.commit()
 
-            response = generate_wildbook_export.delay(task_id=task_id,data=data,user_name=current_user.username,download_id=download_request.id)
-
+            response = restore_images_for_export.apply_async(kwargs={'task_id':task_id,'data':data,'user_name':current_user.username,'download_request_id':download_request.id, 'days':Config.DOWNLOAD_RESTORE_DAYS,'tier':Config.RESTORE_TIER})
             download_request.celery_id = response.id
             db.session.commit()
 
@@ -14194,7 +14181,7 @@ def invoke_lambda():
                     }
 
                     invoked_lambdas = 0
-                    for batch in chunker(image_keys, 400):
+                    for batch in chunker(image_keys, 350):
                         payload['keys'] = batch
                         GLOBALS.lambdaClient.invoke(FunctionName=Config.IMAGE_IMPORT_LAMBDA, InvocationType='Event', Payload=json.dumps(payload))
                         invoked_lambdas += 1
@@ -14237,7 +14224,7 @@ def getDownloadRequests():
                                     Survey.name, 
                                     Organisation.name, 
                                     Organisation.folder,
-                                    Survey.download_restore,
+                                    Survey.require_launch,
                                     DownloadRequest.name
                                 )\
                                 .join(Task, DownloadRequest.task_id==Task.id)\
@@ -14257,7 +14244,7 @@ def getDownloadRequests():
             survey_name = d[6]
             org_name = d[7]
             org_folder = d[8]
-            survey_restore = d[9]
+            survey_launch = d[9]
             name = d[10] if d[10] else ''
 
             req_dict = {
@@ -14279,29 +14266,29 @@ def getDownloadRequests():
                 if status == 'Downloading':
                     current_download_requests.append(req_dict)
                 else:
-                    expires = calculate_restore_expiry_date(survey_restore,Config.RESTORE_TIME,Config.DOWNLOAD_RESTORE_DAYS)
-                    if expires:
-                        if expires > date_now:
-                            if timestamp and status == 'Restoring Files':
-                                restore_time = math.floor(((datetime.utcnow() - timestamp).total_seconds() / 3600))
-                                req_dict['restore'] = restore_time
-                                req_dict['total_restore'] = Config.RESTORE_TIME/3600
+                    if status == 'Restoring Files':
+                        restore_time = math.floor(((survey_launch-datetime.now()).total_seconds() / 3600))
+                        req_dict['restore'] = restore_time
+                        req_dict['total_restore'] = Config.RESTORE_TIME/3600
                             
-                            req_dict['expires'] = expires.strftime('%Y-%m-%dT%H:%M:%SZ')
-                            download_requests.append(req_dict)
+                        req_dict['expires'] = timestamp.strftime('%Y-%m-%dT%H:%M:%SZ')
+                        download_requests.append(req_dict)
+                    elif status == 'Available':
+                        if timestamp > date_now:
+                            req_dict['expires'] = timestamp.strftime('%Y-%m-%dT%H:%M:%SZ')
+                            download_requests.append(req_dict)  
                     else:
-                        if timestamp + timedelta(days=Config.DOWNLOAD_RESTORE_DAYS) > date_now:
-                            download_requests.append(req_dict)       
+                        download_requests.append(req_dict)     
             else:
-                if timestamp + timedelta(days=7) > date_now:
-                    file = req_type.upper() + ' - ' + survey_name + ' ' + task_name
-                    req_dict['file'] = file
-                    if status == 'Available':
-                        req_dict['expires'] = (timestamp + timedelta(days=7)).strftime('%Y-%m-%dT%H:%M:%SZ')
+                file = req_type.upper() + ' - ' + survey_name + ' ' + task_name
+                req_dict['file'] = file
+                if status == 'Available':
+                    if timestamp > date_now:
+                        req_dict['expires'] = timestamp.strftime('%Y-%m-%dT%H:%M:%SZ')
                         req_dict['url'] = 'https://'+Config.BUCKET+'.s3.amazonaws.com/'+(org_folder+'/docs/'+ org_name+'_'+current_user.username+'_'+survey_name+'_'+task_name +'_' + name + '.'+ Config.RESULT_TYPES[req_type]).replace('+','%2B').replace('?','%3F').replace('#','%23')
                         download_requests.append(req_dict)
-                    else:
-                        download_requests.append(req_dict)
+                else:
+                    download_requests.append(req_dict)
 
         download_requests = current_download_requests + download_requests
         count = len(download_requests)
@@ -14311,6 +14298,7 @@ def getDownloadRequests():
 
     return json.dumps({'download_requests': download_requests, 'next': next, 'prev': prev})
 
+
 @app.route('/checkAvailableDownloads')
 @login_required
 def checkDownloadRequests():
@@ -14318,24 +14306,13 @@ def checkDownloadRequests():
     available_downloads = 0
     if current_user and current_user.is_authenticated:
         date_now = datetime.utcnow()
-        requests = db.session.query(DownloadRequest.id,DownloadRequest.timestamp,DownloadRequest.type,Survey.download_restore)\
+        available_downloads = db.session.query(DownloadRequest.id)\
                                 .join(Task, DownloadRequest.task_id==Task.id)\
                                 .join(Survey)\
                                 .filter(DownloadRequest.user_id==current_user.id)\
                                 .filter(DownloadRequest.status=='Available')\
-                                .distinct().all()
-
-        for r in requests:
-            if r[2] == 'file':
-                expiry = calculate_restore_expiry_date(r[3],Config.RESTORE_TIME,Config.DOWNLOAD_RESTORE_DAYS)
-                if expiry and expiry > date_now:
-                    available_downloads += 1
-                elif not r[3]:
-                    if r[1] + timedelta(days=Config.DOWNLOAD_RESTORE_DAYS) > date_now:
-                        available_downloads += 1
-            else:
-                if r[1] + timedelta(days=7) > date_now:
-                    available_downloads += 1
+                                .filter(DownloadRequest.timestamp > date_now)\
+                                .distinct().count()
 
     return json.dumps({'available_downloads': available_downloads})
 
@@ -14370,9 +14347,9 @@ def restore_for_download():
             if check or check2:
                 status = 'error'
                 message = 'A download is already in progress for this survey. Please try again later.'
-            # elif survey.download_restore and (datetime.utcnow()-survey.download_restore).days < timedelta(days=Config.RESTORE_COOLDOWN).days:
-            #     status = 'error'
-            #     message = 'Your survey recently had images restored. The system requires a cooldown period of {} days before another restoration can be requested.'.format(Config.RESTORE_COOLDOWN)
+            elif Config.DISABLE_RESTORE:
+                status = 'error'
+                message = 'No restoration of files from archival storage is allowed at this time. Please try again later.'
             else:
                 # Check if any surveys are busy with a dearchival process
                 if survey.status == 'Restoring Files':

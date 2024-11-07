@@ -439,6 +439,9 @@ def delete_survey(self,survey_id):
         tasks = [r[0] for r in db.session.query(Task.id).filter(Task.survey_id==survey_id).all()]
 
         survey = db.session.query(Survey).get(survey_id)
+        if not survey:
+            return True
+        
         survey_folder = survey.organisation.folder+'/'+survey.name+'/%'
 
         app.logger.info('Deleting survey {}'.format(survey_id))

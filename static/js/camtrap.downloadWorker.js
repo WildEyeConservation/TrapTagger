@@ -508,7 +508,21 @@ async function downloadFile(url,paths,labels,hash,count=0) {
             errorEcountered = true
             filesDownloaded += paths.length
         } else {
-            setTimeout(function() { downloadFile(url,paths,labels,hash,count+1); }, 1000*(5**count));
+            if (count==5){
+                if (url.includes('-comp')){
+                    setTimeout(function() { downloadFile(url,paths,labels,hash,count+1); }, 1000*(5**count));
+                }
+                else{
+                    // Try downloading the comp version
+                    splits = url.split('/')
+                    splits[0] = splits[0]+'-comp'
+                    comp_url = splits.join('/')
+                    downloadFile(comp_url,paths,labels,hash,count+1)
+                }
+            }
+            else{
+                setTimeout(function() { downloadFile(url,paths,labels,hash,count+1); }, 1000*(5**count));
+            }
         }
     }
 }

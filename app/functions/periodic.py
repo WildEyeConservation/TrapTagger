@@ -23,6 +23,7 @@ from app.functions.admin import stop_task, edit_survey
 from app.functions.annotation import freeUpWork, wrapUpTask, launch_task
 from app.functions.archive import restore_images_for_id, restore_files_for_download, process_files_for_download, extract_zips
 from app.functions.individualID import calculate_detection_similarities
+from app.functions.results import generate_wildbook_export
 import GLOBALS
 from sqlalchemy.sql import func, distinct, or_, alias, and_
 from sqlalchemy import desc
@@ -727,7 +728,7 @@ def manage_task(task_id):
 def manage_tasks_with_restore():
     ''' Manages tasks which use images that have been restored from Glacier '''
 
-    restored_tasks = db.session.query(Task.id, Task.tagging_level, Survey.id, Survey.id_restore, Survey.empty_restore, func.max(User.last_ping).label('last_active'),Survey.name)\
+    restored_tasks = db.session.query(Task.id, Task.tagging_level, Survey.id, func.max(User.last_ping).label('last_active'),Survey.name,Survey.require_launch)\
                     .join(Survey, Task.survey_id==Survey.id)\
                     .outerjoin(Turkcode, Turkcode.task_id==Task.id)\
                     .outerjoin(User, Turkcode.user_id==User.id)\
@@ -742,34 +743,38 @@ def manage_tasks_with_restore():
         task_id = data[0]
         tagging_level = data[1]
         survey_id = data[2]
-        id_restore = data[3]
-        empty_restore = data[4]
-        last_active = data[5]
-        survey_name = data[6]
+        last_active = data[3]
+        survey_name = data[4]
+        require_launch = data[5]
         date_now = datetime.utcnow()
         msg = None
         if '-7' in tagging_level:
-            if empty_restore:
-                expiry_date = calculate_restore_expiry_date(empty_restore, Config.RESTORE_TIME, 30)
-                time_left = expiry_date - date_now
-
-                if time_left.days < 0:
-                    msg = '<p> Your Empty Label Check job for survey {} has been stopped due to the expiration of the empty images restoration from archival storage and lack of activity.</p>'.format(survey_name)
-                    task = db.session.query(Task).get(task_id)
-                    task.status = 'Stopping'
-                    db.session.commit()
-                    stop_task.delay(task_id=task_id)
-                elif time_left.days < 1:
-                    if last_active:
-                        if (date_now - last_active).days > 5:
-                            msg = '<p> Your Empty Label Check job on empty clusters for survey {} has been stopped due to the expiration of the empty images restoration from archival storage and lack of activity.</p>'.format(survey_name)
-                            task = db.session.query(Task).get(task_id)
-                            task.status = 'Stopping'
-                            db.session.commit()
-                            stop_task.delay(task_id=task_id)
+            expiry_date = db.session.query(func.max(Zip.expiry_date))\
+                                    .filter(Zip.survey_id==survey_id)\
+                                    .filter(Zip.expiry_date!=None)\
+                                    .distinct().first()
+            if expiry_date:
+                expiry_date = expiry_date[0]
+                date_launched = expiry_date - timedelta(days=Config.EMPTY_RESTORE_DAYS)
+                if (date_now - date_launched).days > 30:
+                    if not last_active or (date_now - last_active).days > 5:
+                        msg = '<p> Your Empty Label Check job on empty clusters for survey {} has been stopped due to the expiration of the empty images restoration from archival storage and lack of activity.</p>'.format(survey_name)
+                        task = db.session.query(Task).get(task_id)
+                        task.status = 'Stopping'
+                        db.session.commit()
+                        stop_task.delay(task_id=task_id)
         else:
-            if id_restore:
-                expiry_date = calculate_restore_expiry_date(id_restore, Config.RESTORE_TIME, Config.ID_RESTORE_DAYS)
+            species = tagging_level.split(',')[1]
+            expiry_date = db.session.query(func.min(Image.expiry_date))\
+                                    .join(Detection)\
+                                    .join(Labelgroup)\
+                                    .join(Label,Labelgroup.labels)\
+                                    .filter(Labelgroup.task_id==task_id)\
+                                    .filter(Image.expiry_date!=None)\
+                                    .filter(Label.description==species)\
+                                    .distinct().first()
+            if expiry_date and not require_launch:
+                expiry_date = expiry_date[0]
                 time_left = expiry_date - date_now
                 if time_left.days < 0:
                     msg = '<p>Your Individual ID job for survey {} has been stopped due to the expiration of the RAW images restoration from archival storage and lack of activity.</p>'.format(survey_name)
@@ -787,7 +792,7 @@ def manage_tasks_with_restore():
                             stop_task.delay(task_id=task_id)
                         else:
                             survey = db.session.query(Survey).get(survey_id)
-                            survey.id_restore = date_now
+                            survey.require_launch = date_now
                             db.session.commit()
                             restore_images_for_id.apply_async(kwargs={'task_id':task_id,'days':Config.ID_RESTORE_DAYS,'tier':Config.RESTORE_TIER,'extend':True})
 
@@ -867,52 +872,40 @@ def manageDownloadRequests():
 
     try:
         date_now = datetime.utcnow()
-        download_requests = db.session.query(DownloadRequest, Survey.download_restore, Survey.id).join(Task,DownloadRequest.task_id==Task.id).join(Survey).distinct().all()
+        download_requests = db.session.query(DownloadRequest, Task.survey_id).join(Task).distinct().all()
         for req in download_requests:
             request = req[0]
-            survey_restore = req[1]
-            survey_id = req[2]
-            expiry_date = calculate_restore_expiry_date(survey_restore, Config.RESTORE_TIME, Config.DOWNLOAD_RESTORE_DAYS)
+            survey_id = req[1]
+            expiry_date = request.timestamp
             if request.type == 'file':
                 task_id = request.task_id
-                if request.status == 'Downloading':
-                    # Check if the download is still active
-                    redis_keys = [r.decode() for r in GLOBALS.redisClient.keys()]
-                    if 'download_ping_'+str(task_id) not in redis_keys:
-                        if request.name=='restore':
-                            if expiry_date and expiry_date > date_now and 'fileDownloadParams_'+str(task_id)+'_'+str(request.user_id) in redis_keys:
-                                request.status = 'Available'
-                                request.timestamp = date_now
-                                db.session.commit()
-                            else:
-                                try:
-                                    include_empties = json.loads(GLOBALS.redisClient.get('fileDownloadParams_'+str(task_id)+'_'+str(request.user_id)).decode())['include_empties']
-                                    if include_empties:
-                                        check = db.session.query(Task.id).filter(Task.survey_id==survey_id).filter(Task.tagging_level=='-7').filter(Task.status.in_(['PROGRESS','PENDING'])).first()
-                                        if not check:
-                                            cleanup_empty_restored_images.delay(task_id=task_id)
-                                except:
-                                    pass
-                                GLOBALS.redisClient.delete('fileDownloadParams_'+str(task_id)+'_'+str(request.user_id))
-                                db.session.delete(request)
-                        else:
-                            if request.timestamp + timedelta(days=7) <= date_now:
-                                db.session.delete(request)
-                else:
-                    if expiry_date and expiry_date <= date_now:
+                if expiry_date and expiry_date <= date_now:
+                    if request.name == 'restore':
+                        try:
+                            include_empties = json.loads(GLOBALS.redisClient.get('fileDownloadParams_'+str(task_id)+'_'+str(request.user_id)).decode())['include_empties']
+                            if include_empties:
+                                check = db.session.query(Task.id).filter(Task.survey_id==survey_id).filter(Task.tagging_level=='-7').filter(Task.status.in_(['PROGRESS','PENDING'])).first()
+                                if not check:
+                                    cleanup_empty_restored_images.delay(task_id=task_id)
+                        except:
+                            pass
                         GLOBALS.redisClient.delete('fileDownloadParams_'+str(task_id)+'_'+str(request.user_id))
                         db.session.delete(request)
-                    elif not expiry_date:
-                        if request.timestamp + timedelta(days=Config.DOWNLOAD_RESTORE_DAYS) <= date_now:
-                            GLOBALS.redisClient.delete('fileDownloadParams_'+str(task_id)+'_'+str(request.user_id))
-                            db.session.delete(request)
+                else:
+                    if request.status == 'Downloading' and request.name=='restore':
+                        redis_keys = [r.decode() for r in GLOBALS.redisClient.keys()]
+                        if 'download_ping_'+str(task_id) not in redis_keys and 'fileDownloadParams_'+str(task_id)+'_'+str(request.user_id) in redis_keys:
+                            request.status = 'Available'
+                            db.session.commit()
             else:
                 if request.status == 'Available':
-                    if request.timestamp + timedelta(days=7) <= date_now:
+                    if expiry_date and expiry_date <= date_now:
                         if request.name:
                             fileName = request.task.survey.organisation.folder+'/docs/'+request.task.survey.organisation.name+'_'+request.user.username+'_'+request.task.survey.name+'_'+request.task.name +'_'+ request.name +'.' + Config.RESULT_TYPES[request.type]
-                            deleteFile.apply_async(kwargs={'fileName': fileName})
-                            db.session.delete(request)
+                        else:
+                            fileName = request.task.survey.organisation.folder+'/docs/'+request.task.survey.organisation.name+'_'+request.user.username+'_'+request.task.survey.name+'_'+request.task.name + '.' + Config.RESULT_TYPES[request.type]
+                        deleteFile.apply_async(kwargs={'fileName': fileName})
+                        db.session.delete(request)
         
         db.session.commit() 
 
@@ -934,23 +927,18 @@ def manageDownloadRequests():
 def checkRestoreDownloads(task_id):
     '''Function that checks if there are any downloads with restored images that require the files restoration to be extended'''
 
-    survey = db.session.query(Survey).join(Task).filter(Task.id==task_id).first()
     date_now = datetime.utcnow()
-    if survey.download_restore and survey.download_restore >= (date_now - timedelta(days=Config.DOWNLOAD_RESTORE_DAYS, seconds=Config.RESTORE_TIME)): 
-        expiry_date = calculate_restore_expiry_date(survey.download_restore, Config.RESTORE_TIME, Config.DOWNLOAD_RESTORE_DAYS)
-        if (expiry_date - date_now).days < 1:
-            download_requests = db.session.query(DownloadRequest).filter(DownloadRequest.task_id == task_id).filter(DownloadRequest.type == 'file').filter(DownloadRequest.status == 'Downloading').all()
-            for request in download_requests:
-                if request.name=='restore':
-                    try:
-                        user_id = request.user_id
-                        download_params = GLOBALS.redisClient.get('fileDownloadParams_'+str(task_id)+'_'+str(user_id)).decode()
-                        download_params = json.loads(download_params)
-                        survey.download_restore = date_now
-                        db.session.commit()
-                        restore_files_for_download.apply_async(kwargs={'task_id':task_id,'download_request_id':request.id,'days':Config.DOWNLOAD_RESTORE_DAYS,'download_params':download_params,'tier':Config.RESTORE_TIER,'extend':True})
-                    except:
-                        continue
+    download_request = db.session.query(DownloadRequest).filter(DownloadRequest.task_id == task_id).filter(DownloadRequest.type == 'file').filter(DownloadRequest.status == 'Downloading').filter(DownloadRequest.name=='restore').first()
+    if download_request and (date_now - download_request.timestamp).days == 0:
+        try:
+            user_id = download_request.user_id
+            download_params = GLOBALS.redisClient.get('fileDownloadParams_'+str(task_id)+'_'+str(user_id)).decode()
+            download_params = json.loads(download_params)
+            download_request.timestamp = date_now + timedelta(days=Config.DOWNLOAD_RESTORE_DAYS)
+            db.session.commit()
+            restore_files_for_download.apply_async(kwargs={'task_id':task_id,'download_request_id':download_request.id,'days':Config.DOWNLOAD_RESTORE_DAYS,'download_params':download_params,'tier':Config.RESTORE_TIER,'extend':True})
+        except:
+            pass
 
     return True
 
@@ -958,42 +946,35 @@ def checkRestoreDownloads(task_id):
 def monitorFileRestores():
     '''Celery task that monitors restores and schedules tasks for restored images that require processing'''
     try:
-        start_restore = datetime.now() - timedelta(seconds=Config.RESTORE_TIME)
-
+        date_now = datetime.utcnow()
         surveys = db.session.query(Survey)\
-                            .filter(Survey.require_launch==True)\
-                            .filter(Survey.status.in_(Config.SURVEY_READY_STATUSES))\
-                            .filter(or_(
-                                Survey.download_restore<start_restore,
-                                Survey.id_restore<start_restore,
-                                Survey.empty_restore<start_restore,
-                                Survey.edit_restore<start_restore
-                            ))\
+                            .filter(Survey.require_launch<=date_now)\
+                            .filter(Survey.status=='Restoring Files')\
                             .distinct().all()
-        
-        for survey in surveys: 
-            restore_dates = [r for r in [survey.download_restore,survey.id_restore,survey.empty_restore,survey.edit_restore] if r]
-            max_restore = max(restore_dates) if restore_dates else None
-            if survey.download_restore and survey.download_restore<start_restore and survey.download_restore==max_restore:
+
+        redis_keys = [r.decode() for r in GLOBALS.redisClient.keys()]
+        for survey in surveys:
+            if 'download_launch_kwargs_'+str(survey.id) in redis_keys:
                 try:
                     launch_kwargs = GLOBALS.redisClient.get('download_launch_kwargs_'+str(survey.id)).decode()
                     launch_kwargs = json.loads(launch_kwargs)  
-                    survey.require_launch = False
-                    survey.status = 'Processing'
+                    survey.require_launch = None
+                    survey.status = 'Ready'
+                    download_request = db.session.query(DownloadRequest).get(launch_kwargs['download_request_id'])
+                    download_request.status = 'Pending'
                     db.session.commit()
                     process_files_for_download.apply_async(kwargs=launch_kwargs)
                 except:
-                    if survey.status == 'Restoring Files': survey.status = 'Ready'
-                    survey.require_launch = False
+                    survey.require_launch = None
+                    survey.status = 'Ready'
                 GLOBALS.redisClient.delete('download_launch_kwargs_'+str(survey.id))
-
-            elif survey.id_restore and survey.id_restore<start_restore and survey.id_restore==max_restore:
+            elif 'id_launch_kwargs_'+str(survey.id) in redis_keys:
                 try:
                     launch_kwargs = GLOBALS.redisClient.get('id_launch_kwargs_'+str(survey.id)).decode()
                     launch_kwargs = json.loads(launch_kwargs)   
                     task = db.session.query(Task).get(launch_kwargs['task_id'])
                     task.tagging_level = launch_kwargs['tagging_level']  
-                    survey.require_launch = False
+                    survey.require_launch = None
                     survey.status = 'Processing'
                     db.session.commit()        
                     del launch_kwargs['tagging_level']   
@@ -1003,45 +984,54 @@ def monitorFileRestores():
                     else:
                         launch_task.apply_async(kwargs=launch_kwargs)
                 except:
-                    if survey.status == 'Restoring Files': 
-                        survey.status = 'Ready'
-                        if any(task.sub_tasks for task in survey.tasks):
-                            for task in survey.tasks:
-                                for sub_task in task.sub_tasks:
-                                    if sub_task.survey.status == 'Restoring Files':
-                                        sub_task.survey.status = 'Ready'
-                    survey.require_launch = False
+                    survey.require_launch = None
+                    survey.status = 'Ready'
                 GLOBALS.redisClient.delete('id_launch_kwargs_'+str(survey.id))
-
-            elif survey.empty_restore and survey.empty_restore<start_restore and survey.empty_restore==max_restore:
+            elif 'empty_launch_kwargs_'+str(survey.id) in redis_keys:
                 try:
                     launch_kwargs = GLOBALS.redisClient.get('empty_launch_kwargs_'+str(survey.id)).decode()
                     launch_kwargs = json.loads(launch_kwargs)  
                     task = db.session.query(Task).get(launch_kwargs['task_id'])
                     task.tagging_level = launch_kwargs['tagging_level']
-                    survey.require_launch = False
+                    survey.require_launch = None
                     survey.status = 'Processing'
                     db.session.commit()
                     del launch_kwargs['tagging_level']
                     extract_zips.apply_async(kwargs=launch_kwargs)
                 except:
-                    if survey.status == 'Restoring Files': survey.status = 'Ready'
-                    survey.require_launch = False
+                    survey.require_launch = None
+                    survey.status = 'Ready'
                 GLOBALS.redisClient.delete('empty_launch_kwargs_'+str(survey.id))
-
-            elif survey.edit_restore and survey.edit_restore<start_restore and survey.edit_restore==max_restore:
+            elif 'edit_launch_kwargs_'+str(survey.id) in redis_keys:
                 try:
                     launch_kwargs = GLOBALS.redisClient.get('edit_launch_kwargs_'+str(survey.id)).decode()
                     launch_kwargs = json.loads(launch_kwargs)  
-                    survey.require_launch = False
+                    survey.require_launch = None
                     survey.status = 'Processing'
                     db.session.commit()
                     edit_survey.apply_async(kwargs=launch_kwargs)
                 except:
-                    if survey.status == 'Restoring Files': survey.status = 'Ready'
-                    survey.require_launch = False
+                    survey.require_launch = None
+                    survey.status = 'Ready'
                 GLOBALS.redisClient.delete('edit_launch_kwargs_'+str(survey.id))
-               
+            elif 'export_launch_kwargs_'+str(survey.id) in redis_keys:
+                try:
+                    launch_kwargs = GLOBALS.redisClient.get('export_launch_kwargs_'+str(survey.id)).decode()
+                    launch_kwargs = json.loads(launch_kwargs)  
+                    survey.require_launch = None
+                    survey.status = 'Ready'
+                    download_request = db.session.query(DownloadRequest).get(launch_kwargs['download_request_id'])
+                    download_request.status = 'Pending'
+                    db.session.commit()
+                    generate_wildbook_export.apply_async(kwargs=launch_kwargs)
+                except:
+                    survey.require_launch = None
+                    survey.status = 'Ready'
+                GLOBALS.redisClient.delete('export_launch_kwargs_'+str(survey.id))
+            else:
+                survey.require_launch = None
+                survey.status = 'Ready'
+                
         if surveys:
             db.session.commit()
 

@@ -1163,7 +1163,7 @@ def generate_csv(self,selectedTasks, selectedLevel, requestedColumns, custom_col
         download_request = db.session.query(DownloadRequest).get(download_id)
         if download_request:
             download_request.status = 'Available'
-            download_request.timestamp = datetime.now()
+            download_request.timestamp = datetime.now() + timedelta(days=7)
             download_request.name = randomness
             db.session.commit()
 
@@ -1181,7 +1181,7 @@ def generate_csv(self,selectedTasks, selectedLevel, requestedColumns, custom_col
     return True
 
 @celery.task(bind=True,max_retries=5,ignore_result=True)
-def generate_wildbook_export(self,task_id, data, user_name, download_id):
+def generate_wildbook_export(self,task_id, data, user_name, download_request_id):
     '''
     Celery task for generating the WildBook export format. Saves export in zip file locally.
 
@@ -1202,7 +1202,7 @@ def generate_wildbook_export(self,task_id, data, user_name, download_id):
         # except:
         #     pass
 
-        tempFolderName = fileName+'_'+randomness+'_temp'
+        tempFolderName = fileName+'_temp'
         species = db.session.query(Label).get(int(data['species']))
 
         df = pd.read_sql(db.session.query( \
@@ -1250,7 +1250,7 @@ def generate_wildbook_export(self,task_id, data, user_name, download_id):
 
             df = df.fillna('None')
 
-            df['path'] = df.apply(lambda x: x['path'].split('/',1)[0] + '-comp/' + x['path'].split('/',1)[1], axis=1)
+            df['comp_path'] = df.apply(lambda x: x['path'].split('/',1)[0] + '-comp/' + x['path'].split('/',1)[1], axis=1)
 
             if os.path.isdir(tempFolderName):
                 shutil.rmtree(tempFolderName)
@@ -1261,14 +1261,11 @@ def generate_wildbook_export(self,task_id, data, user_name, download_id):
                 os.makedirs(subsetFolder, exist_ok=True)
                 tempDF = df.loc[n*1000:(n+1)*1000-1]
 
-                tempDF.apply(lambda x: GLOBALS.s3client.download_file(
-                    Bucket=Config.BUCKET, 
-                    Key=(x['path']+'/'+x['filename']), 
-                    Filename=(subsetFolder+'/'+x['Encounter.mediaAsset0'])
-                ), axis=1)
+                tempDF.apply(lambda x: file_download_for_export(x,subsetFolder), axis=1)
 
                 del tempDF['path']
                 del tempDF['filename']
+                del tempDF['comp_path']
                 tempDF.to_csv(subsetFolder+'/metadata.csv',index=False)
 
             shutil.make_archive(tempFolderName, 'zip', tempFolderName)
@@ -1278,10 +1275,9 @@ def generate_wildbook_export(self,task_id, data, user_name, download_id):
         # Schedule deletion
         # deleteFile.apply_async(kwargs={'fileName': fileName+'.zip'}, countdown=3600)
 
-        download_request = db.session.query(DownloadRequest).get(download_id)
+        download_request = db.session.query(DownloadRequest).get(download_request_id)
         if download_request:
             download_request.status = 'Available'
-            download_request.timestamp = datetime.now()
             download_request.name = randomness
             db.session.commit()
 
@@ -1298,6 +1294,23 @@ def generate_wildbook_export(self,task_id, data, user_name, download_id):
 
     return True
 
+def file_download_for_export(x,subsetFolder):
+    ''' Tries to download the file for a row of data. Uses comp file if raw not available'''
+    try:
+        GLOBALS.s3client.download_file(
+            Bucket=Config.BUCKET, 
+            Key=(x['path']+'/'+x['filename']), 
+            Filename=(subsetFolder+'/'+x['Encounter.mediaAsset0'])
+        )
+    except:
+        try:
+            GLOBALS.s3client.download_file(
+                Bucket=Config.BUCKET, 
+                Key=(x['comp_path']+'/'+x['filename']), 
+                Filename=(subsetFolder+'/'+x['Encounter.mediaAsset0'])
+            )
+        except:
+            pass
 
 def num_to_excel_col(n):
     '''Converts a numerical column index into an Excel format column.'''
@@ -1634,7 +1647,7 @@ def generate_excel(self,task_id,user_name,download_id):
         download_request = db.session.query(DownloadRequest).get(download_id)
         if download_request:
             download_request.status = 'Available'
-            download_request.timestamp = datetime.now()
+            download_request.timestamp = datetime.now() + timedelta(days=7)
             download_request.name = randomness
             db.session.commit()
 
@@ -2416,7 +2429,7 @@ def generate_coco(self,task_id,user_name,download_id):
         download_request = db.session.query(DownloadRequest).get(download_id)
         if download_request:
             download_request.status = 'Available'
-            download_request.timestamp = datetime.now() 
+            download_request.timestamp = datetime.now() + timedelta(days=7)
             download_request.name = randomness
             db.session.commit()
 

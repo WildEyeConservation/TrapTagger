@@ -22,6 +22,7 @@ launchMTurkTaskBtn.addEventListener('click', ()=>{
             confirmRestore = true
             modalLaunchTask.modal('hide')
             document.getElementById('modalConfirmBodyRestore').innerHTML = '<p>Checking your empty clusters will require the images to be restored from our archival storage. This process will take 48 hours to complete. Please note that the potential animal sightings in these images will be very rare and not of good quality.You will have 30 days to complete the empty label check. If you are still actively working on it at the end of this period, we will extend the restoration to allow you to finish. However, if there is no activity by the end of the restoration period, we will stop the job and return the images to archival storage. Would you like to proceed?</p>'
+            btnConfirmRestore.disabled = false
             modalConfirmRestore.modal({keyboard: true})
 
             removeRestoreEventListeners()
@@ -37,6 +38,7 @@ launchMTurkTaskBtn.addEventListener('click', ()=>{
         confirmRestore = true
         modalLaunchTask.modal('hide')
         document.getElementById('modalConfirmBodyRestore').innerHTML = '<p>Individual identification jobs require the restoration of raw images for the species of interest from our archival storage. This process will take 48 hours to complete. You will have 30 days to complete the identification job. If you are still actively working on it at the end of this period, we will extend the restoration to allow you to finish. However, if there is no activity by the end of the restoration period, we will stop the job and return the images to archival storage. Would you like to proceed?</p>'
+        btnConfirmRestore.disabled = false
         modalConfirmRestore.modal({keyboard: true})
 
         removeRestoreEventListeners()
@@ -51,6 +53,7 @@ launchMTurkTaskBtn.addEventListener('click', ()=>{
 
 function confirmRestoreLaunch() {
     /** Event listener for the confirmation of the restoration of images. */
+    btnConfirmRestore.disabled = true
     modalConfirmRestore.modal('hide')
     confirmRestore = false
     launchTask()
@@ -184,7 +187,7 @@ function launchTask(){
                     modalLaunchTask.modal('hide')
                     modalAlert.modal({keyboard: true});
                 }
-
+                btnConfirmRestore.disabled = false
                 resetLaunchTaskPage()
                 document.getElementById('launchMTurkTaskBtn').disabled=false
             }
