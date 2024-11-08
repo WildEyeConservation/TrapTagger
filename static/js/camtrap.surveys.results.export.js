@@ -247,6 +247,13 @@ function submitExportRequest() {
                     modalPW.modal({keyboard: true});
                     export_task_ids.push(selectedTask)
                     // waitForDownload()
+                    clearSelect(document.getElementById('exportSelector'))
+
+                    divExport = document.getElementById('divExport')
+                    while(divExport.firstChild){
+                        divExport.removeChild(divExport.firstChild);
+                    }
+            
                 } else {
                     document.getElementById('modalPWH').innerHTML = 'Error'
                     if (reply.message != null) {
@@ -256,10 +263,11 @@ function submitExportRequest() {
                         document.getElementById('modalPWB').innerHTML = 'An unexpected error has occurred. Please try again.'
                     }
                     modalPW.modal({keyboard: true});
-                    document.getElementById('btnExportDownload').disabled = false
                 }
 
+                document.getElementById('btnExportDownload').disabled = false
                 confirmRestore = false
+                confirmExportReturn = false
             }
         }
         xhttp.open("POST", '/exportRequest');

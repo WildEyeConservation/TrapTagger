@@ -929,7 +929,7 @@ def checkRestoreDownloads(task_id):
 
     date_now = datetime.utcnow()
     download_request = db.session.query(DownloadRequest).filter(DownloadRequest.task_id == task_id).filter(DownloadRequest.type == 'file').filter(DownloadRequest.status == 'Downloading').filter(DownloadRequest.name=='restore').first()
-    if download_request and (date_now - download_request.timestamp).days == 0:
+    if download_request and (download_request.timestamp-date_now).days == 0:
         try:
             if download_request.task.survey.status.lower() in Config.SURVEY_READY_STATUSES:
                 user_id = download_request.user_id
