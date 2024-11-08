@@ -21,7 +21,7 @@ launchMTurkTaskBtn.addEventListener('click', ()=>{
         if (document.getElementById('taskTaggingLevel').value == '-7') {
             confirmRestore = true
             modalLaunchTask.modal('hide')
-            document.getElementById('modalConfirmBodyRestore').innerHTML = '<p>Checking your empty clusters will require the images to be restored from our archival storage. This process will take 48 hours to complete. Please note that the potential animal sightings in these images will be very rare and not of good quality.You will have 30 days to complete the empty label check. If you are still actively working on it at the end of this period, we will extend the restoration to allow you to finish. However, if there is no activity by the end of the restoration period, we will stop the job and return the images to archival storage. Would you like to proceed?</p>'
+            document.getElementById('modalConfirmBodyRestore').innerHTML = '<p>Checking your empty clusters will require the images to be restored from our archival storage. This process will take 48 hours to complete, after which you will have 30 days to complete the task before the images are returned to archival storage. However, if you are still actively working on it at the end of this period, it will be automatically extended to allow you to finish. This process will require you to look through every single empty image in order to find any animals that are missed - which will require a lot of time and effort. We specifically use a low threshold for the animal detector to err on the side of caution. Additionally, an animal would need to be missed in every single image in a cluster in order to be actually missed. As such, the potential animal sightings that you may find will be few and far between - and will be of low quality. <i>Note: checking the empty images essentially defeats the purpose of using AI assistance in the first place and is only recommended when first testing out the system to build trust in the AI.</i><br><br>Would you like to proceed?</p>'
             btnConfirmRestore.disabled = false
             modalConfirmRestore.modal({keyboard: true})
 
@@ -37,7 +37,7 @@ launchMTurkTaskBtn.addEventListener('click', ()=>{
     else if (tabActiveLaunch == 'baseIndividualTab') {
         confirmRestore = true
         modalLaunchTask.modal('hide')
-        document.getElementById('modalConfirmBodyRestore').innerHTML = '<p>Individual identification jobs require the restoration of raw images for the species of interest from our archival storage. This process will take 48 hours to complete. You will have 30 days to complete the identification job. If you are still actively working on it at the end of this period, we will extend the restoration to allow you to finish. However, if there is no activity by the end of the restoration period, we will stop the job and return the images to archival storage. Would you like to proceed?</p>'
+        document.getElementById('modalConfirmBodyRestore').innerHTML = '<p>Individual identification jobs require the restoration of the raw images of your chosen species from our archival storage for both processing and viewing purposes. This process will take 48 hours to complete. Thereafter, you will have 30 days to complete the identification job before the raw images are returned to archival storage. However, if you are still actively working on it at the end of this period, it will be automatically extended to allow you to finish.<br><br>Would you like to proceed?</p>'
         btnConfirmRestore.disabled = false
         modalConfirmRestore.modal({keyboard: true})
 
@@ -1278,7 +1278,7 @@ function openEmptyTag() {
         document.getElementById('openMultiSpeciesTab').disabled = true
         // document.getElementById('openMaskedTab').disabled = true
 
-        document.getElementById('annotationDescription').innerHTML = "<i>Check your clusters where no sightings were detected to review any potential missed sightings. Please note that the chances of missed sightings are very low, and any that may have been missed are likely to be of low quality. To check for missed sightings, the empty images need to be restored from archival storage, which requires a 48-hour wait time.</i>"
+        document.getElementById('annotationDescription').innerHTML = "<i>Check your empty clusters in which no animals/humans were detected to find potentially missed sightings. Please note that the chances of missed sightings are extremely low, and any that may have been missed are likely to be of low quality. To check for missed sightings, the empty images need to be restored from archival storage, which requires a 48-hour wait time. Note: checking the empty images essentially defeats the purpose of using AI assistance in the first place and is only recommended when first testing out the system to build trust in the AI.</i>"
         clearSelect(document.getElementById('taskTaggingLevel'))
         var xhttp = new XMLHttpRequest();
         xhttp.open("GET", '/getTaggingLevelsbyTask/'+selectedTask+'/empty');

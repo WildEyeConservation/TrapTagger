@@ -4042,7 +4042,7 @@ function updateClassifierTable(url=null) {
                             if (this.value != surveyClassifier && !confirmClassifierChange && tabActiveEditSurvey=='baseEditClassifierTab') {
                                 confirmRestore = true 
                                 removeRestoreEventListeners()
-                                document.getElementById('modalConfirmBodyRestore').innerHTML = '<p>Changing the classifier will require the raw images to be restored from archival storage. This process takes 48 hours. Are you sure you want to continue?</p>'
+                                document.getElementById('modalConfirmBodyRestore').innerHTML = '<p>Changing the classifier will require the raw images to be restored from our archival storage for processing purposes. This will take 48 hours to complete.<br><br>Would you like to proceed?</p>'
                                 modalEditSurvey.modal('hide')
                                 btnConfirmRestore.disabled = false
                                 modalConfirmRestore.modal({keyboard: true})

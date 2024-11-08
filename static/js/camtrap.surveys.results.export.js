@@ -243,7 +243,7 @@ function submitExportRequest() {
                 
                 if (reply.status=='success') {
                     document.getElementById('modalPWH').innerHTML = 'Alert'
-                    document.getElementById('modalPWB').innerHTML = 'Your export request has been initiated. A wait time of 48 hours is required for the images to restored from archival storage. You can monitor its progress in the Downloads menu. Once completed, your export will be available for download for 7 days. Please note that this may take a while, especially for larger data sets.'
+                    document.getElementById('modalPWB').innerHTML = 'Your export request has been initiated. A wait time of 48 hours is required for the raw images to restored from archival storage. You can monitor its progress in the downloads menu. Once complete, your export will be available for a period of 7 days. Please note that this may take a while, especially for larger data sets.'
                     modalPW.modal({keyboard: true});
                     export_task_ids.push(selectedTask)
                     // waitForDownload()

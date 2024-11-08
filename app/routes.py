@@ -279,7 +279,7 @@ def launchTask():
     
     if ('-4' in taggingLevel) or ('-5' in taggingLevel) or ('-7' in taggingLevel):
         if Config.DISABLE_RESTORE:
-            return json.dumps({'message': 'No restoration of files from archival storage is allowed at this time. Please try again later.', 'status': 'Error'})
+            return json.dumps({'message': 'File de-archival is currently not available. Please try again later.', 'status': 'Error'})
             
     task = db.session.query(Task).get(task_ids[0])
     message = 'Annotation set not ready to be launched.'
@@ -2065,7 +2065,7 @@ def editSurvey():
                 if classifier_id and survey.classifier_id != classifier_id:
                     if Config.DISABLE_RESTORE:
                         status = 'error'
-                        message = 'No restoration of files from archival storage is allowed at this time. Please try again later.'
+                        message = 'File de-archival is currently not available. Please try again later.'
                     else:
                         survey.status = 'Processing'
                         db.session.commit()
@@ -4551,7 +4551,8 @@ def exportRequest():
 
     task = db.session.query(Task).get(task_id)
     # if task and (task.survey.user==current_user):
-    if task and checkSurveyPermission(current_user.id,task.survey_id,'read'):
+    survey = task.survey
+    if task and checkSurveyPermission(current_user.id,task.survey_id,'read') and (task.status.lower() in Config.TASK_READY_STATUSES) and (survey.status.lower() in Config.SURVEY_READY_STATUSES):
         app.logger.info('export request made: {}, {}, {}'.format(task_id,exportType,data))
 
         if exportType == 'WildBook':
@@ -4569,16 +4570,17 @@ def exportRequest():
                 return json.dumps({'status':'error',  'message': 'A download request for this task is already pending. Please wait for the previous request to complete.'})
                     
             if Config.DISABLE_RESTORE:
-                return json.dumps({'status':'error', 'message': 'No restoration of files from archival storage is allowed at this time. Please try again later.'})
+                return json.dumps({'status':'error', 'message': 'File de-archival is currently not available. Please try again later.'})
 
             # Create Download request
             download_request = DownloadRequest(type='export', user_id=current_user.id, task_id=task_id, status='Pending', timestamp=datetime.utcnow())
             db.session.add(download_request)
+
+            survey.status = 'Processing'
             db.session.commit()
 
-            response = restore_images_for_export.apply_async(kwargs={'task_id':task_id,'data':data,'user_name':current_user.username,'download_request_id':download_request.id, 'days':Config.DOWNLOAD_RESTORE_DAYS,'tier':Config.RESTORE_TIER,'restore_time':Config.RESTORE_TIME})
-            download_request.celery_id = response.id
-            db.session.commit()
+            restore_images_for_export.apply_async(kwargs={'task_id':task_id,'data':data,'user_name':current_user.username,'download_request_id':download_request.id, 'days':Config.DOWNLOAD_RESTORE_DAYS,'tier':Config.RESTORE_TIER,'restore_time':Config.RESTORE_TIME})
+
 
         return json.dumps({'status':'success', 'message':None})
 
@@ -14283,6 +14285,8 @@ def getDownloadRequests():
                     else:
                         download_requests.append(req_dict)     
             elif req_type == 'export':
+                file = req_type.upper() + ' - ' + survey_name + ' ' + task_name
+                req_dict['file'] = file
                 if status == 'Restoring Files':
                     if survey_launch:
                         restore_time = math.floor(((Config.RESTORE_TIME-(survey_launch-datetime.now()).total_seconds()) / 3600))
@@ -14348,7 +14352,7 @@ def restore_for_download():
     status = 'error'
     message = 'An error occurred while processing the download request. Please try again.'
 
-    if task and checkSurveyPermission(current_user.id,task.survey_id,'read') and task.status.lower() in Config.TASK_READY_STATUSES:
+    if task and checkSurveyPermission(current_user.id,task.survey_id,'read') and task.status.lower() in Config.TASK_READY_STATUSES and survey.status.lower() in Config.SURVEY_READY_STATUSES:
         individual_sorted = request.json['individual_sorted']
         species_sorted = request.json['species_sorted']
         flat_structure = request.json['flat_structure']
@@ -14370,7 +14374,7 @@ def restore_for_download():
                 message = 'A download is already in progress for this survey. Please try again later.'
             elif Config.DISABLE_RESTORE:
                 status = 'error'
-                message = 'No restoration of files from archival storage is allowed at this time. Please try again later.'
+                message = 'File de-archival is currently not available. Please try again later.'
             else:
                 # Check if any surveys are busy with a dearchival process
                 if survey.status == 'Restoring Files':
@@ -14394,16 +14398,15 @@ def restore_for_download():
 
                 new_request = DownloadRequest(user_id=current_user.id, task_id=task_id, type='file', status='Initialising', timestamp=datetime.utcnow(), name='restore')
                 db.session.add(new_request)
+
+                survey.status = 'Processing'
                 
                 db.session.commit()
 
-                response = restore_files_for_download.apply_async(kwargs={'task_id': task_id, 'download_request_id': new_request.id, 'download_params': download_dict, 'days': Config.DOWNLOAD_RESTORE_DAYS, 'tier': Config.RESTORE_TIER,'restore_time':Config.RESTORE_TIME})
-
-                new_request.celery_id = response.id
-                db.session.commit()
+                restore_files_for_download.apply_async(kwargs={'task_id': task_id, 'download_request_id': new_request.id, 'download_params': download_dict, 'days': Config.DOWNLOAD_RESTORE_DAYS, 'tier': Config.RESTORE_TIER,'restore_time':Config.RESTORE_TIME})
 
                 status = 'success'
-                message = 'Your download request has been initiated. A wait time of 48 hours is required for the download to be prepared. Your download request can be viewed in the Downloads menu.'
+                message = 'Your download request has been initiated. A wait time of 48 hours is required for the download to be prepared. Your request progress can be monitored from the downloads menu. Once ready, you will have 7 to download it before it expires.'
     
     return json.dumps({'status': status, 'message': message})
 
@@ -14520,6 +14523,48 @@ def cancelRestore(survey_id):
             GLOBALS.redisClient.delete('fileDownloadParams_'+str(request.task_id)+'_'+str(request.user_id))
             db.session.delete(request)
     
+
+        # Check for -5 multiple tasks:
+        try:
+            id_kwargs = json.loads(GLOBALS.redisClient.get('id_launch_kwargs_'+str(survey_id)).decode())
+            if id_kwargs and 'algorithm' in id_kwargs.keys():
+                task_ids = id_kwargs['task_ids']
+                surveys = db.session.query(Survey).join(Task).filter(Task.id.in_(task_ids)).filter(Survey.status=='Restoring Files').all()
+                for s in surveys:
+                    s.status = 'Ready'
+        except:
+            pass
+
+        redis_keys = ['download_launch_kwargs_'+str(survey_id),'id_launch_kwargs_'+str(survey_id),'empty_launch_kwargs_'+str(survey_id),'edit_launch_kwargs_'+str(survey_id)]
+        found = False
+        for key in redis_keys:
+            try:
+                GLOBALS.redisClient.get(key).decode()
+                key
+                found = True
+                break
+            except:
+                pass
+
+        if not found:
+            #Check if it might be a sub task 
+            for task in survey.tasks:
+                if task.master:
+                    master_survey_id = task.master[0].survey_id
+                    master_survey_id
+                    try:
+                        id_kwargs = json.loads(GLOBALS.redisClient.get('id_launch_kwargs_'+str(master_survey_id)).decode())
+                        if id_kwargs and 'algorithm' in id_kwargs.keys():
+                            task_ids = id_kwargs['task_ids']
+                            surveys = db.session.query(Survey).join(Task).filter(Task.id.in_(task_ids)).filter(Survey.status=='Restoring Files').all()
+                            for s in surveys:
+                                s.status = 'Ready'
+                            GLOBALS.redisClient.delete('id_launch_kwargs_'+str(master_survey_id))
+                            task.master[0].sub_tasks = []
+                            break
+                    except:
+                        pass
+
         db.session.commit()
 
         GLOBALS.redisClient.delete('download_launch_kwargs_'+str(survey.id))

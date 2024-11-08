@@ -630,7 +630,7 @@ btnCsvDownload.addEventListener('click', ()=>{
                         reply = JSON.parse(this.responseText);  
                         if (reply.status=='success') {
                             document.getElementById('modalPWH').innerHTML = 'Alert'
-                            document.getElementById('modalPWB').innerHTML = 'Your CSV file is being generated. You can monitor its progress in the Downloads menu. Once completed, it will be available for download for 7 days. Please note that this may take a while, especially for larger data sets.'
+                            document.getElementById('modalPWB').innerHTML = 'Your CSV file is being generated - you can monitor its progress in the Downloads menu. Once ready, it will be available for a period of 7 days. Please note that this may take a while, especially for larger data sets.'
                             modalCSVGenerate.modal('hide')
                             modalPW.modal({keyboard: true});
                             csv_task_ids.push(selectedtask)
@@ -675,7 +675,7 @@ function downloadPreFormattedCSV() {
                 reply = JSON.parse(this.responseText);  
                 if (reply.status=='success') {
                     document.getElementById('modalPWH').innerHTML = 'Alert'
-                    document.getElementById('modalPWB').innerHTML = 'Your CSV file is being generated. You can monitor its progress in the Downloads menu. Once completed, it will be available for download for 7 days. Please note that this may take a while, especially for larger data sets.'
+                    document.getElementById('modalPWB').innerHTML = 'Your CSV file is being generated - you can monitor its progress in the Downloads menu. Once ready, it will be available for a period of 7 days. Please note that this may take a while, especially for larger data sets.'
                     modalResults.modal('hide')
                     modalPW.modal({keyboard: true});
                     csv_task_ids.push(selectedtask)
@@ -711,7 +711,7 @@ function downloadCOCO() {
                 reply = JSON.parse(this.responseText);  
                 if (reply.status=='success') {
                     document.getElementById('modalPWH').innerHTML = 'Alert'
-                    document.getElementById('modalPWB').innerHTML = 'Your COCO file is being generated. You can monitor its progress in the Downloads menu. Once completed, it will be available for download for 7 days. Please note that this may take a while, especially for larger data sets.'
+                    document.getElementById('modalPWB').innerHTML = 'Your COCO file is being generated - you can monitor its progress in the Downloads menu. Once ready, it will be available for a period of 7 days. Please note that this may take a while, especially for larger data sets.'
                     modalResults.modal('hide')
                     modalPW.modal({keyboard: true});
                     coco_task_ids.push(selectedtask)

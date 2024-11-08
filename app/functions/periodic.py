@@ -758,7 +758,7 @@ def manage_tasks_with_restore():
                 date_launched = expiry_date - timedelta(days=Config.EMPTY_RESTORE_DAYS)
                 if (date_now - date_launched).days > 30:
                     if not last_active or (date_now - last_active).days > 5:
-                        msg = '<p>Your Empty Label Check job for survey {} has been stopped because the restoration period from archival storage has expired for your empty images and there was no recent activity.</p>'.format(survey_name)
+                        msg = '<p>Your empty-image check for survey {} has expired due to inactivity. You can re-launch if you wish to continue.</p>'.format(survey_name)
                         task = db.session.query(Task).get(task_id)
                         task.status = 'Stopping'
                         db.session.commit()
@@ -777,7 +777,7 @@ def manage_tasks_with_restore():
                 expiry_date = expiry_date[0]
                 time_left = expiry_date - date_now
                 if time_left.days < 0:
-                    msg = '<p>Your Individual ID job for survey {} has been stopped because the restoration period from archival storage has expired for your raw images and there was no recent activity.</p>'.format(survey_name)
+                    msg = '<p>Your individual ID job for survey {} has expired due to inactivity. You can re-launch if you wish to continue.</p>'.format(survey_name)
                     task = db.session.query(Task).get(task_id)
                     task.status = 'Stopping'
                     db.session.commit()
@@ -785,7 +785,7 @@ def manage_tasks_with_restore():
                 elif time_left.days < 1:
                     if last_active:
                         if (date_now - last_active).days > 5:
-                            msg = '<p>Your Individual ID job for survey {} has been stopped because the restoration period from archival storage has expired for your raw images and there was no recent activity.</p>'.format(survey_name)
+                            msg = '<p>Your individual ID job for survey {} has expired due to inactivity. You can re-launch if you wish to continue.'.format(survey_name)
                             task = db.session.query(Task).get(task_id)
                             task.status = 'Stopping'
                             db.session.commit()
@@ -931,12 +931,13 @@ def checkRestoreDownloads(task_id):
     download_request = db.session.query(DownloadRequest).filter(DownloadRequest.task_id == task_id).filter(DownloadRequest.type == 'file').filter(DownloadRequest.status == 'Downloading').filter(DownloadRequest.name=='restore').first()
     if download_request and (date_now - download_request.timestamp).days == 0:
         try:
-            user_id = download_request.user_id
-            download_params = GLOBALS.redisClient.get('fileDownloadParams_'+str(task_id)+'_'+str(user_id)).decode()
-            download_params = json.loads(download_params)
-            download_request.timestamp = date_now + timedelta(days=Config.DOWNLOAD_RESTORE_DAYS)
-            db.session.commit()
-            restore_files_for_download.apply_async(kwargs={'task_id':task_id,'download_request_id':download_request.id,'days':Config.DOWNLOAD_RESTORE_DAYS,'download_params':download_params,'tier':Config.RESTORE_TIER,'restore_time':Config.RESTORE_TIME,'extend':True})
+            if download_request.task.survey.status.lower() in Config.SURVEY_READY_STATUSES:
+                user_id = download_request.user_id
+                download_params = GLOBALS.redisClient.get('fileDownloadParams_'+str(task_id)+'_'+str(user_id)).decode()
+                download_params = json.loads(download_params)
+                download_request.timestamp = date_now + timedelta(days=Config.DOWNLOAD_RESTORE_DAYS)
+                db.session.commit()
+                restore_files_for_download.apply_async(kwargs={'task_id':task_id,'download_request_id':download_request.id,'days':Config.DOWNLOAD_RESTORE_DAYS,'download_params':download_params,'tier':Config.RESTORE_TIER,'restore_time':Config.RESTORE_TIME,'extend':True})
         except:
             pass
 
