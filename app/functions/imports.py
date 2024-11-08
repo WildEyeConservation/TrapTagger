@@ -1004,216 +1004,217 @@ def processCameraStaticDetections(self,cameragroup_id):
                             .filter(or_(and_(Detection.source==model,Detection.score>Config.DETECTOR_THRESHOLDS[model]) for model in Config.DETECTOR_THRESHOLDS))\
                             .distinct().count()
         db.session.remove()
-        
-        # Divide detections into max 4k detection windows to avoid ON^2 growth
-        grouping = math.ceil(total_images/math.ceil(total_images/4000))
-        results = []
-        for i in range(0,total_images,grouping):
-            results.append(processStaticWindow.apply_async(kwargs={'cameragroup_id':cameragroup_id,'index':i,'grouping':grouping},queue='parallel_2'))
 
-        static_groups = {}
-        GLOBALS.lock.acquire()
-        with allow_join_result():
-            for result in results:
-                try:
-                    response = result.get()
-                    static_groups[response['index']] = response['static_groups']
-                except Exception:
-                    app.logger.info(' ')
-                    app.logger.info('!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!')
-                    app.logger.info(traceback.format_exc())
-                    app.logger.info('!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!')
-                    app.logger.info(' ')
-                result.forget()
-        GLOBALS.lock.release()
+        if total_images>0:
+            # Divide detections into max 4k detection windows to avoid ON^2 growth
+            grouping = math.ceil(total_images/math.ceil(total_images/4000))
+            results = []
+            for i in range(0,total_images,grouping):
+                results.append(processStaticWindow.apply_async(kwargs={'cameragroup_id':cameragroup_id,'index':i,'grouping':grouping},queue='parallel_2'))
 
-        df = pd.read_sql(db.session.query(
-                                    Detection.id.label('detection_id'),
-                                    Detection.left.label('left'),
-                                    Detection.right.label('right'),
-                                    Detection.top.label('top'),
-                                    Detection.bottom.label('bottom'),
-                                    Image.id.label('image_id')
-                                )\
-                                .join(Image)\
-                                .join(Camera)\
-                                .filter(Camera.cameragroup_id==cameragroup_id)\
-                                .filter(or_(and_(Detection.source==model,Detection.score>Config.DETECTOR_THRESHOLDS[model]) for model in Config.DETECTOR_THRESHOLDS))\
-                                .order_by(Detection.id)\
-                                .statement,db.session.bind)
+            static_groups = {}
+            GLOBALS.lock.acquire()
+            with allow_join_result():
+                for result in results:
+                    try:
+                        response = result.get()
+                        static_groups[response['index']] = response['static_groups']
+                    except Exception:
+                        app.logger.info(' ')
+                        app.logger.info('!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!')
+                        app.logger.info(traceback.format_exc())
+                        app.logger.info('!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!')
+                        app.logger.info(' ')
+                    result.forget()
+            GLOBALS.lock.release()
 
-        df['area'] = df.apply(lambda x: (x.right - x.left) * (x.bottom - x.top), axis=1)
+            df = pd.read_sql(db.session.query(
+                                        Detection.id.label('detection_id'),
+                                        Detection.left.label('left'),
+                                        Detection.right.label('right'),
+                                        Detection.top.label('top'),
+                                        Detection.bottom.label('bottom'),
+                                        Image.id.label('image_id')
+                                    )\
+                                    .join(Image)\
+                                    .join(Camera)\
+                                    .filter(Camera.cameragroup_id==cameragroup_id)\
+                                    .filter(or_(and_(Detection.source==model,Detection.score>Config.DETECTOR_THRESHOLDS[model]) for model in Config.DETECTOR_THRESHOLDS))\
+                                    .order_by(Detection.id)\
+                                    .statement,db.session.bind)
 
-        # Now we need to combine the groups across the windows
-        final_static_groups = static_groups[0].copy()
-        for index in static_groups:
-            if index!=0:
-                temp_final_static_groups = final_static_groups.copy()
-                temp_static_groups = static_groups[index].copy()
+            df['area'] = df.apply(lambda x: (x.right - x.left) * (x.bottom - x.top), axis=1)
 
-                # first try single detection matching to reduce pool size
-                for group1 in temp_static_groups:
-                    for group2 in temp_final_static_groups:
-                        detection = df[df['detection_id']==group1[0]].iloc[0]
-                        area = detection['area']
-                        if area <= 0.05:
-                            threshold = Config.STATIC_IOU5
-                        elif area <= 0.1:
-                            threshold = Config.STATIC_IOU10
-                        elif area <= 0.3:
-                            threshold = Config.STATIC_IOU30
-                        elif area <= 0.5:
-                            threshold = Config.STATIC_IOU50
-                        elif area <= 0.9:
-                            threshold = Config.STATIC_IOU90
+            # Now we need to combine the groups across the windows
+            final_static_groups = static_groups[0].copy()
+            for index in static_groups:
+                if index!=0:
+                    temp_final_static_groups = final_static_groups.copy()
+                    temp_static_groups = static_groups[index].copy()
+
+                    # first try single detection matching to reduce pool size
+                    for group1 in temp_static_groups:
+                        for group2 in temp_final_static_groups:
+                            detection = df[df['detection_id']==group1[0]].iloc[0]
+                            area = detection['area']
+                            if area <= 0.05:
+                                threshold = Config.STATIC_IOU5
+                            elif area <= 0.1:
+                                threshold = Config.STATIC_IOU10
+                            elif area <= 0.3:
+                                threshold = Config.STATIC_IOU30
+                            elif area <= 0.5:
+                                threshold = Config.STATIC_IOU50
+                            elif area <= 0.9:
+                                threshold = Config.STATIC_IOU90
+                            else:
+                                continue
+
+                            if IOU(detection,df[df['detection_id']==group2[0]].iloc[0])>threshold:
+                                # match
+                                for group in final_static_groups:
+                                    if set(group)==set(group2):
+                                        group.extend(group1)
+                                        break
+                                temp_static_groups.remove(group1)
+                                temp_final_static_groups.remove(group2)
+                                break
+
+                    # now more-exhaustively check the remaining groups (which are likely to be non-matches)
+                    for group1 in temp_static_groups:
+                        found = False
+
+                        for group2 in temp_final_static_groups:
+                            if compare_static_groups(df,group1,group2):
+                                #combine
+                                for group in final_static_groups:
+                                    if set(group)==set(group2):
+                                        group.extend(group1)
+                                        found = True
+                                        break
+                                temp_final_static_groups.remove(group2)
+                                break
+
+                        if not found: final_static_groups.append(group1)
+
+            static_detections = []
+            for group in final_static_groups:
+                static_detections.extend(group)
+                detections = db.session.query(Detection).filter(Detection.id.in_(group)).distinct().all()
+                staticgroups = db.session.query(Staticgroup).filter(Staticgroup.detections.any(Detection.id.in_(group))).distinct().all()
+                if staticgroups:
+                    if len(staticgroups) == 1:
+                        # Add detections to the existing static group if there is only one and the detections are not already in the group
+                        staticgroup = staticgroups[0]
+                        group_detections = list(set(staticgroup.detections + detections))
+                        staticgroup.detections = group_detections
+                        if staticgroup.status == 'rejected':
+                            for detection in group_detections:
+                                detection.static = False
                         else:
-                            continue
-
-                        if IOU(detection,df[df['detection_id']==group2[0]].iloc[0])>threshold:
-                            # match
-                            for group in final_static_groups:
-                                if set(group)==set(group2):
-                                    group.extend(group1)
-                                    break
-                            temp_static_groups.remove(group1)
-                            temp_final_static_groups.remove(group2)
-                            break
-
-                # now more-exhaustively check the remaining groups (which are likely to be non-matches)
-                for group1 in temp_static_groups:
-                    found = False
-
-                    for group2 in temp_final_static_groups:
-                        if compare_static_groups(df,group1,group2):
-                            #combine
-                            for group in final_static_groups:
-                                if set(group)==set(group2):
-                                    group.extend(group1)
-                                    found = True
-                                    break
-                            temp_final_static_groups.remove(group2)
-                            break
-
-                    if not found: final_static_groups.append(group1)
-
-        static_detections = []
-        for group in final_static_groups:
-            static_detections.extend(group)
-            detections = db.session.query(Detection).filter(Detection.id.in_(group)).distinct().all()
-            staticgroups = db.session.query(Staticgroup).filter(Staticgroup.detections.any(Detection.id.in_(group))).distinct().all()
-            if staticgroups:
-                if len(staticgroups) == 1:
-                    # Add detections to the existing static group if there is only one and the detections are not already in the group
-                    staticgroup = staticgroups[0]
-                    group_detections = list(set(staticgroup.detections + detections))
-                    staticgroup.detections = group_detections
-                    if staticgroup.status == 'rejected':
-                        for detection in group_detections:
-                            detection.static = False
+                            for detection in group_detections:
+                                detection.static = True
                     else:
+                        # Create a new static group if there are multiple static groups (with all detections)
+                        group_detections = []
+                        for sg in staticgroups:
+                            group_detections.extend(sg.detections)
+                            db.session.delete(sg)
+                        group_detections = list(set(group_detections + detections))
+                        new_group = Staticgroup(status='unknown',detections=group_detections)
+                        db.session.add(new_group)
                         for detection in group_detections:
                             detection.static = True
                 else:
-                    # Create a new static group if there are multiple static groups (with all detections)
-                    group_detections = []
-                    for sg in staticgroups:
-                        group_detections.extend(sg.detections)
-                        db.session.delete(sg)
-                    group_detections = list(set(group_detections + detections))
-                    new_group = Staticgroup(status='unknown',detections=group_detections)
-                    db.session.add(new_group)
-                    for detection in group_detections:
+                    staticgroup = Staticgroup(status='unknown', detections=detections)
+                    db.session.add(staticgroup)
+                    for detection in detections:
                         detection.static = True
-            else:
-                staticgroup = Staticgroup(status='unknown', detections=detections)
-                db.session.add(staticgroup)
-                for detection in detections:
-                    detection.static = True
 
-        static_detections = list(set(static_detections))
-        sq = db.session.query(Detection).filter(Detection.id.in_(static_detections)).subquery()
-        detections = db.session.query(Detection)\
+            static_detections = list(set(static_detections))
+            sq = db.session.query(Detection).filter(Detection.id.in_(static_detections)).subquery()
+            detections = db.session.query(Detection)\
+                                        .join(Image)\
+                                        .join(Camera)\
+                                        .outerjoin(sq,sq.c.id==Detection.id)\
+                                        .filter(~Image.clusters.any())\
+                                        .filter(Camera.cameragroup_id==cameragroup_id)\
+                                        .filter(sq.c.id==None)\
+                                        .all()
+            for detection in detections:
+                detection.static = False
+                detection.staticgroup = None
+
+            # Get empty static groups and delete them
+            staticgroups = db.session.query(Staticgroup).filter(~Staticgroup.detections.any()).all()
+            for staticgroup in staticgroups:
+                db.session.delete(staticgroup)
+
+            ##### Update Masked Status ########
+            # Mask detections
+            polygon = func.ST_GeomFromText(func.concat('POLYGON((',
+                                Detection.left, ' ', Detection.top, ', ',
+                                Detection.left, ' ', Detection.bottom, ', ',
+                                Detection.right, ' ', Detection.bottom, ', ',
+                                Detection.right, ' ', Detection.top, ', ',
+                                Detection.left, ' ', Detection.top, '))'), 32734)
+
+            mask_query = db.session.query(Detection)\
                                     .join(Image)\
                                     .join(Camera)\
-                                    .outerjoin(sq,sq.c.id==Detection.id)\
+                                    .join(Cameragroup)\
+                                    .join(Mask)\
+                                    .filter(~Image.clusters.any())\
+                                    .filter(Cameragroup.id==cameragroup_id)\
+                                    .filter(or_(and_(Detection.source==model,Detection.score>Config.DETECTOR_THRESHOLDS[model]) for model in Config.DETECTOR_THRESHOLDS))\
+                                    .filter(Detection.source!='user')\
+                                    .filter(func.ST_Contains(Mask.shape, polygon))
+
+            detections = mask_query.filter(~Detection.status.in_(Config.DET_IGNORE_STATUSES)).distinct().all()
+
+            for detection in detections:
+                detection.status = 'masked'
+
+            # Unmask detections
+            masked_detections = mask_query.filter(Detection.status=='masked').subquery()
+
+            detections = db.session.query(Detection)\
+                                    .join(Image)\
+                                    .join(Camera)\
+                                    .outerjoin(masked_detections, masked_detections.c.id==Detection.id)\
                                     .filter(~Image.clusters.any())\
                                     .filter(Camera.cameragroup_id==cameragroup_id)\
-                                    .filter(sq.c.id==None)\
-                                    .all()
-        for detection in detections:
-            detection.static = False
-            detection.staticgroup = None
+                                    .filter(or_(and_(Detection.source==model,Detection.score>Config.DETECTOR_THRESHOLDS[model]) for model in Config.DETECTOR_THRESHOLDS))\
+                                    .filter(Detection.status=='masked')\
+                                    .filter(masked_detections.c.id==None)\
+                                    .distinct().all()
 
-        # Get empty static groups and delete them
-        staticgroups = db.session.query(Staticgroup).filter(~Staticgroup.detections.any()).all()
-        for staticgroup in staticgroups:
-            db.session.delete(staticgroup)
+            for detection in detections:
+                detection.status = 'active'
 
-        ##### Update Masked Status ########
-        # Mask detections
-        polygon = func.ST_GeomFromText(func.concat('POLYGON((',
-                            Detection.left, ' ', Detection.top, ', ',
-                            Detection.left, ' ', Detection.bottom, ', ',
-                            Detection.right, ' ', Detection.bottom, ', ',
-                            Detection.right, ' ', Detection.top, ', ',
-                            Detection.left, ' ', Detection.top, '))'), 32734)
+            db.session.commit()
 
-        mask_query = db.session.query(Detection)\
-                                .join(Image)\
-                                .join(Camera)\
-                                .join(Cameragroup)\
-                                .join(Mask)\
-                                .filter(~Image.clusters.any())\
-                                .filter(Cameragroup.id==cameragroup_id)\
-                                .filter(or_(and_(Detection.source==model,Detection.score>Config.DETECTOR_THRESHOLDS[model]) for model in Config.DETECTOR_THRESHOLDS))\
-                                .filter(Detection.source!='user')\
-                                .filter(func.ST_Contains(Mask.shape, polygon))
+            ###### individual detection approach
+            # sq = db.session.query(Detection.id.label('detID'),((Detection.right - Detection.left) * (Detection.bottom - Detection.top)).label('area')).join(Image).filter(Image.camera_id==camera_id).subquery()
+            # detections = [r.id for r in db.session.query(Detection)\
+            #                                     .join(Image)\
+            #                                     .join(sq,sq.c.detID==Detection.id)\
+            #                                     .filter(sq.c.area<0.1)\
+            #                                     .filter(Image.camera_id==camera_id)\
+            #                                     .filter(or_(and_(Detection.source==model,Detection.score>Config.DETECTOR_THRESHOLDS[model]) for model in Config.DETECTOR_THRESHOLDS))\
+            #                                     .distinct().all()]
+            # pool = Pool(processes=4)
+            # for chunk in chunker(detections,200):
+            #     pool.apply_async(checkDetectionStaticStatus,(imcount,chunk))
+            # pool.close()
+            # pool.join()
 
-        detections = mask_query.filter(~Detection.status.in_(Config.DET_IGNORE_STATUSES)).distinct().all()
-
-        for detection in detections:
-            detection.status = 'masked'
-
-        # Unmask detections
-        masked_detections = mask_query.filter(Detection.status=='masked').subquery()
-
-        detections = db.session.query(Detection)\
-                                .join(Image)\
-                                .join(Camera)\
-                                .outerjoin(masked_detections, masked_detections.c.id==Detection.id)\
-                                .filter(~Image.clusters.any())\
-                                .filter(Camera.cameragroup_id==cameragroup_id)\
-                                .filter(or_(and_(Detection.source==model,Detection.score>Config.DETECTOR_THRESHOLDS[model]) for model in Config.DETECTOR_THRESHOLDS))\
-                                .filter(Detection.status=='masked')\
-                                .filter(masked_detections.c.id==None)\
-                                .distinct().all()
-
-        for detection in detections:
-            detection.status = 'active'
-
-        db.session.commit()
-
-        ###### individual detection approach
-        # sq = db.session.query(Detection.id.label('detID'),((Detection.right - Detection.left) * (Detection.bottom - Detection.top)).label('area')).join(Image).filter(Image.camera_id==camera_id).subquery()
-        # detections = [r.id for r in db.session.query(Detection)\
-        #                                     .join(Image)\
-        #                                     .join(sq,sq.c.detID==Detection.id)\
-        #                                     .filter(sq.c.area<0.1)\
-        #                                     .filter(Image.camera_id==camera_id)\
-        #                                     .filter(or_(and_(Detection.source==model,Detection.score>Config.DETECTOR_THRESHOLDS[model]) for model in Config.DETECTOR_THRESHOLDS))\
-        #                                     .distinct().all()]
-        # pool = Pool(processes=4)
-        # for chunk in chunker(detections,200):
-        #     pool.apply_async(checkDetectionStaticStatus,(imcount,chunk))
-        # pool.close()
-        # pool.join()
-
-        # detections = db.session.query(Detection).join(Image).filter(Image.camera_id == camera_id) \
-        #                                                     .filter(Detection.static == None)\
-        #                                                     .distinct().all()
-        # for detection in detections:
-        #     detection.static = False
-        # db.session.commit()
+            # detections = db.session.query(Detection).join(Image).filter(Image.camera_id == camera_id) \
+            #                                                     .filter(Detection.static == None)\
+            #                                                     .distinct().all()
+            # for detection in detections:
+            #     detection.static = False
+            # db.session.commit()
 
     except Exception as exc:
         app.logger.info(' ')
