@@ -163,14 +163,17 @@ def restore_empty_zips(self,task_id,tier,restore_time):
         
         db.session.commit()
 
-        zip_ids = zip_ids.extend(other_zips)
+        zip_ids = zip_ids + other_zips
 
-        survey_restoring = False
         if not restore_zip and not restore_date and not require_wait and other_zips:
-            survey_restoring = survey.require_launch and survey.require_launch > datetime.utcnow()
+            zip_key = zip_folder + '/' + str(other_zips[0]) + '.zip'
+            restore_file = get_restore_info(zip_key)
+            if restore_file[0]:
+                restore_date = restore_file[0]
+                require_wait = True
 
         if zip_ids:
-            if ((restore_zip or restore_date) and require_wait) or survey_restoring:
+            if (restore_zip or restore_date) and require_wait:
                 survey.status = 'Restoring Files'
                 task.status = 'Ready'
                 launch_kwargs = {'task_id':task_id, 'tagging_level':task.tagging_level, 'zip_ids':zip_ids}
@@ -406,19 +409,20 @@ def restore_images_for_id(self,task_id,days,tier,restore_time,extend=False):
                 task.survey.require_launch = None
                 db.session.commit()
             else:
-                restoring_survey = False
                 if not restored_image and not restore_date and not require_wait:
-                    other_images = image_query.filter(Image.expiry_date>=expected_expiry_date).first()
-                    if other_images:
-                        restoring_survey = task.survey.require_launch and task.survey.require_launch > datetime.utcnow()
-
-                if ((restored_image or restore_date) and require_wait) or restoring_survey:
+                    other_image = image_query.filter(Image.expiry_date>=expected_expiry_date).first()
+                    if other_image:
+                        image_key = other_image[2] + '/' + other_image[1]
+                        restore_file = get_restore_info(image_key)
+                        if restore_file[0]:
+                            restore_date = restore_file[0]
+                            require_wait = True
+                        
+                if (restored_image or restore_date) and require_wait:
                     if restored_image:
                         date_value = datetime.utcnow() + timedelta(seconds=restore_time)
                     elif restore_date:
                         date_value = restore_date + timedelta(seconds=restore_time)
-                    elif restoring_survey:
-                        date_value = task.survey.require_launch
 
                     task.survey.require_launch = date_value
                     task.survey.status = 'Restoring Files'
@@ -526,13 +530,16 @@ def restore_images_for_classification(self,survey_id,days,edit_survey_args,tier,
                 db.session.commit()
 
 
-            restoring_survey = False
             if not restored_image and not restore_date and not require_wait:
                 other_images = image_query.filter(Image.expiry_date>=expected_expiry_date).first()
                 if other_images:
-                    restoring_survey = survey.require_launch and survey.require_launch > datetime.utcnow()
+                    image_key = other_images[2] + '/' + other_images[1]
+                    restore_file = get_restore_info(image_key)
+                    if restore_file[0]:
+                        restore_date = restore_file[0]
+                        require_wait = True
             
-            if ((restored_image or restore_date) and require_wait) or restoring_survey:
+            if (restored_image or restore_date) and require_wait:
                 survey.status = 'Restoring Files'   
                 if restored_image:
                     survey.require_launch = datetime.utcnow() + timedelta(seconds=restore_time)
@@ -761,24 +768,39 @@ def restore_files_for_download(self,task_id,download_request_id,download_params,
             download_request.timestamp = min_expiry_date
             db.session.commit()
         else:
-            restoring_survey = False
+
             if not restored_files and not restore_date and not require_wait:
                 if images_query:
                     other_images = images_query.filter(Image.expiry_date>=expected_expiry_date).first()
                     if other_images:
-                        restoring_survey = survey.require_launch and survey.require_launch > datetime.utcnow()
+                        restore_file = get_restore_info(other_images[2] + '/' + other_images[1])
+                        if restore_file[0]:
+                            restore_date = restore_file[0]
+                            require_wait = True
 
-                if videos_query and not restoring_survey:
+                if videos_query and not restore_date:
                     other_videos = videos_query.filter(Video.expiry_date>=expected_expiry_date).first()
                     if other_videos:
-                        restoring_survey = survey.require_launch and survey.require_launch > datetime.utcnow()
+                        video_path = other_videos[2].split('/_video_images_/')[0]
+                        splits = video_path.split('/')
+                        splits[0] = splits[0] + '-comp'
+                        video_path = '/'.join(splits)
+                        video_key = video_path + '/' + other_videos[1].split('.')[0] + '.mp4'
+                        restore_file = get_restore_info(video_key)
+                        if restore_file[0]:
+                            restore_date = restore_file[0]
+                            require_wait = True
 
-                if include_empties and not restoring_survey:
+                if include_empties and not restore_date:
                     other_zips = [zip for zip in survey.zips if zip.expiry_date>=expected_expiry_date]
                     if other_zips:
-                        restoring_survey = survey.require_launch and survey.require_launch > datetime.utcnow()
+                        zip_key = zip_folder + '/' + str(other_zips[0].id) + '.zip'
+                        restore_file = get_restore_info(zip_key)
+                        if restore_file[0]:
+                            restore_date = restore_file[0]
+                            require_wait = True
 
-            if ((restored_files or restore_date) and require_wait) or restoring_survey:
+            if (restored_files or restore_date) and require_wait:
                 survey.status = 'Restoring Files'
                 if restored_files:
                     survey.require_launch  = datetime.utcnow() + timedelta(seconds=restore_time)
@@ -944,13 +966,15 @@ def restore_images_for_export(self,task_id, data, user_name, download_request_id
                     if image[0].expiry_date: image[0].expiry_date = None
                 db.session.commit()
 
-        restoring_survey = False
         if not restored_image and not restore_date and not require_wait:
             other_images = image_query.filter(Image.expiry_date>=expected_expiry_date).first()
             if other_images:
-                restoring_survey = task.survey.require_launch and task.survey.require_launch > datetime.utcnow()
+                restore_file = get_restore_info(other_images[2] + '/' + other_images[1])
+                if restore_file[0]:
+                    restore_date = restore_file[0]
+                    require_wait = True
 
-        if ((restored_image or restore_date) and require_wait) or restoring_survey:
+        if ((restored_image or restore_date) and require_wait):
             task.survey.status = 'Restoring Files'
             task.status = 'Ready'
             if restored_image:
