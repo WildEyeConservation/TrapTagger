@@ -489,18 +489,18 @@ def restore_images_for_classification(self,survey_id,days,edit_survey_args,tier,
 
         images = image_query.filter(or_(Image.expiry_date==None,Image.expiry_date<expected_expiry_date)).order_by(Image.id).distinct().all()
         
-        if images:
-            restore_request = {
-                'Days': days,
-                'GlacierJobParameters': {
-                    'Tier': tier
-                }
+        restore_request = {
+            'Days': days,
+            'GlacierJobParameters': {
+                'Tier': tier
             }
+        }
 
-            restored_image = False
-            restore_date = None
-            require_wait = False
+        restored_image = False
+        restore_date = None
+        require_wait = False
 
+        if images:
             storage_class = check_storage_class(images[0][2] + '/' + images[0][1])
             if storage_class == 'DEEP_ARCHIVE':
                 for chunk in chunker(images, 1000):
@@ -529,26 +529,23 @@ def restore_images_for_classification(self,survey_id,days,edit_survey_args,tier,
                     if image[0].expiry_date: image[0].expiry_date = None
                 db.session.commit()
 
-
-            if not restored_image and not restore_date and not require_wait:
-                other_images = image_query.filter(Image.expiry_date>=expected_expiry_date).first()
-                if other_images:
-                    image_key = other_images[2] + '/' + other_images[1]
-                    restore_file = get_restore_info(image_key)
-                    if restore_file[0]:
-                        restore_date = restore_file[0]
-                        require_wait = True
-            
-            if (restored_image or restore_date) and require_wait:
-                survey.status = 'Restoring Files'   
-                if restored_image:
-                    survey.require_launch = datetime.utcnow() + timedelta(seconds=restore_time)
-                elif restore_date:
-                    survey.require_launch = restore_date + timedelta(seconds=restore_time)
-                GLOBALS.redisClient.set('edit_launch_kwargs_'+str(survey.id),json.dumps(edit_survey_args))
-                db.session.commit()   
-            else:
-                edit_survey.apply_async(kwargs=edit_survey_args)
+        if not restored_image and not restore_date and not require_wait:
+            other_images = image_query.filter(Image.expiry_date>=expected_expiry_date).first()
+            if other_images:
+                image_key = other_images[2] + '/' + other_images[1]
+                restore_file = get_restore_info(image_key)
+                if restore_file[0]:
+                    restore_date = restore_file[0]
+                    require_wait = True
+        
+        if (restored_image or restore_date) and require_wait:
+            survey.status = 'Restoring Files'   
+            if restored_image:
+                survey.require_launch = datetime.utcnow() + timedelta(seconds=restore_time)
+            elif restore_date:
+                survey.require_launch = restore_date + timedelta(seconds=restore_time)
+            GLOBALS.redisClient.set('edit_launch_kwargs_'+str(survey.id),json.dumps(edit_survey_args))
+            db.session.commit()   
         else:
             edit_survey.apply_async(kwargs=edit_survey_args)
 

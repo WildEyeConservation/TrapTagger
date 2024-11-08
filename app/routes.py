@@ -14282,6 +14282,24 @@ def getDownloadRequests():
                             download_requests.append(req_dict)  
                     else:
                         download_requests.append(req_dict)     
+            elif req_type == 'export':
+                if status == 'Restoring Files':
+                    if survey_launch:
+                        restore_time = math.floor(((Config.RESTORE_TIME-(survey_launch-datetime.now()).total_seconds()) / 3600))
+                    else:
+                        restore_time = 0
+                    req_dict['restore'] = restore_time
+                    req_dict['total_restore'] = Config.RESTORE_TIME/3600
+                        
+                    req_dict['expires'] = timestamp.strftime('%Y-%m-%dT%H:%M:%SZ')
+                    download_requests.append(req_dict)
+                elif status == 'Available':
+                    if timestamp > date_now:
+                        req_dict['expires'] = timestamp.strftime('%Y-%m-%dT%H:%M:%SZ')
+                        req_dict['url'] = 'https://'+Config.BUCKET+'.s3.amazonaws.com/'+(org_folder+'/exports/'+ org_name+'_'+current_user.username+'_'+survey_name+'_'+task_name +'_' + name + '.csv').replace('+','%2B').replace('?','%3F').replace('#','%23')
+                        download_requests.append(req_dict)  
+                else:
+                    download_requests.append(req_dict)     
             else:
                 file = req_type.upper() + ' - ' + survey_name + ' ' + task_name
                 req_dict['file'] = file
