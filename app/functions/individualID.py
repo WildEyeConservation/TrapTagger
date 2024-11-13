@@ -1516,6 +1516,15 @@ def calculate_hotspotter_similarity(self,batch):
 
                         detSimilarity.score = float(score)
 
+            #Get flann dir and remove it
+            flann_cachedir = GLOBALS.ibs.get_flann_cachedir()
+            nnindexer = qreq_.indexer
+            if nnindexer:
+                noquery = True
+                flann_cfgstr = nnindexer.get_cfgstr(noquery)
+                flann_path = flann_cachedir + '/flann' + flann_cfgstr + '.flann'
+                if os.path.exists(flann_path):
+                    os.remove(flann_path)
 
         db.session.commit()
         app.logger.info('Finished calculating hotspotter similarity in {}s'.format(time.time()-starttime))
