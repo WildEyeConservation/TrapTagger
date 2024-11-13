@@ -4627,7 +4627,7 @@ function submitNewSurvey(formData) {
 
                 if (reply.action=='upload') {
                     uploadID = reply.newSurvey_id
-                    surveyName = reply.surveyName
+                    uploadSurveyName = reply.surveyName
 
                     uploading = true
                     updatePage(current_page)
@@ -4824,7 +4824,7 @@ document.getElementById('btnAddFiles').addEventListener('click', ()=>{
                 if (reply.status=='success') {
                     if (document.getElementById('BrowserAdd').checked) {
                         uploadID = reply.survey_id
-                        surveyName = reply.survey_name
+                        uploadSurveyName = reply.survey_name
                         uploading = true
                         updatePage(current_page)
                     }

@@ -77,7 +77,7 @@ app.logger.info('Queues flushed. Rescheduling active tasks...')
 for active_task in active_tasks:
     for function_location in ['app.routes','app.functions.admin','app.functions.annotation','app.functions.globals',
                                 'app.functions.imports','app.functions.individualID','app.functions.permissions',
-                                'app.functions.results','app.functions.utilities']:
+                                'app.functions.results','app.functions.utilities','app.functions.archive','app.functions.periodic']:
         if function_location in active_task['name']:
             module = importlib.import_module(function_location)
             function_name = re.split(function_location+'.',active_task['name'])[1]

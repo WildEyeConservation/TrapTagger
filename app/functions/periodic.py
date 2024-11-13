@@ -139,7 +139,6 @@ def importMonitor():
         app.logger.info(traceback.format_exc())
         app.logger.info('!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!')
         app.logger.info(' ')
-        # self.retry(exc=exc, countdown= retryTime(self.request.retries))
 
     finally:
         if commit: db.session.commit()
@@ -977,6 +976,8 @@ def monitorFileRestores():
                     task.tagging_level = launch_kwargs['tagging_level']  
                     survey.require_launch = None
                     survey.status = 'Processing'
+                    for sub_task in task.sub_tasks:
+                        sub_task.survey.status = 'Processing'
                     db.session.commit()        
                     del launch_kwargs['tagging_level']   
                     if 'algorithm' in launch_kwargs.keys():

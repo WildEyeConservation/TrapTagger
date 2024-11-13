@@ -4564,6 +4564,8 @@ def exportRequest():
             #     GLOBALS.s3client.delete_object(Bucket=Config.BUCKET, Key=fileName+'.zip')
             # except:
             #     pass
+            if survey.status == 'Restoring Files':
+                return json.dumps({'status':'error', 'message': 'Your survey is currently having files restored from archive. Initiating a new export request that requires file restoration is not possible at this time. Please wait for the current restoration process to complete.'})
 
             check = db.session.query(DownloadRequest).filter(DownloadRequest.task_id==task_id).filter(DownloadRequest.user_id==current_user.id).filter(DownloadRequest.type=='export').filter(DownloadRequest.status=='Pending').first()
             if check:
@@ -9555,6 +9557,7 @@ def getIndividualIDSurveysTasks():
                         .filter(Label.icID_allowed==True)\
                         .filter(Task.status.in_(Config.TASK_READY_STATUSES))\
                         .filter(Survey.status.in_(Config.SURVEY_READY_STATUSES))\
+                        .filter(Survey.status != 'Restoring Files')\
                         ,current_user.id, 'write').distinct().all()
 
     reply = {}
@@ -13655,6 +13658,7 @@ def getIndividualSurveysTasks():
                                 .filter(Task.name != 'default'),current_user.id,'write')\
                                 .filter(func.lower(Task.status).in_(Config.TASK_READY_STATUSES))\
                                 .filter(func.lower(Survey.status).in_(Config.SURVEY_READY_STATUSES))\
+                                .filter(Survey.status!='Restoring Files')\
                                 .distinct().all()
 
         for d in data:
@@ -13688,6 +13692,7 @@ def deleteIndividuals():
                                                 .filter(Task.id.in_(task_ids))\
                                                 .filter(func.lower(Task.status).in_(Config.TASK_READY_STATUSES))\
                                                 .filter(func.lower(Survey.status).in_(Config.SURVEY_READY_STATUSES))\
+                                                .filter(Survey.status!='Restoring Files')\
                                                 ,current_user.id, 'write').distinct().all()
 
         if tasks and len(tasks) == len(task_ids):
@@ -14300,7 +14305,7 @@ def getDownloadRequests():
                 elif status == 'Available':
                     if timestamp > date_now:
                         req_dict['expires'] = timestamp.strftime('%Y-%m-%dT%H:%M:%SZ')
-                        req_dict['url'] = 'https://'+Config.BUCKET+'.s3.amazonaws.com/'+(org_folder+'/exports/'+ org_name+'_'+current_user.username+'_'+survey_name+'_'+task_name +'_' + name + '.csv').replace('+','%2B').replace('?','%3F').replace('#','%23').replace('\\','%5C')
+                        req_dict['url'] = 'https://'+Config.BUCKET+'.s3.amazonaws.com/'+(org_folder+'/docs/'+ org_name+'_'+current_user.username+'_'+survey_name+'_'+task_name +'_' + name + '.'+ Config.RESULT_TYPES[req_type]).replace('+','%2B').replace('?','%3F').replace('#','%23').replace('\\','%5C')
                         download_requests.append(req_dict)  
                 else:
                     download_requests.append(req_dict)     

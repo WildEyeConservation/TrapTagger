@@ -22,7 +22,7 @@ const limitTT=pLimit(6)
 
 batchSize = 200
 lambdaBatchSize = 350
-surveyName = null
+uploadSurveyName = null
 uploadID = null
 filesUploaded = 0
 filesActuallyUploaded = 0
@@ -41,11 +41,11 @@ fileRenames = {}
 onmessage = function (evt) {
     /** Take instructions from main js */
     if (evt.data.func=='selectFiles') {
-        surveyName = evt.data.args[2]
+        uploadSurveyName = evt.data.args[2]
         uploadID = evt.data.args[3]
         selectFiles(evt.data.args[0],evt.data.args[1])
     } else if (evt.data.func=='uploadFiles') {
-        surveyName = evt.data.args[0]
+        uploadSurveyName = evt.data.args[0]
         uploadID = evt.data.args[1]
         uploadFiles()
     } else if (evt.data.func=='checkFinishedUpload') {
@@ -57,6 +57,9 @@ onmessage = function (evt) {
         resetUploadStatusVariables()
     } else if (evt.data.func=='buildUploadProgress') {
         buildUploadProgress()
+    } else if (evt.data.func=='pauseUpload') {
+        checkLambdaQueue(true)
+        resetUploadStatusVariables()
     }
 };
 
@@ -86,7 +89,7 @@ async function checkFileBatch() {
             } else {
                 items.push(item)
                 files.push({
-                    name: surveyName + '/' + item[0] + '/' + item[1].name,
+                    name: uploadSurveyName + '/' + item[0] + '/' + item[1].name,
                     hash: hash
                 })
             }
@@ -114,9 +117,9 @@ async function checkFileBatch() {
             new_names = data[2]
             for (let i=0;i<items.length;i++) {
                 let item = items[i]
-                if (!uploaded.includes(surveyName + '/' + item[0] + '/' + item[1].name)) {
-                    if ((surveyName + '/' + item[0] + '/' + item[1].name) in new_names) {
-                        filepath = surveyName + '/' + item[0] + '/' 
+                if (!uploaded.includes(uploadSurveyName + '/' + item[0] + '/' + item[1].name)) {
+                    if ((uploadSurveyName + '/' + item[0] + '/' + item[1].name) in new_names) {
+                        filepath = uploadSurveyName + '/' + item[0] + '/' 
                         fileRenames[filepath + item[1].name] = filepath + new_names[filepath + item[1].name]
                     }
                     uploadQueue.push(item)
@@ -126,12 +129,12 @@ async function checkFileBatch() {
                     updateUploadProgress(filesUploaded,filecount)
                 }
 
-                if (require_lambda.includes(surveyName + '/' + item[0] + '/' + item[1].name)) {
-                    if ((surveyName + '/' + item[0] + '/' + item[1].name) in new_names) {
-                        filepath = surveyName + '/' + item[0] + '/'
+                if (require_lambda.includes(uploadSurveyName + '/' + item[0] + '/' + item[1].name)) {
+                    if ((uploadSurveyName + '/' + item[0] + '/' + item[1].name) in new_names) {
+                        filepath = uploadSurveyName + '/' + item[0] + '/'
                         lambdaQueue.push(filepath + new_names[filepath + item[1].name])
                     } else {
-                        lambdaQueue.push(surveyName + '/' + item[0] + '/' + item[1].name)
+                        lambdaQueue.push(uploadSurveyName + '/' + item[0] + '/' + item[1].name)
                     }
                 }
             }
@@ -156,7 +159,7 @@ async function addBatch() {
         while ((filesToAdd.length<batchSize)&&(uploadQueue.length>0)) {
             let item = uploadQueue.pop()
             let file = await item[1].getFile()
-            let filename = surveyName + '/' + item[0] + '/' + item[1].name
+            let filename = uploadSurveyName + '/' + item[0] + '/' + item[1].name
             if (filename in fileRenames) {
                 filename = fileRenames[filename]
                 delete fileRenames[filename]
@@ -332,13 +335,13 @@ function getHash(jpegData, filename) {
     }
 }
 
-async function checkLambdaQueue(count=0) {
+async function checkLambdaQueue(pause=false,count=0) {
     /** Check if the lambda queue is empty. If not, send the next batch to the lambda function. */
     var files = []
     if (lambdaQueue.length>= lambdaBatchSize) {
         checkingLambda = true
         while (files.length<lambdaBatchSize) {
-            let file = lambdaQueue.pop()
+            let file = lambdaQueue.pop(0)
             fileSuffix = file.split('.')[1]
             let fileType;
             if (/jpe?g$/i.test(fileSuffix)) {
@@ -354,10 +357,10 @@ async function checkLambdaQueue(count=0) {
             })
         }
     }
-    else if ((lambdaQueue.length>0)&&(filesUploaded==filesQueued)&&(filesUploaded==filecount)&&(uploadQueue.length==0)&&(proposedQueue.length==0)){
+    else if ((lambdaQueue.length>0)&&((filesUploaded==filesQueued)&&(filesUploaded==filecount)&&(uploadQueue.length==0)&&(proposedQueue.length==0)||pause)){
         checkingLambda = true
         while (lambdaQueue.length>0) {
-            let file = lambdaQueue.pop()
+            let file = lambdaQueue.pop(0)
             fileSuffix = file.split('.')[1]
             let fileType;
             if (/jpe?g$/i.test(fileSuffix)) {
@@ -391,18 +394,22 @@ async function checkLambdaQueue(count=0) {
                 throw new Error(response.statusText)
             }
             checkingLambda = false
-            if (lambdaQueue.length==0){
-                checkFinishedUpload()
-            }
-        }).catch( (error) => {
-            if (count<=5) {
-                lambdaQueue.push(...files)
-                setTimeout(function() { checkLambdaQueue(count+1); }, 10000);
-            }
-            else{
-                checkingLambda = false
+            if (!pause){
                 if (lambdaQueue.length==0){
                     checkFinishedUpload()
+                }
+            }
+        }).catch( (error) => {
+            if (!pause){
+                if (count<=5) {
+                    lambdaQueue.push(...files)
+                    setTimeout(function() { checkLambdaQueue(pause,count+1); }, 10000);
+                }
+                else{
+                    checkingLambda = false
+                    if (lambdaQueue.length==0){
+                        checkFinishedUpload()
+                    }
                 }
             }
         }))

@@ -253,6 +253,8 @@ function submitExportRequest() {
                     while(divExport.firstChild){
                         divExport.removeChild(divExport.firstChild);
                     }
+
+                    updatePage(current_page)
             
                 } else {
                     document.getElementById('modalPWH').innerHTML = 'Error'

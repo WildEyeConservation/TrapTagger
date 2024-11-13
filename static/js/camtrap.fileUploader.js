@@ -14,7 +14,7 @@
 
 const limitTT=pLimit(6)
 
-surveyName = null
+uploadSurveyName = null
 uploadID = null
 uploadStart = null
 retrying = false
@@ -37,7 +37,7 @@ uploadWorker.onmessage = function(evt){
         uploading = true
         uploadStart = Date.now()
     } else if (evt.data.func=='reloadPage') {
-        surveyName = null
+        uploadSurveyName = null
         uploadID = null
         uploadStart = null
         retrying = false
@@ -58,7 +58,7 @@ function buildUploadProgress(filesUploaded,filecount) {
     deleteSurveyBtn = document.getElementById('deleteSurveyBtn'+uploadID.toString())
     deleteSurveyBtn.disabled = true
 
-    taskDiv = document.getElementById('taskDiv-'+surveyName)
+    taskDiv = document.getElementById('taskDiv-'+uploadSurveyName)
     while(taskDiv.firstChild){
         taskDiv.removeChild(taskDiv.firstChild);
     }
@@ -168,11 +168,11 @@ async function selectFiles(resuming=false,survey_id=null,survey_name=null) {
     /** Allows a user to select a folder, and then passes the handle to the web work to process */
     if (resuming) {
         uploadID = survey_id
-        surveyName = survey_name
+        uploadSurveyName = survey_name
     }
     resetUploadStatusVariables()
     dirHandle = await window.showDirectoryPicker();
-    uploadWorker.postMessage({'func': 'selectFiles', 'args': [dirHandle,resuming,surveyName,uploadID]});
+    uploadWorker.postMessage({'func': 'selectFiles', 'args': [dirHandle,resuming,uploadSurveyName,uploadID]});
 }
 
 async function uploadFiles() {
@@ -182,7 +182,7 @@ async function uploadFiles() {
     } else {
         modalAddFiles.modal('hide')
     }
-    uploadWorker.postMessage({'func': 'uploadFiles', 'args': [surveyName,uploadID]});
+    uploadWorker.postMessage({'func': 'uploadFiles', 'args': [uploadSurveyName,uploadID]});
 }
 
 var uppy = new Uppy.Uppy({
@@ -250,7 +250,8 @@ function pauseUpload() {
     /** Pauses an upload by cancelling it. */
     uppy.cancelAll()
     resetUploadStatusVariables()
-    uploadWorker.postMessage({'func': 'resetUploadStatusVariables', 'args': null});
+    // uploadWorker.postMessage({'func': 'resetUploadStatusVariables', 'args': null});
+    uploadWorker.postMessage({'func': 'pauseUpload', 'args': null});
     // updatePage(current_page)
     location.reload()
 }
