@@ -14507,8 +14507,14 @@ def deleteDownloadRequest(download_request_id):
                 GLOBALS.s3client.delete_object(Bucket=Config.BUCKET, Key=fileName)
             except:
                 pass
+            
+            if download_request.status == 'Restoring Files':
+                survey = task.survey
+                if survey.status == 'Restoring Files':
+                    survey.status = 'Ready'
+                    GLOBALS.redisClient.delete('download_launch_kwargs_'+str(survey.id))
 
-        db.session.delete(download_request)
+            db.session.delete(download_request)
         db.session.commit()
         status = 'success'
 

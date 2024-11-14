@@ -533,18 +533,18 @@ function buildSurveys(survey,disableSurvey) {
         var cancelRestoreBtn = document.createElement('button')
         cancelRestoreBtn.setAttribute("class","btn btn-danger btn-block btn-sm")
         cancelRestoreBtn.innerHTML = '&times;'
+        cancelRestoreBtn.id = 'cancelRestoreBtn'+survey.id
         cancelCol.appendChild(cancelRestoreBtn)
 
         cancelRestoreBtn.addEventListener('click', function(wrapSurveyId) {
             return function() {
+                document.getElementById('cancelRestoreBtn'+wrapSurveyId).disabled = true
                 var xhttp = new XMLHttpRequest();
                 xhttp.onreadystatechange =
                 function(){
                     if (this.readyState == 4 && this.status == 200) {
                         reply = JSON.parse(this.responseText);   
-                        if (reply=='success') {
-                            updatePage(current_page)
-                        }
+                        updatePage(current_page)
                     }
                 }
                 xhttp.open("GET", '/cancelRestore/'+wrapSurveyId);

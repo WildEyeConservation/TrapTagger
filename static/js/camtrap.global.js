@@ -429,11 +429,15 @@ function buildDownloadRequest(download){
         deleteBtn.setAttribute('style', 'cursor: pointer; color: #D9534F;');
         deleteBtn.setAttribute('title', 'Delete');
         deleteBtn.id = 'deleteDownloadBtn-' + download.id;
+        deleteBtn.disabled = false
         col3.appendChild(deleteBtn);
 
         deleteBtn.addEventListener('click', function(){
-            let download_id = this.id.split('-')[1]
-            deleteDownload(download_id)
+            if (!this.disabled){
+                let download_id = this.id.split('-')[1]
+                this.disabled = true
+                deleteDownload(download_id)
+            }
         });
     }
     else if (download.status == 'Restoring Files'){
@@ -497,10 +501,12 @@ function buildDownloadRequest(download){
         stopTaskBtn.setAttribute("class","btn btn-danger btn-block btn-sm")
         stopTaskBtn.innerHTML = '&times;'
         stopTaskBtn.id = 'stopTaskBtn-' + download.id
+        stopTaskBtn.disabled = false
         col3.appendChild(stopTaskBtn)
 
         stopTaskBtn.addEventListener('click', function(){
             let download_id = this.id.split('-')[1]
+            this.disabled = true
             deleteDownload(download_id)
         })
     }
