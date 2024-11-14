@@ -772,7 +772,7 @@ def manage_tasks_with_restore():
                                     .filter(Image.expiry_date!=None)\
                                     .filter(Label.description==species)\
                                     .distinct().first()
-            if expiry_date and not require_launch:
+            if expiry_date:
                 expiry_date = expiry_date[0]
                 time_left = expiry_date - date_now
                 if time_left.days < 0:
@@ -781,7 +781,7 @@ def manage_tasks_with_restore():
                     task.status = 'Stopping'
                     db.session.commit()
                     stop_task.delay(task_id=task_id)
-                elif time_left.days < 1:
+                elif time_left.days < 2:
                     if last_active:
                         if (date_now - last_active).days > 5:
                             msg = '<p>Your individual ID job for survey {} has expired due to inactivity. You can re-launch if you wish to continue.'.format(survey_name)
@@ -790,10 +790,11 @@ def manage_tasks_with_restore():
                             db.session.commit()
                             stop_task.delay(task_id=task_id)
                         else:
-                            survey = db.session.query(Survey).get(survey_id)
-                            survey.require_launch = date_now
-                            db.session.commit()
-                            restore_images_for_id.apply_async(kwargs={'task_id':task_id,'days':Config.ID_RESTORE_DAYS,'tier':Config.RESTORE_TIER, 'restore_time':Config.RESTORE_TIME, 'extend':True})
+                            if not require_launch or (date_now - require_launch).days > 7:
+                                survey = db.session.query(Survey).get(survey_id)
+                                survey.require_launch = date_now
+                                db.session.commit()
+                                restore_images_for_id.apply_async(kwargs={'task_id':task_id,'days':Config.ID_RESTORE_DAYS,'tier':Config.RESTORE_TIER, 'restore_time':Config.RESTORE_TIME, 'extend':True})
 
         if msg:
             org_admins = [r[0] for r in db.session.query(User.id).join(UserPermissions).join(Organisation).join(Survey).filter(Survey.id==survey_id).filter(UserPermissions.default=='admin').distinct().all()]    
@@ -928,7 +929,7 @@ def checkRestoreDownloads(task_id):
 
     date_now = datetime.utcnow()
     download_request = db.session.query(DownloadRequest).filter(DownloadRequest.task_id == task_id).filter(DownloadRequest.type == 'file').filter(DownloadRequest.status == 'Downloading').filter(DownloadRequest.name=='restore').first()
-    if download_request and (download_request.timestamp-date_now).days == 0:
+    if download_request and (download_request.timestamp-date_now).days < 2:
         try:
             if download_request.task.survey.status.lower() in Config.SURVEY_READY_STATUSES:
                 user_id = download_request.user_id

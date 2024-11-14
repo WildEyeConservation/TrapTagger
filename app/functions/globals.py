@@ -2891,7 +2891,7 @@ def inspect_celery(include_spam=False,include_reserved=False,include_scheduled=F
                 elif 'segment_and_pose' in task['name']:
                     print('{:{}}{:{}}{:{}}{:{}}  {}'.format(task['id'],40,name,36,hostname,36,time_start,29,task['kwargs']['batch'][0]))
                 elif 'calculate_hotspotter_similarity' in task['name']:
-                    print('{:{}}{:{}}{:{}}{:{}}  {}'.format(task['id'],40,name,36,hostname,36,time_start,29,task['kwargs']['batch'][0]))
+                    print('{:{}}{:{}}{:{}}{:{}}  {}'.format(task['id'],40,name,36,hostname,36,time_start,29,task['kwargs']['batch'][0]['query_ids']))
                 elif 'generateDetections' in task['name']:
                     print('{:{}}{:{}}{:{}}{:{}}  {}'.format(task['id'],40,name,36,hostname,36,time_start,29,task['kwargs']['batch'][0]['dirpath']))
                 else:
@@ -2937,7 +2937,7 @@ def inspect_celery(include_spam=False,include_reserved=False,include_scheduled=F
                     elif 'segment_and_pose' in task['name']:
                         print('{:{}}{:{}}{:{}}{:{}}  {}'.format(task['id'],40,name,36,hostname,36,time_start,29,task['kwargs']['batch'][0]))
                     elif 'calculate_hotspotter_similarity' in task['name']:
-                        print('{:{}}{:{}}{:{}}{:{}}  {}'.format(task['id'],40,name,36,hostname,36,time_start,29,task['kwargs']['batch'][0]))
+                        print('{:{}}{:{}}{:{}}{:{}}  {}'.format(task['id'],40,name,36,hostname,36,time_start,29,task['kwargs']['batch'][0]['query_ids']))
                     elif 'generateDetections' in task['name']:
                         print('{:{}}{:{}}{:{}}{:{}}  {}'.format(task['id'],40,name,36,hostname,36,time_start,29,task['kwargs']['batch'][0]['dirpath']))
                     else:
@@ -2985,7 +2985,7 @@ def inspect_celery(include_spam=False,include_reserved=False,include_scheduled=F
                     elif 'segment_and_pose' in request['name']:
                         print('{:{}}{:{}}{:{}}{:{}}  {}'.format(request['id'],40,name,36,hostname,36,eta,29,request['kwargs']['batch'][0]))
                     elif 'calculate_hotspotter_similarity' in request['name']:
-                        print('{:{}}{:{}}{:{}}{:{}}  {}'.format(request['id'],40,name,36,hostname,36,eta,29,request['kwargs']['batch'][0]))
+                        print('{:{}}{:{}}{:{}}{:{}}  {}'.format(request['id'],40,name,36,hostname,36,eta,29,request['kwargs']['batch'][0]['query_ids']))
                     elif 'generateDetections' in request['name']:
                         print('{:{}}{:{}}{:{}}{:{}}  {}'.format(request['id'],40,name,36,hostname,36,eta,29,request['kwargs']['batch'][0]['dirpath']))
                     else:
