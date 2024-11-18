@@ -13141,52 +13141,68 @@ def getSurveyStructure():
                             .filter(Trapgroup.survey_id==survey_id)\
                             .order_by(Trapgroup.tag, Cameragroup.name)\
                             .distinct().all()
-        
-        total_data = len(data)
-        data = data[(page-1)*page_window:page*page_window]
+
+        folder_counts = {}
+        for d in data:
+            if d[4]:
+                if d[4] in folder_counts:
+                    folder_counts[d[4]]['image_count'] = d[6] if d[6] else 0
+                else:
+                    folder_counts[d[4]] = {'image_count': d[6], 'video_count': 0, 'frame_count': 0, 'site_id': d[0], 'site': d[1], 'camera_id': d[2], 'camera': d[3], 'path': d[4]}
+            if d[5]:
+                if d[5] in folder_counts:
+                    folder_counts[d[5]]['video_count'] = d[7] if d[7] else 0
+                    folder_counts[d[5]]['frame_count'] = d[8] if d[8] else 0
+                else:
+                    folder_counts[d[5]] = {'image_count': 0, 'video_count': d[7], 'frame_count': d[8], 'site_id': d[0], 'site': d[1], 'camera_id': d[2], 'camera': d[3], 'path': d[5]}
+
+
+        folder_counts = list(folder_counts.values())
+        total_data = len(folder_counts)
+        folder_counts = folder_counts[(page-1)*page_window:page*page_window]
         site_keys = {}
         camera_keys = {}
-        for d in data:
-            if d[0] not in site_keys:
-                site_keys[d[0]] = len(structure)
-                camera_keys[d[2]] = 0
+        for d in folder_counts:
+            if d['site_id'] not in site_keys:
+                site_keys[d['site_id']] = len(structure)
+                camera_keys[d['camera_id']] = 0
                 structure.append({
-                    'id': d[0],
-                    'site' : d[1],
-                    'nr_folders': 1, 
+                    'id': d['site_id'],
+                    'site' : d['site'],
+                    'nr_folders': 1,
                     'cameras': [{
-                            'id': d[2],
-                            'name': d[3],
-                            'folders': [{
-                                'path': d[4] if d[4] else d[5],
-                                'image_count': d[6] if d[6] else 0,
-                                'video_count': d[7] if d[7] else 0,
-                                'frame_count': d[8] if d[8] else 0
-                            }]
+                        'id': d['camera_id'],
+                        'name': d['camera'],
+                        'folders': [{
+                            'path': d['path'],
+                            'image_count': d['image_count'],
+                            'video_count': d['video_count'],
+                            'frame_count': d['frame_count']
                         }]
+                    }]
                 })
             else:
-                site_idx = site_keys[d[0]]
+                site_idx = site_keys[d['site_id']]
                 structure[site_idx]['nr_folders'] += 1
-                if d[2] not in camera_keys:
-                    camera_keys[d[2]] = len(structure[site_idx]['cameras'])
+                if d['camera_id'] not in camera_keys:
+                    camera_keys[d['camera_id']] = len(structure[site_idx]['cameras'])
                     structure[site_idx]['cameras'].append({
-                        'id': d[2],
-                        'name': d[3],
+                        'id': d['camera_id'],
+                        'name': d['camera'],
                         'folders': [{
-                            'path': d[4] if d[4] else d[5],
-                            'image_count': d[6] if d[6] else 0,
-                            'video_count': d[7] if d[7] else 0,
-                            'frame_count': d[8] if d[8] else 0
+                            'path': d['path'],
+                            'image_count': d['image_count'],
+                            'video_count': d['video_count'],
+                            'frame_count': d['frame_count']
                         }]
                     })
                 else:
-                    camera_idx = camera_keys[d[2]]
+                    camera_idx = camera_keys[d['camera_id']]
                     structure[site_idx]['cameras'][camera_idx]['folders'].append({
-                        'path': d[4] if d[4] else d[5],
-                        'image_count': d[6] if d[6] else 0,
-                        'video_count': d[7] if d[7] else 0,
-                        'frame_count': d[8] if d[8] else 0
+                        'path': d['path'],
+                        'image_count': d['image_count'],
+                        'video_count': d['video_count'],
+                        'frame_count': d['frame_count']
                     })
 
         if total_data > page*page_window:
@@ -14514,7 +14530,7 @@ def deleteDownloadRequest(download_request_id):
                     survey.status = 'Ready'
                     GLOBALS.redisClient.delete('download_launch_kwargs_'+str(survey.id))
 
-            db.session.delete(download_request)
+        db.session.delete(download_request)
         db.session.commit()
         status = 'success'
 
