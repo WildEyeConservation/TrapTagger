@@ -124,7 +124,12 @@ def lambda_handler(event, context):
             img = PilImage.open(download_path)
             compressed_path = '/tmp/compressed_' + key.split('/')[-1]
             img = img.resize((800, 800*img.height//img.width))
-            img.save(compressed_path)
+            try:
+                exif = img.info.get('exif')
+                dpi = img.info.get('dpi')
+                img.save(compressed_path, exif=exif, dpi=dpi, quality=80)
+            except:
+                img.save(compressed_path, quality=80)
 
             # Upload the compressed file to S3
             splits = key.split('/')

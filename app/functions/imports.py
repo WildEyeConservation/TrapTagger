@@ -5823,7 +5823,6 @@ def archive_survey(survey_id):
 
     return True
 
-#TODO: The import functions still need to be completed 
 def process_folder(s3Folder, survey_id, sourceBucket):
     '''
     Import all images from an AWS S3 folder. Handles re-import of a folder cleanly.
