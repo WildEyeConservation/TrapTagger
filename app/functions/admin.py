@@ -443,6 +443,7 @@ def delete_survey(self,survey_id):
             return True
         
         survey_folder = survey.organisation.folder+'/'+survey.name+'/%'
+        survey_folder = survey_folder.replace('_','\\_')
 
         app.logger.info('Deleting survey {}'.format(survey_id))
 

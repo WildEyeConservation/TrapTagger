@@ -13933,6 +13933,7 @@ def addImage():
 
                     # Check if the image already exists
                     survey_folder = survey.organisation.folder + '/' + survey.folder + '/%'
+                    survey_folder = survey_folder.replace('_','\\_')
                     existing_image = db.session.query(Image).join(Camera).filter(Camera.path.like(survey_folder)).filter(Image.hash==image_hash).first()
                     if existing_image:
                         return json.dumps({'message': 'Image already exists.', 'image_id': existing_image.id}), 200
@@ -13973,6 +13974,7 @@ def addImage():
                         if image_exists:
                             filename_split = filename.split('.')
                             dup_filename = filename_split[0] + '_%.' + filename_split[1]
+                            dup_filename = dup_filename.replace('_','\\_')
                             image_dup_names = [r[0] for r in db.session.query(Image.filename).join(Camera).filter(Camera.path==camera_path).filter(Image.filename.like(dup_filename)).distinct().all()]
                             image_dup_count = len(image_dup_names)
                             filename = filename_split[0] + '_' + str(image_dup_count+1) + '.' + filename_split[1]

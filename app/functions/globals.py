@@ -2596,6 +2596,7 @@ def checkFileExist(file,folder):
         filename = file['name']
         hash = file['hash']
         common_path = folder + '/' + filename.split('/')[0] + '/%' 
+        common_path = common_path.replace('_','\\_')
 
         if Config.DEBUGGING: app.logger.info('checking {} with hash {}'.format(folder + '/' + filename,hash))
 
@@ -2641,6 +2642,7 @@ def checkFilesExist(files,folder):
         hash_dict[folder + '/' +file['name']] = file['hash']
 
     survey_path = folder + '/' + files[0]['name'].split('/')[0] + '/%'
+    survey_path = survey_path.replace('_','\\_')
 
     hash_check = db.session.query(Image.hash).join(Camera).filter(Image.hash.in_(file_dict.keys())).filter(Camera.path.like(survey_path))
     vid_hash_check = db.session.query(Video.hash).join(Camera).filter(Video.hash.in_(file_dict.keys())).filter(Camera.path.like(survey_path))
@@ -2652,6 +2654,7 @@ def checkFilesExist(files,folder):
     if not_imported:
         camera_paths = [file.rsplit('/',1)[0] for file in not_imported]
         common_camera_path = os.path.commonpath(camera_paths)
+        common_camera_path = common_camera_path.replace('_','\\_')
 
         files_in_db = db.session.query(Image.filename,Camera.path, Image.hash)\
                                 .join(Camera)\

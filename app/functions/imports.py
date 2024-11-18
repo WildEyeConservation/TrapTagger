@@ -5851,6 +5851,7 @@ def process_folder(s3Folder, survey_id, sourceBucket):
     batch_count = 0
     batch = []
     chunk_size = round(10000/4)
+    s3Folder = s3Folder.replace('_','\\_')
     cameras = localsession.query(Camera).filter(Camera.path.like(s3Folder+'/%')).distinct().all()
     for camera in cameras:
         if '/_video_images_/' in camera.path:

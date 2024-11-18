@@ -76,6 +76,7 @@ def lambda_handler(event, context):
 
             # Check if another image with the same hash exists in db from the same survey
             survey_folder = '/'.join(key.split('/')[:2]) + '/%'
+            survey_folder = survey_folder.replace('_', '\\_')
             existing_query = '''
                 SELECT image.id FROM image
                 JOIN camera ON image.camera_id = camera.id 
