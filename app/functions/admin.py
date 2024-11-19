@@ -1929,17 +1929,19 @@ def findTrapgroupTags(self,tgCode,folder,organisation_id,surveyName,camCode):
                 if surveyName:
                     dirpath = dirpath.replace(surveyName+'/','')
 
-                tags = tgCode.findall(dirpath)
+                tags = tgCode.search(dirpath)
                 if camCode:
                     if camCode != tgCode:
                         if tags:
-                            dirpath = dirpath.replace(tags[0],'')
-                    cams = camCode.findall(dirpath) 
+                            dirpath = dirpath.replace(tags.group(),'')
+                    cams = camCode.search(dirpath) 
+                    if cams:
+                        cams = [cams.group()]
                 else:
                     cam_path = dirpath.split('/')[-1]
                     cams = [cam_path]
-                if len(tags) > 0 and len(cams) > 0:
-                    tag = tags[0]
+                if tags and cams:
+                    tag = tags.group()
                     cam = cams[0]
                     if tag not in allTags:
                         allTags.append(tag)
