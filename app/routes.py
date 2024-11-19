@@ -13351,17 +13351,7 @@ def getTimestampCameraIDs(survey_id):
                                 and_(Image.extracted==True,Image.timestamp!=Image.corrected_timestamp)
                             ))
             # Filter out videos from empty clusters
-            cluster_sq = db.session.query(Cluster.id)\
-                                .join(Image, Cluster.images)\
-                                .join(Detection)\
-                                .join(Camera)\
-                                .join(Trapgroup)\
-                                .filter(Trapgroup.survey_id==survey_id)\
-                                .filter(or_(and_(Detection.source==model,Detection.score>Config.DETECTOR_THRESHOLDS[model]) for model in Config.DETECTOR_THRESHOLDS))\
-                                .distinct().subquery() 
-            cameras = cameras.join(Cluster, Image.clusters)\
-                            .join(cluster_sq, Cluster.id==cluster_sq.c.id)\
-                            .filter(cluster_sq.c.id!=None)
+            cameras = cameras.filter(Image.zip_id==None)
         else:
             cameras = cameras.filter(Image.corrected_timestamp==None).filter(Image.skipped!=True)
             total_image_count = db.session.query(Image.id)\
@@ -13433,17 +13423,7 @@ def getTimestampImages(survey_id, reqID):
                                 and_(Image.extracted==True,Image.timestamp!=Image.corrected_timestamp)
                             ))
             # Filter out videos from empty clusters
-            cluster_sq = db.session.query(Cluster.id)\
-                                .join(Image, Cluster.images)\
-                                .join(Detection)\
-                                .join(Camera)\
-                                .join(Trapgroup)\
-                                .filter(Trapgroup.survey_id==survey_id)\
-                                .filter(or_(and_(Detection.source==model,Detection.score>Config.DETECTOR_THRESHOLDS[model]) for model in Config.DETECTOR_THRESHOLDS))\
-                                .distinct().subquery() 
-            image_data = image_data.join(Cluster, Image.clusters)\
-                            .join(cluster_sq, Cluster.id==cluster_sq.c.id)\
-                            .filter(cluster_sq.c.id!=None)
+            image_data = image_data.filter(Image.zip_id==None)
         else:  
             image_data = image_data.filter(Image.corrected_timestamp==None).filter(Image.skipped!=True)
 
@@ -14354,13 +14334,13 @@ def checkDownloadRequests():
     available_downloads = 0
     if current_user and current_user.is_authenticated:
         date_now = datetime.utcnow()
-        available_downloads = db.session.query(DownloadRequest.id)\
+        available_downloads = surveyPermissionsSQ(db.session.query(DownloadRequest.id)\
                                 .join(Task, DownloadRequest.task_id==Task.id)\
                                 .join(Survey)\
                                 .filter(DownloadRequest.user_id==current_user.id)\
                                 .filter(DownloadRequest.status=='Available')\
                                 .filter(DownloadRequest.timestamp > date_now)\
-                                .distinct().count()
+                                ,current_user.id,'read').distinct().count()
 
     return json.dumps({'available_downloads': available_downloads})
 
