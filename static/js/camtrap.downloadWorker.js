@@ -510,18 +510,19 @@ async function downloadFile(url,paths,labels,hash,count=0) {
         } else {
             if (count==5){
                 if (url.includes('-comp')){
-                    setTimeout(function() { downloadFile(url,paths,labels,hash,count+1); }, 1000*(5**count));
+                    setTimeout(function() { downloadFile(url,paths,labels,hash,count+1); }, 10000*(5*count));
                 }
                 else{
                     // Try downloading the comp version
-                    splits = url.split('/')
+                    splits1 = url.split('.s3.amazonaws.com/')	
+                    splits = splits1[1].split('/')
                     splits[0] = splits[0]+'-comp'
-                    comp_url = splits.join('/')
+                    comp_url = splits1[0]+'.s3.amazonaws.com/'+splits.join('/')
                     downloadFile(comp_url,paths,labels,hash,count+1)
                 }
             }
             else{
-                setTimeout(function() { downloadFile(url,paths,labels,hash,count+1); }, 1000*(5**count));
+                setTimeout(function() { downloadFile(url,paths,labels,hash,count+1); }, 10000*(5*count));
             }
         }
     }
