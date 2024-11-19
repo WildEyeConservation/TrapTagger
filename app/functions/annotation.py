@@ -1724,7 +1724,7 @@ def translate_cluster_for_client(clusterInfo,reqId,limit,isBounding,taggingLevel
                         covered_images.append(image_id)
                         images.append({
                             'id': clusterInfo[cluster_id]['images'][image_id]['id'],
-                            'url': clusterInfo[cluster_id]['images'][image_id]['url'].replace('+','%2B').replace('?','%3F').replace('#','%23'),
+                            'url': clusterInfo[cluster_id]['images'][image_id]['url'].replace('+','%2B').replace('?','%3F').replace('#','%23').replace('\\','%5C'),
                             'timestamp': clusterInfo[cluster_id]['images'][image_id]['timestamp'],
                             'camera': clusterInfo[cluster_id]['images'][image_id]['camera'],
                             'rating': clusterInfo[cluster_id]['images'][image_id]['rating'],
@@ -1798,7 +1798,7 @@ def translate_cluster_for_client(clusterInfo,reqId,limit,isBounding,taggingLevel
                         covered_images.append(image_id)
                         images.append({
                             'id': clusterInfo[cluster_id]['images'][image_id]['id'],
-                            'url': clusterInfo[cluster_id]['images'][image_id]['url'].replace('+','%2B').replace('?','%3F').replace('#','%23'),
+                            'url': clusterInfo[cluster_id]['images'][image_id]['url'].replace('+','%2B').replace('?','%3F').replace('#','%23').replace('\\','%5C'),
                             'timestamp': clusterInfo[cluster_id]['images'][image_id]['timestamp'],
                             'camera': clusterInfo[cluster_id]['images'][image_id]['camera'],
                             'rating': clusterInfo[cluster_id]['images'][image_id]['rating'],
