@@ -752,7 +752,7 @@ def manage_tasks_with_restore():
                                     .filter(Zip.survey_id==survey_id)\
                                     .filter(Zip.expiry_date!=None)\
                                     .distinct().first()
-            if expiry_date:
+            if expiry_date and expiry_date[0]:
                 expiry_date = expiry_date[0]
                 date_launched = expiry_date - timedelta(days=Config.EMPTY_RESTORE_DAYS)
                 if (date_now - date_launched).days > 30:
@@ -772,7 +772,7 @@ def manage_tasks_with_restore():
                                     .filter(Image.expiry_date!=None)\
                                     .filter(Label.description==species)\
                                     .distinct().first()
-            if expiry_date:
+            if expiry_date and expiry_date[0]:
                 expiry_date = expiry_date[0]
                 time_left = expiry_date - date_now
                 if time_left.days < 0:
