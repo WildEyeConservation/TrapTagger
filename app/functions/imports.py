@@ -2552,13 +2552,13 @@ def import_folder(s3Folder, survey_id, sourceBucket,destinationBucket,pipeline,m
         jpegs = list(filter(isjpeg.search, filenames))
         if (len(jpegs) or len(videos)) and not any(exclusion in dirpath for exclusion in exclusions):
             if '/_video_images_/' in dirpath:
-                tags = tag.findall(dirpath.replace(survey.name+'/','').split('/_video_images_/')[0])
+                tags = tag.search(dirpath.replace(survey.name+'/','').split('/_video_images_/')[0])
             else:
-                tags = tag.findall(dirpath.replace(survey.name+'/',''))
-            if len(tags) > 0:
-                camera_name = extract_camera_name(survey.camera_code,survey.trapgroup_code,survey.name,tags[0],dirpath)
+                tags = tag.search(dirpath.replace(survey.name+'/',''))
+            if tags:
+                camera_name = extract_camera_name(survey.camera_code,survey.trapgroup_code,survey.name,tags.group(),dirpath)
                 if camera_name:
-                    trapgroup = Trapgroup.get_or_create(localsession, tags[0], sid)
+                    trapgroup = Trapgroup.get_or_create(localsession, tags.group(), sid)
                     survey.images_processing += len(jpegs)
                     localsession.commit()
 
@@ -2612,15 +2612,15 @@ def import_folder(s3Folder, survey_id, sourceBucket,destinationBucket,pipeline,m
         
         if len(jpegs) and not any(exclusion in dirpath for exclusion in exclusions):
             if '/_video_images_/' in dirpath:
-                tags = tag.findall(dirpath.replace(survey.name+'/','').split('/_video_images_/')[0])
+                tags = tag.search(dirpath.replace(survey.name+'/','').split('/_video_images_/')[0])
             else:
-                tags = tag.findall(dirpath.replace(survey.name+'/',''))
+                tags = tag.search(dirpath.replace(survey.name+'/',''))
             
-            if len(tags) > 0:
-                camera_name = extract_camera_name(survey.camera_code,survey.trapgroup_code,survey.name,tags[0],dirpath)
+            if tags:
+                camera_name = extract_camera_name(survey.camera_code,survey.trapgroup_code,survey.name,tags.group(),dirpath)
                 
                 if camera_name:
-                    trapgroup = Trapgroup.get_or_create(localsession, tags[0], sid)
+                    trapgroup = Trapgroup.get_or_create(localsession, tags.group(), sid)
                     # survey.images_processing += len(jpegs)
                     # localsession.commit()
                     camera = Camera.get_or_create(localsession, trapgroup.id, dirpath)
@@ -2863,10 +2863,10 @@ def pipeline_csv(df,survey_id,tag,exclusions,source,destBucket,min_area,external
         jpegs = list(filter(isjpeg.search, filenames))
         
         if len(jpegs) and not any(exclusion in dirpath for exclusion in exclusions):
-            tags = tag.findall(dirpath.replace(survey.name+'/',''))
+            tags = tag.search(dirpath.replace(survey.name+'/',''))
             
-            if len(tags) > 0:
-                trapgroup = Trapgroup.get_or_create(localsession, tags[0], survey_id)
+            if tags:
+                trapgroup = Trapgroup.get_or_create(localsession, tags.group(), survey_id)
                 survey.images_processing += len(jpegs)
                 localsession.commit()
                 camera = Camera.get_or_create(localsession, trapgroup.id, dirpath)
@@ -4450,9 +4450,9 @@ def pipelineLILA(self,dets_filename,images_filename,survey_name,tgcode_str,sourc
         dirpath_cam_translations = {}
         for item in json_data['images']:
             if len(df[df['filepath']==item['file']]) == 1:
-                tags = tgcode.findall(item['file'])
+                tags = tgcode.search(item['file'])
                 if tags:
-                    tag = tags[0]
+                    tag = tags.group()
                     species = [r for r in df[df['filepath']==item['file']]['species'].unique() if r.lower() not in skip_labels]
                     if species:
                         dirpath = '/'.join(item['file'].split('/')[:-1])
@@ -4565,9 +4565,9 @@ def pipelineLILA2(self,dets_filename,images_filename,survey_name,tgcode_str,sour
         # dirpath_cam_translations = {}
         for item in json_data['images']:
             if len(df[df['filepath']==item['file']]) == 1:
-                tags = tgcode.findall(item['file'])
+                tags = tgcode.search(item['file'])
                 if tags:
-                    tag = tags[0]
+                    tag = tags.group()
                     species = [r for r in df[df['filepath']==item['file']]['species'].unique() if r.lower() not in skip_labels]
                     if species:
                         dirpath = '/'.join(item['file'].split('/')[:-1])
@@ -4727,14 +4727,14 @@ def extract_camera_name(camera_code,trapgroup_code,survey_name,trapgroup_tag,pat
 
         if same_as_site:
             camera_code = re.compile(camera_code)
-            tags = camera_code.findall(path.replace(survey_name,''))
-            camera_name = tags[0] if tags else None
+            tags = camera_code.search(path.replace(survey_name,''))
+            camera_name = tags.group() if tags else None
         
         else:
             # If cam identifier not the same as the site identifier, remove the site identifier from the camera path
             camera_code = re.compile(camera_code)
-            tags = camera_code.findall(path.replace(survey_name,'').replace(trapgroup_tag,''))
-            camera_name = tags[0] if tags else None
+            tags = camera_code.search(path.replace(survey_name,'').replace(trapgroup_tag,''))
+            camera_name = tags.group() if tags else None
 
     else:
         # Folder
