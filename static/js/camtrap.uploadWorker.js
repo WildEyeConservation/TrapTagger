@@ -396,8 +396,6 @@ async function checkLambdaQueue(pause=false,count=0) {
                 throw new Error(response.statusText)
             } else if (response.status==278) {
                 window.location.reload();
-            } else {
-                return response.text()
             }
             checkingLambda = false
             if (!pause){
