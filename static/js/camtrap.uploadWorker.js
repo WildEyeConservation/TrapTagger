@@ -108,6 +108,8 @@ async function checkFileBatch() {
         }).then((response) => {
             if (!response.ok) {
                 throw new Error(response.statusText)
+            } else if (response.status==278) {
+                window.location.reload();
             } else {
                 return response.json()
             }
@@ -392,6 +394,10 @@ async function checkLambdaQueue(pause=false,count=0) {
         }).then((response) => {
             if (!response.ok) {
                 throw new Error(response.statusText)
+            } else if (response.status==278) {
+                window.location.reload();
+            } else {
+                return response.text()
             }
             checkingLambda = false
             if (!pause){

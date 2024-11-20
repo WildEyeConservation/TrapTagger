@@ -63,6 +63,8 @@ async function initiateDownload() {
         }).then((response) => {
             if (!response.ok) {
                 throw new Error(response.statusText)
+            } else if (response.status==278) {
+                window.location.reload();
             } else {
                 return response.json()
             }
@@ -124,6 +126,8 @@ async function initiateDownload() {
                 }).then((response) => {
                     if (!response.ok) {
                         throw new Error(response.statusText)
+                    } else if (response.status==278) {
+                        window.location.reload();
                     } else {
                         return response.json()
                     }
@@ -162,6 +166,8 @@ async function initiateDownload() {
                     }).then((response) => {
                         if (!response.ok) {
                             throw new Error(response.statusText)
+                        } else if (response.status==278) {
+                            window.location.reload();
                         } else {
                             return response.json()
                         }
@@ -292,6 +298,8 @@ async function initiateDownloadAfterRestore(request_id,task_id) {
         }).then((response) => {
             if (!response.ok) {
                 throw new Error(response.statusText)
+            } else if (response.status==278) {
+                window.location.reload();
             } else {
                 return response.json()
             }
@@ -321,6 +329,8 @@ async function initiateDownloadAfterRestore(request_id,task_id) {
                 }).then((response) => {
                     if (!response.ok) {
                         throw new Error(response.statusText)
+                    } else if (response.status==278) {
+                        window.location.reload();
                     } else {
                         return response.json()
                     }

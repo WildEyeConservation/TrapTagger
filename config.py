@@ -24,6 +24,7 @@ class Config(object):
     MAINTENANCE = False
     INITIAL_SETUP = False
     DISABLE_RESTORE = False
+    KILL_FILEHANDLER = False
     VERSION = 36
 
     HOST_IP = os.environ.get('HOST_IP')
