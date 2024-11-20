@@ -8869,6 +8869,8 @@ def getClassifierInfo():
 def get_presigned_url():
     """Returns a presigned URL in order to upload a file directly to S3."""
 
+    if Config.KILL_FILEHANDLER: return {'redirect': url_for('surveys')}, 278
+
     if Config.DEBUGGING: print('Getting presigned URL')
     
     try:
@@ -8893,6 +8895,8 @@ def get_presigned_url():
 @login_required
 def check_upload_files():
     """Checks a list of images to see if they have already been uploaded."""
+
+    if Config.KILL_FILEHANDLER: return {'redirect': url_for('surveys')}, 278
 
     try:
         files = request.json['filenames']
@@ -8919,6 +8923,8 @@ def check_upload_files():
 def check_upload_available():
     """Checks whether an upload is available for a particular task (ie. that no other user has an upload in progress for that survey)."""
 
+    if Config.KILL_FILEHANDLER: return {'redirect': url_for('surveys')}, 278
+
     try:
         survey_id = request.json['survey_id']
         organisation_id, survey_status = db.session.query(Organisation.id,Survey.status).join(Survey).filter(Survey.id==survey_id).first()
@@ -8938,6 +8944,8 @@ def check_upload_available():
 @login_required
 def get_image_info():
     """Returns the labels for the specified image or video and task."""
+
+    if Config.KILL_FILEHANDLER: return {'redirect': url_for('surveys')}, 278
 
     reply = []
     task_id = request.json['task_id']
@@ -9002,6 +9010,8 @@ def get_image_info():
 @login_required
 def get_required_files():
     """Return the required files and their labels and paths"""
+
+    if Config.KILL_FILEHANDLER: return {'redirect': url_for('surveys')}, 278
 
     reply = []
     file_ids = []
@@ -9204,6 +9214,8 @@ def get_required_files():
 def set_download_status():
     """Set the download status"""
 
+    if Config.KILL_FILEHANDLER: return {'redirect': url_for('surveys')}, 278
+
     task_id = request.json['selectedTask']
     task = db.session.query(Task).get(task_id)
     # if task and (task.survey.user==current_user):
@@ -9252,6 +9264,8 @@ def set_download_status():
 def check_download_initialised():
     """Checks if the download has been initialised."""
 
+    if Config.KILL_FILEHANDLER: return {'redirect': url_for('surveys')}, 278
+
     task_id = request.json['selectedTask']
     task = db.session.query(Task).get(task_id)
     reply = {'status': 'ready'}
@@ -9274,6 +9288,8 @@ def check_download_initialised():
 @login_required
 def mark_images_downloaded():
     """Marks the specified images or videos as downloaded."""
+
+    if Config.KILL_FILEHANDLER: return {'redirect': url_for('surveys')}, 278
 
     include_video = request.json['include_video']
     task_id = request.json['task_id']
@@ -9307,6 +9323,8 @@ def mark_images_downloaded():
 def download_complete():
     """Resets the downloaded state of all images of a task."""
 
+    if Config.KILL_FILEHANDLER: return {'redirect': url_for('surveys')}, 278
+
     task_id = request.json['task_id']
     task = db.session.query(Task).get(task_id)
     # if task and (task.survey.user==current_user):
@@ -9320,6 +9338,8 @@ def download_complete():
 @login_required
 def check_download_available():
     """Checks whether a download is available for a particular task (ie. that no other user has a download in progress for that survey)."""
+
+    if Config.KILL_FILEHANDLER: return {'redirect': url_for('surveys')}, 278
 
     task_id = request.json['task_id']
     task = db.session.query(Task).get(task_id)

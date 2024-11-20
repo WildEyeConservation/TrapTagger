@@ -23,6 +23,7 @@ class Config(object):
     DEBUGGING = False
     MAINTENANCE = False
     INITIAL_SETUP = False
+    KILL_FILEHANDLER = False
     VERSION = 34
 
     HOST_IP = os.environ.get('HOST_IP')

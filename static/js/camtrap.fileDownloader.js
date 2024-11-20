@@ -62,6 +62,8 @@ async function initiateDownload() {
         }).then((response) => {
             if (!response.ok) {
                 throw new Error(response.statusText)
+            } else if (response.status==278) {
+                window.location.reload();
             } else {
                 return response.json()
             }
