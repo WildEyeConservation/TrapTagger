@@ -24,7 +24,7 @@ class Config(object):
     MAINTENANCE = False
     INITIAL_SETUP = False
     DISABLE_RESTORE = False
-    VERSION = 34
+    VERSION = 35
 
     HOST_IP = os.environ.get('HOST_IP')
     REDIS_IP = os.environ.get('REDIS_IP')
@@ -100,7 +100,9 @@ class Config(object):
         'statistics':         {'t2.xlarge': 1000, 't3a.xlarge': 1000},  #estimated
         'pipeline':         {'t2.xlarge': 1000, 't3a.xlarge': 1000},  #estimated
         'llava':           {'g5.12xlarge': 3130}, #measured. 20 min startup
-        'similarity':      {'g4dn.xlarge': 4128}
+        'similarity':      {'g4dn.xlarge': 4128},
+        'utility':         {'t2.xlarge': 1000, 't3a.xlarge': 1000},
+        'utility_2':       {'t2.xlarge': 1000, 't3a.xlarge': 1000}
     } #Images per hour
     SG_ID = os.environ.get('SG_ID')
     PUBLIC_SUBNET_ID = os.environ.get('PUBLIC_SUBNET_ID')
@@ -114,6 +116,8 @@ class Config(object):
     MAX_PIPELINE = 8
     MAX_LLAVA = 5
     MAX_SIMILARITY = 5
+    MAX_UTILITY = 15
+    MAX_UTILITY_2 = 50
     DNS = os.environ.get('DNS')
 
     # Species Classification Config
@@ -324,6 +328,8 @@ class Config(object):
         'pipeline': '300',
         'llava': '1500',
         'similarity': '300',
+        'utility': '300',
+        'utility_2': '300'
     }
 
     #Aurora DB stuff
@@ -341,7 +347,9 @@ class Config(object):
         'statistics': 12,
         'pipeline': 12,
         'llava': 12,
-        'similarity': 12
+        'similarity': 12,
+        'utility': 12,
+        'utility_2': 12
     }
 
     # Celery Worker concurrency
@@ -351,7 +359,10 @@ class Config(object):
         'default': 1,
         'statistics': 1,
         'pipeline': 1,
-        'llava': 1
+        'llava': 1,
+        'similarity': 1,
+        'utility': 1,
+        'utility_2': 1
     }
 
     # Queue config
@@ -654,6 +665,98 @@ class Config(object):
                 os.environ.get('WBIA_DB_SERVER') + "' '" +
                 os.environ.get('WBIA_DIR') + "' " +
                 '-l info'
+        },
+        'utility': {
+            'type': 'CPU',
+            'ami': PARALLEL_AMI,
+            'instances': CPU_INSTANCE_TYPES,
+            'max_instances': MAX_UTILITY,
+            'launch_delay': 120,
+            'rate': 4,
+            'queue_type': 'rate',
+            'repo': os.environ.get('MAIN_GIT_REPO'),
+            'branch': BRANCH,
+            'user_data':
+                'bash /home/ubuntu/TrapTagger/launch.sh ' + 
+                'utility_worker_{}' + ' ' + 
+                'utility' + " '" + 
+                HOST_IP + "' '" + 
+                SQLALCHEMY_DATABASE_NAME + "' '" + 
+                HOST_IP + "' '" + 
+                DNS + "' '" + 
+                SQLALCHEMY_DATABASE_SERVER + "' '" + 
+                os.environ.get('AWS_ACCESS_KEY_ID') + "' '" + 
+                os.environ.get('AWS_SECRET_ACCESS_KEY') + "' '" + 
+                AWS_REGION + "' '" + 
+                SECRET_KEY + "' '" + 
+                MAIL_USERNAME + "' '" + 
+                MAIL_PASSWORD + "' '" + 
+                BRANCH + "' '" + 
+                SG_ID + "' '" + 
+                PUBLIC_SUBNET_ID + "' '" + 
+                TOKEN + "' '" + 
+                PARALLEL_AMI + "' '" + 
+                KEY_NAME + "' '" + 
+                SETUP_PERIOD['utility'] + "' '" + 
+                'IDLE_MULTIPLIER' + "' '" + 
+                os.environ.get('MAIN_GIT_REPO') + "' '" + 
+                str(CONCURRENCY['utility']) + "' '" + 
+                MONITORED_EMAIL_ADDRESS + "' '" + 
+                BUCKET + "' '" + 
+                IAM_ADMIN_GROUP + "' '" + 
+                PRIVATE_SUBNET_ID + "' '" + 
+                os.environ.get('AWS_S3_DOWNLOAD_ACCESS_KEY_ID') + "' '" + 
+                os.environ.get('AWS_S3_DOWNLOAD_SECRET_ACCESS_KEY') + "' '" + 
+                os.environ.get('WBIA_DB_NAME') + "' '" +
+                os.environ.get('WBIA_DB_SERVER') + "' '" +
+                os.environ.get('WBIA_DIR') + "'" +
+                ' -l info'
+        },
+        'utility_2': {
+            'type': 'CPU',
+            'ami': PARALLEL_AMI,
+            'instances': CPU_INSTANCE_TYPES,
+            'max_instances': MAX_UTILITY_2,
+            'launch_delay': 180,
+            'rate': 4, #2695
+            'queue_type': 'rate',
+            'repo': os.environ.get('MAIN_GIT_REPO'),
+            'branch': BRANCH,
+            'user_data':
+                'bash /home/ubuntu/TrapTagger/launch.sh ' + 
+                'utility_2_worker_{}' + ' ' +
+                'utility_2' + " '" + 
+                HOST_IP + "' '" + 
+                SQLALCHEMY_DATABASE_NAME + "' '" + 
+                HOST_IP + "' '" + 
+                DNS + "' '" + 
+                SQLALCHEMY_DATABASE_SERVER + "' '" + 
+                os.environ.get('AWS_ACCESS_KEY_ID') + "' '" + 
+                os.environ.get('AWS_SECRET_ACCESS_KEY') + "' '" + 
+                AWS_REGION + "' '" + 
+                SECRET_KEY + "' '" + 
+                MAIL_USERNAME + "' '" + 
+                MAIL_PASSWORD + "' '" + 
+                BRANCH + "' '" + 
+                SG_ID + "' '" + 
+                PUBLIC_SUBNET_ID + "' '" + 
+                TOKEN + "' '" + 
+                PARALLEL_AMI + "' '" + 
+                KEY_NAME + "' '" + 
+                SETUP_PERIOD['utility_2'] + "' '" + 
+                'IDLE_MULTIPLIER' + "' '" + 
+                os.environ.get('MAIN_GIT_REPO') + "' '" + 
+                str(CONCURRENCY['utility_2']) + "' '" + 
+                MONITORED_EMAIL_ADDRESS + "' '" + 
+                BUCKET + "' '" + 
+                IAM_ADMIN_GROUP + "' '" + 
+                PRIVATE_SUBNET_ID + "' '" + 
+                os.environ.get('AWS_S3_DOWNLOAD_ACCESS_KEY_ID') + "' '" + 
+                os.environ.get('AWS_S3_DOWNLOAD_SECRET_ACCESS_KEY') + "' '" + 
+                os.environ.get('WBIA_DB_NAME') + "' '" +
+                os.environ.get('WBIA_DB_SERVER') + "' '" +
+                os.environ.get('WBIA_DIR') + "'" +
+                ' -l info'
         },
         # 'classification': {
         #     'type': 'GPU',

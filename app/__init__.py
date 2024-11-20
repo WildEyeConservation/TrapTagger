@@ -86,7 +86,9 @@ def make_celery(flask_app):
         Queue('statistics',     routing_key='statistics.#'),
         Queue('pipeline',     routing_key='pipeline.#'),
         Queue('llava',     routing_key='llava.#'),
-        Queue('similarity',     routing_key='similarity.#')
+        Queue('similarity',     routing_key='similarity.#'),
+        Queue('utility',     routing_key='utility.#'),
+        Queue('utility_2',     routing_key='utility_2.#')
     ]
 
     if not Config.INITIAL_SETUP:
