@@ -121,6 +121,8 @@ async function startDownload(selectedTask,taskName,count=0) {
     })).then((response) => {
         if (!response.ok) {
             throw new Error(response.statusText)
+        } else if (response.status==278) {
+            window.location.reload();
         } else {
             return response.json()
         }
@@ -154,6 +156,8 @@ async function waitUntilDownloadReady(count=0) {
         })).then((response) => {
             if (!response.ok) {
                 throw new Error(response.statusText)
+            } else if (response.status==278) {
+                window.location.reload();
             } else {
                 return response.json()
             }
@@ -285,8 +289,11 @@ async function getLocalImageInfo(hash,downloadingTask,jpegData,dirHandle,fileNam
         }).then((response) => {
             if (!response.ok) {
                 throw new Error(response.statusText)
+            } else if (response.status==278) {
+                window.location.reload();
+            } else {
+                return response.json()
             }
-            return response.json()
         }).catch( (error) => {
             if (count>5) {
                 errorEcountered = true
@@ -391,8 +398,11 @@ async function fetchRemainingImages() {
     }).then((response) => {
         if (!response.ok) {
             throw new Error(response.statusText)
+        } else if (response.status==278) {
+            window.location.reload();
+        } else {
+            return response.json()
         }
-        return response.json()
     }).catch( (error) => {
         // do nothing - will automatically continue
     }))
@@ -443,6 +453,8 @@ async function confirmReceipt(image_ids,count=0) {
         }).then((response) => {
             if (!response.ok) {
                 throw new Error(response.statusText)
+            } else if (response.status==278) {
+                window.location.reload();
             }
         }).catch( (error) => {
             if (count<=5) {
@@ -557,6 +569,8 @@ async function wrapUpDownload(reload,count=0) {
         }).then((response) => {
             if (!response.ok) {
                 throw new Error(response.statusText)
+            } else if (response.status==278) {
+                window.location.reload();
             } else {
                 return true
             }

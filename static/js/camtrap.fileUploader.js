@@ -199,7 +199,13 @@ uppy.use(Uppy.AwsS3, {
                 survey_id: uploadID,
             }),
         }).then((response) => {
-            return response.text()
+            if (!response.ok) {
+                throw new Error(response.statusText)
+            } else if (response.status==278) {
+                window.location.reload();
+            } else {
+                return response.text()
+            }
         }).then((url) => {
             return {
                 method: 'PUT',
@@ -295,6 +301,8 @@ async function checkUploadAvailable(survey_id,survey_name) {
         }).then((response) => {
             if (!response.ok) {
                 throw new Error(response.statusText)
+            } else if (response.status==278) {
+                window.location.reload();
             } else {
                 return response.json()
             }
