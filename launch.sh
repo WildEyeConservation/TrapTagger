@@ -52,6 +52,7 @@ export AWS_S3_DOWNLOAD_SECRET_ACCESS_KEY=${29}
 export WBIA_DB_NAME=${30}
 export WBIA_DB_SERVER=${31}
 export WBIA_DIR=${32}
+export DEBUGGING=${33}
 
 printf \
 'BASE_WORKER_NAME='$BASE_WORKER_NAME'\n'\
@@ -85,7 +86,8 @@ printf \
 'AWS_S3_DOWNLOAD_SECRET_ACCESS_KEY='$AWS_S3_DOWNLOAD_SECRET_ACCESS_KEY'\n'\
 'WBIA_DB_NAME='$WBIA_DB_NAME'\n'\
 'WBIA_DB_SERVER='$WBIA_DB_SERVER'\n'\
-'WBIA_DIR='$WBIA_DIR'\n'
+'WBIA_DIR='$WBIA_DIR'\n'\
+'DEBUGGING='$DEBUGGING'\n'
 
 num_procs=$(nproc)
 for (( i=1; i<=num_procs; i++ ))
@@ -124,6 +126,7 @@ do
     -e WBIA_DB_NAME\
     -e WBIA_DB_SERVER\
     -e WBIA_DIR\
+    -e DEBUGGING\
     -v /home/ubuntu/TrapTagger:/code\
     -v /home/ubuntu/TrapTagger/wildbook-ia/wbia:/code/wbia\
     --name traptagger$i traptagger:1.1.3\

@@ -8,7 +8,7 @@ admin_org = db.session.query(Organisation).get(1)
 admin_org.archive = False
 db.session.commit()
 
-organisations = db.session.query(Organisation).filter(Organisation.id!=1).all()
+organisations = db.session.query(Organisation).filter(Organisation.id!=1).filter(Organisation.archive==None).all()
 for organisation in organisations:
     organisation.archive = True
 db.session.commit()
@@ -38,14 +38,3 @@ with open(filename, 'w') as f:
     json.dump(stopped_tasks, f)
 
 db.session.commit()
-
-
-# Stage 3: Fire up instances
-fire_up_instances('utility', 5)
-fire_up_instances('utility_2', 60)
-
-# Stage 4: Kick of archival
-for survey_id in survey_ids:
-    task_id = stopped_tasks.get(survey_id)
-    archive_survey_and_update_counts.apply_async(kwargs={'survey_id': survey_id, 'launch_id':task_id}, queue='utility')
-

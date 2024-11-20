@@ -411,7 +411,8 @@ class Config(object):
                 os.environ.get('AWS_S3_DOWNLOAD_SECRET_ACCESS_KEY') + "' '" + 
                 os.environ.get('WBIA_DB_NAME') + "' '" +
                 os.environ.get('WBIA_DB_SERVER') + "' '" +
-                os.environ.get('WBIA_DIR') + "'" +
+                os.environ.get('WBIA_DIR') + "' '" +
+                os.environ.get('DEBUGGING') + "'" +
                 ' -l info'
         },
         'parallel_2': {
@@ -457,7 +458,8 @@ class Config(object):
                 os.environ.get('AWS_S3_DOWNLOAD_SECRET_ACCESS_KEY') + "' '" + 
                 os.environ.get('WBIA_DB_NAME') + "' '" +
                 os.environ.get('WBIA_DB_SERVER') + "' '" +
-                os.environ.get('WBIA_DIR') + "'" +
+                os.environ.get('WBIA_DIR') + "' '" +
+                os.environ.get('DEBUGGING') + "'" +
                 ' -l info'
         },
         'default': {
@@ -503,7 +505,8 @@ class Config(object):
                 os.environ.get('AWS_S3_DOWNLOAD_SECRET_ACCESS_KEY') + "' '" + 
                 os.environ.get('WBIA_DB_NAME') + "' '" +
                 os.environ.get('WBIA_DB_SERVER') + "' '" +
-                os.environ.get('WBIA_DIR') + "'" +
+                os.environ.get('WBIA_DIR') + "' '" +
+                os.environ.get('DEBUGGING') + "'" +
                 ' -l info'
         },
         'statistics': {
@@ -617,7 +620,8 @@ class Config(object):
                 os.environ.get('AWS_S3_DOWNLOAD_SECRET_ACCESS_KEY') + "' '" + 
                 os.environ.get('WBIA_DB_NAME') + "' '" +
                 os.environ.get('WBIA_DB_SERVER') + "' '" +
-                os.environ.get('WBIA_DIR') + "'" + 
+                os.environ.get('WBIA_DIR') + "' '" +
+                os.environ.get('DEBUGGING') + "'" + 
                 ' -l info'
         },
         'llava': {
@@ -710,7 +714,8 @@ class Config(object):
                 os.environ.get('AWS_S3_DOWNLOAD_SECRET_ACCESS_KEY') + "' '" + 
                 os.environ.get('WBIA_DB_NAME') + "' '" +
                 os.environ.get('WBIA_DB_SERVER') + "' '" +
-                os.environ.get('WBIA_DIR') + "'" +
+                os.environ.get('WBIA_DIR') + "' '" +
+                os.environ.get('DEBUGGING') + "'" +
                 ' -l info'
         },
         'utility_2': {
@@ -756,7 +761,8 @@ class Config(object):
                 os.environ.get('AWS_S3_DOWNLOAD_SECRET_ACCESS_KEY') + "' '" + 
                 os.environ.get('WBIA_DB_NAME') + "' '" +
                 os.environ.get('WBIA_DB_SERVER') + "' '" +
-                os.environ.get('WBIA_DIR') + "'" +
+                os.environ.get('WBIA_DIR') + "' '" +
+                os.environ.get('DEBUGGING') + "'" +
                 ' -l info'
         },
         # 'classification': {
