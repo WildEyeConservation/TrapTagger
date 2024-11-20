@@ -20,7 +20,7 @@ basedir = os.path.abspath(os.path.dirname(__file__))
 
 class Config(object):
     LOAD_TESTING = False
-    DEBUGGING = False
+    DEBUGGING = True if os.environ.get('DEBUGGING').lower()=='true' else False
     MAINTENANCE = False
     INITIAL_SETUP = False
     DISABLE_RESTORE = False
