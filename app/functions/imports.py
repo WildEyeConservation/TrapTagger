@@ -3876,7 +3876,7 @@ def import_survey(self,survey_id,preprocess_done=False,live=False,launch_id=None
                 updateAllStatuses(task_id=task_id)
 
             survey = db.session.query(Survey).get(survey_id)
-            if survey.organisation.archive:
+            if survey.organisation.archive != False:
                 archive_survey(survey_id)
 
             survey = db.session.query(Survey).get(survey_id)
