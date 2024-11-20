@@ -7,7 +7,7 @@ filename = 'stopped_tasks.json'
 with open(filename, 'r') as f:
     stopped_tasks = json.load(f)
 
-statuses = ['Ready', 'Launched', 'Processing']
+statuses = ['Processing']
 survey_ids = [r[0] for r in db.session.query(Survey.id)\
                                     .join(Organisation)\
                                     .filter(Organisation.archive==True)\
