@@ -8,6 +8,11 @@ admin_org = db.session.query(Organisation).get(1)
 admin_org.archive = False
 db.session.commit()
 
+organisations = db.session.query(Organisation).filter(Organisation.id!=1).all()
+for organisation in organisations:
+    organisation.archive = True
+db.session.commit()
+
 # Stage 1: # Get surveys
 statuses = ['Ready', 'Launched', 'Processing']
 survey_ids = [r[0] for r in db.session.query(Survey.id)\
