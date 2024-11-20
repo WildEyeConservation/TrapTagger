@@ -5854,14 +5854,14 @@ def process_folder(s3Folder, survey_id, sourceBucket):
     cameras = localsession.query(Camera).filter(Camera.path.like(s3Folder+'/%')).distinct().all()
     for camera in cameras:
         if '/_video_images_/' in camera.path:
-            tags = tag.findall(camera.path.replace(survey.name+'/','').split('/_video_images_/')[0])
+            tags = tag.search(camera.path.replace(survey.name+'/','').split('/_video_images_/')[0])
         else:
-            tags = tag.findall(camera.path.replace(survey.name+'/',''))
+            tags = tag.search(camera.path.replace(survey.name+'/',''))
         
-        if len(tags) > 0:
-            camera_name = extract_camera_name(survey.camera_code,survey.trapgroup_code,survey.name,tags[0],camera.path)
+        if tags:
+            camera_name = extract_camera_name(survey.camera_code,survey.trapgroup_code,survey.name,tags.group(),camera.path)
             if camera_name:
-                trapgroup = Trapgroup.get_or_create(localsession, tags[0], sid)
+                trapgroup = Trapgroup.get_or_create(localsession, tags.group(), sid)
                 camera.trapgroup = trapgroup
 
                 images_to_process = [{'id': r[0], 'filename': r[1]} for r in localsession.query(Image.id,Image.filename).filter(Image.camera==camera).filter(~Image.detections.any()).filter(Image.hash!=None).all()]
