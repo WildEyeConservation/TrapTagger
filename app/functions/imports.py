@@ -3875,7 +3875,9 @@ def import_survey(self,survey_id,preprocess_done=False,live=False,launch_id=None
                 classifyTask(task_id)
                 updateAllStatuses(task_id=task_id)
 
-            archive_survey(survey_id)
+            survey = db.session.query(Survey).get(survey_id)
+            if survey.organisation.archive:
+                archive_survey(survey_id)
 
             survey = db.session.query(Survey).get(survey_id)
             survey.status = 'Ready'

@@ -574,6 +574,7 @@ class Organisation(db.Model):
     previous_image_count = db.Column(db.Integer, index=False)
     previous_video_count = db.Column(db.Integer, index=False)
     previous_frame_count = db.Column(db.Integer, index=False)
+    archive = db.Column(db.Boolean, default=True, index=False)
     earth_ranger_integrations = db.relationship('EarthRanger', backref='organisation', lazy=True)
     permissions = db.relationship('UserPermissions', backref='organisation', lazy=True)
     shares = db.relationship('SurveyShare', backref='organisation', lazy=True)

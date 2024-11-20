@@ -4,17 +4,20 @@ from app.routes import *
 
 
 # Archive  surveys 
+admin_org = db.session.query(Organisation).get(1)
+admin_org.archive = False
+db.session.commit()
 
 # Stage 1: # Get surveys
 statuses = ['Ready', 'Launched', 'Processing']
 survey_ids = [r[0] for r in db.session.query(Survey.id)\
                                     .join(Organisation)\
-                                    .filter(Organisation.name.notin_(['Admin']))\
+                                    .filter(Organisation.archive==True)\
                                     .filter(Survey.status.in_(statuses))\
                                     .order_by(Survey.id.desc())\
                                     .distinct().all()]
 
-# Stage 2: Set status to processing and task status to 'Stopped' & save task info
+# Stage 2: Set status to processing and task status to 'Pending' & save task info
 stopped_tasks = {}
 for survey_id in survey_ids:
     survey = db.session.query(Survey).get(survey_id)
@@ -34,7 +37,7 @@ db.session.commit()
 
 # Stage 3: Fire up instances
 fire_up_instances('utility', 5)
-fire_up_instances('utility_2', 25)
+fire_up_instances('utility_2', 60)
 
 # Stage 4: Kick of archival
 for survey_id in survey_ids:
