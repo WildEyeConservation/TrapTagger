@@ -1332,7 +1332,7 @@ def setup_layers():
     return True
 
 @celery.task(bind=True,max_retries=5)
-def archive_survey_and_update_counts(self,survey_id,filename=None):
+def archive_survey_and_update_counts(self,survey_id,launch_id=None):
     ''' 
     Moves the following date to Glacier Deep Archive storage in S3:
         - Raw animal Images 
@@ -1437,20 +1437,13 @@ def archive_survey_and_update_counts(self,survey_id,filename=None):
                                 .distinct().count()
 
         survey = db.session.query(Survey).get(survey_id)
-        survey.status = 'Ready'
 
-        if filename:
-            # Open json file and see if it requires a task status update
-            try:
-                with open(filename) as file:
-                    data = json.load(file)
-                    if str(survey_id) in data:
-                        task_id = data[str(survey_id)]
-                        task = db.session.query(Task).get(task_id)
-                        task.status = 'PROGRESS'
-                        survey.status = 'Launched'
-            except:
-                pass
+        if launch_id:
+            task = db.session.query(Task).get(launch_id)
+            task.status = 'PROGRESS'
+            survey.status = 'Launched'
+        else:
+            survey.status = 'Ready'
 
         db.session.commit()
         app.logger.info('Task empty image counts updated')

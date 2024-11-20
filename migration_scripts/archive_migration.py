@@ -38,5 +38,6 @@ fire_up_instances('utility_2', 25)
 
 # Stage 4: Kick of archival
 for survey_id in survey_ids:
-    archive_survey_and_update_counts.apply_async(kwargs={'survey_id': survey_id, 'filename':filename}, queue='utility')
+    task_id = stopped_tasks.get(survey_id)
+    archive_survey_and_update_counts.apply_async(kwargs={'survey_id': survey_id, 'launch_id':task_id}, queue='utility')
 
