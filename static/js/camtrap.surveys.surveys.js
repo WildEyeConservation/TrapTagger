@@ -977,38 +977,24 @@ function updatePage(url){
                 document.getElementById('mainCard').setAttribute('style','min-height:400px')
             }
 
-            taskProcessing = false
+            // taskProcessing = false
             for (let i=0;i<reply.surveys.length;i++) {
                 disableSurvey = false
                 for (let n=0;n<reply.surveys[i].tasks.length;n++) {
                     if ((diabledTaskStatuses.includes(reply.surveys[i].tasks[n].status.toLowerCase()))||(reply.surveys[i].tasks[n].disabledLaunch=='true')) {
                         disableSurvey = true
-                        taskProcessing = true
+                        // taskProcessing = true
                     }
                 }
                 // if (disabledSurveyStatuses.includes(reply.surveys[i].status.toLowerCase())||(currentDownloads.includes(reply.surveys[i].id))) {
                 if (disabledSurveyStatuses.includes(reply.surveys[i].status.toLowerCase())) {
                     disableSurvey = true
-                    taskProcessing = true
+                    // taskProcessing = true
                 }
                 buildSurveys(reply.surveys[i],disableSurvey)
                 // if (i < reply.surveys.length-1) {
                 //     surveyListDiv.appendChild(document.createElement('br'))
                 // }
-            }
-
-            if (taskProcessing==true) {
-                if (processingTimer != null) {
-                    clearInterval(processingTimer)
-                    processingTimer = setTimeout(function() { updatePage(url); }, 10000)
-                } else {
-                    processingTimer = setTimeout(function() { updatePage(url); }, 10000)
-                }
-            } else {
-                if (processingTimer != null) {
-                    clearInterval(processingTimer)
-                }
-                processingTimer = null
             }
             
             if (reply.next_url==null) {
@@ -1025,10 +1011,27 @@ function updatePage(url){
                 prev_url = reply.prev_url
             }
 
-
             if (uploading&&!uploadStart) {
                 uploadFiles()
             }
+
+            // if (taskProcessing==true) {
+            //     if (processingTimer != null) {
+            //         clearInterval(processingTimer)
+            //     }
+            //     processingTimer = setTimeout(function() { updatePage(url); }, 10000)
+            // } else {
+            //     if (processingTimer != null) {
+            //         clearInterval(processingTimer)
+            //     }
+            //     processingTimer = null
+            // }
+
+            // always refresh the page
+            if (processingTimer != null) {
+                clearTimeout(processingTimer)
+            }
+            processingTimer = setTimeout(function() { updatePage(url); }, 5000)
         }
     }
     xhttp.open("GET", url);

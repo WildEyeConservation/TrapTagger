@@ -24,7 +24,7 @@ class Config(object):
     MAINTENANCE = False
     INITIAL_SETUP = False
     DISABLE_RESTORE = False
-    VERSION = 35
+    VERSION = 36
 
     HOST_IP = os.environ.get('HOST_IP')
     REDIS_IP = os.environ.get('REDIS_IP')
