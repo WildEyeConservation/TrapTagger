@@ -1153,9 +1153,8 @@ def monitorSQS():
         survey_ids = [r[0] for r in db.session.query(Survey.id).filter(Survey.status=='Import Queued').distinct().all()]
         for survey_id in survey_ids:
             try:
-                upload_complete = GLOBALS.redisClient.get('upload_complete_'+str(survey_id))
+                upload_complete = GLOBALS.redisClient.get('upload_complete_'+str(survey_id)).decode()
                 if upload_complete != 'False':
-                    timestamp = datetime.fromtimestamp(float(upload_complete.decode()))
                     lambda_completed = int(GLOBALS.redisClient.get('lambda_completed_'+str(survey_id)).decode())
                     lambda_invoked = int(GLOBALS.redisClient.get('lambda_invoked_'+str(survey_id)).decode())
                     if lambda_completed >= lambda_invoked:
