@@ -333,7 +333,7 @@ def clean_up_redis():
                     GLOBALS.redisClient.delete(key)
                 else:
                     survey = db.session.query(Survey).get(int(survey_id))
-                    if (survey==None) or (survey.status in Config.SURVEY_READY_STATUSES):
+                    if (survey==None) or (survey.status.lower() in Config.SURVEY_READY_STATUSES):
                         GLOBALS.redisClient.delete(key)
 
     except Exception as exc:
@@ -1076,7 +1076,8 @@ def monitorSQS():
             WaitTimeSeconds=10
         )
         messages = response.get('Messages', [])
-        while messages and (datetime.utcnow()-starttime).total_seconds() < 180:
+        date_now = datetime.utcnow()
+        while messages and (date_now-starttime).total_seconds() < 120:
             for message in messages:
                 if 'MessageAttributes' in message.keys():
                     message_attributes = message['MessageAttributes']
@@ -1126,30 +1127,6 @@ def monitorSQS():
 
                         GLOBALS.sqsClient.delete_message(QueueUrl=GLOBALS.sqsQueueUrl, ReceiptHandle=message['ReceiptHandle'])
 
-
-                        # Check if upload complete and all lambdas have completed - start import
-                        try:
-                            upload_complete = GLOBALS.redisClient.get('upload_complete_'+str(survey_id)).decode()
-                            if upload_complete != 'False':
-                                timestamp = datetime.fromtimestamp(float(upload_complete))
-                                lambda_completed = int(GLOBALS.redisClient.get('lambda_completed_'+str(survey_id)).decode())
-                                lambda_invoked = int(GLOBALS.redisClient.get('lambda_invoked_'+str(survey_id)).decode())
-                                if lambda_completed >= lambda_invoked:
-                                    GLOBALS.redisClient.delete('upload_complete_'+str(survey_id))
-                                    GLOBALS.redisClient.delete('lambda_completed_'+str(survey_id))
-                                    GLOBALS.redisClient.delete('lambda_invoked_'+str(survey_id))
-                                    import_survey.delay(survey_id=survey_id,used_lambda=True)
-                                else:
-                                    # If 24 hours since upload complete and lambdas not complete, put survey in failed state
-                                    if (datetime.utcnow()-timestamp).total_seconds() > 86400:
-                                        survey = db.session.query(Survey).get(survey_id)
-                                        if survey.status == 'Import Queued':
-                                            survey.status = 'Failed'
-                                            db.session.commit()
-                                            GLOBALS.redisClient.delete('upload_complete_'+str(survey_id))
-                        except:
-                            pass
-
                     else:
                         GLOBALS.sqsClient.delete_message(QueueUrl=GLOBALS.sqsQueueUrl, ReceiptHandle=message['ReceiptHandle'])
 
@@ -1170,6 +1147,24 @@ def monitorSQS():
                 WaitTimeSeconds=10
             )
             messages = response.get('Messages', [])
+            date_now = datetime.utcnow()
+
+        # Check all Import Queued surveys and start import if all lambdas have completed
+        survey_ids = [r[0] for r in db.session.query(Survey.id).filter(Survey.status=='Import Queued').distinct().all()]
+        for survey_id in survey_ids:
+            try:
+                upload_complete = GLOBALS.redisClient.get('upload_complete_'+str(survey_id))
+                if upload_complete != 'False':
+                    timestamp = datetime.fromtimestamp(float(upload_complete.decode()))
+                    lambda_completed = int(GLOBALS.redisClient.get('lambda_completed_'+str(survey_id)).decode())
+                    lambda_invoked = int(GLOBALS.redisClient.get('lambda_invoked_'+str(survey_id)).decode())
+                    if lambda_completed >= lambda_invoked:
+                        GLOBALS.redisClient.delete('upload_complete_'+str(survey_id))
+                        GLOBALS.redisClient.delete('lambda_completed_'+str(survey_id))
+                        GLOBALS.redisClient.delete('lambda_invoked_'+str(survey_id))
+                        import_survey.delay(survey_id=survey_id,used_lambda=True)
+            except:
+                pass
 
     except Exception as exc:
         app.logger.info(' ')

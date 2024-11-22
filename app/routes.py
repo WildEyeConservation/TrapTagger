@@ -541,7 +541,7 @@ def getAllIndividuals():
     individuals = individuals.distinct().paginate(page, 12, False)
 
     for individual in individuals.items:
-        image = db.session.query(Image)\
+        image = db.session.query(Image.filename,Camera.path)\
                         .join(Detection)\
                         .join(Camera)\
                         .join(Trapgroup)\
@@ -553,11 +553,15 @@ def getAllIndividuals():
                         .order_by(desc(Image.detection_rating)).first()
 
         if image:
+            id = individual.id
+            name = individual.name
+            path = image[1]
+            filename = image[0]
             reply.append({
-                            'id': individual.id,
-                            'name': individual.name,
-                            'url': (image.camera.path + '/' + image.filename).replace('+','%2B').replace('?','%3F').replace('#','%23').replace('\\','%5C')
-                        })
+                'id': id,
+                'name': name,
+                'url': (path + '/' + filename).replace('+','%2B').replace('?','%3F').replace('#','%23').replace('\\','%5C')
+            })
 
     next = individuals.next_num if individuals.has_next else None
     prev = individuals.prev_num if individuals.has_prev else None
@@ -722,7 +726,24 @@ def getIndividual(individual_id):
             if checkSurveyPermission(current_user.id,task.survey_id,'read'):
                 survey_ids.append(task.survey_id)
 
-        images = db.session.query(Image)\
+        images = db.session.query(
+                        Image.id,
+                        Image.filename,
+                        Image.corrected_timestamp,
+                        Detection.id,
+                        Detection.static,
+                        Detection.top,
+                        Detection.left,
+                        Detection.right,
+                        Detection.bottom,
+                        Detection.flank,
+                        Camera.path,
+                        Trapgroup.id,
+                        Trapgroup.tag,
+                        Trapgroup.latitude,
+                        Trapgroup.longitude,
+                        Trapgroup.altitude
+                    )\
                     .join(Detection)\
                     .join(Camera)\
                     .join(Trapgroup)\
@@ -754,48 +775,49 @@ def getIndividual(individual_id):
         elif order == 'd3':
             images = images.order_by(desc(Image.detection_rating))
 
-        images = images.all()
+        images = images.distinct().all()
 
         for image in images:
-            detection = db.session.query(Detection)\
-                            .filter(Detection.image_id==image.id)\
-                            .filter(Detection.individuals.contains(individual))\
-                            .filter(or_(and_(Detection.source==model,Detection.score>Config.DETECTOR_THRESHOLDS[model]) for model in Config.DETECTOR_THRESHOLDS))\
-                            .filter(Detection.static==False)\
-                            .filter(~Detection.status.in_(Config.DET_IGNORE_STATUSES))\
-                            .first()
-
+            image_id = image[0]
+            filename = image[1]
+            timestamp = stringify_timestamp(image[2])
+            detection_id = image[3]
+            static = image[4]
+            top = image[5]
+            left = image[6]
+            right = image[7]
+            bottom = image[8]
+            flank = Config.FLANK_TEXT[image[9]].capitalize()
+            path = image[10]
+            trapgroup_id = image[11]
+            tag = image[12]
+            latitude = image[13]
+            longitude = image[14]
+            altitude = image[15]
             video_url = None
-            # if image.camera.videos:
-            #     video_url = (image.camera.path.split('_video_images_')[0] + image.camera.videos[0].filename).replace('+','%2B').replace('?','%3F').replace('#','%23').replace('\\','%5C')
 
             reply.append({
-                            'id': image.id,
-                            'url': (image.camera.path + '/' + image.filename).replace('+','%2B').replace('?','%3F').replace('#','%23').replace('\\','%5C'),
-                            'video_url': video_url,
-                            'timestamp': stringify_timestamp(image.corrected_timestamp), 
-                            'trapgroup': 
-                            {   
-                                'id': image.camera.trapgroup.id,
-                                'tag': image.camera.trapgroup.tag,
-                                'latitude': image.camera.trapgroup.latitude,
-                                'longitude': image.camera.trapgroup.longitude,
-                                'altitude': image.camera.trapgroup.altitude
-                            }
-
-                            ,
-                            'detections': [
-                                {
-                                    'id': detection.id,
-                                    'static': detection.static,
-                                    'top': detection.top,
-                                    'left': detection.left,
-                                    'right': detection.right,
-                                    'bottom': detection.bottom,
-                                    'flank': Config.FLANK_TEXT[detection.flank].capitalize()
-                                }
-                            ]
-                        })
+                'id': image_id,
+                'url': (path + '/' + filename).replace('+','%2B').replace('?','%3F').replace('#','%23').replace('\\','%5C'),
+                'video_url': video_url,
+                'timestamp': timestamp,
+                'trapgroup':{
+                    'id': trapgroup_id,
+                    'tag': tag,
+                    'latitude': latitude,
+                    'longitude': longitude,
+                    'altitude': altitude
+                },
+                'detections': [{
+                    'id': detection_id,
+                    'static': static,
+                    'top': top,
+                    'left': left,
+                    'right': right,
+                    'bottom': bottom,
+                    'flank': flank
+                }]
+            })
 
         if survey_ids:
             access = 'write' if all(checkSurveyPermission(current_user.id,task.survey_id,'write') for task in individual.tasks) else 'read'
@@ -13782,7 +13804,9 @@ def editDetectionFlank(detection_id,flank):
             detection.flank = Config.FLANK_DB[flank.lower()]
             db.session.commit()
 
-    return json.dumps('success')
+    new_flank = Config.FLANK_TEXT[detection.flank].capitalize()
+
+    return json.dumps({'id': detection_id, 'flank': new_flank})
 
 @app.route('/ibsHandler/getMatchingKpts/<det_id1>/<det_id2>')
 @login_required

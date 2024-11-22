@@ -337,7 +337,7 @@ function getHash(jpegData, filename) {
     }
 }
 
-async function checkLambdaQueue(pause=false,count=0) {
+async function checkLambdaQueue(pause=false) {
     /** Check if the lambda queue is empty. If not, send the next batch to the lambda function. */
     var files = []
     if (lambdaQueue.length>= lambdaBatchSize) {
@@ -405,16 +405,8 @@ async function checkLambdaQueue(pause=false,count=0) {
             }
         }).catch( (error) => {
             if (!pause){
-                if (count<=5) {
-                    lambdaQueue.push(...files)
-                    setTimeout(function() { checkLambdaQueue(pause,count+1); }, 10000);
-                }
-                else{
-                    checkingLambda = false
-                    if (lambdaQueue.length==0){
-                        checkFinishedUpload()
-                    }
-                }
+                lambdaQueue.push(...files)
+                setTimeout(function() { checkLambdaQueue(pause); }, 10000);
             }
         }))
     }

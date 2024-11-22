@@ -136,6 +136,7 @@ var maskCheckData = {}
 var globalMasks = {"map1": []}
 var maskMode = false
 var detectionGroups = {}
+var editedFlanks = {}
 
 // var colours = {
 //     'rgba(67,115,98,1)': false,
@@ -327,7 +328,12 @@ function buildDetection(image,detection,mapID = 'map1',colour=null) {
 
             }
 
-            rect.bindTooltip(detection.flank,{permanent: true, direction:"center"})
+            if (detection.id in editedFlanks) {
+                rect.bindTooltip(editedFlanks[detection.id],{permanent: true, direction:"center"})
+            }
+            else{
+                rect.bindTooltip(detection.flank,{permanent: true, direction:"center"})
+            }
 
             var center = L.latLng([(rect._bounds._northEast.lat+rect._bounds._southWest.lat)/2,(rect._bounds._northEast.lng+rect._bounds._southWest.lng)/2])
             var bottom = L.latLng([rect._bounds._southWest.lat,(rect._bounds._northEast.lng+rect._bounds._southWest.lng)/2])

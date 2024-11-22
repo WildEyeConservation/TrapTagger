@@ -58,6 +58,7 @@ var detection_zoom = {'map1':{},'map2':{}}
 var fitBoundsInProcess = {'map1':false,'map2':false}
 var defaultOpactity = 30
 var defaultRadius = 15
+var updatingFlank = false
 
 function radians(degrees) {
     /** Converts desgres into radians. */
@@ -1430,36 +1431,9 @@ function clusterIDMapPrep(mapID = 'map1') {
 
     map[mapID].on('contextmenu.select', function (wrapMapID) {
         return function(e) {
-            if (targetUpdated) {  
+            if (targetUpdated && !updatingFlank) {
+                updatingFlank = true
                 detection_id = dbDetIds[wrapMapID][targetRect.toString()]
-                clusters[wrapMapID][clusterIndex[wrapMapID]].images[imageIndex[wrapMapID]].detections[0].flank = e.el.textContent
-                mapID2 = wrapMapID == 'map1' ? 'map2' : 'map1';
-                for (let i = 0; i < clusters[mapID2][clusterIndex[mapID2]].images.length; i++) {
-                    if (clusters[mapID2][clusterIndex[mapID2]].images[i].detections.length > 0){
-                        if (clusters[mapID2][clusterIndex[mapID2]].images[i].detections[0].id == detection_id) {
-                            clusters[mapID2][clusterIndex[mapID2]].images[i].detections[0].flank = e.el.textContent
-                            break
-                        }
-                    }
-                }
-
-                drawnItems[mapID]._layers[targetRect].closeTooltip()
-                drawnItems[mapID]._layers[targetRect]._tooltip._content=e.el.textContent
-                if (toolTipsOpen) {
-                    drawnItems[wrapMapID]._layers[targetRect].openTooltip()
-                }
-
-                for (let leafletID in dbDetIds[mapID2]) {
-                    if (dbDetIds[mapID2][leafletID] == detection_id) {
-                        drawnItems[mapID2]._layers[leafletID].closeTooltip()
-                        drawnItems[mapID2]._layers[leafletID]._tooltip._content=e.el.textContent
-                        if (toolTipsOpen) {
-                            drawnItems[mapID2]._layers[leafletID].openTooltip()
-                        }
-                        break
-                    }
-                }
-
                 editDetectionFlank(detection_id,e.el.textContent)
                 targetUpdated = false
             } else {
@@ -1550,6 +1524,24 @@ function editDetectionFlank(detID,flank) {
                 window.location.replace(JSON.parse(this.responseText)['redirect'])
             } else if (this.readyState == 4 && this.status == 200) {
                 reply = JSON.parse(this.responseText);
+                if ('id' in reply && 'flank' in reply) {
+                    det_id = reply.id
+                    new_flank = reply.flank
+                    editedFlanks[det_id] = new_flank
+                    for (let map_id in dbDetIds) {
+                        for (let leafletID in dbDetIds[map_id]) {
+                            if (dbDetIds[map_id][leafletID] == det_id) {
+                                drawnItems[map_id]._layers[leafletID].closeTooltip()
+                                drawnItems[map_id]._layers[leafletID]._tooltip._content= new_flank
+                                if (toolTipsOpen) {
+                                    drawnItems[map_id]._layers[leafletID].openTooltip()
+                                }
+                                break
+                            }
+                        }
+                    }
+                }
+                updatingFlank = false
             }
         }
         xhttp.open("GET", '/editDetectionFlank/'+detID+'/'+flank);
