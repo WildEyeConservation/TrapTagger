@@ -3110,16 +3110,15 @@ def updateSurveyDetectionRatings(survey_id):
 
     return True
 
-def classifySurvey(survey_id,sourceBucket,classifier_id=None,batch_size=200,processes=4):
+def classifySurvey(survey_id,sourceBucket,classifier_id=None,batch_size=100):
     '''
     Runs the classifier on the survey, and then updates cluster classifications.
 
         Parameters:
             survey_id (int): Survey to process
             sourceBucket (str): AWS S3 Bucket where images are located
-            batch_size (int): Optional batch size to use for species classifier. Default is 200.
             classifier_id (int): The classifier to use
-            processes (int): Optional number of threads to use. Default is 4.
+            batch_size (int): Optional batch size to use for species classifier. Default is 100.
     '''
 
     results = []
