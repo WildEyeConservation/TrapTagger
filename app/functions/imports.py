@@ -2208,6 +2208,7 @@ def runClassifier(self,lower_index,upper_index,sourceBucket,batch_size,cameragro
                                     .filter(or_(and_(Detection.source==model,Detection.score>Config.DETECTOR_THRESHOLDS[model]) for model in Config.DETECTOR_THRESHOLDS))\
                                     .filter(Detection.left!=Detection.right)\
                                     .filter(Detection.top!=Detection.bottom)\
+                                    .filter(Detection.static==False)\
                                     .distinct().all()
 
             for detection in detections:
@@ -2232,6 +2233,7 @@ def runClassifier(self,lower_index,upper_index,sourceBucket,batch_size,cameragro
                                 .filter(or_(and_(Detection.source==model,Detection.score>Config.DETECTOR_THRESHOLDS[model]) for model in Config.DETECTOR_THRESHOLDS))\
                                 .filter(Detection.left!=Detection.right)\
                                 .filter(Detection.top!=Detection.bottom)\
+                                .filter(Detection.static==False)\
                                 .all()
 
             for chunk in chunker(detections, batch_size):
@@ -3138,6 +3140,7 @@ def classifySurvey(survey_id,sourceBucket,classifier_id=None,batch_size=100):
                             .join(Detection)\
                             .filter(Trapgroup.survey_id==survey_id)\
                             .filter(or_(and_(Detection.source==model,Detection.score>Config.DETECTOR_THRESHOLDS[model]) for model in Config.DETECTOR_THRESHOLDS))\
+                            .filter(Detection.static==False)\
                             .group_by(Cameragroup.id)\
                             .all()
 
@@ -3182,6 +3185,7 @@ def classifySurvey(survey_id,sourceBucket,classifier_id=None,batch_size=100):
             result.forget()
     GLOBALS.lock.release()
 
+    # Set static detection classifications to nothing
     detections = db.session.query(Detection)\
                             .join(Image)\
                             .join(Camera)\
