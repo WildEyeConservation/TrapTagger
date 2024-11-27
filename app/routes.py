@@ -14237,7 +14237,7 @@ def invoke_lambda():
                         GLOBALS.lambdaClient.invoke(FunctionName=Config.IMAGE_IMPORT_LAMBDA, InvocationType='Event', Payload=json.dumps(payload))
                         invoked_lambdas += 1
 
-                    for batch in chunker(video_keys, 15):
+                    for batch in chunker(video_keys, 5):
                         payload['keys'] = batch
                         payload['extract_function'] = Config.VIDEO_EXTRACT_LAMBDA
                         GLOBALS.lambdaClient.invoke(FunctionName=Config.VIDEO_IMPORT_LAMBDA, InvocationType='Event', Payload=json.dumps(payload))
