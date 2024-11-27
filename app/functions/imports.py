@@ -374,7 +374,8 @@ def recluster_large_clusters(self,task,updateClassifications,trapgroup_id=None,r
                 else:
                     species = []
                     for detection in detections:
-                        if (class_threshold[detection.classification]!=None) and (detection.class_score > class_threshold[detection.classification]) and (detection.classification != 'nothing'):
+                        det_threshold = class_threshold.get(detection.classification,None)
+                        if det_threshold and (detection.class_score > det_threshold) and (detection.classification != 'nothing'):
                             species.append(detection.classification)
                         else:
                             species.append('unknown')
