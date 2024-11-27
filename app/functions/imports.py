@@ -2208,6 +2208,7 @@ def runClassifier(self,lower_index,upper_index,sourceBucket,batch_size,cameragro
                                     .filter(or_(and_(Detection.source==model,Detection.score>Config.DETECTOR_THRESHOLDS[model]) for model in Config.DETECTOR_THRESHOLDS))\
                                     .filter(Detection.left!=Detection.right)\
                                     .filter(Detection.top!=Detection.bottom)\
+                                    .filter(Detection.static==False)\
                                     .distinct().all()
 
             for detection in detections:
@@ -2232,6 +2233,7 @@ def runClassifier(self,lower_index,upper_index,sourceBucket,batch_size,cameragro
                                 .filter(or_(and_(Detection.source==model,Detection.score>Config.DETECTOR_THRESHOLDS[model]) for model in Config.DETECTOR_THRESHOLDS))\
                                 .filter(Detection.left!=Detection.right)\
                                 .filter(Detection.top!=Detection.bottom)\
+                                .filter(Detection.static==False)\
                                 .all()
 
             for chunk in chunker(detections, batch_size):
@@ -3110,16 +3112,15 @@ def updateSurveyDetectionRatings(survey_id):
 
     return True
 
-def classifySurvey(survey_id,sourceBucket,classifier_id=None,batch_size=200,processes=4):
+def classifySurvey(survey_id,sourceBucket,classifier_id=None,batch_size=100):
     '''
     Runs the classifier on the survey, and then updates cluster classifications.
 
         Parameters:
             survey_id (int): Survey to process
             sourceBucket (str): AWS S3 Bucket where images are located
-            batch_size (int): Optional batch size to use for species classifier. Default is 200.
             classifier_id (int): The classifier to use
-            processes (int): Optional number of threads to use. Default is 4.
+            batch_size (int): Optional batch size to use for species classifier. Default is 100.
     '''
 
     results = []
@@ -3139,6 +3140,7 @@ def classifySurvey(survey_id,sourceBucket,classifier_id=None,batch_size=200,proc
                             .join(Detection)\
                             .filter(Trapgroup.survey_id==survey_id)\
                             .filter(or_(and_(Detection.source==model,Detection.score>Config.DETECTOR_THRESHOLDS[model]) for model in Config.DETECTOR_THRESHOLDS))\
+                            .filter(Detection.static==False)\
                             .group_by(Cameragroup.id)\
                             .all()
 
@@ -3183,6 +3185,7 @@ def classifySurvey(survey_id,sourceBucket,classifier_id=None,batch_size=200,proc
             result.forget()
     GLOBALS.lock.release()
 
+    # Set static detection classifications to nothing
     detections = db.session.query(Detection)\
                             .join(Image)\
                             .join(Camera)\
