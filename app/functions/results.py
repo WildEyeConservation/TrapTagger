@@ -46,6 +46,7 @@ from app.functions.imports import s3traverse
 from app.functions.permissions import surveyPermissionsSQ
 import zipfile
 import csv
+import tracemalloc
 
 def translate(labels, dictionary):
     '''
@@ -1098,6 +1099,10 @@ def generate_csv(self,selectedTasks, selectedLevel, requestedColumns, custom_col
     '''
     
     try:
+        starttime = datetime.now()
+        tracemalloc.start()
+        current, peak = tracemalloc.get_traced_memory()
+        app.logger.info(f"Memory usage at start: {current / 10**6}MB; Peak was {peak / 10**6}MB")
         task = db.session.query(Task).get(selectedTasks[0])
         # filePath = task.survey.user.folder+'/docs/'
         # fileName = task.survey.user.username+'_'+task.survey.name+'_'+task.name+'.csv'
@@ -1516,6 +1521,11 @@ def generate_csv(self,selectedTasks, selectedLevel, requestedColumns, custom_col
             download_request.name = randomness
             db.session.commit()
 
+        endtime = datetime.now()
+        app.logger.info('CSV generation took: {}'.format(endtime-starttime))
+        current, peak = tracemalloc.get_traced_memory()
+        app.logger.info(f"Memory usage at end: {current / 10**6}MB; Peak was {peak / 10**6}MB")
+        tracemalloc.stop()
     except Exception as exc:
         app.logger.info(' ')
         app.logger.info('!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!')
@@ -1549,6 +1559,9 @@ def generate_csv2(self,selectedTasks, selectedLevel, requestedColumns, custom_co
     '''
     try: 
         starttime = datetime.now()
+        tracemalloc.start()
+        current, peak = tracemalloc.get_traced_memory()
+        app.logger.info(f"Memory usage at start: {current / 10**6}MB; Peak was {peak / 10**6}MB")
         task = db.session.query(Task).get(selectedTasks[0])
         filePath = task.survey.organisation.folder+'/docs/'
         randomness = randomString()
@@ -1704,6 +1717,9 @@ def generate_csv2(self,selectedTasks, selectedLevel, requestedColumns, custom_co
 
         endtime = datetime.now()
         app.logger.info('Time taken to generate csv: {}'.format(endtime-starttime))
+        current, peak = tracemalloc.get_traced_memory()
+        app.logger.info(f"Memory usage at end: {current / 10**6}MB; Peak was {peak / 10**6}MB")
+        tracemalloc.stop()
 
     except Exception as exc:
         app.logger.info(' ')
@@ -1722,6 +1738,10 @@ def generate_csv2(self,selectedTasks, selectedLevel, requestedColumns, custom_co
 def generate_trapgroup_csv(self,trapgroup_id, task_id, filename, csv_args):
     ''' Generate a dataframe for a trapgroup and save to CSV.'''
     try:
+        starttime = datetime.now()
+        tracemalloc.start()
+        current, peak = tracemalloc.get_traced_memory()
+        app.logger.info(f"Memory usage at start: {current / 10**6}MB; Peak was {peak / 10**6}MB")
         final_columns = []
         task = db.session.query(Task).get(task_id)
         path = task.survey.organisation.folder+'-comp/csvs/'+filename
@@ -1849,6 +1869,12 @@ def generate_trapgroup_csv(self,trapgroup_id, task_id, filename, csv_args):
         GLOBALS.s3client.upload_file(Filename=filename, Bucket=Config.BUCKET, Key=path)
         os.remove(filename)
 
+        endtime = datetime.now()
+        app.logger.info('CSV generation for trapgroup took: {}'.format(endtime-starttime))
+        current, peak = tracemalloc.get_traced_memory()
+        app.logger.info(f"Memory usage at end: {current / 10**6}MB; Peak was {peak / 10**6}MB")
+        tracemalloc.stop()
+        
     except Exception as exc:
         app.logger.info(' ')
         app.logger.info('!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!')
