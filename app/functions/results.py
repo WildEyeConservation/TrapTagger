@@ -45,6 +45,7 @@ import numpy as np
 from app.functions.imports import s3traverse
 from app.functions.permissions import surveyPermissionsSQ
 import zipfile
+import csv
 
 def translate(labels, dictionary):
     '''
@@ -659,6 +660,354 @@ def create_task_dataframe(task_id,detection_count_levels,label_levels,url_levels
     df['survey_image_count'] = df.groupby('survey')['id'].transform('nunique')
 
     # df.sort_values(by=['survey', 'trapgroup', 'camera', 'timestamp'], inplace=True, ascending=True)
+    return df
+
+def create_task_dataframe2(task_id,detection_count_levels,label_levels,url_levels,individual_levels,tag_levels,include,exclude,trapgroup_id,startDate,endDate):
+    '''
+    Returns an all-encompassing dataframe for a task, subject to the parameter selections.
+
+        Parameters:
+            task_id (int): Task for which dataframe has been requested
+            detection_count_levels (list): The levels of abstration for which detections counts are required
+            label_levels (list): The levels of abstration for which a list of labels is required
+            url_levels (list): The levels of abstraction for which urls are required
+            individual_levels (list): The levels of abstration for which individual lists are required
+            tag_levels (list): The levels of abstration for which a list of tags is required
+            include (list): The label ids to include
+            exclude (list): The label ids to exclude
+            trapgroup_id (int): The trapgroup id to filter on
+            startDate (datetime): The start date to filter on
+            endDate (datetime): The end date to filter on
+
+        Returns:
+            df (pd.dataframe): task dataframe
+    '''
+
+    task = db.session.query(Task).get(task_id)
+    Parent = alias(User)
+    query = db.session.query( \
+                Image.id.label('image_id'),\
+                Image.filename.label('image_name'), \
+                Image.corrected_timestamp.label('timestamp'), \
+                Image.timestamp.label('original_timestamp'), \
+                Detection.id.label('detection'), \
+                Detection.left.label('left'), \
+                Detection.right.label('right'), \
+                Detection.top.label('top'), \
+                Detection.bottom.label('bottom'), \
+                Detection.score.label('score'), \
+                Detection.flank.label('flank'), \
+                Cluster.notes.label('notes'), \
+                Cluster.id.label('cluster'), \
+                Label.description.label('label'), \
+                Tag.description.label('tag'), \
+                Camera.path.label('file_path'), \
+                Cameragroup.id.label('cameragroup_id'), \
+                Cameragroup.name.label('camera'), \
+                Video.filename.label('video_name'), \
+                Trapgroup.id.label('trapgroup_id'), \
+                Trapgroup.tag.label('trapgroup'), \
+                Trapgroup.latitude.label('latitude'), \
+                Trapgroup.longitude.label('longitude'), \
+                Trapgroup.altitude.label('altitude'), \
+                Survey.id.label('survey_id'), \
+                Survey.name.label('survey'), \
+                Survey.description.label('survey_description'), \
+                User.username.label('username'), \
+                Parent.c.username.label('parent_username')) \
+                .join(Image,Cluster.images) \
+                .join(Detection,Detection.image_id==Image.id) \
+                .join(Labelgroup,Labelgroup.detection_id==Detection.id) \
+                .join(Label,Labelgroup.labels,isouter=True) \
+                .join(Tag,Labelgroup.tags,isouter=True) \
+                .join(Camera,Image.camera_id==Camera.id) \
+                .join(Cameragroup,Camera.cameragroup_id==Cameragroup.id) \
+                .join(Video,Camera.videos,isouter=True) \
+                .join(Trapgroup,Camera.trapgroup_id==Trapgroup.id) \
+                .join(Survey,Trapgroup.survey_id==Survey.id) \
+                .outerjoin(User,User.id==Cluster.user_id)\
+                .outerjoin(Parent,Parent.c.id==User.parent_id)\
+                .filter(Cluster.task_id==task_id) \
+                .filter(Labelgroup.task_id==task_id) \
+                .filter(Detection.static==False) \
+                .filter(or_(and_(Detection.source==model,Detection.score>Config.DETECTOR_THRESHOLDS[model]) for model in Config.DETECTOR_THRESHOLDS)) \
+                .filter(~Detection.status.in_(Config.DET_IGNORE_STATUSES))
+
+    sq = db.session.query(Image)\
+                .join(Detection)\
+                .join(Camera)\
+                .join(Trapgroup)\
+                .filter(Trapgroup.survey_id==task.survey_id)\
+                .filter(Detection.static==False)\
+                .filter(or_(and_(Detection.source==model,Detection.score>Config.DETECTOR_THRESHOLDS[model]) for model in Config.DETECTOR_THRESHOLDS))\
+                .filter(~Detection.status.in_(Config.DET_IGNORE_STATUSES))
+
+    if len(include) != 0:
+        query = query.filter(Label.id.in_(include))
+        sq = sq.filter(Label.id.in_(include))
+
+    if len(exclude) != 0:
+        query = query.filter(~Label.id.in_(exclude))
+        sq = sq.filter(~Label.id.in_(exclude))
+
+    if GLOBALS.nothing_id in exclude:
+        query = query.filter(Labelgroup.labels.any())
+        sq = sq.filter(Labelgroup.labels.any())
+
+    if trapgroup_id:
+        query = query.filter(Trapgroup.id==trapgroup_id)
+        sq = sq.filter(Trapgroup.id==trapgroup_id)
+
+    if startDate:
+        query = query.filter(Image.corrected_timestamp>=startDate)
+        sq = sq.filter(Image.corrected_timestamp>=startDate)
+
+    if endDate:
+        query = query.filter(Image.corrected_timestamp<=endDate)
+        sq = sq.filter(Image.corrected_timestamp<=endDate)
+
+    df = pd.read_sql(query.statement,db.session.bind)
+    # Change df types to less memory intensive types
+
+    if (len(include) == 0) and (GLOBALS.nothing_id not in exclude):
+        sq = sq.subquery()
+
+        # covered_images = df['image_id'].unique()
+        # covered_images = [int(r) for r in covered_images]
+        # missing_images = db.session.query(Image).join(Camera).join(Trapgroup).filter(Trapgroup.survey_id==task.survey_id).filter(~Image.id.in_(covered_images))
+        # if len(exclude) != 0:
+        #     exclude_images = db.session.query(Image).join(Cluster,Image.clusters).join(Label,Cluster.labels).filter(Cluster.task_id==task_id).filter(Label.id.in_(exclude)).distinct().all()
+        #     missing_images = missing_images.filter(~Image.id.in_([r.id for r in exclude_images]))
+        # missing_images = missing_images.distinct().all()
+        # missing_images = [r.id for r in missing_images]
+
+        # if len(missing_images) != 0:
+        #This includes all the images with no detections
+        Parent = alias(User)
+        query = db.session.query( \
+                        Image.id.label('image_id'),\
+                        Image.filename.label('image_name'), \
+                        Image.corrected_timestamp.label('timestamp'), \
+                        Image.timestamp.label('original_timestamp'), \
+                        Detection.id.label('detection'), \
+                        Detection.left.label('left'), \
+                        Detection.right.label('right'), \
+                        Detection.top.label('top'), \
+                        Detection.bottom.label('bottom'), \
+                        Detection.score.label('score'), \
+                        Detection.flank.label('flank'), \
+                        Cluster.notes.label('notes'), \
+                        Cluster.id.label('cluster'), \
+                        Camera.path.label('file_path'), \
+                        Cameragroup.id.label('cameragroup_id'), \
+                        Cameragroup.name.label('camera'), \
+                        Video.filename.label('video_name'), \
+                        Trapgroup.id.label('trapgroup_id'), \
+                        Trapgroup.tag.label('trapgroup'), \
+                        Trapgroup.latitude.label('latitude'), \
+                        Trapgroup.longitude.label('longitude'), \
+                        Trapgroup.altitude.label('altitude'), \
+                        Survey.id.label('survey_id'), \
+                        Survey.name.label('survey'), \
+                        Survey.description.label('survey_description'), \
+                        User.username.label('username'), \
+                        Parent.c.username.label('parent_username')) \
+                        .join(Image,Cluster.images) \
+                        .join(Detection,Detection.image_id==Image.id) \
+                        .join(Camera,Image.camera_id==Camera.id) \
+                        .join(Cameragroup,Camera.cameragroup_id==Cameragroup.id) \
+                        .join(Video,Camera.videos,isouter=True) \
+                        .join(Trapgroup,Camera.trapgroup_id==Trapgroup.id) \
+                        .join(Survey,Trapgroup.survey_id==Survey.id) \
+                        .outerjoin(sq,sq.c.id==Image.id)\
+                        .outerjoin(User,User.id==Cluster.user_id)\
+                        .outerjoin(Parent,Parent.c.id==User.parent_id)\
+                        .filter(Cluster.task_id==task_id)\
+                        .filter(sq.c.id==None)
+
+        if trapgroup_id: query = query.filter(Trapgroup.id==trapgroup_id)
+        if startDate: query = query.filter(Image.corrected_timestamp>=startDate)
+        if endDate: query = query.filter(Image.corrected_timestamp<=endDate)                     
+
+        df2 = pd.read_sql(query.statement,db.session.bind)
+
+        df2['label'] = 'None'
+        df2['tag'] = 'None'
+        df = pd.concat([df,df2]).reset_index()
+
+    # Add individuals (they don't want to outer join)
+    if individual_levels:
+        query  = db.session.query( \
+                    Detection.id.label('detection'), \
+                    Individual.name.label('individual'),\
+                    Individual.species.label('label')) \
+                    .join(Image)\
+                    .join(Camera)\
+                    .join(Trapgroup)\
+                    .join(Individual,Detection.individuals) \
+                    .filter(Trapgroup.survey==task.survey)\
+                    .filter(Individual.tasks.contains(task)) \
+                    .filter(Individual.active==True)\
+                    .filter(Detection.static==False) \
+                    .filter(or_(and_(Detection.source==model,Detection.score>Config.DETECTOR_THRESHOLDS[model]) for model in Config.DETECTOR_THRESHOLDS)) \
+                    .filter(~Detection.status.in_(['deleted','hidden']))
+
+        if include: query = query.filter(Individual.species.in_([r[0] for r in db.session.query(Label.description).filter(Label.id.in_(include)).distinct().all()]))
+        if exclude: query = query.filter(~Individual.species.in_([r[0] for r in db.session.query(Label.description).filter(Label.id.in_(exclude)).distinct().all()]))
+        if trapgroup_id: query = query.filter(Trapgroup.id==trapgroup_id)
+        if startDate: query = query.filter(Image.corrected_timestamp>=startDate)
+        if endDate: query = query.filter(Image.corrected_timestamp<=endDate)   
+
+        df3 = pd.read_sql(query.statement,db.session.bind)
+        df = pd.merge(df, df3, on=['detection','label'], how='outer')
+
+    types = {
+        'left': 'float32',
+        'right': 'float32',
+        'top': 'float32',
+        'bottom': 'float32',
+        'score': 'float32',
+        'cameragroup_id': 'int32',
+        'trapgroup_id': 'int32',
+        'latitude': 'float32',
+        'longitude': 'float32',
+        'altitude': 'float32',
+        'survey_id': 'int32',
+    } # Image, Detection & Cluster ID we leave as int64 (they are large)
+    df = df.astype(types)
+
+    #If df is empty, return it
+    if len(df) == 0:
+        return df
+
+    #Combine file paths
+    df['image'] = df.apply(lambda x: create_full_path(x.file_path, x.image_name, False), axis=1)
+
+    # Create video paths
+    df['video_path'] = df.apply(lambda x: create_full_path(x.file_path, x.video_name, True), axis=1)
+
+    #Create camera name
+    df['camera'] = df.apply(lambda x: x.trapgroup+'-'+x.camera, axis=1)
+
+    #Remove nulls
+    df.fillna('None', inplace=True)
+
+    # Change trapgroup and camera types to category
+    df['trapgroup'] = df['trapgroup'].astype('category')
+    df['camera'] = df['camera'].astype('category')
+
+    #Replace nothings
+    df['label'] = df['label'].replace({'Nothing': 'None'}, regex=True)
+
+    # Create annotator 
+    df['annotator'] = df.apply(lambda x: x.parent_username if x.parent_username not in [None,'None'] else x.username, axis=1)
+    df['annotator'] = df['annotator'].replace({'Admin': 'AI', 'None': 'AI', None: 'AI'}).astype('category')
+
+    # Replace flank with text & capitalize
+    df['flank'] = df['flank'].replace(Config.FLANK_TEXT).str.capitalize().astype('category')
+
+    #Add capture ID
+    df.sort_values(by=['survey', 'trapgroup', 'camera', 'timestamp'], inplace=True, ascending=True)
+    df['capture'] = df.drop_duplicates(subset=['camera','timestamp']).groupby('camera').cumcount()+1
+    df['capture'].fillna(0, inplace=True)
+    df['capture'] = df.groupby(['camera','timestamp'])['capture'].transform('max')
+    df = df.astype({"capture": 'int32'})
+
+    #Add unique capture ID for labels
+    df['unique_capture'] = df.apply(lambda x: str(x.camera) + '/' + str(x.capture), axis=1)
+
+    #Species counts
+    animal_exclusions = ['None','Nothing','Vehicles/Humans/Livestock','Knocked Down']
+    labels = db.session.query(Label).filter(Label.task_id==task_id).all()
+    labels.append(db.session.query(Label).get(GLOBALS.vhl_id))
+    labels.append(db.session.query(Label).get(GLOBALS.unknown_id))
+    for level in detection_count_levels:
+        level_name = level
+        if level == 'capture':
+            level = 'unique_capture'
+        for label in labels:
+            if level in ['cluster','unique_capture']:
+                # Gives a minimum number of animals in the cluster/capture
+                df[level_name+'_'+label.description.replace(' ','_').lower()+'_count'] = df.groupby(level)['image_'+label.description.replace(' ','_').lower()+'_count'].transform('max')
+                df[level_name+'_'+label.description.replace(' ','_').lower()+'_count'].fillna(0, inplace=True)
+                df[level_name+'_'+label.description.replace(' ','_').lower()+'_count'] = df.groupby(level)[level_name+'_'+label.description.replace(' ','_').lower()+'_count'].transform('max').astype('int32')
+            else:
+                # Gives the total count of the detections over the level
+                df[level_name+'_'+label.description.replace(' ','_').lower()+'_count'] = df[df['label']==label.description].groupby(level)['detection'].transform('nunique')
+                df[level_name+'_'+label.description.replace(' ','_').lower()+'_count'].fillna(0, inplace=True)
+                df[level_name+'_'+label.description.replace(' ','_').lower()+'_count'] = df.groupby(level)[level_name+'_'+label.description.replace(' ','_').lower()+'_count'].transform('max').astype('int32')
+        df[level_name+'_animal_count'] = df[~df.label.isin(animal_exclusions)].groupby(level)[level].transform('count')
+        df[level_name+'_animal_count'].fillna(0, inplace=True)
+        df[level_name+'_animal_count'] = df.groupby(level)[level_name+'_animal_count'].transform('max').astype('int32')
+
+    #Combine multiple individuals
+    for level in individual_levels:
+        level_name = level
+        if level == 'capture':
+            level = 'unique_capture'
+        df = df.join(df.groupby(level)['individual'].apply(set).to_frame(level_name+'_individuals_temp'), on=level)
+        df[level_name+'_individuals'] = df.apply(lambda x: drop_nones(x[level_name+'_individuals_temp']), axis=1)
+        del df[level_name+'_individuals_temp']
+
+    #Combine multiple labels
+    for level in label_levels:
+        level_name = level
+        if level == 'capture':
+            level = 'unique_capture'
+        df = df.join(df.groupby(level)['label'].apply(set).to_frame(level_name+'_labels_temp'), on=level)
+        df[level_name+'_labels'] = df.apply(lambda x: drop_nones(x[level_name+'_labels_temp']), axis=1)
+        del df[level_name+'_labels_temp']
+
+    #Combine multiple tags
+    for level in tag_levels:
+        level_name = level
+        if level == 'capture':
+            level = 'unique_capture'
+        df = df.join(df.groupby(level)['tag'].apply(set).to_frame(level_name+'_tags_temp'), on=level)
+        df[level_name+'_tags'] = df.apply(lambda x: drop_nones(x[level_name+'_tags_temp']), axis=1)
+        del df[level_name+'_tags_temp']
+    
+    #Drop duplicate images
+    # df = df.drop_duplicates(subset=['image'], keep='first').reset_index()
+
+    #Generate necessary urls
+    rootUrl = 'https://' + Config.DNS + '/imageViewer?type='
+    for level in url_levels:
+        level_name = level
+        if (level == 'capture') or (level == 'image'):
+            level = 'image_id'
+        elif level=='camera':
+            level = 'cameragroup_id'
+        elif level=='trapgroup':
+            level = 'trapgroup_id'
+        elif level=='survey':
+            level = 'survey_id'
+        df[level_name+'_url'] = df.apply(lambda x: generate_url(rootUrl,level_name,x[level]), axis=1)
+
+    # Rename image_id column as id for access to unique IDs
+    df.rename(columns={'image_id':'id'},inplace=True)
+
+    #Drop unnecessary columns
+    del df['file_path']
+    del df['image_name']
+    del df['label']
+    del df['tag']
+    # del df['image_id']
+    del df['cameragroup_id']
+    del df['trapgroup_id']
+    del df['survey_id']
+    if individual_levels: del df['individual']
+    del df['username']
+    del df['parent_username']
+
+    #Add image counts
+    df['capture_image_count'] = df.groupby('unique_capture')['id'].transform('nunique').astype('int32')
+    df['cluster_image_count'] = df.groupby('cluster')['id'].transform('nunique').astype('int32')
+    df['camera_image_count'] = df.groupby('camera')['id'].transform('nunique').astype('int32')
+    df['trapgroup_image_count'] = df.groupby('trapgroup')['id'].transform('nunique').astype('int32')
+    df['survey_image_count'] = df.groupby('survey')['id'].transform('nunique').astype('int32')
+
+    # df.sort_values(by=['survey', 'trapgroup', 'camera', 'timestamp'], inplace=True, ascending=True)
 
     return df
 
@@ -1179,6 +1528,339 @@ def generate_csv(self,selectedTasks, selectedLevel, requestedColumns, custom_col
         db.session.remove()
 
     return True
+
+@celery.task(bind=True,max_retries=5,ignore_result=True)
+def generate_csv2(self,selectedTasks, selectedLevel, requestedColumns, custom_columns, label_type, includes, excludes, startDate, endDate, column_translations, user_name, download_id):
+    '''
+    Celery task for generating a csv file. Locally saves a csv file for the requested tasks, with the requested column and row information.
+
+        Paramters:
+            selectedTasks (list): List of task IDs for which a csv is required
+            selectedLevel (string): The level of abstration each row in the csv is to represent (image, cluster, camera etc.)
+            requestedColumns (list): List of columns for the csv, in the order in which they are required
+            custom_columns (list): List of the descriptions of custom columns requested in the csv
+            label_type (str): The type of labelling scheme to be uses - row, column or list
+            includes (list): List of label names that should included
+            excludes (list): List of label names that should excluded
+            startDate (dateTime): The start date for the data to be included in the csv
+            endDate (dateTime): The end date for the data to be included in the csv
+            user_name (str): The name of the user that has requested the csv
+            download_id (int): The id of the download request in the database
+    '''
+    try: 
+        starttime = datetime.now()
+        task = db.session.query(Task).get(selectedTasks[0])
+        filePath = task.survey.organisation.folder+'/docs/'
+        randomness = randomString()
+        fileName = task.survey.organisation.name+'_'+user_name+'_'+task.survey.name+'_'+task.name+'_'+randomness+'.csv'
+
+        if selectedLevel == 'capture':
+            selectedLevel = 'unique_capture'
+
+        allLevels = []
+        detection_count_levels = ['image']
+        label_levels = []
+        tag_levels = []
+        url_levels = []
+        individual_levels = []
+        sighting_count_levels = []
+        for column in requestedColumns:
+            if 'sighting_count' in column:
+                level = re.split('_sighting_count',column)[0]
+                if level not in sighting_count_levels:
+                    sighting_count_levels.append(level)
+                if level not in label_levels:
+                    label_levels.append(level)
+                if level not in detection_count_levels:
+                    detection_count_levels.append(level)
+            elif '_count' in column:
+                level = re.split('_.+_count',column)[0]
+                if level not in detection_count_levels:
+                    detection_count_levels.append(level)
+                if '_all_count' in column:
+                    allLevels.append(re.split('_all_count',column)[0])
+            elif '_labels' in column:
+                level = re.split('_labels',column)[0]
+                if level not in label_levels:
+                    label_levels.append(re.split('_labels',column)[0])
+            elif '_tags' in column:
+                tag_levels.append(re.split('_tags',column)[0])
+            elif '_url' in column:
+                url_levels.append(re.split('_url',column)[0])
+            elif '_individuals' in column:
+                individual_levels.append(re.split('_individuals',column)[0])
+
+        # Generate include an exclude lists
+        include = [r[0] for r in db.session.query(Label.id).filter(Label.task_id.in_(selectedTasks)).filter(Label.description.in_(includes)).distinct().all()]
+        include.extend([r[0] for r in db.session.query(Label.id).filter(Label.task_id==None).filter(Label.description.in_(includes)).distinct().all()])
+        exclude = [r[0] for r in db.session.query(Label.id).filter(Label.task_id.in_(selectedTasks)).filter(Label.description.in_(excludes)).distinct().all()]
+        exclude.extend([r[0] for r in db.session.query(Label.id).filter(Label.task_id==None).filter(Label.description.in_(excludes)).distinct().all()])
+
+        # Handle bounding boxes
+        if 'boxes' in requestedColumns:
+            index = requestedColumns.index('boxes')
+            requestedColumns[index:index] = ['left','right','top','bottom','score']
+            requestedColumns.remove('boxes')
+
+        for allLevel in allLevels:
+            column = allLevel+'_all_count'
+            currentIndex = requestedColumns.index(column)
+            parentLabels = [r[0] for r in db.session.query(Label.description).filter(Label.task_id.in_(selectedTasks)).filter(Label.parent_id == None).distinct().all()]
+            parentLabels.append('Vehicles/Humans/Livestock')
+            parentLabels.append('Unknown')
+            currentIndex, requestedColumns = addChildrenLabels(currentIndex,requestedColumns,parentLabels,allLevel,selectedTasks)
+            requestedColumns.remove(column)
+
+        csv_args = {
+            'requested_columns': requestedColumns, 
+            'custom_columns': custom_columns, 
+            'selected_level': selectedLevel, 
+            'detection_count_levels': detection_count_levels, 
+            'label_levels': label_levels, 
+            'url_levels': url_levels, 
+            'individual_levels': individual_levels, 
+            'tag_levels': tag_levels, 
+            'include': include, 
+            'exclude': exclude, 
+            'startDate': startDate, 
+            'endDate': endDate,
+            'sighting_count_levels': sighting_count_levels,
+            'label_type': label_type,
+            'column_translations': column_translations
+        }
+
+        trapgroup_ids = [r[0] for r in db.session.query(Trapgroup.id).filter(Trapgroup.survey_id==task.survey_id).all()]
+        trapgroup_filenames = []
+        results = []
+        for trapgroup_id in trapgroup_ids:
+            trapgroup_filename = task.survey.organisation.name+'_'+user_name+'_'+task.survey.name+'_'+str(trapgroup_id)+'_'+randomness+'.csv'
+            trapgroup_filenames.append(trapgroup_filename)
+            results.append(generate_trapgroup_csv.apply_async(kwargs={'trapgroup_id': trapgroup_id, 'task_id': selectedTasks[0], 'filename': trapgroup_filename, 'csv_args': csv_args}), queue='parallel')
+
+        trapgroup_columns = []
+        if results:
+            #Wait for processing to complete
+            db.session.remove()
+            GLOBALS.lock.acquire()
+            with allow_join_result():
+                for result in results:
+                    try:
+                        columns = result.get()
+                        trapgroup_columns.append(columns)
+                    except Exception:
+                        app.logger.info(' ')
+                        app.logger.info('!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!')
+                        app.logger.info(traceback.format_exc())
+                        app.logger.info('!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!')
+                        app.logger.info(' ')
+                    
+                    result.forget()
+            GLOBALS.lock.release()
+
+
+        # Find max columns:
+        final_columns = []
+        for cols in trapgroup_columns:
+            if len(cols)>len(final_columns):
+                final_columns = cols
+
+        final_csv = randomness+fileName
+        with open(final_csv, 'w') as f:
+            writer = csv.DictWriter(f, fieldnames=final_columns)
+            writer.writeheader()
+            for trapgroup_filename in trapgroup_filenames:
+                with tempfile.NamedTemporaryFile(delete=True, suffix='.csv') as temp_file:
+                    GLOBALS.s3client.download_file(Bucket=Config.BUCKET, Key=task.survey.organisation.folder+'-comp/csvs/'+trapgroup_filename, Filename=temp_file.name)
+                    with open(temp_file.name, 'r') as f2:
+                        reader = csv.DictReader(f2)
+                        for row in reader:
+                            aligned_row = {}
+                            for col in final_columns:
+                                val = row.get(col, None)
+                                if not val:
+                                    if 'count' in col:
+                                        val = 0
+                                    else:
+                                        val = 'None'
+                                aligned_row[col] = val
+                            writer.writerow(aligned_row)
+
+        # Save to S3
+        GLOBALS.s3client.upload_file(Filename=randomness+fileName, Bucket=Config.BUCKET, Key=filePath+fileName)
+        os.remove(randomness+fileName)
+
+        # Delete trapgroup files
+        for trapgroup_filename in trapgroup_filenames:
+            key = task.survey.organisation.folder+'-comp/csvs/'+trapgroup_filename
+            GLOBALS.s3client.delete_object(Bucket=Config.BUCKET, Key=key)
+
+        # Set request status to complete
+        download_request = db.session.query(DownloadRequest).get(download_id)
+        if download_request:
+            download_request.status = 'Available'
+            download_request.timestamp = datetime.now() + timedelta(days=7)
+            download_request.name = randomness
+            db.session.commit()
+
+        endtime = datetime.now()
+        app.logger.info('Time taken to generate csv: {}'.format(endtime-starttime))
+
+    except Exception as exc:
+        app.logger.info(' ')
+        app.logger.info('!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!')
+        app.logger.info(traceback.format_exc())
+        app.logger.info('!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!')
+        app.logger.info(' ')
+        self.retry(exc=exc, countdown= retryTime(self.request.retries))
+
+    finally:
+        db.session.remove()
+
+    return True
+
+@celery.task(bind=True,max_retries=5)
+def generate_trapgroup_csv(self,trapgroup_id, task_id, filename, csv_args):
+    ''' Generate a dataframe for a trapgroup and save to CSV.'''
+    try:
+        final_columns = []
+        task = db.session.query(Task).get(task_id)
+        path = task.survey.organisation.folder+'-comp/csvs/'+filename
+        requested_columns = csv_args['requested_columns'].copy()
+        custom_columns = csv_args['custom_columns']
+        selected_level = csv_args['selected_level']
+        detection_count_levels = csv_args['detection_count_levels']
+        label_levels = csv_args['label_levels']
+        url_levels = csv_args['url_levels']
+        individual_levels = csv_args['individual_levels']
+        tag_levels = csv_args['tag_levels']
+        include = csv_args['include']
+        exclude = csv_args['exclude']
+        startDate = csv_args['startDate']
+        endDate = csv_args['endDate']
+        label_type = csv_args['label_type']
+        sighting_count_levels = csv_args['sighting_count_levels']
+        column_translations = csv_args['column_translations']
+
+        outputDF = create_task_dataframe2(task_id,detection_count_levels,label_levels,url_levels,individual_levels,tag_levels,include,exclude,trapgroup_id,startDate,endDate)
+
+        if outputDF is not None:
+            for custom_name in custom_columns[str(task_id)]:
+                custom = custom_columns[str(task_id)][custom_name]
+                custom_split = [r for r in re.split('%%%%',custom) if r != '']
+                outputDF[custom_name] = outputDF.apply(lambda x: handle_custom_columns(outputDF.columns,x,custom_split), axis=1)
+
+            outputDF = outputDF.drop_duplicates(subset=[selected_level], keep='first')
+            if selected_level=='detection': outputDF = outputDF[outputDF['detection']!='None']
+
+            for label_level in label_levels:
+                if label_type=='column':
+                    count = outputDF[label_level+'_labels'].apply(len).max()
+                    cols = [label_level+'_label_'+str(i+1) for i in range(count)]
+                    outputDF[cols] = pd.DataFrame(outputDF[label_level+'_labels'].tolist(), index=outputDF.index)
+                    del outputDF[label_level+'_labels']
+                    if label_level in sighting_count_levels:
+                        for n in range(count):
+                            outputDF[label_level+'_sighting_count_'+str(n+1)] = outputDF.apply(lambda x: x[label_level+'_'+x[label_level+'_label_'+str(n+1)].lower().replace(' ','_')+'_count'] if (x[label_level+'_label_'+str(n+1)] not in [None, 'None','Knocked Down']) else 0, axis=1)
+                    outputDF[cols] = outputDF[cols].fillna('None')
+                    for col in cols:
+                        if col not in requested_columns: 
+                            requested_columns.insert(requested_columns.index(label_level+'_labels'), col)
+                    if label_level in sighting_count_levels:
+                        for n in range(count):
+                            if label_level+'_sighting_count_'+str(n+1) not in requested_columns:
+                                requested_columns.insert(requested_columns.index(label_level+'_sighting_count'), label_level+'_sighting_count_'+str(n+1))
+                    if label_level+'_labels' in requested_columns: requested_columns.remove(label_level+'_labels')
+                    if label_level+'_sighting_count' in requested_columns: requested_columns.remove(label_level+'_sighting_count')
+
+                elif label_type=='row':
+                    outputDF[label_level+'_labels'] = outputDF.apply(lambda x: list(x[label_level+'_labels']), axis=1)
+                    outputDF = outputDF.explode(label_level+'_labels')
+                    if label_level in sighting_count_levels:
+                        outputDF[label_level+'_sighting_count'] = outputDF.apply(lambda x: x[label_level+'_'+x[label_level+'_labels'].lower().replace(' ','_')+'_count'] if (x[label_level+'_labels'] not in [None, 'None','Knocked Down']) else 0, axis=1)
+                
+                elif label_type=='list':
+                    if label_level in sighting_count_levels:
+                        outputDF[label_level+'_sighting_count'] = outputDF.apply(lambda x: [x[label_level+'_'+label.lower().replace(' ','_')+'_count'] if label not in [None, 'None', 'Knocked Down'] else 0 for label in x[label_level+'_labels']], axis=1)
+                        outputDF[label_level+'_sighting_count'] = outputDF.apply(lambda x: combine_list(x[label_level+'_sighting_count']), axis=1)
+                    outputDF[label_level+'_labels'] = outputDF.apply(lambda x: combine_list(x[label_level+'_labels']), axis=1)
+
+            for tag_level in tag_levels:
+                if label_type=='column':
+                    count = outputDF[tag_level+'_tags'].apply(len).max()
+                    cols = [tag_level+'_tag_'+str(i+1) for i in range(count)]
+                    outputDF[cols] = pd.DataFrame(outputDF[tag_level+'_tags'].tolist(), index=outputDF.index)
+                    del outputDF[tag_level+'_tags']
+                    outputDF[cols] = outputDF[cols].fillna('None')
+                    for col in cols:
+                        if col not in requested_columns:
+                            requested_columns.insert(requested_columns.index(tag_level+'_tags'), col)
+                    requested_columns.remove(tag_level+'_tags')
+
+                elif label_type=='row':
+                    outputDF[tag_level+'_tags'] = outputDF.apply(lambda x: list(x[tag_level+'_tags']), axis=1)
+                    outputDF = outputDF.explode(tag_level+'_tags')
+
+                elif label_type=='list':
+                    outputDF[tag_level+'_tags'] = outputDF.apply(lambda x: combine_list(x[tag_level+'_tags']), axis=1)
+
+            for individual_level in individual_levels:
+                if label_type=='column':
+                    count = outputDF[individual_level+'_individuals'].apply(len).max()
+                    cols = [individual_level+'_individual_'+str(i+1) for i in range(count)]
+                    outputDF[cols] = pd.DataFrame(outputDF[individual_level+'_individuals'].tolist(), index=outputDF.index)
+                    del outputDF[individual_level+'_individuals']
+                    outputDF[cols] = outputDF[cols].fillna('None')
+                    for col in cols:
+                        if col not in requested_columns:
+                            requested_columns.insert(requested_columns.index(individual_level+'_individuals'), col)
+                    requested_columns.remove(individual_level+'_individuals')
+
+                elif label_type=='row':
+                    outputDF[individual_level+'_individuals'] = outputDF.apply(lambda x: list(x[individual_level+'_individuals']), axis=1)
+                    outputDF = outputDF.explode(individual_level+'_individuals')
+
+                elif label_type=='list':
+                    outputDF[individual_level+'_individuals'] = outputDF.apply(lambda x: combine_list(x[individual_level+'_individuals']), axis=1)
+
+            outputDF = outputDF[requested_columns].copy()
+        else:
+            outputDF = pd.DataFrame(columns=requested_columns)
+        
+        
+        # Trapgroups now called sites and allow for column translation:
+        levels = ['image', 'capture', 'cluster', 'camera', 'site', 'trapgroup', 'survey']
+        changes = {}
+        for column in outputDF.columns:
+            if 'trapgroup' in column:
+                changes[column] = column.replace('trapgroup','site')
+            for translation in column_translations:
+                if translation.lower() == column.lower():
+                    changes[column] = column.replace(translation,column_translations[translation])
+                elif translation in column and column[-1].isdigit() and translation.lower() not in levels:
+                    changes[column] = column.replace(translation,column_translations[translation])
+
+        if len(changes) != 0:
+            outputDF.rename(columns=changes,inplace=True)
+        
+        outputDF.to_csv(filename, index=False)
+
+        final_columns = [col for col in outputDF.columns if col != 'index']
+
+        GLOBALS.s3client.upload_file(Filename=filename, Bucket=Config.BUCKET, Key=path)
+        os.remove(filename)
+
+    except Exception as exc:
+        app.logger.info(' ')
+        app.logger.info('!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!')
+        app.logger.info(traceback.format_exc())
+        app.logger.info('!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!')
+        app.logger.info(' ')
+        self.retry(exc=exc, countdown= retryTime(self.request.retries))
+
+    finally:
+        db.session.remove()
+
+    return final_columns
 
 @celery.task(bind=True,max_retries=5,ignore_result=True)
 def generate_wildbook_export(self,task_id, data, user_name, download_request_id):
