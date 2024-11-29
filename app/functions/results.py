@@ -893,9 +893,7 @@ def create_task_dataframe2(task_id,detection_count_levels,label_levels,url_level
     #Remove nulls
     df.fillna('None', inplace=True)
 
-    # Change trapgroup and camera types to category
-    df['trapgroup'] = df['trapgroup'].astype('category')
-    df['camera'] = df['camera'].astype('category')
+
 
     #Replace nothings
     df['label'] = df['label'].replace({'Nothing': 'None'}, regex=True)
@@ -1874,7 +1872,7 @@ def generate_trapgroup_csv(self,trapgroup_id, task_id, filename, csv_args):
         current, peak = tracemalloc.get_traced_memory()
         app.logger.info(f"Memory usage at end: {current / 10**6}MB; Peak was {peak / 10**6}MB")
         tracemalloc.stop()
-        
+
     except Exception as exc:
         app.logger.info(' ')
         app.logger.info('!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!')

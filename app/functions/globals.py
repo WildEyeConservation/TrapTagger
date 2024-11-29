@@ -2855,7 +2855,8 @@ def inspect_celery(include_spam=False,include_reserved=False,include_scheduled=F
     ''' Funcion to manually inspect the running celery tasks'''
     inspector = celery.control.inspect()
     spam = ['importImages','.detection','.classify','runClassifier','processCameraStaticDetections', 'process_video_batch','cluster_trapgroup','processStaticWindow', 
-            'segment_and_pose', 'calculate_individual_similarity','calculate_hotspotter_similarity']
+            'segment_and_pose', 'calculate_individual_similarity','calculate_hotspotter_similarity', 'generateDetections', 'generate_trapgroup_csv', 'archive_images',
+            'archive_videos', 'archive_empty_images']
     if include_spam: spam = []
 
     print('//////////////////////Active tasks://////////////////////')
@@ -4216,3 +4217,6 @@ def calculate_restore_expiry_date(restore_date,restore_time,days):
         expiry_date = None
 
     return expiry_date
+
+
+
