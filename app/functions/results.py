@@ -1635,7 +1635,7 @@ def generate_csv2(self,selectedTasks, selectedLevel, requestedColumns, custom_co
         for trapgroup_id in trapgroup_ids:
             trapgroup_filename = task.survey.organisation.name+'_'+user_name+'_'+task.survey.name+'_'+str(trapgroup_id)+'_'+randomness+'.csv'
             trapgroup_filenames.append(trapgroup_filename)
-            results.append(generate_trapgroup_csv.apply_async(kwargs={'trapgroup_id': trapgroup_id, 'task_id': selectedTasks[0], 'filename': trapgroup_filename, 'csv_args': csv_args}), queue='parallel')
+            results.append(generate_trapgroup_csv.apply_async(kwargs={'trapgroup_id': trapgroup_id, 'task_id': selectedTasks[0], 'filename': trapgroup_filename, 'csv_args': csv_args}, queue='parallel'))
 
         trapgroup_columns = []
         if results:
