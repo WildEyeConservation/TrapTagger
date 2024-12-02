@@ -1885,11 +1885,11 @@ def generate_trapgroup_csv(self,trapgroup_id, task_id, filename, csv_args):
         sic_col = column_translations.get('survey_image_count', 'survey_image_count')
         sac_col = column_translations.get('survey_animal_count', 'survey_animal_count')
 
-        if sic_col in final_columns:
-            columns_and_counts['survey_image_count'] = outputDF[sic_col].iloc[0].astype(int)
+        if sic_col in final_columns and not outputDF.empty:
+            columns_and_counts['survey_image_count'] = int(outputDF[sic_col].iloc[0]) if outputDF[sic_col].iloc[0] else 0
 
-        if sac_col in final_columns:
-            columns_and_counts['survey_animal_count'] = outputDF[sac_col].iloc[0].astype(int)
+        if sac_col in final_columns and not outputDF.empty:
+            columns_and_counts['survey_animal_count'] = int(outputDF[sac_col].iloc[0]) if outputDF[sac_col].iloc[0] else 0
 
         GLOBALS.s3client.upload_file(Filename=filename, Bucket=Config.BUCKET, Key=path)
         os.remove(filename)
