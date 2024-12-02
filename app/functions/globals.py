@@ -1749,6 +1749,17 @@ def getChildList(label,task_id):
             label_list.extend(getChildList(lab,task_id))
     return label_list
 
+def getChildNameList(label,task_id):
+    '''Returns a list of all child label descriptions for the specified label for the specified task.'''
+
+    children = db.session.query(Label).filter(Label.parent_id==label.id).filter(Label.task_id==task_id).all()
+    label_list = []
+    for lab in children:
+        label_list.append(lab.description)
+        if db.session.query(Label).filter(Label.parent_id==lab.id).filter(Label.task_id==task_id).first():
+            label_list.extend(getChildList(lab,task_id))
+    return label_list
+
 def addChildLabs(task_id,label,labels):
     '''Adds all the children labels of the specified label to the supplied list. The modified list is returned.'''
     

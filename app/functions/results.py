@@ -17,7 +17,7 @@ limitations under the License.
 from app import app, db, celery
 from app.models import *
 from app.functions.globals import retryTime, list_all, chunker, batch_crops, rDets, randomString, stringify_timestamp, getChildList, \
-    resetImageDownloadStatus, resetVideoDownloadStatus, deleteFile
+    resetImageDownloadStatus, resetVideoDownloadStatus, deleteFile, getChildNameList
 import GLOBALS
 from sqlalchemy.sql import alias, func, or_, and_, distinct
 import re
@@ -917,6 +917,7 @@ def create_task_dataframe2(task_id,detection_count_levels,label_levels,url_level
 
     #Species counts
     animal_exclusions = ['None','Nothing','Vehicles/Humans/Livestock','Knocked Down']
+    animal_exclusions.extend(getChildNameList(db.session.query(Label).get(GLOBALS.vhl_id),int(task_id)))
     labels = db.session.query(Label).filter(Label.task_id==task_id).all()
     labels.append(db.session.query(Label).get(GLOBALS.vhl_id))
     labels.append(db.session.query(Label).get(GLOBALS.unknown_id))
@@ -3232,7 +3233,7 @@ def calculate_results_summary(self, task_ids, baseUnit, sites, groups, startDate
             label_list = [GLOBALS.vhl_id,GLOBALS.nothing_id,GLOBALS.knocked_id]
             for task_id in task_ids:
                 label_list.extend(getChildList(vhl,int(task_id)))
-            summaryQuery = summaryQuery.filter(~Labelgroup.labels.any(Label.id.in_(label_list)))
+            summaryQuery = summaryQuery.filter(~Labelgroup.labels.any(Label.id.in_(label_list))).filter(Labelgroup.labels.any())
 
             summaryAnimalTotals = summaryQuery.all()   
 
