@@ -1649,6 +1649,8 @@ def generate_csv2(self,selectedTasks, selectedLevel, requestedColumns, custom_co
             results.append(generate_trapgroup_csv.apply_async(kwargs={'trapgroup_id': trapgroup_id, 'task_id': selectedTasks[0], 'filename': trapgroup_filename, 'csv_args': csv_args}, queue='parallel'))
 
         trapgroup_columns = []
+        survey_image_count = 0
+        survey_animal_count = 0
         if results:
             #Wait for processing to complete
             db.session.remove()
@@ -1656,8 +1658,11 @@ def generate_csv2(self,selectedTasks, selectedLevel, requestedColumns, custom_co
             with allow_join_result():
                 for result in results:
                     try:
-                        columns = result.get()
+                        counts_and_cols = result.get()
+                        columns = counts_and_cols['final_columns']
                         trapgroup_columns.append(columns)
+                        survey_image_count += counts_and_cols['survey_image_count'] if counts_and_cols['survey_image_count'] else 0
+                        survey_animal_count += counts_and_cols['survey_animal_count'] if counts_and_cols['survey_animal_count'] else 0
                     except Exception:
                         app.logger.info(' ')
                         app.logger.info('!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!')
@@ -1675,6 +1680,9 @@ def generate_csv2(self,selectedTasks, selectedLevel, requestedColumns, custom_co
             if len(cols)>len(final_columns):
                 final_columns = cols
 
+        sic_col = column_translations.get('survey_image_count', 'survey_image_count')
+        sac_col = column_translations.get('survey_animal_count', 'survey_animal_count')
+
         final_csv = randomness+fileName
         with open(final_csv, 'w') as f:
             writer = csv.DictWriter(f, fieldnames=final_columns)
@@ -1687,13 +1695,18 @@ def generate_csv2(self,selectedTasks, selectedLevel, requestedColumns, custom_co
                         for row in reader:
                             aligned_row = {}
                             for col in final_columns:
-                                val = row.get(col, None)
-                                if not val:
-                                    if 'count' in col:
-                                        val = 0
-                                    else:
-                                        val = 'None'
-                                aligned_row[col] = val
+                                if col == sic_col:
+                                    aligned_row[col] = survey_image_count
+                                elif col == sac_col:
+                                    aligned_row[col] = survey_animal_count
+                                else:
+                                    val = row.get(col, None)
+                                    if not val:
+                                        if 'count' in col:
+                                            val = 0
+                                        else:
+                                            val = 'None'
+                                    aligned_row[col] = val
                             writer.writerow(aligned_row)
 
         # Save to S3
@@ -1740,7 +1753,11 @@ def generate_trapgroup_csv(self,trapgroup_id, task_id, filename, csv_args):
         tracemalloc.start()
         current, peak = tracemalloc.get_traced_memory()
         app.logger.info(f"Memory usage at start: {current / 10**6}MB; Peak was {peak / 10**6}MB")
-        final_columns = []
+        columns_and_counts = {
+            'final_columns': [],
+            'survey_image_count': None,
+            'survey_animal_count': None
+        }
         task = db.session.query(Task).get(task_id)
         path = task.survey.organisation.folder+'-comp/csvs/'+filename
         requested_columns = csv_args['requested_columns'].copy()
@@ -1863,6 +1880,16 @@ def generate_trapgroup_csv(self,trapgroup_id, task_id, filename, csv_args):
         outputDF.to_csv(filename, index=False)
 
         final_columns = [col for col in outputDF.columns if col != 'index']
+        columns_and_counts['final_columns'] = final_columns
+
+        sic_col = column_translations.get('survey_image_count', 'survey_image_count')
+        sac_col = column_translations.get('survey_animal_count', 'survey_animal_count')
+
+        if sic_col in final_columns:
+            columns_and_counts['survey_image_count'] = outputDF[sic_col].iloc[0].astype(int)
+
+        if sac_col in final_columns:
+            columns_and_counts['survey_animal_count'] = outputDF[sac_col].iloc[0].astype(int)
 
         GLOBALS.s3client.upload_file(Filename=filename, Bucket=Config.BUCKET, Key=path)
         os.remove(filename)
@@ -1884,7 +1911,7 @@ def generate_trapgroup_csv(self,trapgroup_id, task_id, filename, csv_args):
     finally:
         db.session.remove()
 
-    return final_columns
+    return columns_and_counts
 
 @celery.task(bind=True,max_retries=5,ignore_result=True)
 def generate_wildbook_export(self,task_id, data, user_name, download_request_id):
