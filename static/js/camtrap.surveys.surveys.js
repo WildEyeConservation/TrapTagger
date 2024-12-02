@@ -128,6 +128,7 @@ var speciesAndTasks = {}
 var speciesEditDict = {}
 var speciesLabelIDs = {}
 var speciesParentIDs = []
+var coordProblems = []
 
 var s3 = null
 var stopFlag = true
@@ -3218,51 +3219,69 @@ function getCoords(url='/getTrapgroupCoords') {
 
                 $('#latitude-'+trapgroup.id).change(function(wrapID) {
                     return function() {
-                        latitude = document.getElementById('latitude-'+wrapID)
+                        coordID = 'latitude-'+wrapID.toString()
+                        latitude = document.getElementById(coordID)
                         if (isNaN(latitude.value)) {
-                            document.getElementById('editSurveyErrors').innerHTML = 'Invalid coordinates. Please enter a valid number.'
+                            if (!coordProblems.includes(coordID)) {coordProblems.push(coordID)}
                             delete corrected_coordinates[wrapID].latitude
                         } else {
-                            document.getElementById('editSurveyErrors').innerHTML = ''
+                            if (coordProblems.includes(coordID)) {coordProblems.splice(coordProblems.indexOf(coordID), 1)}
                             if (latitude.value!=original_coordinates[wrapID].latitude) {
                                 corrected_coordinates[wrapID].latitude = latitude.value
                             } else {
                                 delete corrected_coordinates[wrapID].latitude
                             }
                         }
+                        if (coordProblems.length>0) {
+                            document.getElementById('editSurveyErrors').innerHTML = 'Invalid coordinates. Please enter a valid number.'
+                        } else {
+                            document.getElementById('editSurveyErrors').innerHTML = ''
+                        }
                     }
                 }(trapgroup.id));
 
                 $('#longitude-'+trapgroup.id).change(function(wrapID) {
                     return function() {
-                        longitude = document.getElementById('longitude-'+wrapID)
+                        coordID = 'longitude-'+wrapID.toString()
+                        longitude = document.getElementById(coordID)
                         if (isNaN(longitude.value)) {
-                            document.getElementById('editSurveyErrors').innerHTML = 'Invalid coordinates. Please enter a valid number.'
+                            if (!coordProblems.includes(coordID)) {coordProblems.push(coordID)}
                             delete corrected_coordinates[wrapID].longitude
                         } else {
-                            document.getElementById('editSurveyErrors').innerHTML = ''
+                            if (coordProblems.includes(coordID)) {coordProblems.splice(coordProblems.indexOf(coordID), 1)}
                             if (longitude.value!=original_coordinates[wrapID].longitude) {
                                 corrected_coordinates[wrapID].longitude = longitude.value
                             } else {
                                 delete corrected_coordinates[wrapID].longitude
                             }
                         }
+                        if (coordProblems.length>0) {
+                            document.getElementById('editSurveyErrors').innerHTML = 'Invalid coordinates. Please enter a valid number.'
+                        } else {
+                            document.getElementById('editSurveyErrors').innerHTML = ''
+                        }
                     }
                 }(trapgroup.id));
 
                 $('#altitude-'+trapgroup.id).change(function(wrapID) {
                     return function() {
-                        altitude = document.getElementById('altitude-'+wrapID)
+                        coordID = 'altitude-'+wrapID.toString()
+                        altitude = document.getElementById(coordID)
                         if (isNaN(altitude.value)) {
-                            document.getElementById('editSurveyErrors').innerHTML = 'Invalid coordinates. Please enter a valid number.'
+                            if (!coordProblems.includes(coordID)) {coordProblems.push(coordID)}
                             delete corrected_coordinates[wrapID].altitude
                         } else {
-                            document.getElementById('editSurveyErrors').innerHTML = ''
+                            if (coordProblems.includes(coordID)) {coordProblems.splice(coordProblems.indexOf(coordID), 1)}
                             if (altitude.value!=original_coordinates[wrapID].altitude) {
                                 corrected_coordinates[wrapID].altitude = altitude.value
                             } else {
                                 delete corrected_coordinates[wrapID].altitude
                             }
+                        }
+                        if (coordProblems.length>0) {
+                            document.getElementById('editSurveyErrors').innerHTML = 'Invalid coordinates. Please enter a valid number.'
+                        } else {
+                            document.getElementById('editSurveyErrors').innerHTML = ''
                         }
                     }
                 }(trapgroup.id));
@@ -3278,6 +3297,7 @@ function buildCoordsOptions() {
 
     original_coordinates = {}
     corrected_coordinates = {}
+    coordProblems = []
 
     editCoordsDiv = document.getElementById('editCoordsDiv')
     while(editCoordsDiv.firstChild){
@@ -3478,6 +3498,7 @@ function clearEditSurveyModal() {
     corrected_edited_timestamps = {}
     original_coordinates = {}
     corrected_coordinates = {}
+    coordProblems = []
     timestampSites = []
     timestampCameras = {}
     timestampSpecies = []
@@ -4858,6 +4879,10 @@ document.getElementById('btnEditSurvey').addEventListener('click', ()=>{
     //Coordinates
     legalFile = true
     if (document.getElementById('addCoordinatesManualMethod').checked) {
+        if (coordProblems.length>0) {
+            legalFile=false
+            document.getElementById('editSurveyErrors').innerHTML = 'Invalid coordinates. Please enter a valid number.'
+        }
         coordData = []
         for (site_id in corrected_coordinates){
             if(corrected_coordinates[site_id].latitude || corrected_coordinates[site_id].longitude || corrected_coordinates[site_id].altitude){
