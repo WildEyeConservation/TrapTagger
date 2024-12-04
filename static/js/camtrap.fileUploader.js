@@ -171,8 +171,15 @@ async function selectFiles(resuming=false,survey_id=null,survey_name=null) {
         uploadSurveyName = survey_name
     }
     resetUploadStatusVariables()
-    dirHandle = await window.showDirectoryPicker();
-    uploadWorker.postMessage({'func': 'selectFiles', 'args': [dirHandle,resuming,uploadSurveyName,uploadID]});
+    if (window.showDirectoryPicker) {
+        dirHandle = await window.showDirectoryPicker();
+        uploadWorker.postMessage({'func': 'selectFiles', 'args': [dirHandle,resuming,uploadSurveyName,uploadID]});
+    } else {
+        document.getElementById('modalAlertHeader').innerHTML = 'Alert'
+        document.getElementById('modalAlertBody').innerHTML = 'Unfortunately this feature is not yet available in your chosen internet browser - please try again with Google Chrome instead. If you are using Chrome, please ensure that it is up to date.'
+        modalNewSurvey.modal('hide')
+        modalAlert.modal({keyboard: true});
+    }
 }
 
 async function uploadFiles() {
