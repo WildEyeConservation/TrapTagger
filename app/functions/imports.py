@@ -6040,12 +6040,12 @@ def handle_duplicate_cameras(survey_id):
                         .group_by(Camera.path)\
                         .subquery()
                         
-    duplicates = db.session.query(Camera.path)\
+    duplicates = [r[0] for r in db.session.query(Camera.path)\
                         .join(Trapgroup)\
                         .filter(Trapgroup.survey_id==survey_id)\
                         .join(sq,sq.c.path==Camera.path)\
                         .filter(sq.c.count>1)\
-                        .all()
+                        .all()]
 
     for path in duplicates:
         cameras = db.session.query(Camera).join(Trapgroup).filter(Trapgroup.survey_id==survey_id).filter(Camera.path==path).distinct().all()
