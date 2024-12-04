@@ -5154,11 +5154,16 @@ def use_textract(data,index,check=False):
 
         if check:
             # Check if we can extract timestamps from the text
-            timestamp = dateutil_parse(clean_extracted_timestamp(text,True),fuzzy=True,dayfirst=True,default=datetime.utcnow()+timedelta(days=365))
-            if (timestamp.year<2000) or (timestamp>=datetime.utcnow().replace(hour=0,minute=0,second=0,microsecond=0)):
-                timestamp = dateutil_parse(clean_extracted_timestamp(text,False),fuzzy=True,dayfirst=False,default=datetime.utcnow()+timedelta(days=365))
+            try:
+                timestamp = dateutil_parse(clean_extracted_timestamp(text,True),fuzzy=True,dayfirst=True,default=datetime.utcnow()+timedelta(days=365))
                 if (timestamp.year<2000) or (timestamp>=datetime.utcnow().replace(hour=0,minute=0,second=0,microsecond=0)):
-                    failed += 1
+                    timestamp = dateutil_parse(clean_extracted_timestamp(text,False),fuzzy=True,dayfirst=False,default=datetime.utcnow()+timedelta(days=365))
+                    if (timestamp.year<2000) or (timestamp>=datetime.utcnow().replace(hour=0,minute=0,second=0,microsecond=0)):
+                        failed += 1
+                        continue
+            except:
+                failed += 1
+                continue
 
     if check:
         # If more than 90% of the data failed, we should stop trying to extract timestamps
