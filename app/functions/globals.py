@@ -2630,6 +2630,7 @@ def checkFilesExist(files,folder):
 
     starttime = time.time()
     already_uploaded = []  
+    not_imported = []
     req_lambda = []
     new_names = {}
 
@@ -2643,12 +2644,16 @@ def checkFilesExist(files,folder):
     survey_path = survey_path.replace('_','\\_')
 
     # Check if the files are already in the database based on the hash
-    hash_check = db.session.query(Image.hash).join(Camera).filter(Image.hash.in_(hash_dict.values())).filter(Camera.path.like(survey_path))
-    vid_hash_check = db.session.query(Video.hash).join(Camera).filter(Video.hash.in_(hash_dict.values())).filter(Camera.path.like(survey_path))
+    hashes = list(hash_dict.values())
+    hash_check = db.session.query(Image.hash).join(Camera).filter(Image.hash.in_(hashes)).filter(Camera.path.like(survey_path))
+    vid_hash_check = db.session.query(Video.hash).join(Camera).filter(Video.hash.in_(hashes)).filter(Camera.path.like(survey_path))
     hash_check = [h[0] for h in hash_check.union(vid_hash_check).distinct().all()]
 
-    already_uploaded = [file for file in hash_dict.keys() if hash_dict[file] in hash_check]
-    not_imported = list(set(hash_dict.keys()) - set(already_uploaded))
+    for file in hash_dict:
+        if hash_dict[file] in hash_check:
+            already_uploaded.append(file)
+        else:
+            not_imported.append(file)
 
     if not_imported:
         camera_paths = [file.rsplit('/',1)[0] for file in not_imported]
@@ -2659,13 +2664,13 @@ def checkFilesExist(files,folder):
         files_in_db = db.session.query(Image.filename,Camera.path, Image.hash)\
                                 .join(Camera)\
                                 .filter(Camera.path.in_(camera_paths))\
-                                .filter(Image.hash.notin_(hash_dict.values()))\
+                                .filter(Image.hash.notin_(hashes))\
                                 .filter(~Camera.videos.any())
         
         videos_in_db = db.session.query(Video.filename,Camera.path, Video.hash)\
                                 .join(Camera)\
                                 .filter(Camera.path.like(common_camera_path + '/%'))\
-                                .filter(Video.hash.notin_(hash_dict.values()))\
+                                .filter(Video.hash.notin_(hashes))\
         
         files_in_db = {r[1].split('/_video_images_/')[0] + '/' + r[0]: r[2] for r in files_in_db.union(videos_in_db).distinct().all()}
 

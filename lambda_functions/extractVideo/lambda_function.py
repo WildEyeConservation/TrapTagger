@@ -37,6 +37,7 @@ def lambda_handler(event, context):
     cursor = conn.cursor()
     processed = 0
     extracted = 0
+    download_path = None
     for b in batch:
         try:
             if context.get_remaining_time_in_millis() < 30000:
@@ -157,7 +158,7 @@ def lambda_handler(event, context):
         except:
             print('Frame extraction failed for video - {}'.format(key))
             processed+=1
-            if os.path.exists(download_path): os.remove(download_path)
+            if download_path and os.path.exists(download_path): os.remove(download_path)
             continue
 
     conn.commit()

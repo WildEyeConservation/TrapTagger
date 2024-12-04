@@ -36,6 +36,8 @@ def lambda_handler(event, context):
     processed=0
     imported=0
     cameras = {}
+    download_path = None
+    compressed_path = None
     for key in keys:
         try:
             if context.get_remaining_time_in_millis() < 10000:
@@ -168,8 +170,8 @@ def lambda_handler(event, context):
             imported += 1
         except Exception as e:
             print('Image import failed - {}'.format(key))	
-            if os.path.exists(download_path): os.remove(download_path)
-            if os.path.exists(compressed_path): os.remove(compressed_path)
+            if download_path and os.path.exists(download_path): os.remove(download_path)
+            if compressed_path and os.path.exists(compressed_path): os.remove(compressed_path)
             processed+=1
             continue
 
