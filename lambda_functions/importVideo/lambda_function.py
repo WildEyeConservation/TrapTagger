@@ -93,7 +93,7 @@ def lambda_handler(event, context):
             survey_folder = '/'.join(key.split('/')[:2]) + '/%'
             survey_folder = survey_folder.replace('_', '\\_')
             existing_query = '''
-                SELECT video.id FROM video
+                SELECT video.id , video.filename, camera.path FROM video
                 JOIN camera ON video.camera_id = camera.id 
                 WHERE video.hash = %s AND camera.path LIKE %s
             '''
@@ -104,6 +104,10 @@ def lambda_handler(event, context):
                 print('Video already exists in the database - {}'.format(key))
                 os.remove(download_path)
                 processed+=1
+                # Check if key is different
+                existing_video_key = '/'.join([video[2].split('/_video_images_/')[0], video[1]])
+                if existing_video_key != key:
+                    s3.delete_object(Bucket=bucket, Key=key)
                 continue
 
             try:

@@ -2362,6 +2362,10 @@ def delete_duplicate_videos(videos,skip):
             video_key = '/'.join(path_splits) + '/' +  video_name + '.mp4'
             GLOBALS.s3client.delete_object(Bucket=Config.BUCKET,Key=video_key)
 
+            # Delete video
+            vid_key = video.camera.path.split('/_video_images_/')[0] + '/' + video.filename
+            GLOBALS.s3client.delete_object(Bucket=Config.BUCKET,Key=vid_key)
+
         # delete from db (frames shoudln't be imported yet, but just in case)
         for image in video.camera.images:
             for detection in image.detections:
@@ -2395,14 +2399,17 @@ def delete_duplicate_images(images):
     
     if len(candidateImages) == len(images):
         # all are unclustered - delete all but one
+        image_key = candidateImages[0].camera.path + '/' + candidateImages[0].filename
         candidateImages = candidateImages[1:]
 
     elif len(candidateImages) < (len(images)-1):
         # some are clustered
         clusteredImages = db.session.query(Image).filter(Image.clusters.any()).filter(Image.id.in_([r.id for r in images])).order_by(Image.id).distinct().all()
         candidateImages.extend(clusteredImages[1:])
+        image_key = clusteredImages[0].camera.path + '/' + clusteredImages[0].filename
     
     for image in candidateImages:
+        dup_image_key = image.camera.path + '/' + image.filename
         for detection in image.detections:
 
             for labelgroup in detection.labelgroups:
@@ -2419,6 +2426,13 @@ def delete_duplicate_images(images):
         
         image.clusters = []
         db.session.delete(image)
+
+        if dup_image_key != image_key:
+            splits = dup_image_key.split('/')
+            splits[0] = splits[0]+'-comp'
+            dup_comp_image_key = '/'.join(splits)
+            GLOBALS.s3client.delete_object(Bucket=Config.BUCKET,Key=dup_image_key)
+            GLOBALS.s3client.delete_object(Bucket=Config.BUCKET,Key=dup_comp_image_key)
     
     db.session.commit()
     
@@ -4907,6 +4921,8 @@ def get_timestamps(self,trapgroup_id,index=None):
                                 .filter(Camera.trapgroup_id==trapgroup_id)\
                                 .filter(Image.corrected_timestamp==None)\
                                 .filter(Image.skipped!=True)\
+                                .filter(Image.zip_id==None)\
+                                .filter(Image.extracted!=True)\
                                 .group_by(Video.id).distinct().all()
         else:  # Images
             data = db.session.query(Camera.path+'/'+Image.filename,Image)\
@@ -4915,6 +4931,8 @@ def get_timestamps(self,trapgroup_id,index=None):
                                 .filter(Camera.trapgroup_id==trapgroup_id)\
                                 .filter(Image.corrected_timestamp==None)\
                                 .filter(Image.skipped!=True)\
+                                .filter(Image.zip_id==None)\
+                                .filter(Image.extracted!=True)\
                                 .group_by(Image.id).distinct().all()
 
         # Queue async requests
@@ -5050,30 +5068,29 @@ def get_timestamps(self,trapgroup_id,index=None):
         for item in data:
             if index != None:
                 video = item[2]
+                frames = db.session.query(Image).join(Camera).join(Video,Camera.videos).filter(Video.id==video.id).distinct().all()
+                for frame in frames:
+                    frame.extracted = True # Set extracted to true to avoid reprocessing
                 try:
                     timestamp = parsed_timestamps[video.id]
-
                     if upper_limit >= timestamp >= lower_limit:
                         fps = video.still_rate
                         video_timestamp = timestamp - timedelta(seconds=index/fps)
-
-                        frames = db.session.query(Image).join(Camera).join(Video,Camera.videos).filter(Video.id==video.id).distinct().all()
                         for frame in frames:
                             frame_count = int(frame.filename.split('frame')[1][:-4])
                             frame_timestamp = video_timestamp + timedelta(seconds=frame_count/fps)
                             frame.timestamp = frame_timestamp
                             frame.corrected_timestamp = frame_timestamp
-                            frame.extracted = True
                 except:
                     pass
             else:
                 image = item[1]
+                image.extracted = True # Set extracted to true to avoid reprocessing
                 try:
                     timestamp = parsed_timestamps[image.id]
                     if upper_limit >= timestamp >= lower_limit:
                         image.timestamp = timestamp
                         image.corrected_timestamp = timestamp
-                        image.extracted = True
                 except:
                     pass
         
@@ -5108,6 +5125,8 @@ def extract_missing_timestamps(survey_id):
                                                 .filter(Image.filename.contains('frame'+str(index)))\
                                                 .filter(Image.corrected_timestamp==None)\
                                                 .filter(Image.skipped!=True)\
+                                                .filter(Image.zip_id==None)\
+                                                .filter(Image.extracted!=True)\
                                                 .distinct().all()]
         for trapgroup_id in trapgroup_ids:
             get_timestamps(trapgroup_id,index)
@@ -5124,6 +5143,8 @@ def extract_missing_timestamps(survey_id):
                                                 .filter(~Camera.videos.any())\
                                                 .filter(Image.corrected_timestamp==None)\
                                                 .filter(Image.skipped!=True)\
+                                                .filter(Image.zip_id==None)\
+                                                .filter(Image.extracted!=True)\
                                                 .distinct().all()]
     for trapgroup_id in trapgroup_ids:
         get_timestamps(trapgroup_id)

@@ -13386,7 +13386,7 @@ def getTimestampCameraIDs(survey_id):
             if check_type == 'missing':
                 cameras = cameras.filter(Image.corrected_timestamp==None)
             elif check_type == 'extracted':
-                cameras = cameras.filter(and_(Image.extracted==True,Image.timestamp==Image.corrected_timestamp))
+                cameras = cameras.filter(and_(Image.extracted==True,Image.timestamp==Image.corrected_timestamp)).filter(Image.corrected_timestamp!=None)
             elif check_type == 'edited': 
                 cameras = cameras.filter(or_(
                                 and_(Image.timestamp==None,Image.corrected_timestamp!=None),
@@ -13458,7 +13458,7 @@ def getTimestampImages(survey_id, reqID):
             if check_type == 'missing':
                 image_data = image_data.filter(Image.corrected_timestamp==None)
             elif check_type == 'extracted':
-                image_data = image_data.filter(and_(Image.extracted==True,Image.timestamp==Image.corrected_timestamp))
+                image_data = image_data.filter(and_(Image.extracted==True,Image.timestamp==Image.corrected_timestamp)).filter(Image.corrected_timestamp!=None)
             elif check_type == 'edited':
                 image_data = image_data.filter(or_(
                                 and_(Image.timestamp==None,Image.corrected_timestamp!=None),

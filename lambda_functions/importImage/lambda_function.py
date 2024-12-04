@@ -78,7 +78,7 @@ def lambda_handler(event, context):
             survey_folder = '/'.join(key.split('/')[:2]) + '/%'
             survey_folder = survey_folder.replace('_', '\\_')
             existing_query = '''
-                SELECT image.id FROM image
+                SELECT image.id , image.filename, camera.path FROM image
                 JOIN camera ON image.camera_id = camera.id 
                 WHERE image.hash = %s AND camera.path LIKE %s
             '''
@@ -89,6 +89,10 @@ def lambda_handler(event, context):
                 print('Image already exists in the database - {}'.format(key))
                 os.remove(download_path)
                 processed+=1
+                # Check if key is different
+                existing_image_key = '/'.join([image[2], image[1]])
+                if existing_image_key != key:
+                    s3.delete_object(Bucket=bucket, Key=key)
                 continue
 
             # Get Timestamp with pyexif 
