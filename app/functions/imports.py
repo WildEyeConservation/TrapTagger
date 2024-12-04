@@ -4911,7 +4911,6 @@ def get_timestamps(self,trapgroup_id,index=None):
 
     try:
         starttime = time.time()
-        textractClient = boto3.client('textract', region_name=Config.AWS_REGION)
 
         if index != None:  # Videos
             data = db.session.query(Camera.path+'/'+Image.filename,Image,Video)\
@@ -4935,62 +4934,28 @@ def get_timestamps(self,trapgroup_id,index=None):
                                 .filter(Image.extracted!=True)\
                                 .group_by(Image.id).distinct().all()
 
-        # Queue async requests
-        job_ids = {}
-        for item in data:
-            path = item[0]
-            image = item[1]
-
-            retry = True
-            retry_rate = 1
-            while retry:
-                try:
-                    response = textractClient.start_document_text_detection(
-                        DocumentLocation={
-                            'S3Object': {
-                                'Bucket': Config.BUCKET,
-                                'Name': path
-                            }
-                        }
-                    )
-                    job_ids[image.id] = response['JobId']
-                    retry = False
-                except:
-                    # AWS limits the number of simultaneous documents to ~150
-                    print('retrying...')
-                    retry_rate = 2*retry_rate
-                    time.sleep(retry_rate)
-
-        # Fetch results (which are stored a week)
-        for item in data:
-            image = item[1]
-            status = 'PENDING'
-
-            # Wait for completion
-            while status != 'SUCCEEDED':
-                response = textractClient.get_document_text_detection(
-                    JobId=job_ids[image.id]
-                )
-                status = response['JobStatus']
-                if status == 'FAILED': break 
-                if status != 'SUCCEEDED': time.sleep(2)
-            
-            if status == 'FAILED': continue
-            # Combine all text blocks - we want to try and preserve left-to-right order
-            temp_text = {}
-            for block in response['Blocks']:
-                if block['BlockType']=='LINE':
-                    temp_text[float(block['Geometry']['BoundingBox']['Left'])] = block['Text']
-            temp_text = {k: v for k, v in sorted(temp_text.items(), key=lambda item: item[0])}
-            text = [temp_text[key] for key in temp_text]
-            text = ' '.join(text)
-
-            # Save extracted text
-            if index != None:
-                video = item[2]
-                video.extracted_text = text
+        # Check first 200 images to see if we need to continue
+        if len(data) > 200:
+            check_data = data[:200]
+            check = use_textract(check_data,index,check=True)
+            if check:
+                use_textract(data[200:],index)
             else:
-                image.extracted_data = text
+                print('More than 90% of the first 200 images failed to extract a timestamp. Skipping the rest.')
+                # Set extracted to true to avoid reprocessing
+                for item in data:
+                    if index != None:
+                        video = item[2]
+                        frames = db.session.query(Image).join(Camera).join(Video,Camera.videos).filter(Video.id==video.id).distinct().all()
+                        for frame in frames:
+                            frame.extracted = True
+                    else:
+                        image = item[1]
+                        image.extracted = True
+                db.session.commit()
+                return True
+        else:
+            use_textract(data,index)
 
         # Determine dayFirst (default to True)
         # TODO: should probably only do this in the centre quartile
@@ -5108,6 +5073,99 @@ def get_timestamps(self,trapgroup_id,index=None):
         db.session.remove()
 
     return True
+
+def use_textract(data,index,check=False):
+    ''' Function that uses AWS Textract to extract text from images'''
+
+    textractClient = boto3.client('textract', region_name=Config.AWS_REGION)
+    failed = 0
+    continue_extraction = True
+
+    # Queue async requests
+    job_ids = {}
+    for item in data:
+        path = item[0]
+        image = item[1]
+
+        retry = True
+        retry_rate = 1
+        while retry:
+            try:
+                response = textractClient.start_document_text_detection(
+                    DocumentLocation={
+                        'S3Object': {
+                            'Bucket': Config.BUCKET,
+                            'Name': path
+                        }
+                    }
+                )
+                job_ids[image.id] = response['JobId']
+                retry = False
+
+            # AWS limits the number of simultaneous documents to ~150
+            except (textractClient.exceptions.LimitExceededException,
+                    textractClient.exceptions.ProvisionedThroughputExceededException, 
+                    textractClient.exceptions.ThrottlingException):
+                print('retrying...')
+                time.sleep(retry_rate)
+                retry_rate = 2*retry_rate
+        
+            except:
+                failed += 1
+                break
+
+    # Fetch results (which are stored a week)
+    for item in data:
+        image = item[1]
+        status = 'PENDING'
+
+        # Wait for completion
+        while status != 'SUCCEEDED':
+            if image.id not in job_ids: 
+                status = 'FAILED'
+                break
+
+            response = textractClient.get_document_text_detection(
+                JobId=job_ids[image.id]
+            )
+            status = response['JobStatus']
+            if status == 'FAILED': break 
+            if status != 'SUCCEEDED': time.sleep(2)
+        
+        if status == 'FAILED': 
+            failed += 1
+            continue
+        # Combine all text blocks - we want to try and preserve left-to-right order
+        temp_text = {}
+        for block in response['Blocks']:
+            if block['BlockType']=='LINE':
+                temp_text[float(block['Geometry']['BoundingBox']['Left'])] = block['Text']
+        temp_text = {k: v for k, v in sorted(temp_text.items(), key=lambda item: item[0])}
+        text = [temp_text[key] for key in temp_text]
+        text = ' '.join(text)
+
+        # Save extracted text
+        if index != None:
+            video = item[2]
+            video.extracted_text = text
+        else:
+            image.extracted_data = text
+
+        if check:
+            # Check if we can extract timestamps from the text
+            timestamp = dateutil_parse(clean_extracted_timestamp(text,True),fuzzy=True,dayfirst=True,default=datetime.utcnow()+timedelta(days=365))
+            if (timestamp.year<2000) or (timestamp>=datetime.utcnow().replace(hour=0,minute=0,second=0,microsecond=0)):
+                timestamp = dateutil_parse(clean_extracted_timestamp(text,False),fuzzy=True,dayfirst=False,default=datetime.utcnow()+timedelta(days=365))
+                if (timestamp.year<2000) or (timestamp>=datetime.utcnow().replace(hour=0,minute=0,second=0,microsecond=0)):
+                    failed += 1
+
+    if check:
+        # If more than 90% of the data failed, we should stop trying to extract timestamps
+        if failed/len(data) > 0.9:
+            print('{} number of images failed to extract a timestamp. Stopping further extraction.'.format(failed))
+            continue_extraction = False
+
+    return continue_extraction
 
 def extract_missing_timestamps(survey_id):
     '''Kicks off all the celery tasks for extracting timestamps from the videos/images in the given survey that doesn't have timestamps.'''
