@@ -2399,14 +2399,15 @@ def delete_duplicate_images(images):
     
     if len(candidateImages) == len(images):
         # all are unclustered - delete all but one
-        image_key = candidateImages[0].camera.path + '/' + candidateImages[0].filename
         candidateImages = candidateImages[1:]
 
     elif len(candidateImages) < (len(images)-1):
         # some are clustered
         clusteredImages = db.session.query(Image).filter(Image.clusters.any()).filter(Image.id.in_([r.id for r in images])).order_by(Image.id).distinct().all()
         candidateImages.extend(clusteredImages[1:])
-        image_key = clusteredImages[0].camera.path + '/' + clusteredImages[0].filename
+
+    kept_image = list(set(images) - set(candidateImages))
+    image_key = kept_image[0].camera.path + '/' + kept_image[0].filename
     
     for image in candidateImages:
         dup_image_key = image.camera.path + '/' + image.filename
