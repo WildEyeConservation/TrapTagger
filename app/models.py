@@ -116,14 +116,23 @@ class Image(db.Model):
     extracted_data = db.Column(db.String(128), index=False)
     detections = db.relationship('Detection', backref='image', lazy=True)
     camera_id = db.Column(db.Integer, db.ForeignKey('camera.id'), index=True, unique=False)
-    skipped = db.Column(db.Boolean, default=False, index=True)
-    extracted = db.Column(db.Boolean, default=False, index=True)
+    skipped = db.Column(db.Boolean, default=False, index=True) # Skipped True if the image has no timestamp and it has been checked or skipped by the user
+    extracted = db.Column(db.Boolean, default=False, index=True) # Extracted True if the image has been processed by textract (whether it was successful or not)
     zip_id = db.Column(db.Integer, db.ForeignKey('zip.id'), index=True, unique=False)
     expiry_date = db.Column(db.DateTime, index=True)
 
     def __repr__(self):
         return '<Image {}>'.format(self.filename)
 
+    '''
+    Timestamp conditions:
+        - Edited timestamps: (corrected_timestamp != timestamp and extracted = True) or (timestamp=None and corrected_timestamp != None)
+        - Extracted timestamps: corrected_timestamp == timestamp and extracted == True and corrected_timestamp != None
+        - Missing timestamps: corrected_timestamp == None
+
+        Skipped is used to determine what images without timestamps have been checked by the user to avoid rechecking in preprocessing step. Skipped is also used to avoid reprocessing images with textract.
+        Extracted is used to determine if the image has been processed by textract. We set it to true even if no timestamp could be extracted to avoid reprocessing images with textract.
+    '''
 
 class Camera(db.Model):
     id = db.Column(db.Integer, primary_key=True)

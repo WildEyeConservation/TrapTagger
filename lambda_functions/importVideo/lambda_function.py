@@ -38,6 +38,8 @@ def lambda_handler(event, context):
     imported = 0
     processed=0
     extract_batch = []
+    download_path = None
+    compressed_path = None
     for key in keys:
         try:
             if context.get_remaining_time_in_millis() < 30000:
@@ -93,7 +95,7 @@ def lambda_handler(event, context):
             survey_folder = '/'.join(key.split('/')[:2]) + '/%'
             survey_folder = survey_folder.replace('_', '\\_')
             existing_query = '''
-                SELECT video.id FROM video
+                SELECT video.id , video.filename, camera.path FROM video
                 JOIN camera ON video.camera_id = camera.id 
                 WHERE video.hash = %s AND camera.path LIKE %s
             '''
@@ -104,6 +106,10 @@ def lambda_handler(event, context):
                 print('Video already exists in the database - {}'.format(key))
                 os.remove(download_path)
                 processed+=1
+                # Check if key is different
+                existing_video_key = '/'.join([video[2].split('/_video_images_/')[0], video[1]])
+                if existing_video_key != key:
+                    s3.delete_object(Bucket=bucket, Key=key)
                 continue
 
             try:
@@ -182,15 +188,15 @@ def lambda_handler(event, context):
                 print(e)
                 print('Video corrupted or metadata missing - {}'.format(key))
                 os.remove(download_path)
-                if os.path.exists(compressed_path): os.remove(compressed_path)
+                if compressed_path and os.path.exists(compressed_path): os.remove(compressed_path)
                 processed+=1
                 continue
 
         except Exception as e:
             print(e)
             print('Video import failed - {}'.format(key))
-            if os.path.exists(download_path): os.remove(download_path)
-            if os.path.exists(compressed_path): os.remove(compressed_path)
+            if download_path and os.path.exists(download_path): os.remove(download_path)
+            if compressed_path and os.path.exists(compressed_path): os.remove(compressed_path)
             processed+=1
             continue
         

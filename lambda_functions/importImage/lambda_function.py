@@ -36,6 +36,8 @@ def lambda_handler(event, context):
     processed=0
     imported=0
     cameras = {}
+    download_path = None
+    compressed_path = None
     for key in keys:
         try:
             if context.get_remaining_time_in_millis() < 10000:
@@ -78,7 +80,7 @@ def lambda_handler(event, context):
             survey_folder = '/'.join(key.split('/')[:2]) + '/%'
             survey_folder = survey_folder.replace('_', '\\_')
             existing_query = '''
-                SELECT image.id FROM image
+                SELECT image.id , image.filename, camera.path FROM image
                 JOIN camera ON image.camera_id = camera.id 
                 WHERE image.hash = %s AND camera.path LIKE %s
             '''
@@ -89,6 +91,10 @@ def lambda_handler(event, context):
                 print('Image already exists in the database - {}'.format(key))
                 os.remove(download_path)
                 processed+=1
+                # Check if key is different
+                existing_image_key = '/'.join([image[2], image[1]])
+                if existing_image_key != key:
+                    s3.delete_object(Bucket=bucket, Key=key)
                 continue
 
             # Get Timestamp with pyexif 
@@ -164,8 +170,8 @@ def lambda_handler(event, context):
             imported += 1
         except Exception as e:
             print('Image import failed - {}'.format(key))	
-            if os.path.exists(download_path): os.remove(download_path)
-            if os.path.exists(compressed_path): os.remove(compressed_path)
+            if download_path and os.path.exists(download_path): os.remove(download_path)
+            if compressed_path and os.path.exists(compressed_path): os.remove(compressed_path)
             processed+=1
             continue
 

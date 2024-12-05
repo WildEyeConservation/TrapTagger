@@ -2362,6 +2362,10 @@ def delete_duplicate_videos(videos,skip):
             video_key = '/'.join(path_splits) + '/' +  video_name + '.mp4'
             GLOBALS.s3client.delete_object(Bucket=Config.BUCKET,Key=video_key)
 
+            # Delete video
+            vid_key = video.camera.path.split('/_video_images_/')[0] + '/' + video.filename
+            GLOBALS.s3client.delete_object(Bucket=Config.BUCKET,Key=vid_key)
+
         # delete from db (frames shoudln't be imported yet, but just in case)
         for image in video.camera.images:
             for detection in image.detections:
@@ -2401,8 +2405,12 @@ def delete_duplicate_images(images):
         # some are clustered
         clusteredImages = db.session.query(Image).filter(Image.clusters.any()).filter(Image.id.in_([r.id for r in images])).order_by(Image.id).distinct().all()
         candidateImages.extend(clusteredImages[1:])
+
+    kept_image = list(set(images) - set(candidateImages))
+    image_key = kept_image[0].camera.path + '/' + kept_image[0].filename
     
     for image in candidateImages:
+        dup_image_key = image.camera.path + '/' + image.filename
         for detection in image.detections:
 
             for labelgroup in detection.labelgroups:
@@ -2419,6 +2427,13 @@ def delete_duplicate_images(images):
         
         image.clusters = []
         db.session.delete(image)
+
+        if dup_image_key != image_key:
+            splits = dup_image_key.split('/')
+            splits[0] = splits[0]+'-comp'
+            dup_comp_image_key = '/'.join(splits)
+            GLOBALS.s3client.delete_object(Bucket=Config.BUCKET,Key=dup_image_key)
+            GLOBALS.s3client.delete_object(Bucket=Config.BUCKET,Key=dup_comp_image_key)
     
     db.session.commit()
     
@@ -4897,7 +4912,6 @@ def get_timestamps(self,trapgroup_id,index=None):
 
     try:
         starttime = time.time()
-        textractClient = boto3.client('textract', region_name=Config.AWS_REGION)
 
         if index != None:  # Videos
             data = db.session.query(Camera.path+'/'+Image.filename,Image,Video)\
@@ -4907,6 +4921,8 @@ def get_timestamps(self,trapgroup_id,index=None):
                                 .filter(Camera.trapgroup_id==trapgroup_id)\
                                 .filter(Image.corrected_timestamp==None)\
                                 .filter(Image.skipped!=True)\
+                                .filter(Image.zip_id==None)\
+                                .filter(Image.extracted!=True)\
                                 .group_by(Video.id).distinct().all()
         else:  # Images
             data = db.session.query(Camera.path+'/'+Image.filename,Image)\
@@ -4915,64 +4931,32 @@ def get_timestamps(self,trapgroup_id,index=None):
                                 .filter(Camera.trapgroup_id==trapgroup_id)\
                                 .filter(Image.corrected_timestamp==None)\
                                 .filter(Image.skipped!=True)\
+                                .filter(Image.zip_id==None)\
+                                .filter(Image.extracted!=True)\
                                 .group_by(Image.id).distinct().all()
 
-        # Queue async requests
-        job_ids = {}
-        for item in data:
-            path = item[0]
-            image = item[1]
-
-            retry = True
-            retry_rate = 1
-            while retry:
-                try:
-                    response = textractClient.start_document_text_detection(
-                        DocumentLocation={
-                            'S3Object': {
-                                'Bucket': Config.BUCKET,
-                                'Name': path
-                            }
-                        }
-                    )
-                    job_ids[image.id] = response['JobId']
-                    retry = False
-                except:
-                    # AWS limits the number of simultaneous documents to ~150
-                    print('retrying...')
-                    retry_rate = 2*retry_rate
-                    time.sleep(retry_rate)
-
-        # Fetch results (which are stored a week)
-        for item in data:
-            image = item[1]
-            status = 'PENDING'
-
-            # Wait for completion
-            while status != 'SUCCEEDED':
-                response = textractClient.get_document_text_detection(
-                    JobId=job_ids[image.id]
-                )
-                status = response['JobStatus']
-                if status == 'FAILED': break 
-                if status != 'SUCCEEDED': time.sleep(2)
-            
-            if status == 'FAILED': continue
-            # Combine all text blocks - we want to try and preserve left-to-right order
-            temp_text = {}
-            for block in response['Blocks']:
-                if block['BlockType']=='LINE':
-                    temp_text[float(block['Geometry']['BoundingBox']['Left'])] = block['Text']
-            temp_text = {k: v for k, v in sorted(temp_text.items(), key=lambda item: item[0])}
-            text = [temp_text[key] for key in temp_text]
-            text = ' '.join(text)
-
-            # Save extracted text
-            if index != None:
-                video = item[2]
-                video.extracted_text = text
+        # Check first 200 images to see if we need to continue
+        if len(data) > 200:
+            check_data = data[:200]
+            check = use_textract(check_data,index,check=True)
+            if check:
+                use_textract(data[200:],index)
             else:
-                image.extracted_data = text
+                print('More than 90% of the first 200 images failed to extract a timestamp. Skipping the rest.')
+                # Set extracted to true to avoid reprocessing
+                for item in data:
+                    if index != None:
+                        video = item[2]
+                        frames = db.session.query(Image).join(Camera).join(Video,Camera.videos).filter(Video.id==video.id).distinct().all()
+                        for frame in frames:
+                            frame.extracted = True
+                    else:
+                        image = item[1]
+                        image.extracted = True
+                db.session.commit()
+                return True
+        else:
+            use_textract(data,index)
 
         # Determine dayFirst (default to True)
         # TODO: should probably only do this in the centre quartile
@@ -5050,30 +5034,29 @@ def get_timestamps(self,trapgroup_id,index=None):
         for item in data:
             if index != None:
                 video = item[2]
+                frames = db.session.query(Image).join(Camera).join(Video,Camera.videos).filter(Video.id==video.id).distinct().all()
+                for frame in frames:
+                    frame.extracted = True # Set extracted to true to avoid reprocessing
                 try:
                     timestamp = parsed_timestamps[video.id]
-
                     if upper_limit >= timestamp >= lower_limit:
                         fps = video.still_rate
                         video_timestamp = timestamp - timedelta(seconds=index/fps)
-
-                        frames = db.session.query(Image).join(Camera).join(Video,Camera.videos).filter(Video.id==video.id).distinct().all()
                         for frame in frames:
                             frame_count = int(frame.filename.split('frame')[1][:-4])
                             frame_timestamp = video_timestamp + timedelta(seconds=frame_count/fps)
                             frame.timestamp = frame_timestamp
                             frame.corrected_timestamp = frame_timestamp
-                            frame.extracted = True
                 except:
                     pass
             else:
                 image = item[1]
+                image.extracted = True # Set extracted to true to avoid reprocessing
                 try:
                     timestamp = parsed_timestamps[image.id]
                     if upper_limit >= timestamp >= lower_limit:
                         image.timestamp = timestamp
                         image.corrected_timestamp = timestamp
-                        image.extracted = True
                 except:
                     pass
         
@@ -5092,6 +5075,104 @@ def get_timestamps(self,trapgroup_id,index=None):
 
     return True
 
+def use_textract(data,index,check=False):
+    ''' Function that uses AWS Textract to extract text from images'''
+
+    textractClient = boto3.client('textract', region_name=Config.AWS_REGION)
+    failed = 0
+    continue_extraction = True
+
+    # Queue async requests
+    job_ids = {}
+    for item in data:
+        path = item[0]
+        image = item[1]
+
+        retry = True
+        retry_rate = 1
+        while retry:
+            try:
+                response = textractClient.start_document_text_detection(
+                    DocumentLocation={
+                        'S3Object': {
+                            'Bucket': Config.BUCKET,
+                            'Name': path
+                        }
+                    }
+                )
+                job_ids[image.id] = response['JobId']
+                retry = False
+
+            # AWS limits the number of simultaneous documents to ~150
+            except (textractClient.exceptions.LimitExceededException,
+                    textractClient.exceptions.ProvisionedThroughputExceededException, 
+                    textractClient.exceptions.ThrottlingException):
+                print('retrying...')
+                time.sleep(retry_rate)
+                retry_rate = 2*retry_rate
+        
+            except:
+                failed += 1
+                break
+
+    # Fetch results (which are stored a week)
+    for item in data:
+        image = item[1]
+        status = 'PENDING'
+
+        # Wait for completion
+        while status != 'SUCCEEDED':
+            if image.id not in job_ids: 
+                status = 'FAILED'
+                break
+
+            response = textractClient.get_document_text_detection(
+                JobId=job_ids[image.id]
+            )
+            status = response['JobStatus']
+            if status == 'FAILED': break 
+            if status != 'SUCCEEDED': time.sleep(2)
+        
+        if status == 'FAILED': 
+            failed += 1
+            continue
+        # Combine all text blocks - we want to try and preserve left-to-right order
+        temp_text = {}
+        for block in response['Blocks']:
+            if block['BlockType']=='LINE':
+                temp_text[float(block['Geometry']['BoundingBox']['Left'])] = block['Text']
+        temp_text = {k: v for k, v in sorted(temp_text.items(), key=lambda item: item[0])}
+        text = [temp_text[key] for key in temp_text]
+        text = ' '.join(text)
+
+        # Save extracted text
+        if index != None:
+            video = item[2]
+            video.extracted_text = text
+        else:
+            image.extracted_data = text
+
+        if check:
+            # Check if we can extract timestamps from the text
+            try:
+                timestamp = dateutil_parse(clean_extracted_timestamp(text,True),fuzzy=True,dayfirst=True,default=datetime.utcnow()+timedelta(days=365))
+                if (timestamp.year<2000) or (timestamp>=datetime.utcnow().replace(hour=0,minute=0,second=0,microsecond=0)):
+                    timestamp = dateutil_parse(clean_extracted_timestamp(text,False),fuzzy=True,dayfirst=False,default=datetime.utcnow()+timedelta(days=365))
+                    if (timestamp.year<2000) or (timestamp>=datetime.utcnow().replace(hour=0,minute=0,second=0,microsecond=0)):
+                        failed += 1
+                        continue
+            except:
+                failed += 1
+                continue
+
+    if check:
+        # If more than 90% of the data failed, we should stop trying to extract timestamps
+        if failed/len(data) > 0.9:
+            print('{} number of images failed to extract a timestamp. Stopping further extraction.'.format(failed))
+            continue_extraction = False
+
+    return continue_extraction
+
 def extract_missing_timestamps(survey_id):
     '''Kicks off all the celery tasks for extracting timestamps from the videos/images in the given survey that doesn't have timestamps.'''
 
@@ -5108,6 +5189,8 @@ def extract_missing_timestamps(survey_id):
                                                 .filter(Image.filename.contains('frame'+str(index)))\
                                                 .filter(Image.corrected_timestamp==None)\
                                                 .filter(Image.skipped!=True)\
+                                                .filter(Image.zip_id==None)\
+                                                .filter(Image.extracted!=True)\
                                                 .distinct().all()]
         for trapgroup_id in trapgroup_ids:
             get_timestamps(trapgroup_id,index)
@@ -5124,6 +5207,8 @@ def extract_missing_timestamps(survey_id):
                                                 .filter(~Camera.videos.any())\
                                                 .filter(Image.corrected_timestamp==None)\
                                                 .filter(Image.skipped!=True)\
+                                                .filter(Image.zip_id==None)\
+                                                .filter(Image.extracted!=True)\
                                                 .distinct().all()]
     for trapgroup_id in trapgroup_ids:
         get_timestamps(trapgroup_id)
@@ -5961,12 +6046,12 @@ def handle_duplicate_cameras(survey_id):
                         .group_by(Camera.path)\
                         .subquery()
                         
-    duplicates = db.session.query(Camera.path)\
+    duplicates = [r[0] for r in db.session.query(Camera.path)\
                         .join(Trapgroup)\
                         .filter(Trapgroup.survey_id==survey_id)\
                         .join(sq,sq.c.path==Camera.path)\
                         .filter(sq.c.count>1)\
-                        .all()
+                        .all()]
 
     for path in duplicates:
         cameras = db.session.query(Camera).join(Trapgroup).filter(Trapgroup.survey_id==survey_id).filter(Camera.path==path).distinct().all()

@@ -2641,45 +2641,51 @@ def checkFilesExist(files,folder):
 
     starttime = time.time()
     already_uploaded = []  
+    not_imported = []
     req_lambda = []
     new_names = {}
 
     hash_dict = {}
-    file_dict = {}
     camera_paths = []
     
     for file in files:
-        file_dict[file['hash']] = folder + '/' + file['name']
         hash_dict[folder + '/' +file['name']] = file['hash']
 
     survey_path = folder + '/' + files[0]['name'].split('/')[0] + '/%'
     survey_path = survey_path.replace('_','\\_')
 
-    hash_check = db.session.query(Image.hash).join(Camera).filter(Image.hash.in_(file_dict.keys())).filter(Camera.path.like(survey_path))
-    vid_hash_check = db.session.query(Video.hash).join(Camera).filter(Video.hash.in_(file_dict.keys())).filter(Camera.path.like(survey_path))
-    hash_check = hash_check.union(vid_hash_check).distinct().all()
+    # Check if the files are already in the database based on the hash
+    hashes = list(hash_dict.values())
+    hash_check = db.session.query(Image.hash).join(Camera).filter(Image.hash.in_(hashes)).filter(Camera.path.like(survey_path))
+    vid_hash_check = db.session.query(Video.hash).join(Camera).filter(Video.hash.in_(hashes)).filter(Camera.path.like(survey_path))
+    hash_check = [h[0] for h in hash_check.union(vid_hash_check).distinct().all()]
 
-    already_uploaded = [file_dict.get(hash[0]) for hash in hash_check]
-    not_imported = list(set(file_dict.values()) - set(already_uploaded))
+    for file in hash_dict:
+        if hash_dict[file] in hash_check:
+            already_uploaded.append(file)
+        else:
+            not_imported.append(file)
 
     if not_imported:
         camera_paths = [file.rsplit('/',1)[0] for file in not_imported]
         common_camera_path = os.path.commonpath(camera_paths)
         common_camera_path = common_camera_path.replace('_','\\_')
 
+        # Get files in db with the same path but different hash
         files_in_db = db.session.query(Image.filename,Camera.path, Image.hash)\
                                 .join(Camera)\
                                 .filter(Camera.path.in_(camera_paths))\
-                                .filter(Image.hash.notin_(file_dict.keys()))\
+                                .filter(Image.hash.notin_(hashes))\
                                 .filter(~Camera.videos.any())
         
         videos_in_db = db.session.query(Video.filename,Camera.path, Video.hash)\
                                 .join(Camera)\
                                 .filter(Camera.path.like(common_camera_path + '/%'))\
-                                .filter(Video.hash.notin_(file_dict.keys()))
+                                .filter(Video.hash.notin_(hashes))\
         
         files_in_db = {r[1].split('/_video_images_/')[0] + '/' + r[0]: r[2] for r in files_in_db.union(videos_in_db).distinct().all()}
-                                
+
+        # Check if the files are in S3 and if they are, check if they have the same hash as the file in S3 otherwise generate a new name                   
         for file in not_imported:
             req_new_name = False
             try:

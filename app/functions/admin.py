@@ -1673,21 +1673,21 @@ def updateCoords(survey_id,coordData):
             try:
                 latitude = float(item['latitude'])
                 if -180<=latitude<=180:
-                    trapgroup.latitude = float(item['latitude'])
+                    trapgroup.latitude = latitude
             except:
                 pass
 
             try:
                 longitude = float(item['longitude'])
                 if -180<=longitude<=180:
-                    trapgroup.longitude = float(item['longitude'])
+                    trapgroup.longitude = longitude
             except:
                 pass
 
             try:
                 altitude = float(item['altitude'])
-                if -180<=altitude<=180:
-                    trapgroup.altitude = float(item['altitude'])
+                if altitude>=0:
+                    trapgroup.altitude = altitude
             except:
                 pass
 

@@ -146,59 +146,66 @@ async function initiateDownload() {
 
             }
             else{
-                try {
-                    var topLevelHandle = await window.showDirectoryPicker({
-                        writable: true //ask for write permission
-                    });
+                if (window.showDirectoryPicker) {
+                    try {
+                        var topLevelHandle = await window.showDirectoryPicker({
+                            writable: true //ask for write permission
+                        });
+                    
+                        await verifyPermission(topLevelHandle)
+                    
+                        // Create a new download request
+                        var response = await fetch('/fileHandler/init_download_request', {
+                            method: 'post',
+                            headers: {
+                                accept: 'application/json',
+                                'content-type': 'application/json',
+                            },
+                            body: JSON.stringify({
+                                task_id: selectedTask,
+                            }),
+                        }).then((response) => {
+                            if (!response.ok) {
+                                throw new Error(response.statusText)
+                            } else if (response.status==278) {
+                                window.location.reload();
+                            } else {
+                                return response.json()
+                            }
+                        }).catch( (error) => {
+                            // pass
+                        })
+    
+                        if (response.status=='success') {
+                            download_id = response.download_id
+    
+                            checkingDownload = false
+                            // if (!currentDownloadTasks.includes(taskName)) {
+                                // currentDownloadTasks.push(taskName)
+                                // currentDownloads.push(selectedSurvey)
+                            // }
+                            if (!currentDownloads.includes(download_id)) {
+                                currentDownloads.push(download_id)
+                            }
                 
-                    await verifyPermission(topLevelHandle)
-                
-                    // Create a new download request
-                    var response = await fetch('/fileHandler/init_download_request', {
-                        method: 'post',
-                        headers: {
-                            accept: 'application/json',
-                            'content-type': 'application/json',
-                        },
-                        body: JSON.stringify({
-                            task_id: selectedTask,
-                        }),
-                    }).then((response) => {
-                        if (!response.ok) {
-                            throw new Error(response.statusText)
-                        } else if (response.status==278) {
-                            window.location.reload();
-                        } else {
-                            return response.json()
+                            globalDownloaded = 0
+                            globalToDownload = 0
+                            global_count_initialised = false
+    
+                            downloadWorker.postMessage({'func': 'startDownload', 'args': [topLevelHandle,selectedTask,surveyName,taskName,species,species_sorted,individual_sorted,flat_structure,include_empties,delete_items, include_video, include_frames, selectedSurvey, raw_files, download_id]})
                         }
-                    }).catch( (error) => {
-                        // pass
-                    })
-
-                    if (response.status=='success') {
-                        download_id = response.download_id
-
-                        checkingDownload = false
-                        // if (!currentDownloadTasks.includes(taskName)) {
-                            // currentDownloadTasks.push(taskName)
-                            // currentDownloads.push(selectedSurvey)
-                        // }
-                        if (!currentDownloads.includes(download_id)) {
-                            currentDownloads.push(download_id)
+                        else {
+                            document.getElementById('btnDownloadStart').disabled = false
                         }
-            
-                        globalDownloaded = 0
-                        globalToDownload = 0
-                        global_count_initialised = false
-
-                        downloadWorker.postMessage({'func': 'startDownload', 'args': [topLevelHandle,selectedTask,surveyName,taskName,species,species_sorted,individual_sorted,flat_structure,include_empties,delete_items, include_video, include_frames, selectedSurvey, raw_files, download_id]})
-                    }
-                    else {
+                    
+                    } catch {
                         document.getElementById('btnDownloadStart').disabled = false
                     }
-                
-                } catch {
-                    document.getElementById('btnDownloadStart').disabled = false
+                } else {
+                    document.getElementById('modalAlertHeader').innerHTML = 'Alert'
+                    document.getElementById('modalAlertBody').innerHTML = 'Unfortunately this feature is not yet available in your chosen internet browser - please try again with Google Chrome instead. If you are using Chrome, please ensure that it is up to date.'
+                    modalDownload.modal('hide')
+                    modalAlert.modal({keyboard: true});
                 }
             }
 
@@ -310,72 +317,78 @@ async function initiateDownloadAfterRestore(request_id,task_id) {
 
         if (response=='available') {
 
-            try {
-                var topLevelHandle = await window.showDirectoryPicker({
-                    writable: true //ask for write permission
-                });
+            if (window.showDirectoryPicker) {
+                try {
+                    var topLevelHandle = await window.showDirectoryPicker({
+                        writable: true //ask for write permission
+                    });
+                
+                    await verifyPermission(topLevelHandle)
+    
+                    var response = await fetch('/fileHandler/init_download_after_restore', {
+                        method: 'post',
+                        headers: {
+                            accept: 'application/json',
+                            'content-type': 'application/json',
+                        },
+                        body: JSON.stringify({
+                            download_request_id: request_id
+                        }),
+                    }).then((response) => {
+                        if (!response.ok) {
+                            throw new Error(response.statusText)
+                        } else if (response.status==278) {
+                            window.location.reload();
+                        } else {
+                            return response.json()
+                        }
+                    }).catch( (error) => {
+                        // pass
+                    })
+    
+                    if (response.status=='success') {
+    
+                        selectedTask = response.download_params.task_id
+                        selectedSurvey = response.download_params.survey_id
+                        taskName = response.download_params.task_name
+                        raw_files = response.download_params.raw_files
+                        species_sorted = response.download_params.species_sorted
+                        individual_sorted = response.download_params.individual_sorted
+                        flat_structure = response.download_params.flat_structure
+                        include_empties = response.download_params.include_empties
+                        delete_items = response.download_params.delete_items
+                        include_video = response.download_params.include_video
+                        include_frames = response.download_params.include_frames
+                        species = response.download_params.species
+                    
+                        checkingDownload = false
+                        if (!currentDownloads.includes(request_id)) {
+                            currentDownloads.push(request_id)
+                        }
             
-                await verifyPermission(topLevelHandle)
-
-                var response = await fetch('/fileHandler/init_download_after_restore', {
-                    method: 'post',
-                    headers: {
-                        accept: 'application/json',
-                        'content-type': 'application/json',
-                    },
-                    body: JSON.stringify({
-                        download_request_id: request_id
-                    }),
-                }).then((response) => {
-                    if (!response.ok) {
-                        throw new Error(response.statusText)
-                    } else if (response.status==278) {
-                        window.location.reload();
-                    } else {
-                        return response.json()
+                        globalDownloaded = 0
+                        globalToDownload = 0
+                        global_count_initialised = false
+                    
+                        downloadWorker.postMessage({'func': 'startDownload', 'args': [topLevelHandle,selectedTask,surveyName,taskName,species,species_sorted,individual_sorted,flat_structure,include_empties,delete_items, include_video, include_frames, selectedSurvey, raw_files, request_id]})
                     }
-                }).catch( (error) => {
-                    // pass
-                })
-
-                if (response.status=='success') {
-
-                    selectedTask = response.download_params.task_id
-                    selectedSurvey = response.download_params.survey_id
-                    taskName = response.download_params.task_name
-                    raw_files = response.download_params.raw_files
-                    species_sorted = response.download_params.species_sorted
-                    individual_sorted = response.download_params.individual_sorted
-                    flat_structure = response.download_params.flat_structure
-                    include_empties = response.download_params.include_empties
-                    delete_items = response.download_params.delete_items
-                    include_video = response.download_params.include_video
-                    include_frames = response.download_params.include_frames
-                    species = response.download_params.species
-                
-                    checkingDownload = false
-                    if (!currentDownloads.includes(request_id)) {
-                        currentDownloads.push(request_id)
+                    else {
+                        document.getElementById('modalAlertHeader').innerHTML = 'Alert'
+                        document.getElementById('modalAlertBody').innerHTML = response.message
+                        document.getElementById('downloadsBtn').click()
+                        modalAlert.modal({keyboard: true});
+                        document.getElementById('launchRestoreDownloadBtn-'+request_id.toString()).disabled = false
                     }
-        
-                    globalDownloaded = 0
-                    globalToDownload = 0
-                    global_count_initialised = false
-                
-                    downloadWorker.postMessage({'func': 'startDownload', 'args': [topLevelHandle,selectedTask,surveyName,taskName,species,species_sorted,individual_sorted,flat_structure,include_empties,delete_items, include_video, include_frames, selectedSurvey, raw_files, request_id]})
-                }
-                else {
-                    document.getElementById('modalAlertHeader').innerHTML = 'Alert'
-                    document.getElementById('modalAlertBody').innerHTML = response.message
-                    document.getElementById('downloadsBtn').click()
-                    modalAlert.modal({keyboard: true});
+    
+                } catch {
                     document.getElementById('launchRestoreDownloadBtn-'+request_id.toString()).disabled = false
                 }
-
-            } catch {
-                document.getElementById('launchRestoreDownloadBtn-'+request_id.toString()).disabled = false
+            } else {
+                document.getElementById('modalAlertHeader').innerHTML = 'Alert'
+                document.getElementById('modalAlertBody').innerHTML = 'Unfortunately this feature is not yet available in your chosen internet browser - please try again with Google Chrome instead. If you are using Chrome, please ensure that it is up to date.'
+                modalDownload.modal('hide')
+                modalAlert.modal({keyboard: true});
             }
-            
 
         } else {
             document.getElementById('modalAlertHeader').innerHTML = 'Alert'
