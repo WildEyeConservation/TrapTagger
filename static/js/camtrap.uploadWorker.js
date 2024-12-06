@@ -402,6 +402,9 @@ async function checkLambdaQueue(pause=false) {
                 if (lambdaQueue.length==0){
                     checkFinishedUpload()
                 }
+                else{
+                    checkLambdaQueue()
+                }
             }
         }).catch( (error) => {
             if (!pause){
