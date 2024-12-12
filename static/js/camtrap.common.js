@@ -29,6 +29,7 @@ var isReviewing
 var isComparison
 var isNoteActive = false
 var isSearchNoteActive = false
+var isDateActive = false
 var notesOnly = false
 var taggingLevel = '-23'
 var taggingLabel = 'None'
@@ -3435,7 +3436,7 @@ function initKeys(res){
 document.onkeydown = function(event) {
     /** Prevent scrolling from key presses */
     if (['insert','pagedown','pageup','home','end',' '].includes(event.key.toLowerCase())) {
-        if (!(((typeof modalNote != 'undefined') && (modalNote.is(':visible'))) || ((typeof modalNewIndividual != 'undefined')&&(modalNewIndividual.is(':visible'))) || (isNoteActive))) {
+        if (!(((typeof modalNote != 'undefined') && (modalNote.is(':visible'))) || ((typeof modalNewIndividual != 'undefined')&&(modalNewIndividual.is(':visible'))) || (isNoteActive) || (isDateActive))) {
             event.preventDefault()
         }
     }
@@ -3492,7 +3493,7 @@ document.onkeyup = function(event){
         idKeys(event.key.toLowerCase())
     } else if (isTagging||isReviewing) {
         // console.log(event)
-        if (((typeof modalNote == 'undefined') || (!modalNote.is(':visible'))) && !isNoteActive) {
+        if (((typeof modalNote == 'undefined') || (!modalNote.is(':visible'))) && !isNoteActive && !isDateActive) {
             switch (event.key.toLowerCase()){
                 case ('0'):assignLabel(hotkeys[0])
                     break;

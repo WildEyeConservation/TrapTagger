@@ -472,42 +472,50 @@ function selectAnnotator(annotator) {
 
 $('#expStartDate').change(function() {
     /** Handles the event when the start date is changed. */
-    prevTag = currentTag
-    prevLabel = currentLabel
-    prevSite = currentSite
-    prevAnnotator = currentAnnotator
-    prevStartDate = currentStartDate
-    prevEndDate = currentEndDate
-    clusterRequests['map1'] = [];
+    valid = validateDates()
+    if (valid){
+        document.getElementById('expDateErrors').innerHTML = ''
+        prevTag = currentTag
+        prevLabel = currentLabel
+        prevSite = currentSite
+        prevAnnotator = currentAnnotator
+        prevStartDate = currentStartDate
+        prevEndDate = currentEndDate
+        clusterRequests['map1'] = [];
 
-    if (this.value == '') {
-        currentStartDate = null
-    }
-    else{
-        currentStartDate = this.value + ' 00:00:00'
-    }
+        if (this.value == '') {
+            currentStartDate = null
+        }
+        else{
+            currentStartDate = this.value + ' 00:00:00'
+        }
 
-    getClusterIDs()
+        getClusterIDs()
+    }
 });
 
 $('#expEndDate').change(function() {
     /** Handles the event when the end date is changed. */
-    prevTag = currentTag
-    prevLabel = currentLabel
-    prevSite = currentSite
-    prevAnnotator = currentAnnotator
-    prevStartDate = currentStartDate
-    prevEndDate = currentEndDate
-    clusterRequests['map1'] = [];
+    valid = validateDates()
+    if (valid){
+        document.getElementById('expDateErrors').innerHTML = ''
+        prevTag = currentTag
+        prevLabel = currentLabel
+        prevSite = currentSite
+        prevAnnotator = currentAnnotator
+        prevStartDate = currentStartDate
+        prevEndDate = currentEndDate
+        clusterRequests['map1'] = [];
 
-    if (this.value == '') {
-        currentEndDate = null
-    }
-    else{
-        currentEndDate = this.value + ' 23:59:59'
-    }
+        if (this.value == '') {
+            currentEndDate = null
+        }
+        else{
+            currentEndDate = this.value + ' 23:59:59'
+        }
 
-    getClusterIDs()
+        getClusterIDs()
+    }
 });
 
 $("#onlyNotesCheckbox").change( function() {
@@ -557,5 +565,62 @@ $("#noteboxExpSearch").on('blur', function(){
     isSearchNoteActive = false
 })
 
+$('#expStartDate').on('focus', function(){
+    isDateActive = true
+})
+
+$('#expStartDate').on('blur', function(){
+    isDateActive = false
+})
+
+$('#expEndDate').on('focus', function(){
+    isDateActive = true
+})
+
+$('#expEndDate').on('blur', function(){
+    isDateActive = false
+})
+
+function validateDates(){
+    /** Validates the dates */
+    startDate = document.getElementById('expStartDate').value
+    endDate = document.getElementById('expEndDate').value
+    if (startDate != '' && endDate != '') {
+        if (new Date(startDate) > new Date(endDate)) {
+            document.getElementById('expDateErrors').innerHTML = 'Start date must be before end date.'
+            return false
+        }
+    }
+
+    const dateRegex = /^\d{4}-\d{2}-\d{2}$/
+    if (startDate != ''){
+        // Check if the start date is valid
+        if (!startDate.match(dateRegex)){
+            document.getElementById('expDateErrors').innerHTML = 'Invalid date.'
+            return false
+        }
+
+        if (new Date(startDate) > new Date() || new Date(startDate) < new Date('1900-01-01')){
+            document.getElementById('expDateErrors').innerHTML = 'Invalid date.'
+            return false
+        }
+        
+    }
+
+    if (endDate != ''){
+        // Check if the end date is valid
+        if (!endDate.match(dateRegex)){
+            document.getElementById('expDateErrors').innerHTML = 'Invalid date.'
+            return false
+        }
+
+        if (new Date(endDate) < new Date('1900-01-01')){
+            document.getElementById('expDateErrors').innerHTML = 'Invalid date.'
+            return false
+        }
+    }
+
+    return true
+}
 
 window.addEventListener('load', onload, false);
