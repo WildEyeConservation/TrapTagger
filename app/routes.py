@@ -14251,7 +14251,7 @@ def invoke_lambda():
                     return 'success'
 
     except Exception as e:
-        if Config.DEBUGGING: app.logger.error('Error invoking lambda function: {}'.format(e))
+        if Config.DEBUGGING: app.logger.info('Error invoking lambda function: {}'.format(e))
         pass
         
     return 'error'
