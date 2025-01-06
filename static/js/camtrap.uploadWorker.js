@@ -344,7 +344,7 @@ async function checkLambdaQueue(pause=false) {
         checkingLambda = true
         while (files.length<lambdaBatchSize) {
             let file = lambdaQueue.pop(0)
-            fileSuffix = file.split('.')[1]
+            fileSuffix = file.substring(file.lastIndexOf('.') + 1)
             let fileType;
             if (/jpe?g$/i.test(fileSuffix)) {
                 fileType = 'image';
@@ -363,7 +363,7 @@ async function checkLambdaQueue(pause=false) {
         checkingLambda = true
         while (lambdaQueue.length>0) {
             let file = lambdaQueue.pop(0)
-            fileSuffix = file.split('.')[1]
+            fileSuffix = file.substring(file.lastIndexOf('.') + 1)
             let fileType;
             if (/jpe?g$/i.test(fileSuffix)) {
                 fileType = 'image';
