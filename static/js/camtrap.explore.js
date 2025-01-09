@@ -49,7 +49,6 @@ const divTagSelector = document.querySelector('#divTagSelector');
 const divSiteSelector = document.querySelector('#divSiteSelector');
 const divAnnotatorSelector = document.querySelector('#divAnnotatorSelector');
 const annotationLevel = document.querySelector('#annotationLevel');
-const modalLoad = $('#modalLoad');
 
 function loadNewCluster(mapID = 'map1') {
     /** loads the next cluster based on the IDs contained in the clusterIDs array. */
