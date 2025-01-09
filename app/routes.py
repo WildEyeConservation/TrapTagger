@@ -3673,6 +3673,7 @@ def getWorkerStats():
 def getHomeSurveys():
     '''Returns a paginated list of all surveys and their associated tasks for the current user.'''
 
+    reqID = request.args.get('reqID', -1, type=int)
     page = request.args.get('page', 1, type=int)
     order = request.args.get('order', 5, type=int)
     search = request.args.get('search', '', type=str)
@@ -4025,7 +4026,7 @@ def getHomeSurveys():
     current_user.last_ping = datetime.utcnow()
     db.session.commit()
 
-    return json.dumps({'surveys': survey_list, 'next_url':next_url, 'prev_url':prev_url})
+    return json.dumps({'reqID': reqID, 'surveys': survey_list, 'next_url':next_url, 'prev_url':prev_url})
 
 @app.route('/getJobs')
 @login_required

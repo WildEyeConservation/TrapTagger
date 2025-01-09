@@ -1622,8 +1622,10 @@ function nextCluster(mapID = 'map1') {
         }
 
         if (clusterIndex[mapID]==clusters[mapID].length-1){
-            document.getElementById('modalAlertText').innerHTML = 'You have reached the end of the available clusters.'
-            modalAlert.modal({keyboard: true});
+            if (clusterRequests[mapID].length==0) {
+                document.getElementById('modalAlertText').innerHTML = 'There are no more clusters to display.'
+                modalAlert.modal({keyboard: true});
+            }
         } 
     }
 

@@ -49,6 +49,7 @@ const divTagSelector = document.querySelector('#divTagSelector');
 const divSiteSelector = document.querySelector('#divSiteSelector');
 const divAnnotatorSelector = document.querySelector('#divAnnotatorSelector');
 const annotationLevel = document.querySelector('#annotationLevel');
+const modalLoad = $('#modalLoad');
 
 function loadNewCluster(mapID = 'map1') {
     /** loads the next cluster based on the IDs contained in the clusterIDs array. */
@@ -67,6 +68,7 @@ function loadNewCluster(mapID = 'map1') {
                     info = JSON.parse(this.responseText);
 
                     if (clusterRequests[mapID].includes(parseInt(info.id))) {
+                        clusterRequests[mapID].splice(clusterRequests[mapID].indexOf(parseInt(info.id)), 1)
                         newcluster = info.info[0];
                         clusters[mapID].push(newcluster)
 

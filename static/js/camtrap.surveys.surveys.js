@@ -254,6 +254,7 @@ var taskNames = []
 var prev_url = null
 var next_url = null
 var current_page = '/getHomeSurveys'
+var GHSreqID = null
 
 var timerTaskStatus = null
 
@@ -948,10 +949,19 @@ function updatePage(url){
      */
 
     if (url==null) {
-        url = current_page
+        url = (' ' + current_page).slice(1);
     } else {
-        current_page = url
+        current_page = (' ' + url).slice(1);
     }
+
+    // Add request ID to prevent reload on response race
+    GHSreqID = Math.floor(Math.random() * 100000) + 1;
+    if (!url.includes('?')) {
+        url+='?'
+    } else {
+        url += '&'
+    }
+    url += 'reqID='+GHSreqID.toString()
     
     var xhttp = new XMLHttpRequest();
     xhttp.onreadystatechange =
@@ -965,74 +975,77 @@ function updatePage(url){
             //     document.getElementById('btnNewSurvey').disabled = false
             // }
 
-            surveyListDiv = document.getElementById('surveyListDiv'); 
-            while(surveyListDiv.firstChild){
-                surveyListDiv.removeChild(surveyListDiv.firstChild);
-            }
+            if (reply.reqID.toString()==GHSreqID.toString()) {
 
-            if (reply.surveys.length > 0) {
-                surveyListDiv.setAttribute('class','')
-                document.getElementById('mainCard').setAttribute('style','')
-            } else {
-                surveyListDiv.setAttribute('class','card-body')
-                document.getElementById('mainCard').setAttribute('style','min-height:400px')
-            }
-
-            // taskProcessing = false
-            for (let i=0;i<reply.surveys.length;i++) {
-                disableSurvey = false
-                for (let n=0;n<reply.surveys[i].tasks.length;n++) {
-                    if ((diabledTaskStatuses.includes(reply.surveys[i].tasks[n].status.toLowerCase()))||(reply.surveys[i].tasks[n].disabledLaunch=='true')) {
+                surveyListDiv = document.getElementById('surveyListDiv'); 
+                while(surveyListDiv.firstChild){
+                    surveyListDiv.removeChild(surveyListDiv.firstChild);
+                }
+    
+                if (reply.surveys.length > 0) {
+                    surveyListDiv.setAttribute('class','')
+                    document.getElementById('mainCard').setAttribute('style','')
+                } else {
+                    surveyListDiv.setAttribute('class','card-body')
+                    document.getElementById('mainCard').setAttribute('style','min-height:400px')
+                }
+    
+                // taskProcessing = false
+                for (let i=0;i<reply.surveys.length;i++) {
+                    disableSurvey = false
+                    for (let n=0;n<reply.surveys[i].tasks.length;n++) {
+                        if ((diabledTaskStatuses.includes(reply.surveys[i].tasks[n].status.toLowerCase()))||(reply.surveys[i].tasks[n].disabledLaunch=='true')) {
+                            disableSurvey = true
+                            // taskProcessing = true
+                        }
+                    }
+                    // if (disabledSurveyStatuses.includes(reply.surveys[i].status.toLowerCase())||(currentDownloads.includes(reply.surveys[i].id))) {
+                    if (disabledSurveyStatuses.includes(reply.surveys[i].status.toLowerCase())) {
                         disableSurvey = true
                         // taskProcessing = true
                     }
+                    buildSurveys(reply.surveys[i],disableSurvey)
+                    // if (i < reply.surveys.length-1) {
+                    //     surveyListDiv.appendChild(document.createElement('br'))
+                    // }
                 }
-                // if (disabledSurveyStatuses.includes(reply.surveys[i].status.toLowerCase())||(currentDownloads.includes(reply.surveys[i].id))) {
-                if (disabledSurveyStatuses.includes(reply.surveys[i].status.toLowerCase())) {
-                    disableSurvey = true
-                    // taskProcessing = true
+                
+                if (reply.next_url==null) {
+                    btnNextSurveys.style.visibility = 'hidden'
+                } else {
+                    btnNextSurveys.style.visibility = 'visible'
+                    next_url = reply.next_url
                 }
-                buildSurveys(reply.surveys[i],disableSurvey)
-                // if (i < reply.surveys.length-1) {
-                //     surveyListDiv.appendChild(document.createElement('br'))
+    
+                if (reply.prev_url==null) {
+                    btnPrevSurveys.style.visibility = 'hidden'
+                } else {
+                    btnPrevSurveys.style.visibility = 'visible'
+                    prev_url = reply.prev_url
+                }
+    
+                if (uploading&&!uploadStart) {
+                    uploadFiles()
+                }
+    
+                // if (taskProcessing==true) {
+                //     if (processingTimer != null) {
+                //         clearInterval(processingTimer)
+                //     }
+                //     processingTimer = setTimeout(function() { updatePage(url); }, 10000)
+                // } else {
+                //     if (processingTimer != null) {
+                //         clearInterval(processingTimer)
+                //     }
+                //     processingTimer = null
                 // }
+    
+                // always refresh the page
+                if (processingTimer != null) {
+                    clearTimeout(processingTimer)
+                }
+                processingTimer = setTimeout(function() { updatePage(current_page); }, 5000)
             }
-            
-            if (reply.next_url==null) {
-                btnNextSurveys.style.visibility = 'hidden'
-            } else {
-                btnNextSurveys.style.visibility = 'visible'
-                next_url = reply.next_url
-            }
-
-            if (reply.prev_url==null) {
-                btnPrevSurveys.style.visibility = 'hidden'
-            } else {
-                btnPrevSurveys.style.visibility = 'visible'
-                prev_url = reply.prev_url
-            }
-
-            if (uploading&&!uploadStart) {
-                uploadFiles()
-            }
-
-            // if (taskProcessing==true) {
-            //     if (processingTimer != null) {
-            //         clearInterval(processingTimer)
-            //     }
-            //     processingTimer = setTimeout(function() { updatePage(url); }, 10000)
-            // } else {
-            //     if (processingTimer != null) {
-            //         clearInterval(processingTimer)
-            //     }
-            //     processingTimer = null
-            // }
-
-            // always refresh the page
-            if (processingTimer != null) {
-                clearTimeout(processingTimer)
-            }
-            processingTimer = setTimeout(function() { updatePage(url); }, 5000)
         }
     }
     xhttp.open("GET", url);
