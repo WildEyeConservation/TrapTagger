@@ -963,7 +963,7 @@ def process_videos(self,trapgroup_id):
         for video in videos:
             key = [video.camera.path.split('/')[0]+'-comp']
             key.extend(video.camera.path.split('/')[1:])
-            key = '/'.join(key).split('_video_images_')[0] + video.filename.split('.')[0] + '.mp4'
+            key = '/'.join(key).split('_video_images_')[0] + video.filename.rsplit('.', 1)[0] + '.mp4'
             
             with tempfile.NamedTemporaryFile(delete=True, suffix='.JPG') as temp_file:
                 GLOBALS.s3client.download_file(Bucket='traptagger', Key=key, Filename=temp_file.name)

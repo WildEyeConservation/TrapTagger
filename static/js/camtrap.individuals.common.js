@@ -29,7 +29,7 @@ function modifyToCompURL(url) {
     else {
         splits=url.split('/')
         splits[0]=splits[0]+'-comp'
-        splits[splits.length-1]=splits[splits.length-1].split('.')[0]+'.mp4'
+        splits[splits.length-1]=splits[splits.length-1].substring(0, splits[splits.length-1].lastIndexOf('.'))+'.mp4'
         return splits.join('/')
     }
 }

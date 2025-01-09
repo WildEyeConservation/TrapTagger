@@ -9410,7 +9410,7 @@ def get_required_files():
                 videoLabels.extend(videoTags)
                 file_ids.append(video.id)
                 pathSplit  = video.camera.path.split('/',1)
-                path = pathSplit[0] + '-comp/' + pathSplit[1].split('_video_images_')[0] + video.filename.split('.')[0] + '.mp4'
+                path = pathSplit[0] + '-comp/' + pathSplit[1].split('_video_images_')[0] + video.filename.rsplit('.', 1)[0] + '.mp4'
                 reply.append({'url':'https://'+Config.BUCKET+'.s3.amazonaws.com/'+ path.replace('+','%2B').replace('?','%3F').replace('#','%23').replace('\\','%5C'),'paths':videoPaths,'labels':videoLabels})
             db.session.commit()
 
@@ -13997,7 +13997,7 @@ def addImage():
                             image_exists = False
 
                         if image_exists:
-                            filename_split = filename.split('.')
+                            filename_split = filename.rsplit('.', 1)
                             dup_filename = filename_split[0] + '_%.' + filename_split[1]
                             dup_filename = dup_filename.replace('_','\\_')
                             image_dup_names = [r[0] for r in db.session.query(Image.filename).join(Camera).filter(Camera.path==camera_path).filter(Image.filename.like(dup_filename)).distinct().all()]
@@ -14247,7 +14247,7 @@ def invoke_lambda():
                     try:
                         GLOBALS.redisClient.incrby('lambda_invoked_'+str(survey_id),invoked_lambdas)
                     except:
-                        GLOBALS.redisClient.set('lambda_invoked'+str(survey_id),invoked_lambdas)
+                        GLOBALS.redisClient.set('lambda_invoked_'+str(survey_id),invoked_lambdas)
 
                     return 'success'
 

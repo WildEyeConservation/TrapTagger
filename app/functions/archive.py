@@ -257,7 +257,7 @@ def extract_zip(self,zip_key):
         app.logger.info('Handling zip {}'.format(zip_key))
 
         zip_path = zip_key.split('/')[-1]
-        zip_id = zip_path.split('.')[0]
+        zip_id = zip_path.rsplit('.', 1)[0]
         try:
             GLOBALS.s3client.download_file(Bucket=Config.BUCKET, Key=zip_key, Filename=zip_path)
         except:
@@ -267,7 +267,7 @@ def extract_zip(self,zip_key):
         image_ids = []  
         with zipfile.ZipFile(zip_path, 'r') as zip_ref:
             for filename in zip_ref.namelist():
-                image_id = filename.split('.')[0]
+                image_id = filename.rsplit('.', 1)[0]
                 image_ids.append(image_id)
 
 
@@ -683,7 +683,7 @@ def restore_files_for_download(self,task_id,download_request_id,download_params,
             splits = first_video_path.split('/')
             splits[0] = splits[0] + '-comp'
             first_video_path = '/'.join(splits)
-            first_video_key = first_video_path + '/' + videos[0][1].split('.')[0] + '.mp4'
+            first_video_key = first_video_path + '/' + videos[0][1].rsplit('.', 1)[0] + '.mp4'
             storage_class = check_storage_class(first_video_key)
             if storage_class == 'DEEP_ARCHIVE':
                 for chunk in chunker(videos, 1000):
@@ -692,7 +692,7 @@ def restore_files_for_download(self,task_id,download_request_id,download_params,
                             splits = video[2].split('/')
                             splits[0] = splits[0] + '-comp'
                             path = '/'.join(splits)
-                            video_key = path.split('/_video_images_/')[0] + '/' + video[1].split('.')[0] + '.mp4'
+                            video_key = path.split('/_video_images_/')[0] + '/' + video[1].rsplit('.', 1)[0] + '.mp4'
                             response = GLOBALS.s3client.restore_object(Bucket=Config.BUCKET, Key=video_key, RestoreRequest=restore_request)
                             restored_video = True
                             http_code = response['ResponseMetadata']['HTTPStatusCode']
@@ -783,7 +783,7 @@ def restore_files_for_download(self,task_id,download_request_id,download_params,
                         splits = video_path.split('/')
                         splits[0] = splits[0] + '-comp'
                         video_path = '/'.join(splits)
-                        video_key = video_path + '/' + other_videos[1].split('.')[0] + '.mp4'
+                        video_key = video_path + '/' + other_videos[1].rsplit('.', 1)[0] + '.mp4'
                         restore_file = get_restore_info(video_key)
                         if restore_file[0]:
                             restore_date = restore_file[0]
