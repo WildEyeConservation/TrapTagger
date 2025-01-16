@@ -485,8 +485,7 @@ def restore_images_for_classification(self,survey_id,days,edit_survey_args,tier,
                         .join(Trapgroup)\
                         .join(Detection)\
                         .filter(Trapgroup.survey_id==survey_id)\
-                        .filter(or_(and_(Detection.source==model,Detection.score>Config.DETECTOR_THRESHOLDS[model]) for model in Config.DETECTOR_THRESHOLDS))\
-                        .filter(Detection.static==False)
+                        .filter(or_(and_(Detection.source==model,Detection.score>Config.DETECTOR_THRESHOLDS[model]) for model in Config.DETECTOR_THRESHOLDS))
 
         images = image_query.filter(or_(Image.expiry_date==None,Image.expiry_date<expected_expiry_date)).order_by(Image.id).distinct().all()
         
