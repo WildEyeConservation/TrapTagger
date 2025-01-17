@@ -3205,8 +3205,6 @@ def classifySurvey(survey_id,sourceBucket,classifier_id=None,batch_size=100):
                             .join(Trapgroup)\
                             .filter(Trapgroup.survey_id==survey_id)\
                             .filter(or_(and_(Detection.source==model,Detection.score>Config.DETECTOR_THRESHOLDS[model]) for model in Config.DETECTOR_THRESHOLDS))\
-                            .filter(Detection.static==False)\
-                            .filter(~Detection.status.in_(Config.DET_IGNORE_STATUSES))\
                             .filter(or_(Detection.left==Detection.right,Detection.top==Detection.bottom))\
                             .all()
 
