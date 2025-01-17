@@ -2398,7 +2398,7 @@ def list_all(bucket,prefix,include_size=False,include_restored=False,include_all
                                 else:
                                     contents.append(f['Key'].split('/')[-1])
         if resp['IsTruncated']:
-            resp = GLOBALS.s3client.list_objects_v2(Bucket=bucket, Delimiter='/',Prefix=prefix, ContinuationToken=resp['NextContinuationToken'])
+            resp = GLOBALS.s3client.list_objects_v2(Bucket=bucket, Delimiter='/',Prefix=prefix, ContinuationToken=resp['NextContinuationToken'], OptionalObjectAttributes=['RestoreStatus'])
         else:
             return prefixes,contents
 
