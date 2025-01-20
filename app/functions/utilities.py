@@ -17,7 +17,10 @@ limitations under the License.
 from app import app, db, celery
 from app.models import *
 from app.functions.globals import *
-from app.functions.imports import archive_images, archive_empty_images, archive_videos
+from app.functions.imports import archive_images, archive_empty_images, archive_videos, classifySurvey
+from app.functions.annotation import launch_task
+from app.functions.admin import stop_task
+from app.functions.archive import check_storage_class, get_restore_info
 import GLOBALS
 from sqlalchemy.sql import func, or_, and_, alias
 from sqlalchemy import desc, extract
@@ -1447,6 +1450,164 @@ def archive_survey_and_update_counts(self,survey_id,launch_id=None):
 
         db.session.commit()
         app.logger.info('Task empty image counts updated')
+
+    except Exception as exc:
+        app.logger.info(' ')
+        app.logger.info('!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!')
+        app.logger.info(traceback.format_exc())
+        app.logger.info('!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!')
+        app.logger.info(' ')
+        self.retry(exc=exc, countdown= retryTime(self.request.retries))
+
+    finally:
+        db.session.remove()
+
+    return True
+
+
+@celery.task(bind=True,max_retries=5)
+def classify_survey(self,survey_id):
+
+    try:
+        app.logger.info('Classifying survey {}'.format(survey_id))
+
+        task_id = None
+        survey = db.session.query(Survey).get(survey_id)
+        old_status = survey.status
+
+        if old_status not in Config.SURVEY_READY_STATUSES and 'preprocessing' not in old_status.lower():
+            if survey.status == 'Launched':
+                task_id = db.session.query(Task.id).filter(Task.survey_id==survey_id).filter(Task.status=='PROGRESS').first()
+                if task_id:
+                    task_id = task_id[0]
+                    stop_task(task_id)
+                    survey = db.session.query(Survey).get(survey_id)
+                else:
+                    # SCHEDULE ONE HOUR LATER
+                    classify_survey.apply_async(kwargs={'survey_id':survey_id}, countdown=3600, queue='default')
+                    return True
+            else:
+                #SCHEUDLE ONE HOUR LATER
+                classify_survey.apply_async(kwargs={'survey_id':survey_id}, countdown=3600, queue='default')
+                return True        
+
+        survey.status = 'Processing'
+        db.session.commit()
+
+        classifySurvey(survey_id=survey_id,sourceBucket=Config.BUCKET)
+
+        if 'preprocessing' not in old_status.lower():
+            task_ids = [r[0] for r in db.session.query(Task.id).filter(Task.survey_id==survey_id).filter(Task.name!='default').all()]
+            for task_id in task_ids:
+                classifyTask(task_id)
+                updateAllStatuses(task_id=task_id)
+
+        if task_id:
+            survey = db.session.query(Survey).get(survey_id)
+            survey.status = 'Launched'
+            db.session.commit()
+            launch_task.delay(task_id=task_id)
+        else:
+            survey = db.session.query(Survey).get(survey_id)
+            survey.status = old_status
+            db.session.commit()
+
+        # Create txt file to upload to s3
+        txt_name = 'Classified_{}_{}.txt'.format(survey_id,survey.name)
+        with open(txt_name,'w') as f:
+            f.write('Survey {} classified'.format(survey_id))
+
+        s3_key = 'admin/classified_surveys/'+txt_name
+        GLOBALS.s3client.upload_file(Bucket=Config.BUCKET, Key=s3_key, Filename=txt_name)
+        os.remove(txt_name)
+
+    except Exception as exc:
+        app.logger.info(' ')
+        app.logger.info('!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!')
+        app.logger.info(traceback.format_exc())
+        app.logger.info('!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!')
+        app.logger.info(' ')
+        self.retry(exc=exc, countdown= retryTime(self.request.retries))
+
+    finally:
+        db.session.remove()
+
+
+    return True
+
+
+@celery.task(bind=True,max_retries=2,ignore_result=True)
+def restore_required_images_for_classification(self,survey_id,days,tier,restore_time):
+    '''Restores no classification images from Glacier for a specified survey.'''
+    
+    try:
+        app.logger.info('Restoring required images (classification) for survey {} for {} days '.format(survey_id,days))
+
+        expected_expiry_date = calculate_restore_expiry_date(datetime.utcnow(), restore_time, days)
+
+        image_query = db.session.query(Image, Image.filename, Camera.path)\
+                        .join(Camera)\
+                        .join(Trapgroup)\
+                        .join(Detection)\
+                        .filter(Trapgroup.survey_id==survey_id)\
+                        .filter(Detection.classification==None)\
+                        .filter(or_(and_(Detection.source==model,Detection.score>Config.DETECTOR_THRESHOLDS[model]) for model in Config.DETECTOR_THRESHOLDS))
+
+        images = image_query.filter(or_(Image.expiry_date==None,Image.expiry_date<expected_expiry_date)).order_by(Image.id).distinct().all()
+        
+        restore_request = {
+            'Days': days,
+            'GlacierJobParameters': {
+                'Tier': tier
+            }
+        }
+
+        restored_image = False
+        restore_date = None
+        require_wait = False
+
+        if images:
+            storage_class = check_storage_class(images[0][2] + '/' + images[0][1])
+            if storage_class == 'DEEP_ARCHIVE':
+                for chunk in chunker(images, 1000):
+                    for image in chunk:
+                        try:
+                            image_key = image[2] + '/' + image[1]
+                            response = GLOBALS.s3client.restore_object(Bucket=Config.BUCKET, Key=image_key, RestoreRequest=restore_request)
+                            restored_image = True
+                            http_code = response['ResponseMetadata']['HTTPStatusCode']
+                            if http_code == 202: # 202 - Accepted (restore in progress), 200 - OK (restore completed - expiry date set)
+                                require_wait = True
+                                image[0].expiry_date = calculate_restore_expiry_date(datetime.utcnow(), restore_time, days)
+                            elif http_code == 200:
+                                image[0].expiry_date = calculate_restore_expiry_date(datetime.utcnow(), 0, days)
+                        except ClientError as e:
+                            if e.response['Error']['Code'] == 'RestoreAlreadyInProgress':
+                                require_wait = True
+                                file_restore_date, file_restore_days = get_restore_info(image_key)
+                                image[0].expiry_date = calculate_restore_expiry_date(file_restore_date, restore_time, file_restore_days)
+                                if not restore_date or file_restore_date > restore_date: restore_date = file_restore_date
+                        except:
+                            continue
+                    db.session.commit()
+            else:
+                for image in images:
+                    if image[0].expiry_date: image[0].expiry_date = None
+                db.session.commit()
+
+        if not restored_image and not restore_date and not require_wait:
+            other_images = image_query.filter(Image.expiry_date>=expected_expiry_date).first()
+            if other_images:
+                image_key = other_images[2] + '/' + other_images[1]
+                restore_file = get_restore_info(image_key)
+                if restore_file[0]:
+                    restore_date = restore_file[0]
+                    require_wait = True
+        
+        if (restored_image or restore_date) and require_wait:
+            classify_survey.apply_async(kwargs={'survey_id':survey_id}, countdown=restore_time+3600, queue='default')
+        else:
+            classify_survey.apply_async(kwargs={'survey_id':survey_id},queue='default')
 
     except Exception as exc:
         app.logger.info(' ')
