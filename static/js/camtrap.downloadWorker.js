@@ -542,8 +542,10 @@ async function downloadFile(url,paths,labels,hash,count=0) {
 
 async function getBlob(url) {
     /** Returns the data from a specified url */
-    const blob = await limitAWS(()=> fetch(url
-    ).then((response) => {
+    const blob = await limitAWS(()=> fetch(url,{
+        mode: 'cors',
+        cache: 'no-cache',  // Use no-cache to prevent CORS issues
+    }).then((response) => {
         if (!response.ok) {
             throw new Error(response.statusText)
         }

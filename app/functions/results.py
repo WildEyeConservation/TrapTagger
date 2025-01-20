@@ -1813,7 +1813,7 @@ def get_video_paths_and_labels(video,task,individual_sorted,species_sorted,flat_
                         startPoint = 1
                         if splitPath[1]==task.survey.name: startPoint=2
                         for split in splitPath[startPoint:]: videoPath += '/' + split
-                        videoPath += '/' +video.filename.split('.')[0] + '.mp4'
+                        videoPath += '/' +video.filename.rsplit('.', 1)[0] + '.mp4'
                     videoPaths.append(videoPath)
 
     return list(set(videoPaths)), [label.description for label in videoLabels], [tag.description for tag in videoTags]

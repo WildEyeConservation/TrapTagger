@@ -2209,7 +2209,6 @@ def runClassifier(self,lower_index,upper_index,sourceBucket,batch_size,cameragro
                                     .filter(or_(and_(Detection.source==model,Detection.score>Config.DETECTOR_THRESHOLDS[model]) for model in Config.DETECTOR_THRESHOLDS))\
                                     .filter(Detection.left!=Detection.right)\
                                     .filter(Detection.top!=Detection.bottom)\
-                                    .filter(Detection.static==False)\
                                     .distinct().all()
 
             for detection in detections:
@@ -2234,7 +2233,6 @@ def runClassifier(self,lower_index,upper_index,sourceBucket,batch_size,cameragro
                                 .filter(or_(and_(Detection.source==model,Detection.score>Config.DETECTOR_THRESHOLDS[model]) for model in Config.DETECTOR_THRESHOLDS))\
                                 .filter(Detection.left!=Detection.right)\
                                 .filter(Detection.top!=Detection.bottom)\
-                                .filter(Detection.static==False)\
                                 .all()
 
             for chunk in chunker(detections, batch_size):
@@ -2356,7 +2354,7 @@ def delete_duplicate_videos(videos,skip):
 
             # Delete comp video
             splits = video.camera.path.split('/_video_images_/')
-            video_name = splits[-1].split('.')[0]
+            video_name = splits[-1].rsplit('.', 1)[0]
             path_splits = splits[0].split('/')
             path_splits[0] = path_splits[0]+'-comp'
             video_key = '/'.join(path_splits) + '/' +  video_name + '.mp4'
@@ -3156,7 +3154,6 @@ def classifySurvey(survey_id,sourceBucket,classifier_id=None,batch_size=100):
                             .join(Detection)\
                             .filter(Trapgroup.survey_id==survey_id)\
                             .filter(or_(and_(Detection.source==model,Detection.score>Config.DETECTOR_THRESHOLDS[model]) for model in Config.DETECTOR_THRESHOLDS))\
-                            .filter(Detection.static==False)\
                             .group_by(Cameragroup.id)\
                             .all()
 
@@ -4330,8 +4327,8 @@ def extract_images_from_video(localsession, sourceKey, bucketName, trapgroup_id)
     try:
         splits = sourceKey.rsplit('/', 1)
         video_path = splits[0]
-        video_name = splits[-1].split('.')[0]
-        video_type = '.' + splits[-1].split('.')[-1]
+        video_name = splits[-1].rsplit('.', 1)[0]
+        video_type = '.' + splits[-1].rsplit('.', 1)[-1]
         filename = sourceKey.split('/')[-1]
         split_path = splits[0].split('/')
         split_path[0] = split_path[0] + '-comp'
@@ -5799,7 +5796,7 @@ def archive_videos(self,cameragroup_id):
             video_path = video[2].split('/_video_images_/')[0]
             splits = video_path.split('/')
             splits[0] = splits[0]+'-comp'
-            video_key = '/'.join(splits) + '/' + video[1].split('.')[0] + '.mp4'
+            video_key = '/'.join(splits) + '/' + video[1].rsplit('.', 1)[0] + '.mp4'
             if video_key in unarchived_files:
                 copy_source = {
                     'Bucket': Config.BUCKET,
@@ -5815,7 +5812,7 @@ def archive_videos(self,cameragroup_id):
             video_path = video[2].split('/_video_images_/')[0]
             splits = video_path.split('/')
             splits[0] = splits[0]+'-comp'
-            video_key = '/'.join(splits) + '/' + video[1].split('.')[0] + '.mp4'
+            video_key = '/'.join(splits) + '/' + video[1].rsplit('.', 1)[0] + '.mp4'
             if video_key in unarchived_files:
                 GLOBALS.s3client.delete_object(Bucket=Config.BUCKET, Key=video_key)
             # Delete raw video

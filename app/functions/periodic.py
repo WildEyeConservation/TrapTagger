@@ -765,9 +765,12 @@ def manage_tasks_with_restore():
         else:
             species = tagging_level.split(',')[1]
             expiry_date = db.session.query(func.min(Image.expiry_date))\
+                                    .join(Camera)\
+                                    .join(Trapgroup)\
                                     .join(Detection)\
                                     .join(Labelgroup)\
                                     .join(Label,Labelgroup.labels)\
+                                    .filter(Trapgroup.survey_id==survey_id)\
                                     .filter(Labelgroup.task_id==task_id)\
                                     .filter(Image.expiry_date!=None)\
                                     .filter(Label.description==species)\
@@ -1090,7 +1093,7 @@ def monitorSQS():
                                 GLOBALS.sqsClient.delete_message(QueueUrl=GLOBALS.sqsQueueUrl, ReceiptHandle=message['ReceiptHandle'])
                             else:
                                 key = payload['keys'][0]
-                                if key.split('.')[-1].lower() in ['mp4','mov','avi']:
+                                if key.rsplit('.', 1)[-1].lower() in ['mp4','mov','avi']:
                                     GLOBALS.lambdaClient.invoke(FunctionName=Config.VIDEO_IMPORT_LAMBDA, InvocationType='Event', Payload=json.dumps(payload))
                                     GLOBALS.sqsClient.delete_message(QueueUrl=GLOBALS.sqsQueueUrl, ReceiptHandle=message['ReceiptHandle'])
                                 else:
