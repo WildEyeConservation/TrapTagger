@@ -865,7 +865,7 @@ def monitor_live_data_surveys():
     finally:
         db.session.remove()
         #Schedule every 24hours
-        monitor_live_data_surveys.apply_async(queue='priority', priority=0,countdown=86400)
+        monitor_live_data_surveys.apply_async(queue='priority', priority=0,countdown=1800)
 
     return True
 
