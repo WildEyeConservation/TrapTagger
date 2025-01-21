@@ -1545,13 +1545,13 @@ def restore_required_images_for_classification(self,survey_id,days,tier,restore_
 
         expected_expiry_date = calculate_restore_expiry_date(datetime.utcnow(), restore_time, days)
 
-        image_query = db.session.query(Image, Image.filename, Camera.path)\
+        image_query = rDets(db.session.query(Image, Image.filename, Camera.path)\
                         .join(Camera)\
                         .join(Trapgroup)\
                         .join(Detection)\
                         .filter(Trapgroup.survey_id==survey_id)\
-                        .filter(Detection.classification==None)\
-                        .filter(or_(and_(Detection.source==model,Detection.score>Config.DETECTOR_THRESHOLDS[model]) for model in Config.DETECTOR_THRESHOLDS))
+                        .filter(Detection.class_score==0)\
+                        .filter(Detection.classification=='unknown'))
 
         images = image_query.filter(or_(Image.expiry_date==None,Image.expiry_date<expected_expiry_date)).order_by(Image.id).distinct().all()
         
