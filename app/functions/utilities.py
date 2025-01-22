@@ -1477,7 +1477,7 @@ def classify_survey(self,survey_id):
 
         if old_status.lower() not in Config.SURVEY_READY_STATUSES and 'preprocessing' not in old_status.lower():
             if survey.status == 'Launched':
-                task_id = db.session.query(Task.id).filter(Task.survey_id==survey_id).filter(Task.status.in_(['PROCESSING','PROGRESS'])).first()
+                task_id = db.session.query(Task.id).filter(Task.survey_id==survey_id).filter(Task.status.in_(['PROCESS','PROGRESS'])).first()
                 if task_id:
                     task_id = task_id[0]
                     task = db.session.query(Task).get(task_id)
@@ -1502,9 +1502,9 @@ def classify_survey(self,survey_id):
 
         if 'preprocessing' not in old_status.lower():
             task_ids = [r[0] for r in db.session.query(Task.id).filter(Task.survey_id==survey_id).filter(Task.name!='default').all()]
-            for task_id in task_ids:
-                classifyTask(task_id)
-                updateAllStatuses(task_id=task_id)
+            for tid in task_ids:
+                classifyTask(tid)
+                updateAllStatuses(task_id=tid)
 
         if task_id:
             survey = db.session.query(Survey).get(survey_id)
