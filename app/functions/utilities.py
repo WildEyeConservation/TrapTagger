@@ -1475,12 +1475,16 @@ def classify_survey(self,survey_id):
         survey = db.session.query(Survey).get(survey_id)
         old_status = survey.status
 
-        if old_status not in Config.SURVEY_READY_STATUSES and 'preprocessing' not in old_status.lower():
+        if old_status.lower() not in Config.SURVEY_READY_STATUSES and 'preprocessing' not in old_status.lower():
             if survey.status == 'Launched':
-                task_id = db.session.query(Task.id).filter(Task.survey_id==survey_id).filter(Task.status=='PROGRESS').first()
+                task_id = db.session.query(Task.id).filter(Task.survey_id==survey_id).filter(Task.status.in_(['PROCESSING','PROGRESS'])).first()
                 if task_id:
                     task_id = task_id[0]
-                    stop_task(task_id)
+                    task = db.session.query(Task).get(task_id)
+                    if task.status=='PROGRESS':
+                        task.status = 'Stopping'
+                        db.session.commit()
+                        stop_task(task_id)
                     survey = db.session.query(Survey).get(survey_id)
                 else:
                     # SCHEDULE ONE HOUR LATER
