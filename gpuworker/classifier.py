@@ -17,7 +17,6 @@ limitations under the License.
 import json
 import numpy as np
 from PIL import Image,ImageOps, ImageFile
-ImageFile.LOAD_TRUNCATED_IMAGES = True
 import torch
 import torch.utils
 import torchvision as tv
@@ -174,7 +173,7 @@ class SimpleDataset(torch.utils.data.Dataset):
         image_id = self.detections[detection_id]['image_id']
 
         print('fetching {} from {}'.format(self.images[image_id],self.bucket))
-
+        ImageFile.LOAD_TRUNCATED_IMAGES = True
         ###########Local Download appoach
         if image_id not in self.ims.keys():
             try:
