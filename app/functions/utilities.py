@@ -1475,12 +1475,16 @@ def classify_survey(self,survey_id):
         survey = db.session.query(Survey).get(survey_id)
         old_status = survey.status
 
-        if old_status not in Config.SURVEY_READY_STATUSES and 'preprocessing' not in old_status.lower():
+        if old_status.lower() not in Config.SURVEY_READY_STATUSES and 'preprocessing' not in old_status.lower():
             if survey.status == 'Launched':
-                task_id = db.session.query(Task.id).filter(Task.survey_id==survey_id).filter(Task.status=='PROGRESS').first()
+                task_id = db.session.query(Task.id).filter(Task.survey_id==survey_id).filter(Task.status.in_(['PROCESS','PROGRESS'])).first()
                 if task_id:
                     task_id = task_id[0]
-                    stop_task(task_id)
+                    task = db.session.query(Task).get(task_id)
+                    if task.status=='PROGRESS':
+                        task.status = 'Stopping'
+                        db.session.commit()
+                        stop_task(task_id)
                     survey = db.session.query(Survey).get(survey_id)
                 else:
                     # SCHEDULE ONE HOUR LATER
@@ -1498,9 +1502,9 @@ def classify_survey(self,survey_id):
 
         if 'preprocessing' not in old_status.lower():
             task_ids = [r[0] for r in db.session.query(Task.id).filter(Task.survey_id==survey_id).filter(Task.name!='default').all()]
-            for task_id in task_ids:
-                classifyTask(task_id)
-                updateAllStatuses(task_id=task_id)
+            for tid in task_ids:
+                classifyTask(tid)
+                updateAllStatuses(task_id=tid)
 
         if task_id:
             survey = db.session.query(Survey).get(survey_id)
@@ -1545,13 +1549,13 @@ def restore_required_images_for_classification(self,survey_id,days,tier,restore_
 
         expected_expiry_date = calculate_restore_expiry_date(datetime.utcnow(), restore_time, days)
 
-        image_query = db.session.query(Image, Image.filename, Camera.path)\
+        image_query = rDets(db.session.query(Image, Image.filename, Camera.path)\
                         .join(Camera)\
                         .join(Trapgroup)\
                         .join(Detection)\
                         .filter(Trapgroup.survey_id==survey_id)\
-                        .filter(Detection.classification==None)\
-                        .filter(or_(and_(Detection.source==model,Detection.score>Config.DETECTOR_THRESHOLDS[model]) for model in Config.DETECTOR_THRESHOLDS))
+                        .filter(Detection.class_score==0)\
+                        .filter(Detection.classification=='unknown'))
 
         images = image_query.filter(or_(Image.expiry_date==None,Image.expiry_date<expected_expiry_date)).order_by(Image.id).distinct().all()
         

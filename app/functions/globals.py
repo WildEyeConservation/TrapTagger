@@ -2398,7 +2398,7 @@ def list_all(bucket,prefix,include_size=False,include_restored=False,include_all
                                 else:
                                     contents.append(f['Key'].split('/')[-1])
         if resp['IsTruncated']:
-            resp = GLOBALS.s3client.list_objects_v2(Bucket=bucket, Delimiter='/',Prefix=prefix, ContinuationToken=resp['NextContinuationToken'])
+            resp = GLOBALS.s3client.list_objects_v2(Bucket=bucket, Delimiter='/',Prefix=prefix, ContinuationToken=resp['NextContinuationToken'], OptionalObjectAttributes=['RestoreStatus'])
         else:
             return prefixes,contents
 
@@ -2893,6 +2893,8 @@ def inspect_celery(include_spam=False,include_reserved=False,include_scheduled=F
                     print('{:{}}{:{}}{:{}}{:{}}  survey_id={}'.format(task['id'],40,name,36,hostname,36,time_start,29,task['kwargs']['survey_id']))
                 elif '.classifyTrapgroup' in task['name']:
                     print('{:{}}{:{}}{:{}}{:{}}  {}'.format(task['id'],40,name,36,hostname,36,time_start,29,task['kwargs']))
+                elif '.classify_survey' in task['name']:
+                    print('{:{}}{:{}}{:{}}{:{}}  {}'.format(task['id'],40,name,36,hostname,36,time_start,29,task['kwargs']))
                 elif '.classify' in task['name']:
                     batch = task['kwargs']['batch']
                     detection_id=batch['detection_ids'][0]
@@ -2938,6 +2940,8 @@ def inspect_celery(include_spam=False,include_reserved=False,include_scheduled=F
                     elif 'prepTask' in task['name']:
                         print('{:{}}{:{}}{:{}}{:{}}  survey_id={}'.format(task['id'],40,name,36,hostname,36,time_start,29,task['kwargs']['survey_id']))
                     elif '.classifyTrapgroup' in task['name']:
+                        print('{:{}}{:{}}{:{}}{:{}}  {}'.format(task['id'],40,name,36,hostname,36,time_start,29,task['kwargs']))
+                    elif '.classify_survey' in task['name']:
                         print('{:{}}{:{}}{:{}}{:{}}  {}'.format(task['id'],40,name,36,hostname,36,time_start,29,task['kwargs']))
                     elif '.classify' in task['name']:
                         batch = task['kwargs']['batch']
@@ -2986,6 +2990,8 @@ def inspect_celery(include_spam=False,include_reserved=False,include_scheduled=F
                     elif 'prepTask' in request['name']:
                         print('{:{}}{:{}}{:{}}{:{}}  survey_id={}'.format(request['id'],40,name,36,hostname,36,eta,29,request['kwargs']['survey_id']))
                     elif '.classifyTrapgroup' in request['name']:
+                        print('{:{}}{:{}}{:{}}{:{}}  {}'.format(request['id'],40,name,36,hostname,36,eta,29,request['kwargs']))
+                    elif '.classify_survey' in request['name']:
                         print('{:{}}{:{}}{:{}}{:{}}  {}'.format(request['id'],40,name,36,hostname,36,eta,29,request['kwargs']))
                     elif '.classify' in request['name']:
                         batch = request['kwargs']['batch']
