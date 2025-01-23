@@ -18,7 +18,8 @@ import boto3
 import os 
 import json 
 import pymysql
-from PIL import Image as PilImage
+from PIL import Image as PilImage, ImageFile
+ImageFile.LOAD_TRUNCATED_IMAGES = True
 import hashlib
 import piexif
 from datetime import datetime
