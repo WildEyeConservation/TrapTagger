@@ -5796,7 +5796,7 @@ function prepMapMask(image) {
                     finishedDisplayingMask = true
                 }
                 else{
-                    this.setUrl("https://'+bucketName+'.s3.amazonaws.com/"+modifyToCompURL(cameras[maskCamIndex].images[maskImgIndex].url))
+                    this.setUrl("https://"+bucketName+".s3.amazonaws.com/"+modifyToCompURL(cameras[maskCamIndex].images[maskImgIndex].url))
                 }
             });
             mapMask.setMaxBounds(bounds);
