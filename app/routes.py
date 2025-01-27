@@ -12955,6 +12955,23 @@ def getSurveyMasks(survey_id):
     if survey and checkSurveyPermission(current_user.id,survey.id,'write'):
         cameragroup_id = request.args.get('cameragroup_id', None)
         mask_data = db.session.query(
+                                Mask.id,
+                                func.ST_AsGeoJSON(Mask.shape),
+                                User.username,
+                                Cameragroup.id,
+                                Cameragroup.name
+                            )\
+                            .join(Cameragroup,Mask.cameragroup_id==Cameragroup.id)\
+                            .join(Camera,Camera.cameragroup_id==Cameragroup.id)\
+                            .join(Trapgroup,Trapgroup.id==Camera.trapgroup_id)\
+                            .outerjoin(User,User.id==Mask.user_id)\
+                            .filter(Trapgroup.survey_id==survey_id)
+        
+        if cameragroup_id: mask_data = mask_data.filter(Cameragroup.id==cameragroup_id)
+
+        mask_data = mask_data.distinct().all()
+
+        detection_data = db.session.query(
                                     Detection.id,
                                     Detection.top,
                                     Detection.bottom,
@@ -12963,116 +12980,93 @@ def getSurveyMasks(survey_id):
                                     Image.id,
                                     Image.filename,
                                     Camera.path,
-                                    Cameragroup.id,
-                                    Cameragroup.name,
-                                    Mask.id,
-                                    func.ST_AsGeoJSON(Mask.shape),
-                                    User.username
+                                    Cameragroup.id
                                 )\
                                 .join(Image, Image.id==Detection.image_id)\
                                 .join(Camera, Camera.id==Image.camera_id)\
                                 .join(Cameragroup, Cameragroup.id==Camera.cameragroup_id)\
-                                .join(Mask, Mask.cameragroup_id==Cameragroup.id)\
                                 .join(Trapgroup, Trapgroup.id==Camera.trapgroup_id)\
-                                .outerjoin(User, User.id==Mask.user_id)\
                                 .filter(Trapgroup.survey_id==survey_id)\
                                 .filter(Detection.status=='masked')\
                                 .filter(or_(and_(Detection.source==model,Detection.score>Config.DETECTOR_THRESHOLDS[model]) for model in Config.DETECTOR_THRESHOLDS))\
                                 .filter(Detection.static==False)\
                                 .order_by(Cameragroup.id,Image.corrected_timestamp)
-                                
-        if cameragroup_id: mask_data = mask_data.filter(Cameragroup.id==cameragroup_id)
 
-        mask_data = mask_data.distinct().all()
+        if cameragroup_id: detection_data = detection_data.filter(Cameragroup.id==cameragroup_id)
 
-        # We need to also include masks that didn't actually mask any detections
-        mask_ids = list(set([r[10] for r in mask_data]))
+        detection_data = detection_data.limit(10000).distinct().all()
 
-        additional_masks = db.session.query(
-                                    Mask.id,
-                                    func.ST_AsGeoJSON(Mask.shape),
-                                    User.username,
+        masks = []
+        cam_keys = {}
+        cg_ids = []
+        for data in mask_data:
+            if data[3] not in cam_keys:
+                cam_keys[data[3]] = len(masks)
+                masks.append({
+                    'id': data[3],
+                    'images': [],
+                    'masks': [{
+                        'id': data[0],
+                        'coords': json.loads(data[1])['coordinates'][0],
+                        'user': data[2]
+                    }],
+                    'cameragroup_name': data[4]
+                })
+                cg_ids.append(data[3])
+            else:
+                cam_idx = cam_keys[data[3]]
+                masks[cam_idx]['masks'].append({
+                    'id': data[0],
+                    'coords': json.loads(data[1])['coordinates'][0],
+                    'user': data[2]
+                })
+
+        image_keys = {}
+        for data in detection_data:
+            cam_idx = cam_keys[data[8]]
+            if data[8] in cg_ids: cg_ids.remove(data[8])
+            if data[5] not in image_keys:
+                image_keys[data[5]] = len(masks[cam_idx]['images'])
+                masks[cam_idx]['images'].append({
+                    'id': data[5],
+                    'url': (data[7]+'/'+data[6]).replace('+','%2B').replace('?','%3F').replace('#','%23').replace('\\','%5C'),
+                    'detections': [{
+                        'id': data[0],
+                        'top': data[1],
+                        'bottom': data[2],
+                        'left': data[3],
+                        'right': data[4]
+                    }]
+                })
+            else:
+                image_idx = image_keys[data[5]]
+                masks[cam_idx]['images'][image_idx]['detections'].append({
+                    'id': data[0],
+                    'top': data[1],
+                    'bottom': data[2],
+                    'left': data[3],
+                    'right': data[4]
+                })
+                
+        # Add an image for masks that did not mask any detections so that it can still be viewed
+        if len(cg_ids) > 0:
+            cg_images = db.session.query(
                                     Cameragroup.id,
-                                    Cameragroup.name,
                                     Camera.path,
                                     Image.id,
                                     Image.filename
                                 )\
-                                .outerjoin(User,User.id==Mask.user_id)\
-                                .join(Cameragroup,Mask.cameragroup_id==Cameragroup.id)\
                                 .join(Camera,Camera.cameragroup_id==Cameragroup.id)\
                                 .join(Image,Image.camera_id==Camera.id)\
-                                .join(Trapgroup,Trapgroup.id==Camera.trapgroup_id)\
-                                .filter(Trapgroup.survey_id==survey_id)\
-                                .filter(~Mask.id.in_(mask_ids))
-
-        if cameragroup_id: additional_masks = additional_masks.filter(Cameragroup.id==cameragroup_id)
-
-        additional_masks = additional_masks.group_by(Mask.id).distinct().all()
-
-        for additional_mask in additional_masks:
-            mask_data.append([None,None,None,None,None,additional_mask[6],additional_mask[7],additional_mask[5],additional_mask[3],additional_mask[4],additional_mask[0],additional_mask[1],additional_mask[2]])
-
-        masks = []
-        cam_keys = {}
-        for data in mask_data:
-            if data[8] not in cam_keys:
-                cam_keys[data[8]] = len(masks)
-                masks.append({
-                    'id': data[8],
-                    'images': [{
-                        'id': data[5],
-                        'url': (data[7]+'/'+data[6]).replace('+','%2B').replace('?','%3F').replace('#','%23').replace('\\','%5C'),
-                        'detections': [{
-                            'id': data[0],
-                            'top': data[1],
-                            'bottom': data[2],
-                            'left': data[3],
-                            'right': data[4]
-                        }]
-                    }],
-                    'masks': [{
-                        'id': data[10],
-                        'coords': json.loads(data[11])['coordinates'][0],
-                        'user': data[12]
-                    }],
-                    'camera_path': data[7],
-                    'cameragroup_name': data[9]
+                                .filter(Cameragroup.id.in_(cg_ids))\
+                                .group_by(Cameragroup.id).distinct().all()
+            for cg_image in cg_images:
+                cam_idx = cam_keys[cg_image[0]]
+                masks[cam_idx]['images'].append({
+                    'id': cg_image[2],
+                    'url': (cg_image[1]+'/'+cg_image[3]).replace('+','%2B').replace('?','%3F').replace('#','%23').replace('\\','%5C'),
+                    'detections': []
                 })
-            else:
-                cam_idx = cam_keys[data[8]]
-                image_exists = any(d['id'] == data[5] for d in masks[cam_idx]['images'])
-                if not image_exists:
-                    masks[cam_idx]['images'].append({
-                        'id': data[5],
-                        'url': (data[7]+'/'+data[6]).replace('+','%2B').replace('?','%3F').replace('#','%23').replace('\\','%5C'),
-                        'detections': [{
-                            'id': data[0],
-                            'top': data[1],
-                            'bottom': data[2],
-                            'left': data[3],
-                            'right': data[4]
-                        }]
-                    })
-                else:
-                    image_idx = next((i for i, d in enumerate(masks[cam_idx]['images']) if d['id'] == data[5]), None)
-                    detection_exists = any(d['id'] == data[0] for d in masks[cam_idx]['images'][image_idx]['detections'])
-                    if not detection_exists:
-                        masks[cam_idx]['images'][image_idx]['detections'].append({
-                            'id': data[0],
-                            'top': data[1],
-                            'bottom': data[2],
-                            'left': data[3],
-                            'right': data[4]
-                        })
-
-                mask_exists  = any(m['id'] == data[10] for m in masks[cam_idx]['masks'])
-                if not mask_exists:
-                    masks[cam_idx]['masks'].append({
-                        'id': data[10],
-                        'coords': json.loads(data[11])['coordinates'][0],
-                        'user': data[12]
-                    })
 
         return json.dumps({'masks': masks})
 
