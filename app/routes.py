@@ -6130,10 +6130,6 @@ def getKnockCluster(task_id, knockedstatus, clusterID, index, imageIndex, T_inde
     
     task = db.session.query(Task).get(int(task_id))
     # if (task.survey.user==current_user) and ((int(knockedstatus) == 87) or (task.status == 'successInitial')):
-    if (checkSurveyPermission(current_user.id,task.survey_id,'write') or checkAnnotationPermission(current_user.parent_id,task.id)) and ((int(knockedstatus) == 87) or (task.status == 'successInitial')):
-        task.status = 'Knockdown Analysis'
-        db.session.commit()
-
     # if not populateMutex(int(task_id)): return json.dumps('error')
 
     cluster = None
@@ -6142,7 +6138,12 @@ def getKnockCluster(task_id, knockedstatus, clusterID, index, imageIndex, T_inde
     finished = False
     # if task.survey.user==current_user:
     if checkSurveyPermission(current_user.id,task.survey_id,'write') or checkAnnotationPermission(current_user.parent_id,task.id):
+        
         GLOBALS.redisClient.set('knockdown_ping_'+str(task_id),datetime.utcnow().timestamp())
+        if (int(knockedstatus) == 87) or (task.status == 'successInitial'):
+            task.status = 'Knockdown Analysis'
+            db.session.commit()
+        
         if int(clusterID) != -102:
             # GLOBALS.mutex[int(task_id)]['global'].acquire()
             T_index = int(T_index)
