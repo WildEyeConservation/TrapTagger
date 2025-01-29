@@ -875,7 +875,8 @@ def fetch_clusters(taggingLevel,task_id,isBounding,trapgroup_id,limit=None,id=No
                         .outerjoin(Tag,Labelgroup.tags)\
                         .outerjoin(Individual,Detection.individuals)\
                         .outerjoin(IndividualTask,Individual.tasks)\
-                        .filter(Cluster.id==id)
+                        .filter(Cluster.id==id)\
+                        .filter(Image.zip_id==None)
 
         else:
             # Need to filter by trapgroup id and exclude video
