@@ -6074,9 +6074,11 @@ def generateDetections(self,batch, sourceBucket):
         GLOBALS.results_queue = []
         pool = Pool(processes=4)
         print('Received generateDetections task with {} batches.'.format(len(batch)))
+        image_ids = []
         for item in batch:
             dirpath = item['dirpath']
             jpegs = item['images']
+            image_ids.extend([img['id'] for img in jpegs])
             
             print("Generating detctions for {} with batch of {} images.".format(dirpath,len(jpegs)))
                 
@@ -6085,6 +6087,8 @@ def generateDetections(self,batch, sourceBucket):
 
         pool.close()
         pool.join()
+
+        db_images = {image.id: image for image in db.session.query(Image).filter(Image.id.in_(image_ids)).filter(~Image.detections.any()).distinct().all()}
 
         # Fetch the results
         if Config.DEBUGGING: print('{} batch results to fetch'.format(len(GLOBALS.results_queue)))
@@ -6101,10 +6105,11 @@ def generateDetections(self,batch, sourceBucket):
 
                     for img, detections in zip(images, response):
                         try:
-                            image = db.session.query(Image).get(img['id'])
-                            image.detections = [Detection(**detection) for detection in detections]
-                            for detection in image.detections:
-                                db.session.add(detection)
+                            image = db_images.get(img['id'])
+                            if image:
+                                image.detections = [Detection(**detection) for detection in detections]
+                                for detection in image.detections:
+                                    db.session.add(detection)
                         
                         except Exception:
                             app.logger.info(' ')

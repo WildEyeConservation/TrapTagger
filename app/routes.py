@@ -4598,7 +4598,7 @@ def exportRequest():
                 return json.dumps({'status':'error', 'message': 'File de-archival is currently not available. Please try again later.'})
 
             # Create Download request
-            download_request = DownloadRequest(type='export', user_id=current_user.id, task_id=task_id, status='Pending', timestamp=datetime.utcnow())
+            download_request = DownloadRequest(type='export', user_id=current_user.id, task_id=task_id, status='Pending', timestamp=None)
             db.session.add(download_request)
 
             survey.status = 'Processing'
@@ -6152,7 +6152,7 @@ def getKnockCluster(task_id, knockedstatus, clusterID, index, imageIndex, T_inde
 
             if int(clusterID) != 0: #if it is not zero, then it isn't the first of a new cluster
                 cluster = db.session.query(Cluster).get(int(clusterID))
-                images = db.session.query(Image).filter(Image.corrected_timestamp!=None).filter(Image.clusters.contains(cluster)).order_by(Image.corrected_timestamp).all()
+                images = db.session.query(Image).filter(Image.corrected_timestamp!=None).filter(Image.clusters.contains(cluster)).filter(Image.zip_id==None).order_by(Image.corrected_timestamp).all()
                 if (int(index) == (len(images)-1)) and (knockedstatus == '1'):
                     #beginning and end were knocked - don't need to do anything
                     if Config.DEBUGGING: app.logger.info('Beginning and end were knocked - doing nothing.')
@@ -6228,7 +6228,7 @@ def getKnockCluster(task_id, knockedstatus, clusterID, index, imageIndex, T_inde
                                         .distinct().first()
 
                 if cluster != None:
-                    images = db.session.query(Image).filter(Image.clusters.contains(cluster)).order_by(Image.corrected_timestamp).all()
+                    images = db.session.query(Image).filter(Image.clusters.contains(cluster)).filter(Image.zip_id==None).order_by(Image.corrected_timestamp).all()
 
                     if len(images) > 6:
                         index20 = math.floor(0.2*len(images))
@@ -8238,7 +8238,7 @@ def generateExcel(selectedTask):
         return json.dumps({'status':'error',  'message': 'A download request for this task is already pending. Please wait for the previous request to complete.'})
     
     # Create Download request
-    download_request = DownloadRequest(type='excel', user_id=current_user.id, task_id=selectedTask, status='Pending', timestamp=datetime.utcnow())
+    download_request = DownloadRequest(type='excel', user_id=current_user.id, task_id=selectedTask, status='Pending', timestamp=None)
     db.session.add(download_request)
     db.session.commit()
 
@@ -8329,7 +8329,7 @@ def generateCSV():
         return json.dumps({'status':'error',  'message': 'A download request for this task is already pending. Please wait for the previous request to complete.'})
 
     # Create Download request
-    download_request = DownloadRequest(type='csv', user_id=current_user.id, task_id=selectedTasks[0], status='Pending', timestamp=datetime.utcnow())
+    download_request = DownloadRequest(type='csv', user_id=current_user.id, task_id=selectedTasks[0], status='Pending', timestamp=None)
     db.session.add(download_request)
     db.session.commit()
 
@@ -8367,7 +8367,7 @@ def generateCOCO():
         return json.dumps({'status':'error',  'message': 'A download request for this task is already pending. Please wait for the previous request to complete.'})
 
     # Create Download request
-    download_request = DownloadRequest(type='coco', user_id=current_user.id, task_id=task_id, status='Pending', timestamp=datetime.utcnow())
+    download_request = DownloadRequest(type='coco', user_id=current_user.id, task_id=task_id, status='Pending', timestamp=None)
     db.session.add(download_request)
     db.session.commit()
 
@@ -14443,7 +14443,7 @@ def restore_for_download():
 
                 GLOBALS.redisClient.set('fileDownloadParams_'+str(task_id)+'_'+str(current_user.id),json.dumps(download_dict))
 
-                new_request = DownloadRequest(user_id=current_user.id, task_id=task_id, type='file', status='Initialising', timestamp=datetime.utcnow(), name='restore')
+                new_request = DownloadRequest(user_id=current_user.id, task_id=task_id, type='file', status='Initialising', timestamp=None, name='restore')
                 db.session.add(new_request)
 
                 survey.status = 'Processing'
@@ -14500,7 +14500,7 @@ def init_download_request():
     if task and checkSurveyPermission(current_user.id,task.survey_id,'read') and task.status.lower() in Config.TASK_READY_STATUSES:
         try:
             GLOBALS.redisClient.set('download_ping_'+str(task_id),datetime.utcnow().timestamp())
-            download_request = DownloadRequest(user_id=current_user.id, task_id=task_id, type='file', status='Downloading', timestamp=datetime.utcnow())
+            download_request = DownloadRequest(user_id=current_user.id, task_id=task_id, type='file', status='Downloading', timestamp=None)
             db.session.add(download_request)
             db.session.commit()
             status = 'success'

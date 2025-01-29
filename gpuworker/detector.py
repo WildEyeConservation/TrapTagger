@@ -19,6 +19,7 @@ from PIL import Image
 import tempfile
 import boto3
 import requests
+from botocore.exceptions import ClientError
 
 init=False
 detector=None
@@ -88,9 +89,33 @@ def infer(batch,sourceBucket,external,model,threshold=0.05,pass_images=False):
                                 handler.write(response.content)
 
                         else:
-                            print('Downloading {} from S3'.format(image))
-                            url = image
-                            s3client.download_file(Bucket=sourceBucket, Key=image, Filename=temp_file.name)
+                            try:
+                                print('Downloading {} from S3'.format(image))
+                                url = image
+                                s3client.download_file(Bucket=sourceBucket, Key=image, Filename=temp_file.name)
+                            except ClientError as e:
+                                if e.response['Error']['Code'] == 'InvalidObjectState':
+                                    print('Object {} is not accessible'.format(image))
+                                    detections=[{'top':0.0,
+                                            'left':0.0,
+                                            'bottom':0.0,
+                                            'right':0.0,
+                                            'category': 0,
+                                            'score': 0.0,
+                                            'status': 'archive',
+                                            'source' : 'error'}]
+                                else:
+                                    print('Failed to process image {}'.format(image))
+                                    detections=[{'top':0.0,
+                                            'left':0.0,
+                                            'bottom':0.0,
+                                            'right':0.0,
+                                            'category': 0,
+                                            'score': 0.0,
+                                            'status': 'active',
+                                            'source' : 'error'}]
+                                results.append(detections)
+                                continue
 
                         print('Done')
                         img = Image.open(temp_file.name)
