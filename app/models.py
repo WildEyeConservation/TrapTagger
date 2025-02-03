@@ -689,7 +689,7 @@ class DownloadRequest(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     type = db.Column(db.String(8), index=False) # file/csv/excel/json/zip
     status = db.Column(db.String(32), index=False) 
-    timestamp = db.Column(db.DateTime, default=datetime.utcnow, index=False)
+    timestamp = db.Column(db.DateTime, index=False)
     name = db.Column(db.String(64), index=False)
     celery_id = db.Column(db.String(64), index=False)
     user_id = db.Column(db.Integer, db.ForeignKey('user.id'), index=True, unique=False)

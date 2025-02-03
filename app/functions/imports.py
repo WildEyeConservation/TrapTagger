@@ -2586,9 +2586,9 @@ def import_folder(s3Folder, survey_id, sourceBucket,destinationBucket,pipeline,m
         jpegs = list(filter(isjpeg.search, filenames))
         if (len(jpegs) or len(videos)) and not any(exclusion in dirpath for exclusion in exclusions):
             if '/_video_images_/' in dirpath:
-                tags = tag.search(dirpath.replace(survey.name+'/','').split('/_video_images_/')[0])
+                tags = tag.search('/'.join(dirpath.split('/')[2:]).split('/_video_images_/')[0])
             else:
-                tags = tag.search(dirpath.replace(survey.name+'/',''))
+                tags = tag.search('/'.join(dirpath.split('/')[2:]))
             if tags:
                 camera_name = extract_camera_name(survey.camera_code,survey.trapgroup_code,survey.name,tags.group(),dirpath)
                 if camera_name:
@@ -2646,9 +2646,9 @@ def import_folder(s3Folder, survey_id, sourceBucket,destinationBucket,pipeline,m
         
         if len(jpegs) and not any(exclusion in dirpath for exclusion in exclusions):
             if '/_video_images_/' in dirpath:
-                tags = tag.search(dirpath.replace(survey.name+'/','').split('/_video_images_/')[0])
+                tags = tag.search('/'.join(dirpath.split('/')[2:]).split('/_video_images_/')[0])
             else:
-                tags = tag.search(dirpath.replace(survey.name+'/',''))
+                tags = tag.search('/'.join(dirpath.split('/')[2:]))
             
             if tags:
                 camera_name = extract_camera_name(survey.camera_code,survey.trapgroup_code,survey.name,tags.group(),dirpath)
@@ -2897,7 +2897,7 @@ def pipeline_csv(df,survey_id,tag,exclusions,source,destBucket,min_area,external
         jpegs = list(filter(isjpeg.search, filenames))
         
         if len(jpegs) and not any(exclusion in dirpath for exclusion in exclusions):
-            tags = tag.search(dirpath.replace(survey.name+'/',''))
+            tags = tag.search('/'.join(dirpath.split('/')[2:]))
             
             if tags:
                 trapgroup = Trapgroup.get_or_create(localsession, tags.group(), survey_id)
@@ -5940,9 +5940,9 @@ def process_folder(s3Folder, survey_id, sourceBucket):
     cameras = localsession.query(Camera).filter(Camera.path.like(s3Folder+'/%')).distinct().all()
     for camera in cameras:
         if '/_video_images_/' in camera.path:
-            tags = tag.search(camera.path.replace(survey.name+'/','').split('/_video_images_/')[0])
+            tags = tag.search('/'.join(camera.path.split('/')[2:]).split('/_video_images_/')[0])
         else:
-            tags = tag.search(camera.path.replace(survey.name+'/',''))
+            tags = tag.search('/'.join(camera.path.split('/')[2:]))
         
         if tags:
             camera_name = extract_camera_name(survey.camera_code,survey.trapgroup_code,survey.name,tags.group(),camera.path)
@@ -6074,9 +6074,11 @@ def generateDetections(self,batch, sourceBucket):
         GLOBALS.results_queue = []
         pool = Pool(processes=4)
         print('Received generateDetections task with {} batches.'.format(len(batch)))
+        image_ids = []
         for item in batch:
             dirpath = item['dirpath']
             jpegs = item['images']
+            image_ids.extend([img['id'] for img in jpegs])
             
             print("Generating detctions for {} with batch of {} images.".format(dirpath,len(jpegs)))
                 
@@ -6085,6 +6087,8 @@ def generateDetections(self,batch, sourceBucket):
 
         pool.close()
         pool.join()
+
+        db_images = {image.id: image for image in db.session.query(Image).filter(Image.id.in_(image_ids)).filter(~Image.detections.any()).distinct().all()}
 
         # Fetch the results
         if Config.DEBUGGING: print('{} batch results to fetch'.format(len(GLOBALS.results_queue)))
@@ -6101,10 +6105,11 @@ def generateDetections(self,batch, sourceBucket):
 
                     for img, detections in zip(images, response):
                         try:
-                            image = db.session.query(Image).get(img['id'])
-                            image.detections = [Detection(**detection) for detection in detections]
-                            for detection in image.detections:
-                                db.session.add(detection)
+                            image = db_images.get(img['id'])
+                            if image:
+                                image.detections = [Detection(**detection) for detection in detections]
+                                for detection in image.detections:
+                                    db.session.add(detection)
                         
                         except Exception:
                             app.logger.info(' ')
