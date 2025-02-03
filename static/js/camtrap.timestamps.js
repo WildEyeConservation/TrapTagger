@@ -64,6 +64,10 @@ function loadNewCluster(mapID = 'map1') {
                             window.location.replace("surveys")
                         }
 
+                        if (info.images.length > 0 && info.next_page != null) {
+                            nextPageTimestamps(info.images[0].id, info.next_page)
+                        }
+
                         if (clusterRequests[mapID].includes(parseInt(info.id))) {
 
                             for (let i=0;i<info.images.length;i++) {
@@ -548,6 +552,37 @@ function saveProgress(){
             }
         };
     xhttp.open("GET", '/finishTimestampCheck/' + selectedSurvey + '?save=true');
+    xhttp.send();
+}
+
+function nextPageTimestamps(id,page,mapID='map1'){
+    /** Requests the next page of timestamps. */
+    var xhttp = new XMLHttpRequest();
+    xhttp.onreadystatechange =
+        function () {
+            if (this.readyState == 4 && this.status == 200) {
+                info = JSON.parse(this.responseText);
+
+                for (let i=0;i<info.images.length;i++) {
+                    newcluster = info.images[i];
+                    time_index = clusters[mapID].findIndex(x => x.id == newcluster.id)
+                    if (time_index != -1){
+                        if (newcluster.images.length > 0){
+                            image_index = clusters[mapID][time_index].images.findIndex(x => x.id == newcluster.images[0].id)
+                            if (image_index == -1){
+                                clusters[mapID][time_index].images.push(...newcluster.images)
+                            }
+                        }
+                    }
+                }
+
+                if (info.next_page != null) {
+                    nextPageTimestamps(info.images[0].id, info.next_page)
+                }
+
+            }
+        };
+    xhttp.open("GET", '/getTimestampImages/' + selectedSurvey + '/0?camera_id=' + id + '&page=' + page);
     xhttp.send();
 }
 

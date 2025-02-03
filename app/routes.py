@@ -1393,35 +1393,41 @@ def imageViewer():
         include_detections = request.args.get('detections', 'False')
         comparisonsurvey = request.args.get('comparisonsurvey', None)
         admin=db.session.query(User).filter(User.username=='Admin').first()
-
+        hasPermission = False
         reqImages = []
         if view_type=='image':
             image = db.session.query(Image).get(int(id_no))
             # if image and ((image.camera.trapgroup.survey.user==current_user) or (current_user.id==admin.id)):
             if image and checkSurveyPermission(current_user.id,image.camera.trapgroup.survey_id,'read'):
-                reqImages = [image]
+                hasPermission = True
+                if not image.zip_id: reqImages = [image]
 
         elif view_type=='capture':
             image = db.session.query(Image).get(int(id_no))
             # if image and ((image.camera.trapgroup.survey.user==current_user) or (current_user.id==admin.id)):
             if image and checkSurveyPermission(current_user.id,image.camera.trapgroup.survey_id,'read'):
+                hasPermission = True
                 reqImages = db.session.query(Image)\
                                 .filter(Image.camera_id==image.camera_id)\
                                 .filter(Image.corrected_timestamp==image.corrected_timestamp)\
+                                .filter(Image.zip_id==None)\
                                 .distinct().all()
 
         elif view_type=='cluster':
             cluster = db.session.query(Cluster).get(int(id_no))
             # if cluster and ((cluster.task.survey.user==current_user) or (current_user.id==admin.id)):
             if cluster and checkSurveyPermission(current_user.id,cluster.task.survey_id,'read'):
-                reqImages = db.session.query(Image).filter(Image.clusters.contains(cluster)).order_by(Image.corrected_timestamp).distinct().all()
+                hasPermission = True
+                reqImages = db.session.query(Image).filter(Image.clusters.contains(cluster)).filter(Image.zip_id==None).order_by(Image.corrected_timestamp).distinct().all()
 
         elif view_type=='camera':
             cameragroup = db.session.query(Cameragroup).get(int(id_no))
             if cameragroup and checkSurveyPermission(current_user.id,cameragroup.cameras[0].trapgroup.survey_id,'read'):
+                hasPermission = True
                 reqImages = db.session.query(Image)\
                                 .join(Camera)\
                                 .filter(Camera.cameragroup_id==cameragroup.id)\
+                                .filter(Image.zip_id==None)\
                                 .order_by(Image.corrected_timestamp)\
                                 .distinct().all()
 
@@ -1429,9 +1435,11 @@ def imageViewer():
             trapgroup = db.session.query(Trapgroup).get(int(id_no))
             # if trapgroup and ((trapgroup.survey.user==current_user) or (current_user.id==admin.id)):
             if trapgroup and checkSurveyPermission(current_user.id,trapgroup.survey_id,'read'):
+                hasPermission = True
                 reqImages = db.session.query(Image)\
                                 .join(Camera)\
                                 .filter(Camera.trapgroup==trapgroup)\
+                                .filter(Image.zip_id==None)\
                                 .order_by(Image.corrected_timestamp)\
                                 .distinct().all()
 
@@ -1439,12 +1447,17 @@ def imageViewer():
             survey = db.session.query(Survey).get(int(id_no))
             # if survey and ((survey.user==current_user) or (current_user.id==admin.id)):
             if survey and checkSurveyPermission(current_user.id,survey.id,'read'):
+                hasPermission = True
                 reqImages = db.session.query(Image)\
                                 .join(Camera)\
                                 .join(Trapgroup)\
                                 .filter(Trapgroup.survey==survey)\
+                                .filter(Image.zip_id==None)\
                                 .order_by(Image.corrected_timestamp)\
                                 .distinct().all()
+
+        if hasPermission and (len(reqImages) == 0):
+            return render_template("html/block.html",text="This item cannot be viewed.", helpFile='block', version=Config.VERSION)
 
         if comparisonsurvey:
             check = db.session.query(Survey).get(comparisonsurvey)
@@ -12799,7 +12812,7 @@ def getStaticDetections(survey_id, reqID):
     ''' Gets all the static detections for the specified survey '''
 
     if Config.DEBUGGING: app.logger.info('Get static detections for survey {}'.format(survey_id))
-
+    next_page = None
     survey = db.session.query(Survey).get(survey_id)
     if survey and checkSurveyPermission(current_user.id,survey.id,'write'):
         if int(reqID) != 0:
@@ -12810,6 +12823,7 @@ def getStaticDetections(survey_id, reqID):
         staticgroup_id = request.args.get('staticgroup_id', None)
         edit = request.args.get('edit', False, type=bool)
         cameragroup_id = request.args.get('cameragroup_id', None)
+        page = request.args.get('page', 1, type=int)
 
         detectionClusters = db.session.query(
                                     Detection.id,
@@ -12847,15 +12861,15 @@ def getStaticDetections(survey_id, reqID):
         else:
             detectionClusters = detectionClusters.filter(Staticgroup.status.in_(['accepted','rejected','unknown']))
 
-        detectionClusters = detectionClusters.distinct().all()
+        detectionClusters = detectionClusters.distinct().paginate(page, 10000, False)
 
-        if len(detectionClusters) == 0:
+        if len(detectionClusters.items) == 0:
             return json.dumps({'static_detections': [{'id': -101}], 'id': reqID})
 
         staticgroup_detections = {}
         static_detections = []
         staticgroup_keys = {}
-        for data in detectionClusters: 
+        for data in detectionClusters.items:
             if data[10] in staticgroup_detections:
                 staticgroup_detections[data[10]].append({
                     'id': data[0],
@@ -12905,8 +12919,10 @@ def getStaticDetections(survey_id, reqID):
                     'url': (data[8]+'/'+data[6]).replace('+','%2B').replace('?','%3F').replace('#','%23').replace('\\','%5C'),
                     'detections': []
                 })
+        
+        next_page = detectionClusters.next_num if detectionClusters.has_next else None
 
-        return json.dumps({'static_detections': static_detections, 'id': reqID, 'staticgroup_detections': staticgroup_detections})
+        return json.dumps({'static_detections': static_detections, 'id': reqID, 'staticgroup_detections': staticgroup_detections, 'next_page': next_page})
     else:
         return {'redirect': url_for('surveys')}, 278
 
@@ -12947,14 +12963,15 @@ def assignStatic():
     else:
         return {'redirect': url_for('surveys')}, 278
 
-@app.route('/getSurveyMasks/<survey_id>')
+@app.route('/getSurveyMasks/<survey_id>/<cameragroup_id>')
 @login_required
-def getSurveyMasks(survey_id):
+def getSurveyMasks(survey_id, cameragroup_id):
     ''' Gets all the masks for a survey '''
-
+    next_page = None
+    masks = []
     survey = db.session.query(Survey).get(survey_id)
     if survey and checkSurveyPermission(current_user.id,survey.id,'write'):
-        cameragroup_id = request.args.get('cameragroup_id', None)
+        page = request.args.get('page', 1, type=int)
         mask_data = db.session.query(
                                 Mask.id,
                                 func.ST_AsGeoJSON(Mask.shape),
@@ -12966,11 +12983,9 @@ def getSurveyMasks(survey_id):
                             .join(Camera,Camera.cameragroup_id==Cameragroup.id)\
                             .join(Trapgroup,Trapgroup.id==Camera.trapgroup_id)\
                             .outerjoin(User,User.id==Mask.user_id)\
-                            .filter(Trapgroup.survey_id==survey_id)
-        
-        if cameragroup_id: mask_data = mask_data.filter(Cameragroup.id==cameragroup_id)
-
-        mask_data = mask_data.distinct().all()
+                            .filter(Trapgroup.survey_id==survey_id)\
+                            .filter(Cameragroup.id==cameragroup_id)\
+                            .distinct().all()
 
         detection_data = db.session.query(
                                     Detection.id,
@@ -12988,18 +13003,14 @@ def getSurveyMasks(survey_id):
                                 .join(Cameragroup, Cameragroup.id==Camera.cameragroup_id)\
                                 .join(Trapgroup, Trapgroup.id==Camera.trapgroup_id)\
                                 .filter(Trapgroup.survey_id==survey_id)\
+                                .filter(Cameragroup.id==cameragroup_id)\
                                 .filter(Detection.status=='masked')\
                                 .filter(or_(and_(Detection.source==model,Detection.score>Config.DETECTOR_THRESHOLDS[model]) for model in Config.DETECTOR_THRESHOLDS))\
                                 .filter(Detection.static==False)\
-                                .order_by(Cameragroup.id,Image.corrected_timestamp)
+                                .order_by(Cameragroup.id,Image.corrected_timestamp)\
+                                .distinct().paginate(page, 10000, False)
 
-        if cameragroup_id: detection_data = detection_data.filter(Cameragroup.id==cameragroup_id)
-
-        detection_data = detection_data.limit(10000).distinct().all()
-
-        masks = []
         cam_keys = {}
-        cg_ids = []
         for data in mask_data:
             if data[3] not in cam_keys:
                 cam_keys[data[3]] = len(masks)
@@ -13013,7 +13024,6 @@ def getSurveyMasks(survey_id):
                     }],
                     'cameragroup_name': data[4]
                 })
-                cg_ids.append(data[3])
             else:
                 cam_idx = cam_keys[data[3]]
                 masks[cam_idx]['masks'].append({
@@ -13023,9 +13033,8 @@ def getSurveyMasks(survey_id):
                 })
 
         image_keys = {}
-        for data in detection_data:
+        for data in detection_data.items:
             cam_idx = cam_keys[data[8]]
-            if data[8] in cg_ids: cg_ids.remove(data[8])
             if data[5] not in image_keys:
                 image_keys[data[5]] = len(masks[cam_idx]['images'])
                 masks[cam_idx]['images'].append({
@@ -13048,9 +13057,9 @@ def getSurveyMasks(survey_id):
                     'left': data[3],
                     'right': data[4]
                 })
-                
+
         # Add an image for masks that did not mask any detections so that it can still be viewed
-        if len(cg_ids) > 0:
+        if len(detection_data.items) == 0:
             cg_images = db.session.query(
                                     Cameragroup.id,
                                     Camera.path,
@@ -13059,7 +13068,7 @@ def getSurveyMasks(survey_id):
                                 )\
                                 .join(Camera,Camera.cameragroup_id==Cameragroup.id)\
                                 .join(Image,Image.camera_id==Camera.id)\
-                                .filter(Cameragroup.id.in_(cg_ids))\
+                                .filter(Cameragroup.id==cameragroup_id)\
                                 .group_by(Cameragroup.id).distinct().all()
             for cg_image in cg_images:
                 cam_idx = cam_keys[cg_image[0]]
@@ -13069,7 +13078,9 @@ def getSurveyMasks(survey_id):
                     'detections': []
                 })
 
-        return json.dumps({'masks': masks})
+        next_page = detection_data.next_num if detection_data.has_next else None
+
+    return json.dumps({'masks': masks, 'next_page': next_page})
 
 @app.route('/getMaskCameragroups/<survey_id>')
 @login_required
@@ -13430,12 +13441,14 @@ def getTimestampCameraIDs(survey_id):
 def getTimestampImages(survey_id, reqID):
     '''Gets the images for the specified survey whose videos require timestamps correction.'''
     images = []
+    next_page = None
     survey = db.session.query(Survey).get(survey_id)
     image_id = request.args.get('image_id', None)
     check_type = request.args.get('type', None)
     camera_id = request.args.get('camera_id', None)
     species = request.args.get('species', None)
     if species and species=='0': species = None
+    page = request.args.get('page', 1, type=int)
 
     if survey and checkSurveyPermission(current_user.id,survey.id,'write'):
         if 'preprocessing' in survey.status.lower():
@@ -13482,13 +13495,13 @@ def getTimestampImages(survey_id, reqID):
                 label_list = [l.id for l in labels]
             image_data = image_data.join(Detection).join(Labelgroup).filter(Labelgroup.labels.any(Label.id.in_(label_list)))
 
-        image_data = image_data.distinct().all()
+        image_data = image_data.distinct().paginate(page,10000,False)
 
-        if len(image_data) == 0 and 'preprocessing' in survey.status.lower():
+        if len(image_data.items) == 0 and 'preprocessing' in survey.status.lower():
             return json.dumps({'images': [{'id': Config.FINISHED_CLUSTER}], 'id': reqID})
 
         camera_keys = {}
-        for d in image_data:
+        for d in image_data.items:
             if d[4] not in camera_keys:
                 images.append({
                     'id': d[4],
@@ -13511,7 +13524,9 @@ def getTimestampImages(survey_id, reqID):
                 'extracted_data': d[6]
             })
 
-    return json.dumps({'images': images, 'id': reqID})
+        next_page = image_data.next_num if image_data.has_next else None
+
+    return json.dumps({'images': images, 'id': reqID, 'next_page': next_page})
 
 @app.route('/submitTimestamp', methods=['POST'])
 @login_required
