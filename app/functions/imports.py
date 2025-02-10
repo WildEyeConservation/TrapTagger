@@ -21,7 +21,7 @@ from app.functions.globals import detection_rating, randomString, updateTaskComp
                                  chunker, save_crops, list_all, classifyTask, all_equal, taggingLevelSQ, generate_raw_image_hash, updateAllStatuses, setup_new_survey_permissions
 from app.functions.annotation import launch_task
 import GLOBALS
-from sqlalchemy.sql import func, or_, distinct, and_
+from sqlalchemy.sql import func, or_, distinct, and_, literal_column
 from sqlalchemy import desc
 from sqlalchemy import exc as sa_exc
 from datetime import datetime, timedelta
@@ -261,9 +261,9 @@ def importKML(survey_id):
     return True
 
 @celery.task(bind=True,max_retries=5)
-def recluster_large_clusters(self,task,updateClassifications,trapgroup_id=None,reClusters=None):
+def recluster_large_clusters(self,task_id,updateClassifications,trapgroup_id=None,reClusters=None):
     '''
-    Reclusters all clusters with over 50 images, by more strictly defining clusters based on classifications. Failing that, clusters are simply limited to 50 images.
+    Reclusters all clusters that span more than 15 minutes by chopping them based on detections/or-lack-thereof up to a maximum of 15 mintes.
 
         Parameters:
             task_id (int): Task for which the reclustering should be performed
@@ -275,142 +275,91 @@ def recluster_large_clusters(self,task,updateClassifications,trapgroup_id=None,r
     '''
 
     try:
-        task = db.session.query(Task).get(task)
+
         downLabel = db.session.query(Label).get(GLOBALS.knocked_id)
+        # TODO: First simply chunk timestampless clusters with more than 50 images!!!!!!!!!!!!!!!!!!!!!!
 
-        if reClusters==None:
-
-            subq = db.session.query(Cluster.id.label('clusterID'),func.count(distinct(Image.id)).label('imCount'))\
-                        .join(Image,Cluster.images)\
-                        .filter(Cluster.task==task)\
-                        .group_by(Cluster.id)\
-                        .subquery()
-            
-            # Handle already-labelled clusters
-            clusters = db.session.query(Cluster)\
-                        .join(subq,subq.c.clusterID==Cluster.id)\
-                        .filter(Cluster.task==task)\
-                        .filter(subq.c.imCount>50)\
-                        .filter(~Cluster.labels.contains(downLabel))\
-                        .filter(Cluster.labels.any())
-
-            if trapgroup_id:
-                clusters = clusters.join(Image,Cluster.images)\
-                        .join(Camera)\
-                        .filter(Camera.trapgroup_id==trapgroup_id)
-
-            clusters = clusters.distinct().all()
-
-            for cluster in clusters:
-                images = db.session.query(Image).filter(Image.clusters.contains(cluster)).order_by(Image.corrected_timestamp).distinct().all()
-                
-                for n in range(math.ceil(len(images)/50)):
-                    newCluster = Cluster(task=task)
-                    db.session.add(newCluster)
-                    newCluster.labels=cluster.labels
-                    start_index = (n)*50
-                    
-                    if n==math.ceil(len(images)/50)-1:
-                        newCluster.images = images[start_index:]
-                    else:
-                        end_index = (n+1)*50
-                        newCluster.images = images[start_index:end_index]
-
-                    if updateClassifications:
-                        newCluster.classification = classifyCluster(newCluster)
-
-                cluster.labels = []
-                cluster.tags = []
-                cluster.images = []
-                cluster.required_images = []
-                db.session.delete(cluster)
-                # db.session.commit()
-            
-            # db.session.commit()
-                    
-            clusters = db.session.query(Cluster)\
-                        .join(subq,subq.c.clusterID==Cluster.id)\
-                        .filter(Cluster.task==task)\
-                        .filter(subq.c.imCount>50)\
-                        .filter(~Cluster.labels.any())
-            
-            if trapgroup_id:
-                clusters = clusters.join(Image,Cluster.images)\
-                        .join(Camera)\
-                        .filter(Camera.trapgroup_id==trapgroup_id)
-
-            clusters = clusters.distinct().all()
-
+        # Find long clusters based on time period
+        if reClusters:
+            long_clusters = db.db.session.query(Cluster).filter(Cluster.id.in_(reClusters)).all()
         else:
-            clusters = db.db.session.query(Cluster).filter(Cluster.id.in_(reClusters)).all()
 
-        classifier_id = task.survey.classifier_id
+            sq = db.session.query(Cluster.id.label('cluster_id'),\
+                            func.max(Image.corrected_timestamp).label('max'),\
+                            func.min(Image.corrected_timestamp).label('min'))\
+                            .join(Image,Cluster.images)\
+                            .filter(Cluster.task_id==task_id)\
+                            .group_by(Cluster.id)\
+                            .subquery()
+            
+            long_clusters = db.session.query(Cluster)\
+                            .join(sq,sq.c.cluster_id==Cluster.id)\
+                            .filter(func.timestampdiff(literal_column("SECOND"), sq.c.min, sq.c.max) > 15 * 60)\
+                            .filter(~Cluster.labels.contains(downLabel))
+            
+            if trapgroup_id: long_clusters.join(Image,Cluster.images).join(Camera).filter(Camera.trapgroup_id==trapgroup_id)
+            
+            long_clusters = long_clusters.distinct().all()
+
         newClusters = []
+        for cluster in long_clusters:
+            cluster_newClusters = []
+            sq = db.session.query(Image.id.label('image_id'),func.count(Detection.id).label('det_count')).join(Detection).filter(Image.clusters.contains(cluster)).group_by(Image.id).subquery()
+            images = db.session.query(Image,sq.c.det_count).join(sq,sq.c.image_id==Image.id).filter(Image.clusters.contains(cluster)).order_by(Image.corrected_timestamp).all()
+            continuity = dict.fromkeys([r[0] for r in db.session.query(Cameragroup.id).join(Camera).join(Image).filter(Image.clusters.contains(cluster)).distinct().all()],False)
 
-        class_threshold = {}
-        classifierLabels = db.session.query(ClassificationLabel).filter(ClassificationLabel.classifier_id==classifier_id).all()
-        for classifierLabel in classifierLabels:
-            class_threshold[classifierLabel.classification] = classifierLabel.threshold
-
-        for cluster in clusters:
-            currCluster = None
-            images = db.session.query(Image).filter(Image.clusters.contains(cluster)).order_by(Image.corrected_timestamp).all()
-            cameras = [str(r[0]) for r in db.session.query(Cameragroup.id).join(Camera).join(Image).filter(Image.clusters.contains(cluster)).distinct().all()]
-
-            prevLabels = {}
-            for cam in cameras:
-                prevLabels[cam] = []
-                    
+            image_grouping = []
+            first_image = images[0][0]
             for image in images:
-                detections = db.session.query(Detection)\
-                                    .filter(Detection.image_id==image.id)\
-                                    .filter(or_(and_(Detection.source==model,Detection.score>Config.DETECTOR_THRESHOLDS[model]) for model in Config.DETECTOR_THRESHOLDS))\
-                                    .filter(Detection.static==False)\
-                                    .filter(~Detection.status.in_(Config.DET_IGNORE_STATUSES))\
-                                    .all()
-
-                if len(detections) == 0:
-                    species = ['nothing']
+                # here we monitor detection continuity across all cameras before and after the current image
+                was_discontinuous = all(map(lambda x: x == False, continuity.values()))
+                if image[1]==None:
+                    continuity[image[0].camera_id] = False
                 else:
-                    species = []
-                    for detection in detections:
-                        det_threshold = class_threshold.get(detection.classification,None)
-                        if det_threshold and (detection.class_score > det_threshold) and (detection.classification != 'nothing'):
-                            species.append(detection.classification)
-                        else:
-                            species.append('unknown')
-                    species = list(set(species))
+                    continuity[image[0].camera_id] = True
+                is_discontinuous = all(map(lambda x: x == False, continuity.values()))
 
-                newClusterRequired = True
+                # If there is a change in continuity, or the cluster now exceeds 15 minutes, then split the cluster here
+                # This ensure that streches of empties will be combined, and stretches of non-empties will be combined
+                if (image_grouping!=[]) and ((was_discontinuous != is_discontinuous) or ((image[0].corrected_timestamp-first_image.corrected_timestamp)>timedelta(minutes=15))):
+                    newCluster = Cluster(task_id=task_id)
+                    db.session.add(newCluster)
+                    cluster_newClusters.append(newCluster)
+                    newCluster.images = image_grouping
+                    if updateClassifications: newCluster.classification = classifyCluster(newCluster)
+                    image_grouping = []
+                    first_image = image[0]
 
-                for cam in prevLabels.keys():
-                    for label in prevLabels[cam]:
-                        if label in species:
-                            newClusterRequired = False
-                            break
+                image_grouping.append(image[0])
 
-                if currCluster and (len(currCluster.images[:]) >= 50):
-                    newClusterRequired = True
+            # Wrap up last cluster
+            if image_grouping:
+                newCluster = Cluster(task_id=task_id)
+                db.session.add(newCluster)
+                cluster_newClusters.append(newCluster)
+                newCluster.images = image_grouping
+                if updateClassifications: newCluster.classification = classifyCluster(newCluster)
 
-                if newClusterRequired:
-                    if currCluster and updateClassifications:
-                        currCluster.classification = classifyCluster(currCluster)
-                    currCluster = Cluster(task=task)
-                    db.session.add(currCluster)
-                    newClusters.append(currCluster)
-                    prevLabels = {}
-                    for cam in cameras:
-                        prevLabels[cam] = []
+            # Transfer labels up from labelgroups
+            if cluster.labels:
+                for newCluster in cluster_newClusters:
+                    newCluster.labels = db.session.query(Label)\
+                                            .join(Labelgroup,Label.labelgroups)\
+                                            .join(Detection)\
+                                            .join(Image)\
+                                            .filter(Image.clusters.contains(newCluster))\
+                                            .filter(Labelgroup.task_id==task_id)\
+                                            .distinct().all()
+                    
+            newClusters.extend(cluster_newClusters)
 
-                currCluster.images.append(image)
-                prevLabels[str(image.camera.cameragroup_id)] = species
-
-            if currCluster and updateClassifications:
-                currCluster.classification = classifyCluster(currCluster)
-
+            # clean up old cluster
+            cluster.labels = []
+            cluster.tags = []
             cluster.images = []
+            cluster.required_images = []
             db.session.delete(cluster)
-        
+
         db.session.commit()
         newClusters = [r.id for r in newClusters]
 
@@ -1098,8 +1047,14 @@ def processCameraStaticDetections(self,cameragroup_id):
 
                         if not found: final_static_groups.append(group1)
 
-            static_detections = []
+            # Filter out static detections that last for less than an hour. This is particularly useful for waterholes.
+            final_final_static_groups = []
             for group in final_static_groups:
+                min_ts, max_ts = db.session.query(func.min(Image.corrected_timestamp),func.max(Image.corrected_timestamp)).join(Detection).filter(Detection.id.in_(group)).first()
+                if (max_ts-min_ts)>timedelta(hours=1): final_final_static_groups.append(group)
+
+            static_detections = []
+            for group in final_final_static_groups:
                 static_detections.extend(group)
                 detections = db.session.query(Detection).filter(Detection.id.in_(group)).distinct().all()
                 staticgroups = db.session.query(Staticgroup).filter(Staticgroup.detections.any(Detection.id.in_(group))).distinct().all()
@@ -5452,7 +5407,7 @@ def recluster_survey(survey_id):
     results = []
     for task_id in task_ids:
         for trapgroup_id in trapgroup_ids:
-            results.append(recluster_large_clusters.apply_async(kwargs={'task':task_id,'updateClassifications':True,'trapgroup_id':trapgroup_id},queue='parallel'))
+            results.append(recluster_large_clusters.apply_async(kwargs={'task_id':task_id,'updateClassifications':True,'trapgroup_id':trapgroup_id},queue='parallel'))
     
     #Wait for processing to complete
     db.session.remove()
