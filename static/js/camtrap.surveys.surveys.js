@@ -8472,7 +8472,7 @@ function getTimestampImages(){
 
                 }
             };
-            xhttp.open("GET", '/getTimestampImages/' + selectedSurvey + '/' + 0 + '?camera_id=' + cameraIDs[cameraReadAheadIndex++] + '&type=' + selectedTimestampType + '&species=' + species);
+            xhttp.open("POST", '/getTimestampImages/' + selectedSurvey + '/' + 0 + '?camera_id=' + cameraIDs[cameraReadAheadIndex++] + '&type=' + selectedTimestampType + '&species=' + species);
             xhttp.send();
 
     }
@@ -8520,7 +8520,7 @@ function getNextTimestampImages(page){
 
                 }
             };
-        xhttp.open("GET", '/getTimestampImages/' + selectedSurvey + '/' + 0 + '?camera_id=' + camera_id + '&type=' + selectedTimestampType + '&species=' + species + '&page=' + page);
+        xhttp.open("POST", '/getTimestampImages/' + selectedSurvey + '/' + 0 + '?camera_id=' + camera_id + '&type=' + selectedTimestampType + '&species=' + species + '&page=' + page);
         xhttp.send();
 
     }

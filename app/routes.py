@@ -13359,6 +13359,7 @@ def getTimestampCameraIDs(survey_id):
     '''Gets the camera IDs for the specified survey whose images require timestamps correction.''' 
     camera_ids = []
     total_image_count = 0
+    image_counts = {}
     survey = db.session.query(Survey).get(survey_id)
 
     check_type = None
@@ -13403,14 +13404,16 @@ def getTimestampCameraIDs(survey_id):
             cameras = cameras.filter(Image.zip_id==None)
         else:
             cameras = cameras.filter(Image.corrected_timestamp==None).filter(Image.skipped!=True)
-            total_image_count = db.session.query(Image.id)\
-                                            .join(Camera)\
-                                            .join(Trapgroup)\
-                                            .filter(Trapgroup.survey_id==survey_id)\
-                                            .filter(or_(Image.filename=='frame0.jpg', ~Image.filename.like('frame%')))\
-                                            .filter(Image.corrected_timestamp==None)\
-                                            .filter(Image.skipped!=True)\
-                                            .distinct().count()
+            image_counts = {r[0]:r[1] for r in db.session.query(Cameragroup.id, func.count(distinct(Image.id)))\
+                                                .join(Camera,Cameragroup.id==Camera.cameragroup_id)\
+                                                .join(Trapgroup)\
+                                                .join(Image)\
+                                                .filter(Trapgroup.survey_id==survey_id)\
+                                                .filter(or_(Image.filename=='frame0.jpg', ~Image.filename.like('frame%')))\
+                                                .filter(Image.corrected_timestamp==None)\
+                                                .filter(Image.skipped!=True)\
+                                                .group_by(Cameragroup.id).distinct().all()}
+            total_image_count = sum(image_counts.values())
 
         if trapgroup_id:
             cameras = cameras.filter(Trapgroup.id==trapgroup_id)
@@ -13434,9 +13437,9 @@ def getTimestampCameraIDs(survey_id):
         if len(camera_ids) == 0 and 'preprocessing' in survey.status.lower():
             camera_ids = ['-101']
 
-    return json.dumps({'camera_ids': camera_ids, 'total_image_count': total_image_count})
+    return json.dumps({'camera_ids': camera_ids, 'total_image_count': total_image_count, 'image_counts': image_counts})
 
-@app.route('/getTimestampImages/<survey_id>/<reqID>')
+@app.route('/getTimestampImages/<survey_id>/<reqID>', methods=['POST'])
 @login_required
 def getTimestampImages(survey_id, reqID):
     '''Gets the images for the specified survey whose videos require timestamps correction.'''
@@ -13477,6 +13480,9 @@ def getTimestampImages(survey_id, reqID):
             image_data = image_data.filter(Image.zip_id==None)
         else:  
             image_data = image_data.filter(Image.corrected_timestamp==None).filter(Image.skipped!=True)
+            if 'image_ids' in request.form:
+                image_ids = ast.literal_eval(request.form['image_ids'])
+                image_data = image_data.filter(Image.id.notin_(image_ids))
 
         if image_id:
             image_data = image_data.filter(Image.id==image_id)
