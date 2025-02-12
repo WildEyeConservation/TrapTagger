@@ -37,6 +37,12 @@ function loadNewCluster(mapID = 'map1') {
         clusterRequests[mapID].push(newID)
 
         if (!batchComplete) {
+            var formData = new FormData();
+            if (clusterIdList.length>0) {
+                // In case the batch size is huge, only send the last n cluster IDs. Only the last couple where the labels have yet to be processed are needed anyway.
+                formData.append('cluster_id_list', clusterIdList.slice(-100));
+            }
+
             var xhttp = new XMLHttpRequest();
             xhttp.onreadystatechange =
                 function () {
@@ -96,8 +102,8 @@ function loadNewCluster(mapID = 'map1') {
                         }                
                     }
                 };
-            xhttp.open("GET", '/getCluster?task='+selectedTask+'&reqId='+newID);
-            xhttp.send();
+            xhttp.open("POST", '/getCluster?task='+selectedTask+'&reqId='+newID);
+            xhttp.send(formData);
         }
     }
 }

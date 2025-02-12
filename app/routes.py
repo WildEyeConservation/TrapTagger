@@ -1531,6 +1531,8 @@ def createNewSurvey():
         annotation = request.form['annotation']
         newSurveyCamCode = request.form['newSurveyCamCode']
         camCheckbox = request.form['camCheckbox']
+        dataSource = request.form['dataSource']
+
         if 'detailed_access' in request.form:
             detailed_access = ast.literal_eval(request.form['detailed_access'])
         else:
@@ -1614,13 +1616,13 @@ def createNewSurvey():
 
             # Create survey
             if emptySurvey:
-                newSurvey = Survey(name=surveyName, description=newSurveyDescription, organisation_id=organisation_id, status='Ready', correct_timestamps=correctTimestamps, classifier_id=int(classifier_id), folder=newSurveyS3Folder)
+                newSurvey = Survey(name=surveyName, description=newSurveyDescription, organisation_id=organisation_id, status='Ready', correct_timestamps=correctTimestamps, classifier_id=int(classifier_id), folder=newSurveyS3Folder, type=dataSource)
                 db.session.add(newSurvey)
 
                 defaultTask = Task(name='default', survey=newSurvey, tagging_level='-1', test_size=0, status='Ready')
                 db.session.add(defaultTask)
             else:
-                newSurvey = Survey(name=surveyName, description=newSurveyDescription, trapgroup_code=newSurveyTGCode, organisation_id=organisation_id, status='Uploading', correct_timestamps=correctTimestamps, classifier_id=int(classifier_id), camera_code=newSurveyCamCode, folder=newSurveyS3Folder)
+                newSurvey = Survey(name=surveyName, description=newSurveyDescription, trapgroup_code=newSurveyTGCode, organisation_id=organisation_id, status='Uploading', correct_timestamps=correctTimestamps, classifier_id=int(classifier_id), camera_code=newSurveyCamCode, folder=newSurveyS3Folder, type=dataSource)
                 db.session.add(newSurvey)
 
             # Add permissions
@@ -5880,7 +5882,7 @@ def submitIndividuals():
     else:
         return json.dumps({'status': 'error'})
 
-@app.route('/getCluster')
+@app.route('/getCluster', methods=['POST'])
 @login_required
 def get_clusters():
     '''Returns the next clusters for annotation, based on the current user, their assigned task, and its associated tagging level.'''
@@ -5888,6 +5890,11 @@ def get_clusters():
     OverallStartTime = time.time()
     id = request.args.get('id', None)
     reqId = request.args.get('reqId', None)
+
+    if 'cluster_id_list' in request.form:
+        clusterIdList = list(ast.literal_eval(request.form['cluster_id_list']))
+    else:
+        clusterIdList = []
     
     if reqId is None:
         reqId = '-99'
@@ -5987,23 +5994,24 @@ def get_clusters():
                 # session.add(current_user)
                 # session.refresh(current_user)
 
-                # this is now fast enough that if the user is coming back, their old trapgroup was finished and they need a new one
-                trapgroup = allocate_new_trapgroup(task_id,current_user.id,survey_id)
+                trapgroup = allocate_new_trapgroup(task_id,current_user,survey_id)
                 if trapgroup == None:
                     db.session.close()
                     # GLOBALS.mutex[task_id]['global'].release()
                     return json.dumps({'id': reqId, 'info': [Config.FINISHED_CLUSTER]})
 
                 limit = task_size - int(GLOBALS.redisClient.get('clusters_allocated_'+str(current_user.id)).decode())
-                clusterInfo, max_request = fetch_clusters(taggingLevel,task_id,isBounding,trapgroup.id,limit)
+                
+                clusterInfo, max_request = fetch_clusters(taggingLevel,task_id,isBounding,trapgroup.id,limit,None,clusterIdList)
 
                 # if len(clusterInfo)==0: current_user.trapgroup = []
+                clusters_allocated = int(GLOBALS.redisClient.get('clusters_allocated_'+str(current_user.id)).decode()) + len(clusterInfo)
+
                 if (len(clusterInfo) <= limit) and not max_request:
-                    clusters_allocated = int(GLOBALS.redisClient.get('clusters_allocated_'+str(current_user.id)).decode()) + len(clusterInfo)
+                    # trapgroup is now finished
                     trapgroup.active = False
                     GLOBALS.redisClient.lrem(survey_id,0,trapgroup.id)
-                else:
-                    clusters_allocated = int(GLOBALS.redisClient.get('clusters_allocated_'+str(current_user.id)).decode()) + limit
+
                 GLOBALS.redisClient.set('clusters_allocated_'+str(current_user.id),clusters_allocated)
 
                 # current_user.last_ping = datetime.utcnow()

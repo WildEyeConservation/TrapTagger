@@ -1254,6 +1254,7 @@ def classifyTask(self,task,reClusters=None,trapgroup_ids=None):
         parentLabel = task.parent_classification
         survey_id = task.survey_id
         classifier_id = db.session.query(Classifier.id).join(Survey).join(Task).filter(Task.id==task.id).first()[0]
+        dataType = db.session.query(Survey.type).join(Task).filter(Task.id==task.id).first()[0]
 
         api_check = db.session.query(Detection).join(Image).join(Camera).join(Trapgroup).filter(Trapgroup.survey_id==survey_id).filter(Detection.source=='api').first()
         if api_check:
@@ -1291,7 +1292,7 @@ def classifyTask(self,task,reClusters=None,trapgroup_ids=None):
                                 .filter(or_(and_(Detection.source==model,Detection.score>Config.DETECTOR_THRESHOLDS[model]) for model in Config.DETECTOR_THRESHOLDS)) \
                                 .filter(Detection.static == False) \
                                 .filter(~Detection.status.in_(Config.DET_IGNORE_STATUSES)) \
-                                .filter(((Detection.right-Detection.left)*(Detection.bottom-Detection.top)) > Config.DET_AREA)\
+                                .filter(((Detection.right-Detection.left)*(Detection.bottom-Detection.top)) > Config.CLASSIFICATION_DET_AREA[dataType])\
                                 .filter(Cluster.task==task) \
                                 .group_by(Cluster.id).subquery()
 
@@ -1320,7 +1321,7 @@ def classifyTask(self,task,reClusters=None,trapgroup_ids=None):
                                 .filter(or_(and_(Detection.source==model,Detection.score>Config.DETECTOR_THRESHOLDS[model]) for model in Config.DETECTOR_THRESHOLDS)) \
                                 .filter(Detection.static == False) \
                                 .filter(~Detection.status.in_(Config.DET_IGNORE_STATUSES)) \
-                                .filter(((Detection.right-Detection.left)*(Detection.bottom-Detection.top)) > Config.DET_AREA)\
+                                .filter(((Detection.right-Detection.left)*(Detection.bottom-Detection.top)) > Config.CLASSIFICATION_DET_AREA[dataType])\
                                 .filter(Detection.classification.in_(parentGroupings[species])) \
                                 .filter(Cluster.task==task) \
                                 .group_by(Cluster.id).subquery()
@@ -1350,11 +1351,22 @@ def classifyTask(self,task,reClusters=None,trapgroup_ids=None):
             clusters = db.session.query(Cluster) \
                                 .join(detCountSQ, detCountSQ.c.clusID==Cluster.id) \
                                 .join(detRatioSQ, detRatioSQ.c.clusID==Cluster.id) \
-                                .filter(detCountSQ.c.detCount >= Config.CLUSTER_DET_COUNT) \
-                                .filter(detRatioSQ.c.detRatio > Config.DET_RATIO) \
                                 .filter(Cluster.task==task)\
                                 .filter(Cluster.user_id==None)\
-                                .filter(~Cluster.labels.any())\
+                                .filter(~Cluster.labels.any())
+                                
+            if dataType == 'trails':
+                clusters = clusters.filter(detCountSQ.c.detCount >= Config.CLUSTER_DET_COUNT['trails']).filter(detRatioSQ.c.detRatio > Config.DET_RATIO['trails'])
+            else:
+                clusters = clusters.filter(
+                                or_(
+                                    and_(
+                                        detCountSQ.c.detCount >= Config.CLUSTER_DET_COUNT['trails'],
+                                        detRatioSQ.c.detRatio > Config.DET_RATIO['trails']),
+                                    and_(
+                                        detCountSQ.c.detCount >= Config.CLUSTER_DET_COUNT[dataType],
+                                        detRatioSQ.c.detRatio > Config.DET_RATIO[dataType])
+                                ))
 
             if trapgroup_ids: clusters = clusters.join(Image,Cluster.images).join(Camera).filter(Camera.trapgroup_id.in_(trapgroup_ids))
             if reClusters: clusters = clusters.filter(Cluster.id.in_(reClusters))
@@ -1914,6 +1926,7 @@ def taggingLevelSQ(sq,taggingLevel,isBounding,task_id):
         # Classifier checking
         downLabel = db.session.query(Label).get(GLOBALS.vhl_id)
         classifier_id = db.session.query(Classifier.id).join(Survey).join(Task).filter(Task.id==task_id).first()[0]
+        dataType = db.session.query(Survey.type).join(Task).filter(Task.id==task_id).first()[0]
 
         classificationSQ = db.session.query(Cluster.id.label('cluster_id'),Detection.classification.label('classification'),func.count(distinct(Detection.id)).label('count'))\
                                 .join(Image,Cluster.images)\
@@ -1928,7 +1941,7 @@ def taggingLevelSQ(sq,taggingLevel,isBounding,task_id):
                                 .filter(or_(and_(Detection.source==model,Detection.score>Config.DETECTOR_THRESHOLDS[model]) for model in Config.DETECTOR_THRESHOLDS)) \
                                 .filter(Detection.static == False) \
                                 .filter(~Detection.status.in_(Config.DET_IGNORE_STATUSES)) \
-                                .filter(((Detection.right-Detection.left)*(Detection.bottom-Detection.top)) > Config.DET_AREA)\
+                                .filter(((Detection.right-Detection.left)*(Detection.bottom-Detection.top)) > Config.CLASSIFICATION_DET_AREA[dataType])\
                                 .group_by(Cluster.id,Detection.classification)\
                                 .subquery()
 
@@ -1955,7 +1968,7 @@ def taggingLevelSQ(sq,taggingLevel,isBounding,task_id):
                                 .filter(or_(and_(Detection.source==model,Detection.score>Config.DETECTOR_THRESHOLDS[model]) for model in Config.DETECTOR_THRESHOLDS)) \
                                 .filter(Detection.static == False) \
                                 .filter(~Detection.status.in_(Config.DET_IGNORE_STATUSES)) \
-                                .filter(((Detection.right-Detection.left)*(Detection.bottom-Detection.top)) > Config.DET_AREA)\
+                                .filter(((Detection.right-Detection.left)*(Detection.bottom-Detection.top)) > Config.CLASSIFICATION_DET_AREA[dataType])\
                                 .group_by(Cluster.id)\
                                 .subquery()
 
@@ -1969,7 +1982,7 @@ def taggingLevelSQ(sq,taggingLevel,isBounding,task_id):
         sq = sq.join(clusterDetCountSQ,clusterDetCountSQ.c.cluster_id==Cluster.id)\
                                 .join(classificationSQ,classificationSQ.c.cluster_id==Cluster.id)\
                                 .outerjoin(labelstableSQ,and_(labelstableSQ.c.cluster_id==Cluster.id,labelstableSQ.c.classification==classificationSQ.c.classification))\
-                                .filter((classificationSQ.c.count/clusterDetCountSQ.c.count)>Config.MIN_CLASSIFICATION_RATIO)\
+                                .filter((classificationSQ.c.count/clusterDetCountSQ.c.count)>Config.MIN_CLASSIFICATION_RATIO[dataType])\
                                 .filter(classificationSQ.c.count>1)\
                                 .filter(labelstableSQ.c.classification==None)\
                                 .filter(~Cluster.labels.contains(downLabel))
@@ -2514,6 +2527,7 @@ def getClusterClassifications(cluster_id):
     cluster = db.session.query(Cluster).get(cluster_id)
     task = cluster.task
     classifier_id = db.session.query(Classifier.id).join(Survey).join(Task).filter(Task.id==cluster.task_id).first()[0]
+    dataType = db.session.query(Survey.type).join(Task).filter(Task.id==cluster.task_id).first()[0]
     
     classSQ = db.session.query(Label.id.label('label_id'),func.count(distinct(Detection.id)).label('count'))\
                             .join(Translation)\
@@ -2527,7 +2541,7 @@ def getClusterClassifications(cluster_id):
                             .filter(or_(and_(Detection.source==model,Detection.score>Config.DETECTOR_THRESHOLDS[model]) for model in Config.DETECTOR_THRESHOLDS)) \
                             .filter(Detection.static == False) \
                             .filter(~Detection.status.in_(Config.DET_IGNORE_STATUSES)) \
-                            .filter(((Detection.right-Detection.left)*(Detection.bottom-Detection.top)) > Config.DET_AREA)\
+                            .filter(((Detection.right-Detection.left)*(Detection.bottom-Detection.top)) > Config.CLASSIFICATION_DET_AREA[dataType])\
                             .group_by(Label.id)\
                             .subquery()
     
@@ -2555,18 +2569,18 @@ def getClusterClassifications(cluster_id):
                             .filter(or_(and_(Detection.source==model,Detection.score>Config.DETECTOR_THRESHOLDS[model]) for model in Config.DETECTOR_THRESHOLDS)) \
                             .filter(Detection.static == False) \
                             .filter(~Detection.status.in_(Config.DET_IGNORE_STATUSES)) \
-                            .filter(((Detection.right-Detection.left)*(Detection.bottom-Detection.top)) > Config.DET_AREA)\
+                            .filter(((Detection.right-Detection.left)*(Detection.bottom-Detection.top)) > Config.CLASSIFICATION_DET_AREA[dataType])\
                             .distinct().count()
 
     possibilities = [r[0] for r in db.session.query(Label.id)\
                             .join(classSQ,classSQ.c.label_id==Label.id)\
-                            .filter(classSQ.c.count/clusterDetCount>=Config.MIN_CLASSIFICATION_RATIO)\
+                            .filter(classSQ.c.count/clusterDetCount>=Config.MIN_CLASSIFICATION_RATIO[dataType])\
                             .filter(classSQ.c.count>1)\
                             .distinct().all()]
     
     classifications = db.session.query(Label.description,classSQ.c.count/clusterDetCount)\
                             .join(classSQ,classSQ.c.label_id==Label.id)\
-                            .filter(classSQ.c.count/clusterDetCount>=Config.MIN_CLASSIFICATION_RATIO)\
+                            .filter(classSQ.c.count/clusterDetCount>=Config.MIN_CLASSIFICATION_RATIO[dataType])\
                             .filter(classSQ.c.count>1)\
                             .filter(or_(~Label.parent_id.in_(possibilities),Label.parent_id==None))\
                             .filter(~Label.clusters.contains(cluster))\

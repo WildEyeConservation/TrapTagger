@@ -2110,7 +2110,7 @@ def hideSmallDetections(survey_id,ignore_small_detections,edge):
                             .filter(or_(and_(Detection.source==model,Detection.score>Config.DETECTOR_THRESHOLDS[model]) for model in Config.DETECTOR_THRESHOLDS)) \
                             .filter(Detection.static == False) \
                             .filter(~Detection.status.in_(['deleted','masked'])) \
-                            .filter(((Detection.right-Detection.left)*(Detection.bottom-Detection.top)) < Config.DET_AREA)
+                            .filter(((Detection.right-Detection.left)*(Detection.bottom-Detection.top)) < Config.SMALL_DET_AREA)
 
     if (not edge) and (ignore_small_detections==False) and (survey.sky_masked==True):
         detections = detections.filter(Detection.bottom>=Config.SKY_CONST)
@@ -2155,7 +2155,7 @@ def maskSky(survey_id,sky_masked,edge):
 
 
     if (not edge) and (sky_masked==False) and (survey.ignore_small_detections==True):
-        detections.filter(((Detection.right-Detection.left)*(Detection.bottom-Detection.top)) > Config.DET_AREA)
+        detections.filter(((Detection.right-Detection.left)*(Detection.bottom-Detection.top)) > Config.SMALL_DET_AREA)
                             
     detections = detections.distinct().all()
 
@@ -2930,7 +2930,7 @@ def check_masked_and_hidden_detections(survey_id):
                             .filter(or_(and_(Detection.source==model,Detection.score>Config.DETECTOR_THRESHOLDS[model]) for model in Config.DETECTOR_THRESHOLDS))\
                             .filter(~Detection.status.in_(Config.DET_IGNORE_STATUSES))\
                             .filter(Detection.static == False) \
-                            .filter(((Detection.right-Detection.left)*(Detection.bottom-Detection.top)) < Config.DET_AREA)\
+                            .filter(((Detection.right-Detection.left)*(Detection.bottom-Detection.top)) < Config.SMALL_DET_AREA)\
                             .distinct().all()
 
         for detection in small_detections:

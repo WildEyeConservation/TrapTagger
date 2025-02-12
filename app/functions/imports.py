@@ -795,7 +795,7 @@ def IOU(bbox1,bbox2):
     intersection = max(min(bbox1['right'],bbox2['right']) - max(bbox1['left'],bbox2['left']),0) * max(min(bbox1['bottom'],bbox2['bottom']) - max(bbox1['top'],bbox2['top']),0)
     return intersection / (bbox1['area'] + bbox2['area'] - intersection)
 
-def calc_det_iou(detection_id,df):
+def calc_det_iou(detection_id,df,dataType):
     ''' Calculates the IOUs for a detection against the specified dataframe '''
 
     detection = df[df['detection_id']==detection_id].iloc[0]
@@ -813,21 +813,21 @@ def calc_det_iou(detection_id,df):
     df['iou'] = df.apply(lambda x: IOU(detection,x), axis=1)
 
     if detection['area'] <= 0.05:
-        threshold = Config.STATIC_IOU5
+        threshold = Config.STATIC_IOU5[dataType]
     elif detection['area'] <= 0.1:
-        threshold = Config.STATIC_IOU10
+        threshold = Config.STATIC_IOU10[dataType]
     elif detection['area'] <= 0.3:
-        threshold = Config.STATIC_IOU30
+        threshold = Config.STATIC_IOU30[dataType]
     elif detection['area'] <= 0.5:
-        threshold = Config.STATIC_IOU50
+        threshold = Config.STATIC_IOU50[dataType]
     elif detection['area'] <= 0.9:
-        threshold = Config.STATIC_IOU90
+        threshold = Config.STATIC_IOU90[dataType]
     else:
         return []
 
     return list(df[df['iou']>threshold]['detection_id'])
 
-def compare_static_groups(df,group1,group2):
+def compare_static_groups(df,group1,group2,dataType):
     '''Compares two groups of static detections to see if they should be combined.'''
 
     # if there is no overlap at all, we can abandon the comparison immediately
@@ -853,15 +853,15 @@ def compare_static_groups(df,group1,group2):
         df2['iou'] = df2.apply(lambda x: IOU(detection,x), axis=1)
 
         if detection['area'] <= 0.05:
-            threshold = Config.STATIC_IOU5
+            threshold = Config.STATIC_IOU5[dataType]
         elif detection['area'] <= 0.1:
-            threshold = Config.STATIC_IOU10
+            threshold = Config.STATIC_IOU10[dataType]
         elif detection['area'] <= 0.3:
-            threshold = Config.STATIC_IOU30
+            threshold = Config.STATIC_IOU30[dataType]
         elif detection['area'] <= 0.5:
-            threshold = Config.STATIC_IOU50
+            threshold = Config.STATIC_IOU50[dataType]
         elif detection['area'] <= 0.9:
-            threshold = Config.STATIC_IOU90
+            threshold = Config.STATIC_IOU90[dataType]
         else:
             continue
 
@@ -870,7 +870,7 @@ def compare_static_groups(df,group1,group2):
     return False
 
 @celery.task(bind=True,max_retries=5)
-def processStaticWindow(self,cameragroup_id,index,grouping):
+def processStaticWindow(self,cameragroup_id,index,grouping,dataType):
 
     try:
         static_groups = []
@@ -899,9 +899,9 @@ def processStaticWindow(self,cameragroup_id,index,grouping):
 
         image_count = len(df['image_id'].unique())
         if image_count > 100:
-            match_percentage = round(Config.STATIC_PERCENTAGE / math.log(image_count, 10), 2)
+            match_percentage = round(Config.STATIC_PERCENTAGE[dataType] / math.log(image_count, 10), 2)
         else:
-            match_percentage = Config.STATIC_PERCENTAGE
+            match_percentage = Config.STATIC_PERCENTAGE[dataType]
             
         for detection_id in list(df['detection_id']):
 
@@ -913,18 +913,18 @@ def processStaticWindow(self,cameragroup_id,index,grouping):
 
             if len(new_df) == 0: continue
 
-            group = calc_det_iou(detection_id,new_df)
+            group = calc_det_iou(detection_id,new_df,dataType)
 
             # This allows the df to become smaller over the loop (no need to recalculate IOUs from the opposite side)
             df.drop(df[df['detection_id']==detection_id].index,inplace=True)
             group.append(detection_id)
             
-            if (len(group)>Config.STATIC_MATCHCOUNT) and (len(group)/image_count>=match_percentage):
+            if (len(group)>Config.STATIC_MATCHCOUNT[dataType]) and (len(group)/image_count>=match_percentage):
                 found = False
                 for item in static_groups:
                     if any([d_id in item for d_id in group]):
                         item.extend(group)
-                        item = list(set(item))
+                        item[:] = list(set(item))
                         found = True
                         break
                 if not found: static_groups.append(group)
@@ -946,6 +946,8 @@ def processStaticWindow(self,cameragroup_id,index,grouping):
 def processCameraStaticDetections(self,cameragroup_id):
     '''Checks all the detections associated with a given camera ID to see if they are static or not.'''
     try:
+        dataType = db.session.query(Survey.type).join(Trapgroup).join(Camera).filter(Camera.cameragroup_id==cameragroup_id).first()[0]
+        if dataType==None: dataType='trails'
         
         total_images = db.session.query(Detection)\
                             .join(Image)\
@@ -960,7 +962,7 @@ def processCameraStaticDetections(self,cameragroup_id):
             grouping = math.ceil(total_images/math.ceil(total_images/4000))
             results = []
             for i in range(0,total_images,grouping):
-                results.append(processStaticWindow.apply_async(kwargs={'cameragroup_id':cameragroup_id,'index':i,'grouping':grouping},queue='parallel_2'))
+                results.append(processStaticWindow.apply_async(kwargs={'cameragroup_id':cameragroup_id,'index':i,'grouping':grouping,'dataType':dataType},queue='parallel_2'))
 
             static_groups = {}
             GLOBALS.lock.acquire()
@@ -984,7 +986,8 @@ def processCameraStaticDetections(self,cameragroup_id):
                                         Detection.right.label('right'),
                                         Detection.top.label('top'),
                                         Detection.bottom.label('bottom'),
-                                        Image.id.label('image_id')
+                                        Image.id.label('image_id'),
+                                        Image.corrected_timestamp.label('timestamp')
                                     )\
                                     .join(Image)\
                                     .join(Camera)\
@@ -1008,15 +1011,15 @@ def processCameraStaticDetections(self,cameragroup_id):
                             detection = df[df['detection_id']==group1[0]].iloc[0]
                             area = detection['area']
                             if area <= 0.05:
-                                threshold = Config.STATIC_IOU5
+                                threshold = Config.STATIC_IOU5[dataType]
                             elif area <= 0.1:
-                                threshold = Config.STATIC_IOU10
+                                threshold = Config.STATIC_IOU10[dataType]
                             elif area <= 0.3:
-                                threshold = Config.STATIC_IOU30
+                                threshold = Config.STATIC_IOU30[dataType]
                             elif area <= 0.5:
-                                threshold = Config.STATIC_IOU50
+                                threshold = Config.STATIC_IOU50[dataType]
                             elif area <= 0.9:
-                                threshold = Config.STATIC_IOU90
+                                threshold = Config.STATIC_IOU90[dataType]
                             else:
                                 continue
 
@@ -1035,7 +1038,7 @@ def processCameraStaticDetections(self,cameragroup_id):
                         found = False
 
                         for group2 in temp_final_static_groups:
-                            if compare_static_groups(df,group1,group2):
+                            if compare_static_groups(df,group1,group2,dataType):
                                 #combine
                                 for group in final_static_groups:
                                     if set(group)==set(group2):
@@ -1047,14 +1050,15 @@ def processCameraStaticDetections(self,cameragroup_id):
 
                         if not found: final_static_groups.append(group1)
 
-            # Filter out static detections that last for less than an hour. This is particularly useful for waterholes.
-            final_final_static_groups = []
-            for group in final_static_groups:
-                min_ts, max_ts = db.session.query(func.min(Image.corrected_timestamp),func.max(Image.corrected_timestamp)).join(Detection).filter(Detection.id.in_(group)).first()
-                if (max_ts-min_ts)>timedelta(hours=1): final_final_static_groups.append(group)
-
             static_detections = []
-            for group in final_final_static_groups:
+            for group in final_static_groups:
+                # Check whether the timestamp delta of the group is less then an hour and discard if so
+                timestamps = df[df['detection_id'].isin(group)]['timestamp']
+                timestamps = timestamps[timestamps.notnull()]
+                if len(timestamps) == len(group):
+                    if (timestamps.max() - timestamps.min()).total_seconds() < 3600:
+                        print('Discarding group due to timestamp delta {}'.format(group))
+                        continue
                 static_detections.extend(group)
                 detections = db.session.query(Detection).filter(Detection.id.in_(group)).distinct().all()
                 staticgroups = db.session.query(Staticgroup).filter(Staticgroup.detections.any(Detection.id.in_(group))).distinct().all()
@@ -2926,6 +2930,8 @@ def classifyCluster(cluster):
     
     try:
         classifier_id = db.session.query(Classifier.id).join(Survey).join(Task).filter(Task.id==cluster.task_id).first()[0]
+        dataType = db.session.query(Survey.type).join(Task).filter(Task.id==cluster.task_id).first()[0]
+        
         classification, count = db.session.query(Label.description,func.count(distinct(Detection.id)))\
                                 .join(Translation)\
                                 .join(Detection,Detection.classification==Translation.classification)\
@@ -2938,7 +2944,7 @@ def classifyCluster(cluster):
                                 .filter(or_(and_(Detection.source==model,Detection.score>Config.DETECTOR_THRESHOLDS[model]) for model in Config.DETECTOR_THRESHOLDS)) \
                                 .filter(Detection.static == False) \
                                 .filter(~Detection.status.in_(Config.DET_IGNORE_STATUSES)) \
-                                .filter(((Detection.right-Detection.left)*(Detection.bottom-Detection.top)) > Config.DET_AREA)\
+                                .filter(((Detection.right-Detection.left)*(Detection.bottom-Detection.top)) > Config.CLASSIFICATION_DET_AREA[dataType])\
                                 .group_by(Label.id)\
                                 .order_by(func.count(distinct(Detection.id)).desc())\
                                 .first()

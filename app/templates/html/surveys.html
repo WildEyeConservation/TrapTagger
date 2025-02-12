@@ -159,6 +159,28 @@ limitations under the License. -->
                     </div>
                     <br>
 
+                    <h5 style="margin-bottom: 2px">Data Source</h5>
+                    <div style="font-size: 80%; margin-bottom: 2px"><i>Select the source of your data. This optimises some processing parameters like using more-strict static-detection identification for waterhole data where animals can be quite stationary. If you are unsure, simply leave the default general selection.</i></div>
+                    <div style="margin-bottom: 5px">
+                        <div class="custom-control custom-radio custom-control-inline">
+                            <input type="radio" class="custom-control-input" id="newSurveyTrails" name="waterholeSelection" value='0' checked="true">
+                            <label class="custom-control-label" for="newSurveyTrails">General</label>
+                        </div> 
+                        <div class="custom-control custom-radio custom-control-inline" hidden>
+                            <input type="radio" class="custom-control-input" id="newSurveyplains" name="waterholeSelection" value='1'>
+                            <label class="custom-control-label" for="newSurveyplains">Open plains</label>
+                        </div>
+                        <div class="custom-control custom-radio custom-control-inline">
+                            <input type="radio" class="custom-control-input" id="newSurveyWaterholes" name="waterholeSelection" value='2'>
+                            <label class="custom-control-label" for="newSurveyWaterholes">Waterholes</label>
+                        </div> 
+                        <div class="custom-control custom-radio custom-control-inline">
+                            <input type="radio" class="custom-control-input" id="newSurveyBaited" name="waterholeSelection" value='3'>
+                            <label class="custom-control-label" for="newSurveyBaited">Baited traps</label>
+                        </div> 
+                    </div>
+                    <br>
+
                     <h5 style="margin-bottom: 2px">Permissions</h5>
                     <div style="font-size: 80%; margin-bottom: 2px"><i>Select the user permissions for non-admin users for this survey excluding yourself.</i></div>
                     <div class="row">
@@ -276,7 +298,7 @@ limitations under the License. -->
                     <br>
 
                     <h5 style="margin-bottom: 2px">Camera Identifier</h5>
-                    <div style="font-size: 80%; margin-bottom: 2px"><i> Select the method you would like to use to identify your cameras.</i></div>
+                    <div style="font-size: 80%; margin-bottom: 2px"><i>Select the method you would like to use to identify your cameras.</i></div>
                     <div style="margin-bottom: 5px">
                         <div class="custom-control custom-radio custom-control-inline">
                             <input type="radio" class="custom-control-input" id="camBotLvlFolder" name="camCodeSelection" value='0' checked="true" onchange="updateCamDiv()">

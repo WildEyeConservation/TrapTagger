@@ -1158,8 +1158,13 @@ function resetNewSurveyPage() {
     document.getElementById('detailedAccessSurveyCb').checked = false
     document.getElementById('detailedAccessSurveyDiv').hidden = true
 
+    document.getElementById('newSurveyTrails').checked = true
+    document.getElementById('newSurveyPlains').checked = false
+    document.getElementById('newSurveyWaterholes').checked = false
+    document.getElementById('newSurveyBaited').checked = false
+
     document.getElementById('camAdvancedCheckbox').checked = false
-    document.getElementById('camRegExp').checked = false 
+    document.getElementById('camRegExp').checked = false
     document.getElementById('camBotLvlFolder').checked = true
     document.getElementById('camSameAsSite').checked = false
     document.getElementById('camIdDiv').hidden = true
@@ -4409,6 +4414,10 @@ document.getElementById('btnSaveSurvey').addEventListener('click', ()=>{
     camSameAsSite = document.getElementById('camSameAsSite').checked
     newSurveyStructureDiv = document.getElementById('newSurveyStructureDiv')
     classifier_id = document.querySelector('input[name="classifierSelection"]:checked')
+    newSurveyTrails = document.getElementById('newSurveyTrails').checked
+    newSurveyPlains = document.getElementById('newSurveyPlains').checked
+    newSurveyWaterholes = document.getElementById('newSurveyWaterholes').checked
+    newSurveyBaited = document.getElementById('newSurveyBaited').checked
 
     while(document.getElementById('newSurveyErrors').firstChild){
         document.getElementById('newSurveyErrors').removeChild(document.getElementById('newSurveyErrors').firstChild);
@@ -4634,6 +4643,16 @@ document.getElementById('btnSaveSurvey').addEventListener('click', ()=>{
             else if (camSameAsSite) {
                 formData.append("newSurveyCamCode", newSurveyTGCode)
                 formData.append("camCheckbox", newSurveyCheckbox.checked.toString())
+            }
+
+            if (newSurveyTrails) {
+                formData.append("dataSource", 'trails')
+            } else if (newSurveyPlains) {
+                formData.append("dataSource", 'plains')
+            } else if (newSurveyWaterholes) {
+                formData.append("dataSource", 'waterhole')
+            } else if (newSurveyBaited) {
+                formData.append("dataSource", 'baited')
             }
 
             if (emptySurvey) {
