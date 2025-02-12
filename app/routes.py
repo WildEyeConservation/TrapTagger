@@ -13961,8 +13961,25 @@ def addImage():
 
             app.logger.info(f'Filename: {filename} Site: {site} Latitude: {latitude} Longitude: {longitude} Altitude: {altitude} Camera: {camera} Timestamp: {timestamp} Annotations: {annotations}')
 
+            suffix = filename.rsplit('.', 1)[1]
+            if suffix.lower() not in ['jpg', 'jpeg', 'png']:
+                return json.dumps({'message': 'Invalid image format (only JPG and PNG are supported).'}), 400
+
             with tempfile.NamedTemporaryFile(delete=True, suffix='.JPG') as temp_file:
-                image.save(temp_file.name)
+                if suffix.lower() == 'png':
+                    #Convert PNG to JPEG
+                    img = PIL.Image.open(image)
+                    dpi = img.info.get('dpi')
+                    exif = img.info.get('exif')
+                    img = img.convert('RGB')
+                    try:
+                        img.save(temp_file.name, 'JPEG', quality=100, dpi=dpi, exif=exif)
+                    except:
+                        img.save(temp_file.name, 'JPEG', quality=100)
+                    filename = filename.rsplit('.', 1)[0] + '.JPG'
+                else:
+                    image.save(temp_file.name)
+
                 try:
                     image_hash = generate_raw_image_hash(temp_file.name)
 
@@ -14019,7 +14036,8 @@ def addImage():
                             image_key = camera_path + '/' + filename
                             comp_key = comp_path + '/' + filename
 
-                        GLOBALS.s3client.upload_file(Bucket=Config.BUCKET, Key=image_key, Filename=temp_file.name)
+                        upload_response = GLOBALS.s3client.put_object(Bucket=Config.BUCKET, Key=image_key, Body=temp_file)
+                        etag = upload_response['ETag'][1:-1]
 
                         # Compress image
                         try:
@@ -14060,7 +14078,6 @@ def addImage():
                             camera = Camera(trapgroup=trapgroup, path=camera_path)
                             db.session.add(camera)
 
-                        etag = GLOBALS.s3client.head_object(Bucket=Config.BUCKET, Key=image_key)['ETag'][1:-1]
                         image = Image(camera=camera, filename=filename, timestamp=timestamp, corrected_timestamp=timestamp, hash=image_hash, etag=etag)
                         db.session.add(image)
 
