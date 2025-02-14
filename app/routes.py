@@ -14557,8 +14557,8 @@ def deleteDownloadRequest(download_request_id):
     
     status = 'error'	
     download_request = db.session.query(DownloadRequest).get(download_request_id)
-    task = download_request.task
-    if download_request and download_request.user_id == current_user.id and checkSurveyPermission(current_user.id,task.survey_id,'read'):
+    if download_request and download_request.user_id == current_user.id and checkSurveyPermission(current_user.id,download_request.task.survey_id,'read'):
+        task = download_request.task
         celery_id = download_request.celery_id
         try:
             if celery_id: celery.control.revoke(celery_id, terminate=True)
