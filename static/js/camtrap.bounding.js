@@ -111,7 +111,7 @@ function loadNewCluster(mapID = 'map1') {
                         }                
                     }
                 };
-            xhttp.open("GET", '/getCluster?task='+selectedTask+'&reqId='+newID);
+            xhttp.open("POST", '/getCluster?task='+selectedTask+'&reqId='+newID);
             xhttp.send();
         }
     }

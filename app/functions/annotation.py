@@ -974,7 +974,7 @@ def fetch_clusters(taggingLevel,task_id,isBounding,trapgroup_id,limit=None,id=No
                             .outerjoin(detectionSQ,detectionSQ.c.image_id==Image.id)\
                             .filter(detectionSQ.c.row_num<Config.MAX_DETS_PER_CLUSTER)
 
-            elif taggingLevel == '-2':
+            elif '-2' in taggingLevel:
                 clusters = db.session.query(
                                 Cluster.id,
                                 Cluster.notes,
@@ -1151,9 +1151,16 @@ def fetch_clusters(taggingLevel,task_id,isBounding,trapgroup_id,limit=None,id=No
         #                 .order_by(desc(Cluster.classification), Cluster.id)\
         #                 .distinct().limit(25000).all()
 
-        clusters = clusters.filter(Cluster.task_id == task_id) \
-                        .order_by(desc(Cluster.classification), Cluster.id)\
-                        .distinct().limit(25000).all()
+        clusters = clusters.filter(Cluster.task_id == task_id)
+        
+        dataType = db.session.query(Survey.type).join(Task).filter(Task.id==task_id).first()[0]
+        if dataType in ['waterhole','baited','plains']:
+            # the clusters in these data types are more related, so we want to show them in chronological order
+            clusters = clusters.order_by(Image.corrected_timestamp)
+        else:
+            clusters = clusters.order_by(desc(Cluster.classification), Cluster.id)
+        
+        clusters = clusters.distinct().limit(25000).all()
 
         if len(clusters) == 25000:
             max_request = True
@@ -1261,7 +1268,7 @@ def fetch_clusters(taggingLevel,task_id,isBounding,trapgroup_id,limit=None,id=No
         if '-3' in taggingLevel:
             task = db.session.query(Task).get(task_id)
             classifier_id = db.session.query(Classifier.id).join(Survey).join(Task).filter(Task.id==task_id).first()[0]
-            dataType = db.session.query(Survey.type).join(Task).filter(Task.id==task_id).first()[0]
+            # dataType = db.session.query(Survey.type).join(Task).filter(Task.id==task_id).first()[0]
             cluster_ids = cluster_ids[:limit]
             
             classSQ = db.session.query(Cluster.id,Detection.classification.label('label'),func.count(distinct(Detection.id)).label('count'))\

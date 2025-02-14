@@ -860,12 +860,12 @@ def processChanges(changes, keys, sessionLabels, task_id, speciesChanges=None):
             else:
                 parentLabel = db.session.query(Label).get(parent)
                 # The user was screened for write access to the task_id. We need to ensure that the user has the necessary permissions for the specified label.
-                if parentLabel.task_id!=task_id: continue
+                if parentLabel and parentLabel.task_id!=task_id: continue
         else:
             if parent in sessionLabels.keys():
                 parentLabel = sessionLabels[parent]
                 # The user was screened for write access to the task_id. We need to ensure that the user has the necessary permissions for the specified label.
-                if parentLabel.task_id!=task_id: continue
+                if parentLabel and parentLabel.task_id!=task_id: continue
             else:
                 skipped.append(parent)
 
@@ -921,7 +921,9 @@ def processChanges(changes, keys, sessionLabels, task_id, speciesChanges=None):
                     valueNeeded = None
 
                 valid = verify_label(changes[parent]['additional'][additional_id]['description'],changes[parent]['additional'][additional_id]['hotkey'],valueNeeded)
-                if (not check) and valid:
+                if check and (check not in sessionLabels.values()):
+                    if parent not in skipped: skipped.append(parent)
+                elif (check==None) and valid:
                     newLabel = Label(description=changes[parent]['additional'][additional_id]['description'],hotkey=changes[parent]['additional'][additional_id]['hotkey'],parent=valueNeeded,task_id=task_id)
                     db.session.add(newLabel)
                     newSessionLabels[additional_id] = newLabel

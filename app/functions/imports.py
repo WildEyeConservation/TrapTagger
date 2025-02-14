@@ -263,7 +263,7 @@ def importKML(survey_id):
 @celery.task(bind=True,max_retries=5)
 def recluster_large_clusters(self,task_id,updateClassifications,trapgroup_id=None,reClusters=None):
     '''
-    Reclusters all clusters that span more than 15 minutes by chopping them based on detections/or-lack-thereof up to a maximum of 15 mintes.
+    Reclusters all clusters that span more than MAX_CLUSTER_MINUTES by chopping them based on detections/or-lack-thereof up to a maximum of MAX_CLUSTER_MINUTES.
 
         Parameters:
             task_id (int): Task for which the reclustering should be performed
@@ -294,7 +294,7 @@ def recluster_large_clusters(self,task_id,updateClassifications,trapgroup_id=Non
             
             long_clusters = db.session.query(Cluster)\
                             .join(sq,sq.c.cluster_id==Cluster.id)\
-                            .filter(func.timestampdiff(literal_column("SECOND"), sq.c.min, sq.c.max) > 15 * 60)\
+                            .filter(func.timestampdiff(literal_column("SECOND"), sq.c.min, sq.c.max) > Config.MAX_CLUSTER_MINUTES * 60)\
                             .filter(~Cluster.labels.contains(downLabel))
             
             if trapgroup_id: long_clusters.join(Image,Cluster.images).join(Camera).filter(Camera.trapgroup_id==trapgroup_id)
@@ -319,9 +319,9 @@ def recluster_large_clusters(self,task_id,updateClassifications,trapgroup_id=Non
                     continuity[image[0].camera_id] = True
                 is_discontinuous = all(map(lambda x: x == False, continuity.values()))
 
-                # If there is a change in continuity, or the cluster now exceeds 15 minutes, then split the cluster here
+                # If there is a change in continuity, or the cluster now exceeds MAX_CLUSTER_MINUTES, then split the cluster here
                 # This ensure that streches of empties will be combined, and stretches of non-empties will be combined
-                if (image_grouping!=[]) and ((was_discontinuous != is_discontinuous) or ((image[0].corrected_timestamp-first_image.corrected_timestamp)>timedelta(minutes=15))):
+                if (image_grouping!=[]) and ((was_discontinuous != is_discontinuous) or ((image[0].corrected_timestamp-first_image.corrected_timestamp)>timedelta(minutes=Config.MAX_CLUSTER_MINUTES))):
                     newCluster = Cluster(task_id=task_id)
                     db.session.add(newCluster)
                     cluster_newClusters.append(newCluster)

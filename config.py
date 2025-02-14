@@ -124,11 +124,14 @@ class Config(object):
     # Species Classification Config
     CLUSTER_DET_COUNT = {'trails': 1, 'plains': 5, 'waterhole': 5, 'baited': 1}
     DET_RATIO = {'trails': 0.5, 'plains': 0.25, 'waterhole': 0.25, 'baited': 0.5}
-    CLASSIFICATION_DET_AREA = {'trails': 0.0025, 'plains': 0, 'waterhole': 0, 'baited': 0.0025}
+    CLASSIFICATION_DET_AREA = {'trails': 0.0025, 'plains': 0.002, 'waterhole': 0.002, 'baited': 0.0025}
     MIN_CLASSIFICATION_RATIO = {'trails': 0.2, 'plains': 0.1, 'waterhole': 0.1, 'baited': 0.2} #the minimum ratio of detection classifications for a classification to be considered
 
     # maximum number of detections displayed per cluster during annotation - prevents long load times
     MAX_DETS_PER_CLUSTER = 500
+
+    # maximum length of a cluster in minutes
+    MAX_CLUSTER_MINUTES = 15
 
     # Task and survey statuses
     TASK_READY_STATUSES = ['ready','success','successinitial','stopped']
