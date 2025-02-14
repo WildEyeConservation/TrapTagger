@@ -20,7 +20,7 @@ importScripts('piexif.js')
 
 const limitTT=pLimit(6)
 
-batchSize = 200
+batchSize = 250
 lambdaBatchSize = 350
 uploadSurveyName = null
 uploadID = null

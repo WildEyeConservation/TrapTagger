@@ -219,7 +219,7 @@ class Config(object):
             'Role': 'arn:aws:iam::'+AWS_ACCOUNT_ID+':role/'+LAMBDA_ROLE,
             'Runtime': 'python3.12',
             'Timeout': 900,
-            'MemorySize': 256,
+            'MemorySize': 320,
             'EphemeralStorage': {
                 'Size': 512
             },

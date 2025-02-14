@@ -5578,7 +5578,7 @@ def archive_empty_images(self,trapgroup_id):
     ''' Archives empty images from a trapgroup that have not been archived yet. It zips them up and uploads them to the survey folder and deletes the original images.'''
     try:
         trapgroup = db.session.query(Trapgroup).get(trapgroup_id)
-        camera_paths = list(set([cam.path for cam in trapgroup.cameras])) 
+        camera_paths = [r[0] for r in db.session.query(Camera.path).filter(Camera.trapgroup_id==trapgroup_id).distinct().all()]
         survey_id = trapgroup.survey_id
         zip_folder = trapgroup.survey.organisation.folder + '-comp/' + Config.SURVEY_ZIP_FOLDER 
         session = db.session()
@@ -5697,8 +5697,7 @@ def archive_empty_images(self,trapgroup_id):
 def archive_images(self,trapgroup_id):
     ''' Archive all raw images from clusters containing images that has at least one detection above the threshold'''
     try:
-        trapgroup = db.session.query(Trapgroup).get(trapgroup_id)
-        camera_paths = list(set([cam.path for cam in trapgroup.cameras])) 
+        camera_paths = [r[0] for r in db.session.query(Camera.path).filter(Camera.trapgroup_id==trapgroup_id).distinct().all()]
 
         # Get all unarchived files
         unarchived_files = []
@@ -5751,16 +5750,15 @@ def archive_images(self,trapgroup_id):
 def archive_videos(self,cameragroup_id):
     ''' Archive all non-empty compressed videos from a cameragroup that have not been archived yet and delete the empty compressed videos'''
     try:
-        cameragroup = db.session.query(Cameragroup).get(cameragroup_id)
+        cameras = [r[0] for r in db.session.query(Camera.path).filter(Camera.cameragroup_id==cameragroup_id).filter(Camera.videos.any()).distinct().all()]
         video_paths = []
-        for camera in cameragroup.cameras:
-            if camera.videos:
-                video_path = camera.path.split('/_video_images_')[0]
-                splits = video_path.split('/')
-                splits[0] = splits[0]+'-comp'
-                comp_video_path = '/'.join(splits)
-                if comp_video_path not in video_paths:
-                    video_paths.append(comp_video_path)
+        for camera_path in cameras:
+            video_path = camera_path.split('/_video_images_')[0]
+            splits = video_path.split('/')
+            splits[0] = splits[0]+'-comp'
+            comp_video_path = '/'.join(splits)
+            if comp_video_path not in video_paths:
+                video_paths.append(comp_video_path)
 
         unarchived_files = []
         for path in video_paths:
@@ -5838,6 +5836,7 @@ def archive_survey(survey_id):
         - Compressed videos
         - Compressed empty images which are zipped together. (Raw & comp empty images are deleted)
     '''
+    app.logger.info('Archiving survey {}'.format(survey_id))
 
     trapgroup_ids = [r[0] for r in db.session.query(Trapgroup.id).filter(Trapgroup.survey_id==survey_id).distinct().all()]
     cameragroup_ids = [r[0] for r in db.session.query(Cameragroup.id).join(Camera).join(Trapgroup).filter(Trapgroup.survey_id==survey_id).filter(Camera.videos.any()).distinct().all()]
@@ -5863,6 +5862,7 @@ def archive_survey(survey_id):
             result.forget()
     GLOBALS.lock.release()
 
+    app.logger.info('Videos archived for survey {}'.format(survey_id))
 
     # Empty Images
     empty_results = []
@@ -5885,6 +5885,7 @@ def archive_survey(survey_id):
             result.forget()
     GLOBALS.lock.release()
 
+    app.logger.info('Empty images archived for survey {}'.format(survey_id))
 
     # Raw Animal Images
     image_results = []
@@ -5906,6 +5907,8 @@ def archive_survey(survey_id):
                 app.logger.info(' ')
             result.forget()
     GLOBALS.lock.release()
+
+    app.logger.info('Images archived for survey {}'.format(survey_id))
 
     return True
 

@@ -40,14 +40,15 @@ def lambda_handler(event, context):
     download_path = None
     for b in batch:
         try:
-            if context.get_remaining_time_in_millis() < 30000:
+            if context.get_remaining_time_in_millis() < 60000:
                 conn.commit()
                 conn.close()
                 payload = event
                 payload['batch'] = batch[processed:]
                 lambda_client = boto3.client('lambda')
                 lambda_client.invoke(FunctionName=context.function_name, InvocationType='Event', Payload=json.dumps(payload))
-                print('Lambda invoked with remaining batch.')
+                print('Lambda invoked with remaining batch for survey_id - {}'.format(event['survey_id']))
+                print('Extracted: {}/{}'.format(extracted, len(batch)))
                 return {
                     'status': 'success',
                     'processed': processed,
@@ -164,7 +165,8 @@ def lambda_handler(event, context):
     conn.commit()
     conn.close()
 
-    print('Frames extracted and uploaded to S3.')
+    print('Frames extracted and uploaded to S3 for survey_id - {}'.format(event['survey_id']))
+    print('Extracted: {}/{}'.format(extracted, len(batch)))
 
     return {
         'status': 'success',

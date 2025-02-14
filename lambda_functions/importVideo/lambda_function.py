@@ -42,7 +42,7 @@ def lambda_handler(event, context):
     compressed_path = None
     for key in keys:
         try:
-            if context.get_remaining_time_in_millis() < 30000:
+            if context.get_remaining_time_in_millis() < 60000:
                 conn.commit()
                 conn.close()
                 payload = event
@@ -57,7 +57,8 @@ def lambda_handler(event, context):
                     lambda_client.invoke(FunctionName=extract_function, InvocationType='Event', Payload=json.dumps(payload))
                     invoked = True
 
-                print('Lambda invoked with remaining keys.')
+                print('Lambda invoked with remaining keys for survey - {}'.format(event['survey_id']))
+                print('Imported: {}/{}'.format(imported, len(keys)))
                 return {
                     'status': 'success',
                     'processed': processed,
@@ -213,7 +214,8 @@ def lambda_handler(event, context):
         print('Invoked lambda to extract frames from videos.')
         invoked = True
     
-    print('Videos compressed and imported successfully.')
+    print('Videos compressed and imported successfully for survey - {}'.format(event['survey_id']))
+    print('Imported: {}/{}'.format(imported, len(keys)))
 
     return {
         'status': 'success',
