@@ -1640,8 +1640,8 @@ def translate_cluster_for_client(clusterInfo,reqId,limit,isBounding,taggingLevel
                                                                     '-4' not in taggingLevel) 
                                                                 or (
                                                                     (clusterInfo[cluster_id]['images'][image_id]['detections'][detection_id]['individuals']==['-1']) 
-                                                                    # and (species in clusterInfo[cluster_id]['images'][image_id]['detections'][detection_id]['labels']
-                                                                )))]
+                                                                    # and (species in clusterInfo[cluster_id]['images'][image_id]['detections'][detection_id]['labels'])
+                                                                ))]
                         })
             
             required = [n for n in range(len(images))]
@@ -1714,8 +1714,8 @@ def translate_cluster_for_client(clusterInfo,reqId,limit,isBounding,taggingLevel
                                                                 '-4' not in taggingLevel) 
                                                             or (
                                                                 (clusterInfo[cluster_id]['images'][image_id]['detections'][detection_id]['individuals']==['-1']) 
-                                                                # and (species in clusterInfo[cluster_id]['images'][image_id]['detections'][detection_id]['labels']
-                                                            )))]
+                                                                # and (species in clusterInfo[cluster_id]['images'][image_id]['detections'][detection_id]['labels'])
+                                                            ))]
                         })
                     
                     # dont break if certain annotation types
