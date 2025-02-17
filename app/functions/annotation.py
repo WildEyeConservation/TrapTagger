@@ -1094,6 +1094,8 @@ def fetch_clusters(taggingLevel,task_id,isBounding,trapgroup_id,limit=None,id=No
                 
             elif '-4' in taggingLevel:
                 # all detections are required for individual ID
+                tL = re.split(',',taggingLevel)
+                species = tL[1]
                 clusters = rDets(db.session.query(
                                     Cluster.id,
                                     Cluster.notes,
@@ -1111,8 +1113,8 @@ def fetch_clusters(taggingLevel,task_id,isBounding,trapgroup_id,limit=None,id=No
                                     Detection.right,
                                     Detection.category,
                                     Detection.static,
-                                    None,
-                                    None,
+                                    Label.id,
+                                    Label.description,
                                     requiredimagestable.c.image_id,
                                     None,
                                     None,
@@ -1127,8 +1129,12 @@ def fetch_clusters(taggingLevel,task_id,isBounding,trapgroup_id,limit=None,id=No
                                 .outerjoin(requiredimagestable,requiredimagestable.c.cluster_id==Cluster.id)\
                                 .join(Camera) \
                                 .outerjoin(Detection) \
+                                .outerjoin(Labelgroup)\
+                                .outerjoin(Label,Labelgroup.labels)\
+                                .filter(Labelgroup.task_id == task_id)\
                                 .outerjoin(Individual,Detection.individuals)\
-                                .outerjoin(IndividualTask,Individual.tasks))
+                                .outerjoin(IndividualTask,Individual.tasks)\
+                                .filter(Label.description==species))
             
             clusters = clusters.filter(Camera.trapgroup_id==trapgroup_id)\
                                 .filter(Cluster.examined==False)
@@ -1564,7 +1570,7 @@ def translate_cluster_for_client(clusterInfo,reqId,limit,isBounding,taggingLevel
 
     if ',' in taggingLevel:
         tL = re.split(',',taggingLevel)
-        species = tL[1]
+        # species = tL[1]
     
     reply = {'id': reqId, 'info': []}
     for cluster_id in clusterInfo:
@@ -1634,7 +1640,7 @@ def translate_cluster_for_client(clusterInfo,reqId,limit,isBounding,taggingLevel
                                                                     '-4' not in taggingLevel) 
                                                                 or (
                                                                     (clusterInfo[cluster_id]['images'][image_id]['detections'][detection_id]['individuals']==['-1']) 
-                                                                    and (species in clusterInfo[cluster_id]['images'][image_id]['detections'][detection_id]['labels']
+                                                                    # and (species in clusterInfo[cluster_id]['images'][image_id]['detections'][detection_id]['labels']
                                                                 )))]
                         })
             
@@ -1708,7 +1714,7 @@ def translate_cluster_for_client(clusterInfo,reqId,limit,isBounding,taggingLevel
                                                                 '-4' not in taggingLevel) 
                                                             or (
                                                                 (clusterInfo[cluster_id]['images'][image_id]['detections'][detection_id]['individuals']==['-1']) 
-                                                                and (species in clusterInfo[cluster_id]['images'][image_id]['detections'][detection_id]['labels']
+                                                                # and (species in clusterInfo[cluster_id]['images'][image_id]['detections'][detection_id]['labels']
                                                             )))]
                         })
                     
