@@ -1352,8 +1352,7 @@ def classifyTask(self,task,reClusters=None,trapgroup_ids=None):
                                 .join(detCountSQ, detCountSQ.c.clusID==Cluster.id) \
                                 .join(detRatioSQ, detRatioSQ.c.clusID==Cluster.id) \
                                 .filter(Cluster.task==task)\
-                                .filter(Cluster.user_id==None)\
-                                .filter(~Cluster.labels.any())
+                                .filter(or_(Cluster.user_id==None, Cluster.user_id==admin.id))
                                 
             if dataType == 'trails':
                 clusters = clusters.filter(detCountSQ.c.detCount >= Config.CLUSTER_DET_COUNT['trails']).filter(detRatioSQ.c.detRatio > Config.DET_RATIO['trails'])

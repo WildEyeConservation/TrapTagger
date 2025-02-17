@@ -831,7 +831,7 @@ def compare_static_groups(df,group1,group2,dataType):
     '''Compares two groups of static detections to see if they should be combined.'''
 
     # if there is no overlap at all, we can abandon the comparison immediately
-    if IOU(df[df['detection_id']==group1[0]].iloc[0],df[df['detection_id']==group2[0]].iloc[0])<(Config.STATIC_IOU5/2): return False
+    if IOU(df[df['detection_id']==group1[0]].iloc[0],df[df['detection_id']==group2[0]].iloc[0])<(Config.STATIC_IOU5[dataType]/2): return False
     
     # we only want to compare a limited combination of detections - comparing everything gets out of hand too quickly
     if len(group1) > 100: group1 = random.sample(group1,100)
