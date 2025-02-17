@@ -281,7 +281,7 @@ def recluster_large_clusters(self,task_id,updateClassifications,trapgroup_id=Non
 
         # Find long clusters based on time period
         if reClusters:
-            long_clusters = db.db.session.query(Cluster).filter(Cluster.id.in_(reClusters)).all()
+            long_clusters = db.session.query(Cluster).filter(Cluster.id.in_(reClusters)).all()
         else:
 
             sq = db.session.query(Cluster.id.label('cluster_id'),\
