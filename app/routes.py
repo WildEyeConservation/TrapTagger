@@ -5892,7 +5892,12 @@ def get_clusters():
     reqId = request.args.get('reqId', None)
 
     if 'cluster_id_list' in request.form:
-        clusterIdList = list(ast.literal_eval(request.form['cluster_id_list']))
+        clusterIdList = ast.literal_eval(request.form['cluster_id_list'])
+        if (type(clusterIdList)==int):
+            # single item list is evaluated as an int
+            clusterIdList = [clusterIdList]
+        else:
+            clusterIdList = list(clusterIdList)
     else:
         clusterIdList = []
     
