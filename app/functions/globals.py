@@ -4241,3 +4241,117 @@ def calculate_restore_expiry_date(restore_date,restore_time,days):
         expiry_date = None
 
     return expiry_date
+
+def reconcile_cluster_labelgroup_labels_and_tags(task_id):
+    '''
+    During annotation we simply set the cluster labels and tags for speed. If a cluster is huge, then the request runs the risk of timing out while the labelgroup
+    labels and tags are updated for all the detections. So we reconcile them at wrap up here instead.
+    '''
+    
+    # Reconcile Labels first
+    labels = db.session.query(Label).filter(Label.task_id==task_id).distinct().all()
+    labels.extend(db.session.query(Label).filter(Label.id.in_([GLOBALS.vhl_id,GLOBALS.nothing_id,GLOBALS.unknown_id,GLOBALS.knocked_id])).distinct().all())
+
+    for label in labels:
+
+        first_iteration = True
+        while first_iteration or labelgroups:
+            first_iteration = False
+
+            labelgroups = db.session.query(Labelgroup)\
+                                .join(Detection)\
+                                .join(Image)\
+                                .join(Cluster,Image.clusters)\
+                                .filter(Cluster.task_id==task_id)\
+                                .filter(Labelgroup.task_id==task_id)\
+                                .filter(Cluster.labels.contains(label))\
+                                .filter(~Labelgroup.labels.contains(label))\
+                                .filter(Labelgroup.checked==False)\
+                                .distinct().limit(10000).all()
+            
+            for labelgroup in labelgroups:
+                labelgroup.labels.append(label)
+
+            db.session.commit()
+
+    # Then reconcile tags
+    tags = db.session.query(Tag).filter(Tag.task_id==task_id).distinct().all()
+
+    for tag in tags:
+
+        first_iteration = True
+        while first_iteration or labelgroups:
+            first_iteration = False
+
+            labelgroups = db.session.query(Labelgroup)\
+                                .join(Detection)\
+                                .join(Image)\
+                                .join(Cluster,Image.clusters)\
+                                .filter(Cluster.task_id==task_id)\
+                                .filter(Labelgroup.task_id==task_id)\
+                                .filter(Cluster.labels.contains(tag))\
+                                .filter(~Labelgroup.labels.contains(tag))\
+                                .distinct().limit(10000).all()
+                                # .filter(Labelgroup.checked==False)\
+            
+            for labelgroup in labelgroups:
+                labelgroup.tags.append(tag)
+
+            db.session.commit()
+
+    return True
+
+@celery.task(bind=True,max_retries=2,ignore_result=True)
+def update_labelgroup_labels_tags(self,cluster_id):
+    ''' Updates the labelgroup labels and tags for a given cluster. '''
+
+    try:
+
+        cluster = db.session.query(Cluster).get(cluster_id)
+
+        # Update labels
+        first_iteration = True
+        while first_iteration or labelgroups:
+            first_iteration = False
+
+            labelgroups = db.session.query(Labelgroup)\
+                            .join(Detection)\
+                            .join(Image)\
+                            .filter(Image.clusters.contains(cluster))\
+                            .filter(Labelgroup.task_id==cluster.task_id) \
+                            .distinct().limit(10000).all()
+            
+            for labelgroup in labelgroups:
+                labelgroup.labels = cluster.labels
+
+            db.session.commit()
+
+        # update tags
+        first_iteration = True
+        while first_iteration or labelgroups:
+            first_iteration = False
+
+            labelgroups = db.session.query(Labelgroup)\
+                            .join(Detection)\
+                            .join(Image)\
+                            .filter(Image.clusters.contains(cluster))\
+                            .filter(Labelgroup.task_id==cluster.task_id) \
+                            .distinct().limit(10000).all()
+            
+            for labelgroup in labelgroups:
+                labelgroup.tags = cluster.tags
+
+            db.session.commit()
+
+    except Exception as exc:
+        app.logger.info(' ')
+        app.logger.info('!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!')
+        app.logger.info(traceback.format_exc())
+        app.logger.info('!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!')
+        app.logger.info(' ')
+        self.retry(exc=exc, countdown= retryTime(self.request.retries))
+
+    finally:
+        db.session.remove()
+
+    return True 

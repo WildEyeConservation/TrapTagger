@@ -18,7 +18,8 @@ from app import app, db, celery
 from app.models import *
 from app.functions.globals import taggingLevelSQ, addChildLabels, resolve_abandoned_jobs, createTurkcodes, deleteTurkcodes, \
                                     updateTaskCompletionStatus, updateLabelCompletionStatus, updateIndividualIdStatus, retryTime, chunker, \
-                                    getClusterClassifications, checkForIdWork, numify_timestamp, rDets, prep_required_images, updateAllStatuses, classifyTask, cleanup_empty_restored_images
+                                    getClusterClassifications, checkForIdWork, numify_timestamp, rDets, prep_required_images, updateAllStatuses, classifyTask, cleanup_empty_restored_images,\
+                                    reconcile_cluster_labelgroup_labels_and_tags
 from app.functions.individualID import calculate_detection_similarities, generateUniqueName, cleanUpIndividuals, calculate_individual_similarities, check_individual_detection_mismatch, process_detections_for_individual_id
 # from app.functions.results import resetImageDownloadStatus, resetVideoDownloadStatus
 import GLOBALS
@@ -497,6 +498,8 @@ def wrapUpTask(self,task_id):
             cluster.skipped = False
 
         db.session.commit()
+
+        reconcile_cluster_labelgroup_labels_and_tags(task_id)
         
         if ',' not in task.tagging_level and task.init_complete and '-2' not in task.tagging_level:
             check_individual_detection_mismatch(task_id=task_id)
@@ -937,8 +940,8 @@ def fetch_clusters(taggingLevel,task_id,isBounding,trapgroup_id,limit=None,id=No
             .filter(Cluster.task_id==task_id))\
             .subquery()
 
-            if (taggingLevel=='-1') or (taggingLevel.isdigit() and not isBounding):
-                # for species and info tagging we limit the detections for efficiency (and excessive edge cases)
+            if (taggingLevel=='-1') and not isBounding:
+                # basic species annotation. No need for labels and we want to limit detections
                 clusters = db.session.query(
                                 Cluster.id,
                                 Cluster.notes,
@@ -975,6 +978,7 @@ def fetch_clusters(taggingLevel,task_id,isBounding,trapgroup_id,limit=None,id=No
                             .filter(detectionSQ.c.row_num<Config.MAX_DETS_PER_CLUSTER)
 
             elif '-2' in taggingLevel:
+                # informational tagging. We need the current tags and limit the detections
                 clusters = db.session.query(
                                 Cluster.id,
                                 Cluster.notes,
@@ -1013,8 +1017,8 @@ def fetch_clusters(taggingLevel,task_id,isBounding,trapgroup_id,limit=None,id=No
                             .filter(Labelgroup.task_id == task_id)\
                             .filter(detectionSQ.c.row_num<Config.MAX_DETS_PER_CLUSTER)                            
                 
-            elif taggingLevel == '-3':
-                # requires detection limiting for waterhole checking use case
+            elif ('-3' in taggingLevel) or (taggingLevel.isdigit() and not isBounding):
+                # AI check and category species labelling. We need the labels and want to limit detections
                 clusters = db.session.query(
                                 Cluster.id,
                                 Cluster.notes,
@@ -1054,7 +1058,7 @@ def fetch_clusters(taggingLevel,task_id,isBounding,trapgroup_id,limit=None,id=No
                             .filter(detectionSQ.c.row_num<Config.MAX_DETS_PER_CLUSTER)
                 
             elif isBounding:
-                # all detections are required for bbox edit
+                # all rDets are required for bbox edit along with the labels
                 clusters = rDets(db.session.query(
                                 Cluster.id,
                                 Cluster.notes,
@@ -1093,7 +1097,7 @@ def fetch_clusters(taggingLevel,task_id,isBounding,trapgroup_id,limit=None,id=No
                             .filter(Labelgroup.task_id == task_id))
                 
             elif '-4' in taggingLevel:
-                # all detections are required for individual ID
+                # all detections are required for individual ID along with individual info and labels
                 tL = re.split(',',taggingLevel)
                 species = tL[1]
                 clusters = rDets(db.session.query(
@@ -1327,7 +1331,7 @@ def fetch_clusters(taggingLevel,task_id,isBounding,trapgroup_id,limit=None,id=No
                                     .group_by(Cluster.id)\
                                     .subquery()
 
-            clusters2 = rDets(db.session.query(
+            clusters2 = db.session.query(
                                     Cluster.id,
                                     classSQ.c.label,
                                     classSQ.c.count/clusterDetCountSQ.c.count
@@ -1342,7 +1346,7 @@ def fetch_clusters(taggingLevel,task_id,isBounding,trapgroup_id,limit=None,id=No
                                 .filter(Cluster.examined==False)\
                                 .filter(Cluster.task_id == task_id) \
                                 .order_by(desc(Cluster.classification), Cluster.id)\
-                                ).distinct().limit(25000).all()
+                                .distinct().limit(25000).all()
             
             # The below code handles the case where there are multiple hierarchical translations for a single classification.
             # If a label's parent is also a translation of a classification, the label is dropped in favour of its parent

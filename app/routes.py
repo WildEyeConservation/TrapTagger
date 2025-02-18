@@ -7152,19 +7152,31 @@ def assignLabel(clusterID):
                     cluster.examined = True
                     cluster.timestamp = datetime.utcnow()
 
-                    # Copy labels over to labelgroups
-                    labelgroups = session.query(Labelgroup) \
-                                            .join(Detection) \
-                                            .join(Image) \
-                                            .filter(Image.clusters.contains(cluster)) \
-                                            .filter(Labelgroup.task_id==cluster.task_id) \
-                                            .distinct().all()
+                    # Copy labels over to labelgroups in explore mode (handled in task wrap up otherwise)
+                    use_celery_to_update_labelgroups = False
+                    if explore:
+                        labelgroups = session.query(Labelgroup) \
+                                                .join(Detection) \
+                                                .join(Image) \
+                                                .filter(Image.clusters.contains(cluster)) \
+                                                .filter(Labelgroup.task_id==cluster.task_id) \
+                                                .distinct().count()
 
-                    for labelgroup in labelgroups:
-                        if '-2' in taggingLevel:
-                            labelgroup.tags = cluster.tags
+                        if labelgroups<200:
+                            labelgroups = session.query(Labelgroup) \
+                                                .join(Detection) \
+                                                .join(Image) \
+                                                .filter(Image.clusters.contains(cluster)) \
+                                                .filter(Labelgroup.task_id==cluster.task_id) \
+                                                .distinct().all()
+
+                            for labelgroup in labelgroups:
+                                if '-2' in taggingLevel:
+                                    labelgroup.tags = cluster.tags
+                                else:
+                                    labelgroup.labels = cluster.labels
                         else:
-                            labelgroup.labels = cluster.labels
+                            use_celery_to_update_labelgroups = True
 
                     if taggingLevel=='-3': classifications = getClusterClassifications(cluster.id)
 
@@ -7267,6 +7279,8 @@ def assignLabel(clusterID):
                     #         session.close()
 
                     session.commit()
+
+                    if use_celery_to_update_labelgroups: update_labelgroup_labels_tags.apply_async(kwargs={'cluster_id':cluster.id})
 
                     if explore:
                         individual_check = session.query(Individual.id).join(Detection, Individual.detections).join(Image).join(Cluster, Image.clusters).filter(Cluster.id==cluster.id).filter(Individual.tasks.contains(task)).first()
