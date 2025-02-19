@@ -4310,38 +4310,42 @@ def update_labelgroup_labels_tags(self,cluster_id):
         cluster = db.session.query(Cluster).get(cluster_id)
 
         # Update labels
-        first_iteration = True
-        while first_iteration or labelgroups:
-            first_iteration = False
+        for label in cluster.labels:
+            first_iteration = True
+            while first_iteration or labelgroups:
+                first_iteration = False
 
-            labelgroups = db.session.query(Labelgroup)\
-                            .join(Detection)\
-                            .join(Image)\
-                            .filter(Image.clusters.contains(cluster))\
-                            .filter(Labelgroup.task_id==cluster.task_id) \
-                            .distinct().limit(10000).all()
-            
-            for labelgroup in labelgroups:
-                labelgroup.labels = cluster.labels
+                labelgroups = db.session.query(Labelgroup)\
+                                .join(Detection)\
+                                .join(Image)\
+                                .filter(Image.clusters.contains(cluster))\
+                                .filter(Labelgroup.task_id==cluster.task_id)\
+                                .filter(~Labelgroup.labels.contains(label))\
+                                .distinct().limit(10000).all()
+                
+                for labelgroup in labelgroups:
+                    labelgroup.labels.append(label)
 
-            db.session.commit()
+                db.session.commit()
 
         # update tags
-        first_iteration = True
-        while first_iteration or labelgroups:
-            first_iteration = False
+        for tag in cluster.tags:
+            first_iteration = True
+            while first_iteration or labelgroups:
+                first_iteration = False
 
-            labelgroups = db.session.query(Labelgroup)\
-                            .join(Detection)\
-                            .join(Image)\
-                            .filter(Image.clusters.contains(cluster))\
-                            .filter(Labelgroup.task_id==cluster.task_id) \
-                            .distinct().limit(10000).all()
-            
-            for labelgroup in labelgroups:
-                labelgroup.tags = cluster.tags
+                labelgroups = db.session.query(Labelgroup)\
+                                .join(Detection)\
+                                .join(Image)\
+                                .filter(Image.clusters.contains(cluster))\
+                                .filter(Labelgroup.task_id==cluster.task_id)\
+                                .filter(~Labelgroup.tags.contains(tag))\
+                                .distinct().limit(10000).all()
+                
+                for labelgroup in labelgroups:
+                    labelgroup.tags.append(tag)
 
-            db.session.commit()
+                db.session.commit()
 
     except Exception as exc:
         app.logger.info(' ')

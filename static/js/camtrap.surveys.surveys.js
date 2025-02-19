@@ -189,6 +189,7 @@ const btnConfirmRestore = document.querySelector('#btnConfirmRestore')
 const btnCancelRestore = document.querySelector('#btnCancelRestore')
 const modalConfirmDownload = $('#modalConfirmDownload');
 const modalConfirmExport = $('#modalConfirmExport');
+const modalEditTaskAlert = $('#modalEditTaskAlert');
 
 var polarColours = {'rgba(10,120,80,0.2)':false,
                     'rgba(255,255,255,0.2)':false,
@@ -339,6 +340,7 @@ var surveyClassifier = null
 var surveyClassifierName = null
 var confirmClassifierChange = false
 var confirmExportReturn = false
+var editTaskAlertCount = 0
 
 function buildSurveys(survey,disableSurvey) {
     /**

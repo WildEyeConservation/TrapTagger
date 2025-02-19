@@ -954,6 +954,17 @@ def handleTaskEdit(self,task_id,labelChanges,tagChanges,translationChanges,delet
         if Config.DEBUGGING: app.logger.info('Task Edit: {}'.format(task_id))
         task_id = int(task_id)
         task = db.session.query(Task).get(task_id)
+
+        task_args = {
+            'task_id': task_id,
+            'labelChanges': labelChanges,
+            'tagChanges': tagChanges,
+            'translationChanges': translationChanges,
+            'deleteAutoLabels': deleteAutoLabels,
+            'speciesChanges': speciesChanges
+        }
+        GLOBALS.redisClient.set('taskEdit_'+str(task_id),json.dumps(task_args))
+
         if task:
             # Labels
             sessionLabels = {}
@@ -984,7 +995,10 @@ def handleTaskEdit(self,task_id,labelChanges,tagChanges,translationChanges,delet
 
             # Translations
             if len(translationChanges.keys()) > 0:
-                classifications = list(translationChanges.keys())
+                classifications = []
+                for classification in translationChanges:
+                    if translationChanges[classification]['edited'].lower() == 'true':
+                        classifications.append(classification)
 
                 prev_labels = []
                 prev_labels_description = []
@@ -1004,7 +1018,7 @@ def handleTaskEdit(self,task_id,labelChanges,tagChanges,translationChanges,delet
                     if classify and label not in ['nothing', 'unknown']:
                         includes.append(classification)
 
-                edit_translations(task_id, translations_dict, includes)
+                edit_translations(task_id, translations_dict, includes, auto=True)
 
                 if deleteAutoLabels:
                     # Delete auto classified labels from clusters (for edited translations) - only clusters with no individuals
@@ -1067,6 +1081,8 @@ def handleTaskEdit(self,task_id,labelChanges,tagChanges,translationChanges,delet
                             task_ids.append(t_id)
 
             db.session.commit()
+
+        GLOBALS.redisClient.delete('taskEdit_'+str(task_id))
 
     except Exception as exc:
         app.logger.info(' ')
@@ -1928,18 +1944,40 @@ def setupTranslations(task_id, survey_id, translations, includes):
 
     return True
 
-def edit_translations(task_id, translations, includes):
+def edit_translations(task_id, translations, includes,auto=False):
     '''Handles the editing of translations for the given set of translations and specified task.'''
 
     for classification in translations:
         if translations[classification].lower() not in ['knocked down','nothing','vehicles/humans/livestock','unknown']:
             species = db.session.query(Label).filter(Label.task_id==task_id).filter(func.lower(Label.description)==func.lower(translations[classification])).first()
         else:
-            species = db.session.query(Label).filter(func.lower(Label.description)==func.lower(translations[classification])).first()
+            if auto and translations[classification].lower() == 'nothing':
+                species = db.session.query(Label).filter(Label.task_id==task_id).filter(func.lower(Label.description)==func.lower(classification)).first()
+                if species:
+                    includes.append(classification)
+                    old_translation = db.session.query(Translation)\
+                                            .join(Label,Translation.label_id==Label.id)\
+                                            .filter(Translation.task_id==task_id)\
+                                            .filter(Translation.classification==classification)\
+                                            .filter(func.lower(Label.description)=='nothing')\
+                                            .all()
+                    for translation in old_translation:
+                        db.session.delete(translation)
+                else:
+                    species = db.session.query(Label).filter(func.lower(Label.description)==func.lower(translations[classification])).first()
+            else:
+                species = db.session.query(Label).filter(func.lower(Label.description)==func.lower(translations[classification])).first()
 
         if species:
-            translation = Translation(classification=classification, label_id=species.id, task_id=task_id)
-            db.session.add(translation)
+            translation = db.session.query(Translation)\
+                                    .filter(Translation.task_id==task_id)\
+                                    .filter(Translation.label_id==species.id)\
+                                    .filter(Translation.classification==classification)\
+                                    .first()
+            
+            if not translation:
+                translation = Translation(classification=classification, label_id=species.id, task_id=task_id)
+                db.session.add(translation)
 
             if classification.lower() in includes:
                 translation.auto_classify = True
@@ -2790,6 +2828,21 @@ def edit_survey(self,survey_id,user_id,classifier_id,sky_masked,ignore_small_det
         survey.status = 'Processing'
         db.session.commit()
 
+        edit_args = {
+            'survey_id':survey_id,
+            'user_id':user_id,
+            'classifier_id':classifier_id,
+            'sky_masked':sky_masked,
+            'ignore_small_detections':ignore_small_detections,
+            'masks':masks,
+            'staticgroups':staticgroups,
+            'timestamps':timestamps,
+            'image_timestamps':image_timestamps,
+            'coord_data':coord_data,
+            'kml_file':kml_file
+        }
+        GLOBALS.redisClient.set('edit_survey_{}'.format(survey_id),json.dumps(edit_args))
+
         # Coordinates
         if coord_data:
             updateCoords(survey_id=survey_id,coordData=coord_data)
@@ -2862,6 +2915,7 @@ def edit_survey(self,survey_id,user_id,classifier_id,sky_masked,ignore_small_det
         survey.status = 'Ready'
         db.session.commit()
         app.logger.info('Finished editing survey {}'.format(survey_id))
+        GLOBALS.redisClient.delete('edit_survey_{}'.format(survey_id))
 
     except Exception as exc:
         app.logger.info(' ')

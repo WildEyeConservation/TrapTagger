@@ -1056,7 +1056,41 @@ def fetch_clusters(taggingLevel,task_id,isBounding,trapgroup_id,limit=None,id=No
                             .outerjoin(Label,Labelgroup.labels)\
                             .filter(Labelgroup.task_id == task_id)\
                             .filter(detectionSQ.c.row_num<Config.MAX_DETS_PER_CLUSTER)
-                
+
+            elif '-7' in taggingLevel:
+                clusters = db.session.query(
+                                Cluster.id,
+                                Cluster.notes,
+                                Image.id,
+                                Image.filename,
+                                Image.corrected_timestamp,
+                                Image.detection_rating,
+                                Camera.id,
+                                Camera.path,
+                                Camera.trapgroup_id,
+                                None,
+                                None,
+                                None,
+                                None,
+                                None,
+                                None,
+                                None,
+                                None,
+                                None,
+                                requiredimagestable.c.image_id,
+                                None,
+                                None,
+                                None,
+                                None,
+                                None,
+                                None,
+                                None,
+                                None
+                            )\
+                            .join(Image, Cluster.images) \
+                            .outerjoin(requiredimagestable,requiredimagestable.c.cluster_id==Cluster.id)\
+                            .join(Camera)
+
             elif isBounding:
                 # all rDets are required for bbox edit along with the labels
                 clusters = rDets(db.session.query(

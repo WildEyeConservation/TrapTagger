@@ -186,9 +186,7 @@ def restore_empty_zips(self,task_id,tier,restore_time):
             else:
                 extract_zips.apply_async(kwargs={'task_id':task_id, 'zip_ids':zip_ids})
         else:
-            survey.status = 'Ready'
-            task.status = 'Ready'
-            db.session.commit()
+            launch_task.apply_async(kwargs={'task_id':task_id})
 
     except Exception as exc:
         app.logger.info(' ')
