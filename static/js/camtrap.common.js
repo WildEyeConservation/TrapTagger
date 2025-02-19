@@ -798,10 +798,17 @@ function updateCanvas(mapID = 'map1') {
 
                 //update cluster position circles (pagination) - bounding & tutorial pagination needs to be disabled
                 if (clusterPositionCircles != null) {
-
+                    var addNext = null
+                    var next_function = null
                     if (isBounding) {
                         cirNum = clusters[mapID][clusterIndex[mapID]].clusterLength
                         circlesIndex = clusters[mapID][clusterIndex[mapID]].imageIndex
+                    }
+                    else if (isStaticCheck) {
+                        cirNum = clusters[mapID][clusterIndex[mapID]].images.length
+                        circlesIndex = imageIndex[mapID]
+                        addNext = staticCheckPage[clusters[mapID][clusterIndex[mapID]].id].next_page
+                        next_function = 'nextPageStatic('+addNext+')'
                     }
                     else{
                         cirNum = clusters[mapID][clusterIndex[mapID]].images.length
@@ -887,6 +894,13 @@ function updateCanvas(mapID = 'map1') {
                         }
                         last.innerHTML = (last_index+1).toString()
                         paginationCircles.append(last)
+                    }
+
+                    if (addNext) {
+                        next = document.createElement('li')
+                        next.setAttribute('onclick',next_function)
+                        next.innerHTML = '>'
+                        paginationCircles.append(next)
                     }
                 }
 
@@ -1103,6 +1117,9 @@ function updateButtons(mapID = 'map1'){
             if ((clusters[mapID][clusterIndex[mapID]].id != '-99')&&(clusters[mapID][clusterIndex[mapID]].id != '-101')&&(clusters[mapID][clusterIndex[mapID]].id != '-782')) {
                 if (imageIndex[mapID]==clusters[mapID][clusterIndex[mapID]].images.length-1){
                     nextImageBtn.classList.add("disabled")
+                    if (isStaticCheck && staticCheckPage[clusters[mapID][clusterIndex[mapID]].id].next_page!=null){
+                        nextImageBtn.classList.remove("disabled")
+                    }
                 }else{
                     nextImageBtn.classList.remove("disabled")
                 }
@@ -1492,6 +1509,9 @@ function nextImage(mapID = 'map1'){
                     imageIndex[mapID] = imageIndex[mapID] + 1
                     update(mapID)
                 }
+            }
+            else if (isStaticCheck&&imageIndex[mapID]==clusters[mapID][clusterIndex[mapID]].images.length-1&&staticCheckPage[clusters[mapID][clusterIndex[mapID]].id] != null) {
+                nextPageStatic(staticCheckPage[clusters[mapID][clusterIndex[mapID]].id].next_page)
             }
         }
     }

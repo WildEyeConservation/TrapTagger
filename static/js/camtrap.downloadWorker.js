@@ -126,7 +126,7 @@ async function startDownload(selectedTask,taskName, downloadID, count=0) {
         if (!response.ok) {
             throw new Error(response.statusText)
         } else if (response.status==278) {
-            window.location.reload();
+            postMessage({'func': 'reload', 'args': null})
         } else {
             return response.json()
         }
@@ -161,7 +161,7 @@ async function waitUntilDownloadReady(count=0) {
             if (!response.ok) {
                 throw new Error(response.statusText)
             } else if (response.status==278) {
-                window.location.reload();
+                postMessage({'func': 'reload', 'args': null})
             } else {
                 return response.json()
             }
@@ -306,7 +306,7 @@ async function getLocalImageInfo(hash,downloadingTask,jpegData,dirHandle,fileNam
             if (!response.ok) {
                 throw new Error(response.statusText)
             } else if (response.status==278) {
-                window.location.reload();
+                postMessage({'func': 'reload', 'args': null})
             } else {
                 return response.json()
             }
@@ -417,7 +417,7 @@ async function fetchRemainingImages() {
         if (!response.ok) {
             throw new Error(response.statusText)
         } else if (response.status==278) {
-            window.location.reload();
+            postMessage({'func': 'reload', 'args': null})
         } else {
             return response.json()
         }
@@ -472,7 +472,7 @@ async function confirmReceipt(image_ids,count=0) {
             if (!response.ok) {
                 throw new Error(response.statusText)
             } else if (response.status==278) {
-                window.location.reload();
+                postMessage({'func': 'reload', 'args': null})
             }
         }).catch( (error) => {
             if (count<=5) {
@@ -615,7 +615,7 @@ async function wrapUpDownload(reload,count=0) {
             if (!response.ok) {
                 throw new Error(response.statusText)
             } else if (response.status==278) {
-                window.location.reload();
+                postMessage({'func': 'reload', 'args': null})
             } else {
                 return true
             }
