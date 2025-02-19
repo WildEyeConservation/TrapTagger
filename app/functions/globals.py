@@ -4289,8 +4289,8 @@ def reconcile_cluster_labelgroup_labels_and_tags(task_id):
                                 .join(Cluster,Image.clusters)\
                                 .filter(Cluster.task_id==task_id)\
                                 .filter(Labelgroup.task_id==task_id)\
-                                .filter(Cluster.labels.contains(tag))\
-                                .filter(~Labelgroup.labels.contains(tag))\
+                                .filter(Cluster.tags.contains(tag))\
+                                .filter(~Labelgroup.tags.contains(tag))\
                                 .distinct().limit(10000).all()
                                 # .filter(Labelgroup.checked==False)\
             
