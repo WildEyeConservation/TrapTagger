@@ -835,7 +835,7 @@ def fetch_clusters(taggingLevel,task_id,isBounding,trapgroup_id,limit=None,id=No
         IndividualTask = alias(Task)
         if id:
             # need to filter by cluster id and include videos
-            clusters = db.session.query(
+            clusters = rDets(db.session.query(
                             Cluster.id,
                             Cluster.notes,
                             Image.id,
@@ -883,7 +883,7 @@ def fetch_clusters(taggingLevel,task_id,isBounding,trapgroup_id,limit=None,id=No
                         .outerjoin(Individual,Detection.individuals)\
                         .outerjoin(IndividualTask,Individual.tasks)\
                         .filter(Cluster.id==id)\
-                        .filter(Image.zip_id==None)
+                        .filter(Image.zip_id==None))
 
         else:
             # Need to filter by trapgroup id and exclude video
