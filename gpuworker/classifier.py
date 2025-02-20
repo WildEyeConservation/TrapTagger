@@ -23,6 +23,8 @@ import torchvision as tv
 import tempfile
 import boto3
 
+ImageFile.LOAD_TRUNCATED_IMAGES = True
+
 # mean/std values from https://pytorch.org/docs/stable/torchvision/models.html
 MEANS = np.asarray([0.485, 0.456, 0.406])
 STDS = np.asarray([0.229, 0.224, 0.225])
@@ -146,7 +148,7 @@ def create_loader(batch,img_size,batch_size,num_workers):
         dataset = DownloadedDataset(batch,transform)
 
     assert len(dataset) > 0
-    loader = torch.utils.data.DataLoader(dataset, batch_size=batch_size, num_workers=num_workers,pin_memory=True)
+    loader = torch.utils.data.DataLoader(dataset, batch_size=batch_size, num_workers=num_workers,pin_memory=True,collate_fn=collate_fn)
     return loader
 
 class SimpleDataset(torch.utils.data.Dataset):
@@ -173,7 +175,7 @@ class SimpleDataset(torch.utils.data.Dataset):
         image_id = self.detections[detection_id]['image_id']
 
         print('fetching {} from {}'.format(self.images[image_id],self.bucket))
-        ImageFile.LOAD_TRUNCATED_IMAGES = True
+        
         ###########Local Download appoach
         if image_id not in self.ims.keys():
             try:
@@ -311,3 +313,8 @@ def prep_device(model: torch.nn.Module):
         device = torch.device('cpu')
     model.to(device)  # in-place
     return model, device, status
+
+def collate_fn(batch):
+    '''Removes None entries from the batch.'''
+    batch = [x for x in batch if x is not None and x[0] is not None]
+    return torch.utils.data.dataloader.default_collate(batch)
