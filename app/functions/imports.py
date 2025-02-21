@@ -3207,10 +3207,10 @@ def classifySurvey(survey_id,sourceBucket,classifier_id=None,batch_size=100):
     #Also update the number of clusters requiring a classification check
     survey = db.session.query(Survey).get(survey_id)
     for task in survey.tasks:
-        count = db.session.query(Cluster).filter(Cluster.task_id==task.id)
-        count = taggingLevelSQ(count,'-3',False,task.id)
-        task.class_check_count = count.distinct().count()
-    task.ai_check_complete = False
+        # count = db.session.query(Cluster).filter(Cluster.task_id==task.id)
+        # count = taggingLevelSQ(count,'-3',False,task.id)
+        # task.class_check_count = count.distinct().count()
+        task.ai_check_complete = False
     db.session.commit()
     db.session.remove()
 

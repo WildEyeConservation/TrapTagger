@@ -411,6 +411,7 @@ class Task(db.Model):
     jobs_finished = db.Column(db.Integer, default=0, index=False)
     current_name = db.Column(db.String(8), index=False)
     class_check_count = db.Column(db.Integer, index=False)
+    related_check_count = db.Column(db.Integer, index=False)
     unchecked_multi_count = db.Column(db.Integer, index=False)
     unlabelled_animal_cluster_count = db.Column(db.Integer, index=False)
     vhl_count = db.Column(db.Integer, index=False)

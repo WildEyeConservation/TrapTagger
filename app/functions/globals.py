@@ -21,7 +21,7 @@ import json
 from flask import render_template
 import time
 import threading
-from sqlalchemy.sql import func, or_, alias, distinct, and_
+from sqlalchemy.sql import func, or_, alias, distinct, and_, literal_column
 from sqlalchemy import desc
 import random
 import string
@@ -1614,9 +1614,15 @@ def updateLabelCompletionStatus(task_id):
 
     #Also update the number of clusters requiring a classification check
     task = db.session.query(Task).get(task_id)
+
     count = db.session.query(Cluster).filter(Cluster.task_id==task_id)
     count = taggingLevelSQ(count,'-3',False,task_id)
     task.class_check_count = count.distinct().count()
+
+    count = db.session.query(Cluster).filter(Cluster.task_id==task_id)
+    count = taggingLevelSQ(count,'-8',False,task_id)
+    task.related_check_count = count.distinct().count()
+
     db.session.commit()
 
     return True
@@ -2001,6 +2007,47 @@ def taggingLevelSQ(sq,taggingLevel,isBounding,task_id):
                             .distinct().subquery()  
 
         sq = sq.outerjoin(cluster_sq,Cluster.id==cluster_sq.c.id).filter(cluster_sq.c.id==None).join(Labelgroup).filter(Labelgroup.task_id==task_id).filter(Labelgroup.checked==False)
+
+    elif (taggingLevel == '-8'):
+        # Related cluster check
+        clusterTimestampsSQ = db.session.query(\
+                                Cluster.id.label('cluster_id'),\
+                                func.min(Image.corrected_timestamp).label('start_time'),\
+                                func.max(Image.corrected_timestamp).label('end_time'),\
+                                Camera.trapgroup_id.label('trapgroup_id')\
+                            )\
+                            .join(Image,Cluster.images)\
+                            .join(Camera)\
+                            .filter(Cluster.task_id==task_id)\
+                            .group_by(Cluster.id)\
+                            .subquery()
+
+        Cluster1 = alias(Cluster)
+        Cluster2 = alias(Cluster)
+        ClusterTimestampsSQ1 = alias(clusterTimestampsSQ)
+        ClusterTimestampsSQ2 = alias(clusterTimestampsSQ)
+        Labelstable1 = alias(labelstable)
+        Labelstable2 = alias(labelstable)
+
+        relatedClustersSQ = db.session.query(Cluster1.c.id.label('cluster_id'))\
+                                    .join(Task,Cluster1.c.task_id==Task.id)\
+                                    .join(Cluster2,Cluster2.c.task_id==Task.id)\
+                                    .join(ClusterTimestampsSQ1,ClusterTimestampsSQ1.c.cluster_id==Cluster1.c.id)\
+                                    .join(ClusterTimestampsSQ2,ClusterTimestampsSQ2.c.cluster_id==Cluster2.c.id)\
+                                    .join(Labelstable2,Labelstable2.c.cluster_id==Cluster2.c.id)\
+                                    .outerjoin(Labelstable1, (Labelstable1.c.cluster_id == Cluster1.c.id) & (Labelstable2.c.label_id == Labelstable1.c.label_id))\
+                                    .filter(Task.id==task_id)\
+                                    .filter(Cluster1.c.id!=Cluster2.c.id)\
+                                    .filter(ClusterTimestampsSQ1.c.trapgroup_id==ClusterTimestampsSQ2.c.trapgroup_id)\
+                                    .filter(or_(\
+                                        func.abs(func.timestampdiff(literal_column("SECOND"), ClusterTimestampsSQ1.c.end_time, ClusterTimestampsSQ2.c.start_time)) < 120,\
+                                        func.abs(func.timestampdiff(literal_column("SECOND"), ClusterTimestampsSQ1.c.start_time, ClusterTimestampsSQ2.c.end_time)) < 120\
+                                    ))\
+                                    .filter(Labelstable1.c.label_id.is_(None))\
+                                    .group_by(Cluster1.c.id,Cluster2.c.id)\
+                                    .subquery()
+
+        sq = sq.join(relatedClustersSQ,relatedClustersSQ.c.cluster_id==Cluster.id)
 
     else:
         # Specific label levels

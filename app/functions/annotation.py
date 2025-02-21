@@ -23,7 +23,7 @@ from app.functions.globals import taggingLevelSQ, addChildLabels, resolve_abando
 from app.functions.individualID import calculate_detection_similarities, generateUniqueName, cleanUpIndividuals, calculate_individual_similarities, check_individual_detection_mismatch, process_detections_for_individual_id
 # from app.functions.results import resetImageDownloadStatus, resetVideoDownloadStatus
 import GLOBALS
-from sqlalchemy.sql import func, distinct, or_, alias, and_
+from sqlalchemy.sql import func, distinct, or_, alias, and_, literal_column
 from sqlalchemy import desc
 from datetime import datetime, timedelta
 import re
@@ -1017,7 +1017,7 @@ def fetch_clusters(taggingLevel,task_id,isBounding,trapgroup_id,limit=None,id=No
                             .filter(Labelgroup.task_id == task_id)\
                             .filter(detectionSQ.c.row_num<Config.MAX_DETS_PER_CLUSTER)                            
                 
-            elif ('-3' in taggingLevel) or (taggingLevel.isdigit() and not isBounding):
+            elif ('-3' in taggingLevel) or (taggingLevel.isdigit() and not isBounding) or ('-8' in taggingLevel):
                 # AI check and category species labelling. We need the labels and want to limit detections
                 clusters = db.session.query(
                                 Cluster.id,
@@ -1409,6 +1409,56 @@ def fetch_clusters(taggingLevel,task_id,isBounding,trapgroup_id,limit=None,id=No
                     classification = translations[row[1]] if row[1] in translations.keys() else None
                     if classification and (classification not in clusterInfo[row[0]]['classification'].keys()):
                         clusterInfo[row[0]]['classification'][classification] = float(row[2])
+
+        elif '-8' in taggingLevel:
+            cluster_ids = cluster_ids[:limit]
+
+            clusterTimestampsSQ = db.session.query(\
+                                                Cluster.id.label('cluster_id'),\
+                                                func.min(Image.corrected_timestamp).label('start_time'),\
+                                                func.max(Image.corrected_timestamp).label('end_time'),\
+                                                Camera.trapgroup_id.label('trapgroup_id')\
+                                            )\
+                                            .join(Image,Cluster.images)\
+                                            .join(Camera)\
+                                            .filter(Cluster.id.in_(cluster_ids))\
+                                            .group_by(Cluster.id)\
+                                            .subquery()
+
+            Cluster1 = alias(Cluster)
+            Cluster2 = alias(Cluster)
+            ClusterTimestampsSQ1 = alias(clusterTimestampsSQ)
+            ClusterTimestampsSQ2 = alias(clusterTimestampsSQ)
+            Labelstable1 = alias(labelstable)
+            Labelstable2 = alias(labelstable)
+            Label2 = alias(Label)
+
+            clusters2 = db.session.query(Cluster1.c.id,func.group_concat(Label2.c.description))\
+                            .join(Task,Cluster1.c.task_id==Task.id)\
+                            .join(Cluster2,Cluster2.c.task_id==Task.id)\
+                            .join(ClusterTimestampsSQ1,ClusterTimestampsSQ1.c.cluster_id==Cluster1.c.id)\
+                            .join(ClusterTimestampsSQ2,ClusterTimestampsSQ2.c.cluster_id==Cluster2.c.id)\
+                            .join(Labelstable2,Labelstable2.c.cluster_id==Cluster2.c.id)\
+                            .outerjoin(Labelstable1, (Labelstable1.c.cluster_id == Cluster1.c.id) & (Labelstable2.c.label_id == Labelstable1.c.label_id))\
+                            .join(Label2,Label2.c.id==Labelstable2.c.label_id)\
+                            .filter(Task.id==task_id)\
+                            .filter(Cluster1.c.id!=Cluster2.c.id)\
+                            .filter(ClusterTimestampsSQ1.c.trapgroup_id==ClusterTimestampsSQ2.c.trapgroup_id)\
+                            .filter(or_(\
+                                func.abs(func.timestampdiff(literal_column("SECOND"), ClusterTimestampsSQ1.c.end_time, ClusterTimestampsSQ2.c.start_time)) < 120,\
+                                func.abs(func.timestampdiff(literal_column("SECOND"), ClusterTimestampsSQ1.c.start_time, ClusterTimestampsSQ2.c.end_time)) < 120\
+                            ))\
+                            .filter(Labelstable1.c.label_id.is_(None))\
+                            .filter(Cluster1.c.id.in_(cluster_ids))\
+                            .filter(Cluster.examined==False)\
+                            .group_by(Cluster1.c.id,Cluster2.c.id)\
+                            .distinct().limit(25000).all()
+            
+            for row in clusters2:
+                if row[0] and (row[0] in clusterInfo.keys()) and row[1]:
+                    labels = row[1].split(',')
+                    for label in labels:
+                        clusterInfo[row[0]]['classification'][label] = 1
 
         # If its a max request, the last cluster is probably missing info
         if max_request and (len(clusterInfo.keys())>1): del clusterInfo[clusters[-1][0]]

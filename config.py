@@ -133,6 +133,10 @@ class Config(object):
     # maximum length of a cluster in minutes
     MAX_CLUSTER_MINUTES = 15
 
+    # the time delta between clusters for them to be considered related (in seconds)
+    # this should probably be kept less than the MAX_CLUSTER_MINUTES
+    RELATED_CLUSTER_TIME = 600
+
     # Task and survey statuses
     TASK_READY_STATUSES = ['ready','success','successinitial','stopped']
     SURVEY_READY_STATUSES = ['ready','failed','stopped','cancelled','restoring files']

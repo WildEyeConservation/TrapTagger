@@ -968,7 +968,24 @@ def getTaggingLevelsbyTask(task_id,task_type):
         
         check = task.class_check_count
 
-        texts = ['Comparison ('+str(check)+')']
+        texts = ['AI check ('+str(check)+')']
+
+        if check>0:
+            colours = ['#000000']
+        else:
+            colours = ['#0A7850']
+
+    elif task_type=='related':
+        values = ['-8']
+        disabled = 'true'
+
+        if task.related_check_count == None:
+            updateAllStatuses.delay(task_id=task_id)
+            return json.dumps({'texts': [], 'values': [], 'disabled':'false', 'colours':[]})
+        
+        check = task.related_check_count
+
+        texts = ['Related check ('+str(check)+')']
 
         if check>0:
             colours = ['#000000']
@@ -978,7 +995,7 @@ def getTaggingLevelsbyTask(task_id,task_type):
     elif task_type=='differentiation':
         disabled = 'true'
 
-        if task.class_check_count == None:
+        if task.unchecked_multi_count == None:
             updateAllStatuses.delay(task_id=task_id)
             return json.dumps({'texts': [], 'values': [], 'disabled':'false', 'colours':[]})
     
