@@ -2639,6 +2639,55 @@ def getClusterClassifications(cluster_id):
     
     return classifications
 
+def getRelatedClusterLabels(cluster_id):
+    '''Returns all the labels from related clusters that are not associated with the current cluster.'''
+
+    cluster = db.session.query(Cluster).get(cluster_id)
+
+    clusterTimestampsSQ = db.session.query(\
+                                        Cluster.id.label('cluster_id'),\
+                                        func.min(Image.corrected_timestamp).label('start_time'),\
+                                        func.max(Image.corrected_timestamp).label('end_time'),\
+                                        Camera.trapgroup_id.label('trapgroup_id')\
+                                    )\
+                                    .join(Image,Cluster.images)\
+                                    .join(Camera)\
+                                    .filter(Cluster.task_id==cluster.task_id)\
+                                    .group_by(Cluster.id)\
+                                    .subquery()
+
+    Cluster1 = alias(Cluster)
+    Cluster2 = alias(Cluster)
+    ClusterTimestampsSQ1 = alias(clusterTimestampsSQ)
+    ClusterTimestampsSQ2 = alias(clusterTimestampsSQ)
+    Labelstable1 = alias(labelstable)
+    Labelstable2 = alias(labelstable)
+    Label2 = alias(Label)
+
+    labels = db.session.query(Cluster1.c.id,func.group_concat(Label2.c.description))\
+                                .join(Task,Cluster1.c.task_id==Task.id)\
+                                .join(Cluster2,Cluster2.c.task_id==Task.id)\
+                                .join(ClusterTimestampsSQ1,ClusterTimestampsSQ1.c.cluster_id==Cluster1.c.id)\
+                                .join(ClusterTimestampsSQ2,ClusterTimestampsSQ2.c.cluster_id==Cluster2.c.id)\
+                                .join(Labelstable2,Labelstable2.c.cluster_id==Cluster2.c.id)\
+                                .join(Label2,Label2.c.id==Labelstable2.c.label_id)\
+                                .outerjoin(Labelstable1, (Labelstable1.c.cluster_id == Cluster1.c.id) & (Labelstable2.c.label_id == Labelstable1.c.label_id))\
+                                .filter(Task.id==cluster.task_id)\
+                                .filter(Cluster1.c.id!=Cluster2.c.id)\
+                                .filter(ClusterTimestampsSQ1.c.trapgroup_id==ClusterTimestampsSQ2.c.trapgroup_id)\
+                                .filter(or_(\
+                                    func.abs(func.timestampdiff(literal_column("SECOND"), ClusterTimestampsSQ1.c.end_time, ClusterTimestampsSQ2.c.start_time)) < 120,\
+                                    func.abs(func.timestampdiff(literal_column("SECOND"), ClusterTimestampsSQ1.c.start_time, ClusterTimestampsSQ2.c.end_time)) < 120\
+                                ))\
+                                .filter(Labelstable1.c.label_id.is_(None))\
+                                .filter(Cluster1.c.id==cluster_id)\
+                                .group_by(Cluster1.c.id,Cluster2.c.id)\
+                                .distinct().all()
+
+    labels = [[item[1].split(','),1] for item in labels if item[1]]
+
+    return labels
+
 def checkFile(file,folder):
     '''Checks if a file exists in S3. Returns the filename if it does and None otherwise.'''
     try:

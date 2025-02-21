@@ -1421,7 +1421,8 @@ def fetch_clusters(taggingLevel,task_id,isBounding,trapgroup_id,limit=None,id=No
                                             )\
                                             .join(Image,Cluster.images)\
                                             .join(Camera)\
-                                            .filter(Cluster.id.in_(cluster_ids))\
+                                            .filter(Cluster.task_id==task_id)\
+                                            .filter(Camera.trapgroup_id==trapgroup_id)\
                                             .group_by(Cluster.id)\
                                             .subquery()
 
@@ -1449,8 +1450,8 @@ def fetch_clusters(taggingLevel,task_id,isBounding,trapgroup_id,limit=None,id=No
                                 func.abs(func.timestampdiff(literal_column("SECOND"), ClusterTimestampsSQ1.c.start_time, ClusterTimestampsSQ2.c.end_time)) < 120\
                             ))\
                             .filter(Labelstable1.c.label_id.is_(None))\
+                            .filter(Cluster1.c.examined==False)\
                             .filter(Cluster1.c.id.in_(cluster_ids))\
-                            .filter(Cluster.examined==False)\
                             .group_by(Cluster1.c.id,Cluster2.c.id)\
                             .distinct().limit(25000).all()
             
@@ -1811,7 +1812,7 @@ def translate_cluster_for_client(clusterInfo,reqId,limit,isBounding,taggingLevel
 
             # Handle classifications
             classification = []
-            if '-3' in taggingLevel:
+            if ('-3' in taggingLevel) or ('-8' in taggingLevel):
                 # Order by ratio
                 ordered_labels = {k: v for k, v in sorted(clusterInfo[cluster_id]['classification'].items(), key=lambda item: item[1], reverse=True)}
                 for label in ordered_labels:

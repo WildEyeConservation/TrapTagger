@@ -4150,6 +4150,9 @@ def getJobs():
             elif '-3' in item[1]:
                 task_type = 'AI Species Check'
                 species = 'All'
+            elif '-8' in item[1]:
+                task_type = 'Related Cluster Check'
+                species = 'All'
             elif '-2' in item[1]:
                 task_type = 'Informational Tagging'
                 if ',' in item[1]:
@@ -7208,7 +7211,10 @@ def assignLabel(clusterID):
                         else:
                             use_celery_to_update_labelgroups = True
 
-                    if taggingLevel=='-3': classifications = getClusterClassifications(cluster.id)
+                    if taggingLevel=='-3':
+                        classifications = getClusterClassifications(cluster.id)
+                    elif taggingLevel=='-8':
+                        classifications = getRelatedClusterLabels(cluster.id)
 
                     # if taggingLevel=='-6':
                     #     # NOTE: This is not currently used (is for check masked sightings)
@@ -7553,28 +7559,31 @@ def reviewClassification():
                             if (label not in additional_labels) and (label not in cluster.labels):
                                 additional_labels.append(label)
 
-                labelgroups = db.session.query(Labelgroup)\
-                                            .join(Detection)\
-                                            .join(Image)\
-                                            .filter(Image.clusters.contains(cluster))\
-                                            .filter(Labelgroup.task==cluster.task)\
-                                            .all()
+                # labelgroups = db.session.query(Labelgroup)\
+                #                             .join(Detection)\
+                #                             .join(Image)\
+                #                             .filter(Image.clusters.contains(cluster))\
+                #                             .filter(Labelgroup.task==cluster.task)\
+                #                             .all()
                 
                 if (GLOBALS.nothing_id in [r.id for r in cluster.labels]) and additional_labels:
                     cluster.labels.remove(db.session.query(Label).get(GLOBALS.nothing_id))
 
                 cluster.labels.extend(additional_labels)
 
-                for labelgroup in labelgroups:
-                    labelgroup.labels = cluster.labels
-                    labelgroup.checked = False
+                # for labelgroup in labelgroups:
+                #     labelgroup.labels = cluster.labels
+                #     labelgroup.checked = False
 
                 cluster.examined = True
                 cluster.user_id == current_user.id
                 cluster.timestamp = datetime.utcnow()
                 db.session.commit()
 
-                classifications = getClusterClassifications(cluster.id)
+                if cluster.task.tagging_level == '-3':
+                    classifications = getClusterClassifications(cluster.id)
+                elif cluster.task.tagging_level == '-8':
+                    classifications = getRelatedClusterLabels(cluster.id)
 
                 if cluster.labels == []:
                     cluster_labels.append('None')

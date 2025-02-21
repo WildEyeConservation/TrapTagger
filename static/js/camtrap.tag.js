@@ -25,6 +25,7 @@ var toolTipsOpen = true
 var editingEnabled = false
 var maskId = {'map1': null}
 var maskLayer = {'map1': null}
+var classCheckOriginalLevel = null
 
 var clusterIdList = []
 // const modalNote = $('#modalNote');
@@ -116,7 +117,7 @@ function suggestionBack(resetLabels=true,mapID='map1') {
         updateDebugInfo()
     }
     if (isClassCheck) {
-        taggingLevel = '-3'
+        taggingLevel = classCheckOriginalLevel
     }
     // else if (isMaskCheck) {
     //     taggingLevel = '-6'
@@ -157,7 +158,7 @@ function suggestionBack(resetLabels=true,mapID='map1') {
 function getKeys() {
     /** Sets up the keys, depending on the current tagging level. */
     if (!isBounding) {
-        if (taggingLevel == '-3') {
+        if ((taggingLevel == '-3')||(taggingLevel == '-8')) {
             // classifier check
             multipleStatus = false
             selectBtns = document.getElementById('selectBtns')
