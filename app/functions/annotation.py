@@ -1430,9 +1430,12 @@ def fetch_clusters(taggingLevel,task_id,isBounding,trapgroup_id,limit=None,id=No
             Cluster2 = alias(Cluster)
             ClusterTimestampsSQ1 = alias(clusterTimestampsSQ)
             ClusterTimestampsSQ2 = alias(clusterTimestampsSQ)
-            Labelstable1 = alias(labelstable)
             Labelstable2 = alias(labelstable)
             Label2 = alias(Label)
+
+            Labelstable1 = db.session.query(labelstable.c.cluster_id.label('cluster_id'),labelstable.c.label_id.label('label_id'),Label.parent_id.label('parent_id'))\
+                    .join(Label,labelstable.c.label_id==Label.id)\
+                    .subquery()
 
             clusters2 = db.session.query(Cluster1.c.id,func.group_concat(Label2.c.description))\
                             .join(Task,Cluster1.c.task_id==Task.id)\
@@ -1440,16 +1443,19 @@ def fetch_clusters(taggingLevel,task_id,isBounding,trapgroup_id,limit=None,id=No
                             .join(ClusterTimestampsSQ1,ClusterTimestampsSQ1.c.cluster_id==Cluster1.c.id)\
                             .join(ClusterTimestampsSQ2,ClusterTimestampsSQ2.c.cluster_id==Cluster2.c.id)\
                             .join(Labelstable2,Labelstable2.c.cluster_id==Cluster2.c.id)\
-                            .outerjoin(Labelstable1, (Labelstable1.c.cluster_id == Cluster1.c.id) & (Labelstable2.c.label_id == Labelstable1.c.label_id))\
+                            .outerjoin(Labelstable1,\
+                                (Labelstable1.c.cluster_id == Cluster1.c.id) & \
+                                ((Labelstable2.c.label_id == Labelstable1.c.label_id) | (Labelstable2.c.label_id==Labelstable1.c.parent_id)))\
                             .join(Label2,Label2.c.id==Labelstable2.c.label_id)\
                             .filter(Task.id==task_id)\
                             .filter(Cluster1.c.id!=Cluster2.c.id)\
                             .filter(ClusterTimestampsSQ1.c.trapgroup_id==ClusterTimestampsSQ2.c.trapgroup_id)\
                             .filter(or_(\
-                                func.abs(func.timestampdiff(literal_column("SECOND"), ClusterTimestampsSQ1.c.end_time, ClusterTimestampsSQ2.c.start_time)) < 120,\
-                                func.abs(func.timestampdiff(literal_column("SECOND"), ClusterTimestampsSQ1.c.start_time, ClusterTimestampsSQ2.c.end_time)) < 120\
+                                func.abs(func.timestampdiff(literal_column("SECOND"), ClusterTimestampsSQ1.c.end_time, ClusterTimestampsSQ2.c.start_time)) < Config.RELATED_CLUSTER_TIME,\
+                                func.abs(func.timestampdiff(literal_column("SECOND"), ClusterTimestampsSQ1.c.start_time, ClusterTimestampsSQ2.c.end_time)) < Config.RELATED_CLUSTER_TIME\
                             ))\
                             .filter(Labelstable1.c.label_id.is_(None))\
+                            .filter(~Labelstable2.c.label_id.in_([GLOBALS.nothing_id,GLOBALS.unknown_id,GLOBALS.knocked_id]))\
                             .filter(Cluster1.c.examined==False)\
                             .filter(Cluster1.c.id.in_(cluster_ids))\
                             .group_by(Cluster1.c.id,Cluster2.c.id)\
