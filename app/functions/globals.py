@@ -2696,9 +2696,12 @@ def getRelatedClusterLabels(cluster_id):
                                 .group_by(Cluster1.c.id,Cluster2.c.id)\
                                 .distinct().all()
 
-    labels = [[item[1].split(','),1] for item in labels if item[1]]
+    result = []
+    for row in labels:
+        if row[1]:
+            result.extend([[label,1] for label in row[1].split(',') if [label,1] not in result])
 
-    return labels
+    return result
 
 def checkFile(file,folder):
     '''Checks if a file exists in S3. Returns the filename if it does and None otherwise.'''
