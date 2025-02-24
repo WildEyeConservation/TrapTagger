@@ -7533,12 +7533,14 @@ def reviewClassification():
             if (num < cluster.task.size) or (current_user.admin == True):
                 num += 1
 
-                if overwrite:
+                if str(overwrite).lower()=='true':
+                    if Config.DEBUGGING: app.logger.info('Overwriting labels for {}'.format(cluster.id))
                     cluster.labels = []
 
                 additional_labels = []
                 for item in data:
                     classification = item['label']
+                    if Config.DEBUGGING: app.logger.info('classification: {}'.format(classification))
                     action = item['action']
 
                     if action=='accept':
@@ -7550,11 +7552,12 @@ def reviewClassification():
                         if label:
                             # Remove related labels
                             if label.parent:
-                                family_labels = [label.parent]
-                                family_labels.extend(db.session.query(Label).filter(Label.parent==label.parent).filter(Label.task==cluster.task).all())
-                                for family_label in family_labels:
-                                    if family_label in cluster.labels:
-                                        cluster.labels.remove(family_label)
+                                if label.parent in cluster.labels: cluster.labels.remove(label.parent)
+                                # family_labels = [label.parent]
+                                # family_labels.extend(db.session.query(Label).filter(Label.parent==label.parent).filter(Label.task==cluster.task).all())
+                                # for family_label in family_labels:
+                                #     if family_label in cluster.labels:
+                                #         cluster.labels.remove(family_label)
 
                             if (label not in additional_labels) and (label not in cluster.labels):
                                 additional_labels.append(label)
@@ -7576,7 +7579,7 @@ def reviewClassification():
                 #     labelgroup.checked = False
 
                 cluster.examined = True
-                cluster.user_id == current_user.id
+                cluster.user_id = current_user.id
                 cluster.timestamp = datetime.utcnow()
                 db.session.commit()
 
