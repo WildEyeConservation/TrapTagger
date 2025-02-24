@@ -834,8 +834,11 @@ def fetch_clusters(taggingLevel,task_id,isBounding,trapgroup_id,limit=None,id=No
     else:
         IndividualTask = alias(Task)
         if id:
+            # we need to outerjoin to the rDets in order to display the empty images
+            rDetsSQ = rDets(db.session.query(Detection)).subquery()
+
             # need to filter by cluster id and include videos
-            clusters = rDets(db.session.query(
+            clusters = db.session.query(
                             Cluster.id,
                             Cluster.notes,
                             Image.id,
@@ -845,23 +848,23 @@ def fetch_clusters(taggingLevel,task_id,isBounding,trapgroup_id,limit=None,id=No
                             Camera.id,
                             Camera.path,
                             Camera.trapgroup_id,
-                            Detection.id,
-                            Detection.top,
-                            Detection.bottom,
-                            Detection.left,
-                            Detection.right,
-                            Detection.category,
-                            Detection.static,
+                            rDetsSQ.c.id,
+                            rDetsSQ.c.top,
+                            rDetsSQ.c.bottom,
+                            rDetsSQ.c.left,
+                            rDetsSQ.c.right,
+                            rDetsSQ.c.category,
+                            rDetsSQ.c.static,
                             Label.id,
                             Label.description,
                             requiredimagestable.c.image_id,
                             Tag.id,
                             Tag.description,
                             Individual.id,
-                            Detection.source,
-                            Detection.score,
-                            Detection.status,
-                            Detection.flank,
+                            rDetsSQ.c.source,
+                            rDetsSQ.c.score,
+                            rDetsSQ.c.status,
+                            rDetsSQ.c.flank,
                             IndividualTask.c.id,
                             Cluster.user_id,
                             Trapgroup.tag,
@@ -876,14 +879,15 @@ def fetch_clusters(taggingLevel,task_id,isBounding,trapgroup_id,limit=None,id=No
                         .join(Camera) \
                         .join(Trapgroup) \
                         .outerjoin(Video)\
-                        .outerjoin(Detection) \
+                        .outerjoin(rDetsSQ,rDetsSQ.c.image_id==Image.id) \
                         .outerjoin(Labelgroup)\
                         .outerjoin(Label,Labelgroup.labels)\
                         .outerjoin(Tag,Labelgroup.tags)\
-                        .outerjoin(Individual,Detection.individuals)\
+                        .outerjoin(individualDetections,individualDetections.c.detection_id==rDetsSQ.c.id)\
+                        .outerjoin(Individual,Individual.id==individualDetections.c.individual_id)\
                         .outerjoin(IndividualTask,Individual.tasks)\
                         .filter(Cluster.id==id)\
-                        .filter(Image.zip_id==None))
+                        .filter(Image.zip_id==None)
 
         else:
             # Need to filter by trapgroup id and exclude video
@@ -1092,8 +1096,11 @@ def fetch_clusters(taggingLevel,task_id,isBounding,trapgroup_id,limit=None,id=No
                             .join(Camera)
 
             elif isBounding:
+                # we need to outerjoin to the rDets in order to display the empty images
+                rDetsSQ = rDets(db.session.query(Detection)).subquery()
+
                 # all rDets are required for bbox edit along with the labels
-                clusters = rDets(db.session.query(
+                clusters = db.session.query(
                                 Cluster.id,
                                 Cluster.notes,
                                 Image.id,
@@ -1103,13 +1110,13 @@ def fetch_clusters(taggingLevel,task_id,isBounding,trapgroup_id,limit=None,id=No
                                 Camera.id,
                                 Camera.path,
                                 Camera.trapgroup_id,
-                                Detection.id,
-                                Detection.top,
-                                Detection.bottom,
-                                Detection.left,
-                                Detection.right,
-                                Detection.category,
-                                Detection.static,
+                                rDetsSQ.c.id,
+                                rDetsSQ.c.top,
+                                rDetsSQ.c.bottom,
+                                rDetsSQ.c.left,
+                                rDetsSQ.c.right,
+                                rDetsSQ.c.category,
+                                rDetsSQ.c.static,
                                 Label.id,
                                 Label.description,
                                 requiredimagestable.c.image_id,
@@ -1125,10 +1132,10 @@ def fetch_clusters(taggingLevel,task_id,isBounding,trapgroup_id,limit=None,id=No
                             .join(Image, Cluster.images) \
                             .outerjoin(requiredimagestable,requiredimagestable.c.cluster_id==Cluster.id)\
                             .join(Camera) \
-                            .outerjoin(Detection)\
+                            .outerjoin(rDetsSQ,rDetsSQ.c.image_id==Image.id) \
                             .outerjoin(Labelgroup)\
                             .outerjoin(Label,Labelgroup.labels)\
-                            .filter(Labelgroup.task_id == task_id))
+                            .filter(Labelgroup.task_id == task_id)
                 
             elif '-4' in taggingLevel:
                 # all detections are required for individual ID along with individual info and labels
