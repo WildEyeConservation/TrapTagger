@@ -1135,7 +1135,7 @@ def fetch_clusters(taggingLevel,task_id,isBounding,trapgroup_id,limit=None,id=No
                             .outerjoin(rDetsSQ,rDetsSQ.c.image_id==Image.id) \
                             .outerjoin(Labelgroup)\
                             .outerjoin(Label,Labelgroup.labels)\
-                            .filter(Labelgroup.task_id == task_id)
+                            .filter(or_(Labelgroup.task_id==task_id,Labelgroup.id==None))
                 
             elif '-4' in taggingLevel:
                 # all detections are required for individual ID along with individual info and labels
