@@ -912,6 +912,7 @@ def fetch_clusters(taggingLevel,task_id,isBounding,trapgroup_id,limit=None,id=No
                         .outerjoin(Individual,Individual.id==individualDetections.c.individual_id)\
                         .outerjoin(IndividualTask,Individual.tasks)\
                         .filter(Cluster.id==id)\
+                        .filter(Labelgroup.task_id==task_id)\
                         .filter(Image.zip_id==None)
 
         else:
@@ -1695,6 +1696,7 @@ def genInitKeys(taggingLevel,task_id,addSkip,addRemoveFalseDetections,addMaskAre
 def translate_cluster_for_client(clusterInfo,reqId,limit,isBounding,taggingLevel,id=None,label_description=None):
     '''Outputs a cluster dictionary for consumption by the client's browser.'''
 
+    commit = False
     if ',' in taggingLevel:
         tL = re.split(',',taggingLevel)
         # species = tL[1]
@@ -1878,11 +1880,21 @@ def translate_cluster_for_client(clusterInfo,reqId,limit,isBounding,taggingLevel
                 cluster_dict['latitude'] = clusterInfo[cluster_id]['latitude']
                 cluster_dict['longitude'] = clusterInfo[cluster_id]['longitude']
 
+            if (('-3' in taggingLevel) or ('-8' in taggingLevel)) and (len(classification)==0):
+                cluster = db.session.query(Cluster).get(cluster_id)
+                if cluster:
+                    cluster.examined = True
+                    commit = True
+                    if Config.DEBUGGING: app.logger.info('Cluster {} marked as examined (No classifications)'.format(cluster_id))
+                continue
+
             reply['info'].append(cluster_dict)
 
         else:
             break
-
+    
+    if commit: db.session.commit()
+    
     return reply
 
 # def translate_cluster_for_client(cluster,id,isBounding,taggingLevel,user,sendVideo):

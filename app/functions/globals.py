@@ -4532,6 +4532,7 @@ def reconcile_cluster_labelgroup_labels_and_tags(task_id):
     labels = db.session.query(Label).filter(Label.task_id==task_id).distinct().all()
     labels.extend(db.session.query(Label).filter(Label.id.in_([GLOBALS.vhl_id,GLOBALS.nothing_id,GLOBALS.unknown_id,GLOBALS.knocked_id])).distinct().all())
 
+    # Add labels to labelgroups that are in cluster
     for label in labels:
 
         first_iteration = True
@@ -4554,9 +4555,33 @@ def reconcile_cluster_labelgroup_labels_and_tags(task_id):
 
             db.session.commit()
 
+    # Remove labels from labelgroups that are not in cluster
+    for label in labels:
+
+        first_iteration = True
+        while first_iteration or labelgroups:
+            first_iteration = False
+
+            labelgroups = db.session.query(Labelgroup)\
+                                .join(Detection)\
+                                .join(Image)\
+                                .join(Cluster,Image.clusters)\
+                                .filter(Cluster.task_id==task_id)\
+                                .filter(Labelgroup.task_id==task_id)\
+                                .filter(~Cluster.labels.contains(label))\
+                                .filter(Labelgroup.labels.contains(label))\
+                                .filter(Labelgroup.checked==False)\
+                                .distinct().limit(10000).all()
+            
+            for labelgroup in labelgroups:
+                labelgroup.labels.remove(label)
+
+            db.session.commit()
+
     # Then reconcile tags
     tags = db.session.query(Tag).filter(Tag.task_id==task_id).distinct().all()
 
+    # Add tags to labelgroups that are in cluster
     for tag in tags:
 
         first_iteration = True
@@ -4576,6 +4601,29 @@ def reconcile_cluster_labelgroup_labels_and_tags(task_id):
             
             for labelgroup in labelgroups:
                 labelgroup.tags.append(tag)
+
+            db.session.commit()
+
+    # Remove tags from labelgroups that are not in cluster
+    for tag in tags:
+
+        first_iteration = True
+        while first_iteration or labelgroups:
+            first_iteration = False
+
+            labelgroups = db.session.query(Labelgroup)\
+                                .join(Detection)\
+                                .join(Image)\
+                                .join(Cluster,Image.clusters)\
+                                .filter(Cluster.task_id==task_id)\
+                                .filter(Labelgroup.task_id==task_id)\
+                                .filter(~Cluster.tags.contains(tag))\
+                                .filter(Labelgroup.tags.contains(tag))\
+                                .distinct().limit(10000).all()
+                                # .filter(Labelgroup.checked==False)\
+            
+            for labelgroup in labelgroups:
+                labelgroup.tags.remove(tag)
 
             db.session.commit()
 
@@ -4608,7 +4656,31 @@ def update_labelgroup_labels_tags(self,cluster_id):
 
                 db.session.commit()
 
-        # update tags
+        labels = db.session.query(Label).filter(Label.task_id==cluster.task_id).distinct().all()
+        labels.extend(db.session.query(Label).filter(Label.id.in_([GLOBALS.vhl_id,GLOBALS.nothing_id,GLOBALS.unknown_id,GLOBALS.knocked_id])).distinct().all())
+        labels = [r for r in labels if r not in cluster.labels]
+
+        # Remove labels
+        for label in labels:
+            first_iteration = True
+            while first_iteration or labelgroups:
+                first_iteration = False
+
+                labelgroups = db.session.query(Labelgroup)\
+                                .join(Detection)\
+                                .join(Image)\
+                                .filter(Image.clusters.contains(cluster))\
+                                .filter(Labelgroup.task_id==cluster.task_id)\
+                                .filter(~Cluster.labels.contains(label))\
+                                .filter(Labelgroup.labels.contains(label))\
+                                .distinct().limit(10000).all()
+                
+                for labelgroup in labelgroups:
+                    labelgroup.labels.remove(label)
+
+                db.session.commit()
+
+        # Update tags
         for tag in cluster.tags:
             first_iteration = True
             while first_iteration or labelgroups:
@@ -4624,6 +4696,29 @@ def update_labelgroup_labels_tags(self,cluster_id):
                 
                 for labelgroup in labelgroups:
                     labelgroup.tags.append(tag)
+
+                db.session.commit()
+
+        tags = db.session.query(Tag).filter(Tag.task_id==cluster.task_id).distinct().all()
+        tags = [r for r in tags if r not in cluster.tags]
+        
+        # Remove tags
+        for tag in tags:
+            first_iteration = True
+            while first_iteration or labelgroups:
+                first_iteration = False
+
+                labelgroups = db.session.query(Labelgroup)\
+                                .join(Detection)\
+                                .join(Image)\
+                                .filter(Image.clusters.contains(cluster))\
+                                .filter(Labelgroup.task_id==cluster.task_id)\
+                                .filter(~Cluster.tags.contains(tag))\
+                                .filter(Labelgroup.tags.contains(tag))\
+                                .distinct().limit(10000).all()
+                
+                for labelgroup in labelgroups:
+                    labelgroup.tags.remove(tag)
 
                 db.session.commit()
 
