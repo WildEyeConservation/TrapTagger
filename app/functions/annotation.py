@@ -35,6 +35,7 @@ from multiprocessing.pool import ThreadPool as Pool
 import ast
 import numpy
 import json
+from celery.result import allow_join_result
 
 @celery.task(bind=True,max_retries=5,ignore_result=True)
 def launch_task(self,task_id,classify=False):
@@ -343,13 +344,37 @@ def launch_task(self,task_id,classify=False):
             # for chunk in chunker(clusters,2500):
             for cluster in clusters:
                 cluster.examined = False
+                cluster.required_images = []
             # db.session.commit()
 
         task.cluster_count = cluster_count
+        db.session.commit()
 
         # if not (any(item in taggingLevel for item in ['-4','-5','-6']) or isBounding):
-        if not (any(item in taggingLevel for item in ['-4','-5']) or isBounding):
-            prep_required_images(task_id)
+        if not (any(item in taggingLevel for item in ['-4','-5','-7']) or isBounding):
+            results = []
+            trapgroup_ids = [r[0] for r in db.session.query(Trapgroup.id).filter(Trapgroup.survey_id==task.survey_id).distinct().all()]
+            for trapgroup_id in trapgroup_ids:
+                results.append(prep_required_images.apply_async(kwargs={'task_id': task_id, 'trapgroup_id':trapgroup_id},queue='parallel'))
+    
+            #Wait for processing to complete
+            db.session.remove()
+            GLOBALS.lock.acquire()
+            with allow_join_result():
+                for result in results:
+                    try:
+                        result.get()
+                    except Exception:
+                        app.logger.info(' ')
+                        app.logger.info('!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!')
+                        app.logger.info(traceback.format_exc())
+                        app.logger.info('!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!')
+                        app.logger.info(' ')
+                    
+                    result.forget()
+            GLOBALS.lock.release()
+
+        task = db.session.query(Task).get(task_id)
 
         for trapgroup in task.survey.trapgroups:
 
@@ -1761,7 +1786,7 @@ def translate_cluster_for_client(clusterInfo,reqId,limit,isBounding,taggingLevel
                     })
             
             # Order images
-            if id or ('-4' in taggingLevel) or ('-5' in taggingLevel):
+            if id or ('-4' in taggingLevel) or ('-5' in taggingLevel) or ('-8' in taggingLevel):
                 # Order chronologically
                 order_by_filename = False
                 x = {}

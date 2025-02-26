@@ -22,7 +22,7 @@ from flask import render_template
 import time
 import threading
 from sqlalchemy.sql import func, or_, alias, distinct, and_, literal_column
-from sqlalchemy import desc
+from sqlalchemy import desc, insert
 import random
 import string
 from datetime import datetime, timedelta
@@ -2565,10 +2565,12 @@ def re_evaluate_trapgroup_examined(trapgroup_id,task_id):
     # for chunk in chunker(clusters,2500):
     for cluster in clusters:
         cluster.examined = False
+        cluster.required_images = []
     db.session.commit()
 
-    prep_required_images(task_id,trapgroup_id)
-    db.session.commit()
+    if not (any(item in task.tagging_level for item in ['-4','-5','-7']) or task.is_bounding):
+        prep_required_images(task_id,trapgroup_id)
+        db.session.commit()
 
     return True
 
@@ -3139,174 +3141,341 @@ def format_count(count):
     else:
         return '{:,}'.format(count).replace(',', ' ')
 
-def required_images(cluster,relevent_classifications,transDict):
-    '''
-    Returns the required images for a specified cluster.
+# def required_images(cluster,relevent_classifications,transDict):
+#     '''
+#     Returns the required images for a specified cluster.
     
-        Parameters:
-            cluster (Cluster): Cluster that the required images are needed for
-            relevent_classifications (list): The list of tagging-level relevent classifications for a cluster
-            transDict (dict): The translation dictionary between child labels and the relevent classifications
-    '''
+#         Parameters:
+#             cluster (Cluster): Cluster that the required images are needed for
+#             relevent_classifications (list): The list of tagging-level relevent classifications for a cluster
+#             transDict (dict): The translation dictionary between child labels and the relevent classifications
+#     '''
     
-    sortedImages = db.session.query(Image).filter(Image.clusters.contains(cluster)).order_by(desc(Image.detection_rating)).all()
-    classifier_id = db.session.query(Classifier.id).join(Survey).join(Task).filter(Task.id==cluster.task_id).first()[0]
+#     sortedImages = db.session.query(Image).filter(Image.clusters.contains(cluster)).order_by(desc(Image.detection_rating)).all()
+#     classifier_id = db.session.query(Classifier.id).join(Survey).join(Task).filter(Task.id==cluster.task_id).first()[0]
 
-    species = db.session.query(Detection.classification)\
-                        .join(Image)\
-                        .join(ClassificationLabel,ClassificationLabel.classification==Detection.classification) \
-                        .filter(ClassificationLabel.classifier_id==classifier_id) \
-                        .filter(Detection.class_score>ClassificationLabel.threshold) \
-                        .filter(Image.clusters.contains(cluster))\
-                        .filter(or_(and_(Detection.source==model,Detection.score>Config.DETECTOR_THRESHOLDS[model]) for model in Config.DETECTOR_THRESHOLDS))\
-                        .filter(Detection.static==False)\
-                        .filter(~Detection.status.in_(Config.DET_IGNORE_STATUSES))\
-                        .filter(Detection.classification!=None)\
-                        .filter(Detection.classification.in_(relevent_classifications))\
-                        .distinct().all()
+#     species = db.session.query(Detection.classification)\
+#                         .join(Image)\
+#                         .join(ClassificationLabel,ClassificationLabel.classification==Detection.classification) \
+#                         .filter(ClassificationLabel.classifier_id==classifier_id) \
+#                         .filter(Detection.class_score>ClassificationLabel.threshold) \
+#                         .filter(Image.clusters.contains(cluster))\
+#                         .filter(or_(and_(Detection.source==model,Detection.score>Config.DETECTOR_THRESHOLDS[model]) for model in Config.DETECTOR_THRESHOLDS))\
+#                         .filter(Detection.static==False)\
+#                         .filter(~Detection.status.in_(Config.DET_IGNORE_STATUSES))\
+#                         .filter(Detection.classification!=None)\
+#                         .filter(Detection.classification.in_(relevent_classifications))\
+#                         .distinct().all()
     
-    # species = db.session.query(Detection.classification)\
-    #                     .join(Image)\
-    #                     .join(Camera)\
-    #                     .join(Trapgroup)\
-    #                     .join(Survey)\
-    #                     .join(Classifier)\
-    #                     .filter(Image.clusters.contains(cluster))\
-    #                     .filter(or_(and_(Detection.source==model,Detection.score>Config.DETECTOR_THRESHOLDS[model]) for model in Config.DETECTOR_THRESHOLDS))\
-    #                     .filter(Detection.static==False)\
-    #                     .filter(~Detection.status.in_(Config.DET_IGNORE_STATUSES))\
-    #                     .filter(Detection.class_score>Classifier.threshold)\
-    #                     .filter(Detection.classification!=None)\
-    #                     .filter(Detection.classification.in_(relevent_classifications))\
-    #                     .distinct().all()
+#     # species = db.session.query(Detection.classification)\
+#     #                     .join(Image)\
+#     #                     .join(Camera)\
+#     #                     .join(Trapgroup)\
+#     #                     .join(Survey)\
+#     #                     .join(Classifier)\
+#     #                     .filter(Image.clusters.contains(cluster))\
+#     #                     .filter(or_(and_(Detection.source==model,Detection.score>Config.DETECTOR_THRESHOLDS[model]) for model in Config.DETECTOR_THRESHOLDS))\
+#     #                     .filter(Detection.static==False)\
+#     #                     .filter(~Detection.status.in_(Config.DET_IGNORE_STATUSES))\
+#     #                     .filter(Detection.class_score>Classifier.threshold)\
+#     #                     .filter(Detection.classification!=None)\
+#     #                     .filter(Detection.classification.in_(relevent_classifications))\
+#     #                     .distinct().all()
 
-    species = set([transDict[r[0]] for r in species])
+#     species = set([transDict[r[0]] for r in species])
 
-    required = []
-    coveredSpecies = set()
-    for image in sortedImages:
-        imageSpecies = db.session.query(Detection.classification)\
-                        .join(Image)\
-                        .join(ClassificationLabel,ClassificationLabel.classification==Detection.classification) \
-                        .filter(ClassificationLabel.classifier_id==classifier_id) \
-                        .filter(Detection.class_score>ClassificationLabel.threshold) \
-                        .filter(Detection.image_id==image.id)\
-                        .filter(or_(and_(Detection.source==model,Detection.score>Config.DETECTOR_THRESHOLDS[model]) for model in Config.DETECTOR_THRESHOLDS))\
-                        .filter(Detection.static==False)\
-                        .filter(~Detection.status.in_(Config.DET_IGNORE_STATUSES))\
-                        .filter(Detection.classification!=None)\
-                        .filter(Detection.classification.in_(relevent_classifications))\
-                        .distinct().all()
+#     required = []
+#     coveredSpecies = set()
+#     for image in sortedImages:
+#         imageSpecies = db.session.query(Detection.classification)\
+#                         .join(Image)\
+#                         .join(ClassificationLabel,ClassificationLabel.classification==Detection.classification) \
+#                         .filter(ClassificationLabel.classifier_id==classifier_id) \
+#                         .filter(Detection.class_score>ClassificationLabel.threshold) \
+#                         .filter(Detection.image_id==image.id)\
+#                         .filter(or_(and_(Detection.source==model,Detection.score>Config.DETECTOR_THRESHOLDS[model]) for model in Config.DETECTOR_THRESHOLDS))\
+#                         .filter(Detection.static==False)\
+#                         .filter(~Detection.status.in_(Config.DET_IGNORE_STATUSES))\
+#                         .filter(Detection.classification!=None)\
+#                         .filter(Detection.classification.in_(relevent_classifications))\
+#                         .distinct().all()
 
-        # imageSpecies = db.session.query(Detection.classification)\
-        #                 .join(Image)\
-        #                 .join(Camera)\
-        #                 .join(Trapgroup)\
-        #                 .join(Survey)\
-        #                 .join(Classifier)\
-        #                 .filter(Detection.image_id==image.id)\
-        #                 .filter(or_(and_(Detection.source==model,Detection.score>Config.DETECTOR_THRESHOLDS[model]) for model in Config.DETECTOR_THRESHOLDS))\
-        #                 .filter(Detection.static==False)\
-        #                 .filter(~Detection.status.in_(Config.DET_IGNORE_STATUSES))\
-        #                 .filter(Detection.class_score>Classifier.threshold)\
-        #                 .filter(Detection.classification!=None)\
-        #                 .filter(Detection.classification.in_(relevent_classifications))\
-        #                 .distinct().all()
+#         # imageSpecies = db.session.query(Detection.classification)\
+#         #                 .join(Image)\
+#         #                 .join(Camera)\
+#         #                 .join(Trapgroup)\
+#         #                 .join(Survey)\
+#         #                 .join(Classifier)\
+#         #                 .filter(Detection.image_id==image.id)\
+#         #                 .filter(or_(and_(Detection.source==model,Detection.score>Config.DETECTOR_THRESHOLDS[model]) for model in Config.DETECTOR_THRESHOLDS))\
+#         #                 .filter(Detection.static==False)\
+#         #                 .filter(~Detection.status.in_(Config.DET_IGNORE_STATUSES))\
+#         #                 .filter(Detection.class_score>Classifier.threshold)\
+#         #                 .filter(Detection.classification!=None)\
+#         #                 .filter(Detection.classification.in_(relevent_classifications))\
+#         #                 .distinct().all()
 
-        imageSpecies = [transDict[r[0]] for r in imageSpecies]
+#         imageSpecies = [transDict[r[0]] for r in imageSpecies]
 
-        if any(species not in coveredSpecies for species in imageSpecies):
-            coveredSpecies.update(imageSpecies)
-            required.append(image)
-            if coveredSpecies == species:
-                break
+#         if any(animal not in coveredSpecies for animal in imageSpecies):
+#             coveredSpecies.update(imageSpecies)
+#             required.append(image)
+#             if coveredSpecies == species:
+#                 break
 
-    return required
+#     return required
 
-def prep_required_images(task_id,trapgroup_id=None):
+@celery.task(bind=True,max_retries=5,ignore_result=True)
+def prep_required_images(self,task_id,trapgroup_id=None):
     '''Prepares the required images for every cluster in a specified task - the images that must be viewed by the 
     user based on the species contained therein.'''
 
-    task = db.session.query(Task).get(task_id)
-    survey_id = task.survey_id
-    taggingLevel = task.tagging_level
-    isBounding = task.is_bounding
+    try:
+        task = db.session.query(Task).get(task_id)
+        taggingLevel = task.tagging_level
+        isBounding = task.is_bounding
+        classifier_id = task.survey.classifier_id
+        dataType = task.survey.type
 
-    clusters = db.session.query(Cluster)\
-                    .filter(Cluster.task_id == task_id)\
-                    .filter(Cluster.examined==False)
+        if isBounding or ('-4' in taggingLevel) or ('-5' in taggingLevel) or ('-7' in taggingLevel): return True
 
-    if trapgroup_id: clusters = clusters.join(Image,Cluster.images)\
+        if '-8' in taggingLevel:
+            # related cluster check
+
+            #################################related clusters and associated classifications#####################
+            # the present classifications in each image
+            imageClassificationSQ = rDets(db.session.query(\
+                                            Image.id.label('image_id'),\
+                                            Image.detection_rating.label('detection_rating'),\
+                                            Detection.classification.label('classification')\
+                                        )\
+                                        .join(Detection))\
+                                        .join(ClassificationLabel,ClassificationLabel.classification==Detection.classification) \
+                                        .filter(ClassificationLabel.classifier_id==classifier_id) \
+                                        .filter(Detection.class_score>ClassificationLabel.threshold) \
+                                        .filter(((Detection.right-Detection.left)*(Detection.bottom-Detection.top)) > Config.CLASSIFICATION_DET_AREA[dataType])
+
+            if trapgroup_id: imageClassificationSQ = imageClassificationSQ.join(Camera).filter(Camera.trapgroup_id==trapgroup_id)
+            imageClassificationSQ = imageClassificationSQ.subquery()
+
+            # the start and end times for each cluster
+            clusterTimestampsSQ = db.session.query(\
+                                    Cluster.id.label('cluster_id'),\
+                                    func.min(Image.corrected_timestamp).label('start_time'),\
+                                    func.max(Image.corrected_timestamp).label('end_time'),\
+                                    Camera.trapgroup_id.label('trapgroup_id')\
+                                )\
+                                .join(Image,Cluster.images)\
+                                .join(Camera)\
+                                .filter(Cluster.task_id==task_id)\
+                                .group_by(Cluster.id)\
+                                .subquery()
+
+            Cluster1 = alias(Cluster)
+            Cluster2 = alias(Cluster)
+            ClusterTimestampsSQ1 = alias(clusterTimestampsSQ)
+            ClusterTimestampsSQ2 = alias(clusterTimestampsSQ)
+            Labelstable2 = alias(labelstable)
+            Label2 = alias(Label)
+            Translation2 = alias(Translation)
+
+            Labelstable1 = db.session.query(labelstable.c.cluster_id.label('cluster_id'),labelstable.c.label_id.label('label_id'),Label.parent_id.label('parent_id'))\
+                        .join(Label,labelstable.c.label_id==Label.id)\
+                        .subquery()
+
+            # the proposed classification for each cluster from related clusters
+            relatedClustersSQ = db.session.query(Cluster1.c.id.label('cluster_id'),Translation2.c.classification.label('classification'))\
+                                        .join(Task,Cluster1.c.task_id==Task.id)\
+                                        .join(Cluster2,Cluster2.c.task_id==Task.id)\
+                                        .join(ClusterTimestampsSQ1,ClusterTimestampsSQ1.c.cluster_id==Cluster1.c.id)\
+                                        .join(ClusterTimestampsSQ2,ClusterTimestampsSQ2.c.cluster_id==Cluster2.c.id)\
+                                        .join(Labelstable2,Labelstable2.c.cluster_id==Cluster2.c.id)\
+                                        .join(Label2,Label2.c.id==Labelstable2.c.label_id)\
+                                        .join(Translation2,Translation2.c.label_id==Label2.c.id)\
+                                        .outerjoin(Labelstable1,\
+                                            (Labelstable1.c.cluster_id == Cluster1.c.id) & \
+                                            ((Labelstable2.c.label_id == Labelstable1.c.label_id) | (Labelstable2.c.label_id==Labelstable1.c.parent_id)))\
+                                        .filter(Task.id==task_id)\
+                                        .filter(Translation2.c.task_id==task_id)\
+                                        .filter(Cluster1.c.id!=Cluster2.c.id)\
+                                        .filter(ClusterTimestampsSQ1.c.trapgroup_id==ClusterTimestampsSQ2.c.trapgroup_id)\
+                                        .filter(or_(\
+                                            func.abs(func.timestampdiff(literal_column("SECOND"), ClusterTimestampsSQ1.c.end_time, ClusterTimestampsSQ2.c.start_time)) < Config.RELATED_CLUSTER_TIME,\
+                                            func.abs(func.timestampdiff(literal_column("SECOND"), ClusterTimestampsSQ1.c.start_time, ClusterTimestampsSQ2.c.end_time)) < Config.RELATED_CLUSTER_TIME\
+                                        ))\
+                                        .filter(Labelstable1.c.label_id.is_(None))\
+                                        .filter(~Labelstable2.c.label_id.in_([GLOBALS.nothing_id,GLOBALS.unknown_id,GLOBALS.knocked_id]))
+
+            if trapgroup_id: relatedClustersSQ = relatedClustersSQ.filter(ClusterTimestampsSQ1.c.trapgroup_id==trapgroup_id)
+            relatedClustersSQ = relatedClustersSQ.subquery()
+
+            # The ranked images (based on detection rating) for each classification in a cluster
+            requiredImagesSQ = db.session.query(\
+                                            Cluster.id.label('cluster_id'),\
+                                            imageClassificationSQ.c.classification.label('classification'),\
+                                            Image.id.label('image_id'),\
+                                            func.row_number().over(
+                                                partition_by=[Cluster.id, imageClassificationSQ.c.classification],
+                                                order_by=imageClassificationSQ.c.detection_rating.desc()
+                                            ).label("rank")
+                                        )\
+                                        .join(Image,Cluster.images)\
+                                        .join(relatedClustersSQ,relatedClustersSQ.c.cluster_id==Cluster.id)\
+                                        .join(imageClassificationSQ,(imageClassificationSQ.c.image_id==Image.id) & (imageClassificationSQ.c.classification==relatedClustersSQ.c.classification))\
+                                        .filter(Cluster.task_id==task_id)\
+                                        .filter(Cluster.examined==False)
+            
+            if trapgroup_id: requiredImagesSQ = requiredImagesSQ.join(Camera).filter(Camera.trapgroup_id==trapgroup_id)
+            requiredImagesSQ = requiredImagesSQ.subquery()
+
+            # The concatonated images for each cluster (based on related cluster classifications)
+            classificationImagesSQ = db.session.query(
+                requiredImagesSQ.c.cluster_id.label('cluster_id'),
+                func.group_concat(
+                    distinct(requiredImagesSQ.c.image_id)
+                ).label('image_ids')
+            ).filter(requiredImagesSQ.c.rank <= 3).group_by(requiredImagesSQ.c.cluster_id).subquery()
+
+            #################################Quantile images for clusters where they are missing the proposed classification#####################
+            # Split each clusters images into 5 equal quantiles
+            clusterQuantileSQ = db.session.query(
+                                            Cluster.id.label("cluster_id"),
+                                            Image.id.label("image_id"),
+                                            func.ntile(5).over(
+                                                partition_by=Cluster.id,
+                                                order_by=Image.corrected_timestamp
+                                            ).label("quantile_bin")
+                                        )\
+                                        .join(Image, Cluster.images)\
                                         .join(Camera)\
-                                        .filter(Camera.trapgroup_id==trapgroup_id)
+                                        .filter(Cluster.task_id==task_id)\
+                                        .filter(Cluster.examined==False)\
+                                        .filter(Camera.trapgroup_id==trapgroup_id)\
+                                        .subquery()
 
-    clusters = clusters.distinct().all()
+            # now apply a row number to each ordered image in each quantile
+            clusterOrderSQ = db.session.query(
+                                            clusterQuantileSQ.c.cluster_id.label("cluster_id"),
+                                            clusterQuantileSQ.c.image_id.label("image_id"),
+                                            func.row_number().over(
+                                                partition_by=[clusterQuantileSQ.c.cluster_id, clusterQuantileSQ.c.quantile_bin],
+                                                order_by=clusterQuantileSQ.c.quantile_bin
+                                            ).label("row_num")
+                                        ).subquery()
 
-    if len(clusters) != 0:
-        if (',' in taggingLevel) or isBounding:
-            for cluster in clusters:
-                cluster.required_images = []
+            # request the first image from each quantile
+            quantilesSQ = db.session.query(
+                                            clusterOrderSQ.c.cluster_id.label('cluster_id'),
+                                            func.group_concat(
+                                                distinct(clusterOrderSQ.c.image_id)
+                                            ).label('image_ids')
+                                        )\
+                                        .filter(clusterOrderSQ.c.row_num == 1)\
+                                        .group_by(clusterOrderSQ.c.cluster_id)\
+                                        .subquery()
+
+            #################################Now join our clusters to both and prioritise classification-based options#####################
+            requiredImages = db.session.query(
+                                            Cluster.id,
+                                            func.coalesce(
+                                                    classificationImagesSQ.c.image_ids,  # If classification-based images exist, use them
+                                                    quantilesSQ.c.image_ids  # Otherwise, fallback to quantile-based images
+                                            )
+                                        )\
+                                        .outerjoin(classificationImagesSQ,classificationImagesSQ.c.cluster_id==Cluster.id)\
+                                        .join(quantilesSQ,quantilesSQ.c.cluster_id==Cluster.id)\
+                                        .filter(Cluster.task_id==task_id)\
+                                        .filter(Cluster.examined==False)\
+                                        .distinct().all()            
+
         else:
+            # info tag level needs to be handled correctly
+            taggingLevel = taggingLevel.replace('-2,','')
+
             if int(taggingLevel) > 0:
-                parent_id = int(taggingLevel)
+                # We are interested in the images containing the launched species and it's children
                 label = db.session.query(Label).get(int(taggingLevel))
                 names = [label.description]
                 ids = [label.id]
                 names, ids = addChildLabels(names,ids,label,task_id)
-                relevent_classifications = db.session.query(Translation.classification)\
+                relevent_classifications = [r[0] for r in db.session.query(Translation.classification)\
                                                     .filter(Translation.label_id.in_(ids))\
                                                     .filter(Translation.task_id==task_id)\
-                                                    .filter(func.lower(Translation.classification)!='nothing')\
                                                     .filter(Translation.label_id!=GLOBALS.nothing_id)\
-                                                    .distinct().all()
-                relevent_classifications = [r[0] for r in relevent_classifications]
+                                                    .filter(~Translation.classification.in_(['nothing','unknown']))\
+                                                    .distinct().all()]
             else:
-                parent_id = None
-                label = None
-                relevent_classifications = db.session.query(Detection.classification)\
-                                                    .join(Translation,Translation.classification==Detection.classification)\
-                                                    .join(Image)\
-                                                    .join(Camera)\
+                # We are interested in all non-nothing and user-ignored classifications
+                relevent_classifications = [r[0] for r in db.session.query(Translation.classification)\
                                                     .filter(Translation.task_id==task_id)\
-                                                    .filter(Detection.classification!=None)\
-                                                    .filter(func.lower(Detection.classification)!='nothing')\
-                                                    .filter(Translation.label_id!=GLOBALS.nothing_id)
-                
-                if trapgroup_id:
-                    relevent_classifications = relevent_classifications.filter(Camera.trapgroup_id==trapgroup_id)
-                else:
-                    relevent_classifications = relevent_classifications.join(Trapgroup).filter(Trapgroup.survey_id==survey_id)
+                                                    .filter(Translation.label_id!=GLOBALS.nothing_id)\
+                                                    .filter(~Translation.classification.in_(['nothing','unknown']))\
+                                                    .distinct().all()]
 
-                relevent_classifications = relevent_classifications.distinct().all()
-                relevent_classifications = [r[0] for r in relevent_classifications]
+            # Here we determine the classifications visible in each image
+            imageClassificationSQ = rDets(db.session.query(\
+                                            Image.id.label('image_id'),\
+                                            Image.detection_rating.label('detection_rating'),\
+                                            Detection.classification.label('classification')\
+                                        )\
+                                        .join(Detection))\
+                                        .join(ClassificationLabel,ClassificationLabel.classification==Detection.classification) \
+                                        .filter(ClassificationLabel.classifier_id==classifier_id) \
+                                        .filter(Detection.class_score>ClassificationLabel.threshold) \
+                                        .filter(Detection.classification.in_(relevent_classifications))\
+                                        .filter(((Detection.right-Detection.left)*(Detection.bottom-Detection.top)) > Config.CLASSIFICATION_DET_AREA[dataType])
             
-            transDict = {}
-            categories = db.session.query(Label).filter(Label.task_id==task_id).filter(Label.parent_id==parent_id).all()
-            categories.append(db.session.query(Label).get(GLOBALS.vhl_id))
-            categories.append(db.session.query(Label).get(GLOBALS.nothing_id))
-            categories.append(db.session.query(Label).get(GLOBALS.unknown_id))
+            if trapgroup_id: imageClassificationSQ = imageClassificationSQ.join(Camera).filter(Camera.trapgroup_id==trapgroup_id)
+            imageClassificationSQ = imageClassificationSQ.subquery()
 
-            if label:
-                categories.append(label)
+            # Here we find the ranked images (based on detection rating) for each classification in a cluster
+            requiredImagesSQ = db.session.query(\
+                                            Cluster.id.label('cluster_id'),\
+                                            imageClassificationSQ.c.classification.label('classification'),\
+                                            Image.id.label('image_id'),\
+                                            func.row_number().over(
+                                                partition_by=[Cluster.id, imageClassificationSQ.c.classification],
+                                                order_by=imageClassificationSQ.c.detection_rating.desc()
+                                            ).label("rank")
+                                        )\
+                                        .join(Image,Cluster.images)\
+                                        .join(imageClassificationSQ,imageClassificationSQ.c.image_id==Image.id)\
+                                        .filter(Cluster.task_id==task_id)\
+                                        .filter(Cluster.examined==False)
+            
+            if trapgroup_id: requiredImagesSQ = requiredImagesSQ.join(Camera).filter(Camera.trapgroup_id==trapgroup_id)
+            requiredImagesSQ = requiredImagesSQ.subquery()
 
-            for category in categories:
-                names = [category.description]
-                ids = [category.id]
-                names, ids = addChildLabels(names,ids,category,task_id)
-                child_classifications = db.session.query(Translation.classification)\
-                                                    .filter(Translation.label_id.in_(ids))\
-                                                    .filter(Translation.task_id==task_id)\
-                                                    .distinct().all()
-                child_classifications = [r[0] for r in child_classifications]
+            # Here we select the the pool of top images for each cluster
+            requiredImages = db.session.query(
+                requiredImagesSQ.c.cluster_id,
+                func.group_concat(func.distinct(requiredImagesSQ.c.image_id))
+            ).filter(requiredImagesSQ.c.rank == 1).group_by(requiredImagesSQ.c.cluster_id).all()
 
-                for child_classification in child_classifications:
-                    transDict[child_classification] = category.description
+        # Prepare the list of dictionaries for bulk insert
+        insert_values = []
+        for row in requiredImages:
+            cluster_id = row[0]
+            for image_id in row[1].split(','):
+                insert_values.append({"cluster_id": cluster_id, "image_id": int(image_id)})
 
-            for cluster in clusters:
-                cluster.required_images = required_images(cluster,relevent_classifications,transDict)
-        # db.session.commit()
+        # Perform bulk insert
+        db.session.execute(insert(requiredimagestable), insert_values)
+        
+        db.session.commit()
+
+    except Exception as exc:
+        app.logger.info(' ')
+        app.logger.info('!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!')
+        app.logger.info(traceback.format_exc())
+        app.logger.info('!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!')
+        app.logger.info(' ')
+        self.retry(exc=exc, countdown= retryTime(self.request.retries))
+
+    finally:
+        db.session.remove()
     
-    return len(clusters)
+    return True
 
 def create_er_api_dict(group):
     return dict(zip(group['api_key'], group['er_id']))

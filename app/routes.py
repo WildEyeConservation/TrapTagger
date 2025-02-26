@@ -61,6 +61,7 @@ import tracemalloc
 import calendar
 import pandas as pd
 from WorkR.worker import calculate_activity_pattern, calculate_occupancy_analysis, calculate_spatial_capture_recapture
+from celery.result import allow_join_result
 
 tracemalloc.start(40)
 

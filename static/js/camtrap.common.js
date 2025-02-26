@@ -1837,7 +1837,8 @@ function assignLabel(label,mapID = 'map1'){
     
                 var checkVar = 0
                 if (clusters[mapID][clusterIndex[mapID]].required.length>1) {
-                    if (reachedEnd == false) {
+                    // We don't want to force check on accept or overwrite for these types of tasks
+                    if ((reachedEnd == false) && (['reject_classification','other_classification'].includes(label))) {
                         document.getElementById('modalAlertText').innerHTML = 'This cluster may contain more species, please cycle through all images before tagging it.'
                         modalAlert.modal({keyboard: true});
                         checkVar = 1

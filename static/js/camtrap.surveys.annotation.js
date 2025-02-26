@@ -1345,7 +1345,7 @@ function openRelatedTag() {
         document.getElementById('openAISpeciesTab').disabled = true
         // document.getElementById('openMaskedTab').disabled = true
 
-        document.getElementById('annotationDescription').innerHTML = "<i>Check for potentially missing species labels based on related related clusters (clusters from the same site and in the same time frame).</i>"
+        document.getElementById('annotationDescription').innerHTML = "<i>Check for potentially missing species labels based on related clusters (clusters from the same site and in the same time frame). Also a good way to attempt to identify unknown/unidentifiable clusters.</i>"
 
         clearSelect(document.getElementById('taskTaggingLevel'))
         var xhttp = new XMLHttpRequest();
