@@ -887,6 +887,7 @@ def fetch_clusters(taggingLevel,task_id,isBounding,trapgroup_id,limit=None,id=No
                         .outerjoin(Individual,Individual.id==individualDetections.c.individual_id)\
                         .outerjoin(IndividualTask,Individual.tasks)\
                         .filter(Cluster.id==id)\
+                        .filter(Labelgroup.task_id==task_id)\
                         .filter(Image.zip_id==None)
 
         else:
