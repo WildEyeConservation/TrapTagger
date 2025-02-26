@@ -1018,7 +1018,7 @@ def handleTaskEdit(self,task_id,labelChanges,tagChanges,translationChanges,delet
                     if classify and label not in ['nothing', 'unknown']:
                         includes.append(classification)
 
-                edit_translations(task_id, translations_dict, includes, auto=True)
+                edit_translations(task_id, translations_dict, includes)
 
                 if deleteAutoLabels:
                     # Delete auto classified labels from clusters (for edited translations) - only clusters with no individuals
@@ -1062,9 +1062,10 @@ def handleTaskEdit(self,task_id,labelChanges,tagChanges,translationChanges,delet
 
                 db.session.commit()
 
-                classifyTask(task.id)
-                if GLOBALS.vhl_id in prev_labels:
-                    removeHumans(task.id)
+                if classifications:
+                    classifyTask(task.id)
+                    if GLOBALS.vhl_id in prev_labels:
+                        removeHumans(task.id)
             
             updateAllStatuses(task.id)
 
@@ -1951,22 +1952,22 @@ def edit_translations(task_id, translations, includes,auto=False):
         if translations[classification].lower() not in ['knocked down','nothing','vehicles/humans/livestock','unknown']:
             species = db.session.query(Label).filter(Label.task_id==task_id).filter(func.lower(Label.description)==func.lower(translations[classification])).first()
         else:
-            if auto and translations[classification].lower() == 'nothing':
-                species = db.session.query(Label).filter(Label.task_id==task_id).filter(func.lower(Label.description)==func.lower(classification)).first()
-                if species:
-                    includes.append(classification)
-                    old_translation = db.session.query(Translation)\
-                                            .join(Label,Translation.label_id==Label.id)\
-                                            .filter(Translation.task_id==task_id)\
-                                            .filter(Translation.classification==classification)\
-                                            .filter(func.lower(Label.description)=='nothing')\
-                                            .all()
-                    for translation in old_translation:
-                        db.session.delete(translation)
-                else:
-                    species = db.session.query(Label).filter(func.lower(Label.description)==func.lower(translations[classification])).first()
-            else:
-                species = db.session.query(Label).filter(func.lower(Label.description)==func.lower(translations[classification])).first()
+            # if auto and translations[classification].lower() == 'nothing':
+            #     species = db.session.query(Label).filter(Label.task_id==task_id).filter(func.lower(Label.description)==func.lower(classification)).first()
+            #     if species:
+            #         includes.append(classification)
+            #         old_translation = db.session.query(Translation)\
+            #                                 .join(Label,Translation.label_id==Label.id)\
+            #                                 .filter(Translation.task_id==task_id)\
+            #                                 .filter(Translation.classification==classification)\
+            #                                 .filter(func.lower(Label.description)=='nothing')\
+            #                                 .all()
+            #         for translation in old_translation:
+            #             db.session.delete(translation)
+            #     else:
+            #         species = db.session.query(Label).filter(func.lower(Label.description)==func.lower(translations[classification])).first()
+            # else:
+            species = db.session.query(Label).filter(func.lower(Label.description)==func.lower(translations[classification])).first()
 
         if species:
             translation = db.session.query(Translation)\
