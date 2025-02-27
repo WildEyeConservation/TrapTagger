@@ -78,6 +78,7 @@ var skipName = null
 var idIndiv101 = false
 var isMaskCheck = false
 var isTimestampCheck
+var ctrlHeld = false
 
 const divBtns = document.querySelector('#divBtns');
 const catcounts = document.querySelector('#categorycounts');
@@ -103,6 +104,10 @@ const prevImageBtn = document.querySelector('#prevImage');
 const clusterPositionCircles = document.getElementById('clusterPosition')
 const modalNothingKnock = $('#modalNothingKnock');
 const modalMaskArea = $('#modalMaskArea');
+const forwardImageBtn = document.querySelector('#forwardImage');
+const backImageBtn = document.querySelector('#backImage');
+
+const skipNum = 5
 
 var waitModalMap = null
 var classificationCheckData = {'overwrite':false,'data':[]}
@@ -1126,6 +1131,36 @@ function updateButtons(mapID = 'map1'){
             }
         }
     }
+
+    if (forwardImageBtn != null) {
+        if (taggingLevel == '-3' || taggingLevel == '-8') {
+            forwardImageBtn.hidden = false
+            if (imageIndex[mapID]>clusters[mapID][clusterIndex[mapID]].images.length-(skipNum+1)){
+                forwardImageBtn.disabled = true
+            }else if (clusters[mapID][clusterIndex[mapID]].required.includes(imageIndex[mapID])&&(reachedEnd == false)){  // Cannot skip required images
+                forwardImageBtn.disabled = true 
+            }else{
+                forwardImageBtn.disabled = false
+            }
+        }
+        else{
+            forwardImageBtn.hidden = true
+        }
+    }
+
+    if (backImageBtn != null) {
+        if (taggingLevel == '-3' || taggingLevel == '-8') {
+            backImageBtn.hidden = false
+            if (imageIndex[mapID]>skipNum-1){
+                backImageBtn.disabled = false
+            }else{
+                backImageBtn.disabled = true
+            }
+        }
+        else{
+            backImageBtn.hidden = true
+        }
+    }
 }
 
 function update(mapID = 'map1'){
@@ -1534,6 +1569,33 @@ function nextImage(mapID = 'map1'){
     }
 }
 
+function forwardImage(mapID = 'map1'){
+    /** Switches to the next image in the cluster if its available. */
+    if (finishedDisplaying[mapID] == true) {
+        // Make an exception for finish looking at cluster modal
+        allowBypass=false
+        if (modalAlert.is(':visible')) {
+            modalAlert.modal('hide');
+            allowBypass=true
+        }
+        if (((modalActive == false) && (modalActive2 == false))||(allowBypass)) {
+            if (imageIndex[mapID]<clusters[mapID][clusterIndex[mapID]].images.length-skipNum){
+                if ((mapdiv2 != null)&&(previousClick!=null)) {
+                    if (previousClick.map==mapID) {
+                        previousClick = null
+                    }
+                }
+                if (clusterPositionSplide[mapID] != null) {
+                    clusterPositionSplide[mapID].go('+'+skipNum)
+                } else {
+                    imageIndex[mapID] += skipNum
+                    update(mapID)
+                }
+            }
+        }
+    }
+}
+
 function prevImage(mapID = 'map1'){
     /** Switches to the previous image in a cluster. */
     if (isTutorial) {
@@ -1564,6 +1626,33 @@ function prevImage(mapID = 'map1'){
                     clusterPositionSplide[mapID].go('-1')
                 } else {
                     imageIndex[mapID] -= 1
+                    update(mapID)
+                }
+            }
+        }
+    }
+}
+
+function backImage(mapID = 'map1'){
+    /** Switches to the previous image in a cluster. */
+    if (finishedDisplaying[mapID] == true) {
+        // Make an exception for finish looking at cluster modal
+        allowBypass=false
+        if (modalAlert.is(':visible')) {
+            modalAlert.modal('hide');
+            allowBypass=true
+        }
+        if (((modalActive == false) && (modalActive2 == false))||(allowBypass)) {
+            if (imageIndex[mapID]>skipNum-1) {
+                if ((mapdiv2 != null)&&(previousClick!=null)) {
+                    if (previousClick.map==mapID) {
+                        previousClick = null
+                    }
+                }
+                if (clusterPositionSplide[mapID] != null) {
+                    clusterPositionSplide[mapID].go('-'+skipNum)
+                } else {
+                    imageIndex[mapID] -= skipNum
                     update(mapID)
                 }
             }
@@ -2926,7 +3015,7 @@ function updateProgress() {
 
 function onload (){
     /** Initialises the page on load. */
-    if (!isReviewing && !isViewing) {
+    if (!isViewing) {
         pingServer()
     }
 
@@ -3499,6 +3588,12 @@ document.onkeyup = function(event){
         }
     }
 
+    //Check if Ctrl is being held down
+    if (event.ctrlKey) {
+        ctrlHeld = true
+        return;
+    }
+
     switch (event.key.toLowerCase()){
         case (']'):
         case ('insert'):
@@ -3621,7 +3716,10 @@ document.onkeyup = function(event){
                 case ('-'):assignLabel(hotkeys[38])  //Mask Area
                     break;
 
-                case 'control': activateMultiple()
+                case 'control': 
+                    if (!ctrlHeld){
+                        activateMultiple()
+                    }
                     break;
     
                 case 'enter': if (isTagging){
@@ -3734,6 +3832,7 @@ document.onkeyup = function(event){
                 break;
         }
     }
+    ctrlHeld = false
 }
 
 document.onkeydown = function(event){

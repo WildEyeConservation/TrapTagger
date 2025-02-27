@@ -946,7 +946,9 @@ def getTaggingLevelsbyTask(task_id,task_type):
                     colours.append('#000000')
             else:
                 if label.unidentified_count == None:
-                    updateAllStatuses.delay(task_id=task_id)
+                    task.status = 'Processing'
+                    db.session.commit()
+                    updateAllStatuses.delay(task_id=task_id,status=True)
                     return json.dumps({'texts': [], 'values': [], 'disabled':{}, 'colours':[]})
 
                 count = label.unidentified_count
@@ -964,7 +966,9 @@ def getTaggingLevelsbyTask(task_id,task_type):
         disabled = 'true'
 
         if task.class_check_count == None:
-            updateAllStatuses.delay(task_id=task_id)
+            task.status = 'Processing'
+            db.session.commit()
+            updateAllStatuses.delay(task_id=task_id,status=True)
             return json.dumps({'texts': [], 'values': [], 'disabled':'false', 'colours':[]})
         
         check = task.class_check_count
@@ -981,7 +985,9 @@ def getTaggingLevelsbyTask(task_id,task_type):
         disabled = 'true'
 
         if task.related_check_count == None:
-            updateAllStatuses.delay(task_id=task_id)
+            task.status = 'Processing'
+            db.session.commit()
+            updateAllStatuses.delay(task_id=task_id,status=True)
             return json.dumps({'texts': [], 'values': [], 'disabled':'false', 'colours':[]})
         
         check = task.related_check_count
@@ -997,7 +1003,9 @@ def getTaggingLevelsbyTask(task_id,task_type):
         disabled = 'true'
 
         if task.unchecked_multi_count == None:
-            updateAllStatuses.delay(task_id=task_id)
+            task.status = 'Processing'
+            db.session.commit()
+            updateAllStatuses.delay(task_id=task_id,status=True)
             return json.dumps({'texts': [], 'values': [], 'disabled':'false', 'colours':[]})
     
         uncheckedMulti = task.unchecked_multi_count
@@ -1018,7 +1026,9 @@ def getTaggingLevelsbyTask(task_id,task_type):
 
         for label in task.labels:
             if label.bounding_count == None:
-                updateAllStatuses.delay(task_id=task_id)
+                task.status = 'Processing'
+                db.session.commit()
+                updateAllStatuses.delay(task_id=task_id,status=True)
                 return json.dumps({'texts': [], 'values': [], 'disabled':'false', 'colours':[]})
 
             if label.bounding_count==0:
@@ -1031,7 +1041,9 @@ def getTaggingLevelsbyTask(task_id,task_type):
 
         # VHL
         if task.vhl_bounding_count == None:
-            updateAllStatuses.delay(task_id=task_id)
+            task.status = 'Processing'
+            db.session.commit()
+            updateAllStatuses.delay(task_id=task_id,status=True)
             return json.dumps({'texts': [], 'values': [], 'disabled':'false', 'colours':[]})
         
         vhl_bounding_count = task.vhl_bounding_count
@@ -1047,7 +1059,9 @@ def getTaggingLevelsbyTask(task_id,task_type):
             disabled = 'false'
 
         if task.unlabelled_animal_cluster_count == None:
-            updateAllStatuses.delay(task_id=task_id)
+            task.status = 'Processing'
+            db.session.commit()
+            updateAllStatuses.delay(task_id=task_id,status=True)
             return json.dumps({'texts': [], 'values': [], 'disabled':'false', 'colours':[]})
         
         check = task.unlabelled_animal_cluster_count
@@ -1067,7 +1081,9 @@ def getTaggingLevelsbyTask(task_id,task_type):
                     colours.append('#000000')
 
                 if label.cluster_count == None:
-                    updateAllStatuses.delay(task_id=task_id)
+                    task.status = 'Processing'
+                    db.session.commit()
+                    updateAllStatuses.delay(task_id=task_id,status=True)
                     return json.dumps({'texts': [], 'values': [], 'disabled':'false', 'colours':[]})
                 
                 texts.append(label.description+' ('+str(label.cluster_count)+')')
@@ -1075,7 +1091,9 @@ def getTaggingLevelsbyTask(task_id,task_type):
 
             #VHL
             if task.vhl_count == None:
-                updateAllStatuses.delay(task_id=task_id)
+                task.status = 'Processing'
+                db.session.commit()
+                updateAllStatuses.delay(task_id=task_id,status=True)
                 return json.dumps({'texts': [], 'values': [], 'disabled':'false', 'colours':[]})
             
             count = task.vhl_count
@@ -1086,7 +1104,9 @@ def getTaggingLevelsbyTask(task_id,task_type):
         disabled = 'false'
         
         if task.infoless_count == None:
-            updateAllStatuses.delay(task_id=task_id)
+            task.status = 'Processing'
+            db.session.commit()
+            updateAllStatuses.delay(task_id=task_id,status=True)
             return json.dumps({'texts': [], 'values': [], 'disabled':'false', 'colours':[]})
         
         check = task.infoless_count
@@ -1100,7 +1120,9 @@ def getTaggingLevelsbyTask(task_id,task_type):
         values = ['-2']
         for label in task.labels:
             if label.info_tag_count == None:
-                updateAllStatuses.delay(task_id=task_id)
+                task.status = 'Processing'
+                db.session.commit()
+                updateAllStatuses.delay(task_id=task_id,status=True)
                 return json.dumps({'texts': [], 'values': [], 'disabled':'false', 'colours':[]})
 
             if label.info_tag_count != 0:
@@ -1113,7 +1135,9 @@ def getTaggingLevelsbyTask(task_id,task_type):
 
         # VHL
         if (task.infoless_vhl_count == None) and (task.infoless_count != None):
-            updateAllStatuses.delay(task_id=task_id)
+            task.status = 'Processing'
+            db.session.commit()
+            updateAllStatuses.delay(task_id=task_id,status=True)
             return json.dumps({'texts': [], 'values': [], 'disabled':'false', 'colours':[]})
         
         count = task.infoless_vhl_count
@@ -1126,7 +1150,9 @@ def getTaggingLevelsbyTask(task_id,task_type):
         disabled = 'true'
 
         if task.empty_count == None:
-            updateAllStatuses.delay(task_id=task_id)
+            task.status = 'Processing'
+            db.session.commit()
+            updateAllStatuses.delay(task_id=task_id,status=True)
             return json.dumps({'texts': [], 'values': [], 'disabled':'false', 'colours':[]})
         
         check = task.empty_count
@@ -2029,7 +2055,7 @@ def editSurvey():
     survey_id = request.form['survey_id']
     survey = db.session.query(Survey).get(survey_id)
     organisation = survey.organisation
-    if survey and checkSurveyPermission(current_user.id,survey_id,'write'):
+    if survey and checkSurveyPermission(current_user.id,survey_id,'write') and (survey.status.lower() in Config.SURVEY_READY_STATUSES):
 
 
         # Check if any surveys are busy with a dearchival process
@@ -2160,7 +2186,7 @@ def addFiles():
 
     survey = db.session.query(Survey).get(survey_id)
     organisation = survey.organisation
-    if survey and checkSurveyPermission(current_user.id,survey_id,'write'):
+    if survey and checkSurveyPermission(current_user.id,survey_id,'write') and (survey.status.lower() in Config.SURVEY_READY_STATUSES):
         
         userPermissions = db.session.query(UserPermissions).filter(UserPermissions.organisation_id==survey.organisation_id).filter(UserPermissions.user_id==current_user.id).first()
         if userPermissions and userPermissions.create:
@@ -4688,7 +4714,7 @@ def createTask(survey_id,parentLabel):
 
         check = db.session.query(Task).filter(Task.survey_id==int(survey_id)).filter(Task.name==taskName).first()
 
-        if (check == None) and checkSurveyPermission(current_user.id,survey_id,'write') and ('_o_l_d_' not in taskName.lower()) and ('_copying' not in taskName.lower()) and (taskName.lower() != 'default'):
+        if (check == None) and checkSurveyPermission(current_user.id,survey_id,'write') and ('_o_l_d_' not in taskName.lower()) and ('_copying' not in taskName.lower()) and (taskName.lower() != 'default') and (survey.status.lower() in Config.SURVEY_READY_STATUSES):
             newTask = Task(name=taskName, survey_id=int(survey_id), status='Prepping', tagging_time=0, test_size=0, size=200, parent_classification=parentLabel)
             db.session.add(newTask)
             dbSurvey = db.session.query(Survey).get(int(survey_id))
@@ -7138,7 +7164,8 @@ def assignLabel(clusterID):
             else:
                 if (num <= task.size) or (current_user.admin):
                     newLabels = []
-                         
+                    oldLabels = cluster.labels
+
                     if '-2' in taggingLevel:
                         cluster.tags = []
                     else:
@@ -7189,14 +7216,15 @@ def assignLabel(clusterID):
                     # Copy labels over to labelgroups in explore mode (handled in task wrap up otherwise)
                     use_celery_to_update_labelgroups = False
                     if explore:
-                        labelgroups = session.query(Labelgroup) \
-                                                .join(Detection) \
-                                                .join(Image) \
-                                                .filter(Image.clusters.contains(cluster)) \
-                                                .filter(Labelgroup.task_id==cluster.task_id) \
-                                                .distinct().count()
-
-                        if labelgroups<200:
+                        counts = rDets(session.query(Cluster.id,func.count(distinct(Image.id)),func.count(distinct(Labelgroup.id)))\
+                                        .join(Image,Cluster.images)
+                                        .join(Detection)\
+                                        .join(Labelgroup)\
+                                        .filter(Cluster.id==cluster.id)\
+                                        .filter(Labelgroup.task_id==cluster.task_id)\
+                                        ).group_by(Cluster.id).first()
+                        if Config.DEBUGGING: app.logger.info('Counts: {}'.format(counts))
+                        if counts and counts[2] < 100:
                             labelgroups = session.query(Labelgroup) \
                                                 .join(Detection) \
                                                 .join(Image) \
@@ -7211,6 +7239,32 @@ def assignLabel(clusterID):
                                     labelgroup.labels = cluster.labels
                         else:
                             use_celery_to_update_labelgroups = True
+
+                        if counts:
+                            added_labels = set(newLabels) - set(oldLabels)
+                            removed_labels = set(oldLabels) - set(newLabels)
+                            for label in added_labels:  
+                                if label.task_id:
+                                    try:
+                                        GLOBALS.redisClient.hincrby('label_counts_'+str(label.id), "cluster_count", 1)
+                                        GLOBALS.redisClient.hincrby('label_counts_'+str(label.id), "image_count", counts[1])
+                                        GLOBALS.redisClient.hincrby('label_counts_'+str(label.id), "sighting_count", counts[2])
+                                        GLOBALS.redisClient.hset('label_counts_'+str(label.id), "timestamp", datetime.utcnow().timestamp())
+                                    except:
+                                        GLOBALS.redisClient.hmset('label_counts_'+str(label.id),{'cluster_count':1,'image_count':counts[1],'sighting_count':counts[2],'timestamp':datetime.utcnow().timestamp()})
+                            
+                            for label in removed_labels:
+                                if label.task_id:
+                                    try:
+                                        GLOBALS.redisClient.hincrby('label_counts_'+str(label.id), "cluster_count", -1)
+                                        GLOBALS.redisClient.hincrby('label_counts_'+str(label.id), "image_count", -counts[1])
+                                        GLOBALS.redisClient.hincrby('label_counts_'+str(label.id), "sighting_count", -counts[2])
+                                        GLOBALS.redisClient.hset('label_counts_'+str(label.id), "timestamp", datetime.utcnow().timestamp())
+                                    except:
+                                        GLOBALS.redisClient.hmset('label_counts_'+str(label.id),{'cluster_count':-1,'image_count':-counts[1],'sighting_count':-counts[2],'timestamp':datetime.utcnow().timestamp()})
+                    
+                        #Add task_id to redis for updateAllStatuses
+                        GLOBALS.redisClient.sadd('tasks_to_update_status',cluster.task_id)
 
                     if taggingLevel=='-3':
                         classifications = getClusterClassifications(cluster.id)

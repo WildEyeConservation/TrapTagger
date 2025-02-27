@@ -1516,7 +1516,7 @@ def deleteTurkcodes(number_of_jobs, task_id):
     return True
 
 @celery.task(bind=True,max_retries=5,ignore_result=True)
-def updateAllStatuses(self,task_id):
+def updateAllStatuses(self,task_id,status=False):
     '''Updates the completion status of all parent labels of a specified task.'''
 
     try:
@@ -1524,6 +1524,11 @@ def updateAllStatuses(self,task_id):
         updateLabelCompletionStatus(task_id)
         updateIndividualIdStatus(task_id)
         updateEarthRanger(task_id)
+
+        if status:
+            task = db.session.query(Task).get(task_id)
+            task.status = 'Ready'
+            db.session.commit()
 
     except Exception as exc:
         app.logger.info(' ')
