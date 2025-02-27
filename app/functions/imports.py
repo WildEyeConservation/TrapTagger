@@ -277,18 +277,18 @@ def recluster_large_clusters(self,task_id,updateClassifications,trapgroup_id=Non
     try:
 
         downLabel = db.session.query(Label).get(GLOBALS.knocked_id)
-        # TODO: First simply chunk timestampless clusters with more than 50 images!!!!!!!!!!!!!!!!!!!!!!
 
-        # Find long clusters based on time period
+        # Find long clusters based on time period. Timestampless images are ignored as they should be in either single-image clusters or grouped by video and we don't want to disturb that
         if reClusters:
-            long_clusters = db.session.query(Cluster).filter(Cluster.id.in_(reClusters)).all()
+            long_clusters = db.session.query(Cluster).join(Image,Cluster.images).filter(Image.corrected_timestamp!=None).filter(Cluster.id.in_(reClusters)).all()
+        
         else:
-
             sq = db.session.query(Cluster.id.label('cluster_id'),\
                             func.max(Image.corrected_timestamp).label('max'),\
                             func.min(Image.corrected_timestamp).label('min'))\
                             .join(Image,Cluster.images)\
                             .filter(Cluster.task_id==task_id)\
+                            .filter(Image.corrected_timestamp!=None)\
                             .group_by(Cluster.id)\
                             .subquery()
             
@@ -300,6 +300,14 @@ def recluster_large_clusters(self,task_id,updateClassifications,trapgroup_id=Non
             if trapgroup_id: long_clusters.join(Image,Cluster.images).join(Camera).filter(Camera.trapgroup_id==trapgroup_id)
             
             long_clusters = long_clusters.distinct().all()
+
+        cameragroups = {}
+        if trapgroup_id:
+            cameras = db.session.query(Camera).filter(Camera.trapgroup_id==trapgroup_id).all()
+        else:
+            cameras = db.session.query(Camera).join(Trapgroup).join(Survey).join(Task).filter(Task.id==task_id).distinct().all()
+        for camera in cameras:
+            cameragroups[camera.id] = camera.cameragroup_id
 
         newClusters = []
         for cluster in long_clusters:
@@ -314,9 +322,9 @@ def recluster_large_clusters(self,task_id,updateClassifications,trapgroup_id=Non
                 # here we monitor detection continuity across all cameras before and after the current image
                 was_discontinuous = all(map(lambda x: x == False, continuity.values()))
                 if image[1]==None:
-                    continuity[image[0].camera_id] = False
+                    continuity[cameragroups[image[0].camera_id]] = False
                 else:
-                    continuity[image[0].camera_id] = True
+                    continuity[cameragroups[image[0].camera_id]] = True
                 is_discontinuous = all(map(lambda x: x == False, continuity.values()))
 
                 # If there is a change in continuity, or the cluster now exceeds MAX_CLUSTER_MINUTES, then split the cluster here
@@ -441,6 +449,7 @@ def cluster_trapgroup(self,trapgroup_id,force=False):
                                 .filter(Camera.trapgroup==trapgroup)\
                                 .filter(sq.c.id==None)\
                                 .filter(Image.detections.any())\
+                                .filter(Image.corrected_timestamp!=None)\
                                 .order_by(Image.corrected_timestamp)\
                                 .distinct().all()
                 # for chunk in chunker(images,1000):
