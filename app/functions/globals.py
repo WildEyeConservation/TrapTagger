@@ -1032,6 +1032,7 @@ def finish_knockdown(self,rootImageID, task, current_user_id, lastImageID=None):
             unknock_cluster.apply_async(kwargs={'image_id':int(rootImageID), 'label_id':None, 'user_id':current_user_id, 'task_id':task_id})
         else:
             re_evaluate_trapgroup_examined(trapgroup_id,task_id)
+            trapgroup = db.session.query(Trapgroup).get(trapgroup_id)
             trapgroup.active = True
             trapgroup.processing = False
             GLOBALS.redisClient.lrem('trapgroups_'+str(trapgroup.survey_id),0,trapgroup.id)
@@ -1218,6 +1219,7 @@ def unknock_cluster(self,image_id, label_id, user_id, task_id):
             finish_knockdown.apply_async(kwargs={'rootImageID':rootImage.id, 'task':task_id, 'current_user_id':user_id})
         else:
             re_evaluate_trapgroup_examined(trapgroup_id,task_id)
+            trapgroup = db.session.query(Trapgroup).get(trapgroup_id)
             trapgroup.active = True
             trapgroup.processing = False
         db.session.commit()
@@ -3785,6 +3787,7 @@ def mask_area(self, image_id, task_id, masks, user_id):
         image = db.session.query(Image).get(image_id)
         trapgroup = image.camera.trapgroup
         cameragroup = image.camera.cameragroup
+        trapgroup_id = trapgroup.id
 
         if trapgroup and cameragroup:
             # Validate & create masks
@@ -3839,6 +3842,7 @@ def mask_area(self, image_id, task_id, masks, user_id):
             
             re_evaluate_trapgroup_examined(trapgroup.id,task_id)
 
+        trapgroup = db.session.query(Trapgroup).get(trapgroup_id)
         trapgroup.processing = False
         trapgroup.active = True
         GLOBALS.redisClient.lrem('trapgroups_'+str(trapgroup.survey_id),0,trapgroup.id)
