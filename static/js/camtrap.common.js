@@ -1578,6 +1578,9 @@ function forwardImage(mapID = 'map1'){
             modalAlert.modal('hide');
             allowBypass=true
         }
+        if (clusters[mapID][clusterIndex[mapID]].required.includes(imageIndex[mapID])&&(reachedEnd == false)){  // Cannot skip required images
+            return;
+        }
         if (((modalActive == false) && (modalActive2 == false))||(allowBypass)) {
             if (imageIndex[mapID]<clusters[mapID][clusterIndex[mapID]].images.length-skipNum){
                 if ((mapdiv2 != null)&&(previousClick!=null)) {
@@ -3738,6 +3741,16 @@ document.onkeyup = function(event){
                     break;
                 case 'arrowleft': prevImage()
                     break;
+                case 'arrowup': 
+                    if (taggingLevel=='-3'||taggingLevel=='-8') {
+                        forwardImage()
+                    }
+                    break;
+                case 'arrowdown':
+                    if (taggingLevel=='-3'||taggingLevel=='-8') {
+                        backImage()
+                    }
+                    break;
             }
 
         }
@@ -3959,6 +3972,13 @@ function updateImageIndex(newIndex, mapID = 'map1') {
         if (modalAlert.is(':visible')) {
             modalAlert.modal('hide');
             allowBypass=true
+        }
+
+        if (reachedEnd==false && clusters[mapID][clusterIndex[mapID]].required.length>1) {
+            if (newIndex>(imageIndex[mapID]+1)) {
+            // Canot skip required images 
+                return;
+            }
         }
 
         if (((modalActive == false) && (modalActive2 == false))||(allowBypass)) {
