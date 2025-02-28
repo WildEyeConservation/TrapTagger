@@ -3343,7 +3343,8 @@ def prep_required_images(self,task_id,trapgroup_id=None):
 
             #################################Quantile images for clusters where they are missing the proposed classification#####################
             # Split each clusters images into 5 equal quantiles
-            clusterQuantileSQ = db.session.query(
+            # We need rDets here to ensure that the chosen quantile images indeed have detections
+            clusterQuantileSQ = rDets(db.session.query(
                                             Cluster.id.label("cluster_id"),
                                             Image.id.label("image_id"),
                                             func.ntile(5).over(
@@ -3352,10 +3353,11 @@ def prep_required_images(self,task_id,trapgroup_id=None):
                                             ).label("quantile_bin")
                                         )\
                                         .join(Image, Cluster.images)\
+                                        .join(Detection)\
                                         .join(Camera)\
                                         .filter(Cluster.task_id==task_id)\
                                         .filter(Cluster.examined==False)\
-                                        .filter(Camera.trapgroup_id==trapgroup_id)\
+                                        .filter(Camera.trapgroup_id==trapgroup_id))\
                                         .subquery()
 
             # now apply a row number to each ordered image in each quantile

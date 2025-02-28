@@ -960,15 +960,16 @@ def fetch_clusters(taggingLevel,task_id,isBounding,trapgroup_id,limit=None,id=No
 
             # this SQ helps us limit the results to MAX_DETS_PER_CLUSTER relevant detections per cluster
             detectionSQ = rDets(db.session.query(
-                            Detection,
-                            func.row_number().over(
-                                partition_by=Cluster.id,
-                                order_by=Detection.id
-                            ).label("row_num")
-            ).join(Image)\
-            .join(Cluster,Image.clusters)\
-            .filter(Cluster.task_id==task_id))\
-            .subquery()
+                                            Detection,
+                                            func.row_number().over(
+                                                partition_by=Cluster.id,
+                                                order_by=[Image.detection_rating,Detection.id]
+                                            ).label("row_num")
+                                        )\
+                                        .join(Image)\
+                                        .join(Cluster,Image.clusters)\
+                                        .filter(Cluster.task_id==task_id))\
+                                        .subquery()
 
             if (taggingLevel=='-1') and not isBounding:
                 # basic species annotation. No need for labels and we want to limit detections
@@ -1005,7 +1006,7 @@ def fetch_clusters(taggingLevel,task_id,isBounding,trapgroup_id,limit=None,id=No
                             .outerjoin(requiredimagestable,requiredimagestable.c.cluster_id==Cluster.id)\
                             .join(Camera) \
                             .outerjoin(detectionSQ,detectionSQ.c.image_id==Image.id)\
-                            .filter(detectionSQ.c.row_num<Config.MAX_DETS_PER_CLUSTER)
+                            .filter(or_(detectionSQ.c.row_num<Config.MAX_DETS_PER_CLUSTER,detectionSQ.c.row_num==None))
 
             elif '-2' in taggingLevel:
                 # informational tagging. We need the current tags and limit the detections
@@ -1044,8 +1045,8 @@ def fetch_clusters(taggingLevel,task_id,isBounding,trapgroup_id,limit=None,id=No
                             .outerjoin(detectionSQ,detectionSQ.c.image_id==Image.id)\
                             .outerjoin(Labelgroup,Labelgroup.detection_id==detectionSQ.c.id)\
                             .outerjoin(Tag,Labelgroup.tags)\
-                            .filter(Labelgroup.task_id == task_id)\
-                            .filter(detectionSQ.c.row_num<Config.MAX_DETS_PER_CLUSTER)                            
+                            .filter(or_(Labelgroup.task_id==task_id,Labelgroup.id==None))\
+                            .filter(or_(detectionSQ.c.row_num<Config.MAX_DETS_PER_CLUSTER,detectionSQ.c.row_num==None))
                 
             elif ('-3' in taggingLevel) or (taggingLevel.isdigit() and not isBounding) or ('-8' in taggingLevel):
                 # AI check and category species labelling. We need the labels and want to limit detections
@@ -1084,8 +1085,8 @@ def fetch_clusters(taggingLevel,task_id,isBounding,trapgroup_id,limit=None,id=No
                             .outerjoin(detectionSQ,detectionSQ.c.image_id==Image.id)\
                             .outerjoin(Labelgroup,Labelgroup.detection_id==detectionSQ.c.id)\
                             .outerjoin(Label,Labelgroup.labels)\
-                            .filter(Labelgroup.task_id == task_id)\
-                            .filter(detectionSQ.c.row_num<Config.MAX_DETS_PER_CLUSTER)
+                            .filter(or_(Labelgroup.task_id==task_id,Labelgroup.id==None))\
+                            .filter(or_(detectionSQ.c.row_num<Config.MAX_DETS_PER_CLUSTER,detectionSQ.c.row_num==None))
 
             elif '-7' in taggingLevel:
                 clusters = db.session.query(
@@ -1167,7 +1168,26 @@ def fetch_clusters(taggingLevel,task_id,isBounding,trapgroup_id,limit=None,id=No
                 # all detections are required for individual ID along with individual info and labels
                 tL = re.split(',',taggingLevel)
                 species = tL[1]
-                clusters = rDets(db.session.query(
+
+                detectionSQ = rDets(db.session.query(
+                                            Detection,
+                                            Label.id.label('label_id'),
+                                            Label.description.label('label_description'),
+                                            Individual.id.label('individual_id'),
+                                            IndividualTask.c.id.label('individual_task_id')
+                                        )\
+                                        .join(Image)\
+                                        .join(Labelgroup)\
+                                        .join(Label,Labelgroup.labels)\
+                                        .outerjoin(Individual,Detection.individuals)\
+                                        .outerjoin(IndividualTask,Individual.tasks)\
+                                        .join(Cluster,Image.clusters)\
+                                        .filter(Cluster.task_id==task_id)\
+                                        .filter(Labelgroup.task_id==task_id)\
+                                        .filter(Label.description==species))\
+                                        .subquery()
+                
+                clusters = db.session.query(
                                     Cluster.id,
                                     Cluster.notes,
                                     Image.id,
@@ -1177,35 +1197,29 @@ def fetch_clusters(taggingLevel,task_id,isBounding,trapgroup_id,limit=None,id=No
                                     Camera.id,
                                     Camera.path,
                                     Camera.trapgroup_id,
-                                    Detection.id,
-                                    Detection.top,
-                                    Detection.bottom,
-                                    Detection.left,
-                                    Detection.right,
-                                    Detection.category,
-                                    Detection.static,
-                                    Label.id,
-                                    Label.description,
+                                    detectionSQ.c.id,
+                                    detectionSQ.c.top,
+                                    detectionSQ.c.bottom,
+                                    detectionSQ.c.left,
+                                    detectionSQ.c.right,
+                                    detectionSQ.c.category,
+                                    detectionSQ.c.static,
+                                    detectionSQ.c.label_id,
+                                    detectionSQ.c.label_description,
                                     requiredimagestable.c.image_id,
                                     None,
                                     None,
-                                    Individual.id,
+                                    detectionSQ.c.individual_id,
                                     None,
                                     None,
                                     None,
-                                    Detection.flank,
-                                    IndividualTask.c.id
+                                    detectionSQ.c.flank,
+                                    detectionSQ.c.individual_task_id
                                 )\
                                 .join(Image, Cluster.images) \
                                 .outerjoin(requiredimagestable,requiredimagestable.c.cluster_id==Cluster.id)\
                                 .join(Camera) \
-                                .outerjoin(Detection) \
-                                .outerjoin(Labelgroup)\
-                                .outerjoin(Label,Labelgroup.labels)\
-                                .filter(Labelgroup.task_id == task_id)\
-                                .outerjoin(Individual,Detection.individuals)\
-                                .outerjoin(IndividualTask,Individual.tasks)\
-                                .filter(Label.description==species))
+                                .outerjoin(detectionSQ,detectionSQ.c.image_id==Image.id)
             
             clusters = clusters.filter(Camera.trapgroup_id==trapgroup_id)\
                                 .filter(Cluster.examined==False)
