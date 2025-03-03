@@ -1006,7 +1006,11 @@ def fetch_clusters(taggingLevel,task_id,isBounding,trapgroup_id,limit=None,id=No
                             .outerjoin(requiredimagestable,requiredimagestable.c.cluster_id==Cluster.id)\
                             .join(Camera) \
                             .outerjoin(detectionSQ,detectionSQ.c.image_id==Image.id)\
-                            .filter(or_(detectionSQ.c.row_num<Config.MAX_DETS_PER_CLUSTER,detectionSQ.c.row_num==None))
+                            .filter(or_(
+                                detectionSQ.c.row_num<Config.MAX_DETS_PER_CLUSTER,
+                                detectionSQ.c.row_num==None,
+                                requiredimagestable.c.image_id==Image.id
+                            ))
 
             elif '-2' in taggingLevel:
                 # informational tagging. We need the current tags and limit the detections
@@ -1046,7 +1050,11 @@ def fetch_clusters(taggingLevel,task_id,isBounding,trapgroup_id,limit=None,id=No
                             .outerjoin(Labelgroup,Labelgroup.detection_id==detectionSQ.c.id)\
                             .outerjoin(Tag,Labelgroup.tags)\
                             .filter(or_(Labelgroup.task_id==task_id,Labelgroup.id==None))\
-                            .filter(or_(detectionSQ.c.row_num<Config.MAX_DETS_PER_CLUSTER,detectionSQ.c.row_num==None))
+                            .filter(or_(
+                                detectionSQ.c.row_num<Config.MAX_DETS_PER_CLUSTER,
+                                detectionSQ.c.row_num==None,
+                                requiredimagestable.c.image_id==Image.id
+                            ))
                 
             elif ('-3' in taggingLevel) or (taggingLevel.isdigit() and not isBounding) or ('-8' in taggingLevel):
                 # AI check and category species labelling. We need the labels and want to limit detections
@@ -1086,7 +1094,11 @@ def fetch_clusters(taggingLevel,task_id,isBounding,trapgroup_id,limit=None,id=No
                             .outerjoin(Labelgroup,Labelgroup.detection_id==detectionSQ.c.id)\
                             .outerjoin(Label,Labelgroup.labels)\
                             .filter(or_(Labelgroup.task_id==task_id,Labelgroup.id==None))\
-                            .filter(or_(detectionSQ.c.row_num<Config.MAX_DETS_PER_CLUSTER,detectionSQ.c.row_num==None))
+                            .filter(or_(
+                                detectionSQ.c.row_num<Config.MAX_DETS_PER_CLUSTER,
+                                detectionSQ.c.row_num==None,
+                                requiredimagestable.c.image_id==Image.id
+                            ))
 
             elif '-7' in taggingLevel:
                 clusters = db.session.query(
