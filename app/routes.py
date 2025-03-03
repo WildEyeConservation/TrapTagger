@@ -14062,6 +14062,16 @@ def addImage():
             if timestamp:
                 try:
                     timestamp = datetime.strptime(timestamp, '%Y-%m-%d %H:%M:%S')
+                    if timestamp.year<2000 or timestamp>(datetime.utcnow()+timedelta(hours=14)): timestamp = None
+                except:
+                    timestamp = None
+
+            if not timestamp:
+                # Check if it might be unix integer/epoch time 
+                try:
+                    timestamp = int(data.get('timestamp'))
+                    timestamp = datetime.fromtimestamp(int(timestamp))
+                    if timestamp.year<2000 or timestamp>(datetime.utcnow()+timedelta(hours=14)): timestamp = None
                 except:
                     timestamp = None
 
@@ -14183,8 +14193,8 @@ def addImage():
                                 pass
 
                         # Check timestamp is not corrupt
-                        if timestamp and (timestamp>datetime.utcnow()): timestamp == None
-                        if timestamp and (timestamp.year<2000): timestamp == None
+                        if timestamp and (timestamp>(datetime.utcnow()+timedelta(hours=14))): timestamp = None
+                        if timestamp and (timestamp.year<2000): timestamp = None
 
                         if not trapgroup:
                             trapgroup = Trapgroup(survey_id=survey_id, tag=site_name, latitude=latitude, longitude=longitude, altitude=altitude)
