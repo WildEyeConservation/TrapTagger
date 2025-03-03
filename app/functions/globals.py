@@ -3263,7 +3263,7 @@ def prep_required_images(self,task_id,trapgroup_id=None):
                                         .filter(((Detection.right-Detection.left)*(Detection.bottom-Detection.top)) > Config.CLASSIFICATION_DET_AREA[dataType])
 
             if trapgroup_id: imageClassificationSQ = imageClassificationSQ.join(Camera).filter(Camera.trapgroup_id==trapgroup_id)
-            imageClassificationSQ = imageClassificationSQ.subquery()
+            imageClassificationSQ = imageClassificationSQ.distinct(Image.id,Detection.classification).subquery()
 
             # the start and end times for each cluster
             clusterTimestampsSQ = db.session.query(\
@@ -3314,7 +3314,7 @@ def prep_required_images(self,task_id,trapgroup_id=None):
                                         .filter(~Labelstable2.c.label_id.in_([GLOBALS.nothing_id,GLOBALS.unknown_id,GLOBALS.knocked_id]))
 
             if trapgroup_id: relatedClustersSQ = relatedClustersSQ.filter(ClusterTimestampsSQ1.c.trapgroup_id==trapgroup_id)
-            relatedClustersSQ = relatedClustersSQ.subquery()
+            relatedClustersSQ = relatedClustersSQ.distinct(Cluster1.c.id,Translation2.c.classification).subquery()
 
             # The ranked images (based on detection rating) for each classification in a cluster
             requiredImagesSQ = db.session.query(\
@@ -3346,7 +3346,12 @@ def prep_required_images(self,task_id,trapgroup_id=None):
             #################################Quantile images for clusters where they are missing the proposed classification#####################
             # Split each clusters images into 5 equal quantiles
             # We need rDets here to ensure that the chosen quantile images indeed have detections
-            clusterQuantileSQ = rDets(db.session.query(
+            if trapgroup_id:
+                rDetsSQ = rDets(db.session.query(Image).join(Detection).join(Camera).filter(Camera.trapgroup_id==trapgroup_id)).distinct(Image.id).subquery()
+            else:
+                rDetsSQ = rDets(db.session.query(Image).join(Detection).join(Camera).join(Trapgroup).filter(Trapgroup.survey_id==task.survey_id)).distinct(Image.id).subquery()
+            
+            clusterQuantileSQ = db.session.query(
                                             Cluster.id.label("cluster_id"),
                                             Image.id.label("image_id"),
                                             func.ntile(5).over(
@@ -3355,12 +3360,12 @@ def prep_required_images(self,task_id,trapgroup_id=None):
                                             ).label("quantile_bin")
                                         )\
                                         .join(Image, Cluster.images)\
-                                        .join(Detection)\
-                                        .join(Camera)\
+                                        .join(rDetsSQ,rDetsSQ.c.id==Image.id)\
                                         .filter(Cluster.task_id==task_id)\
-                                        .filter(Cluster.examined==False)\
-                                        .filter(Camera.trapgroup_id==trapgroup_id))\
-                                        .subquery()
+                                        .filter(Cluster.examined==False)
+            
+            if trapgroup_id: clusterQuantileSQ = clusterQuantileSQ.join(Camera).filter(Camera.trapgroup_id==trapgroup_id)
+            clusterQuantileSQ = clusterQuantileSQ.subquery()
 
             # now apply a row number to each ordered image in each quantile
             clusterOrderSQ = db.session.query(
@@ -3395,7 +3400,7 @@ def prep_required_images(self,task_id,trapgroup_id=None):
                                         .join(quantilesSQ,quantilesSQ.c.cluster_id==Cluster.id)\
                                         .filter(Cluster.task_id==task_id)\
                                         .filter(Cluster.examined==False)\
-                                        .distinct().all()            
+                                        .distinct().all()
 
         else:
             # info tag level needs to be handled correctly
@@ -3435,7 +3440,7 @@ def prep_required_images(self,task_id,trapgroup_id=None):
                                         .filter(((Detection.right-Detection.left)*(Detection.bottom-Detection.top)) > Config.CLASSIFICATION_DET_AREA[dataType])
             
             if trapgroup_id: imageClassificationSQ = imageClassificationSQ.join(Camera).filter(Camera.trapgroup_id==trapgroup_id)
-            imageClassificationSQ = imageClassificationSQ.subquery()
+            imageClassificationSQ = imageClassificationSQ.distinct(Image.id,Detection.classification).subquery()
 
             # Here we find the ranked images (based on detection rating) for each classification in a cluster
             requiredImagesSQ = db.session.query(\

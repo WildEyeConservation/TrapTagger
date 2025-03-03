@@ -1348,7 +1348,7 @@ function updateDebugInfo(mapID = 'map1',updateLabels = true) {
                     if (i!=0) {
                         span.setAttribute('style','font-size: 80%;color: rgba(150,150,150,100)')
                     }
-                    text = ' ' + clusters[mapID][clusterIndex[mapID]].classification[i][0] + ' (' + clusters[mapID][clusterIndex[mapID]].classification[i][1] + ')'
+                    text = ' ' + clusters[mapID][clusterIndex[mapID]].classification[i][0] //+ ' (' + clusters[mapID][clusterIndex[mapID]].classification[i][1] + ')'
                     if (i!=clusters[mapID][clusterIndex[mapID]].classification.length-1) {
                         text += ','
                     }
