@@ -3232,7 +3232,7 @@ def format_count(count):
 
 #     return required
 
-@celery.task(bind=True,max_retries=5,ignore_result=True)
+@celery.task(bind=True,max_retries=5)
 def prep_required_images(self,task_id,trapgroup_id=None):
     '''Prepares the required images for every cluster in a specified task - the images that must be viewed by the 
     user based on the species contained therein.'''
