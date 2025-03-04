@@ -1294,6 +1294,33 @@ def update_lambda_code():
 
     return True
 
+def update_lambda_function_code(lambda_function,zip_path,remove_zip=True):
+    '''Function that updates the code of a specific lambda function.'''
+
+    #NOTE: Run the build_lambda.sh script to create the lambda functions zip in terminal before running this function
+    
+    app.logger.info('Updating lambda function {} code'.format(lambda_function))
+    try:
+        GLOBALS.lambdaClient.update_function_code(
+            FunctionName=lambda_function,
+            ZipFile=open(zip_path,'rb').read()
+        )
+
+        # wait for the update to complete
+        function_ready = False
+        while not function_ready:
+            response = GLOBALS.lambdaClient.get_function(FunctionName=lambda_function)
+            if response['Configuration']['LastUpdateStatus'] == 'Successful':
+                function_ready = True
+
+        if remove_zip and os.path.exists(zip_path): os.remove(zip_path)
+        app.logger.info('Lambda function {} code updated'.format(lambda_function))
+    except:
+        app.logger.info('Failed to update lambda function {} code'.format(lambda_function))
+        pass
+
+    return True
+
 def setup_layers():
     '''Function that checks if the lambda layers exist and creates them if not.'''
     try:
