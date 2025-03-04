@@ -1729,7 +1729,7 @@ def restore_crops(self,csv_key,CROPS_BUCKET,date_cutoff):
         df = pd.read_csv(temp_file.name)
 
     for index, row in df.iterrows():
-        app.logger.info(index,int(row['detection_id']))
+        app.logger.info('{}: {}'.format(index,int(row['detection_id'])))
         crop_name = str(int(row['detection_id']))+'.jpg'
 
         try:
@@ -1906,7 +1906,7 @@ def crop_restored_images(csv_key,CROPS_BUCKET):
         df = pd.read_csv(temp_file.name)
 
     for index, row in df.iterrows():
-        app.logger.info(index,int(row['detection_id']))
+        app.logger.info('{}: {}'.format(index,int(row['detection_id'])))
         crop_name = str(int(row['detection_id']))+'.jpg'
 
         # Wait for de-archive
