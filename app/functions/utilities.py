@@ -1711,7 +1711,7 @@ def download_and_crop(key,left,right,top,bottom,crop_key,CROPS_BUCKET):
         return False
 
 @celery.task(bind=True,max_retries=2)
-def restore_crops(csv_key,CROPS_BUCKET,date_cutoff):
+def restore_crops(self,csv_key,CROPS_BUCKET,date_cutoff):
     ''' Dowloads the specified csv and checks the status of the training crops '''
 
     if date_cutoff: date_cutoff = datetime.fromtimestamp(date_cutoff)
