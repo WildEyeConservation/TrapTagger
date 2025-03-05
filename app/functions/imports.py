@@ -3851,15 +3851,17 @@ def import_survey(self,survey_id,preprocess_done=False,live=False,launch_id=None
             recluster_survey(survey_id)
 
             survey = db.session.query(Survey).get(survey_id)
+            if survey.ignore_small_detections == True:
+                hideSmallDetections(survey_id=survey_id,ignore_small_detections=True,edge=False)
+
+            survey = db.session.query(Survey).get(survey_id)
+            if survey.sky_masked == True:
+                maskSky(survey_id=survey_id,sky_masked=True,edge=False)
+
+            survey = db.session.query(Survey).get(survey_id)
             survey.status='Calculating Scores'
             db.session.commit()
             updateSurveyDetectionRatings(survey_id=survey_id)
-
-            if survey.ignore_small_detections == True:
-                hideSmallDetections(survey_id=survey_id,ignore_small_detections=True,edge=False)
-                
-            if survey.sky_masked == True:
-                maskSky(survey_id=survey_id,sky_masked=True,edge=False)
 
             task_ids = [r[0] for r in db.session.query(Task.id).filter(Task.survey_id==survey_id).filter(Task.name!='default').all()]
             for task_id in task_ids:
