@@ -3596,7 +3596,7 @@ function buildAdvancedOptions() {
 
             h5 = document.createElement('h5')
             h5.setAttribute('style','padding-top: 16px; padding-left: 15px; padding-right: 10px; margin-bottom: 2px')
-            h5.innerHTML = 'Mask Sky Detections'
+            h5.innerHTML = 'Ignore Sky Detections'
             row.appendChild(h5)
 
             div = document.createElement('div')
@@ -4423,6 +4423,8 @@ document.getElementById('btnSaveSurvey').addEventListener('click', ()=>{
     newSurveyPlains = document.getElementById('newSurveyPlains').checked
     newSurveyWaterholes = document.getElementById('newSurveyWaterholes').checked
     newSurveyBaited = document.getElementById('newSurveyBaited').checked
+    newSurveyIgnoreSmallDets = document.getElementById('cbxIgnoreSmallDets').checked
+    newSurvyeIgnoreSkyDets = document.getElementById('cbxIgnoreSkyDets').checked
 
     while(document.getElementById('newSurveyErrors').firstChild){
         document.getElementById('newSurveyErrors').removeChild(document.getElementById('newSurveyErrors').firstChild);
@@ -4658,6 +4660,18 @@ document.getElementById('btnSaveSurvey').addEventListener('click', ()=>{
                 formData.append("dataSource", 'waterhole')
             } else if (newSurveyBaited) {
                 formData.append("dataSource", 'baited')
+            }
+
+            if(newSurveyIgnoreSmallDets){
+                formData.append("ignoreSmallDets", 'true')
+            } else {
+                formData.append("ignoreSmallDets", 'false')
+            }
+
+            if(newSurvyeIgnoreSkyDets){
+                formData.append("ignoreSkyDets", 'true')
+            } else {
+                formData.append("ignoreSkyDets", 'false')
             }
 
             if (emptySurvey) {

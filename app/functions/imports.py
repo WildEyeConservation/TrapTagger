@@ -18,7 +18,8 @@ from app import app, db, celery
 from app.models import *
 # from app.functions.admin import setup_new_survey_permissions
 from app.functions.globals import detection_rating, randomString, updateTaskCompletionStatus, updateLabelCompletionStatus, updateIndividualIdStatus, retryTime,\
-                                 chunker, save_crops, list_all, classifyTask, all_equal, taggingLevelSQ, generate_raw_image_hash, updateAllStatuses, setup_new_survey_permissions
+                                 chunker, save_crops, list_all, classifyTask, all_equal, taggingLevelSQ, generate_raw_image_hash, updateAllStatuses, setup_new_survey_permissions, \
+                                 hideSmallDetections, maskSky
 from app.functions.annotation import launch_task
 import GLOBALS
 from sqlalchemy.sql import func, or_, distinct, and_, literal_column
@@ -3853,6 +3854,12 @@ def import_survey(self,survey_id,preprocess_done=False,live=False,launch_id=None
             survey.status='Calculating Scores'
             db.session.commit()
             updateSurveyDetectionRatings(survey_id=survey_id)
+
+            if survey.ignore_small_detections == True:
+                hideSmallDetections(survey_id=survey_id,ignore_small_detections=True,edge=False)
+                
+            if survey.sky_masked == True:
+                maskSky(survey_id=survey_id,sky_masked=True,edge=False)
 
             task_ids = [r[0] for r in db.session.query(Task.id).filter(Task.survey_id==survey_id).filter(Task.name!='default').all()]
             for task_id in task_ids:

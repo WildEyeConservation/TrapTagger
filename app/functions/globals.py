@@ -4752,3 +4752,89 @@ def update_labelgroup_labels_tags(self,cluster_id):
         db.session.remove()
 
     return True 
+
+def hideSmallDetections(survey_id,ignore_small_detections,edge):
+    ''' Sets all small detections to hidden for a survey.'''
+
+    survey = db.session.query(Survey).get(survey_id)
+    if survey.status in Config.SURVEY_READY_STATUSES:
+        survey.status = 'Processing'
+        db.session.commit()
+
+    # Don't edit the Detection.status != 'deleted' line
+    detections = db.session.query(Detection)\
+                            .join(Image) \
+                            .join(Camera) \
+                            .join(Trapgroup) \
+                            .filter(Trapgroup.survey_id==survey_id) \
+                            .filter(or_(and_(Detection.source==model,Detection.score>Config.DETECTOR_THRESHOLDS[model]) for model in Config.DETECTOR_THRESHOLDS)) \
+                            .filter(Detection.static == False) \
+                            .filter(~Detection.status.in_(['deleted','masked'])) \
+                            .filter(((Detection.right-Detection.left)*(Detection.bottom-Detection.top)) < Config.SMALL_DET_AREA)
+
+    if (not edge) and (ignore_small_detections==False) and (survey.sky_masked==True):
+        detections = detections.filter(Detection.bottom>=Config.SKY_CONST)
+    
+    detections = detections.distinct().all()
+
+    if ignore_small_detections==True:
+        status = 'hidden'
+    else:
+        status = 'active'
+                            
+    # for chunk in chunker(detections,1000):
+    for detection in detections:
+        detection.status = status
+
+    survey = db.session.query(Survey).get(survey_id)
+    if ignore_small_detections==True:
+        survey.ignore_small_detections = True
+    else:
+        survey.ignore_small_detections = False
+    db.session.commit()
+
+    return True
+
+def maskSky(survey_id,sky_masked,edge):
+    ''' Masks all detections in the sky for a survey.'''
+
+    survey = db.session.query(Survey).get(survey_id)
+    if survey.status in Config.SURVEY_READY_STATUSES:
+        survey.status = 'Processing'
+        db.session.commit()
+
+    # Don't edit the Detection.status != 'deleted' line
+    detections = db.session.query(Detection)\
+                            .join(Image) \
+                            .join(Camera) \
+                            .join(Trapgroup) \
+                            .filter(Trapgroup.survey_id==survey_id) \
+                            .filter(or_(and_(Detection.source==model,Detection.score>Config.DETECTOR_THRESHOLDS[model]) for model in Config.DETECTOR_THRESHOLDS)) \
+                            .filter(Detection.static == False) \
+                            .filter(~Detection.status.in_(['deleted','masked'])) \
+                            .filter(Detection.bottom<Config.SKY_CONST)
+
+
+    if (not edge) and (sky_masked==False) and (survey.ignore_small_detections==True):
+        detections.filter(((Detection.right-Detection.left)*(Detection.bottom-Detection.top)) > Config.SMALL_DET_AREA)
+                            
+    detections = detections.distinct().all()
+
+    if sky_masked==True:
+        status = 'hidden'
+    else:
+        status = 'active'
+                            
+    # for chunk in chunker(detections,1000):
+    for detection in detections:
+        detection.status = status
+
+    survey = db.session.query(Survey).get(survey_id)
+    if sky_masked==True:
+        survey.sky_masked = True
+    else:
+        survey.sky_masked = False
+
+    db.session.commit()
+
+    return True
