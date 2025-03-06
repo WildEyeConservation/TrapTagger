@@ -100,7 +100,7 @@ function loadNewCluster(mapID = 'map1') {
                     }
                 }
             };
-        xhttp.open("GET", '/getCluster?id=' + clusterIDs[clusterReadAheadIndex++] + '&reqId='+newID);
+        xhttp.open("POST", '/getCluster?id=' + clusterIDs[clusterReadAheadIndex++] + '&reqId='+newID);
         xhttp.send();
     }
 }

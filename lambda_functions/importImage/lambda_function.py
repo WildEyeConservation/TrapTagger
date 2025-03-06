@@ -18,7 +18,7 @@ import boto3
 import os 
 import json 
 import pymysql
-from PIL import Image as PilImage
+from PIL import Image as PilImage, ImageFile
 import hashlib
 import piexif
 from datetime import datetime
@@ -28,7 +28,8 @@ s3 = boto3.client('s3')
 
 def lambda_handler(event, context):
     '''Updates the image in the database with metadata & compresses the image.'''
-
+    ImageFile.LOAD_TRUNCATED_IMAGES = True
+    
     bucket = event['bucket']
     keys = event['keys']
     conn = pymysql.connect(host=event['RDS_HOST'], user=event['RDS_USER'], password=event['RDS_PASSWORD'], db=event['RDS_DB_NAME'], port=3306, connect_timeout=5)

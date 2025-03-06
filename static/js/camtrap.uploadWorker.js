@@ -109,7 +109,7 @@ async function checkFileBatch() {
             if (!response.ok) {
                 throw new Error(response.statusText)
             } else if (response.status==278) {
-                window.location.reload();
+                postMessage({'func': 'reloadPage', 'args': [largeFiles]})
             } else {
                 return response.json()
             }
@@ -395,7 +395,7 @@ async function checkLambdaQueue(pause=false) {
             if (!response.ok) {
                 throw new Error(response.statusText)
             } else if (response.status==278) {
-                window.location.reload();
+                postMessage({'func': 'reloadPage', 'args': [largeFiles]})
             }
             checkingLambda = false
             if (!pause){

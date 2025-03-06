@@ -17,7 +17,8 @@ limitations under the License.
 from app import app, db, celery
 from app.models import *
 from app.functions.globals import classifyTask, update_masks, retryTime, resolve_abandoned_jobs, addChildLabels, updateAllStatuses, deleteFile,\
-                                    stringify_timestamp, rDets, update_staticgroups, detection_rating, chunker, verify_label, cleanup_empty_restored_images
+                                    stringify_timestamp, rDets, update_staticgroups, detection_rating, chunker, verify_label, cleanup_empty_restored_images, \
+                                    reconcile_cluster_labelgroup_labels_and_tags, hideSmallDetections, maskSky
 from app.functions.individualID import calculate_detection_similarities, cleanUpIndividuals, check_individual_detection_mismatch
 from app.functions.imports import cluster_survey, classifySurvey, s3traverse, recluster_large_clusters, removeHumans, classifyCluster, importKML, import_survey
 import GLOBALS
@@ -340,6 +341,8 @@ def stop_task(self,task_id,live=False):
                                 label.icID_q1_complete = False
 
             db.session.commit()
+
+            reconcile_cluster_labelgroup_labels_and_tags(task_id)
 
             if ',' not in task.tagging_level and task.init_complete and '-2' not in task.tagging_level:
                 check_individual_detection_mismatch(task_id=task_id)
@@ -860,12 +863,12 @@ def processChanges(changes, keys, sessionLabels, task_id, speciesChanges=None):
             else:
                 parentLabel = db.session.query(Label).get(parent)
                 # The user was screened for write access to the task_id. We need to ensure that the user has the necessary permissions for the specified label.
-                if parentLabel.task_id!=task_id: continue
+                if parentLabel and parentLabel.task_id!=task_id: continue
         else:
             if parent in sessionLabels.keys():
                 parentLabel = sessionLabels[parent]
                 # The user was screened for write access to the task_id. We need to ensure that the user has the necessary permissions for the specified label.
-                if parentLabel.task_id!=task_id: continue
+                if parentLabel and parentLabel.task_id!=task_id: continue
             else:
                 skipped.append(parent)
 
@@ -921,7 +924,9 @@ def processChanges(changes, keys, sessionLabels, task_id, speciesChanges=None):
                     valueNeeded = None
 
                 valid = verify_label(changes[parent]['additional'][additional_id]['description'],changes[parent]['additional'][additional_id]['hotkey'],valueNeeded)
-                if (not check) and valid:
+                if check and (check not in sessionLabels.values()):
+                    if parent not in skipped: skipped.append(parent)
+                elif (check==None) and valid:
                     newLabel = Label(description=changes[parent]['additional'][additional_id]['description'],hotkey=changes[parent]['additional'][additional_id]['hotkey'],parent=valueNeeded,task_id=task_id)
                     db.session.add(newLabel)
                     newSessionLabels[additional_id] = newLabel
@@ -949,6 +954,17 @@ def handleTaskEdit(self,task_id,labelChanges,tagChanges,translationChanges,delet
         if Config.DEBUGGING: app.logger.info('Task Edit: {}'.format(task_id))
         task_id = int(task_id)
         task = db.session.query(Task).get(task_id)
+
+        task_args = {
+            'task_id': task_id,
+            'labelChanges': labelChanges,
+            'tagChanges': tagChanges,
+            'translationChanges': translationChanges,
+            'deleteAutoLabels': deleteAutoLabels,
+            'speciesChanges': speciesChanges
+        }
+        GLOBALS.redisClient.set('taskEdit_'+str(task_id),json.dumps(task_args))
+
         if task:
             # Labels
             sessionLabels = {}
@@ -979,7 +995,10 @@ def handleTaskEdit(self,task_id,labelChanges,tagChanges,translationChanges,delet
 
             # Translations
             if len(translationChanges.keys()) > 0:
-                classifications = list(translationChanges.keys())
+                classifications = []
+                for classification in translationChanges:
+                    if translationChanges[classification]['edited'].lower() == 'true':
+                        classifications.append(classification)
 
                 prev_labels = []
                 prev_labels_description = []
@@ -1043,10 +1062,12 @@ def handleTaskEdit(self,task_id,labelChanges,tagChanges,translationChanges,delet
 
                 db.session.commit()
 
-                classifyTask(task.id)
-                if GLOBALS.vhl_id in prev_labels:
-                    removeHumans(task.id)
-                updateAllStatuses(task.id)
+                if classifications:
+                    classifyTask(task.id)
+                    if GLOBALS.vhl_id in prev_labels:
+                        removeHumans(task.id)
+            
+            updateAllStatuses(task.id)
 
             task = db.session.query(Task).get(task_id)
             task.status = 'Ready'
@@ -1061,6 +1082,8 @@ def handleTaskEdit(self,task_id,labelChanges,tagChanges,translationChanges,delet
                             task_ids.append(t_id)
 
             db.session.commit()
+
+        GLOBALS.redisClient.delete('taskEdit_'+str(task_id))
 
     except Exception as exc:
         app.logger.info(' ')
@@ -1922,18 +1945,40 @@ def setupTranslations(task_id, survey_id, translations, includes):
 
     return True
 
-def edit_translations(task_id, translations, includes):
+def edit_translations(task_id, translations, includes,auto=False):
     '''Handles the editing of translations for the given set of translations and specified task.'''
 
     for classification in translations:
         if translations[classification].lower() not in ['knocked down','nothing','vehicles/humans/livestock','unknown']:
             species = db.session.query(Label).filter(Label.task_id==task_id).filter(func.lower(Label.description)==func.lower(translations[classification])).first()
         else:
+            # if auto and translations[classification].lower() == 'nothing':
+            #     species = db.session.query(Label).filter(Label.task_id==task_id).filter(func.lower(Label.description)==func.lower(classification)).first()
+            #     if species:
+            #         includes.append(classification)
+            #         old_translation = db.session.query(Translation)\
+            #                                 .join(Label,Translation.label_id==Label.id)\
+            #                                 .filter(Translation.task_id==task_id)\
+            #                                 .filter(Translation.classification==classification)\
+            #                                 .filter(func.lower(Label.description)=='nothing')\
+            #                                 .all()
+            #         for translation in old_translation:
+            #             db.session.delete(translation)
+            #     else:
+            #         species = db.session.query(Label).filter(func.lower(Label.description)==func.lower(translations[classification])).first()
+            # else:
             species = db.session.query(Label).filter(func.lower(Label.description)==func.lower(translations[classification])).first()
 
         if species:
-            translation = Translation(classification=classification, label_id=species.id, task_id=task_id)
-            db.session.add(translation)
+            translation = db.session.query(Translation)\
+                                    .filter(Translation.task_id==task_id)\
+                                    .filter(Translation.label_id==species.id)\
+                                    .filter(Translation.classification==classification)\
+                                    .first()
+            
+            if not translation:
+                translation = Translation(classification=classification, label_id=species.id, task_id=task_id)
+                db.session.add(translation)
 
             if classification.lower() in includes:
                 translation.auto_classify = True
@@ -2093,90 +2138,6 @@ def findTrapgroupTags(self,tgCode,folder,organisation_id,surveyName,camCode):
         db.session.remove()
 
     return reply
-
-def hideSmallDetections(survey_id,ignore_small_detections,edge):
-    ''' Sets all small detections to hidden for a survey.'''
-
-    survey = db.session.query(Survey).get(survey_id)
-    survey.status = 'Processing'
-    db.session.commit()
-
-    # Don't edit the Detection.status != 'deleted' line
-    detections = db.session.query(Detection)\
-                            .join(Image) \
-                            .join(Camera) \
-                            .join(Trapgroup) \
-                            .filter(Trapgroup.survey_id==survey_id) \
-                            .filter(or_(and_(Detection.source==model,Detection.score>Config.DETECTOR_THRESHOLDS[model]) for model in Config.DETECTOR_THRESHOLDS)) \
-                            .filter(Detection.static == False) \
-                            .filter(~Detection.status.in_(['deleted','masked'])) \
-                            .filter(((Detection.right-Detection.left)*(Detection.bottom-Detection.top)) < Config.DET_AREA)
-
-    if (not edge) and (ignore_small_detections==False) and (survey.sky_masked==True):
-        detections = detections.filter(Detection.bottom>=Config.SKY_CONST)
-    
-    detections = detections.distinct().all()
-
-    if ignore_small_detections==True:
-        status = 'hidden'
-    else:
-        status = 'active'
-                            
-    # for chunk in chunker(detections,1000):
-    for detection in detections:
-        detection.status = status
-
-    survey = db.session.query(Survey).get(survey_id)
-    if ignore_small_detections==True:
-        survey.ignore_small_detections = True
-    else:
-        survey.ignore_small_detections = False
-    db.session.commit()
-
-    return True
-
-def maskSky(survey_id,sky_masked,edge):
-    ''' Masks all detections in the sky for a survey.'''
-
-    survey = db.session.query(Survey).get(survey_id)
-    survey.status = 'Processing'
-    db.session.commit()
-
-    # Don't edit the Detection.status != 'deleted' line
-    detections = db.session.query(Detection)\
-                            .join(Image) \
-                            .join(Camera) \
-                            .join(Trapgroup) \
-                            .filter(Trapgroup.survey_id==survey_id) \
-                            .filter(or_(and_(Detection.source==model,Detection.score>Config.DETECTOR_THRESHOLDS[model]) for model in Config.DETECTOR_THRESHOLDS)) \
-                            .filter(Detection.static == False) \
-                            .filter(~Detection.status.in_(['deleted','masked'])) \
-                            .filter(Detection.bottom<Config.SKY_CONST)
-
-
-    if (not edge) and (sky_masked==False) and (survey.ignore_small_detections==True):
-        detections.filter(((Detection.right-Detection.left)*(Detection.bottom-Detection.top)) > Config.DET_AREA)
-                            
-    detections = detections.distinct().all()
-
-    if sky_masked==True:
-        status = 'hidden'
-    else:
-        status = 'active'
-                            
-    # for chunk in chunker(detections,1000):
-    for detection in detections:
-        detection.status = status
-
-    survey = db.session.query(Survey).get(survey_id)
-    if sky_masked==True:
-        survey.sky_masked = True
-    else:
-        survey.sky_masked = False
-
-    db.session.commit()
-
-    return True
 
 def get_AWS_costs(startDate,endDate):
     '''Returns the AWS cost stats for the specied period in USD.'''
@@ -2784,6 +2745,21 @@ def edit_survey(self,survey_id,user_id,classifier_id,sky_masked,ignore_small_det
         survey.status = 'Processing'
         db.session.commit()
 
+        edit_args = {
+            'survey_id':survey_id,
+            'user_id':user_id,
+            'classifier_id':classifier_id,
+            'sky_masked':sky_masked,
+            'ignore_small_detections':ignore_small_detections,
+            'masks':masks,
+            'staticgroups':staticgroups,
+            'timestamps':timestamps,
+            'image_timestamps':image_timestamps,
+            'coord_data':coord_data,
+            'kml_file':kml_file
+        }
+        GLOBALS.redisClient.set('edit_survey_{}'.format(survey_id),json.dumps(edit_args))
+
         # Coordinates
         if coord_data:
             updateCoords(survey_id=survey_id,coordData=coord_data)
@@ -2856,6 +2832,7 @@ def edit_survey(self,survey_id,user_id,classifier_id,sky_masked,ignore_small_det
         survey.status = 'Ready'
         db.session.commit()
         app.logger.info('Finished editing survey {}'.format(survey_id))
+        GLOBALS.redisClient.delete('edit_survey_{}'.format(survey_id))
 
     except Exception as exc:
         app.logger.info(' ')
@@ -2930,7 +2907,7 @@ def check_masked_and_hidden_detections(survey_id):
                             .filter(or_(and_(Detection.source==model,Detection.score>Config.DETECTOR_THRESHOLDS[model]) for model in Config.DETECTOR_THRESHOLDS))\
                             .filter(~Detection.status.in_(Config.DET_IGNORE_STATUSES))\
                             .filter(Detection.static == False) \
-                            .filter(((Detection.right-Detection.left)*(Detection.bottom-Detection.top)) < Config.DET_AREA)\
+                            .filter(((Detection.right-Detection.left)*(Detection.bottom-Detection.top)) < Config.SMALL_DET_AREA)\
                             .distinct().all()
 
         for detection in small_detections:
