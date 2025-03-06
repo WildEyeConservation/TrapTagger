@@ -16,12 +16,14 @@ limitations under the License.
 
 import json
 import numpy as np
-from PIL import Image,ImageOps
+from PIL import Image,ImageOps, ImageFile
 import torch
 import torch.utils
 import torchvision as tv
 import tempfile
 import boto3
+
+ImageFile.LOAD_TRUNCATED_IMAGES = True
 
 # mean/std values from https://pytorch.org/docs/stable/torchvision/models.html
 MEANS = np.asarray([0.485, 0.456, 0.406])
@@ -110,12 +112,16 @@ def run_epoch(model, loader, device, categories):
                 probs = torch.nn.functional.softmax(outputs, dim=1).cpu().numpy()
 
                 for n in range(len(probs)):
-                    index = np.argmax(probs[n])
-                    score = str(probs[n][index])
-                    classification = categories[str(index)]
-                    detection_id = img_files[n]
-                    result[detection_id] = {'score': score, 'classification': classification}
-                    print('{}: {}@{}'.format(detection_id,classification,score))
+                    try:
+                        index = np.argmax(probs[n])
+                        score = str(probs[n][index])
+                        classification = categories[str(index)]
+                        detection_id = img_files[n]
+                        result[detection_id] = {'score': score, 'classification': classification}
+                        print('{}: {}@{}'.format(detection_id,classification,score))
+                    except:
+                        print('Failed to process detection ID.')
+                        continue
             except:
                 pass
 
@@ -142,7 +148,7 @@ def create_loader(batch,img_size,batch_size,num_workers):
         dataset = DownloadedDataset(batch,transform)
 
     assert len(dataset) > 0
-    loader = torch.utils.data.DataLoader(dataset, batch_size=batch_size, num_workers=num_workers,pin_memory=True)
+    loader = torch.utils.data.DataLoader(dataset, batch_size=batch_size, num_workers=num_workers,pin_memory=True,collate_fn=collate_fn)
     return loader
 
 class SimpleDataset(torch.utils.data.Dataset):
@@ -169,7 +175,7 @@ class SimpleDataset(torch.utils.data.Dataset):
         image_id = self.detections[detection_id]['image_id']
 
         print('fetching {} from {}'.format(self.images[image_id],self.bucket))
-
+        
         ###########Local Download appoach
         if image_id not in self.ims.keys():
             try:
@@ -249,32 +255,35 @@ class DownloadedDataset(torch.utils.data.Dataset):
 def crop_image(img, bbox_norm):
     '''Crops the supplied image according to the normalised bounding box with the format [left,top,width,height].'''
 
-    img_w, img_h = img.size
-    xmin = int(bbox_norm[0] * img_w)
-    ymin = int(bbox_norm[1] * img_h)
-    box_w = int(bbox_norm[2] * img_w)
-    box_h = int(bbox_norm[3] * img_h)
+    try:
+        img_w, img_h = img.size
+        xmin = int(bbox_norm[0] * img_w)
+        ymin = int(bbox_norm[1] * img_h)
+        box_w = int(bbox_norm[2] * img_w)
+        box_h = int(bbox_norm[3] * img_h)
 
-    # expand box width or height to be square, but limit to img size
-    box_size = max(box_w, box_h)
-    xmin = max(0, min(
-        xmin - int((box_size - box_w) / 2),
-        img_w - box_w))
-    ymin = max(0, min(
-        ymin - int((box_size - box_h) / 2),
-        img_h - box_h))
-    box_w = min(img_w, box_size)
-    box_h = min(img_h, box_size)
+        # expand box width or height to be square, but limit to img size
+        box_size = max(box_w, box_h)
+        xmin = max(0, min(
+            xmin - int((box_size - box_w) / 2),
+            img_w - box_w))
+        ymin = max(0, min(
+            ymin - int((box_size - box_h) / 2),
+            img_h - box_h))
+        box_w = min(img_w, box_size)
+        box_h = min(img_h, box_size)
 
-    if box_w == 0 or box_h == 0:
+        if box_w == 0 or box_h == 0:
+            return False
+
+        # Image.crop() takes box=[left, upper, right, lower]
+        crop = img.crop(box=[xmin, ymin, xmin + box_w, ymin + box_h])
+
+        if box_w != box_h:
+            # pad to square using 0s
+            crop = ImageOps.pad(crop, size=(box_size, box_size), color=0)
+    except:
         return False
-
-    # Image.crop() takes box=[left, upper, right, lower]
-    crop = img.crop(box=[xmin, ymin, xmin + box_w, ymin + box_h])
-
-    if box_w != box_h:
-        # pad to square using 0s
-        crop = ImageOps.pad(crop, size=(box_size, box_size), color=0)
 
     return crop
 
@@ -304,3 +313,8 @@ def prep_device(model: torch.nn.Module):
         device = torch.device('cpu')
     model.to(device)  # in-place
     return model, device, status
+
+def collate_fn(batch):
+    '''Removes None entries from the batch.'''
+    batch = [x for x in batch if x is not None and x[0] is not None]
+    return torch.utils.data.dataloader.default_collate(batch)

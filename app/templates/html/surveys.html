@@ -159,6 +159,51 @@ limitations under the License. -->
                     </div>
                     <br>
 
+                    <h5 style="margin-bottom: 2px">Data Source</h5>
+                    <div style="font-size: 80%; margin-bottom: 2px"><i>Select the source of your data. This optimises some processing parameters like using more-strict static-detection identification for waterhole data where animals can be quite stationary. If you are unsure, simply leave the default general selection.</i></div>
+                    <div style="margin-bottom: 5px">
+                        <div class="custom-control custom-radio custom-control-inline">
+                            <input type="radio" class="custom-control-input" id="newSurveyTrails" name="waterholeSelection" value='0' checked="true">
+                            <label class="custom-control-label" for="newSurveyTrails">General</label>
+                        </div> 
+                        <div class="custom-control custom-radio custom-control-inline" hidden>
+                            <input type="radio" class="custom-control-input" id="newSurveyPlains" name="waterholeSelection" value='1'>
+                            <label class="custom-control-label" for="newSurveyPlains">Open plains</label>
+                        </div>
+                        <div class="custom-control custom-radio custom-control-inline">
+                            <input type="radio" class="custom-control-input" id="newSurveyWaterholes" name="waterholeSelection" value='2'>
+                            <label class="custom-control-label" for="newSurveyWaterholes">Waterholes</label>
+                        </div> 
+                        <div class="custom-control custom-radio custom-control-inline">
+                            <input type="radio" class="custom-control-input" id="newSurveyBaited" name="waterholeSelection" value='3'>
+                            <label class="custom-control-label" for="newSurveyBaited">Baited traps</label>
+                        </div> 
+                    </div>
+                    <br>
+
+                    <h5 style="margin-bottom: 2px">Advanced Options</h5>
+                    <div style="font-size: 80%; margin-bottom: 2px"><i>Select if you would like any of the following advanced options to be applied to your survey. 
+                        Ignore small detections filters out detections triggered by small animals like rodents and birds, whilst ignore sky detections filters out 
+                        those whose bottom edge occurs in the top third of the image - useful for filtering out birds.
+                    </i></div>
+                    <div style="margin-bottom: 5px">
+                        <div class="row">
+                            <div class="col-lg-2">
+                                <div class="custom-control custom-checkbox">
+                                    <input type="checkbox" class="custom-control-input" id="cbxIgnoreSmallDets" name="cbxIgnoreSmallDets">
+                                    <label class="custom-control-label" for="cbxIgnoreSmallDets">Ignore Small Detections</label>
+                                </div>
+                            </div>
+                            <div class="col-lg-2">
+                                <div class="custom-control custom-checkbox">
+                                    <input type="checkbox" class="custom-control-input" id="cbxIgnoreSkyDets" name="cbxIgnoreSkyDets">
+                                    <label class="custom-control-label" for="cbxIgnoreSkyDets">Ignore Sky Detections</label>
+                                </div>
+                            </div>
+                        </div>        
+                    </div>
+                    <br>
+
                     <h5 style="margin-bottom: 2px">Permissions</h5>
                     <div style="font-size: 80%; margin-bottom: 2px"><i>Select the user permissions for non-admin users for this survey excluding yourself.</i></div>
                     <div class="row">
@@ -276,7 +321,7 @@ limitations under the License. -->
                     <br>
 
                     <h5 style="margin-bottom: 2px">Camera Identifier</h5>
-                    <div style="font-size: 80%; margin-bottom: 2px"><i> Select the method you would like to use to identify your cameras.</i></div>
+                    <div style="font-size: 80%; margin-bottom: 2px"><i>Select the method you would like to use to identify your cameras.</i></div>
                     <div style="margin-bottom: 5px">
                         <div class="custom-control custom-radio custom-control-inline">
                             <input type="radio" class="custom-control-input" id="camBotLvlFolder" name="camCodeSelection" value='0' checked="true" onchange="updateCamDiv()">
@@ -1909,6 +1954,7 @@ limitations under the License. -->
             <div class="tab" id="annotationTabs" style="border-top: 1px solid rgb(60, 74, 89);">
                 <button id="openSpeciesLabellingTab" class="tablinks" onclick="changeAnnotationTab(event, 'baseSpeciesLabellingTab')">Species Labelling</button>
                 <button id="openAISpeciesTab" class="tablinks" onclick="changeAnnotationTab(event, 'baseAISpeciesTab')">AI Species Check</button>
+                <button id="openRelatedClustersTab" class="tablinks" onclick="changeAnnotationTab(event, 'baseRelatedClustersTab')">Related Clusters Check</button>
                 <button id="openEmptyTab" class="tablinks" onclick="changeAnnotationTab(event, 'baseEmptyTab')">Empty Label Check</button>
                 <button id="openInfoTab" class="tablinks" onclick="changeAnnotationTab(event, 'baseInfoTab')">Informational Tagging</button>
                 <button id="openMultiSpeciesTab" class="tablinks" onclick="changeAnnotationTab(event, 'baseMultiSpeciesTab')">Multi-Species Differentiation</button>
@@ -2130,6 +2176,29 @@ limitations under the License. -->
                 </div>
                 <div class="col-lg-3">
                     <button id="btnCancelEmpty" type="button" class="btn btn-info btn-block" data-dismiss="modal">Cancel</button>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Alert Modal -->
+<div id="modalEditTaskAlert" class="modal fade" role="dialog" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h4 class="modal-title">Alert</h4>
+                <button id="helpx" type="button" class="close" data-dismiss="modal">&times;</button>
+            </div>
+            <div class="modal-body">
+                <p align="justify">
+                    If you have made changes to your labels, please confirm that your label translations are correct for species 
+                    auto-classification in the <i>Translations</i> tab.
+                </p>
+            </div>
+            <div class='modal-footer'>
+                <div class='col-lg-3'>
+                    <button id="editTaskAlertClose" type='button' class='btn btn-info btn-block' data-dismiss='modal'>Close</button>
                 </div>
             </div>
         </div>

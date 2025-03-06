@@ -25,7 +25,7 @@ class Config(object):
     INITIAL_SETUP = False
     DISABLE_RESTORE = False
     KILL_FILEHANDLER = False
-    VERSION = 45
+    VERSION = 46
 
     HOST_IP = os.environ.get('HOST_IP')
     REDIS_IP = os.environ.get('REDIS_IP')
@@ -122,10 +122,20 @@ class Config(object):
     DNS = os.environ.get('DNS')
 
     # Species Classification Config
-    CLUSTER_DET_COUNT = 1
-    DET_RATIO = 0.5
-    DET_AREA = 0.0025
-    MIN_CLASSIFICATION_RATIO = 0.2 #the minimum ratio of detection classifications for a classification to be considered
+    CLUSTER_DET_COUNT = {'trails': 1, 'plains': 5, 'waterhole': 5, 'baited': 1}
+    DET_RATIO = {'trails': 0.5, 'plains': 0.25, 'waterhole': 0.25, 'baited': 0.5}
+    CLASSIFICATION_DET_AREA = {'trails': 0.0025, 'plains': 0.002, 'waterhole': 0.002, 'baited': 0.0025}
+    MIN_CLASSIFICATION_RATIO = {'trails': 0.2, 'plains': 0.1, 'waterhole': 0.1, 'baited': 0.2} #the minimum ratio of detection classifications for a classification to be considered
+
+    # maximum number of detections displayed per cluster during annotation - prevents long load times
+    MAX_DETS_PER_CLUSTER = 500
+
+    # maximum length of a cluster in minutes
+    MAX_CLUSTER_MINUTES = 15
+
+    # the time delta between clusters for them to be considered related (in seconds)
+    # this should probably be kept less than the MAX_CLUSTER_MINUTES
+    RELATED_CLUSTER_TIME = 600
 
     # Task and survey statuses
     TASK_READY_STATUSES = ['ready','success','successinitial','stopped']
@@ -141,14 +151,17 @@ class Config(object):
     # Mask Area Config
     MIN_MASK_AREA = 0.001
 
+    # area for masking small dets
+    SMALL_DET_AREA = 0.0025
+
     # Static Detection Config
-    STATIC_MATCHCOUNT = 5
-    STATIC_PERCENTAGE = 0.15
-    STATIC_IOU5 = 0.6
-    STATIC_IOU10 = 0.7
-    STATIC_IOU30 = 0.85
-    STATIC_IOU50 = 0.9
-    STATIC_IOU90 = 0.95
+    STATIC_MATCHCOUNT = {'trails': 5, 'plains': 10, 'waterhole': 10, 'baited': 10}
+    STATIC_PERCENTAGE = {'trails': 0.15, 'plains': 0.3, 'waterhole': 0.3, 'baited': 0.3}
+    STATIC_IOU5 = {'trails': 0.6, 'plains': 0.8, 'waterhole': 0.8, 'baited': 0.8}
+    STATIC_IOU10 = {'trails': 0.7, 'plains': 0.85, 'waterhole': 0.85, 'baited': 0.85}
+    STATIC_IOU30 = {'trails': 0.85, 'plains': 0.9, 'waterhole': 0.9, 'baited': 0.9}
+    STATIC_IOU50 = {'trails': 0.9, 'plains': 0.95, 'waterhole': 0.95, 'baited': 0.95}
+    STATIC_IOU90 = {'trails': 0.95, 'plains': 0.98, 'waterhole': 0.98, 'baited': 0.98}
 
     # Flank Config (for individual ID)
     FLANK_TEXT = {  # Database to flank text

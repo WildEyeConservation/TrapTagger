@@ -523,6 +523,10 @@ function BuildLabelRow(IDNum, isLoad, div, includeParent) {
                     checkLabels(true)
                 }
             }
+            else if (evt.target.parentNode.parentNode.parentNode.parentNode==document.getElementById('AddLabelDiv')) {
+                evt.target.parentNode.parentNode.parentNode.remove();
+                checkLabels(true)
+            }
         });
     }
 }
@@ -1204,17 +1208,32 @@ btnSaveLabelChanges.addEventListener('click', ()=>{
                 if (global_label.toLowerCase()=='nothing') {
                     document.getElementById('classTranslationSelectEdit-'+IDNum).value = 0
                     document.getElementById('classificationSelectionEdit-'+IDNum).checked = false
-                    delete translationEditDict[classification]
+                    translationEditDict[classification] = {
+                        'label': 'nothing',
+                        'label_id': 0,
+                        'classify': 'False',
+                        'edited': 'False'
+                    }
                 } 
                 else if (global_label.toLowerCase()=='vehicles/humans/livestock') {
                     document.getElementById('classTranslationSelectEdit-'+IDNum).value = -1
                     document.getElementById('classificationSelectionEdit-'+IDNum).checked = globalTranslations[classification].classify
-                    delete translationEditDict[classification]
+                    translationEditDict[classification] = {
+                        'label': 'vehicles/humans/livestock',
+                        'label_id': -1,
+                        'classify': globalTranslations[classification].classify ? 'True' : 'False',
+                        'edited': 'False'
+                    }
                 }
                 else if (global_label_id in translationLabels) {
                     document.getElementById('classTranslationSelectEdit-'+IDNum).value = global_label_id
                     document.getElementById('classificationSelectionEdit-'+IDNum).checked = globalTranslations[classification].classify
-                    delete translationEditDict[classification]
+                    translationEditDict[classification] = {
+                        'label': translationLabels[global_label_id],
+                        'label_id': global_label_id,
+                        'classify': globalTranslations[classification].classify ? 'True' : 'False',
+                        'edited': 'False'
+                    }
                 }
                 else {
                     document.getElementById('classTranslationSelectEdit-'+IDNum).value = 0
@@ -1222,39 +1241,50 @@ btnSaveLabelChanges.addEventListener('click', ()=>{
                     translationEditDict[classification] = {
                         'label': 'nothing',
                         'label_id': 0,
-                        'classify': 'False'
+                        'classify': 'False',
+                        'edited': 'True'
                     }
                 }
             } 
             else if (globalTranslations[classification].label_id != label_id || globalTranslations[classification].classify != classify) {
                 if (translation.toLowerCase()=='nothing (ignore)') {
+                    translationEditDict[classification] = {
+                        'label': 'nothing',
+                        'label_id': label_id,
+                        'classify': 'False',
+                        'edited': 'False'
+                    }
                     if (globalTranslations[classification].label.toLowerCase() != 'nothing') {
-                        translationEditDict[classification] = {
-                            'label': 'nothing',
-                            'label_id': label_id,
-                            'classify': 'False'
-                        }
+                        translationEditDict[classification].edited = 'True'
                     }
                 }
                 else if (translation.toLowerCase()=='vehicles/humans/livestock') {
+                    translationEditDict[classification] = {
+                        'label': 'vehicles/humans/livestock',
+                        'label_id': label_id,
+                        'classify': classify ? 'True' : 'False',
+                        'edited': 'False'
+                    }
                     if (globalTranslations[classification].label.toLowerCase() != 'vehicles/humans/livestock' || globalTranslations[classification].classify != classify) {
-                        translationEditDict[classification] = {
-                            'label': 'vehicles/humans/livestock',
-                            'label_id': label_id,
-                            'classify': classify ? 'True' : 'False'
-                        }
+                        translationEditDict[classification].edited = 'True'
                     }
                 }
                 else{
                     translationEditDict[classification] = {
                         'label': translation,
                         'label_id': label_id,
-                        'classify': classify ? 'True' : 'False'
+                        'classify': classify ? 'True' : 'False',
+                        'edited': 'True'
                     }
                 }
             }
             else {
-                delete translationEditDict[classification]
+                translationEditDict[classification] = {
+                    'label': translation,
+                    'label_id': label_id,
+                    'classify': classify ? 'True' : 'False',
+                    'edited': 'False'
+                }
             }
         }
         else {
@@ -1264,21 +1294,24 @@ btnSaveLabelChanges.addEventListener('click', ()=>{
                 translationEditDict[classification] = {
                     'label': 'nothing',
                     'label_id': 0,
-                    'classify': 'False'
+                    'classify': 'False',
+                    'edited': 'True'
                 }
             }
             else if (translation.toLowerCase()=='nothing (ignore)') {
                 translationEditDict[classification] = {
                     'label': 'nothing',
                     'label_id': label_id,
-                    'classify': 'False'
+                    'classify': 'False',
+                    'edited': 'True'
                 }
             }
             else{
                 translationEditDict[classification] = {
                     'label': translation,
                     'label_id': label_id,
-                    'classify': classify ? 'True' : 'False'
+                    'classify': classify ? 'True' : 'False',
+                    'edited': 'True'
                 }
             }
         }
@@ -1331,7 +1364,28 @@ btnEditTaskSubmit.addEventListener('click', ()=>{
     /** Submit the edited task laels to the server when button is pushed. */
 
     var speciesChange = checkSpeciesChange()
-    if (speciesChange) {
+    var labelsEdited = false
+    for (let key in taskEditDict) {
+        if (Object.keys(taskEditDict[key]['edits']['modify']).length>0) {
+            labelsEdited = true
+            break
+        }
+        if (Object.keys(taskEditDict[key]['additional']).length>0) {
+            labelsEdited = true
+            break
+        }
+        if (taskEditDict[key]['edits']['delete'].length>0) {
+            labelsEdited = true
+            break
+        }
+    }
+    if (editTaskAlertCount==0 && labelsEdited) {
+        confirmOpened = true
+        modalEditTask.modal('hide')
+        editTaskAlertCount = 1
+        modalEditTaskAlert.modal({keyboard: true});
+    }
+    else if (speciesChange) {
         confirmOpened = true
         modalEditTask.modal('hide')
         document.getElementById('modalConfirmEditSpeciesError').innerHTML = ''
@@ -2119,7 +2173,7 @@ function updateEditLabelDisplay() {
 modalEditTask.on('shown.bs.modal', function(){
     /** Initialises the label-editing modal when it is opened. */
 
-    if (discardCancelled||helpReturn||confirmCancelled) {
+    if (discardCancelled||helpReturn||confirmCancelled||editTaskAlertCount!=0) {
         discardCancelled = false
         helpReturn = false
         confirmCancelled = false
@@ -2133,6 +2187,7 @@ modalEditTask.on('shown.bs.modal', function(){
         sessionIDs = []
         globalTranslations = {}
         translationLabels = {}
+        editTaskAlertCount = 0
         document.getElementById('deleteClusterLabel').checked = true
         document.getElementById('selectAllClassificationsEdit').checked = false
         document.getElementById('openLabelsTab').click()
@@ -2258,6 +2313,7 @@ modalEditTask.on('hidden.bs.modal', function(){
         sessionIDs = []
         globalTranslations = {}
         translationLabels = {}
+        editTaskAlertCount = 0
 
     } else {
         discardOpened = false
@@ -2672,3 +2728,8 @@ function updateEditTranslationDisplay(){
         }
     }
 }
+
+modalEditTaskAlert.on('hidden.bs.modal', function(){
+    /** Clears the alert modal when closed. */
+    modalEditTask.modal('show')
+});

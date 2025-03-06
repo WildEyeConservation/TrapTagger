@@ -26,6 +26,7 @@ var staticgroupIDs = []
 var staticgroupReadAheadIndex = 0
 var total_staticgroups = 0
 var completed_staticgroups = 0
+var staticCheckPage = {}
 
 const divSelector = document.querySelector('#divSelector');
 
@@ -77,6 +78,7 @@ function loadNewCluster(mapID = 'map1') {
                                             clusters[mapID].splice(clusters[mapID].length-1, 0, newcluster)
                                         } else {
                                             clusters[mapID].push(newcluster)
+                                            staticCheckPage[newcluster.id].next_page = info.next_page
                                         }
                                         
                                         if (clusters[mapID].length-1 == clusterIndex[mapID]){
@@ -160,6 +162,8 @@ function getStaticGroupIDs(mapID = 'map1'){
                 staticgroupIDs = JSON.parse(this.responseText);
                 total_staticgroups = staticgroupIDs.length
                 completed_staticgroups = 0
+                staticCheckPage = {}
+                
 
                 if (staticgroupIDs.length == 0) {
                     window.location.replace("surveys")
@@ -168,6 +172,10 @@ function getStaticGroupIDs(mapID = 'map1'){
                     finishStaticDetectionCheck()
                 }
                 else{
+                    for (let s=0;s<staticgroupIDs.length;s++){
+                        staticCheckPage[staticgroupIDs[s]] = {'page': 1, 'next_page': null}
+                    }
+
                     updateProgBar([completed_staticgroups, total_staticgroups])
                     for (let i=0;i<3;i++){
                         loadNewCluster()
@@ -230,6 +238,53 @@ function hideDetections(hide,mapID='map1') {
             addedDetections[mapID] = false
             addDetections(mapID)
         }
+    }
+}
+
+function nextPageStatic(page,mapID='map1') {
+    /** Loads the next page of detections for the current static group. */
+
+    if (page == null) {
+        update(mapID)
+    } else {
+        staticgroup_id = clusters[mapID][clusterIndex[mapID]].id
+        staticCheckPage[staticgroup_id].page = page
+
+        var xhttp = new XMLHttpRequest();
+        xhttp.onreadystatechange =
+            function () {
+                if (this.readyState == 4 && this.status == 200) {
+                    info = JSON.parse(this.responseText);
+                    newClusters = info.static_detections
+                    newDetections = info.staticgroup_detections
+                    
+                    if (newClusters.length > 0) {
+                        staticCheckPage[newClusters[0].id].next_page = info.next_page
+                    }
+
+                    for (let i=0;i<newClusters.length;i++) {
+                        newcluster = newClusters[i];
+                        s_index = clusters[mapID].findIndex(x => x.id == newcluster.id)
+                        if (s_index  != -1) {
+                            new_image_index = clusters[mapID][s_index].images.length
+                            clusters[mapID][s_index].images.push(...newcluster.images)
+                            if (newcluster.images.length > 0) {
+                                imageIndex[mapID] = new_image_index
+                            }
+                        }
+                    }
+                    
+                    var group_keys = Object.keys(newDetections)
+                    for (let i=0;i<group_keys.length;i++) {
+                        detectionGroups[group_keys[i]].push(...newDetections[group_keys[i]])
+                    }
+
+                    update(mapID)
+                    preload()
+                }
+            };
+        xhttp.open("GET", '/getStaticDetections/' + selectedSurvey + '/0?staticgroup_id=' + staticgroup_id + '&page=' + page);
+        xhttp.send();
     }
 }
 

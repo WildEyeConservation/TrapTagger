@@ -25,6 +25,7 @@ var toolTipsOpen = true
 var editingEnabled = false
 var maskId = {'map1': null}
 var maskLayer = {'map1': null}
+var classCheckOriginalLevel = null
 
 var clusterIdList = []
 // const modalNote = $('#modalNote');
@@ -37,6 +38,12 @@ function loadNewCluster(mapID = 'map1') {
         clusterRequests[mapID].push(newID)
 
         if (!batchComplete) {
+            var formData = new FormData();
+            if (clusterIdList.length>0) {
+                // In case the batch size is huge, only send the last n cluster IDs. Only the last couple where the labels have yet to be processed are needed anyway.
+                formData.append('cluster_id_list', clusterIdList.slice(-100));
+            }
+
             var xhttp = new XMLHttpRequest();
             xhttp.onreadystatechange =
                 function () {
@@ -96,8 +103,8 @@ function loadNewCluster(mapID = 'map1') {
                         }                
                     }
                 };
-            xhttp.open("GET", '/getCluster?task='+selectedTask+'&reqId='+newID);
-            xhttp.send();
+            xhttp.open("POST", '/getCluster?task='+selectedTask+'&reqId='+newID);
+            xhttp.send(formData);
         }
     }
 }
@@ -110,7 +117,7 @@ function suggestionBack(resetLabels=true,mapID='map1') {
         updateDebugInfo()
     }
     if (isClassCheck) {
-        taggingLevel = '-3'
+        taggingLevel = classCheckOriginalLevel
     }
     // else if (isMaskCheck) {
     //     taggingLevel = '-6'
@@ -151,7 +158,7 @@ function suggestionBack(resetLabels=true,mapID='map1') {
 function getKeys() {
     /** Sets up the keys, depending on the current tagging level. */
     if (!isBounding) {
-        if (taggingLevel == '-3') {
+        if ((taggingLevel == '-3')||(taggingLevel == '-8')) {
             // classifier check
             multipleStatus = false
             selectBtns = document.getElementById('selectBtns')

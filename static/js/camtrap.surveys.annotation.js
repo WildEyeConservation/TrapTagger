@@ -529,6 +529,7 @@ function resetLaunchTaskPage() {
     document.getElementById('openMultiSpeciesTab').disabled = true
     document.getElementById('openIndividualTab').disabled = true
     document.getElementById('openAISpeciesTab').disabled = true
+    document.getElementById('openRelatedClustersTab').disabled = true
     document.getElementById('openInfoTab').disabled = true
     document.getElementById('openSpeciesLabellingTab').disabled = false
     document.getElementById('openEmptyTab').disabled = true
@@ -562,6 +563,7 @@ function openClusterTag() {
         document.getElementById('openMultiSpeciesTab').disabled = true
         document.getElementById('openIndividualTab').disabled = true
         document.getElementById('openAISpeciesTab').disabled = true
+        document.getElementById('openRelatedClustersTab').disabled = true
         document.getElementById('openInfoTab').disabled = true
         document.getElementById('openEmptyTab').disabled = true
         // document.getElementById('openMaskedTab').disabled = true
@@ -589,6 +591,7 @@ function openClusterTag() {
                     document.getElementById('openMultiSpeciesTab').disabled = false
                     document.getElementById('openIndividualTab').disabled = false
                     document.getElementById('openAISpeciesTab').disabled = false
+                    document.getElementById('openRelatedClustersTab').disabled = false
                     document.getElementById('openInfoTab').disabled = false
                     document.getElementById('openEmptyTab').disabled = false
                     // document.getElementById('openMaskedTab').disabled = false
@@ -612,6 +615,7 @@ function openInfoTag() {
         document.getElementById('openMultiSpeciesTab').disabled = true
         document.getElementById('openIndividualTab').disabled = true
         document.getElementById('openAISpeciesTab').disabled = true
+        document.getElementById('openRelatedClustersTab').disabled = true
         document.getElementById('openSpeciesLabellingTab').disabled = true
         document.getElementById('openEmptyTab').disabled = true
         // document.getElementById('openMaskedTab').disabled = true
@@ -638,6 +642,7 @@ function openInfoTag() {
                 document.getElementById('openMultiSpeciesTab').disabled = false
                 document.getElementById('openIndividualTab').disabled = false
                 document.getElementById('openAISpeciesTab').disabled = false
+                document.getElementById('openRelatedClustersTab').disabled = false
                 document.getElementById('openSpeciesLabellingTab').disabled = false
                 document.getElementById('openEmptyTab').disabled = false
                 // document.getElementById('openMaskedTab').disabled = false
@@ -829,6 +834,7 @@ function openIndividualID() {
         document.getElementById('openMultiSpeciesTab').disabled = true
         document.getElementById('openSpeciesLabellingTab').disabled = true
         document.getElementById('openAISpeciesTab').disabled = true
+        document.getElementById('openRelatedClustersTab').disabled = true
         document.getElementById('openInfoTab').disabled = true
         document.getElementById('openEmptyTab').disabled = true
         // document.getElementById('openMaskedTab').disabled = true
@@ -855,6 +861,7 @@ function openIndividualID() {
                 document.getElementById('openMultiSpeciesTab').disabled = false
                 document.getElementById('openInfoTab').disabled = false
                 document.getElementById('openAISpeciesTab').disabled = false
+                document.getElementById('openRelatedClustersTab').disabled = false
                 document.getElementById('openSpeciesLabellingTab').disabled = false
                 document.getElementById('openEmptyTab').disabled = false
                 // document.getElementById('openMaskedTab').disabled = false
@@ -933,6 +940,7 @@ function openClassTag() {
         document.getElementById('openInfoTab').disabled = true
         document.getElementById('openSpeciesLabellingTab').disabled = true
         document.getElementById('openEmptyTab').disabled = true
+        document.getElementById('openRelatedClustersTab').disabled = true
         // document.getElementById('openMaskedTab').disabled = true
 
         document.getElementById('annotationDescription').innerHTML = "<i>Check your cluster-level species labels against the AI to find mistakes.</i>"
@@ -959,6 +967,7 @@ function openClassTag() {
                 document.getElementById('openInfoTab').disabled = false
                 document.getElementById('openSpeciesLabellingTab').disabled = false
                 document.getElementById('openEmptyTab').disabled = false
+                document.getElementById('openRelatedClustersTab').disabled = false
                 // document.getElementById('openMaskedTab').disabled = false
             }
         }
@@ -978,6 +987,7 @@ function openSightingTag() {
         document.getElementById('openMultiSpeciesTab').disabled = true
         document.getElementById('openIndividualTab').disabled = true
         document.getElementById('openAISpeciesTab').disabled = true
+        document.getElementById('openRelatedClustersTab').disabled = true
         document.getElementById('openInfoTab').disabled = true
         document.getElementById('openSpeciesLabellingTab').disabled = true
         document.getElementById('openEmptyTab').disabled = true
@@ -1004,6 +1014,7 @@ function openSightingTag() {
                 document.getElementById('openMultiSpeciesTab').disabled = false
                 document.getElementById('openIndividualTab').disabled = false
                 document.getElementById('openAISpeciesTab').disabled = false
+                document.getElementById('openRelatedClustersTab').disabled = false
                 document.getElementById('openInfoTab').disabled = false
                 document.getElementById('openSpeciesLabellingTab').disabled = false
                 document.getElementById('openEmptyTab').disabled = false
@@ -1027,6 +1038,7 @@ function openMultiSpeciesTag() {
         document.getElementById('openSightingTab').disabled = true
         document.getElementById('openIndividualTab').disabled = true
         document.getElementById('openAISpeciesTab').disabled = true
+        document.getElementById('openRelatedClustersTab').disabled = true
         document.getElementById('openInfoTab').disabled = true
         document.getElementById('openSpeciesLabellingTab').disabled = true
         document.getElementById('openEmptyTab').disabled = true
@@ -1053,6 +1065,7 @@ function openMultiSpeciesTag() {
                 document.getElementById('openSightingTab').disabled = false
                 document.getElementById('openIndividualTab').disabled = false
                 document.getElementById('openAISpeciesTab').disabled = false
+                document.getElementById('openRelatedClustersTab').disabled = false
                 document.getElementById('openInfoTab').disabled = false
                 document.getElementById('openSpeciesLabellingTab').disabled = false
                 document.getElementById('openEmptyTab').disabled = false
@@ -1193,6 +1206,7 @@ modalLaunchTask.on('shown.bs.modal', function(){
                     document.getElementById('openMultiSpeciesTab').disabled = false
                     document.getElementById('openIndividualTab').disabled = false
                     document.getElementById('openAISpeciesTab').disabled = false
+                    document.getElementById('openRelatedClustersTab').disabled = false
                     document.getElementById('openInfoTab').disabled = false
                     // document.getElementById('openMaskedTab').disabled = false
                 }
@@ -1240,6 +1254,9 @@ function changeAnnotationTab(evt, tabName) {
     else if (tabName == 'baseAISpeciesTab') {
         openClassTag()
     }
+    else if (tabName == 'baseRelatedClustersTab') {
+        openRelatedTag()
+    }
     else if (tabName == 'baseEmptyTab') {
         openEmptyTag()
     }
@@ -1273,6 +1290,7 @@ function openEmptyTag() {
         document.getElementById('openSightingTab').disabled = true
         document.getElementById('openIndividualTab').disabled = true
         document.getElementById('openAISpeciesTab').disabled = true
+        document.getElementById('openRelatedClustersTab').disabled = true
         document.getElementById('openInfoTab').disabled = true
         document.getElementById('openSpeciesLabellingTab').disabled = true
         document.getElementById('openMultiSpeciesTab').disabled = true
@@ -1298,9 +1316,60 @@ function openEmptyTag() {
                 document.getElementById('openSightingTab').disabled = false
                 document.getElementById('openIndividualTab').disabled = false
                 document.getElementById('openAISpeciesTab').disabled = false
+                document.getElementById('openRelatedClustersTab').disabled = false
                 document.getElementById('openInfoTab').disabled = false
                 document.getElementById('openSpeciesLabellingTab').disabled = false
                 document.getElementById('openMultiSpeciesTab').disabled = false
+                // document.getElementById('openMaskedTab').disabled = false
+            }
+        }
+        xhttp.send();
+    }
+}
+
+function openRelatedTag() {
+    /** Listens for the related-clusters annotation task being selected, and populates the form accordingly. */
+
+    if (tabActiveLaunch == 'baseRelatedClustersTab') {
+        individualLevel = document.getElementById('individualLevel')
+        while(individualLevel.firstChild){
+            individualLevel.removeChild(individualLevel.firstChild);
+        }
+
+        document.getElementById('openSightingTab').disabled = true
+        document.getElementById('openMultiSpeciesTab').disabled = true
+        document.getElementById('openIndividualTab').disabled = true
+        document.getElementById('openInfoTab').disabled = true
+        document.getElementById('openSpeciesLabellingTab').disabled = true
+        document.getElementById('openEmptyTab').disabled = true
+        document.getElementById('openAISpeciesTab').disabled = true
+        // document.getElementById('openMaskedTab').disabled = true
+
+        document.getElementById('annotationDescription').innerHTML = "<i>Check for potentially missing species labels based on related clusters (clusters from the same site and in the same time frame). Also a good way to attempt to identify unknown/unidentifiable clusters.</i>"
+
+        clearSelect(document.getElementById('taskTaggingLevel'))
+        var xhttp = new XMLHttpRequest();
+        xhttp.open("GET", '/getTaggingLevelsbyTask/'+selectedTask+'/related');
+        xhttp.onreadystatechange =
+        function(){
+            if (this.readyState == 4 && this.status == 200) {
+                reply = JSON.parse(this.responseText);  
+                clearSelect(document.getElementById('taskTaggingLevel'))
+                fillSelect(document.getElementById('taskTaggingLevel'), reply.texts, reply.values, reply.colours)
+    
+                if (reply.disabled == 'true') {
+                    document.getElementById('taskTaggingLevel').disabled = true
+                } else {
+                    document.getElementById('taskTaggingLevel').disabled = false
+                }
+
+                document.getElementById('openSightingTab').disabled = false
+                document.getElementById('openMultiSpeciesTab').disabled = false
+                document.getElementById('openIndividualTab').disabled = false
+                document.getElementById('openInfoTab').disabled = false
+                document.getElementById('openSpeciesLabellingTab').disabled = false
+                document.getElementById('openEmptyTab').disabled = false
+                document.getElementById('openAISpeciesTab').disabled = false
                 // document.getElementById('openMaskedTab').disabled = false
             }
         }
