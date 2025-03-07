@@ -1898,7 +1898,7 @@ def prepare_crops(csv_key,desired_splits,CROPS_BUCKET,date_cutoff=None):
     return True
 
 @celery.task(bind=True,max_retries=2)
-def crop_restored_images(csv_key,CROPS_BUCKET):
+def crop_restored_images(self,csv_key,CROPS_BUCKET):
     ''' Dowloads the specified csv and checks the status of the training crops '''
 
     with tempfile.NamedTemporaryFile(delete=True, suffix='.csv') as temp_file:
