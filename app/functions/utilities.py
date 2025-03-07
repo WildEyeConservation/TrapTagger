@@ -1832,7 +1832,7 @@ def prepare_crops(csv_key,desired_splits,CROPS_BUCKET,date_cutoff=None):
     else:
         # images have already been de-archived. go forth and crop.
         second_round = True
-        index = df[df['available']!='none'].index
+        index = df[df['available']=='none'].index
         df.drop(index , inplace=True)
 
         dfs = np.array_split(df, desired_splits)
