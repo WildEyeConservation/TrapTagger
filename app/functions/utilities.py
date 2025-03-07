@@ -1872,7 +1872,7 @@ def prepare_crops(csv_key,desired_splits,CROPS_BUCKET,date_cutoff=None):
             GLOBALS.s3client.download_file(Bucket=Config.BUCKET, Key=new_key, Filename=temp_file.name)
             df = pd.read_csv(temp_file.name)
 
-        if output_df==None:
+        if output_df is None:
             output_df = df
         else:
             output_df = pd.concat([output_df,df])
