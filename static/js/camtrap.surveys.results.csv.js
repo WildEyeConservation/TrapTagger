@@ -57,8 +57,8 @@ function updateCustomRows() {
             csvColDataElement = document.getElementById('csvColDataElement-'+String(IDNum))
             ccID = csvColDataElement.options[csvColDataElement.selectedIndex].value
             custColLevels = document.querySelectorAll('[id^=custColLevelElement-'+String(ccID)+'-]')
-            allTasks = document.querySelectorAll('[id^=csvTaskSelect-]')
-            allSurveys = document.querySelectorAll('[id^=csvSurveySelect-]')
+            // allTasks = document.querySelectorAll('[id^=csvTaskSelect-]')
+            // allSurveys = document.querySelectorAll('[id^=csvSurveySelect-]')
         
             hasText = false
             for (let n=0;n<custColLevels.length;n++) {
@@ -71,8 +71,9 @@ function updateCustomRows() {
         
             if (hasText) {
                 handledCustColumnID1s.push(ccID)
-                for (let n=0;n<allTasks.length;n++) {
-                    taskID = allTasks[n].options[allTasks[n].selectedIndex].value
+                // for (let n=0;n<allTasks.length;n++) {
+                //     taskID = allTasks[n].options[allTasks[n].selectedIndex].value
+                    taskID = selectedTask
                     if (taskID != '-99999') {
                         handledTaskIDs.push(taskID)
                         text_field_count = 0
@@ -87,8 +88,8 @@ function updateCustomRows() {
                                     // Doesn't exist -> build it
                                     ccTaskDiv = document.getElementById('ccTaskDiv-'+String(ccID)+'-'+String(taskID))
                                     if (ccTaskDiv==null) {
-                                        taskName = allTasks[n].options[allTasks[n].selectedIndex].text
-                                        surveyName = allSurveys[n].options[allSurveys[n].selectedIndex].text
+                                        // taskName = allTasks[n].options[allTasks[n].selectedIndex].text
+                                        // surveyName = allSurveys[n].options[allSurveys[n].selectedIndex].text
                         
                                         ccTaskDiv = document.createElement('div')
                                         ccTaskDiv.id = 'ccTaskDiv-'+String(ccID)+'-'+String(taskID)
@@ -105,8 +106,8 @@ function updateCustomRows() {
                         
                                         col2 = document.createElement('div')
                                         col2.classList.add('col-lg-3')
-                                        col2.setAttribute('style',"display: flex; justify-content: center; align-content: center; flex-direction: column;")
-                                        col2.innerHTML = surveyName + '-' + taskName
+                                        // col2.setAttribute('style',"display: flex; justify-content: center; align-content: center; flex-direction: column;")
+                                        // col2.innerHTML = surveyName + '-' + taskName
                                         ccTaskRow.appendChild(col2)
                         
                                         col3 = document.createElement('div')
@@ -144,7 +145,7 @@ function updateCustomRows() {
                             }
                         }
                     }
-                }
+                // }
             } else {
                 //clear
                 while(CSVCustColParDiv.firstChild){
@@ -164,18 +165,27 @@ function updateCustomRows() {
             // ID2 has been removed
             ccID = allCustCoumnID2s[i].split('-')[0]
             idNum2 = allCustCoumnID2s[i].split('-')[1]
-            for (let n=0;n<allTasks.length;n++) {
-                taskID = allTasks[n].options[allTasks[n].selectedIndex].value
+            // taskID = allTasks[n].options[allTasks[n].selectedIndex].value
+            taskID = selectedTask
+            if (document.getElementById('ccTaskRow-'+String(ccID)+'-'+String(idNum2)+'-'+String(taskID))!=null) {
                 document.getElementById('ccTaskRow-'+String(ccID)+'-'+String(idNum2)+'-'+String(taskID)).remove()
             }
         }
     }
 
     // Remove excess tasks
-    for (let i=0;i<allTaskIDs.length;i++) {
-        if (!handledTaskIDs.includes(allTaskIDs[i])) {
-            taskID = allTaskIDs[i]
-            for (let ccID in customColumns) {
+    // for (let i=0;i<allTaskIDs.length;i++) {
+    //     if (!handledTaskIDs.includes(allTaskIDs[i])) {
+    //         taskID = allTaskIDs[i]
+    //         for (let ccID in customColumns) {
+    //             document.getElementById('ccTaskDiv-'+String(ccID)+'-'+String(taskID)).remove()
+    //         }
+    //     }
+    // }
+    taskID = selectedTask
+    if (!handledTaskIDs.includes(taskID)) {
+        for (let ccID in customColumns) {
+            if (document.getElementById('ccTaskDiv-'+String(ccID)+'-'+String(taskID))!=null) {
                 document.getElementById('ccTaskDiv-'+String(ccID)+'-'+String(taskID)).remove()
             }
         }
@@ -1274,46 +1284,46 @@ function updateIncludeFields() {
     }
 }
 
-function csvSurveyUpdates() {
-    /** Updates all necessary selectors and rows when the survey list in the csv form changes. */
-    updateCustomRows()
+// function csvSurveyUpdates() {
+//     /** Updates all necessary selectors and rows when the survey list in the csv form changes. */
+//     updateCustomRows()
 
-    selectedTasks = []
-    allTasks = document.querySelectorAll('[id^=csvTaskSelect-]')
-    for (let i=0;i<allTasks.length;i++) {
-        task_id = allTasks[i].options[allTasks[i].selectedIndex].value
-        if (task_id != '-99999') {
-            selectedTasks.push(task_id)
-        }
-    }
+//     selectedTasks = []
+//     allTasks = document.querySelectorAll('[id^=csvTaskSelect-]')
+//     for (let i=0;i<allTasks.length;i++) {
+//         task_id = allTasks[i].options[allTasks[i].selectedIndex].value
+//         if (task_id != '-99999') {
+//             selectedTasks.push(task_id)
+//         }
+//     }
 
-    var formData = new FormData()
-    formData.append("selectedTasks", JSON.stringify(selectedTasks))
+//     var formData = new FormData()
+//     formData.append("selectedTasks", JSON.stringify(selectedTasks))
 
-    var xhttp = new XMLHttpRequest();
-    xhttp.open("POST", '/getSpeciesandIDs/0');
-    xhttp.onreadystatechange =
-    function(){
-        if (this.readyState == 4 && this.status == 200) {
-            reply = JSON.parse(this.responseText);
-            speciesChoiceTexts = reply.names
-            speciesChoiceValues = reply.ids
+//     var xhttp = new XMLHttpRequest();
+//     xhttp.open("POST", '/getSpeciesandIDs/0');
+//     xhttp.onreadystatechange =
+//     function(){
+//         if (this.readyState == 4 && this.status == 200) {
+//             reply = JSON.parse(this.responseText);
+//             speciesChoiceTexts = reply.names
+//             speciesChoiceValues = reply.ids
             
-            csvColSpeciesElements = document.querySelectorAll('[id^=csvColSpeciesElement-]');
-            for (let i=0;i<csvColSpeciesElements.length;i++) {
-                csvColSpeciesElement = csvColSpeciesElements[i]
-                species = csvColSpeciesElement.options[csvColSpeciesElement.selectedIndex].text
-                index = speciesChoiceTexts.indexOf(species)
-                clearSelect(csvColSpeciesElement)
-                fillSelect(csvColSpeciesElement, speciesChoiceTexts, speciesChoiceValues)
-                csvColSpeciesElement.selectedIndex = index
-            }
+//             csvColSpeciesElements = document.querySelectorAll('[id^=csvColSpeciesElement-]');
+//             for (let i=0;i<csvColSpeciesElements.length;i++) {
+//                 csvColSpeciesElement = csvColSpeciesElements[i]
+//                 species = csvColSpeciesElement.options[csvColSpeciesElement.selectedIndex].text
+//                 index = speciesChoiceTexts.indexOf(species)
+//                 clearSelect(csvColSpeciesElement)
+//                 fillSelect(csvColSpeciesElement, speciesChoiceTexts, speciesChoiceValues)
+//                 csvColSpeciesElement.selectedIndex = index
+//             }
 
-            updateIncludeFields()
-        }
-    }
-    xhttp.send(formData);
-}
+//             updateIncludeFields()
+//         }
+//     }
+//     xhttp.send(formData);
+// }
 
 function buildIncludeRow() {
     /** Builds an include/exclude row */

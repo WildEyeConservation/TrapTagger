@@ -8316,11 +8316,12 @@ def generateCSV():
     # except:
     #     pass
 
-    det_count = rDets(db.session.query(Detection).join(Image).join(Camera).join(Trapgroup).filter(Trapgroup.survey_id==task.survey_id)).distinct().count()
-    if det_count>300000:
-        queue='ram_intensive'
-    else:
-        queue='default'
+    # det_count = rDets(db.session.query(Detection).join(Image).join(Camera).join(Trapgroup).filter(Trapgroup.survey_id==task.survey_id)).distinct().count()
+    # if det_count>300000:
+    #     queue='ram_intensive'
+    # else:
+    #     queue='default'
+    queue='default'  # Ram intensive queue used in generate_csv function if on a trapgroup level detection count is more than 300000
 
     check = db.session.query(DownloadRequest).filter(DownloadRequest.task_id==selectedTasks[0]).filter(DownloadRequest.user_id==current_user.id).filter(DownloadRequest.type=='csv').filter(DownloadRequest.status=='Pending').first()
     if check:
