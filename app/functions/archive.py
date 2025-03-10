@@ -186,9 +186,7 @@ def restore_empty_zips(self,task_id,tier,restore_time):
             else:
                 extract_zips.apply_async(kwargs={'task_id':task_id, 'zip_ids':zip_ids})
         else:
-            survey.status = 'Ready'
-            task.status = 'Ready'
-            db.session.commit()
+            launch_task.apply_async(kwargs={'task_id':task_id})
 
     except Exception as exc:
         app.logger.info(' ')
@@ -257,7 +255,7 @@ def extract_zip(self,zip_key):
         app.logger.info('Handling zip {}'.format(zip_key))
 
         zip_path = zip_key.split('/')[-1]
-        zip_id = zip_path.split('.')[0]
+        zip_id = zip_path.rsplit('.', 1)[0]
         try:
             GLOBALS.s3client.download_file(Bucket=Config.BUCKET, Key=zip_key, Filename=zip_path)
         except:
@@ -267,7 +265,7 @@ def extract_zip(self,zip_key):
         image_ids = []  
         with zipfile.ZipFile(zip_path, 'r') as zip_ref:
             for filename in zip_ref.namelist():
-                image_id = filename.split('.')[0]
+                image_id = filename.rsplit('.', 1)[0]
                 image_ids.append(image_id)
 
 
@@ -485,8 +483,7 @@ def restore_images_for_classification(self,survey_id,days,edit_survey_args,tier,
                         .join(Trapgroup)\
                         .join(Detection)\
                         .filter(Trapgroup.survey_id==survey_id)\
-                        .filter(or_(and_(Detection.source==model,Detection.score>Config.DETECTOR_THRESHOLDS[model]) for model in Config.DETECTOR_THRESHOLDS))\
-                        .filter(Detection.static==False)
+                        .filter(or_(and_(Detection.source==model,Detection.score>Config.DETECTOR_THRESHOLDS[model]) for model in Config.DETECTOR_THRESHOLDS))
 
         images = image_query.filter(or_(Image.expiry_date==None,Image.expiry_date<expected_expiry_date)).order_by(Image.id).distinct().all()
         
@@ -683,7 +680,7 @@ def restore_files_for_download(self,task_id,download_request_id,download_params,
             splits = first_video_path.split('/')
             splits[0] = splits[0] + '-comp'
             first_video_path = '/'.join(splits)
-            first_video_key = first_video_path + '/' + videos[0][1].split('.')[0] + '.mp4'
+            first_video_key = first_video_path + '/' + videos[0][1].rsplit('.', 1)[0] + '.mp4'
             storage_class = check_storage_class(first_video_key)
             if storage_class == 'DEEP_ARCHIVE':
                 for chunk in chunker(videos, 1000):
@@ -692,7 +689,7 @@ def restore_files_for_download(self,task_id,download_request_id,download_params,
                             splits = video[2].split('/')
                             splits[0] = splits[0] + '-comp'
                             path = '/'.join(splits)
-                            video_key = path.split('/_video_images_/')[0] + '/' + video[1].split('.')[0] + '.mp4'
+                            video_key = path.split('/_video_images_/')[0] + '/' + video[1].rsplit('.', 1)[0] + '.mp4'
                             response = GLOBALS.s3client.restore_object(Bucket=Config.BUCKET, Key=video_key, RestoreRequest=restore_request)
                             restored_video = True
                             http_code = response['ResponseMetadata']['HTTPStatusCode']
@@ -763,8 +760,9 @@ def restore_files_for_download(self,task_id,download_request_id,download_params,
         if extend:
             survey.require_launch = None
             download_request = db.session.query(DownloadRequest).get(download_request_id)
-            download_request.timestamp = min_expiry_date
-            db.session.commit()
+            if download_request:
+                download_request.timestamp = min_expiry_date
+                db.session.commit()
         else:
 
             if not restored_files and not restore_date and not require_wait:
@@ -783,7 +781,7 @@ def restore_files_for_download(self,task_id,download_request_id,download_params,
                         splits = video_path.split('/')
                         splits[0] = splits[0] + '-comp'
                         video_path = '/'.join(splits)
-                        video_key = video_path + '/' + other_videos[1].split('.')[0] + '.mp4'
+                        video_key = video_path + '/' + other_videos[1].rsplit('.', 1)[0] + '.mp4'
                         restore_file = get_restore_info(video_key)
                         if restore_file[0]:
                             restore_date = restore_file[0]
@@ -799,25 +797,31 @@ def restore_files_for_download(self,task_id,download_request_id,download_params,
                             require_wait = True
 
             if (restored_files or restore_date) and require_wait:
-                survey.status = 'Restoring Files'
-                if restored_files:
-                    survey.require_launch  = datetime.utcnow() + timedelta(seconds=restore_time)
-                elif restore_date:
-                    survey.require_launch  = restore_date + timedelta(seconds=restore_time)
-
                 download_request = db.session.query(DownloadRequest).get(download_request_id)
-                download_request.status = 'Restoring Files'
-                download_request.timestamp = min_expiry_date
+                if download_request:
+                    survey.status = 'Restoring Files'
+                    if restored_files:
+                        survey.require_launch  = datetime.utcnow() + timedelta(seconds=restore_time)
+                    elif restore_date:
+                        survey.require_launch  = restore_date + timedelta(seconds=restore_time)
 
-                launch_kwargs = {'task_id':task_id,'download_request_id':download_request_id,'zips':include_empties}
-                GLOBALS.redisClient.set('download_launch_kwargs_'+str(survey.id),json.dumps(launch_kwargs))
+                    download_request.status = 'Restoring Files'
+                    download_request.timestamp = min_expiry_date
 
+                    launch_kwargs = {'task_id':task_id,'download_request_id':download_request_id,'zips':include_empties}
+                    GLOBALS.redisClient.set('download_launch_kwargs_'+str(survey.id),json.dumps(launch_kwargs))
+                else:
+                    survey.status = 'Ready'
                 db.session.commit()
             else:
                 download_request = db.session.query(DownloadRequest).get(download_request_id)
-                download_request.timestamp = min_expiry_date
-                db.session.commit()
-                process_files_for_download.apply_async(kwargs={'task_id':task_id,'download_request_id':download_request_id,'zips':include_empties})
+                if download_request:
+                    download_request.timestamp = min_expiry_date
+                    db.session.commit()
+                    process_files_for_download.apply_async(kwargs={'task_id':task_id,'download_request_id':download_request_id,'zips':include_empties})
+                else:
+                    survey.status = 'Ready'
+                    db.session.commit()
                 
         
     except Exception as exc:
@@ -881,7 +885,7 @@ def process_files_for_download(self,task_id,download_request_id,zips):
                 GLOBALS.lock.release()
 
         download_request = db.session.query(DownloadRequest).get(download_request_id)
-        download_request.status = 'Available'
+        if download_request: download_request.status = 'Available'
 
         survey = db.session.query(Survey).get(survey_id)
         survey.status = 'Ready'
@@ -973,19 +977,23 @@ def restore_images_for_export(self,task_id, data, user_name, download_request_id
                     require_wait = True
 
         if ((restored_image or restore_date) and require_wait):
-            task.survey.status = 'Restoring Files'
-            task.status = 'Ready'
-            if restored_image:
-                task.survey.require_launch = datetime.utcnow() + timedelta(seconds=restore_time)
-            elif restore_date:
-                task.survey.require_launch = restore_date + timedelta(seconds=restore_time)
-
-            launch_kwargs = {'task_id':task_id, 'data':data, 'user_name':user_name, 'download_request_id':download_request_id}
-            GLOBALS.redisClient.set('export_launch_kwargs_'+str(task.survey.id),json.dumps(launch_kwargs))
-
             download_request = db.session.query(DownloadRequest).get(download_request_id)
-            download_request.status = 'Restoring Files'
-            download_request.timestamp = min_expiry_date
+            if download_request:
+                task.survey.status = 'Restoring Files'
+                task.status = 'Ready'
+                if restored_image:
+                    task.survey.require_launch = datetime.utcnow() + timedelta(seconds=restore_time)
+                elif restore_date:
+                    task.survey.require_launch = restore_date + timedelta(seconds=restore_time)
+
+                launch_kwargs = {'task_id':task_id, 'data':data, 'user_name':user_name, 'download_request_id':download_request_id}
+                GLOBALS.redisClient.set('export_launch_kwargs_'+str(task.survey.id),json.dumps(launch_kwargs))
+
+                download_request.status = 'Restoring Files'
+                download_request.timestamp = min_expiry_date
+            else:
+                task.survey.status = 'Ready'
+                task.status = 'Ready'
 
             db.session.commit()
 
@@ -993,11 +1001,12 @@ def restore_images_for_export(self,task_id, data, user_name, download_request_id
             task.survey.status = 'Ready'
             task.status = 'Ready'
             download_request = db.session.query(DownloadRequest).get(download_request_id)
-            download_request.status = 'Pending'
-            download_request.timestamp = min_expiry_date
-            db.session.commit()
-            response = generate_wildbook_export.apply_async(kwargs={'task_id':task_id, 'data':data, 'user_name':user_name, 'download_request_id':download_request_id})
-            download_request.celery_id = response.id
+            if download_request:
+                download_request.status = 'Pending'
+                download_request.timestamp = min_expiry_date
+                db.session.commit()
+                response = generate_wildbook_export.apply_async(kwargs={'task_id':task_id, 'data':data, 'user_name':user_name, 'download_request_id':download_request_id})
+                download_request.celery_id = response.id
             db.session.commit()
 
     except Exception as exc:

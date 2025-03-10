@@ -17,7 +17,7 @@ limitations under the License.
 from app import app, db, celery
 from app.models import *
 from app.functions.globals import getQueueLengths, getImagesProcessing, getInstanceCount, getInstancesRequired, launch_instances, manageDownload, resolve_abandoned_jobs, \
-deleteTurkcodes, createTurkcodes, deleteFile, cleanup_empty_restored_images, calculate_restore_expiry_date
+deleteTurkcodes, createTurkcodes, deleteFile, cleanup_empty_restored_images, updateAllStatuses
 from app.functions.imports import import_survey
 from app.functions.admin import stop_task, edit_survey
 from app.functions.annotation import freeUpWork, wrapUpTask, launch_task
@@ -336,6 +336,56 @@ def clean_up_redis():
                     if (survey==None) or (survey.status.lower() in Config.SURVEY_READY_STATUSES):
                         GLOBALS.redisClient.delete(key)
 
+            elif key == 'tasks_to_update_status':
+                try:
+                    task_ids = [int(r.decode()) for r in GLOBALS.redisClient.smembers('tasks_to_update_status')]
+                    Worker = alias(User)
+                    task_subquery = db.session.query(Task.id)\
+                                                .join(Survey,Task.survey_id==Survey.id)\
+                                                .join(Organisation,Organisation.id==Survey.organisation_id)\
+                                                .join(UserPermissions,UserPermissions.organisation_id==Organisation.id)\
+                                                .join(User,UserPermissions.user_id==User.id)\
+                                                .outerjoin(Turkcode,Turkcode.task_id==Task.id)\
+                                                .outerjoin(Worker,Turkcode.user_id==Worker.c.id)\
+                                                .filter(Task.id.in_(task_ids))\
+                                                .filter(or_(
+                                                    User.last_ping>(datetime.now()-timedelta(minutes=15)),
+                                                    Worker.c.last_ping>(datetime.now()-timedelta(minutes=15))
+                                                ))\
+                                                .distinct().subquery()
+                    tasks = [r[0] for r in db.session.query(Task.id)\
+                                        .outerjoin(task_subquery,Task.id==task_subquery.c.id)\
+                                        .filter(Task.id.in_(task_ids))\
+                                        .filter(task_subquery.c.id==None)\
+                                        .filter(Task.status.in_(Config.TASK_READY_STATUSES))\
+                                        .distinct().all()]
+                    for task in tasks:
+                        GLOBALS.redisClient.srem('tasks_to_update_status',task)
+                        updateAllStatuses.delay(task_id=task)
+                except:
+                    pass
+
+            elif any(name in key for name in ['label_counts_']):
+                try:
+                    label_id = key.split('_')[-1]
+                    label = db.session.query(Label).get(int(label_id))
+                    if not label:
+                        GLOBALS.redisClient.delete(key)
+                    else:
+                        label_counts = GLOBALS.redisClient.hgetall('label_counts_'+str(label.id))
+                        cluster_count = int(label_counts.get(b"cluster_count", 0))
+                        image_count = int(label_counts.get(b"image_count", 0))
+                        sighting_count = int(label_counts.get(b"sighting_count", 0))
+                        timestamp = datetime.fromtimestamp(float(label_counts.get(b"timestamp", 0)))
+                        if datetime.utcnow() - timestamp > timedelta(minutes=2):
+                            label.cluster_count += cluster_count
+                            label.image_count += image_count
+                            label.sighting_count += sighting_count
+                            db.session.commit()
+                            GLOBALS.redisClient.delete(key)
+                except:
+                    GLOBALS.redisClient.delete(key)
+                
     except Exception as exc:
         app.logger.info(' ')
         app.logger.info('!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!')
@@ -765,9 +815,12 @@ def manage_tasks_with_restore():
         else:
             species = tagging_level.split(',')[1]
             expiry_date = db.session.query(func.min(Image.expiry_date))\
+                                    .join(Camera)\
+                                    .join(Trapgroup)\
                                     .join(Detection)\
                                     .join(Labelgroup)\
                                     .join(Label,Labelgroup.labels)\
+                                    .filter(Trapgroup.survey_id==survey_id)\
                                     .filter(Labelgroup.task_id==task_id)\
                                     .filter(Image.expiry_date!=None)\
                                     .filter(Label.description==species)\
@@ -862,7 +915,7 @@ def monitor_live_data_surveys():
     finally:
         db.session.remove()
         #Schedule every 24hours
-        monitor_live_data_surveys.apply_async(queue='priority', priority=0,countdown=86400)
+        monitor_live_data_surveys.apply_async(queue='priority', priority=0,countdown=1800)
 
     return True
 
@@ -929,7 +982,7 @@ def checkRestoreDownloads(task_id):
 
     date_now = datetime.utcnow()
     download_request = db.session.query(DownloadRequest).filter(DownloadRequest.task_id == task_id).filter(DownloadRequest.type == 'file').filter(DownloadRequest.status == 'Downloading').filter(DownloadRequest.name=='restore').first()
-    if download_request and (download_request.timestamp-date_now).days < 2:
+    if download_request and download_request.timestamp and (download_request.timestamp-date_now).days < 2:
         try:
             if download_request.task.survey.status.lower() in Config.SURVEY_READY_STATUSES:
                 user_id = download_request.user_id
@@ -1090,7 +1143,7 @@ def monitorSQS():
                                 GLOBALS.sqsClient.delete_message(QueueUrl=GLOBALS.sqsQueueUrl, ReceiptHandle=message['ReceiptHandle'])
                             else:
                                 key = payload['keys'][0]
-                                if key.split('.')[-1].lower() in ['mp4','mov','avi']:
+                                if key.rsplit('.', 1)[-1].lower() in ['mp4','mov','avi']:
                                     GLOBALS.lambdaClient.invoke(FunctionName=Config.VIDEO_IMPORT_LAMBDA, InvocationType='Event', Payload=json.dumps(payload))
                                     GLOBALS.sqsClient.delete_message(QueueUrl=GLOBALS.sqsQueueUrl, ReceiptHandle=message['ReceiptHandle'])
                                 else:

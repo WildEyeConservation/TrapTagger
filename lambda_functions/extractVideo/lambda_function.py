@@ -67,7 +67,7 @@ def lambda_handler(event, context):
 
             splits = key.rsplit('/', 1)
             video_path = splits[0]
-            video_name = splits[-1].split('.')[0]
+            video_name = splits[-1].rsplit('.', 1)[0]
             filename = key.split('/')[-1]
             camera_path = video_path + '/_video_images_/' + video_name
 

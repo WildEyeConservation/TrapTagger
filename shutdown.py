@@ -41,7 +41,8 @@ active_tasks = []
 inspector = celery.control.inspect()
 inspector_reserved = inspector.reserved()
 inspector_active = inspector.active()
-defaultWorkerNames = ['default_worker','traptagger_worker','ram_worker']
+inspector_scheduled = inspector.scheduled()
+defaultWorkerNames = ['default_worker','traptagger_worker','ram_worker','priority_worker']
 
 if inspector_active!=None:
     for worker in inspector_active:
@@ -61,11 +62,21 @@ if inspector_reserved != None:
             except:
                 pass
 
+# revoke scheduled tasks
+if inspector_scheduled != None:
+    for worker in inspector_scheduled:
+        if any(name in worker for name in defaultWorkerNames): continue
+        for task in inspector_scheduled[worker]:
+            try:
+                celery.control.revoke(task['id'], terminate=True)
+            except:
+                pass
+
 app.logger.info('Active tasks revoked. Flushing queues...')
 
 # Flush all other (non-default) queues
 for queue in allQueues:
-    if queue not in ['default','ram_intensive']:
+    if queue not in ['default','ram_intensive','priority_worker']:
         while True:
             task = GLOBALS.redisClient.blpop(queue, timeout=1)
             if not task:

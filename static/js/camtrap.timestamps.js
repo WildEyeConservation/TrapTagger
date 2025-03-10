@@ -22,8 +22,10 @@ isTimestampCheck = true
 
 var total_timestamps = 0
 var completed_timestamps = 0
+var image_counts = {}
 var clusterIdList = [];
 var currentYear = new Date().getFullYear();
+var timestampCheckPage = {}
 
 const yearInput = document.getElementById('year');
 const monthInput = document.getElementById('month');
@@ -44,6 +46,8 @@ function loadNewCluster(mapID = 'map1') {
         }else{
             lastCamera = false
         }
+
+        var formData = new FormData();
 
         waitingForClusters[mapID] = true
         var newID = Math.floor(Math.random() * 100000) + 1;
@@ -75,6 +79,7 @@ function loadNewCluster(mapID = 'map1') {
                                         clusters[mapID].splice(clusters[mapID].length-1, 0, newcluster)
                                     } else {
                                         clusters[mapID].push(newcluster)
+                                        timestampCheckPage[newcluster.id].next_page = info.next_page
                                     }
                                     
                                     if (clusters[mapID].length-1 == clusterIndex[mapID]){
@@ -91,8 +96,8 @@ function loadNewCluster(mapID = 'map1') {
                         }                
                     }
                 };
-            xhttp.open("GET", '/getTimestampImages/' + selectedSurvey + '/' + newID + '?camera_id=' + cameraIDs[cameraReadAheadIndex++]);  
-            xhttp.send();
+            xhttp.open("POST", '/getTimestampImages/' + selectedSurvey + '/' + newID + '?camera_id=' + cameraIDs[cameraReadAheadIndex++]);  
+            xhttp.send(formData);
         }
     }
 }
@@ -111,8 +116,10 @@ function getCameraIDs(mapID = 'map1'){
                 imageIndex[mapID] = 0
                 reply = JSON.parse(this.responseText);
                 cameraIDs = reply.camera_ids
+                image_counts = reply.image_counts
                 total_timestamps = reply.total_image_count
                 completed_timestamps = 0
+                timestampCheckPage = {}
 
                 if (cameraIDs.length == 0) {
                     window.location.replace("surveys")
@@ -121,6 +128,10 @@ function getCameraIDs(mapID = 'map1'){
                     finishTimestampCheck()
                 }
                 else{
+                    for (let t=0;t<cameraIDs.length;t++){
+                        timestampCheckPage[cameraIDs[t]] = {'page': 1, 'next_page': null}
+                    }
+
                     updateProgBar([completed_timestamps,total_timestamps])
                     for (let i=0;i<3;i++){
                         loadNewCluster()
@@ -266,6 +277,9 @@ function submitTimestamp(no_time = false, mapID = 'map1') {
         updateProgBar([completed_timestamps,total_timestamps])
         if (imageIndex[mapID] < clusters[mapID][clusterIndex[mapID]].images.length-1){
             nextImage(mapID)
+            if (timestampCheckPage[clusters[mapID][clusterIndex[mapID]].id].next_page != null){
+                nextPageTimestamps(clusters[mapID][clusterIndex[mapID]].id,1)
+            }
         } else {
             nextCluster(mapID)
         }
@@ -349,8 +363,8 @@ function skipCamera(mapID = 'map1'){
 
             modalCameraNoTimestamp.modal('hide')
 
-            image_count = clusters[mapID][clusterIndex[mapID]].images.length
-            completed_timestamps += image_count - imageIndex[mapID]
+            image_count = image_counts[cameragroup_id]
+            completed_timestamps += (image_count - imageIndex[mapID])
             updateProgBar([completed_timestamps,total_timestamps])
             clusters[mapID].splice(clusterIndex[mapID], 1)
             cameraIDs.splice(cameraIDs.indexOf(cameragroup_id), 1)
@@ -549,6 +563,40 @@ function saveProgress(){
         };
     xhttp.open("GET", '/finishTimestampCheck/' + selectedSurvey + '?save=true');
     xhttp.send();
+}
+
+function nextPageTimestamps(id,page,mapID='map1'){
+    /** Requests the next page of timestamps. */
+    var image_ids = clusters[mapID][clusterIndex[mapID]].images.map(x => x.id)
+    var formData = new FormData();
+    formData.append('image_ids', JSON.stringify(image_ids));
+
+    var xhttp = new XMLHttpRequest();
+    xhttp.onreadystatechange =
+        function () {
+            if (this.readyState == 4 && this.status == 200) {
+                info = JSON.parse(this.responseText);
+
+                if (info.images.length > 0) {
+                    timestampCheckPage[info.images[0].id].next_page = info.next_page
+                }
+                for (let i=0;i<info.images.length;i++) {
+                    newcluster = info.images[i];
+                    time_index = clusters[mapID].findIndex(x => x.id == newcluster.id)
+                    if (time_index != -1){
+                        if (newcluster.images.length > 0){
+                            image_index = clusters[mapID][time_index].images.findIndex(x => x.id == newcluster.images[0].id)
+                            if (image_index == -1){
+                                clusters[mapID][time_index].images.push(...newcluster.images)
+                            }
+                        }
+                    }
+                }
+
+            }
+        };
+    xhttp.open("POST", '/getTimestampImages/' + selectedSurvey + '/0?camera_id=' + id + '&page=' + page);
+    xhttp.send(formData);
 }
 
 window.addEventListener('load', onload, false);

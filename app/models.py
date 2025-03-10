@@ -170,6 +170,7 @@ class Survey(db.Model):
     user_id = db.Column(db.Integer, db.ForeignKey('user.id'))
     correct_timestamps = db.Column(db.Boolean, default=False, index=False)
     folder = db.Column(db.String(64), index=False)
+    type = db.Column(db.String(10), index=False, default='trails') #trails/plains/waterhole/baited
     trapgroups = db.relationship('Trapgroup', backref='survey', lazy=True)
     tasks = db.relationship('Task', backref='survey', lazy=True)
     classifier_id = db.Column(db.Integer, db.ForeignKey('classifier.id'), index=False)
@@ -410,6 +411,7 @@ class Task(db.Model):
     jobs_finished = db.Column(db.Integer, default=0, index=False)
     current_name = db.Column(db.String(8), index=False)
     class_check_count = db.Column(db.Integer, index=False)
+    related_check_count = db.Column(db.Integer, index=False)
     unchecked_multi_count = db.Column(db.Integer, index=False)
     unlabelled_animal_cluster_count = db.Column(db.Integer, index=False)
     vhl_count = db.Column(db.Integer, index=False)
@@ -689,7 +691,7 @@ class DownloadRequest(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     type = db.Column(db.String(8), index=False) # file/csv/excel/json/zip
     status = db.Column(db.String(32), index=False) 
-    timestamp = db.Column(db.DateTime, default=datetime.utcnow, index=False)
+    timestamp = db.Column(db.DateTime, index=False)
     name = db.Column(db.String(64), index=False)
     celery_id = db.Column(db.String(64), index=False)
     user_id = db.Column(db.Integer, db.ForeignKey('user.id'), index=True, unique=False)

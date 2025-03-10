@@ -48,27 +48,24 @@ limitations under the License. -->
         </div>
 
         <div class="control-group">
-            <div class="row" >
-                <div class="col-lg-2"></div>
-                <div class="col-lg-8">
-                    <div class="row" >
-                        <div class="col-lg-1"></div>
-                        <div class="col-lg-3">
-                            <button id="prevImage"   class="btn btn-primary btn-block"   onclick=prevImage()><span style="font-size:100%">&#x276e;</span> Previous Image</button>
-                        </div>
-                        <div class="col-lg-4">
-                            <button id="prevCluster" class="btn btn-secondary btn-block" onclick=prevCluster()>Previous Cluster / Undo <span style="font-size:100%">&#x27F2;</span></button>
-                        </div>
-                        <div class="col-lg-3">
-                            <button id="nextImage"   class="btn btn-primary btn-block"   onclick=nextImage()>Next Image <span style="font-size:100%">&#x276f;</span></button>
-                        </div>
-                        <div class="col-lg-1"></div>
-                    </div>
+            <div class="row justify-content-center">
+                <div class="col-lg-2">
+                    <button id="backImage"   class="btn btn-primary btn-block"   onclick=backImage() hidden><span style="font-size:100%">&#x276e;&#x276e;</span> Back 5 Images</button>
                 </div>
-                <div class="col-lg-2"></div>
+                <div class="col-lg-2">
+                    <button id="prevImage"   class="btn btn-primary btn-block"   onclick=prevImage()><span style="font-size:100%">&#x276e;</span> Previous Image</button>
+                </div>
+                <div class="col-lg-3">
+                    <button id="prevCluster" class="btn btn-secondary btn-block" onclick=prevCluster()>Previous Cluster / Undo <span style="font-size:100%">&#x27F2;</span></button>
+                </div>
+                <div class="col-lg-2">
+                    <button id="nextImage"   class="btn btn-primary btn-block"   onclick=nextImage()>Next Image <span style="font-size:100%">&#x276f;</span></button>
+                </div>
+                <div class="col-lg-2">
+                    <button id="forwardImage"   class="btn btn-primary btn-block"   onclick=forwardImage() hidden>Forward 5 Images <span style="font-size:100%">&#x276f;&#x276f;</span></button>
+                </div>
             </div>
         </div>
-
     </div>
 
     <div class="col-lg-2">

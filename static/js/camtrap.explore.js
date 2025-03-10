@@ -67,6 +67,7 @@ function loadNewCluster(mapID = 'map1') {
                     info = JSON.parse(this.responseText);
 
                     if (clusterRequests[mapID].includes(parseInt(info.id))) {
+                        clusterRequests[mapID].splice(clusterRequests[mapID].indexOf(parseInt(info.id)), 1)
                         newcluster = info.info[0];
                         clusters[mapID].push(newcluster)
 
@@ -99,7 +100,7 @@ function loadNewCluster(mapID = 'map1') {
                     }
                 }
             };
-        xhttp.open("GET", '/getCluster?id=' + clusterIDs[clusterReadAheadIndex++] + '&reqId='+newID);
+        xhttp.open("POST", '/getCluster?id=' + clusterIDs[clusterReadAheadIndex++] + '&reqId='+newID);
         xhttp.send();
     }
 }

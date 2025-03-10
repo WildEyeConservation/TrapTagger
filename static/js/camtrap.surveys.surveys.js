@@ -189,6 +189,7 @@ const btnConfirmRestore = document.querySelector('#btnConfirmRestore')
 const btnCancelRestore = document.querySelector('#btnCancelRestore')
 const modalConfirmDownload = $('#modalConfirmDownload');
 const modalConfirmExport = $('#modalConfirmExport');
+const modalEditTaskAlert = $('#modalEditTaskAlert');
 
 var polarColours = {'rgba(10,120,80,0.2)':false,
                     'rgba(255,255,255,0.2)':false,
@@ -254,6 +255,7 @@ var taskNames = []
 var prev_url = null
 var next_url = null
 var current_page = '/getHomeSurveys'
+var GHSreqID = null
 
 var timerTaskStatus = null
 
@@ -338,6 +340,10 @@ var surveyClassifier = null
 var surveyClassifierName = null
 var confirmClassifierChange = false
 var confirmExportReturn = false
+var cameragroup_page = {}
+var staticgroup_page = {}
+var timestamp_page = {}
+var editTaskAlertCount = 0
 
 function buildSurveys(survey,disableSurvey) {
     /**
@@ -948,10 +954,19 @@ function updatePage(url){
      */
 
     if (url==null) {
-        url = current_page
+        url = (' ' + current_page).slice(1);
     } else {
-        current_page = url
+        current_page = (' ' + url).slice(1);
     }
+
+    // Add request ID to prevent reload on response race
+    GHSreqID = Math.floor(Math.random() * 100000) + 1;
+    if (!url.includes('?')) {
+        url+='?'
+    } else {
+        url += '&'
+    }
+    url += 'reqID='+GHSreqID.toString()
     
     var xhttp = new XMLHttpRequest();
     xhttp.onreadystatechange =
@@ -965,74 +980,77 @@ function updatePage(url){
             //     document.getElementById('btnNewSurvey').disabled = false
             // }
 
-            surveyListDiv = document.getElementById('surveyListDiv'); 
-            while(surveyListDiv.firstChild){
-                surveyListDiv.removeChild(surveyListDiv.firstChild);
-            }
+            if (reply.reqID.toString()==GHSreqID.toString()) {
 
-            if (reply.surveys.length > 0) {
-                surveyListDiv.setAttribute('class','')
-                document.getElementById('mainCard').setAttribute('style','')
-            } else {
-                surveyListDiv.setAttribute('class','card-body')
-                document.getElementById('mainCard').setAttribute('style','min-height:400px')
-            }
-
-            // taskProcessing = false
-            for (let i=0;i<reply.surveys.length;i++) {
-                disableSurvey = false
-                for (let n=0;n<reply.surveys[i].tasks.length;n++) {
-                    if ((diabledTaskStatuses.includes(reply.surveys[i].tasks[n].status.toLowerCase()))||(reply.surveys[i].tasks[n].disabledLaunch=='true')) {
+                surveyListDiv = document.getElementById('surveyListDiv'); 
+                while(surveyListDiv.firstChild){
+                    surveyListDiv.removeChild(surveyListDiv.firstChild);
+                }
+    
+                if (reply.surveys.length > 0) {
+                    surveyListDiv.setAttribute('class','')
+                    document.getElementById('mainCard').setAttribute('style','')
+                } else {
+                    surveyListDiv.setAttribute('class','card-body')
+                    document.getElementById('mainCard').setAttribute('style','min-height:400px')
+                }
+    
+                // taskProcessing = false
+                for (let i=0;i<reply.surveys.length;i++) {
+                    disableSurvey = false
+                    for (let n=0;n<reply.surveys[i].tasks.length;n++) {
+                        if ((diabledTaskStatuses.includes(reply.surveys[i].tasks[n].status.toLowerCase()))||(reply.surveys[i].tasks[n].disabledLaunch=='true')) {
+                            disableSurvey = true
+                            // taskProcessing = true
+                        }
+                    }
+                    // if (disabledSurveyStatuses.includes(reply.surveys[i].status.toLowerCase())||(currentDownloads.includes(reply.surveys[i].id))) {
+                    if (disabledSurveyStatuses.includes(reply.surveys[i].status.toLowerCase())) {
                         disableSurvey = true
                         // taskProcessing = true
                     }
+                    buildSurveys(reply.surveys[i],disableSurvey)
+                    // if (i < reply.surveys.length-1) {
+                    //     surveyListDiv.appendChild(document.createElement('br'))
+                    // }
                 }
-                // if (disabledSurveyStatuses.includes(reply.surveys[i].status.toLowerCase())||(currentDownloads.includes(reply.surveys[i].id))) {
-                if (disabledSurveyStatuses.includes(reply.surveys[i].status.toLowerCase())) {
-                    disableSurvey = true
-                    // taskProcessing = true
+                
+                if (reply.next_url==null) {
+                    btnNextSurveys.style.visibility = 'hidden'
+                } else {
+                    btnNextSurveys.style.visibility = 'visible'
+                    next_url = reply.next_url
                 }
-                buildSurveys(reply.surveys[i],disableSurvey)
-                // if (i < reply.surveys.length-1) {
-                //     surveyListDiv.appendChild(document.createElement('br'))
+    
+                if (reply.prev_url==null) {
+                    btnPrevSurveys.style.visibility = 'hidden'
+                } else {
+                    btnPrevSurveys.style.visibility = 'visible'
+                    prev_url = reply.prev_url
+                }
+    
+                if (uploading&&!uploadStart) {
+                    uploadFiles()
+                }
+    
+                // if (taskProcessing==true) {
+                //     if (processingTimer != null) {
+                //         clearInterval(processingTimer)
+                //     }
+                //     processingTimer = setTimeout(function() { updatePage(url); }, 10000)
+                // } else {
+                //     if (processingTimer != null) {
+                //         clearInterval(processingTimer)
+                //     }
+                //     processingTimer = null
                 // }
+    
+                // always refresh the page
+                if (processingTimer != null) {
+                    clearTimeout(processingTimer)
+                }
+                processingTimer = setTimeout(function() { updatePage(current_page); }, 5000)
             }
-            
-            if (reply.next_url==null) {
-                btnNextSurveys.style.visibility = 'hidden'
-            } else {
-                btnNextSurveys.style.visibility = 'visible'
-                next_url = reply.next_url
-            }
-
-            if (reply.prev_url==null) {
-                btnPrevSurveys.style.visibility = 'hidden'
-            } else {
-                btnPrevSurveys.style.visibility = 'visible'
-                prev_url = reply.prev_url
-            }
-
-            if (uploading&&!uploadStart) {
-                uploadFiles()
-            }
-
-            // if (taskProcessing==true) {
-            //     if (processingTimer != null) {
-            //         clearInterval(processingTimer)
-            //     }
-            //     processingTimer = setTimeout(function() { updatePage(url); }, 10000)
-            // } else {
-            //     if (processingTimer != null) {
-            //         clearInterval(processingTimer)
-            //     }
-            //     processingTimer = null
-            // }
-
-            // always refresh the page
-            if (processingTimer != null) {
-                clearTimeout(processingTimer)
-            }
-            processingTimer = setTimeout(function() { updatePage(url); }, 5000)
         }
     }
     xhttp.open("GET", url);
@@ -1145,8 +1163,13 @@ function resetNewSurveyPage() {
     document.getElementById('detailedAccessSurveyCb').checked = false
     document.getElementById('detailedAccessSurveyDiv').hidden = true
 
+    document.getElementById('newSurveyTrails').checked = true
+    document.getElementById('newSurveyPlains').checked = false
+    document.getElementById('newSurveyWaterholes').checked = false
+    document.getElementById('newSurveyBaited').checked = false
+
     document.getElementById('camAdvancedCheckbox').checked = false
-    document.getElementById('camRegExp').checked = false 
+    document.getElementById('camRegExp').checked = false
     document.getElementById('camBotLvlFolder').checked = true
     document.getElementById('camSameAsSite').checked = false
     document.getElementById('camIdDiv').hidden = true
@@ -3573,7 +3596,7 @@ function buildAdvancedOptions() {
 
             h5 = document.createElement('h5')
             h5.setAttribute('style','padding-top: 16px; padding-left: 15px; padding-right: 10px; margin-bottom: 2px')
-            h5.innerHTML = 'Mask Sky Detections'
+            h5.innerHTML = 'Ignore Sky Detections'
             row.appendChild(h5)
 
             div = document.createElement('div')
@@ -4396,6 +4419,12 @@ document.getElementById('btnSaveSurvey').addEventListener('click', ()=>{
     camSameAsSite = document.getElementById('camSameAsSite').checked
     newSurveyStructureDiv = document.getElementById('newSurveyStructureDiv')
     classifier_id = document.querySelector('input[name="classifierSelection"]:checked')
+    newSurveyTrails = document.getElementById('newSurveyTrails').checked
+    newSurveyPlains = document.getElementById('newSurveyPlains').checked
+    newSurveyWaterholes = document.getElementById('newSurveyWaterholes').checked
+    newSurveyBaited = document.getElementById('newSurveyBaited').checked
+    newSurveyIgnoreSmallDets = document.getElementById('cbxIgnoreSmallDets').checked
+    newSurvyeIgnoreSkyDets = document.getElementById('cbxIgnoreSkyDets').checked
 
     while(document.getElementById('newSurveyErrors').firstChild){
         document.getElementById('newSurveyErrors').removeChild(document.getElementById('newSurveyErrors').firstChild);
@@ -4621,6 +4650,28 @@ document.getElementById('btnSaveSurvey').addEventListener('click', ()=>{
             else if (camSameAsSite) {
                 formData.append("newSurveyCamCode", newSurveyTGCode)
                 formData.append("camCheckbox", newSurveyCheckbox.checked.toString())
+            }
+
+            if (newSurveyTrails) {
+                formData.append("dataSource", 'trails')
+            } else if (newSurveyPlains) {
+                formData.append("dataSource", 'plains')
+            } else if (newSurveyWaterholes) {
+                formData.append("dataSource", 'waterhole')
+            } else if (newSurveyBaited) {
+                formData.append("dataSource", 'baited')
+            }
+
+            if(newSurveyIgnoreSmallDets){
+                formData.append("ignoreSmallDets", 'true')
+            } else {
+                formData.append("ignoreSmallDets", 'false')
+            }
+
+            if(newSurvyeIgnoreSkyDets){
+                formData.append("ignoreSkyDets", 'true')
+            } else {
+                formData.append("ignoreSkyDets", 'false')
             }
 
             if (emptySurvey) {
@@ -5477,6 +5528,7 @@ function openEditMasks() {
             cameras = []
             maskCam_ids = []
             finishedDisplayingMask = true
+            cameragroup_page = {}
             buildEditMasks()
         }
     }
@@ -5682,6 +5734,9 @@ function buildEditMasks() {
             maskImgIndex += 1
             updateMaskMap()
         }
+        else if (maskImgIndex==cameras[maskCamIndex].images.length-1 && !editingEnabled && finishedDisplayingMask && cameragroup_page[cameras[maskCamIndex].id].next_page != null) {	
+            getNextMasks(cameragroup_page[cameras[maskCamIndex].id].next_page)
+        }
     });
 
     document.getElementById('btnNextCameraMask').addEventListener('click', ()=>{
@@ -5714,8 +5769,11 @@ function getMasks() {
             if (this.readyState == 4 && this.status == 200) {
                 reply = JSON.parse(this.responseText);  
                 new_cameras = reply.masks
-                console.log(new_cameras)
 
+                if (new_cameras.length>0) {
+                    cameragroup_page[new_cameras[0].id].next_page = reply.next_page
+                }
+                
                 for (var i=0; i<new_cameras.length; i++) {
                     if (maskCam_ids.indexOf(new_cameras[i].id) == -1) {
                         maskCam_ids.push(new_cameras[i].id)
@@ -5730,7 +5788,50 @@ function getMasks() {
                 preloadImages()
             }
         }
-        xhttp.open("GET", '/getSurveyMasks/'+selectedSurvey+'?cameragroup_id='+maskCamIDs[maskCamReadAheadIndex++]);
+        xhttp.open("GET", '/getSurveyMasks/'+selectedSurvey+'/'+maskCamIDs[maskCamReadAheadIndex++]);
+        xhttp.send();
+    }
+}
+
+function getNextMasks(page) {
+    /** Gets the masks for the current survey. */
+
+    if (page==null){
+        updateMaskMap()
+        updateButtons()
+    } else {
+
+        var cameragroup_id = cameras[maskCamIndex].id
+        cameragroup_page[cameragroup_id].page = page
+
+        var xhttp = new XMLHttpRequest();
+        xhttp.onreadystatechange =
+        function(){
+            if (this.readyState == 4 && this.status == 200) {
+                reply = JSON.parse(this.responseText);  
+                new_cameras = reply.masks
+                if (new_cameras.length>0) {
+                    cameragroup_page[new_cameras[0].id].next_page = reply.next_page
+                }
+                
+                for (var i=0; i<new_cameras.length; i++) {
+                    camera_id = new_cameras[i].id
+                    var m_index = cameras.findIndex(x => x.id == camera_id)
+                    if (m_index != -1) {
+                        new_index = cameras[m_index].images.length
+                        cameras[m_index].images.push(...new_cameras[i].images)
+                        if (new_cameras[i].images.length > 0) {
+                            maskImgIndex = new_index
+                        }
+                    }
+                }
+
+                updateMaskMap()
+                updateButtons()
+                preloadImages()
+            }
+        }
+        xhttp.open("GET", '/getSurveyMasks/'+selectedSurvey+'/'+cameragroup_id+'?page='+page);
         xhttp.send();
     }
 }
@@ -5783,7 +5884,7 @@ function prepMapMask(image) {
                     finishedDisplayingMask = true
                 }
                 else{
-                    this.setUrl("https://'+bucketName+'.s3.amazonaws.com/"+modifyToCompURL(cameras[maskCamIndex].images[maskImgIndex].url))
+                    this.setUrl("https://"+bucketName+".s3.amazonaws.com/"+modifyToCompURL(cameras[maskCamIndex].images[maskImgIndex].url))
                 }
             });
             mapMask.setMaxBounds(bounds);
@@ -6343,7 +6444,11 @@ function getMaskCameras(){
         if (this.readyState == 4 && this.status == 200) {
             reply = JSON.parse(this.responseText);
             maskCamIDs = reply
-            console.log(maskCamIDs)
+
+            cameragroup_page = {}
+            for (var i=0; i<maskCamIDs.length; i++) {
+                cameragroup_page[maskCamIDs[i]] = {'page':1, 'next_page':null}
+            }
 
             cameras = []
 
@@ -6390,7 +6495,7 @@ function updateButtons() {
         const btnPrevCamera = document.getElementById('btnPrevCameraMask');
         const btnNextCamera = document.getElementById('btnNextCameraMask');
         btnPrevImage.disabled = maskImgIndex === 0;
-        btnNextImage.disabled = maskImgIndex === cameras[maskCamIndex].images.length - 1;
+        btnNextImage.disabled = maskImgIndex === cameras[maskCamIndex].images.length - 1 && !cameragroup_page[cameras[maskCamIndex].id].next_page;
         btnPrevCamera.disabled = maskCamIndex === 0;
         btnNextCamera.disabled = maskCamIndex === cameras.length - 1;
     } else if (tabActiveEditSurvey === 'baseStaticTab') {
@@ -6399,7 +6504,7 @@ function updateButtons() {
         const btnPrevGroup = document.getElementById('btnPrevGroup');
         const btnNextGroup = document.getElementById('btnNextGroup');
         btnPrevImage.disabled = staticImgIndex === 0;
-        btnNextImage.disabled = staticImgIndex === staticgroups[staticgroupIndex].images.length - 1;
+        btnNextImage.disabled = staticImgIndex === staticgroups[staticgroupIndex].images.length - 1 && !staticgroup_page[staticgroups[staticgroupIndex].id].next_page;
         btnPrevGroup.disabled = staticgroupIndex === 0;
         btnNextGroup.disabled = staticgroupIndex === staticgroups.length - 1;
     } else if (tabActiveEditSurvey === 'baseEditImgTimestampsTab') {
@@ -6408,7 +6513,7 @@ function updateButtons() {
         const btnPrevCamera = document.getElementById('btnPrevCamera');
         const btnNextCamera = document.getElementById('btnNextCamera');
         btnPrevImage.disabled = imageIndex === 0;
-        btnNextImage.disabled = imageIndex === images[cameraIndex].images.length - 1;
+        btnNextImage.disabled = imageIndex === images[cameraIndex].images.length - 1 && !timestamp_page[images[cameraIndex].id].next_page;
         btnPrevCamera.disabled = cameraIndex === 0;
         btnNextCamera.disabled = cameraIndex === images.length - 1;
     }
@@ -6420,23 +6525,30 @@ function updatePaginationCircles(){
     /** Updates pagination circles on the edit survey modal. */
 
     clusterPosition = null
+    addNext = null
     if (tabActiveEditSurvey=='baseEditMasksTab'){
         cirNum = cameras[maskCamIndex].images.length
         circlesIndex = maskImgIndex
         clusterPosition = document.getElementById('clusterPosition_mask')
         paginationCircles = document.getElementById('paginationCircles_mask')
+        addNext = cameragroup_page[cameras[maskCamIndex].id].next_page
+        next_function = 'getNextMasks('+addNext+')'
     }
     else if (tabActiveEditSurvey=='baseStaticTab'){
         cirNum = staticgroups[staticgroupIndex].images.length
         circlesIndex = staticImgIndex
         clusterPosition = document.getElementById('clusterPosition_static')
         paginationCircles = document.getElementById('paginationCircles_static')
+        addNext = staticgroup_page[staticgroups[staticgroupIndex].id].next_page
+        next_function = 'getNextStaticDetections('+addNext+')'
     }
     else if (tabActiveEditSurvey=='baseEditImgTimestampsTab'){
         cirNum = images[cameraIndex].images.length
         circlesIndex = imageIndex
         clusterPosition = document.getElementById('clusterPosition_time')
         paginationCircles = document.getElementById('paginationCircles_time')
+        addNext = timestamp_page[images[cameraIndex].id].next_page
+        next_function = 'getNextTimestampImages('+addNext+')'
     }
 
     if (clusterPosition != null) {
@@ -6505,6 +6617,14 @@ function updatePaginationCircles(){
             last.innerHTML = (last_index+1).toString()
             last.style.fontSize = '60%'
             paginationCircles.append(last)
+        }
+
+        if (addNext) {
+            next = document.createElement('li')
+            next.setAttribute('onclick',next_function)
+            next.innerHTML = '>'
+            next.style.fontSize = '60%'
+            paginationCircles.append(next)
         }
     }
 
@@ -6645,6 +6765,7 @@ function buildViewStatic() {
             finishedDisplayingStatic = true
             staticgroupDetections = {}
             og_staticgroup_status = {}
+            staticgroup_page = {}
             getStaticGroups()
         }
     });
@@ -6825,6 +6946,9 @@ function buildViewStatic() {
             staticImgIndex += 1
             updateStaticMap()
         }
+        else if (staticImgIndex == staticgroups[staticgroupIndex].images.length-1 && staticgroup_page[staticgroups[staticgroupIndex].id].next_page != null && finishedDisplayingStatic) {
+            getNextStaticDetections(staticgroup_page[staticgroups[staticgroupIndex].id].next_page)
+        }
     });
 
     document.getElementById('btnNextGroup').addEventListener('click', ()=>{
@@ -6868,6 +6992,11 @@ function getStaticGroups(){
             staticgroupIDs = reply
             // console.log(staticgroupIDs)
 
+            staticgroup_page = {}
+            for (var i=0; i<staticgroupIDs.length; i++) {
+                staticgroup_page[staticgroupIDs[i]] = {'page':1, 'next_page':null}
+            }
+
             if (staticgroupIDs.length>0) {
                 document.getElementById('btnPrevGroup').hidden = false
                 document.getElementById('btnPrevImageStatic').hidden = false
@@ -6903,15 +7032,14 @@ function getStaticGroups(){
 }
 
 function getStaticDetections() {
+    /* Gets the static detections for the current survey */
 
+    var selectedCamera = '0'
     if (document.getElementById('sgCamSelect')) {
         selectedCamera = document.getElementById('sgCamSelect').value
         if (selectedCamera == ''){
             selectedCamera = '0'
         }
-    }
-    else{
-        selectedCamera = '0'
     }
 
     if (staticgroupReadAheadIndex < staticgroupIDs.length) {
@@ -6923,6 +7051,10 @@ function getStaticDetections() {
                 new_groups = reply.static_detections
                 new_detections = reply.staticgroup_detections
                 // console.log(new_groups)
+
+                if (new_groups.length > 0) {
+                    staticgroup_page[new_groups[0].id].next_page = reply.next_page
+                }
 
                 for (var i=0; i<new_groups.length; i++) {
                     if (staticgroup_ids.indexOf(new_groups[i].id) == -1) {
@@ -6948,6 +7080,63 @@ function getStaticDetections() {
         xhttp.send();
     }
 
+}
+
+function getNextStaticDetections(next_page) {
+    /* Gets the next page of static detections */
+
+    if (next_page == null) {
+        updateStaticMap()
+        updateButtons()
+    }else{
+        var selectedCamera = '0'
+        if (document.getElementById('sgCamSelect')) {
+            selectedCamera = document.getElementById('sgCamSelect').value
+            if (selectedCamera == ''){
+                selectedCamera = '0'
+            }
+        }
+
+        var staticgroup_id = staticgroups[staticgroupIndex].id
+        staticgroup_page[staticgroup_id].page = next_page
+
+        var xhttp = new XMLHttpRequest();
+        xhttp.onreadystatechange =
+        function(){
+            if (this.readyState == 4 && this.status == 200) {
+                reply = JSON.parse(this.responseText);
+                new_groups = reply.static_detections
+                new_detections = reply.staticgroup_detections
+
+                if (new_groups.length > 0) {
+                    staticgroup_page[new_groups[0].id].next_page = reply.next_page
+                }
+
+                for (var i=0; i<new_groups.length; i++) {
+                    sg_index = staticgroups.findIndex(x => x.id == new_groups[i].id)
+                    if (sg_index != -1) {
+                        new_img_index = staticgroups[sg_index].images.length
+                        staticgroups[sg_index].images.push(...new_groups[i].images)
+                        if (new_groups[i].images.length > 0) {
+                            staticImgIndex = new_img_index
+                        }
+                    }
+                }
+
+                keys = Object.keys(new_detections)
+                for (var i=0; i<keys.length; i++) {
+                    staticgroupDetections[keys[i]].push(...new_detections[keys[i]])
+                }
+
+                updateStaticMap()
+                updateButtons()
+                preloadImages()
+            
+            }
+        }
+        xhttp.open("GET", '/getStaticDetections/' + selectedSurvey + '/' + 0 + '?staticgroup_id=' + staticgroup_id + '&edit=true&cameragroup_id=' + selectedCamera + '&page=' + next_page);
+        xhttp.send();
+    }
 }
 
 function getStaticCameras(){
@@ -8187,6 +8376,9 @@ function buildTimestampsMap(){
             imageIndex += 1
             updateImageMap()
         }
+        else if (imageIndex == images[cameraIndex].images.length-1 && finishedDisplayingTime && validTimestamp && timestamp_page[images[cameraIndex].id].next_page != null) {
+            getNextTimestampImages(timestamp_page[images[cameraIndex].id].next_page)
+        }
     });
 
     document.getElementById('btnNextCamera').addEventListener('click', ()=>{
@@ -8228,6 +8420,12 @@ function getTimestampCameraIDs(){
             if (this.readyState == 4 && this.status == 200) {
                 reply = JSON.parse(this.responseText);
                 cameraIDs = reply.camera_ids
+
+                timestamp_page = {}
+                for (let i=0; i<cameraIDs.length; i++) {
+                    timestamp_page[cameraIDs[i]] = {'page': 1, 'next_page': null}
+                }
+
                 if (cameraIDs.length == 0) {
                     var addImagesImagesDiv = document.getElementById('addImagesImagesDiv')
                     while(addImagesImagesDiv.firstChild){
@@ -8290,6 +8488,10 @@ function getTimestampImages(){
                     // console.log(reply)
                     new_images = reply.images
 
+                    if (new_images.length > 0) {
+                        timestamp_page[new_images[0].id].next_page = reply.next_page
+                    }
+
                     for (let i=0; i<new_images.length; i++) {
                         if(camera_ids.indexOf(new_images[i].id)==-1){
                             camera_ids.push(new_images[i].id)
@@ -8305,12 +8507,59 @@ function getTimestampImages(){
 
                 }
             };
-            xhttp.open("GET", '/getTimestampImages/' + selectedSurvey + '/' + 0 + '?camera_id=' + cameraIDs[cameraReadAheadIndex++] + '&type=' + selectedTimestampType + '&species=' + species);
+            xhttp.open("POST", '/getTimestampImages/' + selectedSurvey + '/' + 0 + '?camera_id=' + cameraIDs[cameraReadAheadIndex++] + '&type=' + selectedTimestampType + '&species=' + species);
             xhttp.send();
 
     }
 }
 
+function getNextTimestampImages(page){
+    /** Requests the image IDs from the server. */
+
+    if (page==null) {
+        updateImageMap()
+        updateButtons()
+
+    } else {
+
+        species = document.getElementById('timeSpeciesSelect').value
+
+        camera_id = images[cameraIndex].id
+        timestamp_page[camera_id].page = page
+
+        var xhttp = new XMLHttpRequest();
+        xhttp.onreadystatechange =
+            function () {
+                if (this.readyState == 4 && this.status == 200) {
+                    reply = JSON.parse(this.responseText);
+                    new_images = reply.images
+
+                    if (new_images.length > 0) {
+                        timestamp_page[new_images[0].id].next_page = reply.next_page
+                    }
+
+                    for (let i=0; i<new_images.length; i++) {                
+                        time_index = images.findIndex(x => x.id == new_images[i].id)
+                        if (time_index != -1) {
+                            new_img_index = images[time_index].images.length
+                            images[time_index].images.push(...new_images[i].images)
+                            if (new_images[i].images.length > 0) {
+                                imageIndex = new_img_index
+                            }
+                        }
+                    }
+
+                    updateImageMap()
+                    updateButtons()
+                    preloadImages()
+
+                }
+            };
+        xhttp.open("POST", '/getTimestampImages/' + selectedSurvey + '/' + 0 + '?camera_id=' + camera_id + '&type=' + selectedTimestampType + '&species=' + species + '&page=' + page);
+        xhttp.send();
+
+    }
+}
 
 function updateImageMap(){
     /** Updates the image map with the current image. */
@@ -8678,6 +8927,9 @@ modalEditSurvey.on('keydown', function(event) {
 
 function nextTimestamp(){
     if (imageIndex < images[cameraIndex].images.length - 1){
+        document.getElementById('btnNextImage').click()
+    }
+    else if ((imageIndex == images[cameraIndex].images.length - 1) && timestamp_page[images[cameraIndex].id].next_page != null){
         document.getElementById('btnNextImage').click()
     }
     else if ((cameraIndex < images.length - 1) && imageIndex == images[cameraIndex].images.length - 1){

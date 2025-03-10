@@ -17,7 +17,10 @@ limitations under the License.
 from app import app, db, celery
 from app.models import *
 from app.functions.globals import *
-from app.functions.imports import archive_images, archive_empty_images, archive_videos
+from app.functions.imports import archive_images, archive_empty_images, archive_videos, classifySurvey
+from app.functions.annotation import launch_task
+from app.functions.admin import stop_task
+from app.functions.archive import check_storage_class, get_restore_info
 import GLOBALS
 from sqlalchemy.sql import func, or_, and_, alias
 from sqlalchemy import desc, extract
@@ -27,6 +30,8 @@ from celery.result import allow_join_result
 import cv2
 from PIL import Image as pilImage
 import os
+from dateutil import parser
+import numpy as np
 
 @celery.task(bind=True,max_retries=5)
 def copy_task_trapgroup(self,trapgroup_id,old_task_id,new_task_id):
@@ -125,6 +130,7 @@ def copy_task_to_same_survey(self,old_task_id,new_name,copy_individuals=False):
                 jobs_finished = oldTask.jobs_finished,
                 current_name = oldTask.current_name,
                 class_check_count = oldTask.class_check_count,
+                related_check_count = oldTask.related_check_count,
                 unchecked_multi_count = oldTask.unchecked_multi_count,
                 unlabelled_animal_cluster_count = oldTask.unlabelled_animal_cluster_count,
                 vhl_count = oldTask.vhl_count,
@@ -569,6 +575,7 @@ def copy_survey(self,old_survey_id,organisation_id,new_name=None,copy_individual
                     jobs_finished = oldTask.jobs_finished,
                     current_name = oldTask.current_name,
                     class_check_count = oldTask.class_check_count,
+                    related_check_count = oldTask.related_check_count,
                     unchecked_multi_count = oldTask.unchecked_multi_count,
                     unlabelled_animal_cluster_count = oldTask.unlabelled_animal_cluster_count,
                     vhl_count = oldTask.vhl_count,
@@ -963,7 +970,7 @@ def process_videos(self,trapgroup_id):
         for video in videos:
             key = [video.camera.path.split('/')[0]+'-comp']
             key.extend(video.camera.path.split('/')[1:])
-            key = '/'.join(key).split('_video_images_')[0] + video.filename.split('.')[0] + '.mp4'
+            key = '/'.join(key).split('_video_images_')[0] + video.filename.rsplit('.', 1)[0] + '.mp4'
             
             with tempfile.NamedTemporaryFile(delete=True, suffix='.JPG') as temp_file:
                 GLOBALS.s3client.download_file(Bucket='traptagger', Key=key, Filename=temp_file.name)
@@ -1289,6 +1296,33 @@ def update_lambda_code():
 
     return True
 
+def update_lambda_function_code(lambda_function,zip_path,remove_zip=True):
+    '''Function that updates the code of a specific lambda function.'''
+
+    #NOTE: Run the build_lambda.sh script to create the lambda functions zip in terminal before running this function
+    
+    app.logger.info('Updating lambda function {} code'.format(lambda_function))
+    try:
+        GLOBALS.lambdaClient.update_function_code(
+            FunctionName=lambda_function,
+            ZipFile=open(zip_path,'rb').read()
+        )
+
+        # wait for the update to complete
+        function_ready = False
+        while not function_ready:
+            response = GLOBALS.lambdaClient.get_function(FunctionName=lambda_function)
+            if response['Configuration']['LastUpdateStatus'] == 'Successful':
+                function_ready = True
+
+        if remove_zip and os.path.exists(zip_path): os.remove(zip_path)
+        app.logger.info('Lambda function {} code updated'.format(lambda_function))
+    except:
+        app.logger.info('Failed to update lambda function {} code'.format(lambda_function))
+        pass
+
+    return True
+
 def setup_layers():
     '''Function that checks if the lambda layers exist and creates them if not.'''
     try:
@@ -1458,5 +1492,440 @@ def archive_survey_and_update_counts(self,survey_id,launch_id=None):
 
     finally:
         db.session.remove()
+
+    return True
+
+
+@celery.task(bind=True,max_retries=5)
+def classify_survey(self,survey_id):
+
+    try:
+        app.logger.info('Classifying survey {}'.format(survey_id))
+
+        task_id = None
+        survey = db.session.query(Survey).get(survey_id)
+        old_status = survey.status
+
+        if old_status.lower() not in Config.SURVEY_READY_STATUSES and 'preprocessing' not in old_status.lower():
+            if survey.status == 'Launched':
+                task_id = db.session.query(Task.id).filter(Task.survey_id==survey_id).filter(Task.status.in_(['PROCESS','PROGRESS'])).first()
+                if task_id:
+                    task_id = task_id[0]
+                    task = db.session.query(Task).get(task_id)
+                    if task.status=='PROGRESS':
+                        task.status = 'Stopping'
+                        db.session.commit()
+                        stop_task(task_id)
+                    survey = db.session.query(Survey).get(survey_id)
+                else:
+                    # SCHEDULE ONE HOUR LATER
+                    classify_survey.apply_async(kwargs={'survey_id':survey_id}, countdown=3600, queue='default')
+                    return True
+            else:
+                #SCHEUDLE ONE HOUR LATER
+                classify_survey.apply_async(kwargs={'survey_id':survey_id}, countdown=3600, queue='default')
+                return True        
+
+        survey.status = 'Processing'
+        db.session.commit()
+
+        classifySurvey(survey_id=survey_id,sourceBucket=Config.BUCKET)
+
+        if 'preprocessing' not in old_status.lower():
+            task_ids = [r[0] for r in db.session.query(Task.id).filter(Task.survey_id==survey_id).filter(Task.name!='default').all()]
+            for tid in task_ids:
+                classifyTask(tid)
+                updateAllStatuses(task_id=tid)
+
+        if task_id:
+            survey = db.session.query(Survey).get(survey_id)
+            survey.status = 'Launched'
+            db.session.commit()
+            launch_task.delay(task_id=task_id)
+        else:
+            survey = db.session.query(Survey).get(survey_id)
+            survey.status = old_status
+            db.session.commit()
+
+        # Create txt file to upload to s3
+        txt_name = 'Classified_{}_{}.txt'.format(survey_id,survey.name)
+        with open(txt_name,'w') as f:
+            f.write('Survey {} classified'.format(survey_id))
+
+        s3_key = 'admin/classified_surveys/'+txt_name
+        GLOBALS.s3client.upload_file(Bucket=Config.BUCKET, Key=s3_key, Filename=txt_name)
+        os.remove(txt_name)
+
+    except Exception as exc:
+        app.logger.info(' ')
+        app.logger.info('!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!')
+        app.logger.info(traceback.format_exc())
+        app.logger.info('!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!')
+        app.logger.info(' ')
+        self.retry(exc=exc, countdown= retryTime(self.request.retries))
+
+    finally:
+        db.session.remove()
+
+
+    return True
+
+
+@celery.task(bind=True,max_retries=2,ignore_result=True)
+def restore_required_images_for_classification(self,survey_id,days,tier,restore_time):
+    '''Restores no classification images from Glacier for a specified survey.'''
+    
+    try:
+        app.logger.info('Restoring required images (classification) for survey {} for {} days '.format(survey_id,days))
+
+        expected_expiry_date = calculate_restore_expiry_date(datetime.utcnow(), restore_time, days)
+
+        image_query = rDets(db.session.query(Image, Image.filename, Camera.path)\
+                        .join(Camera)\
+                        .join(Trapgroup)\
+                        .join(Detection)\
+                        .filter(Trapgroup.survey_id==survey_id)\
+                        .filter(Detection.class_score==0)\
+                        .filter(Detection.classification=='unknown'))
+
+        images = image_query.filter(or_(Image.expiry_date==None,Image.expiry_date<expected_expiry_date)).order_by(Image.id).distinct().all()
+        
+        restore_request = {
+            'Days': days,
+            'GlacierJobParameters': {
+                'Tier': tier
+            }
+        }
+
+        restored_image = False
+        restore_date = None
+        require_wait = False
+
+        if images:
+            storage_class = check_storage_class(images[0][2] + '/' + images[0][1])
+            if storage_class == 'DEEP_ARCHIVE':
+                for chunk in chunker(images, 1000):
+                    for image in chunk:
+                        try:
+                            image_key = image[2] + '/' + image[1]
+                            response = GLOBALS.s3client.restore_object(Bucket=Config.BUCKET, Key=image_key, RestoreRequest=restore_request)
+                            restored_image = True
+                            http_code = response['ResponseMetadata']['HTTPStatusCode']
+                            if http_code == 202: # 202 - Accepted (restore in progress), 200 - OK (restore completed - expiry date set)
+                                require_wait = True
+                                image[0].expiry_date = calculate_restore_expiry_date(datetime.utcnow(), restore_time, days)
+                            elif http_code == 200:
+                                image[0].expiry_date = calculate_restore_expiry_date(datetime.utcnow(), 0, days)
+                        except ClientError as e:
+                            if e.response['Error']['Code'] == 'RestoreAlreadyInProgress':
+                                require_wait = True
+                                file_restore_date, file_restore_days = get_restore_info(image_key)
+                                image[0].expiry_date = calculate_restore_expiry_date(file_restore_date, restore_time, file_restore_days)
+                                if not restore_date or file_restore_date > restore_date: restore_date = file_restore_date
+                        except:
+                            continue
+                    db.session.commit()
+            else:
+                for image in images:
+                    if image[0].expiry_date: image[0].expiry_date = None
+                db.session.commit()
+
+        if not restored_image and not restore_date and not require_wait:
+            other_images = image_query.filter(Image.expiry_date>=expected_expiry_date).first()
+            if other_images:
+                image_key = other_images[2] + '/' + other_images[1]
+                restore_file = get_restore_info(image_key)
+                if restore_file[0]:
+                    restore_date = restore_file[0]
+                    require_wait = True
+        
+        if (restored_image or restore_date) and require_wait:
+            classify_survey.apply_async(kwargs={'survey_id':survey_id}, countdown=restore_time+3600, queue='default')
+        else:
+            classify_survey.apply_async(kwargs={'survey_id':survey_id},queue='default')
+
+    except Exception as exc:
+        app.logger.info(' ')
+        app.logger.info('!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!')
+        app.logger.info(traceback.format_exc())
+        app.logger.info('!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!')
+        app.logger.info(' ')
+        self.retry(exc=exc, countdown= retryTime(self.request.retries))
+
+    finally:
+        db.session.remove()
+
+    return True
+
+def crop_image(img, bbox_norm):
+    '''Crops the supplied image according to the normalised bounding box with the format [left,top,width,height].'''
+
+    img_w, img_h = img.size
+    xmin = int(bbox_norm[0] * img_w)
+    ymin = int(bbox_norm[1] * img_h)
+    box_w = int(bbox_norm[2] * img_w)
+    box_h = int(bbox_norm[3] * img_h)
+
+    # expand box width or height to be square, but limit to img size
+    box_size = max(box_w, box_h)
+    xmin = max(0, min(
+        xmin - int((box_size - box_w) / 2),
+        img_w - box_w))
+    ymin = max(0, min(
+        ymin - int((box_size - box_h) / 2),
+        img_h - box_h))
+    box_w = min(img_w, box_size)
+    box_h = min(img_h, box_size)
+
+    if box_w == 0 or box_h == 0:
+        return False
+
+    # Image.crop() takes box=[left, upper, right, lower]
+    crop = img.crop(box=[xmin, ymin, xmin + box_w, ymin + box_h])
+
+    if box_w != box_h:
+        # pad to square using 0s
+        crop = ImageOps.pad(crop, size=(box_size, box_size), color=0)
+
+    return crop
+
+def download_and_crop(key,left,right,top,bottom,crop_key,CROPS_BUCKET):
+    try:
+        with tempfile.NamedTemporaryFile(delete=True, suffix='.jpg') as temp_file:
+            GLOBALS.s3client.download_file(Bucket=Config.BUCKET, Key=key, Filename=temp_file.name)
+            img = pilImage.open(temp_file.name)
+
+        # print('Cropping...')
+        bbox = [left,top,(right-left),(bottom-top)]
+        img = crop_image(img, bbox)
+
+        #if successful, save crop for future use
+        with tempfile.NamedTemporaryFile(delete=True, suffix='.jpg') as temp_file:
+            img.save(temp_file.name)
+            GLOBALS.s3client.upload_file(Filename=temp_file.name, Bucket=CROPS_BUCKET, Key=crop_key)
+
+        return True
+    
+    except:
+        # Something went wrong.
+        return False
+
+@celery.task(bind=True,max_retries=2)
+def restore_crops(self,csv_key,CROPS_BUCKET,date_cutoff):
+    ''' Dowloads the specified csv and checks the status of the training crops '''
+
+    if date_cutoff: date_cutoff = datetime.fromtimestamp(date_cutoff)
+
+    RESTORE_TIME = 43200
+    restore_request = {
+                'Days': 14,
+                'GlacierJobParameters': {
+                    'Tier': 'Standard'
+                }
+            }
+
+    with tempfile.NamedTemporaryFile(delete=True, suffix='.csv') as temp_file:
+        GLOBALS.s3client.download_file(Bucket=Config.BUCKET, Key=csv_key, Filename=temp_file.name)
+        df = pd.read_csv(temp_file.name)
+
+    for index, row in df.iterrows():
+        app.logger.info('{}: {}'.format(index,int(row['detection_id'])))
+        crop_name = str(int(row['detection_id']))+'.jpg'
+
+        try:
+            response = GLOBALS.s3client.head_object(Bucket=CROPS_BUCKET, Key=crop_name)
+            last_modified = response['ResponseMetadata']['HTTPHeaders']['last-modified']
+            last_modified = parser.parse(last_modified.split('GMT')[0])
+
+            if (date_cutoff==None) or (last_modified < date_cutoff):
+                # crop present and probably derived pre-archival
+                df.loc[df.detection_id==row['detection_id'],'crop_missing'] = 'false'
+                app.logger.info("Crop Found. Date good. Skipping...")
+                continue
+
+            #crop exists in the cloud but was post archival and hence comp-derived. Delete it.
+            GLOBALS.s3client.delete_object(Bucket=CROPS_BUCKET, Key=crop_name)
+            app.logger.info("Crop Found, but date a problem. Deleting...")
+
+        except:
+            #crop is missing
+            app.logger.info("Crop missing.")
+            pass
+
+        # crop is now missing
+        df.loc[df.detection_id==row['detection_id'],'crop_missing'] = 'true'
+
+        #try de-archive raw image
+        try:
+            # Request archive, if accepted. All good.
+            response = GLOBALS.s3client.restore_object(Bucket=Config.BUCKET, Key=row['path'], RestoreRequest=restore_request)
+            df.loc[df.detection_id==row['detection_id'],'available'] = math.ceil((datetime.utcnow() + timedelta(seconds=RESTORE_TIME)).timestamp())
+            app.logger.info("Restore requested.")
+            
+        except ClientError as e:
+            if e.response['Error']['Code'] == 'InvalidObjectState':
+                # File is probably in standard storage. Let's crop!
+                app.logger.info("Raw file is in standard storage - cropping...")
+                if download_and_crop(row['path'],row['left'],row['right'],row['top'],row['bottom'],crop_name,CROPS_BUCKET):
+                    df.loc[df.detection_id==row['detection_id'],'crop_missing'] = 'false'
+                else:
+                    df.loc[df.detection_id==row['detection_id'],'failed'] = 'true'
+
+            elif e.response['Error']['Code'] == 'RestoreAlreadyInProgress':
+                # restore is in progress try again later
+                app.logger.info("Restore already in progress. Updating availability...")
+                df.loc[df.detection_id==row['detection_id'],'available'] = math.ceil((datetime.utcnow() + timedelta(seconds=RESTORE_TIME)).timestamp())
+            
+            elif e.response['Error']['Code'] == 'NoSuchKey':
+                # raw file is missing. We need to try crop the raw image now
+                app.logger.info("Raw file missing... switching to comp.")
+                df.loc[df.detection_id==row['detection_id'],'raw_missing'] = 'true'
+
+                comp_path = [row['path'].split('/')[0]+'-comp']
+                comp_path.extend(row['path'].split('/')[1:])
+                comp_path = '/'.join(comp_path)
+
+                if download_and_crop(comp_path,row['left'],row['right'],row['top'],row['bottom'],crop_name,CROPS_BUCKET):
+                    df.loc[df.detection_id==row['detection_id'],'crop_missing'] = 'false'
+                else:
+                    df.loc[df.detection_id==row['detection_id'],'failed'] = 'true'
+
+    with tempfile.NamedTemporaryFile(delete=True, suffix='.csv') as temp_file:
+        df.to_csv(temp_file.name,index=False)
+        GLOBALS.s3client.upload_file(Filename=temp_file.name, Bucket=Config.BUCKET, Key=csv_key)
+
+    app.logger.info("Finished!")
+
+    return True
+
+def prepare_crops(csv_key,desired_splits,CROPS_BUCKET,date_cutoff=None):
+    '''Prepares the crops for the specified csv. All crops generated before the specified cutoff date (epoch time) will be overwritten.'''
+
+    with tempfile.NamedTemporaryFile(delete=True, suffix='.csv') as temp_file:
+        GLOBALS.s3client.download_file(Bucket=Config.BUCKET, Key=csv_key, Filename=temp_file.name)
+        df = pd.read_csv(temp_file.name)
+
+    results = []
+    second_round = False
+    base_key = csv_key.replace('.csv','')
+    if 'raw_missing' not in df.columns:
+        # this is the first pass
+
+        #prep df
+        df = df[['detection_id','path','left','right','top','bottom']]
+        df['crop_missing'] = 'none'
+        df['raw_missing'] = 'false'
+        df['available'] = 'none'
+        df['failed'] = 'false'
+
+        dfs = np.array_split(df, desired_splits)
+        for df in dfs:
+            new_key = base_key+str(len(results))+'.csv'
+
+            with tempfile.NamedTemporaryFile(delete=True, suffix='.csv') as temp_file:
+                df.to_csv(temp_file.name,index=False)
+                GLOBALS.s3client.upload_file(Filename=temp_file.name, Bucket=Config.BUCKET, Key=new_key)
+
+            app.logger.info("Kicking off {}".format(new_key))
+            results.append(restore_crops.apply_async(kwargs={'csv_key': new_key, 'CROPS_BUCKET':CROPS_BUCKET, 'date_cutoff':date_cutoff},queue='utility'))
+
+    else:
+        # images have already been de-archived. go forth and crop.
+        second_round = True
+        index = df[df['available']!='none'].index
+        df.drop(index , inplace=True)
+
+        dfs = np.array_split(df, desired_splits)
+        for df in dfs:
+            new_key = base_key+str(len(results))+'.csv'
+
+            with tempfile.NamedTemporaryFile(delete=True, suffix='.csv') as temp_file:
+                df.to_csv(temp_file.name,index=False)
+                GLOBALS.s3client.upload_file(Filename=temp_file.name, Bucket=Config.BUCKET, Key=new_key)
+
+            app.logger.info("Kicking off {}".format(new_key))
+            results.append(crop_restored_images.apply_async(kwargs={'csv_key': new_key, 'CROPS_BUCKET':CROPS_BUCKET},queue='utility'))
+
+    app.logger.info("Waiting for sub-processes...")
+    GLOBALS.lock.acquire()
+    with allow_join_result():
+        for result in results:
+            try:
+                result.get()
+            except Exception:
+                app.logger.info(' ')
+                app.logger.info('!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!')
+                app.logger.info(traceback.format_exc())
+                app.logger.info('!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!')
+                app.logger.info(' ')
+            
+            result.forget()
+    GLOBALS.lock.release()
+    app.logger.info("Done! Conbining results...")
+
+    #combine all the output csvs again
+    output_df = None
+    for n in range(desired_splits):
+        new_key = base_key+str(n)+'.csv'
+
+        with tempfile.NamedTemporaryFile(delete=True, suffix='.csv') as temp_file:
+            GLOBALS.s3client.download_file(Bucket=Config.BUCKET, Key=new_key, Filename=temp_file.name)
+            df = pd.read_csv(temp_file.name)
+
+        if output_df is None:
+            output_df = df
+        else:
+            output_df = pd.concat([output_df,df])
+
+    if second_round:
+        csv_destination = base_key + '_post.csv'
+    else:
+        csv_destination = csv_key
+
+    with tempfile.NamedTemporaryFile(delete=True, suffix='.csv') as temp_file:
+        output_df.to_csv(temp_file.name,index=False)
+        GLOBALS.s3client.upload_file(Filename=temp_file.name, Bucket=Config.BUCKET, Key=csv_destination)
+    
+    app.logger.info("Results uploaded!")
+
+    #clean up the results csv once done
+    for n in range(desired_splits):
+        new_key = base_key+str(n)+'.csv'
+        GLOBALS.s3client.delete_object(Bucket=Config.BUCKET, Key=new_key)
+
+    app.logger.info("Finished!")
+
+    return True
+
+@celery.task(bind=True,max_retries=2)
+def crop_restored_images(csv_key,CROPS_BUCKET):
+    ''' Dowloads the specified csv and checks the status of the training crops '''
+
+    with tempfile.NamedTemporaryFile(delete=True, suffix='.csv') as temp_file:
+        GLOBALS.s3client.download_file(Bucket=Config.BUCKET, Key=csv_key, Filename=temp_file.name)
+        df = pd.read_csv(temp_file.name)
+
+    for index, row in df.iterrows():
+        app.logger.info('{}: {}'.format(index,int(row['detection_id'])))
+        crop_name = str(int(row['detection_id']))+'.jpg'
+
+        # Wait for de-archive
+        app.logger.info('File ready at {}'.format(datetime.fromtimestamp(int(row['available']))))
+        while datetime.utcnow().timestamp()<(int(row['available'])+600):
+            time.sleep(math.ceil((int(row['available'])+600)-datetime.utcnow().timestamp()))
+        app.logger.info('File ready...')
+
+        if download_and_crop(row['path'],row['left'],row['right'],row['top'],row['bottom'],crop_name,CROPS_BUCKET):
+            df.loc[df.detection_id==row['detection_id'],'crop_missing'] = 'false'
+            app.logger.info('Crop succeeded')
+        else:
+            df.loc[df.detection_id==row['detection_id'],'failed'] = 'true'
+            app.logger.info('Cropping FAILED!')
+
+    with tempfile.NamedTemporaryFile(delete=True, suffix='.csv') as temp_file:
+        df.to_csv(temp_file.name,index=False)
+        GLOBALS.s3client.upload_file(Filename=temp_file.name, Bucket=Config.BUCKET, Key=csv_key)
+
+    app.logger.info('Done!')
 
     return True

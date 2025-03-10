@@ -78,6 +78,7 @@ var skipName = null
 var idIndiv101 = false
 var isMaskCheck = false
 var isTimestampCheck
+var ctrlHeld = false
 
 const divBtns = document.querySelector('#divBtns');
 const catcounts = document.querySelector('#categorycounts');
@@ -103,6 +104,10 @@ const prevImageBtn = document.querySelector('#prevImage');
 const clusterPositionCircles = document.getElementById('clusterPosition')
 const modalNothingKnock = $('#modalNothingKnock');
 const modalMaskArea = $('#modalMaskArea');
+const forwardImageBtn = document.querySelector('#forwardImage');
+const backImageBtn = document.querySelector('#backImage');
+
+const skipNum = 5
 
 var waitModalMap = null
 var classificationCheckData = {'overwrite':false,'data':[]}
@@ -200,7 +205,7 @@ function modifyToCompURL(url) {
     else {
         splits=url.split('/')
         splits[0]=splits[0]+'-comp'
-        splits[splits.length-1]=splits[splits.length-1].split('.')[0]+'.mp4'
+        splits[splits.length-1]=splits[splits.length-1].substring(0, splits[splits.length-1].lastIndexOf('.'))+'.mp4'
         return splits.join('/')
     }
     
@@ -798,10 +803,17 @@ function updateCanvas(mapID = 'map1') {
 
                 //update cluster position circles (pagination) - bounding & tutorial pagination needs to be disabled
                 if (clusterPositionCircles != null) {
-
+                    var addNext = null
+                    var next_function = null
                     if (isBounding) {
                         cirNum = clusters[mapID][clusterIndex[mapID]].clusterLength
                         circlesIndex = clusters[mapID][clusterIndex[mapID]].imageIndex
+                    }
+                    else if (isStaticCheck) {
+                        cirNum = clusters[mapID][clusterIndex[mapID]].images.length
+                        circlesIndex = imageIndex[mapID]
+                        addNext = staticCheckPage[clusters[mapID][clusterIndex[mapID]].id].next_page
+                        next_function = 'nextPageStatic('+addNext+')'
                     }
                     else{
                         cirNum = clusters[mapID][clusterIndex[mapID]].images.length
@@ -887,6 +899,13 @@ function updateCanvas(mapID = 'map1') {
                         }
                         last.innerHTML = (last_index+1).toString()
                         paginationCircles.append(last)
+                    }
+
+                    if (addNext) {
+                        next = document.createElement('li')
+                        next.setAttribute('onclick',next_function)
+                        next.innerHTML = '>'
+                        paginationCircles.append(next)
                     }
                 }
 
@@ -1054,7 +1073,7 @@ function updateCanvas(mapID = 'map1') {
 
         }
     
-        if ((!isTagging) || (taggingLevel=='-3') || (isClassCheck)) { //(taggingLevel=='-2'))
+        if ((!isTagging) || (taggingLevel=='-3') || (isClassCheck) || (taggingLevel=='-8')) { //(taggingLevel=='-2'))
             if (clusters[mapID][clusterIndex[mapID]].images.length != 0) {
                 updateDebugInfo(mapID)
             }
@@ -1103,10 +1122,43 @@ function updateButtons(mapID = 'map1'){
             if ((clusters[mapID][clusterIndex[mapID]].id != '-99')&&(clusters[mapID][clusterIndex[mapID]].id != '-101')&&(clusters[mapID][clusterIndex[mapID]].id != '-782')) {
                 if (imageIndex[mapID]==clusters[mapID][clusterIndex[mapID]].images.length-1){
                     nextImageBtn.classList.add("disabled")
+                    if (isStaticCheck && staticCheckPage[clusters[mapID][clusterIndex[mapID]].id].next_page!=null){
+                        nextImageBtn.classList.remove("disabled")
+                    }
                 }else{
                     nextImageBtn.classList.remove("disabled")
                 }
             }
+        }
+    }
+
+    if (forwardImageBtn != null) {
+        if (taggingLevel == '-3' || taggingLevel == '-8') {
+            forwardImageBtn.hidden = false
+            if (imageIndex[mapID]>clusters[mapID][clusterIndex[mapID]].images.length-(skipNum+1)){
+                forwardImageBtn.disabled = true
+            }else if (clusters[mapID][clusterIndex[mapID]].required.includes(imageIndex[mapID])&&(reachedEnd == false)){  // Cannot skip required images
+                forwardImageBtn.disabled = true 
+            }else{
+                forwardImageBtn.disabled = false
+            }
+        }
+        else{
+            forwardImageBtn.hidden = true
+        }
+    }
+
+    if (backImageBtn != null) {
+        if (taggingLevel == '-3' || taggingLevel == '-8') {
+            backImageBtn.hidden = false
+            if (imageIndex[mapID]>skipNum-1){
+                backImageBtn.disabled = false
+            }else{
+                backImageBtn.disabled = true
+            }
+        }
+        else{
+            backImageBtn.hidden = true
         }
     }
 }
@@ -1272,7 +1324,7 @@ function updateClusterLabels(mapID = 'map1') {
 
 function updateDebugInfo(mapID = 'map1',updateLabels = true) {
     /** Updates the displayed image/cluster info. */
-    if ((!isViewing && !isTagging && !isBounding && !isKnockdown && !isStaticCheck && !isTimestampCheck) ||(taggingLevel=='-3')||(isClassCheck)) { //(!isTagging)
+    if ((!isViewing && !isTagging && !isBounding && !isKnockdown && !isStaticCheck && !isTimestampCheck) ||(taggingLevel=='-3')||(isClassCheck)||(taggingLevel=='-8')) { //(!isTagging)
         if ((clusters[mapID][clusterIndex[mapID]].id == '-99')||(clusters[mapID][clusterIndex[mapID]].id == '-101')||(clusters[mapID][clusterIndex[mapID]].id == '-782')) {
             document.getElementById('debugImage').innerHTML =  '';
             document.getElementById('debugLabels').innerHTML = '';
@@ -1296,7 +1348,7 @@ function updateDebugInfo(mapID = 'map1',updateLabels = true) {
                     if (i!=0) {
                         span.setAttribute('style','font-size: 80%;color: rgba(150,150,150,100)')
                     }
-                    text = ' ' + clusters[mapID][clusterIndex[mapID]].classification[i][0] + ' (' + clusters[mapID][clusterIndex[mapID]].classification[i][1] + ')'
+                    text = ' ' + clusters[mapID][clusterIndex[mapID]].classification[i][0] //+ ' (' + clusters[mapID][clusterIndex[mapID]].classification[i][1] + ')'
                     if (i!=clusters[mapID][clusterIndex[mapID]].classification.length-1) {
                         text += ','
                     }
@@ -1310,10 +1362,27 @@ function updateDebugInfo(mapID = 'map1',updateLabels = true) {
                 if (!isReviewing) {
                     temp += "Labels: "
                 }
-                for (let i=0;i<clusters[mapID][clusterIndex[mapID]].label.length;i++) {
-                    temp += clusters[mapID][clusterIndex[mapID]].label[i]
-                    if (i != clusters[mapID][clusterIndex[mapID]].label.length-1) {
-                        temp += ', '
+                if (isClassCheck){
+                    if (classificationCheckData['overwrite'] != true) {
+                        for (let i=0;i<clusters[mapID][clusterIndex[mapID]].label.length;i++) {
+                            temp += clusters[mapID][clusterIndex[mapID]].label[i]
+                            temp += ', '
+                        }
+                    }
+                    for (let j=0;j<classificationCheckData['data'].length;j++) {
+                        if (classificationCheckData['data'][j]['action']=='accept') {
+                            temp += classificationCheckData['data'][j]['label']
+                            temp += ', '
+                        }
+                    }
+                    temp = temp.slice(0,-2)
+                }
+                else{
+                    for (let i=0;i<clusters[mapID][clusterIndex[mapID]].label.length;i++) {
+                        temp += clusters[mapID][clusterIndex[mapID]].label[i]
+                        if (i != clusters[mapID][clusterIndex[mapID]].label.length-1) {
+                            temp += ', '
+                        }
                     }
                 }
                 document.getElementById('debugLabels').innerHTML = temp;
@@ -1493,6 +1562,39 @@ function nextImage(mapID = 'map1'){
                     update(mapID)
                 }
             }
+            else if (isStaticCheck&&imageIndex[mapID]==clusters[mapID][clusterIndex[mapID]].images.length-1&&staticCheckPage[clusters[mapID][clusterIndex[mapID]].id] != null) {
+                nextPageStatic(staticCheckPage[clusters[mapID][clusterIndex[mapID]].id].next_page)
+            }
+        }
+    }
+}
+
+function forwardImage(mapID = 'map1'){
+    /** Switches to the next image in the cluster if its available. */
+    if (finishedDisplaying[mapID] == true) {
+        // Make an exception for finish looking at cluster modal
+        allowBypass=false
+        if (modalAlert.is(':visible')) {
+            modalAlert.modal('hide');
+            allowBypass=true
+        }
+        if (clusters[mapID][clusterIndex[mapID]].required.includes(imageIndex[mapID])&&(reachedEnd == false)){  // Cannot skip required images
+            return;
+        }
+        if (((modalActive == false) && (modalActive2 == false))||(allowBypass)) {
+            if (imageIndex[mapID]<clusters[mapID][clusterIndex[mapID]].images.length-skipNum){
+                if ((mapdiv2 != null)&&(previousClick!=null)) {
+                    if (previousClick.map==mapID) {
+                        previousClick = null
+                    }
+                }
+                if (clusterPositionSplide[mapID] != null) {
+                    clusterPositionSplide[mapID].go('+'+skipNum)
+                } else {
+                    imageIndex[mapID] += skipNum
+                    update(mapID)
+                }
+            }
         }
     }
 }
@@ -1527,6 +1629,33 @@ function prevImage(mapID = 'map1'){
                     clusterPositionSplide[mapID].go('-1')
                 } else {
                     imageIndex[mapID] -= 1
+                    update(mapID)
+                }
+            }
+        }
+    }
+}
+
+function backImage(mapID = 'map1'){
+    /** Switches to the previous image in a cluster. */
+    if (finishedDisplaying[mapID] == true) {
+        // Make an exception for finish looking at cluster modal
+        allowBypass=false
+        if (modalAlert.is(':visible')) {
+            modalAlert.modal('hide');
+            allowBypass=true
+        }
+        if (((modalActive == false) && (modalActive2 == false))||(allowBypass)) {
+            if (imageIndex[mapID]>skipNum-1) {
+                if ((mapdiv2 != null)&&(previousClick!=null)) {
+                    if (previousClick.map==mapID) {
+                        previousClick = null
+                    }
+                }
+                if (clusterPositionSplide[mapID] != null) {
+                    clusterPositionSplide[mapID].go('-'+skipNum)
+                } else {
+                    imageIndex[mapID] -= skipNum
                     update(mapID)
                 }
             }
@@ -1622,8 +1751,10 @@ function nextCluster(mapID = 'map1') {
         }
 
         if (clusterIndex[mapID]==clusters[mapID].length-1){
-            document.getElementById('modalAlertText').innerHTML = 'You have reached the end of the available clusters.'
-            modalAlert.modal({keyboard: true});
+            if (clusterRequests[mapID].length==0) {
+                document.getElementById('modalAlertText').innerHTML = 'There are no more clusters to display.'
+                modalAlert.modal({keyboard: true});
+            }
         } 
     }
 
@@ -1805,17 +1936,18 @@ function assignLabel(label,mapID = 'map1'){
             maskMode = true
             getKeys()
             initMaskMode(mapID)
-        } else if (isReviewing && !modalNothingKnock.is(':visible') && hasIndividuals) {
+        } else if (isReviewing && !modalNothingKnock.is(':visible') && hasIndividuals && taggingLevel != '-2') {
             document.getElementById('modalNothingKnockText').innerHTML = 'This cluster contains detections that are linked to specific individuals. If you choose to label this cluster as a different species, all associated detections will be removed from their respective individuals. Please note that this action is irreversible and cannot be undone. <br><br><i>If you wish to continue, press the label hotkey again.</i><br><br><i>Otherwise, press "Esc".</i>'
             modalNothingKnock.modal({keyboard: true}) 
         } else if ((finishedDisplaying[mapID] == true) && (!modalActive) && (modalActive2 == false) && (clusters[mapID][clusterIndex[mapID]].id != '-99') && (clusters[mapID][clusterIndex[mapID]].id != '-101') && (clusters[mapID][clusterIndex[mapID]].id != '-782')) {
     
-            if (taggingLevel=='-3') {
+            if ((taggingLevel=='-3')||(taggingLevel=='-8')) {
                 // classification check
     
                 var checkVar = 0
                 if (clusters[mapID][clusterIndex[mapID]].required.length>1) {
-                    if (reachedEnd == false) {
+                    // We don't want to force check on accept or overwrite for these types of tasks
+                    if ((reachedEnd == false) && (['reject_classification','other_classification'].includes(label))) {
                         document.getElementById('modalAlertText').innerHTML = 'This cluster may contain more species, please cycle through all images before tagging it.'
                         modalAlert.modal({keyboard: true});
                         checkVar = 1
@@ -2287,8 +2419,9 @@ function fetchTaggingLevel() {
                 ITEM_IDS = 'label_ids'
             }
             taggingLabel = taggingInfo.taggingLabel
-            if (taggingLevel == '-3') {
+            if ((taggingLevel == '-3')||(taggingLevel == '-8')) {
                 isClassCheck = true
+                classCheckOriginalLevel = taggingLevel
             }
 
             // if (taggingLevel == '-6'){
@@ -2885,7 +3018,7 @@ function updateProgress() {
 
 function onload (){
     /** Initialises the page on load. */
-    if (!isReviewing && !isViewing) {
+    if (!isViewing) {
         pingServer()
     }
 
@@ -3003,7 +3136,7 @@ function activateMultiple(mapID = 'map1') {
         }
     
     
-        if ((((modalActive == false) && (modalActive2 == false)) || (taggingLevel.includes('-2'))) && (allow==true) && (taggingLevel!='-3') && (clusters[mapID][clusterIndex[mapID]].id != '-99') && (clusters[mapID][clusterIndex[mapID]].id != '-101') && (clusters[mapID][clusterIndex[mapID]].id != '-782')) {
+        if ((((modalActive == false) && (modalActive2 == false)) || (taggingLevel.includes('-2'))) && (allow==true) && (taggingLevel!='-3') && (taggingLevel!='-8') && (clusters[mapID][clusterIndex[mapID]].id != '-99') && (clusters[mapID][clusterIndex[mapID]].id != '-101') && (clusters[mapID][clusterIndex[mapID]].id != '-782')) {
             if ((multipleStatus == false) && (divBtns != null)) {
                 var multibtn = document.getElementById('multipleBtn');
                 
@@ -3458,6 +3591,12 @@ document.onkeyup = function(event){
         }
     }
 
+    //Check if Ctrl is being held down
+    if (event.ctrlKey) {
+        ctrlHeld = true
+        return;
+    }
+
     switch (event.key.toLowerCase()){
         case (']'):
         case ('insert'):
@@ -3580,7 +3719,10 @@ document.onkeyup = function(event){
                 case ('-'):assignLabel(hotkeys[38])  //Mask Area
                     break;
 
-                case 'control': activateMultiple()
+                case 'control': 
+                    if (!ctrlHeld){
+                        activateMultiple()
+                    }
                     break;
     
                 case 'enter': if (isTagging){
@@ -3598,6 +3740,16 @@ document.onkeyup = function(event){
                 case 'arrowright': nextImage()
                     break;
                 case 'arrowleft': prevImage()
+                    break;
+                case 'arrowup': 
+                    if (taggingLevel=='-3'||taggingLevel=='-8') {
+                        forwardImage()
+                    }
+                    break;
+                case 'arrowdown':
+                    if (taggingLevel=='-3'||taggingLevel=='-8') {
+                        backImage()
+                    }
                     break;
             }
 
@@ -3693,6 +3845,7 @@ document.onkeyup = function(event){
                 break;
         }
     }
+    ctrlHeld = false
 }
 
 document.onkeydown = function(event){
@@ -3819,6 +3972,13 @@ function updateImageIndex(newIndex, mapID = 'map1') {
         if (modalAlert.is(':visible')) {
             modalAlert.modal('hide');
             allowBypass=true
+        }
+
+        if (reachedEnd==false && clusters[mapID][clusterIndex[mapID]].required.length>1) {
+            if (newIndex>(imageIndex[mapID]+1)) {
+            // Canot skip required images 
+                return;
+            }
         }
 
         if (((modalActive == false) && (modalActive2 == false))||(allowBypass)) {

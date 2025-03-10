@@ -18,10 +18,11 @@ from app import app, db, celery
 from app.models import *
 # from app.functions.admin import setup_new_survey_permissions
 from app.functions.globals import detection_rating, randomString, updateTaskCompletionStatus, updateLabelCompletionStatus, updateIndividualIdStatus, retryTime,\
-                                 chunker, save_crops, list_all, classifyTask, all_equal, taggingLevelSQ, generate_raw_image_hash, updateAllStatuses, setup_new_survey_permissions
+                                 chunker, save_crops, list_all, classifyTask, all_equal, taggingLevelSQ, generate_raw_image_hash, updateAllStatuses, setup_new_survey_permissions, \
+                                 hideSmallDetections, maskSky
 from app.functions.annotation import launch_task
 import GLOBALS
-from sqlalchemy.sql import func, or_, distinct, and_
+from sqlalchemy.sql import func, or_, distinct, and_, literal_column
 from sqlalchemy import desc
 from sqlalchemy import exc as sa_exc
 from datetime import datetime, timedelta
@@ -261,9 +262,9 @@ def importKML(survey_id):
     return True
 
 @celery.task(bind=True,max_retries=5)
-def recluster_large_clusters(self,task,updateClassifications,trapgroup_id=None,reClusters=None):
+def recluster_large_clusters(self,task_id,updateClassifications,trapgroup_id=None,reClusters=None):
     '''
-    Reclusters all clusters with over 50 images, by more strictly defining clusters based on classifications. Failing that, clusters are simply limited to 50 images.
+    Reclusters all clusters that span more than MAX_CLUSTER_MINUTES by chopping them based on detections/or-lack-thereof up to a maximum of MAX_CLUSTER_MINUTES.
 
         Parameters:
             task_id (int): Task for which the reclustering should be performed
@@ -275,142 +276,99 @@ def recluster_large_clusters(self,task,updateClassifications,trapgroup_id=None,r
     '''
 
     try:
-        task = db.session.query(Task).get(task)
+
         downLabel = db.session.query(Label).get(GLOBALS.knocked_id)
 
-        if reClusters==None:
-
-            subq = db.session.query(Cluster.id.label('clusterID'),func.count(distinct(Image.id)).label('imCount'))\
-                        .join(Image,Cluster.images)\
-                        .filter(Cluster.task==task)\
-                        .group_by(Cluster.id)\
-                        .subquery()
-            
-            # Handle already-labelled clusters
-            clusters = db.session.query(Cluster)\
-                        .join(subq,subq.c.clusterID==Cluster.id)\
-                        .filter(Cluster.task==task)\
-                        .filter(subq.c.imCount>50)\
-                        .filter(~Cluster.labels.contains(downLabel))\
-                        .filter(Cluster.labels.any())
-
-            if trapgroup_id:
-                clusters = clusters.join(Image,Cluster.images)\
-                        .join(Camera)\
-                        .filter(Camera.trapgroup_id==trapgroup_id)
-
-            clusters = clusters.distinct().all()
-
-            for cluster in clusters:
-                images = db.session.query(Image).filter(Image.clusters.contains(cluster)).order_by(Image.corrected_timestamp).distinct().all()
-                
-                for n in range(math.ceil(len(images)/50)):
-                    newCluster = Cluster(task=task)
-                    db.session.add(newCluster)
-                    newCluster.labels=cluster.labels
-                    start_index = (n)*50
-                    
-                    if n==math.ceil(len(images)/50)-1:
-                        newCluster.images = images[start_index:]
-                    else:
-                        end_index = (n+1)*50
-                        newCluster.images = images[start_index:end_index]
-
-                    if updateClassifications:
-                        newCluster.classification = classifyCluster(newCluster)
-
-                cluster.labels = []
-                cluster.tags = []
-                cluster.images = []
-                cluster.required_images = []
-                db.session.delete(cluster)
-                # db.session.commit()
-            
-            # db.session.commit()
-                    
-            clusters = db.session.query(Cluster)\
-                        .join(subq,subq.c.clusterID==Cluster.id)\
-                        .filter(Cluster.task==task)\
-                        .filter(subq.c.imCount>50)\
-                        .filter(~Cluster.labels.any())
-            
-            if trapgroup_id:
-                clusters = clusters.join(Image,Cluster.images)\
-                        .join(Camera)\
-                        .filter(Camera.trapgroup_id==trapgroup_id)
-
-            clusters = clusters.distinct().all()
-
-        else:
-            clusters = db.db.session.query(Cluster).filter(Cluster.id.in_(reClusters)).all()
-
-        classifier_id = task.survey.classifier_id
-        newClusters = []
-
-        class_threshold = {}
-        classifierLabels = db.session.query(ClassificationLabel).filter(ClassificationLabel.classifier_id==classifier_id).all()
-        for classifierLabel in classifierLabels:
-            class_threshold[classifierLabel.classification] = classifierLabel.threshold
-
-        for cluster in clusters:
-            currCluster = None
-            images = db.session.query(Image).filter(Image.clusters.contains(cluster)).order_by(Image.corrected_timestamp).all()
-            cameras = [str(r[0]) for r in db.session.query(Cameragroup.id).join(Camera).join(Image).filter(Image.clusters.contains(cluster)).distinct().all()]
-
-            prevLabels = {}
-            for cam in cameras:
-                prevLabels[cam] = []
-                    
-            for image in images:
-                detections = db.session.query(Detection)\
-                                    .filter(Detection.image_id==image.id)\
-                                    .filter(or_(and_(Detection.source==model,Detection.score>Config.DETECTOR_THRESHOLDS[model]) for model in Config.DETECTOR_THRESHOLDS))\
-                                    .filter(Detection.static==False)\
-                                    .filter(~Detection.status.in_(Config.DET_IGNORE_STATUSES))\
-                                    .all()
-
-                if len(detections) == 0:
-                    species = ['nothing']
-                else:
-                    species = []
-                    for detection in detections:
-                        det_threshold = class_threshold.get(detection.classification,None)
-                        if det_threshold and (detection.class_score > det_threshold) and (detection.classification != 'nothing'):
-                            species.append(detection.classification)
-                        else:
-                            species.append('unknown')
-                    species = list(set(species))
-
-                newClusterRequired = True
-
-                for cam in prevLabels.keys():
-                    for label in prevLabels[cam]:
-                        if label in species:
-                            newClusterRequired = False
-                            break
-
-                if currCluster and (len(currCluster.images[:]) >= 50):
-                    newClusterRequired = True
-
-                if newClusterRequired:
-                    if currCluster and updateClassifications:
-                        currCluster.classification = classifyCluster(currCluster)
-                    currCluster = Cluster(task=task)
-                    db.session.add(currCluster)
-                    newClusters.append(currCluster)
-                    prevLabels = {}
-                    for cam in cameras:
-                        prevLabels[cam] = []
-
-                currCluster.images.append(image)
-                prevLabels[str(image.camera.cameragroup_id)] = species
-
-            if currCluster and updateClassifications:
-                currCluster.classification = classifyCluster(currCluster)
-
-            cluster.images = []
-            db.session.delete(cluster)
+        # Find long clusters based on time period. Timestampless images are ignored as they should be in either single-image clusters or grouped by video and we don't want to disturb that
+        if reClusters:
+            long_clusters = db.session.query(Cluster).join(Image,Cluster.images).filter(Image.corrected_timestamp!=None).filter(Cluster.id.in_(reClusters)).all()
         
+        else:
+            sq = db.session.query(Cluster.id.label('cluster_id'),\
+                            func.max(Image.corrected_timestamp).label('max'),\
+                            func.min(Image.corrected_timestamp).label('min'))\
+                            .join(Image,Cluster.images)\
+                            .filter(Cluster.task_id==task_id)\
+                            .filter(Image.corrected_timestamp!=None)\
+                            .group_by(Cluster.id)\
+                            .subquery()
+            
+            long_clusters = db.session.query(Cluster)\
+                            .join(sq,sq.c.cluster_id==Cluster.id)\
+                            .filter(func.timestampdiff(literal_column("SECOND"), sq.c.min, sq.c.max) > Config.MAX_CLUSTER_MINUTES * 60)\
+                            .filter(~Cluster.labels.contains(downLabel))
+            
+            if trapgroup_id: long_clusters = long_clusters.join(Image,Cluster.images).join(Camera).filter(Camera.trapgroup_id==trapgroup_id)
+            
+            long_clusters = long_clusters.distinct().all()
+
+        cameragroups = {}
+        if trapgroup_id:
+            cameras = db.session.query(Camera).filter(Camera.trapgroup_id==trapgroup_id).all()
+        else:
+            cameras = db.session.query(Camera).join(Trapgroup).join(Survey).join(Task).filter(Task.id==task_id).distinct().all()
+        for camera in cameras:
+            cameragroups[camera.id] = camera.cameragroup_id
+
+        newClusters = []
+        for cluster in long_clusters:
+            cluster_newClusters = []
+            sq = db.session.query(Image.id.label('image_id'),func.count(Detection.id).label('det_count')).join(Detection).filter(Image.clusters.contains(cluster)).group_by(Image.id).subquery()
+            images = db.session.query(Image,sq.c.det_count).join(sq,sq.c.image_id==Image.id).filter(Image.clusters.contains(cluster)).order_by(Image.corrected_timestamp).all()
+            continuity = dict.fromkeys([r[0] for r in db.session.query(Cameragroup.id).join(Camera).join(Image).filter(Image.clusters.contains(cluster)).distinct().all()],False)
+
+            image_grouping = []
+            first_image = images[0][0]
+            for image in images:
+                # here we monitor detection continuity across all cameras before and after the current image
+                was_discontinuous = all(map(lambda x: x == False, continuity.values()))
+                if image[1]==None:
+                    continuity[cameragroups[image[0].camera_id]] = False
+                else:
+                    continuity[cameragroups[image[0].camera_id]] = True
+                is_discontinuous = all(map(lambda x: x == False, continuity.values()))
+
+                # If there is a change in continuity, or the cluster now exceeds MAX_CLUSTER_MINUTES, then split the cluster here
+                # This ensure that streches of empties will be combined, and stretches of non-empties will be combined
+                if (image_grouping!=[]) and ((was_discontinuous != is_discontinuous) or ((image[0].corrected_timestamp-first_image.corrected_timestamp)>timedelta(minutes=Config.MAX_CLUSTER_MINUTES))):
+                    newCluster = Cluster(task_id=task_id)
+                    db.session.add(newCluster)
+                    cluster_newClusters.append(newCluster)
+                    newCluster.images = image_grouping
+                    if updateClassifications: newCluster.classification = classifyCluster(newCluster)
+                    image_grouping = []
+                    first_image = image[0]
+
+                image_grouping.append(image[0])
+
+            # Wrap up last cluster
+            if image_grouping:
+                newCluster = Cluster(task_id=task_id)
+                db.session.add(newCluster)
+                cluster_newClusters.append(newCluster)
+                newCluster.images = image_grouping
+                if updateClassifications: newCluster.classification = classifyCluster(newCluster)
+
+            # Transfer labels up from labelgroups
+            if cluster.labels:
+                for newCluster in cluster_newClusters:
+                    newCluster.labels = db.session.query(Label)\
+                                            .join(Labelgroup,Label.labelgroups)\
+                                            .join(Detection)\
+                                            .join(Image)\
+                                            .filter(Image.clusters.contains(newCluster))\
+                                            .filter(Labelgroup.task_id==task_id)\
+                                            .distinct().all()
+                    
+            newClusters.extend(cluster_newClusters)
+
+            # clean up old cluster
+            cluster.labels = []
+            cluster.tags = []
+            cluster.images = []
+            cluster.required_images = []
+            db.session.delete(cluster)
+
         db.session.commit()
         newClusters = [r.id for r in newClusters]
 
@@ -492,6 +450,7 @@ def cluster_trapgroup(self,trapgroup_id,force=False):
                                 .filter(Camera.trapgroup==trapgroup)\
                                 .filter(sq.c.id==None)\
                                 .filter(Image.detections.any())\
+                                .filter(Image.corrected_timestamp!=None)\
                                 .order_by(Image.corrected_timestamp)\
                                 .distinct().all()
                 # for chunk in chunker(images,1000):
@@ -846,7 +805,7 @@ def IOU(bbox1,bbox2):
     intersection = max(min(bbox1['right'],bbox2['right']) - max(bbox1['left'],bbox2['left']),0) * max(min(bbox1['bottom'],bbox2['bottom']) - max(bbox1['top'],bbox2['top']),0)
     return intersection / (bbox1['area'] + bbox2['area'] - intersection)
 
-def calc_det_iou(detection_id,df):
+def calc_det_iou(detection_id,df,dataType):
     ''' Calculates the IOUs for a detection against the specified dataframe '''
 
     detection = df[df['detection_id']==detection_id].iloc[0]
@@ -864,25 +823,25 @@ def calc_det_iou(detection_id,df):
     df['iou'] = df.apply(lambda x: IOU(detection,x), axis=1)
 
     if detection['area'] <= 0.05:
-        threshold = Config.STATIC_IOU5
+        threshold = Config.STATIC_IOU5[dataType]
     elif detection['area'] <= 0.1:
-        threshold = Config.STATIC_IOU10
+        threshold = Config.STATIC_IOU10[dataType]
     elif detection['area'] <= 0.3:
-        threshold = Config.STATIC_IOU30
+        threshold = Config.STATIC_IOU30[dataType]
     elif detection['area'] <= 0.5:
-        threshold = Config.STATIC_IOU50
+        threshold = Config.STATIC_IOU50[dataType]
     elif detection['area'] <= 0.9:
-        threshold = Config.STATIC_IOU90
+        threshold = Config.STATIC_IOU90[dataType]
     else:
         return []
 
     return list(df[df['iou']>threshold]['detection_id'])
 
-def compare_static_groups(df,group1,group2):
+def compare_static_groups(df,group1,group2,dataType):
     '''Compares two groups of static detections to see if they should be combined.'''
 
     # if there is no overlap at all, we can abandon the comparison immediately
-    if IOU(df[df['detection_id']==group1[0]].iloc[0],df[df['detection_id']==group2[0]].iloc[0])<(Config.STATIC_IOU5/2): return False
+    if IOU(df[df['detection_id']==group1[0]].iloc[0],df[df['detection_id']==group2[0]].iloc[0])<(Config.STATIC_IOU5[dataType]/2): return False
     
     # we only want to compare a limited combination of detections - comparing everything gets out of hand too quickly
     if len(group1) > 100: group1 = random.sample(group1,100)
@@ -904,15 +863,15 @@ def compare_static_groups(df,group1,group2):
         df2['iou'] = df2.apply(lambda x: IOU(detection,x), axis=1)
 
         if detection['area'] <= 0.05:
-            threshold = Config.STATIC_IOU5
+            threshold = Config.STATIC_IOU5[dataType]
         elif detection['area'] <= 0.1:
-            threshold = Config.STATIC_IOU10
+            threshold = Config.STATIC_IOU10[dataType]
         elif detection['area'] <= 0.3:
-            threshold = Config.STATIC_IOU30
+            threshold = Config.STATIC_IOU30[dataType]
         elif detection['area'] <= 0.5:
-            threshold = Config.STATIC_IOU50
+            threshold = Config.STATIC_IOU50[dataType]
         elif detection['area'] <= 0.9:
-            threshold = Config.STATIC_IOU90
+            threshold = Config.STATIC_IOU90[dataType]
         else:
             continue
 
@@ -921,7 +880,7 @@ def compare_static_groups(df,group1,group2):
     return False
 
 @celery.task(bind=True,max_retries=5)
-def processStaticWindow(self,cameragroup_id,index,grouping):
+def processStaticWindow(self,cameragroup_id,index,grouping,dataType):
 
     try:
         static_groups = []
@@ -950,9 +909,9 @@ def processStaticWindow(self,cameragroup_id,index,grouping):
 
         image_count = len(df['image_id'].unique())
         if image_count > 100:
-            match_percentage = round(Config.STATIC_PERCENTAGE / math.log(image_count, 10), 2)
+            match_percentage = round(Config.STATIC_PERCENTAGE[dataType] / math.log(image_count, 10), 2)
         else:
-            match_percentage = Config.STATIC_PERCENTAGE
+            match_percentage = Config.STATIC_PERCENTAGE[dataType]
             
         for detection_id in list(df['detection_id']):
 
@@ -964,18 +923,18 @@ def processStaticWindow(self,cameragroup_id,index,grouping):
 
             if len(new_df) == 0: continue
 
-            group = calc_det_iou(detection_id,new_df)
+            group = calc_det_iou(detection_id,new_df,dataType)
 
             # This allows the df to become smaller over the loop (no need to recalculate IOUs from the opposite side)
             df.drop(df[df['detection_id']==detection_id].index,inplace=True)
             group.append(detection_id)
             
-            if (len(group)>Config.STATIC_MATCHCOUNT) and (len(group)/image_count>=match_percentage):
+            if (len(group)>Config.STATIC_MATCHCOUNT[dataType]) and (len(group)/image_count>=match_percentage):
                 found = False
                 for item in static_groups:
                     if any([d_id in item for d_id in group]):
                         item.extend(group)
-                        item = list(set(item))
+                        item[:] = list(set(item))
                         found = True
                         break
                 if not found: static_groups.append(group)
@@ -997,6 +956,8 @@ def processStaticWindow(self,cameragroup_id,index,grouping):
 def processCameraStaticDetections(self,cameragroup_id):
     '''Checks all the detections associated with a given camera ID to see if they are static or not.'''
     try:
+        dataType = db.session.query(Survey.type).join(Trapgroup).join(Camera).filter(Camera.cameragroup_id==cameragroup_id).first()[0]
+        if dataType==None: dataType='trails'
         
         total_images = db.session.query(Detection)\
                             .join(Image)\
@@ -1011,7 +972,7 @@ def processCameraStaticDetections(self,cameragroup_id):
             grouping = math.ceil(total_images/math.ceil(total_images/4000))
             results = []
             for i in range(0,total_images,grouping):
-                results.append(processStaticWindow.apply_async(kwargs={'cameragroup_id':cameragroup_id,'index':i,'grouping':grouping},queue='parallel_2'))
+                results.append(processStaticWindow.apply_async(kwargs={'cameragroup_id':cameragroup_id,'index':i,'grouping':grouping,'dataType':dataType},queue='parallel_2'))
 
             static_groups = {}
             GLOBALS.lock.acquire()
@@ -1035,7 +996,8 @@ def processCameraStaticDetections(self,cameragroup_id):
                                         Detection.right.label('right'),
                                         Detection.top.label('top'),
                                         Detection.bottom.label('bottom'),
-                                        Image.id.label('image_id')
+                                        Image.id.label('image_id'),
+                                        Image.corrected_timestamp.label('timestamp')
                                     )\
                                     .join(Image)\
                                     .join(Camera)\
@@ -1059,15 +1021,15 @@ def processCameraStaticDetections(self,cameragroup_id):
                             detection = df[df['detection_id']==group1[0]].iloc[0]
                             area = detection['area']
                             if area <= 0.05:
-                                threshold = Config.STATIC_IOU5
+                                threshold = Config.STATIC_IOU5[dataType]
                             elif area <= 0.1:
-                                threshold = Config.STATIC_IOU10
+                                threshold = Config.STATIC_IOU10[dataType]
                             elif area <= 0.3:
-                                threshold = Config.STATIC_IOU30
+                                threshold = Config.STATIC_IOU30[dataType]
                             elif area <= 0.5:
-                                threshold = Config.STATIC_IOU50
+                                threshold = Config.STATIC_IOU50[dataType]
                             elif area <= 0.9:
-                                threshold = Config.STATIC_IOU90
+                                threshold = Config.STATIC_IOU90[dataType]
                             else:
                                 continue
 
@@ -1086,7 +1048,7 @@ def processCameraStaticDetections(self,cameragroup_id):
                         found = False
 
                         for group2 in temp_final_static_groups:
-                            if compare_static_groups(df,group1,group2):
+                            if compare_static_groups(df,group1,group2,dataType):
                                 #combine
                                 for group in final_static_groups:
                                     if set(group)==set(group2):
@@ -1100,6 +1062,13 @@ def processCameraStaticDetections(self,cameragroup_id):
 
             static_detections = []
             for group in final_static_groups:
+                # Check whether the timestamp delta of the group is less then an hour and discard if so
+                timestamps = df[df['detection_id'].isin(group)]['timestamp']
+                timestamps = timestamps[timestamps.notnull()]
+                if len(timestamps) == len(group):
+                    if (timestamps.max() - timestamps.min()).total_seconds() < 3600:
+                        print('Discarding group due to timestamp delta {}'.format(group))
+                        continue
                 static_detections.extend(group)
                 detections = db.session.query(Detection).filter(Detection.id.in_(group)).distinct().all()
                 staticgroups = db.session.query(Staticgroup).filter(Staticgroup.detections.any(Detection.id.in_(group))).distinct().all()
@@ -2209,7 +2178,6 @@ def runClassifier(self,lower_index,upper_index,sourceBucket,batch_size,cameragro
                                     .filter(or_(and_(Detection.source==model,Detection.score>Config.DETECTOR_THRESHOLDS[model]) for model in Config.DETECTOR_THRESHOLDS))\
                                     .filter(Detection.left!=Detection.right)\
                                     .filter(Detection.top!=Detection.bottom)\
-                                    .filter(Detection.static==False)\
                                     .distinct().all()
 
             for detection in detections:
@@ -2234,7 +2202,6 @@ def runClassifier(self,lower_index,upper_index,sourceBucket,batch_size,cameragro
                                 .filter(or_(and_(Detection.source==model,Detection.score>Config.DETECTOR_THRESHOLDS[model]) for model in Config.DETECTOR_THRESHOLDS))\
                                 .filter(Detection.left!=Detection.right)\
                                 .filter(Detection.top!=Detection.bottom)\
-                                .filter(Detection.static==False)\
                                 .all()
 
             for chunk in chunker(detections, batch_size):
@@ -2356,7 +2323,7 @@ def delete_duplicate_videos(videos,skip):
 
             # Delete comp video
             splits = video.camera.path.split('/_video_images_/')
-            video_name = splits[-1].split('.')[0]
+            video_name = splits[-1].rsplit('.', 1)[0]
             path_splits = splits[0].split('/')
             path_splits[0] = path_splits[0]+'-comp'
             video_key = '/'.join(path_splits) + '/' +  video_name + '.mp4'
@@ -2588,9 +2555,9 @@ def import_folder(s3Folder, survey_id, sourceBucket,destinationBucket,pipeline,m
         jpegs = list(filter(isjpeg.search, filenames))
         if (len(jpegs) or len(videos)) and not any(exclusion in dirpath for exclusion in exclusions):
             if '/_video_images_/' in dirpath:
-                tags = tag.search(dirpath.replace(survey.name+'/','').split('/_video_images_/')[0])
+                tags = tag.search('/'.join(dirpath.split('/')[2:]).split('/_video_images_/')[0])
             else:
-                tags = tag.search(dirpath.replace(survey.name+'/',''))
+                tags = tag.search('/'.join(dirpath.split('/')[2:]))
             if tags:
                 camera_name = extract_camera_name(survey.camera_code,survey.trapgroup_code,survey.name,tags.group(),dirpath)
                 if camera_name:
@@ -2648,9 +2615,9 @@ def import_folder(s3Folder, survey_id, sourceBucket,destinationBucket,pipeline,m
         
         if len(jpegs) and not any(exclusion in dirpath for exclusion in exclusions):
             if '/_video_images_/' in dirpath:
-                tags = tag.search(dirpath.replace(survey.name+'/','').split('/_video_images_/')[0])
+                tags = tag.search('/'.join(dirpath.split('/')[2:]).split('/_video_images_/')[0])
             else:
-                tags = tag.search(dirpath.replace(survey.name+'/',''))
+                tags = tag.search('/'.join(dirpath.split('/')[2:]))
             
             if tags:
                 camera_name = extract_camera_name(survey.camera_code,survey.trapgroup_code,survey.name,tags.group(),dirpath)
@@ -2899,7 +2866,7 @@ def pipeline_csv(df,survey_id,tag,exclusions,source,destBucket,min_area,external
         jpegs = list(filter(isjpeg.search, filenames))
         
         if len(jpegs) and not any(exclusion in dirpath for exclusion in exclusions):
-            tags = tag.search(dirpath.replace(survey.name+'/',''))
+            tags = tag.search('/'.join(dirpath.split('/')[2:]))
             
             if tags:
                 trapgroup = Trapgroup.get_or_create(localsession, tags.group(), survey_id)
@@ -2973,6 +2940,8 @@ def classifyCluster(cluster):
     
     try:
         classifier_id = db.session.query(Classifier.id).join(Survey).join(Task).filter(Task.id==cluster.task_id).first()[0]
+        dataType = db.session.query(Survey.type).join(Task).filter(Task.id==cluster.task_id).first()[0]
+        
         classification, count = db.session.query(Label.description,func.count(distinct(Detection.id)))\
                                 .join(Translation)\
                                 .join(Detection,Detection.classification==Translation.classification)\
@@ -2985,7 +2954,7 @@ def classifyCluster(cluster):
                                 .filter(or_(and_(Detection.source==model,Detection.score>Config.DETECTOR_THRESHOLDS[model]) for model in Config.DETECTOR_THRESHOLDS)) \
                                 .filter(Detection.static == False) \
                                 .filter(~Detection.status.in_(Config.DET_IGNORE_STATUSES)) \
-                                .filter(((Detection.right-Detection.left)*(Detection.bottom-Detection.top)) > Config.DET_AREA)\
+                                .filter(((Detection.right-Detection.left)*(Detection.bottom-Detection.top)) > Config.CLASSIFICATION_DET_AREA[dataType])\
                                 .group_by(Label.id)\
                                 .order_by(func.count(distinct(Detection.id)).desc())\
                                 .first()
@@ -3156,7 +3125,6 @@ def classifySurvey(survey_id,sourceBucket,classifier_id=None,batch_size=100):
                             .join(Detection)\
                             .filter(Trapgroup.survey_id==survey_id)\
                             .filter(or_(and_(Detection.source==model,Detection.score>Config.DETECTOR_THRESHOLDS[model]) for model in Config.DETECTOR_THRESHOLDS))\
-                            .filter(Detection.static==False)\
                             .group_by(Cameragroup.id)\
                             .all()
 
@@ -3208,8 +3176,6 @@ def classifySurvey(survey_id,sourceBucket,classifier_id=None,batch_size=100):
                             .join(Trapgroup)\
                             .filter(Trapgroup.survey_id==survey_id)\
                             .filter(or_(and_(Detection.source==model,Detection.score>Config.DETECTOR_THRESHOLDS[model]) for model in Config.DETECTOR_THRESHOLDS))\
-                            .filter(Detection.static==False)\
-                            .filter(~Detection.status.in_(Config.DET_IGNORE_STATUSES))\
                             .filter(or_(Detection.left==Detection.right,Detection.top==Detection.bottom))\
                             .all()
 
@@ -3251,10 +3217,10 @@ def classifySurvey(survey_id,sourceBucket,classifier_id=None,batch_size=100):
     #Also update the number of clusters requiring a classification check
     survey = db.session.query(Survey).get(survey_id)
     for task in survey.tasks:
-        count = db.session.query(Cluster).filter(Cluster.task_id==task.id)
-        count = taggingLevelSQ(count,'-3',False,task.id)
-        task.class_check_count = count.distinct().count()
-    task.ai_check_complete = False
+        # count = db.session.query(Cluster).filter(Cluster.task_id==task.id)
+        # count = taggingLevelSQ(count,'-3',False,task.id)
+        # task.class_check_count = count.distinct().count()
+        task.ai_check_complete = False
     db.session.commit()
     db.session.remove()
 
@@ -3885,6 +3851,14 @@ def import_survey(self,survey_id,preprocess_done=False,live=False,launch_id=None
             recluster_survey(survey_id)
 
             survey = db.session.query(Survey).get(survey_id)
+            if survey.ignore_small_detections == True:
+                hideSmallDetections(survey_id=survey_id,ignore_small_detections=True,edge=False)
+
+            survey = db.session.query(Survey).get(survey_id)
+            if survey.sky_masked == True:
+                maskSky(survey_id=survey_id,sky_masked=True,edge=False)
+
+            survey = db.session.query(Survey).get(survey_id)
             survey.status='Calculating Scores'
             db.session.commit()
             updateSurveyDetectionRatings(survey_id=survey_id)
@@ -4330,8 +4304,8 @@ def extract_images_from_video(localsession, sourceKey, bucketName, trapgroup_id)
     try:
         splits = sourceKey.rsplit('/', 1)
         video_path = splits[0]
-        video_name = splits[-1].split('.')[0]
-        video_type = '.' + splits[-1].split('.')[-1]
+        video_name = splits[-1].rsplit('.', 1)[0]
+        video_type = '.' + splits[-1].rsplit('.', 1)[-1]
         filename = sourceKey.split('/')[-1]
         split_path = splits[0].split('/')
         split_path[0] = split_path[0] + '-comp'
@@ -5457,7 +5431,7 @@ def recluster_survey(survey_id):
     results = []
     for task_id in task_ids:
         for trapgroup_id in trapgroup_ids:
-            results.append(recluster_large_clusters.apply_async(kwargs={'task':task_id,'updateClassifications':True,'trapgroup_id':trapgroup_id},queue='parallel'))
+            results.append(recluster_large_clusters.apply_async(kwargs={'task_id':task_id,'updateClassifications':True,'trapgroup_id':trapgroup_id},queue='parallel'))
     
     #Wait for processing to complete
     db.session.remove()
@@ -5799,7 +5773,7 @@ def archive_videos(self,cameragroup_id):
             video_path = video[2].split('/_video_images_/')[0]
             splits = video_path.split('/')
             splits[0] = splits[0]+'-comp'
-            video_key = '/'.join(splits) + '/' + video[1].split('.')[0] + '.mp4'
+            video_key = '/'.join(splits) + '/' + video[1].rsplit('.', 1)[0] + '.mp4'
             if video_key in unarchived_files:
                 copy_source = {
                     'Bucket': Config.BUCKET,
@@ -5815,7 +5789,7 @@ def archive_videos(self,cameragroup_id):
             video_path = video[2].split('/_video_images_/')[0]
             splits = video_path.split('/')
             splits[0] = splits[0]+'-comp'
-            video_key = '/'.join(splits) + '/' + video[1].split('.')[0] + '.mp4'
+            video_key = '/'.join(splits) + '/' + video[1].rsplit('.', 1)[0] + '.mp4'
             if video_key in unarchived_files:
                 GLOBALS.s3client.delete_object(Bucket=Config.BUCKET, Key=video_key)
             # Delete raw video
@@ -5945,9 +5919,9 @@ def process_folder(s3Folder, survey_id, sourceBucket):
     cameras = localsession.query(Camera).filter(Camera.path.like(s3Folder+'/%')).distinct().all()
     for camera in cameras:
         if '/_video_images_/' in camera.path:
-            tags = tag.search(camera.path.replace(survey.name+'/','').split('/_video_images_/')[0])
+            tags = tag.search('/'.join(camera.path.split('/')[2:]).split('/_video_images_/')[0])
         else:
-            tags = tag.search(camera.path.replace(survey.name+'/',''))
+            tags = tag.search('/'.join(camera.path.split('/')[2:]))
         
         if tags:
             camera_name = extract_camera_name(survey.camera_code,survey.trapgroup_code,survey.name,tags.group(),camera.path)
@@ -6079,9 +6053,11 @@ def generateDetections(self,batch, sourceBucket):
         GLOBALS.results_queue = []
         pool = Pool(processes=4)
         print('Received generateDetections task with {} batches.'.format(len(batch)))
+        image_ids = []
         for item in batch:
             dirpath = item['dirpath']
             jpegs = item['images']
+            image_ids.extend([img['id'] for img in jpegs])
             
             print("Generating detctions for {} with batch of {} images.".format(dirpath,len(jpegs)))
                 
@@ -6090,6 +6066,8 @@ def generateDetections(self,batch, sourceBucket):
 
         pool.close()
         pool.join()
+
+        db_images = {image.id: image for image in db.session.query(Image).filter(Image.id.in_(image_ids)).filter(~Image.detections.any()).distinct().all()}
 
         # Fetch the results
         if Config.DEBUGGING: print('{} batch results to fetch'.format(len(GLOBALS.results_queue)))
@@ -6106,10 +6084,11 @@ def generateDetections(self,batch, sourceBucket):
 
                     for img, detections in zip(images, response):
                         try:
-                            image = db.session.query(Image).get(img['id'])
-                            image.detections = [Detection(**detection) for detection in detections]
-                            for detection in image.detections:
-                                db.session.add(detection)
+                            image = db_images.get(img['id'])
+                            if image:
+                                image.detections = [Detection(**detection) for detection in detections]
+                                for detection in image.detections:
+                                    db.session.add(detection)
                         
                         except Exception:
                             app.logger.info(' ')
