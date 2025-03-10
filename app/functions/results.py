@@ -1613,7 +1613,7 @@ def generate_csv(self,selectedTasks, selectedLevel, requestedColumns, custom_col
             'required_columns': required_columns
         }
 
-        trapgroup_data = [r[0] for r in db.session.query(Trapgroup.id,func.count(Detection.id)).filter(Trapgroup.survey_id==task.survey_id).join(Camera).join(Image).join(Detection).group_by(Trapgroup.id).all()]
+        trapgroup_data = db.session.query(Trapgroup.id,func.count(Detection.id)).filter(Trapgroup.survey_id==task.survey_id).join(Camera).join(Image).join(Detection).group_by(Trapgroup.id).all()
         trapgroup_filenames = []
         results = []
         for trapgroup_id, count in trapgroup_data:
