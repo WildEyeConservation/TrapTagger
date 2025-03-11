@@ -298,7 +298,7 @@ def recluster_large_clusters(self,task_id,updateClassifications,trapgroup_id=Non
                             .filter(func.timestampdiff(literal_column("SECOND"), sq.c.min, sq.c.max) > Config.MAX_CLUSTER_MINUTES * 60)\
                             .filter(~Cluster.labels.contains(downLabel))
             
-            if trapgroup_id: long_clusters.join(Image,Cluster.images).join(Camera).filter(Camera.trapgroup_id==trapgroup_id)
+            if trapgroup_id: long_clusters = long_clusters.join(Image,Cluster.images).join(Camera).filter(Camera.trapgroup_id==trapgroup_id)
             
             long_clusters = long_clusters.distinct().all()
 
@@ -5470,26 +5470,18 @@ def import_live_data(survey_id):
         survey.images_processing += len(to_process)
         #Break folders down into chunks to prevent overly-large folders causing issues
         for chunk in chunker(to_process,chunk_size):
-            batch.append({'sourceBucket':Config.BUCKET,
-                            'dirpath':camera.path,
-                            'filenames': chunk,
-                            'trapgroup_id':camera.trapgroup_id,
-                            'camera_id': camera.id,
-                            'survey_id': survey_id,
-                            'destBucket':Config.BUCKET,
-                        })
-
+            batch.append({'images': chunk,'dirpath': camera.path})
             batch_count += len(chunk)
 
             if (batch_count / (((10000)*random.uniform(0.5, 1.5))/2) ) >= 1:
-                results.append(importImages.apply_async(kwargs={'batch':batch,'csv':False,'pipeline':False,'external':False,'min_area':None,'remove_gps':False,'label_source':None,'live':True},queue='parallel'))
+                results.append(generateDetections.apply_async(kwargs={'batch':batch, 'sourceBucket':Config.BUCKET},queue='parallel'))
                 app.logger.info('Queued batch with {} images'.format(batch_count))
                 batch_count = 0
                 batch = []
 
-
     if batch_count!=0:
-        results.append(importImages.apply_async(kwargs={'batch':batch,'csv':False,'pipeline':False,'external':False,'min_area':None, 'remove_gps':False,'label_source':None,'live':True},queue='parallel'))
+        results.append(generateDetections.apply_async(kwargs={'batch':batch, 'sourceBucket':Config.BUCKET},queue='parallel'))
+        app.logger.info('Queued batch with {} images'.format(batch_count))
 
 
     survey.processing_initialised = False
@@ -5980,6 +5972,7 @@ def process_folder(s3Folder, survey_id, sourceBucket):
 
     if batch_count!=0:
         results.append(generateDetections.apply_async(kwargs={'batch':batch, 'sourceBucket':sourceBucket},queue='parallel'))
+        app.logger.info('Queued batch with {} images'.format(batch_count))
 
     survey.processing_initialised = False
     localsession.commit()
