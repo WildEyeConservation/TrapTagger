@@ -2811,6 +2811,12 @@ def checkFilesExist(files,folder):
         for file in not_imported:
             req_new_name = False
             try:
+                filename = file.rsplit('/',1)[1]
+                if len(filename) > 64:
+                    filename = hash_dict[file] + '.' + filename.rsplit('.',1)[1]  # If filename is too long, replace it with the hash
+                    new_names[file.split('/', 1)[1]] = filename
+                    continue
+
                 file_db = files_in_db.get(file)
                 if file_db:
                     if file_db != hash_dict[file]:
@@ -2837,13 +2843,22 @@ def checkFilesExist(files,folder):
                         if s3_nn_hash == hash_dict[file]:
                             already_uploaded.append(file)
                             req_lambda.append(file.split('/',1)[1])
-                            new_names[file.split('/', 1)[1]] = new_name.rsplit('/',1)[1]
+                            if len(new_name.rsplit('/',1)[1]) > 64:
+                                new_name = hash_dict[file] + '.' + ext
+                            else:
+                                new_names[file.split('/', 1)[1]] = new_name.rsplit('/',1)[1]
                         else:
                             counter += 1
                             new_name = filename + '_(' + str(counter) + ').' + ext
-                            new_names[file.split('/', 1)[1]] = new_name.rsplit('/',1)[1]
+                            if len(new_name.rsplit('/',1)[1]) > 64:
+                                new_name = hash_dict[file] + '.' + ext
+                            else:
+                                new_names[file.split('/', 1)[1]] = new_name.rsplit('/',1)[1]
                     else:
-                        new_names[file.split('/', 1)[1]] = new_name.rsplit('/',1)[1]
+                        if len(new_name.rsplit('/',1)[1]) > 64:
+                            new_name = hash_dict[file] + '.' + ext
+                        else:
+                            new_names[file.split('/', 1)[1]] = new_name.rsplit('/',1)[1]
             except:
                 pass
 

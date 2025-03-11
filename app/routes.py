@@ -14122,6 +14122,10 @@ def addImage():
                 try:
                     image_hash = generate_raw_image_hash(temp_file.name)
 
+                    if len(filename) > 64:
+                        # Use hash if filename is too long
+                        filename = image_hash + '.' + filename.rsplit('.', 1)[1]
+
                     # Check if the image already exists
                     survey_folder = survey.organisation.folder + '/' + survey.folder + '/%'
                     survey_folder = survey_folder.replace('_','\\_')
