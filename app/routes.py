@@ -4899,6 +4899,11 @@ def send_js(path):
 
     return send_from_directory('../static/js', path)
 
+@app.route('/webfonts/<path>')
+def send_webfonts(path):
+    '''Serves all webfonts files'''
+    return send_from_directory('../static/webfonts', path)
+
 @app.route('/images/<path:path>')
 def send_im(path):
     '''Serves all image files.'''

@@ -20,7 +20,7 @@ limitations under the License. -->
 
 {%- block styles %}
     <link rel="stylesheet" href="../js/bootstrap.min.css" media="screen">
-    <link rel="stylesheet" href="https://maxcdn.bootstrapcdn.com/font-awesome/4.4.0/css/font-awesome.min.css">
+    <link rel="stylesheet" href="../js/font-awesome.min.css">
     <link rel="stylesheet" href="../js/results.css">
 {% endblock %}
 
@@ -259,10 +259,10 @@ limitations under the License. -->
 
 {% block scripts %}
 <script type="text/javascript">var bucketName="{{ bucket }}"; var cloudAccess="{{ current_user.cloud_access }}"</script>
-<script src="https://ajax.googleapis.com/ajax/libs/jquery/3.1.1/jquery.min.js"></script>
+<script src="../js/jquery.min.js"></script>
 <script src="../js/popper.min.js"></script>
-<script src="https://maxcdn.bootstrapcdn.com/bootstrap/4.0.0/js/bootstrap.min.js"></script>
+<script src="../js/bootstrap.min.js"></script>
 <script src="js/camtrap.global.v{{ version }}.js"></script>
-<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.2/css/all.min.css">
+<link rel="stylesheet" href="../js/all.min.css">
 {% block page_scripts %}{% endblock %}
 {% endblock %}
