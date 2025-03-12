@@ -298,7 +298,7 @@ def recluster_large_clusters(self,task_id,updateClassifications,trapgroup_id=Non
                             .filter(func.timestampdiff(literal_column("SECOND"), sq.c.min, sq.c.max) > Config.MAX_CLUSTER_MINUTES * 60)\
                             .filter(~Cluster.labels.contains(downLabel))
             
-            if trapgroup_id: long_clusters.join(Image,Cluster.images).join(Camera).filter(Camera.trapgroup_id==trapgroup_id)
+            if trapgroup_id: long_clusters = long_clusters.join(Image,Cluster.images).join(Camera).filter(Camera.trapgroup_id==trapgroup_id)
             
             long_clusters = long_clusters.distinct().all()
 
