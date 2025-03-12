@@ -40,7 +40,7 @@ def lambda_handler(event, context):
     download_path = None
     for b in batch:
         try:
-            if context.get_remaining_time_in_millis() < 60000:
+            if context.get_remaining_time_in_millis() < 180000:
                 conn.commit()
                 conn.close()
                 payload = event

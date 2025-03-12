@@ -2163,10 +2163,13 @@ def editSurvey():
                         survey.status = 'Processing'
                         db.session.commit()
                         edit_survey_args = {'survey_id':survey.id,'user_id':current_user.id,'classifier_id':classifier_id,'ignore_small_detections':ignore_small_detections,'sky_masked':sky_masked,'timestamps':timestamps,'coord_data':coordData,'masks':masks,'staticgroups':staticgroups,'kml_file':kml,'image_timestamps':imageTimestamps}
+                        GLOBALS.redisClient.set('edit_survey_{}'.format(survey_id),json.dumps(edit_survey_args))
                         restore_images_for_classification.delay(survey_id=survey.id,days=Config.EDIT_RESTORE_DAYS,edit_survey_args=edit_survey_args,tier=Config.RESTORE_TIER,restore_time=Config.RESTORE_TIME)
                 else:
                     survey.status = 'Processing'
                     db.session.commit()
+                    edit_survey_args = {'survey_id':survey.id,'user_id':current_user.id,'classifier_id':classifier_id,'ignore_small_detections':ignore_small_detections,'sky_masked':sky_masked,'timestamps':timestamps,'coord_data':coordData,'masks':masks,'staticgroups':staticgroups,'kml_file':kml,'image_timestamps':imageTimestamps}
+                    GLOBALS.redisClient.set('edit_survey_{}'.format(survey_id),json.dumps(edit_survey_args))
                     edit_survey.delay(survey_id=survey.id,user_id=current_user.id,classifier_id=classifier_id,ignore_small_detections=ignore_small_detections,sky_masked=sky_masked,timestamps=timestamps,coord_data=coordData,masks=masks,staticgroups=staticgroups,kml_file=kml,image_timestamps=imageTimestamps)
 
     else:
@@ -7970,11 +7973,15 @@ def editTask(task_id):
                 for s_task in available_tasks:
                     s_task.status = 'Processing'
                 db.session.commit()
+                task_args = {'task_id': task_id,'labelChanges': editDict,'tagChanges': tagsDict,'translationChanges': translationsDict,'deleteAutoLabels': deleteAutoLabels,'speciesChanges': speciesDict}
+                GLOBALS.redisClient.set('taskEdit_'+str(task_id),json.dumps(task_args))
                 handleTaskEdit.delay(task_id=task_id,labelChanges=editDict, tagChanges=tagsDict, translationChanges=translationsDict, deleteAutoLabels=deleteAutoLabels, speciesChanges=speciesDict)
 
             else:
                 task.status='Processing'
                 db.session.commit()
+                task_args = {'task_id': task_id,'labelChanges': editDict,'tagChanges': tagsDict,'translationChanges': translationsDict,'deleteAutoLabels': deleteAutoLabels,'speciesChanges': None}
+                GLOBALS.redisClient.set('taskEdit_'+str(task_id),json.dumps(task_args))
                 handleTaskEdit.delay(task_id=task_id,labelChanges=editDict, tagChanges=tagsDict, translationChanges=translationsDict, deleteAutoLabels=deleteAutoLabels)
         else:
             return json.dumps({'status': 'error', 'message': 'An error occurred while editing the task.'})

@@ -42,7 +42,7 @@ def lambda_handler(event, context):
     compressed_path = None
     for key in keys:
         try:
-            if context.get_remaining_time_in_millis() < 60000:
+            if context.get_remaining_time_in_millis() < 180000:
                 conn.commit()
                 conn.close()
                 payload = event

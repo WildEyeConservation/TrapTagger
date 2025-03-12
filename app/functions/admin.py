@@ -955,16 +955,6 @@ def handleTaskEdit(self,task_id,labelChanges,tagChanges,translationChanges,delet
         task_id = int(task_id)
         task = db.session.query(Task).get(task_id)
 
-        task_args = {
-            'task_id': task_id,
-            'labelChanges': labelChanges,
-            'tagChanges': tagChanges,
-            'translationChanges': translationChanges,
-            'deleteAutoLabels': deleteAutoLabels,
-            'speciesChanges': speciesChanges
-        }
-        GLOBALS.redisClient.set('taskEdit_'+str(task_id),json.dumps(task_args))
-
         if task:
             # Labels
             sessionLabels = {}
@@ -2744,21 +2734,6 @@ def edit_survey(self,survey_id,user_id,classifier_id,sky_masked,ignore_small_det
         survey = db.session.query(Survey).get(survey_id)
         survey.status = 'Processing'
         db.session.commit()
-
-        edit_args = {
-            'survey_id':survey_id,
-            'user_id':user_id,
-            'classifier_id':classifier_id,
-            'sky_masked':sky_masked,
-            'ignore_small_detections':ignore_small_detections,
-            'masks':masks,
-            'staticgroups':staticgroups,
-            'timestamps':timestamps,
-            'image_timestamps':image_timestamps,
-            'coord_data':coord_data,
-            'kml_file':kml_file
-        }
-        GLOBALS.redisClient.set('edit_survey_{}'.format(survey_id),json.dumps(edit_args))
 
         # Coordinates
         if coord_data:
