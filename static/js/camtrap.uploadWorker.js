@@ -72,16 +72,21 @@ async function checkFileBatch() {
         while ((files.length<batchSize)&&(proposedQueue.length>0)) {
             let item = proposedQueue.pop(0)
             var file = await item[1].getFile()
-            let fileData = await new Promise((resolve, reject) => {
-                let reader = new FileReader();
-                reader.addEventListener("load", function() {
-                    resolve(reader.result)
+            let hash = ''
+            if (file != null && file.size > 500000000) { // 500MB
+                largeFiles += 1
+            } else {
+                let fileData = await new Promise((resolve, reject) => {
+                    let reader = new FileReader();
+                    reader.addEventListener("load", function() {
+                        resolve(reader.result)
+                    });
+                    reader.addEventListener("error", reject)
+                    reader.readAsBinaryString(file)
                 });
-                reader.addEventListener("error", reject)
-                reader.readAsBinaryString(file)
-            });
 
-            let hash = getHash(fileData, item[1].name)
+                hash = getHash(fileData, item[1].name)
+            }
             if (hash=='') {
                 filesUploaded += 1
                 filesQueued += 1
