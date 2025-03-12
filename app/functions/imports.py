@@ -2319,7 +2319,13 @@ def delete_duplicate_videos(videos,skip):
             # delete frames
             s3 = boto3.resource('s3')
             bucketObject = s3.Bucket(Config.BUCKET)
-            bucketObject.objects.filter(Prefix=video.camera.path).delete()
+            if video.camera.path: bucketObject.objects.filter(Prefix=video.camera.path+'/').delete()
+
+            # delete comp frames
+            splits = video.camera.path.split('/')
+            splits[0] = splits[0]+'-comp'
+            newpath = '/'.join(splits)
+            if newpath: bucketObject.objects.filter(Prefix=newpath+'/').delete()
 
             # Delete comp video
             splits = video.camera.path.split('/_video_images_/')
