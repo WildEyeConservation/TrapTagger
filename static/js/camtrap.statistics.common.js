@@ -949,6 +949,10 @@ function updateHeatMap() {
             xhttp.send(formData);
         }
 
+        if (heatmapLayer==null) {
+            return
+        }
+
         if (selection == '-1') {
             heatmapLayer._data = []
             heatmapLayer._update()

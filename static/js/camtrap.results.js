@@ -1107,7 +1107,26 @@ function generateSpatial(){
                 info = JSON.parse(this.responseText);
                 trapgroupInfo = info.trapgroups
 
+                noCoordinates = true 
+                for (let i=0;i<trapgroupInfo.length;i++) {
+                    if ((trapgroupInfo[i].latitude != 0) || (trapgroupInfo[i].longitude != 0)) {
+                        noCoordinates = false
+                        break
+                    }
+                }
+    
                 mainDiv = document.getElementById('resultsDiv')
+
+                if (noCoordinates) {
+                    //Let appear in the middle of the page
+                    newDiv = document.createElement('div')
+                    newDiv.style.display = "flex";
+                    newDiv.style.justifyContent = "center";
+                    newDiv.style.alignItems = "center";
+                    newDiv.innerHTML = '<h5>There are no coordinates to display.</h5>'
+                    mainDiv.appendChild(newDiv)
+                    return
+                }
 
                 var h5 = document.createElement('h5');
                 h5.innerHTML = 'Spatial Analysis'
@@ -2145,6 +2164,18 @@ function updateMap(){
                 info = JSON.parse(this.responseText);
                 trapgroupInfo = info.trapgroups
                 // console.log(trapgroupInfo)
+
+                noCoordinates = true 
+                for (let i=0;i<trapgroupInfo.length;i++) {
+                    if ((trapgroupInfo[i].latitude != 0) || (trapgroupInfo[i].longitude != 0)) {
+                        noCoordinates = false
+                        break
+                    }
+                }
+    
+                if (noCoordinates) {
+                    return
+                }
 
                 for (let i=0;i<markers.length;i++) {
                     if (map.hasLayer(markers[i])) {
@@ -3742,6 +3773,9 @@ $("#radiusSlider").change( function() {
     value = document.getElementById('radiusSlider').value
     value = logslider(value)
     document.getElementById('radiusSliderspan').innerHTML = Math.floor(value*1000)
+    if (heatmapLayer == null) {
+        return
+    }
     if (document.getElementById('normalisationCheckBox').checked) {
         reScaleNormalisation(value)
     } else {
@@ -3752,6 +3786,9 @@ $("#radiusSlider").change( function() {
 
 $("#markerCheckBox").change( function() {
     /** Updates the results when the marker checkbox is changed */
+    if (heatmapLayer == null) {
+        return
+    }
     if (document.getElementById('markerCheckBox').checked) {
         for (let i=0;i<markers.length;i++) {
             if (!map.hasLayer(markers[i])) {
@@ -3769,11 +3806,17 @@ $("#markerCheckBox").change( function() {
 
 $("#normalisationCheckBox").change( function() {
     /** Updates the results when the normalisation checkbox is changed */
+    if (heatmapLayer == null) {
+        return
+    }
     updateHeatMap()
 });
 
 $("#heatMapCheckBox").change( function() {
     /** Updates the results when the heatmap checkbox is changed */
+    if (heatmapLayer == null) {
+        return
+    }
     if (document.getElementById('heatMapCheckBox').checked) {
         map.addLayer(heatmapLayer)
     } else {
@@ -9637,6 +9680,24 @@ function buildSCR(results, tab){
         srcHeatmapTab.appendChild(document.createElement('br'))
 
         // Map
+
+        var noCoordinates = true
+        for (let i=0;i<indiv_counts.length;i++) {
+            latitude = parseFloat(indiv_counts[i].site_id.split('_')[1])
+            longitude = parseFloat(indiv_counts[i].site_id.split('_')[2])
+            if (latitude != 0 && longitude != 0) {
+                noCoordinates = false
+                break
+            }
+        }
+
+        if (noCoordinates) {
+            var h5 = document.createElement('h5')
+            h5.innerHTML = 'There are no coordinates to display.'
+            srcHeatmapTab.appendChild(h5)
+            return  
+        }
+        
         var div = document.createElement('div')
         div.classList.add('row')
         srcHeatmapTab.appendChild(div)

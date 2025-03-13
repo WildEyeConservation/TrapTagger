@@ -821,7 +821,26 @@ function createMap() {
             info = JSON.parse(this.responseText);
             trapgroupInfo = info.trapgroups
 
+            noCoordinates = true 
+            for (let i=0;i<trapgroupInfo.length;i++) {
+                if ((trapgroupInfo[i].latitude != 0) || (trapgroupInfo[i].longitude != 0)) {
+                    noCoordinates = false
+                    break
+                }
+            }
+
             mainDiv = document.getElementById('statisticsDiv')
+
+            if (noCoordinates) {
+                //Let appear in the middle of the page
+                newDiv = document.createElement('div')
+                newDiv.style.display = "flex";
+                newDiv.style.justifyContent = "center";
+                newDiv.style.alignItems = "center";
+                newDiv.innerHTML = '<h5>There are no coordinates to display.</h5>'
+                mainDiv.appendChild(newDiv)
+                return
+            }
 
             div = document.createElement('div')
             div.classList.add('row')
