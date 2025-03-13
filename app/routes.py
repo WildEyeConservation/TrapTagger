@@ -14293,6 +14293,26 @@ def addImage():
     else:
         return json.dumps({'message': 'Unauthorized access.'}), 401
 
+@app.route('/api/v1/testSetup', methods=['POST'])
+def testSetup():
+    ''' Tests whether a clients API is setup correctly '''
+
+    api_key = request.headers.get('apikey')
+    try:
+        hashed_key = hashlib.md5(api_key.encode()).hexdigest()
+    except:
+        hashed_key = None
+    if hashed_key is None or hashed_key == '':
+        return json.dumps({'message': 'Unauthorized access.'}), 401
+    live_integration = db.session.query(APIKey).filter(APIKey.api_key==hashed_key).first()
+    if live_integration:
+        if live_integration.survey_id:
+            json.dumps({'message': 'Integration successful.'}), 200
+        else:
+            return json.dumps({'message': 'No destination survey.'}), 400
+    else:
+        return json.dumps({'message': 'Unauthorized access.'}), 401
+
 @app.route('/generateNewAPIKey/<integration_id>')
 @login_required
 def generateNewAPIKey(integration_id):
