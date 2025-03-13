@@ -562,7 +562,7 @@ def manageTasks():
         # for task_id in wrapUps:
         #     wrapUpTask.delay(task_id=task_id)
 
-        manage_tasks_with_restore()
+        # manage_tasks_with_restore()
         
     except Exception as exc:
         app.logger.info(' ')
@@ -925,11 +925,21 @@ def manageDownloadRequests():
 
     try:
         date_now = datetime.utcnow()
-        download_requests = db.session.query(DownloadRequest, Task.survey_id).join(Task).distinct().all()
+        download_requests = db.session.query(DownloadRequest, Task.name, Survey.id, Survey.name, Organisation.name, Organisation.folder, User.username)\
+                                        .join(Task, Task.id==DownloadRequest.task_id)\
+                                        .join(Survey)\
+                                        .join(Organisation)\
+                                        .join(User, User.id==DownloadRequest.user_id)\
+                                        .distinct().all()
         for req in download_requests:
             request = req[0]
-            survey_id = req[1]
             expiry_date = request.timestamp
+            task_name = req[1]
+            survey_id = req[2]
+            survey_name = req[3]
+            org_name = req[4]
+            org_folder = req[5]
+            user_name = req[6]
             if request.type == 'file':
                 task_id = request.task_id
                 if expiry_date and expiry_date <= date_now:
@@ -954,9 +964,9 @@ def manageDownloadRequests():
                 if request.status == 'Available':
                     if expiry_date and expiry_date <= date_now:
                         if request.name:
-                            fileName = request.task.survey.organisation.folder+'/docs/'+request.task.survey.organisation.name+'_'+request.user.username+'_'+request.task.survey.name+'_'+request.task.name +'_'+ request.name +'.' + Config.RESULT_TYPES[request.type]
+                            fileName = org_folder+'/docs/'+org_name+'_'+user_name+'_'+survey_name+'_'+task_name +'_'+ request.name +'.' + Config.RESULT_TYPES[request.type]
                         else:
-                            fileName = request.task.survey.organisation.folder+'/docs/'+request.task.survey.organisation.name+'_'+request.user.username+'_'+request.task.survey.name+'_'+request.task.name + '.' + Config.RESULT_TYPES[request.type]
+                            fileName = org_folder+'/docs/'+org_name+'_'+user_name+'_'+survey_name+'_'+task_name + '.' + Config.RESULT_TYPES[request.type]
                         deleteFile.apply_async(kwargs={'fileName': fileName})
                         db.session.delete(request)
         
@@ -981,16 +991,25 @@ def checkRestoreDownloads(task_id):
     '''Function that checks if there are any downloads with restored images that require the files restoration to be extended'''
 
     date_now = datetime.utcnow()
-    download_request = db.session.query(DownloadRequest).filter(DownloadRequest.task_id == task_id).filter(DownloadRequest.type == 'file').filter(DownloadRequest.status == 'Downloading').filter(DownloadRequest.name=='restore').first()
+    download_request = db.session.query(DownloadRequest)\
+                                .join(Task, Task.id==DownloadRequest.task_id)\
+                                .join(Survey)\
+                                .filter(DownloadRequest.task_id == task_id)\
+                                .filter(DownloadRequest.type == 'file')\
+                                .filter(DownloadRequest.status == 'Downloading')\
+                                .filter(DownloadRequest.name=='restore')\
+                                .filter(Survey.status.in_(Config.SURVEY_READY_STATUSES))\
+                                .filter(DownloadRequest.timestamp>date_now)\
+                                .filter(DownloadRequest.timestamp<date_now+timedelta(days=Config.DOWNLOAD_RESTORE_DAYS))\
+                                .first()
     if download_request and download_request.timestamp and (download_request.timestamp-date_now).days < 2:
         try:
-            if download_request.task.survey.status.lower() in Config.SURVEY_READY_STATUSES:
-                user_id = download_request.user_id
-                download_params = GLOBALS.redisClient.get('fileDownloadParams_'+str(task_id)+'_'+str(user_id)).decode()
-                download_params = json.loads(download_params)
-                download_request.timestamp = date_now + timedelta(days=Config.DOWNLOAD_RESTORE_DAYS)
-                db.session.commit()
-                restore_files_for_download.apply_async(kwargs={'task_id':task_id,'download_request_id':download_request.id,'days':Config.DOWNLOAD_RESTORE_DAYS,'download_params':download_params,'tier':Config.RESTORE_TIER,'restore_time':Config.RESTORE_TIME,'extend':True})
+            user_id = download_request.user_id
+            download_params = GLOBALS.redisClient.get('fileDownloadParams_'+str(task_id)+'_'+str(user_id)).decode()
+            download_params = json.loads(download_params)
+            download_request.timestamp = date_now + timedelta(days=Config.DOWNLOAD_RESTORE_DAYS)
+            db.session.commit()
+            restore_files_for_download.apply_async(kwargs={'task_id':task_id,'download_request_id':download_request.id,'days':Config.DOWNLOAD_RESTORE_DAYS,'download_params':download_params,'tier':Config.RESTORE_TIER,'restore_time':Config.RESTORE_TIME,'extend':True})
         except:
             pass
 
@@ -1000,6 +1019,8 @@ def checkRestoreDownloads(task_id):
 def monitorFileRestores():
     '''Celery task that monitors restores and schedules tasks for restored images that require processing'''
     try:
+        manage_tasks_with_restore()
+        
         date_now = datetime.utcnow()
         surveys = db.session.query(Survey)\
                             .filter(Survey.require_launch<=date_now)\
