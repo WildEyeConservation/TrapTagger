@@ -837,11 +837,12 @@ class Config(object):
     # }
     CSV_INFO = {
         '0':{'name': 'Sighting', 'columns': ['ID','Boxes','Labels','Individuals', 'Flank']},
-        '1':{'name': 'Image', 'columns': ['Name', 'ID', 'Species Count', 'Labels', 'Sighting Count', 'Tags', 'Timestamp', 'URL', 'Individuals', 'Original Timestamp', 'Video Path']},
-        '2':{'name': 'Capture', 'columns': ['Number', 'ID', 'Species Count', 'Labels', 'Sighting Count', 'Tags', 'Timestamp', 'Image Count', 'URL', 'Individuals']},
-        '3':{'name': 'Cluster', 'columns': ['ID', 'Species Count', 'Labels', 'Sighting Count', 'Tags', 'Timestamp', 'Notes', 'Image Count', 'URL', 'Individuals', 'Annotator']},
-        '4':{'name': 'Camera', 'columns': ['Name', 'Species Count', 'Labels', 'Tags', 'Image Count', 'URL', 'Individuals']},
-        '5':{'name': 'Site', 'columns': ['Name', 'Species Count', 'Labels', 'Tags', 'Latitude', 'Longitude', 'Altitude', 'Image Count', 'Individuals']},
+        '1':{'name': 'Image', 'columns': ['Name', 'ID',  'Labels', 'Sighting Count', 'Tags', 'Timestamp', 'URL', 'Individuals', 'Original Timestamp', 'Video Path']},
+        '2':{'name': 'Capture', 'columns': ['Number', 'ID',  'Labels', 'Sighting Count', 'Tags', 'Timestamp', 'URL', 'Individuals']},
+        '3':{'name': 'Cluster', 'columns': ['ID',  'Labels', 'Sighting Count', 'Tags', 'Timestamp', 'Notes', 'URL', 'Individuals', 'Annotator']},
+        '4':{'name': 'Camera', 'columns': ['Name']},
+        '5':{'name': 'Site', 'columns': ['Name',  'Latitude', 'Longitude', 'Altitude']},
+        '6':{'name': 'Survey', 'columns': ['Name']},
         '7':{'name': 'Custom', 'columns': []}
     }
 
