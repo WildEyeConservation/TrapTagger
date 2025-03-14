@@ -181,6 +181,20 @@ limitations under the License. -->
                     </div>
                     <br>
 
+                    <h5 style="margin-bottom: 2px">Camera Trigger Setup</h5>
+                    <div style="font-size: 80%; margin-bottom: 2px"><i>Select how your cameras were triggered.</i></div>
+                    <div style="margin-bottom: 5px">
+                        <div class="custom-control custom-radio custom-control-inline">
+                            <input type="radio" class="custom-control-input" id="motionTrigger" name="triggerSelection" value='0' checked="true">
+                            <label class="custom-control-label" for="motionTrigger">Motion</label>
+                        </div> 
+                        <div class="custom-control custom-radio custom-control-inline" hidden>
+                            <input type="radio" class="custom-control-input" id="timelapseTrigger" name="triggerSelection" value='1'>
+                            <label class="custom-control-label" for="timelapseTrigger">Timelapse (time interval)</label>
+                        </div>
+                    </div>
+                    <br>
+
                     <h5 style="margin-bottom: 2px">Advanced Options</h5>
                     <div style="font-size: 80%; margin-bottom: 2px"><i>
                         Ignore small detections filters out detections triggered by small animals like rodents and birds, whilst ignore sky detections 

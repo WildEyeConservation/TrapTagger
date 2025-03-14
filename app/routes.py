@@ -1589,6 +1589,7 @@ def createNewSurvey():
         newSurveyCamCode = request.form['newSurveyCamCode']
         camCheckbox = request.form['camCheckbox']
         dataSource = request.form['dataSource']
+        triggerSource = request.form['triggerSource']
         ignoreSmallDets = request.form['ignoreSmallDets']
         ignoreSkyDets = request.form['ignoreSkyDets']
 
@@ -1685,13 +1686,39 @@ def createNewSurvey():
 
             # Create survey
             if emptySurvey:
-                newSurvey = Survey(name=surveyName, description=newSurveyDescription, organisation_id=organisation_id, status='Ready', correct_timestamps=correctTimestamps, classifier_id=int(classifier_id), folder=newSurveyS3Folder, type=dataSource, ignore_small_detections=ignoreSmallDets, sky_masked=ignoreSkyDets)
+                newSurvey = Survey(
+                                    name=surveyName,
+                                    description=newSurveyDescription,
+                                    organisation_id=organisation_id,
+                                    status='Ready',
+                                    correct_timestamps=correctTimestamps,
+                                    classifier_id=int(classifier_id),
+                                    folder=newSurveyS3Folder,
+                                    type=dataSource,
+                                    ignore_small_detections=ignoreSmallDets,
+                                    sky_masked=ignoreSkyDets,
+                                    trigger=triggerSource
+                                )
                 db.session.add(newSurvey)
 
                 defaultTask = Task(name='default', survey=newSurvey, tagging_level='-1', test_size=0, status='Ready')
                 db.session.add(defaultTask)
             else:
-                newSurvey = Survey(name=surveyName, description=newSurveyDescription, trapgroup_code=newSurveyTGCode, organisation_id=organisation_id, status='Uploading', correct_timestamps=correctTimestamps, classifier_id=int(classifier_id), camera_code=newSurveyCamCode, folder=newSurveyS3Folder, type=dataSource, ignore_small_detections=ignoreSmallDets, sky_masked=ignoreSkyDets)
+                newSurvey = Survey(
+                                    name=surveyName,
+                                    description=newSurveyDescription,
+                                    trapgroup_code=newSurveyTGCode,
+                                    organisation_id=organisation_id,
+                                    status='Uploading',
+                                    correct_timestamps=correctTimestamps,
+                                    classifier_id=int(classifier_id),
+                                    camera_code=newSurveyCamCode,
+                                    folder=newSurveyS3Folder,
+                                    type=dataSource,
+                                    ignore_small_detections=ignoreSmallDets,
+                                    sky_masked=ignoreSkyDets,
+                                    trigger=triggerSource
+                                )
                 db.session.add(newSurvey)
 
             # Add permissions

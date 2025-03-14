@@ -261,6 +261,44 @@ def importKML(survey_id):
 
     return True
 
+def continuity_cluster(images,task_id,cameragroups,updateClassifications):
+    cluster_newClusters = []
+    continuity = dict.fromkeys([r[0] for r in db.session.query(Cameragroup.id).join(Camera).join(Image).filter(Image.id.in_([image[0].id for image in images])).distinct().all()],False)
+
+    image_grouping = []
+    first_image = images[0][0]
+    for image in images:
+        # here we monitor detection continuity across all cameras before and after the current image
+        was_discontinuous = all(map(lambda x: x == False, continuity.values()))
+        if image[1]==None:
+            continuity[cameragroups[image[0].camera_id]] = False
+        else:
+            continuity[cameragroups[image[0].camera_id]] = True
+        is_discontinuous = all(map(lambda x: x == False, continuity.values()))
+
+        # If there is a change in continuity, or the cluster now exceeds MAX_CLUSTER_MINUTES, then split the cluster here
+        # This ensure that streches of empties will be combined, and stretches of non-empties will be combined
+        if (image_grouping!=[]) and ((was_discontinuous != is_discontinuous) or ((image[0].corrected_timestamp-first_image.corrected_timestamp)>timedelta(minutes=Config.MAX_CLUSTER_MINUTES))):
+            newCluster = Cluster(task_id=task_id)
+            db.session.add(newCluster)
+            cluster_newClusters.append(newCluster)
+            newCluster.images = image_grouping
+            if updateClassifications: newCluster.classification = classifyCluster(newCluster)
+            image_grouping = []
+            first_image = image[0]
+
+        image_grouping.append(image[0])
+
+    # Wrap up last cluster
+    if image_grouping:
+        newCluster = Cluster(task_id=task_id)
+        db.session.add(newCluster)
+        cluster_newClusters.append(newCluster)
+        newCluster.images = image_grouping
+        if updateClassifications: newCluster.classification = classifyCluster(newCluster)
+
+    return cluster_newClusters
+
 @celery.task(bind=True,max_retries=5)
 def recluster_large_clusters(self,task_id,updateClassifications,trapgroup_id=None,reClusters=None):
     '''
@@ -312,42 +350,10 @@ def recluster_large_clusters(self,task_id,updateClassifications,trapgroup_id=Non
 
         newClusters = []
         for cluster in long_clusters:
-            cluster_newClusters = []
             sq = db.session.query(Image.id.label('image_id'),func.count(Detection.id).label('det_count')).join(Detection).filter(Image.clusters.contains(cluster)).group_by(Image.id).subquery()
             images = db.session.query(Image,sq.c.det_count).join(sq,sq.c.image_id==Image.id).filter(Image.clusters.contains(cluster)).order_by(Image.corrected_timestamp).all()
-            continuity = dict.fromkeys([r[0] for r in db.session.query(Cameragroup.id).join(Camera).join(Image).filter(Image.clusters.contains(cluster)).distinct().all()],False)
 
-            image_grouping = []
-            first_image = images[0][0]
-            for image in images:
-                # here we monitor detection continuity across all cameras before and after the current image
-                was_discontinuous = all(map(lambda x: x == False, continuity.values()))
-                if image[1]==None:
-                    continuity[cameragroups[image[0].camera_id]] = False
-                else:
-                    continuity[cameragroups[image[0].camera_id]] = True
-                is_discontinuous = all(map(lambda x: x == False, continuity.values()))
-
-                # If there is a change in continuity, or the cluster now exceeds MAX_CLUSTER_MINUTES, then split the cluster here
-                # This ensure that streches of empties will be combined, and stretches of non-empties will be combined
-                if (image_grouping!=[]) and ((was_discontinuous != is_discontinuous) or ((image[0].corrected_timestamp-first_image.corrected_timestamp)>timedelta(minutes=Config.MAX_CLUSTER_MINUTES))):
-                    newCluster = Cluster(task_id=task_id)
-                    db.session.add(newCluster)
-                    cluster_newClusters.append(newCluster)
-                    newCluster.images = image_grouping
-                    if updateClassifications: newCluster.classification = classifyCluster(newCluster)
-                    image_grouping = []
-                    first_image = image[0]
-
-                image_grouping.append(image[0])
-
-            # Wrap up last cluster
-            if image_grouping:
-                newCluster = Cluster(task_id=task_id)
-                db.session.add(newCluster)
-                cluster_newClusters.append(newCluster)
-                newCluster.images = image_grouping
-                if updateClassifications: newCluster.classification = classifyCluster(newCluster)
+            cluster_newClusters = continuity_cluster(images,task_id,cameragroups,updateClassifications)
 
             # Transfer labels up from labelgroups
             if cluster.labels:
@@ -3836,8 +3842,13 @@ def import_survey(self,survey_id,preprocess_done=False,live=False,launch_id=None
         # Second half import -> performed after preprocessing. Also performed if there is no preprocessing required (which is also the case for live surveys)
         if preprocess_done or not (timestamp_check or static_check) or live:
             task_id=cluster_survey(survey_id)
-            survey = db.session.query(Survey).get(survey_id)
 
+            survey = db.session.query(Survey).get(survey_id)
+            survey.status='Re-Clustering'
+            db.session.commit()
+            recluster_survey(survey_id)
+
+            survey = db.session.query(Survey).get(survey_id)
             survey.status='Processing Static Detections'
             db.session.commit()
             wrapUpStaticDetectionCheck(survey_id)
@@ -3850,11 +3861,6 @@ def import_survey(self,survey_id,preprocess_done=False,live=False,launch_id=None
             survey.status='Classifying'
             db.session.commit()
             classifySurvey(survey_id=survey_id,sourceBucket=Config.BUCKET)
-
-            survey = db.session.query(Survey).get(survey_id)
-            survey.status='Re-Clustering'
-            db.session.commit()
-            recluster_survey(survey_id)
 
             survey = db.session.query(Survey).get(survey_id)
             if survey.ignore_small_detections == True:
