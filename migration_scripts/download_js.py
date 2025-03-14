@@ -8,7 +8,6 @@ urls = [
 	"https://unpkg.com/leaflet.markercluster@1.4.1/dist/MarkerCluster.css",
 	"https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.2/css/all.min.css",
 	"https://maxcdn.bootstrapcdn.com/bootstrap/4.0.0/js/bootstrap.min.js",
-	"https://maxcdn.bootstrapcdn.com/font-awesome/4.4.0/css/font-awesome.min.css",
 	"https://cdnjs.cloudflare.com/ajax/libs/jquery-csv/1.0.11/jquery.csv.min.js",
 	"https://ajax.googleapis.com/ajax/libs/jquery/3.1.1/jquery.min.js",
 	"https://unpkg.com/@mapbox/leaflet-pip@latest/leaflet-pip.js",
