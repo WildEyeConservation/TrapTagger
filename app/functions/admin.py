@@ -1057,6 +1057,8 @@ def handleTaskEdit(self,task_id,labelChanges,tagChanges,translationChanges,delet
                     if GLOBALS.vhl_id in prev_labels:
                         removeHumans(task.id)
             
+            db.session.commit()
+
             updateAllStatuses(task.id)
 
             task = db.session.query(Task).get(task_id)

@@ -597,7 +597,7 @@ function checkLabels(editing) {
     }
     for (let n = 0; n < allDescriptions.length; n++){
         if (allDescriptions[n].value != '') {
-            description = allDescriptions[n].value.toLowerCase()
+            description = allDescriptions[n].value.toLowerCase().trim();
 
             if ((description.includes('/'))||(description.includes('\\'))) {
                 descriptionSlash = true
@@ -1142,7 +1142,7 @@ btnSaveLabelChanges.addEventListener('click', ()=>{
                     }
                     sessionIDs.push(NID)
                     taskEditDict[parent]['additional'][NID] = {}
-                    taskEditDict[parent]['additional'][NID]['description'] = allDescriptions[i].value
+                    taskEditDict[parent]['additional'][NID]['description'] = allDescriptions[i].value.trim()
                     taskEditDict[parent]['additional'][NID]['hotkey'] = allHotkeys[i].value
     
                     if (!(NID in taskEditDict)) {
@@ -1161,12 +1161,12 @@ btnSaveLabelChanges.addEventListener('click', ()=>{
     
                         if (NID.includes('s')) {
                             // Edited new label, so edit original additional
-                            taskEditDict[parent]['additional'][NID]['description'] = allDescriptions[i].value
+                            taskEditDict[parent]['additional'][NID]['description'] = allDescriptions[i].value.trim()
                             taskEditDict[parent]['additional'][NID]['hotkey'] = allHotkeys[i].value
                         } else {
                             // Multiple edits in the same session just overwrite each other
                             taskEditDict[parent]['edits']['modify'][NID] = {}
-                            taskEditDict[parent]['edits']['modify'][NID]['description'] = allDescriptions[i].value
+                            taskEditDict[parent]['edits']['modify'][NID]['description'] = allDescriptions[i].value.trim()
                             taskEditDict[parent]['edits']['modify'][NID]['hotkey'] = allHotkeys[i].value
                         }
 
@@ -1338,14 +1338,14 @@ btnSaveLabelChanges.addEventListener('click', ()=>{
             if (allTags[i].value != '' && tagHotkey != '') {
                 if (tagID.includes('n')) {
                     tagEditDict['additional'][tagID] = {
-                        'description': allTags[i].value,
+                        'description': allTags[i].value.trim(),
                         'hotkey': tagHotkey
                     }
                 }
                 else{
                     if (globalTags[tagID].description != allTags[i].value || globalTags[tagID].hotkey != tagHotkey) {
                         tagEditDict['modify'][tagID] = {
-                            'description': allTags[i].value,
+                            'description': allTags[i].value.trim(),
                             'hotkey': tagHotkey
                         }
                     }
@@ -1582,8 +1582,8 @@ btnCreateTask.addEventListener('click', ()=>{
                 addTaskDescriptions.push('vehicles/humans/livestock')
                 for (let i = 0; i < labelDescriptions.length; i++){
                     if ((labelDescriptions[i].value!='')&&(labelHotkeys[i].value!='')) {
-                        addTaskDescriptions.push(labelDescriptions[i].value.toLowerCase())
-                        info += '["'+labelDescriptions[i].value+'","'+labelHotkeys[i].value+'","'+labelParents[i].options[labelParents[i].selectedIndex].text.replace(/\//g, '*****')
+                        addTaskDescriptions.push(labelDescriptions[i].value.toLowerCase().trim())
+                        info += '["'+labelDescriptions[i].value.trim()+'","'+labelHotkeys[i].value+'","'+labelParents[i].options[labelParents[i].selectedIndex].text.trim().replace(/\//g, '*****')
                         if (i == labelDescriptions.length-1) {
                             info += '"]'
                         } else {

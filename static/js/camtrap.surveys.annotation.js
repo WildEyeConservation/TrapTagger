@@ -271,7 +271,7 @@ function checkTags(edit=false) {
     var usedDescriptions = []
     var usedHotkeys = []
     for (let i = 0; i < allDescriptions.length; i++){
-        description = allDescriptions[i].value.toLowerCase()
+        description = allDescriptions[i].value.toLowerCase().trim()
         hotkey = allHotkeys[i].value.toLowerCase()
 
         if (allDescriptions[i].value != '') {
