@@ -268,73 +268,80 @@ function checkCSV() {
         }
     }
 
-    species_count_warning = false
+    // species_count_warning = false
     for (let i=0;i<allLevels.length;i++) {
-        IDNum = allLevels[i].id.split("-")[allLevels[i].id.split("-").length-1]
-        csvColDataElement = document.getElementById('csvColDataElement-'+String(IDNum))
-        level = allLevels[i].options[allLevels[i].selectedIndex].text
-        data = csvColDataElement.options[csvColDataElement.selectedIndex].text
+        // IDNum = allLevels[i].id.split("-")[allLevels[i].id.split("-").length-1]
+        // csvColDataElement = document.getElementById('csvColDataElement-'+String(IDNum))
+        column = allLevels[i].options[allLevels[i].selectedIndex].text
+        // data = csvColDataElement.options[csvColDataElement.selectedIndex].text
 
         csvErrors = document.getElementById('csvErrors')
         while(csvErrors.firstChild){
             csvErrors.removeChild(csvErrors.firstChild);
         }
 
-        if (data == 'Species Count') {
-            csvColSpeciesElement = document.getElementById('csvColSpeciesElement-'+String(IDNum))
-            species = csvColSpeciesElement.options[csvColSpeciesElement.selectedIndex].text
-            if (species=='All') {
-                if (level=='Survey') {
-                    surveyAll = true
-                } else if (level=='Trapgroup') {
-                    trapAll = true
-                } else {
-                    cameraAll = true
-                }
-            } else {
-                if (level=='Survey') {
-                    surveySpecies = true
-                } else if (level=='Trapgroup') {
-                    trapSpecies = true
-                } else {
-                    cameraSpecies = true
-                }
-            }
-            column = level+'_'+data+'_'+species
-            if (columns.includes(column)) {
-                duplicateColumns = true
-            } else {
-                columns.push(column)
-            }
-
-            var formData = new FormData()
-            formData.append("task_ids", JSON.stringify([selectedTask]))
-            formData.append("species", JSON.stringify(species))
-
-            var xhttp = new XMLHttpRequest();
-            xhttp.open("POST", '/checkSightingEditStatus');
-            xhttp.onreadystatechange =
-            function(){
-                if (this.readyState == 4 && this.status == 200) {
-                    reply = JSON.parse(this.responseText);  
-                    if ((reply.status=='warning')&&(species_count_warning==false)) {
-                        species_count_warning = true
-                        newdiv = document.createElement('div')
-                        newdiv.innerHTML = reply.message
-                        document.getElementById('csvErrors').appendChild(newdiv)
-                    }
-                }
-            }
-            xhttp.send(formData);
-
+        // column = level+'_'+data
+        if (columns.includes(column)) {
+            duplicateColumns = true
         } else {
-            column = level+'_'+data
-            if (columns.includes(column)) {
-                duplicateColumns = true
-            } else {
-                columns.push(column)
-            }
+            columns.push(column)
         }
+
+        // if (data == 'Species Count') {
+        //     csvColSpeciesElement = document.getElementById('csvColSpeciesElement-'+String(IDNum))
+        //     species = csvColSpeciesElement.options[csvColSpeciesElement.selectedIndex].text
+        //     if (species=='All') {
+        //         if (level=='Survey') {
+        //             surveyAll = true
+        //         } else if (level=='Trapgroup') {
+        //             trapAll = true
+        //         } else {
+        //             cameraAll = true
+        //         }
+        //     } else {
+        //         if (level=='Survey') {
+        //             surveySpecies = true
+        //         } else if (level=='Trapgroup') {
+        //             trapSpecies = true
+        //         } else {
+        //             cameraSpecies = true
+        //         }
+        //     }
+        //     column = level+'_'+data+'_'+species
+        //     if (columns.includes(column)) {
+        //         duplicateColumns = true
+        //     } else {
+        //         columns.push(column)
+        //     }
+
+        //     var formData = new FormData()
+        //     formData.append("task_ids", JSON.stringify([selectedTask]))
+        //     formData.append("species", JSON.stringify(species))
+
+        //     var xhttp = new XMLHttpRequest();
+        //     xhttp.open("POST", '/checkSightingEditStatus');
+        //     xhttp.onreadystatechange =
+        //     function(){
+        //         if (this.readyState == 4 && this.status == 200) {
+        //             reply = JSON.parse(this.responseText);  
+        //             if ((reply.status=='warning')&&(species_count_warning==false)) {
+        //                 species_count_warning = true
+        //                 newdiv = document.createElement('div')
+        //                 newdiv.innerHTML = reply.message
+        //                 document.getElementById('csvErrors').appendChild(newdiv)
+        //             }
+        //         }
+        //     }
+        //     xhttp.send(formData);
+
+        // } else {
+        //     column = level+'_'+data
+        //     if (columns.includes(column)) {
+        //         duplicateColumns = true
+        //     } else {
+        //         columns.push(column)
+        //     }
+        // }
     }
 
     allNames = document.querySelectorAll('[id^=csvColNameElement-]')
@@ -402,33 +409,33 @@ btnCsvGenerate.addEventListener('click', ()=>{
     modalCSVGenerate.modal({keyboard: true});
 });
 
-function translateCsvInfo(levelSelection,dataSelection) {
-    /** Translates from new naming conevtions to old */
+// function translateCsvInfo(levelSelection,dataSelection) {
+//     /** Translates from new naming conevtions to old */
 
-    if (levelSelection=='site') {
-        levelSelection='trapgroup'
-    } else if (levelSelection=='sighting') {
-        levelSelection='detection'
-    }
+//     if (levelSelection=='site') {
+//         levelSelection='trapgroup'
+//     } else if (levelSelection=='sighting') {
+//         levelSelection='detection'
+//     }
 
-    if (['Name','ID'].includes(dataSelection)) {
-        if ((levelSelection=='image')&&(dataSelection=='ID')) {
-            dataSelection = 'id'
-        } else if (levelSelection!='capture') {
-            dataSelection = levelSelection
-        }
-    }
+//     if (['Name','ID'].includes(dataSelection)) {
+//         if ((levelSelection=='image')&&(dataSelection=='ID')) {
+//             dataSelection = 'id'
+//         } else if (levelSelection!='capture') {
+//             dataSelection = levelSelection
+//         }
+//     }
 
-    if (dataSelection=='Description') {
-        dataSelection = 'Survey Description'
-    }
+//     if (dataSelection=='Description') {
+//         dataSelection = 'Survey Description'
+//     }
 
-    if ((levelSelection=='capture')&&(dataSelection=='Number')) {
-        dataSelection = 'Capture'
-    }
+//     if ((levelSelection=='capture')&&(dataSelection=='Number')) {
+//         dataSelection = 'Capture'
+//     }
 
-    return {'levelSelection':levelSelection,'dataSelection':dataSelection}
-}
+//     return {'levelSelection':levelSelection,'dataSelection':dataSelection}
+// }
 
 btnCsvDownload.addEventListener('click', ()=>{
     /** Listener on the csv download button. Checks the legality of the csv before packaging the information and sending the request to the server. */
@@ -437,87 +444,82 @@ btnCsvDownload.addEventListener('click', ()=>{
     if (legalCSV) {
         document.getElementById('btnCsvDownload').disabled = true
         allColumns = document.querySelectorAll('[id^=csvColLevelElement-]');
-        level = CSVlevelSelector.options[CSVlevelSelector.selectedIndex].text.toLowerCase();
+        level = CSVlevelSelector.options[CSVlevelSelector.selectedIndex].text;
         noEmpties = true
-
-        if (level=='site') {
-            level = 'trapgroup'
-        } else if (level=='sighting') {
-            level = 'detection'
-        }
 
         //label_type
         if (document.getElementById('listLabelFormat').checked) {
             label_type='list'
-        } else if (document.getElementById('columnLabelFormat').checked) {
-            label_type='column'
-        } else if (document.getElementById('rowLabelFormat').checked) {
+        } else if (document.getElementById('rowLabelFormat').checked) {rowLabelFormat
             label_type='row'
-        }
+        } // else if (document.getElementById('columnLabelFormat').checked) {
+        //     label_type='column'
+        // }
     
         columns = []
         var column_translations = {}
         for (let i=0;i<allColumns.length;i++) {
             IDNum = allColumns[i].id.split("-")[allColumns[i].id.split("-").length-1]
-            csvColDataElement = document.getElementById('csvColDataElement-'+String(IDNum))
-            levelSelection = allColumns[i].options[allColumns[i].selectedIndex].text.toLowerCase()
-            dataSelection = csvColDataElement.options[csvColDataElement.selectedIndex].text
+            // csvColDataElement = document.getElementById('csvColDataElement-'+String(IDNum))
+            column = allColumns[i].options[allColumns[i].selectedIndex].text
+            // dataSelection = csvColDataElement.options[csvColDataElement.selectedIndex].text
             csvColNameElement = document.getElementById('csvColNameElement-'+String(IDNum))
 
-            if ((levelSelection=='')||(dataSelection=='')) {
+            if (column=='') {
                 noEmpties = false
             }
 
-            translation = translateCsvInfo(levelSelection,dataSelection)
-            levelSelection = translation['levelSelection']
-            dataSelection = translation['dataSelection']
-            var col_translation = ''
-            if (levelSelection == 'custom') {
-                selection = dataSelection
-                col_translation = selection
-            } else if (dataSelection == 'Species Count') {
-                csvColSpeciesElement = document.getElementById('csvColSpeciesElement-'+String(IDNum))
-                speciesSelection = csvColSpeciesElement.options[csvColSpeciesElement.selectedIndex].text
-                selection = levelSelection+'_'+speciesSelection.toLowerCase().replace(' ','_')+'_count'
-                col_translation = selection
-            } else if (['Image Count', 'Animal Count'].includes(dataSelection)) {
-                selection = levelSelection+'_'+dataSelection.toLowerCase().replace(' ','_')
-                col_translation = selection
-            } else if (dataSelection == 'Labels') {
-                selection = levelSelection+'_labels'
-                if (label_type != 'column') {
-                    col_translation = selection
-                } else {
-                    col_translation = levelSelection+'_label'
-                }
-            } else if (dataSelection == 'Tags') {
-                selection = levelSelection+'_tags'
-                if (label_type != 'column') {
-                    col_translation = selection
-                } else {
-                    col_translation = levelSelection+'_tag'
-                }
-            } else if (dataSelection == 'URL') {
-                selection = levelSelection+'_url'
-                col_translation = selection
-            } else if (dataSelection == 'Individuals') {
-                selection = levelSelection+'_individuals'
-                if (label_type != 'column') {
-                    col_translation = selection
-                } else {
-                    col_translation = levelSelection+'_individual'
-                }         
-            } else if (dataSelection == 'Sighting Count') {
-                selection = levelSelection+'_sighting_count'
-                col_translation = selection
-            } else {
-                selection = dataSelection.toLowerCase().replace(' ','_')
-                col_translation = selection
-            }
-            columns.push(selection)
+            // translation = translateCsvInfo(levelSelection,dataSelection)
+            // levelSelection = translation['levelSelection']
+            // dataSelection = translation['dataSelection']
+            // var col_translation = ''
+            // if (levelSelection == 'custom') {
+            //     selection = dataSelection
+            //     col_translation = selection
+            // } else if (dataSelection == 'Species Count') {
+            //     csvColSpeciesElement = document.getElementById('csvColSpeciesElement-'+String(IDNum))
+            //     speciesSelection = csvColSpeciesElement.options[csvColSpeciesElement.selectedIndex].text
+            //     selection = levelSelection+'_'+speciesSelection.toLowerCase().replace(' ','_')+'_count'
+            //     col_translation = selection
+            // } else if (['Image Count', 'Animal Count'].includes(dataSelection)) {
+            //     selection = levelSelection+'_'+dataSelection.toLowerCase().replace(' ','_')
+            //     col_translation = selection
+            // } else if (dataSelection == 'Labels') {
+            //     selection = levelSelection+'_labels'
+            //     if (label_type != 'column') {
+            //         col_translation = selection
+            //     } else {
+            //         col_translation = levelSelection+'_label'
+            //     }
+            // } else if (dataSelection == 'Tags') {
+            //     selection = levelSelection+'_tags'
+            //     if (label_type != 'column') {
+            //         col_translation = selection
+            //     } else {
+            //         col_translation = levelSelection+'_tag'
+            //     }
+            // } else if (dataSelection == 'URL') {
+            //     selection = levelSelection+'_url'
+            //     col_translation = selection
+            // } else if (dataSelection == 'Individuals') {
+            //     selection = levelSelection+'_individuals'
+            //     if (label_type != 'column') {
+            //         col_translation = selection
+            //     } else {
+            //         col_translation = levelSelection+'_individual'
+            //     }         
+            // } else if (dataSelection == 'Sighting Count') {
+            //     selection = levelSelection+'_sighting_count'
+            //     col_translation = selection
+            // } else {
+            //     selection = dataSelection.toLowerCase().replace(' ','_')
+            //     col_translation = selection
+            // }
+            
+            columns.push(column)
 
-            if (csvColNameElement.value.toLowerCase() != selection.toLowerCase()) {
-                column_translations[col_translation] = csvColNameElement.value
+            if (csvColNameElement.value != column) {
+                column_translations[column] = csvColNameElement.value
             }
         }
 
@@ -749,100 +751,100 @@ btnAddCSVCol.addEventListener('click', ()=>{
     buildCSVrow(IDNum)
 });
 
-function updateSpeciesElement(IDNum) {
-    /** Updates the species selector element with the specified ID number in the csv modal for species count columns. */
+// function updateSpeciesElement(IDNum) {
+//     /** Updates the species selector element with the specified ID number in the csv modal for species count columns. */
 
-    csvColDataElement = document.getElementById('csvColDataElement-'+String(IDNum))
-    data = csvColDataElement.options[csvColDataElement.selectedIndex].text;
-    if (data=='Species Count') {
-        CSVCol3 = document.getElementById('CSVCol3-'+String(IDNum))
-        csvColSpeciesElement = document.createElement('select');
-        csvColSpeciesElement.classList.add('form-control');
-        csvColSpeciesElement.id = 'csvColSpeciesElement-'+String(IDNum);
-        csvColSpeciesElement.name = csvColSpeciesElement.id;
-        CSVCol3.appendChild(csvColSpeciesElement);
-        clearSelect(csvColSpeciesElement)
-        fillSelect(csvColSpeciesElement, speciesChoiceTexts, speciesChoiceValues)
-        $('#csvColSpeciesElement-'+String(IDNum)).change( function(wrapIDNum) {
-            return function() {
-                updateNameElement(wrapIDNum)
-                checkCSV()
-            }
-        }(IDNum));
-    } else {
-        var check = document.getElementById('csvColSpeciesElement-'+String(IDNum));
-        if (check) {
-            check.remove()
-        }
-    }
-}
+//     csvColDataElement = document.getElementById('csvColDataElement-'+String(IDNum))
+//     data = csvColDataElement.options[csvColDataElement.selectedIndex].text;
+//     if (data=='Species Count') {
+//         CSVCol3 = document.getElementById('CSVCol3-'+String(IDNum))
+//         csvColSpeciesElement = document.createElement('select');
+//         csvColSpeciesElement.classList.add('form-control');
+//         csvColSpeciesElement.id = 'csvColSpeciesElement-'+String(IDNum);
+//         csvColSpeciesElement.name = csvColSpeciesElement.id;
+//         CSVCol3.appendChild(csvColSpeciesElement);
+//         clearSelect(csvColSpeciesElement)
+//         fillSelect(csvColSpeciesElement, speciesChoiceTexts, speciesChoiceValues)
+//         $('#csvColSpeciesElement-'+String(IDNum)).change( function(wrapIDNum) {
+//             return function() {
+//                 updateNameElement(wrapIDNum)
+//                 checkCSV()
+//             }
+//         }(IDNum));
+//     } else {
+//         var check = document.getElementById('csvColSpeciesElement-'+String(IDNum));
+//         if (check) {
+//             check.remove()
+//         }
+//     }
+// }
 
-function updateDataElement(IDNum) {
-    /** Updates the data element with the specified ID number in the generate csv form, depending on the level selected. */
+// function updateDataElement(IDNum) {
+//     /** Updates the data element with the specified ID number in the generate csv form, depending on the level selected. */
     
-    csvColDataElement = document.getElementById('csvColDataElement-'+String(IDNum))
-    csvColLevelElement = document.getElementById('csvColLevelElement-'+String(IDNum))
+//     csvColDataElement = document.getElementById('csvColDataElement-'+String(IDNum))
+//     csvColLevelElement = document.getElementById('csvColLevelElement-'+String(IDNum))
     
-    level = csvColLevelElement.options[csvColLevelElement.selectedIndex].value;
-    levelName = csvColLevelElement.options[csvColLevelElement.selectedIndex].text;
-    clearSelect(csvColDataElement)
-    if (level == '-99999') {
-        // Empty level
-        fillSelect(csvColDataElement, [''], ['-99999'])
-    } else if (levelName == 'Custom') {
-        // Custom
-        optionTexts = []
-        optionValues = []
-        for (let IDNum in customColumns) {
-            optionValues.push(IDNum)
-            optionTexts.push(customColumns[IDNum])
-        }
-        fillSelect(csvColDataElement, optionTexts, optionValues)
-    } else {
-        fillSelect(csvColDataElement, csvInfo[level].columns, [...Array(csvInfo[level].columns.length).keys()])
-    }
-}
+//     level = csvColLevelElement.options[csvColLevelElement.selectedIndex].value;
+//     levelName = csvColLevelElement.options[csvColLevelElement.selectedIndex].text;
+//     clearSelect(csvColDataElement)
+//     if (level == '-99999') {
+//         // Empty level
+//         fillSelect(csvColDataElement, [''], ['-99999'])
+//     } else if (levelName == 'Custom') {
+//         // Custom
+//         optionTexts = []
+//         optionValues = []
+//         for (let IDNum in customColumns) {
+//             optionValues.push(IDNum)
+//             optionTexts.push(customColumns[IDNum])
+//         }
+//         fillSelect(csvColDataElement, optionTexts, optionValues)
+//     } else {
+//         fillSelect(csvColDataElement, csvInfo[level].columns, [...Array(csvInfo[level].columns.length).keys()])
+//     }
+// }
 
 function updateNameElement(IDNum) {
     /** Updates the name element with the specified ID number in the generate csv form, depending on the data selected. */
 
     csvColLevelElement = document.getElementById('csvColLevelElement-'+String(IDNum))
-    csvColDataElement = document.getElementById('csvColDataElement-'+String(IDNum))
-    levelSelection = csvColLevelElement.options[csvColLevelElement.selectedIndex].text
-    dataSelection = csvColDataElement.options[csvColDataElement.selectedIndex].text
+    // csvColDataElement = document.getElementById('csvColDataElement-'+String(IDNum))
+    column = csvColLevelElement.options[csvColLevelElement.selectedIndex].text
+    // dataSelection = csvColDataElement.options[csvColDataElement.selectedIndex].text
 
-    if ((levelSelection=='')||(dataSelection=='')) {
+    if (column=='') {
         noEmpties = false
     }
 
-    translation = translateCsvInfo(levelSelection,dataSelection)
-    levelSelection = translation['levelSelection']
-    dataSelection = translation['dataSelection']
+    // translation = translateCsvInfo(levelSelection,dataSelection)
+    // levelSelection = translation['levelSelection']
+    // dataSelection = translation['dataSelection']
 
-    if (levelSelection == 'custom') {
-        selection = dataSelection
-    } else if (dataSelection == 'Species Count') {
-        csvColSpeciesElement = document.getElementById('csvColSpeciesElement-'+String(IDNum))
-        speciesSelection = csvColSpeciesElement.options[csvColSpeciesElement.selectedIndex].text
-        selection = levelSelection+'_'+speciesSelection.toLowerCase().replace(' ','_')+'_count'
-    } else if (['Image Count', 'Animal Count'].includes(dataSelection)) {
-        selection = levelSelection+'_'+dataSelection.toLowerCase().replace(' ','_')
-    } else if (dataSelection == 'Labels') {
-        selection = levelSelection+'_labels'
-    } else if (dataSelection == 'Tags') {
-        selection = levelSelection+'_tags'
-    } else if (dataSelection == 'URL') {
-        selection = levelSelection+'_url'
-    } else if (dataSelection == 'Individuals') {
-        selection = levelSelection+'_individuals'
-    } else if (dataSelection == 'Sighting Count') {
-        selection = levelSelection+'_sighting_count'
-    } else {
-        selection = dataSelection.toLowerCase().replace(' ','_')
-    }
+    // if (levelSelection == 'custom') {
+    //     selection = dataSelection
+    // } else if (dataSelection == 'Species Count') {
+    //     csvColSpeciesElement = document.getElementById('csvColSpeciesElement-'+String(IDNum))
+    //     speciesSelection = csvColSpeciesElement.options[csvColSpeciesElement.selectedIndex].text
+    //     selection = levelSelection+'_'+speciesSelection.toLowerCase().replace(' ','_')+'_count'
+    // } else if (['Image Count', 'Animal Count'].includes(dataSelection)) {
+    //     selection = levelSelection+'_'+dataSelection.toLowerCase().replace(' ','_')
+    // } else if (dataSelection == 'Labels') {
+    //     selection = levelSelection+'_labels'
+    // } else if (dataSelection == 'Tags') {
+    //     selection = levelSelection+'_tags'
+    // } else if (dataSelection == 'URL') {
+    //     selection = levelSelection+'_url'
+    // } else if (dataSelection == 'Individuals') {
+    //     selection = levelSelection+'_individuals'
+    // } else if (dataSelection == 'Sighting Count') {
+    //     selection = levelSelection+'_sighting_count'
+    // } else {
+    //     selection = dataSelection.toLowerCase().replace(' ','_')
+    // }
 
     csvColNameElement = document.getElementById('csvColNameElement-'+String(IDNum))
-    csvColNameElement.value = selection
+    csvColNameElement.value = column
 
 }
 
@@ -863,19 +865,19 @@ function buildCSVrow(IDNum) {
     CSVColParDiv.appendChild(CSVColRow);
 
     CSVCol0 = document.createElement('div');
-    CSVCol0.classList.add('col-lg-3')
+    CSVCol0.classList.add('col-lg-4')
     CSVColRow.appendChild(CSVCol0);
 
     CSVCol1 = document.createElement('div');
-    CSVCol1.classList.add('col-lg-3')
+    CSVCol1.classList.add('col-lg-4')
     CSVColRow.appendChild(CSVCol1);
 
-    CSVCol2 = document.createElement('div');
-    CSVCol2.classList.add('col-lg-3')
-    CSVColRow.appendChild(CSVCol2);
+    // CSVCol2 = document.createElement('div');
+    // CSVCol2.classList.add('col-lg-3')
+    // CSVColRow.appendChild(CSVCol2);
 
     CSVCol3 = document.createElement('div');
-    CSVCol3.classList.add('col-lg-2')
+    CSVCol3.classList.add('col-lg-3')
     CSVCol3.id = 'CSVCol3-'+String(IDNum);
     CSVColRow.appendChild(CSVCol3);
 
@@ -897,12 +899,12 @@ function buildCSVrow(IDNum) {
     clearSelect(csvColLevelElement)
     fillSelect(csvColLevelElement, levelChoiceTexts, levelChoiceValues)
 
-    csvColDataElement = document.createElement('select');
-    csvColDataElement.classList.add('form-control');
-    csvColDataElement.id = 'csvColDataElement-'+String(IDNum);
-    csvColDataElement.name = csvColDataElement.id;
-    CSVCol2.appendChild(csvColDataElement);
-    fillSelect(csvColDataElement, [''], ['-99999'])
+    // csvColDataElement = document.createElement('select');
+    // csvColDataElement.classList.add('form-control');
+    // csvColDataElement.id = 'csvColDataElement-'+String(IDNum);
+    // csvColDataElement.name = csvColDataElement.id;
+    // CSVCol2.appendChild(csvColDataElement);
+    // fillSelect(csvColDataElement, [''], ['-99999'])
 
     btnRemove = document.createElement('button');
     btnRemove.classList.add('btn');
@@ -919,20 +921,20 @@ function buildCSVrow(IDNum) {
 
     $("#"+csvColLevelElement.id).change( function(wrapIDNum) {
         return function() {
-            updateDataElement(wrapIDNum)
-            updateSpeciesElement(wrapIDNum)
+            // updateDataElement(wrapIDNum)
+            // updateSpeciesElement(wrapIDNum)
             updateNameElement(wrapIDNum)
             checkCSV()
         }
     }(IDNum));
 
-    $("#"+csvColDataElement.id).change( function(wrapIDNum) {
-        return function() {
-            updateSpeciesElement(wrapIDNum)
-            updateNameElement(wrapIDNum)
-            checkCSV()
-        }
-    }(IDNum));
+    // $("#"+csvColDataElement.id).change( function(wrapIDNum) {
+    //     return function() {
+    //         updateSpeciesElement(wrapIDNum)
+    //         updateNameElement(wrapIDNum)
+    //         checkCSV()
+    //     }
+    // }(IDNum));
 }
 
 function buildCustColAddBtn(IDNum1,customColumnBtnDiv) {
@@ -1427,7 +1429,7 @@ function finishCSVprep() {
     var optionValues=[]
     for (let key in csvInfo) {
         if (csvInfo.hasOwnProperty(key)) {
-            if (csvInfo[key].name != 'Custom') {
+            if (!['Custom','Global','Survey'].includes(csvInfo[key].name)) {
                 optionTexts.push(csvInfo[key].name)
                 optionValues.push(key)
             }
@@ -1442,11 +1444,15 @@ function finishCSVprep() {
     levelChoiceTexts = ['']
     levelChoiceValues = ['-99999']
     levelInt = parseInt(level)
+    choiceVal = 0
     for (let key in csvInfo) {
         if (csvInfo.hasOwnProperty(key)) {
             if (parseInt(key)>=levelInt) {
-                levelChoiceTexts.push(csvInfo[key].name)
-                levelChoiceValues.push(key)
+                levelChoiceTexts.push(...csvInfo[key].columns)
+                for (let i=0;i<csvInfo[key].columns.length;i++) {
+                    levelChoiceValues.push(choiceVal)
+                    choiceVal += 1
+                }
             }
         }
     }
@@ -1490,11 +1496,15 @@ function finishCSVprep() {
         levelChoiceTexts = ['']
         levelChoiceValues = ['-99999']
         levelInt = parseInt(level)
+        choiceVal = 0
         for (let key in csvInfo) {
             if (csvInfo.hasOwnProperty(key)) {
                 if (parseInt(key)>=levelInt) {
-                    levelChoiceTexts.push(csvInfo[key].name)
-                    levelChoiceValues.push(key)
+                    levelChoiceTexts.push(...csvInfo[key].columns)
+                    for (let i=0;i<csvInfo[key].columns.length;i++) {
+                        levelChoiceValues.push(choiceVal)
+                        choiceVal += 1
+                    }
                 }
             }
         }
@@ -1510,8 +1520,8 @@ modalCSVGenerate.on('shown.bs.modal', function(){
     if (helpReturn) {
         helpReturn = false
     } else {
-        document.getElementById('listLabelFormat').checked = false
-        document.getElementById('columnLabelFormat').checked = true
+        document.getElementById('listLabelFormat').checked = true
+        // document.getElementById('columnLabelFormat').checked = true
         document.getElementById('rowLabelFormat').checked = false
         document.getElementById('includeLabels').checked = true
         document.getElementById('excludeLabels').checked = false
