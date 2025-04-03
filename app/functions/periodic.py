@@ -361,7 +361,14 @@ def clean_up_redis():
                                         .distinct().all()]
                     for task in tasks:
                         GLOBALS.redisClient.srem('tasks_to_update_status',task)
-                        updateAllStatuses.delay(task_id=task)
+                        timestamp = GLOBALS.redisClient.get('updateAllStatuses_'+str(task))
+                        if not timestamp:
+                            GLOBALS.redisClient.set('updateAllStatuses_'+str(task),datetime.utcnow().timestamp())
+                            updateAllStatuses.delay(task_id=task)
+                        else:
+                            timestamp = datetime.fromtimestamp(float(timestamp.decode()))
+                            if datetime.utcnow() - timestamp > timedelta(days=1):
+                                GLOBALS.redisClient.delete('updateAllStatuses_'+str(task))
                 except:
                     pass
 
@@ -377,7 +384,7 @@ def clean_up_redis():
                         image_count = int(label_counts.get(b"image_count", 0))
                         sighting_count = int(label_counts.get(b"sighting_count", 0))
                         timestamp = datetime.fromtimestamp(float(label_counts.get(b"timestamp", 0)))
-                        if datetime.utcnow() - timestamp > timedelta(minutes=2):
+                        if datetime.utcnow() - timestamp > timedelta(minutes=5):
                             label.cluster_count += cluster_count
                             label.image_count += image_count
                             label.sighting_count += sighting_count

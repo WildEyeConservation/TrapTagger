@@ -554,14 +554,14 @@ def updateTaskCompletionStatus(task_id):
                     .filter(~Detection.status.in_(Config.DET_IGNORE_STATUSES)) \
                     .distinct().count()
     
-    sq = db.session.query(Cluster)\
-                    .join(Translation,Cluster.classification==Translation.classification)\
-                    .filter(Translation.label_id==vhl_label.id)\
-                    .filter(Cluster.task==task)
+    # sq = db.session.query(Cluster)\
+    #                 .join(Translation,Cluster.classification==Translation.classification)\
+    #                 .filter(Translation.label_id==vhl_label.id)\
+    #                 .filter(Cluster.task==task)
 
-    sq = taggingLevelSQ(sq,'-3',False,task.id)
+    # sq = taggingLevelSQ(sq,'-3',False,task.id)
 
-    task.potential_vhl_clusters = sq.distinct().count() 
+    # task.potential_vhl_clusters = sq.distinct().count() 
     
     task.vhl_image_count = db.session.query(Image)\
                                     .join(Detection)\
@@ -1531,6 +1531,12 @@ def updateAllStatuses(self,task_id,status=False):
             task = db.session.query(Task).get(task_id)
             task.status = 'Ready'
             db.session.commit()
+
+        try:
+            GLOBALS.redisClient.delete('updateAllStatuses_'+str(task_id))
+            GLOBALS.redisClient.srem('tasks_to_update_status',task_id)
+        except:
+            pass
 
     except Exception as exc:
         app.logger.info(' ')
