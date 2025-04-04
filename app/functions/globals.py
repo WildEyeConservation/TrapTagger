@@ -1021,7 +1021,7 @@ def finish_knockdown(self,rootImageID, task, current_user_id, lastImageID=None):
                 newClusters = recluster_large_clusters(task_id,True,None,[r.id for r in long_clusters])
                 clusterList.extend(newClusters)
 
-            if clusterList: classifyTask(task,clusterList)
+            if clusterList: classifyTask(task_id,clusterList)
 
         #Reactivate trapgroup
         trapgroup = db.session.query(Trapgroup).get(trapgroup_id)
