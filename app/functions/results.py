@@ -498,7 +498,9 @@ def create_task_dataframe(task_id,selectedLevel,include,exclude,trapgroup_id,sta
         'Site ID': 'int32',
         'Latitude': 'float32',
         'Longitude': 'float32',
-        'Altitude': 'float32'
+        'Altitude': 'float32',
+        'Site Name': 'category',
+        'Camera Name': 'category'
     } # Image, Detection & Cluster ID we leave as int64 (they are large)
     df = df.astype(types)
 
@@ -515,7 +517,7 @@ def create_task_dataframe(task_id,selectedLevel,include,exclude,trapgroup_id,sta
                                         Video.filename
                                     ).label('Video Path')
                                 )\
-                                .join(Camera)\
+                                .join(Camera,Image.camera_id==Camera.id)\
                                 .join(Video,Camera.videos)
         
         if trapgroup_id:
@@ -569,6 +571,9 @@ def create_task_dataframe(task_id,selectedLevel,include,exclude,trapgroup_id,sta
         df['Flank'] = df['Flank'].replace(Config.FLANK_TEXT).str.capitalize().astype('category')
 
     #Remove nulls
+    for col in df.select_dtypes(include=['category']).columns: 
+        if 'None' not in df[col].cat.categories: df[col] = df[col].cat.add_categories('None')  # Add the 'None' category otherwise fillna will not work
+
     df.fillna('None', inplace=True)
 
     #Replace nothings
@@ -581,7 +586,7 @@ def create_task_dataframe(task_id,selectedLevel,include,exclude,trapgroup_id,sta
     
     df.sort_values(by=['Site ID', 'Timestamp'], inplace=True, ascending=True)
 
-    if ('Capture' in required_columns) or (selectedLevel=='Capture'):
+    if selectedLevel == 'Capture' or any('Capture' in col for col in required_columns):
         #Add capture ID
         df['Capture'] = df.drop_duplicates(subset=['Camera ID','Timestamp']).groupby('Camera ID').cumcount()+1
         df['Capture'].fillna(0, inplace=True)
@@ -634,6 +639,13 @@ def create_task_dataframe(task_id,selectedLevel,include,exclude,trapgroup_id,sta
     #Drop unnecessary columns
     del df['Camera ID']
     del df['Site ID']
+
+    #Rename capture columns
+    if 'Capture' in df.columns:
+        df.rename(columns={'Capture':'Capture Number'}, inplace=True)
+
+    if 'Unique Capture' in df.columns:
+        df.rename(columns={'Unique Capture':'Capture ID'}, inplace=True)
 
     return df
 
