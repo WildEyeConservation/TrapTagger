@@ -358,7 +358,7 @@ def create_task_dataframe(task_id,selectedLevel,include,exclude,trapgroup_id,sta
                 Label.description.label('Species'), \
                 Tag.description.label('Informational Tags'), \
                 Cameragroup.id.label('Camera ID'), \
-                (Trapgroup.tag + '-' + Cameragroup.name).label('Camera'), \
+                (Trapgroup.tag + '-' + Cameragroup.name).label('Camera Name'), \
                 Trapgroup.id.label('Site ID'), \
                 Trapgroup.tag.label('Site Name'), \
                 Trapgroup.latitude.label('Latitude'), \
@@ -434,7 +434,7 @@ def create_task_dataframe(task_id,selectedLevel,include,exclude,trapgroup_id,sta
                         Detection.score.label('Score'), \
                         Cluster.id.label('Cluster ID'), \
                         Cameragroup.id.label('Camera ID'), \
-                        (Trapgroup.tag + '-' + Cameragroup.name).label('Camera'), \
+                        (Trapgroup.tag + '-' + Cameragroup.name).label('Camera Name'), \
                         Trapgroup.id.label('Site ID'), \
                         Trapgroup.tag.label('Site Name'), \
                         Trapgroup.latitude.label('Latitude'), \
