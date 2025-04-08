@@ -596,6 +596,13 @@ def create_task_dataframe(task_id,selectedLevel,include,exclude,trapgroup_id,sta
         #Add unique capture ID for labels
         df['Unique Capture'] = df.apply(lambda x: str(x['Camera ID']) + '/' + str(x['Capture']), axis=1)
 
+        #Rename Capture column to Capture Number
+        df.rename(columns={'Capture':'Capture Number'}, inplace=True)
+
+        if 'Capture ID' in required_columns:
+            # Copy Image ID to Capture ID
+            df['Capture ID'] = df['Image ID']
+
     # Count the detections for each label in each required level
     if 'Sighting Count' in required_columns:
         detection_count_levels = [selectedLevel]
@@ -639,13 +646,6 @@ def create_task_dataframe(task_id,selectedLevel,include,exclude,trapgroup_id,sta
     #Drop unnecessary columns
     del df['Camera ID']
     del df['Site ID']
-
-    #Rename capture columns
-    if 'Capture' in df.columns:
-        df.rename(columns={'Capture':'Capture Number'}, inplace=True)
-
-    if 'Unique Capture' in df.columns:
-        df.rename(columns={'Unique Capture':'Capture ID'}, inplace=True)
 
     return df
 
@@ -920,7 +920,7 @@ def generate_csv(self,trapgroup_id,task_id,filename,selectedLevel,requestedColum
                 agg_rules = {'Informational Tags': lambda x: ';'.join(x.unique())}
                 if 'Individuals' in df.columns: agg_rules['Individuals'] = lambda x: ';'.join(x.unique())
                 for column in [column for column in df.columns if (column not in agg_rules.keys()) and (column != selectedLevel+' ID')]: agg_rules[column] = 'first'
-                df = df.groupby(selectedLevel+' ID').agg(agg_rules).reset_index()
+                df = df.groupby(selectedLevel+' ID', sort=False).agg(agg_rules).reset_index()
 
                 # Merge the two back together again
                 df = df.merge(df_grouped, on=selectedLevel+' ID', how='left')
