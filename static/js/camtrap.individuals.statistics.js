@@ -71,10 +71,29 @@ function createIndivMap() {
 
             trapgroupInfo = info.trapgroups
             
+            noCoordinates = true 
+            for (let i=0;i<trapgroupInfo.length;i++) {
+                if ((trapgroupInfo[i].latitude != 0) || (trapgroupInfo[i].longitude != 0)) {
+                    noCoordinates = false
+                    break
+                }
+            }
+
             statisticsDiv = document.getElementById('statisticsDiv')
             mainDiv = document.createElement('indivMapDiv')
             statisticsDiv.appendChild(mainDiv)
 
+            if (noCoordinates) {
+                //Let appear in the middle of the page
+                newDiv = document.createElement('div')
+                newDiv.style.display = "flex";
+                newDiv.style.justifyContent = "center";
+                newDiv.style.alignItems = "center";
+                newDiv.innerHTML = '<h5>There are no coordinates to display.</h5>'
+                mainDiv.appendChild(newDiv)
+                return
+            }
+            
             div = document.createElement('div')
             div.classList.add('row')
             mainDiv.appendChild(div)

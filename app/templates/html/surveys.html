@@ -2212,9 +2212,9 @@ limitations under the License. -->
     uploadWorker = new Worker('js/camtrap.uploadWorker.v{{ version }}.js')
     downloadWorker = new Worker('js/camtrap.downloadWorker.v{{ version }}.js')
 </script>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/2.9.3/Chart.bundle.min.js"></script>
-<link href="https://releases.transloadit.com/uppy/v3.3.1/uppy.min.css" rel="stylesheet">
-<script src="https://releases.transloadit.com/uppy/v3.3.1/uppy.min.js"></script>
+<script src="js/Chart.bundle.min.js"></script>
+<link href="js/uppy.min.css" rel="stylesheet">
+<script src="js/uppy.min.js"></script>
 <script src="js/yoctoQueue.js"></script>
 <script src="js/pLimit.js"></script>
 <script src="js/camtrap.admin.commons.v{{ version }}.js"></script>
@@ -2235,17 +2235,15 @@ limitations under the License. -->
 <link rel="stylesheet" href="https://unpkg.com/leaflet@1.6.0/dist/leaflet.css"
    integrity="sha512-xwE/Az9zrjBIphAcBb3F6JVqxf46+CDLwfLMHloNu6KEQCAWi6HcDUbeOfBIptF7tcCzusKFjFw2yuvEpDL9wQ=="
    crossorigin=""/>
-<script src="https://unpkg.com/leaflet@1.6.0/dist/leaflet.js"
-   integrity="sha512-gZwIG9x3wUXg2hdXF6+rVkLF/0Vi9U8D2Ntg4Ga5I5BZpVkVxlJWbSQtXPSiUTtC0TjtGOmxa1AJPuV0CPthew=="
-   crossorigin=""></script>
+<script src="js/leaflet.js"></script>
 <script src="js/heatmap.min.js"></script>
 <script src="js/leaflet-heatmap.js"></script>
-<script src="https://maps.googleapis.com/maps/api/js?key=AIzaSyBHroBUjHugf-jw0m2Ajd5zYVcOMBegpUQ" defer></script>
-<script src='https://unpkg.com/leaflet.gridlayer.googlemutant@latest/dist/Leaflet.GoogleMutant.js'></script>
-<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@splidejs/splide@latest/dist/css/splide.min.css">
-<script src="https://cdn.jsdelivr.net/npm/@splidejs/splide@latest/dist/js/splide.min.js"></script>
+<script async defer src="https://maps.googleapis.com/maps/api/js?key=AIzaSyBHroBUjHugf-jw0m2Ajd5zYVcOMBegpUQ&loading=async"></script>
+<script src='js/Leaflet.GoogleMutant.js'></script>
+<link rel="stylesheet" href="js/splide.min.css">
+<script src="js/splide.min.js"></script>
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet.draw/1.0.4/leaflet.draw.css"/>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet.draw/1.0.4/leaflet.draw.js"></script>
+<script src="js/leaflet.draw.js"></script>
 <!-- <script src="js/piexif.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/crypto-js/4.0.0/crypto-js.min.js"></script> -->
 {% endblock %}

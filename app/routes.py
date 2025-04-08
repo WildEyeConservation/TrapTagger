@@ -2163,10 +2163,13 @@ def editSurvey():
                         survey.status = 'Processing'
                         db.session.commit()
                         edit_survey_args = {'survey_id':survey.id,'user_id':current_user.id,'classifier_id':classifier_id,'ignore_small_detections':ignore_small_detections,'sky_masked':sky_masked,'timestamps':timestamps,'coord_data':coordData,'masks':masks,'staticgroups':staticgroups,'kml_file':kml,'image_timestamps':imageTimestamps}
+                        GLOBALS.redisClient.set('edit_survey_{}'.format(survey_id),json.dumps(edit_survey_args))
                         restore_images_for_classification.delay(survey_id=survey.id,days=Config.EDIT_RESTORE_DAYS,edit_survey_args=edit_survey_args,tier=Config.RESTORE_TIER,restore_time=Config.RESTORE_TIME)
                 else:
                     survey.status = 'Processing'
                     db.session.commit()
+                    edit_survey_args = {'survey_id':survey.id,'user_id':current_user.id,'classifier_id':classifier_id,'ignore_small_detections':ignore_small_detections,'sky_masked':sky_masked,'timestamps':timestamps,'coord_data':coordData,'masks':masks,'staticgroups':staticgroups,'kml_file':kml,'image_timestamps':imageTimestamps}
+                    GLOBALS.redisClient.set('edit_survey_{}'.format(survey_id),json.dumps(edit_survey_args))
                     edit_survey.delay(survey_id=survey.id,user_id=current_user.id,classifier_id=classifier_id,ignore_small_detections=ignore_small_detections,sky_masked=sky_masked,timestamps=timestamps,coord_data=coordData,masks=masks,staticgroups=staticgroups,kml_file=kml,image_timestamps=imageTimestamps)
 
     else:
@@ -4898,6 +4901,11 @@ def send_js(path):
         path = '.'.join(path)
 
     return send_from_directory('../static/js', path)
+
+@app.route('/webfonts/<path>')
+def send_webfonts(path):
+    '''Serves all webfonts files'''
+    return send_from_directory('../static/webfonts', path)
 
 @app.route('/images/<path:path>')
 def send_im(path):
@@ -7970,11 +7978,15 @@ def editTask(task_id):
                 for s_task in available_tasks:
                     s_task.status = 'Processing'
                 db.session.commit()
+                task_args = {'task_id': task_id,'labelChanges': editDict,'tagChanges': tagsDict,'translationChanges': translationsDict,'deleteAutoLabels': deleteAutoLabels,'speciesChanges': speciesDict}
+                GLOBALS.redisClient.set('taskEdit_'+str(task_id),json.dumps(task_args))
                 handleTaskEdit.delay(task_id=task_id,labelChanges=editDict, tagChanges=tagsDict, translationChanges=translationsDict, deleteAutoLabels=deleteAutoLabels, speciesChanges=speciesDict)
 
             else:
                 task.status='Processing'
                 db.session.commit()
+                task_args = {'task_id': task_id,'labelChanges': editDict,'tagChanges': tagsDict,'translationChanges': translationsDict,'deleteAutoLabels': deleteAutoLabels,'speciesChanges': None}
+                GLOBALS.redisClient.set('taskEdit_'+str(task_id),json.dumps(task_args))
                 handleTaskEdit.delay(task_id=task_id,labelChanges=editDict, tagChanges=tagsDict, translationChanges=translationsDict, deleteAutoLabels=deleteAutoLabels)
         else:
             return json.dumps({'status': 'error', 'message': 'An error occurred while editing the task.'})
@@ -14097,6 +14109,10 @@ def addImage():
                 try:
                     image_hash = generate_raw_image_hash(temp_file.name)
 
+                    if len(filename) > 64:
+                        # Use hash if filename is too long
+                        filename = image_hash + '.' + filename.rsplit('.', 1)[1]
+
                     # Check if the image already exists
                     survey_folder = survey.organisation.folder + '/' + survey.folder + '/%'
                     survey_folder = survey_folder.replace('_','\\_')
@@ -14256,6 +14272,26 @@ def addImage():
                     return json.dumps({'message': 'Error adding image.'}), 400
         except:
             return json.dumps({'message': 'Request error.'}), 400
+    else:
+        return json.dumps({'message': 'Unauthorized access.'}), 401
+
+@app.route('/api/v1/testSetup', methods=['POST'])
+def testSetup():
+    ''' Tests whether a clients API is setup correctly '''
+
+    api_key = request.headers.get('apikey')
+    try:
+        hashed_key = hashlib.md5(api_key.encode()).hexdigest()
+    except:
+        hashed_key = None
+    if hashed_key is None or hashed_key == '':
+        return json.dumps({'message': 'Unauthorized access.'}), 401
+    live_integration = db.session.query(APIKey).filter(APIKey.api_key==hashed_key).first()
+    if live_integration:
+        if live_integration.survey_id:
+            json.dumps({'message': 'Integration successful.'}), 200
+        else:
+            return json.dumps({'message': 'No destination survey.'}), 400
     else:
         return json.dumps({'message': 'Unauthorized access.'}), 401
 

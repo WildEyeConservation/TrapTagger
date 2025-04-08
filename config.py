@@ -25,7 +25,7 @@ class Config(object):
     INITIAL_SETUP = False
     DISABLE_RESTORE = False
     KILL_FILEHANDLER = False
-    VERSION = 46
+    VERSION = 47
 
     HOST_IP = os.environ.get('HOST_IP')
     REDIS_IP = os.environ.get('REDIS_IP')
@@ -232,7 +232,7 @@ class Config(object):
             'Role': 'arn:aws:iam::'+AWS_ACCOUNT_ID+':role/'+LAMBDA_ROLE,
             'Runtime': 'python3.12',
             'Timeout': 900,
-            'MemorySize': 256,
+            'MemorySize': 320,
             'EphemeralStorage': {
                 'Size': 512
             },

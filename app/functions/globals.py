@@ -554,14 +554,14 @@ def updateTaskCompletionStatus(task_id):
                     .filter(~Detection.status.in_(Config.DET_IGNORE_STATUSES)) \
                     .distinct().count()
     
-    sq = db.session.query(Cluster)\
-                    .join(Translation,Cluster.classification==Translation.classification)\
-                    .filter(Translation.label_id==vhl_label.id)\
-                    .filter(Cluster.task==task)
+    # sq = db.session.query(Cluster)\
+    #                 .join(Translation,Cluster.classification==Translation.classification)\
+    #                 .filter(Translation.label_id==vhl_label.id)\
+    #                 .filter(Cluster.task==task)
 
-    sq = taggingLevelSQ(sq,'-3',False,task.id)
+    # sq = taggingLevelSQ(sq,'-3',False,task.id)
 
-    task.potential_vhl_clusters = sq.distinct().count() 
+    # task.potential_vhl_clusters = sq.distinct().count() 
     
     task.vhl_image_count = db.session.query(Image)\
                                     .join(Detection)\
@@ -1021,7 +1021,7 @@ def finish_knockdown(self,rootImageID, task, current_user_id, lastImageID=None):
                 newClusters = recluster_large_clusters(task_id,True,None,[r.id for r in long_clusters])
                 clusterList.extend(newClusters)
 
-            if clusterList: classifyTask(task,clusterList)
+            if clusterList: classifyTask(task_id,clusterList)
 
         #Reactivate trapgroup
         trapgroup = db.session.query(Trapgroup).get(trapgroup_id)
@@ -1531,6 +1531,12 @@ def updateAllStatuses(self,task_id,status=False):
             task = db.session.query(Task).get(task_id)
             task.status = 'Ready'
             db.session.commit()
+
+        try:
+            GLOBALS.redisClient.delete('updateAllStatuses_'+str(task_id))
+            GLOBALS.redisClient.srem('tasks_to_update_status',task_id)
+        except:
+            pass
 
     except Exception as exc:
         app.logger.info(' ')
@@ -2822,6 +2828,12 @@ def checkFilesExist(files,folder):
         for file in not_imported:
             req_new_name = False
             try:
+                filename = file.rsplit('/',1)[1]
+                if len(filename) > 64:
+                    filename = hash_dict[file] + '.' + filename.rsplit('.',1)[1]  # If filename is too long, replace it with the hash
+                    new_names[file.split('/', 1)[1]] = filename
+                    continue
+
                 file_db = files_in_db.get(file)
                 if file_db:
                     if file_db != hash_dict[file]:
@@ -2848,13 +2860,22 @@ def checkFilesExist(files,folder):
                         if s3_nn_hash == hash_dict[file]:
                             already_uploaded.append(file)
                             req_lambda.append(file.split('/',1)[1])
-                            new_names[file.split('/', 1)[1]] = new_name.rsplit('/',1)[1]
+                            if len(new_name.rsplit('/',1)[1]) > 64:
+                                new_name = hash_dict[file] + '.' + ext
+                            else:
+                                new_names[file.split('/', 1)[1]] = new_name.rsplit('/',1)[1]
                         else:
                             counter += 1
                             new_name = filename + '_(' + str(counter) + ').' + ext
-                            new_names[file.split('/', 1)[1]] = new_name.rsplit('/',1)[1]
+                            if len(new_name.rsplit('/',1)[1]) > 64:
+                                new_name = hash_dict[file] + '.' + ext
+                            else:
+                                new_names[file.split('/', 1)[1]] = new_name.rsplit('/',1)[1]
                     else:
-                        new_names[file.split('/', 1)[1]] = new_name.rsplit('/',1)[1]
+                        if len(new_name.rsplit('/',1)[1]) > 64:
+                            new_name = hash_dict[file] + '.' + ext
+                        else:
+                            new_names[file.split('/', 1)[1]] = new_name.rsplit('/',1)[1]
             except:
                 pass
 

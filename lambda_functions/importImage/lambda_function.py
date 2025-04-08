@@ -39,147 +39,180 @@ def lambda_handler(event, context):
     cameras = {}
     download_path = None
     compressed_path = None
-    for key in keys:
-        try:
-            if context.get_remaining_time_in_millis() < 10000:
-                remaining_keys = keys[processed:]
-                conn.commit()
-                conn.close()
-                payload = event
-                payload['keys'] = remaining_keys
-                lambda_client = boto3.client('lambda')
-                lambda_client.invoke(FunctionName=context.function_name, InvocationType='Event', Payload=json.dumps(payload))
-                print('Lambda invoked with remaining keys.')
-                return {
-                    'status': 'success',
-                    'processed': processed,
-                    'imported': imported,
-                    'total': len(keys),
-                    'survey_id': event['survey_id'],
-                    'reinvoked': True
-                }
+    for batch in chunker(keys, 25):
+        if context.get_remaining_time_in_millis() < 60000:
+            remaining_keys = keys[processed:]
+            conn.commit()
+            conn.close()
+            payload = event
+            payload['keys'] = remaining_keys
+            lambda_client = boto3.client('lambda')
+            lambda_client.invoke(FunctionName=context.function_name, InvocationType='Event', Payload=json.dumps(payload))
+            print('Lambda invoked with remaining keys for survey - {}'.format(event['survey_id']))
+            print('Imported: {}/{}'.format(imported, len(keys)))
+            return {
+                'status': 'success',
+                'processed': processed,
+                'imported': imported,
+                'total': len(keys),
+                'survey_id': event['survey_id'],
+                'reinvoked': True
+            }
+        
+        images = []
+        hashes = []
+        for key in batch:
+            try:    
+                # Download the file from S3
+                download_path = '/tmp/' + key.replace('/', '_')
+                response = s3.get_object(Bucket=bucket, Key=key)
+                with open(download_path, 'wb') as f:
+                    f.write(response['Body'].read())
 
-            # Download the file from S3
-            download_path = '/tmp/' + key.split('/')[-1]
-            response = s3.get_object(Bucket=bucket, Key=key)
-            with open(download_path, 'wb') as f:
-                f.write(response['Body'].read())
-
-            etag = response['ETag'][1:-1]
-  
-            # Generate hash
-            try:
-                hash = generate_raw_image_hash(download_path)
-            except:
-                print('Image corrupted - {}'.format(key))
-                s3.delete_object(Bucket=bucket, Key=key)
-                os.remove(download_path)
-                processed+=1
-                continue
-
-            # Check if another image with the same hash exists in db from the same survey
-            survey_folder = '/'.join(key.split('/')[:2]) + '/%'
-            survey_folder = survey_folder.replace('_', '\\_')
-            existing_query = '''
-                SELECT image.id , image.filename, camera.path FROM image
-                JOIN camera ON image.camera_id = camera.id 
-                WHERE image.hash = %s AND camera.path LIKE %s
-            '''
-            cursor.execute(existing_query, (hash, survey_folder))
-            image = cursor.fetchone()
-
-            if image:
-                print('Image already exists in the database - {}'.format(key))
-                os.remove(download_path)
-                processed+=1
-                # Check if key is different
-                existing_image_key = '/'.join([image[2], image[1]])
-                if existing_image_key != key:
-                    s3.delete_object(Bucket=bucket, Key=key)
-                continue
-
-            # Get Timestamp with pyexif 
-            try:
-                exif_data = piexif.load(download_path)
-                timestamp = None
-                if exif_data['Exif']:
-                    for tag in exif_data['Exif']:
-                        if tag == 36867 or tag == 36868:
-                            timestamp = datetime.strptime(exif_data['Exif'][tag].decode('utf-8'), '%Y:%m:%d %H:%M:%S')
-                            break
-                if timestamp is None:
-                    # Try and find in MakerNotes
-                    if exif_data['MakerNotes']:
-                        for tag in exif_data['MakerNotes']:
-                            if tag == 36867 or tag == 36868:
-                                timestamp = datetime.strptime(exif_data['MakerNotes'][tag].decode('utf-8'), '%Y:%m:%d %H:%M:%S')
-                                break
-                
-                # Remove GPS data from the image 
-                try: 
-                    if exif_data['GPS']:
-                        exif_data['GPS'] = {}
-                        exif_bytes = piexif.dump(exif_data)
-                        piexif.insert(exif_bytes, download_path)
+                etag = response['ETag'][1:-1]
+    
+                # Generate hash
+                try:
+                    hash = generate_raw_image_hash(download_path)
                 except:
-                    pass
-            except:
-                timestamp = None
+                    print('Image corrupted - {}'.format(key))
+                    s3.delete_object(Bucket=bucket, Key=key)
+                    os.remove(download_path)
+                    processed+=1
+                    continue
+                
+                hashes.append(hash)
+                images.append({
+                    'key': key,
+                    'hash': hash,
+                    'etag': etag,
+                    'download_path': download_path
+                })
+            except Exception as e:
+                print('Image download failed - {}'.format(key))
+                if download_path and os.path.exists(download_path): os.remove(download_path)
+                processed+=1
+                continue
 
-            
-            # Compression
-            img = PilImage.open(download_path)
-            compressed_path = '/tmp/compressed_' + key.split('/')[-1]
-            img = img.resize((800, 800*img.height//img.width))
+        # Check if images already exist in the database
+        survey_folder = '/'.join(key.split('/')[:2]) + '/%'
+        survey_folder = survey_folder.replace('_', '\\_')
+        existing_query = '''
+            SELECT image.id, image.hash , image.filename, camera.path FROM image
+            JOIN camera ON image.camera_id = camera.id
+            WHERE image.hash IN %s AND camera.path LIKE %s
+        '''
+        cursor.execute(existing_query, (hashes, survey_folder))
+        
+        db_images = {}
+        for row in cursor.fetchall():
+            db_images[row[1]] = {
+                'id': row[0],
+                'file': row[3] + '/' + row[2]
+            }
+        del hashes
+
+        # Process images
+        for image in images:
+            key = image['key']
+            hash = image['hash']
+            etag = image['etag']
+            download_path = image['download_path']
             try:
-                exif = img.info.get('exif')
-                dpi = img.info.get('dpi')
-                img.save(compressed_path, exif=exif, dpi=dpi, quality=80)
-            except:
-                img.save(compressed_path, quality=80)
+                if hash in db_images:
+                    print('Image already exists in the database - {}'.format(key))
+                    os.remove(download_path)
+                    processed+=1
+                    # Check if key is different
+                    existing_image_key = db_images[hash]['file']
+                    if existing_image_key != key:
+                        s3.delete_object(Bucket=bucket, Key=key)
+                    continue
+                
+                else:
+                    # Get Timestamp with pyexif 
+                    try:
+                        exif_data = piexif.load(download_path)
+                        timestamp = None
+                        if exif_data['Exif']:
+                            for tag in exif_data['Exif']:
+                                if tag == 36867 or tag == 36868:
+                                    timestamp = datetime.strptime(exif_data['Exif'][tag].decode('utf-8'), '%Y:%m:%d %H:%M:%S')
+                                    break
+                        if timestamp is None:
+                            # Try and find in MakerNotes
+                            if exif_data['MakerNotes']:
+                                for tag in exif_data['MakerNotes']:
+                                    if tag == 36867 or tag == 36868:
+                                        timestamp = datetime.strptime(exif_data['MakerNotes'][tag].decode('utf-8'), '%Y:%m:%d %H:%M:%S')
+                                        break
+                        
+                        # Remove GPS data from the image 
+                        try: 
+                            if exif_data['GPS']:
+                                exif_data['GPS'] = {}
+                                exif_bytes = piexif.dump(exif_data)
+                                piexif.insert(exif_bytes, download_path)
+                        except:
+                            pass
+                    except:
+                        timestamp = None
 
-            # Upload the compressed file to S3
-            splits = key.split('/')
-            splits[0] = splits[0]+'-comp'
-            comp_key = '/'.join(splits)
-            s3.upload_file(Bucket=bucket, Key=comp_key, Filename=compressed_path)
-            os.remove(compressed_path)
+                    
+                    # Compression
+                    img = PilImage.open(download_path)
+                    compressed_path = '/tmp/compressed_' + key.replace('/', '_')
+                    img = img.resize((800, 800*img.height//img.width))
+                    try:
+                        exif = img.info.get('exif')
+                        dpi = img.info.get('dpi')
+                        img.save(compressed_path, exif=exif, dpi=dpi, quality=80)
+                    except:
+                        img.save(compressed_path, quality=80)
 
-            # Add to database
-            splits = key.split('/')
-            image_filename = splits[-1]
-            camera_path = '/'.join(splits[:-1]) 
+                    # Upload the compressed file to S3
+                    splits = key.split('/')
+                    splits[0] = splits[0]+'-comp'
+                    comp_key = '/'.join(splits)
+                    s3.upload_file(Bucket=bucket, Key=comp_key, Filename=compressed_path)
+                    os.remove(compressed_path)
 
-            if camera_path not in cameras:
-                camera_query = 'SELECT id FROM camera WHERE path = %s'
-                cursor.execute(camera_query, (camera_path))
-                camera = cursor.fetchone()
-                if camera is None:
-                    insert_camera_query = 'INSERT INTO camera (path) VALUES (%s)'
-                    cursor.execute(insert_camera_query, (camera_path))
-                    conn.commit()
-                    cursor.execute(camera_query, (camera_path))
-                    camera = cursor.fetchone()
-                cameras[camera_path] = camera[0]
-            camera_id = cameras[camera_path]
+                    # Add to database
+                    splits = key.split('/')
+                    image_filename = splits[-1]
+                    camera_path = '/'.join(splits[:-1]) 
 
-            insert_query = 'INSERT INTO image (filename,timestamp,corrected_timestamp,camera_id,hash,etag,detection_rating,downloaded,skipped,extracted) VALUES (%s,%s,%s,%s,%s,%s,0,0,0,0)'
-            cursor.execute(insert_query, (image_filename, timestamp, timestamp, camera_id, hash, etag))
+                    if camera_path not in cameras:
+                        camera_query = 'SELECT id FROM camera WHERE path = %s'
+                        cursor.execute(camera_query, (camera_path))
+                        camera = cursor.fetchone()
+                        if camera is None:
+                            insert_camera_query = 'INSERT INTO camera (path) VALUES (%s)'
+                            cursor.execute(insert_camera_query, (camera_path))
+                            conn.commit()
+                            cursor.execute(camera_query, (camera_path))
+                            camera = cursor.fetchone()
+                        cameras[camera_path] = camera[0]
+                    camera_id = cameras[camera_path]
 
-            os.remove(download_path)
-            processed+=1
-            imported += 1
-        except Exception as e:
-            print('Image import failed - {}'.format(key))	
-            if download_path and os.path.exists(download_path): os.remove(download_path)
-            if compressed_path and os.path.exists(compressed_path): os.remove(compressed_path)
-            processed+=1
-            continue
+                    insert_query = 'INSERT INTO image (filename,timestamp,corrected_timestamp,camera_id,hash,etag,detection_rating,downloaded,skipped,extracted) VALUES (%s,%s,%s,%s,%s,%s,0,0,0,0)'
+                    cursor.execute(insert_query, (image_filename, timestamp, timestamp, camera_id, hash, etag))
+
+                    os.remove(download_path)
+                    processed+=1
+                    imported += 1
+            except Exception as e:
+                print('Image import failed - {}'.format(key))	
+                if download_path and os.path.exists(download_path): os.remove(download_path)
+                if compressed_path and os.path.exists(compressed_path): os.remove(compressed_path)
+                processed+=1
+                continue
 
     conn.commit()
     conn.close()   
 
-    print('Images compressed and imported successfully.')
+    print('Images compressed and imported successfully for survey - {}'.format(event['survey_id']))
+    print('Imported: {}/{}'.format(imported, len(keys)))
 
     return {
         'status': 'success',
@@ -188,7 +221,6 @@ def lambda_handler(event, context):
         'survey_id': event['survey_id'],
         'reinvoked': False
     }
-
 
 def generate_raw_image_hash(filename):
     '''Generates a hash of an image with no EXIF data in a format compatable with the front end or generates a hash of a video.'''
@@ -202,3 +234,7 @@ def generate_raw_image_hash(filename):
             hash = hashlib.md5(output.getbuffer()).hexdigest()
         
     return hash
+
+def chunker(seq, size):
+    '''Breaks down the specified sequence into batches of the specified size.'''
+    return (seq[pos:pos + size] for pos in range(0, len(seq), size))
