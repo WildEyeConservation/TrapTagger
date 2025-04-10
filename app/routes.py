@@ -8505,7 +8505,7 @@ def generateCOCO():
 @login_required
 def getCSVinfo():
     '''Returns the csv options.'''
-    return json.dumps(Config.CSV_INFO)
+    return json.dumps({'CSV_INFO': Config.CSV_INFO, 'CSV_DISALLOWED_GLOBALS': Config.CSV_DISALLOWED_GLOBALS})
 
 @app.route('/getSpeciesandIDs/<task_id>', methods=['POST','GET'])
 @login_required

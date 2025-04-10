@@ -29,203 +29,203 @@
 //     }
 // }
 
-function updateCustomRows() {
-    /** Updates the custom row text fields in the csv form on a per-task basis. */
+// function updateCustomRows() {
+//     /** Updates the custom row text fields in the csv form on a per-task basis. */
 
-    allLevels = document.querySelectorAll('[id^=csvColLevelElement-]')
-    allccTextInputs = document.querySelectorAll('[id^=ccTextInput-]')
+//     allLevels = document.querySelectorAll('[id^=csvColLevelElement-]')
+//     allccTextInputs = document.querySelectorAll('[id^=ccTextInput-]')
 
-    allTaskIDs = []
-    allCustColumnID1s = []
-    allCustCoumnID2s = []
-    for (let i=0;i<allccTextInputs.length;i++) {
-        splits = allccTextInputs[i].id.split('-')
-        allTaskIDs.push(splits[3])
-        allCustColumnID1s.push(splits[1])
-        allCustCoumnID2s.push(splits[1]+'-'+splits[2])
-    }
+//     allTaskIDs = []
+//     allCustColumnID1s = []
+//     allCustCoumnID2s = []
+//     for (let i=0;i<allccTextInputs.length;i++) {
+//         splits = allccTextInputs[i].id.split('-')
+//         allTaskIDs.push(splits[3])
+//         allCustColumnID1s.push(splits[1])
+//         allCustCoumnID2s.push(splits[1]+'-'+splits[2])
+//     }
 
-    handledTaskIDs = []
-    handledCustColumnID1s = []
-    handledCustCoumnID2s = []
-    for (let i=0;i<allLevels.length;i++) {
-        IDNum = allLevels[i].id.split("-")[allLevels[i].id.split("-").length-1]
-        CSVCustColParDiv = document.getElementById('CSVCustColParDiv-'+String(IDNum))
-        // level = allLevels[i].options[allLevels[i].selectedIndex].text
-        level_value =  allLevels[i].value
+//     handledTaskIDs = []
+//     handledCustColumnID1s = []
+//     handledCustCoumnID2s = []
+//     for (let i=0;i<allLevels.length;i++) {
+//         IDNum = allLevels[i].id.split("-")[allLevels[i].id.split("-").length-1]
+//         CSVCustColParDiv = document.getElementById('CSVCustColParDiv-'+String(IDNum))
+//         // level = allLevels[i].options[allLevels[i].selectedIndex].text
+//         level_value =  allLevels[i].value
 
-        // if (level == 'Custom') {
-        if (level_value.includes('c')) {
-            // csvColDataElement = document.getElementById('csvColDataElement-'+String(IDNum))
-            // ccID = csvColDataElement.options[csvColDataElement.selectedIndex].value
-            ccID = level_value.split('c')[1]
-            custColLevels = document.querySelectorAll('[id^=custColLevelElement-'+String(ccID)+'-]')
-            // allTasks = document.querySelectorAll('[id^=csvTaskSelect-]')
-            // allSurveys = document.querySelectorAll('[id^=csvSurveySelect-]')
+//         // if (level == 'Custom') {
+//         if (level_value.includes('c')) {
+//             // csvColDataElement = document.getElementById('csvColDataElement-'+String(IDNum))
+//             // ccID = csvColDataElement.options[csvColDataElement.selectedIndex].value
+//             ccID = level_value.split('c')[1]
+//             custColLevels = document.querySelectorAll('[id^=custColLevelElement-'+String(ccID)+'-]')
+//             // allTasks = document.querySelectorAll('[id^=csvTaskSelect-]')
+//             // allSurveys = document.querySelectorAll('[id^=csvSurveySelect-]')
         
-            hasText = false
-            for (let n=0;n<custColLevels.length;n++) {
-                data = custColLevels[n].options[custColLevels[n].selectedIndex].text
-                if (data=='Text') {
-                    hasText = true
-                    break
-                }
-            }
+//             hasText = false
+//             for (let n=0;n<custColLevels.length;n++) {
+//                 data = custColLevels[n].options[custColLevels[n].selectedIndex].text
+//                 if (data=='Text') {
+//                     hasText = true
+//                     break
+//                 }
+//             }
         
-            if (hasText) {
-                handledCustColumnID1s.push(ccID)
-                // for (let n=0;n<allTasks.length;n++) {
-                //     taskID = allTasks[n].options[allTasks[n].selectedIndex].value
-                    taskID = selectedTask
-                    if (taskID != '-99999') {
-                        handledTaskIDs.push(taskID)
-                        text_field_count = 0
-                        for (let k=0;k<custColLevels.length;k++) {
-                            data = custColLevels[k].options[custColLevels[k].selectedIndex].text
-                            if (data=='Text') {
-                                text_field_count += 1
-                                idNum2 = custColLevels[k].id.split('custColLevelElement-'+String(ccID)+'-')[1]
-                                handledCustCoumnID2s.push(ccID+'-'+idNum2)
-                                objectID = 'ccTextInput-'+String(ccID)+'-'+String(idNum2)+'-'+String(taskID)
-                                if (document.getElementById(objectID)==null) {
-                                    // Doesn't exist -> build it
-                                    ccTaskDiv = document.getElementById('ccTaskDiv-'+String(ccID)+'-'+String(taskID))
-                                    if (ccTaskDiv==null) {
-                                        // taskName = allTasks[n].options[allTasks[n].selectedIndex].text
-                                        // surveyName = allSurveys[n].options[allSurveys[n].selectedIndex].text
+//             if (hasText) {
+//                 handledCustColumnID1s.push(ccID)
+//                 // for (let n=0;n<allTasks.length;n++) {
+//                 //     taskID = allTasks[n].options[allTasks[n].selectedIndex].value
+//                     taskID = selectedTask
+//                     if (taskID != '-99999') {
+//                         handledTaskIDs.push(taskID)
+//                         text_field_count = 0
+//                         for (let k=0;k<custColLevels.length;k++) {
+//                             data = custColLevels[k].options[custColLevels[k].selectedIndex].text
+//                             if (data=='Text') {
+//                                 text_field_count += 1
+//                                 idNum2 = custColLevels[k].id.split('custColLevelElement-'+String(ccID)+'-')[1]
+//                                 handledCustCoumnID2s.push(ccID+'-'+idNum2)
+//                                 objectID = 'ccTextInput-'+String(ccID)+'-'+String(idNum2)+'-'+String(taskID)
+//                                 if (document.getElementById(objectID)==null) {
+//                                     // Doesn't exist -> build it
+//                                     ccTaskDiv = document.getElementById('ccTaskDiv-'+String(ccID)+'-'+String(taskID))
+//                                     if (ccTaskDiv==null) {
+//                                         // taskName = allTasks[n].options[allTasks[n].selectedIndex].text
+//                                         // surveyName = allSurveys[n].options[allSurveys[n].selectedIndex].text
                         
-                                        ccTaskDiv = document.createElement('div')
-                                        ccTaskDiv.id = 'ccTaskDiv-'+String(ccID)+'-'+String(taskID)
-                                        CSVCustColParDiv.appendChild(ccTaskDiv)
+//                                         ccTaskDiv = document.createElement('div')
+//                                         ccTaskDiv.id = 'ccTaskDiv-'+String(ccID)+'-'+String(taskID)
+//                                         CSVCustColParDiv.appendChild(ccTaskDiv)
                         
-                                        ccTaskRow = document.createElement('div')
-                                        ccTaskRow.classList.add('row')
-                                        ccTaskRow.id = 'ccTaskRow-'+String(ccID)+'-'+String(idNum2)+'-'+String(taskID)
-                                        ccTaskDiv.append(ccTaskRow)
+//                                         ccTaskRow = document.createElement('div')
+//                                         ccTaskRow.classList.add('row')
+//                                         ccTaskRow.id = 'ccTaskRow-'+String(ccID)+'-'+String(idNum2)+'-'+String(taskID)
+//                                         ccTaskDiv.append(ccTaskRow)
                         
-                                        col1 = document.createElement('div')
-                                        col1.classList.add('col-lg-4')
-                                        ccTaskRow.appendChild(col1)
+//                                         col1 = document.createElement('div')
+//                                         col1.classList.add('col-lg-4')
+//                                         ccTaskRow.appendChild(col1)
                         
-                                        // col2 = document.createElement('div')
-                                        // col2.classList.add('col-lg-4')
-                                        // // col2.setAttribute('style',"display: flex; justify-content: center; align-content: center; flex-direction: column;")
-                                        // // col2.innerHTML = surveyName + '-' + taskName
-                                        // ccTaskRow.appendChild(col2)
+//                                         // col2 = document.createElement('div')
+//                                         // col2.classList.add('col-lg-4')
+//                                         // // col2.setAttribute('style',"display: flex; justify-content: center; align-content: center; flex-direction: column;")
+//                                         // // col2.innerHTML = surveyName + '-' + taskName
+//                                         // ccTaskRow.appendChild(col2)
                         
-                                        col3 = document.createElement('div')
-                                        col3.classList.add('col-lg-4')
-                                        ccTaskRow.appendChild(col3)
-                                    } else {
-                                        ccTaskRow = document.createElement('div')
-                                        ccTaskRow.classList.add('row')
-                                        ccTaskRow.id = 'ccTaskRow-'+String(ccID)+'-'+String(idNum2)+'-'+String(taskID)
-                                        ccTaskDiv.append(ccTaskRow)
+//                                         col3 = document.createElement('div')
+//                                         col3.classList.add('col-lg-4')
+//                                         ccTaskRow.appendChild(col3)
+//                                     } else {
+//                                         ccTaskRow = document.createElement('div')
+//                                         ccTaskRow.classList.add('row')
+//                                         ccTaskRow.id = 'ccTaskRow-'+String(ccID)+'-'+String(idNum2)+'-'+String(taskID)
+//                                         ccTaskDiv.append(ccTaskRow)
                         
-                                        col1 = document.createElement('div')
-                                        col1.classList.add('col-lg-4')
-                                        ccTaskRow.appendChild(col1)
+//                                         col1 = document.createElement('div')
+//                                         col1.classList.add('col-lg-4')
+//                                         ccTaskRow.appendChild(col1)
                         
-                                        // col2 = document.createElement('div')
-                                        // col2.classList.add('col-lg-4')
-                                        // ccTaskRow.appendChild(col2)
+//                                         // col2 = document.createElement('div')
+//                                         // col2.classList.add('col-lg-4')
+//                                         // ccTaskRow.appendChild(col2)
                         
-                                        col3 = document.createElement('div')
-                                        col3.classList.add('col-lg-4')
-                                        ccTaskRow.appendChild(col3)
-                                    }
+//                                         col3 = document.createElement('div')
+//                                         col3.classList.add('col-lg-4')
+//                                         ccTaskRow.appendChild(col3)
+//                                     }
                 
-                                    textInput = document.createElement('input')
-                                    textInput.setAttribute('style',"background-color:white")
-                                    textInput.setAttribute('type','text')
-                                    textInput.setAttribute('placeholder','Text Field '+String(text_field_count))
-                                    textInput.setAttribute('id',objectID)
-                                    textInput.classList.add('form-control')
-                                    col3.appendChild(textInput)
-                                } else {
-                                    document.getElementById(objectID).setAttribute('placeholder','Text Field '+String(text_field_count))
-                                }
-                            }
-                        }
-                    }
-                // }
-            } else {
-                //clear
-                while(CSVCustColParDiv.firstChild){
-                    CSVCustColParDiv.removeChild(CSVCustColParDiv.firstChild);
-                }
-            }
-        } else {
-            while(CSVCustColParDiv.firstChild){
-                CSVCustColParDiv.removeChild(CSVCustColParDiv.firstChild);
-            }
-        }
-    }
+//                                     textInput = document.createElement('input')
+//                                     textInput.setAttribute('style',"background-color:white")
+//                                     textInput.setAttribute('type','text')
+//                                     textInput.setAttribute('placeholder','Text Field '+String(text_field_count))
+//                                     textInput.setAttribute('id',objectID)
+//                                     textInput.classList.add('form-control')
+//                                     col3.appendChild(textInput)
+//                                 } else {
+//                                     document.getElementById(objectID).setAttribute('placeholder','Text Field '+String(text_field_count))
+//                                 }
+//                             }
+//                         }
+//                     }
+//                 // }
+//             } else {
+//                 //clear
+//                 while(CSVCustColParDiv.firstChild){
+//                     CSVCustColParDiv.removeChild(CSVCustColParDiv.firstChild);
+//                 }
+//             }
+//         } else {
+//             while(CSVCustColParDiv.firstChild){
+//                 CSVCustColParDiv.removeChild(CSVCustColParDiv.firstChild);
+//             }
+//         }
+//     }
 
-    // Remove excess ID2s
-    for (let i=0;i<allCustCoumnID2s.length;i++) {
-        if (!handledCustCoumnID2s.includes(allCustCoumnID2s[i])) {
-            // ID2 has been removed
-            ccID = allCustCoumnID2s[i].split('-')[0]
-            idNum2 = allCustCoumnID2s[i].split('-')[1]
-            // taskID = allTasks[n].options[allTasks[n].selectedIndex].value
-            taskID = selectedTask
-            if (document.getElementById('ccTaskRow-'+String(ccID)+'-'+String(idNum2)+'-'+String(taskID))!=null) {
-                document.getElementById('ccTaskRow-'+String(ccID)+'-'+String(idNum2)+'-'+String(taskID)).remove()
-            }
-        }
-    }
+//     // Remove excess ID2s
+//     for (let i=0;i<allCustCoumnID2s.length;i++) {
+//         if (!handledCustCoumnID2s.includes(allCustCoumnID2s[i])) {
+//             // ID2 has been removed
+//             ccID = allCustCoumnID2s[i].split('-')[0]
+//             idNum2 = allCustCoumnID2s[i].split('-')[1]
+//             // taskID = allTasks[n].options[allTasks[n].selectedIndex].value
+//             taskID = selectedTask
+//             if (document.getElementById('ccTaskRow-'+String(ccID)+'-'+String(idNum2)+'-'+String(taskID))!=null) {
+//                 document.getElementById('ccTaskRow-'+String(ccID)+'-'+String(idNum2)+'-'+String(taskID)).remove()
+//             }
+//         }
+//     }
 
-    // Remove excess tasks
-    // for (let i=0;i<allTaskIDs.length;i++) {
-    //     if (!handledTaskIDs.includes(allTaskIDs[i])) {
-    //         taskID = allTaskIDs[i]
-    //         for (let ccID in customColumns) {
-    //             document.getElementById('ccTaskDiv-'+String(ccID)+'-'+String(taskID)).remove()
-    //         }
-    //     }
-    // }
-    taskID = selectedTask
-    if (!handledTaskIDs.includes(taskID)) {
-        for (let ccID in customColumns) {
-            if (document.getElementById('ccTaskDiv-'+String(ccID)+'-'+String(taskID))!=null) {
-                document.getElementById('ccTaskDiv-'+String(ccID)+'-'+String(taskID)).remove()
-            }
-        }
-    }
+//     // Remove excess tasks
+//     // for (let i=0;i<allTaskIDs.length;i++) {
+//     //     if (!handledTaskIDs.includes(allTaskIDs[i])) {
+//     //         taskID = allTaskIDs[i]
+//     //         for (let ccID in customColumns) {
+//     //             document.getElementById('ccTaskDiv-'+String(ccID)+'-'+String(taskID)).remove()
+//     //         }
+//     //     }
+//     // }
+//     taskID = selectedTask
+//     if (!handledTaskIDs.includes(taskID)) {
+//         for (let ccID in customColumns) {
+//             if (document.getElementById('ccTaskDiv-'+String(ccID)+'-'+String(taskID))!=null) {
+//                 document.getElementById('ccTaskDiv-'+String(ccID)+'-'+String(taskID)).remove()
+//             }
+//         }
+//     }
 
-    // Remove excess ID1s
-    for (let i=0;i<allCustColumnID1s.length;i++) {
-        if (!handledCustColumnID1s.includes(allCustColumnID1s[i])) {
-            for (let n=0;n<allLevels.length;n++) {
-                // level = allLevels[n].options[allLevels[n].selectedIndex].text
-                level_value = allLevels[n].value
+//     // Remove excess ID1s
+//     for (let i=0;i<allCustColumnID1s.length;i++) {
+//         if (!handledCustColumnID1s.includes(allCustColumnID1s[i])) {
+//             for (let n=0;n<allLevels.length;n++) {
+//                 // level = allLevels[n].options[allLevels[n].selectedIndex].text
+//                 level_value = allLevels[n].value
         
-                // if (level == 'Custom') {
-                if (level_value.includes('c')) {
-                    IDNum = allLevels[n].id.split("-")[allLevels[n].id.split("-").length-1]
-                    // csvColDataElement = document.getElementById('csvColDataElement-'+String(IDNum))
-                    // ccID = csvColDataElement.options[csvColDataElement.selectedIndex].value
-                    ccID = level_value.split('c')[1]
+//                 // if (level == 'Custom') {
+//                 if (level_value.includes('c')) {
+//                     IDNum = allLevels[n].id.split("-")[allLevels[n].id.split("-").length-1]
+//                     // csvColDataElement = document.getElementById('csvColDataElement-'+String(IDNum))
+//                     // ccID = csvColDataElement.options[csvColDataElement.selectedIndex].value
+//                     ccID = level_value.split('c')[1]
 
-                    if (ccID==allCustColumnID1s[i]) {
-                        CSVCustColParDiv = document.getElementById('CSVCustColParDiv-'+String(IDNum))
-                        while(CSVCustColParDiv.firstChild){
-                            CSVCustColParDiv.removeChild(CSVCustColParDiv.firstChild);
-                        }
+//                     if (ccID==allCustColumnID1s[i]) {
+//                         CSVCustColParDiv = document.getElementById('CSVCustColParDiv-'+String(IDNum))
+//                         while(CSVCustColParDiv.firstChild){
+//                             CSVCustColParDiv.removeChild(CSVCustColParDiv.firstChild);
+//                         }
 
-                        // allLevels[n].selectedIndex = 0
-                    }
-                }
-            }
-        }
-    }
-}
+//                         // allLevels[n].selectedIndex = 0
+//                     }
+//                 }
+//             }
+//         }
+//     }
+// }
 
 function checkCSV() {
     /** Checks the format of the csv modal, updates the legalCSV status and updates the errors list accordingly. */
     
-    updateCustomRows()
+    // updateCustomRows()
     allLevels = document.querySelectorAll('[id^=csvColLevelElement-]');
 
     columns = []
@@ -266,11 +266,13 @@ function checkCSV() {
     }
 
     // Handle date
-    startDateCSV = document.getElementById('startDateCSV').value
-    endDateCSV = document.getElementById('endDateCSV').value
-    if (startDateCSV != '' && endDateCSV != '') {
-        if (startDateCSV > endDateCSV) {
-            invalidDate = true
+    if (document.getElementById('csvDateRange').checked) {
+        startDateCSV = document.getElementById('startDateCSV').value
+        endDateCSV = document.getElementById('endDateCSV').value
+        if (startDateCSV != '' && endDateCSV != '') {
+            if (startDateCSV > endDateCSV) {
+                invalidDate = true
+            }
         }
     }
 
@@ -577,7 +579,8 @@ btnCsvDownload.addEventListener('click', ()=>{
                     // dataSelection = translation['dataSelection']
 
                     if (levelSelection=='Text') {
-                        selection = document.getElementById('ccTextInput-'+String(IDNum1)+'-'+String(IDNum2)+'-'+String(task_id)).value
+                        // selection = document.getElementById('ccTextInput-'+String(IDNum1)+'-'+String(IDNum2)+'-'+String(task_id)).value
+                        selection = document.getElementById('ccTextInput-'+String(IDNum1)+'-'+String(IDNum2)).value
                     } else {                
                         // if (dataSelection == 'Species Count') {
                         //     // TODO: This probably doesn't work anymore
@@ -610,15 +613,19 @@ btnCsvDownload.addEventListener('click', ()=>{
             }
         }
         // Date range
-        startDateCSV = document.getElementById('startDateCSV').value
-        endDateCSV = document.getElementById('endDateCSV').value
+        var startDateCSV = ''
+        var endDateCSV = ''
+        if (document.getElementById('csvDateRange').checked) {
+            startDateCSV = document.getElementById('startDateCSV').value
+            endDateCSV = document.getElementById('endDateCSV').value
 
-        if(startDateCSV != ''){
-            startDateCSV = startDateCSV + ' 00:00:00'
-        }
+            if(startDateCSV != ''){
+                startDateCSV = startDateCSV + ' 00:00:00'
+            }
 
-        if(endDateCSV != ''){
-            endDateCSV = endDateCSV + ' 23:59:59'
+            if(endDateCSV != ''){
+                endDateCSV = endDateCSV + ' 23:59:59'
+            }
         }
 
         // if (document.getElementById('collapseVideo').checked) {
@@ -897,13 +904,13 @@ function buildCSVrow(IDNum) {
     csvColNameElement.classList.add('form-control');
     csvColNameElement.id = 'csvColNameElement-'+String(IDNum);
     csvColNameElement.name = csvColNameElement.id;
-    CSVCol0.appendChild(csvColNameElement);
+    CSVCol1.appendChild(csvColNameElement);
 
     csvColLevelElement = document.createElement('select');
     csvColLevelElement.classList.add('form-control');
     csvColLevelElement.id = 'csvColLevelElement-'+String(IDNum);
     csvColLevelElement.name = csvColLevelElement.id;
-    CSVCol1.appendChild(csvColLevelElement);
+    CSVCol0.appendChild(csvColLevelElement);
     clearSelect(csvColLevelElement)
     fillSelect(csvColLevelElement, levelChoiceTexts, levelChoiceValues)
     var customTexts = []
@@ -967,12 +974,12 @@ function buildCustColAddBtn(IDNum1,customColumnBtnDiv) {
     col2.classList.add('col-lg-4')
     row.appendChild(col2)
 
-    // col3 = document.createElement('div')
-    // col3.classList.add('col-lg-3')
-    // row.appendChild(col3)
+    col3 = document.createElement('div')
+    col3.classList.add('col-lg-3')
+    row.appendChild(col3)
 
     col4 = document.createElement('div')
-    col4.classList.add('col-lg-4')
+    col4.classList.add('col-lg-1')
     row.appendChild(col4)
 
     btnAdd = document.createElement('button');
@@ -1051,12 +1058,13 @@ function buildCustColRow(IDNum1,IDNum2) {
     col2.classList.add('col-lg-4')
     row.appendChild(col2)
 
-    // col3 = document.createElement('div')
-    // col3.classList.add('col-lg-3')
-    // row.appendChild(col3)
+    col3 = document.createElement('div')
+    col3.classList.add('col-lg-3')
+    col3.id = 'custColText-'+String(IDNum1)+'-'+String(IDNum2)
+    row.appendChild(col3)
 
     col4 = document.createElement('div')
-    col4.classList.add('col-lg-4')
+    col4.classList.add('col-lg-1')
     row.appendChild(col4)
 
     if (IDNum2==0) {
@@ -1073,8 +1081,6 @@ function buildCustColRow(IDNum1,IDNum2) {
                 if (colName!='') {
                     customColumns[wrapIDNum1] = colName
                     // updateCustomColNames()
-
-                    
                     allLevels = document.querySelectorAll('[id^=csvColLevelElement-]')
                     for (let i=0;i<allLevels.length;i++) {
                         found = false
@@ -1115,6 +1121,7 @@ function buildCustColRow(IDNum1,IDNum2) {
     custCol.id = 'custColLevelElement-'+String(IDNum1)+'-'+String(IDNum2)
     custCol.name = custCol.id;
     col2.appendChild(custCol);
+
     texts = levelChoiceTexts.slice(0)
     index = texts.indexOf('Custom')
     texts.splice(index, 1);
@@ -1123,6 +1130,28 @@ function buildCustColRow(IDNum1,IDNum2) {
     values.splice(index, 1);
     values.splice(1, 0, '-100')
     fillSelect(custCol, texts, values)
+
+
+    $("#"+custCol.id).change( function(wrapIDNum1,wrapIDNum2) {
+        return function() {
+            var level_select = document.getElementById('custColLevelElement-'+String(wrapIDNum1)+'-'+String(wrapIDNum2))
+            var level_text = level_select.options[level_select.selectedIndex].text;
+            var col = document.getElementById('custColText-'+String(wrapIDNum1)+'-'+String(wrapIDNum2))
+            while(col.firstChild){
+                col.removeChild(col.firstChild);
+            }
+            if (level_text == 'Text') {
+                var custText = document.createElement('input')
+                custText.setAttribute('style',"background-color:white")
+                custText.setAttribute('type','text')
+                custText.setAttribute('id','ccTextInput-'+String(wrapIDNum1)+'-'+String(wrapIDNum2))
+                custText.setAttribute('placeholder','Text Field')
+                custText.classList.add('form-control')
+                col.appendChild(custText)
+                custText.value = ''
+            }  
+        }    
+    }(IDNum1,IDNum2));
 
     // custColData = document.createElement('select');
     // custColData.classList.add('form-control');
@@ -1141,15 +1170,20 @@ function buildCustColRow(IDNum1,IDNum2) {
                 delete customColumns[wrapIDNum]
                 allLevels = document.querySelectorAll('[id^=csvColLevelElement-]')
                 for (let i=0;i<allLevels.length;i++) {
-                    for (let j=0;j<allLevels[i].options.length;j++) {
-                        if (allLevels[i].options[j].value=='c'+String(wrapIDNum)) {
-                            allLevels[i].remove(j)
-                            break
+                    if (allLevels[i].value=='c'+String(wrapIDNum)) {
+                        allLevels[i].parentNode.parentNode.remove()
+                    }
+                    else{
+                        for (let j=0;j<allLevels[i].options.length;j++) {
+                            if (allLevels[i].options[j].value=='c'+String(wrapIDNum)) {
+                                allLevels[i].remove(j)
+                                break
+                            }
                         }
                     }
                 }
                 document.getElementById('customColumnDiv-' + String(wrapIDNum)).remove()
-                updateCustomRows()
+                // updateCustomRows()
 
                 allNames = document.querySelectorAll('[id^=custColName-]');
                 if (allNames.length==0) {
@@ -1163,35 +1197,35 @@ function buildCustColRow(IDNum1,IDNum2) {
     } else {
         btnRemove.addEventListener('click', (evt)=>{
             evt.target.parentNode.parentNode.remove();
-            updateCustomRows()
+            // updateCustomRows()
         });
     }
     col4.appendChild(btnRemove);
 
-    $("#"+custCol.id).change( function(wrapIDNum1,wrapIDNum2) {
-        return function() {
-            // custColDataElement = document.getElementById('custColDataElement-'+String(wrapIDNum1)+'-'+String(wrapIDNum2))
-            // csvColLevelElement = document.getElementById('custColLevelElement-'+String(wrapIDNum1)+'-'+String(wrapIDNum2))
+    // $("#"+custCol.id).change( function(wrapIDNum1,wrapIDNum2) {
+    //     return function() {
+    //         // custColDataElement = document.getElementById('custColDataElement-'+String(wrapIDNum1)+'-'+String(wrapIDNum2))
+    //         // csvColLevelElement = document.getElementById('custColLevelElement-'+String(wrapIDNum1)+'-'+String(wrapIDNum2))
             
-            // level = csvColLevelElement.options[csvColLevelElement.selectedIndex].value;
+    //         // level = csvColLevelElement.options[csvColLevelElement.selectedIndex].value;
             
-            // clearSelect(custColDataElement)
+    //         // clearSelect(custColDataElement)
 
-            // if ((level != '-99999')&&(level != '-100')) {
-            //     optionTexts = []
-            //     optionValues = []
-            //     for (let i=0;i<csvInfo[level].columns.length;i++) {
-            //         if (csvInfo[level].columns[i]!='Species Count') {
-            //             optionTexts.push(csvInfo[level].columns[i])
-            //         }
-            //     }
-            //     fillSelect(custColDataElement, optionTexts, [...Array(optionTexts.length).keys()])
-            // } else {
-            //     fillSelect(custColDataElement, [''], ['-99999'])
-            // }
-            updateCustomRows()
-        }
-    }(IDNum1,IDNum2));
+    //         // if ((level != '-99999')&&(level != '-100')) {
+    //         //     optionTexts = []
+    //         //     optionValues = []
+    //         //     for (let i=0;i<csvInfo[level].columns.length;i++) {
+    //         //         if (csvInfo[level].columns[i]!='Species Count') {
+    //         //             optionTexts.push(csvInfo[level].columns[i])
+    //         //         }
+    //         //     }
+    //         //     fillSelect(custColDataElement, optionTexts, [...Array(optionTexts.length).keys()])
+    //         // } else {
+    //         //     fillSelect(custColDataElement, [''], ['-99999'])
+    //         // }
+    //         // updateCustomRows()
+    //     }
+    // }(IDNum1,IDNum2));
 
     // $("#"+custColData.id).change( function() {
     //     updateCustomRows()
@@ -1499,10 +1533,19 @@ function finishCSVprep() {
     for (let key in csvInfo) {
         if (csvInfo.hasOwnProperty(key)) {
             if (parseInt(key)>=levelInt) {
-                levelChoiceTexts.push(...csvInfo[key].columns)
                 for (let i=0;i<csvInfo[key].columns.length;i++) {
-                    levelChoiceValues.push(choiceVal)
-                    choiceVal += 1
+                    if (csvInfo[key].name == 'Global' && csvDisallowedGlobals.hasOwnProperty(level)) {
+                        if (!csvDisallowedGlobals[level].includes(csvInfo[key].columns[i])) {
+                            levelChoiceTexts.push(csvInfo[key].columns[i])
+                            levelChoiceValues.push(choiceVal)
+                            choiceVal += 1
+                        }
+                    }
+                    else {
+                        levelChoiceTexts.push(csvInfo[key].columns[i])
+                        levelChoiceValues.push(choiceVal)
+                        choiceVal += 1
+                    }
                 }
             }
         }
@@ -1551,10 +1594,19 @@ function finishCSVprep() {
         for (let key in csvInfo) {
             if (csvInfo.hasOwnProperty(key)) {
                 if (parseInt(key)>=levelInt) {
-                    levelChoiceTexts.push(...csvInfo[key].columns)
                     for (let i=0;i<csvInfo[key].columns.length;i++) {
-                        levelChoiceValues.push(choiceVal)
-                        choiceVal += 1
+                        if (csvInfo[key].name == 'Global' && csvDisallowedGlobals.hasOwnProperty(level)) {
+                            if (!csvDisallowedGlobals[level].includes(csvInfo[key].columns[i])) {
+                                levelChoiceTexts.push(csvInfo[key].columns[i])
+                                levelChoiceValues.push(choiceVal)
+                                choiceVal += 1
+                            }
+                        }
+                        else {
+                            levelChoiceTexts.push(csvInfo[key].columns[i])
+                            levelChoiceValues.push(choiceVal)
+                            choiceVal += 1
+                        }
                     }
                 }
             }
@@ -1585,7 +1637,9 @@ modalCSVGenerate.on('shown.bs.modal', function(){
             xhttp.onreadystatechange =
             function(){
                 if (this.readyState == 4 && this.status == 200) {
-                    csvInfo = JSON.parse(this.responseText);
+                    reply = JSON.parse(this.responseText);
+                    csvInfo = reply.CSV_INFO
+                    csvDisallowedGlobals = reply.CSV_DISALLOWED_GLOBALS
     
                     var xhttp = new XMLHttpRequest();
                     xhttp.open("GET", '/getSpeciesandIDs/'+selectedTask);
@@ -1674,3 +1728,17 @@ $('#excludeLabels').change( function() {
     /** When include/exclude selctor is changed, check the csv file format */
     checkCSV()
 });
+
+function toggleDateRangeCSV(){
+    /** Toggles the date range selector on and off on CSV */
+    var csvDateRangeChecked = document.getElementById('csvDateRange').checked
+    if (csvDateRangeChecked) {
+        document.getElementById('csvDateRangeDiv').hidden = false
+    }
+    else {
+        document.getElementById('csvDateRangeDiv').hidden = true
+    }
+    document.getElementById('startDateCSV').value = ''
+    document.getElementById('endDateCSV').value = ''
+    document.getElementById('dateErrorsCSV').innerHTML = ''
+}

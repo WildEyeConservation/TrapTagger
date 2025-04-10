@@ -586,7 +586,7 @@ def create_task_dataframe(task_id,selectedLevel,include,exclude,trapgroup_id,sta
     
     df.sort_values(by=['Site ID', 'Timestamp'], inplace=True, ascending=True)
 
-    if selectedLevel == 'Capture' or any('Capture' in col for col in required_columns):
+    if selectedLevel == 'Unique Capture' or any('Capture' in col for col in required_columns):
         #Add capture ID
         df['Capture'] = df.drop_duplicates(subset=['Camera ID','Timestamp']).groupby('Camera ID').cumcount()+1
         df['Capture'].fillna(0, inplace=True)
@@ -594,7 +594,7 @@ def create_task_dataframe(task_id,selectedLevel,include,exclude,trapgroup_id,sta
         df = df.astype({"Capture": 'int32'})
 
         #Add unique capture ID for labels
-        df['Unique Capture'] = df.apply(lambda x: str(x['Camera ID']) + '/' + str(x['Capture']), axis=1)
+        df['Unique Capture ID'] = df.apply(lambda x: str(x['Camera ID']) + '/' + str(x['Capture']), axis=1)
 
         #Rename Capture column to Capture Number
         df.rename(columns={'Capture':'Capture Number'}, inplace=True)
@@ -609,21 +609,18 @@ def create_task_dataframe(task_id,selectedLevel,include,exclude,trapgroup_id,sta
         if any(level in detection_count_levels for level in ['Cluster','Unique Capture']) and ('Image' not in detection_count_levels): detection_count_levels.insert(0, 'Image')
         for level in detection_count_levels:
             level_name = level
-            if level == 'Capture':
-                level = 'Unique Capture'
-            else:
-                level = level + ' ID'
+            level = level + ' ID'
             
-            if level in ['Cluster','Unique Capture']:
+            if level_name in ['Cluster','Unique Capture']:
                 # Here we want the minimum number of animals in the cluster/capture
-                df[level_name+'_sighting_count'] = df.groupby([level, 'Species'])['image_sighting_count'].transform('max')
+                df[level_name+'_sighting_count'] = df.groupby([level, 'Species'])['Image_sighting_count'].transform('max')
             else:
                 # here we want the count of the labels in that level
                 df[level_name+'_sighting_count'] = df[df['Species']!='None'].groupby([level, 'Species'])['Sighting ID'].transform('nunique')
             
             # propogate all the values to all the rows
             df[level_name+'_sighting_count'] = df.groupby([level, 'Species'])[level_name+'_sighting_count'].transform('max').fillna(0).astype('int32')
-        if (selectedLevel!='Image') and ('image_sighting_count' in df.columns): del df['image_sighting_count']
+        if (selectedLevel!='Image') and ('Image_sighting_count' in df.columns): del df['Image_sighting_count']
         df.rename(columns={level_name+'_sighting_count':'Sighting Count'},inplace=True)
 
     #Generate necessary urls
@@ -643,9 +640,6 @@ def create_task_dataframe(task_id,selectedLevel,include,exclude,trapgroup_id,sta
         if level_type=='site': level_type='trapgroup'
         df[level_name+' URL'] = df.apply(lambda x: generate_url(rootUrl,level_type,x[level]), axis=1)
 
-    #Drop unnecessary columns
-    del df['Camera ID']
-    del df['Site ID']
 
     return df
 
@@ -916,9 +910,10 @@ def generate_csv(self,trapgroup_id,task_id,filename,selectedLevel,requestedColum
                 if 'Sighting Count' in df.columns: del df['Sighting Count']
                 df_grouped = df_grouped.groupby(selectedLevel+' ID').agg(agg_rules).reset_index()
 
-                # Aggregate Tags and Individuals
-                agg_rules = {'Informational Tags': lambda x: ';'.join(x.unique())}
-                if 'Individuals' in df.columns: agg_rules['Individuals'] = lambda x: ';'.join(x.unique())
+                # Aggregate Tags, Individuals & rest of the columns
+                # Exclude None value if there are other tags or individuals
+                agg_rules = {'Informational Tags': lambda x: ('|'.join(x[x!='None'].unique()) if len(x[x!='None']) > 0 else 'None')}
+                if 'Individuals' in df.columns: agg_rules['Individuals'] = lambda x: ('|'.join(x[x!='None'].unique()) if len(x[x!='None']) > 0 else 'None')
                 for column in [column for column in df.columns if (column not in agg_rules.keys()) and (column != selectedLevel+' ID')]: agg_rules[column] = 'first'
                 df = df.groupby(selectedLevel+' ID', sort=False).agg(agg_rules).reset_index()
 
@@ -928,8 +923,11 @@ def generate_csv(self,trapgroup_id,task_id,filename,selectedLevel,requestedColum
                 if 'Sighting Count' in df.columns: df['Sighting Count'].fillna(0, inplace=True)
 
             else:
+                subset_list = [selectedLevel+' ID','Species']
+                if 'Informational Tags' in requestedColumns: subset_list.append('Informational Tags')
+                if 'Individuals' in requestedColumns: subset_list.append('Individuals')
+                df = df.drop_duplicates(subset=subset_list, keep='first')
                 # We only want to include the None Species rows where there is no other species in the selectedLevel
-                df = df.drop_duplicates(subset=[selectedLevel+' ID','Species'], keep='first')
                 only_none = df.groupby(selectedLevel+' ID')['Species'].transform(lambda x: (x == 'None').all())
                 df = df[only_none | (df['Species'] != 'None')]
 

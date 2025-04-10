@@ -33,6 +33,7 @@ var csv_task_ids = []
 var coco_task_ids = []
 var export_task_ids = []
 var csvInfo = null
+var csvDisallowedGlobals = null
 var levelChoiceTexts = []
 var levelChoiceValues = []
 var speciesChoiceTexts = []

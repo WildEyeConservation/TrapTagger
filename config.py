@@ -847,6 +847,12 @@ class Config(object):
         '8':{'name': 'Custom', 'columns': []}
     }
 
+    CSV_DISALLOWED_GLOBALS = {
+        '4': ['Sighting Count','Timestamp', 'Original Timestamp', 'Annotator'],
+        '5': ['Sighting Count','Timestamp', 'Original Timestamp', 'Annotator'],
+        '6': ['Sighting Count','Timestamp', 'Original Timestamp', 'Annotator']
+    }
+
     # blank cluster formats
     FINISHED_CLUSTER = {
         'id': '-101',
