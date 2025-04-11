@@ -411,6 +411,7 @@ def create_task_dataframe(task_id,selectedLevel,include,exclude,trapgroup_id,sta
         query = query.filter(Image.corrected_timestamp<=endDate)
         sq = sq.filter(Image.corrected_timestamp<=endDate)
 
+    query = query.distinct()
     df = pd.read_sql(query.statement,db.session.bind)
 
     if (len(include) == 0) and (GLOBALS.nothing_id not in exclude):
@@ -452,6 +453,7 @@ def create_task_dataframe(task_id,selectedLevel,include,exclude,trapgroup_id,sta
         if trapgroup_id: query = query.filter(Trapgroup.id==trapgroup_id)
         if startDate: query = query.filter(Image.corrected_timestamp>=startDate)
         if endDate: query = query.filter(Image.corrected_timestamp<=endDate)                     
+        query = query.distinct()
 
         df2 = pd.read_sql(query.statement,db.session.bind)
 
@@ -482,6 +484,7 @@ def create_task_dataframe(task_id,selectedLevel,include,exclude,trapgroup_id,sta
         if trapgroup_id: query = query.filter(Trapgroup.id==trapgroup_id)
         if startDate: query = query.filter(Image.corrected_timestamp>=startDate)
         if endDate: query = query.filter(Image.corrected_timestamp<=endDate)   
+        query = query.distinct()
 
         df3 = pd.read_sql(query.statement,db.session.bind)
         df = pd.merge(df, df3, on=['Sighting ID','Species'], how='outer')
@@ -526,6 +529,7 @@ def create_task_dataframe(task_id,selectedLevel,include,exclude,trapgroup_id,sta
         else:
             video_query = video_query.join(Trapgroup).filter(Trapgroup.survey_id==task.survey_id)
 
+        video_query = video_query.distinct()
         video_df = pd.read_sql(video_query.statement,db.session.bind)
         df = df.merge(video_df, on='Image ID', how='left')
         video_df = None
@@ -547,6 +551,7 @@ def create_task_dataframe(task_id,selectedLevel,include,exclude,trapgroup_id,sta
 
         if trapgroup_id: annotator_query = annotator_query.join(Image,Cluster.images).join(Camera).filter(Camera.trapgroup_id==trapgroup_id)
 
+        annotator_query = annotator_query.distinct()
         annotator_df = pd.read_sql(annotator_query.statement,db.session.bind)
         df = df.merge(annotator_df, on='Cluster ID', how='left')
         annotator_df = None
@@ -566,6 +571,7 @@ def create_task_dataframe(task_id,selectedLevel,include,exclude,trapgroup_id,sta
         else:
             flank_query = flank_query.join(Trapgroup).filter(Trapgroup.survey_id==task.survey_id)
 
+        flank_query = flank_query.distinct()
         flank_df = pd.read_sql(flank_query.statement,db.session.bind)
         df = df.merge(flank_df, on='Sighting ID', how='left')
         flank_df = None
