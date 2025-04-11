@@ -500,7 +500,8 @@ def create_task_dataframe(task_id,selectedLevel,include,exclude,trapgroup_id,sta
         'Longitude': 'float32',
         'Altitude': 'float32',
         'Site Name': 'category',
-        'Camera Name': 'category'
+        'Camera Name': 'category',
+        'Notes': 'category'
     } # Image, Detection & Cluster ID we leave as int64 (they are large)
     df = df.astype(types)
 
@@ -754,7 +755,7 @@ def generate_csv_parent(self,selectedTasks, selectedLevel, requestedColumns, cus
             custom_split = [r for r in re.split('%%%%',custom) if r != '']
             required_columns = required_columns + [c for c in custom_split if c not in required_columns]
 
-        overall_det_count = rDets(db.session.query(Detection).join(Image).join(Camera).join(Trapgroup).filter(Trapgroup.survey_id==task.survey_id))
+        overall_det_count = rDets(db.session.query(Detection.id).join(Image).join(Camera).join(Trapgroup).filter(Trapgroup.survey_id==task.survey_id))
         if include: overall_det_count = overall_det_count.join(Labelgroup).join(Label,Labelgroup.labels).filter(Labelgroup.task_id.in_(selectedTasks)).filter(Label.id.in_(include))
         if exclude: overall_det_count = overall_det_count.join(Labelgroup).join(Label,Labelgroup.labels).filter(Labelgroup.task_id.in_(selectedTasks)).filter(~Label.id.in_(exclude))
         if startDate: overall_det_count = overall_det_count.filter(Image.corrected_timestamp>=startDate)
@@ -919,6 +920,7 @@ def generate_csv(self,trapgroup_id,task_id,filename,selectedLevel,requestedColum
 
                 # Merge the two back together again
                 df = df.merge(df_grouped, on=selectedLevel+' ID', how='left')
+                df_grouped = None
                 df['Species'].fillna('None', inplace=True)
                 if 'Sighting Count' in df.columns: df['Sighting Count'].fillna(0, inplace=True)
 

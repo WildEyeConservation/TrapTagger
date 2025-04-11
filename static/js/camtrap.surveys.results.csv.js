@@ -1628,6 +1628,8 @@ modalCSVGenerate.on('shown.bs.modal', function(){
         document.getElementById('rowLabelFormat').checked = false
         document.getElementById('includeLabels').checked = true
         document.getElementById('excludeLabels').checked = false
+        document.getElementById('csvDateRangeDiv').hidden = true
+        document.getElementById('csvDateRange').checked = false
         // document.getElementById('videoFrames').checked = false
         // document.getElementById('collapseVideo').checked = true
         
@@ -1716,6 +1718,8 @@ modalCSVGenerate.on('hidden.bs.modal', function(){
         document.getElementById('startDateCSV').value = ''
         document.getElementById('endDateCSV').value = ''
         document.getElementById('dateErrorsCSV').innerHTML = ''
+        document.getElementById('csvDateRangeDiv').hidden = true
+        document.getElementById('csvDateRange').checked = false
     }
 });
 
