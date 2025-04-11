@@ -172,65 +172,65 @@ function getIndividuals(page = null) {
                                     col4.classList.add('col-lg-1')
                                     row.appendChild(col4)
 
-                                    btn = document.createElement('button');
-                                    btn.classList.add('btn');
-                                    btn.classList.add('btn-danger');
-                                    btn.classList.add('btn-block');
-                                    btn.setAttribute('style','margin-top: 2px; margin-bottom: 2px;')
-                                    btn.innerHTML = 'Delete Individual';
-                                    col3.appendChild(btn)
+                                    // btn = document.createElement('button');
+                                    // btn.classList.add('btn');
+                                    // btn.classList.add('btn-danger');
+                                    // btn.classList.add('btn-block');
+                                    // btn.setAttribute('style','margin-top: 2px; margin-bottom: 2px;')
+                                    // btn.innerHTML = 'Delete Individual';
+                                    // col3.appendChild(btn)
 
-                                    btn.addEventListener('click', ()=>{
-                                        if (individualImages.length > 1) {
-                                            document.getElementById('modalAlertIndividualsHeader').innerHTML = 'Confirmation'
-                                            document.getElementById('modalAlertIndividualsBody').innerHTML = 'Do you want to permanently delete this individual?'
-                                            document.getElementById('btnContinueIndividualAlert').setAttribute('onclick','deleteIndividual()')
-                                            modalAlertIndividualsReturn = true
-                                            modalIndividual.modal('hide')
-                                            modalAlertIndividuals.modal({keyboard: true});
-                                        }
-                                        else{
-                                            document.getElementById('modalIndividualsErrorHeader').innerHTML = 'Error'
-                                            document.getElementById('modalIndividualsErrorBody').innerHTML = 'You cannot delete an individual that is associated with only one detection. All detections for a species must be associated with an individual for the first stage of individual identitification to be considred complete. If you wish to start the identification process again you can select <em>Delete Individuals</em> on the Individuals page to permanently delete individuals for a particular species. '
-                                            document.getElementById('btnCloseIndivErrorModal').setAttribute('onclick','modalIndividual.modal({keyboard: true});')
-                                            modalAlertIndividualsReturn = true
-                                            modalIndividual.modal('hide')
-                                            modalIndividualsError.modal({keyboard: true});
-                                        }
-                                    });
+                                    // btn.addEventListener('click', ()=>{
+                                    //     if (individualImages.length > 1) {
+                                    //         document.getElementById('modalAlertIndividualsHeader').innerHTML = 'Confirmation'
+                                    //         document.getElementById('modalAlertIndividualsBody').innerHTML = 'Do you want to permanently delete this individual?'
+                                    //         document.getElementById('btnContinueIndividualAlert').setAttribute('onclick','deleteIndividual()')
+                                    //         modalAlertIndividualsReturn = true
+                                    //         modalIndividual.modal('hide')
+                                    //         modalAlertIndividuals.modal({keyboard: true});
+                                    //     }
+                                    //     else{
+                                    //         document.getElementById('modalIndividualsErrorHeader').innerHTML = 'Error'
+                                    //         document.getElementById('modalIndividualsErrorBody').innerHTML = 'You cannot delete an individual that is associated with only one detection. All detections for a species must be associated with an individual for the first stage of individual identitification to be considred complete. If you wish to start the identification process again you can select <em>Delete Individuals</em> on the Individuals page to permanently delete individuals for a particular species. '
+                                    //         document.getElementById('btnCloseIndivErrorModal').setAttribute('onclick','modalIndividual.modal({keyboard: true});')
+                                    //         modalAlertIndividualsReturn = true
+                                    //         modalIndividual.modal('hide')
+                                    //         modalIndividualsError.modal({keyboard: true});
+                                    //     }
+                                    // });
 
-                                    if (indivdualAccess == 'write'){
-                                        btn.disabled = false
-                                    }
-                                    else{
-                                        btn.disabled = true
-                                    }
+                                    // if (indivdualAccess == 'write'){
+                                    //     btn.disabled = false
+                                    // }
+                                    // else{
+                                    //     btn.disabled = true
+                                    // }
 
-                                    btn2 = document.createElement('button');
-                                    btn2.classList.add('btn');
-                                    btn2.classList.add('btn-primary');
-                                    btn2.classList.add('btn-block');
-                                    btn2.setAttribute('style','margin-top: 2px; margin-bottom: 2px;')
-                                    btn2.innerHTML = 'Remove Image';
-                                    col3.appendChild(btn2)
+                                    // btn2 = document.createElement('button');
+                                    // btn2.classList.add('btn');
+                                    // btn2.classList.add('btn-primary');
+                                    // btn2.classList.add('btn-block');
+                                    // btn2.setAttribute('style','margin-top: 2px; margin-bottom: 2px;')
+                                    // btn2.innerHTML = 'Remove Image';
+                                    // col3.appendChild(btn2)
 
-                                    btn2.addEventListener('click', ()=>{
-                                        if(individualImages.length > 1){
-                                            document.getElementById('modalAlertIndividualsHeader').innerHTML = 'Confirmation'
-                                            document.getElementById('modalAlertIndividualsBody').innerHTML = 'Do you want to permanently remove this image from this individual?'
-                                            document.getElementById('btnContinueIndividualAlert').setAttribute('onclick','removeImage()')
-                                            modalAlertIndividualsReturn = true
-                                            modalIndividual.modal('hide')
-                                            modalAlertIndividuals.modal({keyboard: true});
-                                        }
-                                    });
+                                    // btn2.addEventListener('click', ()=>{
+                                    //     if(individualImages.length > 1){
+                                    //         document.getElementById('modalAlertIndividualsHeader').innerHTML = 'Confirmation'
+                                    //         document.getElementById('modalAlertIndividualsBody').innerHTML = 'Do you want to permanently remove this image from this individual?'
+                                    //         document.getElementById('btnContinueIndividualAlert').setAttribute('onclick','removeImage()')
+                                    //         modalAlertIndividualsReturn = true
+                                    //         modalIndividual.modal('hide')
+                                    //         modalAlertIndividuals.modal({keyboard: true});
+                                    //     }
+                                    // });
 
-                                    if (indivdualAccess == 'write'){
-                                        btn2.disabled = false
-                                    }
-                                    else{
-                                        btn2.disabled = true
-                                    }
+                                    // if (indivdualAccess == 'write'){
+                                    //     btn2.disabled = false
+                                    // }
+                                    // else{
+                                    //     btn2.disabled = true
+                                    // }
 
                                     center = document.createElement('center')
                                     col2.appendChild(center)

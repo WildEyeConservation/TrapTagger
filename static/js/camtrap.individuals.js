@@ -19,6 +19,10 @@ const modalLaunchID = $('#modalLaunchID');
 const modalDeleteIndividuals = $('#modalDeleteIndividuals');
 const btnPrevTasks = document.getElementById('btnPrevTasks');
 const btnNextTasks = document.getElementById('btnNextTasks');
+const modalMergeIndividual = $('#modalMergeIndividual');
+const modalDissociateImage = $('#modalDissociateImage');
+// const modalMergeIndividualLeft = $('#modalMergeIndividualLeft');
+// const modalMergeIndividualRight = $('#modalMergeIndividualRight');
 
 var modalAlertIndividualsReturn = false
 var individualSplide = null
@@ -59,6 +63,25 @@ var rectOptions = null
 var mapWidth = null
 var mapHeight = null
 // var changed_flanks = {}
+var mergeIndividualsOpened = false
+var mergeMap = {'L': null, 'R': null}
+var mergeActiveImage = {'L': null, 'R': null}
+var mergeMapReady = {'L': false, 'R': false}
+var mergeMapWidth = {'L': null, 'R': null}
+var mergeMapHeight = {'L': null, 'R': null}
+var mergeImages = {'L': null, 'R': null}
+var mergeSplide = {'L': null, 'R': null}
+var mergeImageIndex = {'L': 0, 'R': 0}
+var mergeDrawnItems = {'L': null, 'R': null}
+var addedDetectionsMerge = {'L': false, 'R': false}
+var merge_individual_next = null
+var merge_individual_prev = null
+var selectedMergeIndividual = null
+var selectedMergeIndividualName = null
+var mergeImageOnly = false
+var confirmMerge = false
+var selectedIndividual = null
+var selectedIndividualName = null
 
 function getIndividuals(page = null) {
     /** Gets a page of individuals. Gets the first page if none is specified. */
@@ -230,6 +253,7 @@ function getIndividualInfo(individualID){
                     surveysDiv.removeChild(surveysDiv.firstChild)
                 }
 
+                individualTasks = info.surveys
                 surveysDiv = document.getElementById('surveysDiv')                           
                 for(let i=0;i<info.surveys.length;i++){
                     survey = info.surveys[i]
@@ -285,8 +309,16 @@ function getIndividualInfo(individualID){
                     document.getElementById('newIndividualName').readOnly = false
                     document.getElementById('idNotes').readOnly = false
                     document.getElementById('btnDelIndiv').disabled = false
-                    document.getElementById('btnRemoveImg').disabled = false
                     document.getElementById('btnSubmitInfoChange').disabled = false
+                    document.getElementById('btnMergeIndiv').disabled = false
+                    if (individualImages.length == 1){
+                        document.getElementById('btnRemoveImg').disabled = true
+                        // document.getElementById('btnMergeImg').disabled = true
+                    }
+                    else{
+                        document.getElementById('btnRemoveImg').disabled = false
+                        // document.getElementById('btnMergeImg').disabled = false
+                    }
                 }
                 else{
                     document.getElementById('newIndividualName').readOnly = true
@@ -295,6 +327,8 @@ function getIndividualInfo(individualID){
                     document.getElementById('btnDelIndiv').disabled = true
                     document.getElementById('btnRemoveImg').disabled = true
                     document.getElementById('btnSubmitInfoChange').disabled = true
+                    // document.getElementById('btnMergeImg').disabled = true
+                    document.getElementById('btnMergeIndiv').disabled = true
                 }
 
             }
@@ -373,6 +407,15 @@ function getIndividual(individualID, individualName, association=false, order_va
 
                     individualTags(individualID)
 
+                    if (individualImages.length == 1){
+                        document.getElementById('btnRemoveImg').disabled = true
+                        // document.getElementById('btnMergeImg').disabled = true
+                    }
+                    else{
+                        document.getElementById('btnRemoveImg').disabled = false
+                        // document.getElementById('btnMergeImg').disabled = false
+                    }
+
                     document.getElementById('btnDelIndiv').addEventListener('click', ()=>{
                         if (individualImages.length > 1){
                             document.getElementById('modalAlertIndividualsHeader').innerHTML = 'Confirmation'
@@ -396,17 +439,39 @@ function getIndividual(individualID, individualName, association=false, order_va
 
                     document.getElementById('btnRemoveImg').addEventListener('click', ()=>{
                         if (individualImages.length > 1){
-                            document.getElementById('modalAlertIndividualsHeader').innerHTML = 'Confirmation'
-                            document.getElementById('modalAlertIndividualsBody').innerHTML = 'Do you want to permanently remove this image from this individual?'
-                            document.getElementById('btnContinueIndividualAlert').setAttribute('onclick','removeImage()')
-                            document.getElementById('btnCancelIndividualAlert').setAttribute('onclick','modalIndividual.modal({keyboard: true});')
+                            // document.getElementById('modalAlertIndividualsHeader').innerHTML = 'Confirmation'
+                            // document.getElementById('modalAlertIndividualsBody').innerHTML = 'Do you want to permanently remove this image from this individual?'
+                            // document.getElementById('btnContinueIndividualAlert').setAttribute('onclick','removeImage()')
+                            // document.getElementById('btnCancelIndividualAlert').setAttribute('onclick','modalIndividual.modal({keyboard: true});')
                             modalAlertIndividualsReturn = true
                             modalIndividual.modal('hide')
-                            modalAlertIndividuals.modal({keyboard: true});
+                            // modalAlertIndividuals.modal({keyboard: true});
+                            modalDissociateImage.modal({keyboard: true});
                         }
 
                         
                     });
+
+                    document.getElementById('btnMergeIndiv').addEventListener('click', ()=>{
+                        cleanupMergeIndividuals()
+                        mergeIndividualsOpened = true
+                        mergeImageOnly = false
+                        mergeImages['L'] = individualImages
+                        modalIndividual.modal('hide')
+                        modalMergeIndividual.modal({keyboard: true});
+
+                    });
+
+                    // document.getElementById('btnMergeImg').addEventListener('click', ()=>{
+                    //     if (individualImages.length > 1){
+                    //         cleanupMergeIndividuals()
+                    //         mergeIndividualsOpened = true
+                    //         mergeImageOnly = true
+                    //         mergeImages['L'] = [individualImages[individualSplide.index]]
+                    //         modalIndividual.modal('hide')
+                    //         modalMergeIndividual.modal({keyboard: true});
+                    //     }
+                    // });
 
                     buildAssociationTable(individualID)
 
@@ -459,6 +524,15 @@ function updateIndividual(individualID, individualName, order_value = 'a1', site
                 if(individualImages.length > 0){
                     document.getElementById('tgInfo').innerHTML = 'Site: ' + individualImages[0].trapgroup.tag
                     document.getElementById('timeInfo').innerHTML = individualImages[0].timestamp
+
+                    if (individualImages.length == 1){
+                        document.getElementById('btnRemoveImg').disabled = true
+                        // document.getElementById('btnMergeImg').disabled = true
+                    }
+                    else{
+                        document.getElementById('btnRemoveImg').disabled = false
+                        // document.getElementById('btnMergeImg').disabled = false
+                    }
 
                     initialiseMapAndSlider()
                     prepMapIndividual(individualImages[0])
@@ -621,6 +695,12 @@ function submitIndividualName(){
     }
     else if(newName == document.getElementById('individualName').innerHTML){
         document.getElementById('newNameErrors').innerHTML = 'Name is the same as the current name'
+    }
+    else if (newName.toLowerCase() == 'unidentifiable'){
+        document.getElementById('newNameErrors').innerHTML = 'Reserved name. Please choose another name.'
+    }
+    else if(newName.includes('/')||newName.includes('\\')){
+        document.getElementById('newNameErrors').innerHTML = 'Invalid name. Please choose another name.'
     }
     else{
         var formData = new FormData()
@@ -878,6 +958,9 @@ modalIndividual.on('hidden.bs.modal', function(){
     } 
     else if(helpReturn){
         helpReturn = false
+    }
+    else if (mergeIndividualsOpened){
+        mergeIndividualsOpened = false
     }
     else {
         cleanModalIndividual()
@@ -2491,6 +2574,1017 @@ modalIndividualsError.on('hidden.bs.modal', function(){
 //     xhttp.send(formData);
 
 // }
+
+
+function initialiseMergeIndividualsLeft(){
+    /** Initialises the merge individuals modal. */
+
+    //Left map (current individual)
+    var individualMergeDivL = document.getElementById('individualMergeDivL')
+
+    while(individualMergeDivL.firstChild){
+        individualMergeDivL.removeChild(individualMergeDivL.firstChild);
+    }
+
+    var mCol1 = document.getElementById('mCol1')
+    while(mCol1.firstChild){
+        mCol1.removeChild(mCol1.firstChild)
+    }
+
+    var h5 = document.createElement('h5')
+    h5.innerHTML = 'Individual: ' + selectedIndividualName
+    mCol1.appendChild(h5)
+
+    var row = document.createElement('div')
+    row.classList.add('row')
+    individualMergeDivL.appendChild(row)
+
+    var col1 = document.createElement('div')
+    col1.classList.add('col-lg-2')
+    col1.setAttribute('style','padding-right: 0px;')
+    row.appendChild(col1)
+
+    var col2 = document.createElement('div')
+    col2.classList.add('col-lg-10')
+    row.appendChild(col2)
+
+    var info = document.createElement('div')
+    info.setAttribute('id','tgInfoMergeL')
+    info.setAttribute('style','font-size: 80%;')
+    info.innerHTML = 'Site: ' + mergeImages['L'][0].trapgroup.tag
+    col1.appendChild(info)
+
+    var info2 = document.createElement('div')
+    info2.setAttribute('id','timeInfoMergeL')
+    info2.setAttribute('style','font-size: 80%;')
+    info2.innerHTML = 'Timestamp: '+ mergeImages['L'][0].timestamp
+    col1.appendChild(info2)
+
+    var info3 = document.createElement('div')
+    info3.setAttribute('style','font-size: 80%;')
+    info3.innerHTML = 'Surveys:'
+    col1.appendChild(info3)
+
+    for (let i=0;i<individualTasks.length;i++) {
+        var info4 = document.createElement('div')
+        info4.setAttribute('style','font-size: 80%;')
+        info4.innerHTML = individualTasks[i]
+        col1.appendChild(info4)
+    }
+
+
+    var mergeMapDivL = document.createElement('div')
+    mergeMapDivL.setAttribute('id','mergeMapDivL')
+    mergeMapDivL.setAttribute('style','height: 750px;')
+    col2.appendChild(mergeMapDivL)
+
+    var card = document.createElement('div')
+    card.classList.add('card')
+    card.setAttribute('style','background-color: rgb(60, 74, 89);margin-top: 5px; margin-bottom: 5px; margin-left: 5px; margin-right: 5px; padding-top: 5px; padding-bottom: 5px; padding-left: 5px; padding-right: 5px')
+    individualMergeDivL.appendChild(card)
+
+    var body = document.createElement('div')
+    body.classList.add('card-body')
+    body.setAttribute('style','margin-top: 0px; margin-bottom: 0px; margin-left: 0px; margin-right: 0px; padding-top: 0px; padding-bottom: 0px; padding-left: 0px; padding-right: 0px')
+    card.appendChild(body)
+
+    var splide = document.createElement('div')
+    splide.classList.add('splide')
+    splide.setAttribute('id','splideML')
+    body.appendChild(splide)
+
+    var track = document.createElement('div')
+    track.classList.add('splide__track')
+    splide.appendChild(track)
+
+    var list = document.createElement('ul')
+    list.classList.add('splide__list')
+    list.setAttribute('id','imageSplideML')
+    track.appendChild(list)
+
+    prepMergeMapIndividual('L','mergeMapDivL',mergeImages['L'][0])
+    updateMergeSlider('L', 'imageSplideML','splideML')
+
+}
+
+function initialiseMergeIndividualsRight(){
+    /** Initialises the merge individuals modal. */
+
+    document.getElementById('btnMerge').hidden = true
+
+    //Right map 
+    var individualMergeDivR = document.getElementById('individualMergeDivR')
+
+    while(individualMergeDivR.firstChild){
+        individualMergeDivR.removeChild(individualMergeDivR.firstChild);
+    }
+
+
+    var mCol2 = document.getElementById('mCol2')
+    while(mCol2.firstChild){
+        mCol2.removeChild(mCol2.firstChild);
+    }
+
+    var h5 = document.createElement('h5')
+    h5.innerHTML = 'Individuals:'
+    mCol2.appendChild(h5)
+
+    var bigRow = document.createElement('div')
+    bigRow.classList.add('row')
+    individualMergeDivR.appendChild(bigRow)
+
+    var bigCol1 = document.createElement('div')
+    bigCol1.classList.add('col-lg-9')
+    bigRow.appendChild(bigCol1)
+
+    var mergeIndividualsDiv = document.createElement('div')
+    mergeIndividualsDiv.setAttribute('id','mergeIndividualsDiv')
+    bigCol1.appendChild(mergeIndividualsDiv)
+
+    var row = document.createElement('div')
+    row.classList.add('row')
+    bigCol1.appendChild(row)
+
+    var col1 = document.createElement('div')
+    col1.classList.add('col-lg-1')
+    row.appendChild(col1)
+
+    var space = document.createElement('div')
+    space.classList.add('col-lg-10')
+    row.appendChild(space)
+
+    var col3 = document.createElement('div')
+    col3.classList.add('col-lg-1')
+    row.appendChild(col3)
+
+    var btnMPrev = document.createElement('button')
+    btnMPrev.setAttribute('class','btn btn-primary btn-block btn-sm')
+    btnMPrev.setAttribute('id','btnMPrev')
+    btnMPrev.innerHTML = '<span style="font-size:100%">&#x276e;</span>'
+    btnMPrev.disabled = true
+    col1.appendChild(btnMPrev)
+
+    var btnMNext = document.createElement('button')
+    btnMNext.setAttribute('class','btn btn-primary btn-block btn-sm')
+    btnMNext.setAttribute('id','btnMNext')
+    btnMNext.innerHTML = '<span style="font-size:100%">&#x276f;</span>'
+    btnMNext.disabled = true
+    col3.appendChild(btnMNext)
+
+    $('#btnMPrev').click( function() {
+        getMergeIndividuals(merge_individual_prev)
+    });
+
+    $('#btnMNext').click( function() {
+        getMergeIndividuals(merge_individual_next)
+    });
+
+
+    var bigCol2 = document.createElement('div')
+    bigCol2.classList.add('col-lg-3')
+    bigRow.appendChild(bigCol2)
+
+    var h5 = document.createElement('h6')
+    h5.innerHTML = 'Surveys and Annotation Sets:'
+    h5.setAttribute('style','margin-bottom: 2px')
+    bigCol2.appendChild(h5)
+
+    var select = document.createElement('select')
+    select.classList.add('form-control')
+    select.setAttribute('id','mergeTaskSelect')
+    bigCol2.appendChild(select)
+    fillSelect(select, ['All'], ['-1'])
+    select.value = '-1'
+
+    var cbxDiv = document.createElement('div')
+    cbxDiv.setAttribute('class','custom-control custom-checkbox')
+    cbxDiv.setAttribute('style','display: inline-block;')
+    bigCol2.appendChild(cbxDiv)
+
+    var checkbox = document.createElement('input')
+    checkbox.setAttribute('type','checkbox')
+    checkbox.classList.add('custom-control-input')
+    checkbox.setAttribute('id','mutualOnly')
+    checkbox.setAttribute('name','mutualOnly')
+    checkbox.setAttribute('value','mutualOnly')
+    cbxDiv.appendChild(checkbox)
+
+    var label = document.createElement('label')
+    label.classList.add('custom-control-label')
+    label.setAttribute('for','mutualOnly')
+    label.innerHTML = 'Mutual Surveys Only'
+    cbxDiv.appendChild(label)
+
+    $('#mutualOnly').change( function() {
+        getMergeTasks()
+    });
+
+    $('#mergeTaskSelect').change( function() {
+        getMergeIndividuals()
+    });
+
+    bigCol2.appendChild(document.createElement('br'))
+    bigCol2.appendChild(document.createElement('br'))
+
+    var h5 = document.createElement('h6')
+    h5.innerHTML = 'Search:'
+    h5.setAttribute('style','margin-bottom: 2px')
+    bigCol2.appendChild(h5)
+
+    var search = document.createElement('input')
+    search.setAttribute('type','text')
+    search.setAttribute('id','searchMergeIndividuals')
+    search.setAttribute('class','form-control')
+    search.setAttribute('placeholder','Search')
+    bigCol2.appendChild(search)
+
+    bigCol2.appendChild(document.createElement('br'))
+
+    var h5 = document.createElement('h6')
+    h5.innerHTML = 'Order By:'
+    h5.setAttribute('style','margin-bottom: 2px')
+    bigCol2.appendChild(h5)
+
+    
+    var order = document.createElement('select')
+    order.setAttribute('id','orderMergeIndividuals')
+    order.setAttribute('class','form-control')
+    bigCol2.appendChild(order)
+    fillSelect(order, ['Similarity', 'Name'], ['oSim','oName'])
+    order.value = 'oSim'
+
+    bigCol2.appendChild(document.createElement('br'))
+
+
+    $('#searchMergeIndividuals').on('change', function() {
+        getMergeIndividuals()
+    });
+
+    $("#orderMergeIndividuals").change( function() {
+        getMergeIndividuals()
+    });
+
+    getMergeTasks()
+    
+}
+
+
+function cleanupMergeIndividuals(){
+    /** Cleans up the merge individuals modal. */
+
+    var individualMergeDivL = document.getElementById('individualMergeDivL')
+    while(individualMergeDivL.firstChild){
+        individualMergeDivL.removeChild(individualMergeDivL.firstChild);
+    }
+
+    var individualMergeDivR = document.getElementById('individualMergeDivR')
+    while(individualMergeDivR.firstChild){
+        individualMergeDivR.removeChild(individualMergeDivR.firstChild);
+    }
+
+    var mCol1 = document.getElementById('mCol1')
+    while(mCol1.firstChild){
+        mCol1.removeChild(mCol1.firstChild)
+    }
+
+    var mCol2 = document.getElementById('mCol2')
+    while(mCol2.firstChild){
+        mCol2.removeChild(mCol2.firstChild)
+    }
+
+    document.getElementById('btnMerge').hidden = true
+
+    mergeMap = {'L': null, 'R': null}
+    mergeActiveImage = {'L': null, 'R': null}
+    mergeMapReady = {'L': false, 'R': false}
+    mergeMapWidth = {'L': null, 'R': null}
+    mergeMapHeight = {'L': null, 'R': null}
+    mergeImages = {'L': null, 'R': null}
+    mergeSplide = {'L': null, 'R': null}
+    mergeImageIndex = {'L': 0, 'R': 0}
+    addedDetectionsMerge = {'L': false, 'R': false} 
+
+    confirmMerge = false
+    merge_individual_prev = null
+    merge_individual_next = null
+
+}
+
+
+function prepMergeMapIndividual(mapID,divID,image) {
+    /** Initialises the Leaflet image map for the individual ID modal. */
+
+    if (bucketName != null) {
+        mapReady = false
+        imageUrl = "https://"+bucketName+".s3.amazonaws.com/" + modifyToCompURL(image.url)
+        var img = new Image();
+        img.onload = function(){
+            w = this.width
+            h = this.height
+
+            if (w>h) {
+                document.getElementById(divID).setAttribute('style','height: calc(36vw *'+(h/w)+');  width:36vw')               
+            } else {
+                document.getElementById(divID).setAttribute('style','height: calc(36vw *'+(w/h)+');  width:36vw')
+            }
+
+            L.Browser.touch = true
+    
+            mergeMap[mapID] = new L.map(divID, {
+                crs: L.CRS.Simple,
+                maxZoom: 10,
+                center: [0, 0],
+                zoomSnap: 0
+            })
+
+
+            var h1 = document.getElementById(divID).clientHeight
+            var w1 = document.getElementById(divID).clientWidth
+
+    
+            var southWest = mergeMap[mapID].unproject([0, h1], 2);
+            var northEast = mergeMap[mapID].unproject([w1, 0], 2);
+            var bounds = new L.LatLngBounds(southWest, northEast);
+    
+            mergeMapWidth[mapID] = northEast.lng
+            mergeMapHeight[mapID] = southWest.lat
+    
+            addedDetectionsMerge[mapID] = false
+            mergeActiveImage[mapID] = L.imageOverlay(imageUrl, bounds).addTo(mergeMap[mapID]);
+            mergeActiveImage[mapID].on('load', function() {
+                // addedDetectionsMerge[mapID] = false
+                addDetectionsMergeIndividual(mapID,mergeImages[mapID][mergeSplide[mapID].index])
+            });
+            mergeActiveImage[mapID].on('error', function() {
+                if (this._url.includes('-comp')) {
+                    finishedDisplaying = true
+                }
+                else{
+                    this.setUrl("https://"+bucketName+".s3.amazonaws.com/" + modifyToCompURL(mergeImages[mapID][mergeSplide[mapID].index].url))
+                }
+            });
+            mergeMap[mapID].setMaxBounds(bounds);
+            mergeMap[mapID].fitBounds(bounds)
+            mergeMap[mapID].setMinZoom(mergeMap[mapID].getZoom())
+
+            hc = document.getElementById(divID).clientHeight
+            wc = document.getElementById(divID).clientWidth
+
+            mergeMap[mapID].on('resize', function(){
+                if (mergeMap[mapID] != null) {
+                    if(document.getElementById(divID) && document.getElementById(divID).clientHeight){
+                        h1 = document.getElementById(divID).clientHeight
+                        w1 = document.getElementById(divID).clientWidth
+                    }
+                    else{
+                        h1 = hc
+                        w1 = wc
+                    }
+                    
+                    southWest = map.unproject([0, h1], 2);
+                    northEast = map.unproject([w1, 0], 2);
+                    bounds = new L.LatLngBounds(southWest, northEast);
+            
+                    mergeMapWidth[mapID] = northEast.lng
+                    mergeMapHeight[mapID] = southWest.lat
+
+                    mergeMap[mapID].invalidateSize()
+                    mergeMap[mapID].setMaxBounds(bounds)
+                    mergeMap[mapID].fitBounds(bounds)
+                    mergeMap[mapID].setMinZoom(mergeMap[mapID].getZoom())
+                    mergeActiveImage[mapID].setBounds(bounds)
+                    if(checkIfImage(mergeActiveImage[mapID]._url)){
+                        addedDetectionsMerge[mapID] = false
+                        addDetectionsMergeIndividual(mapID,mergeImages[mapID][mergeSplide[mapID].index])  
+                    }  
+                }
+            });
+
+
+            mergeMap[mapID].on('drag', function() {
+                mergeMap[mapID].panInsideBounds(bounds, { animate: false });
+            });
+    
+            mergeDrawnItems[mapID] = new L.FeatureGroup();
+            mergeMap[mapID].addLayer(mergeDrawnItems[mapID]);
+    
+            mergeMap[mapID].on('zoomstart', function() {
+                if (!fullRes) {
+                    if(checkIfImage(mergeActiveImage[mapID]._url)){
+                        mergeActiveImage[mapID].setUrl("https://"+bucketName+".s3.amazonaws.com/" + mergeImages[mapID][mergeSplide[mapID].index].url)
+                        fullRes = true
+                    }
+                }
+            });    
+
+            rectOptions = {
+                color: "rgba(223,105,26,1)",
+                fill: true,
+                fillOpacity: 0.0,
+                opacity: 0.8,
+                weight:3,
+                contextmenu: false,
+            }            
+
+            mergeMapReady[mapID] = true
+        };
+        img.src = imageUrl  
+    }
+}
+
+function updateMergeSlider(mapID, divIDImageSplide, divID) {
+    /** Updates the image slider for the individual modal. */
+    
+    var imageSplide = document.getElementById(divIDImageSplide)
+    while(imageSplide.firstChild){
+        imageSplide.removeChild(imageSplide.firstChild);
+    }
+
+    for (let i=0;i<mergeImages[mapID].length;i++) {
+        img = document.createElement('img')
+        img.setAttribute('src',"https://"+bucketName+".s3.amazonaws.com/" + modifyToCompURL(mergeImages[mapID][i].url))
+        imgli = document.createElement('li')
+        imgli.classList.add('splide__slide')
+        imgli.appendChild(img)
+        imageSplide.appendChild(imgli)
+    }
+
+    if (mergeSplide[mapID]==null) {
+        // Initialise Splide
+        mergeSplide[mapID] = new Splide( document.getElementById(divID), { 
+            rewind      : false,
+            fixedWidth  : 200,
+            fixedHeight : 128,
+            isNavigation: true,
+            keyboard    : true,
+            gap         : 5,
+            pagination  : false,
+            cover       : true,
+            breakpoints : {
+                '600': {
+                    fixedWidth  : 66,
+                    fixedHeight : 40
+                }
+            }
+        } ).mount();
+
+        mergeSplide[mapID].on( 'moved', function() {
+            if (bucketName!=null) {
+                finishedDisplaying = false
+                image = mergeImages[mapID][mergeSplide[mapID].index]
+                if (mapID == 'L') {
+                    document.getElementById('tgInfoMergeL').innerHTML = "Site: " + image.trapgroup.tag
+                    document.getElementById('timeInfoMergeL').innerHTML = image.timestamp
+                } else {
+                    document.getElementById('tgInfoMergeR').innerHTML = "Site: " + image.trapgroup.tag
+                    document.getElementById('timeInfoMergeR').innerHTML = "Timestamp: " + image.timestamp
+                }
+                addedDetectionsMerge[mapID] = false
+                mergeActiveImage[mapID].setUrl("https://"+bucketName+".s3.amazonaws.com/" + modifyToCompURL(image.url))
+            }
+        });
+
+        var track = mergeSplide[mapID].Components.Elements.track
+        mergeSplide[mapID].on( 'click', function(wrapTrack) {
+            return function(event) {
+                mergeImageIndex[mapID] = event.index
+                mergeSplide[mapID].go(mergeImageIndex[mapID])
+            }
+        }(track));
+
+    } else {
+        mergeSplide[mapID].refresh()
+    }
+}
+
+function addDetectionsMergeIndividual(mapID,image) {
+    //** Adds detections to the main image displayed in the individual modal. */
+    if (!addedDetectionsMerge[mapID]) {
+        mergeMap[mapID].setZoom(mergeMap[mapID].getMinZoom())
+        fullRes = false
+        mergeDrawnItems[mapID].clearLayers()
+        for (let i=0;i<image.detections.length;i++) {
+            detection = image.detections[i]
+            if (detection.static == false) {
+                rectOptions.color = "rgba(223,105,26,1)"
+                rect = L.rectangle([[detection.top*mergeMapHeight[mapID],detection.left*mergeMapWidth[mapID]],[detection.bottom*mergeMapHeight[mapID],detection.right*mergeMapWidth[mapID]]], rectOptions)
+                mergeDrawnItems[mapID].addLayer(rect)
+                
+            }
+        }
+        finishedDisplaying[mapID] = true
+        addedDetectionsMerge[mapID] = true
+    }
+}
+
+function getMergeIndividuals(page = null) {
+    /** Gets a page of individuals. Gets the first page if none is specified. */
+    var formData = new FormData()
+    formData.append("individual_id", JSON.stringify(selectedIndividual))
+    task_id = document.getElementById('mergeTaskSelect').value
+    formData.append("task_id", JSON.stringify(task_id))
+    mutualOnly = document.getElementById('mutualOnly').checked 
+    formData.append("mutual", JSON.stringify(mutualOnly))
+    
+
+    request = '/getMergeIndividuals'
+    if (page != null) {
+        request += '?page='+page.toString()
+    }
+    
+    search = document.getElementById('searchMergeIndividuals').value
+    order = document.getElementById('orderMergeIndividuals').value
+    formData.append("search", JSON.stringify(search))
+    formData.append("order", JSON.stringify(order))
+
+    var xhttp = new XMLHttpRequest();
+    xhttp.open("POST", request);
+    xhttp.onreadystatechange =
+    function(){
+        if (this.readyState == 4 && this.status == 200) {
+            reply = JSON.parse(this.responseText);
+
+            var individuals = reply.individuals
+            var mergeIndividualsDiv = document.getElementById('mergeIndividualsDiv')
+
+            
+            while(mergeIndividualsDiv.firstChild){
+                mergeIndividualsDiv.removeChild(mergeIndividualsDiv.firstChild);
+            }
+            
+            var row = document.createElement('div')
+            row.classList.add('row')
+            mergeIndividualsDiv.appendChild(row)
+            runningCount = 0
+            for (let i=0;i<individuals.length;i++) {
+                let newIndividual = individuals[i]
+
+                if (runningCount%3==0) {
+                    runningCount = 0
+                    row = document.createElement('div')
+                    row.classList.add('row')
+                    mergeIndividualsDiv.appendChild(row)
+                    // individualMergeDivR.appendChild(document.createElement('br'))
+                }
+
+                let col = document.createElement('div')
+                col.classList.add('col-lg-4')
+                row.appendChild(col)
+
+                let image = document.createElement('img')
+                image.setAttribute('width','100%')
+                image.src = "https://"+bucketName+".s3.amazonaws.com/" + modifyToCompURL(newIndividual.url)
+                col.appendChild(image)
+
+                let h5 = document.createElement('h5')
+                h5.setAttribute('align','center')
+                h5.setAttribute('style','font-size: 95%;')
+                h5.innerHTML = newIndividual.name
+                col.appendChild(h5)
+
+                image.addEventListener('click', function(individualID,individualName){
+                    return function() {
+                        selectedMergeIndividual = individualID
+                        selectedMergeIndividualName = individualName
+                        viewMergeIndividual()
+                    }
+                }(newIndividual.id,newIndividual.name));
+
+                runningCount += 1
+            }
+
+            if (reply.next==null) {
+                document.getElementById('btnMNext').disabled = true
+                merge_individual_next = null
+            } else {
+                document.getElementById('btnMNext').disabled = false
+                merge_individual_next = reply.next
+            }
+
+            if (reply.prev==null) {
+                document.getElementById('btnMPrev').disabled = true
+                merge_individual_prev = null
+            } else {
+                document.getElementById('btnMPrev').disabled = false
+                merge_individual_prev = reply.prev
+            }
+        }
+    }
+    xhttp.send(formData);
+    
+}
+
+function viewMergeIndividual(){
+    /** Views the selected individual in the merge individuals modal. */
+
+    var individualMergeDivR = document.getElementById('individualMergeDivR')
+
+    while (individualMergeDivR.firstChild) {
+        individualMergeDivR.removeChild(individualMergeDivR.firstChild);
+    }
+
+
+    var mCol2 = document.getElementById('mCol2')
+    while(mCol2.firstChild){
+        mCol2.removeChild(mCol2.firstChild)
+    }
+
+    var formData = new FormData()
+    formData.append("order", JSON.stringify('a1'))
+    formData.append("site", JSON.stringify('0'))
+    formData.append('start_date', JSON.stringify(''))
+    formData.append('end_date', JSON.stringify(''))
+
+    var xhttp = new XMLHttpRequest();
+    xhttp.onreadystatechange =
+    function(){
+        if (this.readyState == 4 && this.status == 200) {
+            reply = JSON.parse(this.responseText);
+
+            mergeImages['R'] =  reply.individual
+
+            var row = document.createElement('div')
+            row.classList.add('row')
+            mCol2.appendChild(row)
+
+            var col1 = document.createElement('div')
+            col1.classList.add('col-lg-11')
+            row.appendChild(col1)
+
+            var col2 = document.createElement('div')
+            col2.classList.add('col-lg-1')
+            row.appendChild(col2)
+            
+            var h5 = document.createElement('h5')
+            h5.innerHTML = 'Individual: ' + selectedMergeIndividualName
+            col1.appendChild(h5)
+
+            var cancelBtn = document.createElement('button')
+            cancelBtn.setAttribute('class','btn btn-primary btn-block btn-sm')
+            cancelBtn.innerHTML = '<i class="fa fa-arrow-left"></i>'
+            cancelBtn.id = 'btnCancelMerge'
+            col2.appendChild(cancelBtn)
+        
+            $('#btnCancelMerge').click( function() {
+                selectedMergeIndividual = null
+                selectedMergeIndividualName = null
+                mergeMap['R'].remove()
+                mergeSplide['R'].destroy()
+                mergeMap['R'] = null
+                mergeSplide['R'] = null
+                mergeActiveImage['R'] = null
+                mergeMapReady['R'] = false
+                mergeMapWidth['R'] = null
+                mergeMapHeight['R'] = null
+                mergeImages['R'] = null
+                addedDetectionsMerge['R'] = false
+                mergeImageIndex['R'] = 0
+                initialiseMergeIndividualsRight()
+            });
+
+            var row = document.createElement('div')
+            row.classList.add('row')
+            individualMergeDivR.appendChild(row)
+
+            var col1 = document.createElement('div')
+            col1.classList.add('col-lg-2')
+            col1.setAttribute('style','padding-right: 0px;')
+            row.appendChild(col1)
+
+            var col2 = document.createElement('div')
+            col2.classList.add('col-lg-10')
+            row.appendChild(col2)
+        
+            var info = document.createElement('div')
+            info.setAttribute('id','tgInfoMergeR')
+            info.setAttribute('style','font-size: 80%;')
+            info.innerHTML = 'Site: ' + mergeImages['R'][0].trapgroup.tag
+            col1.appendChild(info)
+
+            var info2 = document.createElement('div')
+            info2.setAttribute('id','timeInfoMergeR')
+            info2.setAttribute('style','font-size: 80%;')
+            info2.innerHTML = 'Timestamp: '+ mergeImages['R'][0].timestamp
+            col1.appendChild(info2)
+
+            var info3 = document.createElement('div')
+            info3.setAttribute('style','font-size: 80%;')
+            info3.innerHTML = 'Surveys:'
+            col1.appendChild(info3)
+
+            for (let i=0;i<reply.tasks.length;i++) {
+                var info4 = document.createElement('div')
+                info4.setAttribute('style','font-size: 80%;')
+                info4.innerHTML = reply.tasks[i]
+                col1.appendChild(info4)
+            }
+        
+            var mergeMapDivL = document.createElement('div')
+            mergeMapDivL.setAttribute('id','mergeMapDivR')
+            mergeMapDivL.setAttribute('style','height: 750px;')
+            col2.appendChild(mergeMapDivL)
+
+            var card = document.createElement('div')
+            card.classList.add('card')
+            card.setAttribute('style','background-color: rgb(60, 74, 89);margin-top: 5px; margin-bottom: 5px; margin-left: 5px; margin-right: 5px; padding-top: 5px; padding-bottom: 5px; padding-left: 5px; padding-right: 5px')
+            individualMergeDivR.appendChild(card)
+        
+            var body = document.createElement('div')
+            body.classList.add('card-body')
+            body.setAttribute('style','margin-top: 0px; margin-bottom: 0px; margin-left: 0px; margin-right: 0px; padding-top: 0px; padding-bottom: 0px; padding-left: 0px; padding-right: 0px')
+            card.appendChild(body)
+        
+            var splide = document.createElement('div')
+            splide.classList.add('splide')
+            splide.setAttribute('id','splideMR')
+            body.appendChild(splide)
+        
+            var track = document.createElement('div')
+            track.classList.add('splide__track')
+            splide.appendChild(track)
+        
+            var list = document.createElement('ul')
+            list.classList.add('splide__list')
+            list.setAttribute('id','imageSplideMR')
+            track.appendChild(list)
+
+            document.getElementById('btnMerge').hidden = false
+        
+            prepMergeMapIndividual('R','mergeMapDivR',mergeImages['R'][0])
+            updateMergeSlider('R', 'imageSplideMR','splideMR')
+        }
+    }
+    xhttp.open("POST", '/getIndividual/'+selectedMergeIndividual);
+    xhttp.send(formData)
+
+}
+
+$('#btnMerge').click( function() {
+    if (mergeImageOnly){
+        document.getElementById('modalAlertIndividualsHeader').innerHTML = 'Confirmation'
+        document.getElementById('modalAlertIndividualsBody').innerHTML = 'Do you want to merge the selected image from individual '+selectedIndividualName+' into individual '+selectedMergeIndividualName+'?'
+        document.getElementById('btnContinueIndividualAlert').setAttribute('onclick','mergeImage()')
+        document.getElementById('btnCancelIndividualAlert').setAttribute('onclick','modalMergeIndividual.modal({keyboard: true});')
+        modalAlertIndividualsReturn = true
+        modalMergeIndividual.modal('hide')
+        modalAlertIndividuals.modal({keyboard: true});
+    }
+    else{
+        document.getElementById('modalAlertIndividualsHeader').innerHTML = 'Confirmation'
+        // document.getElementById('modalAlertIndividualsBody').innerHTML = 'Do you want to merge individual '+selectedIndividualName+' into individual '+selectedMergeIndividualName+'?'
+        var modalAlertIndividualsBody = document.getElementById('modalAlertIndividualsBody')
+        while(modalAlertIndividualsBody.firstChild){
+            modalAlertIndividualsBody.removeChild(modalAlertIndividualsBody.firstChild)
+        }
+
+        var p = document.createElement('div')
+        p.innerHTML = 'Do you want to merge individual '+selectedIndividualName+' and individual '+selectedMergeIndividualName+'?'
+        p.setAttribute('style','margin-bottom: 2px')
+        modalAlertIndividualsBody.appendChild(p)
+
+        modalAlertIndividualsBody.appendChild(document.createElement('br'))
+
+        var h5 = document.createElement('h5')
+        h5.innerHTML = 'Name'
+        h5.setAttribute('style','margin-bottom: 2px')
+        modalAlertIndividualsBody.appendChild(h5)
+    
+        h5 = document.createElement('div')
+        h5.innerHTML = '<i>Select what name to use for the merged individual.</i>'
+        h5.setAttribute('style','font-size: 80%; margin-bottom: 2px')
+        modalAlertIndividualsBody.appendChild(h5)
+
+        var row = document.createElement('div')
+        row.classList.add('row')
+        modalAlertIndividualsBody.appendChild(row)
+
+        var col1 = document.createElement('div')
+        col1.classList.add('col-lg-6')
+        row.appendChild(col1)
+
+        var col2 = document.createElement('div')
+        col2.classList.add('col-lg-6')
+        row.appendChild(col2)
+    
+        var select = document.createElement('select')
+        select.classList.add('form-control')
+        select.setAttribute('id','mergeIndivName')
+        col1.appendChild(select)
+    
+        fillSelect(select, [selectedIndividualName, selectedMergeIndividualName, 'Custom'], [selectedIndividualName, selectedMergeIndividualName, 'Custom'])
+        select.value = selectedIndividualName
+        
+        var customInput = document.createElement('input')
+        customInput.setAttribute('type','text')
+        customInput.setAttribute('id','customMergeName')
+        customInput.setAttribute('class','form-control')
+        customInput.setAttribute('placeholder','Custom name')
+        customInput.setAttribute('style','display:none')
+        col2.appendChild(customInput)
+
+        select.addEventListener('change', function() {
+            /** Changes the custom name input based on the selected option. */
+            if (select.value == 'Custom') {
+                customInput.style.display = 'block'
+            }
+            else {
+                customInput.style.display = 'none'
+                customInput.value = ''
+            }
+        });
+
+        h5 = document.createElement('div')
+        h5.id = 'mergeIndivNameError'
+        h5.setAttribute('style',"font-size: 80%; color: #DF691A")
+        h5.innerHTML = ''
+        modalAlertIndividualsBody.appendChild(h5)
+        
+        document.getElementById('btnContinueIndividualAlert').setAttribute('onclick','mergeIndividuals()')
+        document.getElementById('btnCancelIndividualAlert').setAttribute('onclick','modalMergeIndividual.modal({keyboard: true});')
+        modalAlertIndividualsReturn = true
+        modalMergeIndividual.modal('hide')
+        modalAlertIndividuals.modal({keyboard: true});
+    }
+});
+
+
+function mergeIndividuals(){
+    /** Merges the selected individual into the selected merge individual. */
+    document.getElementById('btnContinueIndividualAlert').disabled = true
+    confirmMerge = true
+    // modalAlertIndividuals.modal('hide')
+
+    validName = true
+    var name = document.getElementById('mergeIndivName').value
+    if (name == 'Custom') {
+        name = document.getElementById('customMergeName').value
+    }
+    name = name.trim()
+
+    if (name == '') {
+        document.getElementById('mergeIndivNameError').innerHTML = 'Please select a name for the merged individual.'
+        validName = false
+        document.getElementById('btnContinueIndividualAlert').disabled = false
+    }
+    else if (name.toLowerCase() == 'unidentifiable') {
+        document.getElementById('mergeIndivNameError').innerHTML = 'Reserved name. Please select a different name.'
+        validName = false
+        document.getElementById('btnContinueIndividualAlert').disabled = false
+    }
+    else if (name.includes('/') || name.includes('\\')){
+        document.getElementById('mergeIndivNameError').innerHTML = 'Invalid name. Please choose a different name.'
+        validName = false
+        document.getElementById('btnContinueIndividualAlert').disabled = false
+    }
+    else {
+        document.getElementById('mergeIndivNameError').innerHTML = ''
+    }
+
+
+    if (selectedIndividual != null && selectedMergeIndividual != null && validName) {
+
+        var formData = new FormData()
+        formData.append("individual_id1", JSON.stringify(selectedMergeIndividual))
+        formData.append("individual_id2", JSON.stringify(selectedIndividual))
+        formData.append("name", JSON.stringify(name))
+
+        var xhttp = new XMLHttpRequest();
+        xhttp.onreadystatechange =
+        function(){
+            if (this.readyState == 4 && this.status == 200) {
+                reply = JSON.parse(this.responseText);
+                if (reply.status=='error') {
+                    document.getElementById('mergeIndivNameError').innerHTML = reply.message
+                    document.getElementById('btnContinueIndividualAlert').disabled = false
+                }
+                else{
+                    modalAlertIndividuals.modal('hide')
+                    document.getElementById('btnContinueIndividualAlert').disabled = false
+                    cleanupMergeIndividuals()
+                    cleanModalIndividual()
+                    getIndividuals()
+                }
+
+            }
+        }
+        xhttp.open("POST", '/mergeIndividuals');
+        xhttp.send(formData)
+
+    }
+}
+
+function mergeImage(){
+    /** Merges the selected image into the selected individual. */
+    confirmMerge = true
+    modalAlertIndividuals.modal('hide')
+
+    detection_id = individualImages[0].detections[0].id
+    if (selectedIndividual != null && selectedMergeIndividual != null) {
+        var formData = new FormData()
+        formData.append("merge_individual_id", JSON.stringify(selectedMergeIndividual))
+        formData.append("individual_id", JSON.stringify(selectedIndividual))
+        formData.append("detection_id", JSON.stringify(detection_id))
+
+        var xhttp = new XMLHttpRequest();
+        xhttp.onreadystatechange =
+        function(){
+            if (this.readyState == 4 && this.status == 200) {
+                reply = JSON.parse(this.responseText);
+                cleanupMergeIndividuals()
+                cleanModalIndividual()
+                getIndividuals()
+            }
+        }
+        xhttp.open("POST", '/mergeDetectionIntoIndividual');
+        xhttp.send(formData)
+    }
+}
+
+function getMergeTasks(){
+    /** Gets the merge tasks for the selected individual. */
+
+    var mutualOnly = document.getElementById('mutualOnly').checked ? 1 : 0
+
+    var xhttp = new XMLHttpRequest();
+    xhttp.onreadystatechange =
+    function(){
+        if (this.readyState == 4 && this.status == 200) {
+            reply = JSON.parse(this.responseText);
+            // console.log(reply)
+            var select = document.getElementById('mergeTaskSelect')
+            clearSelect(select)
+            fillSelect(select, ['All'], ['-1'])
+            select.value = '-1'
+            for (let i=0;i<reply.tasks.length;i++) {
+                let task = reply.tasks[i]
+                fillSelect(select, [task.name], [task.id])
+            }
+
+            getMergeIndividuals()
+        }
+    }
+    xhttp.open("GET", '/getMergeTasks/'+selectedIndividual + '?mutual='+mutualOnly);
+    xhttp.send();
+}
+
+modalMergeIndividual.on('shown.bs.modal', function(){
+    /** Initialises the merge individuals modal. */
+    if (!modalAlertIndividualsReturn && !helpReturn) {
+        initialiseMergeIndividualsLeft()
+        initialiseMergeIndividualsRight()
+    }
+    else if (modalAlertIndividualsReturn) {
+        modalAlertIndividualsReturn = false
+    }
+    else if (helpReturn) {
+        helpReturn = false
+    }
+})
+
+modalMergeIndividual.on('hidden.bs.modal', function(){
+    /** Clears the merge individuals modal. */
+    if (!modalAlertIndividualsReturn && !helpReturn) {
+        cleanupMergeIndividuals()
+        if (confirmMerge) {
+            cleanModalIndividual()
+            confirmMerge = false
+        }
+        else{
+            modalIndividual.modal({keyboard: true})
+        }
+    }
+})
+
+
+$('#btnConfirmDissociate').click( function() {
+    /** Confirms the dissociation of the selected individual. */
+
+    var removeImg = document.getElementById('removeImg').checked
+    if (removeImg) {
+        if (individualImages.length > 1){
+            modalDissociateImage.modal('hide')
+            removeImage()
+        }
+    }
+    else{
+        if (individualImages.length > 1){
+            cleanupMergeIndividuals()
+            mergeIndividualsOpened = true
+            mergeImageOnly = true
+            mergeImages['L'] = [individualImages[individualSplide.index]]
+            modalDissociateImage.modal('hide')
+            modalMergeIndividual.modal({keyboard: true});
+        }
+    }
+
+})
+
+$('#btnCancelDissociate').click( function() {
+    /** Cancels the dissociation of the selected individual. */
+    modalDissociateImage.modal('hide')
+    document.getElementById('removeImg').checked = true
+    modalIndividual.modal({keyboard: true});
+})
 
 function onload(){
     /**Function for initialising the page on load.*/

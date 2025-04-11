@@ -577,8 +577,8 @@ def editIndividualName():
     individual_id = ast.literal_eval(request.form['individual_id'])
     name = ast.literal_eval(request.form['name'])
     individual = db.session.query(Individual).get(individual_id)
-    if name != '':
-        if individual and all(checkSurveyPermission(current_user.id,task.survey_id,'write') for task in individual.tasks):
+    if name != '' and name.lower() != 'unidentifiable' and not any(c in name for c in ['/','\\']):
+        if individual and individual.active and all(checkSurveyPermission(current_user.id,task.survey_id,'write') for task in individual.tasks):
             check = db.session.query(Individual)\
                             .join(Task,Individual.tasks)\
                             .filter(Individual.species==individual.species)\
@@ -594,7 +594,7 @@ def editIndividualName():
         else:
             error = 'Could not edit individual name.'
     else:
-        error = "Name cannot be empty."
+        error = "Invalid name. Please enter a different name."
 
     return json.dumps({'status': error}) 
 
@@ -825,7 +825,9 @@ def getIndividual(individual_id):
         else:
             access = 'hidden'
 
-    return json.dumps({'individual': reply, 'access': access})
+        tasks = [task.survey.name + ' ' + task.name for task in individual.tasks]
+
+    return json.dumps({'individual': reply, 'access': access, 'tasks': tasks})
 
 @app.route('/getCameraStamps')
 @login_required
@@ -888,7 +890,7 @@ def getTags(individual_id):
 
     reply = []
     individual = db.session.query(Individual).get(individual_id)
-    if individual and any(checkSurveyPermission(current_user.id,task.survey_id,'read') for task in individual.tasks):
+    if individual and individual.active and any(checkSurveyPermission(current_user.id,task.survey_id,'read') for task in individual.tasks):
         tags = db.session.query(Tag).join(Task).filter(Task.individuals.contains(individual)).distinct().all()
         for tag in tags:
             if tag.description not in [r['tag'] for r in reply]:
@@ -905,7 +907,7 @@ def submitTagsIndividual(individual_id):
     tags = ast.literal_eval(request.form['tags'])
     if Config.DEBUGGING: app.logger.info('Submit Individual tags: {}'.format(tags))
 
-    if individual and all(checkSurveyPermission(current_user.id,task.survey_id,'write') for task in individual.tasks):
+    if individual and individual.active and all(checkSurveyPermission(current_user.id,task.survey_id,'write') for task in individual.tasks):
         if tags:
             individual.tags = db.session.query(Tag).join(Task).filter(Task.individuals.contains(individual)).filter(Tag.description.in_(tags)).distinct().all()
         else:
@@ -5770,7 +5772,7 @@ def getIndividualInfo(individual_id):
     individual = db.session.query(Individual).get(individual_id)
 
     # if individual and ((current_user.parent in individual.tasks[0].survey.user.workers) or (current_user.parent == individual.tasks[0].survey.user) or (current_user == individual.tasks[0].survey.user)):
-    if individual and (all(checkAnnotationPermission(current_user.parent_id,task.id) for task in individual.tasks) or any(checkSurveyPermission(current_user.id,task.survey_id,'read') for task in individual.tasks)):
+    if individual and individual.active and (all(checkAnnotationPermission(current_user.parent_id,task.id) for task in individual.tasks) or any(checkSurveyPermission(current_user.id,task.survey_id,'read') for task in individual.tasks)):
 
         # Find all family
         family = []
@@ -7115,7 +7117,7 @@ def assignNote():
             individualID = ast.literal_eval(request.form['individual_id'])
             individual = db.session.query(Individual).get(individualID)
             # if individual and ((current_user.parent in individual.tasks[0].survey.user.workers) or (current_user.parent == individual.tasks[0].survey.user) or (current_user == individual.tasks[0].survey.user)):
-            if individual and (all(checkAnnotationPermission(current_user.parent_id,task.id) for task in individual.tasks) or all(checkSurveyPermission(current_user.id,task.survey_id,'write') for task in individual.tasks)):
+            if individual and individual.active and (all(checkAnnotationPermission(current_user.parent_id,task.id) for task in individual.tasks) or all(checkSurveyPermission(current_user.id,task.survey_id,'write') for task in individual.tasks)):
                 if len(note) > 512:
                     note = note[:512]
                 individual.notes = note
@@ -9973,7 +9975,7 @@ def getIndividualAssociations(individual_id, order):
             task_ids.append(task.id)
             survey_ids.append(task.survey_id)
 
-    if individual and task_ids:
+    if individual and individual.active and task_ids:
 
         clusterSQ = db.session.query(Cluster)\
             .join(Task)\
@@ -14841,3 +14843,353 @@ def cancelRestore(survey_id):
         status = 'success'
         
     return json.dumps(status)
+
+@app.route('/getMergeIndividuals', methods=['POST'])
+@login_required
+def getMergeIndividuals():
+    '''Returns a paginated dictionary of all individuals a selected individual can be merged with'''
+
+    individual_id = request.form['individual_id']
+    search = ast.literal_eval(request.form['search'])
+    order = ast.literal_eval(request.form['order'])
+    mutual = False
+    if 'mutual' in request.form:
+        mutual = True if request.form['mutual'] == 'true' else False
+    task_id = None
+    if 'task_id' in request.form:
+        task_id = ast.literal_eval(request.form['task_id'])
+        if task_id is None or int(task_id) < 0: task_id = None
+        
+    page = request.args.get('page', 1, type=int)
+
+    if Config.DEBUGGING: app.logger.info('Get merge individuals for individual: {}'.format(individual_id))
+
+    reply = []
+    next = None
+    prev = None
+    individual = db.session.query(Individual).get(individual_id)
+    if individual and individual.active==True and all(checkSurveyPermission(current_user.id,task.survey_id,'write') for task in individual.tasks):
+        species = individual.species
+            
+        IndividualTask = alias(Task)
+        mutual_tasks = db.session.query(Task.id, Task.survey_id)\
+                            .join(Individual,Task.individuals)\
+                            .join(IndividualTask,Individual.tasks)\
+                            .filter(IndividualTask.c.id.in_([t.id for t in individual.tasks]))\
+                            .distinct().all()
+
+        mutual_tids = [r[0] for r in mutual_tasks]
+        mutual_sids = [r[1] for r in mutual_tasks]
+        mutual_sids = list(set(mutual_sids))
+
+        tasks = surveyPermissionsSQ(db.session.query(Task.id)\
+                                .join(Survey)\
+                                .filter(Task.status.in_(['SUCCESS', 'Stopped', 'Ready']))\
+                                ,current_user.id,'write')
+
+        if task_id:
+            tasks = tasks.filter(Task.id==task_id).distinct().all()
+            task_ids = [r[0] for r in tasks]
+        elif mutual:
+            tasks = tasks.filter(Task.id.in_(mutual_tids)).distinct().all()
+            task_ids = [r[0] for r in tasks]
+        else:
+            exclude_tasks = db.session.query(Task.id)\
+                            .join(Individual,Task.individuals)\
+                            .join(IndividualTask,Individual.tasks)\
+                            .filter(IndividualTask.c.survey_id.in_(mutual_sids))\
+                            .filter(IndividualTask.c.id.notin_(mutual_tids))\
+                            .distinct().subquery()
+
+            tasks = tasks.outerjoin(exclude_tasks, Task.id==exclude_tasks.c.id)\
+                            .filter(exclude_tasks.c.id==None)\
+                            .distinct().all()
+
+            task_ids = [r[0] for r in tasks]                   
+
+        best_image_sq = rDets(db.session.query(Individual.id, func.max(Image.detection_rating).label('max_rating'))\
+                                    .join(Detection,Individual.detections)\
+                                    .join(Image)\
+                                    .group_by(Individual.id)).subquery()                       
+
+        individuals = rDets(db.session.query(Individual.id, Individual.name, Image.filename, Camera.path)\
+                            .join(Detection,Individual.detections)\
+                            .join(best_image_sq, best_image_sq.c.id==Individual.id)\
+                            .join(Image, and_(Image.id==Detection.image_id,Image.detection_rating==best_image_sq.c.max_rating))\
+                            .join(Camera)\
+                            .join(Task,Individual.tasks)\
+                            .filter(Task.id.in_(task_ids))\
+                            .filter(Task.status.in_(['SUCCESS', 'Stopped', 'Ready']))\
+                            .filter(Individual.name!='unidentifiable')\
+                            .filter(Individual.active==True)\
+                            .filter(Individual.species==species)\
+                            .filter(Individual.id!=individual_id))
+
+        searches = re.split('[ ,]',search)
+        for search in searches:
+            individuals = individuals.filter(Individual.name.contains(search))
+
+        if order == 'oSim':
+            individuals = individuals.outerjoin(IndSimilarity, or_(IndSimilarity.individual_1==individual.id,IndSimilarity.individual_2==individual.id))\
+                            .order_by(IndSimilarity.score.desc())
+        else:
+            individuals = individuals.order_by(Individual.name)
+
+        individuals = individuals.group_by(Individual.id).distinct().paginate(page, 12, False)
+
+        for individual in individuals.items:
+            id = individual[0]
+            name = individual[1]
+            filename = individual[2]
+            path = individual[3]
+            reply.append({
+                'id': id,
+                'name': name,
+                'url': (path + '/' + filename).replace('+','%2B').replace('?','%3F').replace('#','%23').replace('\\','%5C')
+            })
+
+        next = individuals.next_num if individuals.has_next else None
+        prev = individuals.prev_num if individuals.has_prev else None
+
+    return json.dumps({'individuals': reply, 'next':next, 'prev':prev})
+
+@app.route('/mergeIndividuals', methods=['POST'])
+@login_required
+def mergeIndividuals():
+    '''Merges two individuals together'''
+
+    individual_id1 = ast.literal_eval(request.form['individual_id1'])
+    individual_id2 = ast.literal_eval(request.form['individual_id2'])
+    name = ast.literal_eval(request.form['name'])
+    individual1 = db.session.query(Individual).get(individual_id1)
+    individual2 = db.session.query(Individual).get(individual_id2)
+    status = 'error'
+    msg = 'An error occurred while merging the individuals. Please try again.'
+    if individual1 and individual2 and individual1.active==True and individual2.active==True and all(checkSurveyPermission(current_user.id,task.survey_id,'write') for task in individual1.tasks) and all(checkSurveyPermission(current_user.id,task.survey_id,'write') for task in individual2.tasks):
+        
+        if not name or name == '' or name.lower() == 'unidentifiable' or any(c in name for c in ['/','\\']): 
+            status = 'error'
+            msg = "Please enter a valid name for the merged individual."
+            return json.dumps({'status': status, 'message': msg})
+
+        if name and name!= individual1.name and name!= individual2.name:
+            check = db.session.query(Individual)\
+                .join(Task,Individual.tasks)\
+                .filter(Individual.species==individual1.species)\
+                .filter(Individual.name==name)\
+                .filter(Task.id.in_([r.id for r in individual1.tasks]))\
+                .first()
+            if check:
+                status = 'error'
+                msg = "Duplicate name detected. Please enter a different name."
+                return json.dumps({'status': status, 'message': msg})
+        
+        individual1.active = False
+        individual2.active = False
+        db.session.commit()
+        
+        if Config.DEBUGGING: app.logger.info('Individual {} combined into individual {}'.format(individual2.name,individual1.name))
+
+        if individual2.notes != individual1.notes:
+            if individual1.notes==None:
+                individual1.notes = individual2.notes
+            elif individual2.notes==None:
+                pass
+            else:
+                individual1.notes += individual2.notes
+
+        for child in individual2.children[:]:
+            if child not in individual1.children[:]:
+                individual1.children.append(child)
+
+        for parent in individual2.parents[:]:
+            if parent not in individual1.parents[:]:
+                individual1.parents.append(parent)
+
+        for tag in individual2.tags[:]:
+            if tag not in individual1.tags[:]:
+                individual1.tags.append(tag)
+
+        individual1.detections.extend(individual2.detections)
+        individual1.user_id = current_user.id
+        individual1.timestamp = datetime.utcnow()
+    	
+        task_ids = [task.id for task in individual1.tasks]
+        task_ids.extend([task.id for task in individual2.tasks])
+        individual1.tasks = db.session.query(Task)\
+                            .join(Survey)\
+                            .join(Trapgroup)\
+                            .join(Camera)\
+                            .join(Image)\
+                            .join(Detection)\
+                            .filter(Detection.individuals.contains(individual1))\
+                            .filter(Task.id.in_(task_ids))\
+                            .distinct().all()
+
+        allSimilarities = db.session.query(IndSimilarity).filter(or_(IndSimilarity.individual_1==individual2.id,IndSimilarity.individual_2==individual2.id)).distinct().all()
+        for similarity in allSimilarities:
+            db.session.delete(similarity)
+        individual2.tags = []
+        individual2.detections = []
+        individual2.children = []
+        individual2.parents = []
+        individual2.tasks = []
+        db.session.delete(individual2)
+
+        individual1.name = name if name else individual1.name
+        individual1.active = True
+        db.session.commit()
+
+        individuals2 = [r[0] for r in db.session.query(Individual.id)\
+                                                    .join(Task,Individual.tasks)\
+                                                    .join(IndSimilarity, or_(IndSimilarity.individual_1==Individual.id,IndSimilarity.individual_2==Individual.id))\
+                                                    .filter(Task.id.in_([task.id for task in individual1.tasks]))\
+                                                    .filter(Individual.species==individual1.species)\
+                                                    .filter(Individual.name!='unidentifiable')\
+                                                    .filter(Individual.id != individual1.id)\
+                                                    .filter(or_(IndSimilarity.individual_1==individual1.id,IndSimilarity.individual_2==individual1.id))\
+                                                    .all()]
+
+        calculate_individual_similarity.delay(individual1=individual1.id,individuals2=individuals2,species=individual1.species)
+
+        status = 'success'
+        msg = 'Individuals have been merged successfully.'
+
+        return json.dumps({'status': status, 'message': msg})
+
+    return json.dumps({'status': status, 'message': msg})
+
+@app.route('/mergeDetectionIntoIndividual', methods=['POST'])
+@login_required
+def mergeDetectionIntoIndividual():
+    '''Merges a detection into an individual'''
+
+    detection_id = request.form['detection_id']
+    individual_id = request.form['individual_id']
+    merge_indiviudal_id = request.form['merge_individual_id']
+
+    detection = db.session.query(Detection).get(detection_id)
+    individual = db.session.query(Individual).get(individual_id)
+    merge_individual = db.session.query(Individual).get(merge_indiviudal_id)
+
+    if detection and individual and merge_individual and individual.active==True and merge_individual.active==True and  all(checkSurveyPermission(current_user.id,task.survey_id,'write') for task in individual.tasks) and all(checkSurveyPermission(current_user.id,task.survey_id,'write') for task in merge_individual.tasks):
+        individual.active = False
+        merge_individual.active = False
+        db.session.commit()
+        if Config.DEBUGGING: app.logger.info('Detection {} merged into individual {}'.format(detection.id,merge_individual.id))
+
+        if detection in individual.detections:
+            individual.detections.remove(detection)
+
+        if detection not in merge_individual.detections:
+            merge_individual.detections.append(detection)
+
+        task_ids = [task.id for task in individual.tasks]
+        task_ids.extend([task.id for task in merge_individual.tasks])
+
+        individual.tasks = db.session.query(Task)\
+                                    .join(Survey)\
+                                    .join(Trapgroup)\
+                                    .join(Camera)\
+                                    .join(Image)\
+                                    .join(Detection)\
+                                    .filter(Detection.individuals.contains(individual))\
+                                    .filter(Task.id.in_(task_ids))\
+                                    .distinct().all()
+
+        merge_individual.tasks = db.session.query(Task)\
+                                    .join(Survey)\
+                                    .join(Trapgroup)\
+                                    .join(Camera)\
+                                    .join(Image)\
+                                    .join(Detection)\
+                                    .filter(Detection.individuals.contains(merge_individual))\
+                                    .filter(Task.id.in_(task_ids))\
+                                    .distinct().all()
+
+        individual.active = True
+        merge_individual.active = True
+        
+        db.session.commit()
+
+        individuals1 = [r[0] for r in db.session.query(Individual.id)\
+                                                    .join(Task,Individual.tasks)\
+                                                    .join(IndSimilarity, or_(IndSimilarity.individual_1==Individual.id,IndSimilarity.individual_2==Individual.id))\
+                                                    .filter(Task.id.in_([task.id for task in individual.tasks]))\
+                                                    .filter(Individual.species==individual.species)\
+                                                    .filter(Individual.name!='unidentifiable')\
+                                                    .filter(Individual.id != individual.id)\
+                                                    .filter(or_(IndSimilarity.individual_1==individual.id,IndSimilarity.individual_2==individual.id))\
+                                                    .all()]
+        calculate_individual_similarity.delay(individual1=individual.id,individuals2=individuals1,species=individual.species)
+        
+        individuals2 = [r[0] for r in db.session.query(Individual.id)\
+                                            .join(Task,Individual.tasks)\
+                                            .join(IndSimilarity, or_(IndSimilarity.individual_1==Individual.id,IndSimilarity.individual_2==Individual.id))\
+                                            .filter(Task.id.in_([task.id for task in merge_individual.tasks]))\
+                                            .filter(Individual.species==merge_individual.species)\
+                                            .filter(Individual.name!='unidentifiable')\
+                                            .filter(Individual.id != merge_individual.id)\
+                                            .filter(or_(IndSimilarity.individual_1==merge_individual.id,IndSimilarity.individual_2==merge_individual.id))\
+                                            .all()]
+        if merge_individual.id in individuals1 and individual.id in individuals2: individuals2.remove(individual.id)
+        calculate_individual_similarity.delay(merge_individual=individual.id,individuals2=individuals2,species=merge_individual.species)
+
+        return json.dumps({'status': 'success'})
+
+    return json.dumps({'status': 'error'})
+
+@app.route('/getMergeTasks/<individual_id>')
+@login_required
+def getMergeTasks(individual_id):
+    '''Returns a paginated dictionary of all tasks where other individuals can be merged into the selected individual'''
+    mutual = request.args.get('mutual', 0, type=int)
+    mutual = True if mutual == 1 else False
+    task_info = []
+    individual = db.session.query(Individual).get(individual_id)
+    if individual and individual.active==True and all(checkSurveyPermission(current_user.id,task.survey_id,'write') for task in individual.tasks):
+        species = individual.species                 
+        IndividualTask = alias(Task)
+        mutual_tasks = db.session.query(Task.id, Survey.id)\
+                            .join(Survey)\
+                            .join(Individual,Task.individuals)\
+                            .join(IndividualTask,Individual.tasks)\
+                            .filter(IndividualTask.c.id.in_([t.id for t in individual.tasks]))\
+                            .distinct().all()
+
+        task_ids = [r[0] for r in mutual_tasks]
+        survey_ids = [r[1] for r in mutual_tasks]
+        survey_ids = list(set(survey_ids))
+
+        if mutual:
+            tasks = surveyPermissionsSQ(db.session.query(Task.id, Task.name, Survey.name, Survey.id)\
+                                .join(Survey)\
+                                .join(Individual,Task.individuals)\
+                                .filter(Task.status.in_(['SUCCESS', 'Stopped', 'Ready']))\
+                                .filter(Individual.species==species)\
+                                .filter(Task.id.in_(task_ids))\
+                                ,current_user.id,'write').distinct().all()
+        else:
+            exclude_tasks = db.session.query(Task.id)\
+                            .join(Individual,Task.individuals)\
+                            .join(IndividualTask,Individual.tasks)\
+                            .filter(IndividualTask.c.survey_id.in_(survey_ids))\
+                            .filter(IndividualTask.c.id.notin_(task_ids))\
+                            .distinct().subquery()
+
+            tasks = surveyPermissionsSQ(db.session.query(Task.id, Task.name, Survey.name, Survey.id)\
+                                .join(Survey)\
+                                .join(Individual,Task.individuals)\
+                                .outerjoin(exclude_tasks, Task.id==exclude_tasks.c.id)\
+                                .filter(Task.status.in_(['SUCCESS', 'Stopped', 'Ready']))\
+                                .filter(Individual.species==species)\
+                                .filter(exclude_tasks.c.id==None)\
+                                ,current_user.id,'write').distinct().all()
+                                    
+        for task in tasks:
+            task_info.append({
+                'id': task[0],
+                'name': task[2] + ' - ' + task[1],
+            })
+
+    return json.dumps({'tasks': task_info})

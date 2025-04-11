@@ -220,7 +220,9 @@ limitations under the License. -->
                     <div class="col-lg-1"></div>
                     <div class="col-lg-2">
                         <button id='btnDelIndiv' class="btn btn-danger btn-block" style="margin-top: 2px; margin-bottom: 2px;">Delete Individual</button>
-                        <button id='btnRemoveImg' class="btn btn-danger btn-block" style="margin-top: 2px; margin-bottom: 2px;">Remove Image</button>
+                        <button id='btnRemoveImg' class="btn btn-danger btn-block" style="margin-top: 2px; margin-bottom: 2px;">Dissociate Image</button>
+                        <button id='btnMergeIndiv' class="btn btn-danger btn-block" style="margin-top: 2px; margin-bottom: 2px;">Merge Individual</button>
+                        <!-- <button id='btnMergeImg' class="btn btn-danger btn-block" style="margin-top: 2px; margin-bottom: 2px;">Merge Image</button> -->
                         <button class='btn btn-primary btn-block' id="btnSubmitInfoChange" style="margin-top: 2px; margin-bottom: 2px;">Submit Changes</button>
                         <br>
 
@@ -390,7 +392,7 @@ limitations under the License. -->
               </div>
 
               <div class='col-lg-3'>
-                  <button id="btnContinueIndividualAlert" type='button' class='btn btn-danger btn-block' data-dismiss='modal'>Continue</button>
+                  <button id="btnContinueIndividualAlert" type='button' class='btn btn-danger btn-block'>Continue</button>
               </div>
 
           </div>
@@ -546,6 +548,135 @@ limitations under the License. -->
 
             </div>
         </div>
+    </div>
+</div>
+
+<!-- Individuals Merge Modal -->
+<div id="modalMergeIndividual" class="modal fade" role="dialog" tabindex="-1">
+    <div class="modal-dialog" style="max-width: 95%;">
+        <div class="modal-content">
+              <div class="modal-header">
+                  <div class='col-lg-11' style="padding: 0px">
+                      <h4 class="modal-title"></h4>                   
+                  </div>
+                <div class='col-lg-1' style="padding: 0px">
+                    <div class="row">
+                        <div class='col-lg-6' style="padding: 0px">
+                            <button class='btn btn-primary btn-sm pull-right' onclick="helpOpen('merge_individual')">Help</button>
+                        </div>
+                        <div class='col-lg-5' style="padding: 0px">
+                            <button id="helpx" type="button" class="close" data-dismiss="modal">&times;</button>
+                        </div>
+                        <div class='col-lg-1' style="padding: 0px"></div>
+                    </div>
+                </div>
+            </div>
+            <div class="modal-body" style="min-height:400px">
+                <div class="row">
+                    <div class="col-lg-6">
+                        <div id="mCol1" style="margin-bottom: 2px;"></div>
+                        <div id="individualMergeDivL"></div>
+                    </div>
+                    <div class="col-lg-6">
+                        <div id="mCol2" style="margin-bottom: 2px;"></div>
+                        <div id="individualMergeDivR"></div>
+                    </div>
+                </div>
+            </div>
+            <div class='modal-footer'>
+                <div class='col-lg-1'>
+                    <button id="btnMerge" type='button' class='btn btn-primary btn-block' hidden>Merge</button>
+                </div>
+                <div class='col-lg-1'>
+                    <button id="btnCloseMerge" type='button' class='btn btn-info btn-block' data-dismiss='modal'>Close</button>
+                </div>
+            </div>
+        </div>
+  
+    </div>
+  </div>
+
+
+  <!-- Modal 1 -->
+<!-- <div id="modalMergeIndividualLeft" class="modal fade" role="dialog" tabindex="-1" data-backdrop="static">
+    <div class="modal-dialog" style="max-width: 40%; position: fixed; top: 5%; left: 5%; margin: 0;">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h4 class="modal-title">Left Content</h4>
+                <button id="helpx1" type="button" class="close" data-dismiss="modal">&times;</button>
+            </div>
+            <div class="modal-body">
+                <div id="mCol1"></div>
+                <div id="individualMergeDivL"></div>
+            </div>
+            <div class="modal-footer">
+                <button type='button' class='btn btn-info' data-dismiss='modal'>Close</button>
+            </div>
+        </div>
+    </div>
+</div> -->
+
+<!-- Modal 2 -->
+<!-- <div id="modalMergeIndividualRight" class="modal fade" role="dialog" tabindex="-1" data-backdrop="static">
+    <div class="modal-dialog" style="max-width: 40%; position: fixed; top: 5%; right: 5%; margin: 0;">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h4 class="modal-title">Right Content</h4>
+                <button id="helpx2" type="button" class="close" data-dismiss="modal">&times;</button>
+            </div>
+            <div class="modal-body">
+                <div id="mCol2"></div>
+                <div id="individualMergeDivR"></div>
+            </div>
+            <div class="modal-footer">
+                <div class='col-lg-1'>
+                    <button id="btnMerge" type='button' class='btn btn-primary btn-block' hidden>Merge</button>
+                </div>
+                <div class='col-lg-1'>
+                    <button type='button' class='btn btn-info btn-block' data-dismiss='modal'>Close</button>
+                </div>
+            </div>
+        </div>
+    </div>
+</div> -->
+
+
+  <!-- Individual alert Modal -->
+<div id="modalDissociateImage" class="modal fade" role="dialog" tabindex="-1">
+    <div class="modal-dialog">
+  
+        <!-- Modal content-->
+        <div class="modal-content">
+            <div class="modal-header">
+                <h4 class="modal-title">Dissociate Image</h4>
+                <button id="helpx" type="button" class="close" data-dismiss="modal">&times;</button>
+            </div>
+            <div class="modal-body">
+                <div id="divDissociateImage">
+                    <div style="font-size: 80%; margin-bottom: 2px"><i>Dissociating an image will remove the image from the individual it is currently associated with. You can either create a new individual for the image or move it to an existing individual.</i></div>
+                    <div class="custom-control custom-radio custom-control-inline">
+                        <input type="radio" class="custom-control-input" id="removeImg" name="dissociateImage" value='new' checked>
+                        <label class="custom-control-label" for="removeImg">Create New Individual</label>
+                    </div>
+                    <div class="custom-control custom-radio custom-control-inline">
+                        <input type="radio" class="custom-control-input" id="moveImg" name="dissociateImage" value='move'>
+                        <label class="custom-control-label" for="moveImg">Move to Existing Individual</label>
+                    </div> 
+                </div>
+            </div>
+            <div class='modal-footer'>
+  
+                <div class='col-lg-3'>
+                    <button id="btnCancelDissociate" type='button' class='btn btn-info btn-block' data-dismiss='modal'>Cancel</button>
+                </div>
+  
+                <div class='col-lg-3'>
+                    <button id="btnConfirmDissociate" type='button' class='btn btn-danger btn-block' data-dismiss='modal'>Confirm</button>
+                </div>
+  
+            </div>
+        </div>
+  
     </div>
 </div>
 
