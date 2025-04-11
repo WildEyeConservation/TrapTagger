@@ -4870,3 +4870,14 @@ def maskSky(survey_id,sky_masked,edge):
     db.session.commit()
 
     return True
+
+def get_utc_offset(lat,lon):
+    '''Returns a timedelta object for the current time zone of a given set of coordinates'''
+    try:
+        tf = timezonefinder.TimezoneFinder()
+        timezone_str = tf.timezone_at(lat=lat, lng=lon)
+        tz = pytz.timezone(timezone_str)
+        offset = datetime.utcnow().astimezone(tz).utcoffset()
+    except:
+        offset = timedelta(hours=0)
+    return offset

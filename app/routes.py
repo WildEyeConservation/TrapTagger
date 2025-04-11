@@ -14057,7 +14057,7 @@ def addImage():
             altitude = data.get('altitude', 0)
             camera = data.get('camera')
 
-            timestamp = data.get('timestamp')
+            timestamp = data.get('timestamp') #timestamp must be in UTC!
             if timestamp:
                 try:
                     timestamp = datetime.strptime(timestamp, '%Y-%m-%d %H:%M:%S')
@@ -14198,6 +14198,12 @@ def addImage():
                         # Check timestamp is not corrupt
                         if timestamp and (timestamp>(datetime.utcnow()+timedelta(hours=14))): timestamp = None
                         if timestamp and (timestamp.year<2000): timestamp = None
+
+                        # If all else fails, use the current time for the timestamp
+                        if timestamp==None: timestamp=datetime.utcnow()
+
+                        # Received timestamp will be in UTC need to convert to local time based on coords - everything falls back to UTC
+                        if latitude and longitude: timestamp = timestamp + get_utc_offset(latitude,longitude)
 
                         if not trapgroup:
                             trapgroup = Trapgroup(survey_id=survey_id, tag=site_name, latitude=latitude, longitude=longitude, altitude=altitude)
