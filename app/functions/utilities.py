@@ -1929,3 +1929,28 @@ def crop_restored_images(self,csv_key,CROPS_BUCKET):
     app.logger.info('Done!')
 
     return True
+
+def check_upload_pings():
+    ''' Prints a list of surveys with upload pings. '''
+    db.session.remove()
+    redisKeys = [r.decode() for r in GLOBALS.redisClient.keys()]
+    uploads = [r for r in redisKeys if 'upload_ping'in r]
+    survey_ids = [r.split('_')[-1] for r in uploads]	
+    survey_ids = list(set(survey_ids))
+    surveys = db.session.query(Survey.id, Survey.name).filter(Survey.id.in_(survey_ids)).all()
+    print('There are %s surveys with upload pings' % len(surveys))
+    print('Survey IDs: %s' % [r[0] for r in surveys])
+    print('Survey names: %s' % [r[1] for r in surveys])
+    return True
+
+def check_active_users(minutes=15):
+    ''' Prints a list of active users in the last x minutes. '''
+    db.session.remove()
+    date = datetime.now() - timedelta(minutes=minutes)
+    users = [r[0] for r in db.session.query(User.id).filter(User.last_ping>date).filter(User.parent_id==None).distinct().all()]
+    workers = [r[0] for r in db.session.query(User.parent_id).filter(User.last_ping>date).filter(User.parent_id!=None).distinct().all()]
+    users.extend(workers)
+    users = list(set(users))
+    print('There are %s active users' % len(users))
+    print('Users: %s' % [r[0] for r in db.session.query(User.username).filter(User.id.in_(users)).all()])
+    return True

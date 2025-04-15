@@ -392,6 +392,7 @@ def clean_up_redis():
                             GLOBALS.redisClient.delete(key)
                 except:
                     GLOBALS.redisClient.delete(key)
+                    raise 
                 
     except Exception as exc:
         app.logger.info(' ')

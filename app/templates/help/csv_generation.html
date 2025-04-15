@@ -19,13 +19,12 @@ limitations under the License. -->
 </p>
 
 <p align="justify">
-    Begin by adding any additional surveys to your currently selected survey. Next, you can select what each row in the csv file represents: image, capture (a multi image burst taken at 
-    a single timestamp by a single camera), cluster, camera, site, or survey. Thereafter, you can select how multiple label images/clusters etc. are handled.
+    Begin by selecting what each row in the csv file represents: image, capture (a multi image burst taken at a single timestamp by a single camera), cluster, camera, or site.
+    Thereafter, you can select how multiple label images/clusters etc. are handled.
 </p>
 
 <ul>
-    <li>List: The multiple labels are included as a list of labels in a single column</li>
-    <li>Columns: The multiple labels are included as a number of separate columns. This is the default.</li>
+    <li>List: The multiple labels are included as a list of labels in a single column. This is the default option.</li>
     <li>Rows: The unit of data (eg. image) is listed multiple times. Once with each label.</li>
 </ul>
 
@@ -42,49 +41,42 @@ limitations under the License. -->
 
 <p align="justify">
     Next, you can generate some custom columns if you wish. These are typically used to generate unique image/capture/cluster identifiers into a pre-existing database. Begin by 
-    selecting "add column" and give that column a name. You can then add a number of pieces of information (using the blue plus button) that will be combined to make your column. Each piece of information 
-    consists of a data unit (level) and associated information (data). In the custom column field you can additionally just add a text field for adding your own text information. 
-    These text fields will then become available (on a per-annotation set basis) when you add your custom column to the columns section.
+    selecting "add column" and give that column a name. You can then add a number of pieces of information (using the blue plus button) that will be combined to make your column. 
+    In the custom column field you can additionally just add a text field for adding your own text information. 
 </p>
 
 <p align="justify">
-    Finally, you can then select your columns of information for each row (image/cluster etc.). As above, this is done by first selecting a data unit (level), and information relating to 
-    that unit (data). For example, if you wish to add site coordinates, you select site (level) and latitude (data) for the first column, and then site (level) and longitude (data) for the second 
-    column.
+    Finally, you can then select your columns of information for each row (image/cluster etc.). By default a name is given to the column based on what you have selected but you can edit the 
+    column name to fit your needs. 
 </p>
 
 <p align="justify">
-    Note that you can add columns pertaining to the currently-selected row level, or higher. In other words, you can have survey-level information such as the survey name, 
-    added to your image-level rows, but you can't have image-level information such as the image name, added to survey-level rows. Also Note that the column in your csv file 
+    Note that you can add columns pertaining to the currently-selected row level, or higher. In other words, you can have site-level information such as the site name, 
+    added to your image-level rows, but you can't have image-level information such as the image name, added to site-level rows. Also note that the columns in your csv file 
     will match the order in which you stipulate your columns here.
 </p>
 
 <div>The information columns you can add are as follows:</div>
 <ul>
-    <li>Image: Name, ID, Species Count, Labels, Sighting Count, Tags, Timestamp, URL, Individuals, Original Timestamp</li>
-    <li>Capture: Number, ID, Species Count, Labels, Sighting Count, Tags, Timestamp, Image Count, URL, Individuals</li>
-    <li>Cluster: ID, Species Count, Labels, Sighting Count, Tags, Notes, Image Count, URL, Individuals</li>
-    <li>Camera: ID, Species Count, Labels, Tags, Animal Count, Image Count, URL, Individuals</li>
-    <li>Site: Name, Species Count, Labels, Tags, Latitude, Longitude, Altitude, Animal Count, Image Count, URL, Individuals</li>
-    <li>Survey: Name, Species Count, Labels, Tags, Description, Animal Count, Image Count, URL, Individuals</li>
+    <li>Sighting: Sighting ID, Boxes, Flank, Sighting Count, Timestamp, Original Timestamp, Annotator</li>
+    <li>Image: File, Image ID, Image URL, Video Path, Sighting Count, Timestamp, Original Timestamp, Annotator</li>
+    <li>Capture: Capture Number, Capture ID, Capture URL, Sighting Count, Timestamp, Original Timestamp, Annotator</li>
+    <li>Cluster: Cluster ID, Cluster URL, Notes, Sighting Count, Timestamp, Original Timestamp, Annotator</li>
+    <li>Camera: Camera Name</li>
+    <li>Site: Site Name, Latitude, Longitude, Altitude</li>
+    <li>All: Species, Informational Tags, Individuals, Survey Name</li>
 </ul>
-<br>
 
 <div align="justify">
     Besides the (hopefully) self-explanatory columns, the columns are defined as follows:
 </div>
 <ul>
-    <li>Species Count: The count of the sightings (boxes) of the selected species in each data unit. These will appear as separate species-specific headings such as "lion_count". You 
-        can also select to have columns for all species. Note that any count for a parent category will be the number of skipped images (unknown) in that category, rather than the total number of 
-        images in that category.</li>
     <li>Sighting Count: The count of the sightings (boxes) in the data unit regardless of species.</li>
     <li>URL: A link you can follow to view the particular image/cluster etc. behind the login page of the website.</li>
-    <li>Image Count: The total number of images in the survey/site/camera/cluster/capture.</li>
-    <li>Animal Count: The number of images containing animals in the survey/trapgroup/camera. This excludes Vehicles/Humans/Livestock.</li>
+    <li>Boxes: The bounding box of the sighting in the image. This contains the Left, Top, Right, Bottom coordinates of the box.</li>
 </ul>
 
 <p align="justify">
-    Please note that the CSV file might take a while to generate, especially for larger surveys. You cannot navigate away from this page until the download has completed.
-    Also note that any requests for a different CSV format for the same annotation set 
-    will overwrite any previous CSVs. So you must wait until your CSV is downloaded before requesting another one for the same annotation set.
+    Please note that the CSV file might take a while to generate, especially for larger surveys. Once the CSV file is generated, it will be available for one week for 
+    you to download from the Downloads dropdown menu. You can only generate one CSV file at a time for a given annotation set.
 </p>

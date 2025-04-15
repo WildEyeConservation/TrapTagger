@@ -10061,7 +10061,7 @@ def getAllLabelsTagsSitesAndGroups():
     sites_data = []
     sites_ids = []
     unique_sites = {}
-    if task_ids:
+    if task_ids and task_ids != '-1':
         if task_ids[0] == '0':
             labels = [r[0] for r in surveyPermissionsSQ(db.session.query(Label.description).join(Task).join(Survey),current_user.id,'read').distinct().all()]
             tags = [r[0] for r in surveyPermissionsSQ(db.session.query(Tag.description).join(Task).join(Survey),current_user.id,'read').distinct().all()]
