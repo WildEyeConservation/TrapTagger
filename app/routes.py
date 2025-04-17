@@ -36,7 +36,7 @@ from app.forms import LoginForm, NewSurveyForm, EnquiryForm, ResetPasswordForm, 
 from werkzeug.urls import url_parse
 from app.forms import RegistrationForm
 import time
-from sqlalchemy.sql import func, or_, alias, and_, distinct
+from sqlalchemy.sql import func, or_, alias, and_, distinct, literal
 from sqlalchemy import desc, extract
 from datetime import datetime, timedelta
 import re
@@ -14859,6 +14859,10 @@ def getMergeIndividuals():
     if 'task_id' in request.form:
         task_id = ast.literal_eval(request.form['task_id'])
         if task_id is None or int(task_id) < 0: task_id = None
+    tag = None
+    if 'tag' in request.form:
+        tag = ast.literal_eval(request.form['tag'])
+        if tag is None or tag in ['0','-1','None','']: tag = None
         
     page = request.args.get('page', 1, type=int)
 
@@ -14905,37 +14909,87 @@ def getMergeIndividuals():
                             .filter(exclude_tasks.c.id==None)\
                             .distinct().all()
 
-            task_ids = [r[0] for r in tasks]                   
+            task_ids = [r[0] for r in tasks]
+
+        individual_filters = and_(
+            Individual.name != 'unidentifiable',
+            Individual.active == True,
+            Individual.species == species,
+            Individual.id != individual_id,
+        )    
 
         best_image_sq = rDets(db.session.query(Individual.id, func.max(Image.detection_rating).label('max_rating'))\
+                                    .filter(individual_filters)\
+                                    .filter(Individual.tasks.any(Task.id.in_(task_ids)))\
                                     .join(Detection,Individual.detections)\
                                     .join(Image)\
                                     .group_by(Individual.id)).subquery()                       
 
         individuals = rDets(db.session.query(Individual.id, Individual.name, Image.filename, Camera.path)\
-                            .join(Detection,Individual.detections)\
-                            .join(best_image_sq, best_image_sq.c.id==Individual.id)\
-                            .join(Image, and_(Image.id==Detection.image_id,Image.detection_rating==best_image_sq.c.max_rating))\
-                            .join(Camera)\
                             .join(Task,Individual.tasks)\
                             .filter(Task.id.in_(task_ids))\
                             .filter(Task.status.in_(['SUCCESS', 'Stopped', 'Ready']))\
-                            .filter(Individual.name!='unidentifiable')\
-                            .filter(Individual.active==True)\
-                            .filter(Individual.species==species)\
-                            .filter(Individual.id!=individual_id))
+                            .filter(individual_filters)\
+                            .join(Detection,Individual.detections)\
+                            .join(best_image_sq, best_image_sq.c.id==Individual.id)\
+                            .join(Image, and_(Image.id==Detection.image_id,Image.detection_rating==best_image_sq.c.max_rating))\
+                            .join(Camera))
+
+        if tag:
+            individuals = individuals.filter(Individual.tags.any(Tag.description==tag))
 
         searches = re.split('[ ,]',search)
         for search in searches:
             individuals = individuals.filter(Individual.name.contains(search))
 
         if order == 'oSim':
-            individuals = individuals.outerjoin(IndSimilarity, or_(IndSimilarity.individual_1==individual.id,IndSimilarity.individual_2==individual.id))\
-                            .order_by(IndSimilarity.score.desc())
+            individuals = individuals.outerjoin(IndSimilarity, or_(
+                                and_(IndSimilarity.individual_1==individual.id,IndSimilarity.individual_2==Individual.id),
+                                and_(IndSimilarity.individual_2==individual.id,IndSimilarity.individual_1==Individual.id)
+                            ))\
+                            .order_by(IndSimilarity.score.desc(), Individual.name)
+        
+        elif order == 'oDist':
+            Trapgroup2 = alias(Trapgroup)
+
+            site_ids = [r[1] for r in db.session.query(Individual.id, Camera.trapgroup_id)\
+                            .filter(Individual.id==individual_id)\
+                            .join(Detection,Individual.detections)\
+                            .join(Image)\
+                            .join(Camera)
+                            .distinct().all()]     
+            
+            distance_expr = 6371 * func.acos(
+                func.cos(func.radians(Trapgroup.latitude)) * 
+                func.cos(func.radians(Trapgroup2.c.latitude)) * 
+                func.cos(func.radians(Trapgroup2.c.longitude) - func.radians(Trapgroup.longitude)) + 
+                func.sin(func.radians(Trapgroup.latitude)) * func.sin(func.radians(Trapgroup2.c.latitude))
+            )
+
+            site_distance_sq = db.session.query(Trapgroup.id, func.min(distance_expr).label('min_distance'))\
+                            .join(Survey,Trapgroup.survey_id==Survey.id)\
+                            .join(Task,Task.survey_id==Survey.id)\
+                            .join(Trapgroup2, literal(True))\
+                            .filter(Task.id.in_(task_ids))\
+                            .filter(Trapgroup2.c.id.in_(site_ids))\
+                            .group_by(Trapgroup.id).subquery()
+
+            indiv_sq = db.session.query(Individual.id, func.min(site_distance_sq.c.min_distance).label('min_distance'))\
+                            .filter(Individual.tasks.any(Task.id.in_(task_ids)))\
+                            .filter(individual_filters)\
+                            .join(Detection,Individual.detections)\
+                            .join(Image)\
+                            .join(Camera)\
+                            .join(site_distance_sq, site_distance_sq.c.id==Camera.trapgroup_id)\
+                            .group_by(Individual.id).subquery()
+
+            individuals = individuals.outerjoin(indiv_sq, indiv_sq.c.id==Individual.id)\
+                            .order_by(indiv_sq.c.min_distance.asc(), Individual.name)
+        
         else:
             individuals = individuals.order_by(Individual.name)
 
-        individuals = individuals.group_by(Individual.id).distinct().paginate(page, 12, False)
+        individuals = individuals.distinct().paginate(page, 12, False)
 
         for individual in individuals.items:
             id = individual[0]
@@ -15146,6 +15200,7 @@ def getMergeTasks(individual_id):
     mutual = request.args.get('mutual', 0, type=int)
     mutual = True if mutual == 1 else False
     task_info = []
+    tags = []
     individual = db.session.query(Individual).get(individual_id)
     if individual and individual.active==True and all(checkSurveyPermission(current_user.id,task.survey_id,'write') for task in individual.tasks):
         species = individual.species                 
@@ -15192,4 +15247,6 @@ def getMergeTasks(individual_id):
                 'name': task[2] + ' - ' + task[1],
             })
 
-    return json.dumps({'tasks': task_info})
+        tags = [r[0] for r in db.session.query(Tag.description).filter(Tag.task_id.in_([t[0] for t in tasks])).distinct().all()]
+
+    return json.dumps({'tasks': task_info, 'tags': tags})

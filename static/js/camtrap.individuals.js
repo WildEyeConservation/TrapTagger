@@ -82,6 +82,7 @@ var mergeImageOnly = false
 var confirmMerge = false
 var selectedIndividual = null
 var selectedIndividualName = null
+var mergeIndividualsFilters = {'task': null, 'mutual': null, 'search': null, 'order': null} 
 
 function getIndividuals(page = null) {
     /** Gets a page of individuals. Gets the first page if none is specified. */
@@ -2606,19 +2607,50 @@ function initialiseMergeIndividualsLeft(){
 
     var col2 = document.createElement('div')
     col2.classList.add('col-lg-10')
+    col2.setAttribute('style','padding-left: 0px;')
     row.appendChild(col2)
 
     var info = document.createElement('div')
     info.setAttribute('id','tgInfoMergeL')
-    info.setAttribute('style','font-size: 80%;')
+    info.setAttribute('style','font-size: 80%; margin-bottom: 5px;')
     info.innerHTML = 'Site: ' + mergeImages['L'][0].trapgroup.tag
     col1.appendChild(info)
 
     var info2 = document.createElement('div')
     info2.setAttribute('id','timeInfoMergeL')
-    info2.setAttribute('style','font-size: 80%;')
+    info2.setAttribute('style','font-size: 80%; margin-bottom: 5px;')
     info2.innerHTML = 'Timestamp: '+ mergeImages['L'][0].timestamp
     col1.appendChild(info2)
+
+    var info5 = document.createElement('div')
+    info5.setAttribute('style','font-size: 80%; margin-bottom: 5px;')
+    if (mergeImageOnly) {
+        info5.innerHTML = 'First Seen: ' + mergeImages['L'][0].timestamp
+    } else {
+        info5.innerHTML = 'First Seen: ' + individualFirstSeen
+    }
+    col1.appendChild(info5)
+
+    var info6 = document.createElement('div')
+    info6.setAttribute('style','font-size: 80%; margin-bottom: 5px;')
+    if (mergeImageOnly) {
+        info6.innerHTML = 'Last Seen: ' + mergeImages['L'][0].timestamp
+    } else {
+        info6.innerHTML = 'Last Seen: ' + individualLastSeen
+    }
+    col1.appendChild(info6)
+
+    var info7 = document.createElement('div')
+    info7.setAttribute('style','font-size: 80%; margin-bottom: 5px;')
+    var tags =  currentTags.length > 0 ? currentTags.join(', ') : 'None'
+    info7.innerHTML = 'Tags: ' + tags
+    col1.appendChild(info7)
+
+    var info8 = document.createElement('div')
+    info8.setAttribute('style','font-size: 80%; margin-bottom: 5px;')
+    var note = currentNote.length > 0 ? currentNote : 'None'
+    info8.innerHTML = 'Notes: ' + note
+    col1.appendChild(info8)
 
     var info3 = document.createElement('div')
     info3.setAttribute('style','font-size: 80%;')
@@ -2632,16 +2664,18 @@ function initialiseMergeIndividualsLeft(){
         col1.appendChild(info4)
     }
 
+    var center = document.createElement('center')
+    col2.appendChild(center)
 
     var mergeMapDivL = document.createElement('div')
     mergeMapDivL.setAttribute('id','mergeMapDivL')
     mergeMapDivL.setAttribute('style','height: 750px;')
-    col2.appendChild(mergeMapDivL)
+    center.appendChild(mergeMapDivL)
 
     var card = document.createElement('div')
     card.classList.add('card')
     card.setAttribute('style','background-color: rgb(60, 74, 89);margin-top: 5px; margin-bottom: 5px; margin-left: 5px; margin-right: 5px; padding-top: 5px; padding-bottom: 5px; padding-left: 5px; padding-right: 5px')
-    individualMergeDivL.appendChild(card)
+    col2.appendChild(card)
 
     var body = document.createElement('div')
     body.classList.add('card-body')
@@ -2775,11 +2809,17 @@ function initialiseMergeIndividualsRight(){
     label.innerHTML = 'Mutual Surveys Only'
     cbxDiv.appendChild(label)
 
+    if (mergeIndividualsFilters['mutual'] != null && mergeIndividualsFilters['mutual'] == true) {
+        document.getElementById('mutualOnly').checked = true
+    } 
+
     $('#mutualOnly').change( function() {
+        mergeIndividualsFilters['mutual'] = document.getElementById('mutualOnly').checked
         getMergeTasks()
     });
 
     $('#mergeTaskSelect').change( function() {
+        mergeIndividualsFilters['task'] = document.getElementById('mergeTaskSelect').value
         getMergeIndividuals()
     });
 
@@ -2800,27 +2840,54 @@ function initialiseMergeIndividualsRight(){
 
     bigCol2.appendChild(document.createElement('br'))
 
+    if (mergeIndividualsFilters['search'] != null) {
+        document.getElementById('searchMergeIndividuals').value = mergeIndividualsFilters['search']
+    }
+
     var h5 = document.createElement('h6')
     h5.innerHTML = 'Order By:'
     h5.setAttribute('style','margin-bottom: 2px')
     bigCol2.appendChild(h5)
-
     
     var order = document.createElement('select')
     order.setAttribute('id','orderMergeIndividuals')
     order.setAttribute('class','form-control')
     bigCol2.appendChild(order)
-    fillSelect(order, ['Similarity', 'Name'], ['oSim','oName'])
+    fillSelect(order, ['Similarity', 'Distance', 'Name'], ['oSim', 'oDist','oName'])
     order.value = 'oSim'
 
     bigCol2.appendChild(document.createElement('br'))
 
+    if (mergeIndividualsFilters['order'] != null) {
+        document.getElementById('orderMergeIndividuals').value = mergeIndividualsFilters['order']
+    }
 
     $('#searchMergeIndividuals').on('change', function() {
+        mergeIndividualsFilters['search'] = document.getElementById('searchMergeIndividuals').value
         getMergeIndividuals()
     });
 
     $("#orderMergeIndividuals").change( function() {
+        mergeIndividualsFilters['order'] = document.getElementById('orderMergeIndividuals').value
+        getMergeIndividuals()
+    });
+
+    var h5 = document.createElement('h6')
+    h5.innerHTML = 'Tags:'
+    h5.setAttribute('style','margin-bottom: 2px')
+    bigCol2.appendChild(h5)
+    
+    var tags = document.createElement('select')
+    tags.setAttribute('id','tagsMergeIndividuals')
+    tags.setAttribute('class','form-control')
+    bigCol2.appendChild(tags)
+    fillSelect(tags, ['All'], ['-1'])
+    tags.value = '-1'
+
+    bigCol2.appendChild(document.createElement('br'))
+
+    $('#tagsMergeIndividuals').change( function() {
+        mergeIndividualsFilters['tags'] = document.getElementById('tagsMergeIndividuals').value
         getMergeIndividuals()
     });
 
@@ -2863,6 +2930,7 @@ function cleanupMergeIndividuals(){
     mergeSplide = {'L': null, 'R': null}
     mergeImageIndex = {'L': 0, 'R': 0}
     addedDetectionsMerge = {'L': false, 'R': false} 
+    mergeIndividualsFilters = {'task': null, 'mutual': null, 'search': null, 'order': null} 
 
     confirmMerge = false
     merge_individual_prev = null
@@ -3085,6 +3153,10 @@ function getMergeIndividuals(page = null) {
     formData.append("task_id", JSON.stringify(task_id))
     mutualOnly = document.getElementById('mutualOnly').checked 
     formData.append("mutual", JSON.stringify(mutualOnly))
+    tag = document.getElementById('tagsMergeIndividuals').value
+    if (tag != '-1' || tag != '0' || tag != null) {
+        formData.append("tag", JSON.stringify(tag))
+    }
     
 
     request = '/getMergeIndividuals'
@@ -3242,76 +3314,114 @@ function viewMergeIndividual(){
                 initialiseMergeIndividualsRight()
             });
 
-            var row = document.createElement('div')
-            row.classList.add('row')
-            individualMergeDivR.appendChild(row)
+            var xhttp = new XMLHttpRequest();
+            xhttp.onreadystatechange =
+            function(){
+                if (this.readyState == 4 && this.status == 200) {
+                    var info = JSON.parse(this.responseText);
 
-            var col1 = document.createElement('div')
-            col1.classList.add('col-lg-2')
-            col1.setAttribute('style','padding-right: 0px;')
-            row.appendChild(col1)
-
-            var col2 = document.createElement('div')
-            col2.classList.add('col-lg-10')
-            row.appendChild(col2)
+                    var row = document.createElement('div')
+                    row.classList.add('row')
+                    individualMergeDivR.appendChild(row)
         
-            var info = document.createElement('div')
-            info.setAttribute('id','tgInfoMergeR')
-            info.setAttribute('style','font-size: 80%;')
-            info.innerHTML = 'Site: ' + mergeImages['R'][0].trapgroup.tag
-            col1.appendChild(info)
+                    var col1 = document.createElement('div')
+                    col1.classList.add('col-lg-2')
+                    col1.setAttribute('style','padding-right: 0px;')
+                    row.appendChild(col1)
+        
+                    var col2 = document.createElement('div')
+                    col2.classList.add('col-lg-10')
+                    col2.setAttribute('style','padding-left: 0px;')
+                    row.appendChild(col2)
+                
+                    var info1 = document.createElement('div')
+                    info1.setAttribute('id','tgInfoMergeR')
+                    info1.setAttribute('style','font-size: 80%; margin-bottom: 5px;')
+                    info1.innerHTML = 'Site: ' + mergeImages['R'][0].trapgroup.tag
+                    col1.appendChild(info1)
+        
+                    var info2 = document.createElement('div')
+                    info2.setAttribute('id','timeInfoMergeR')
+                    info2.setAttribute('style','font-size: 80%; margin-bottom: 5px;')
+                    info2.innerHTML = 'Timestamp: '+ mergeImages['R'][0].timestamp
+                    col1.appendChild(info2)
+        
+                    var info5 = document.createElement('div')
+                    info5.setAttribute('style','font-size: 80%; margin-bottom: 5px;')
+                    info5.innerHTML = 'First Seen: ' + info.seen_range[0]
+                    col1.appendChild(info5)
+        
+                    var info6 = document.createElement('div')
+                    info6.setAttribute('style','font-size: 80%; margin-bottom: 5px;')
+                    info6.innerHTML = 'Last Seen: ' + info.seen_range[1]
+                    col1.appendChild(info6)
+        
+                    var info7 = document.createElement('div')
+                    info7.setAttribute('style','font-size: 80%; margin-bottom: 5px;')
+                    var tags =  info.tags.length > 0 ? info.tags.join(', ') : 'None'
+                    info7.innerHTML = 'Tags: ' + tags
+                    col1.appendChild(info7)
 
-            var info2 = document.createElement('div')
-            info2.setAttribute('id','timeInfoMergeR')
-            info2.setAttribute('style','font-size: 80%;')
-            info2.innerHTML = 'Timestamp: '+ mergeImages['R'][0].timestamp
-            col1.appendChild(info2)
+                    var info8 = document.createElement('div')
+                    info8.setAttribute('style','font-size: 80%; margin-bottom: 5px;')
+                    var note = info.notes.length > 0 ? info.notes : 'None'
+                    info8.innerHTML = 'Notes: ' + note
+                    col1.appendChild(info8)
+        
+                    var info3 = document.createElement('div')
+                    info3.setAttribute('style','font-size: 80%;')
+                    info3.innerHTML = 'Surveys:'
+                    col1.appendChild(info3)
+        
+                    for (let i=0;i<info.surveys.length;i++) {
+                        var info4 = document.createElement('div')
+                        info4.setAttribute('style','font-size: 80%;')
+                        info4.innerHTML = info.surveys[i]
+                        col1.appendChild(info4)
+                    }
+                
+                    var center = document.createElement('center')
+                    col2.appendChild(center)
+        
+                    var mergeMapDivL = document.createElement('div')
+                    mergeMapDivL.setAttribute('id','mergeMapDivR')
+                    mergeMapDivL.setAttribute('style','height: 750px;')
+                    center.appendChild(mergeMapDivL)
+        
+                    var card = document.createElement('div')
+                    card.classList.add('card')
+                    card.setAttribute('style','background-color: rgb(60, 74, 89);margin-top: 5px; margin-bottom: 5px; margin-left: 5px; margin-right: 5px; padding-top: 5px; padding-bottom: 5px; padding-left: 5px; padding-right: 5px')
+                    col2.appendChild(card)
+                
+                    var body = document.createElement('div')
+                    body.classList.add('card-body')
+                    body.setAttribute('style','margin-top: 0px; margin-bottom: 0px; margin-left: 0px; margin-right: 0px; padding-top: 0px; padding-bottom: 0px; padding-left: 0px; padding-right: 0px')
+                    card.appendChild(body)
+                
+                    var splide = document.createElement('div')
+                    splide.classList.add('splide')
+                    splide.setAttribute('id','splideMR')
+                    body.appendChild(splide)
+                
+                    var track = document.createElement('div')
+                    track.classList.add('splide__track')
+                    splide.appendChild(track)
+                
+                    var list = document.createElement('ul')
+                    list.classList.add('splide__list')
+                    list.setAttribute('id','imageSplideMR')
+                    track.appendChild(list)
+        
+                    document.getElementById('btnMerge').hidden = false
+                
+                    prepMergeMapIndividual('R','mergeMapDivR',mergeImages['R'][0])
+                    updateMergeSlider('R', 'imageSplideMR','splideMR')
 
-            var info3 = document.createElement('div')
-            info3.setAttribute('style','font-size: 80%;')
-            info3.innerHTML = 'Surveys:'
-            col1.appendChild(info3)
-
-            for (let i=0;i<reply.tasks.length;i++) {
-                var info4 = document.createElement('div')
-                info4.setAttribute('style','font-size: 80%;')
-                info4.innerHTML = reply.tasks[i]
-                col1.appendChild(info4)
+                }
             }
-        
-            var mergeMapDivL = document.createElement('div')
-            mergeMapDivL.setAttribute('id','mergeMapDivR')
-            mergeMapDivL.setAttribute('style','height: 750px;')
-            col2.appendChild(mergeMapDivL)
+            xhttp.open("GET", '/getIndividualInfo/'+selectedMergeIndividual);
+            xhttp.send();
 
-            var card = document.createElement('div')
-            card.classList.add('card')
-            card.setAttribute('style','background-color: rgb(60, 74, 89);margin-top: 5px; margin-bottom: 5px; margin-left: 5px; margin-right: 5px; padding-top: 5px; padding-bottom: 5px; padding-left: 5px; padding-right: 5px')
-            individualMergeDivR.appendChild(card)
-        
-            var body = document.createElement('div')
-            body.classList.add('card-body')
-            body.setAttribute('style','margin-top: 0px; margin-bottom: 0px; margin-left: 0px; margin-right: 0px; padding-top: 0px; padding-bottom: 0px; padding-left: 0px; padding-right: 0px')
-            card.appendChild(body)
-        
-            var splide = document.createElement('div')
-            splide.classList.add('splide')
-            splide.setAttribute('id','splideMR')
-            body.appendChild(splide)
-        
-            var track = document.createElement('div')
-            track.classList.add('splide__track')
-            splide.appendChild(track)
-        
-            var list = document.createElement('ul')
-            list.classList.add('splide__list')
-            list.setAttribute('id','imageSplideMR')
-            track.appendChild(list)
-
-            document.getElementById('btnMerge').hidden = false
-        
-            prepMergeMapIndividual('R','mergeMapDivR',mergeImages['R'][0])
-            updateMergeSlider('R', 'imageSplideMR','splideMR')
         }
     }
     xhttp.open("POST", '/getIndividual/'+selectedMergeIndividual);
@@ -3518,6 +3628,25 @@ function getMergeTasks(){
             for (let i=0;i<reply.tasks.length;i++) {
                 let task = reply.tasks[i]
                 fillSelect(select, [task.name], [task.id])
+            }
+
+            if (mergeIndividualsFilters['task'] != null) {
+                document.getElementById('mergeTaskSelect').value = mergeIndividualsFilters['task']
+            }
+
+            var tagSelect = document.getElementById('tagsMergeIndividuals')
+            clearSelect(tagSelect)
+            fillSelect(tagSelect, ['All'], ['0'])
+            fillSelect(tagSelect, reply.tags, reply.tags)
+
+            if (mergeIndividualsFilters['tags'] != null) {
+                if (reply.tags.includes(mergeIndividualsFilters['tags'])) {
+                    document.getElementById('tagsMergeIndividuals').value = mergeIndividualsFilters['tags']
+                }
+                else{
+                    document.getElementById('tagsMergeIndividuals').value = '0'
+                    mergeIndividualsFilters['tags'] = '0'
+                }
             }
 
             getMergeIndividuals()
