@@ -428,11 +428,6 @@ def create_task_dataframe(task_id,selectedLevel,include,exclude,trapgroup_id,sta
                         Image.corrected_timestamp.label('Timestamp'), \
                         Image.timestamp.label('Original Timestamp'), \
                         Detection.id.label('Sighting ID'), \
-                        Detection.left.label('Left'), \
-                        Detection.right.label('Right'), \
-                        Detection.top.label('Top'), \
-                        Detection.bottom.label('Bottom'), \
-                        Detection.score.label('Score'), \
                         Cluster.id.label('Cluster ID'), \
                         Cameragroup.id.label('Camera ID'), \
                         (Trapgroup.tag + '-' + Cameragroup.name).label('Camera Name'), \
@@ -457,8 +452,15 @@ def create_task_dataframe(task_id,selectedLevel,include,exclude,trapgroup_id,sta
 
         df2 = pd.read_sql(query.statement,db.session.bind)
 
+        # Here we ensure that these non rDets have no labels, scores etc.
         df2['Species'] = 'None'
         df2['Informational Tags'] = 'None'
+        df2['Left'] = 0
+        df2['Right'] = 0
+        df2['Top'] = 0
+        df2['Bottom'] = 0
+        df2['Score'] = 0
+        
         df = pd.concat([df,df2]).reset_index()
         df2 = None
 
