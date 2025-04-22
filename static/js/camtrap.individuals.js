@@ -284,7 +284,7 @@ function getIndividualInfo(individualID){
                 document.getElementById('endDateIndiv').setAttribute('max', maxDate)
 
                 individual_tags = info.tags
-                currentTags = individual_tags
+                currentTags = [...new Set(individual_tags)]
                 for (let i=0;i<globalTags.length;i++) {
                     tag = globalTags[i].tag
                     box = document.getElementById(tag+ "box")
@@ -2601,12 +2601,12 @@ function initialiseMergeIndividualsLeft(){
     individualMergeDivL.appendChild(row)
 
     var col1 = document.createElement('div')
-    col1.classList.add('col-lg-2')
+    col1.classList.add('col-lg-3')
     col1.setAttribute('style','padding-right: 0px;')
     row.appendChild(col1)
 
     var col2 = document.createElement('div')
-    col2.classList.add('col-lg-10')
+    col2.classList.add('col-lg-9')
     col2.setAttribute('style','padding-left: 0px;')
     row.appendChild(col2)
 
@@ -2662,6 +2662,59 @@ function initialiseMergeIndividualsLeft(){
         info4.setAttribute('style','font-size: 80%;')
         info4.innerHTML = individualTasks[i]
         col1.appendChild(info4)
+    }
+
+    var trapgroupInfo = []
+    for (let i=0;i<mergeImages['L'].length;i++) {
+        var info = mergeImages['L'][i].trapgroup
+        var found = false
+        for (let j=0;j<trapgroupInfo.length;j++) {
+            if (trapgroupInfo[j].tag == info.tag) {
+                found = true
+                break
+            }
+        }
+        if (!found) {
+            trapgroupInfo.push(info)
+        }
+    }
+
+    var info9 = document.createElement('div')
+    info9.setAttribute('style','font-size: 80%; margin-top: 5px;')
+    info9.innerHTML = 'Sites:'
+    col1.appendChild(info9)
+
+    var sitesMapDiv = document.createElement('div')
+    sitesMapDiv.setAttribute('id','sitesMapDivL')
+    sitesMapDiv.setAttribute('style','height: 250px;')
+    col1.appendChild(sitesMapDiv)
+
+    gHyb = L.gridLayer.googleMutant({type: 'hybrid' })
+
+    var mapSitesL = new L.map('sitesMapDivL', {
+        zoomControl: true,
+    });
+      
+    mapSitesL.addLayer(gHyb);
+
+    var siteMarkers = []
+    for (let i=0;i<trapgroupInfo.length;i++) {
+        marker = L.marker([trapgroupInfo[i].latitude, trapgroupInfo[i].longitude]).addTo(mapSitesL)
+        siteMarkers.push(marker)
+        mapSitesL.addLayer(marker)
+        marker.bindPopup(trapgroupInfo[i].tag);
+        marker.on('mouseover', function (e) {
+            this.openPopup();
+        });
+        marker.on('mouseout', function (e) {
+            this.closePopup();
+        });
+    }
+
+    var group = new L.featureGroup(siteMarkers);
+    mapSitesL.fitBounds(group.getBounds().pad(0.1))
+    if(siteMarkers.length == 1) {
+        mapSitesL.setZoom(10)
     }
 
     var center = document.createElement('center')
@@ -2951,9 +3004,9 @@ function prepMergeMapIndividual(mapID,divID,image) {
             h = this.height
 
             if (w>h) {
-                document.getElementById(divID).setAttribute('style','height: calc(36vw *'+(h/w)+');  width:36vw')               
+                document.getElementById(divID).setAttribute('style','height: calc(33vw *'+(h/w)+');  width:33vw')               
             } else {
-                document.getElementById(divID).setAttribute('style','height: calc(36vw *'+(w/h)+');  width:36vw')
+                document.getElementById(divID).setAttribute('style','height: calc(33vw *'+(w/h)+');  width:33vw')
             }
 
             L.Browser.touch = true
@@ -3325,12 +3378,12 @@ function viewMergeIndividual(){
                     individualMergeDivR.appendChild(row)
         
                     var col1 = document.createElement('div')
-                    col1.classList.add('col-lg-2')
+                    col1.classList.add('col-lg-3')
                     col1.setAttribute('style','padding-right: 0px;')
                     row.appendChild(col1)
         
                     var col2 = document.createElement('div')
-                    col2.classList.add('col-lg-10')
+                    col2.classList.add('col-lg-9')
                     col2.setAttribute('style','padding-left: 0px;')
                     row.appendChild(col2)
                 
@@ -3358,13 +3411,13 @@ function viewMergeIndividual(){
         
                     var info7 = document.createElement('div')
                     info7.setAttribute('style','font-size: 80%; margin-bottom: 5px;')
-                    var tags =  info.tags.length > 0 ? info.tags.join(', ') : 'None'
+                    var tags =  info.tags.length > 0 ? [...new Set(info.tags)].join(', ') : 'None'
                     info7.innerHTML = 'Tags: ' + tags
                     col1.appendChild(info7)
 
                     var info8 = document.createElement('div')
                     info8.setAttribute('style','font-size: 80%; margin-bottom: 5px;')
-                    var note = info.notes.length > 0 ? info.notes : 'None'
+                    var note = info.notes != null && info.notes.length > 0 ? info.notes : 'None'
                     info8.innerHTML = 'Notes: ' + note
                     col1.appendChild(info8)
         
@@ -3378,6 +3431,59 @@ function viewMergeIndividual(){
                         info4.setAttribute('style','font-size: 80%;')
                         info4.innerHTML = info.surveys[i]
                         col1.appendChild(info4)
+                    }
+
+                    var trapgroupInfo = []
+                    for (let i=0;i<mergeImages['R'].length;i++) {
+                        var info = mergeImages['R'][i].trapgroup
+                        var found = false
+                        for (let j=0;j<trapgroupInfo.length;j++) {
+                            if (trapgroupInfo[j].tag == info.tag) {
+                                found = true
+                                break
+                            }
+                        }
+                        if (!found) {
+                            trapgroupInfo.push(info)
+                        }
+                    }
+                
+                    var info9 = document.createElement('div')
+                    info9.setAttribute('style','font-size: 80%; margin-top: 5px;')
+                    info9.innerHTML = 'Sites:'
+                    col1.appendChild(info9)
+                
+                    var sitesMapDiv = document.createElement('div')
+                    sitesMapDiv.setAttribute('id','sitesMapDivR')
+                    sitesMapDiv.setAttribute('style','height: 250px;')
+                    col1.appendChild(sitesMapDiv)
+                
+                    gHyb = L.gridLayer.googleMutant({type: 'hybrid' })
+                
+                    var mapSitesR = new L.map('sitesMapDivR', {
+                        zoomControl: true,
+                    });
+                
+                    mapSitesR.addLayer(gHyb);
+                
+                    var siteMarkers = []
+                    for (let i=0;i<trapgroupInfo.length;i++) {
+                        marker = L.marker([trapgroupInfo[i].latitude, trapgroupInfo[i].longitude]).addTo(mapSitesR)
+                        siteMarkers.push(marker)
+                        mapSitesR.addLayer(marker)
+                        marker.bindPopup(trapgroupInfo[i].tag);
+                        marker.on('mouseover', function (e) {
+                            this.openPopup();
+                        });
+                        marker.on('mouseout', function (e) {
+                            this.closePopup();
+                        });
+                    }
+                
+                    var group = new L.featureGroup(siteMarkers);
+                    mapSitesR.fitBounds(group.getBounds().pad(0.1))
+                    if(siteMarkers.length == 1) {
+                        mapSitesR.setZoom(10)
                     }
                 
                     var center = document.createElement('center')
