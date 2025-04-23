@@ -2624,20 +2624,32 @@ function initialiseMergeIndividualsLeft(){
 
     var info5 = document.createElement('div')
     info5.setAttribute('style','font-size: 80%; margin-bottom: 5px;')
+    var timestamp = 'None'
     if (mergeImageOnly) {
-        info5.innerHTML = 'First Seen: ' + mergeImages['L'][0].timestamp
+        if (mergeImages['L'][0].timestamp != null) {
+            timestamp = mergeImages['L'][0].timestamp
+        } 
     } else {
-        info5.innerHTML = 'First Seen: ' + individualFirstSeen
+        if (individualFirstSeen != null) {
+            timestamp = individualFirstSeen
+        }
     }
+    info5.innerHTML = 'First Seen: ' + timestamp
     col1.appendChild(info5)
 
     var info6 = document.createElement('div')
     info6.setAttribute('style','font-size: 80%; margin-bottom: 5px;')
+    var timestamp = 'None'
     if (mergeImageOnly) {
-        info6.innerHTML = 'Last Seen: ' + mergeImages['L'][0].timestamp
+        if (mergeImages['L'][0].timestamp != null) {
+            timestamp = mergeImages['L'][0].timestamp
+        }
     } else {
-        info6.innerHTML = 'Last Seen: ' + individualLastSeen
+        if (individualLastSeen != null) {
+            timestamp = individualLastSeen
+        }
     }
+    info6.innerHTML = 'Last Seen: ' + timestamp
     col1.appendChild(info6)
 
     var info7 = document.createElement('div')
@@ -2648,7 +2660,7 @@ function initialiseMergeIndividualsLeft(){
 
     var info8 = document.createElement('div')
     info8.setAttribute('style','font-size: 80%; margin-bottom: 5px;')
-    var note = currentNote.length > 0 ? currentNote : 'None'
+    var note = currentNote != null && currentNote.length > 0 ? currentNote : 'None'
     info8.innerHTML = 'Notes: ' + note
     col1.appendChild(info8)
 
@@ -2665,6 +2677,7 @@ function initialiseMergeIndividualsLeft(){
     }
 
     var trapgroupInfo = []
+    var noCoords = true
     for (let i=0;i<mergeImages['L'].length;i++) {
         var info = mergeImages['L'][i].trapgroup
         var found = false
@@ -2676,45 +2689,63 @@ function initialiseMergeIndividualsLeft(){
         }
         if (!found) {
             trapgroupInfo.push(info)
+            if (info.latitude != 0 || info.longitude != 0) {
+                noCoords = false
+            }
         }
     }
 
-    var info9 = document.createElement('div')
-    info9.setAttribute('style','font-size: 80%; margin-top: 5px;')
-    info9.innerHTML = 'Sites:'
-    col1.appendChild(info9)
+    if (noCoords) {
+        var site_tags = []
+        for (let i=0;i<trapgroupInfo.length;i++) {
+            site_tags.push(trapgroupInfo[i].tag)
+        }
 
-    var sitesMapDiv = document.createElement('div')
-    sitesMapDiv.setAttribute('id','sitesMapDivL')
-    sitesMapDiv.setAttribute('style','height: 250px;')
-    col1.appendChild(sitesMapDiv)
+        var info9 = document.createElement('div')
+        info9.setAttribute('style','font-size: 80%; margin-top: 5px;')
+        info9.innerHTML = 'Sites: ' + site_tags.join(', ')
+        col1.appendChild(info9)
 
-    gHyb = L.gridLayer.googleMutant({type: 'hybrid' })
+    } else {
 
-    var mapSitesL = new L.map('sitesMapDivL', {
-        zoomControl: true,
-    });
-      
-    mapSitesL.addLayer(gHyb);
+        var info9 = document.createElement('div')
+        info9.setAttribute('style','font-size: 80%; margin-top: 5px;')
+        info9.innerHTML = 'Sites:'
+        col1.appendChild(info9)
 
-    var siteMarkers = []
-    for (let i=0;i<trapgroupInfo.length;i++) {
-        marker = L.marker([trapgroupInfo[i].latitude, trapgroupInfo[i].longitude]).addTo(mapSitesL)
-        siteMarkers.push(marker)
-        mapSitesL.addLayer(marker)
-        marker.bindPopup(trapgroupInfo[i].tag);
-        marker.on('mouseover', function (e) {
-            this.openPopup();
+        var sitesMapDiv = document.createElement('div')
+        sitesMapDiv.setAttribute('id','sitesMapDivL')
+        sitesMapDiv.setAttribute('style','height: 250px;')
+        col1.appendChild(sitesMapDiv)
+
+        gHyb = L.gridLayer.googleMutant({type: 'hybrid' })
+
+        var mapSitesL = new L.map('sitesMapDivL', {
+            zoomControl: true,
         });
-        marker.on('mouseout', function (e) {
-            this.closePopup();
-        });
-    }
+        
+        mapSitesL.addLayer(gHyb);
 
-    var group = new L.featureGroup(siteMarkers);
-    mapSitesL.fitBounds(group.getBounds().pad(0.1))
-    if(siteMarkers.length == 1) {
-        mapSitesL.setZoom(10)
+        var siteMarkers = []
+        for (let i=0;i<trapgroupInfo.length;i++) {
+            marker = L.marker([trapgroupInfo[i].latitude, trapgroupInfo[i].longitude]).addTo(mapSitesL)
+            siteMarkers.push(marker)
+            mapSitesL.addLayer(marker)
+            marker.bindPopup(trapgroupInfo[i].tag);
+            marker.on('mouseover', function (e) {
+                this.openPopup();
+            });
+            marker.on('mouseout', function (e) {
+                this.closePopup();
+            });
+        }
+
+        var group = new L.featureGroup(siteMarkers);
+        mapSitesL.fitBounds(group.getBounds().pad(0.1))
+        if(siteMarkers.length == 1) {
+            mapSitesL.setZoom(10)
+        }
+
     }
 
     var center = document.createElement('center')
@@ -3401,12 +3432,20 @@ function viewMergeIndividual(){
         
                     var info5 = document.createElement('div')
                     info5.setAttribute('style','font-size: 80%; margin-bottom: 5px;')
-                    info5.innerHTML = 'First Seen: ' + info.seen_range[0]
+                    if (info.seen_range[0] == null) {
+                        info5.innerHTML = 'First Seen: None'
+                    } else {
+                        info5.innerHTML = 'First Seen: ' + info.seen_range[0]
+                    }
                     col1.appendChild(info5)
         
                     var info6 = document.createElement('div')
                     info6.setAttribute('style','font-size: 80%; margin-bottom: 5px;')
-                    info6.innerHTML = 'Last Seen: ' + info.seen_range[1]
+                    if (info.seen_range[1] == null) {
+                        info6.innerHTML = 'Last Seen: None'
+                    } else {
+                        info6.innerHTML = 'Last Seen: ' + info.seen_range[1]
+                    }
                     col1.appendChild(info6)
         
                     var info7 = document.createElement('div')
@@ -3434,6 +3473,7 @@ function viewMergeIndividual(){
                     }
 
                     var trapgroupInfo = []
+                    var noCoords = true
                     for (let i=0;i<mergeImages['R'].length;i++) {
                         var info = mergeImages['R'][i].trapgroup
                         var found = false
@@ -3445,45 +3485,62 @@ function viewMergeIndividual(){
                         }
                         if (!found) {
                             trapgroupInfo.push(info)
+                            if (info.latitude != 0 || info.longitude != 0) {
+                                noCoords = false
+                            }
                         }
                     }
-                
-                    var info9 = document.createElement('div')
-                    info9.setAttribute('style','font-size: 80%; margin-top: 5px;')
-                    info9.innerHTML = 'Sites:'
-                    col1.appendChild(info9)
-                
-                    var sitesMapDiv = document.createElement('div')
-                    sitesMapDiv.setAttribute('id','sitesMapDivR')
-                    sitesMapDiv.setAttribute('style','height: 250px;')
-                    col1.appendChild(sitesMapDiv)
-                
-                    gHyb = L.gridLayer.googleMutant({type: 'hybrid' })
-                
-                    var mapSitesR = new L.map('sitesMapDivR', {
-                        zoomControl: true,
-                    });
-                
-                    mapSitesR.addLayer(gHyb);
-                
-                    var siteMarkers = []
-                    for (let i=0;i<trapgroupInfo.length;i++) {
-                        marker = L.marker([trapgroupInfo[i].latitude, trapgroupInfo[i].longitude]).addTo(mapSitesR)
-                        siteMarkers.push(marker)
-                        mapSitesR.addLayer(marker)
-                        marker.bindPopup(trapgroupInfo[i].tag);
-                        marker.on('mouseover', function (e) {
-                            this.openPopup();
-                        });
-                        marker.on('mouseout', function (e) {
-                            this.closePopup();
-                        });
+
+                    if (noCoords) {
+                        var site_tags = []
+                        for (let i=0;i<trapgroupInfo.length;i++) {
+                            site_tags.push(trapgroupInfo[i].tag)
+                        }
+
+                        var info9 = document.createElement('div')
+                        info9.setAttribute('style','font-size: 80%; margin-top: 5px;')
+                        info9.innerHTML = 'Sites: ' + site_tags.join(', ')
+                        col1.appendChild(info9)
+
                     }
-                
-                    var group = new L.featureGroup(siteMarkers);
-                    mapSitesR.fitBounds(group.getBounds().pad(0.1))
-                    if(siteMarkers.length == 1) {
-                        mapSitesR.setZoom(10)
+                    else{
+                        var info9 = document.createElement('div')
+                        info9.setAttribute('style','font-size: 80%; margin-top: 5px;')
+                        info9.innerHTML = 'Sites:'
+                        col1.appendChild(info9)
+                    
+                        var sitesMapDiv = document.createElement('div')
+                        sitesMapDiv.setAttribute('id','sitesMapDivR')
+                        sitesMapDiv.setAttribute('style','height: 250px;')
+                        col1.appendChild(sitesMapDiv)
+                    
+                        gHyb = L.gridLayer.googleMutant({type: 'hybrid' })
+                    
+                        var mapSitesR = new L.map('sitesMapDivR', {
+                            zoomControl: true,
+                        });
+                    
+                        mapSitesR.addLayer(gHyb);
+                    
+                        var siteMarkers = []
+                        for (let i=0;i<trapgroupInfo.length;i++) {
+                            marker = L.marker([trapgroupInfo[i].latitude, trapgroupInfo[i].longitude]).addTo(mapSitesR)
+                            siteMarkers.push(marker)
+                            mapSitesR.addLayer(marker)
+                            marker.bindPopup(trapgroupInfo[i].tag);
+                            marker.on('mouseover', function (e) {
+                                this.openPopup();
+                            });
+                            marker.on('mouseout', function (e) {
+                                this.closePopup();
+                            });
+                        }
+                    
+                        var group = new L.featureGroup(siteMarkers);
+                        mapSitesR.fitBounds(group.getBounds().pad(0.1))
+                        if(siteMarkers.length == 1) {
+                            mapSitesR.setZoom(10)
+                        }
                     }
                 
                     var center = document.createElement('center')
