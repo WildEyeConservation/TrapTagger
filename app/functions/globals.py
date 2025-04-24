@@ -1175,7 +1175,7 @@ def unknock_cluster(self,image_id, label_id, user_id, task_id):
                             .join(Detection)\
                             .join(Image)\
                             .filter(Labelgroup.task_id==task_id)\
-                            .filter(Image.cluster.contains(newCluster))\
+                            .filter(Image.clusters.contains(newCluster))\
                             .distinct().all()
             
             labelgroups = db.session.query(Labelgroup)\
