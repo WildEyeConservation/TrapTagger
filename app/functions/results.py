@@ -460,6 +460,9 @@ def create_task_dataframe(task_id,selectedLevel,include,exclude,trapgroup_id,sta
         df2['Top'] = 0
         df2['Bottom'] = 0
         df2['Score'] = 0
+
+        # This ensures that multi non-rDet images only have one empty detection
+        df2 = df2.drop_duplicates(subset=['Image ID'], keep='first')
         
         df = pd.concat([df,df2]).reset_index()
         df2 = None
@@ -588,7 +591,7 @@ def create_task_dataframe(task_id,selectedLevel,include,exclude,trapgroup_id,sta
     #Replace nothings
     df['Species'] = df['Species'].replace({'Nothing': 'None'}, regex=True)
 
-    # drop unneccessary survey column if not needed
+    # add survey column if needed
     if 'Survey Name' in required_columns:
         df['Survey Name'] = task.survey.name
         df = df.astype({"Survey Name": 'category'})
