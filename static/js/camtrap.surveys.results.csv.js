@@ -12,204 +12,220 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-function updateCustomColNames() {
-    /** Updates the custom column names in the csv custom column selectors. */
+// function updateCustomColNames() {
+//     /** Updates the custom column names in the csv custom column selectors. */
     
-    allLevels = document.querySelectorAll('[id^=csvColLevelElement-]')
-    for (let i=0;i<allLevels.length;i++) {
-        level = allLevels[i].options[allLevels[i].selectedIndex].text
-        if (level == 'Custom') {
-            IDNum = allLevels[i].id.split("-")[allLevels[i].id.split("-").length-1]
-            csvColDataElement = document.getElementById('csvColDataElement-'+String(IDNum))
+//     allLevels = document.querySelectorAll('[id^=csvColLevelElement-]')
+//     for (let i=0;i<allLevels.length;i++) {
+//         level = allLevels[i].options[allLevels[i].selectedIndex].text
+//         if (level == 'Custom') {
+//             IDNum = allLevels[i].id.split("-")[allLevels[i].id.split("-").length-1]
+//             csvColDataElement = document.getElementById('csvColDataElement-'+String(IDNum))
 
-            for (let n=0;n<csvColDataElement.options.length;n++) {
-                csvColDataElement.options[n].text = customColumns[csvColDataElement.options[n].value]
-            }
-        }
-    }
-}
+//             for (let n=0;n<csvColDataElement.options.length;n++) {
+//                 csvColDataElement.options[n].text = customColumns[csvColDataElement.options[n].value]
+//             }
+//         }
+//     }
+// }
 
-function updateCustomRows() {
-    /** Updates the custom row text fields in the csv form on a per-task basis. */
+// function updateCustomRows() {
+//     /** Updates the custom row text fields in the csv form on a per-task basis. */
 
-    allLevels = document.querySelectorAll('[id^=csvColLevelElement-]')
-    allccTextInputs = document.querySelectorAll('[id^=ccTextInput-]')
+//     allLevels = document.querySelectorAll('[id^=csvColLevelElement-]')
+//     allccTextInputs = document.querySelectorAll('[id^=ccTextInput-]')
 
-    allTaskIDs = []
-    allCustColumnID1s = []
-    allCustCoumnID2s = []
-    for (let i=0;i<allccTextInputs.length;i++) {
-        splits = allccTextInputs[i].id.split('-')
-        allTaskIDs.push(splits[3])
-        allCustColumnID1s.push(splits[1])
-        allCustCoumnID2s.push(splits[1]+'-'+splits[2])
-    }
+//     allTaskIDs = []
+//     allCustColumnID1s = []
+//     allCustCoumnID2s = []
+//     for (let i=0;i<allccTextInputs.length;i++) {
+//         splits = allccTextInputs[i].id.split('-')
+//         allTaskIDs.push(splits[3])
+//         allCustColumnID1s.push(splits[1])
+//         allCustCoumnID2s.push(splits[1]+'-'+splits[2])
+//     }
 
-    handledTaskIDs = []
-    handledCustColumnID1s = []
-    handledCustCoumnID2s = []
-    for (let i=0;i<allLevels.length;i++) {
-        IDNum = allLevels[i].id.split("-")[allLevels[i].id.split("-").length-1]
-        CSVCustColParDiv = document.getElementById('CSVCustColParDiv-'+String(IDNum))
-        level = allLevels[i].options[allLevels[i].selectedIndex].text
+//     handledTaskIDs = []
+//     handledCustColumnID1s = []
+//     handledCustCoumnID2s = []
+//     for (let i=0;i<allLevels.length;i++) {
+//         IDNum = allLevels[i].id.split("-")[allLevels[i].id.split("-").length-1]
+//         CSVCustColParDiv = document.getElementById('CSVCustColParDiv-'+String(IDNum))
+//         // level = allLevels[i].options[allLevels[i].selectedIndex].text
+//         level_value =  allLevels[i].value
 
-        if (level == 'Custom') {
-            csvColDataElement = document.getElementById('csvColDataElement-'+String(IDNum))
-            ccID = csvColDataElement.options[csvColDataElement.selectedIndex].value
-            custColLevels = document.querySelectorAll('[id^=custColLevelElement-'+String(ccID)+'-]')
-            allTasks = document.querySelectorAll('[id^=csvTaskSelect-]')
-            allSurveys = document.querySelectorAll('[id^=csvSurveySelect-]')
+//         // if (level == 'Custom') {
+//         if (level_value.includes('c')) {
+//             // csvColDataElement = document.getElementById('csvColDataElement-'+String(IDNum))
+//             // ccID = csvColDataElement.options[csvColDataElement.selectedIndex].value
+//             ccID = level_value.split('c')[1]
+//             custColLevels = document.querySelectorAll('[id^=custColLevelElement-'+String(ccID)+'-]')
+//             // allTasks = document.querySelectorAll('[id^=csvTaskSelect-]')
+//             // allSurveys = document.querySelectorAll('[id^=csvSurveySelect-]')
         
-            hasText = false
-            for (let n=0;n<custColLevels.length;n++) {
-                data = custColLevels[n].options[custColLevels[n].selectedIndex].text
-                if (data=='Text') {
-                    hasText = true
-                    break
-                }
-            }
+//             hasText = false
+//             for (let n=0;n<custColLevels.length;n++) {
+//                 data = custColLevels[n].options[custColLevels[n].selectedIndex].text
+//                 if (data=='Text') {
+//                     hasText = true
+//                     break
+//                 }
+//             }
         
-            if (hasText) {
-                handledCustColumnID1s.push(ccID)
-                for (let n=0;n<allTasks.length;n++) {
-                    taskID = allTasks[n].options[allTasks[n].selectedIndex].value
-                    if (taskID != '-99999') {
-                        handledTaskIDs.push(taskID)
-                        text_field_count = 0
-                        for (let k=0;k<custColLevels.length;k++) {
-                            data = custColLevels[k].options[custColLevels[k].selectedIndex].text
-                            if (data=='Text') {
-                                text_field_count += 1
-                                idNum2 = custColLevels[k].id.split('custColLevelElement-'+String(ccID)+'-')[1]
-                                handledCustCoumnID2s.push(ccID+'-'+idNum2)
-                                objectID = 'ccTextInput-'+String(ccID)+'-'+String(idNum2)+'-'+String(taskID)
-                                if (document.getElementById(objectID)==null) {
-                                    // Doesn't exist -> build it
-                                    ccTaskDiv = document.getElementById('ccTaskDiv-'+String(ccID)+'-'+String(taskID))
-                                    if (ccTaskDiv==null) {
-                                        taskName = allTasks[n].options[allTasks[n].selectedIndex].text
-                                        surveyName = allSurveys[n].options[allSurveys[n].selectedIndex].text
+//             if (hasText) {
+//                 handledCustColumnID1s.push(ccID)
+//                 // for (let n=0;n<allTasks.length;n++) {
+//                 //     taskID = allTasks[n].options[allTasks[n].selectedIndex].value
+//                     taskID = selectedTask
+//                     if (taskID != '-99999') {
+//                         handledTaskIDs.push(taskID)
+//                         text_field_count = 0
+//                         for (let k=0;k<custColLevels.length;k++) {
+//                             data = custColLevels[k].options[custColLevels[k].selectedIndex].text
+//                             if (data=='Text') {
+//                                 text_field_count += 1
+//                                 idNum2 = custColLevels[k].id.split('custColLevelElement-'+String(ccID)+'-')[1]
+//                                 handledCustCoumnID2s.push(ccID+'-'+idNum2)
+//                                 objectID = 'ccTextInput-'+String(ccID)+'-'+String(idNum2)+'-'+String(taskID)
+//                                 if (document.getElementById(objectID)==null) {
+//                                     // Doesn't exist -> build it
+//                                     ccTaskDiv = document.getElementById('ccTaskDiv-'+String(ccID)+'-'+String(taskID))
+//                                     if (ccTaskDiv==null) {
+//                                         // taskName = allTasks[n].options[allTasks[n].selectedIndex].text
+//                                         // surveyName = allSurveys[n].options[allSurveys[n].selectedIndex].text
                         
-                                        ccTaskDiv = document.createElement('div')
-                                        ccTaskDiv.id = 'ccTaskDiv-'+String(ccID)+'-'+String(taskID)
-                                        CSVCustColParDiv.appendChild(ccTaskDiv)
+//                                         ccTaskDiv = document.createElement('div')
+//                                         ccTaskDiv.id = 'ccTaskDiv-'+String(ccID)+'-'+String(taskID)
+//                                         CSVCustColParDiv.appendChild(ccTaskDiv)
                         
-                                        ccTaskRow = document.createElement('div')
-                                        ccTaskRow.classList.add('row')
-                                        ccTaskRow.id = 'ccTaskRow-'+String(ccID)+'-'+String(idNum2)+'-'+String(taskID)
-                                        ccTaskDiv.append(ccTaskRow)
+//                                         ccTaskRow = document.createElement('div')
+//                                         ccTaskRow.classList.add('row')
+//                                         ccTaskRow.id = 'ccTaskRow-'+String(ccID)+'-'+String(idNum2)+'-'+String(taskID)
+//                                         ccTaskDiv.append(ccTaskRow)
                         
-                                        col1 = document.createElement('div')
-                                        col1.classList.add('col-lg-3')
-                                        ccTaskRow.appendChild(col1)
+//                                         col1 = document.createElement('div')
+//                                         col1.classList.add('col-lg-4')
+//                                         ccTaskRow.appendChild(col1)
                         
-                                        col2 = document.createElement('div')
-                                        col2.classList.add('col-lg-3')
-                                        col2.setAttribute('style',"display: flex; justify-content: center; align-content: center; flex-direction: column;")
-                                        col2.innerHTML = surveyName + '-' + taskName
-                                        ccTaskRow.appendChild(col2)
+//                                         // col2 = document.createElement('div')
+//                                         // col2.classList.add('col-lg-4')
+//                                         // // col2.setAttribute('style',"display: flex; justify-content: center; align-content: center; flex-direction: column;")
+//                                         // // col2.innerHTML = surveyName + '-' + taskName
+//                                         // ccTaskRow.appendChild(col2)
                         
-                                        col3 = document.createElement('div')
-                                        col3.classList.add('col-lg-3')
-                                        ccTaskRow.appendChild(col3)
-                                    } else {
-                                        ccTaskRow = document.createElement('div')
-                                        ccTaskRow.classList.add('row')
-                                        ccTaskRow.id = 'ccTaskRow-'+String(ccID)+'-'+String(idNum2)+'-'+String(taskID)
-                                        ccTaskDiv.append(ccTaskRow)
+//                                         col3 = document.createElement('div')
+//                                         col3.classList.add('col-lg-4')
+//                                         ccTaskRow.appendChild(col3)
+//                                     } else {
+//                                         ccTaskRow = document.createElement('div')
+//                                         ccTaskRow.classList.add('row')
+//                                         ccTaskRow.id = 'ccTaskRow-'+String(ccID)+'-'+String(idNum2)+'-'+String(taskID)
+//                                         ccTaskDiv.append(ccTaskRow)
                         
-                                        col1 = document.createElement('div')
-                                        col1.classList.add('col-lg-3')
-                                        ccTaskRow.appendChild(col1)
+//                                         col1 = document.createElement('div')
+//                                         col1.classList.add('col-lg-4')
+//                                         ccTaskRow.appendChild(col1)
                         
-                                        col2 = document.createElement('div')
-                                        col2.classList.add('col-lg-3')
-                                        ccTaskRow.appendChild(col2)
+//                                         // col2 = document.createElement('div')
+//                                         // col2.classList.add('col-lg-4')
+//                                         // ccTaskRow.appendChild(col2)
                         
-                                        col3 = document.createElement('div')
-                                        col3.classList.add('col-lg-3')
-                                        ccTaskRow.appendChild(col3)
-                                    }
+//                                         col3 = document.createElement('div')
+//                                         col3.classList.add('col-lg-4')
+//                                         ccTaskRow.appendChild(col3)
+//                                     }
                 
-                                    textInput = document.createElement('input')
-                                    textInput.setAttribute('style',"background-color:white")
-                                    textInput.setAttribute('type','text')
-                                    textInput.setAttribute('placeholder','Text Field '+String(text_field_count))
-                                    textInput.setAttribute('id',objectID)
-                                    textInput.classList.add('form-control')
-                                    col3.appendChild(textInput)
-                                } else {
-                                    document.getElementById(objectID).setAttribute('placeholder','Text Field '+String(text_field_count))
-                                }
-                            }
-                        }
-                    }
-                }
-            } else {
-                //clear
-                while(CSVCustColParDiv.firstChild){
-                    CSVCustColParDiv.removeChild(CSVCustColParDiv.firstChild);
-                }
-            }
-        } else {
-            while(CSVCustColParDiv.firstChild){
-                CSVCustColParDiv.removeChild(CSVCustColParDiv.firstChild);
-            }
-        }
-    }
+//                                     textInput = document.createElement('input')
+//                                     textInput.setAttribute('style',"background-color:white")
+//                                     textInput.setAttribute('type','text')
+//                                     textInput.setAttribute('placeholder','Text Field '+String(text_field_count))
+//                                     textInput.setAttribute('id',objectID)
+//                                     textInput.classList.add('form-control')
+//                                     col3.appendChild(textInput)
+//                                 } else {
+//                                     document.getElementById(objectID).setAttribute('placeholder','Text Field '+String(text_field_count))
+//                                 }
+//                             }
+//                         }
+//                     }
+//                 // }
+//             } else {
+//                 //clear
+//                 while(CSVCustColParDiv.firstChild){
+//                     CSVCustColParDiv.removeChild(CSVCustColParDiv.firstChild);
+//                 }
+//             }
+//         } else {
+//             while(CSVCustColParDiv.firstChild){
+//                 CSVCustColParDiv.removeChild(CSVCustColParDiv.firstChild);
+//             }
+//         }
+//     }
 
-    // Remove excess ID2s
-    for (let i=0;i<allCustCoumnID2s.length;i++) {
-        if (!handledCustCoumnID2s.includes(allCustCoumnID2s[i])) {
-            // ID2 has been removed
-            ccID = allCustCoumnID2s[i].split('-')[0]
-            idNum2 = allCustCoumnID2s[i].split('-')[1]
-            for (let n=0;n<allTasks.length;n++) {
-                taskID = allTasks[n].options[allTasks[n].selectedIndex].value
-                document.getElementById('ccTaskRow-'+String(ccID)+'-'+String(idNum2)+'-'+String(taskID)).remove()
-            }
-        }
-    }
+//     // Remove excess ID2s
+//     for (let i=0;i<allCustCoumnID2s.length;i++) {
+//         if (!handledCustCoumnID2s.includes(allCustCoumnID2s[i])) {
+//             // ID2 has been removed
+//             ccID = allCustCoumnID2s[i].split('-')[0]
+//             idNum2 = allCustCoumnID2s[i].split('-')[1]
+//             // taskID = allTasks[n].options[allTasks[n].selectedIndex].value
+//             taskID = selectedTask
+//             if (document.getElementById('ccTaskRow-'+String(ccID)+'-'+String(idNum2)+'-'+String(taskID))!=null) {
+//                 document.getElementById('ccTaskRow-'+String(ccID)+'-'+String(idNum2)+'-'+String(taskID)).remove()
+//             }
+//         }
+//     }
 
-    // Remove excess tasks
-    for (let i=0;i<allTaskIDs.length;i++) {
-        if (!handledTaskIDs.includes(allTaskIDs[i])) {
-            taskID = allTaskIDs[i]
-            for (let ccID in customColumns) {
-                document.getElementById('ccTaskDiv-'+String(ccID)+'-'+String(taskID)).remove()
-            }
-        }
-    }
+//     // Remove excess tasks
+//     // for (let i=0;i<allTaskIDs.length;i++) {
+//     //     if (!handledTaskIDs.includes(allTaskIDs[i])) {
+//     //         taskID = allTaskIDs[i]
+//     //         for (let ccID in customColumns) {
+//     //             document.getElementById('ccTaskDiv-'+String(ccID)+'-'+String(taskID)).remove()
+//     //         }
+//     //     }
+//     // }
+//     taskID = selectedTask
+//     if (!handledTaskIDs.includes(taskID)) {
+//         for (let ccID in customColumns) {
+//             if (document.getElementById('ccTaskDiv-'+String(ccID)+'-'+String(taskID))!=null) {
+//                 document.getElementById('ccTaskDiv-'+String(ccID)+'-'+String(taskID)).remove()
+//             }
+//         }
+//     }
 
-    // Remove excess ID1s
-    for (let i=0;i<allCustColumnID1s.length;i++) {
-        if (!handledCustColumnID1s.includes(allCustColumnID1s[i])) {
-            for (let n=0;n<allLevels.length;n++) {
-                level = allLevels[n].options[allLevels[n].selectedIndex].text
+//     // Remove excess ID1s
+//     for (let i=0;i<allCustColumnID1s.length;i++) {
+//         if (!handledCustColumnID1s.includes(allCustColumnID1s[i])) {
+//             for (let n=0;n<allLevels.length;n++) {
+//                 // level = allLevels[n].options[allLevels[n].selectedIndex].text
+//                 level_value = allLevels[n].value
         
-                if (level == 'Custom') {
-                    IDNum = allLevels[n].id.split("-")[allLevels[n].id.split("-").length-1]
-                    csvColDataElement = document.getElementById('csvColDataElement-'+String(IDNum))
-                    ccID = csvColDataElement.options[csvColDataElement.selectedIndex].value
+//                 // if (level == 'Custom') {
+//                 if (level_value.includes('c')) {
+//                     IDNum = allLevels[n].id.split("-")[allLevels[n].id.split("-").length-1]
+//                     // csvColDataElement = document.getElementById('csvColDataElement-'+String(IDNum))
+//                     // ccID = csvColDataElement.options[csvColDataElement.selectedIndex].value
+//                     ccID = level_value.split('c')[1]
 
-                    if (ccID==allCustColumnID1s[i]) {
-                        CSVCustColParDiv = document.getElementById('CSVCustColParDiv-'+String(IDNum))
-                        while(CSVCustColParDiv.firstChild){
-                            CSVCustColParDiv.removeChild(CSVCustColParDiv.firstChild);
-                        }
+//                     if (ccID==allCustColumnID1s[i]) {
+//                         CSVCustColParDiv = document.getElementById('CSVCustColParDiv-'+String(IDNum))
+//                         while(CSVCustColParDiv.firstChild){
+//                             CSVCustColParDiv.removeChild(CSVCustColParDiv.firstChild);
+//                         }
 
-                        allLevels[n].selectedIndex = 0
-                    }
-                }
-            }
-        }
-    }
-}
+//                         // allLevels[n].selectedIndex = 0
+//                     }
+//                 }
+//             }
+//         }
+//     }
+// }
 
 function checkCSV() {
     /** Checks the format of the csv modal, updates the legalCSV status and updates the errors list accordingly. */
     
-    updateCustomRows()
+    // updateCustomRows()
     allLevels = document.querySelectorAll('[id^=csvColLevelElement-]');
 
     columns = []
@@ -250,81 +266,90 @@ function checkCSV() {
     }
 
     // Handle date
-    startDateCSV = document.getElementById('startDateCSV').value
-    endDateCSV = document.getElementById('endDateCSV').value
-    if (startDateCSV != '' && endDateCSV != '') {
-        if (startDateCSV > endDateCSV) {
-            invalidDate = true
+    if (document.getElementById('csvDateRange').checked) {
+        startDateCSV = document.getElementById('startDateCSV').value
+        endDateCSV = document.getElementById('endDateCSV').value
+        if (startDateCSV != '' && endDateCSV != '') {
+            if (startDateCSV > endDateCSV) {
+                invalidDate = true
+            }
         }
     }
 
-    species_count_warning = false
+    // species_count_warning = false
     for (let i=0;i<allLevels.length;i++) {
-        IDNum = allLevels[i].id.split("-")[allLevels[i].id.split("-").length-1]
-        csvColDataElement = document.getElementById('csvColDataElement-'+String(IDNum))
-        level = allLevels[i].options[allLevels[i].selectedIndex].text
-        data = csvColDataElement.options[csvColDataElement.selectedIndex].text
+        // IDNum = allLevels[i].id.split("-")[allLevels[i].id.split("-").length-1]
+        // csvColDataElement = document.getElementById('csvColDataElement-'+String(IDNum))
+        column = allLevels[i].options[allLevels[i].selectedIndex].text
+        // data = csvColDataElement.options[csvColDataElement.selectedIndex].text
 
         csvErrors = document.getElementById('csvErrors')
         while(csvErrors.firstChild){
             csvErrors.removeChild(csvErrors.firstChild);
         }
 
-        if (data == 'Species Count') {
-            csvColSpeciesElement = document.getElementById('csvColSpeciesElement-'+String(IDNum))
-            species = csvColSpeciesElement.options[csvColSpeciesElement.selectedIndex].text
-            if (species=='All') {
-                if (level=='Survey') {
-                    surveyAll = true
-                } else if (level=='Trapgroup') {
-                    trapAll = true
-                } else {
-                    cameraAll = true
-                }
-            } else {
-                if (level=='Survey') {
-                    surveySpecies = true
-                } else if (level=='Trapgroup') {
-                    trapSpecies = true
-                } else {
-                    cameraSpecies = true
-                }
-            }
-            column = level+'_'+data+'_'+species
-            if (columns.includes(column)) {
-                duplicateColumns = true
-            } else {
-                columns.push(column)
-            }
-
-            var formData = new FormData()
-            formData.append("task_ids", JSON.stringify([selectedTask]))
-            formData.append("species", JSON.stringify(species))
-
-            var xhttp = new XMLHttpRequest();
-            xhttp.open("POST", '/checkSightingEditStatus');
-            xhttp.onreadystatechange =
-            function(){
-                if (this.readyState == 4 && this.status == 200) {
-                    reply = JSON.parse(this.responseText);  
-                    if ((reply.status=='warning')&&(species_count_warning==false)) {
-                        species_count_warning = true
-                        newdiv = document.createElement('div')
-                        newdiv.innerHTML = reply.message
-                        document.getElementById('csvErrors').appendChild(newdiv)
-                    }
-                }
-            }
-            xhttp.send(formData);
-
+        // column = level+'_'+data
+        if (columns.includes(column)) {
+            duplicateColumns = true
         } else {
-            column = level+'_'+data
-            if (columns.includes(column)) {
-                duplicateColumns = true
-            } else {
-                columns.push(column)
-            }
+            columns.push(column)
         }
+
+        // if (data == 'Species Count') {
+        //     csvColSpeciesElement = document.getElementById('csvColSpeciesElement-'+String(IDNum))
+        //     species = csvColSpeciesElement.options[csvColSpeciesElement.selectedIndex].text
+        //     if (species=='All') {
+        //         if (level=='Survey') {
+        //             surveyAll = true
+        //         } else if (level=='Trapgroup') {
+        //             trapAll = true
+        //         } else {
+        //             cameraAll = true
+        //         }
+        //     } else {
+        //         if (level=='Survey') {
+        //             surveySpecies = true
+        //         } else if (level=='Trapgroup') {
+        //             trapSpecies = true
+        //         } else {
+        //             cameraSpecies = true
+        //         }
+        //     }
+        //     column = level+'_'+data+'_'+species
+        //     if (columns.includes(column)) {
+        //         duplicateColumns = true
+        //     } else {
+        //         columns.push(column)
+        //     }
+
+        //     var formData = new FormData()
+        //     formData.append("task_ids", JSON.stringify([selectedTask]))
+        //     formData.append("species", JSON.stringify(species))
+
+        //     var xhttp = new XMLHttpRequest();
+        //     xhttp.open("POST", '/checkSightingEditStatus');
+        //     xhttp.onreadystatechange =
+        //     function(){
+        //         if (this.readyState == 4 && this.status == 200) {
+        //             reply = JSON.parse(this.responseText);  
+        //             if ((reply.status=='warning')&&(species_count_warning==false)) {
+        //                 species_count_warning = true
+        //                 newdiv = document.createElement('div')
+        //                 newdiv.innerHTML = reply.message
+        //                 document.getElementById('csvErrors').appendChild(newdiv)
+        //             }
+        //         }
+        //     }
+        //     xhttp.send(formData);
+
+        // } else {
+        //     column = level+'_'+data
+        //     if (columns.includes(column)) {
+        //         duplicateColumns = true
+        //     } else {
+        //         columns.push(column)
+        //     }
+        // }
     }
 
     allNames = document.querySelectorAll('[id^=csvColNameElement-]')
@@ -392,33 +417,33 @@ btnCsvGenerate.addEventListener('click', ()=>{
     modalCSVGenerate.modal({keyboard: true});
 });
 
-function translateCsvInfo(levelSelection,dataSelection) {
-    /** Translates from new naming conevtions to old */
+// function translateCsvInfo(levelSelection,dataSelection) {
+//     /** Translates from new naming conevtions to old */
 
-    if (levelSelection=='site') {
-        levelSelection='trapgroup'
-    } else if (levelSelection=='sighting') {
-        levelSelection='detection'
-    }
+//     if (levelSelection=='site') {
+//         levelSelection='trapgroup'
+//     } else if (levelSelection=='sighting') {
+//         levelSelection='detection'
+//     }
 
-    if (['Name','ID'].includes(dataSelection)) {
-        if ((levelSelection=='image')&&(dataSelection=='ID')) {
-            dataSelection = 'id'
-        } else if (levelSelection!='capture') {
-            dataSelection = levelSelection
-        }
-    }
+//     if (['Name','ID'].includes(dataSelection)) {
+//         if ((levelSelection=='image')&&(dataSelection=='ID')) {
+//             dataSelection = 'id'
+//         } else if (levelSelection!='capture') {
+//             dataSelection = levelSelection
+//         }
+//     }
 
-    if (dataSelection=='Description') {
-        dataSelection = 'Survey Description'
-    }
+//     if (dataSelection=='Description') {
+//         dataSelection = 'Survey Description'
+//     }
 
-    if ((levelSelection=='capture')&&(dataSelection=='Number')) {
-        dataSelection = 'Capture'
-    }
+//     if ((levelSelection=='capture')&&(dataSelection=='Number')) {
+//         dataSelection = 'Capture'
+//     }
 
-    return {'levelSelection':levelSelection,'dataSelection':dataSelection}
-}
+//     return {'levelSelection':levelSelection,'dataSelection':dataSelection}
+// }
 
 btnCsvDownload.addEventListener('click', ()=>{
     /** Listener on the csv download button. Checks the legality of the csv before packaging the information and sending the request to the server. */
@@ -427,87 +452,82 @@ btnCsvDownload.addEventListener('click', ()=>{
     if (legalCSV) {
         document.getElementById('btnCsvDownload').disabled = true
         allColumns = document.querySelectorAll('[id^=csvColLevelElement-]');
-        level = CSVlevelSelector.options[CSVlevelSelector.selectedIndex].text.toLowerCase();
+        level = CSVlevelSelector.options[CSVlevelSelector.selectedIndex].text;
         noEmpties = true
-
-        if (level=='site') {
-            level = 'trapgroup'
-        } else if (level=='sighting') {
-            level = 'detection'
-        }
 
         //label_type
         if (document.getElementById('listLabelFormat').checked) {
             label_type='list'
-        } else if (document.getElementById('columnLabelFormat').checked) {
-            label_type='column'
-        } else if (document.getElementById('rowLabelFormat').checked) {
+        } else if (document.getElementById('rowLabelFormat').checked) {rowLabelFormat
             label_type='row'
-        }
+        } // else if (document.getElementById('columnLabelFormat').checked) {
+        //     label_type='column'
+        // }
     
         columns = []
         var column_translations = {}
         for (let i=0;i<allColumns.length;i++) {
             IDNum = allColumns[i].id.split("-")[allColumns[i].id.split("-").length-1]
-            csvColDataElement = document.getElementById('csvColDataElement-'+String(IDNum))
-            levelSelection = allColumns[i].options[allColumns[i].selectedIndex].text.toLowerCase()
-            dataSelection = csvColDataElement.options[csvColDataElement.selectedIndex].text
+            // csvColDataElement = document.getElementById('csvColDataElement-'+String(IDNum))
+            column = allColumns[i].options[allColumns[i].selectedIndex].text
+            // dataSelection = csvColDataElement.options[csvColDataElement.selectedIndex].text
             csvColNameElement = document.getElementById('csvColNameElement-'+String(IDNum))
 
-            if ((levelSelection=='')||(dataSelection=='')) {
+            if (column=='') {
                 noEmpties = false
             }
 
-            translation = translateCsvInfo(levelSelection,dataSelection)
-            levelSelection = translation['levelSelection']
-            dataSelection = translation['dataSelection']
-            var col_translation = ''
-            if (levelSelection == 'custom') {
-                selection = dataSelection
-                col_translation = selection
-            } else if (dataSelection == 'Species Count') {
-                csvColSpeciesElement = document.getElementById('csvColSpeciesElement-'+String(IDNum))
-                speciesSelection = csvColSpeciesElement.options[csvColSpeciesElement.selectedIndex].text
-                selection = levelSelection+'_'+speciesSelection.toLowerCase().replace(' ','_')+'_count'
-                col_translation = selection
-            } else if (['Image Count', 'Animal Count'].includes(dataSelection)) {
-                selection = levelSelection+'_'+dataSelection.toLowerCase().replace(' ','_')
-                col_translation = selection
-            } else if (dataSelection == 'Labels') {
-                selection = levelSelection+'_labels'
-                if (label_type != 'column') {
-                    col_translation = selection
-                } else {
-                    col_translation = levelSelection+'_label'
-                }
-            } else if (dataSelection == 'Tags') {
-                selection = levelSelection+'_tags'
-                if (label_type != 'column') {
-                    col_translation = selection
-                } else {
-                    col_translation = levelSelection+'_tag'
-                }
-            } else if (dataSelection == 'URL') {
-                selection = levelSelection+'_url'
-                col_translation = selection
-            } else if (dataSelection == 'Individuals') {
-                selection = levelSelection+'_individuals'
-                if (label_type != 'column') {
-                    col_translation = selection
-                } else {
-                    col_translation = levelSelection+'_individual'
-                }         
-            } else if (dataSelection == 'Sighting Count') {
-                selection = levelSelection+'_sighting_count'
-                col_translation = selection
-            } else {
-                selection = dataSelection.toLowerCase().replace(' ','_')
-                col_translation = selection
-            }
-            columns.push(selection)
+            // translation = translateCsvInfo(levelSelection,dataSelection)
+            // levelSelection = translation['levelSelection']
+            // dataSelection = translation['dataSelection']
+            // var col_translation = ''
+            // if (levelSelection == 'custom') {
+            //     selection = dataSelection
+            //     col_translation = selection
+            // } else if (dataSelection == 'Species Count') {
+            //     csvColSpeciesElement = document.getElementById('csvColSpeciesElement-'+String(IDNum))
+            //     speciesSelection = csvColSpeciesElement.options[csvColSpeciesElement.selectedIndex].text
+            //     selection = levelSelection+'_'+speciesSelection.toLowerCase().replace(' ','_')+'_count'
+            //     col_translation = selection
+            // } else if (['Image Count', 'Animal Count'].includes(dataSelection)) {
+            //     selection = levelSelection+'_'+dataSelection.toLowerCase().replace(' ','_')
+            //     col_translation = selection
+            // } else if (dataSelection == 'Labels') {
+            //     selection = levelSelection+'_labels'
+            //     if (label_type != 'column') {
+            //         col_translation = selection
+            //     } else {
+            //         col_translation = levelSelection+'_label'
+            //     }
+            // } else if (dataSelection == 'Tags') {
+            //     selection = levelSelection+'_tags'
+            //     if (label_type != 'column') {
+            //         col_translation = selection
+            //     } else {
+            //         col_translation = levelSelection+'_tag'
+            //     }
+            // } else if (dataSelection == 'URL') {
+            //     selection = levelSelection+'_url'
+            //     col_translation = selection
+            // } else if (dataSelection == 'Individuals') {
+            //     selection = levelSelection+'_individuals'
+            //     if (label_type != 'column') {
+            //         col_translation = selection
+            //     } else {
+            //         col_translation = levelSelection+'_individual'
+            //     }         
+            // } else if (dataSelection == 'Sighting Count') {
+            //     selection = levelSelection+'_sighting_count'
+            //     col_translation = selection
+            // } else {
+            //     selection = dataSelection.toLowerCase().replace(' ','_')
+            //     col_translation = selection
+            // }
+            
+            columns.push(column)
 
-            if (csvColNameElement.value.toLowerCase() != selection.toLowerCase()) {
-                column_translations[col_translation] = csvColNameElement.value
+            if (csvColNameElement.value != column) {
+                column_translations[column] = csvColNameElement.value
             }
         }
 
@@ -551,36 +571,39 @@ btnCsvDownload.addEventListener('click', ()=>{
                 for (let i=0;i<custColLevelElements.length;i++) {
                     IDNum2 = custColLevelElements[i].id.split('custColLevelElement-'+String(IDNum1)+'-')[1]
                     custColDataElement = document.getElementById('custColDataElement-'+String(IDNum1)+'-'+String(IDNum2))
-                    levelSelection = custColLevelElements[i].options[custColLevelElements[i].selectedIndex].text.toLowerCase()
-                    dataSelection = custColDataElement.options[custColDataElement.selectedIndex].text
+                    levelSelection = custColLevelElements[i].options[custColLevelElements[i].selectedIndex].text
+                    // dataSelection = custColDataElement.options[custColDataElement.selectedIndex].text
 
-                    translation = translateCsvInfo(levelSelection,dataSelection)
-                    levelSelection = translation['levelSelection']
-                    dataSelection = translation['dataSelection']
+                    // translation = translateCsvInfo(levelSelection,dataSelection)
+                    // levelSelection = translation['levelSelection']
+                    // dataSelection = translation['dataSelection']
 
-                    if (levelSelection=='text') {
-                        selection = document.getElementById('ccTextInput-'+String(IDNum1)+'-'+String(IDNum2)+'-'+String(task_id)).value
+                    if (levelSelection=='Text') {
+                        // selection = document.getElementById('ccTextInput-'+String(IDNum1)+'-'+String(IDNum2)+'-'+String(task_id)).value
+                        selection = document.getElementById('ccTextInput-'+String(IDNum1)+'-'+String(IDNum2)).value
                     } else {                
-                        if (dataSelection == 'Species Count') {
-                            // TODO: This probably doesn't work anymore
-                            csvColSpeciesElement = document.getElementById('csvColSpeciesElement-'+String(IDNum))
-                            speciesSelection = csvColSpeciesElement.options[csvColSpeciesElement.selectedIndex].text
-                            selection = levelSelection+'_'+speciesSelection+'_count'
-                        } else if (['Image Count', 'Animal Count'].includes(dataSelection)) {
-                            selection = levelSelection+'_'+dataSelection.toLowerCase().replace(' ','_')
-                        } else if (dataSelection == 'Labels') {
-                            selection = levelSelection+'_labels'
-                        } else if (dataSelection == 'Tags') {
-                            selection = levelSelection+'_tags'
-                        } else if (dataSelection == 'URL') {
-                            selection = levelSelection+'_url'
-                        } else if (dataSelection == 'Individuals') {
-                            selection = levelSelection+'_individuals'
-                        } else if (dataSelection == 'Sighting Count') {
-                            selection = levelSelection+'_sighting_count'
-                        } else {
-                            selection = dataSelection.toLowerCase().replace(' ','_')
-                        }
+                        // if (dataSelection == 'Species Count') {
+                        //     // TODO: This probably doesn't work anymore
+                        //     csvColSpeciesElement = document.getElementById('csvColSpeciesElement-'+String(IDNum))
+                        //     speciesSelection = csvColSpeciesElement.options[csvColSpeciesElement.selectedIndex].text
+                        //     selection = levelSelection+'_'+speciesSelection+'_count'
+                        // } else if (['Image Count', 'Animal Count'].includes(dataSelection)) {
+                        //     selection = levelSelection+'_'+dataSelection.toLowerCase().replace(' ','_')
+                        // } else if (dataSelection == 'Labels') {
+                        //     selection = levelSelection+'_labels'
+                        // } else if (dataSelection == 'Tags') {
+                        //     selection = levelSelection+'_tags'
+                        // } else if (dataSelection == 'URL') {
+                        //     selection = levelSelection+'_url'
+                        // } else if (dataSelection == 'Individuals') {
+                        //     selection = levelSelection+'_individuals'
+                        // } else if (dataSelection == 'Sighting Count') {
+                        //     selection = levelSelection+'_sighting_count'
+                        // } else {
+                        //     selection = dataSelection.toLowerCase().replace(' ','_')
+                        // }
+
+                        selection = levelSelection
                     }
 
                     custom_column += '%%%%'+selection+'%%%%'
@@ -590,15 +613,19 @@ btnCsvDownload.addEventListener('click', ()=>{
             }
         }
         // Date range
-        startDateCSV = document.getElementById('startDateCSV').value
-        endDateCSV = document.getElementById('endDateCSV').value
+        var startDateCSV = ''
+        var endDateCSV = ''
+        if (document.getElementById('csvDateRange').checked) {
+            startDateCSV = document.getElementById('startDateCSV').value
+            endDateCSV = document.getElementById('endDateCSV').value
 
-        if(startDateCSV != ''){
-            startDateCSV = startDateCSV + ' 00:00:00'
-        }
+            if(startDateCSV != ''){
+                startDateCSV = startDateCSV + ' 00:00:00'
+            }
 
-        if(endDateCSV != ''){
-            endDateCSV = endDateCSV + ' 23:59:59'
+            if(endDateCSV != ''){
+                endDateCSV = endDateCSV + ' 23:59:59'
+            }
         }
 
         // if (document.getElementById('collapseVideo').checked) {
@@ -739,100 +766,100 @@ btnAddCSVCol.addEventListener('click', ()=>{
     buildCSVrow(IDNum)
 });
 
-function updateSpeciesElement(IDNum) {
-    /** Updates the species selector element with the specified ID number in the csv modal for species count columns. */
+// function updateSpeciesElement(IDNum) {
+//     /** Updates the species selector element with the specified ID number in the csv modal for species count columns. */
 
-    csvColDataElement = document.getElementById('csvColDataElement-'+String(IDNum))
-    data = csvColDataElement.options[csvColDataElement.selectedIndex].text;
-    if (data=='Species Count') {
-        CSVCol3 = document.getElementById('CSVCol3-'+String(IDNum))
-        csvColSpeciesElement = document.createElement('select');
-        csvColSpeciesElement.classList.add('form-control');
-        csvColSpeciesElement.id = 'csvColSpeciesElement-'+String(IDNum);
-        csvColSpeciesElement.name = csvColSpeciesElement.id;
-        CSVCol3.appendChild(csvColSpeciesElement);
-        clearSelect(csvColSpeciesElement)
-        fillSelect(csvColSpeciesElement, speciesChoiceTexts, speciesChoiceValues)
-        $('#csvColSpeciesElement-'+String(IDNum)).change( function(wrapIDNum) {
-            return function() {
-                updateNameElement(wrapIDNum)
-                checkCSV()
-            }
-        }(IDNum));
-    } else {
-        var check = document.getElementById('csvColSpeciesElement-'+String(IDNum));
-        if (check) {
-            check.remove()
-        }
-    }
-}
+//     csvColDataElement = document.getElementById('csvColDataElement-'+String(IDNum))
+//     data = csvColDataElement.options[csvColDataElement.selectedIndex].text;
+//     if (data=='Species Count') {
+//         CSVCol3 = document.getElementById('CSVCol3-'+String(IDNum))
+//         csvColSpeciesElement = document.createElement('select');
+//         csvColSpeciesElement.classList.add('form-control');
+//         csvColSpeciesElement.id = 'csvColSpeciesElement-'+String(IDNum);
+//         csvColSpeciesElement.name = csvColSpeciesElement.id;
+//         CSVCol3.appendChild(csvColSpeciesElement);
+//         clearSelect(csvColSpeciesElement)
+//         fillSelect(csvColSpeciesElement, speciesChoiceTexts, speciesChoiceValues)
+//         $('#csvColSpeciesElement-'+String(IDNum)).change( function(wrapIDNum) {
+//             return function() {
+//                 updateNameElement(wrapIDNum)
+//                 checkCSV()
+//             }
+//         }(IDNum));
+//     } else {
+//         var check = document.getElementById('csvColSpeciesElement-'+String(IDNum));
+//         if (check) {
+//             check.remove()
+//         }
+//     }
+// }
 
-function updateDataElement(IDNum) {
-    /** Updates the data element with the specified ID number in the generate csv form, depending on the level selected. */
+// function updateDataElement(IDNum) {
+//     /** Updates the data element with the specified ID number in the generate csv form, depending on the level selected. */
     
-    csvColDataElement = document.getElementById('csvColDataElement-'+String(IDNum))
-    csvColLevelElement = document.getElementById('csvColLevelElement-'+String(IDNum))
+//     csvColDataElement = document.getElementById('csvColDataElement-'+String(IDNum))
+//     csvColLevelElement = document.getElementById('csvColLevelElement-'+String(IDNum))
     
-    level = csvColLevelElement.options[csvColLevelElement.selectedIndex].value;
-    levelName = csvColLevelElement.options[csvColLevelElement.selectedIndex].text;
-    clearSelect(csvColDataElement)
-    if (level == '-99999') {
-        // Empty level
-        fillSelect(csvColDataElement, [''], ['-99999'])
-    } else if (levelName == 'Custom') {
-        // Custom
-        optionTexts = []
-        optionValues = []
-        for (let IDNum in customColumns) {
-            optionValues.push(IDNum)
-            optionTexts.push(customColumns[IDNum])
-        }
-        fillSelect(csvColDataElement, optionTexts, optionValues)
-    } else {
-        fillSelect(csvColDataElement, csvInfo[level].columns, [...Array(csvInfo[level].columns.length).keys()])
-    }
-}
+//     level = csvColLevelElement.options[csvColLevelElement.selectedIndex].value;
+//     levelName = csvColLevelElement.options[csvColLevelElement.selectedIndex].text;
+//     clearSelect(csvColDataElement)
+//     if (level == '-99999') {
+//         // Empty level
+//         fillSelect(csvColDataElement, [''], ['-99999'])
+//     } else if (levelName == 'Custom') {
+//         // Custom
+//         optionTexts = []
+//         optionValues = []
+//         for (let IDNum in customColumns) {
+//             optionValues.push(IDNum)
+//             optionTexts.push(customColumns[IDNum])
+//         }
+//         fillSelect(csvColDataElement, optionTexts, optionValues)
+//     } else {
+//         fillSelect(csvColDataElement, csvInfo[level].columns, [...Array(csvInfo[level].columns.length).keys()])
+//     }
+// }
 
 function updateNameElement(IDNum) {
     /** Updates the name element with the specified ID number in the generate csv form, depending on the data selected. */
 
     csvColLevelElement = document.getElementById('csvColLevelElement-'+String(IDNum))
-    csvColDataElement = document.getElementById('csvColDataElement-'+String(IDNum))
-    levelSelection = csvColLevelElement.options[csvColLevelElement.selectedIndex].text
-    dataSelection = csvColDataElement.options[csvColDataElement.selectedIndex].text
+    // csvColDataElement = document.getElementById('csvColDataElement-'+String(IDNum))
+    column = csvColLevelElement.options[csvColLevelElement.selectedIndex].text
+    // dataSelection = csvColDataElement.options[csvColDataElement.selectedIndex].text
 
-    if ((levelSelection=='')||(dataSelection=='')) {
+    if (column=='') {
         noEmpties = false
     }
 
-    translation = translateCsvInfo(levelSelection,dataSelection)
-    levelSelection = translation['levelSelection']
-    dataSelection = translation['dataSelection']
+    // translation = translateCsvInfo(levelSelection,dataSelection)
+    // levelSelection = translation['levelSelection']
+    // dataSelection = translation['dataSelection']
 
-    if (levelSelection == 'custom') {
-        selection = dataSelection
-    } else if (dataSelection == 'Species Count') {
-        csvColSpeciesElement = document.getElementById('csvColSpeciesElement-'+String(IDNum))
-        speciesSelection = csvColSpeciesElement.options[csvColSpeciesElement.selectedIndex].text
-        selection = levelSelection+'_'+speciesSelection.toLowerCase().replace(' ','_')+'_count'
-    } else if (['Image Count', 'Animal Count'].includes(dataSelection)) {
-        selection = levelSelection+'_'+dataSelection.toLowerCase().replace(' ','_')
-    } else if (dataSelection == 'Labels') {
-        selection = levelSelection+'_labels'
-    } else if (dataSelection == 'Tags') {
-        selection = levelSelection+'_tags'
-    } else if (dataSelection == 'URL') {
-        selection = levelSelection+'_url'
-    } else if (dataSelection == 'Individuals') {
-        selection = levelSelection+'_individuals'
-    } else if (dataSelection == 'Sighting Count') {
-        selection = levelSelection+'_sighting_count'
-    } else {
-        selection = dataSelection.toLowerCase().replace(' ','_')
-    }
+    // if (levelSelection == 'custom') {
+    //     selection = dataSelection
+    // } else if (dataSelection == 'Species Count') {
+    //     csvColSpeciesElement = document.getElementById('csvColSpeciesElement-'+String(IDNum))
+    //     speciesSelection = csvColSpeciesElement.options[csvColSpeciesElement.selectedIndex].text
+    //     selection = levelSelection+'_'+speciesSelection.toLowerCase().replace(' ','_')+'_count'
+    // } else if (['Image Count', 'Animal Count'].includes(dataSelection)) {
+    //     selection = levelSelection+'_'+dataSelection.toLowerCase().replace(' ','_')
+    // } else if (dataSelection == 'Labels') {
+    //     selection = levelSelection+'_labels'
+    // } else if (dataSelection == 'Tags') {
+    //     selection = levelSelection+'_tags'
+    // } else if (dataSelection == 'URL') {
+    //     selection = levelSelection+'_url'
+    // } else if (dataSelection == 'Individuals') {
+    //     selection = levelSelection+'_individuals'
+    // } else if (dataSelection == 'Sighting Count') {
+    //     selection = levelSelection+'_sighting_count'
+    // } else {
+    //     selection = dataSelection.toLowerCase().replace(' ','_')
+    // }
 
     csvColNameElement = document.getElementById('csvColNameElement-'+String(IDNum))
-    csvColNameElement.value = selection
+    csvColNameElement.value = column
 
 }
 
@@ -853,19 +880,19 @@ function buildCSVrow(IDNum) {
     CSVColParDiv.appendChild(CSVColRow);
 
     CSVCol0 = document.createElement('div');
-    CSVCol0.classList.add('col-lg-3')
+    CSVCol0.classList.add('col-lg-4')
     CSVColRow.appendChild(CSVCol0);
 
     CSVCol1 = document.createElement('div');
-    CSVCol1.classList.add('col-lg-3')
+    CSVCol1.classList.add('col-lg-4')
     CSVColRow.appendChild(CSVCol1);
 
-    CSVCol2 = document.createElement('div');
-    CSVCol2.classList.add('col-lg-3')
-    CSVColRow.appendChild(CSVCol2);
+    // CSVCol2 = document.createElement('div');
+    // CSVCol2.classList.add('col-lg-3')
+    // CSVColRow.appendChild(CSVCol2);
 
     CSVCol3 = document.createElement('div');
-    CSVCol3.classList.add('col-lg-2')
+    CSVCol3.classList.add('col-lg-3')
     CSVCol3.id = 'CSVCol3-'+String(IDNum);
     CSVColRow.appendChild(CSVCol3);
 
@@ -877,22 +904,29 @@ function buildCSVrow(IDNum) {
     csvColNameElement.classList.add('form-control');
     csvColNameElement.id = 'csvColNameElement-'+String(IDNum);
     csvColNameElement.name = csvColNameElement.id;
-    CSVCol0.appendChild(csvColNameElement);
+    CSVCol1.appendChild(csvColNameElement);
 
     csvColLevelElement = document.createElement('select');
     csvColLevelElement.classList.add('form-control');
     csvColLevelElement.id = 'csvColLevelElement-'+String(IDNum);
     csvColLevelElement.name = csvColLevelElement.id;
-    CSVCol1.appendChild(csvColLevelElement);
+    CSVCol0.appendChild(csvColLevelElement);
     clearSelect(csvColLevelElement)
     fillSelect(csvColLevelElement, levelChoiceTexts, levelChoiceValues)
+    var customTexts = []
+    var customValues = []
+    for (let IDNum in customColumns) {
+        customTexts.push(customColumns[IDNum])
+        customValues.push('c'+String(IDNum))
+    }
+    fillSelect(csvColLevelElement, customTexts, customValues)
 
-    csvColDataElement = document.createElement('select');
-    csvColDataElement.classList.add('form-control');
-    csvColDataElement.id = 'csvColDataElement-'+String(IDNum);
-    csvColDataElement.name = csvColDataElement.id;
-    CSVCol2.appendChild(csvColDataElement);
-    fillSelect(csvColDataElement, [''], ['-99999'])
+    // csvColDataElement = document.createElement('select');
+    // csvColDataElement.classList.add('form-control');
+    // csvColDataElement.id = 'csvColDataElement-'+String(IDNum);
+    // csvColDataElement.name = csvColDataElement.id;
+    // CSVCol2.appendChild(csvColDataElement);
+    // fillSelect(csvColDataElement, [''], ['-99999'])
 
     btnRemove = document.createElement('button');
     btnRemove.classList.add('btn');
@@ -909,20 +943,20 @@ function buildCSVrow(IDNum) {
 
     $("#"+csvColLevelElement.id).change( function(wrapIDNum) {
         return function() {
-            updateDataElement(wrapIDNum)
-            updateSpeciesElement(wrapIDNum)
+            // updateDataElement(wrapIDNum)
+            // updateSpeciesElement(wrapIDNum)
             updateNameElement(wrapIDNum)
             checkCSV()
         }
     }(IDNum));
 
-    $("#"+csvColDataElement.id).change( function(wrapIDNum) {
-        return function() {
-            updateSpeciesElement(wrapIDNum)
-            updateNameElement(wrapIDNum)
-            checkCSV()
-        }
-    }(IDNum));
+    // $("#"+csvColDataElement.id).change( function(wrapIDNum) {
+    //     return function() {
+    //         updateSpeciesElement(wrapIDNum)
+    //         updateNameElement(wrapIDNum)
+    //         checkCSV()
+    //     }
+    // }(IDNum));
 }
 
 function buildCustColAddBtn(IDNum1,customColumnBtnDiv) {
@@ -933,11 +967,11 @@ function buildCustColAddBtn(IDNum1,customColumnBtnDiv) {
     customColumnBtnDiv.appendChild(row)
 
     col1 = document.createElement('div')
-    col1.classList.add('col-lg-3')
+    col1.classList.add('col-lg-4')
     row.appendChild(col1)
 
     col2 = document.createElement('div')
-    col2.classList.add('col-lg-3')
+    col2.classList.add('col-lg-4')
     row.appendChild(col2)
 
     col3 = document.createElement('div')
@@ -945,7 +979,7 @@ function buildCustColAddBtn(IDNum1,customColumnBtnDiv) {
     row.appendChild(col3)
 
     col4 = document.createElement('div')
-    col4.classList.add('col-lg-3')
+    col4.classList.add('col-lg-1')
     row.appendChild(col4)
 
     btnAdd = document.createElement('button');
@@ -977,19 +1011,19 @@ function buildCustColRow(IDNum1,IDNum2) {
         customColumnHeadingDiv.appendChild(row)
     
         col1 = document.createElement('div')
-        col1.classList.add('col-lg-3')
+        col1.classList.add('col-lg-4')
         col1.innerHTML = 'Name'
         row.appendChild(col1)
     
         col2 = document.createElement('div')
-        col2.classList.add('col-lg-3')
-        col2.innerHTML = 'Level'
+        col2.classList.add('col-lg-4')
+        col2.innerHTML = 'Column'
         row.appendChild(col2)
     
-        col3 = document.createElement('div')
-        col3.classList.add('col-lg-3')
-        col3.innerHTML = 'Data'
-        row.appendChild(col3)
+        // col3 = document.createElement('div')
+        // col3.classList.add('col-lg-3')
+        // col3.innerHTML = 'Data'
+        // row.appendChild(col3)
     }
 
     if (IDNum2==0) {
@@ -1017,19 +1051,20 @@ function buildCustColRow(IDNum1,IDNum2) {
     customColumnDiv.appendChild(row)
 
     col1 = document.createElement('div')
-    col1.classList.add('col-lg-3')
+    col1.classList.add('col-lg-4')
     row.appendChild(col1)
 
     col2 = document.createElement('div')
-    col2.classList.add('col-lg-3')
+    col2.classList.add('col-lg-4')
     row.appendChild(col2)
 
     col3 = document.createElement('div')
     col3.classList.add('col-lg-3')
+    col3.id = 'custColText-'+String(IDNum1)+'-'+String(IDNum2)
     row.appendChild(col3)
 
     col4 = document.createElement('div')
-    col4.classList.add('col-lg-3')
+    col4.classList.add('col-lg-1')
     row.appendChild(col4)
 
     if (IDNum2==0) {
@@ -1045,10 +1080,35 @@ function buildCustColRow(IDNum1,IDNum2) {
                 colName = document.getElementById('custColName-'+String(wrapIDNum1)).value
                 if (colName!='') {
                     customColumns[wrapIDNum1] = colName
-                    updateCustomColNames()
+                    // updateCustomColNames()
+                    allLevels = document.querySelectorAll('[id^=csvColLevelElement-]')
+                    for (let i=0;i<allLevels.length;i++) {
+                        found = false
+                        for (let j=0;j<allLevels[i].options.length;j++) {
+                            if (allLevels[i].options[j].value=='c'+String(wrapIDNum1)) {
+                                allLevels[i].options[j].text = colName
+                                found = true
+                                break
+                            }
+                        }
+                        if (!found) {
+                            fillSelect(allLevels[i], [colName], ['c'+String(wrapIDNum1)])
+                        }
+                    }
+
                 } else {
                     if (wrapIDNum1 in customColumns) {
                         delete customColumns[wrapIDNum1]
+                    }
+
+                    allLevels = document.querySelectorAll('[id^=csvColLevelElement-]')
+                    for (let i=0;i<allLevels.length;i++) {
+                        for (let j=0;j<allLevels[i].options.length;j++) {
+                            if (allLevels[i].options[j].value=='c'+String(wrapIDNum1)) {
+                                allLevels[i].remove(j)
+                                break
+                            }
+                        }
                     }
                 }
 
@@ -1061,6 +1121,7 @@ function buildCustColRow(IDNum1,IDNum2) {
     custCol.id = 'custColLevelElement-'+String(IDNum1)+'-'+String(IDNum2)
     custCol.name = custCol.id;
     col2.appendChild(custCol);
+
     texts = levelChoiceTexts.slice(0)
     index = texts.indexOf('Custom')
     texts.splice(index, 1);
@@ -1070,12 +1131,34 @@ function buildCustColRow(IDNum1,IDNum2) {
     values.splice(1, 0, '-100')
     fillSelect(custCol, texts, values)
 
-    custColData = document.createElement('select');
-    custColData.classList.add('form-control');
-    custColData.id = 'custColDataElement-'+String(IDNum1)+'-'+String(IDNum2)
-    custColData.name = custColData.id;
-    col3.appendChild(custColData);
-    fillSelect(custColData, [''], ['-99999'])
+
+    $("#"+custCol.id).change( function(wrapIDNum1,wrapIDNum2) {
+        return function() {
+            var level_select = document.getElementById('custColLevelElement-'+String(wrapIDNum1)+'-'+String(wrapIDNum2))
+            var level_text = level_select.options[level_select.selectedIndex].text;
+            var col = document.getElementById('custColText-'+String(wrapIDNum1)+'-'+String(wrapIDNum2))
+            while(col.firstChild){
+                col.removeChild(col.firstChild);
+            }
+            if (level_text == 'Text') {
+                var custText = document.createElement('input')
+                custText.setAttribute('style',"background-color:white")
+                custText.setAttribute('type','text')
+                custText.setAttribute('id','ccTextInput-'+String(wrapIDNum1)+'-'+String(wrapIDNum2))
+                custText.setAttribute('placeholder','Text Field')
+                custText.classList.add('form-control')
+                col.appendChild(custText)
+                custText.value = ''
+            }  
+        }    
+    }(IDNum1,IDNum2));
+
+    // custColData = document.createElement('select');
+    // custColData.classList.add('form-control');
+    // custColData.id = 'custColDataElement-'+String(IDNum1)+'-'+String(IDNum2)
+    // custColData.name = custColData.id;
+    // col3.appendChild(custColData);
+    // fillSelect(custColData, [''], ['-99999'])
 
     btnRemove = document.createElement('button');
     btnRemove.classList.add('btn');
@@ -1085,8 +1168,22 @@ function buildCustColRow(IDNum1,IDNum2) {
         btnRemove.addEventListener('click', function(wrapIDNum) {
             return function() {
                 delete customColumns[wrapIDNum]
+                allLevels = document.querySelectorAll('[id^=csvColLevelElement-]')
+                for (let i=0;i<allLevels.length;i++) {
+                    if (allLevels[i].value=='c'+String(wrapIDNum)) {
+                        allLevels[i].parentNode.parentNode.remove()
+                    }
+                    else{
+                        for (let j=0;j<allLevels[i].options.length;j++) {
+                            if (allLevels[i].options[j].value=='c'+String(wrapIDNum)) {
+                                allLevels[i].remove(j)
+                                break
+                            }
+                        }
+                    }
+                }
                 document.getElementById('customColumnDiv-' + String(wrapIDNum)).remove()
-                updateCustomRows()
+                // updateCustomRows()
 
                 allNames = document.querySelectorAll('[id^=custColName-]');
                 if (allNames.length==0) {
@@ -1100,39 +1197,39 @@ function buildCustColRow(IDNum1,IDNum2) {
     } else {
         btnRemove.addEventListener('click', (evt)=>{
             evt.target.parentNode.parentNode.remove();
-            updateCustomRows()
+            // updateCustomRows()
         });
     }
     col4.appendChild(btnRemove);
 
-    $("#"+custCol.id).change( function(wrapIDNum1,wrapIDNum2) {
-        return function() {
-            custColDataElement = document.getElementById('custColDataElement-'+String(wrapIDNum1)+'-'+String(wrapIDNum2))
-            csvColLevelElement = document.getElementById('custColLevelElement-'+String(wrapIDNum1)+'-'+String(wrapIDNum2))
+    // $("#"+custCol.id).change( function(wrapIDNum1,wrapIDNum2) {
+    //     return function() {
+    //         // custColDataElement = document.getElementById('custColDataElement-'+String(wrapIDNum1)+'-'+String(wrapIDNum2))
+    //         // csvColLevelElement = document.getElementById('custColLevelElement-'+String(wrapIDNum1)+'-'+String(wrapIDNum2))
             
-            level = csvColLevelElement.options[csvColLevelElement.selectedIndex].value;
+    //         // level = csvColLevelElement.options[csvColLevelElement.selectedIndex].value;
             
-            clearSelect(custColDataElement)
+    //         // clearSelect(custColDataElement)
 
-            if ((level != '-99999')&&(level != '-100')) {
-                optionTexts = []
-                optionValues = []
-                for (let i=0;i<csvInfo[level].columns.length;i++) {
-                    if (csvInfo[level].columns[i]!='Species Count') {
-                        optionTexts.push(csvInfo[level].columns[i])
-                    }
-                }
-                fillSelect(custColDataElement, optionTexts, [...Array(optionTexts.length).keys()])
-            } else {
-                fillSelect(custColDataElement, [''], ['-99999'])
-            }
-            updateCustomRows()
-        }
-    }(IDNum1,IDNum2));
+    //         // if ((level != '-99999')&&(level != '-100')) {
+    //         //     optionTexts = []
+    //         //     optionValues = []
+    //         //     for (let i=0;i<csvInfo[level].columns.length;i++) {
+    //         //         if (csvInfo[level].columns[i]!='Species Count') {
+    //         //             optionTexts.push(csvInfo[level].columns[i])
+    //         //         }
+    //         //     }
+    //         //     fillSelect(custColDataElement, optionTexts, [...Array(optionTexts.length).keys()])
+    //         // } else {
+    //         //     fillSelect(custColDataElement, [''], ['-99999'])
+    //         // }
+    //         // updateCustomRows()
+    //     }
+    // }(IDNum1,IDNum2));
 
-    $("#"+custColData.id).change( function() {
-        updateCustomRows()
-    });
+    // $("#"+custColData.id).change( function() {
+    //     updateCustomRows()
+    // });
 }
 
 // function buildCSVsurveyRow() {
@@ -1274,46 +1371,46 @@ function updateIncludeFields() {
     }
 }
 
-function csvSurveyUpdates() {
-    /** Updates all necessary selectors and rows when the survey list in the csv form changes. */
-    updateCustomRows()
+// function csvSurveyUpdates() {
+//     /** Updates all necessary selectors and rows when the survey list in the csv form changes. */
+//     updateCustomRows()
 
-    selectedTasks = []
-    allTasks = document.querySelectorAll('[id^=csvTaskSelect-]')
-    for (let i=0;i<allTasks.length;i++) {
-        task_id = allTasks[i].options[allTasks[i].selectedIndex].value
-        if (task_id != '-99999') {
-            selectedTasks.push(task_id)
-        }
-    }
+//     selectedTasks = []
+//     allTasks = document.querySelectorAll('[id^=csvTaskSelect-]')
+//     for (let i=0;i<allTasks.length;i++) {
+//         task_id = allTasks[i].options[allTasks[i].selectedIndex].value
+//         if (task_id != '-99999') {
+//             selectedTasks.push(task_id)
+//         }
+//     }
 
-    var formData = new FormData()
-    formData.append("selectedTasks", JSON.stringify(selectedTasks))
+//     var formData = new FormData()
+//     formData.append("selectedTasks", JSON.stringify(selectedTasks))
 
-    var xhttp = new XMLHttpRequest();
-    xhttp.open("POST", '/getSpeciesandIDs/0');
-    xhttp.onreadystatechange =
-    function(){
-        if (this.readyState == 4 && this.status == 200) {
-            reply = JSON.parse(this.responseText);
-            speciesChoiceTexts = reply.names
-            speciesChoiceValues = reply.ids
+//     var xhttp = new XMLHttpRequest();
+//     xhttp.open("POST", '/getSpeciesandIDs/0');
+//     xhttp.onreadystatechange =
+//     function(){
+//         if (this.readyState == 4 && this.status == 200) {
+//             reply = JSON.parse(this.responseText);
+//             speciesChoiceTexts = reply.names
+//             speciesChoiceValues = reply.ids
             
-            csvColSpeciesElements = document.querySelectorAll('[id^=csvColSpeciesElement-]');
-            for (let i=0;i<csvColSpeciesElements.length;i++) {
-                csvColSpeciesElement = csvColSpeciesElements[i]
-                species = csvColSpeciesElement.options[csvColSpeciesElement.selectedIndex].text
-                index = speciesChoiceTexts.indexOf(species)
-                clearSelect(csvColSpeciesElement)
-                fillSelect(csvColSpeciesElement, speciesChoiceTexts, speciesChoiceValues)
-                csvColSpeciesElement.selectedIndex = index
-            }
+//             csvColSpeciesElements = document.querySelectorAll('[id^=csvColSpeciesElement-]');
+//             for (let i=0;i<csvColSpeciesElements.length;i++) {
+//                 csvColSpeciesElement = csvColSpeciesElements[i]
+//                 species = csvColSpeciesElement.options[csvColSpeciesElement.selectedIndex].text
+//                 index = speciesChoiceTexts.indexOf(species)
+//                 clearSelect(csvColSpeciesElement)
+//                 fillSelect(csvColSpeciesElement, speciesChoiceTexts, speciesChoiceValues)
+//                 csvColSpeciesElement.selectedIndex = index
+//             }
 
-            updateIncludeFields()
-        }
-    }
-    xhttp.send(formData);
-}
+//             updateIncludeFields()
+//         }
+//     }
+//     xhttp.send(formData);
+// }
 
 function buildIncludeRow() {
     /** Builds an include/exclude row */
@@ -1417,7 +1514,7 @@ function finishCSVprep() {
     var optionValues=[]
     for (let key in csvInfo) {
         if (csvInfo.hasOwnProperty(key)) {
-            if (csvInfo[key].name != 'Custom') {
+            if (!['Custom','Global','Survey'].includes(csvInfo[key].name)) {
                 optionTexts.push(csvInfo[key].name)
                 optionValues.push(key)
             }
@@ -1432,11 +1529,24 @@ function finishCSVprep() {
     levelChoiceTexts = ['']
     levelChoiceValues = ['-99999']
     levelInt = parseInt(level)
+    choiceVal = 0
     for (let key in csvInfo) {
         if (csvInfo.hasOwnProperty(key)) {
             if (parseInt(key)>=levelInt) {
-                levelChoiceTexts.push(csvInfo[key].name)
-                levelChoiceValues.push(key)
+                for (let i=0;i<csvInfo[key].columns.length;i++) {
+                    if (csvInfo[key].name == 'Global' && csvDisallowedGlobals.hasOwnProperty(level)) {
+                        if (!csvDisallowedGlobals[level].includes(csvInfo[key].columns[i])) {
+                            levelChoiceTexts.push(csvInfo[key].columns[i])
+                            levelChoiceValues.push(choiceVal)
+                            choiceVal += 1
+                        }
+                    }
+                    else {
+                        levelChoiceTexts.push(csvInfo[key].columns[i])
+                        levelChoiceValues.push(choiceVal)
+                        choiceVal += 1
+                    }
+                }
             }
         }
     }
@@ -1480,11 +1590,24 @@ function finishCSVprep() {
         levelChoiceTexts = ['']
         levelChoiceValues = ['-99999']
         levelInt = parseInt(level)
+        choiceVal = 0
         for (let key in csvInfo) {
             if (csvInfo.hasOwnProperty(key)) {
                 if (parseInt(key)>=levelInt) {
-                    levelChoiceTexts.push(csvInfo[key].name)
-                    levelChoiceValues.push(key)
+                    for (let i=0;i<csvInfo[key].columns.length;i++) {
+                        if (csvInfo[key].name == 'Global' && csvDisallowedGlobals.hasOwnProperty(level)) {
+                            if (!csvDisallowedGlobals[level].includes(csvInfo[key].columns[i])) {
+                                levelChoiceTexts.push(csvInfo[key].columns[i])
+                                levelChoiceValues.push(choiceVal)
+                                choiceVal += 1
+                            }
+                        }
+                        else {
+                            levelChoiceTexts.push(csvInfo[key].columns[i])
+                            levelChoiceValues.push(choiceVal)
+                            choiceVal += 1
+                        }
+                    }
                 }
             }
         }
@@ -1500,11 +1623,13 @@ modalCSVGenerate.on('shown.bs.modal', function(){
     if (helpReturn) {
         helpReturn = false
     } else {
-        document.getElementById('listLabelFormat').checked = false
-        document.getElementById('columnLabelFormat').checked = true
+        document.getElementById('listLabelFormat').checked = true
+        // document.getElementById('columnLabelFormat').checked = true
         document.getElementById('rowLabelFormat').checked = false
         document.getElementById('includeLabels').checked = true
         document.getElementById('excludeLabels').checked = false
+        document.getElementById('csvDateRangeDiv').hidden = true
+        document.getElementById('csvDateRange').checked = false
         // document.getElementById('videoFrames').checked = false
         // document.getElementById('collapseVideo').checked = true
         
@@ -1514,7 +1639,9 @@ modalCSVGenerate.on('shown.bs.modal', function(){
             xhttp.onreadystatechange =
             function(){
                 if (this.readyState == 4 && this.status == 200) {
-                    csvInfo = JSON.parse(this.responseText);
+                    reply = JSON.parse(this.responseText);
+                    csvInfo = reply.CSV_INFO
+                    csvDisallowedGlobals = reply.CSV_DISALLOWED_GLOBALS
     
                     var xhttp = new XMLHttpRequest();
                     xhttp.open("GET", '/getSpeciesandIDs/'+selectedTask);
@@ -1591,6 +1718,8 @@ modalCSVGenerate.on('hidden.bs.modal', function(){
         document.getElementById('startDateCSV').value = ''
         document.getElementById('endDateCSV').value = ''
         document.getElementById('dateErrorsCSV').innerHTML = ''
+        document.getElementById('csvDateRangeDiv').hidden = true
+        document.getElementById('csvDateRange').checked = false
     }
 });
 
@@ -1603,3 +1732,17 @@ $('#excludeLabels').change( function() {
     /** When include/exclude selctor is changed, check the csv file format */
     checkCSV()
 });
+
+function toggleDateRangeCSV(){
+    /** Toggles the date range selector on and off on CSV */
+    var csvDateRangeChecked = document.getElementById('csvDateRange').checked
+    if (csvDateRangeChecked) {
+        document.getElementById('csvDateRangeDiv').hidden = false
+    }
+    else {
+        document.getElementById('csvDateRangeDiv').hidden = true
+    }
+    document.getElementById('startDateCSV').value = ''
+    document.getElementById('endDateCSV').value = ''
+    document.getElementById('dateErrorsCSV').innerHTML = ''
+}

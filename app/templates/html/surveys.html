@@ -957,11 +957,11 @@ limitations under the License. -->
                 <h5 style="margin-bottom: 2px">CSV File</h5>
                 <div style="font-size: 80%; margin-bottom: 2px"><i>Generate and download a custom CSV file of the results of the selected annotation set, or download a pre-formatted one.</i></div>
                 <div class="row">
-                    <div class='col-lg-2'>
-                        <button id="btnCsvGenerate" type='button' class='btn btn-primary btn-block'>Generate</button>
+                    <div class='col-lg-3'>
+                        <button id="btnCsvGenerate" type='button' class='btn btn-primary btn-block' style='white-space: normal; word-wrap: break-word;'>Custom Format</button>
                     </div>
-                    <div class='col-lg-2'>
-                        <button type='button' class='btn btn-primary btn-block' onclick=downloadPreFormattedCSV()>Download</button>
+                    <div class='col-lg-3'>
+                        <button type='button' class='btn btn-primary btn-block' style='white-space: normal; word-wrap: break-word;' onclick=downloadPreFormattedCSV()>Download Default</button>
                     </div>
                 </div>
                 <br>
@@ -1257,35 +1257,43 @@ limitations under the License. -->
                 <br>
 
                 <h5 style="margin-bottom: 2px">Label Format</h5>
-                <div style="font-size: 80%; margin-bottom: 2px"><i>Select how you would like your multiple labels formatted: listed in a single column, split over multiple columns, or split over multiple rows (with a single column).</i></div>
+                <div style="font-size: 80%; margin-bottom: 2px"><i>Select how you would like your multiple labels formatted: listed in a single column, or split over multiple rows (with a single column).</i></div>
                 <div class="custom-control custom-radio custom-control-inline">
                     <input type="radio" class="custom-control-input" id="listLabelFormat" name="labelFormatSelection" value="customEx">
                     <label class="custom-control-label" for="listLabelFormat">List</label>
                 </div>
-                <div class="custom-control custom-radio custom-control-inline">
+                <!-- <div class="custom-control custom-radio custom-control-inline">
                     <input type="radio" class="custom-control-input" id="columnLabelFormat" name="labelFormatSelection" value="customEx">
                     <label class="custom-control-label" for="columnLabelFormat">Columns</label>
-                </div>
+                </div> -->
                 <div class="custom-control custom-radio custom-control-inline">
                     <input type="radio" class="custom-control-input" id="rowLabelFormat" name="labelFormatSelection" value="customEx">
                     <label class="custom-control-label" for="rowLabelFormat">Rows</label>
                 </div>
                 <br>
                 <br>
-
-                <h5 style="margin-bottom: 2px">Date Range</h5>
-                <div style="font-size: 80%; margin-bottom: 2px"><i>Select the date range for which you want your data to be included in the CSV file.</i></div>
+                
                 <div class="row">
-                    <div class='col-lg-3'>
-                        <label for="startDateCSV">Start date:</label><br>
-                        <input type="date" id="startDateCSV" name="startDateCSV">
-                    </div>
-                    <div class='col-lg-3'>
-                        <label for="endDateCSV">End date:</label><br>
-                        <input type="date" id="endDateCSV" name="endDateCSV">
-                    </div>
+                    <h5 style='padding-left: 15px; padding-right: 10px; margin-bottom: 2px'>Date Range Filter</h5>
+                    <div class="custom-control custom-checkbox">
+                        <input type="checkbox" class="custom-control-input" id="csvDateRange" name="csvDateRange" onchange="toggleDateRangeCSV()">
+                        <label class="custom-control-label" for="csvDateRange">&nbsp;</label>
+                    </div>  
                 </div>
-                <div id="dateErrorsCSV" style="font-size: 80%; color: #DF691A"></div>
+                <div id="csvDateRangeDiv" hidden>
+                    <div style="font-size: 80%; margin-bottom: 2px"><i>Select the date range for which you want your data to be included in the CSV file. By default no date filter is applied.</i></div>
+                    <div class="row">
+                        <div class='col-lg-3'>
+                            <label for="startDateCSV">Start date:</label><br>
+                            <input type="date" id="startDateCSV" name="startDateCSV">
+                        </div>
+                        <div class='col-lg-3'>
+                            <label for="endDateCSV">End date:</label><br>
+                            <input type="date" id="endDateCSV" name="endDateCSV">
+                        </div>
+                    </div>
+                    <div id="dateErrorsCSV" style="font-size: 80%; color: #DF691A"></div>
+                </div>
                 <br>
 
                 <h5 style="margin-bottom: 2px">Include/Exclude Species</h5>
@@ -1333,9 +1341,8 @@ limitations under the License. -->
                 <div style="font-size: 80%; margin-bottom: 2px"><i>Select the required columns, in order, by selecting a data unit (level) and associated information.</i></div>
                 <div id="csvErrors" style="font-size: 80%; color: #DF691A"></div>
                 <div class="row">
-                    <div class='col-lg-3'  style="font-size: 100%; margin-bottom: 2px">Name</div>
-                    <div class='col-lg-3'  style="font-size: 100%; margin-bottom: 2px">Level</div>
-                    <div class='col-lg-3'  style="font-size: 100%; margin-bottom: 2px">Data</div>
+                    <div class='col-lg-4'  style="font-size: 100%; margin-bottom: 2px">Column</div>
+                    <div class='col-lg-4'  style="font-size: 100%; margin-bottom: 2px">Name</div>
                 </div>
                 <div id="CSVColDiv"></div>
                 <div class='row'>

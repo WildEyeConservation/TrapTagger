@@ -25,7 +25,7 @@ class Config(object):
     INITIAL_SETUP = False
     DISABLE_RESTORE = False
     KILL_FILEHANDLER = False
-    VERSION = 47
+    VERSION = 48
 
     HOST_IP = os.environ.get('HOST_IP')
     REDIS_IP = os.environ.get('REDIS_IP')
@@ -825,15 +825,32 @@ class Config(object):
     }
 
     # csv options
+    # CSV_INFO = {
+    #     '0':{'name': 'Sighting', 'columns': ['ID','Boxes','Labels','Individuals', 'Flank']},
+    #     '1':{'name': 'Image', 'columns': ['Name', 'ID',  'Labels', 'Sighting Count', 'Tags', 'Timestamp', 'URL', 'Individuals', 'Original Timestamp', 'Video Path']},
+    #     '2':{'name': 'Capture', 'columns': ['Number', 'ID',  'Labels', 'Sighting Count', 'Tags', 'Timestamp', 'URL', 'Individuals']},
+    #     '3':{'name': 'Cluster', 'columns': ['ID',  'Labels', 'Sighting Count', 'Tags', 'Timestamp', 'Notes', 'URL', 'Individuals', 'Annotator']},
+    #     '4':{'name': 'Camera', 'columns': ['Name']},
+    #     '5':{'name': 'Site', 'columns': ['Name',  'Latitude', 'Longitude', 'Altitude']},
+    #     '6':{'name': 'Survey', 'columns': ['Name']},
+    #     '7':{'name': 'Custom', 'columns': []}
+    # }
     CSV_INFO = {
-        '0':{'name': 'Sighting', 'columns': ['ID','Boxes','Labels','Individuals', 'Flank']},
-        '1':{'name': 'Image', 'columns': ['Name', 'ID', 'Species Count', 'Labels', 'Sighting Count', 'Tags', 'Timestamp', 'URL', 'Individuals', 'Original Timestamp', 'Video Path']},
-        '2':{'name': 'Capture', 'columns': ['Number', 'ID', 'Species Count', 'Labels', 'Sighting Count', 'Tags', 'Timestamp', 'Image Count', 'URL', 'Individuals']},
-        '3':{'name': 'Cluster', 'columns': ['ID', 'Species Count', 'Labels', 'Sighting Count', 'Tags', 'Timestamp', 'Notes', 'Image Count', 'URL', 'Individuals', 'Annotator']},
-        '4':{'name': 'Camera', 'columns': ['Name', 'Species Count', 'Labels', 'Tags', 'Animal Count', 'Image Count', 'URL', 'Individuals']},
-        '5':{'name': 'Site', 'columns': ['Name', 'Species Count', 'Labels', 'Tags', 'Latitude', 'Longitude', 'Altitude', 'Animal Count', 'Image Count', 'URL', 'Individuals']},
-        '6':{'name': 'Survey', 'columns': ['Name', 'Species Count', 'Labels', 'Tags', 'Description', 'Animal Count', 'Image Count', 'URL', 'Individuals']},
-        '7':{'name': 'Custom', 'columns': []}
+        '0':{'name': 'Sighting', 'columns': ['Sighting ID','Boxes', 'Flank']},
+        '1':{'name': 'Image', 'columns': ['File', 'Image ID', 'Image URL', 'Video Path']},
+        '2':{'name': 'Capture', 'columns': ['Capture Number', 'Capture ID', 'Capture URL']},
+        '3':{'name': 'Cluster', 'columns': ['Cluster ID', 'Notes', 'Cluster URL']},
+        '4':{'name': 'Camera', 'columns': ['Camera Name']},
+        '5':{'name': 'Site', 'columns': ['Site Name', 'Latitude', 'Longitude', 'Altitude']},
+        '6':{'name': 'Survey', 'columns': ['Survey Name']},
+        '7':{'name': 'Global', 'columns': ['Species','Informational Tags','Individuals','Sighting Count','Timestamp', 'Original Timestamp', 'Annotator']},
+        '8':{'name': 'Custom', 'columns': []}
+    }
+
+    CSV_DISALLOWED_GLOBALS = {
+        '4': ['Sighting Count','Timestamp', 'Original Timestamp', 'Annotator'],
+        '5': ['Sighting Count','Timestamp', 'Original Timestamp', 'Annotator'],
+        '6': ['Sighting Count','Timestamp', 'Original Timestamp', 'Annotator']
     }
 
     # blank cluster formats

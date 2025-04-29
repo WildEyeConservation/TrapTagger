@@ -995,7 +995,7 @@ def finish_knockdown(self,rootImageID, task, current_user_id, lastImageID=None):
                 if not (prev) or (timestamp - prev).total_seconds() > 60:
                     if prev is not None:
                         reCluster.images = imList
-                        if len(imList) > 50:
+                        if (imList[-1].corrected_timestamp-imList[0].corrected_timestamp).total_seconds() > Config.MAX_CLUSTER_MINUTES * 60:
                             long_clusters.append(reCluster)
                         else:
                             clusterList.append(reCluster)
@@ -1006,12 +1006,14 @@ def finish_knockdown(self,rootImageID, task, current_user_id, lastImageID=None):
                 prev = timestamp
                 imList.append(image)
 
-            reCluster.images = imList
-            if len(imList) > 50:
-                long_clusters.append(reCluster)
-            else:
-                clusterList.append(reCluster)
-            reCluster.classification = classifyCluster(reCluster)
+            if imList:
+                reCluster.images = imList
+                if (imList[-1].corrected_timestamp-imList[0].corrected_timestamp).total_seconds() > Config.MAX_CLUSTER_MINUTES * 60:
+                    long_clusters.append(reCluster)
+                else:
+                    clusterList.append(reCluster)
+                reCluster.classification = classifyCluster(reCluster)
+            
             db.session.commit()
 
             clusterList = [r.id for r in clusterList]
@@ -1125,6 +1127,7 @@ def unknock_cluster(self,image_id, label_id, user_id, task_id):
         reAllocated = []
         clusterList = []
         downLabel = db.session.query(Label).get(GLOBALS.knocked_id)
+        admin = db.session.query(User).filter(User.username == 'Admin').first()
         for new_cluster in new_clusters:
             newCluster = Cluster(task_id=task_id, timestamp=datetime.utcnow())
             db.session.add(newCluster)
@@ -1142,36 +1145,53 @@ def unknock_cluster(self,image_id, label_id, user_id, task_id):
             newCluster.classification = new_cluster.classification
             reAllocated.extend(reClusIms)
 
+            # strip labels that are AI-generated or empty as they could now be wrong
+            labelgroupsSQ = db.session.query(Labelgroup)\
+                            .join(Detection)\
+                            .join(Image)\
+                            .filter(Image.clusters.contains(newCluster))\
+                            .filter(Labelgroup.task_id==task_id)\
+                            .subquery()
+
+            labelgroups = db.session.query(Labelgroup)\
+                            .join(labelgroupsSQ,labelgroupsSQ.c.id==Labelgroup.id)\
+                            .join(Detection)\
+                            .join(Image)\
+                            .join(Cluster,Image.clusters)\
+                            .filter(or_(
+                                Cluster.user_id==admin.id,
+                                Cluster.labels.contains(nothingLabel)
+                            ))\
+                            .filter(Cluster.id!=cluster.id)\
+                            .filter(Cluster.task_id==task_id)\
+                            .distinct().all()
+
+            for labelgroup in labelgroups:
+                labelgroup.labels = []
+
+            #copy remaining labels across (that were human annotated)
+            labels = db.session.query(Label)\
+                            .join(Labelgroup,Label.labelgroups)\
+                            .join(Detection)\
+                            .join(Image)\
+                            .filter(Labelgroup.task_id==task_id)\
+                            .filter(Image.clusters.contains(newCluster))\
+                            .distinct().all()
+            
             labelgroups = db.session.query(Labelgroup)\
                             .join(Detection)\
                             .join(Image)\
                             .filter(Image.clusters.contains(newCluster))\
                             .filter(Labelgroup.task_id==task_id)\
-                            .all()
-
+                            .distinct().all()
+            
+            newCluster.labels = labels
             for labelgroup in labelgroups:
-                labelgroup.labels = []
-        
-        db.session.commit()
+                labelgroup.labels = labels
+                labelgroup.checked = False
 
-        admin = db.session.query(User).filter(User.username == 'Admin').first()
-        for old_cluster in old_clusters:        
-            if (old_cluster.user_id != admin.id) and (old_cluster.labels != []) and (nothingLabel not in old_cluster.labels) and (downLabel not in old_cluster.labels):
-                new_cluster = db.session.query(Cluster).filter(Cluster.task_id==task_id).filter(Cluster.images.contains(old_cluster.images[0])).filter(~Cluster.labels.any()).first()
-                if new_cluster != None:
-                    new_cluster.labels = old_cluster.labels
-                    new_cluster.timestamp = datetime.utcnow()
-
-                    labelgroups = db.session.query(Labelgroup)\
-                                    .join(Detection)\
-                                    .join(Image)\
-                                    .filter(Image.clusters.contains(new_cluster))\
-                                    .filter(Labelgroup.task_id==task_id)\
-                                    .all()
-
-                    for labelgroup in labelgroups:
-                        labelgroup.labels = old_cluster.labels
-
+        # Remove the re-allocated images from their old clusters & delete the clusters if they are now empty
+        for old_cluster in old_clusters:
             for image in reAllocated:
                 if image in old_cluster.images[:]:
                     old_cluster.images.remove(image)
@@ -1775,6 +1795,17 @@ def getChildList(label,task_id):
     label_list = []
     for lab in children:
         label_list.append(lab.id)
+        if db.session.query(Label).filter(Label.parent_id==lab.id).filter(Label.task_id==task_id).first():
+            label_list.extend(getChildList(lab,task_id))
+    return label_list
+
+def getChildNameList(label,task_id):
+    '''Returns a list of all child label descriptions for the specified label for the specified task.'''
+
+    children = db.session.query(Label).filter(Label.parent_id==label.id).filter(Label.task_id==task_id).all()
+    label_list = []
+    for lab in children:
+        label_list.append(lab.description)
         if db.session.query(Label).filter(Label.parent_id==lab.id).filter(Label.task_id==task_id).first():
             label_list.extend(getChildList(lab,task_id))
     return label_list
@@ -4859,3 +4890,14 @@ def maskSky(survey_id,sky_masked,edge):
     db.session.commit()
 
     return True
+
+def get_utc_offset(lat,lon):
+    '''Returns a timedelta object for the current time zone of a given set of coordinates'''
+    try:
+        tf = timezonefinder.TimezoneFinder()
+        timezone_str = tf.timezone_at(lat=lat, lng=lon)
+        tz = pytz.timezone(timezone_str)
+        offset = datetime.utcnow().astimezone(tz).utcoffset()
+    except:
+        offset = timedelta(hours=0)
+    return offset

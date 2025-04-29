@@ -8409,16 +8409,16 @@ def generateCSV():
         if 'preformatted' in request.form:
             # The pre formatted csv
             selectedTasks = [int(ast.literal_eval(request.form['preformatted']))]
-            level = 'image'
-            columns = ['trapgroup', 'latitude', 'longitude', 'timestamp', 'image_labels', 'image_sighting_count', 'image_url']
+            level = 'Image'
+            columns = ['Site Name', 'Latitude', 'Longitude', 'Timestamp', 'Species', 'Sighting Count', 'Image URL']
             custom_columns = {str(selectedTasks[0]):{}}
-            label_type = 'column'
+            label_type = 'list'
             includes = []
             excludes = []
             start_date = None
             end_date = None
             column_translations = {}
-            # collapseVideo = True
+
         else:
             selectedTasks = [int(r) for r in ast.literal_eval(request.form['selectedTasks'])]
             level = ast.literal_eval(request.form['level'])
@@ -8433,58 +8433,33 @@ def generateCSV():
             if end_date == '': end_date = None
             column_translations = ast.literal_eval(request.form['column_translations'])
 
-            # if request.form['collapseVideo'].lower() == 'true':
-            #     collapseVideo = True
-            # else:
-            #     collapseVideo = False
-
     except:
         return json.dumps({'status':'error',  'message': None})
 
     for selectedTask in selectedTasks:
         task = db.session.query(Task).get(selectedTask)
-        # if (task == None) or (task.survey.user != current_user):
+
         if (task == None) or (not checkSurveyPermission(current_user.id,task.survey_id,'read')):
             return json.dumps({'status':'error',  'message': None})
 
-        if start_date != None:
+        if start_date:
             check_start = db.session.query(Image).join(Camera).join(Trapgroup).filter(Trapgroup.survey_id==task.survey_id).filter(Image.timestamp>start_date).first()
-            if check_start==None: 
-                return json.dumps({'status':'error',  'message':'The date range specified is outside the survey. Please select a date range within the survey.'})
+            if check_start==None: return json.dumps({'status':'error',  'message':'The date range specified is outside the survey. Please select a date range within the survey.'})
         
-        if end_date != None:
+        if end_date:
             check_end = db.session.query(Image).join(Camera).join(Trapgroup).filter(Trapgroup.survey_id==task.survey_id).filter(Image.timestamp<end_date).first()
-            if check_end==None:
-                return json.dumps({'status':'error',  'message':'The date range specified is outside the survey. Please select a date range within the survey.'})
-          
-
-    task = db.session.query(Task).get(selectedTasks[0])
-    # fileName = task.survey.user.folder+'/docs/'+task.survey.user.username+'_'+task.survey.name+'_'+task.name+'.csv'
-    # fileName = task.survey.organisation.folder+'/docs/'+task.survey.organisation.name+'_'+current_user.username+'_'+task.survey.name+'_'+task.name+'.csv'
-
-    # # Delete old file if exists
-    # try:
-    #     GLOBALS.s3client.delete_object(Bucket=Config.BUCKET, Key=fileName)
-    # except:
-    #     pass
-
-    det_count = rDets(db.session.query(Detection).join(Image).join(Camera).join(Trapgroup).filter(Trapgroup.survey_id==task.survey_id)).distinct().count()
-    if det_count>300000:
-        queue='ram_intensive'
-    else:
-        queue='default'
+            if check_end==None: return json.dumps({'status':'error',  'message':'The date range specified is outside the survey. Please select a date range within the survey.'})
 
     check = db.session.query(DownloadRequest).filter(DownloadRequest.task_id==selectedTasks[0]).filter(DownloadRequest.user_id==current_user.id).filter(DownloadRequest.type=='csv').filter(DownloadRequest.status=='Pending').first()
-    if check:
-        return json.dumps({'status':'error',  'message': 'A download request for this task is already pending. Please wait for the previous request to complete.'})
+    if check: return json.dumps({'status':'error',  'message': 'You already have a csv being generated for this annotation set.'})
 
     # Create Download request
     download_request = DownloadRequest(type='csv', user_id=current_user.id, task_id=selectedTasks[0], status='Pending', timestamp=None)
     db.session.add(download_request)
     db.session.commit()
 
-    app.logger.info('Calling generate_csv: {}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {}'.format(selectedTasks, level, columns, custom_columns, label_type, includes, excludes, start_date, end_date, column_translations,current_user.username))
-    response = generate_csv.apply_async(kwargs={'selectedTasks':selectedTasks, 'selectedLevel':level, 'requestedColumns':columns, 'custom_columns':custom_columns, 'label_type':label_type, 'includes':includes, 'excludes':excludes, 'startDate':start_date, 'endDate':end_date, 'column_translations': column_translations, 'user_name': current_user.username, 'download_id': download_request.id}, queue=queue)
+    app.logger.info('Calling generate_csv_parent: {}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {}'.format(selectedTasks, level, columns, custom_columns, label_type, includes, excludes, start_date, end_date, column_translations,current_user.username))
+    response = generate_csv_parent.apply_async(kwargs={'selectedTasks':selectedTasks, 'selectedLevel':level, 'requestedColumns':columns, 'custom_columns':custom_columns, 'label_type':label_type, 'includes':includes, 'excludes':excludes, 'startDate':start_date, 'endDate':end_date, 'column_translations': column_translations, 'user_name': current_user.username, 'download_id': download_request.id}, queue='default')
 
     download_request.celery_id = response.id
     db.session.commit()
@@ -8532,7 +8507,7 @@ def generateCOCO():
 @login_required
 def getCSVinfo():
     '''Returns the csv options.'''
-    return json.dumps(Config.CSV_INFO)
+    return json.dumps({'CSV_INFO': Config.CSV_INFO, 'CSV_DISALLOWED_GLOBALS': Config.CSV_DISALLOWED_GLOBALS})
 
 @app.route('/getSpeciesandIDs/<task_id>', methods=['POST','GET'])
 @login_required
@@ -10088,7 +10063,7 @@ def getAllLabelsTagsSitesAndGroups():
     sites_data = []
     sites_ids = []
     unique_sites = {}
-    if task_ids:
+    if task_ids and task_ids != '-1':
         if task_ids[0] == '0':
             labels = [r[0] for r in surveyPermissionsSQ(db.session.query(Label.description).join(Task).join(Survey),current_user.id,'read').distinct().all()]
             tags = [r[0] for r in surveyPermissionsSQ(db.session.query(Tag.description).join(Task).join(Survey),current_user.id,'read').distinct().all()]
@@ -14084,7 +14059,7 @@ def addImage():
             altitude = data.get('altitude', 0)
             camera = data.get('camera')
 
-            timestamp = data.get('timestamp')
+            timestamp = data.get('timestamp') #timestamp must be in UTC!
             if timestamp:
                 try:
                     timestamp = datetime.strptime(timestamp, '%Y-%m-%d %H:%M:%S')
@@ -14225,6 +14200,12 @@ def addImage():
                         # Check timestamp is not corrupt
                         if timestamp and (timestamp>(datetime.utcnow()+timedelta(hours=14))): timestamp = None
                         if timestamp and (timestamp.year<2000): timestamp = None
+
+                        # If all else fails, use the current time for the timestamp
+                        if timestamp==None: timestamp=datetime.utcnow()
+
+                        # Received timestamp will be in UTC need to convert to local time based on coords - everything falls back to UTC
+                        if latitude and longitude: timestamp = timestamp + get_utc_offset(latitude,longitude)
 
                         if not trapgroup:
                             trapgroup = Trapgroup(survey_id=survey_id, tag=site_name, latitude=latitude, longitude=longitude, altitude=altitude)
