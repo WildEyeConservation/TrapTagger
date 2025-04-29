@@ -19,11 +19,11 @@ from app.models import *
 # from app.functions.admin import setup_new_survey_permissions
 from app.functions.globals import detection_rating, randomString, updateTaskCompletionStatus, updateLabelCompletionStatus, updateIndividualIdStatus, retryTime,\
                                  chunker, save_crops, list_all, classifyTask, all_equal, taggingLevelSQ, generate_raw_image_hash, updateAllStatuses, setup_new_survey_permissions, \
-                                 hideSmallDetections, maskSky
+                                 hideSmallDetections, maskSky, rDets
 from app.functions.annotation import launch_task
 import GLOBALS
-from sqlalchemy.sql import func, or_, distinct, and_, literal_column
-from sqlalchemy import desc
+from sqlalchemy.sql import func, or_, distinct, and_, literal_column, case
+from sqlalchemy import desc, insert
 from sqlalchemy import exc as sa_exc
 from datetime import datetime, timedelta
 import re
@@ -6150,5 +6150,745 @@ def batch_images_for_detection_only(image_data,sourceBucket,dirpath,external=Fal
         app.logger.info(traceback.format_exc())
         app.logger.info('!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!')
         app.logger.info(' ')
+
+    return True
+
+def cluster_timestampless(task_id,trapgroup_id,starting_last_cluster_id,query_limit):
+    '''
+        Clusters the timestampless images for the specified task and trapgroup.
+        -Videos are handled by creating video-based clusters
+        -Images are handled by creating single-image clusters
+    '''
+
+    # This is a utility SQ for finding the unclustered images
+    clusteredImagesSQ = db.session.query(Image)\
+                        .join(Cluster,Image.clusters)\
+                        .filter(Cluster.task_id==task_id)\
+                        .filter(Cluster.id>starting_last_cluster_id)\
+                        .subquery()
+
+    # Prepare cluster info for each image that needs to be copied across
+    clusterInfoSQ = db.session.query(
+                            Image.id.label('image_id'),
+                            Cluster.notes,
+                            Cluster.user_id,
+                            Cluster.timestamp,
+                            Cluster.checked,
+                            Cluster.id.label('cluster_id'),
+                            func.row_number().over(
+                                partition_by=Image.id,
+                                order_by=Cluster.id
+                            ).label('row_number')
+                        ).join(Cluster, Image.clusters)\
+                        .filter(Cluster.task_id == task_id)\
+                        .subquery()
+    
+    while True:
+        imageData = db.session.query(
+                                Image,
+                                Video.id,
+                                clusterInfoSQ.c.notes,
+                                clusterInfoSQ.c.user_id,
+                                clusterInfoSQ.c.timestamp,
+                                clusterInfoSQ.c.checked
+                            )\
+                            .outerjoin(clusterInfoSQ,clusterInfoSQ.c.image_id==Image.id)\
+                            .outerjoin(clusteredImagesSQ,clusteredImagesSQ.c.id==Image.id)\
+                            .join(Camera)\
+                            .outerjoin(Video)\
+                            .filter(Camera.trapgroup_id==trapgroup_id)\
+                            .filter(Image.corrected_timestamp==None)\
+                            .filter(or_(clusterInfoSQ.c.row_number==1,clusterInfoSQ.c.row_number==None))\
+                            .filter(clusteredImagesSQ.c.id==None)\
+                            .order_by(Video.id)\
+                            .distinct().limit(query_limit).all()
+        
+        if not imageData: break
+
+        last_video_id = imageData[-1][1]
+        max_query = True if (len(imageData) == query_limit) else False
+        single_cluster = True if (imageData[0][1] == imageData[-1][1]) else False
+
+        clusters = []
+        images = []
+        current_video = None
+        for image, video_id, notes, user_id, timestamp, checked in imageData:
+
+            if (video_id!=current_video) or (current_video is None):
+                # new video encountered - create previous cluster
+
+                # This avoids a possible video split across a max_query scenario
+                if max_query and not single_cluster and (video_id==last_video_id) and (video_id is not None): break
+
+                if images:
+                    if cluster_checked==None: cluster_checked = False
+                    cluster = Cluster(
+                                    task_id=task_id,
+                                    notes=cluster_notes,
+                                    user_id=cluster_user_id,
+                                    timestamp=cluster_timestamp,
+                                    checked=cluster_checked
+                                )
+                    cluster.images = images
+                    clusters.append(cluster)
+                
+                images = []
+                cluster_notes = None
+                cluster_user_id = None
+                cluster_timestamp = None
+                cluster_checked = None
+                current_video = video_id
+
+            if cluster_notes is None: cluster_notes = notes
+            if cluster_user_id is None: cluster_user_id = user_id
+            if cluster_timestamp is None: cluster_timestamp = timestamp
+            if cluster_checked is None: cluster_checked = checked
+            images.append(image)
+
+        # save the last cluster
+        if images:
+            if cluster_checked==None: cluster_checked = False
+            cluster = Cluster(
+                            task_id=task_id,
+                            notes=cluster_notes,
+                            user_id=cluster_user_id,
+                            timestamp=cluster_timestamp,
+                            checked=cluster_checked
+                        )
+            cluster.images = images
+            clusters.append(cluster)
+
+        if clusters:
+            db.session.bulk_save_objects(clusters)
+            db.session.commit()
+
+        if len(imageData) < query_limit: break
+    
+    return True
+
+def time_based_clustering(task_id,trapgroup_id,query_limit):
+    '''
+        Performs traditional timestamp-based clustering for the specified task and trapgroup.
+        -Images that are less than one minute apart are clustered together
+        -For motion-triggered camera traps
+        -Long clusters (>MAX_CLUSTER_MINUTES) are left unclustered
+    '''      
+    
+    # Here we get the current and previous timestamp for each image in the trapgroup
+    imageSQ = db.session.query(
+                            Image.id.label('id'),
+                            Image.corrected_timestamp.label('timestamp'),
+                            func.lag(Image.corrected_timestamp).over(order_by=Image.corrected_timestamp).label("prev_timestamp")
+                        )\
+                        .join(Camera)\
+                        .filter(Camera.trapgroup_id==trapgroup_id)\
+                        .filter(Image.corrected_timestamp!=None)\
+                        .subquery()
+
+    # Here we generate clusters based on time deltas of less than a minute
+    clusterSQ = db.session.query(
+                            imageSQ.c.id.label('id'),
+                            func.row_number().over(order_by=imageSQ.c.timestamp).label("row_number"),
+                            func.sum(
+                                case(
+                                    (
+                                        (imageSQ.c.prev_timestamp == None) |
+                                        (func.timestampdiff(literal_column("SECOND"), imageSQ.c.prev_timestamp, imageSQ.c.timestamp) > 60),
+                                        1
+                                    ),
+                                    else_=0
+                                )
+                            )
+                            .over(order_by=imageSQ.c.timestamp).label('cluster_number')
+                        )\
+                        .subquery()
+
+    # here we get the old cluster info for each image
+    clusterInfoSQ = db.session.query(
+                            Image.id.label('image_id'),
+                            Cluster.notes,
+                            Cluster.user_id,
+                            Cluster.timestamp,
+                            Cluster.checked,
+                            Cluster.id.label('cluster_id'),
+                            func.row_number().over(
+                                partition_by=Image.id,
+                                order_by=Cluster.id
+                            ).label('row_number')
+                        ).join(Cluster, Image.clusters)\
+                        .filter(Cluster.task_id == task_id)\
+                        .subquery()
+
+    current_row = 0
+    final_row = db.session.query(clusterSQ.c.row_number).order_by(desc(clusterSQ.c.row_number)).first()
+    final_row = final_row[0] if final_row else 0
+    while current_row!=final_row:
+        # Here we fetch the next query_limit rows beyond our corrent position
+        clusterQuery = db.session.query(
+                                Image,
+                                clusterSQ.c.cluster_number,
+                                clusterSQ.c.row_number,
+                                clusterInfoSQ.c.notes,
+                                clusterInfoSQ.c.user_id,
+                                clusterInfoSQ.c.timestamp,
+                                clusterInfoSQ.c.checked
+                            )\
+                            .join(clusterSQ,clusterSQ.c.id==Image.id)\
+                            .outerjoin(clusterInfoSQ,clusterInfoSQ.c.image_id==Image.id)\
+                            .filter(or_(clusterInfoSQ.c.row_number==1,clusterInfoSQ.c.row_number==None))\
+                            .filter(clusterSQ.c.row_number>current_row)\
+                            .order_by(Image.corrected_timestamp).limit(query_limit).all()
+
+        if clusterQuery==[]: break
+
+        single_cluster = True if (clusterQuery[0][1]==clusterQuery[-1][1]) else False
+        max_query = True if (len(clusterQuery)==query_limit) else False
+        last_cluster_number = clusterQuery[-1][1]
+
+        clusters = []
+        images = []
+        cluster_notes = None
+        cluster_user_id = None
+        cluster_timestamp = None
+        cluster_checked = None
+        current_cluster_number = None
+        for image, cluster_number, row_number, notes, user_id, timestamp, checked in clusterQuery:
+
+            # Check if a new cluster encountered
+            if cluster_number!=current_cluster_number:
+                # here we want to drop a potential incomplete cluster if the limit was reached
+                # but we can't skip a single (>query_limit images) cluster otherwise we'll get stuck
+                # this essentially will limit our maximum cluster size to the query_limit
+                if max_query and not single_cluster and (cluster_number==last_cluster_number): break
+
+                if images:
+                    # wrap up previous cluster
+                    if (images[-1].corrected_timestamp-images[0].corrected_timestamp).total_seconds() > Config.MAX_CLUSTER_MINUTES * 60:
+                        # long cluster - leave these for the detection/presence clustering later on
+                        pass
+                    else:
+                        # normal cluster
+                        if cluster_checked==None: cluster_checked = False
+                        cluster = Cluster(
+                                        task_id=task_id,
+                                        notes=cluster_notes,
+                                        user_id=cluster_user_id,
+                                        timestamp=cluster_timestamp,
+                                        checked=cluster_checked
+                                    )
+                        cluster.images = images
+                        clusters.append(cluster)
+
+                # Start new cluster
+                images = []
+                cluster_notes = None
+                cluster_user_id = None
+                cluster_timestamp = None
+                cluster_checked = None
+                current_cluster_number = cluster_number
+
+            # If clusters are being joined and one cluster has info but not the other, we are just going to keep the first non-null value
+            if cluster_notes is None: cluster_notes = notes
+            if cluster_user_id is None: cluster_user_id = user_id
+            if cluster_timestamp is None: cluster_timestamp = timestamp
+            if cluster_checked is None: cluster_checked = checked
+
+            images.append(image)
+            current_row = row_number
+
+        # wrap up final cluster
+        if images:
+            if (images[-1].corrected_timestamp-images[0].corrected_timestamp).total_seconds() > Config.MAX_CLUSTER_MINUTES * 60:
+                # long cluster - leave these for the detection/presence clustering later on
+                pass
+            else:
+                # normal cluster
+                if cluster_checked==None: cluster_checked = False
+                cluster = Cluster(
+                                task_id=task_id,
+                                notes=cluster_notes,
+                                user_id=cluster_user_id,
+                                timestamp=cluster_timestamp,
+                                checked=cluster_checked
+                            )
+                cluster.images = images
+                clusters.append(cluster)
+
+        db.session.bulk_save_objects(clusters)
+        db.session.commit()
+    
+    return True
+
+def det_presence_clustering(task_id,trapgroup_id,starting_last_cluster_id,query_limit):
+    '''
+        New detection presence/absence clustering for the specified task and trapgroup.
+        -Groups images from the trapgroup based on presence/absence of detections across all the associated cameras.
+        -Camera status reset after MAX_CLUSTER_MINUTES
+        -long clusters are broken up at MAX_CLUSTER_MINUTES
+        -For long clusters and time-triggered cameras
+    '''    
+
+    # This is a utility SQ for finding the unclustered images
+    clusteredImagesSQ = db.session.query(Image)\
+                        .join(Cluster,Image.clusters)\
+                        .filter(Cluster.task_id==task_id)\
+                        .filter(Cluster.id>starting_last_cluster_id)\
+                        .subquery()
+
+    # This finds all the relevent detections in the trapgroup
+    rDetsSQ = rDets(db.session.query(Detection).join(Image).join(Camera).filter(Camera.trapgroup_id==trapgroup_id)).subquery()
+
+    # This generates a detection presence/absence field per image
+    imageDetectionSQ = db.session.query(
+                                    Image.id.label('image_id'),
+                                    Image.corrected_timestamp.label('timestamp'),
+                                    Camera.cameragroup_id.label('cameragroup_id'),
+                                    case(
+                                        (
+                                            (rDetsSQ.c.id==None),
+                                            0
+                                        ),
+                                        else_=1
+                                    ).label('det_presence')
+                                )\
+                                .outerjoin(clusteredImagesSQ,clusteredImagesSQ.c.id==Image.id)\
+                                .join(Camera)\
+                                .join(Detection)\
+                                .outerjoin(rDetsSQ,rDetsSQ.c.id==Detection.id)\
+                                .filter(Camera.trapgroup_id==trapgroup_id)\
+                                .filter(Image.corrected_timestamp!=None)\
+                                .filter(clusteredImagesSQ.c.id==None)\
+                                .group_by(Image.id).subquery()
+
+    # This then creates a lagged version of the det presence and timestamps to help find deltas later on
+    prevPresenceSQ = db.session.query(
+                                    imageDetectionSQ.c.image_id.label('image_id'),
+                                    imageDetectionSQ.c.cameragroup_id.label('cameragroup_id'),
+                                    imageDetectionSQ.c.det_presence.label('det_presence'),
+                                    imageDetectionSQ.c.timestamp.label('timestamp'),
+                                    func.lag(imageDetectionSQ.c.det_presence).over(partition_by=imageDetectionSQ.c.cameragroup_id,order_by=imageDetectionSQ.c.timestamp).label("prev_presence"),
+                                    func.lag(imageDetectionSQ.c.timestamp).over(partition_by=imageDetectionSQ.c.cameragroup_id,order_by=imageDetectionSQ.c.timestamp).label("prev_timestamp")
+                                )\
+                                .subquery()
+
+    # Here we can now generate per-cameragroup clusters based on deltas in detection presence/absence up to a maximum cluster time
+    cameraClusterSQ = db.session.query(
+                                    prevPresenceSQ.c.image_id.label('image_id'),
+                                    prevPresenceSQ.c.cameragroup_id.label('cameragroup_id'),
+                                    prevPresenceSQ.c.det_presence.label('det_presence'),
+                                    prevPresenceSQ.c.timestamp.label('timestamp'),
+                                    func.sum(
+                                        case(
+                                            (
+                                                (prevPresenceSQ.c.prev_presence == None) |
+                                                (prevPresenceSQ.c.det_presence!=prevPresenceSQ.c.prev_presence) |
+                                                (func.timestampdiff(literal_column("SECOND"), prevPresenceSQ.c.prev_timestamp, prevPresenceSQ.c.timestamp) > Config.MAX_CLUSTER_MINUTES*60),
+                                                1
+                                            ),
+                                            else_=0
+                                        )
+                                    )
+                                    .over(partition_by=prevPresenceSQ.c.cameragroup_id,order_by=prevPresenceSQ.c.timestamp).label('cluster_number')
+                                )\
+                                .subquery()
+
+    # # Here we pull the cluster info from the old clusters that are being replaced
+    clusterInfoSQ = db.session.query(
+                                    Image.id.label('image_id'),
+                                    Cluster.notes,
+                                    Cluster.user_id,
+                                    Cluster.timestamp,
+                                    Cluster.checked,
+                                    Cluster.id.label('cluster_id'),
+                                    func.row_number().over(
+                                        partition_by=Image.id,
+                                        order_by=Cluster.id
+                                    ).label('row_number')
+                                ).join(Cluster, Image.clusters)\
+                                .filter(Cluster.task_id == task_id)\
+                                .subquery()
+
+    # Here we can now can actually query the clusters themselves along with all the fields we need
+    cameragroupClusters = db.session.query(
+                                    cameraClusterSQ.c.cameragroup_id.label('cameragroup_id'),
+                                    cameraClusterSQ.c.cluster_number.label('cluster_number'),
+                                    cameraClusterSQ.c.det_presence.label('det_presence'),
+                                    func.min(cameraClusterSQ.c.timestamp).label('start'),
+                                    func.max(cameraClusterSQ.c.timestamp).label('end'),
+                                    func.group_concat(Image.id).label('image_ids'),
+                                    func.row_number().over(order_by=cameraClusterSQ.c.timestamp).label("row_number")
+                                )\
+                                .join(Image,Image.id==cameraClusterSQ.c.image_id)\
+                                .group_by(cameraClusterSQ.c.cameragroup_id,cameraClusterSQ.c.cluster_number)\
+                                .order_by(cameraClusterSQ.c.timestamp)\
+                                .all()
+
+    cameragroup_ids = [r[0] for r in db.session.query(Cameragroup.id).join(Camera).filter(Camera.trapgroup_id==trapgroup_id).distinct().all()]
+    last_sighting_time = dict.fromkeys(cameragroup_ids,datetime.utcfromtimestamp(0))
+    last_sighting_index = dict.fromkeys(cameragroup_ids,False)
+    if cameragroupClusters: last_row = cameragroupClusters[-1][6]
+
+    clusters = []
+    cluster_image_ids = []
+    cluster_start = None
+    cluster_end = None
+    images_start = None
+    images_end = None
+    for cameragroup_id, cluster_number, det_presence, start, end, image_ids, row_number in cameragroupClusters:
+        
+        image_ids = [int(image_id) for image_id in image_ids.split(',')]
+
+        # Here we correct the pre-state based on time - a two-day old detection at a cameragroup is no longer relevent
+        for cg_id in cameragroup_ids:
+            if (start-last_sighting_time[cg_id]) > timedelta(minutes=Config.MAX_CLUSTER_MINUTES):
+                last_sighting_index[cameragroup_id] = False
+
+        # Here we check the state prior to the image - was it empty? In order for it to be empty, all cameras need to be seeing nothing
+        # We then update the state, and again check if the site is now empty
+        was_empty = all(map(lambda x: x == False, last_sighting_index.values()))
+        if det_presence: last_sighting_time[cameragroup_id] = end
+        last_sighting_index[cameragroup_id] = True if det_presence else False
+        is_empty = all(map(lambda x: x == False, last_sighting_index.values()))
+
+        # We then look for a delta in the emptyness state - if it changed, start a new cluster
+        if cluster_image_ids and ((was_empty != is_empty) or (row_number==last_row)):
+            if row_number==last_row: cluster_image_ids.extend(image_ids)
+
+            # This means that we should never have more than query_limit image objects in memory
+            if (images_end==None) or (cluster_end>images_end) or (cluster_start<images_start):
+                
+                if clusters:
+                    # save and flush current clusters before fetching more data into memory
+                    db.session.bulk_save_objects(clusters)
+                    db.session.commit()
+                    clusters = []
+                
+                images_dictionary = db.session.query(
+                                            Image,
+                                            clusterInfoSQ.c.notes,
+                                            clusterInfoSQ.c.user_id,
+                                            clusterInfoSQ.c.timestamp,
+                                            clusterInfoSQ.c.checked
+                                        )\
+                                        .outerjoin(clusterInfoSQ,clusterInfoSQ.c.image_id==Image.id)\
+                                        .join(Camera)\
+                                        .filter(Camera.trapgroup_id==trapgroup_id)\
+                                        .filter(Image.corrected_timestamp>=cluster_start)\
+                                        .filter(or_(clusterInfoSQ.c.row_number==1,clusterInfoSQ.c.row_number==None))\
+                                        .order_by(Image.corrected_timestamp)\
+                                        .distinct().limit(query_limit).all()
+                
+                images_start = images_dictionary[0][0].corrected_timestamp
+                images_end = images_dictionary[-1][0].corrected_timestamp
+                images_dictionary = {item[0].id: item for item in images_dictionary}
+
+            cluster_images = [images_dictionary[image_id][0] for image_id in cluster_image_ids]
+            cluster_images.sort(key=lambda image: image.corrected_timestamp)
+            
+            cluster_notes = None
+            cluster_user_id = None
+            cluster_timestamp = None
+            cluster_checked = None
+            image_subset = []
+            for image in cluster_images:
+                # Push the current set of images to a cluster if we have reached the end of image set, or the MAX_CLUSTER_MINUTES has been reached
+                if image_subset and (((image.corrected_timestamp-image_subset[0].corrected_timestamp) > timedelta(minutes=Config.MAX_CLUSTER_MINUTES)) or (image==cluster_images[-1])):
+                    if image==cluster_images[-1]: image_subset.append(image) # This wraps up the last cluster on the last image
+                    if cluster_checked==None: cluster_checked = False
+                    cluster = Cluster(
+                                    task_id=task_id,
+                                    notes=cluster_notes,
+                                    user_id=cluster_user_id,
+                                    timestamp=cluster_timestamp,
+                                    checked=cluster_checked
+                                )
+                    cluster.images = image_subset
+                    clusters.append(cluster)
+                    image_subset = []
+                    cluster_notes = None
+                    cluster_user_id = None
+                    cluster_timestamp = None
+                    cluster_checked = None
+                
+                # update cluster info
+                image_notes = images_dictionary[image.id][1]
+                image_user_id = images_dictionary[image.id][2]
+                image_timestamp = images_dictionary[image.id][3]
+                image_checked = images_dictionary[image.id][4]
+                if cluster_notes is None: cluster_notes = image_notes
+                if cluster_user_id is None: cluster_user_id = image_user_id
+                if cluster_timestamp is None: cluster_timestamp = image_timestamp
+                if cluster_checked is None: cluster_checked = image_checked
+
+                image_subset.append(image)
+
+            cluster_image_ids = []
+            cluster_start = None
+            cluster_end = None
+
+        cluster_image_ids.extend(image_ids)
+        if (cluster_start==None) or (start<cluster_start): cluster_start = start
+        if (cluster_end==None) or (end>cluster_end): cluster_end = end
+
+    if clusters:
+        db.session.bulk_save_objects(clusters)
+        db.session.commit()
+
+    return True
+
+def add_labelgroups(survey_id,task_id):
+    ''' Bulk adds missing labelgroups to the specified task. '''
+    
+    sq = db.session.query(Detection.id.label('detection_id'),Labelgroup.id.label('labelgroup_id'))\
+                        .outerjoin(Labelgroup)\
+                        .join(Image)\
+                        .join(Camera)\
+                        .join(Trapgroup)\
+                        .filter(Trapgroup.survey_id==survey_id)\
+                        .filter(Labelgroup.task_id==task_id)\
+                        .subquery()
+    
+    while True:
+        detections = db.session.query(Detection.id)\
+                            .outerjoin(sq,sq.c.detection_id==Detection.id)\
+                            .join(Image)\
+                            .join(Camera)\
+                            .join(Trapgroup)\
+                            .filter(Trapgroup.survey_id==survey_id)\
+                            .filter(sq.c.labelgroup_id==None)\
+                            .distinct().limit(200000).all()
+        
+        if not detections: break
+
+        insert_values = []
+        for detection in detections:
+            insert_values.append({
+                'task_id': task_id,
+                'detection_id': detection[0]
+            })
+
+        db.session.execute(insert(Labelgroup), insert_values)
+        db.session.commit()
+
+    return True
+
+def delete_old_clusters(task_id,trapgroup_id,query_limit):
+    ''' Leaves only the lates cluster for a given task and trapgroup. '''
+
+    clusterSQ = db.session.query(
+                                Cluster.id.label('cluster_id'),
+                                func.row_number().over(
+                                    partition_by=Image.id,
+                                    order_by=desc(Cluster.id)
+                                ).label('row_number')
+                            ).join(Image, Cluster.images)\
+                            .join(Camera)\
+                            .filter(Cluster.task_id == task_id)\
+                            .filter(Camera.trapgroup_id == trapgroup_id)\
+                            .subquery()
+    
+    while True:
+        clusters = db.session.query(Cluster)\
+                            .join(clusterSQ,clusterSQ.c.cluster_id==Cluster.id)\
+                            .filter(clusterSQ.c.row_number>1)\
+                            .limit(query_limit).all()
+        
+        if not clusters: break
+
+        for cluster in clusters:
+            cluster.labels = []
+            cluster.tags = []
+            cluster.images = []
+            cluster.required_images = []
+            db.session.delete(cluster)
+
+        db.session.commit()
+
+    return True
+
+def delete_empty_clusters(task_id,query_limit):
+    ''' Deletes any clusters without images. '''
+
+    while True:
+        clusters = db.session.query(Cluster).filter(Cluster.task_id==task_id).filter(~Cluster.images.any()).limit(query_limit).all()
+
+        if not clusters: break
+
+        for cluster in clusters:
+            cluster.labels = []
+            cluster.tags = []
+            cluster.images = []
+            cluster.required_images = []
+            db.session.delete(cluster)
+
+        db.session.commit()
+
+    return True
+
+def sync_labels(task_id):
+    '''
+        Synchronises the labels between the specified task's labelgroups and clusters.
+        -Labelgroup labels are first copied up to their clusters.
+        -Then the cluster labels are then back propogated down to the labelgroups, where the labelgroups haven't been manually checked.
+    '''
+
+    # copy up labels from labelgroups to clusters
+    labels = db.session.query(Label).filter(Label.task_id==task_id).distinct().all()
+    labels.extend(db.session.query(Label).filter(Label.id.in_([GLOBALS.vhl_id,GLOBALS.nothing_id,GLOBALS.unknown_id,GLOBALS.knocked_id])).distinct().all())
+    for label in labels:       
+        cluster_ids = [r[0] for r in db.session.query(Cluster.id)\
+                            .join(Image,Cluster.images)\
+                            .join(Detection)\
+                            .join(Labelgroup)\
+                            .filter(Cluster.task_id==task_id)\
+                            .filter(Labelgroup.task_id==task_id)\
+                            .filter(Labelgroup.labels.contains(label))\
+                            .filter(~Cluster.labels.contains(label))\
+                            .distinct().all()]
+        
+        insert_values = []
+        for cluster_id in cluster_ids:
+            insert_values.append({
+                'cluster_id': cluster_id,
+                'label_id': label.id
+            })
+        if insert_values: db.session.execute(insert(labelstable), insert_values)
+
+    # Then copy labels back down to labelgroups where needed (checked==False)
+    for label in labels:
+        labelgroup_ids = [r[0] for r in db.session.query(Labelgroup.id)\
+                            .join(Detection)\
+                            .join(Image)\
+                            .join(Cluster,Image.clusters)\
+                            .filter(Cluster.task_id==task_id)\
+                            .filter(Labelgroup.task_id==task_id)\
+                            .filter(~Labelgroup.labels.contains(label))\
+                            .filter(Cluster.labels.contains(label))\
+                            .filter(Labelgroup.checked==False)\
+                            .distinct().all()]
+        
+        insert_values = []
+        for labelgroup_id in labelgroup_ids:
+            insert_values.append({
+                'labelgroup_id': labelgroup_id,
+                'label_id': label.id
+            })
+        if insert_values: db.session.execute(insert(detectionLabels), insert_values)
+    
+    return True
+
+def sync_tags(task_id):
+    '''
+        Synchronises the tags between the specified task's labelgroups and clusters.
+        -Labelgroup tags are first copied up to their clusters.
+        -Then the cluster tags are then back propogated down to the labelgroups.
+    '''
+
+    # copy up tags from labelgroups to the clusters
+    tags = db.session.query(Tag).filter(Tag.task_id==task_id).distinct().all()
+    for tag in tags:       
+        cluster_ids = [r[0] for r in db.session.query(Cluster.id)\
+                            .join(Image,Cluster.images)\
+                            .join(Detection)\
+                            .join(Labelgroup)\
+                            .filter(Cluster.task_id==task_id)\
+                            .filter(Labelgroup.task_id==task_id)\
+                            .filter(Labelgroup.labels.contains(tag))\
+                            .filter(~Cluster.labels.contains(tag))\
+                            .distinct().all()]
+        
+        insert_values = []
+        for cluster_id in cluster_ids:
+            insert_values.append({
+                'cluster_id': cluster_id,
+                'tag_id': tag.id
+            })
+        if insert_values: db.session.execute(insert(tags), insert_values)
+
+    # copy back down tags (for later when we actually need this)
+    for tag in tags:
+        labelgroup_ids = [r[0] for r in db.session.query(Labelgroup.id)\
+                            .join(Detection)\
+                            .join(Image)\
+                            .join(Cluster,Image.clusters)\
+                            .filter(Cluster.task_id==task_id)\
+                            .filter(Labelgroup.task_id==task_id)\
+                            .filter(~Labelgroup.labels.contains(tag))\
+                            .filter(Cluster.labels.contains(tag))\
+                            .distinct().all()]
+
+                            # .filter(Labelgroup.checked==False)\
+        
+        insert_values = []
+        for labelgroup_id in labelgroup_ids:
+            insert_values.append({
+                'labelgroup_id': labelgroup_id,
+                'tag_id': tag.id
+            })
+        if insert_values: db.session.execute(insert(detectionTags), insert_values)
+
+    return True
+
+def create_task(survey_id,name):
+    '''Adds a new task of the specified name to the specified survey.'''
+    
+    query_limit = 20000
+
+    # Add the task
+    task = db.session.query(Task).filter(Task.name==name).filter(Task.survey_id==survey_id).first()
+    if task==None:
+        task = Task(name=name, survey_id=survey_id, status='Prepping', tagging_time=0, test_size=0, size=200, parent_classification=False)
+        db.session.add(task)
+        db.session.commit()
+    task_id = task.id
+
+    # bulk insert labelgroups
+    add_labelgroups(survey_id,task_id)
+
+    # Get last cluster ID as a reference later on
+    starting_last_cluster_id = db.session.query(Cluster.id).filter(Cluster.task_id==task_id).order_by(Cluster.id.desc()).first()
+    if not starting_last_cluster_id: starting_last_cluster_id = 0
+
+    # bulk clustering
+    #TODO: timestamped videos - currently just treated as images. But can they be improved upon in both clustering techniques?
+    # earth_ranger_ids = db.relationship('ERangerID', backref='cluster', lazy=True)
+
+    trapgroup_ids = [r[0] for r in db.session.query(Trapgroup.id).filter(Trapgroup.survey_id==survey_id).distinct().all()]
+    for trapgroup_id in trapgroup_ids:
+
+        # First handle timestampless images and videos
+        cluster_timestampless(task_id,trapgroup_id,starting_last_cluster_id,query_limit)
+
+        # Then, if motion-triggered, then do normal 60s image timestamp delta clustering
+        if task.survey.trigger == 'motion': time_based_clustering(task_id,trapgroup_id,query_limit)
+
+        # Then any remaining unclustered images will be clustered based on detection presence/absence
+        # This will be all timestamped images in time-triggered data,
+        # and all ong clusters in motion-triggered data
+        det_presence_clustering(task_id,trapgroup_id,starting_last_cluster_id,query_limit)
+
+        # Finally, cleanup all the old clusters
+        # We don't necessarily know the number of clusters. So just keep the latest and delete everything else
+        delete_old_clusters(task_id,trapgroup_id,query_limit)
+
+    # Just check for and delete any imageless clusters for safety
+    delete_empty_clusters(task_id,query_limit)
+    
+    # clean up labelgroup and cluster labels
+    sync_labels(task_id)
+
+    # clean up labelgroup and cluster tags
+    sync_tags(task_id)
+
+    db.session.commit()
+
+    # perform the rest of the usual tasks
+    removeHumans(task_id)
+    classifyTask(task_id)
+    updateAllStatuses(task_id=task_id)
+    
+    task = db.session.query(Task).get(task_id)
+    task.status='Ready'
+    db.session.commit()
 
     return True
