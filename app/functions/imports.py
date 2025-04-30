@@ -6167,6 +6167,16 @@ def cluster_timestampless(task_id,trapgroup_id,starting_last_cluster_id,query_li
                         .filter(Cluster.id>starting_last_cluster_id)\
                         .subquery()
 
+    # This fetches the associated Earth Ranger IDs for each cluster
+    ERIDSQ = db.session.query(
+                            Cluster.id.label('cluster_id'),
+                            func.group_concat(ERangerID.id).label('er_ids')
+                        )\
+                        .join(ERangerID)\
+                        .filter(Cluster.task_id==task_id)\
+                        .group_by(Cluster.id)\
+                        .subquery()
+
     # Prepare cluster info for each image that needs to be copied across
     clusterInfoSQ = db.session.query(
                             Image.id.label('image_id'),
@@ -6175,11 +6185,14 @@ def cluster_timestampless(task_id,trapgroup_id,starting_last_cluster_id,query_li
                             Cluster.timestamp,
                             Cluster.checked,
                             Cluster.id.label('cluster_id'),
+                            ERIDSQ.c.er_ids,
                             func.row_number().over(
                                 partition_by=Image.id,
                                 order_by=Cluster.id
                             ).label('row_number')
-                        ).join(Cluster, Image.clusters)\
+                        )\
+                        .join(Cluster, Image.clusters)\
+                        .outerjoin(ERIDSQ, ERIDSQ.c.cluster_id==Cluster.id)\
                         .filter(Cluster.task_id == task_id)\
                         .subquery()
     
@@ -6190,7 +6203,8 @@ def cluster_timestampless(task_id,trapgroup_id,starting_last_cluster_id,query_li
                                 clusterInfoSQ.c.notes,
                                 clusterInfoSQ.c.user_id,
                                 clusterInfoSQ.c.timestamp,
-                                clusterInfoSQ.c.checked
+                                clusterInfoSQ.c.checked,
+                                clusterInfoSQ.c.er_ids
                             )\
                             .outerjoin(clusterInfoSQ,clusterInfoSQ.c.image_id==Image.id)\
                             .outerjoin(clusteredImagesSQ,clusteredImagesSQ.c.id==Image.id)\
@@ -6212,7 +6226,9 @@ def cluster_timestampless(task_id,trapgroup_id,starting_last_cluster_id,query_li
         clusters = []
         images = []
         current_video = None
-        for image, video_id, notes, user_id, timestamp, checked in imageData:
+        for image, video_id, notes, user_id, timestamp, checked, er_ids in imageData:
+
+            if er_ids: er_ids = [int(er_id) for er_id in er_ids.split(',')]
 
             if (video_id!=current_video) or (current_video is None):
                 # new video encountered - create previous cluster
@@ -6230,6 +6246,7 @@ def cluster_timestampless(task_id,trapgroup_id,starting_last_cluster_id,query_li
                                     checked=cluster_checked
                                 )
                     cluster.images = images
+                    if cluster_er_ids: cluster.earth_ranger_ids = db.session.query(ERangerID).filter(ERangerID.in_(cluster_er_ids)).all()
                     clusters.append(cluster)
                 
                 images = []
@@ -6237,12 +6254,14 @@ def cluster_timestampless(task_id,trapgroup_id,starting_last_cluster_id,query_li
                 cluster_user_id = None
                 cluster_timestamp = None
                 cluster_checked = None
+                cluster_er_ids = []
                 current_video = video_id
 
             if cluster_notes is None: cluster_notes = notes
             if cluster_user_id is None: cluster_user_id = user_id
             if cluster_timestamp is None: cluster_timestamp = timestamp
             if cluster_checked is None: cluster_checked = checked
+            if er_ids: cluster_er_ids.extend(er_ids)
             images.append(image)
 
         # save the last cluster
@@ -6256,6 +6275,7 @@ def cluster_timestampless(task_id,trapgroup_id,starting_last_cluster_id,query_li
                             checked=cluster_checked
                         )
             cluster.images = images
+            if cluster_er_ids: cluster.earth_ranger_ids = db.session.query(ERangerID).filter(ERangerID.in_(cluster_er_ids)).all()
             clusters.append(cluster)
 
         if clusters:
@@ -6303,6 +6323,16 @@ def time_based_clustering(task_id,trapgroup_id,query_limit):
                         )\
                         .subquery()
 
+    # This fetches the associated Earth Ranger IDs for each cluster
+    ERIDSQ = db.session.query(
+                            Cluster.id.label('cluster_id'),
+                            func.group_concat(ERangerID.id).label('er_ids')
+                        )\
+                        .join(ERangerID)\
+                        .filter(Cluster.task_id==task_id)\
+                        .group_by(Cluster.id)\
+                        .subquery()
+
     # here we get the old cluster info for each image
     clusterInfoSQ = db.session.query(
                             Image.id.label('image_id'),
@@ -6311,11 +6341,14 @@ def time_based_clustering(task_id,trapgroup_id,query_limit):
                             Cluster.timestamp,
                             Cluster.checked,
                             Cluster.id.label('cluster_id'),
+                            ERIDSQ.c.er_ids,
                             func.row_number().over(
                                 partition_by=Image.id,
                                 order_by=Cluster.id
                             ).label('row_number')
-                        ).join(Cluster, Image.clusters)\
+                        )\
+                        .join(Cluster, Image.clusters)\
+                        .outerjoin(ERIDSQ, ERIDSQ.c.cluster_id==Cluster.id)\
                         .filter(Cluster.task_id == task_id)\
                         .subquery()
 
@@ -6331,7 +6364,8 @@ def time_based_clustering(task_id,trapgroup_id,query_limit):
                                 clusterInfoSQ.c.notes,
                                 clusterInfoSQ.c.user_id,
                                 clusterInfoSQ.c.timestamp,
-                                clusterInfoSQ.c.checked
+                                clusterInfoSQ.c.checked,
+                                clusterInfoSQ.c.er_ids
                             )\
                             .join(clusterSQ,clusterSQ.c.id==Image.id)\
                             .outerjoin(clusterInfoSQ,clusterInfoSQ.c.image_id==Image.id)\
@@ -6351,8 +6385,11 @@ def time_based_clustering(task_id,trapgroup_id,query_limit):
         cluster_user_id = None
         cluster_timestamp = None
         cluster_checked = None
+        cluster_er_ids = []
         current_cluster_number = None
-        for image, cluster_number, row_number, notes, user_id, timestamp, checked in clusterQuery:
+        for image, cluster_number, row_number, notes, user_id, timestamp, checked, er_ids in clusterQuery:
+
+            if er_ids: er_ids = [int(er_id) for er_id in er_ids.split(',')]
 
             # Check if a new cluster encountered
             if cluster_number!=current_cluster_number:
@@ -6377,6 +6414,7 @@ def time_based_clustering(task_id,trapgroup_id,query_limit):
                                         checked=cluster_checked
                                     )
                         cluster.images = images
+                        if cluster_er_ids: cluster.earth_ranger_ids = db.session.query(ERangerID).filter(ERangerID.in_(cluster_er_ids)).all()
                         clusters.append(cluster)
 
                 # Start new cluster
@@ -6385,6 +6423,7 @@ def time_based_clustering(task_id,trapgroup_id,query_limit):
                 cluster_user_id = None
                 cluster_timestamp = None
                 cluster_checked = None
+                cluster_er_ids = []
                 current_cluster_number = cluster_number
 
             # If clusters are being joined and one cluster has info but not the other, we are just going to keep the first non-null value
@@ -6392,6 +6431,7 @@ def time_based_clustering(task_id,trapgroup_id,query_limit):
             if cluster_user_id is None: cluster_user_id = user_id
             if cluster_timestamp is None: cluster_timestamp = timestamp
             if cluster_checked is None: cluster_checked = checked
+            if er_ids: cluster_er_ids.extend(er_ids)
 
             images.append(image)
             current_row = row_number
@@ -6412,6 +6452,7 @@ def time_based_clustering(task_id,trapgroup_id,query_limit):
                                 checked=cluster_checked
                             )
                 cluster.images = images
+                if cluster_er_ids: cluster.earth_ranger_ids = db.session.query(ERangerID).filter(ERangerID.in_(cluster_er_ids)).all()
                 clusters.append(cluster)
 
         db.session.bulk_save_objects(clusters)
@@ -6491,27 +6532,39 @@ def det_presence_clustering(task_id,trapgroup_id,starting_last_cluster_id,query_
                                     .over(partition_by=prevPresenceSQ.c.cameragroup_id,order_by=prevPresenceSQ.c.timestamp).label('cluster_number')
                                 )\
                                 .subquery()
+    
+    # This fetches the associated Earth Ranger IDs for each cluster
+    ERIDSQ = db.session.query(
+                            Cluster.id.label('cluster_id'),
+                            func.group_concat(ERangerID.id).label('er_ids')
+                        )\
+                        .join(ERangerID)\
+                        .filter(Cluster.task_id==task_id)\
+                        .group_by(Cluster.id)\
+                        .subquery()
 
     # # Here we pull the cluster info from the old clusters that are being replaced
     clusterInfoSQ = db.session.query(
-                                    Image.id.label('image_id'),
-                                    Cluster.notes,
-                                    Cluster.user_id,
-                                    Cluster.timestamp,
-                                    Cluster.checked,
-                                    Cluster.id.label('cluster_id'),
-                                    func.row_number().over(
-                                        partition_by=Image.id,
-                                        order_by=Cluster.id
-                                    ).label('row_number')
-                                ).join(Cluster, Image.clusters)\
-                                .filter(Cluster.task_id == task_id)\
-                                .subquery()
+                            Image.id.label('image_id'),
+                            Cluster.notes,
+                            Cluster.user_id,
+                            Cluster.timestamp,
+                            Cluster.checked,
+                            Cluster.id.label('cluster_id'),
+                            ERIDSQ.c.er_ids,
+                            func.row_number().over(
+                                partition_by=Image.id,
+                                order_by=Cluster.id
+                            ).label('row_number')
+                        )\
+                        .join(Cluster, Image.clusters)\
+                        .outerjoin(ERIDSQ, ERIDSQ.c.cluster_id==Cluster.id)\
+                        .filter(Cluster.task_id == task_id)\
+                        .subquery()
 
     # Here we can now can actually query the clusters themselves along with all the fields we need
     cameragroupClusters = db.session.query(
                                     cameraClusterSQ.c.cameragroup_id.label('cameragroup_id'),
-                                    cameraClusterSQ.c.cluster_number.label('cluster_number'),
                                     cameraClusterSQ.c.det_presence.label('det_presence'),
                                     func.min(cameraClusterSQ.c.timestamp).label('start'),
                                     func.max(cameraClusterSQ.c.timestamp).label('end'),
@@ -6534,7 +6587,7 @@ def det_presence_clustering(task_id,trapgroup_id,starting_last_cluster_id,query_
     cluster_end = None
     images_start = None
     images_end = None
-    for cameragroup_id, cluster_number, det_presence, start, end, image_ids, row_number in cameragroupClusters:
+    for cameragroup_id, det_presence, start, end, image_ids, row_number in cameragroupClusters:
         
         image_ids = [int(image_id) for image_id in image_ids.split(',')]
 
@@ -6568,7 +6621,8 @@ def det_presence_clustering(task_id,trapgroup_id,starting_last_cluster_id,query_
                                             clusterInfoSQ.c.notes,
                                             clusterInfoSQ.c.user_id,
                                             clusterInfoSQ.c.timestamp,
-                                            clusterInfoSQ.c.checked
+                                            clusterInfoSQ.c.checked,
+                                            clusterInfoSQ.c.er_ids
                                         )\
                                         .outerjoin(clusterInfoSQ,clusterInfoSQ.c.image_id==Image.id)\
                                         .join(Camera)\
@@ -6589,6 +6643,7 @@ def det_presence_clustering(task_id,trapgroup_id,starting_last_cluster_id,query_
             cluster_user_id = None
             cluster_timestamp = None
             cluster_checked = None
+            cluster_er_ids = []
             image_subset = []
             for image in cluster_images:
                 # Push the current set of images to a cluster if we have reached the end of image set, or the MAX_CLUSTER_MINUTES has been reached
@@ -6603,22 +6658,28 @@ def det_presence_clustering(task_id,trapgroup_id,starting_last_cluster_id,query_
                                     checked=cluster_checked
                                 )
                     cluster.images = image_subset
+                    if cluster_er_ids: cluster.earth_ranger_ids = db.session.query(ERangerID).filter(ERangerID.in_(cluster_er_ids)).all()
                     clusters.append(cluster)
                     image_subset = []
                     cluster_notes = None
                     cluster_user_id = None
                     cluster_timestamp = None
                     cluster_checked = None
+                    cluster_er_ids = []
                 
                 # update cluster info
                 image_notes = images_dictionary[image.id][1]
                 image_user_id = images_dictionary[image.id][2]
                 image_timestamp = images_dictionary[image.id][3]
                 image_checked = images_dictionary[image.id][4]
+                er_ids = images_dictionary[image.id][5]
+                if er_ids: er_ids = [int(er_id) for er_id in er_ids.split(',')]
+                
                 if cluster_notes is None: cluster_notes = image_notes
                 if cluster_user_id is None: cluster_user_id = image_user_id
                 if cluster_timestamp is None: cluster_timestamp = image_timestamp
                 if cluster_checked is None: cluster_checked = image_checked
+                if er_ids: cluster_er_ids.extend(er_ids)
 
                 image_subset.append(image)
 
