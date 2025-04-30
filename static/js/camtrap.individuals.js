@@ -447,6 +447,7 @@ function getIndividual(individualID, individualName, association=false, order_va
                             modalAlertIndividualsReturn = true
                             modalIndividual.modal('hide')
                             // modalAlertIndividuals.modal({keyboard: true});
+                            document.getElementById('removeImg').checked = true
                             modalDissociateImage.modal({keyboard: true});
                         }
 
@@ -3751,7 +3752,7 @@ function mergeImage(){
     confirmMerge = true
     modalAlertIndividuals.modal('hide')
 
-    detection_id = individualImages[0].detections[0].id
+    detection_id = individualImages[individualSplide.index].detections[0].id
     if (selectedIndividual != null && selectedMergeIndividual != null) {
         var formData = new FormData()
         formData.append("merge_individual_id", JSON.stringify(selectedMergeIndividual))

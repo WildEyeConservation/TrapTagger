@@ -5193,7 +5193,10 @@ def dissociateDetection(detection_id):
         db.session.add(newIndividual)
         newIndividual.detections.append(detection)
 
-        task_ids = [r.id for r in task.sub_tasks]
+        if task.sub_tasks:
+            task_ids = [r.id for r in task.sub_tasks]
+        else:
+            task_ids = [t.id for t in individual.tasks]
         task_ids.append(task.id)
         newIndividual.tasks = db.session.query(Task)\
                                         .join(Survey)\
@@ -15007,17 +15010,20 @@ def mergeIndividuals():
             msg = "Please enter a valid name for the merged individual."
             return json.dumps({'status': status, 'message': msg})
 
-        if name and name!= individual1.name and name!= individual2.name:
-            check = db.session.query(Individual)\
-                .join(Task,Individual.tasks)\
-                .filter(Individual.species==individual1.species)\
-                .filter(Individual.name==name)\
-                .filter(Task.id.in_([r.id for r in individual1.tasks]))\
-                .first()
-            if check:
-                status = 'error'
-                msg = "Duplicate name detected. Please enter a different name."
-                return json.dumps({'status': status, 'message': msg})
+        tasks = [task.id for task in individual1.tasks]
+        tasks.extend([task.id for task in individual2.tasks])
+        check = db.session.query(Individual)\
+            .join(Task,Individual.tasks)\
+            .filter(Individual.species==individual1.species)\
+            .filter(Individual.name==name)\
+            .filter(Task.id.in_(tasks))\
+            .filter(Individual.id != individual1.id)\
+            .filter(Individual.id != individual2.id)\
+            .first()
+        if check:
+            status = 'error'
+            msg = "Duplicate name detected. Please enter a different name."
+            return json.dumps({'status': status, 'message': msg})
         
         individual1.active = False
         individual2.active = False
@@ -15077,12 +15083,10 @@ def mergeIndividuals():
 
         individuals2 = [r[0] for r in db.session.query(Individual.id)\
                                                     .join(Task,Individual.tasks)\
-                                                    .join(IndSimilarity, or_(IndSimilarity.individual_1==Individual.id,IndSimilarity.individual_2==Individual.id))\
                                                     .filter(Task.id.in_([task.id for task in individual1.tasks]))\
                                                     .filter(Individual.species==individual1.species)\
                                                     .filter(Individual.name!='unidentifiable')\
                                                     .filter(Individual.id != individual1.id)\
-                                                    .filter(or_(IndSimilarity.individual_1==individual1.id,IndSimilarity.individual_2==individual1.id))\
                                                     .all()]
 
         calculate_individual_similarity.delay(individual1=individual1.id,individuals2=individuals2,species=individual1.species)
@@ -15168,7 +15172,7 @@ def mergeDetectionIntoIndividual():
                                             .filter(or_(IndSimilarity.individual_1==merge_individual.id,IndSimilarity.individual_2==merge_individual.id))\
                                             .all()]
         if merge_individual.id in individuals1 and individual.id in individuals2: individuals2.remove(individual.id)
-        calculate_individual_similarity.delay(merge_individual=individual.id,individuals2=individuals2,species=merge_individual.species)
+        calculate_individual_similarity.delay(individual1=merge_individual.id,individuals2=individuals2,species=merge_individual.species)
 
         return json.dumps({'status': 'success'})
 
