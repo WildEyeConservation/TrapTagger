@@ -1589,6 +1589,7 @@ def createNewSurvey():
         newSurveyCamCode = request.form['newSurveyCamCode']
         camCheckbox = request.form['camCheckbox']
         dataSource = request.form['dataSource']
+        triggerSource = request.form['triggerSource']
         ignoreSmallDets = request.form['ignoreSmallDets']
         ignoreSkyDets = request.form['ignoreSkyDets']
 
@@ -1685,13 +1686,13 @@ def createNewSurvey():
 
             # Create survey
             if emptySurvey:
-                newSurvey = Survey(name=surveyName, description=newSurveyDescription, organisation_id=organisation_id, status='Ready', correct_timestamps=correctTimestamps, classifier_id=int(classifier_id), folder=newSurveyS3Folder, type=dataSource, ignore_small_detections=ignoreSmallDets, sky_masked=ignoreSkyDets)
+                newSurvey = Survey(name=surveyName, description=newSurveyDescription, organisation_id=organisation_id, status='Ready', correct_timestamps=correctTimestamps, classifier_id=int(classifier_id), folder=newSurveyS3Folder, type=dataSource, trigger_source=triggerSource, ignore_small_detections=ignoreSmallDets, sky_masked=ignoreSkyDets)
                 db.session.add(newSurvey)
 
                 defaultTask = Task(name='default', survey=newSurvey, tagging_level='-1', test_size=0, status='Ready')
                 db.session.add(defaultTask)
             else:
-                newSurvey = Survey(name=surveyName, description=newSurveyDescription, trapgroup_code=newSurveyTGCode, organisation_id=organisation_id, status='Uploading', correct_timestamps=correctTimestamps, classifier_id=int(classifier_id), camera_code=newSurveyCamCode, folder=newSurveyS3Folder, type=dataSource, ignore_small_detections=ignoreSmallDets, sky_masked=ignoreSkyDets)
+                newSurvey = Survey(name=surveyName, description=newSurveyDescription, trapgroup_code=newSurveyTGCode, organisation_id=organisation_id, status='Uploading', correct_timestamps=correctTimestamps, classifier_id=int(classifier_id), camera_code=newSurveyCamCode, folder=newSurveyS3Folder, type=dataSource, trigger_source=triggerSource, ignore_small_detections=ignoreSmallDets, sky_masked=ignoreSkyDets)
                 db.session.add(newSurvey)
 
             # Add permissions
@@ -1809,7 +1810,7 @@ def pipelineData():
                     uploaded_file.save(key)
                     GLOBALS.s3client.put_object(Bucket=bucketName,Key=key,Body=open(key, 'rb'))
 
-                pipeline_survey.delay(surveyName=surveyName,bucketName=bucketName,dataSource=dataSource,fileAttached=fileAttached,
+                pipeline_survey.delay(surveyName=surveyName,bucketName=bucketName,dataSource=dataSource, trigger_source='motion',fileAttached=fileAttached,
                                         trapgroupCode=trapgroupCode,min_area=min_area,exclusions=exclusions,sourceBucket=sourceBucket,
                                         label_source=label_source)
         else:

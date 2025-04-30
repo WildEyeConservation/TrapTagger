@@ -6860,7 +6860,7 @@ def create_task(survey_id,name):
         cluster_timestampless(task_id,trapgroup_id,starting_last_cluster_id,query_limit)
 
         # Then, if motion-triggered, then do normal 60s image timestamp delta clustering
-        if task.survey.trigger == 'motion': time_based_clustering(task_id,trapgroup_id,query_limit)
+        if task.survey.trigger_source == 'motion': time_based_clustering(task_id,trapgroup_id,query_limit)
 
         # Then any remaining unclustered images will be clustered based on detection presence/absence
         # This will be all timestamped images in time-triggered data,

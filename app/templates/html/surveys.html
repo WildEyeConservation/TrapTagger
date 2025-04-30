@@ -181,6 +181,20 @@ limitations under the License. -->
                     </div>
                     <br>
 
+                    <h5 style="margin-bottom: 2px">Trigger Source</h5>
+                    <div style="font-size: 80%; margin-bottom: 2px"><i>What triggers your cameras? Do they trigger on motion, or do they fire on a fixed time interval (timelapse mode). This affects how your images are clustered.</i></div>
+                    <div style="margin-bottom: 5px">
+                        <div class="custom-control custom-radio custom-control-inline">
+                            <input type="radio" class="custom-control-input" id="newSurveyMotion" name="triggerSelection" value='0' checked="true">
+                            <label class="custom-control-label" for="newSurveyMotion">Motion</label>
+                        </div> 
+                        <div class="custom-control custom-radio custom-control-inline">
+                            <input type="radio" class="custom-control-input" id="newSurveyTime" name="triggerSelection" value='1'>
+                            <label class="custom-control-label" for="newSurveyTime">Time</label>
+                        </div> 
+                    </div>
+                    <br>
+
                     <h5 style="margin-bottom: 2px">Advanced Options</h5>
                     <div style="font-size: 80%; margin-bottom: 2px"><i>
                         Ignore small detections filters out detections triggered by small animals like rodents and birds, whilst ignore sky detections 

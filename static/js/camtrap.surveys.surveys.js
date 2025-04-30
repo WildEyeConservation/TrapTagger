@@ -1169,6 +1169,9 @@ function resetNewSurveyPage() {
     document.getElementById('newSurveyWaterholes').checked = false
     document.getElementById('newSurveyBaited').checked = false
 
+    document.getElementById('newSurveyMotion').checked = true
+    document.getElementById('newSurveyTime').checked = false
+
     document.getElementById('camAdvancedCheckbox').checked = false
     document.getElementById('camRegExp').checked = false
     document.getElementById('camBotLvlFolder').checked = true
@@ -4424,6 +4427,7 @@ document.getElementById('btnSaveSurvey').addEventListener('click', ()=>{
     newSurveyPlains = document.getElementById('newSurveyPlains').checked
     newSurveyWaterholes = document.getElementById('newSurveyWaterholes').checked
     newSurveyBaited = document.getElementById('newSurveyBaited').checked
+    newSurveyMotion = document.getElementById('newSurveyMotion').checked
     newSurveyIgnoreSmallDets = document.getElementById('cbxIgnoreSmallDets').checked
     newSurvyeIgnoreSkyDets = document.getElementById('cbxIgnoreSkyDets').checked
 
@@ -4661,6 +4665,12 @@ document.getElementById('btnSaveSurvey').addEventListener('click', ()=>{
                 formData.append("dataSource", 'waterhole')
             } else if (newSurveyBaited) {
                 formData.append("dataSource", 'baited')
+            }
+
+            if (newSurveyMotion) {
+                formData.append("triggerSource", 'motion')
+            } else {
+                formData.append("triggerSource", 'time')
             }
 
             if(newSurveyIgnoreSmallDets){
