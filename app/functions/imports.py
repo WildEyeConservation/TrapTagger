@@ -19,7 +19,7 @@ from app.models import *
 # from app.functions.admin import setup_new_survey_permissions
 from app.functions.globals import detection_rating, randomString, updateTaskCompletionStatus, updateLabelCompletionStatus, updateIndividualIdStatus, retryTime,\
                                  chunker, save_crops, list_all, classifyTask, all_equal, taggingLevelSQ, generate_raw_image_hash, updateAllStatuses, setup_new_survey_permissions, \
-                                 hideSmallDetections, maskSky, rDets
+                                 hideSmallDetections, maskSky, rDets, verify_label, checkChildTranslations, createChildTranslations
 from app.functions.annotation import launch_task
 import GLOBALS
 from sqlalchemy.sql import func, or_, distinct, and_, literal_column, case
@@ -3835,7 +3835,8 @@ def import_survey(self,survey_id,preprocess_done=False,live=False,launch_id=None
 
         # Second half import -> performed after preprocessing. Also performed if there is no preprocessing required (which is also the case for live surveys)
         if preprocess_done or not (timestamp_check or static_check) or live:
-            task_id=cluster_survey(survey_id)
+            # This just updates the clustering if the task already exists
+            task_id = add_new_task(survey_id, 'default')
             survey = db.session.query(Survey).get(survey_id)
 
             survey.status='Processing Static Detections'
@@ -3843,18 +3844,9 @@ def import_survey(self,survey_id,preprocess_done=False,live=False,launch_id=None
             wrapUpStaticDetectionCheck(survey_id)
             survey = db.session.query(Survey).get(survey_id)
 
-            survey.status='Removing Humans'
-            db.session.commit()
-            removeHumans(task_id)
-
             survey.status='Classifying'
             db.session.commit()
             classifySurvey(survey_id=survey_id,sourceBucket=Config.BUCKET)
-
-            survey = db.session.query(Survey).get(survey_id)
-            survey.status='Re-Clustering'
-            db.session.commit()
-            recluster_survey(survey_id)
 
             survey = db.session.query(Survey).get(survey_id)
             if survey.ignore_small_detections == True:
@@ -3869,10 +3861,10 @@ def import_survey(self,survey_id,preprocess_done=False,live=False,launch_id=None
             db.session.commit()
             updateSurveyDetectionRatings(survey_id=survey_id)
 
+            # Update clustering, classification and statuses for the non-default tasks
             task_ids = [r[0] for r in db.session.query(Task.id).filter(Task.survey_id==survey_id).filter(Task.name!='default').all()]
             for task_id in task_ids:
-                classifyTask(task_id)
-                updateAllStatuses(task_id=task_id)
+                prepTask(task_id)
 
             survey = db.session.query(Survey).get(survey_id)
             if survey.organisation.archive != False:
@@ -6890,66 +6882,208 @@ def sync_tags(task_id):
 
     return True
 
-def create_task(survey_id,name):
-    '''Adds a new task of the specified name to the specified survey.'''
+def add_new_task(survey_id, name, includes=None, translation=None, labels=None, parentLabel=False):
+    ''' Wrapper function that adds the task before calling prepTask to do the heavy lifting '''
     
-    query_limit = 20000
-
-    # Add the task
     task = db.session.query(Task).filter(Task.name==name).filter(Task.survey_id==survey_id).first()
     if task==None:
-        task = Task(name=name, survey_id=survey_id, status='Prepping', tagging_time=0, test_size=0, size=200, parent_classification=False)
+        task = Task(name=name, survey_id=survey_id, status='Preparing', tagging_time=0, test_size=0, size=200, parent_classification=parentLabel)
         db.session.add(task)
-        db.session.commit()
+    
+    if name!='default': task.survey.status = 'Preparing Annotation Set'
+    db.session.commit()
     task_id = task.id
 
-    # bulk insert labelgroups
-    add_labelgroups(survey_id,task_id)
+    # new tasks need to normally be added and return quickly
+    if task.name=='default':
+        prepTask(task.id)
+    else:
+        prepTask.delay(task_id=task.id, includes=includes, translation=translation, labels=labels, auto_release=True)
 
-    # Get last cluster ID as a reference later on
-    starting_last_cluster_id = db.session.query(Cluster.id).filter(Cluster.task_id==task_id).order_by(Cluster.id.desc()).first()
-    if not starting_last_cluster_id: starting_last_cluster_id = 0
+    return task_id
 
-    # bulk clustering
-    #TODO: timestamped videos - currently just treated as images. But can they be improved upon in both clustering techniques?
-    # earth_ranger_ids = db.relationship('ERangerID', backref='cluster', lazy=True)
-
-    trapgroup_ids = [r[0] for r in db.session.query(Trapgroup.id).filter(Trapgroup.survey_id==survey_id).distinct().all()]
-    for trapgroup_id in trapgroup_ids:
-
-        # First handle timestampless images and videos
-        cluster_timestampless(task_id,trapgroup_id,starting_last_cluster_id,query_limit)
-
-        # Then, if motion-triggered, then do normal 60s image timestamp delta clustering
-        if task.survey.trigger_source == 'motion': time_based_clustering(task_id,trapgroup_id,query_limit)
-
-        # Then any remaining unclustered images will be clustered based on detection presence/absence
-        # This will be all timestamped images in time-triggered data,
-        # and all ong clusters in motion-triggered data
-        det_presence_clustering(task_id,trapgroup_id,starting_last_cluster_id,query_limit)
-
-        # Finally, cleanup all the old clusters
-        # We don't necessarily know the number of clusters. So just keep the latest and delete everything else
-        delete_old_clusters(task_id,trapgroup_id,query_limit)
-
-    # Just check for and delete any imageless clusters for safety
-    delete_empty_clusters(task_id,query_limit)
+def prepTask(self, task_id, includes=None, translation=None, labels=None, auto_release=False, parallel=False):
+    ''' Prepares/updates a task in terms of: labels, translations, clustering, labelgroups, classification & statuses '''
     
-    # clean up labelgroup and cluster labels
-    sync_labels(task_id)
+    try:
+        query_limit = 20000
+        task = db.session.query(Task).get(task.id)
+        survey_id = task.survey_id
 
-    # clean up labelgroup and cluster tags
-    sync_tags(task_id)
+        if labels:
+            # This makes it indempotent
+            if db.session.query(Label).filter(Label.task_id==task_id).first() == None:
+                generateLabels(labels, task_id, {})
+                setupTranslations(task_id, int(survey_id), translation, includes)
 
-    db.session.commit()
+            db.session.commit()
 
-    # perform the rest of the usual tasks
-    removeHumans(task_id)
-    classifyTask(task_id)
-    updateAllStatuses(task_id=task_id)
+        # bulk insert labelgroups
+        add_labelgroups(survey_id,task_id)
+
+        # Get last cluster ID as a reference later on
+        starting_last_cluster_id = db.session.query(Cluster.id).filter(Cluster.task_id==task_id).order_by(Cluster.id.desc()).first()
+        if not starting_last_cluster_id: starting_last_cluster_id = 0
+
+        trapgroup_ids = [r[0] for r in db.session.query(Trapgroup.id).filter(Trapgroup.survey_id==survey_id).distinct().all()]
+        for trapgroup_id in trapgroup_ids:
+
+            # First handle timestampless images and videos
+            cluster_timestampless(task_id,trapgroup_id,starting_last_cluster_id,query_limit)
+
+            # Then, if motion-triggered, then do normal 60s image timestamp delta clustering
+            if task.survey.trigger_source == 'motion': time_based_clustering(task_id,trapgroup_id,query_limit)
+
+            # Then any remaining unclustered images will be clustered based on detection presence/absence
+            # This will be all timestamped images in time-triggered data,
+            # and all ong clusters in motion-triggered data
+            det_presence_clustering(task_id,trapgroup_id,starting_last_cluster_id,query_limit)
+
+            # Finally, cleanup all the old clusters
+            # We don't necessarily know the number of clusters. So just keep the latest and delete everything else
+            delete_old_clusters(task_id,trapgroup_id,query_limit)
+
+        # Just check for and delete any imageless clusters for safety
+        delete_empty_clusters(task_id,query_limit)
+        
+        # clean up labelgroup and cluster labels
+        sync_labels(task_id)
+
+        # clean up labelgroup and cluster tags
+        sync_tags(task_id)
+
+        db.session.commit()
+
+        # perform the rest of the old import tasks
+        removeHumans(task_id)
+
+        # classification & status update - only if not a default task
+        if task.name!='default':
+            task.status = 'Auto-Classifying'
+            db.session.commit()
+
+            if parallel:
+                results = []
+                trapgroup_ids = [r[0] for r in db.session.query(Trapgroup.id).filter(Trapgroup.survey_id==survey_id).distinct().all()]
+                for trapgroup_id in trapgroup_ids:
+                    results.append(classifyTask.apply_async(kwargs={'task': task_id, 'trapgroup_ids':[trapgroup_id]},queue='parallel'))
+                #Wait for processing to complete
+                db.session.remove()
+                GLOBALS.lock.acquire()
+                with allow_join_result():
+                    for result in results:
+                        try:
+                            result.get()
+                        except Exception:
+                            app.logger.info(' ')
+                            app.logger.info('!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!')
+                            app.logger.info(traceback.format_exc())
+                            app.logger.info('!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!')
+                            app.logger.info(' ')
+                        
+                        result.forget()
+                GLOBALS.lock.release()
+            else:
+                classifyTask(task_id)
+
+            updateAllStatuses(task_id=task_id)
+        
+        task = db.session.query(Task).get(task_id)
+        task.status='Ready'
+        if auto_release: task.survey.status = 'Ready'
+        db.session.commit()
+
+    except Exception as exc:
+        app.logger.info(' ')
+        app.logger.info('!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!')
+        app.logger.info(traceback.format_exc())
+        app.logger.info('!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!')
+        app.logger.info(' ')
+        self.retry(exc=exc, countdown= retryTime(self.request.retries))
+
+    finally:
+        db.session.remove()
+
+    return True
+
+def setupTranslations(task_id, survey_id, translations, includes):
+    '''
+    Sets up translations for a specified task. Additionally creates all translations for the child labels, and sets which labels must be auto-classified.
     
-    task = db.session.query(Task).get(task_id)
-    task.status='Ready'
-    db.session.commit()
+        Parameters:
+            task_id (int): The task to set up translations for
+            survey_id (int): The survey to set up translations for
+            translations (dict): The translations to be set up
+            includes (list): The list of species to be auto-classified
+    '''
+    classifications = db.session.query(Detection.classification).join(Image).join(Camera).join(Trapgroup).filter(Trapgroup.survey_id==survey_id).distinct().all()
+    classifications = [r[0] for r in classifications if r[0]!=None]
+    classifications.extend(translations.keys())
+    classifications = list(set(classifications))    
+
+    for classification in classifications:
+        
+        if classification in translations.keys():
+            if translations[classification].lower() not in ['knocked down','nothing','vehicles/humans/livestock','unknown']:
+                species = db.session.query(Label).filter(Label.task_id==task_id).filter(func.lower(Label.description)==func.lower(translations[classification])).first()
+            else:
+                species = db.session.query(Label).filter(func.lower(Label.description)==func.lower(translations[classification])).first()
+        else:
+            if classification.lower() not in ['knocked down','nothing','vehicles/humans/livestock','unknown']:
+                species = db.session.query(Label).filter(Label.task_id==task_id).filter(func.lower(Label.description)==func.lower(classification)).first()
+            else:
+                species = db.session.query(Label).filter(func.lower(Label.description)==func.lower(classification)).first()
+
+        if species:
+            translation = Translation(classification=classification, label_id=species.id, task_id=task_id)
+            db.session.add(translation)
+
+            if classification.lower() in includes:
+                translation.auto_classify = True
+
+    # Translate children categories as well
+    translations = db.session.query(Translation)\
+                            .join(Label)\
+                            .filter(Label.children.any())\
+                            .filter(Label.task_id==task_id)\
+                            .filter(Translation.task_id==task_id).all()
+    for translation in translations:
+        check = db.session.query(Translation)\
+                        .filter(Translation.label_id==translation.label_id)\
+                        .filter(Translation.classification!=translation.classification)\
+                        .first()
+        if (check==None) and (not checkChildTranslations(translation.label)):
+            for child in translation.label.children:
+                createChildTranslations(translation.classification,task_id,child)    
+
+    return True
+
+def generateLabels(labels, task_id, labelDictionary):
+    '''Generates the specified labels for the requested task. Tunnels down repeatedly until all children labels are created.'''
+    
+    notYet = []
+    for label in labels:
+        valid_label = verify_label(label[0],label[1],label[2])
+        if valid_label:
+            if label[2] == 'Vehicles/Humans/Livestock':
+                parent = db.session.query(Label).get(GLOBALS.vhl_id)
+                newLabel = Label(description=label[0], hotkey=label[1], task_id=task_id, parent=parent)
+                db.session.add(newLabel)
+                labelDictionary[label[0]] = newLabel
+            elif label[2] == 'None':
+                newLabel = Label(description=label[0], hotkey=label[1], task_id=task_id, parent=None)
+                db.session.add(newLabel)
+                labelDictionary[label[0]] = newLabel
+            else:
+                if label[2] in labelDictionary.keys():
+                    parent = labelDictionary[label[2]]
+                    newLabel = Label(description=label[0], hotkey=label[1], task_id=task_id, parent=parent)
+                    db.session.add(newLabel)
+                    labelDictionary[label[0]] = newLabel
+                else:
+                    notYet.append(label)
+    
+    if len(notYet) > 0:
+        generateLabels(notYet, task_id, labelDictionary)
 
     return True

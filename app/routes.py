@@ -4731,13 +4731,7 @@ def createTask(survey_id,parentLabel):
         check = db.session.query(Task).filter(Task.survey_id==int(survey_id)).filter(Task.name==taskName).first()
 
         if (check == None) and checkSurveyPermission(current_user.id,survey_id,'write') and ('_o_l_d_' not in taskName.lower()) and ('_copying' not in taskName.lower()) and (taskName.lower() != 'default') and (survey.status.lower() in Config.SURVEY_READY_STATUSES):
-            newTask = Task(name=taskName, survey_id=int(survey_id), status='Prepping', tagging_time=0, test_size=0, size=200, parent_classification=parentLabel)
-            db.session.add(newTask)
-            dbSurvey = db.session.query(Survey).get(int(survey_id))
-            dbSurvey.status = 'Prepping Annotation Set'
-            db.session.commit()
-            
-            prepTask.delay(newTask_id=newTask.id, survey_id=survey_id, includes=includes, translation=translation, labels=info[1])
+            add_new_task(survey_id, taskName, includes, translation, info[1], parentLabel)
 
         return json.dumps({'status':'success', 'message':None})
     except:
