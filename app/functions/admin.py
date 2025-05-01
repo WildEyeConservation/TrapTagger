@@ -835,30 +835,82 @@ def checkForIndividuals(label,has_individuals=False):
                     break
     return has_individuals
 
-def processChanges(changes, keys, sessionLabels, task_id, speciesChanges=None):
+def processChanges(changes, task_id, speciesChanges=None):
     '''
     Processes requested changes to a task, specifically relating to the editing of labels.
 
         Parameters:
             changes (dict): The changes being implemented to a parent label - modifed, deleted, or added
-            keys (list): List of parent labels for which changes need to be made
-            sessionLabels (dict): Labels that have been added in the previous sessions
             task_id (int): Task being edited
             speciesChanges (dict): The species that are being changed as well as the associated task IDs
-
-        Returns:
-            skipped (list): List of labels that cannot be added yet
-            sessionLabels (dict): Labels that have been added this session
     '''
-    task_id = int(task_id)
-    skipped = []
-    newSessionLabels = {}
-    for parent in keys:
+
+    # First handle the deletes globally
+    for parent in changes:
+        for delete_id in changes[parent]['edits']['delete']:
+            if 's' not in delete_id:
+                deleteLabel = db.session.query(Label).get(int(delete_id))
+                if deleteLabel and deleteLabel.task_id==task_id: #here we are checking write access
+                    has_individuals = checkForIndividuals(deleteLabel)
+                    if not has_individuals:
+                        deleteTranslations = db.session.query(Translation).filter(Translation.label_id==deleteLabel.id).filter(Translation.task_id==task_id).all()
+                        deleteChildLabels(deleteLabel)
+                        deleteLabel.clusters = []
+                        deleteLabel.labelgroups = []
+                        db.session.delete(deleteLabel)
+                        for translation in deleteTranslations:
+                            db.session.delete(translation)
+
+    # Then handle edits
+    for parent in changes:
+        for edit_id in changes[parent]['edits']['modify']:
+            if 's' not in edit_id:
+                editLabel = db.session.query(Label).get(int(edit_id))
+                if editLabel and editLabel.task_id==task_id: #here we are checking write access again.
+                    valid = verify_label(changes[parent]['edits']['modify'][edit_id]['description'],changes[parent]['edits']['modify'][edit_id]['hotkey'],editLabel.parent_id)
+                    if valid:
+                        oldLabel = editLabel.description    
+                        editLabel.description = changes[parent]['edits']['modify'][edit_id]['description']
+                        editLabel.hotkey = changes[parent]['edits']['modify'][edit_id]['hotkey']
+
+                        # Find individuals with this label as their species and update their species and update the label in other tasks
+                        # We have already checked write permission on all the tasks in speciesChanges
+                        if speciesChanges and (oldLabel in speciesChanges) and (oldLabel != editLabel.description):
+                            individuals = db.session.query(Individual).join(Task,Individual.tasks).filter(Task.id.in_(speciesChanges[oldLabel]['tasks'])).filter(Individual.species==oldLabel).all()
+                            for individual in individuals:
+                                individual.species = editLabel.description
+
+                            for t_id in speciesChanges[oldLabel]['tasks']:
+                                if t_id != task_id:
+                                    checkLabel = db.session.query(Label).filter(Label.task_id==t_id).filter(Label.description==editLabel.description).first()
+                                    if not checkLabel:
+                                        taskLabel = db.session.query(Label).filter(Label.task_id==t_id).filter(Label.description==oldLabel).first()
+                                        if taskLabel:
+                                            taskLabel.description = editLabel.description
+
+    # Then just add the new labels - orphaned
+    sessionLabels = {}
+    for parent in changes:
+        for additional_id in changes[parent]['additional']:
+            check = db.session.query(Label) \
+                            .filter(Label.task_id==task_id) \
+                            .filter(Label.description==changes[parent]['additional'][additional_id]['description']) \
+                            .first()
+
+            if check==None:
+                parent_value = None
+                if parent != '-99999': parent_value = 0
+                valid = verify_label(changes[parent]['additional'][additional_id]['description'],changes[parent]['additional'][additional_id]['hotkey'],parent_value)
+                if valid:
+                    newLabel = Label(description=changes[parent]['additional'][additional_id]['description'],hotkey=changes[parent]['additional'][additional_id]['hotkey'],task_id=task_id)
+                    db.session.add(newLabel)
+                    sessionLabels[additional_id] = newLabel
+
+    # Then associate parents
+    for parent in changes:
         parentLabel = None
         if 's' not in parent:
-            if parent == '-99999':
-                parentLabel='None'
-            elif parent == '-100000':
+            if parent == '-100000':
                 parentLabel = db.session.query(Label).get(GLOBALS.vhl_id)
             else:
                 parentLabel = db.session.query(Label).get(parent)
@@ -869,72 +921,12 @@ def processChanges(changes, keys, sessionLabels, task_id, speciesChanges=None):
                 parentLabel = sessionLabels[parent]
                 # The user was screened for write access to the task_id. We need to ensure that the user has the necessary permissions for the specified label.
                 if parentLabel and parentLabel.task_id!=task_id: continue
-            else:
-                skipped.append(parent)
 
         if parentLabel:
-            for delete_id in changes[parent]['edits']['delete']:
-                if 's' not in delete_id:
-                    deleteLabel = db.session.query(Label).get(int(delete_id))
-                    if deleteLabel and deleteLabel.task_id==task_id: #here we are checking write access again.
-                        has_individuals = checkForIndividuals(deleteLabel)
-                        if not has_individuals:
-                            deleteTranslations = db.session.query(Translation).filter(Translation.label_id==deleteLabel.id).filter(Translation.task_id==task_id).all()
-                            deleteChildLabels(deleteLabel)
-                            deleteLabel.clusters = []
-                            deleteLabel.labelgroups = []
-                            db.session.delete(deleteLabel)
-                            for translation in deleteTranslations:
-                                db.session.delete(translation)
-
-            for edit_id in changes[parent]['edits']['modify']:
-                if 's' not in edit_id:
-                    editLabel = db.session.query(Label).get(int(edit_id))
-                    if editLabel and editLabel.task_id==task_id: #here we are checking write access again.
-                        valid = verify_label(changes[parent]['edits']['modify'][edit_id]['description'],changes[parent]['edits']['modify'][edit_id]['hotkey'],editLabel.parent_id)
-                        if valid:
-                            oldLabel = editLabel.description    
-                            editLabel.description = changes[parent]['edits']['modify'][edit_id]['description']
-                            editLabel.hotkey = changes[parent]['edits']['modify'][edit_id]['hotkey']
-
-                            # Find individuals with this label as their species and update their species and update the label in other tasks
-                            # We have already checked write permission on all the tasks in speciesChanges
-                            if speciesChanges and (oldLabel in speciesChanges):
-                                individuals = db.session.query(Individual).join(Task,Individual.tasks).filter(Task.id.in_(speciesChanges[oldLabel]['tasks'])).filter(Individual.species==oldLabel).all()
-                                for individual in individuals:
-                                    individual.species = editLabel.description
-
-                                for t_id in speciesChanges[oldLabel]['tasks']:
-                                    if t_id != task_id:
-                                        checkLabel = db.session.query(Label).filter(Label.task_id==t_id).filter(Label.description==editLabel.description).first()
-                                        if not checkLabel:
-                                            taskLabel = db.session.query(Label).filter(Label.task_id==t_id).filter(Label.description==oldLabel).first()
-                                            if taskLabel:
-                                                taskLabel.description = editLabel.description
-
             for additional_id in changes[parent]['additional']:
-                check = db.session.query(Label) \
-                                .filter(Label.task_id==task_id) \
-                                .filter(Label.description==changes[parent]['additional'][additional_id]['description']) \
-                                .first()
+                sessionLabels[additional_id].parent = parentLabel
 
-                if parentLabel != 'None':
-                    valueNeeded = parentLabel
-                else:
-                    valueNeeded = None
-
-                valid = verify_label(changes[parent]['additional'][additional_id]['description'],changes[parent]['additional'][additional_id]['hotkey'],valueNeeded)
-                if check and (check not in sessionLabels.values()):
-                    if parent not in skipped: skipped.append(parent)
-                elif (check==None) and valid:
-                    newLabel = Label(description=changes[parent]['additional'][additional_id]['description'],hotkey=changes[parent]['additional'][additional_id]['hotkey'],parent=valueNeeded,task_id=task_id)
-                    db.session.add(newLabel)
-                    newSessionLabels[additional_id] = newLabel
-
-    for key in newSessionLabels:
-        sessionLabels[key] = newSessionLabels[key]
-
-    return skipped, sessionLabels
+    return True
 
 @celery.task(bind=True,max_retries=5,ignore_result=True)
 def handleTaskEdit(self,task_id,labelChanges,tagChanges,translationChanges,deleteAutoLabels,speciesChanges=None):
@@ -957,11 +949,7 @@ def handleTaskEdit(self,task_id,labelChanges,tagChanges,translationChanges,delet
 
         if task:
             # Labels
-            sessionLabels = {}
-            skipped, sessionLabels = processChanges(labelChanges, labelChanges.keys(), sessionLabels, task_id, speciesChanges)
-
-            while skipped != []:
-                skipped, sessionLabels = processChanges(labelChanges, skipped, sessionLabels, task_id, speciesChanges)
+            processChanges(labelChanges, task_id, speciesChanges)
 
             # Tags 
             for tag_id in tagChanges['delete']:
