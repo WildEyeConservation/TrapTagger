@@ -3040,7 +3040,7 @@ def fire_up_instances(queue,instance_count):
 def inspect_celery(include_spam=False,include_reserved=False,include_scheduled=False):
     ''' Funcion to manually inspect the running celery tasks'''
     inspector = celery.control.inspect()
-    spam = ['importImages','.detection','.classify','runClassifier','processCameraStaticDetections', 'process_video_batch','cluster_trapgroup','processStaticWindow', 
+    spam = ['importImages','.detection','.classify','runClassifier','processCameraStaticDetections', 'process_video_batch','processStaticWindow', 
             'segment_and_pose', 'calculate_individual_similarity','calculate_hotspotter_similarity', 'generateDetections', 'archive_images', 'archive_empty_images',
             'archive_videos', 'recluster_large_clusters', 'group_cameras', 'updateTrapgroupStaticDetections', 'extrapolate_timestamps', 'classifyTrapgroup', 
             'updateTrapgroupDetectionRatings', 'extract_zip']
