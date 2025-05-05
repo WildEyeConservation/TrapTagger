@@ -1092,6 +1092,7 @@ def unknock_cluster(self,image_id, label_id, user_id, task_id):
         #     GLOBALS.mutex[int(task_id)]['trapgroup'][trapgroup_id].release()
 
         cluster.labels = []
+        cluster.user_id = None
 
         #Recluster entire trapgroup
         rootImage = db.session.query(Image).filter(Image.clusters.contains(cluster)).order_by(Image.corrected_timestamp).first()
@@ -1146,30 +1147,27 @@ def unknock_cluster(self,image_id, label_id, user_id, task_id):
             reAllocated.extend(reClusIms)
 
             # strip labels that are AI-generated or empty as they could now be wrong
-            labelgroupsSQ = db.session.query(Labelgroup)\
-                            .join(Detection)\
-                            .join(Image)\
-                            .filter(Image.clusters.contains(newCluster))\
-                            .filter(Labelgroup.task_id==task_id)\
-                            .subquery()
-
             labelgroups = db.session.query(Labelgroup)\
-                            .join(labelgroupsSQ,labelgroupsSQ.c.id==Labelgroup.id)\
                             .join(Detection)\
                             .join(Image)\
                             .join(Cluster,Image.clusters)\
-                            .filter(or_(
-                                Cluster.user_id==admin.id,
-                                Cluster.labels.contains(nothingLabel)
-                            ))\
-                            .filter(Cluster.id!=cluster.id)\
+                            .filter(Cluster.user_id==admin.id)\
                             .filter(Cluster.task_id==task_id)\
+                            .filter(Labelgroup.task_id==task_id)\
+                            .filter(Image.id.in_([r.id for r in new_cluster.images]))\
                             .distinct().all()
 
             for labelgroup in labelgroups:
                 labelgroup.labels = []
 
-            #copy remaining labels across (that were human annotated)
+            # copy across human-annotated labels
+            labelgroups = db.session.query(Labelgroup)\
+                            .join(Detection)\
+                            .join(Image)\
+                            .filter(Image.clusters.contains(newCluster))\
+                            .filter(Labelgroup.task_id==task_id)\
+                            .all()
+            
             labels = db.session.query(Label)\
                             .join(Labelgroup,Label.labelgroups)\
                             .join(Detection)\
@@ -1177,14 +1175,11 @@ def unknock_cluster(self,image_id, label_id, user_id, task_id):
                             .filter(Labelgroup.task_id==task_id)\
                             .filter(Image.clusters.contains(newCluster))\
                             .distinct().all()
-            
-            labelgroups = db.session.query(Labelgroup)\
-                            .join(Detection)\
-                            .join(Image)\
-                            .filter(Image.clusters.contains(newCluster))\
-                            .filter(Labelgroup.task_id==task_id)\
-                            .distinct().all()
-            
+
+            # Drop nothing and knocked down labels
+            if nothingLabel in labels: labels.remove(nothingLabel)
+            if downLabel in labels: labels.remove(downLabel)
+
             newCluster.labels = labels
             for labelgroup in labelgroups:
                 labelgroup.labels = labels
