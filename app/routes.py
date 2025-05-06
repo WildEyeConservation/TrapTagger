@@ -8660,10 +8660,16 @@ def knockdown(imageId, clusterId):
         task_id = aCluster.task_id
 
         rootImage = db.session.query(Image) \
+                            .join(Camera)\
                             .filter(Image.clusters.contains(aCluster)) \
-                            .filter(Image.camera_id == anImage.camera_id) \
+                            .filter(Camera.cameragroup_id == anImage.camera.cameragroup_id) \
                             .order_by(Image.corrected_timestamp) \
                             .first()
+        
+        reclusteringTimestamp = db.session.query(Image.corrected_timestamp) \
+                            .filter(Image.clusters.contains(aCluster)) \
+                            .order_by(Image.corrected_timestamp) \
+                            .first()[0]
 
         #Check if it is a set-up image
         trapgroup = db.session.query(Trapgroup) \
@@ -8745,7 +8751,7 @@ def knockdown(imageId, clusterId):
                     trapgroup.active = False
                     trapgroup.user_id = None
                     db.session.commit()
-                    finish_knockdown.apply_async(kwargs={'rootImageID':rootImage.id, 'task':task_id, 'current_user_id':current_user.id})
+                    finish_knockdown.apply_async(kwargs={'rootImageID':rootImage.id, 'task':task_id, 'current_user_id':current_user.id, 'reclusteringTimestamp':reclusteringTimestamp})
 
     if (not current_user.admin) and (not GLOBALS.redisClient.sismember('active_jobs_'+str(current_user.turkcode[0].task_id),current_user.username)):
         return {'redirect': url_for('done')}, 278
