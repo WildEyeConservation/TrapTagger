@@ -21,7 +21,7 @@ from app.functions.globals import classifyTask, update_masks, retryTime, resolve
                                     reconcile_cluster_labelgroup_labels_and_tags, hideSmallDetections, maskSky, checkChildTranslations, createChildTranslations, \
                                     prepTask, removeHumans
 from app.functions.individualID import calculate_detection_similarities, cleanUpIndividuals, check_individual_detection_mismatch
-from app.functions.imports import classifySurvey, s3traverse, recluster_large_clusters, classifyCluster, importKML, import_survey
+from app.functions.imports import classifySurvey, s3traverse, classifyCluster, importKML, import_survey
 import GLOBALS
 from sqlalchemy.sql import func, or_, and_, distinct, alias
 from sqlalchemy import desc, extract
@@ -2595,9 +2595,8 @@ def edit_survey(self,survey_id,user_id,classifier_id,sky_masked,ignore_small_det
                 re_classify_survey(survey_id=survey_id,classifier_id=classifier_id)
 
         # File Timestamps
-        trapgroup_ids = []
         if image_timestamps:
-            trapgroup_ids = recluster_after_image_timestamp_change(survey_id=survey_id,image_timestamps=image_timestamps)
+            recluster_after_image_timestamp_change(survey_id=survey_id,image_timestamps=image_timestamps)
 
         # Camera timestamps
         if timestamps:
