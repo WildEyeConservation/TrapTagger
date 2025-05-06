@@ -5637,6 +5637,7 @@ def prepare_labelgroup_cluster_labels(task_id,trapgroup_id,query_limit,timestamp
 
     return True
 
+@celery.task(bind=True,max_retries=2,ignore_result=True)
 def prepTask(self, task_id, includes=None, translation=None, labels=None, auto_release=False, trapgroup_ids=None, timestamp=None, parallel=False):
     ''' Prepares/updates a task in terms of: labels, translations, clustering, labelgroups, classification & statuses '''
     
