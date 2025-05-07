@@ -5286,6 +5286,26 @@ def det_presence_clustering(task_id,trapgroup_id,starting_last_cluster_id,query_
                 images_start = images_dictionary[0][0].corrected_timestamp
                 images_end = images_dictionary[-1][0].corrected_timestamp
                 images_dictionary = {item[0].id: item for item in images_dictionary}
+            
+            # This is a backstop for cases where the query_limit causes issues for giant surveys
+            missing_images = [image_id for image_id in cluster_image_ids if image_id not in images_dictionary.keys()]
+            if missing_images:
+                images_dictionary2 = db.session.query(
+                                                Image,
+                                                clusterInfoSQ.c.notes,
+                                                clusterInfoSQ.c.user_id,
+                                                clusterInfoSQ.c.timestamp,
+                                                clusterInfoSQ.c.checked,
+                                                clusterInfoSQ.c.er_ids
+                                            )\
+                                            .outerjoin(clusterInfoSQ,clusterInfoSQ.c.image_id==Image.id)\
+                                            .filter(Image.id.in_(missing_images))\
+                                            .filter(or_(clusterInfoSQ.c.row_number==1,clusterInfoSQ.c.row_number==None))\
+                                            .order_by(Image.corrected_timestamp)\
+                                            .distinct().all()
+                for item in images_dictionary2:
+                    images_dictionary[item[0].id] = item
+                images_dictionary2 = None
 
             cluster_images = [images_dictionary[image_id][0] for image_id in cluster_image_ids]
             cluster_images.sort(key=lambda image: image.corrected_timestamp)
@@ -5349,39 +5369,50 @@ def det_presence_clustering(task_id,trapgroup_id,starting_last_cluster_id,query_
 
     return True
 
-def add_labelgroups(survey_id,task_id):
+@celery.task(bind=True,max_retries=2)
+def add_labelgroups(self,trapgroup_id,task_id):
     ''' Bulk adds missing labelgroups to the specified task. '''
     
-    sq = db.session.query(Detection.id.label('detection_id'),Labelgroup.id.label('labelgroup_id'))\
-                        .join(Labelgroup)\
-                        .join(Image)\
-                        .join(Camera)\
-                        .join(Trapgroup)\
-                        .filter(Trapgroup.survey_id==survey_id)\
-                        .filter(Labelgroup.task_id==task_id)\
-                        .subquery()
-    
-    while True:
-        detections = db.session.query(Detection.id)\
-                            .outerjoin(sq,sq.c.detection_id==Detection.id)\
+    try:
+        sq = db.session.query(Detection.id.label('detection_id'),Labelgroup.id.label('labelgroup_id'))\
+                            .join(Labelgroup)\
                             .join(Image)\
                             .join(Camera)\
-                            .join(Trapgroup)\
-                            .filter(Trapgroup.survey_id==survey_id)\
-                            .filter(sq.c.labelgroup_id==None)\
-                            .distinct().limit(200000).all()
+                            .filter(Camera.trapgroup_id==trapgroup_id)\
+                            .filter(Labelgroup.task_id==task_id)\
+                            .subquery()
         
-        if not detections: break
+        while True:
+            detections = db.session.query(Detection.id)\
+                                .outerjoin(sq,sq.c.detection_id==Detection.id)\
+                                .join(Image)\
+                                .join(Camera)\
+                                .filter(Camera.trapgroup_id==trapgroup_id)\
+                                .filter(sq.c.labelgroup_id==None)\
+                                .distinct().limit(200000).all()
+            
+            if not detections: break
 
-        insert_values = []
-        for detection in detections:
-            insert_values.append({
-                'task_id': task_id,
-                'detection_id': detection[0]
-            })
+            insert_values = []
+            for detection in detections:
+                insert_values.append({
+                    'task_id': task_id,
+                    'detection_id': detection[0]
+                })
 
-        db.session.execute(insert(Labelgroup), insert_values)
-        db.session.commit()
+            db.session.execute(insert(Labelgroup), insert_values)
+            db.session.commit()
+
+    except Exception as exc:
+        app.logger.info(' ')
+        app.logger.info('!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!')
+        app.logger.info(traceback.format_exc())
+        app.logger.info('!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!')
+        app.logger.info(' ')
+        self.retry(exc=exc, countdown= retryTime(self.request.retries))
+
+    finally:
+        db.session.remove()
 
     return True
 
@@ -5423,14 +5454,15 @@ def delete_empty_clusters(task_id,query_limit):
     ''' Deletes any clusters without images. '''
 
     while True:
+        if Config.DEBUGGING: starttime = time.time()
         clusters = db.session.query(Cluster).filter(Cluster.task_id==task_id).filter(~Cluster.images.any()).limit(query_limit).all()
+        if Config.DEBUGGING: print('Fetched {} empty clusters in {}'.format(len(clusters),time.time()-starttime))
 
         if not clusters: break
 
         for cluster in clusters:
             cluster.labels = []
             cluster.tags = []
-            cluster.images = []
             cluster.required_images = []
             db.session.delete(cluster)
 
@@ -5438,115 +5470,141 @@ def delete_empty_clusters(task_id,query_limit):
 
     return True
 
-def sync_labels(task_id,trapgroup_ids):
+@celery.task(bind=True,max_retries=2)
+def sync_labels(self,task_id,trapgroup_ids):
     '''
         Synchronises the labels between the specified task's labelgroups and clusters.
         -Labelgroup labels are first copied up to their clusters.
         -Then the cluster labels are then back propogated down to the labelgroups, where the labelgroups haven't been manually checked.
     '''
 
-    # copy up labels from labelgroups to clusters
-    labels = db.session.query(Label).filter(Label.task_id==task_id).distinct().all()
-    labels.extend(db.session.query(Label).filter(Label.id.in_([GLOBALS.vhl_id,GLOBALS.nothing_id,GLOBALS.unknown_id,GLOBALS.knocked_id])).distinct().all())
-    for label in labels:       
-        cluster_ids = [r[0] for r in db.session.query(Cluster.id)\
-                            .join(Image,Cluster.images)\
-                            .join(Detection)\
-                            .join(Labelgroup)\
-                            .join(Camera)\
-                            .filter(Camera.trapgroup_id.in_(trapgroup_ids))\
-                            .filter(Cluster.task_id==task_id)\
-                            .filter(Labelgroup.task_id==task_id)\
-                            .filter(Labelgroup.labels.contains(label))\
-                            .filter(~Cluster.labels.contains(label))\
-                            .distinct().all()]
-        
-        insert_values = []
-        for cluster_id in cluster_ids:
-            insert_values.append({
-                'cluster_id': cluster_id,
-                'label_id': label.id
-            })
-        if insert_values: db.session.execute(insert(labelstable), insert_values)
+    try:
+        # copy up labels from labelgroups to clusters
+        labels = db.session.query(Label).filter(Label.task_id==task_id).distinct().all()
+        labels.extend(db.session.query(Label).filter(Label.id.in_([GLOBALS.vhl_id,GLOBALS.nothing_id,GLOBALS.unknown_id,GLOBALS.knocked_id])).distinct().all())
+        for label in labels:       
+            cluster_ids = [r[0] for r in db.session.query(Cluster.id)\
+                                .join(Image,Cluster.images)\
+                                .join(Detection)\
+                                .join(Labelgroup)\
+                                .join(Camera)\
+                                .filter(Camera.trapgroup_id.in_(trapgroup_ids))\
+                                .filter(Cluster.task_id==task_id)\
+                                .filter(Labelgroup.task_id==task_id)\
+                                .filter(Labelgroup.labels.contains(label))\
+                                .filter(~Cluster.labels.contains(label))\
+                                .distinct().all()]
+            
+            insert_values = []
+            for cluster_id in cluster_ids:
+                insert_values.append({
+                    'cluster_id': cluster_id,
+                    'label_id': label.id
+                })
+            if insert_values: db.session.execute(insert(labelstable), insert_values)
 
-    # Then copy labels back down to labelgroups where needed (checked==False)
-    for label in labels:
-        labelgroup_ids = [r[0] for r in db.session.query(Labelgroup.id)\
-                            .join(Detection)\
-                            .join(Image)\
-                            .join(Camera)\
-                            .join(Cluster,Image.clusters)\
-                            .filter(Camera.trapgroup_id.in_(trapgroup_ids))\
-                            .filter(Cluster.task_id==task_id)\
-                            .filter(Labelgroup.task_id==task_id)\
-                            .filter(~Labelgroup.labels.contains(label))\
-                            .filter(Cluster.labels.contains(label))\
-                            .filter(Labelgroup.checked==False)\
-                            .distinct().all()]
-        
-        insert_values = []
-        for labelgroup_id in labelgroup_ids:
-            insert_values.append({
-                'labelgroup_id': labelgroup_id,
-                'label_id': label.id
-            })
-        if insert_values: db.session.execute(insert(detectionLabels), insert_values)
-    
+        # Then copy labels back down to labelgroups where needed (checked==False)
+        for label in labels:
+            labelgroup_ids = [r[0] for r in db.session.query(Labelgroup.id)\
+                                .join(Detection)\
+                                .join(Image)\
+                                .join(Camera)\
+                                .join(Cluster,Image.clusters)\
+                                .filter(Camera.trapgroup_id.in_(trapgroup_ids))\
+                                .filter(Cluster.task_id==task_id)\
+                                .filter(Labelgroup.task_id==task_id)\
+                                .filter(~Labelgroup.labels.contains(label))\
+                                .filter(Cluster.labels.contains(label))\
+                                .filter(Labelgroup.checked==False)\
+                                .distinct().all()]
+            
+            insert_values = []
+            for labelgroup_id in labelgroup_ids:
+                insert_values.append({
+                    'labelgroup_id': labelgroup_id,
+                    'label_id': label.id
+                })
+            if insert_values: db.session.execute(insert(detectionLabels), insert_values)
+
+    except Exception as exc:
+        app.logger.info(' ')
+        app.logger.info('!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!')
+        app.logger.info(traceback.format_exc())
+        app.logger.info('!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!')
+        app.logger.info(' ')
+        self.retry(exc=exc, countdown= retryTime(self.request.retries))
+
+    finally:
+        db.session.remove()
+
     return True
 
-def sync_tags(task_id,trapgroup_ids):
+@celery.task(bind=True,max_retries=2)
+def sync_tags(self,task_id,trapgroup_ids):
     '''
         Synchronises the tags between the specified task's labelgroups and clusters.
         -Labelgroup tags are first copied up to their clusters.
         -Then the cluster tags are then back propogated down to the labelgroups.
     '''
 
-    # copy up tags from labelgroups to the clusters
-    tags = db.session.query(Tag).filter(Tag.task_id==task_id).distinct().all()
-    for tag in tags:       
-        cluster_ids = [r[0] for r in db.session.query(Cluster.id)\
-                            .join(Image,Cluster.images)\
-                            .join(Camera)\
-                            .join(Detection)\
-                            .join(Labelgroup)\
-                            .filter(Camera.trapgroup_id.in_(trapgroup_ids))\
-                            .filter(Cluster.task_id==task_id)\
-                            .filter(Labelgroup.task_id==task_id)\
-                            .filter(Labelgroup.labels.contains(tag))\
-                            .filter(~Cluster.labels.contains(tag))\
-                            .distinct().all()]
-        
-        insert_values = []
-        for cluster_id in cluster_ids:
-            insert_values.append({
-                'cluster_id': cluster_id,
-                'tag_id': tag.id
-            })
-        if insert_values: db.session.execute(insert(tags), insert_values)
+    try:
+        # copy up tags from labelgroups to the clusters
+        tags = db.session.query(Tag).filter(Tag.task_id==task_id).distinct().all()
+        for tag in tags:       
+            cluster_ids = [r[0] for r in db.session.query(Cluster.id)\
+                                .join(Image,Cluster.images)\
+                                .join(Camera)\
+                                .join(Detection)\
+                                .join(Labelgroup)\
+                                .filter(Camera.trapgroup_id.in_(trapgroup_ids))\
+                                .filter(Cluster.task_id==task_id)\
+                                .filter(Labelgroup.task_id==task_id)\
+                                .filter(Labelgroup.labels.contains(tag))\
+                                .filter(~Cluster.labels.contains(tag))\
+                                .distinct().all()]
+            
+            insert_values = []
+            for cluster_id in cluster_ids:
+                insert_values.append({
+                    'cluster_id': cluster_id,
+                    'tag_id': tag.id
+                })
+            if insert_values: db.session.execute(insert(tags), insert_values)
 
-    # copy back down tags (for later when we actually need this)
-    for tag in tags:
-        labelgroup_ids = [r[0] for r in db.session.query(Labelgroup.id)\
-                            .join(Detection)\
-                            .join(Image)\
-                            .join(Camera)\
-                            .join(Cluster,Image.clusters)\
-                            .filter(Camera.trapgroup_id.in_(trapgroup_ids))\
-                            .filter(Cluster.task_id==task_id)\
-                            .filter(Labelgroup.task_id==task_id)\
-                            .filter(~Labelgroup.labels.contains(tag))\
-                            .filter(Cluster.labels.contains(tag))\
-                            .distinct().all()]
+        # copy back down tags (for later when we actually need this)
+        for tag in tags:
+            labelgroup_ids = [r[0] for r in db.session.query(Labelgroup.id)\
+                                .join(Detection)\
+                                .join(Image)\
+                                .join(Camera)\
+                                .join(Cluster,Image.clusters)\
+                                .filter(Camera.trapgroup_id.in_(trapgroup_ids))\
+                                .filter(Cluster.task_id==task_id)\
+                                .filter(Labelgroup.task_id==task_id)\
+                                .filter(~Labelgroup.labels.contains(tag))\
+                                .filter(Cluster.labels.contains(tag))\
+                                .distinct().all()]
 
-                            # .filter(Labelgroup.checked==False)\
-        
-        insert_values = []
-        for labelgroup_id in labelgroup_ids:
-            insert_values.append({
-                'labelgroup_id': labelgroup_id,
-                'tag_id': tag.id
-            })
-        if insert_values: db.session.execute(insert(detectionTags), insert_values)
+                                # .filter(Labelgroup.checked==False)\
+            
+            insert_values = []
+            for labelgroup_id in labelgroup_ids:
+                insert_values.append({
+                    'labelgroup_id': labelgroup_id,
+                    'tag_id': tag.id
+                })
+            if insert_values: db.session.execute(insert(detectionTags), insert_values)
+
+    except Exception as exc:
+        app.logger.info(' ')
+        app.logger.info('!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!')
+        app.logger.info(traceback.format_exc())
+        app.logger.info('!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!')
+        app.logger.info(' ')
+        self.retry(exc=exc, countdown= retryTime(self.request.retries))
+
+    finally:
+        db.session.remove()
 
     return True
 
@@ -5678,13 +5736,20 @@ def prepare_labelgroup_cluster_labels(task_id,trapgroup_id,query_limit,timestamp
     return True
 
 @celery.task(bind=True,max_retries=2,ignore_result=True)
-def prepTask(self, task_id, includes=None, translation=None, labels=None, auto_release=False, trapgroup_ids=None, timestamp=None, parallel=False):
+def prepTask(self, task_id, includes=None, translation=None, labels=None, auto_release=False, trapgroup_ids=None, timestamp=None, parallel=True):
     ''' Prepares/updates a task in terms of: labels, translations, clustering, labelgroups, classification & statuses '''
     
     try:
+        if Config.DEBUGGING: starttime = time.time()
+
         query_limit = 20000
         task = db.session.query(Task).get(task_id)
         survey_id = task.survey_id
+
+        if task.survey.image_count+task.survey.frame_count < 50000: parallel = False
+
+        # If no trapgroups are specified, recluster the whole survey
+        if not trapgroup_ids: trapgroup_ids = [r[0] for r in db.session.query(Trapgroup.id).filter(Trapgroup.survey_id==survey_id).distinct().all()]
 
         if labels:
             # This makes it indempotent
@@ -5694,8 +5759,24 @@ def prepTask(self, task_id, includes=None, translation=None, labels=None, auto_r
 
             db.session.commit()
 
+        if Config.DEBUGGING: print('{}: Added labels and translations for task {}'.format(time.time()-starttime,task_id))
+
         # bulk insert labelgroups
-        add_labelgroups(survey_id,task_id)
+        if parallel:
+            results = []
+            for trapgroup_id in trapgroup_ids:
+                results.append(add_labelgroups.apply_async(kwargs={
+                        'trapgroup_id': trapgroup_id,
+                        'task_id': task_id
+                },queue='parallel'))
+
+            wait_for_parallel(results)
+
+        else:
+            for trapgroup_id in trapgroup_ids:
+                add_labelgroups(trapgroup_id,task_id)
+
+        if Config.DEBUGGING: print('{}: Added labelgroups for task {}'.format(time.time()-starttime,task_id))
 
         # Get last cluster ID as a reference later on
         starting_last_cluster_id = db.session.query(Cluster.id).filter(Cluster.task_id==task_id).order_by(Cluster.id.desc()).first()
@@ -5704,40 +5785,81 @@ def prepTask(self, task_id, includes=None, translation=None, labels=None, auto_r
         else:
             starting_last_cluster_id = starting_last_cluster_id[0]
 
-        # If no trapgroups are specified, recluster the whole survey
-        if not trapgroup_ids: trapgroup_ids = [r[0] for r in db.session.query(Trapgroup.id).filter(Trapgroup.survey_id==survey_id).distinct().all()]
-        for trapgroup_id in trapgroup_ids:
-            # drop AI, nothing and unknown labels - to allow re-classification at end to work fully
-            prepare_labelgroup_cluster_labels(task_id,trapgroup_id,query_limit,timestamp)
+        # Cluster trapgroups
+        if parallel:
+            results = []
+            for trapgroup_id in trapgroup_ids:
+                results.append(cluster_trapgroup.apply_async(kwargs={
+                        'task_id': task_id,
+                        'trapgroup_id': trapgroup_id,
+                        'query_limit': query_limit,
+                        'timestamp': timestamp,
+                        'starting_last_cluster_id': starting_last_cluster_id,
+                        'trigger_source': task.survey.trigger_source
+                },queue='parallel'))
 
-            # First handle timestampless images and videos
-            cluster_timestampless(task_id,trapgroup_id,starting_last_cluster_id,query_limit)
+            wait_for_parallel(results)
 
-            # Then, if motion-triggered, then do normal 60s image timestamp delta clustering
-            if task.survey.trigger_source == 'motion': time_based_clustering(task_id,trapgroup_id,query_limit,timestamp)
+        else:
+            for trapgroup_id in trapgroup_ids:
+                cluster_trapgroup(task_id,trapgroup_id,query_limit,timestamp,starting_last_cluster_id,task.survey.trigger_source)
 
-            # Then any remaining unclustered images will be clustered based on detection presence/absence
-            # This will be all timestamped images in time-triggered data,
-            # and all ong clusters in motion-triggered data
-            det_presence_clustering(task_id,trapgroup_id,starting_last_cluster_id,query_limit,timestamp)
-
-            # Finally, cleanup all the old clusters
-            # We don't necessarily know the number of clusters. So just keep the latest and delete everything else
-            delete_old_clusters(task_id,trapgroup_id,query_limit)
+        if Config.DEBUGGING: print('{}: Finished clustering task {}'.format(time.time()-starttime,task_id))
 
         # Just check for and delete any imageless clusters for safety
         delete_empty_clusters(task_id,query_limit)
+
+        if Config.DEBUGGING: print('{}: finsihed deleting empty clusters for task {}'.format(time.time()-starttime,task_id))
         
         # clean up labelgroup and cluster labels
-        sync_labels(task_id,trapgroup_ids)
+        if parallel:
+            results = []
+            for trapgroup_id in trapgroup_ids:
+                results.append(sync_labels.apply_async(kwargs={
+                        'task_id': task_id,
+                        'trapgroup_ids': [trapgroup_id]
+                },queue='parallel'))
+
+            wait_for_parallel(results)
+
+        else:
+            sync_labels(task_id,trapgroup_ids)
+
+        if Config.DEBUGGING: print('{}: labels synchronised for task {}'.format(time.time()-starttime,task_id))
 
         # clean up labelgroup and cluster tags
-        sync_tags(task_id,trapgroup_ids)
+        if parallel:
+            results = []
+            for trapgroup_id in trapgroup_ids:
+                results.append(sync_tags.apply_async(kwargs={
+                        'task_id': task_id,
+                        'trapgroup_ids': [trapgroup_id]
+                },queue='parallel'))
+
+            wait_for_parallel(results)
+
+        else:
+            sync_tags(task_id,trapgroup_ids)
+
+        if Config.DEBUGGING: print('{}: tags synchronised for task {}'.format(time.time()-starttime,task_id))
 
         db.session.commit()
 
         # perform the rest of the old import tasks
-        removeHumans(task_id,trapgroup_ids)
+        if parallel:
+            results = []
+            for trapgroup_id in trapgroup_ids:
+                results.append(removeHumans.apply_async(kwargs={
+                        'task_id': task_id,
+                        'trapgroup_ids': [trapgroup_id]
+                },queue='parallel'))
+
+            wait_for_parallel(results)
+
+        else:
+            removeHumans(task_id,trapgroup_ids)
+
+        if Config.DEBUGGING: print('{}: Humans removed from task task {}'.format(time.time()-starttime,task_id))
 
         # classification & status update - only if not a default task
         if task.name!='default':
@@ -5748,32 +5870,24 @@ def prepTask(self, task_id, includes=None, translation=None, labels=None, auto_r
                 results = []
                 for trapgroup_id in trapgroup_ids:
                     results.append(classifyTask.apply_async(kwargs={'task': task_id, 'trapgroup_ids':[trapgroup_id]},queue='parallel'))
-                #Wait for processing to complete
-                db.session.remove()
-                GLOBALS.lock.acquire()
-                with allow_join_result():
-                    for result in results:
-                        try:
-                            result.get()
-                        except Exception:
-                            app.logger.info(' ')
-                            app.logger.info('!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!')
-                            app.logger.info(traceback.format_exc())
-                            app.logger.info('!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!')
-                            app.logger.info(' ')
-                        
-                        result.forget()
-                GLOBALS.lock.release()
+
+                wait_for_parallel(results)
             else:
                 classifyTask(task=task_id,trapgroup_ids=trapgroup_ids)
 
+            if Config.DEBUGGING: print('{}: classified task {}'.format(time.time()-starttime,task_id))
+
             # We don't want to update the statuses in a knockdown scenario
             if not timestamp: updateAllStatuses(task_id=task_id)
+
+            if Config.DEBUGGING: print('{}: finished updating statuses for task {}'.format(time.time()-starttime,task_id))
         
         task = db.session.query(Task).get(task_id)
         task.status='Ready'
         if auto_release: task.survey.status = 'Ready'
         db.session.commit()
+
+        if Config.DEBUGGING: print('{}: finished prepping task {}'.format(time.time()-starttime,task_id))
 
     except Exception as exc:
         app.logger.info(' ')
@@ -5786,6 +5900,62 @@ def prepTask(self, task_id, includes=None, translation=None, labels=None, auto_r
     finally:
         db.session.remove()
 
+    return True
+
+@celery.task(bind=True,max_retries=2)
+def cluster_trapgroup(self,task_id,trapgroup_id,query_limit,timestamp,starting_last_cluster_id,trigger_source):
+        
+    try:
+        # drop AI, nothing and unknown labels - to allow re-classification at end to work fully
+        prepare_labelgroup_cluster_labels(task_id,trapgroup_id,query_limit,timestamp)
+
+        # First handle timestampless images and videos
+        cluster_timestampless(task_id,trapgroup_id,starting_last_cluster_id,query_limit)
+
+        # Then, if motion-triggered, then do normal 60s image timestamp delta clustering
+        if trigger_source == 'motion': time_based_clustering(task_id,trapgroup_id,query_limit,timestamp)
+
+        # Then any remaining unclustered images will be clustered based on detection presence/absence
+        # This will be all timestamped images in time-triggered data,
+        # and all ong clusters in motion-triggered data
+        det_presence_clustering(task_id,trapgroup_id,starting_last_cluster_id,query_limit,timestamp)
+
+        # Finally, cleanup all the old clusters
+        # We don't necessarily know the number of clusters. So just keep the latest and delete everything else
+        delete_old_clusters(task_id,trapgroup_id,query_limit)
+
+        if Config.DEBUGGING: print('Finished clustering trapgroup {} for task {}'.format(trapgroup_id,task_id))
+
+    except Exception as exc:
+        app.logger.info(' ')
+        app.logger.info('!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!')
+        app.logger.info(traceback.format_exc())
+        app.logger.info('!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!')
+        app.logger.info(' ')
+        self.retry(exc=exc, countdown= retryTime(self.request.retries))
+
+    finally:
+        db.session.remove()
+
+    return True
+
+def wait_for_parallel(results):
+    ''' Function that handels the waiting logic for the specified set of celry jobs. '''
+    db.session.remove()
+    GLOBALS.lock.acquire()
+    with allow_join_result():
+        for result in results:
+            try:
+                result.get()
+            except Exception:
+                app.logger.info(' ')
+                app.logger.info('!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!')
+                app.logger.info(traceback.format_exc())
+                app.logger.info('!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!')
+                app.logger.info(' ')
+            
+            result.forget()
+    GLOBALS.lock.release()
     return True
 
 def setupTranslations(task_id, survey_id, translations, includes):
@@ -5870,51 +6040,64 @@ def generateLabels(labels, task_id, labelDictionary):
 
     return True
 
-def removeHumans(task_id,trapgroup_ids=None):
+@celery.task(bind=True,max_retries=2)
+def removeHumans(self,task_id,trapgroup_ids=None):
     '''Marks clusters from specified as containing humans if the majority of their detections are classified as non-animal by MegaDetector.'''
 
-    admin = db.session.query(User.id).filter(User.username == 'Admin').first()
-    human_label = db.session.query(Label).get(GLOBALS.vhl_id)
+    try:
+        admin = db.session.query(User.id).filter(User.username == 'Admin').first()
+        human_label = db.session.query(Label).get(GLOBALS.vhl_id)
 
-    sq = db.session.query(func.count(Detection.category).label('total_dets'),
-                                func.count(func.nullif(Detection.category, 1)).label('non_animal_dets'),Cluster.id.label('cluster_id'))\
-                                .join('image', 'clusters')\
-                                .filter(or_(and_(Detection.source==model,Detection.score>Config.DETECTOR_THRESHOLDS[model]) for model in Config.DETECTOR_THRESHOLDS))\
-                                .filter(Detection.static==False)\
-                                .filter(~Detection.status.in_(Config.DET_IGNORE_STATUSES))\
-                                .filter(~Cluster.labels.any())\
-                                .filter(Cluster.task_id==task_id)\
-                                .group_by(Cluster)\
-                                .subquery()
-    
-    clusters = db.session.query(Cluster)\
-                                .join(sq,sq.c.cluster_id==Cluster.id)\
-                                .filter(sq.c.non_animal_dets/sq.c.total_dets>0.5)
+        sq = db.session.query(func.count(Detection.category).label('total_dets'),
+                                    func.count(func.nullif(Detection.category, 1)).label('non_animal_dets'),Cluster.id.label('cluster_id'))\
+                                    .join('image', 'clusters')\
+                                    .filter(or_(and_(Detection.source==model,Detection.score>Config.DETECTOR_THRESHOLDS[model]) for model in Config.DETECTOR_THRESHOLDS))\
+                                    .filter(Detection.static==False)\
+                                    .filter(~Detection.status.in_(Config.DET_IGNORE_STATUSES))\
+                                    .filter(~Cluster.labels.any())\
+                                    .filter(Cluster.task_id==task_id)\
+                                    .group_by(Cluster)\
+                                    .subquery()
+        
+        clusters = db.session.query(Cluster)\
+                                    .join(sq,sq.c.cluster_id==Cluster.id)\
+                                    .filter(sq.c.non_animal_dets/sq.c.total_dets>0.5)
 
-    if trapgroup_ids: clusters = clusters.join(Image,Cluster.images).join(Camera).filter(Camera.trapgroup_id.in_(trapgroup_ids)).distinct()
+        if trapgroup_ids: clusters = clusters.join(Image,Cluster.images).join(Camera).filter(Camera.trapgroup_id.in_(trapgroup_ids)).distinct()
 
-    clusters = clusters.all()
+        clusters = clusters.all()
 
-    labelgroups = db.session.query(Labelgroup)\
-                                .join(Detection)\
-                                .join(Image)\
-                                .join(Cluster,Image.clusters)\
-                                .join(sq,sq.c.cluster_id==Cluster.id)\
-                                .filter(sq.c.non_animal_dets/sq.c.total_dets>0.5)\
-                                .filter(Labelgroup.task_id==task_id)
+        labelgroups = db.session.query(Labelgroup)\
+                                    .join(Detection)\
+                                    .join(Image)\
+                                    .join(Cluster,Image.clusters)\
+                                    .join(sq,sq.c.cluster_id==Cluster.id)\
+                                    .filter(sq.c.non_animal_dets/sq.c.total_dets>0.5)\
+                                    .filter(Labelgroup.task_id==task_id)
 
-    if trapgroup_ids: labelgroups = labelgroups.join(Camera).filter(Camera.trapgroup_id.in_(trapgroup_ids))
+        if trapgroup_ids: labelgroups = labelgroups.join(Camera).filter(Camera.trapgroup_id.in_(trapgroup_ids))
 
-    labelgroups = labelgroups.distinct().all()
+        labelgroups = labelgroups.distinct().all()
 
-    for cluster in clusters:
-        cluster.labels = [human_label]
-        cluster.user_id = admin.id
-        cluster.timestamp = datetime.utcnow()
+        for cluster in clusters:
+            cluster.labels = [human_label]
+            cluster.user_id = admin.id
+            cluster.timestamp = datetime.utcnow()
 
-    for labelgroup in labelgroups:
-        labelgroup.labels = [human_label]
+        for labelgroup in labelgroups:
+            labelgroup.labels = [human_label]
 
-    db.session.commit()
+        db.session.commit()
+
+    except Exception as exc:
+        app.logger.info(' ')
+        app.logger.info('!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!')
+        app.logger.info(traceback.format_exc())
+        app.logger.info('!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!')
+        app.logger.info(' ')
+        self.retry(exc=exc, countdown= retryTime(self.request.retries))
+
+    finally:
+        db.session.remove()
 
     return True
