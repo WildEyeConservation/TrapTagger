@@ -5736,7 +5736,7 @@ def prepare_labelgroup_cluster_labels(task_id,trapgroup_id,query_limit,timestamp
     return True
 
 @celery.task(bind=True,max_retries=2,ignore_result=True)
-def prepTask(self, task_id, includes=None, translation=None, labels=None, auto_release=False, trapgroup_ids=None, timestamp=None, parallel=True):
+def prepTask(self, task_id, includes=None, translation=None, labels=None, auto_release=False, trapgroup_ids=None, timestamp=None):
     ''' Prepares/updates a task in terms of: labels, translations, clustering, labelgroups, classification & statuses '''
     
     try:
@@ -5746,7 +5746,10 @@ def prepTask(self, task_id, includes=None, translation=None, labels=None, auto_r
         task = db.session.query(Task).get(task_id)
         survey_id = task.survey_id
 
-        if task.survey.image_count+task.survey.frame_count < 50000: parallel = False
+        parallel = True
+        image_count = task.survey.image_count if task.survey.image_count else 0
+        frame_count = task.survey.frame_count if task.survey.frame_count else 0
+        if image_count+frame_count < 50000: parallel = False
 
         # If no trapgroups are specified, recluster the whole survey
         if not trapgroup_ids: trapgroup_ids = [r[0] for r in db.session.query(Trapgroup.id).filter(Trapgroup.survey_id==survey_id).distinct().all()]
