@@ -4768,17 +4768,13 @@ def cluster_timestampless(task_id,trapgroup_id,starting_last_cluster_id,query_li
         -Images are handled by creating single-image clusters
     '''
 
-    # This is a utility SQ for finding the irrelevant and already-processed images:
+    # This is a utility SQ for finding the irrelevant images:
     # knock downs
-    # already-clustered
     downLabel = db.session.query(Label).get(GLOBALS.knocked_id)
-    irrelevantImagesSQ = db.session.query(Image)\
+    irrelevantImagesSQ = db.session.query(Image.id.label('image_id'),Cluster.id.label('cluster_id'))\
                         .join(Cluster,Image.clusters)\
                         .filter(Cluster.task_id==task_id)\
-                        .filter(or_(
-                            Cluster.id>starting_last_cluster_id, #already clustered
-                            Cluster.labels.contains(downLabel) #knocked down
-                        ))\
+                        .filter(Cluster.labels.contains(downLabel))\
                         .subquery()
 
     # This fetches the associated Earth Ranger IDs for each cluster
@@ -4821,13 +4817,13 @@ def cluster_timestampless(task_id,trapgroup_id,starting_last_cluster_id,query_li
                                 clusterInfoSQ.c.er_ids
                             )\
                             .outerjoin(clusterInfoSQ,clusterInfoSQ.c.image_id==Image.id)\
-                            .outerjoin(irrelevantImagesSQ,irrelevantImagesSQ.c.id==Image.id)\
+                            .outerjoin(irrelevantImagesSQ,irrelevantImagesSQ.c.image_id==Image.id)\
                             .join(Camera)\
                             .outerjoin(Video)\
                             .filter(Camera.trapgroup_id==trapgroup_id)\
                             .filter(Image.corrected_timestamp==None)\
                             .filter(or_(clusterInfoSQ.c.row_number==1,clusterInfoSQ.c.row_number==None))\
-                            .filter(irrelevantImagesSQ.c.id==None)\
+                            .filter(irrelevantImagesSQ.c.cluster_id==None)\
                             .order_by(Video.id)\
                             .distinct().limit(query_limit).all()
         
@@ -4913,27 +4909,29 @@ def time_based_clustering(task_id,trapgroup_id,query_limit,timestamp=None):
     # This sq finds the images that need to be processed
     # We always want to leave knocked-down images
     downLabel = db.session.query(Label).get(GLOBALS.knocked_id)
-    relevantImagesSQ = db.session.query(Image)\
-                                .join(Camera)\
-                                .join(Cluster,Image.Clusters)\
-                                .filter(Cluster.task_id==task_id)\
-                                .filter(~Cluster.labels.contains(downLabel))\
-                                .filter(Camera.trapgroup_id==trapgroup_id)\
-                                .filter(Image.corrected_timestamp!=None)
-
-    # This is for knockdown reclustering: we want to look at all images from the knock point onward.
-    # Knocked images aren't reclustered by default
-    if timestamp: relevantImagesSQ.filter(Image.corrected_timestamp>=timestamp)
-
-    relevantImagesSQ = relevantImagesSQ.subquery()
+    irrelevantImagesSQ = db.session.query(Image.id.label('image_id'),Cluster.id.label('cluster_id'))\
+                            .join(Cluster,Image.clusters)\
+                            .filter(Cluster.task_id==task_id)\
+                            .filter(Cluster.labels.contains(downLabel))\
+                            .subquery()
     
     # Here we get the current and previous timestamp for each image in the trapgroup
     imageSQ = db.session.query(
-                            relevantImagesSQ.c.id.label('id'),
-                            relevantImagesSQ.c.corrected_timestamp.label('timestamp'),
-                            func.lag(relevantImagesSQ.c.corrected_timestamp).over(order_by=relevantImagesSQ.c.corrected_timestamp).label("prev_timestamp")
+                            Image.id.label('id'),
+                            Image.corrected_timestamp.label('timestamp'),
+                            func.lag(Image.corrected_timestamp).over(order_by=Image.corrected_timestamp).label("prev_timestamp")
                         )\
-                        .subquery()
+                        .outerjoin(irrelevantImagesSQ,irrelevantImagesSQ.c.image_id==Image.id)\
+                        .join(Camera)\
+                        .filter(Camera.trapgroup_id==trapgroup_id)\
+                        .filter(Image.corrected_timestamp!=None)\
+                        .filter(irrelevantImagesSQ.c.cluster_id==None)
+
+    # This is for knockdown reclustering: we want to look at all images from the knock point onward.
+    # Knocked images aren't reclustered by default
+    if timestamp: imageSQ.filter(Image.corrected_timestamp>=timestamp)
+
+    imageSQ = imageSQ.subquery()
 
     # Here we generate clusters based on time deltas of less than a minute
     clusterSQ = db.session.query(
@@ -5107,23 +5105,17 @@ def det_presence_clustering(task_id,trapgroup_id,starting_last_cluster_id,query_
     # already-clustered
     # before the specified timestamp (knock-down)
     downLabel = db.session.query(Label).get(GLOBALS.knocked_id)
-    irrelevantImagesSQ = db.session.query(Image)\
+    alreadyClusteredSQ = db.session.query(Image.id.label('image_id'),Cluster.id.label('cluster_id'))\
                         .join(Cluster,Image.clusters)\
-                        .filter(Cluster.task_id==task_id)
+                        .filter(Cluster.task_id==task_id)\
+                        .filter(Cluster.id>starting_last_cluster_id)\
+                        .subquery()
     
-    if timestamp:
-        irrelevantImagesSQ = irrelevantImagesSQ.filter(or_(
-                                                Cluster.id>starting_last_cluster_id, #already clustered
-                                                Cluster.labels.contains(downLabel), #knocked down
-                                                Image.corrected_timestamp<timestamp #before the knockdown point
-                                            ))
-    else:
-        irrelevantImagesSQ = irrelevantImagesSQ.filter(or_(
-                                                Cluster.id>starting_last_cluster_id, #already clustered
-                                                Cluster.labels.contains(downLabel) #knocked down
-                                            ))
-    
-    irrelevantImagesSQ = irrelevantImagesSQ.subquery()
+    knockedImagesSQ = db.session.query(Image.id.label('image_id'),Cluster.id.label('cluster_id'))\
+                        .join(Cluster,Image.clusters)\
+                        .filter(Cluster.task_id==task_id)\
+                        .filter(Cluster.labels.contains(downLabel))\
+                        .subquery()
 
     # This finds all the relevent detections in the trapgroup
     rDetsSQ = rDets(db.session.query(Detection).join(Image).join(Camera).filter(Camera.trapgroup_id==trapgroup_id)).subquery()
@@ -5133,6 +5125,7 @@ def det_presence_clustering(task_id,trapgroup_id,starting_last_cluster_id,query_
                                     Image.id.label('image_id'),
                                     Image.corrected_timestamp.label('timestamp'),
                                     Camera.cameragroup_id.label('cameragroup_id'),
+                                    Camera.trapgroup_id.label('trapgroup_id'),
                                     case(
                                         (
                                             (rDetsSQ.c.id==None),
@@ -5141,19 +5134,25 @@ def det_presence_clustering(task_id,trapgroup_id,starting_last_cluster_id,query_
                                         else_=1
                                     ).label('det_presence')
                                 )\
-                                .outerjoin(irrelevantImagesSQ,irrelevantImagesSQ.c.id==Image.id)\
+                                .outerjoin(alreadyClusteredSQ,alreadyClusteredSQ.c.image_id==Image.id)\
+                                .outerjoin(knockedImagesSQ,knockedImagesSQ.c.image_id==Image.id)\
                                 .join(Camera)\
                                 .join(Detection)\
                                 .outerjoin(rDetsSQ,rDetsSQ.c.id==Detection.id)\
                                 .filter(Camera.trapgroup_id==trapgroup_id)\
                                 .filter(Image.corrected_timestamp!=None)\
-                                .filter(irrelevantImagesSQ.c.id==None)\
-                                .group_by(Image.id).subquery()
+                                .filter(alreadyClusteredSQ.c.cluster_id==None)\
+                                .filter(knockedImagesSQ.c.cluster_id==None)
+    
+    if timestamp: imageDetectionSQ = imageDetectionSQ.filter(Image.corrected_timestamp>=timestamp)
+
+    imageDetectionSQ = imageDetectionSQ.group_by(Image.id).subquery()
 
     # This then creates a lagged version of the det presence and timestamps to help find deltas later on
     prevPresenceSQ = db.session.query(
                                     imageDetectionSQ.c.image_id.label('image_id'),
                                     imageDetectionSQ.c.cameragroup_id.label('cameragroup_id'),
+                                    imageDetectionSQ.c.trapgroup_id.label('trapgroup_id'),
                                     imageDetectionSQ.c.det_presence.label('det_presence'),
                                     imageDetectionSQ.c.timestamp.label('timestamp'),
                                     func.lag(imageDetectionSQ.c.det_presence).over(partition_by=imageDetectionSQ.c.cameragroup_id,order_by=imageDetectionSQ.c.timestamp).label("prev_presence"),
@@ -5165,6 +5164,7 @@ def det_presence_clustering(task_id,trapgroup_id,starting_last_cluster_id,query_
     cameraClusterSQ = db.session.query(
                                     prevPresenceSQ.c.image_id.label('image_id'),
                                     prevPresenceSQ.c.cameragroup_id.label('cameragroup_id'),
+                                    prevPresenceSQ.c.trapgroup_id.label('trapgroup_id'),
                                     prevPresenceSQ.c.det_presence.label('det_presence'),
                                     prevPresenceSQ.c.timestamp.label('timestamp'),
                                     func.sum(
@@ -5221,6 +5221,7 @@ def det_presence_clustering(task_id,trapgroup_id,starting_last_cluster_id,query_
                                     func.row_number().over(order_by=cameraClusterSQ.c.timestamp).label("row_number")
                                 )\
                                 .join(Image,Image.id==cameraClusterSQ.c.image_id)\
+                                .filter(cameraClusterSQ.c.trapgroup_id==trapgroup_id)\
                                 .group_by(cameraClusterSQ.c.cameragroup_id,cameraClusterSQ.c.cluster_number)\
                                 .order_by(cameraClusterSQ.c.timestamp)\
                                 .all()
@@ -5229,7 +5230,7 @@ def det_presence_clustering(task_id,trapgroup_id,starting_last_cluster_id,query_
     admin = db.session.query(User).filter(User.username=='Admin').first()
     last_sighting_time = dict.fromkeys(cameragroup_ids,datetime.utcfromtimestamp(0))
     last_sighting_index = dict.fromkeys(cameragroup_ids,False)
-    if cameragroupClusters: last_row = cameragroupClusters[-1][6]
+    if cameragroupClusters: last_row = cameragroupClusters[-1][-1]
 
     clusters = []
     cluster_image_ids = []
@@ -5352,7 +5353,7 @@ def add_labelgroups(survey_id,task_id):
     ''' Bulk adds missing labelgroups to the specified task. '''
     
     sq = db.session.query(Detection.id.label('detection_id'),Labelgroup.id.label('labelgroup_id'))\
-                        .outerjoin(Labelgroup)\
+                        .join(Labelgroup)\
                         .join(Image)\
                         .join(Camera)\
                         .join(Trapgroup)\
@@ -5585,9 +5586,11 @@ def prepare_labelgroup_cluster_labels(task_id,trapgroup_id,query_limit,timestamp
                                 .filter(Labelgroup.task_id==task_id)\
                                 .filter(Cluster.task_id==task_id)\
                                 .filter(Cluster.user_id==admin.id)\
-                                .filter(Camera.trapgroup_id==trapgroup_id)\
-                                .filter(Image.corrected_timestamp>=timestamp)\
-                                .distinct().limit(query_limit).all()
+                                .filter(Camera.trapgroup_id==trapgroup_id)
+        
+        if timestamp: labelgroups = labelgroups.filter(Image.corrected_timestamp>=timestamp)
+
+        labelgroups = labelgroups.distinct().limit(query_limit).all()
 
         for labelgroup in labelgroups:
             labelgroup.labels = []
@@ -5596,20 +5599,37 @@ def prepare_labelgroup_cluster_labels(task_id,trapgroup_id,query_limit,timestamp
 
     # Drop unknown and nothing labels to be conservative - there could now be more info after a re-cluster
     nothingLabel = db.session.query(Label).get(GLOBALS.nothing_id)
+    while True:
+        labelgroups = db.session.query(Labelgroup)\
+                                .join(Detection)\
+                                .join(Image)\
+                                .join(Camera)\
+                                .filter(Labelgroup.labels.contains(nothingLabel))\
+                                .filter(Labelgroup.task_id==task_id)\
+                                .filter(Camera.trapgroup_id==trapgroup_id)
+
+        if timestamp: labelgroups = labelgroups.filter(Image.corrected_timestamp>=timestamp)
+
+        labelgroups = labelgroups.distinct().limit(query_limit).all()
+
+        for labelgroup in labelgroups:
+            labelgroup.labels = []
+
+        if len(labelgroups)<query_limit: break
+
     unknownLabel = db.session.query(Label).get(GLOBALS.unknown_id)
     while True:
         labelgroups = db.session.query(Labelgroup)\
                                 .join(Detection)\
                                 .join(Image)\
                                 .join(Camera)\
-                                .filter(or_(
-                                    Labelgroup.labels.contains(nothingLabel),
-                                    Labelgroup.labels.contains(unknownLabel)
-                                ))\
+                                .filter(Labelgroup.labels.contains(unknownLabel))\
                                 .filter(Labelgroup.task_id==task_id)\
-                                .filter(Camera.trapgroup_id==trapgroup_id)\
-                                .filter(Image.corrected_timestamp>=timestamp)\
-                                .distinct().limit(query_limit).all()
+                                .filter(Camera.trapgroup_id==trapgroup_id)
+
+        if timestamp: labelgroups = labelgroups.filter(Image.corrected_timestamp>=timestamp)
+
+        labelgroups = labelgroups.distinct().limit(query_limit).all()
 
         for labelgroup in labelgroups:
             labelgroup.labels = []
@@ -5621,17 +5641,37 @@ def prepare_labelgroup_cluster_labels(task_id,trapgroup_id,query_limit,timestamp
         clusters = db.session.query(Cluster)\
                                 .join(Image.clusters)\
                                 .join(Camera)\
-                                .filter(or_(
-                                    Cluster.labels.contains(nothingLabel),
-                                    Cluster.labels.contains(unknownLabel)
-                                ))\
+                                .filter(Cluster.labels.contains(nothingLabel))\
                                 .filter(Cluster.task_id==task_id)\
-                                .filter(Camera.trapgroup_id==trapgroup_id)\
-                                .filter(Image.corrected_timestamp>=timestamp)\
-                                .distinct().limit(query_limit).all()
+                                .filter(Camera.trapgroup_id==trapgroup_id)
+        
+        if timestamp: clusters = clusters.filter(Image.corrected_timestamp>=timestamp)
+
+        clusters = clusters.distinct().limit(query_limit).all()
 
         for cluster in clusters:
             cluster.user_id = None
+            cluster.timestamp = None
+            cluster.labels = []
+
+        if len(clusters)<query_limit: break
+
+    while True:
+        clusters = db.session.query(Cluster)\
+                                .join(Image.clusters)\
+                                .join(Camera)\
+                                .filter(Cluster.labels.contains(unknownLabel))\
+                                .filter(Cluster.task_id==task_id)\
+                                .filter(Camera.trapgroup_id==trapgroup_id)
+        
+        if timestamp: clusters = clusters.filter(Image.corrected_timestamp>=timestamp)
+
+        clusters = clusters.distinct().limit(query_limit).all()
+
+        for cluster in clusters:
+            cluster.user_id = None
+            cluster.timestamp = None
+            cluster.labels = []
 
         if len(clusters)<query_limit: break
 
@@ -5643,7 +5683,7 @@ def prepTask(self, task_id, includes=None, translation=None, labels=None, auto_r
     
     try:
         query_limit = 20000
-        task = db.session.query(Task).get(task.id)
+        task = db.session.query(Task).get(task_id)
         survey_id = task.survey_id
 
         if labels:
@@ -5659,7 +5699,10 @@ def prepTask(self, task_id, includes=None, translation=None, labels=None, auto_r
 
         # Get last cluster ID as a reference later on
         starting_last_cluster_id = db.session.query(Cluster.id).filter(Cluster.task_id==task_id).order_by(Cluster.id.desc()).first()
-        if not starting_last_cluster_id: starting_last_cluster_id = 0
+        if not starting_last_cluster_id:
+            starting_last_cluster_id = 0
+        else:
+            starting_last_cluster_id = starting_last_cluster_id[0]
 
         # If no trapgroups are specified, recluster the whole survey
         if not trapgroup_ids: trapgroup_ids = [r[0] for r in db.session.query(Trapgroup.id).filter(Trapgroup.survey_id==survey_id).distinct().all()]
@@ -5722,7 +5765,7 @@ def prepTask(self, task_id, includes=None, translation=None, labels=None, auto_r
                         result.forget()
                 GLOBALS.lock.release()
             else:
-                classifyTask(task_id=task_id,trapgroup_ids=trapgroup_ids)
+                classifyTask(task=task_id,trapgroup_ids=trapgroup_ids)
 
             # We don't want to update the statuses in a knockdown scenario
             if not timestamp: updateAllStatuses(task_id=task_id)
