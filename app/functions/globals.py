@@ -5370,7 +5370,7 @@ def det_presence_clustering(task_id,trapgroup_id,starting_last_cluster_id,query_
     return True
 
 @celery.task(bind=True,max_retries=2)
-def add_labelgroups(self,trapgroup_id,task_id):
+def add_labelgroups(self,survey_id,task_id):
     ''' Bulk adds missing labelgroups to the specified task. '''
     
     try:
@@ -5378,7 +5378,8 @@ def add_labelgroups(self,trapgroup_id,task_id):
                             .join(Labelgroup)\
                             .join(Image)\
                             .join(Camera)\
-                            .filter(Camera.trapgroup_id==trapgroup_id)\
+                            .join(Trapgroup)\
+                            .filter(Trapgroup.survey_id==survey_id)\
                             .filter(Labelgroup.task_id==task_id)\
                             .subquery()
         
@@ -5387,7 +5388,8 @@ def add_labelgroups(self,trapgroup_id,task_id):
                                 .outerjoin(sq,sq.c.detection_id==Detection.id)\
                                 .join(Image)\
                                 .join(Camera)\
-                                .filter(Camera.trapgroup_id==trapgroup_id)\
+                                .join(Trapgroup)\
+                                .filter(Trapgroup.survey_id==survey_id)\
                                 .filter(sq.c.labelgroup_id==None)\
                                 .distinct().limit(200000).all()
             
@@ -5765,19 +5767,20 @@ def prepTask(self, task_id, includes=None, translation=None, labels=None, auto_r
         if Config.DEBUGGING: print('{}: Added labels and translations for task {}'.format(time.time()-starttime,task_id))
 
         # bulk insert labelgroups
-        if parallel:
-            results = []
-            for trapgroup_id in trapgroup_ids:
-                results.append(add_labelgroups.apply_async(kwargs={
-                        'trapgroup_id': trapgroup_id,
-                        'task_id': task_id
-                },queue='parallel'))
+        add_labelgroups(survey_id,task_id)
+        # if parallel:
+        #     results = []
+        #     for trapgroup_id in trapgroup_ids:
+        #         results.append(add_labelgroups.apply_async(kwargs={
+        #                 'trapgroup_id': trapgroup_id,
+        #                 'task_id': task_id
+        #         },queue='parallel'))
 
-            wait_for_parallel(results)
+        #     wait_for_parallel(results)
 
-        else:
-            for trapgroup_id in trapgroup_ids:
-                add_labelgroups(trapgroup_id,task_id)
+        # else:
+        #     for trapgroup_id in trapgroup_ids:
+        #         add_labelgroups(trapgroup_id,task_id)
 
         if Config.DEBUGGING: print('{}: Added labelgroups for task {}'.format(time.time()-starttime,task_id))
 
