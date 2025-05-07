@@ -5747,6 +5747,7 @@ def prepTask(self, task_id, includes=None, translation=None, labels=None, auto_r
         query_limit = 20000
         task = db.session.query(Task).get(task_id)
         survey_id = task.survey_id
+        trigger_source = task.survey.trigger_source
 
         parallel = True
         image_count = task.survey.image_count if task.survey.image_count else 0
@@ -5801,7 +5802,7 @@ def prepTask(self, task_id, includes=None, translation=None, labels=None, auto_r
                         'query_limit': query_limit,
                         'timestamp': timestamp,
                         'starting_last_cluster_id': starting_last_cluster_id,
-                        'trigger_source': task.survey.trigger_source
+                        'trigger_source': trigger_source
                 },queue='parallel'))
 
             wait_for_parallel(results)
