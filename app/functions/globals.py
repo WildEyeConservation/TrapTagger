@@ -5770,21 +5770,8 @@ def prepTask(self, task_id, includes=None, translation=None, labels=None, auto_r
 
         if Config.DEBUGGING: print('{}: Added labels and translations for task {}'.format(time.time()-starttime,task_id))
 
-        # bulk insert labelgroups
+        # bulk insert labelgroups (faster non-parallelised)
         add_labelgroups(survey_id,task_id)
-        # if parallel:
-        #     results = []
-        #     for trapgroup_id in trapgroup_ids:
-        #         results.append(add_labelgroups.apply_async(kwargs={
-        #                 'trapgroup_id': trapgroup_id,
-        #                 'task_id': task_id
-        #         },queue='parallel'))
-
-        #     wait_for_parallel(results)
-
-        # else:
-        #     for trapgroup_id in trapgroup_ids:
-        #         add_labelgroups(trapgroup_id,task_id)
 
         if Config.DEBUGGING: print('{}: Added labelgroups for task {}'.format(time.time()-starttime,task_id))
 
