@@ -4891,7 +4891,7 @@ def cluster_timestampless(task_id,trapgroup_id,starting_last_cluster_id,query_li
             clusters.append(cluster)
 
         if clusters:
-            db.session.bulk_save_objects(clusters)
+            db.session.add_all(clusters)
             db.session.commit()
 
         if len(imageData) < query_limit: break
@@ -5086,7 +5086,7 @@ def time_based_clustering(task_id,trapgroup_id,query_limit,timestamp=None):
                 if cluster_er_ids: cluster.earth_ranger_ids = db.session.query(ERangerID).filter(ERangerID.in_(cluster_er_ids)).all()
                 clusters.append(cluster)
 
-        db.session.bulk_save_objects(clusters)
+        db.session.add_all(clusters)
         db.session.commit()
     
     return True
@@ -5263,7 +5263,7 @@ def det_presence_clustering(task_id,trapgroup_id,starting_last_cluster_id,query_
                 
                 if clusters:
                     # save and flush current clusters before fetching more data into memory
-                    db.session.bulk_save_objects(clusters)
+                    db.session.add_all(clusters)
                     db.session.commit()
                     clusters = []
                 
@@ -5364,7 +5364,7 @@ def det_presence_clustering(task_id,trapgroup_id,starting_last_cluster_id,query_
         if (cluster_end==None) or (end>cluster_end): cluster_end = end
 
     if clusters:
-        db.session.bulk_save_objects(clusters)
+        db.session.add_all(clusters)
         db.session.commit()
 
     return True
@@ -5712,7 +5712,7 @@ def prepare_labelgroup_cluster_labels(task_id,trapgroup_id,query_limit,timestamp
         for cluster in clusters:
             cluster.user_id = None
             cluster.timestamp = None
-            cluster.labels = []
+            # cluster.labels = []
 
         if len(clusters)<query_limit: break
 
@@ -5731,7 +5731,7 @@ def prepare_labelgroup_cluster_labels(task_id,trapgroup_id,query_limit,timestamp
         for cluster in clusters:
             cluster.user_id = None
             cluster.timestamp = None
-            cluster.labels = []
+            # cluster.labels = []
 
         if len(clusters)<query_limit: break
 
