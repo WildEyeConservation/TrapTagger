@@ -5869,6 +5869,7 @@ def prepTask(self, task_id, includes=None, translation=None, labels=None, auto_r
         if Config.DEBUGGING: print('{}: Humans removed from task task {}'.format(time.time()-starttime,task_id))
 
         # classification & status update - only if not a default task
+        task = db.session.query(Task).get(task_id)
         if task.name!='default':
             task.status = 'Auto-Classifying'
             db.session.commit()
