@@ -5618,7 +5618,10 @@ def add_new_task(survey_id, name, includes=None, translation=None, labels=None, 
         task = Task(name=name, survey_id=survey_id, status='Preparing', tagging_time=0, test_size=0, size=200, parent_classification=parentLabel)
         db.session.add(task)
     
-    if name!='default': task.survey.status = 'Preparing Annotation Set'
+    if name!='default':
+        survey = db.session.query(Survey).get(survey_id)
+        survey.status = 'Preparing Annotation Set'
+    
     db.session.commit()
     task_id = task.id
 
