@@ -5809,7 +5809,7 @@ def prepTask(self, task_id, includes=None, translation=None, labels=None, auto_r
 
         else:
             for trapgroup_id in trapgroup_ids:
-                cluster_trapgroup(task_id,trapgroup_id,query_limit,timestamp,starting_last_cluster_id,task.survey.trigger_source)
+                cluster_trapgroup(task_id,trapgroup_id,query_limit,timestamp,starting_last_cluster_id,trigger_source)
 
         if Config.DEBUGGING: print('{}: Finished clustering task {}'.format(time.time()-starttime,task_id))
 
