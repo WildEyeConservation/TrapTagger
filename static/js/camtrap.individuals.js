@@ -82,7 +82,10 @@ var mergeImageOnly = false
 var confirmMerge = false
 var selectedIndividual = null
 var selectedIndividualName = null
-var mergeIndividualsFilters = {'task': null, 'mutual': null, 'search': null, 'order': null} 
+var mergeIndividualsFilters = {'task': null, 'mutual': null, 'search': null, 'order': null, 'tags': null, 'page': null}
+var individualBounds = []
+var individualCoords = []
+var fullResMerge = {'L': false, 'R': false}
 
 function getIndividuals(page = null) {
     /** Gets a page of individuals. Gets the first page if none is specified. */
@@ -152,6 +155,7 @@ function getIndividuals(page = null) {
             request += '&order='+order.toString() 
         }
         else{
+            current_page = 1
             order = orderSelect.options[orderSelect.selectedIndex].value
             request += '?order='+order.toString()     
         }
@@ -186,24 +190,31 @@ function getIndividuals(page = null) {
                         row = document.createElement('div')
                         row.classList.add('row')
                         individualsDiv.appendChild(row)
-                        individualsDiv.appendChild(document.createElement('br'))
+                        // if not the last row, add a break
+                        if (i < (individuals.length-4)) {
+                            individualsDiv.appendChild(document.createElement('br'))
+                        }
                     }
 
                     col = document.createElement('div')
                     col.classList.add('col-lg-3')
                     row.appendChild(col)
 
-                    image = document.createElement('img')
-                    image.setAttribute('width','100%')
-                    image.src = "https://"+bucketName+".s3.amazonaws.com/" + modifyToCompURL(newIndividual.url)
-                    col.appendChild(image)
+                    var center = document.createElement('center')
+                    col.appendChild(center)
+
+                    let div = document.createElement('div')
+                    div.id = 'indivImageDiv'+i
+                    center.appendChild(div)
+    
+                    prepImageMap('indivImageDiv'+i, newIndividual.url, newIndividual.detection, 14.10)
 
                     h5 = document.createElement('h5')
                     h5.setAttribute('align','center')
                     h5.innerHTML = newIndividual.name
                     col.appendChild(h5)
 
-                    image.addEventListener('click', function(individualID,individualName){
+                    div.addEventListener('click', function(individualID,individualName){
                         return function() {
                             getIndividual(individualID,individualName)
                         }
@@ -305,6 +316,8 @@ function getIndividualInfo(individualID){
                         }
                     }
                 }
+
+                individualBounds = info.bounds
 
                 if (info.access == 'write'){
                     document.getElementById('newIndividualName').readOnly = false
@@ -2696,6 +2709,12 @@ function initialiseMergeIndividualsLeft(){
         }
     }
 
+    individualCoords = trapgroupInfo
+
+    if (mergeImageOnly) {
+        individualBounds = [[individualCoords[0].latitude, individualCoords[0].longitude]]
+    }
+
     if (noCoords) {
         var site_tags = []
         for (let i=0;i<trapgroupInfo.length;i++) {
@@ -2745,6 +2764,28 @@ function initialiseMergeIndividualsLeft(){
         mapSitesL.fitBounds(group.getBounds().pad(0.1))
         if(siteMarkers.length == 1) {
             mapSitesL.setZoom(10)
+        }
+
+        if (individualBounds.length == 1) {
+            var circle = L.circle([individualBounds[0][0], individualBounds[0][1]], {
+                color: "rgba(223,105,26,1)",
+                fill: true,
+                fillOpacity: 0.2,
+                opacity: 0.8,
+                radius: 1000,
+                weight:3,
+                contextmenu: false,
+            }).addTo(mapSitesL)
+        
+        } else {
+            var poly1 = L.polygon(individualBounds, {
+                color: "rgba(223,105,26,1)",
+                fill: true,
+                fillOpacity: 0.2,
+                opacity: 0.8,
+                weight:3,
+                contextmenu: false,
+            }).addTo(mapSitesL)
         }
 
     }
@@ -2828,9 +2869,9 @@ function initialiseMergeIndividualsRight(){
     col1.classList.add('col-lg-1')
     row.appendChild(col1)
 
-    var space = document.createElement('div')
-    space.classList.add('col-lg-10')
-    row.appendChild(space)
+    var col2 = document.createElement('div')
+    col2.classList.add('col-lg-10')
+    row.appendChild(col2)
 
     var col3 = document.createElement('div')
     col3.classList.add('col-lg-1')
@@ -2849,6 +2890,25 @@ function initialiseMergeIndividualsRight(){
     btnMNext.innerHTML = '<span style="font-size:100%">&#x276f;</span>'
     btnMNext.disabled = true
     col3.appendChild(btnMNext)
+
+    var rowDiv = document.createElement('div');
+    rowDiv.classList.add('row');
+    col2.appendChild(rowDiv);
+
+    var colDiv = document.createElement('div');
+    colDiv.classList.add('col-lg-12', 'd-flex', 'align-items-center', 'justify-content-center');
+    rowDiv.appendChild(colDiv);
+
+    var paginationDiv = document.createElement('div');
+    paginationDiv.id = 'individualsPosition';
+    colDiv.appendChild(paginationDiv);
+
+    var paginationUl = document.createElement('ul');
+    paginationUl.classList.add('pagination');
+    paginationUl.id = 'paginationCircles';
+    paginationUl.style.margin = '5px';
+    paginationDiv.appendChild(paginationUl);
+
 
     $('#btnMPrev').click( function() {
         getMergeIndividuals(merge_individual_prev)
@@ -2899,11 +2959,13 @@ function initialiseMergeIndividualsRight(){
     } 
 
     $('#mutualOnly').change( function() {
+        mergeIndividualsFilters['page'] = null
         mergeIndividualsFilters['mutual'] = document.getElementById('mutualOnly').checked
         getMergeTasks()
     });
 
     $('#mergeTaskSelect').change( function() {
+        mergeIndividualsFilters['page'] = null
         mergeIndividualsFilters['task'] = document.getElementById('mergeTaskSelect').value
         getMergeIndividuals()
     });
@@ -2948,11 +3010,13 @@ function initialiseMergeIndividualsRight(){
     }
 
     $('#searchMergeIndividuals').on('change', function() {
+        mergeIndividualsFilters['page'] = null
         mergeIndividualsFilters['search'] = document.getElementById('searchMergeIndividuals').value
         getMergeIndividuals()
     });
 
     $("#orderMergeIndividuals").change( function() {
+        mergeIndividualsFilters['page'] = null
         mergeIndividualsFilters['order'] = document.getElementById('orderMergeIndividuals').value
         getMergeIndividuals()
     });
@@ -2972,6 +3036,7 @@ function initialiseMergeIndividualsRight(){
     bigCol2.appendChild(document.createElement('br'))
 
     $('#tagsMergeIndividuals').change( function() {
+        mergeIndividualsFilters['page'] = null
         mergeIndividualsFilters['tags'] = document.getElementById('tagsMergeIndividuals').value
         getMergeIndividuals()
     });
@@ -3015,7 +3080,8 @@ function cleanupMergeIndividuals(){
     mergeSplide = {'L': null, 'R': null}
     mergeImageIndex = {'L': 0, 'R': 0}
     addedDetectionsMerge = {'L': false, 'R': false} 
-    mergeIndividualsFilters = {'task': null, 'mutual': null, 'search': null, 'order': null} 
+    mergeIndividualsFilters = {'task': null, 'mutual': null, 'search': null, 'order': null, 'tags': null, 'page': null}
+    fullResMerge = {'L': false, 'R': false}
 
     confirmMerge = false
     merge_individual_prev = null
@@ -3086,17 +3152,17 @@ function prepMergeMapIndividual(mapID,divID,image) {
             mergeMap[mapID].on('resize', function(){
                 if (mergeMap[mapID] != null) {
                     if(document.getElementById(divID) && document.getElementById(divID).clientHeight){
-                        h1 = document.getElementById(divID).clientHeight
-                        w1 = document.getElementById(divID).clientWidth
+                        var h1 = document.getElementById(divID).clientHeight
+                        var w1 = document.getElementById(divID).clientWidth
                     }
                     else{
-                        h1 = hc
-                        w1 = wc
+                        var h1 = hc
+                        var w1 = wc
                     }
                     
-                    southWest = map.unproject([0, h1], 2);
-                    northEast = map.unproject([w1, 0], 2);
-                    bounds = new L.LatLngBounds(southWest, northEast);
+                    var southWest = map.unproject([0, h1], 2);
+                    var northEast = map.unproject([w1, 0], 2);
+                    var bounds = new L.LatLngBounds(southWest, northEast);
             
                     mergeMapWidth[mapID] = northEast.lng
                     mergeMapHeight[mapID] = southWest.lat
@@ -3122,10 +3188,10 @@ function prepMergeMapIndividual(mapID,divID,image) {
             mergeMap[mapID].addLayer(mergeDrawnItems[mapID]);
     
             mergeMap[mapID].on('zoomstart', function() {
-                if (!fullRes) {
+                if (!fullResMerge[mapID]) {
                     if(checkIfImage(mergeActiveImage[mapID]._url)){
                         mergeActiveImage[mapID].setUrl("https://"+bucketName+".s3.amazonaws.com/" + mergeImages[mapID][mergeSplide[mapID].index].url)
-                        fullRes = true
+                        fullResMerge[mapID] = true
                     }
                 }
             });    
@@ -3214,7 +3280,7 @@ function addDetectionsMergeIndividual(mapID,image) {
     //** Adds detections to the main image displayed in the individual modal. */
     if (!addedDetectionsMerge[mapID]) {
         mergeMap[mapID].setZoom(mergeMap[mapID].getMinZoom())
-        fullRes = false
+        fullResMerge[mapID] = false
         mergeDrawnItems[mapID].clearLayers()
         for (let i=0;i<image.detections.length;i++) {
             detection = image.detections[i]
@@ -3247,6 +3313,11 @@ function getMergeIndividuals(page = null) {
     request = '/getMergeIndividuals'
     if (page != null) {
         request += '?page='+page.toString()
+    }
+    else{
+        if (mergeIndividualsFilters['page'] != null) {
+            request += '?page='+mergeIndividualsFilters['page'].toString()
+        }
     }
     
     search = document.getElementById('searchMergeIndividuals').value
@@ -3288,10 +3359,14 @@ function getMergeIndividuals(page = null) {
                 col.classList.add('col-lg-4')
                 row.appendChild(col)
 
-                let image = document.createElement('img')
-                image.setAttribute('width','100%')
-                image.src = "https://"+bucketName+".s3.amazonaws.com/" + modifyToCompURL(newIndividual.url)
-                col.appendChild(image)
+                let center = document.createElement('center')
+                col.appendChild(center)
+
+                let div = document.createElement('div')
+                div.setAttribute('id','imgDiv'+i)
+                center.appendChild(div)
+
+                prepImageMap('imgDiv'+i, newIndividual.url, newIndividual.detection)
 
                 let h5 = document.createElement('h5')
                 h5.setAttribute('align','center')
@@ -3299,7 +3374,7 @@ function getMergeIndividuals(page = null) {
                 h5.innerHTML = newIndividual.name
                 col.appendChild(h5)
 
-                image.addEventListener('click', function(individualID,individualName){
+                div.addEventListener('click', function(individualID,individualName){
                     return function() {
                         selectedMergeIndividual = individualID
                         selectedMergeIndividualName = individualName
@@ -3325,11 +3400,112 @@ function getMergeIndividuals(page = null) {
                 document.getElementById('btnMPrev').disabled = false
                 merge_individual_prev = reply.prev
             }
+
+            mergeIndividualsFilters['page'] = reply.current
+
+            updateMergePaginationCircles(reply.current, reply.nr_pages)
         }
     }
     xhttp.send(formData);
     
 }
+
+function prepImageMap(div_id, image_url, detection, vw=10) {
+    /** Prepares the image map for the individual modal. */
+    if (bucketName != null) {
+        var imageUrl = "https://"+bucketName+".s3.amazonaws.com/" + modifyToCompURL(image_url)
+        var img = new Image();
+        img.onload = function(){
+            w = this.width
+            h = this.height
+            if (w>h) {
+                // document.getElementById(div_id).setAttribute('style','height: calc(10vw *'+(h/w)+');  width:10vw')
+                document.getElementById(div_id).setAttribute('style','height: calc('+vw+'vw *'+(h/w)+');  width:'+vw+'vw')
+            } else {
+                // document.getElementById(div_id).setAttribute('style','height: calc(10vw *'+(w/h)+');  width:10vw')
+                document.getElementById(div_id).setAttribute('style','height: calc('+vw+'vw *'+(w/h)+');  width:'+vw+'vw')
+            }
+            L.Browser.touch = true
+        
+            mergeMap[div_id] = new L.map(div_id, {
+                crs: L.CRS.Simple,
+                maxZoom: 10,
+                center: [0, 0],
+                zoomSnap: 0,
+                attributionControl: false,
+            })
+
+            // disable zoom controls and drag etc
+            mergeMap[div_id].zoomControl.remove()
+            mergeMap[div_id].dragging.disable()
+            mergeMap[div_id].touchZoom.disable()
+            mergeMap[div_id].doubleClickZoom.disable()
+            mergeMap[div_id].scrollWheelZoom.disable()
+            mergeMap[div_id].boxZoom.disable()
+            mergeMap[div_id].keyboard.disable()   
+            mergeMap[div_id].boxZoom.disable()
+
+
+            var h1 = document.getElementById(div_id).clientHeight
+            var w1 = document.getElementById(div_id).clientWidth
+            var southWest = mergeMap[div_id].unproject([0, h1], 2);
+            var northEast = mergeMap[div_id].unproject([w1, 0], 2);
+            var bounds = new L.LatLngBounds(southWest, northEast);
+
+            mergeActiveImage[div_id] = L.imageOverlay(imageUrl, bounds).addTo(mergeMap[div_id]);
+
+            mergeActiveImage[div_id].on('load', function() {
+                // I want to zoom the map to fit the bounds of detection
+                if (detection != null) {
+                    det_bounds = [[detection.top*mergeMapHeight[div_id],detection.left*mergeMapWidth[div_id]],[detection.bottom*mergeMapHeight[div_id],detection.right*mergeMapWidth[div_id]]]
+                    mergeMap[div_id].fitBounds(det_bounds, {padding: [10,10]});
+                }
+            });
+
+
+            mergeMapWidth[div_id] = northEast.lng
+            mergeMapHeight[div_id] = southWest.lat
+            mergeMap[div_id].setMaxBounds(bounds);
+            mergeMap[div_id].fitBounds(bounds)
+            mergeMap[div_id].setMinZoom(mergeMap[div_id].getZoom())
+
+
+
+            mergeMap[div_id].on('resize', function(){
+                if (mergeMap[div_id] != null && document.getElementById(div_id) && document.getElementById(div_id).clientHeight){
+
+                    var h1 = document.getElementById(div_id).clientHeight
+                    var w1 = document.getElementById(div_id).clientWidth
+
+                    var southWest = mergeMap[div_id].unproject([0, h1], 2);
+                    var northEast = mergeMap[div_id].unproject([w1, 0], 2);
+                    var bounds = new L.LatLngBounds(southWest, northEast);
+
+                    mergeMapWidth[div_id] = northEast.lng
+                    mergeMapHeight[div_id] = southWest.lat
+                        
+                    mergeMap[div_id].invalidateSize()
+                    mergeMap[div_id].setMaxBounds(bounds)
+                    mergeMap[div_id].fitBounds(bounds)
+                    mergeMap[div_id].setMinZoom(2)
+                    mergeActiveImage[div_id].setBounds(bounds)
+                    
+                    // add a small delay to allow the map to resize
+                    setTimeout(function() {
+                        if (detection != null) {
+                            var det_bounds = [[detection.top*mergeMapHeight[div_id],detection.left*mergeMapWidth[div_id]],[detection.bottom*mergeMapHeight[div_id],detection.right*mergeMapWidth[div_id]]]
+                            mergeMap[div_id].fitBounds(det_bounds, {padding: [10,10]});
+                        }
+                    }, 500);
+
+                }
+            });
+        }
+        img.src = imageUrl
+    }
+}
+
+
 
 function viewMergeIndividual(){
     /** Views the selected individual in the merge individuals modal. */
@@ -3378,7 +3554,7 @@ function viewMergeIndividual(){
 
             var cancelBtn = document.createElement('button')
             cancelBtn.setAttribute('class','btn btn-primary btn-block btn-sm')
-            cancelBtn.innerHTML = '<i class="fa fa-arrow-left"></i>'
+            cancelBtn.innerHTML = '<i class="fa fa-times"></i>'
             cancelBtn.id = 'btnCancelMerge'
             col2.appendChild(cancelBtn)
         
@@ -3476,17 +3652,17 @@ function viewMergeIndividual(){
                     var trapgroupInfo = []
                     var noCoords = true
                     for (let i=0;i<mergeImages['R'].length;i++) {
-                        var info = mergeImages['R'][i].trapgroup
+                        var site = mergeImages['R'][i].trapgroup
                         var found = false
                         for (let j=0;j<trapgroupInfo.length;j++) {
-                            if (trapgroupInfo[j].tag == info.tag) {
+                            if (trapgroupInfo[j].tag == site.tag) {
                                 found = true
                                 break
                             }
                         }
                         if (!found) {
-                            trapgroupInfo.push(info)
-                            if (info.latitude != 0 || info.longitude != 0) {
+                            trapgroupInfo.push(site)
+                            if (site.latitude != 0 || site.longitude != 0) {
                                 noCoords = false
                             }
                         }
@@ -3524,11 +3700,29 @@ function viewMergeIndividual(){
                         mapSitesR.addLayer(gHyb);
                     
                         var siteMarkers = []
+                        var added_coords = []
                         for (let i=0;i<trapgroupInfo.length;i++) {
                             marker = L.marker([trapgroupInfo[i].latitude, trapgroupInfo[i].longitude]).addTo(mapSitesR)
                             siteMarkers.push(marker)
                             mapSitesR.addLayer(marker)
                             marker.bindPopup(trapgroupInfo[i].tag);
+                            marker.on('mouseover', function (e) {
+                                this.openPopup();
+                            });
+                            marker.on('mouseout', function (e) {
+                                this.closePopup();
+                            });
+                            added_coords.push(trapgroupInfo[i].latitude + ',' + trapgroupInfo[i].longitude)
+                        }
+
+                        for (let i=0;i<individualCoords.length;i++) {
+                            if (added_coords.includes(individualCoords[i].latitude + ',' + individualCoords[i].longitude)) {
+                                continue
+                            }
+                            var marker = L.marker([individualCoords[i].latitude, individualCoords[i].longitude]).addTo(mapSitesR)
+                            siteMarkers.push(marker)
+                            mapSitesR.addLayer(marker)
+                            marker.bindPopup(individualCoords[i].tag);
                             marker.on('mouseover', function (e) {
                                 this.openPopup();
                             });
@@ -3542,6 +3736,50 @@ function viewMergeIndividual(){
                         if(siteMarkers.length == 1) {
                             mapSitesR.setZoom(10)
                         }
+
+
+                        if (individualBounds.length == 1){
+                            var circle = L.circle([individualBounds[0][0], individualBounds[0][1]], {
+                                color: "rgba(223,105,26,1)",
+                                fill: true,
+                                fillOpacity: 0.2,
+                                opacity: 0.8,
+                                radius: 1000,
+                                weight:3,
+                                contextmenu: false,
+                            }).addTo(mapSitesR)
+                        } else {
+                            var poly1 = L.polygon(individualBounds, {
+                                color: "rgba(223,105,26,1)",
+                                fill: true,
+                                fillOpacity: 0.2,
+                                opacity: 0.8,
+                                weight:3,
+                                contextmenu: false,
+                            }).addTo(mapSitesR)
+                        }
+
+                        if (info.bounds.length == 1){
+                            var circle = L.circle([info.bounds[0][0], info.bounds[0][1]], {
+                                color: "rgba(91,192,222,1)",
+                                fill: true,
+                                fillOpacity: 0.2,
+                                opacity: 0.8,
+                                radius: 1000,
+                                weight:3,
+                                contextmenu: false,
+                            }).addTo(mapSitesR)
+                        } else {
+                            var poly2 = L.polygon(info.bounds, {
+                                color: "rgba(91,192,222,1)",
+                                fill: true,
+                                fillOpacity: 0.2,
+                                opacity: 0.8,
+                                weight:3,
+                                contextmenu: false,
+                            }).addTo(mapSitesR)
+                        }
+
                     }
                 
                     var center = document.createElement('center')
@@ -3816,7 +4054,7 @@ function getMergeTasks(){
             getMergeIndividuals()
         }
     }
-    xhttp.open("GET", '/getMergeTasks/'+selectedIndividual + '?mutual='+mutualOnly);
+    xhttp.open("GET", '/getMergeTasks/'+selectedIndividual + '/individual?mutual='+mutualOnly);
     xhttp.send();
 }
 
@@ -3878,6 +4116,87 @@ $('#btnCancelDissociate').click( function() {
     document.getElementById('removeImg').checked = true
     modalIndividual.modal({keyboard: true});
 })
+
+function updateMergePaginationCircles(current,total){
+    /** Updates pagination circles on the merge modal. */
+
+    var individualsPosition = null
+    var cirNum = total
+    var circlesIndex = current - 1
+    var individualsPosition = document.getElementById('individualsPosition')
+    var paginationCircles = document.getElementById('paginationCircles')
+
+
+    if (individualsPosition != null) {
+        while (paginationCircles.firstChild) {
+            paginationCircles.removeChild(paginationCircles.firstChild);
+        }
+
+        var beginIndex = 0
+        var endIndex = cirNum
+        var multiple = false
+        if (cirNum > 10) {
+            multiple =  true
+            beginIndex = Math.max(0,circlesIndex-2)
+            if (beginIndex < 2) {
+                beginIndex = 0
+                endIndex = 5
+            }
+            else {
+                endIndex = Math.min(cirNum,circlesIndex+3)
+                if (endIndex > cirNum-2) {
+                    endIndex = cirNum
+                    beginIndex = cirNum - 5
+                }
+            }
+        }
+
+        if (multiple && beginIndex != 0 && circlesIndex > 2) {
+            first = document.createElement('li')
+            first.setAttribute('onclick','getMergeIndividuals(1)')
+            first.style.fontSize = '60%'
+            first.innerHTML = '1'
+            paginationCircles.append(first)
+        
+            more = document.createElement('li')
+            more.setAttribute('class','disabled')
+            more.style.fontSize = '60%'
+            more.innerHTML = '...'
+            paginationCircles.append(more)
+        }
+
+
+        for (let i=beginIndex;i<endIndex;i++) {
+            li = document.createElement('li')
+            li.innerHTML = (i+1).toString()
+            li.setAttribute('onclick','getMergeIndividuals('+(i+1).toString()+')')
+            li.style.fontSize = '60%'
+            paginationCircles.append(li)
+
+            if (i == circlesIndex) {
+                li.setAttribute('class','active')
+            } else {
+                li.setAttribute('class','')
+            }
+        }
+
+        if (multiple && endIndex != cirNum && circlesIndex < cirNum-3) {
+            more = document.createElement('li')
+            more.setAttribute('class','disabled')
+            more.innerHTML = '...'
+            more.style.fontSize = '60%'
+            paginationCircles.append(more)
+
+            last_index = cirNum - 1
+            last = document.createElement('li')
+            last.setAttribute('onclick','getMergeIndividuals('+(last_index+1).toString()+')')
+            last.innerHTML = (last_index+1).toString()
+            last.style.fontSize = '60%'
+            paginationCircles.append(last)
+        }
+    }
+
+}
 
 function onload(){
     /**Function for initialising the page on load.*/

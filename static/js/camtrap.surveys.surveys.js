@@ -5656,7 +5656,7 @@ function buildEditMasks() {
     paginationUl.classList.add('pagination');
     paginationUl.id = 'paginationCircles_mask';
     paginationUl.style.margin = '10px';
-    colDiv.appendChild(paginationUl);
+    clusterDiv.appendChild(paginationUl);
 
 
     var row = document.createElement('div')
@@ -5896,17 +5896,17 @@ function prepMapMask(image) {
             wc = document.getElementById('mapDiv_mask').clientWidth
             mapMask.on('resize', function(){
                 if(document.getElementById('mapDiv_mask') && document.getElementById('mapDiv_mask').clientHeight){
-                    h1 = document.getElementById('mapDiv_mask').clientHeight
-                    w1 = document.getElementById('mapDiv_mask').clientWidth
+                    var h1 = document.getElementById('mapDiv_mask').clientHeight
+                    var w1 = document.getElementById('mapDiv_mask').clientWidth
                 }
                 else{
-                    h1 = hc
-                    w1 = wc
+                    var h1 = hc
+                    var w1 = wc
                 }
                 
-                southWest = mapMask.unproject([0, h1], 2);
-                northEast = mapMask.unproject([w1, 0], 2);
-                bounds = new L.LatLngBounds(southWest, northEast);
+                var southWest = mapMask.unproject([0, h1], 2);
+                var northEast = mapMask.unproject([w1, 0], 2);
+                var bounds = new L.LatLngBounds(southWest, northEast);
         
                 mapWidth = northEast.lng
                 mapHeight = southWest.lat
@@ -6053,17 +6053,17 @@ function prepMapStatic(image) {
             wc = document.getElementById('mapDiv_static').clientWidth
             mapStatic.on('resize', function(){
                 if(document.getElementById('mapDiv_static') && document.getElementById('mapDiv_static').clientHeight){
-                    h1 = document.getElementById('mapDiv_static').clientHeight
-                    w1 = document.getElementById('mapDiv_static').clientWidth
+                    var h1 = document.getElementById('mapDiv_static').clientHeight
+                    var w1 = document.getElementById('mapDiv_static').clientWidth
                 }
                 else{
-                    h1 = hc
-                    w1 = wc
+                    var h1 = hc
+                    var w1 = wc
                 }
                 
-                southWest = mapStatic.unproject([0, h1], 2);
-                northEast = mapStatic.unproject([w1, 0], 2);
-                bounds = new L.LatLngBounds(southWest, northEast);
+                var southWest = mapStatic.unproject([0, h1], 2);
+                var northEast = mapStatic.unproject([w1, 0], 2);
+                var bounds = new L.LatLngBounds(southWest, northEast);
         
                 mapWidth = northEast.lng
                 mapHeight = southWest.lat
@@ -6169,17 +6169,17 @@ function prepMapTime(image) {
             wc = document.getElementById('mapDiv_time').clientWidth
             mapTime.on('resize', function(){
                 if(document.getElementById('mapDiv_time') && document.getElementById('mapDiv_time').clientHeight){
-                    h1 = document.getElementById('mapDiv_time').clientHeight
-                    w1 = document.getElementById('mapDiv_time').clientWidth
+                    var h1 = document.getElementById('mapDiv_time').clientHeight
+                    var w1 = document.getElementById('mapDiv_time').clientWidth
                 }
                 else{
-                    h1 = hc
-                    w1 = wc
+                    var h1 = hc
+                    var w1 = wc
                 }
                 
-                southWest = mapTime.unproject([0, h1], 2);
-                northEast = mapTime.unproject([w1, 0], 2);
-                bounds = new L.LatLngBounds(southWest, northEast);
+                var southWest = mapTime.unproject([0, h1], 2);
+                var northEast = mapTime.unproject([w1, 0], 2);
+                var bounds = new L.LatLngBounds(southWest, northEast);
         
                 mapWidth = northEast.lng
                 mapHeight = southWest.lat
@@ -6869,7 +6869,7 @@ function buildViewStatic() {
     paginationUl.classList.add('pagination');
     paginationUl.id = 'paginationCircles_static';
     paginationUl.style.margin = '10px';
-    colDiv.appendChild(paginationUl);
+    clusterDiv.appendChild(paginationUl);
 
     var row = document.createElement('div')
     row.classList.add('row')
@@ -8296,7 +8296,7 @@ function buildTimestampsMap(){
     paginationUl.classList.add('pagination');
     paginationUl.id = 'paginationCircles_time';
     paginationUl.style.margin = '10px';
-    colDiv.appendChild(paginationUl);
+    clusterDiv.appendChild(paginationUl);
 
     var row = document.createElement('div')
     row.classList.add('row')

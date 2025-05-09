@@ -218,18 +218,21 @@ function prepMapIndividual(image) {
             hc = document.getElementById('mapDiv').clientHeight
             wc = document.getElementById('mapDiv').clientWidth
             map.on('resize', function(){
+                if(!map){
+                    return
+                }
                 if(document.getElementById('mapDiv') && document.getElementById('mapDiv').clientHeight){
-                    h1 = document.getElementById('mapDiv').clientHeight
-                    w1 = document.getElementById('mapDiv').clientWidth
+                    var h1 = document.getElementById('mapDiv').clientHeight
+                    var w1 = document.getElementById('mapDiv').clientWidth
                 }
                 else{
-                    h1 = hc
-                    w1 = wc
+                    var h1 = hc
+                    var w1 = wc
                 }
                 
-                southWest = map.unproject([0, h1], 2);
-                northEast = map.unproject([w1, 0], 2);
-                bounds = new L.LatLngBounds(southWest, northEast);
+                var southWest = map.unproject([0, h1], 2);
+                var northEast = map.unproject([w1, 0], 2);
+                var bounds = new L.LatLngBounds(southWest, northEast);
         
                 mapWidth = northEast.lng
                 mapHeight = southWest.lat

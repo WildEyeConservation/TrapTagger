@@ -1045,6 +1045,9 @@ def handleIndividualUndo(indSimilarity,individual1,individual2,task_id):
             task = db.session.query(Task).get(task_id)
             task_ids = [r.id for r in task.sub_tasks]
             task_ids.append(task.id)
+            task_ids.extend([t.id for t in individual1.tasks])
+            task_ids.extend([t.id for t in individual2.tasks])
+            task_ids = list(set(task_ids))
 
             individual1.tasks = db.session.query(Task)\
                                         .join(Survey)\

@@ -59,6 +59,17 @@ var fitBoundsInProcess = {'map1':false,'map2':false}
 var defaultOpactity = 30
 var defaultRadius = 15
 var updatingFlank = false
+var tabActiveIndividual = 'baseNewIndividualTab'
+var next_known = null
+var prev_know = null
+var selectedKnownIndividual = null
+var selectedKnownIndividualName = null
+var siteCoords = {}
+var knownIndividualsFilters = {'task': null, 'search': null, 'order': null, 'tags': null, 'page': null}
+var imgMaps = {}
+var imgMapsHeight = {}
+var imgMapsWidth = {}
+var imgMapsActiveImage = {}
 
 function radians(degrees) {
     /** Converts desgres into radians. */
@@ -570,7 +581,10 @@ function idKeys(key) {
                 switch (key){
                     case 'escape': cancelIndividual()
                         break;
-                    case 'enter': submitIndividual()
+                    case 'enter': 
+                        if (document.getElementById('btnSubmitIndividual').disabled == false) {
+                            submitIndividual()
+                        }
                         break;
                 }
             } else {
@@ -726,6 +740,7 @@ function prepIndividualModal() {
 
     document.getElementById('newIndividualErrors').innerHTML = ''
     modalNewIndividual.modal({backdrop: 'static', keyboard: false});
+    document.getElementById('openNewIndivTab').click()
 }
 
 
@@ -734,6 +749,9 @@ function buildIndividuals() {
 
     // Clear all
     for (let mapID in dbDetIds) {
+        if (mapID == 'known'){
+            continue
+        }
         for (let leafletID in dbDetIds[mapID]) {
             // drawnItems[mapID]._layers[leafletID].unbindTooltip()
             drawnItems[mapID]._layers[leafletID].unbindPopup()
@@ -753,6 +771,9 @@ function buildIndividuals() {
 
         // Tooltips and recolour
         for (let mapID in dbDetIds) {
+            if (mapID == 'known'){
+                continue
+            }
             for (let leafletID in dbDetIds[mapID]) {
                 if (individuals[individualIndex][individualID].detections.includes(parseInt(dbDetIds[mapID][leafletID]))) {
 
@@ -800,6 +821,9 @@ function buildIndividuals() {
 
         // Set in pools
         for (let mapID in clusters) {
+            if (mapID == 'known'){
+                continue
+            }
             for (let i=0;i<clusters[mapID][clusterIndex[mapID]].images.length;i++) {
                 for (let n=0;n<clusters[mapID][clusterIndex[mapID]].images[i].detections.length;n++) {
                     if (individuals[individualIndex][individualID].detections.includes(clusters[mapID][clusterIndex[mapID]].images[i].detections[n].id)) {
@@ -814,6 +838,9 @@ function buildIndividuals() {
     if (backIndex==0) {
         allow = true
         for (let tempMapID in clusters) {
+            if (tempMapID == 'known'){
+                continue
+            }
             for (let i=0;i<clusters[tempMapID][clusterIndex[tempMapID]].images.length;i++) {
                 for (let n=0;n<clusters[tempMapID][clusterIndex[tempMapID]].images[i].detections.length;n++) {
                     if (clusters[tempMapID][clusterIndex[tempMapID]].images[i].detections[n].individual=='-1') {
@@ -832,6 +859,9 @@ function buildIndividualsObject() {
     /** Builds the individuals object that contains all required info for the current clusters. */
     individualsReady = false
     for (let mapID in clusters) {
+        if (mapID == 'known'){
+            continue
+        }
         for (let i=0;i<clusters[mapID][clusterIndex[mapID]].images.length;i++) {
             for (let n=0;n<clusters[mapID][clusterIndex[mapID]].images[i].detections.length;n++) {
                 individualID = clusters[mapID][clusterIndex[mapID]].images[i].detections[n].individual
@@ -1098,6 +1128,9 @@ function submitIndividuals() {
     if ((finishedDisplaying['map1']) && (finishedDisplaying['map2']) && (modalActive == false) && (modalActive2 == false)) {
         allow = true
         for (let tempMapID in clusters) {
+            if (tempMapID == 'known'){
+                continue
+            }
             for (let i=0;i<clusters[tempMapID][clusterIndex[tempMapID]].images.length;i++) {
                 for (let n=0;n<clusters[tempMapID][clusterIndex[tempMapID]].images[i].detections.length;n++) {
                     if (clusters[tempMapID][clusterIndex[tempMapID]].images[i].detections[n].individual=='-1') {
@@ -1210,6 +1243,7 @@ function submitIndividual(){
             individuals[individualIndex][globalIndividual]['tags'] = tags
             individuals[individualIndex][globalIndividual]['name'] = document.getElementById('newIndividualName').value
             individuals[individualIndex][globalIndividual]['notes'] = document.getElementById('notebox').value
+            individuals[individualIndex][globalIndividual]['known'] = 'false'
             buildIndividuals()
             modalNewIndividual.modal('hide');
         } else {
@@ -1218,9 +1252,43 @@ function submitIndividual(){
     }
 }
 
+function submitKnownIndividual() {
+    /** Submits the new-individual modal, adding the individual to the individuals object for the cluster, and building the bounding boxes. */
+    if (!blockIndividualSubmit && selectedKnownIndividual != null) {
+
+        document.getElementById('knownIndividualErrors').innerHTML = ''
+
+        individuals[individualIndex][selectedKnownIndividual] = individuals[individualIndex][globalIndividual]
+        delete individuals[individualIndex][globalIndividual]
+        globalIndividual = selectedKnownIndividual
+        individuals[individualIndex][globalIndividual]['known'] = 'true'
+        individuals[individualIndex][globalIndividual]['id'] = selectedKnownIndividual
+        individuals[individualIndex][globalIndividual]['name'] = selectedKnownIndividualName
+        individuals[individualIndex][globalIndividual]['notes'] = document.getElementById('knownNotebox').value
+
+        var tags = []
+        var allCbx = document.querySelectorAll('[id^="Cbx_"]')
+        for (var i = 0; i < allCbx.length; i++) {
+            if (allCbx[i].checked) {
+                tags.push(allCbx[i].id.replace('Cbx_',''))
+            }
+        }
+
+        individuals[individualIndex][globalIndividual]['tags'] = tags
+        buildIndividuals()
+        modalNewIndividual.modal('hide');
+
+    }
+
+}
+
 btnSubmitIndividual.addEventListener('click', ()=>{
     /** Listener that submits the new-individual form on button press. */
-    submitIndividual()
+    if (tabActiveIndividual=='baseNewIndividualTab') {
+        submitIndividual()
+    } else if (tabActiveIndividual=='baseKnownIndividualTab') {
+        submitKnownIndividual()
+    }
 });
 
 function cancelIndividual() {
@@ -1255,12 +1323,15 @@ btnDuplicate.addEventListener('click', ()=>{
     individualIndex += 1
     buildIndividuals()
     modalDuplicate.modal('hide')
-    submitIndividuals()
+    // submitIndividuals() // Not neccessary, as this is done in the buildIndividuals function
 });
 
 function hideBoundingLabels() {
     /** Hides/shows the bounding box labels. */
     for (let mapID in drawnItems) {
+        if (mapID == 'known'){
+            continue
+        }
         for (let layer in drawnItems[mapID]._layers) {
             if (drawnItems[mapID]._layers[layer].isTooltipOpen()) {
                 toolTipsOpen = false
@@ -1529,6 +1600,9 @@ function editDetectionFlank(detID,flank) {
                     new_flank = reply.flank
                     editedFlanks[det_id] = new_flank
                     for (let map_id in dbDetIds) {
+                        if (map_id == 'known'){
+                            continue
+                        }
                         for (let leafletID in dbDetIds[map_id]) {
                             if (dbDetIds[map_id][leafletID] == det_id) {
                                 drawnItems[map_id]._layers[leafletID].closeTooltip()
@@ -1698,3 +1772,975 @@ $('#radiusInput').on('change', function() {
         kpts_layer['map2']._update()
     }
 });
+
+function changeIndividualTab(evt, tabName) {
+    /** Opens the permissions tab */
+
+    var mainModal = document.getElementById('modalNewIndividual')
+    var tabcontent = mainModal.getElementsByClassName("tabcontent");
+    for (let i = 0; i < tabcontent.length; i++) {
+        tabcontent[i].style.display = "none";
+    }
+
+    var tablinks = mainModal.getElementsByClassName("tablinks");
+    for (let i = 0; i < tablinks.length; i++) {
+        tablinks[i].className = tablinks[i].className.replace(" active", "");
+    }
+
+    document.getElementById(tabName).style.display = "block";
+    evt.currentTarget.className += " active";
+    tabActiveIndividual = tabName
+
+    if (tabName == 'baseNewIndividualTab') {
+        document.getElementById('btnSubmitIndividual').innerHTML = 'Create'
+        document.getElementById('btnSubmitIndividual').disabled = false
+    }
+    else if (tabName == 'baseKnownIndividualTab') {
+        document.getElementById('btnSubmitIndividual').innerHTML = 'Select'
+        document.getElementById('btnSubmitIndividual').disabled = true
+        map['known'] = null 
+        mapDivs['known'] = 'knownMapDiv'
+        splides['known'] = 'splideKnown'
+        activeImage['known'] = null 
+        drawnItems['known'] = null
+        fullRes['known'] = false
+        mapHeight['known'] = null
+        mapWidth['known'] = null
+        mapReady['known'] = false
+        addedDetections['known'] = false
+        sliderIndex['known'] = '-1'
+        clusterPositionSplide['known'] = null
+        clusterPosition['known'] = null
+        clusters['known'] = []	
+        clusterIndex['known'] = 0
+        imageIndex['known'] = 0
+        if (Object.keys(siteCoords).length == 0) {
+            getCoords()
+        }
+        knownIndividualsFilters = {'task': null, 'search': null, 'order': null, 'tags': null, 'page': null}
+        buildKnownIndividuals()
+    }
+}
+
+function buildKnownIndividuals(){
+    /** Builds the known individuals tab. */
+
+    document.getElementById('knownDescription').hidden = false
+
+    var knownInfoCol = document.getElementById('knownInfoCol')
+    while(knownInfoCol.firstChild){
+        knownInfoCol.removeChild(knownInfoCol.firstChild);
+    }
+
+    var knownIndivCol = document.getElementById('knownIndivCol')
+    while(knownIndivCol.firstChild){
+        knownIndivCol.removeChild(knownIndivCol.firstChild);
+    }
+
+    // Individuals filters
+
+    var h5 = document.createElement('h6')
+    h5.innerHTML = 'Search Name:'
+    h5.setAttribute('style','margin-bottom: 2px')
+    knownInfoCol.appendChild(h5)
+
+    var search = document.createElement('input')
+    search.setAttribute('type','text')
+    search.setAttribute('id','knownSearch')
+    search.setAttribute('class','form-control')
+    search.setAttribute('placeholder','Search')
+    knownInfoCol.appendChild(search)
+
+    if (knownIndividualsFilters['search'] != null) {
+        search.value = knownIndividualsFilters['search']
+    }
+
+    knownInfoCol.appendChild(document.createElement('br'))
+
+    var h5 = document.createElement('h6')
+    h5.innerHTML = 'Order By:'
+    h5.setAttribute('style','margin-bottom: 2px')
+    knownInfoCol.appendChild(h5)
+    
+    var order = document.createElement('select')
+    order.setAttribute('id','knownOrderBy')
+    order.setAttribute('class','form-control')
+    knownInfoCol.appendChild(order)
+    fillSelect(order, ['Name', 'Distance'], ['oName','oDist'])
+    order.value = 'oName'
+
+    if (knownIndividualsFilters['order'] != null) {
+        order.value = knownIndividualsFilters['order']
+    }
+
+    knownInfoCol.appendChild(document.createElement('br'))
+
+    $('#knownSearch').on('change', function() {
+        knownIndividualsFilters['page'] = null
+        knownIndividualsFilters['search'] = document.getElementById('knownSearch').value
+        getKnownIndividuals()
+    });
+
+    $("#knownOrderBy").change( function() {
+        knownIndividualsFilters['page'] = null
+        knownIndividualsFilters['order'] = document.getElementById('knownOrderBy').value
+        getKnownIndividuals()
+    });
+
+    var h5 = document.createElement('h6')
+    h5.innerHTML = 'Surveys and Annotation Sets:'
+    h5.setAttribute('style','margin-bottom: 2px')
+    knownInfoCol.appendChild(h5)
+
+    var select = document.createElement('select')
+    select.classList.add('form-control')
+    select.setAttribute('id','knownTaskSelect')
+    knownInfoCol.appendChild(select)
+    fillSelect(select, ['All'], ['-1'])
+    select.value = '-1'
+
+    $('#knownTaskSelect').change( function() {
+        knownIndividualsFilters['page'] = null
+        knownIndividualsFilters['task'] = document.getElementById('knownTaskSelect').value
+        getKnownIndividuals()
+    });
+
+    knownInfoCol.appendChild(document.createElement('br'))
+
+    var h5 = document.createElement('h6')
+    h5.innerHTML = 'Tags:'
+    h5.setAttribute('style','margin-bottom: 2px')
+    knownInfoCol.appendChild(h5)
+    
+    var tags = document.createElement('select')
+    tags.setAttribute('id','knownTags')
+    tags.setAttribute('class','form-control')
+    knownInfoCol.appendChild(tags)
+    fillSelect(tags, ['All'], ['-1'])
+    tags.value = '-1'
+
+    knownInfoCol.appendChild(document.createElement('br'))
+
+    $('#knownTags').change( function() {
+        knownIndividualsFilters['page'] = null
+        knownIndividualsFilters['tags'] = document.getElementById('knownTags').value
+        getKnownIndividuals()
+    });
+
+    // Individuals
+    var knownIndividualsDiv = document.createElement('div')
+    knownIndividualsDiv.setAttribute('id','knownIndividualsDiv')
+    knownIndivCol.appendChild(knownIndividualsDiv)
+
+    var row = document.createElement('div')
+    row.classList.add('row')
+    knownIndivCol.appendChild(row)
+
+    var col1 = document.createElement('div')
+    col1.classList.add('col-lg-1')
+    row.appendChild(col1)
+
+    var col2 = document.createElement('div')
+    col2.classList.add('col-lg-10')
+    row.appendChild(col2)
+
+    var col3 = document.createElement('div')
+    col3.classList.add('col-lg-1')
+    row.appendChild(col3)
+
+    var btnKnownPrev = document.createElement('button')
+    btnKnownPrev.setAttribute('class','btn btn-primary btn-block btn-sm')
+    btnKnownPrev.setAttribute('id','btnKnownPrev')
+    btnKnownPrev.innerHTML = '<span style="font-size:100%">&#x276e;</span>'
+    btnKnownPrev.disabled = true
+    col1.appendChild(btnKnownPrev)
+
+    var btnKnownNext = document.createElement('button')
+    btnKnownNext.setAttribute('class','btn btn-primary btn-block btn-sm')
+    btnKnownNext.setAttribute('id','btnKnownNext')
+    btnKnownNext.innerHTML = '<span style="font-size:100%">&#x276f;</span>'
+    btnKnownNext.disabled = true
+    col3.appendChild(btnKnownNext)
+
+    $('#btnKnownPrev').click( function() {
+        getKnownIndividuals(prev_known)
+    });
+
+    $('#btnKnownNext').click( function() {
+        getKnownIndividuals(next_known)
+    });
+
+    var rowDiv = document.createElement('div');
+    rowDiv.classList.add('row');
+    col2.appendChild(rowDiv);
+
+    var colDiv = document.createElement('div');
+    colDiv.classList.add('col-lg-12', 'd-flex', 'align-items-center', 'justify-content-center');
+    rowDiv.appendChild(colDiv);
+
+    var paginationDiv = document.createElement('div');
+    paginationDiv.id = 'individualsPosition';
+    colDiv.appendChild(paginationDiv);
+
+    var paginationUl = document.createElement('ul');
+    paginationUl.classList.add('pagination');
+    paginationUl.id = 'paginationCircles';
+    paginationUl.style.margin = '5px';
+    paginationDiv.appendChild(paginationUl);
+
+    cluster_id = clusters['map1'][clusterIndex['map1']].id
+    var xhttp = new XMLHttpRequest();
+    xhttp.onreadystatechange =
+    function(){
+        if (this.readyState == 4 && this.status == 278) {
+            window.location.replace(JSON.parse(this.responseText)['redirect'])
+        } else if (this.readyState == 4 && this.status == 200) {
+            reply = JSON.parse(this.responseText);
+            console.log(reply)
+            var select = document.getElementById('knownTaskSelect')
+            clearSelect(select)
+            fillSelect(select, ['All'], ['-1'])
+            select.value = '-1'
+            for (let i=0;i<reply.tasks.length;i++) {
+                let task = reply.tasks[i]
+                fillSelect(select, [task.name], [task.id])
+            }
+
+            if (knownIndividualsFilters['task'] != null) {
+                select.value = knownIndividualsFilters['task']
+            }
+
+            var tagSelect = document.getElementById('knownTags')
+            clearSelect(tagSelect)
+            fillSelect(tagSelect, ['All'], ['0'])
+            fillSelect(tagSelect, reply.tags, reply.tags)
+
+            if (knownIndividualsFilters['tags'] != null) {
+                if (reply.tags.includes(knownIndividualsFilters['tags'])) {
+                    tagSelect.value = knownIndividualsFilters['tags']
+                }
+                else{
+                    tagSelect.value = '0'
+                    knownIndividualsFilters['tags'] = null
+                }
+            }
+
+            getKnownIndividuals()
+
+        }
+    }
+    xhttp.open("GET", '/getMergeTasks/'+ cluster_id + '/cluster');
+    xhttp.send();
+
+}
+
+function getKnownIndividuals(page = null){
+    /** Gets a page of individuals. Gets the first page if none is specified. */
+    var formData = new FormData()
+    formData.append("cluster_id", JSON.stringify(clusters['map1'][clusterIndex['map1']].id))    
+    task_id = document.getElementById('knownTaskSelect').value
+    formData.append("task_id", JSON.stringify(task_id))
+    tag = document.getElementById('knownTags').value
+    if (tag != '-1' || tag != '0' || tag != null) {
+        formData.append("tag", JSON.stringify(tag))
+    }
+    
+
+    request = '/getKnownIndividuals'
+    if (page != null) {
+        request += '?page='+page.toString()
+    }
+    else{
+        if (knownIndividualsFilters['page'] != null) {
+            request += '?page='+knownIndividualsFilters['page'].toString()
+        }
+    }
+    
+    var search = document.getElementById('knownSearch').value
+    var order = document.getElementById('knownOrderBy').value
+    formData.append("search", JSON.stringify(search))
+    formData.append("order", JSON.stringify(order))
+
+    var xhttp = new XMLHttpRequest();
+    xhttp.open("POST", request);
+    xhttp.onreadystatechange =
+    function(){
+        if (this.readyState == 4 && this.status == 278) {
+            window.location.replace(JSON.parse(this.responseText)['redirect'])
+        } else if (this.readyState == 4 && this.status == 200) {
+            reply = JSON.parse(this.responseText);
+            console.log(reply)
+            var known_individuals = reply.individuals
+            var knownIndividualsDiv = document.getElementById('knownIndividualsDiv')
+            while(knownIndividualsDiv.firstChild){
+                knownIndividualsDiv.removeChild(knownIndividualsDiv.firstChild);
+            }
+            
+            var row = document.createElement('div')
+            row.classList.add('row')
+            knownIndividualsDiv.appendChild(row)
+            runningCount = 0
+            for (let i=0;i<known_individuals.length;i++) {
+                let newIndividual = known_individuals[i]
+
+                if (runningCount%3==0) {
+                    runningCount = 0
+                    row = document.createElement('div')
+                    row.classList.add('row')
+                    knownIndividualsDiv.appendChild(row)
+                }
+
+                let col = document.createElement('div')
+                col.classList.add('col-lg-4')
+                row.appendChild(col)
+
+                // let image = document.createElement('img')
+                // image.setAttribute('width','100%')
+                // image.src = "https://"+bucketName+".s3.amazonaws.com/" + modifyToCompURL(newIndividual.url)
+                // col.appendChild(image)
+
+                let div = document.createElement('div')
+                div.setAttribute('id','imgDiv'+i)
+                col.appendChild(div)
+
+                prepImageMap('imgDiv'+i, newIndividual.url, newIndividual.detection)
+
+                let h5 = document.createElement('h5')
+                h5.setAttribute('align','center')
+                h5.setAttribute('style','font-size: 95%;')
+                h5.innerHTML = newIndividual.name
+                col.appendChild(h5)
+
+                // image.addEventListener('click', function(individualID,individualName){
+                //     return function() {
+                //         selectedKnownIndividual = individualID
+                //         selectedKnownIndividualName = individualName
+                //         viewKnownIndividual()
+                //     }
+                // }(newIndividual.id,newIndividual.name));
+
+                div.addEventListener('click', function(individualID,individualName){
+                    return function() {
+                        selectedKnownIndividual = individualID
+                        selectedKnownIndividualName = individualName
+                        viewKnownIndividual()
+                    }
+                }(newIndividual.id,newIndividual.name));
+
+                runningCount += 1
+            }
+
+            if (reply.next==null) {
+                document.getElementById('btnKnownNext').disabled = true
+                next_known = null
+            } else {
+                document.getElementById('btnKnownNext').disabled = false
+                next_known = reply.next
+            }
+
+            if (reply.prev==null) {
+                document.getElementById('btnKnownPrev').disabled = true
+                prev_known = null
+            } else {
+                document.getElementById('btnKnownPrev').disabled = false
+                prev_known = reply.prev
+            }
+
+            updateKnownPaginationCircles(reply.current, reply.nr_pages)
+
+            knownIndividualsFilters['page'] = reply.current
+        }
+    }
+    xhttp.send(formData);
+    
+}
+
+function viewKnownIndividual(mapID='known') {
+    /** Views the selected known individual. */
+
+    document.getElementById('knownDescription').hidden = true
+
+    var knownInfoCol = document.getElementById('knownInfoCol')
+    while(knownInfoCol.firstChild){
+        knownInfoCol.removeChild(knownInfoCol.firstChild);
+    }
+
+    var knownIndivCol = document.getElementById('knownIndivCol')
+    while(knownIndivCol.firstChild){
+        knownIndivCol.removeChild(knownIndivCol.firstChild);
+    }
+
+    var formData = new FormData()
+    formData.append("order", JSON.stringify('a1'))
+    formData.append("site", JSON.stringify('0'))
+    formData.append('start_date', JSON.stringify(''))
+    formData.append('end_date', JSON.stringify(''))
+
+    var xhttp = new XMLHttpRequest();
+    xhttp.onreadystatechange =
+    function(){
+        if (this.readyState == 4 && this.status == 200) {
+            reply = JSON.parse(this.responseText);
+            console.log(reply)
+            // knownImages =  reply.individual
+            clusters[mapID][clusterIndex[mapID]] = {
+                id: 0,
+                images: reply.individual,
+                classification : [],
+                notes: null,
+                required: [],
+                trapGroup: reply.individual[0].trapgroup.id,
+                tag_ids: [],
+                tags: [],
+                label: [],
+                label_ids: []
+            }           
+            var h5 = document.createElement('h5')
+            h5.innerHTML = 'Individual: ' + selectedKnownIndividualName
+            knownInfoCol.appendChild(h5)
+
+            var row = document.createElement('div')
+            row.classList.add('row')
+            knownIndivCol.appendChild(row)
+
+            var col1 = document.createElement('div')
+            col1.classList.add('col-lg-11')
+            row.appendChild(col1)
+
+            var col2 = document.createElement('div')
+            col2.classList.add('col-lg-1')
+            row.appendChild(col2)
+
+            var cancelBtn = document.createElement('button')
+            cancelBtn.setAttribute('class','btn btn-primary btn-block btn-sm')
+            cancelBtn.innerHTML = '<i class="fa fa-times"></i>'
+            cancelBtn.id = 'btnCancelKnown'
+            col2.appendChild(cancelBtn)
+        
+            $('#btnCancelKnown').click( function() {
+                document.getElementById('btnSubmitIndividual').disabled = true
+                selectedKnownIndividual = null
+                selectedKnownIndividualName = null
+                map['known'].remove()
+                map['known'] = null 
+                mapDivs['known'] = 'knownMapDiv'
+                splides['known'] = 'splideKnown'
+                activeImage['known'] = null 
+                drawnItems['known'] = null
+                fullRes['known'] = false
+                mapHeight['known'] = null
+                mapWidth['known'] = null
+                mapReady['known'] = false
+                addedDetections['known'] = false
+                sliderIndex['known'] = '-1'
+                clusterPositionSplide['known'] = null
+                clusterPosition['known'] = null
+                clusters['known'] = []	
+                clusterIndex['known'] = 0
+                imageIndex['known'] = 0
+                buildKnownIndividuals()
+            });
+
+            var xhttp = new XMLHttpRequest();
+            xhttp.onreadystatechange =
+            function(){
+                if (this.readyState == 4 && this.status == 200) {
+                    var info = JSON.parse(this.responseText);
+                
+                    var info1 = document.createElement('div')
+                    info1.setAttribute('id','tgInfoKnown')
+                    info1.setAttribute('style','font-size: 80%; margin-bottom: 5px;')
+                    info1.innerHTML = 'Site: ' + clusters[mapID][clusterIndex[mapID]].images[0].trapgroup.tag
+                    knownInfoCol.appendChild(info1)
+        
+                    var info2 = document.createElement('div')
+                    info2.setAttribute('id','timeInfoKnown')
+                    info2.setAttribute('style','font-size: 80%; margin-bottom: 5px;')
+                    info2.innerHTML = 'Timestamp: '+ clusters[mapID][clusterIndex[mapID]].images[0].timestamp
+                    knownInfoCol.appendChild(info2)
+        
+                    var info5 = document.createElement('div')
+                    info5.setAttribute('style','font-size: 80%; margin-bottom: 5px;')
+                    if (info.seen_range[0] == null) {
+                        info5.innerHTML = 'First Seen: None'
+                    } else {
+                        info5.innerHTML = 'First Seen: ' + info.seen_range[0]
+                    }
+                    knownInfoCol.appendChild(info5)
+        
+                    var info6 = document.createElement('div')
+                    info6.setAttribute('style','font-size: 80%; margin-bottom: 5px;')
+                    if (info.seen_range[1] == null) {
+                        info6.innerHTML = 'Last Seen: None'
+                    } else {
+                        info6.innerHTML = 'Last Seen: ' + info.seen_range[1]
+                    }
+                    knownInfoCol.appendChild(info6)
+
+                    var info3 = document.createElement('div')
+                    info3.setAttribute('style','font-size: 80%;')
+                    info3.innerHTML = 'Surveys:'
+                    knownInfoCol.appendChild(info3)
+        
+                    for (let i=0;i<info.surveys.length;i++) {
+                        var info4 = document.createElement('div')
+                        info4.setAttribute('style','font-size: 80%;')
+                        info4.innerHTML = info.surveys[i]
+                        knownInfoCol.appendChild(info4)
+                    }
+        
+                    var info7 = document.createElement('div')
+                    info7.setAttribute('style','font-size: 80%; margin-top: 5px;')
+                    // var tags =  info.tags.length > 0 ? [...new Set(info.tags)].join(', ') : 'None'
+                    info7.innerHTML = 'Tags: '
+                    knownInfoCol.appendChild(info7)
+
+                    var tagRow = document.createElement('div')
+                    tagRow.setAttribute('class','row')
+                    knownInfoCol.appendChild(tagRow)
+
+                    for (let i=0;i<2;i++) {
+                        var tagCol = document.createElement('div')
+                        tagCol.setAttribute('class','col-lg-6')
+                        tagCol.setAttribute('id','tagCol'+i)
+                        tagCol.style.paddingRight = '0px'
+                        tagRow.appendChild(tagCol)
+                    }
+
+                    colCount = 0
+                    for (let i=0;i<globalTags.length;i++) {
+                        var tag = globalTags[i].tag
+
+                        var col = document.getElementById('tagCol'+colCount)
+                
+                        var checkDiv = document.createElement('div')
+                        checkDiv.setAttribute('class','custom-control custom-checkbox')
+                        checkDiv.setAttribute('style','display: inline-block;')
+                        col.appendChild(checkDiv)
+                
+                        var input = document.createElement('input')
+                        input.setAttribute('type','checkbox')
+                        input.classList.add('custom-control-input')
+                        input.setAttribute('id','Cbx_'+tag)
+                        input.setAttribute('name','Cbx_'+tag)
+                        checkDiv.appendChild(input)
+                
+                        var label = document.createElement('label')
+                        label.classList.add('custom-control-label')
+                        label.setAttribute('for','Cbx_'+tag)
+                        label.innerHTML = tag
+                        checkDiv.appendChild(label)
+
+                        colCount += 1
+                        if (colCount > 1) {
+                            colCount = 0
+                        }
+                    }
+                
+                    for (let i=0;i<info.tags.length;i++) {
+                        var tag = info.tags[i]
+                        var check = document.getElementById('Cbx_'+tag)
+                        if (check) {
+                            check.checked = true
+                        } else {
+                            col = document.getElementById('tagCol'+colCount)
+                            var checkDiv = document.createElement('div')
+                            checkDiv.setAttribute('class','custom-control custom-checkbox')
+                            checkDiv.setAttribute('style','display: inline-block;')
+                            col.appendChild(checkDiv)
+                
+                            var input = document.createElement('input')
+                            input.setAttribute('type','checkbox')
+                            input.classList.add('custom-control-input')
+                            input.setAttribute('id','Cbx_'+tag)
+                            input.setAttribute('name','Cbx_'+tag)
+                            input.checked = true
+                            checkDiv.appendChild(input)
+                
+                            var label = document.createElement('label')
+                            label.classList.add('custom-control-label')
+                            label.setAttribute('for','Cbx_'+tag)
+                            label.innerHTML = tag
+                            checkDiv.appendChild(label)
+
+                            colCount += 1
+                            if (colCount > 1) {
+                                colCount = 0
+                            }
+                        }
+                    }
+
+                    var info8 = document.createElement('div')
+                    info8.setAttribute('style','font-size: 80%;  margin-top: 5px;')
+                    var note = info.notes != null && info.notes.length > 0 ? info.notes : ''
+                    info8.innerHTML = 'Notes: '
+                    knownInfoCol.appendChild(info8)
+
+                    var knownNotebox = document.createElement('textarea')
+                    knownNotebox.setAttribute('id','knownNotebox')
+                    knownNotebox.setAttribute('rows','2')
+                    knownNotebox.setAttribute('class','form-control')
+                    knownNotebox.setAttribute('style','resize: none; font-size: 80%;')
+                    knownNotebox.value = note
+                    knownInfoCol.appendChild(knownNotebox)
+
+                    var trapgroupInfo = []
+                    var noCoords = true
+                    for (let i=0;i<clusters[mapID][clusterIndex[mapID]].images.length;i++) {
+                        var site =clusters[mapID][clusterIndex[mapID]].images[i].trapgroup
+                        var found = false
+                        for (let j=0;j<trapgroupInfo.length;j++) {
+                            if (trapgroupInfo[j].tag == site.tag) {
+                                found = true
+                                break
+                            }
+                        }
+                        if (!found) {
+                            trapgroupInfo.push(site)
+                            if (site.latitude != 0 || site.longitude != 0) {
+                                noCoords = false
+                            }
+                        }
+                    }
+
+                    if (noCoords) {
+                        var site_tags = []
+                        for (let i=0;i<trapgroupInfo.length;i++) {
+                            site_tags.push(trapgroupInfo[i].tag)
+                        }
+
+                        var info9 = document.createElement('div')
+                        info9.setAttribute('style','font-size: 80%; margin-top: 5px;')
+                        info9.innerHTML = 'Sites: ' + site_tags.join(', ')
+                        knownInfoCol.appendChild(info9)
+
+                    }
+                    else{
+
+                        var info9 = document.createElement('div')
+                        info9.setAttribute('style','font-size: 80%; margin-top: 5px;')
+                        info9.innerHTML = 'Sites:'
+                        knownInfoCol.appendChild(info9)
+                    
+                        var sitesMapDiv = document.createElement('div')
+                        sitesMapDiv.setAttribute('id','sitesMapDiv')
+                        sitesMapDiv.setAttribute('style','height: 250px;')
+                        knownInfoCol.appendChild(sitesMapDiv)
+                    
+                        gHyb = L.gridLayer.googleMutant({type: 'hybrid' })
+                    
+                        var mapSites = new L.map('sitesMapDiv', {
+                            zoomControl: true,
+                        });
+                    
+                        mapSites.addLayer(gHyb);
+                    
+                        var siteMarkers = []
+                        var added_coords = []
+                        for (let i=0;i<trapgroupInfo.length;i++) {
+                            marker = L.marker([trapgroupInfo[i].latitude, trapgroupInfo[i].longitude]).addTo(mapSites)
+                            siteMarkers.push(marker)
+                            mapSites.addLayer(marker)
+                            marker.bindPopup(trapgroupInfo[i].tag);
+                            marker.on('mouseover', function (e) {
+                                this.openPopup();
+                            });
+                            marker.on('mouseout', function (e) {
+                                this.closePopup();
+                            });
+                            added_coords.push(trapgroupInfo[i].latitude + ',' + trapgroupInfo[i].longitude)
+                        }
+
+                        var clusterCoords = siteCoords[clusters['map1'][clusterIndex['map1']].trapGroup]
+                        if (clusterCoords != null || clusterCoords != undefined) {
+                            if (!added_coords.includes(clusterCoords.latitude + ',' + clusterCoords.longitude) && (clusterCoords.latitude != 0 || clusterCoords.longitude != 0)) {
+                                var marker = L.marker([clusterCoords.latitude, clusterCoords.longitude]).addTo(mapSites)
+                                siteMarkers.push(marker)
+                                mapSites.addLayer(marker)
+                                marker.bindPopup(clusterCoords.tag);
+                                marker.on('mouseover', function (e) {
+                                    this.openPopup();
+                                });
+                                marker.on('mouseout', function (e) {
+                                    this.closePopup();
+                                });
+                            }
+                        }
+
+                        var group = new L.featureGroup(siteMarkers);
+                        mapSites.fitBounds(group.getBounds().pad(0.1))
+                        if(siteMarkers.length == 1) {
+                            mapSites.setZoom(10)
+                        }
+
+                        if ((clusterCoords != null || clusterCoords != undefined) && (clusterCoords.latitude != 0 || clusterCoords.longitude != 0)){
+                            var circle = L.circle([clusterCoords.latitude, clusterCoords.longitude], {
+                                color: "rgba(223,105,26,1)",
+                                fill: true,
+                                fillOpacity: 0.2,
+                                opacity: 0.8,
+                                radius: 1000,
+                                weight:3,
+                                contextmenu: false,
+                            }).addTo(mapSites)
+                        }
+
+                        if (info.bounds.length == 1){
+                            var circle = L.circle([info.bounds[0][0], info.bounds[0][1]], {
+                                color: "rgba(91,192,222,1)",
+                                fill: true,
+                                fillOpacity: 0.2,
+                                opacity: 0.8,
+                                radius: 1000,
+                                weight:3,
+                                contextmenu: false,
+                            }).addTo(mapSites)
+                        } else {
+                            var poly2 = L.polygon(info.bounds, {
+                                color: "rgba(91,192,222,1)",
+                                fill: true,
+                                fillOpacity: 0.2,
+                                opacity: 0.8,
+                                weight:3,
+                                contextmenu: false,
+                            }).addTo(mapSites)
+                        }
+
+                    }
+                
+                    var center = document.createElement('center')
+                    knownIndivCol.appendChild(center)
+        
+                    var knownMapDiv = document.createElement('div')
+                    knownMapDiv.setAttribute('id','knownMapDiv')
+                    knownMapDiv.setAttribute('style','height: 750px;')
+                    center.appendChild(knownMapDiv)
+        
+                    var card = document.createElement('div')
+                    card.classList.add('card')
+                    card.setAttribute('style','background-color: rgb(60, 74, 89);margin-top: 5px; margin-bottom: 5px; margin-left: 5px; margin-right: 5px; padding-top: 5px; padding-bottom: 5px; padding-left: 5px; padding-right: 5px')
+                    knownIndivCol.appendChild(card)
+                
+                    var body = document.createElement('div')
+                    body.classList.add('card-body')
+                    body.setAttribute('style','margin-top: 0px; margin-bottom: 0px; margin-left: 0px; margin-right: 0px; padding-top: 0px; padding-bottom: 0px; padding-left: 0px; padding-right: 0px')
+                    card.appendChild(body)
+                
+                    var splide = document.createElement('div')
+                    splide.classList.add('splide')
+                    splide.setAttribute('id','splideKnown')
+                    body.appendChild(splide)
+                
+                    var track = document.createElement('div')
+                    track.classList.add('splide__track')
+                    splide.appendChild(track)
+                
+                    var list = document.createElement('ul')
+                    list.classList.add('splide__list')
+                    list.setAttribute('id','imageSplideKnown')
+                    track.appendChild(list)
+        
+                    clusterPosition[mapID] = document.getElementById('imageSplideKnown')
+
+                    prepMap(mapID)
+                    updateSlider(mapID)
+
+                    document.getElementById('btnSubmitIndividual').disabled = false
+
+                }
+            }
+            xhttp.open("GET", '/getIndividualInfo/'+selectedKnownIndividual);
+            xhttp.send();
+
+        }
+    }
+    xhttp.open("POST", '/getIndividual/'+selectedKnownIndividual);
+    xhttp.send(formData)
+
+}
+
+function getCoords(){
+    /** Gets the coordinates of all sites for the current task. */
+
+    var xhttp = new XMLHttpRequest();
+    xhttp.onreadystatechange =
+    function(){
+        if (this.readyState == 4 && this.status == 200) {
+            reply = JSON.parse(this.responseText);
+            siteCoords = reply
+        }
+    }
+    xhttp.open("GET", '/getSiteCoords');
+    xhttp.send()
+}
+
+function updateKnownPaginationCircles(current,total){
+    /** Updates pagination circles on the known modal. */
+
+    var individualsPosition = null
+    var cirNum = total
+    var circlesIndex = current - 1
+    var individualsPosition = document.getElementById('individualsPosition')
+    var paginationCircles = document.getElementById('paginationCircles')
+
+
+    if (individualsPosition != null) {
+        while (paginationCircles.firstChild) {
+            paginationCircles.removeChild(paginationCircles.firstChild);
+        }
+
+        var beginIndex = 0
+        var endIndex = cirNum
+        var multiple = false
+        if (cirNum > 10) {
+            multiple =  true
+            beginIndex = Math.max(0,circlesIndex-2)
+            if (beginIndex < 2) {
+                beginIndex = 0
+                endIndex = 5
+            }
+            else {
+                endIndex = Math.min(cirNum,circlesIndex+3)
+                if (endIndex > cirNum-2) {
+                    endIndex = cirNum
+                    beginIndex = cirNum - 5
+                }
+            }
+        }
+
+        if (multiple && beginIndex != 0 && circlesIndex > 2) {
+            first = document.createElement('li')
+            first.setAttribute('onclick','getKnownIndividuals(1)')
+            first.style.fontSize = '60%'
+            first.innerHTML = '1'
+            paginationCircles.append(first)
+        
+            more = document.createElement('li')
+            more.setAttribute('class','disabled')
+            more.style.fontSize = '60%'
+            more.innerHTML = '...'
+            paginationCircles.append(more)
+        }
+
+
+        for (let i=beginIndex;i<endIndex;i++) {
+            li = document.createElement('li')
+            li.innerHTML = (i+1).toString()
+            li.setAttribute('onclick','getKnownIndividuals('+(i+1).toString()+')')
+            li.style.fontSize = '60%'
+            paginationCircles.append(li)
+
+            if (i == circlesIndex) {
+                li.setAttribute('class','active')
+            } else {
+                li.setAttribute('class','')
+            }
+        }
+
+        if (multiple && endIndex != cirNum && circlesIndex < cirNum-3) {
+            more = document.createElement('li')
+            more.setAttribute('class','disabled')
+            more.innerHTML = '...'
+            more.style.fontSize = '60%'
+            paginationCircles.append(more)
+
+            last_index = cirNum - 1
+            last = document.createElement('li')
+            last.setAttribute('onclick','getKnownIndividuals('+(last_index+1).toString()+')')
+            last.innerHTML = (last_index+1).toString()
+            last.style.fontSize = '60%'
+            paginationCircles.append(last)
+        }
+    }
+}
+
+function prepImageMap(div_id, image_url, detection) {
+    /** Prepares the image map for the individual modal. */
+    if (bucketName != null) {
+        var imageUrl = "https://"+bucketName+".s3.amazonaws.com/" + modifyToCompURL(image_url)
+        var img = new Image();
+        img.onload = function(){
+            w = this.width
+            h = this.height
+            if (w>h) {
+                document.getElementById(div_id).setAttribute('style','height: calc(10vw *'+(h/w)+');  width:10vw')
+            } else {
+                document.getElementById(div_id).setAttribute('style','height: calc(10vw *'+(w/h)+');  width:10vw')
+            }
+            L.Browser.touch = true
+        
+            imgMaps[div_id] = new L.map(div_id, {
+                crs: L.CRS.Simple,
+                maxZoom: 10,
+                center: [0, 0],
+                zoomSnap: 0,
+                attributionControl: false,
+            })
+
+            // disable zoom controls and drag etc
+            imgMaps[div_id].zoomControl.remove()
+            imgMaps[div_id].dragging.disable()
+            imgMaps[div_id].touchZoom.disable()
+            imgMaps[div_id].doubleClickZoom.disable()
+            imgMaps[div_id].scrollWheelZoom.disable()
+            imgMaps[div_id].boxZoom.disable()
+            imgMaps[div_id].keyboard.disable()   
+            imgMaps[div_id].boxZoom.disable()
+
+
+            var h1 = document.getElementById(div_id).clientHeight
+            var w1 = document.getElementById(div_id).clientWidth
+            var southWest = imgMaps[div_id].unproject([0, h1], 2);
+            var northEast = imgMaps[div_id].unproject([w1, 0], 2);
+            var bounds = new L.LatLngBounds(southWest, northEast);
+
+            imgMapsActiveImage[div_id] = L.imageOverlay(imageUrl, bounds).addTo(imgMaps[div_id]);
+
+            imgMapsActiveImage[div_id].on('load', function() {
+                // I want to zoom the map to fit the bounds of detection
+                if (detection != null) {
+                    det_bounds = [[detection.top*imgMapsHeight[div_id],detection.left*imgMapsWidth[div_id]],[detection.bottom*imgMapsHeight[div_id],detection.right*imgMapsWidth[div_id]]]
+                    imgMaps[div_id].fitBounds(det_bounds, {padding: [10,10]});
+                }
+            });
+
+
+            imgMapsWidth[div_id] = northEast.lng
+            imgMapsHeight[div_id] = southWest.lat
+            imgMaps[div_id].setMaxBounds(bounds);
+            imgMaps[div_id].fitBounds(bounds)
+            imgMaps[div_id].setMinZoom(imgMaps[div_id].getZoom())
+
+
+
+            imgMaps[div_id].on('resize', function(){
+                if (imgMaps[div_id] != null&&document.getElementById(div_id) && document.getElementById(div_id).clientHeight) {
+                    var h1 = document.getElementById(div_id).clientHeight
+                    var w1 = document.getElementById(div_id).clientWidth
+
+                    var southWest = imgMaps[div_id].unproject([0, h1], 2);
+                    var northEast = imgMaps[div_id].unproject([w1, 0], 2);
+                    var bounds = new L.LatLngBounds(southWest, northEast);
+
+                    imgMapsWidth[div_id] = northEast.lng
+                    imgMapsHeight[div_id] = southWest.lat
+
+                    imgMaps[div_id].invalidateSize()
+                    imgMaps[div_id].setMaxBounds(bounds)
+                    imgMaps[div_id].fitBounds(bounds)
+                    imgMaps[div_id].setMinZoom(imgMaps[div_id].getZoom())
+                    imgMapsActiveImage[div_id].setBounds(bounds)
+
+                    setTimeout(function() {
+                        if (detection != null) {
+                            var det_bounds = [[detection.top*imgMapsHeight[div_id],detection.left*imgMapsWidth[div_id]],[detection.bottom*imgMapsHeight[div_id],detection.right*imgMapsWidth[div_id]]]
+                            imgMaps[div_id].fitBounds(det_bounds, {padding: [10,10]});
+                        }
+                    }, 500);
+                }
+            });
+
+        }
+        img.src = imageUrl
+    }
+}

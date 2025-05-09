@@ -274,7 +274,7 @@ function imageHighlight(switchOn,mapID = 'map1') {
 function buildDetection(image,detection,mapID = 'map1',colour=null) {
     if (detection.static == false || (detection.static == true && isStaticCheck == true)) {
                  
-        if (isIDing && (detection.individual!='-1')) {
+        if (isIDing && (detection.individual!='-1') && mapID!='known') {
             rectOptions.color = individuals[individualIndex][detection.individual].colour
         } else {
             if (colour) {
@@ -299,7 +299,7 @@ function buildDetection(image,detection,mapID = 'map1',colour=null) {
             rect._tooltip.options.opacity = 0.8
             rect.openTooltip()
 
-        } else if ((document.getElementById('btnSendToBack')!=null)&&(isIDing)) {
+        } else if ((document.getElementById('btnSendToBack')!=null)&&(isIDing)&&(mapID!='known')) {
             if (detection.individual!='-1') {
                 // rect.bindTooltip(individuals[individualIndex][detection.individual].name,{permanent: true, direction:"center"})
                 // var center = L.latLng([(rect._bounds._northEast.lat+rect._bounds._southWest.lat)/2,(rect._bounds._northEast.lng+rect._bounds._southWest.lng)/2])
@@ -351,7 +351,7 @@ function buildDetection(image,detection,mapID = 'map1',colour=null) {
             rect._tooltip.options.opacity = 0.8
             rect.openTooltip()
         }
-        else if (isIDing && (document.getElementById('btnSendToBack')==null)) {
+        else if (isIDing && (document.getElementById('btnSendToBack')==null)&&(mapID!='known')) {
             //Set the map view to fit detection bounds when viewing individual
             fitBoundsInProcess[mapID] = true
             map[mapID].fitBounds(rect.getBounds(), {padding: [10,10]});
@@ -374,7 +374,7 @@ function buildDetection(image,detection,mapID = 'map1',colour=null) {
             dbDetIds[mapID][rect._leaflet_id.toString()] = detection.id.toString()
         }
 
-        if (isIDing) {
+        if (isIDing&&(mapID!='known')) {
             if (!toolTipsOpen) {
                 rect.closeTooltip()
             }
@@ -384,7 +384,7 @@ function buildDetection(image,detection,mapID = 'map1',colour=null) {
             dbDetIds[mapID][rect._leaflet_id.toString()] = detection.id.toString()
         }
 
-        if (document.getElementById('btnSendBoundingBack')!=null){
+        if (document.getElementById('btnSendBoundingBack')!=null&&(mapID!='known')){
             // Highlights and un-highlight when click on bounding box
             rect.addEventListener('click', function(wrapRect){
                 return function() {
@@ -421,7 +421,7 @@ function buildDetection(image,detection,mapID = 'map1',colour=null) {
             }(rect));
         }
 
-        if (document.getElementById('btnSendToBack')!=null) {
+        if (document.getElementById('btnSendToBack')!=null&&(mapID!='known')) {
             rect.addEventListener('click', function(wrapMapID,wrapDetectionID,wrapImageID,wrapRect) {
                 return function() {
                     if (individualsReady) {
@@ -1712,9 +1712,15 @@ function updateSlider(mapID = 'map1') {
             clusterPositionSplide[mapID].on( 'moved', function(wrapMapID) {
                 return function() {
                     imageIndex[wrapMapID] = clusterPositionSplide[wrapMapID].index
-                    update(wrapMapID)
-                    if (isIDing && (document.getElementById('btnSendToBack')==null)) {
-                        updateKpts()
+                    if (wrapMapID=='known'){
+                        updateCanvas(wrapMapID)
+                        document.getElementById('tgInfoKnown').innerHTML = 'Site: ' + clusters[wrapMapID][clusterIndex[wrapMapID]].images[imageIndex[wrapMapID]].trapgroup.tag
+                        document.getElementById('timeInfoKnown').innerHTML = 'Timestamp: ' + clusters[wrapMapID][clusterIndex[wrapMapID]].images[imageIndex[wrapMapID]].timestamp
+                    } else {
+                        update(wrapMapID)
+                        if (isIDing && (document.getElementById('btnSendToBack')==null)) {
+                            updateKpts()
+                        }
                     }
                 }
             }(mapID));
@@ -1725,9 +1731,15 @@ function updateSlider(mapID = 'map1') {
                     // imageIndex[wrapMapID] = parseInt(event.target.attributes.id.value.split("slide")[1])-1
                     imageIndex[wrapMapID] = event.index
                     clusterPositionSplide[wrapMapID].go(imageIndex[wrapMapID])
-                    update(wrapMapID)
-                    if (isIDing && (document.getElementById('btnSendToBack')==null)) {
-                        updateKpts()
+                    if (wrapMapID=='known'){
+                        updateCanvas(wrapMapID)
+                        document.getElementById('tgInfoKnown').innerHTML = 'Site: ' + clusters[wrapMapID][clusterIndex[wrapMapID]].images[imageIndex[wrapMapID]].trapgroup.tag
+                        document.getElementById('timeInfoKnown').innerHTML = 'Timestamp: ' + clusters[wrapMapID][clusterIndex[wrapMapID]].images[imageIndex[wrapMapID]].timestamp
+                    } else {
+                        update(wrapMapID)
+                        if (isIDing && (document.getElementById('btnSendToBack')==null)) {
+                            updateKpts()
+                        }
                     }
                 }
             }(mapID,track));
@@ -2605,12 +2617,12 @@ function prepMap(mapID = 'map1') {
 
                     map[mapID].on('resize', function(wrapMapID){
                         return function () {
-                            h1 = document.getElementById(mapDivs[wrapMapID]).clientHeight
-                            w1 = document.getElementById(mapDivs[wrapMapID]).clientWidth
+                            var h1 = document.getElementById(mapDivs[wrapMapID]).clientHeight
+                            var w1 = document.getElementById(mapDivs[wrapMapID]).clientWidth
 
-                            southWest = map[wrapMapID].unproject([0, h1], 2);
-                            northEast = map[wrapMapID].unproject([w1, 0], 2);
-                            bounds = new L.LatLngBounds(southWest, northEast);
+                            var southWest = map[wrapMapID].unproject([0, h1], 2);
+                            var northEast = map[wrapMapID].unproject([w1, 0], 2);
+                            var bounds = new L.LatLngBounds(southWest, northEast);
 
                             mapWidth[wrapMapID] = northEast.lng
                             mapHeight[wrapMapID] = southWest.lat
@@ -2661,14 +2673,20 @@ function prepMap(mapID = 'map1') {
                         h = this.height
                     
                         if (w>h) {
-                            if (mapdiv2 != null) {
+                            if (mapID=='known'){
+                                document.getElementById(mapDivs[wrapMapID]).setAttribute('style','height: calc(32vw *'+(h/w)+');  width:32vw ;border-style: solid; border-width: 0px; border-color: rgba(223,105,26,1)')
+                            }
+                            else if (mapdiv2 != null) {
                                 document.getElementById(mapDivs[wrapMapID]).setAttribute('style','height: calc(36vw *'+(h/w)+');  width:36vw ;border-style: solid; border-width: 0px; border-color: rgba(223,105,26,1)')
                             }
                             else{
                                 document.getElementById(mapDivs[wrapMapID]).setAttribute('style','height: calc(50vw *'+(h/w)+');  width:50vw ;border-style: solid; border-width: 0px; border-color: rgba(223,105,26,1)')
                             }
                         } else {
-                            if (mapdiv2 != null) {
+                            if (mapID=='known'){
+                                document.getElementById(mapDivs[wrapMapID]).setAttribute('style','height: calc(32vw *'+(w/h)+');  width:32vw ;border-style: solid; border-width: 0px; border-color: rgba(223,105,26,1)')
+
+                            } else if (mapdiv2 != null) {
                                 document.getElementById(mapDivs[wrapMapID]).setAttribute('style','height: calc(36vw *'+(w/h)+');  width:36vw ;border-style: solid; border-width: 0px; border-color: rgba(223,105,26,1)')
                             }
                             else{
@@ -2727,12 +2745,12 @@ function prepMap(mapID = 'map1') {
 
                         map[wrapMapID].on('resize', function(wrapWrapMapID){
                             return function () {
-                                h1 = document.getElementById(mapDivs[wrapMapID]).clientHeight
-                                w1 = document.getElementById(mapDivs[wrapMapID]).clientWidth
+                                var h1 = document.getElementById(mapDivs[wrapMapID]).clientHeight
+                                var w1 = document.getElementById(mapDivs[wrapMapID]).clientWidth
         
-                                southWest = map[wrapMapID].unproject([0, h1], 2);
-                                northEast = map[wrapMapID].unproject([w1, 0], 2);
-                                bounds = new L.LatLngBounds(southWest, northEast);
+                                var southWest = map[wrapMapID].unproject([0, h1], 2);
+                                var northEast = map[wrapMapID].unproject([w1, 0], 2);
+                                var bounds = new L.LatLngBounds(southWest, northEast);
                         
                                 mapWidth[wrapWrapMapID] = northEast.lng
                                 mapHeight[wrapWrapMapID] = southWest.lat
@@ -2750,8 +2768,8 @@ function prepMap(mapID = 'map1') {
                                 }
                                 if (isIDing && (document.getElementById('btnSendToBack')==null)) {
                                     if (document.getElementById('cxFeaturesHeatmap').checked){
-                                        detID1 = clusters['map1'][clusterIndex['map1']].images[imageIndex['map1']].detections[0].id
-                                        detID2 = clusters['map2'][clusterIndex['map2']].images[imageIndex['map2']].detections[0].id
+                                        var detID1 = clusters['map1'][clusterIndex['map1']].images[imageIndex['map1']].detections[0].id
+                                        var detID2 = clusters['map2'][clusterIndex['map2']].images[imageIndex['map2']].detections[0].id
                                         getMatchingKpts(detID1,detID2)
                                     }
                                 }
@@ -2787,10 +2805,10 @@ function prepMap(mapID = 'map1') {
                             fetchLabelHierarchy()
                             setRectOptions()
                             sightingAnalysisMapPrep()
-                        } else if (isIDing && (document.getElementById('btnSendToBack')==null)) {
+                        } else if (isIDing && (document.getElementById('btnSendToBack')==null) && mapID != 'known') {
                             setRectOptions()
                             IDMapPrep(wrapMapID)
-                        } else if (isIDing && (document.getElementById('btnSendToBack')!=null)) {
+                        } else if (isIDing && (document.getElementById('btnSendToBack')!=null) && mapID != 'known') {
                             setClusterIDRectOptions()
                             clusterIDMapPrep(wrapMapID)
                         } else {
@@ -3887,12 +3905,18 @@ document.onclick = function (event){
         }
     } else if (isIDing && (document.getElementById('btnSendToBack')==null)) {
         for (let mapID in map) {
+            if (mapID == 'known'){
+                continue
+            }
             if (map[mapID].contextmenu.isVisible()) {
                 map[mapID].contextmenu.hide()
             }
         }
     } else if (isIDing && (document.getElementById('btnSendToBack')!=null)) {
         for (let mapID in map) {
+            if (mapID == 'known'){
+                continue
+            }
             if (map[mapID].contextmenu.isVisible()) {
                 map[mapID].contextmenu.hide()
             }
