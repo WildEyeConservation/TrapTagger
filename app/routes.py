@@ -14057,6 +14057,22 @@ def addImage():
             altitude = data.get('altitude', 0)
             camera = data.get('camera')
 
+            # Parse coords
+            try:
+                latitude = float(latitude)
+            except:
+                latitude = 0
+
+            try:
+                longitude = float(longitude)
+            except:
+                longitude = 0
+            
+            try:
+                altitude = float(altitude)
+            except:
+                altitude = 0
+
             timestamp = data.get('timestamp') #timestamp must be in UTC!
             if timestamp:
                 try:
@@ -14082,7 +14098,7 @@ def addImage():
                     annotations = None
 
 
-            if site is None and float(latitude) == 0 and float(longitude) == 0:
+            if site is None and (latitude == 0) and (longitude == 0):
                 return json.dumps({'message': 'Missing site information.'}), 400
 
             app.logger.info(f'Filename: {filename} Site: {site} Latitude: {latitude} Longitude: {longitude} Altitude: {altitude} Camera: {camera} Timestamp: {timestamp} Annotations: {annotations}')
