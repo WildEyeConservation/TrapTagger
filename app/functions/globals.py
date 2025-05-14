@@ -5274,7 +5274,7 @@ def det_presence_clustering(task_id,trapgroup_id,starting_last_cluster_id,query_
 
         # Here we correct the pre-state based on time - a two-day old detection at a cameragroup is no longer relevent
         for cg_id in cameragroup_ids:
-            if (start-last_sighting_time[cg_id]) > timedelta(minutes=Config.MAX_CLUSTER_MINUTES):
+            if (start-last_sighting_time[cg_id]) > timedelta(minutes=Config.MAX_CLUSTER_MINUTES)/2:
                 last_sighting_index[cameragroup_id] = False
 
         # Here we check the state prior to the image - was it empty? In order for it to be empty, all cameras need to be seeing nothing
