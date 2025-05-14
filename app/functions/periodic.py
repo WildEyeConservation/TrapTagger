@@ -17,10 +17,10 @@ limitations under the License.
 from app import app, db, celery
 from app.models import *
 from app.functions.globals import getQueueLengths, getImagesProcessing, getInstanceCount, getInstancesRequired, launch_instances, manageDownload, resolve_abandoned_jobs, \
-deleteTurkcodes, createTurkcodes, deleteFile, cleanup_empty_restored_images, updateAllStatuses
+deleteTurkcodes, createTurkcodes, deleteFile, cleanup_empty_restored_images, updateAllStatuses, launch_task
 from app.functions.imports import import_survey
 from app.functions.admin import stop_task, edit_survey
-from app.functions.annotation import freeUpWork, wrapUpTask, launch_task
+from app.functions.annotation import freeUpWork, wrapUpTask
 from app.functions.archive import restore_images_for_id, restore_files_for_download, process_files_for_download, extract_zips
 from app.functions.individualID import calculate_detection_similarities
 from app.functions.results import generate_wildbook_export

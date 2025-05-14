@@ -16,7 +16,7 @@ limitations under the License.
 
 from app import app, db, celery
 from app.models import *
-from app.functions.globals import coordinateDistance, retryTime, rDets, updateIndividualIdStatus, chunker
+from app.functions.globals import coordinateDistance, retryTime, rDets, updateIndividualIdStatus, chunker, launch_task
 import GLOBALS
 import time
 from sqlalchemy.sql import func, or_, and_, alias, distinct
@@ -852,12 +852,10 @@ def calculate_individual_similarities(self,task_id,species):
         task = db.session.query(Task).get(task_id)
         # task.survey.images_processing = 0
         if task.sub_tasks and ('-5' in task.tagging_level):
-            from app.functions.annotation import launch_task
             task.survey.status = 'Launched'
             db.session.commit()
             launch_task.apply_async(kwargs={'task_id':task_id})
         elif task.status != 'PROGRESS' and task.status != 'PENDING':
-            from app.functions.annotation import launch_task
             updateIndividualIdStatus(task_id)
             task.survey.status = 'Launched'
             task.status = 'PENDING'

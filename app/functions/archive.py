@@ -16,8 +16,7 @@ limitations under the License.
 
 from app import app, db, celery
 from app.models import *
-from app.functions.globals import retryTime, checkForIdWork, taggingLevelSQ, updateAllStatuses, rDets, calculate_restore_expiry_date, chunker
-from app.functions.annotation import launch_task
+from app.functions.globals import retryTime, checkForIdWork, taggingLevelSQ, updateAllStatuses, rDets, calculate_restore_expiry_date, chunker, launch_task
 from app.functions.individualID import calculate_detection_similarities
 from app.functions.admin import edit_survey
 from app.functions.results import generate_wildbook_export

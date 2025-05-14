@@ -6380,16 +6380,13 @@ def getKnockCluster(task_id, knockedstatus, clusterID, index, imageIndex, T_inde
             queueing = db.session.query(Trapgroup).filter(Trapgroup.survey_id==task.survey_id).filter(Trapgroup.queueing==True).count()
             processing = db.session.query(Trapgroup).filter(Trapgroup.survey_id==task.survey_id).filter(Trapgroup.processing==True).count()
 
-            taggingLevel = '-1'
-            isBounding = False
-
             sq = db.session.query(Cluster) \
                 .join(Image, Cluster.images) \
                 .join(Camera) \
                 .join(Trapgroup) \
                 .join(Detection)
 
-            sq = taggingLevelSQ(sq,taggingLevel,isBounding,int(task_id))
+            sq = taggingLevelSQ(sq,'-1',False,int(task_id))
 
             cluster_count = sq.filter(Cluster.task_id == int(task_id)) \
                                     .filter(or_(and_(Detection.source==model,Detection.score>Config.DETECTOR_THRESHOLDS[model]) for model in Config.DETECTOR_THRESHOLDS)) \
@@ -6397,39 +6394,28 @@ def getKnockCluster(task_id, knockedstatus, clusterID, index, imageIndex, T_inde
                                     .filter(~Detection.status.in_(Config.DET_IGNORE_STATUSES)) \
                                     .distinct().count()
 
-            finished = False
-            if cluster_count>0:
-                # Launch & return task for dotask
+            if (cluster_count>0) and (not queueing) and (not processing):
+                # The are clusters to annotate and unknock et al are complete - launch
                 code = '-101'
-                task.tagging_level = taggingLevel
-                task.is_bounding = isBounding
+                task.tagging_level = '-1'
+                task.is_bounding = False
                 task.init_complete = False
                 task.status = 'PENDING'
                 task.survey.status = 'Launched'
                 db.session.commit()
                 launch_task.apply_async(kwargs={'task_id':task_id})
-                # if task.status=='PROGRESS':
-                #     code = '-100'
-                # else:
-                #     code = '-102'
-                #     if task.status != 'PENDING':
-                #         task.tagging_level = taggingLevel
-                #         task.is_bounding = isBounding
-                #         task.status = 'PENDING'
-                #         task.survey.status = 'Launched'
-                #         db.session.commit()
-                #         launch_task.apply_async(kwargs={'task_id':task_id})
 
-            elif (queueing==0) and (processing==0):
-                # Completely done
+            elif (not queueing) and (not processing):
+                # Completely done - take the task out of a processing state
                 code = '-101'
                 task.status = 'SUCCESS'
                 db.session.commit()
-                finished = True
             
             else:
-                # Wait for processing
-                code = '-102'
+                # There is still some background processing going on - leave the task locked out
+                code = '-101'
+                task.status = 'Processing'
+                db.session.commit()
 
             images = [{'id': code,
                 'url': code,
@@ -6444,13 +6430,6 @@ def getKnockCluster(task_id, knockedstatus, clusterID, index, imageIndex, T_inde
                 }]      
 
             result = json.dumps({'T_index': T_index, 'F_index': F_index, 'info': {'id': code,'classification': [],'required': [], 'images': images, 'label': code, 'tags': code, 'groundTruth': code, 'trapGroup': code}})
-
-            # checkQueueingProcessing.apply_async(kwargs={'task_id': task.id}, countdown=30, queue='priority', priority=9)
-
-        # if int(clusterID) != -102: GLOBALS.mutex[int(task_id)]['global'].release()
-
-        # if finished:
-        #     GLOBALS.mutex.pop(int(task_id), None)
 
     else:
         result = json.dumps('error')

@@ -18,7 +18,6 @@ from app import app, db, celery
 from app.models import *
 from app.functions.globals import *
 from app.functions.imports import archive_images, archive_empty_images, archive_videos, classifySurvey
-from app.functions.annotation import launch_task
 from app.functions.admin import stop_task
 from app.functions.archive import check_storage_class, get_restore_info
 import GLOBALS
