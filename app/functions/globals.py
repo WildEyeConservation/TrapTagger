@@ -5348,7 +5348,7 @@ def det_presence_clustering(task_id,trapgroup_id,starting_last_cluster_id,query_
             image_subset = []
             for image in cluster_images:
                 # Push the current set of images to a cluster if we have reached the end of image set, or the MAX_CLUSTER_MINUTES has been reached
-                if image_subset and (((image.corrected_timestamp-image_subset[0].corrected_timestamp) > timedelta(minutes=Config.MAX_CLUSTER_MINUTES)) or (image==cluster_images[-1])):
+                if (image==cluster_images[-1]) or (image_subset and ((image.corrected_timestamp-image_subset[0].corrected_timestamp) > timedelta(minutes=Config.MAX_CLUSTER_MINUTES))):
                     if image==cluster_images[-1]: image_subset.append(image) # This wraps up the last cluster on the last image
                     if cluster_checked==None: cluster_checked = False
                     cluster = Cluster(
