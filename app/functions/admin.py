@@ -1280,6 +1280,8 @@ def reclusterAfterTimestampChange(survey_id,trapgroup_ids,cameragroup_ids):
                         .distinct().all()
         for labelgroup in labelgroups:
             labelgroup.labels = []
+        
+        db.session.commit()
 
         prepTask(task_id=task_id,trapgroup_ids=trapgroup_ids)
 
