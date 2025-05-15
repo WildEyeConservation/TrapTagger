@@ -933,6 +933,8 @@ def finish_knockdown(self,rootImageID, task, current_user_id, reclusteringTimest
         for labelgroup in labelgroups:
             labelgroup.labels = [downLabel]
 
+        db.session.commit()
+
         # recluster
         prepTask(task_id=task.id,trapgroup_ids=[trapgroup_id],timestamp=reclusteringTimestamp)
 
@@ -5782,13 +5784,14 @@ def prepTask(self, task_id, includes=None, translation=None, labels=None, auto_r
         survey_id = task.survey_id
         trigger_source = task.survey.trigger_source
 
-        parallel = True
         image_count = task.survey.image_count if task.survey.image_count else 0
         frame_count = task.survey.frame_count if task.survey.frame_count else 0
-        if image_count+frame_count < 50000: parallel = False
 
         # If no trapgroups are specified, recluster the whole survey
         if not trapgroup_ids: trapgroup_ids = [r[0] for r in db.session.query(Trapgroup.id).filter(Trapgroup.survey_id==survey_id).distinct().all()]
+
+        parallel = True
+        if (image_count+frame_count < 50000) or (len(trapgroup_ids)==1): parallel = False
 
         if labels:
             # This makes it indempotent
