@@ -5125,7 +5125,7 @@ def det_presence_clustering(task_id,trapgroup_id,starting_last_cluster_id,query_
     '''
         New detection presence/absence clustering for the specified task and trapgroup.
         -Groups images from the trapgroup based on presence/absence of detections across all the associated cameras.
-        -Camera status reset after MAX_CLUSTER_MINUTES
+        -Camera status reset after MAX_CLUSTER_MINUTES/2
         -long clusters are broken up at MAX_CLUSTER_MINUTES
         -For long clusters and time-triggered cameras
     '''
@@ -5202,7 +5202,7 @@ def det_presence_clustering(task_id,trapgroup_id,starting_last_cluster_id,query_
                                             (
                                                 (prevPresenceSQ.c.prev_presence == None) |
                                                 (prevPresenceSQ.c.det_presence!=prevPresenceSQ.c.prev_presence) |
-                                                (func.timestampdiff(literal_column("SECOND"), prevPresenceSQ.c.prev_timestamp, prevPresenceSQ.c.timestamp) > Config.MAX_CLUSTER_MINUTES*60),
+                                                (func.timestampdiff(literal_column("SECOND"), prevPresenceSQ.c.prev_timestamp, prevPresenceSQ.c.timestamp) > (Config.MAX_CLUSTER_MINUTES*60/2)),
                                                 1
                                             ),
                                             else_=0
