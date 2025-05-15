@@ -3619,7 +3619,11 @@ def import_survey(self,survey_id,preprocess_done=False,live=False,launch_id=None
         # Second half import -> performed after preprocessing. Also performed if there is no preprocessing required (which is also the case for live surveys)
         if preprocess_done or not (timestamp_check or static_check) or live:
             # This just updates the clustering if the task already exists
+            survey.status='Clustering'
+            db.session.commit()
             task_id = add_new_task(survey_id, 'default')
+            task = db.session.query(Task).get(task_id)
+            task.status = 'Ready'
             survey = db.session.query(Survey).get(survey_id)
 
             survey.status='Processing Static Detections'
@@ -3645,9 +3649,14 @@ def import_survey(self,survey_id,preprocess_done=False,live=False,launch_id=None
             updateSurveyDetectionRatings(survey_id=survey_id)
 
             # Update clustering, classification and statuses for the non-default tasks
+            survey.status='re-Clustering'
+            db.session.commit()
             task_ids = [r[0] for r in db.session.query(Task.id).filter(Task.survey_id==survey_id).filter(Task.name!='default').all()]
             for task_id in task_ids:
                 prepTask(task_id)
+                task = db.session.query(Task).get(task_id)
+                task.status = 'Ready'
+                db.session.commit()
 
             survey = db.session.query(Survey).get(survey_id)
             if survey.organisation.archive != False:

@@ -926,9 +926,14 @@ def finish_knockdown(self,rootImageID, task, current_user_id, reclusteringTimest
         labelgroups = db.session.query(Labelgroup)\
                                 .join(Detection)\
                                 .join(Image)\
-                                .filter(Image.clusters.contains(cluster))\
-                                .filter(Labelgroup.task==task)\
-                                .all()
+                                .join(Camera)\
+                                .filter(Camera.cameragroup_id==rootImage.camera.cameragroup_id) \
+                                .filter(Image.corrected_timestamp >= rootImage.corrected_timestamp) \
+                                .filter(Labelgroup.task==task)
+                                
+        if lastImageID: labelgroups = labelgroups.filter(Image.corrected_timestamp <= lastImage.corrected_timestamp)
+
+        labelgroups = labelgroups.distinct().all()
 
         for labelgroup in labelgroups:
             labelgroup.labels = [downLabel]
@@ -4803,10 +4808,11 @@ def cluster_timestampless(task_id,trapgroup_id,starting_last_cluster_id,query_li
     # This is a utility SQ for finding the irrelevant images:
     # knock downs
     downLabel = db.session.query(Label).get(GLOBALS.knocked_id)
-    irrelevantImagesSQ = db.session.query(Image.id.label('image_id'),Cluster.id.label('cluster_id'))\
-                        .join(Cluster,Image.clusters)\
-                        .filter(Cluster.task_id==task_id)\
-                        .filter(Cluster.labels.contains(downLabel))\
+    irrelevantImagesSQ = db.session.query(Image.id.label('image_id'),Labelgroup.id.label('labelgroup_id'))\
+                        .join(Detection,Detection.image_id==Image.id)\
+                        .join(Labelgroup)\
+                        .filter(Labelgroup.task_id==task_id)\
+                        .filter(Labelgroup.labels.contains(downLabel))\
                         .subquery()
 
     # This fetches the associated Earth Ranger IDs for each cluster
@@ -4855,7 +4861,7 @@ def cluster_timestampless(task_id,trapgroup_id,starting_last_cluster_id,query_li
                             .filter(Camera.trapgroup_id==trapgroup_id)\
                             .filter(Image.corrected_timestamp==None)\
                             .filter(or_(clusterInfoSQ.c.row_number==1,clusterInfoSQ.c.row_number==None))\
-                            .filter(irrelevantImagesSQ.c.cluster_id==None)\
+                            .filter(irrelevantImagesSQ.c.labelgroup_id==None)\
                             .order_by(Video.id)\
                             .distinct().limit(query_limit).all()
         
@@ -4941,11 +4947,12 @@ def time_based_clustering(task_id,trapgroup_id,query_limit,timestamp=None):
     # This sq finds the images that need to be processed
     # We always want to leave knocked-down images
     downLabel = db.session.query(Label).get(GLOBALS.knocked_id)
-    irrelevantImagesSQ = db.session.query(Image.id.label('image_id'),Cluster.id.label('cluster_id'))\
-                            .join(Cluster,Image.clusters)\
-                            .filter(Cluster.task_id==task_id)\
-                            .filter(Cluster.labels.contains(downLabel))\
-                            .subquery()
+    irrelevantImagesSQ = db.session.query(Image.id.label('image_id'),Labelgroup.id.label('labelgroup_id'))\
+                        .join(Detection,Detection.image_id==Image.id)\
+                        .join(Labelgroup)\
+                        .filter(Labelgroup.task_id==task_id)\
+                        .filter(Labelgroup.labels.contains(downLabel))\
+                        .subquery()
     
     # Here we get the current and previous timestamp for each image in the trapgroup
     imageSQ = db.session.query(
@@ -4957,7 +4964,7 @@ def time_based_clustering(task_id,trapgroup_id,query_limit,timestamp=None):
                         .join(Camera)\
                         .filter(Camera.trapgroup_id==trapgroup_id)\
                         .filter(Image.corrected_timestamp!=None)\
-                        .filter(irrelevantImagesSQ.c.cluster_id==None)
+                        .filter(irrelevantImagesSQ.c.labelgroup_id==None)
 
     # This is for knockdown reclustering: we want to look at all images from the knock point onward.
     # Knocked images aren't reclustered by default
@@ -5143,10 +5150,11 @@ def det_presence_clustering(task_id,trapgroup_id,starting_last_cluster_id,query_
                         .filter(Cluster.id>starting_last_cluster_id)\
                         .subquery()
     
-    knockedImagesSQ = db.session.query(Image.id.label('image_id'),Cluster.id.label('cluster_id'))\
-                        .join(Cluster,Image.clusters)\
-                        .filter(Cluster.task_id==task_id)\
-                        .filter(Cluster.labels.contains(downLabel))\
+    knockedImagesSQ = db.session.query(Image.id.label('image_id'),Labelgroup.id.label('labelgroup_id'))\
+                        .join(Detection,Detection.image_id==Image.id)\
+                        .join(Labelgroup)\
+                        .filter(Labelgroup.task_id==task_id)\
+                        .filter(Labelgroup.labels.contains(downLabel))\
                         .subquery()
 
     # This finds all the relevent detections in the trapgroup
@@ -5174,7 +5182,7 @@ def det_presence_clustering(task_id,trapgroup_id,starting_last_cluster_id,query_
                                 .filter(Camera.trapgroup_id==trapgroup_id)\
                                 .filter(Image.corrected_timestamp!=None)\
                                 .filter(alreadyClusteredSQ.c.cluster_id==None)\
-                                .filter(knockedImagesSQ.c.cluster_id==None)
+                                .filter(knockedImagesSQ.c.labelgroup_id==None)
     
     if timestamp: imageDetectionSQ = imageDetectionSQ.filter(Image.corrected_timestamp>=timestamp)
 
@@ -5894,8 +5902,8 @@ def prepTask(self, task_id, includes=None, translation=None, labels=None, auto_r
         # classification & status update - only if not a default task
         task = db.session.query(Task).get(task_id)
         if task.name!='default':
-            task.status = 'Auto-Classifying'
-            db.session.commit()
+            # task.status = 'Auto-Classifying'
+            # db.session.commit()
 
             if parallel:
                 results = []
@@ -5914,8 +5922,9 @@ def prepTask(self, task_id, includes=None, translation=None, labels=None, auto_r
             if Config.DEBUGGING: print('{}: finished updating statuses for task {}'.format(time.time()-starttime,task_id))
         
         task = db.session.query(Task).get(task_id)
-        task.status='Ready'
-        if auto_release: task.survey.status = 'Ready'
+        if auto_release:
+            task.status='Ready'
+            task.survey.status = 'Ready'
         db.session.commit()
 
         if Config.DEBUGGING: print('{}: finished prepping task {}'.format(time.time()-starttime,task_id))
