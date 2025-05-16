@@ -7207,8 +7207,25 @@ def assignLabel(clusterID):
                     cluster.examined = True
                     cluster.timestamp = datetime.utcnow()
 
-                    # Copy labels over to labelgroups in explore mode (handled in task wrap up otherwise)
-                    use_celery_to_update_labelgroups = False
+                    labelgroups = session.query(Labelgroup) \
+                                                .join(Detection) \
+                                                .join(Image) \
+                                                .filter(Image.clusters.contains(cluster)) \
+                                                .filter(Labelgroup.task_id==cluster.task_id) \
+                                                .distinct().limit(400).all()
+
+                    for labelgroup in labelgroups:
+                        if '-2' in taggingLevel:
+                            labelgroup.tags = cluster.tags
+                        else:
+                            labelgroup.labels = cluster.labels
+
+                    # This allows the vast majority of clusters' labelgroups to be updated and just pushes the extreme clases to a celery task to prevent timeouts
+                    if len(labelgroups)==400:
+                        use_celery_to_update_labelgroups = True
+                    else:
+                        use_celery_to_update_labelgroups = False
+
                     if explore:
                         counts = rDets(session.query(Cluster.id,func.count(distinct(Image.id)),func.count(distinct(Labelgroup.id)))\
                                         .join(Image,Cluster.images)
@@ -7217,22 +7234,8 @@ def assignLabel(clusterID):
                                         .filter(Cluster.id==cluster.id)\
                                         .filter(Labelgroup.task_id==cluster.task_id)\
                                         ).group_by(Cluster.id).first()
+                        
                         if Config.DEBUGGING: app.logger.info('Counts: {}'.format(counts))
-                        if counts and counts[2] < 100:
-                            labelgroups = session.query(Labelgroup) \
-                                                .join(Detection) \
-                                                .join(Image) \
-                                                .filter(Image.clusters.contains(cluster)) \
-                                                .filter(Labelgroup.task_id==cluster.task_id) \
-                                                .distinct().all()
-
-                            for labelgroup in labelgroups:
-                                if '-2' in taggingLevel:
-                                    labelgroup.tags = cluster.tags
-                                else:
-                                    labelgroup.labels = cluster.labels
-                        else:
-                            use_celery_to_update_labelgroups = True
 
                         if counts:
                             added_labels = set(newLabels) - set(oldLabels)

@@ -920,6 +920,8 @@ def finish_knockdown(self,rootImageID, task, current_user_id, reclusteringTimest
         images = images.distinct().all() 
         cluster.images = images
 
+        if Config.DEBUGGING: app.logger.info('{} images knocked down'.format(len(images)))
+
         from app.functions.imports import classifyCluster
         cluster.classification = classifyCluster(cluster)
 
@@ -934,6 +936,8 @@ def finish_knockdown(self,rootImageID, task, current_user_id, reclusteringTimest
         if lastImageID: labelgroups = labelgroups.filter(Image.corrected_timestamp <= lastImage.corrected_timestamp)
 
         labelgroups = labelgroups.distinct().all()
+
+        if Config.DEBUGGING: app.logger.info('{} labelgroups knocked down'.format(len(labelgroups)))
 
         for labelgroup in labelgroups:
             labelgroup.labels = [downLabel]
@@ -5678,7 +5682,9 @@ def prepare_labelgroup_cluster_labels(task_id,trapgroup_id,query_limit,timestamp
     
     # Drop AI labels as the classifier might have seen a different cluster - these will be re-classified at the end
     # We don't need to worry about checked status because if a labelgroup is checked, its user ID will no longer be admin_id
+    # downLabel needs to be excluded otherwise the knockdown is overwritten for admin-labelled clusters
     admin = db.session.query(User).filter(User.username=='Admin').first()
+    downLabel = db.session.query(Label).get(GLOBALS.knocked_id)
     while True:
         labelgroups = db.session.query(Labelgroup)\
                                 .join(Detection)\
@@ -5689,7 +5695,8 @@ def prepare_labelgroup_cluster_labels(task_id,trapgroup_id,query_limit,timestamp
                                 .filter(Labelgroup.task_id==task_id)\
                                 .filter(Cluster.task_id==task_id)\
                                 .filter(Cluster.user_id==admin.id)\
-                                .filter(Camera.trapgroup_id==trapgroup_id)
+                                .filter(Camera.trapgroup_id==trapgroup_id)\
+                                .filter(~Labelgroup.labels.contains(downLabel))
         
         if timestamp: labelgroups = labelgroups.filter(Image.corrected_timestamp>=timestamp)
 
