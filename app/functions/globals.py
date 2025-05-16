@@ -1026,7 +1026,7 @@ def unknock_cluster(self,image_id, label_id, user_id, task_id):
             db.session.commit()
 
         # kick off reclustering
-        prepTask(task_id=task.id,trapgroup_ids=[trapgroup_id])
+        prepTask(task_id=task_id,trapgroup_ids=[trapgroup_id])
 
         #Add label to original cluster
         if label_id != None:
@@ -4896,7 +4896,8 @@ def cluster_timestampless(task_id,trapgroup_id,starting_last_cluster_id,query_li
                                     notes=cluster_notes,
                                     user_id=cluster_user_id,
                                     timestamp=cluster_timestamp,
-                                    checked=cluster_checked
+                                    checked=cluster_checked,
+                                    examined=True
                                 )
                     cluster.images = images
                     if cluster_er_ids: cluster.earth_ranger_ids = db.session.query(ERangerID).filter(ERangerID.in_(cluster_er_ids)).all()
@@ -4926,7 +4927,8 @@ def cluster_timestampless(task_id,trapgroup_id,starting_last_cluster_id,query_li
                             notes=cluster_notes,
                             user_id=cluster_user_id,
                             timestamp=cluster_timestamp,
-                            checked=cluster_checked
+                            checked=cluster_checked,
+                            examined=True
                         )
             cluster.images = images
             if cluster_er_ids: cluster.earth_ranger_ids = db.session.query(ERangerID).filter(ERangerID.in_(cluster_er_ids)).all()
@@ -5084,7 +5086,8 @@ def time_based_clustering(task_id,trapgroup_id,query_limit,timestamp=None):
                                         notes=cluster_notes,
                                         user_id=cluster_user_id,
                                         timestamp=cluster_timestamp,
-                                        checked=cluster_checked
+                                        checked=cluster_checked,
+                                        examined=True
                                     )
                         cluster.images = images
                         if cluster_er_ids: cluster.earth_ranger_ids = db.session.query(ERangerID).filter(ERangerID.in_(cluster_er_ids)).all()
@@ -5123,7 +5126,8 @@ def time_based_clustering(task_id,trapgroup_id,query_limit,timestamp=None):
                                 notes=cluster_notes,
                                 user_id=cluster_user_id,
                                 timestamp=cluster_timestamp,
-                                checked=cluster_checked
+                                checked=cluster_checked,
+                                examined=True
                             )
                 cluster.images = images
                 if cluster_er_ids: cluster.earth_ranger_ids = db.session.query(ERangerID).filter(ERangerID.in_(cluster_er_ids)).all()
@@ -5370,7 +5374,8 @@ def det_presence_clustering(task_id,trapgroup_id,starting_last_cluster_id,query_
                                     notes=cluster_notes,
                                     user_id=cluster_user_id,
                                     timestamp=cluster_timestamp,
-                                    checked=cluster_checked
+                                    checked=cluster_checked,
+                                    examined=True
                                 )
                     cluster.images = image_subset
                     if cluster_er_ids: cluster.earth_ranger_ids = db.session.query(ERangerID).filter(ERangerID.in_(cluster_er_ids)).all()
