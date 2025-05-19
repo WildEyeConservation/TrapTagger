@@ -6095,7 +6095,7 @@ def get_clusters():
                 if (len(clusterInfo) <= limit) and not max_request:
                     # trapgroup is now finished
                     trapgroup.active = False
-                    GLOBALS.redisClient.lrem(survey_id,0,trapgroup.id)
+                    GLOBALS.redisClient.lrem('trapgroups_'+str(survey_id),0,trapgroup.id)
 
                 GLOBALS.redisClient.set('clusters_allocated_'+str(current_user.id),clusters_allocated)
 
