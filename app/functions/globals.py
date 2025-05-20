@@ -5031,7 +5031,7 @@ def time_based_clustering(task_id,trapgroup_id,query_limit,timestamp=None):
     final_row = db.session.query(clusterSQ.c.row_number).order_by(desc(clusterSQ.c.row_number)).first()
     final_row = final_row[0] if final_row else 0
     while current_row!=final_row:
-        # Here we fetch the next query_limit rows beyond our corrent position
+        # Here we fetch the next query_limit rows beyond our current position
         clusterQuery = db.session.query(
                                 Image,
                                 clusterSQ.c.cluster_number,
@@ -5365,9 +5365,8 @@ def det_presence_clustering(task_id,trapgroup_id,starting_last_cluster_id,query_
             cluster_er_ids = []
             image_subset = []
             for image in cluster_images:
-                # Push the current set of images to a cluster if we have reached the end of image set, or the MAX_CLUSTER_MINUTES has been reached
-                if (image==cluster_images[-1]) or (image_subset and ((image.corrected_timestamp-image_subset[0].corrected_timestamp) > timedelta(minutes=Config.MAX_CLUSTER_MINUTES))):
-                    if image==cluster_images[-1]: image_subset.append(image) # This wraps up the last cluster on the last image
+                # Push the current set of images to a cluster if MAX_CLUSTER_MINUTES has been reached
+                if image_subset and ((image.corrected_timestamp-image_subset[0].corrected_timestamp) > timedelta(minutes=Config.MAX_CLUSTER_MINUTES)):
                     if cluster_checked==None: cluster_checked = False
                     cluster = Cluster(
                                     task_id=task_id,
@@ -5403,6 +5402,21 @@ def det_presence_clustering(task_id,trapgroup_id,starting_last_cluster_id,query_
                 if er_ids: cluster_er_ids.extend(er_ids)
 
                 image_subset.append(image)
+
+            # Wrap up last cluster
+            if image_subset:
+                if cluster_checked==None: cluster_checked = False
+                cluster = Cluster(
+                                task_id=task_id,
+                                notes=cluster_notes,
+                                user_id=cluster_user_id,
+                                timestamp=cluster_timestamp,
+                                checked=cluster_checked,
+                                examined=True
+                            )
+                cluster.images = image_subset
+                if cluster_er_ids: cluster.earth_ranger_ids = db.session.query(ERangerID).filter(ERangerID.in_(cluster_er_ids)).all()
+                clusters.append(cluster)
 
             cluster_image_ids = []
             cluster_start = None
