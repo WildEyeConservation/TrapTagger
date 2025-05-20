@@ -5166,17 +5166,19 @@ def det_presence_clustering(task_id,trapgroup_id,starting_last_cluster_id,query_
                         .subquery()
 
     # This finds all the relevent detections in the trapgroup
-    rDetsSQ = rDets(db.session.query(Detection).join(Image).join(Camera).filter(Camera.trapgroup_id==trapgroup_id)).subquery()
+    rDetsSQ = rDets(db.session.query(Image.id.label('image_id'),func.count(Detection.id).label('count')).join(Detection).join(Camera).filter(Camera.trapgroup_id==trapgroup_id)).group_by(Image.id).subquery()
 
     # This generates a detection presence/absence field per image
     imageDetectionSQ = db.session.query(
                                     Image.id.label('image_id'),
+                                    Image.filename.label('filename'),
                                     Image.corrected_timestamp.label('timestamp'),
                                     Camera.cameragroup_id.label('cameragroup_id'),
                                     Camera.trapgroup_id.label('trapgroup_id'),
                                     case(
                                         (
-                                            (rDetsSQ.c.id==None),
+                                            (rDetsSQ.c.count==None) |
+                                            (rDetsSQ.c.count==0),
                                             0
                                         ),
                                         else_=1
@@ -5185,8 +5187,7 @@ def det_presence_clustering(task_id,trapgroup_id,starting_last_cluster_id,query_
                                 .outerjoin(alreadyClusteredSQ,alreadyClusteredSQ.c.image_id==Image.id)\
                                 .outerjoin(knockedImagesSQ,knockedImagesSQ.c.image_id==Image.id)\
                                 .join(Camera)\
-                                .join(Detection)\
-                                .outerjoin(rDetsSQ,rDetsSQ.c.id==Detection.id)\
+                                .outerjoin(rDetsSQ,rDetsSQ.c.image_id==Image.id)\
                                 .filter(Camera.trapgroup_id==trapgroup_id)\
                                 .filter(Image.corrected_timestamp!=None)\
                                 .filter(alreadyClusteredSQ.c.cluster_id==None)\
@@ -5199,18 +5200,20 @@ def det_presence_clustering(task_id,trapgroup_id,starting_last_cluster_id,query_
     # This then creates a lagged version of the det presence and timestamps to help find deltas later on
     prevPresenceSQ = db.session.query(
                                     imageDetectionSQ.c.image_id.label('image_id'),
+                                    imageDetectionSQ.c.filename.label('filename'),
                                     imageDetectionSQ.c.cameragroup_id.label('cameragroup_id'),
                                     imageDetectionSQ.c.trapgroup_id.label('trapgroup_id'),
                                     imageDetectionSQ.c.det_presence.label('det_presence'),
                                     imageDetectionSQ.c.timestamp.label('timestamp'),
-                                    func.lag(imageDetectionSQ.c.det_presence).over(partition_by=imageDetectionSQ.c.cameragroup_id,order_by=imageDetectionSQ.c.timestamp).label("prev_presence"),
-                                    func.lag(imageDetectionSQ.c.timestamp).over(partition_by=imageDetectionSQ.c.cameragroup_id,order_by=imageDetectionSQ.c.timestamp).label("prev_timestamp")
+                                    func.lag(imageDetectionSQ.c.det_presence).over(partition_by=imageDetectionSQ.c.cameragroup_id,order_by=[imageDetectionSQ.c.timestamp,imageDetectionSQ.c.filename]).label("prev_presence"),
+                                    func.lag(imageDetectionSQ.c.timestamp).over(partition_by=imageDetectionSQ.c.cameragroup_id,order_by=[imageDetectionSQ.c.timestamp,imageDetectionSQ.c.filename]).label("prev_timestamp")
                                 )\
                                 .subquery()
 
     # Here we can now generate per-cameragroup clusters based on deltas in detection presence/absence up to a maximum cluster time
     cameraClusterSQ = db.session.query(
                                     prevPresenceSQ.c.image_id.label('image_id'),
+                                    prevPresenceSQ.c.filename.label('filename'),
                                     prevPresenceSQ.c.cameragroup_id.label('cameragroup_id'),
                                     prevPresenceSQ.c.trapgroup_id.label('trapgroup_id'),
                                     prevPresenceSQ.c.det_presence.label('det_presence'),
@@ -5226,7 +5229,7 @@ def det_presence_clustering(task_id,trapgroup_id,starting_last_cluster_id,query_
                                             else_=0
                                         )
                                     )
-                                    .over(partition_by=prevPresenceSQ.c.cameragroup_id,order_by=prevPresenceSQ.c.timestamp).label('cluster_number')
+                                    .over(partition_by=prevPresenceSQ.c.cameragroup_id,order_by=[prevPresenceSQ.c.timestamp,prevPresenceSQ.c.filename]).label('cluster_number')
                                 )\
                                 .subquery()
     
@@ -5266,12 +5269,12 @@ def det_presence_clustering(task_id,trapgroup_id,starting_last_cluster_id,query_
                                     func.min(cameraClusterSQ.c.timestamp).label('start'),
                                     func.max(cameraClusterSQ.c.timestamp).label('end'),
                                     func.group_concat(Image.id).label('image_ids'),
-                                    func.row_number().over(order_by=cameraClusterSQ.c.timestamp).label("row_number")
+                                    func.row_number().over(order_by=[cameraClusterSQ.c.timestamp,cameraClusterSQ.c.filename]).label("row_number")
                                 )\
                                 .join(Image,Image.id==cameraClusterSQ.c.image_id)\
                                 .filter(cameraClusterSQ.c.trapgroup_id==trapgroup_id)\
                                 .group_by(cameraClusterSQ.c.cameragroup_id,cameraClusterSQ.c.cluster_number)\
-                                .order_by(cameraClusterSQ.c.timestamp)\
+                                .order_by(cameraClusterSQ.c.timestamp,cameraClusterSQ.c.filename)\
                                 .all()
 
     cameragroup_ids = [r[0] for r in db.session.query(Cameragroup.id).join(Camera).filter(Camera.trapgroup_id==trapgroup_id).distinct().all()]
@@ -5328,7 +5331,7 @@ def det_presence_clustering(task_id,trapgroup_id,starting_last_cluster_id,query_
                                         .filter(Camera.trapgroup_id==trapgroup_id)\
                                         .filter(Image.corrected_timestamp>=cluster_start)\
                                         .filter(or_(clusterInfoSQ.c.row_number==1,clusterInfoSQ.c.row_number==None))\
-                                        .order_by(Image.corrected_timestamp)\
+                                        .order_by(Image.corrected_timestamp,Image.filename)\
                                         .distinct().limit(query_limit).all()
                 
                 images_start = images_dictionary[0][0].corrected_timestamp
@@ -5349,7 +5352,7 @@ def det_presence_clustering(task_id,trapgroup_id,starting_last_cluster_id,query_
                                             .outerjoin(clusterInfoSQ,clusterInfoSQ.c.image_id==Image.id)\
                                             .filter(Image.id.in_(missing_images))\
                                             .filter(or_(clusterInfoSQ.c.row_number==1,clusterInfoSQ.c.row_number==None))\
-                                            .order_by(Image.corrected_timestamp)\
+                                            .order_by(Image.corrected_timestamp,Image.filename)\
                                             .distinct().all()
                 for item in images_dictionary2:
                     images_dictionary[item[0].id] = item
