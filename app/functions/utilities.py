@@ -1953,3 +1953,46 @@ def check_active_users(minutes=15):
     print('There are %s active users' % len(users))
     print('Users: %s' % [r[0] for r in db.session.query(User.username).filter(User.id.in_(users)).all()])
     return True
+
+def showClustering(trapgroup_id,task_id):
+    '''
+        A very useful tool for auditing clustering.
+        NOTE: termcolor isn't in the image. You'll just need to pip install it in your session.
+    '''
+    
+    from termcolor import colored
+    
+    cluster_colours = ['green','yellow','cyan','magenta']
+    
+    cameragroups = [r[0] for r in db.session.query(Cameragroup.id).join(Camera).filter(Camera.trapgroup_id==trapgroup_id).distinct().all()]
+    images = db.session.query(Image).join(Camera).filter(Camera.trapgroup_id==trapgroup_id).order_by(Image.corrected_timestamp,Image.filename).distinct().all()
+    min_cluster = db.session.query(Cluster.id).join(Image,Cluster.images).join(Camera).filter(Camera.trapgroup_id==trapgroup_id).filter(Cluster.task_id==task_id).order_by(Cluster.id).first()[0]
+    
+    cluster_colour_index = 0
+    prev_cluster = -1
+    for n in range(len(images)-1):
+        current_image = images[n+1]
+        previous_image = images[n]
+        time_delta = current_image.corrected_timestamp-previous_image.corrected_timestamp
+        current_dets = rDets(db.session.query(Detection).filter(Detection.image==current_image)).distinct().count()
+        cluster_id = db.session.query(Cluster.id).filter(Cluster.task_id==task_id).filter(Cluster.images.contains(current_image)).first()[0] - min_cluster
+        if current_dets:
+            colour = 'red'
+        else:
+            colour = 'blue'
+        text = ''
+        for cg_id in cameragroups:
+            if current_image.camera.cameragroup_id==cg_id:
+                data = time_delta
+            else:
+                data = ''
+            text = text+colored('{:{}}'.format(str(data),8), colour)
+        if cluster_id!=prev_cluster: cluster_colour_index+=1
+        if cluster_colour_index>len(cluster_colours)-1: cluster_colour_index = 0
+        colour = cluster_colours[cluster_colour_index]
+        text = text+colored('{:{}}'.format(cluster_id,8), colour)
+        text = text+colored('{}'.format(current_image.id), 'white')
+        print(text)
+        prev_cluster = cluster_id
+    
+    return True
