@@ -1991,7 +1991,7 @@ def showClustering(trapgroup_id,task_id):
         if cluster_colour_index>len(cluster_colours)-1: cluster_colour_index = 0
         colour = cluster_colours[cluster_colour_index]
         text = text+colored('{:{}}'.format(cluster_id,8), colour)
-        text = text+colored('{}'.format(current_image.id), 'white')
+        text = text+'  '+colored('{}'.format(current_image.id), 'white')
         print(text)
         prev_cluster = cluster_id
     
