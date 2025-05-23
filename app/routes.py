@@ -6090,7 +6090,7 @@ def get_clusters():
                 if (len(clusterInfo) <= limit) and not max_request:
                     # trapgroup is now finished
                     trapgroup.active = False
-                    GLOBALS.redisClient.lrem(survey_id,0,trapgroup.id)
+                    GLOBALS.redisClient.lrem('trapgroups_'+str(survey_id),0,trapgroup.id)
 
                 GLOBALS.redisClient.set('clusters_allocated_'+str(current_user.id),clusters_allocated)
 
@@ -14040,6 +14040,22 @@ def addImage():
             altitude = data.get('altitude', 0)
             camera = data.get('camera')
 
+            # Parse coords
+            try:
+                latitude = float(latitude)
+            except:
+                latitude = 0
+
+            try:
+                longitude = float(longitude)
+            except:
+                longitude = 0
+            
+            try:
+                altitude = float(altitude)
+            except:
+                altitude = 0
+
             timestamp = data.get('timestamp') #timestamp must be in UTC!
             if timestamp:
                 try:
@@ -14065,7 +14081,7 @@ def addImage():
                     annotations = None
 
 
-            if site is None and float(latitude) == 0 and float(longitude) == 0:
+            if site is None and (latitude == 0) and (longitude == 0):
                 return json.dumps({'message': 'Missing site information.'}), 400
 
             app.logger.info(f'Filename: {filename} Site: {site} Latitude: {latitude} Longitude: {longitude} Altitude: {altitude} Camera: {camera} Timestamp: {timestamp} Annotations: {annotations}')

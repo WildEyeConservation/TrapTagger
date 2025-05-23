@@ -900,7 +900,7 @@ def processChanges(changes, task_id, speciesChanges=None):
 
             if check==None:
                 parent_value = None
-                if parent != '-99999': parent_value = 0
+                if parent != '-99999': parent_value = '-1'
                 valid = verify_label(changes[parent]['additional'][additional_id]['description'],changes[parent]['additional'][additional_id]['hotkey'],parent_value)
                 if valid:
                     newLabel = Label(description=changes[parent]['additional'][additional_id]['description'],hotkey=changes[parent]['additional'][additional_id]['hotkey'],task_id=task_id)
@@ -925,7 +925,8 @@ def processChanges(changes, task_id, speciesChanges=None):
 
         if parentLabel:
             for additional_id in changes[parent]['additional']:
-                sessionLabels[additional_id].parent = parentLabel
+                if additional_id in sessionLabels.keys():
+                    sessionLabels[additional_id].parent = parentLabel
 
     return True
 
