@@ -6428,7 +6428,7 @@ def launch_task(self,task_id,classify=False):
                 clusters = []
                 trapgroup_ids = [r[0] for r in db.session.query(Trapgroup.id).join(Survey).join(Task).filter(Task.id==task_id).distinct().all()]
                 for trapgroup_id in trapgroup_ids:
-                    clusters.append(
+                    clusters.extend(
                             taggingLevelSQ(
                                 db.session.query(Cluster)\
                                             .join(Image,Cluster.images)\
