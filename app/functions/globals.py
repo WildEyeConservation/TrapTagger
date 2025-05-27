@@ -6436,7 +6436,7 @@ def launch_task(self,task_id,classify=False):
                                             .join(Camera)\
                                             .filter(Camera.trapgroup_id==trapgroup_id)\
                                             .filter(Cluster.task_id==task_id)
-                            ,'-3',False,task_id,trapgroup_id).distinct().count()
+                            ,'-3',False,task_id,trapgroup_id).distinct().all()
                         )
 
             else:
