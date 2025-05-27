@@ -19,8 +19,8 @@ from app.models import *
 from app.functions.globals import addChildLabels, resolve_abandoned_jobs, createTurkcodes, deleteTurkcodes, \
                                     updateTaskCompletionStatus, updateLabelCompletionStatus, updateIndividualIdStatus, retryTime, chunker, \
                                     getClusterClassifications, checkForIdWork, numify_timestamp, rDets, prep_required_images, updateAllStatuses, classifyTask, cleanup_empty_restored_images,\
-                                    reconcile_cluster_labelgroup_labels_and_tags
-from app.functions.individualID import calculate_detection_similarities, generateUniqueName, cleanUpIndividuals, calculate_individual_similarities, check_individual_detection_mismatch
+                                    reconcile_cluster_labelgroup_labels_and_tags, generateUniqueName
+from app.functions.individualID import calculate_detection_similarities, cleanUpIndividuals, calculate_individual_similarities, check_individual_detection_mismatch
 # from app.functions.results import resetImageDownloadStatus, resetVideoDownloadStatus
 import GLOBALS
 from sqlalchemy.sql import func, distinct, or_, alias, and_, literal_column

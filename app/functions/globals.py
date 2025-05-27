@@ -56,6 +56,7 @@ import timezonefinder
 import secrets
 from celery.result import allow_join_result
 from gpuworker.worker import segment_and_pose
+import numpy 
 
 # def cleanupWorkers(one, two):
 #     '''
@@ -6338,6 +6339,7 @@ def launch_task(self,task_id,classify=False):
                                 break
 
                     if check:
+                        from app.functions.individualID import calculate_individual_similarities
                         calculate_individual_similarities(task.id,species)
                         task = db.session.query(Task).get(task_id)
 
@@ -6697,3 +6699,34 @@ def process_detections_for_individual_id(task_ids,species,pose_only=False):
         app.logger.info(' ')
 
     return True
+
+def generateUniqueName(task_id,species,name_type):
+    '''Returns a unique name for an individual of the type requested for the specified task and species.'''
+
+    task = db.session.query(Task).get(task_id)
+
+    if name_type == 'w':
+        check = 1
+        while check != 0:
+            name = random.choice(Config.COLOURS) + ' ' + random.choice(Config.ADJECTIVES) + ' ' + random.choice(Config.NOUNS)
+            check = db.session.query(Individual)\
+                        .filter(Individual.name==name)\
+                        .filter(Individual.species==species)\
+                        .filter(Individual.tasks.contains(task))\
+                        .count()
+    else:
+        if task.current_name:
+            name = str(int(task.current_name)+1)
+        else:
+            count = db.session.query(Individual)\
+                            .filter(Individual.species==species)\
+                            .filter(Individual.tasks.contains(task))\
+                            .order_by(desc(cast(Individual.name, sa.Integer)))\
+                            .first()
+            if count and count.name.isnumeric():
+                name = str(int(count.name)+1)
+            else:
+                name = '1'
+        task.current_name = name
+        db.session.commit()
+    return name

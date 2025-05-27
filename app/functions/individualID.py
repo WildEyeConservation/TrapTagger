@@ -16,7 +16,7 @@ limitations under the License.
 
 from app import app, db, celery
 from app.models import *
-from app.functions.globals import coordinateDistance, retryTime, rDets, updateIndividualIdStatus, chunker, launch_task, process_detections_for_individual_id
+from app.functions.globals import coordinateDistance, retryTime, rDets, updateIndividualIdStatus, chunker, process_detections_for_individual_id
 import GLOBALS
 import time
 from sqlalchemy.sql import func, or_, and_, alias, distinct
@@ -853,6 +853,7 @@ def calculate_individual_similarities(self,task_id,species):
         if task.sub_tasks and ('-5' in task.tagging_level):
             task.survey.status = 'Launched'
             db.session.commit()
+            from app.functions.globals import launch_task
             launch_task.apply_async(kwargs={'task_id':task_id})
         elif task.status != 'PROGRESS' and task.status != 'PENDING':
             updateIndividualIdStatus(task_id)
@@ -860,6 +861,7 @@ def calculate_individual_similarities(self,task_id,species):
             task.status = 'PENDING'
             task.tagging_level = '-5,'+species+',-1'
             db.session.commit()
+            from app.functions.globals import launch_task
             launch_task.apply_async(kwargs={'task_id':task_id})
         else:
             task.survey.status = 'Launched'
@@ -981,37 +983,6 @@ def calculate_individual_similarities(self,task_id,species):
 #         session.close()
 
 #     return True
-
-def generateUniqueName(task_id,species,name_type):
-    '''Returns a unique name for an individual of the type requested for the specified task and species.'''
-
-    task = db.session.query(Task).get(task_id)
-
-    if name_type == 'w':
-        check = 1
-        while check != 0:
-            name = random.choice(Config.COLOURS) + ' ' + random.choice(Config.ADJECTIVES) + ' ' + random.choice(Config.NOUNS)
-            check = db.session.query(Individual)\
-                        .filter(Individual.name==name)\
-                        .filter(Individual.species==species)\
-                        .filter(Individual.tasks.contains(task))\
-                        .count()
-    else:
-        if task.current_name:
-            name = str(int(task.current_name)+1)
-        else:
-            count = db.session.query(Individual)\
-                            .filter(Individual.species==species)\
-                            .filter(Individual.tasks.contains(task))\
-                            .order_by(desc(cast(Individual.name, sa.Integer)))\
-                            .first()
-            if count and count.name.isnumeric():
-                name = str(int(count.name)+1)
-            else:
-                name = '1'
-        task.current_name = name
-        db.session.commit()
-    return name
 
 def handleIndividualUndo(indSimilarity,individual1,individual2,task_id):
     '''
