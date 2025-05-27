@@ -2186,7 +2186,7 @@ def recluster_after_image_timestamp_change(survey_id,image_timestamps):
 
     #update the timestamps
     images = db.session.query(Image,Video.id,Video.still_rate,Camera.trapgroup_id)\
-                        .join(Camera)\
+                        .join(Camera,Image.camera_id==Camera.id)\
                         .outerjoin(Video,Camera.videos)\
                         .filter(Image.id.in_(list(image_timestamps.keys())))\
                         .distinct().all()
