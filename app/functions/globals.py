@@ -1510,9 +1510,18 @@ def updateLabelCompletionStatus(task_id):
     #Also update the number of clusters requiring a classification check
     task = db.session.query(Task).get(task_id)
 
-    count = db.session.query(Cluster).filter(Cluster.task_id==task_id)
-    count = taggingLevelSQ(count,'-3',False,task_id)
-    task.class_check_count = count.distinct().count()
+    count = 0
+    trapgroup_ids = [r[0] for r in db.session.query(Trapgroup.id).join(Survey).join(Task).filter(Task.id==task_id).distinct().all()]
+    for trapgroup_id in trapgroup_ids:
+        # this query can get way too slow (as in hours) if its for the entire survey
+        count += taggingLevelSQ(
+                    db.session.query(Cluster)\
+                                .join(Image,Cluster.images)\
+                                .join(Camera)\
+                                .filter(Camera.trapgroup_id==trapgroup_id)\
+                                .filter(Cluster.task_id==task_id)
+                ,'-3',False,task_id,trapgroup_id).distinct().count()
+    task.class_check_count = count
 
     count = db.session.query(Cluster).filter(Cluster.task_id==task_id)
     count = taggingLevelSQ(count,'-8',False,task_id)
@@ -1807,7 +1816,7 @@ def addChildLabels(names,ids,label,task_id):
 
     return names, ids
 
-def taggingLevelSQ(sq,taggingLevel,isBounding,task_id):
+def taggingLevelSQ(sq,taggingLevel,isBounding,task_id,trapgroup_id=None):
     '''Filters and returns the provided SQLAlchemy query according to the specified task's tagging level.'''
 
     if (taggingLevel == '-1') or (taggingLevel == '0'):
@@ -1835,7 +1844,7 @@ def taggingLevelSQ(sq,taggingLevel,isBounding,task_id):
                 # .filter(~Cluster.labels.contains(db.session.query(Label).get(GLOBALS.vhl_id))) \
     elif (taggingLevel == '-3'):
         # Classifier checking
-        downLabel = db.session.query(Label).get(GLOBALS.vhl_id)
+        downLabel = db.session.query(Label).get(GLOBALS.knocked_id)
         classifier_id = db.session.query(Classifier.id).join(Survey).join(Task).filter(Task.id==task_id).first()[0]
         dataType = db.session.query(Survey.type).join(Task).filter(Task.id==task_id).first()[0]
 
@@ -1852,25 +1861,10 @@ def taggingLevelSQ(sq,taggingLevel,isBounding,task_id):
                                 .filter(or_(and_(Detection.source==model,Detection.score>Config.DETECTOR_THRESHOLDS[model]) for model in Config.DETECTOR_THRESHOLDS)) \
                                 .filter(Detection.static == False) \
                                 .filter(~Detection.status.in_(Config.DET_IGNORE_STATUSES)) \
-                                .filter(((Detection.right-Detection.left)*(Detection.bottom-Detection.top)) > Config.CLASSIFICATION_DET_AREA[dataType])\
-                                .group_by(Cluster.id,Detection.classification)\
-                                .subquery()
+                                .filter(((Detection.right-Detection.left)*(Detection.bottom-Detection.top)) > Config.CLASSIFICATION_DET_AREA[dataType])
 
-        # classificationSQ = db.session.query(Cluster.id.label('cluster_id'),Detection.classification.label('classification'),func.count(distinct(Detection.id)).label('count'))\
-        #                         .join(Image,Cluster.images)\
-        #                         .join(Camera)\
-        #                         .join(Trapgroup)\
-        #                         .join(Survey)\
-        #                         .join(Classifier)\
-        #                         .join(Detection)\
-        #                         .filter(Cluster.task_id==task_id)\
-        #                         .filter(or_(and_(Detection.source==model,Detection.score>Config.DETECTOR_THRESHOLDS[model]) for model in Config.DETECTOR_THRESHOLDS)) \
-        #                         .filter(Detection.static == False) \
-        #                         .filter(~Detection.status.in_(Config.DET_IGNORE_STATUSES)) \
-        #                         .filter(((Detection.right-Detection.left)*(Detection.bottom-Detection.top)) > Config.DET_AREA)\
-        #                         .filter(Detection.class_score>Classifier.threshold) \
-        #                         .group_by(Cluster.id,Detection.classification)\
-        #                         .subquery()
+        if trapgroup_id: classificationSQ = classificationSQ.join(Camera).filter(Camera.trapgroup_id==trapgroup_id)
+        classificationSQ = classificationSQ.group_by(Cluster.id,Detection.classification).subquery()
 
         clusterDetCountSQ = db.session.query(Cluster.id.label('cluster_id'),func.count(Detection.id).label('count'))\
                                 .join(Image,Cluster.images)\
@@ -1879,9 +1873,10 @@ def taggingLevelSQ(sq,taggingLevel,isBounding,task_id):
                                 .filter(or_(and_(Detection.source==model,Detection.score>Config.DETECTOR_THRESHOLDS[model]) for model in Config.DETECTOR_THRESHOLDS)) \
                                 .filter(Detection.static == False) \
                                 .filter(~Detection.status.in_(Config.DET_IGNORE_STATUSES)) \
-                                .filter(((Detection.right-Detection.left)*(Detection.bottom-Detection.top)) > Config.CLASSIFICATION_DET_AREA[dataType])\
-                                .group_by(Cluster.id)\
-                                .subquery()
+                                .filter(((Detection.right-Detection.left)*(Detection.bottom-Detection.top)) > Config.CLASSIFICATION_DET_AREA[dataType])
+
+        if trapgroup_id: clusterDetCountSQ = clusterDetCountSQ.join(Camera).filter(Camera.trapgroup_id==trapgroup_id)
+        clusterDetCountSQ = clusterDetCountSQ.group_by(Cluster.id).subquery()
 
         labelstableSQ = db.session.query(labelstable.c.cluster_id.label('cluster_id'),Translation.classification.label('classification'))\
                                 .join(Translation,Translation.label_id==labelstable.c.label_id)\
@@ -2460,7 +2455,7 @@ def re_evaluate_trapgroup_examined(trapgroup_id,task_id):
                 .join(Camera)\
                 .filter(Camera.trapgroup_id==trapgroup_id)
 
-    sq = taggingLevelSQ(sq,task.tagging_level,task.is_bounding,task_id)
+    sq = taggingLevelSQ(sq,task.tagging_level,task.is_bounding,task_id,trapgroup_id)
 
     clusters = sq.filter(Cluster.task_id == task_id) \
                     .filter(or_(and_(Detection.source==model,Detection.score>Config.DETECTOR_THRESHOLDS[model]) for model in Config.DETECTOR_THRESHOLDS)) \
@@ -6428,28 +6423,44 @@ def launch_task(self,task_id,classify=False):
                 cluster.examined = True
                 cluster.skipped = False
 
-            sq = db.session.query(Cluster) \
-                .join(Image, Cluster.images) \
-                .join(Detection)
+            if '-3' in taggingLevel:
+                # this query can get way too slow (as in hours) if its for the entire survey
+                clusters = []
+                trapgroup_ids = [r[0] for r in db.session.query(Trapgroup.id).join(Survey).join(Task).filter(Task.id==task_id).distinct().all()]
+                for trapgroup_id in trapgroup_ids:
+                    clusters.append(
+                            taggingLevelSQ(
+                                db.session.query(Cluster)\
+                                            .join(Image,Cluster.images)\
+                                            .join(Camera)\
+                                            .filter(Camera.trapgroup_id==trapgroup_id)\
+                                            .filter(Cluster.task_id==task_id)
+                            ,'-3',False,task_id,trapgroup_id).distinct().count()
+                        )
 
-            sq = taggingLevelSQ(sq,taggingLevel,isBounding,task_id)
-
-            # if '-6' in taggingLevel:
-            #     # NOTE: This is not currently used (is for check masked sightings)
-            #     clusters = sq.filter(Cluster.task_id == task_id) \
-            #                     .filter(or_(and_(Detection.source==model,Detection.score>Config.DETECTOR_THRESHOLDS[model]) for model in Config.DETECTOR_THRESHOLDS)) \
-            #                     .filter(Detection.static == False) \
-            #                     .filter(Detection.status == 'masked') \
-            #                     .distinct().all()
-
-            if '-7' in taggingLevel:	
-                clusters = sq.filter(Cluster.task_id == task_id).distinct().all()
             else:
-                clusters = sq.filter(Cluster.task_id == task_id) \
-                                .filter(or_(and_(Detection.source==model,Detection.score>Config.DETECTOR_THRESHOLDS[model]) for model in Config.DETECTOR_THRESHOLDS)) \
-                                .filter(Detection.static == False) \
-                                .filter(~Detection.status.in_(Config.DET_IGNORE_STATUSES)) \
-                                .distinct().all()
+                sq = db.session.query(Cluster) \
+                    .join(Image, Cluster.images) \
+                    .join(Detection)
+
+                sq = taggingLevelSQ(sq,taggingLevel,isBounding,task_id)
+
+                # if '-6' in taggingLevel:
+                #     # NOTE: This is not currently used (is for check masked sightings)
+                #     clusters = sq.filter(Cluster.task_id == task_id) \
+                #                     .filter(or_(and_(Detection.source==model,Detection.score>Config.DETECTOR_THRESHOLDS[model]) for model in Config.DETECTOR_THRESHOLDS)) \
+                #                     .filter(Detection.static == False) \
+                #                     .filter(Detection.status == 'masked') \
+                #                     .distinct().all()
+
+                if '-7' in taggingLevel:	
+                    clusters = sq.filter(Cluster.task_id == task_id).distinct().all()
+                else:
+                    clusters = sq.filter(Cluster.task_id == task_id) \
+                                    .filter(or_(and_(Detection.source==model,Detection.score>Config.DETECTOR_THRESHOLDS[model]) for model in Config.DETECTOR_THRESHOLDS)) \
+                                    .filter(Detection.static == False) \
+                                    .filter(~Detection.status.in_(Config.DET_IGNORE_STATUSES)) \
+                                    .distinct().all()
 
             cluster_count = len(clusters)
 

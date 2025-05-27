@@ -18,7 +18,7 @@ from app import app, db, celery
 from app.models import *
 # from app.functions.admin import setup_new_survey_permissions
 from app.functions.globals import detection_rating, randomString, updateTaskCompletionStatus, updateLabelCompletionStatus, updateIndividualIdStatus, retryTime,\
-                                 chunker, save_crops, list_all, classifyTask, all_equal, taggingLevelSQ, generate_raw_image_hash, updateAllStatuses, setup_new_survey_permissions, \
+                                 chunker, save_crops, list_all, classifyTask, all_equal, generate_raw_image_hash, updateAllStatuses, setup_new_survey_permissions, \
                                  hideSmallDetections, maskSky, rDets, verify_label, checkChildTranslations, createChildTranslations, add_new_task, prepTask, launch_task
 import GLOBALS
 from sqlalchemy.sql import func, or_, distinct, and_, literal_column
