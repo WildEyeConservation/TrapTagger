@@ -2238,7 +2238,7 @@ def recluster_after_image_timestamp_change(survey_id,image_timestamps):
                                 .join(Detection)\
                                 .join(Image)\
                                 .join(Cluster,Image.clusters)\
-                                .join(clusterSQ.c.id==Cluster.id)\
+                                .join(clusterSQ,clusterSQ.c.id==Cluster.id)\
                                 .filter(Labelgroup.checked==False)\
                                 .filter(Labelgroup.labels.any())\
                                 .distinct().limit(query_limit).all()
@@ -2246,7 +2246,7 @@ def recluster_after_image_timestamp_change(survey_id,image_timestamps):
         for labelgroup in labelgroups:
             labelgroup.labels = []
 
-        if len(clusters) < labelgroups: break
+        if len(labelgroups) < query_limit: break
 
     db.session.commit()
 

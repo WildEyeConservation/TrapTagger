@@ -2935,6 +2935,8 @@ def inspect_celery(include_spam=False,include_reserved=False,include_scheduled=F
                     print('{:{}}{:{}}{:{}}{:{}}  {}'.format(task['id'],40,name,36,hostname,36,time_start,29,task['kwargs']['dirpath']))
                 elif 'prepTask' in task['name']:
                     print('{:{}}{:{}}{:{}}{:{}}  task_id={}'.format(task['id'],40,name,36,hostname,36,time_start,29,task['kwargs']['task_id']))
+                elif '.classifyTask' in task['name']:
+                    print('{:{}}{:{}}{:{}}{:{}}  {}'.format(task['id'],40,name,36,hostname,36,time_start,29,task['kwargs']))
                 elif '.classifyTrapgroup' in task['name']:
                     print('{:{}}{:{}}{:{}}{:{}}  {}'.format(task['id'],40,name,36,hostname,36,time_start,29,task['kwargs']))
                 elif '.classify_survey' in task['name']:
@@ -2951,6 +2953,8 @@ def inspect_celery(include_spam=False,include_reserved=False,include_scheduled=F
                     print('{:{}}{:{}}{:{}}{:{}}  {}'.format(task['id'],40,name,36,hostname,36,time_start,29,task['kwargs']['batch'][0]['query_ids']))
                 elif 'generateDetections' in task['name']:
                     print('{:{}}{:{}}{:{}}{:{}}  {}'.format(task['id'],40,name,36,hostname,36,time_start,29,task['kwargs']['batch'][0]['dirpath']))
+                elif 'handleTaskEdit' in task['name']:
+                    print('{:{}}{:{}}{:{}}{:{}}  task_id={}'.format(task['id'],40,name,36,hostname,36,time_start,29,task['kwargs']['task_id']))
                 else:
                     print('{:{}}{:{}}{:{}}{:{}}  {}'.format(task['id'],40,name,36,hostname,36,time_start,29,task['kwargs']))
 
@@ -2983,6 +2987,8 @@ def inspect_celery(include_spam=False,include_reserved=False,include_scheduled=F
                         print('{:{}}{:{}}{:{}}{:{}}  {}'.format(task['id'],40,name,36,hostname,36,time_start,29,task['kwargs']['dirpath']))
                     elif 'prepTask' in task['name']:
                         print('{:{}}{:{}}{:{}}{:{}}  task_id={}'.format(task['id'],40,name,36,hostname,36,time_start,29,task['kwargs']['task_id']))
+                    elif '.classifyTask' in task['name']:
+                        print('{:{}}{:{}}{:{}}{:{}}  {}'.format(task['id'],40,name,36,hostname,36,time_start,29,task['kwargs']))
                     elif '.classifyTrapgroup' in task['name']:
                         print('{:{}}{:{}}{:{}}{:{}}  {}'.format(task['id'],40,name,36,hostname,36,time_start,29,task['kwargs']))
                     elif '.classify_survey' in task['name']:
@@ -2999,6 +3005,8 @@ def inspect_celery(include_spam=False,include_reserved=False,include_scheduled=F
                         print('{:{}}{:{}}{:{}}{:{}}  {}'.format(task['id'],40,name,36,hostname,36,time_start,29,task['kwargs']['batch'][0]['query_ids']))
                     elif 'generateDetections' in task['name']:
                         print('{:{}}{:{}}{:{}}{:{}}  {}'.format(task['id'],40,name,36,hostname,36,time_start,29,task['kwargs']['batch'][0]['dirpath']))
+                    elif 'handleTaskEdit' in task['name']:
+                        print('{:{}}{:{}}{:{}}{:{}}  task_id={}'.format(task['id'],40,name,36,hostname,36,time_start,29,task['kwargs']['task_id']))
                     else:
                         print('{:{}}{:{}}{:{}}{:{}}  {}'.format(task['id'],40,name,36,hostname,36,time_start,29,task['kwargs']))
 
@@ -3033,6 +3041,8 @@ def inspect_celery(include_spam=False,include_reserved=False,include_scheduled=F
                         print('{:{}}{:{}}{:{}}{:{}}  {}'.format(request['id'],40,name,36,hostname,36,eta,29,request['kwargs']['dirpath']))
                     elif 'prepTask' in request['name']:
                         print('{:{}}{:{}}{:{}}{:{}}  task_id={}'.format(request['id'],40,name,36,hostname,36,eta,29,request['kwargs']['task_id']))
+                    elif '.classifyTask' in request['name']:
+                        print('{:{}}{:{}}{:{}}{:{}}  {}'.format(request['id'],40,name,36,hostname,36,eta,29,request['kwargs']))
                     elif '.classifyTrapgroup' in request['name']:
                         print('{:{}}{:{}}{:{}}{:{}}  {}'.format(request['id'],40,name,36,hostname,36,eta,29,request['kwargs']))
                     elif '.classify_survey' in request['name']:
@@ -3049,6 +3059,8 @@ def inspect_celery(include_spam=False,include_reserved=False,include_scheduled=F
                         print('{:{}}{:{}}{:{}}{:{}}  {}'.format(request['id'],40,name,36,hostname,36,eta,29,request['kwargs']['batch'][0]['query_ids']))
                     elif 'generateDetections' in request['name']:
                         print('{:{}}{:{}}{:{}}{:{}}  {}'.format(request['id'],40,name,36,hostname,36,eta,29,request['kwargs']['batch'][0]['dirpath']))
+                    elif 'handleTaskEdit' in request['name']:
+                        print('{:{}}{:{}}{:{}}{:{}}  task_id={}'.format(request['id'],40,name,36,hostname,36,eta,29,request['kwargs']['task_id']))
                     else:
                         print('{:{}}{:{}}{:{}}{:{}}  {}'.format(request['id'],40,name,36,hostname,36,eta,29,request['kwargs']))
 
