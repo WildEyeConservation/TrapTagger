@@ -55,6 +55,7 @@ import pytz
 import timezonefinder
 import secrets
 from celery.result import allow_join_result
+from gpuworker.worker import segment_and_pose
 
 # def cleanupWorkers(one, two):
 #     '''
@@ -6601,5 +6602,98 @@ def launch_task(self,task_id,classify=False):
 
     finally:
         db.session.remove()
+
+    return True
+
+def process_detections_for_individual_id(task_ids,species,pose_only=False):
+    '''
+    Task for processing detections for individual ID purposes. This task is used to segment images and perform pose estimation. It is also used
+    to add the images to the Hotspotter (wbia db) database and calcualte the keypoints for the detections to be used in the similarity calculation.
+
+        Parameters:
+            task_id (int): The task for which the detections are being processed
+            species (str): The species for which the individual ID is being performed
+            pose_only (bool): If True, only the pose is calculated
+    '''
+
+    try:
+
+        app.logger.info('Process detections for individual ID for task_ids: {}, species: {}'.format(task_ids,species))
+        starttime = time.time()
+
+        data = rDets(db.session.query(Detection.id,Detection.left,Detection.right,Detection.top,Detection.bottom,Image.id,Image.filename,Camera.path)\
+                            .join(Image,Detection.image_id==Image.id)\
+                            .join(Camera,Image.camera_id==Camera.id)\
+                            .join(Labelgroup,Labelgroup.detection_id==Detection.id)\
+                            .join(Task,Labelgroup.task_id==Task.id)\
+                            .join(Label,Labelgroup.labels)\
+                            .filter(Task.id.in_(task_ids))\
+                            .filter(Label.description==species))
+        
+        if pose_only:
+            data = data.filter(Detection.flank==None)
+        else:
+            data = data.filter(or_(Detection.aid==None,Detection.flank==None))
+
+        data = data.distinct().all()
+
+        det_data = []
+        for d in data:
+            det_data.append({
+                'detection_id': d[0],
+                'image_id': d[5],
+                'bbox': {
+                    'left': d[1],
+                    'right': d[2],
+                    'top': d[3],
+                    'bottom': d[4]
+                },
+                'image_path': d[7] + '/' + d[6]
+            })
+
+        results = []
+        for batch in chunker(det_data,500):
+            results.append(segment_and_pose.apply_async(kwargs={'batch': batch, 'sourceBucket': Config.BUCKET, 'species': species, 'pose_only':pose_only}, queue='similarity', routing_key='similarity.segment_and_pose'))
+            
+
+        GLOBALS.lock.acquire()
+        with allow_join_result():
+            for result in results:
+                try:
+                    response = result.get()
+                    detections = db.session.query(Detection).filter(Detection.id.in_(response.keys())).all()
+                    for detection in detections:
+                        try:
+                            if detection.flank is None:
+                                detection.flank = response[str(detection.id)]['flank']
+                            if not pose_only:
+                                detection.aid = response[str(detection.id)]['aid']
+                        except Exception:
+                            app.logger.info(' ')
+                            app.logger.info('!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!')
+                            app.logger.info(traceback.format_exc())
+                            app.logger.info('!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!')
+                            app.logger.info(' ')
+
+                except Exception:
+                    app.logger.info(' ')
+                    app.logger.info('!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!')
+                    app.logger.info(traceback.format_exc())
+                    app.logger.info('!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!')
+                    app.logger.info(' ')
+
+                result.forget()
+        GLOBALS.lock.release()
+
+        db.session.commit()
+
+        app.logger.info('Finished processing detections for individual ID in {}s'.format(time.time()-starttime))
+
+    except Exception:
+        app.logger.info(' ')
+        app.logger.info('!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!')
+        app.logger.info(traceback.format_exc())
+        app.logger.info('!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!')
+        app.logger.info(' ')
 
     return True
