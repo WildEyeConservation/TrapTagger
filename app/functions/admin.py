@@ -2191,11 +2191,11 @@ def recluster_after_image_timestamp_change(survey_id,image_timestamps):
                         .filter(Image.id.in_(list(image_timestamps.keys())))\
                         .distinct().all()
     
-    trapgroup_ids = {}
+    trapgroup_ids = []
     for image, video_id, still_rate, trapgroup_id in images:
         try:
-            if image_timestamps[image.id]['timestamp'] != '':
-                new_timestamp = datetime.strptime(image_timestamps[image.id]['timestamp'],image_timestamps[image.id]['format'])
+            if image_timestamps[str(image.id)]['timestamp'] != '':
+                new_timestamp = datetime.strptime(image_timestamps[str(image.id)]['timestamp'],image_timestamps[str(image.id)]['format'])
             else:
                 new_timestamp = None
 
