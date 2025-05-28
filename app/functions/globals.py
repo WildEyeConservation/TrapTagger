@@ -57,6 +57,8 @@ import secrets
 from celery.result import allow_join_result
 from gpuworker.worker import segment_and_pose
 import numpy 
+from sqlalchemy.sql.expression import cast
+import sqlalchemy as sa
 
 # def cleanupWorkers(one, two):
 #     '''
