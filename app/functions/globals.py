@@ -5318,7 +5318,10 @@ def det_presence_clustering(task_id,trapgroup_id,starting_last_cluster_id,query_
 
         # We then look for a delta in the emptyness state - if it changed, start a new cluster
         if cluster_image_ids and ((was_empty != is_empty) or (row_number==last_row)):
-            if row_number==last_row: cluster_image_ids.extend(image_ids)
+            if row_number==last_row:
+                cluster_image_ids.extend(image_ids)
+                if (cluster_start==None) or (start<cluster_start): cluster_start = start
+                if (cluster_end==None) or (end>cluster_end): cluster_end = end
 
             # This means that we should never have more than query_limit image objects in memory
             if (images_end==None) or (cluster_end>images_end) or (cluster_start<images_start):
