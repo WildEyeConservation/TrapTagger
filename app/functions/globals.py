@@ -5317,7 +5317,7 @@ def det_presence_clustering(task_id,trapgroup_id,starting_last_cluster_id,query_
         is_empty = all(map(lambda x: x == False, last_sighting_index.values()))
 
         # We then look for a delta in the emptyness state - if it changed, start a new cluster
-        if cluster_image_ids and ((was_empty != is_empty) or (row_number==last_row)):
+        if (cluster_image_ids and (was_empty != is_empty)) or (row_number==last_row):
             if row_number==last_row:
                 cluster_image_ids.extend(image_ids)
                 if (cluster_start==None) or (start<cluster_start): cluster_start = start
