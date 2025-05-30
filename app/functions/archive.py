@@ -334,7 +334,16 @@ def restore_images_for_id(self,task_id,days,tier,restore_time,extend=False):
 
             cluster_count = rDets(sq.filter(Cluster.task_id == task_id)).distinct().count()
         else:
-            cluster_count = checkForIdWork(task_ids,species,'-1')
+            if algorithm:
+                cluster_count = db.session.query(Individual.id)\
+                                            .join(Task,Individual.tasks)\
+                                            .filter(Task.id.in_(task_ids))\
+                                            .filter(Individual.species==species)\
+                                            .filter(Individual.active==True)\
+                                            .filter(Individual.name!='unidentifiable')\
+                                            .distinct().count()
+            else:
+                cluster_count = checkForIdWork(task_ids,species,'-1')
 
         if cluster_count > 0 or extend:
             app.logger.info('Restoring images for tasks {} for {} days '.format(task_ids,days))
