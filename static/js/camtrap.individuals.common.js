@@ -675,3 +675,98 @@ function removeImage() {
 //     contextLocation = e.latlng
 //     targetUpdated = true
 // }
+
+function prepImageMap(div_id, image_url, detection, vw=10) {
+    /** Prepares the image map for the individual modal. */
+    if (bucketName != null) {
+        var imageUrl = "https://"+bucketName+".s3.amazonaws.com/" + modifyToCompURL(image_url)
+        var img = new Image();
+        img.onload = function(){
+            w = this.width
+            h = this.height
+            if (w>h) {
+                // document.getElementById(div_id).setAttribute('style','height: calc(10vw *'+(h/w)+');  width:10vw')
+                document.getElementById(div_id).setAttribute('style','height: calc('+vw+'vw *'+(h/w)+');  width:'+vw+'vw')
+            } else {
+                // document.getElementById(div_id).setAttribute('style','height: calc(10vw *'+(w/h)+');  width:10vw')
+                document.getElementById(div_id).setAttribute('style','height: calc('+vw+'vw *'+(w/h)+');  width:'+vw+'vw')
+            }
+            L.Browser.touch = true
+        
+            mergeMap[div_id] = new L.map(div_id, {
+                crs: L.CRS.Simple,
+                maxZoom: 10,
+                center: [0, 0],
+                zoomSnap: 0,
+                attributionControl: false,
+            })
+
+            // disable zoom controls and drag etc
+            mergeMap[div_id].zoomControl.remove()
+            mergeMap[div_id].dragging.disable()
+            mergeMap[div_id].touchZoom.disable()
+            mergeMap[div_id].doubleClickZoom.disable()
+            mergeMap[div_id].scrollWheelZoom.disable()
+            mergeMap[div_id].boxZoom.disable()
+            mergeMap[div_id].keyboard.disable()   
+            mergeMap[div_id].boxZoom.disable()
+
+
+            var h1 = document.getElementById(div_id).clientHeight
+            var w1 = document.getElementById(div_id).clientWidth
+            var southWest = mergeMap[div_id].unproject([0, h1], 2);
+            var northEast = mergeMap[div_id].unproject([w1, 0], 2);
+            var bounds = new L.LatLngBounds(southWest, northEast);
+
+            mergeActiveImage[div_id] = L.imageOverlay(imageUrl, bounds).addTo(mergeMap[div_id]);
+
+            mergeActiveImage[div_id].on('load', function() {
+                // I want to zoom the map to fit the bounds of detection
+                if (detection != null) {
+                    det_bounds = [[detection.top*mergeMapHeight[div_id],detection.left*mergeMapWidth[div_id]],[detection.bottom*mergeMapHeight[div_id],detection.right*mergeMapWidth[div_id]]]
+                    mergeMap[div_id].fitBounds(det_bounds, {padding: [10,10]});
+                }
+            });
+
+
+            mergeMapWidth[div_id] = northEast.lng
+            mergeMapHeight[div_id] = southWest.lat
+            mergeMap[div_id].setMaxBounds(bounds);
+            mergeMap[div_id].fitBounds(bounds)
+            mergeMap[div_id].setMinZoom(mergeMap[div_id].getZoom())
+
+
+
+            mergeMap[div_id].on('resize', function(){
+                if (mergeMap[div_id] != null && document.getElementById(div_id) && document.getElementById(div_id).clientHeight){
+
+                    var h1 = document.getElementById(div_id).clientHeight
+                    var w1 = document.getElementById(div_id).clientWidth
+
+                    var southWest = mergeMap[div_id].unproject([0, h1], 2);
+                    var northEast = mergeMap[div_id].unproject([w1, 0], 2);
+                    var bounds = new L.LatLngBounds(southWest, northEast);
+
+                    mergeMapWidth[div_id] = northEast.lng
+                    mergeMapHeight[div_id] = southWest.lat
+                        
+                    mergeMap[div_id].invalidateSize()
+                    mergeMap[div_id].setMaxBounds(bounds)
+                    mergeMap[div_id].fitBounds(bounds)
+                    mergeMap[div_id].setMinZoom(2)
+                    mergeActiveImage[div_id].setBounds(bounds)
+                    
+                    // add a small delay to allow the map to resize
+                    setTimeout(function() {
+                        if (detection != null) {
+                            var det_bounds = [[detection.top*mergeMapHeight[div_id],detection.left*mergeMapWidth[div_id]],[detection.bottom*mergeMapHeight[div_id],detection.right*mergeMapWidth[div_id]]]
+                            mergeMap[div_id].fitBounds(det_bounds, {padding: [10,10]});
+                        }
+                    }, 500);
+
+                }
+            });
+        }
+        img.src = imageUrl
+    }
+}

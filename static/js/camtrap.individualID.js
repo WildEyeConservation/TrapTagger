@@ -889,6 +889,10 @@ function buildIndividualsObject() {
                                     individuals[individualIndex][info.id]['notes'] = info.notes
                                     individuals[individualIndex][info.id]['children'] = info.children
                                     individuals[individualIndex][info.id]['family'] = info.family
+                                    individuals[individualIndex][info.id]['known'] = 'false'
+                                    if (info.surveys.length>1) {
+                                        individuals[individualIndex][info.id]['known'] = 'true'
+                                    }
                                     buildIndividuals()
 
                                     stat = true

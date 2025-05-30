@@ -630,21 +630,45 @@ def getIndividuals(task_id,species):
             individuals = db.session.query(Individual).filter(Individual.tasks.contains(task)).filter(Individual.name!='unidentifiable').filter(Individual.active==True).filter(Individual.species==species).order_by(Individual.name).distinct().paginate(page, 8, False)
 
         for individual in individuals.items:
-            image = db.session.query(Image)\
+            # image = db.session.query(Image)\
+            #                 .join(Detection)\
+            #                 .join(Camera)\
+            #                 .join(Trapgroup)\
+            #                 .filter(Detection.individuals.contains(individual))\
+            #                 .filter(or_(and_(Detection.source==model,Detection.score>Config.DETECTOR_THRESHOLDS[model]) for model in Config.DETECTOR_THRESHOLDS))\
+            #                 .filter(Detection.static==False)\
+            #                 .filter(~Detection.status.in_(Config.DET_IGNORE_STATUSES))\
+            #                 .filter(Trapgroup.survey_id==task.survey_id)\
+            #                 .order_by(desc(Image.detection_rating)).first()
+
+            det_id = calculate_individual_best_detection(individual.id)
+            image = db.session.query(Image.filename,Camera.path, Detection.top, Detection.left, Detection.right, Detection.bottom)\
                             .join(Detection)\
                             .join(Camera)\
-                            .join(Trapgroup)\
-                            .filter(Detection.individuals.contains(individual))\
-                            .filter(or_(and_(Detection.source==model,Detection.score>Config.DETECTOR_THRESHOLDS[model]) for model in Config.DETECTOR_THRESHOLDS))\
-                            .filter(Detection.static==False)\
-                            .filter(~Detection.status.in_(Config.DET_IGNORE_STATUSES))\
-                            .filter(Trapgroup.survey_id==task.survey_id)\
-                            .order_by(desc(Image.detection_rating)).first()
+                            .filter(Detection.id==det_id)\
+                            .first()
+            if not image: continue
+            
+            id = individual.id
+            name = individual.name
+            path = image[1]
+            filename = image[0]
+            top = image[2]
+            left = image[3]
+            right = image[4]
+            bottom = image[5]
+
             reply.append({
-                            'id': individual.id,
-                            'name': individual.name,
-                            'url': (image.camera.path + '/' + image.filename).replace('+','%2B').replace('?','%3F').replace('#','%23').replace('\\','%5C')
-                        })
+                'id': id,
+                'name': name,
+                'url': (path + '/' + filename).replace('+','%2B').replace('?','%3F').replace('#','%23').replace('\\','%5C'),
+                'detection': {
+                    'top': top,
+                    'left': left,
+                    'right': right,
+                    'bottom': bottom
+                }
+            })
 
         next = individuals.next_num if individuals.has_next else None
         prev = individuals.prev_num if individuals.has_prev else None
@@ -841,9 +865,7 @@ def getIndividual(individual_id):
         else:
             access = 'hidden'
 
-        tasks = [task.survey.name + ' ' + task.name for task in individual.tasks]
-
-    return json.dumps({'individual': reply, 'access': access, 'tasks': tasks})
+    return json.dumps({'individual': reply, 'access': access})
 
 @app.route('/getCameraStamps')
 @login_required
@@ -5906,6 +5928,9 @@ def submitIndividuals():
             # First check names:
             problemNames = []
             for individualID in individuals:
+                if 'known' not in individuals[individualID]:
+                    individuals[individualID]['known'] = 'false'
+
                 if individuals[individualID]['name'].lower() != 'unidentifiable' and individuals[individualID]['known'] != 'true':
                     check = db.session.query(Individual)
 
@@ -10062,26 +10087,47 @@ def getIndividualAssociations(individual_id, order):
 
             associated_individual = db.session.query(Individual).get(association[0])
 
-            image = db.session.query(Image)\
-                .join(Detection)\
-                .join(Camera)\
-                .join(Trapgroup)\
-                .filter(Detection.individuals.contains(associated_individual))\
-                .filter(or_(and_(Detection.source==model,Detection.score>Config.DETECTOR_THRESHOLDS[model]) for model in Config.DETECTOR_THRESHOLDS))\
-                .filter(Detection.static==False)\
-                .filter(~Detection.status.in_(Config.DET_IGNORE_STATUSES))\
-                .filter(Trapgroup.survey_id.in_(survey_ids))\
-                .order_by(desc(Image.detection_rating)).first()
+            # image = db.session.query(Image)\
+            #     .join(Detection)\
+            #     .join(Camera)\
+            #     .join(Trapgroup)\
+            #     .filter(Detection.individuals.contains(associated_individual))\
+            #     .filter(or_(and_(Detection.source==model,Detection.score>Config.DETECTOR_THRESHOLDS[model]) for model in Config.DETECTOR_THRESHOLDS))\
+            #     .filter(Detection.static==False)\
+            #     .filter(~Detection.status.in_(Config.DET_IGNORE_STATUSES))\
+            #     .filter(Trapgroup.survey_id.in_(survey_ids))\
+            #     .order_by(desc(Image.detection_rating)).first()
 
-            reply.append(
-                {
-                    'id': association[0],
-                    'name': association[1],
-                    'cluster_count': association[2],
-                    'image_count': association[3],	
-                    'url': (image.camera.path + '/' + image.filename).replace('+','%2B').replace('?','%3F').replace('#','%23').replace('\\','%5C')
-                }
-            )
+            det_id = calculate_individual_best_detection(associated_individual.id)
+            image = db.session.query(Image.filename,Camera.path, Detection.top, Detection.left, Detection.right, Detection.bottom)\
+                        .join(Detection)\
+                        .join(Camera)\
+                        .filter(Detection.id==det_id)\
+                        .first()
+
+            if image:
+                filename = images[0]
+                path = image[1]
+                top = image[2]
+                left = image[3]
+                right = image[4]
+                bottom = image[5]
+                
+                reply.append(
+                    {
+                        'id': association[0],
+                        'name': association[1],
+                        'cluster_count': association[2],
+                        'image_count': association[3],	
+                        'url': (path + '/' + filename).replace('+','%2B').replace('?','%3F').replace('#','%23').replace('\\','%5C'),
+                        'detection': {
+                            'top': top,
+                            'left': left,
+                            'right': right,
+                            'bottom': bottom
+                        }
+                    }
+                )
 
         next_page = associations.next_num if associations.has_next else None
         prev_page = associations.prev_num if associations.has_prev else None

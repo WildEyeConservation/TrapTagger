@@ -177,6 +177,13 @@ function getIndividuals(page = null) {
                 while(individualsDiv.firstChild){
                     individualsDiv.removeChild(individualsDiv.firstChild);
                 }
+
+                for (let mapID in mergeMap) {
+                    if (mapID.includes('indivImageDiv') && mergeMap[mapID] != null) {
+                        mergeMap[mapID].remove()
+                        mergeMap[mapID] = null
+                    }
+                }
                 
                 row = document.createElement('div')
                 row.classList.add('row')
@@ -2117,6 +2124,13 @@ function getIndividualAssociations(individual_id, page=null){
             var tableBody = document.getElementById('associationsTableBody');
             tableBody.innerHTML = ''
 
+            for (let mapID in mergeMap) {
+                if (mapID.includes('associationImageDiv') && mergeMap[mapID] != null) {
+                    mergeMap[mapID].remove()
+                    mergeMap[mapID] = null
+                }
+            }
+
             if (reply.associations.length == 0) {
                 var row = document.createElement('tr');
                 row.setAttribute('style','border: 1px solid rgba(0,0,0,0.2); border-collapse: collapse;')
@@ -2135,7 +2149,7 @@ function getIndividualAssociations(individual_id, page=null){
             }
             else{
                 for (let i=0;i<reply.associations.length;i++) {
-                    buildAssociation(reply.associations[i])
+                    buildAssociation(reply.associations[i],i)
                 }
             }
 
@@ -2161,7 +2175,7 @@ function getIndividualAssociations(individual_id, page=null){
     xhttp.send();
 }
 
-function buildAssociation(association){
+function buildAssociation(association,n){
     /** Builds the association row in table. */
 
     var table = document.getElementById('associationsTableBody');
@@ -2170,21 +2184,29 @@ function buildAssociation(association){
 
     var imageCell = document.createElement('td');
     imageCell.setAttribute('style','width: 25%; border: 1px solid rgba(0,0,0,0.2); border-collapse: collapse; text-align: center; vertical-align: middle;')
-    var image = document.createElement('img');
-    image.setAttribute('width','100%')
-    image.src = "https://"+bucketName+".s3.amazonaws.com/" + modifyToCompURL(association.url)
-    imageCell.appendChild(image);
     row.appendChild(imageCell);
 
-    image.addEventListener('click', function(individualID,individualName){
+    var center = document.createElement('center')
+    imageCell.appendChild(center)
+
+    var div = document.createElement('div')
+    div.id = 'associationImageDiv'+n.toString()
+    div.setAttribute('style','width: 100%; height: 100%; overflow: hidden;')
+    center.appendChild(div)
+
+    prepImageMap('associationImageDiv'+n.toString(), association.url, association.detection, 14.15)
+
+    div.addEventListener('click', function(individualID,individualName,wN){
         return function() {
-            cleanModalIndividual()        
+            mergeMap['associationImageDiv'+wN.toString()].remove()
+            mergeMap['associationImageDiv'+wN.toString()] = null
+            cleanModalIndividual()
             getIndividual(individualID,individualName, true)
             modalIndividual.scrollTop(0)
         }
-    }(association.id,association.name));
-                                      
-  
+    }(association.id,association.name,n));
+
+    
     var nameCell = document.createElement('td');
     nameCell.setAttribute('style','width: 25%; border: 1px solid rgba(0,0,0,0.2); border-collapse: collapse;  text-align: center; vertical-align: middle;')
     nameCell.textContent = association.name;
@@ -3339,6 +3361,13 @@ function getMergeIndividuals(page = null) {
             while(mergeIndividualsDiv.firstChild){
                 mergeIndividualsDiv.removeChild(mergeIndividualsDiv.firstChild);
             }
+
+            for (let mapID in mergeMap) {
+                if (mapID.includes('imgDiv') && mergeMap[mapID] != null) {
+                    mergeMap[mapID].remove()
+                    mergeMap[mapID] = null
+                }
+            }
             
             var row = document.createElement('div')
             row.classList.add('row')
@@ -3409,103 +3438,6 @@ function getMergeIndividuals(page = null) {
     xhttp.send(formData);
     
 }
-
-function prepImageMap(div_id, image_url, detection, vw=10) {
-    /** Prepares the image map for the individual modal. */
-    if (bucketName != null) {
-        var imageUrl = "https://"+bucketName+".s3.amazonaws.com/" + modifyToCompURL(image_url)
-        var img = new Image();
-        img.onload = function(){
-            w = this.width
-            h = this.height
-            if (w>h) {
-                // document.getElementById(div_id).setAttribute('style','height: calc(10vw *'+(h/w)+');  width:10vw')
-                document.getElementById(div_id).setAttribute('style','height: calc('+vw+'vw *'+(h/w)+');  width:'+vw+'vw')
-            } else {
-                // document.getElementById(div_id).setAttribute('style','height: calc(10vw *'+(w/h)+');  width:10vw')
-                document.getElementById(div_id).setAttribute('style','height: calc('+vw+'vw *'+(w/h)+');  width:'+vw+'vw')
-            }
-            L.Browser.touch = true
-        
-            mergeMap[div_id] = new L.map(div_id, {
-                crs: L.CRS.Simple,
-                maxZoom: 10,
-                center: [0, 0],
-                zoomSnap: 0,
-                attributionControl: false,
-            })
-
-            // disable zoom controls and drag etc
-            mergeMap[div_id].zoomControl.remove()
-            mergeMap[div_id].dragging.disable()
-            mergeMap[div_id].touchZoom.disable()
-            mergeMap[div_id].doubleClickZoom.disable()
-            mergeMap[div_id].scrollWheelZoom.disable()
-            mergeMap[div_id].boxZoom.disable()
-            mergeMap[div_id].keyboard.disable()   
-            mergeMap[div_id].boxZoom.disable()
-
-
-            var h1 = document.getElementById(div_id).clientHeight
-            var w1 = document.getElementById(div_id).clientWidth
-            var southWest = mergeMap[div_id].unproject([0, h1], 2);
-            var northEast = mergeMap[div_id].unproject([w1, 0], 2);
-            var bounds = new L.LatLngBounds(southWest, northEast);
-
-            mergeActiveImage[div_id] = L.imageOverlay(imageUrl, bounds).addTo(mergeMap[div_id]);
-
-            mergeActiveImage[div_id].on('load', function() {
-                // I want to zoom the map to fit the bounds of detection
-                if (detection != null) {
-                    det_bounds = [[detection.top*mergeMapHeight[div_id],detection.left*mergeMapWidth[div_id]],[detection.bottom*mergeMapHeight[div_id],detection.right*mergeMapWidth[div_id]]]
-                    mergeMap[div_id].fitBounds(det_bounds, {padding: [10,10]});
-                }
-            });
-
-
-            mergeMapWidth[div_id] = northEast.lng
-            mergeMapHeight[div_id] = southWest.lat
-            mergeMap[div_id].setMaxBounds(bounds);
-            mergeMap[div_id].fitBounds(bounds)
-            mergeMap[div_id].setMinZoom(mergeMap[div_id].getZoom())
-
-
-
-            mergeMap[div_id].on('resize', function(){
-                if (mergeMap[div_id] != null && document.getElementById(div_id) && document.getElementById(div_id).clientHeight){
-
-                    var h1 = document.getElementById(div_id).clientHeight
-                    var w1 = document.getElementById(div_id).clientWidth
-
-                    var southWest = mergeMap[div_id].unproject([0, h1], 2);
-                    var northEast = mergeMap[div_id].unproject([w1, 0], 2);
-                    var bounds = new L.LatLngBounds(southWest, northEast);
-
-                    mergeMapWidth[div_id] = northEast.lng
-                    mergeMapHeight[div_id] = southWest.lat
-                        
-                    mergeMap[div_id].invalidateSize()
-                    mergeMap[div_id].setMaxBounds(bounds)
-                    mergeMap[div_id].fitBounds(bounds)
-                    mergeMap[div_id].setMinZoom(2)
-                    mergeActiveImage[div_id].setBounds(bounds)
-                    
-                    // add a small delay to allow the map to resize
-                    setTimeout(function() {
-                        if (detection != null) {
-                            var det_bounds = [[detection.top*mergeMapHeight[div_id],detection.left*mergeMapWidth[div_id]],[detection.bottom*mergeMapHeight[div_id],detection.right*mergeMapWidth[div_id]]]
-                            mergeMap[div_id].fitBounds(det_bounds, {padding: [10,10]});
-                        }
-                    }, 500);
-
-                }
-            });
-        }
-        img.src = imageUrl
-    }
-}
-
-
 
 function viewMergeIndividual(){
     /** Views the selected individual in the merge individuals modal. */

@@ -345,6 +345,10 @@ var cameragroup_page = {}
 var staticgroup_page = {}
 var timestamp_page = {}
 var editTaskAlertCount = 0
+var mergeMap = {}
+var mergeActiveImage = {}
+var mergeMapWidth = {}
+var mergeMapHeight = {}
 
 function buildSurveys(survey,disableSurvey) {
     /**

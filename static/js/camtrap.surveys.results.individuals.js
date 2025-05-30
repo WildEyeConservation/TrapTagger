@@ -82,6 +82,13 @@ function getIndividuals(page = null) {
             while(individualsDiv.firstChild){
                 individualsDiv.removeChild(individualsDiv.firstChild);
             }
+
+            for (let mapID in mergeMap) {
+                if (mapID.includes('indivImageDiv') && mergeMap[mapID] != null) {
+                    mergeMap[mapID].remove()
+                    mergeMap[mapID] = null
+                }
+            }
             
             row = document.createElement('div')
             row.classList.add('row')
@@ -103,17 +110,21 @@ function getIndividuals(page = null) {
                 col.classList.add('col-lg-3')
                 row.appendChild(col)
 
-                image = document.createElement('img')
-                image.setAttribute('width','100%')
-                image.src = "https://"+bucketName+".s3.amazonaws.com/" + modifyToCompURL(newIndividual.url)
-                col.appendChild(image)
+                var center = document.createElement('center')
+                col.appendChild(center)
+
+                let div = document.createElement('div')
+                div.id = 'indivImageDiv'+i
+                center.appendChild(div)
+
+                prepImageMap('indivImageDiv'+i, newIndividual.url, newIndividual.detection, 21)
 
                 h5 = document.createElement('h5')
                 h5.setAttribute('align','center')
                 h5.innerHTML = newIndividual.name
                 col.appendChild(h5)
 
-                image.addEventListener('click', function(individualID,individualName){
+                div.addEventListener('click', function(individualID,individualName){
                     return function() {
                         selectedIndividual = individualID
 
