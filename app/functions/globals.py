@@ -5608,6 +5608,8 @@ def sync_labels(self,task_id,trapgroup_ids):
                 })
             if insert_values: db.session.execute(insert(detectionLabels), insert_values)
 
+        db.session.commit()
+
     except Exception as exc:
         app.logger.info(' ')
         app.logger.info('!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!')
@@ -5676,6 +5678,8 @@ def sync_tags(self,task_id,trapgroup_ids):
                     'tag_id': tag.id
                 })
             if insert_values: db.session.execute(insert(detectionTags), insert_values)
+        
+        db.session.commit()
 
     except Exception as exc:
         app.logger.info(' ')
@@ -5923,8 +5927,6 @@ def prepTask(self, task_id, includes=None, translation=None, labels=None, auto_r
             sync_tags(task_id,trapgroup_ids)
 
         if Config.DEBUGGING: print('{}: tags synchronised for task {}'.format(time.time()-starttime,task_id))
-
-        db.session.commit()
 
         # perform the rest of the old import tasks
         if parallel:
