@@ -5845,8 +5845,9 @@ def prepTask(self, task_id, includes=None, translation=None, labels=None, auto_r
         # If no trapgroups are specified, recluster the whole survey
         if not trapgroup_ids: trapgroup_ids = [r[0] for r in db.session.query(Trapgroup.id).filter(Trapgroup.survey_id==survey_id).distinct().all()]
 
-        parallel = True
-        if (image_count+frame_count < 50000) or (len(trapgroup_ids)==1): parallel = False
+        # parallel = True
+        # if (image_count+frame_count < 50000) or (len(trapgroup_ids)==1): parallel = False
+        parallel = False #NOTE: Bypassing parallelisation for now - potential db issues 
 
         if labels:
             # This makes it indempotent
