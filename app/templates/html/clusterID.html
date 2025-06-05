@@ -235,33 +235,72 @@ limitations under the License. -->
 
 <!-- New Individual Modal -->
 <div id="modalNewIndividual" class="modal fade" role="dialog"  tabindex="-1">
-    <div class="modal-dialog">
+    <div class="modal-dialog" style="max-width: 50%;">
       
         <!-- Modal content-->
         <div class="modal-content">
             <div class="modal-header">
-                <h4 class="modal-title">New Individual</h4>
-                <button type="button" class="close" data-dismiss="modal">&times;</button>
-            </div>
-            <div class="modal-body">
-
-                <div id="newIndividualErrors" style="font-size: 80%; color: #DF691A"></div>
-
-                <h5 style="margin-bottom: 2px">Name</h5>
-                <div style="font-size: 80%; margin-bottom: 2px"><i>An identifying name for the new individual.</i></div>
-                <div class="row">
-                    <div class='col-lg-8'>
-                        <input type="text" class="form-control" required id="newIndividualName"></input>
+                <!-- <h4 class="modal-title"></h4> -->
+                <!-- <button type="button" class="close" data-dismiss="modal">&times;</button> -->
+                <div class='col-lg-11' style="padding: 0px">
+                    <h4 iclass="modal-title"></h4>                   
+                </div>
+                <div class='col-lg-1' style="padding: 0px">
+                    <div class="row">
+                        <div class='col-lg-6' style="padding: 0px">
+                            <button class='btn btn-primary btn-sm pull-right' onclick="helpOpen('new_indiv_help')">Help</button>
+                        </div>
+                        <div class='col-lg-5' style="padding: 0px">
+                            <button id="helpx" type="button" class="close" data-dismiss="modal">&times;</button>
+                        </div>
+                        <div class='col-lg-1' style="padding: 0px"></div>
                     </div>
                 </div>
-                <br>
+            </div>
 
-                <h5 style="margin-bottom: 2px">Notes</h5>
-                <div style="font-size: 80%; margin-bottom: 2px"><i>Add extra information about the individual here.</i></div>
-                <textarea id="notebox" rows="4" cols="56" class="form-control"></textarea>
-                <br>
+            <div class="tab" id="newIndividualTabs">
+                <button id="openNewIndivTab" class="tablinks" onclick="changeIndividualTab(event, 'baseNewIndividualTab')">New Individual</button>
+                <button id="openKnownIndivTab" class="tablinks" onclick="changeIndividualTab(event, 'baseKnownIndividualTab')">Known Individual</button>
+            </div>
 
-                <div id="characteristicsDiv"></div>
+            <div class="modal-body">
+
+                <div class="tabcontent" id="baseNewIndividualTab">
+                    <div id="newIndividualErrors" style="font-size: 80%; color: #DF691A"></div>
+
+                    <h5 style="margin-bottom: 2px">Name</h5>
+                    <div style="font-size: 80%; margin-bottom: 2px"><i>An identifying name for the new individual.</i></div>
+                    <div class="row">
+                        <div class='col-lg-4'>
+                            <input type="text" class="form-control" required id="newIndividualName"></input>
+                        </div>
+                    </div>
+                    <br>
+
+                    <h5 style="margin-bottom: 2px">Notes</h5>
+                    <div style="font-size: 80%; margin-bottom: 2px"><i>Add extra information about the individual here.</i></div>
+                    <div class="row">
+                        <div class='col-lg-6'>
+                            <textarea id="notebox" rows="4" cols="56" class="form-control"></textarea>
+                        </div>
+                    </div>
+                    <br>
+
+                    <div id="characteristicsDiv"></div>
+                </div>
+
+                <div class="tabcontent" id="baseKnownIndividualTab">
+                    <div id="knownIndividualErrors" style="font-size: 80%; color: #DF691A"></div>
+                    <div id="knownDescription">
+                        <h5 style="margin-bottom: 2px">Description</h5>
+                        <div style="font-size: 80%; margin-bottom: 2px"><i>This tab is purely for cases where you recognise the individual. Do not search for matches here - that can be done with the help of AI later on.</i></div>
+                        <br>
+                    </div>
+                    <div class="row">
+                        <div class='col-lg-3' id="knownInfoCol"></div>
+                        <div class='col-lg-9' id="knownIndivCol"></div>
+                    </div>
+                </div>
 
             </div>
             <div class='modal-footer'>
@@ -269,7 +308,7 @@ limitations under the License. -->
                     <button id='btnCancelIndividual' type='button' class='btn btn-info btn-block'>Cancel</button>
                 </div>
                 <div class='col-lg-3'>
-                    <button id='btnSubmitIndividual' type='button' class='btn btn-primary btn-block'>Submit</button>
+                    <button id='btnSubmitIndividual' type='button' class='btn btn-primary btn-block'>Create</button>
                 </div>
             </div>
         </div>
@@ -314,6 +353,7 @@ limitations under the License. -->
 {% block page_scripts %}
 <script src="js/camtrap.common.v{{ version }}.js"></script>
 <script src="js/camtrap.individualID.v{{ version }}.js"></script>
+<script src="js/camtrap.admin.commons.v{{ version }}.js"></script>
 <link rel="stylesheet" href="https://unpkg.com/leaflet@1.6.0/dist/leaflet.css"
 integrity="sha512-xwE/Az9zrjBIphAcBb3F6JVqxf46+CDLwfLMHloNu6KEQCAWi6HcDUbeOfBIptF7tcCzusKFjFw2yuvEpDL9wQ=="
 crossorigin=""/>
@@ -325,4 +365,6 @@ crossorigin=""/>
 <link rel="stylesheet" href="js/leaflet.contextmenu.css"/>
 <script src="js/leaflet.contextmenu.js"></script>
 <link href="https://fonts.googleapis.com/icon?family=Material+Icons" rel="stylesheet">
+<script async defer src="https://maps.googleapis.com/maps/api/js?key=AIzaSyBHroBUjHugf-jw0m2Ajd5zYVcOMBegpUQ&loading=async"></script>
+<script src='js/Leaflet.GoogleMutant.js'></script>
 {% endblock %}

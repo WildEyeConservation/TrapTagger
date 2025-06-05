@@ -2439,12 +2439,12 @@ function initialiseImageMap(image_url, map_id='mapDiv'){
             return function() {
                 mapDiv = document.getElementById(wrap_map_id)
                 if (mapDiv) {
-                    h1 = mapDiv.clientHeight
-                    w1 = mapDiv.clientWidth
+                    var h1 = mapDiv.clientHeight
+                    var w1 = mapDiv.clientWidth
 
-                    southWest = map[wrap_map_id].unproject([0, h1], 2);
-                    northEast = map[wrap_map_id].unproject([w1, 0], 2);
-                    bounds = new L.LatLngBounds(southWest, northEast);
+                    var southWest = map[wrap_map_id].unproject([0, h1], 2);
+                    var northEast = map[wrap_map_id].unproject([w1, 0], 2);
+                    var bounds = new L.LatLngBounds(southWest, northEast);
 
                     mapWidth = northEast.lng
                     mapHeight = southWest.lat

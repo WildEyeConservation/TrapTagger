@@ -6750,3 +6750,115 @@ def generateUniqueName(task_id,species,name_type):
         task.current_name = name
         db.session.commit()
     return name
+
+
+def calculate_individual_best_detection(individual_id):
+    '''Heuristic to calculate the best detection for an individual.'''
+
+    best_detection = None 
+    scores = {}
+    all_scores = {}
+    all_w_scores = {}
+
+    weights = {
+        'det_score': 0.5,
+        'timestamp_score': 0.05,
+        'uncut_score': 0.1,
+        'size_score': 0.2,
+        'flank_score': 0.05,
+        'aspect_ratio_score': 0.1
+    }
+
+    detections = rDets(db.session.query(
+        Detection.id,
+        Detection.score,
+        Detection.top,
+        Detection.bottom,
+        Detection.left,
+        Detection.right,
+        Detection.flank,
+        Image.corrected_timestamp
+    ).join(Image)\
+     .join(Individual, Detection.individuals)\
+     .filter(Individual.id == individual_id)\
+    ).distinct().all()
+
+    scores = {}
+
+    for d in detections:
+        det_id, raw_score, top, bottom, left, right, flank, timestamp = d
+
+        # Calculate scores
+
+        # Timestamp score (daylight hours favorable)
+        timestamp_score = 1.0 if timestamp and 6 < timestamp.hour < 18 else 0.5
+
+        # Uncut score (not cut off)
+        uncut_score = 1 - sum([
+            0.25 if top < 0.01 else 0,
+            0.25 if bottom > 0.95 else 0,  # Threshold lower due to info bar usually being at the bottom
+            0.25 if left < 0.01 else 0,
+            0.25 if right > 0.99 else 0,
+        ])
+
+        # Size score (area of detection)
+        size_score = max((bottom - top) * (right - left), 0)
+        # Penalize too large and too small detections
+        if size_score < 0.1 or size_score > 0.6:
+            size_score = size_score * 0.5
+            # If the uncut score is very low penalize the size score even more
+            if uncut_score <= 0.5:
+                size_score = size_score * 0.5
+
+        # Flank score (ambiguous flank less favorable)
+        flank_score = 0.5 if flank == 'A' else 1.0
+
+        # Aspect ratio score (favorable aspect ratio)
+        width = right - left
+        height = bottom - top
+        if width and height:
+            aspect_ratio = width / height
+            aspect_ratio_score = 1.0 if 1 <= aspect_ratio <= 2.25 else 0.5
+        else:
+            aspect_ratio_score = 0.5
+
+        # Store all scores for debugging
+        all_scores[det_id] = {
+            'det_score': raw_score,
+            'timestamp_score': timestamp_score,
+            'uncut_score': uncut_score,
+            'size_score': size_score,
+            'flank_score': flank_score,
+            'aspect_ratio_score': aspect_ratio_score
+        }
+        all_w_scores[det_id] = {
+            'det_score': raw_score * weights['det_score'],
+            'timestamp_score': timestamp_score * weights['timestamp_score'],
+            'uncut_score': uncut_score * weights['uncut_score'],
+            'size_score': size_score * weights['size_score'],
+            'flank_score': flank_score * weights['flank_score'],
+            'aspect_ratio_score': aspect_ratio_score * weights['aspect_ratio_score']
+        }
+
+        # Weighted sum of all scores
+        final_score = (
+            raw_score * weights['det_score'] +
+            timestamp_score * weights['timestamp_score'] +
+            uncut_score * weights['uncut_score'] +
+            size_score * weights['size_score'] +
+            flank_score * weights['flank_score'] +
+            aspect_ratio_score * weights['aspect_ratio_score']
+        )
+
+        scores[det_id] = final_score
+
+
+    # Sort scores in descending order
+    scores = dict(sorted(scores.items(), key=lambda item: item[1], reverse=True))
+
+    # Return the detection ID with the highest score
+    if scores: best_detection = max(scores, key=scores.get)
+
+    return best_detection
+
+
