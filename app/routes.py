@@ -484,7 +484,7 @@ def getAllIndividuals():
         task_ids = [r[0] for r in tasks]
         survey_ids = [r[1] for r in tasks] 
 
-    individuals = db.session.query(Individual)\
+    individuals = db.session.query(Individual.id,Individual.name)\
                         .join(Detection,Individual.detections)\
                         .join(Image)\
                         .join(Task,Individual.tasks)\
@@ -542,41 +542,26 @@ def getAllIndividuals():
 
     individuals = individuals.distinct().paginate(page, 12, False)
 
+    best_detections = calculate_individual_best_detection([individual[0] for individual in individuals.items])
+
     for individual in individuals.items:
-        # image = db.session.query(Image.filename,Camera.path, Detection.top, Detection.left, Detection.right, Detection.bottom)\
-        #                 .join(Detection)\
-        #                 .join(Camera)\
-        #                 .join(Trapgroup)\
-        #                 .filter(Detection.individuals.contains(individual))\
-        #                 .filter(or_(and_(Detection.source==model,Detection.score>Config.DETECTOR_THRESHOLDS[model]) for model in Config.DETECTOR_THRESHOLDS))\
-        #                 .filter(Detection.static==False)\
-        #                 .filter(~Detection.status.in_(Config.DET_IGNORE_STATUSES))\
-        #                 .filter(Trapgroup.survey_id.in_(survey_ids))\
-        #                 .order_by(desc(Image.detection_rating)).first()
+        # Get the best detection for the individual
+        best_detection = best_detections.get(individual[0], None)
+        if not best_detection: continue
 
-        det_id = calculate_individual_best_detection(individual.id)
-        image = db.session.query(Image.filename,Camera.path, Detection.top, Detection.left, Detection.right, Detection.bottom)\
-                        .join(Detection)\
-                        .join(Camera)\
-                        .filter(Detection.id==det_id)\
-                        .first()
-
-        if image:
-            id = individual.id
-            name = individual.name
-            path = image[1]
-            filename = image[0]
-            reply.append({
-                'id': id,
-                'name': name,
-                'url': (path + '/' + filename).replace('+','%2B').replace('?','%3F').replace('#','%23').replace('\\','%5C'),
-                'detection': {
-                    'top': image[2],
-                    'left': image[3],
-                    'right': image[4],
-                    'bottom': image[5]
-                }
-            })
+        id = individual[0]
+        name = individual[1]
+        reply.append({
+            'id': id,
+            'name': name,
+            'url': (best_detection['path'] + '/' + best_detection['filename']).replace('+','%2B').replace('?','%3F').replace('#','%23').replace('\\','%5C'),
+            'detection': {
+                'top': best_detection['top'],
+                'left': best_detection['left'],
+                'right': best_detection['right'],
+                'bottom': best_detection['bottom']
+            }
+        })
 
     next = individuals.next_num if individuals.has_next else None
     prev = individuals.prev_num if individuals.has_prev else None
@@ -625,48 +610,29 @@ def getIndividuals(task_id,species):
         page = request.args.get('page', 1, type=int)
         
         if species.lower()=='all':
-            individuals = db.session.query(Individual).filter(Individual.tasks.contains(task)).filter(Individual.name!='unidentifiable').filter(Individual.active==True).order_by(Individual.name).distinct().paginate(page, 8, False)
+            individuals = db.session.query(Individual.id,Individual.name).filter(Individual.tasks.contains(task)).filter(Individual.name!='unidentifiable').filter(Individual.active==True).order_by(Individual.name).distinct().paginate(page, 8, False)
         else:
-            individuals = db.session.query(Individual).filter(Individual.tasks.contains(task)).filter(Individual.name!='unidentifiable').filter(Individual.active==True).filter(Individual.species==species).order_by(Individual.name).distinct().paginate(page, 8, False)
+            individuals = db.session.query(Individual.id,Individual.name).filter(Individual.tasks.contains(task)).filter(Individual.name!='unidentifiable').filter(Individual.active==True).filter(Individual.species==species).order_by(Individual.name).distinct().paginate(page, 8, False)
+
+        best_detections = calculate_individual_best_detection([individual[0] for individual in individuals.items])
 
         for individual in individuals.items:
-            # image = db.session.query(Image)\
-            #                 .join(Detection)\
-            #                 .join(Camera)\
-            #                 .join(Trapgroup)\
-            #                 .filter(Detection.individuals.contains(individual))\
-            #                 .filter(or_(and_(Detection.source==model,Detection.score>Config.DETECTOR_THRESHOLDS[model]) for model in Config.DETECTOR_THRESHOLDS))\
-            #                 .filter(Detection.static==False)\
-            #                 .filter(~Detection.status.in_(Config.DET_IGNORE_STATUSES))\
-            #                 .filter(Trapgroup.survey_id==task.survey_id)\
-            #                 .order_by(desc(Image.detection_rating)).first()
+            # Get the best detection for the individual
+            best_detection = best_detections.get(individual[0], None)
+            if not best_detection: continue
 
-            det_id = calculate_individual_best_detection(individual.id)
-            image = db.session.query(Image.filename,Camera.path, Detection.top, Detection.left, Detection.right, Detection.bottom)\
-                            .join(Detection)\
-                            .join(Camera)\
-                            .filter(Detection.id==det_id)\
-                            .first()
-            if not image: continue
-            
-            id = individual.id
-            name = individual.name
-            path = image[1]
-            filename = image[0]
-            top = image[2]
-            left = image[3]
-            right = image[4]
-            bottom = image[5]
+            id = individual[0]
+            name = individual[1]
 
             reply.append({
                 'id': id,
                 'name': name,
-                'url': (path + '/' + filename).replace('+','%2B').replace('?','%3F').replace('#','%23').replace('\\','%5C'),
+                'url': (best_detection['path'] + '/' + best_detection['filename']).replace('+','%2B').replace('?','%3F').replace('#','%23').replace('\\','%5C'),
                 'detection': {
-                    'top': top,
-                    'left': left,
-                    'right': right,
-                    'bottom': bottom
+                    'top': best_detection['top'],
+                    'left': best_detection['left'],
+                    'right': best_detection['right'],
+                    'bottom': best_detection['bottom']
                 }
             })
 
@@ -10066,51 +10032,29 @@ def getIndividualAssociations(individual_id, order):
         # Paginate
         associations = associations.paginate(page, 3, False)
 
+        best_detections = calculate_individual_best_detection([individual[0] for individual in associations.items])
+
         for association in associations.items:
 
-            associated_individual = db.session.query(Individual).get(association[0])
+            # Get the best detection for the individual
+            best_detection = best_detections.get(association[0], None)
+            if not best_detection: continue
 
-            # image = db.session.query(Image)\
-            #     .join(Detection)\
-            #     .join(Camera)\
-            #     .join(Trapgroup)\
-            #     .filter(Detection.individuals.contains(associated_individual))\
-            #     .filter(or_(and_(Detection.source==model,Detection.score>Config.DETECTOR_THRESHOLDS[model]) for model in Config.DETECTOR_THRESHOLDS))\
-            #     .filter(Detection.static==False)\
-            #     .filter(~Detection.status.in_(Config.DET_IGNORE_STATUSES))\
-            #     .filter(Trapgroup.survey_id.in_(survey_ids))\
-            #     .order_by(desc(Image.detection_rating)).first()
-
-            det_id = calculate_individual_best_detection(associated_individual.id)
-            image = db.session.query(Image.filename,Camera.path, Detection.top, Detection.left, Detection.right, Detection.bottom)\
-                        .join(Detection)\
-                        .join(Camera)\
-                        .filter(Detection.id==det_id)\
-                        .first()
-
-            if image:
-                filename = images[0]
-                path = image[1]
-                top = image[2]
-                left = image[3]
-                right = image[4]
-                bottom = image[5]
-                
-                reply.append(
-                    {
-                        'id': association[0],
-                        'name': association[1],
-                        'cluster_count': association[2],
-                        'image_count': association[3],	
-                        'url': (path + '/' + filename).replace('+','%2B').replace('?','%3F').replace('#','%23').replace('\\','%5C'),
-                        'detection': {
-                            'top': top,
-                            'left': left,
-                            'right': right,
-                            'bottom': bottom
-                        }
+            reply.append(
+                {
+                    'id': association[0],
+                    'name': association[1],
+                    'cluster_count': association[2],
+                    'image_count': association[3],
+                    'url': (best_detection['path'] + '/' + best_detection['filename']).replace('+','%2B').replace('?','%3F').replace('#','%23').replace('\\','%5C'),
+                    'detection': {
+                        'top': best_detection['top'],
+                        'left': best_detection['left'],
+                        'right': best_detection['right'],
+                        'bottom': best_detection['bottom']
                     }
-                )
+                }
+            )
 
         next_page = associations.next_num if associations.has_next else None
         prev_page = associations.prev_num if associations.has_prev else None
@@ -15000,25 +14944,6 @@ def getMergeIndividuals():
             Individual.id != individual_id,
         )    
 
-        # best_image_sq = rDets(db.session.query(Individual.id, func.max(Image.detection_rating).label('max_rating'))\
-        #                             .filter(individual_filters)\
-        #                             .filter(Individual.tasks.any(Task.id.in_(task_ids)))\
-        #                             .join(Detection,Individual.detections)\
-        #                             .join(Image)\
-        #                             .group_by(Individual.id)).subquery()                       
-
-        # individuals = rDets(db.session.query(Individual.id, Individual.name, Image.filename, Camera.path, Detection.top, Detection.left, Detection.right, Detection.bottom)\
-        #                     .join(Task,Individual.tasks)\
-        #                     .filter(Task.id.in_(task_ids))\
-        #                     .filter(Task.status.in_(['SUCCESS', 'Stopped', 'Ready']))\
-        #                     .filter(individual_filters)\
-        #                     .join(Detection,Individual.detections)\
-        #                     .join(best_image_sq, best_image_sq.c.id==Individual.id)\
-        #                     .join(Image, and_(Image.id==Detection.image_id,Image.detection_rating==best_image_sq.c.max_rating))\
-        #                     .join(Camera))
-
-                   
-
         individuals = db.session.query(Individual.id, Individual.name)\
                             .join(Task,Individual.tasks)\
                             .filter(Task.id.in_(task_ids))\
@@ -15082,37 +15007,25 @@ def getMergeIndividuals():
         # individuals = individuals.distinct().paginate(page, 12, False)
         individuals = individuals.distinct().group_by(Individual.id).paginate(page, 12, False)
 
+        best_detections = calculate_individual_best_detection([individual[0] for individual in individuals.items])
+
         for individual in individuals.items:
             id = individual[0]
             name = individual[1]
-            # filename = individual[2]
-            # path = individual[3]
 
-            det_id = calculate_individual_best_detection(id)
-            image = db.session.query(Image.filename,Camera.path, Detection.top, Detection.left, Detection.right, Detection.bottom)\
-                            .join(Detection)\
-                            .join(Camera)\
-                            .filter(Detection.id==det_id)\
-                            .first()
-            
-            if not image: continue
-
-            filename = image[0]
-            path = image[1]
-            top = image[2]
-            left = image[3]
-            right = image[4]
-            bottom = image[5]
+            # Get the best detection for the individual
+            best_detection = best_detections.get(id, None)
+            if not best_detection: continue
 
             reply.append({
                 'id': id,
                 'name': name,
-                'url': (path + '/' + filename).replace('+','%2B').replace('?','%3F').replace('#','%23').replace('\\','%5C'),
+                'url': (best_detection['path'] + '/' + best_detection['filename']).replace('+','%2B').replace('?','%3F').replace('#','%23').replace('\\','%5C'),
                 'detection': {
-                    'top': top,
-                    'left': left,
-                    'right': right,
-                    'bottom': bottom
+                    'top': best_detection['top'],
+                    'left': best_detection['left'],
+                    'right': best_detection['right'],
+                    'bottom': best_detection['bottom']
                 }
             })
 
@@ -15468,29 +15381,11 @@ def getKnownIndividuals():
             Individual.species == species
         )    
 
-        # best_image_sq = rDets(db.session.query(Individual.id, func.max(Image.detection_rating).label('max_rating'))\
-        #                             .filter(individual_filters)\
-        #                             .filter(Individual.tasks.any(Task.id.in_(task_ids)))\
-        #                             .join(Detection,Individual.detections)\
-        #                             .join(Image)\
-        #                             .group_by(Individual.id)).subquery()                       
-
-        # individuals = rDets(db.session.query(Individual.id, Individual.name, Image.filename, Camera.path, Detection.top, Detection.left, Detection.right, Detection.bottom)\
-        #                     .join(Task,Individual.tasks)\
-        #                     .filter(Task.id.in_(task_ids))\
-        #                     .filter(Task.status.in_(['SUCCESS', 'Stopped', 'Ready']))\
-        #                     .filter(individual_filters)\
-        #                     .join(Detection,Individual.detections)\
-        #                     .join(best_image_sq, best_image_sq.c.id==Individual.id)\
-        #                     .join(Image, and_(Image.id==Detection.image_id,Image.detection_rating==best_image_sq.c.max_rating))\
-        #                     .join(Camera))
-
         individuals = db.session.query(Individual.id, Individual.name)\
                             .join(Task,Individual.tasks)\
                             .filter(Task.id.in_(task_ids))\
                             .filter(Task.status.in_(['SUCCESS', 'Stopped', 'Ready']))\
                             .filter(individual_filters)
-        
 
         if tag:
             individuals = individuals.filter(Individual.tags.any(Tag.description==tag))
@@ -15536,37 +15431,25 @@ def getKnownIndividuals():
         # individuals = individuals.distinct().paginate(page, 9, False)
         individuals = individuals.distinct().group_by(Individual.id).paginate(page, 9, False)
 
+        best_detections = calculate_individual_best_detection([individual[0] for individual in individuals.items])
+
         for individual in individuals.items:
             id = individual[0]
             name = individual[1]
-            # filename = individual[2]
-            # path = individual[3]
 
-            det_id = calculate_individual_best_detection(id)
-            image = db.session.query(Image.filename,Camera.path, Detection.top, Detection.left, Detection.right, Detection.bottom)\
-                            .join(Detection)\
-                            .join(Camera)\
-                            .filter(Detection.id==det_id)\
-                            .first()
-            
-            if not image: continue
-
-            filename = image[0]
-            path = image[1]
-            top = image[2]
-            left = image[3]
-            right = image[4]
-            bottom = image[5]
+            # Get the best detection for the individual
+            best_detection = best_detections.get(id, None)
+            if not best_detection: continue
 
             reply.append({
                 'id': id,
                 'name': name,
-                'url': (path + '/' + filename).replace('+','%2B').replace('?','%3F').replace('#','%23').replace('\\','%5C'),
+                'url': (best_detection['path'] + '/' + best_detection['filename']).replace('+','%2B').replace('?','%3F').replace('#','%23').replace('\\','%5C'),
                 'detection': {
-                    'top': top,
-                    'left': left,
-                    'right': right,
-                    'bottom': bottom
+                    'top': best_detection['top'],
+                    'left': best_detection['left'],
+                    'right': best_detection['right'],
+                    'bottom': best_detection['bottom']
                 }
             })
 
