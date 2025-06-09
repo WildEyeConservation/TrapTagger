@@ -4911,7 +4911,7 @@ def cluster_timestampless(task_id,trapgroup_id,starting_last_cluster_id,query_li
                                     examined=True
                                 )
                     cluster.images = images
-                    if cluster_er_ids: cluster.earth_ranger_ids = db.session.query(ERangerID).filter(ERangerID.in_(cluster_er_ids)).all()
+                    if cluster_er_ids: cluster.earth_ranger_ids = db.session.query(ERangerID).filter(ERangerID.id.in_(cluster_er_ids)).all()
                     clusters.append(cluster)
                 
                 images = []
@@ -4942,7 +4942,7 @@ def cluster_timestampless(task_id,trapgroup_id,starting_last_cluster_id,query_li
                             examined=True
                         )
             cluster.images = images
-            if cluster_er_ids: cluster.earth_ranger_ids = db.session.query(ERangerID).filter(ERangerID.in_(cluster_er_ids)).all()
+            if cluster_er_ids: cluster.earth_ranger_ids = db.session.query(ERangerID).filter(ERangerID.id.in_(cluster_er_ids)).all()
             clusters.append(cluster)
 
         if clusters:
@@ -5101,7 +5101,7 @@ def time_based_clustering(task_id,trapgroup_id,query_limit,timestamp=None):
                                         examined=True
                                     )
                         cluster.images = images
-                        if cluster_er_ids: cluster.earth_ranger_ids = db.session.query(ERangerID).filter(ERangerID.in_(cluster_er_ids)).all()
+                        if cluster_er_ids: cluster.earth_ranger_ids = db.session.query(ERangerID).filter(ERangerID.id.in_(cluster_er_ids)).all()
                         clusters.append(cluster)
 
                 # Start new cluster
@@ -5141,7 +5141,7 @@ def time_based_clustering(task_id,trapgroup_id,query_limit,timestamp=None):
                                 examined=True
                             )
                 cluster.images = images
-                if cluster_er_ids: cluster.earth_ranger_ids = db.session.query(ERangerID).filter(ERangerID.in_(cluster_er_ids)).all()
+                if cluster_er_ids: cluster.earth_ranger_ids = db.session.query(ERangerID).filter(ERangerID.id.in_(cluster_er_ids)).all()
                 clusters.append(cluster)
 
         db.session.add_all(clusters)
@@ -5394,7 +5394,7 @@ def det_presence_clustering(task_id,trapgroup_id,starting_last_cluster_id,query_
                                     examined=True
                                 )
                     cluster.images = image_subset
-                    if cluster_er_ids: cluster.earth_ranger_ids = db.session.query(ERangerID).filter(ERangerID.in_(cluster_er_ids)).all()
+                    if cluster_er_ids: cluster.earth_ranger_ids = db.session.query(ERangerID).filter(ERangerID.id.in_(cluster_er_ids)).all()
                     clusters.append(cluster)
                     image_subset = []
                     cluster_notes = None
@@ -5432,7 +5432,7 @@ def det_presence_clustering(task_id,trapgroup_id,starting_last_cluster_id,query_
                                 examined=True
                             )
                 cluster.images = image_subset
-                if cluster_er_ids: cluster.earth_ranger_ids = db.session.query(ERangerID).filter(ERangerID.in_(cluster_er_ids)).all()
+                if cluster_er_ids: cluster.earth_ranger_ids = db.session.query(ERangerID).filter(ERangerID.id.in_(cluster_er_ids)).all()
                 clusters.append(cluster)
 
             cluster_image_ids = []
