@@ -4892,7 +4892,7 @@ def cluster_timestampless(task_id,trapgroup_id,starting_last_cluster_id,query_li
         current_video = None
         for image, video_id, notes, user_id, timestamp, checked, er_ids in imageData:
 
-            if er_ids: er_ids = [int(er_id) for er_id in er_ids.split(',')]
+            if er_ids: er_ids = [er_id for er_id in er_ids.split(',')]
 
             if (video_id!=current_video) or (current_video is None):
                 # new video encountered - create previous cluster
@@ -5075,7 +5075,7 @@ def time_based_clustering(task_id,trapgroup_id,query_limit,timestamp=None):
         current_cluster_number = None
         for image, cluster_number, row_number, notes, user_id, timestamp, checked, er_ids in clusterQuery:
 
-            if er_ids: er_ids = [int(er_id) for er_id in er_ids.split(',')]
+            if er_ids: er_ids = [er_id for er_id in er_ids.split(',')]
 
             # Check if a new cluster encountered
             if cluster_number!=current_cluster_number:
@@ -5409,7 +5409,7 @@ def det_presence_clustering(task_id,trapgroup_id,starting_last_cluster_id,query_
                 image_timestamp = images_dictionary[image.id][3]
                 image_checked = images_dictionary[image.id][4]
                 er_ids = images_dictionary[image.id][5]
-                if er_ids: er_ids = [int(er_id) for er_id in er_ids.split(',')]
+                if er_ids: er_ids = [er_id for er_id in er_ids.split(',')]
                 
                 # AI labels are overwritten - so don't copy admin ID and timestamp
                 if cluster_notes is None: cluster_notes = image_notes
