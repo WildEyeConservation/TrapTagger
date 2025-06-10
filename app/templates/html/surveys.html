@@ -314,10 +314,14 @@ limitations under the License. -->
     
                     <div id="newSurveyFormDiv"></div>
 
-                    <h5 style="margin-bottom: 2px">Site Identifier</h5>
+                    <h5 style="margin-bottom: 2px">Site/Station Identifier</h5>
                     <div style="font-size: 80%; margin-bottom: 2px"><i>
                         The identifier used to designate a site in your folder structure. Eg. "Site" if your sites are stored in folders named "Site1", "Site2" etc. Becomes 
                         a <a href="https://www.w3schools.com/python/python_regex.asp">regular expression</a> search query if the advanced option is selected.
+                        Please note that a site is not an area - it is a singular point in space that can be described using a single pair of coordindates 
+                        (latitude,longitude). If there are multiple cameras at a site, these cameras would typically be triggered by the same event - ie. an animal 
+                        passing by. Typically, a multiple-camera-per-site setup would be cameras overlooking the same waterhole or bait station, or on either side 
+                        of a game trail to capture both flanks of individuals as they pass by.
                     </i></div>
                     <!-- <div id="newSurveyTGInfo" style="font-size: 80%; color: #DF691A"></div> -->
                     <div class="row">
