@@ -5453,7 +5453,7 @@ def archive_images(self,trapgroup_id):
                             .join(cluster_sq, cluster_sq.c.id==Cluster.id)\
                             .filter(Camera.trapgroup_id==trapgroup_id)\
                             .filter(cluster_sq.c.id!=None)\
-                            .filter(Image.expiry_date>=Config.ID_IMAGE_EXPIRY_DATE)\
+                            .filter(or_(Image.expiry_date==None,Image.expiry_date<Config.ID_IMAGE_EXPIRY_DATE))\
                             .distinct().all()
 
         for image in images:     
