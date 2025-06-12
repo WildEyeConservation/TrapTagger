@@ -15,6 +15,7 @@ limitations under the License.
 '''
 
 import os
+from datetime import datetime
 
 basedir = os.path.abspath(os.path.dirname(__file__))
 
@@ -198,6 +199,7 @@ class Config(object):
         RESTORE_TIER = 'Standard'
     else:
         RESTORE_TIER = 'Bulk'
+    ID_IMAGE_EXPIRY_DATE = datetime(year=9999, month=12, day=31) # This is the date used for images that were archived and moved back to Standard storage for individual id purposes
 
     # Lambda 
     RDS_HOST = SQLALCHEMY_DATABASE_SERVER.split('@')[1]

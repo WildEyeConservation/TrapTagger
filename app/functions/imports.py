@@ -5453,16 +5453,20 @@ def archive_images(self,trapgroup_id):
                             .join(cluster_sq, cluster_sq.c.id==Cluster.id)\
                             .filter(Camera.trapgroup_id==trapgroup_id)\
                             .filter(cluster_sq.c.id!=None)\
+                            .filter(Image.expiry_date>=Config.ID_IMAGE_EXPIRY_DATE)\
                             .distinct().all()
 
         for image in images:     
             image_key = image[2] + '/' + image[1]
             if image_key in unarchived_files:
-                copy_source = {
-                    'Bucket': Config.BUCKET,
-                    'Key': image_key
-                }
-                GLOBALS.s3client.copy_object(Bucket=Config.BUCKET, Key=image_key, CopySource=copy_source, StorageClass='DEEP_ARCHIVE')
+                try:
+                    copy_source = {
+                        'Bucket': Config.BUCKET,
+                        'Key': image_key
+                    }
+                    GLOBALS.s3client.copy_object(Bucket=Config.BUCKET, Key=image_key, CopySource=copy_source, StorageClass='DEEP_ARCHIVE')
+                except:
+                    pass
                      
 
     except Exception as exc:
@@ -5526,11 +5530,14 @@ def archive_videos(self,cameragroup_id):
             splits[0] = splits[0]+'-comp'
             video_key = '/'.join(splits) + '/' + video[1].rsplit('.', 1)[0] + '.mp4'
             if video_key in unarchived_files:
-                copy_source = {
-                    'Bucket': Config.BUCKET,
-                    'Key': video_key
-                }
-                GLOBALS.s3client.copy_object(Bucket=Config.BUCKET, Key=video_key, CopySource=copy_source, StorageClass='DEEP_ARCHIVE')
+                try:
+                    copy_source = {
+                        'Bucket': Config.BUCKET,
+                        'Key': video_key
+                    }
+                    GLOBALS.s3client.copy_object(Bucket=Config.BUCKET, Key=video_key, CopySource=copy_source, StorageClass='DEEP_ARCHIVE')
+                except:
+                    pass
             # Delete raw video
             raw_video_key = video_path + '/' + video[1]
             GLOBALS.s3client.delete_object(Bucket=Config.BUCKET, Key=raw_video_key)

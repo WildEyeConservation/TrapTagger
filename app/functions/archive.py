@@ -406,10 +406,10 @@ def restore_images_for_id(self,task_id,days,tier,restore_time,extend=False):
                             except:
                                 continue
                         db.session.commit()
-                else:
-                    for image in images:
-                        if image[0].expiry_date: image[0].expiry_date = None
-                    db.session.commit()
+                # else:
+                #     for image in images:
+                #         if image[0].expiry_date: image[0].expiry_date = None
+                #     db.session.commit()
 
             if extend:
                 task.survey.require_launch = None
@@ -530,10 +530,10 @@ def restore_images_for_classification(self,survey_id,days,edit_survey_args,tier,
                         except:
                             continue
                     db.session.commit()
-            else:
-                for image in images:
-                    if image[0].expiry_date: image[0].expiry_date = None
-                db.session.commit()
+            # else:
+            #     for image in images:
+            #         if image[0].expiry_date: image[0].expiry_date = None
+            #     db.session.commit()
 
         if not restored_image and not restore_date and not require_wait:
             other_images = image_query.filter(Image.expiry_date>=expected_expiry_date).first()
@@ -675,10 +675,10 @@ def restore_files_for_download(self,task_id,download_request_id,download_params,
                         except:
                             continue
                     db.session.commit()
-            else:
-                for image in images:
-                    if image[0].expiry_date: image[0].expiry_date = None
-                db.session.commit()
+            # else:
+            #     for image in images:
+            #         if image[0].expiry_date: image[0].expiry_date = None
+            #     db.session.commit()
 
         restored_video = False
         restore_date_vid = None
@@ -971,10 +971,10 @@ def restore_images_for_export(self,task_id, data, user_name, download_request_id
                         except:
                             continue
                     db.session.commit()
-            else:
-                for image in images:
-                    if image[0].expiry_date: image[0].expiry_date = None
-                db.session.commit()
+            # else:
+            #     for image in images:
+            #         if image[0].expiry_date: image[0].expiry_date = None
+            #     db.session.commit()
 
         if not restored_image and not restore_date and not require_wait:
             other_images = image_query.filter(Image.expiry_date>=expected_expiry_date).first()
@@ -1016,6 +1016,73 @@ def restore_images_for_export(self,task_id, data, user_name, download_request_id
                 response = generate_wildbook_export.apply_async(kwargs={'task_id':task_id, 'data':data, 'user_name':user_name, 'download_request_id':download_request_id})
                 download_request.celery_id = response.id
             db.session.commit()
+
+    except Exception as exc:
+        app.logger.info(' ')
+        app.logger.info('!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!')
+        app.logger.info(traceback.format_exc())
+        app.logger.info('!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!')
+        app.logger.info(' ')
+        self.retry(exc=exc, countdown= retryTime(self.request.retries))
+
+    finally:
+        db.session.remove()
+
+    return True
+
+@celery.task(bind=True,max_retries=2,ignore_result=True)
+def change_storage_for_individual_id(self,task_id,launch_kwargs):
+    '''Copies images to standard storage for individual ID.'''
+    try:
+        if 'species' in launch_kwargs:
+            species = launch_kwargs['species']
+        else:
+            taggingLevel = launch_kwargs['tagging_level']
+            species = taggingLevel.split(',')[1]
+
+        if 'task_ids' in launch_kwargs:
+            task_ids = launch_kwargs['task_ids']
+        else:
+            task_ids = [task_id]
+
+        cluster_sq = rDets(db.session.query(Cluster.id)\
+            .join(Image,Cluster.images)\
+            .join(Detection)\
+            .join(Labelgroup)\
+            .join(Label,Labelgroup.labels)\
+            .filter(Cluster.task_id.in_(task_ids))\
+            .filter(Labelgroup.task_id.in_(task_ids))\
+            .filter(Label.description==species)\
+            ).subquery()
+
+        images = db.session.query(Image,Image.filename,Camera.path)\
+                        .join(Camera)\
+                        .join(Cluster,Image.clusters)\
+                        .join(cluster_sq,Cluster.id==cluster_sq.c.id)\
+                        .filter(Cluster.task_id.in_(task_ids))\
+                        .filter(cluster_sq.c.id!=None)\
+                        .filter(Image.expiry_date>datetime.utcnow())\
+                        .filter(Image.expiry_date<Config.ID_IMAGE_EXPIRY_DATE)\
+                        .order_by(Image.id).distinct().all()
+
+        # Change storege class to standard 
+        if images:
+            for image in images:
+                try:
+                    image_key = image[2] + '/' + image[1]
+                    GLOBALS.s3client.copy_object(Bucket=Config.BUCKET, CopySource={'Bucket': Config.BUCKET, 'Key': image_key},Key=image_key,StorageClass='STANDARD')
+                    image[0].expiry_date = Config.ID_IMAGE_EXPIRY_DATE  # Set expiry date to far in the future (to avoid re-archiving, and not cause issues with other restores)
+                except Exception as e:
+                    app.logger.error('Error changing storage class for {}: {}'.format(image_key, str(e)))
+
+        db.session.commit()
+
+        del launch_kwargs['tagging_level']   
+        if 'algorithm' in launch_kwargs.keys():
+            del launch_kwargs['task_id']
+            calculate_detection_similarities.apply_async(kwargs=launch_kwargs)
+        else:
+            launch_task.apply_async(kwargs=launch_kwargs)
 
     except Exception as exc:
         app.logger.info(' ')

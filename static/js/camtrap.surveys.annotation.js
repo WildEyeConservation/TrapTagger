@@ -37,7 +37,8 @@ launchMTurkTaskBtn.addEventListener('click', ()=>{
     else if (tabActiveLaunch == 'baseIndividualTab') {
         confirmRestore = true
         modalLaunchTask.modal('hide')
-        document.getElementById('modalConfirmBodyRestore').innerHTML = '<p>Individual identification jobs require the restoration of the raw images of your chosen species from our archival storage for both processing and viewing purposes. This process will take 48 hours to complete. Thereafter, you will have 30 days to complete the identification job before the raw images are returned to archival storage. However, if you are still actively working on it at the end of this period, it will be automatically extended to allow you to finish.<br><br>Would you like to proceed?</p>'
+        // document.getElementById('modalConfirmBodyRestore').innerHTML = '<p>Individual identification jobs require the restoration of the raw images of your chosen species from our archival storage for both processing and viewing purposes. This process will take 48 hours to complete. Thereafter, you will have 30 days to complete the identification job before the raw images are returned to archival storage. However, if you are still actively working on it at the end of this period, it will be automatically extended to allow you to finish.<br><br>Would you like to proceed?</p>'
+        document.getElementById('modalConfirmBodyRestore').innerHTML = '<p>Individual identification jobs require the restoration of the raw images of your chosen species from our archival storage for both processing and viewing purposes. This process will take 48 hours to complete. Thereafter, the raw images will be permanently returned to standard storage so that you can have immediate access to the raw images when working with your individuals.<br><br>Would you like to proceed?</p>'
         btnConfirmRestore.disabled = false
         modalConfirmRestore.modal({keyboard: true})
 

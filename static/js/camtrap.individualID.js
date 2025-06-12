@@ -1000,6 +1000,7 @@ function undo() {
         individuals.pop()
         individualIndex -= 1
         buildIndividuals()
+        previousClick = null
     } else {
         individuals = [{}]
         individualIndex = 0
@@ -1007,6 +1008,7 @@ function undo() {
             colours[colour] = false
         }
         buildIndividuals()
+        previousClick = null
     }
 }
 
@@ -1301,6 +1303,7 @@ function cancelIndividual() {
     individuals.pop()
     individualIndex -= 1
     modalNewIndividual.modal('hide');
+    previousClick = null
 }
 
 btnCancelIndividual.addEventListener('click', ()=>{

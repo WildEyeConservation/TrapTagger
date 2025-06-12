@@ -132,6 +132,14 @@ class Image(db.Model):
 
         Skipped is used to determine what images without timestamps have been checked by the user to avoid rechecking in preprocessing step. Skipped is also used to avoid reprocessing images with textract.
         Extracted is used to determine if the image has been processed by textract. We set it to true even if no timestamp could be extracted to avoid reprocessing images with textract.
+    
+    Expiry date conditions:
+        - If the the image expiry date is None, image has not been restored from archive.
+        - If the image expiry date is 9999-12-31, the image was archived, restored and moved back to Standard storage for individual id purposes.
+        It is set to this date to prevent it being archived again and interfere with the other restore functionality.
+        - If the image expiry date is any other date, the image image has been restored from Glacier Deep Archive storage and that date is the date it will 
+        no longer be available and would need to be restored again if needed.
+        ** Note these conditions are used for the RAW images that are archived. 
     '''
 
 class Camera(db.Model):
