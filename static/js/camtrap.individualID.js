@@ -1724,6 +1724,7 @@ function addHotspotsHeatmap(mapID, kpts, scores, zoom=0) {
 
     //Set z-index of heatmap to be above images
     kpts_layer[mapID]._el.style.zIndex = 1000
+    kpts_layer[mapID]._el.style.pointerEvents = 'none';  // To allow the context menu to work on the heatmap
 
 }
 

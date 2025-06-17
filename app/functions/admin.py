@@ -777,7 +777,7 @@ def checkAndRelease(self,task_id):
     '''
     try:
         task = db.session.query(Task).get(task_id)
-        if task and (task.status=='PENDING'):
+        if task and (task.status=='Waiting'):
             task.status = 'Stopped'
             task.survey.status = 'Ready'
             db.session.commit()

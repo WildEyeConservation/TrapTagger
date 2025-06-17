@@ -370,7 +370,9 @@ def launchTask():
 
         if any(level in taggingLevel for level in ['-4','-2']):
             tags = db.session.query(Tag.description,Tag.hotkey,Tag.id).filter(Tag.task==task).order_by(Tag.description).all()
-            checkAndRelease.apply_async(kwargs={'task_id': task.id},countdown=300, queue='priority', priority=9)
+            task.status = 'Waiting'
+            db.session.commit()
+            checkAndRelease.apply_async(kwargs={'task_id': task.id},countdown=300, queue='priority', priority=0)
             tags = [tuple(row) for row in tags]
             return json.dumps({'status': 'tags', 'tags': tags})
 
@@ -386,7 +388,9 @@ def launchTask():
         else:
             labels = ['Nothing (Ignore)','Vehicles/Humans/Livestock']
             labels.extend([label.description for label in db.session.query(Label).filter(Label.task==task).order_by(Label.description).all()])
-            checkAndRelease.apply_async(kwargs={'task_id': task.id},countdown=300, queue='priority', priority=9)
+            task.status = 'Waiting'
+            db.session.commit()
+            checkAndRelease.apply_async(kwargs={'task_id': task.id},countdown=300, queue='priority', priority=0)
             return json.dumps({'status': 'untranslated','untranslated':untranslated,'labels':labels})
 
     return json.dumps({'message': message, 'status': 'Error'})

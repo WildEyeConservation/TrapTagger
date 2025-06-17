@@ -68,7 +68,7 @@ if inspector_scheduled != None:
         if any(name in worker for name in defaultWorkerNames): continue
         for task in inspector_scheduled[worker]:
             try:
-                celery.control.revoke(task['id'], terminate=True)
+                celery.control.revoke(task['request']['id'], terminate=True)
             except:
                 pass
 
@@ -98,6 +98,8 @@ for active_task in active_tasks:
     # priority = active_task['delivery_info']['priority']
     if 'ram_worker' in active_task['hostname']:
         queue = 'ram_intensive'
+    elif 'priority_worker' in active_task['hostname']:
+        queue = 'priority'
     else:
         queue = 'default'
     app.logger.info('Rescheduling {} with args {}'.format(active_task['name'],kwargs))

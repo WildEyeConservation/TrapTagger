@@ -934,6 +934,10 @@ function updateCanvas(mapID = 'map1') {
                             activeImage[mapID].setUrl("https://"+bucketName+".s3.amazonaws.com/" + modifyToCompURL(image.url))
                         }
                     }
+                    else if (isIDing && document.getElementById('btnSendToBack')==null) {
+                        activeImage[mapID].setUrl("https://"+bucketName+".s3.amazonaws.com/" + image.url)
+                        fullRes[mapID] = true
+                    }
                     else{
                         activeImage[mapID].setUrl("https://"+bucketName+".s3.amazonaws.com/" + modifyToCompURL(image.url))
                     }

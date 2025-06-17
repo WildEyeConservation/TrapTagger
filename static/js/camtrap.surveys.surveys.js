@@ -240,7 +240,7 @@ var barColours = {
 var btnOpacity = 0.2
 
 var disabledSurveyStatuses = ['re-clustering','extracting labels','correcting timestamps','reclustering','removing duplicate images','importing coordinates','processing','deleting','launched','importing','removing humans','identifying static detections','clustering','import queued','cancelled','prepping annotation set','classifying','calculating scores', 'static detection analysis','extracting timestamps','copying', 'processing cameras', 'processing static detections']
-var diabledTaskStatuses = ['wrapping up','prepping','deleting','importing','processing','pending','started','initialising','stopping','copying']
+var diabledTaskStatuses = ['wrapping up','prepping','deleting','importing','processing','pending','started','initialising','stopping','copying','waiting']
 const launchMTurkTaskBtn = document.querySelector('#launchMTurkTaskBtn');
 const btnCreateTask = document.querySelector('#btnCreateTask');
 
@@ -2245,12 +2245,12 @@ function buildAddIms() {
     // Trapgroup Code
     h5 = document.createElement('h5')
     h5.setAttribute('style','margin-bottom: 2px')
-    h5.innerHTML = 'Site Identifier'
+    h5.innerHTML = 'Site/Station Identifier'
     addFilesDiv.appendChild(h5)
 
     div = document.createElement('div')
     div.setAttribute('style','font-size: 80%; margin-bottom: 2px')
-    div.innerHTML = '<i>The identifier used to designate a site in your folder structure. Eg. "Site" if your sites are stored in folders named "Site1", "Site2" etc. Becomes a <a href="https://www.w3schools.com/python/python_regex.asp">regular expression</a> search query if the advanced option is selected.</i>'
+    div.innerHTML = '<i>The identifier used to designate a site in your folder structure. Eg. "Site" if your sites are stored in folders named "Site1", "Site2" etc. Becomes a <a href="https://www.w3schools.com/python/python_regex.asp">regular expression</a> search query if the advanced option is selected. Please note that a site is not an area - it is a singular point in space that can be described using a single pair of coordindates (latitude,longitude). If there are multiple cameras at a site, these cameras would typically be triggered by the same event - ie. an animal passing by. Typically, a multiple-camera-per-site setup would be cameras overlooking the same waterhole or bait station, or on either side of a game trail to capture both flanks of individuals as they pass by.</i>'
     addFilesDiv.appendChild(div)
 
     info = document.createElement('div')
