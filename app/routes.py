@@ -8842,9 +8842,16 @@ def checkNotifications():
     notifcation_contents = {}
     status = 'error'
     if current_user and current_user.is_authenticated and current_user.parent_id == None:
+        global_seen_sq = db.session.query(userNotifications.c.notification_id.label('global_notification_id'))\
+                            .filter(userNotifications.c.user_id==current_user.id)\
+                            .subquery()
+
         notifications = db.session.query(Notification)\
+                    .outerjoin(global_seen_sq, global_seen_sq.c.global_notification_id==Notification.id)\
                     .filter(or_(Notification.user_id==current_user.id, Notification.user_id==None))\
                     .filter(or_(Notification.expires==None,Notification.expires>datetime.utcnow()))\
+                    .filter(or_(Notification.seen==None,Notification.seen==False))\
+                    .filter(global_seen_sq.c.global_notification_id==None)\
                     .order_by(desc(Notification.id))\
                     .all()
 
@@ -8866,7 +8873,8 @@ def checkNotifications():
                 total_unseen += 1
 
         if global_notification and (allow_global=='true'):
-            if current_user not in global_notification.users_seen:
+            has_seen = db.session.query(userNotifications).filter(userNotifications.c.notification_id==global_notification.id).filter(userNotifications.c.user_id==current_user.id).first()
+            if not has_seen:
                 global_notification.users_seen.append(current_user)
                 db.session.commit()
 
@@ -10566,7 +10574,7 @@ def searchSites():
         searches = re.split('[ ,]',search)
         for search in searches:
             sites = sites.filter(Trapgroup.tag.contains(search))               
-            sites = sites.order_by(Trapgroup.id).distinct().all()
+        sites = sites.order_by(Trapgroup.id).distinct().all()
 
     for site in sites:
         site_info = {'tag': site[1], 'latitude': site[2], 'longitude': site[3]}
@@ -12450,7 +12458,9 @@ def markNotificationSeen(id):
             if notification.user_id == current_user.id:
                 notification.seen = True
             elif notification.user_id == None:
-                notification.users_seen.append(current_user)
+                has_seen = db.session.query(userNotifications).filter(userNotifications.c.notification_id==id).filter(userNotifications.c.user_id==current_user.id).first()
+                if not has_seen:
+                    notification.users_seen.append(current_user)
             
             db.session.commit()
 

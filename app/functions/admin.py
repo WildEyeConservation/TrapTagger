@@ -19,7 +19,7 @@ from app.models import *
 from app.functions.globals import classifyTask, update_masks, retryTime, resolve_abandoned_jobs, addChildLabels, updateAllStatuses, deleteFile,\
                                     stringify_timestamp, rDets, update_staticgroups, detection_rating, chunker, verify_label, cleanup_empty_restored_images, \
                                     reconcile_cluster_labelgroup_labels_and_tags, hideSmallDetections, maskSky, checkChildTranslations, createChildTranslations, \
-                                    prepTask, removeHumans
+                                    prepTask, removeHumans, sync_labels, sync_tags
 from app.functions.individualID import calculate_detection_similarities, cleanUpIndividuals, check_individual_detection_mismatch
 from app.functions.imports import classifySurvey, s3traverse, classifyCluster, importKML, import_survey
 import GLOBALS
@@ -2555,6 +2555,8 @@ def edit_survey(self,survey_id,user_id,classifier_id,sky_masked,ignore_small_det
         survey.status = 'Processing'
         db.session.commit()
 
+        skipUpdateStatuses = True
+
         # Coordinates
         if coord_data:
             updateCoords(survey_id=survey_id,coordData=coord_data)
@@ -2565,6 +2567,7 @@ def edit_survey(self,survey_id,user_id,classifier_id,sky_masked,ignore_small_det
 
         # Static groups
         if staticgroups:
+            skipUpdateStatuses = False
             update_staticgroups(survey_id=survey_id,staticgroups=staticgroups,user_id=user_id)
 
         # Ignore small detections & Mask sky
@@ -2576,22 +2579,32 @@ def edit_survey(self,survey_id,user_id,classifier_id,sky_masked,ignore_small_det
 
         if ignore_small_detections != None:
             if ignore_small_detections != survey.ignore_small_detections:
+                skipUpdateStatuses = False
                 hideSmallDetections(survey_id=survey_id,ignore_small_detections=ignore_small_detections,edge=edge)
                 
         if sky_masked != None:
             if sky_masked != survey.sky_masked:
+                skipUpdateStatuses = False
                 maskSky(survey_id=survey_id,sky_masked=sky_masked,edge=edge)
 
         # Masks
         if masks:
+            skipUpdateStatuses = False
             update_masks(survey_id=survey_id,removed_masks=masks['removed'],added_masks=masks['added'],edited_masks=masks['edited'],user_id=user_id)
 
         # Check detections
         if masks or ignore_small_detections!=None or sky_masked!=None:
+            skipUpdateStatuses = False
             check_masked_and_hidden_detections(survey_id=survey_id)
+            trapgroup_ids=[r[0] for r in db.session.query(Trapgroup.id).filter(Trapgroup.survey_id==survey_id).distinct().all()]
+            task_ids=[r[0] for r in db.session.query(Task.id).filter(Task.survey_id==survey_id).filter(Task.name!='default').distinct().all()]
+            for task_id in task_ids:
+                sync_labels(task_id=task_id,trapgroup_ids=trapgroup_ids)
+                sync_tags(task_id=task_id,trapgroup_ids=trapgroup_ids)
 
         # Classify survey
         if classifier_id:
+            skipUpdateStatuses = False
             classifier_id = int(classifier_id)
             survey = db.session.query(Survey).get(survey_id)
             if survey.classifier_id != classifier_id:
@@ -2608,9 +2621,10 @@ def edit_survey(self,survey_id,user_id,classifier_id,sky_masked,ignore_small_det
                 reclusterAfterTimestampChange(survey_id=survey_id,trapgroup_ids=overlaps,cameragroup_ids=cameragroup_ids)
 
         # Update All statuses
-        task_ids = [r[0] for r in db.session.query(Task.id).filter(Task.survey_id==survey_id).filter(Task.name!='default').distinct().all()]
-        for task_id in task_ids:
-            updateAllStatuses(task_id=task_id)
+        if not skipUpdateStatuses:
+            task_ids = [r[0] for r in db.session.query(Task.id).filter(Task.survey_id==survey_id).filter(Task.name!='default').distinct().all()]
+            for task_id in task_ids:
+                updateAllStatuses(task_id=task_id)
 
         survey = db.session.query(Survey).get(survey_id)
         survey.status = 'Ready'

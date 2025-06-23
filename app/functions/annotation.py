@@ -879,7 +879,7 @@ def fetch_clusters(taggingLevel,task_id,isBounding,trapgroup_id,limit=None,id=No
                         else:
                             clusterInfo[row[0]]['user'] = 'AI'
                     else:
-                        clusterInfo[row[0]]['user'] = 'AI'
+                        clusterInfo[row[0]]['user'] = 'None'
                     
                     clusterInfo[row[0]]['site_tag'] = row[28]
                     clusterInfo[row[0]]['latitude'] = row[29]
