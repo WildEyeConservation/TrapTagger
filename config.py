@@ -71,13 +71,13 @@ class Config(object):
     WBIA_DIR = os.environ.get('WBIA_DIR')
 
     # Email Config
-    MAIL_SERVER = 'smtp.gmail.com'
     SSL_MAIL_PORT = 465
     MAIL_PORT = 587
     MAIL_USE_TLS = True
     MAIL_USE_SSL = False
     MAIL_USERNAME = os.environ.get('MAIL_USERNAME')
     MAIL_PASSWORD = os.environ.get('MAIL_PASSWORD')
+    MAIL_SERVER = 'smtp.'+MAIL_USERNAME.split('@')[-1]
     ADMINS = [os.environ.get('MAIL_USERNAME')]
     MONITORED_EMAIL_ADDRESS = os.environ.get('MONITORED_EMAIL_ADDRESS')
 
