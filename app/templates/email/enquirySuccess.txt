@@ -1,14 +1,16 @@
-Dear {{ organisation }},
+Hi {{ name }},
 
-A TrapTagger account has been created for you. The credentials are as follows:
+Thank you for your interest in TrapTagger. Here are your account credentials:
 Username: {{ organisation }}
 Password: {{ password }}
-You can follow this link to the login page: {{ url2 }}
-If you would like to change your password, please follow this link: {{ url2 }}
 
-If you have any further questions, please send an email to  {{ email_address }}.
+You can find a full set of video tutorials here: {{ tutorials_url }}
+You can find the login page here: {{ login_url }}
+If you would like to change your password, please go here: {{ reset_url }}
 
-Sincerely,
+We typically kick things off with a short introductory meeting in which we can offer guidance and answer any questions that you may have. If you'd like to arrange a meeting, please let us when would suit you - we operate in the GMT+2 time zone. Simply reply to the the cc'd email address.
+
+Otherwise please don't hesitate to reach out to {{ monitored_email_address }} if you need assistance with anything
+
+Regards,
 The TrapTagger team
-
-

@@ -78,8 +78,9 @@ class Config(object):
     MAIL_USERNAME = os.environ.get('MAIL_USERNAME')
     MAIL_PASSWORD = os.environ.get('MAIL_PASSWORD')
     MAIL_SERVER = 'smtp.'+MAIL_USERNAME.split('@')[-1]
-    ADMINS = [os.environ.get('MAIL_USERNAME')]
     MONITORED_EMAIL_ADDRESS = os.environ.get('MONITORED_EMAIL_ADDRESS')
+
+    TUTORIALS_PLAYLIST = 'https://www.youtube.com/playlist?list=PLz-q4hjV3X_YfKdix0LKovQNyANuZc0-R'
 
     AWS_REGION = os.environ.get('REGION_NAME')
     TOKEN = os.environ.get('TOKEN')

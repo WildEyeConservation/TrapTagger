@@ -52,6 +52,15 @@ limitations under the License. -->
                         {% endfor %}
                         <br>
                         <br>
+
+                        <div align="justify">Your Name</div>
+                        {{ enquiryForm.name(size=30) }}
+                        {% for error in enquiryForm.name.errors %}
+                          <br>
+                          <span style="color: #DF691A;">[{{ error }}]</span>
+                        {% endfor %}
+                        <br>
+                        <br>
             
                         <div align="justify">Email</div>
                         {{ enquiryForm.email(size=30) }}
@@ -62,7 +71,7 @@ limitations under the License. -->
                         <br>
                         <br>
             
-                        <div align="justify">Brief Description of Camera-Trap Work</div>
+                        <div align="justify">Brief description of the work that your organisation does with camera-traps</div>
                         {{ enquiryForm.description(cols=60, rows=6) }}
                         {% for error in enquiryForm.description.errors %}
                           <br>  

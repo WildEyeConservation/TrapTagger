@@ -2300,7 +2300,6 @@ def TTWorkerSignup():
             url = 'https://'+Config.DNS+'/newWorkerAccount/'+token
 
             send_email('[TrapTagger] Email Verification',
-                    sender=app.config['ADMINS'][0],
                     recipients=[form.email.data],
                     text_body=render_template('email/emailVerification.txt',username=form.username.data, url=url),
                     html_body=render_template('email/emailVerification.html',username=form.username.data, url=url))
@@ -3234,16 +3233,26 @@ def createAccount(token):
             #Create all the necessary AWS stuff
             # s3UserName, s3Password = create_new_aws_user(folder)
 
-            url1 = 'https://'+Config.DNS+'/login'
-            url2 = 'https://'+Config.DNS+'/requestPasswordChange'
-
             send_email('[TrapTagger] Account Information',
-                sender=app.config['ADMINS'][0],
                 recipients=[info['email']],
                 text_body=render_template('email/enquirySuccess.txt',
-                    organisation=info['organisation'], password=newPassword, bucket_name=folder, url1=url1, url2=url2, email_address=Config.MONITORED_EMAIL_ADDRESS),
+                    name=info['name'],
+                    organisation=info['organisation'],
+                    password=newPassword,
+                    tutorials_url=Config.TUTORIALS_PLAYLIST,
+                    login_url='https://'+Config.DNS+'/login',
+                    reset_url='https://'+Config.DNS+'/requestPasswordChange',
+                    monitored_email_address=Config.MONITORED_EMAIL_ADDRESS),
                 html_body=render_template('email/enquirySuccess.html',
-                    organisation=info['organisation'], password=newPassword, bucket_name=folder, url1=url1, url2=url2, email_address=Config.MONITORED_EMAIL_ADDRESS))
+                    name=info['name'],
+                    organisation=info['organisation'],
+                    password=newPassword,
+                    tutorials_url=Config.TUTORIALS_PLAYLIST,
+                    login_url='https://'+Config.DNS+'/login',
+                    reset_url='https://'+Config.DNS+'/requestPasswordChange',
+                    monitored_email_address=Config.MONITORED_EMAIL_ADDRESS),
+                cc=[Config.MONITORED_EMAIL_ADDRESS]
+            )
 
             return render_template("html/block.html",text="Account successfully created.", helpFile='block', version=Config.VERSION)
         else:
@@ -3325,7 +3334,6 @@ def requestPasswordChange():
                 url = 'https://'+Config.DNS+'/changePassword/'+token
 
                 send_email('[TrapTagger] Password Reset Request',
-                    sender=app.config['ADMINS'][0],
                     recipients=[user.email],
                     text_body=render_template('email/passwordChangeRequest.txt', username=user.username, url=url),
                     html_body=render_template('email/passwordChangeRequest.html', username=user.username, url=url))
@@ -3471,7 +3479,7 @@ def TTRegisterAdmin():
                 disallowed = any(r in disallowed_chars for r in enquiryForm.organisation.data)
 
                 if (check == None) and (check2 == None) and (len(folder) <= 64) and not disallowed:
-                    send_enquiry_email(enquiryForm.organisation.data,enquiryForm.email.data,enquiryForm.description.data)
+                    send_enquiry_email(enquiryForm.organisation.data,enquiryForm.email.data,enquiryForm.description.data,enquiryForm.name.data)
                     flash('Enquiry submitted.')
                     return redirect(url_for('TTRegisterAdmin'))
                 elif disallowed:
@@ -12733,7 +12741,6 @@ def saveAccountInfo():
                 url = 'https://'+Config.DNS+'/confirmEmail/'+email_token
                 
                 send_email('[TrapTagger] Email Verification',
-                sender=app.config['ADMINS'][0],
                 recipients=[email],
                 text_body=render_template('email/emailVerification.txt',username=current_user.username, url=url),
                 html_body=render_template('email/emailVerification.html',username=current_user.username, url=url))

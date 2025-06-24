@@ -63,6 +63,7 @@ class NewSurveyForm(FlaskForm):
     trapgroup_code = StringField('Name', validators=[DataRequired()])
 
 class EnquiryForm(FlaskForm):
+    name = StringField('Name', validators=[DataRequired()])
     organisation = StringField('Organisation', validators=[DataRequired()])
     email = StringField('Email', validators=[DataRequired(), Email()])
     description = TextAreaField('Description', validators=[DataRequired()])

@@ -1,4 +1,4 @@
-There has been an enquiry into TrapTagger by {{ organisation }}.
+There has been an enquiry into TrapTagger by {{ name }} from {{ organisation }}.
 
 A brief description of their camera-trap work is as follows:
 {{ description }}

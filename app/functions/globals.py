@@ -1889,30 +1889,34 @@ def addChildLabs(task_id,label,labels):
         labels = addChildLabs(task_id,child,labels)
     return labels
 
-def send_email(subject, sender, recipients, text_body, html_body):
+def send_email(subject, recipients, text_body, html_body, sender=Config.MAIL_USERNAME, cc=None):
     '''Sends an email with the specified self-explanatory characteristics.'''
 
-    msg = Message(subject, sender=sender, recipients=recipients)
+    msg = Message(
+            subject=subject,
+            sender=sender,
+            recipients=recipients,
+            cc=cc
+        )
     msg.body = text_body
     msg.html = html_body
     mail.send(msg)
 
-def send_enquiry_email(organisation,email,description):
+def send_enquiry_email(organisation,email,description,name):
     '''Sends an email to the administrator to let them know about an enquiry to the system.'''
     
     token = jwt.encode(
-            {'organisation': organisation, 'email': email},
+            {'organisation': organisation, 'email': email, 'name': name},
             app.config['SECRET_KEY'], algorithm='HS256')
 
     url = 'https://'+Config.DNS+'/createAccount/'+token
 
     send_email('[TrapTagger] New Enquiry',
-               sender=app.config['ADMINS'][0],
                recipients=[Config.MONITORED_EMAIL_ADDRESS],
                text_body=render_template('email/enquiry.txt',
-                                        organisation=organisation, email=email, description=description, url=url),
+                                        name=name, organisation=organisation, email=email, description=description, url=url),
                html_body=render_template('email/enquiry.html',
-                                        organisation=organisation, email=email, description=description, url=url))
+                                        name=name, organisation=organisation, email=email, description=description, url=url))
     return True
 
 def create_new_aws_user(userName):
