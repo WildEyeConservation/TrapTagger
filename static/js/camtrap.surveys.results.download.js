@@ -181,8 +181,8 @@ function resetDownloadForm() {
     document.getElementById('individualSorted').checked = false
     document.getElementById('emptyExclude').checked = true
     document.getElementById('emptyInclude').checked = false
-    document.getElementById('deleteTrue').checked = true
-    document.getElementById('deleteFalse').checked = false
+    document.getElementById('deleteTrue').checked = false
+    document.getElementById('deleteFalse').checked = true
     document.getElementById('videoFramesTrue').checked = true
     document.getElementById('videoTrue').checked = false
     document.getElementById('videoAndFramesTrue').checked = false
