@@ -1182,10 +1182,10 @@ function generateSpatial(){
                     accessToken: 'pk.eyJ1IjoibmljaG9sYXNpbm5vdmVudGl4IiwiYSI6ImNrZTJrdjdjcjBhYTIyeXBkamd2N2ZlengifQ.IXU45GintSGY47C7PlBGXA'
                 })   
 
-                gSat = L.gridLayer.googleMutant({type: 'satellite'})
+                // gSat = L.gridLayer.googleMutant({type: 'satellite'})
                 // gStr = L.gridLayer.googleMutant({type: 'roadmap'})    
                 // gTer = L.gridLayer.googleMutant({type: 'terrain'})
-                gHyb = L.gridLayer.googleMutant({type: 'hybrid' })
+                // gHyb = L.gridLayer.googleMutant({type: 'hybrid' })
 
                 var cfg = {
                     "radius": 0.05,
@@ -1211,14 +1211,14 @@ function generateSpatial(){
                 invHeatmapLayer = new HeatmapOverlay(invCfg);
 
                 map = new L.map('mapDiv', {
-                    layers: [gSat, heatmapLayer]
+                    layers: [osmSat, heatmapLayer]
                 });
 
                 baseMaps = {
-                    "Google Satellite": gSat,
+                    // "Google Satellite": gSat,
                     // "Google Roadmap": gStr,
                     // "Google Terrain": gTer,
-                    "Google Hybrid": gHyb,
+                    // "Google Hybrid": gHyb,
                     "OpenStreetMaps Satellite": osmSat,
                     "OpenStreetMaps Roadmap": osmSt
                 };
@@ -9738,8 +9738,8 @@ function buildSCR(results, tab){
             accessToken: 'pk.eyJ1IjoibmljaG9sYXNpbm5vdmVudGl4IiwiYSI6ImNrZTJrdjdjcjBhYTIyeXBkamd2N2ZlengifQ.IXU45GintSGY47C7PlBGXA'
         })
 
-        var gSat = L.gridLayer.googleMutant({type: 'satellite'})
-        var gHyb = L.gridLayer.googleMutant({type: 'hybrid' })
+        // var gSat = L.gridLayer.googleMutant({type: 'satellite'})
+        // var gHyb = L.gridLayer.googleMutant({type: 'hybrid' })
 
         var cfg = {
             "radius": 0.05,
@@ -9765,12 +9765,12 @@ function buildSCR(results, tab){
         invHeatmapLayer = new HeatmapOverlay(invCfg);
 
         map[map_id] = new L.map('mapDiv_srcHeatmap', {
-            layers: [gSat, heatmapLayer]
+            layers: [osmSat, heatmapLayer]
         });
 
         baseMaps = {
-            "Google Satellite": gSat,
-            "Google Hybrid": gHyb,
+            // "Google Satellite": gSat,
+            // "Google Hybrid": gHyb,
             "OpenStreetMaps Satellite": osmSat,
             "OpenStreetMaps Roadmap": osmSt,
         };
@@ -9861,8 +9861,8 @@ function initialiseDensityHeatmap(map_densities, max_density, sites_density, map
     })
 
 
-    var gSat = L.gridLayer.googleMutant({type: 'satellite'})
-    var gHyb = L.gridLayer.googleMutant({type: 'hybrid' })
+    // var gSat = L.gridLayer.googleMutant({type: 'satellite'})
+    // var gHyb = L.gridLayer.googleMutant({type: 'hybrid' })
 
     var cfg = {
         "radius": 0.05,
@@ -9888,12 +9888,12 @@ function initialiseDensityHeatmap(map_densities, max_density, sites_density, map
     invDensHeatmapLayer = new HeatmapOverlay(invCfg);
 
     map[map_id] = new L.map(map_id, {
-        layers: [gSat, densHeatmapLayer]
+        layers: [osmSat, densHeatmapLayer]
     });
 
     baseMaps = {
-        "Google Satellite": gSat,
-        "Google Hybrid": gHyb,
+        // "Google Satellite": gSat,
+        // "Google Hybrid": gHyb,
         "OpenStreetMaps Satellite": osmSat,
         "OpenStreetMaps Roadmap": osmSt,
     };

@@ -2760,13 +2760,23 @@ function initialiseMergeIndividualsLeft(){
         sitesMapDiv.setAttribute('style','height: 250px;')
         col1.appendChild(sitesMapDiv)
 
-        gHyb = L.gridLayer.googleMutant({type: 'hybrid' })
+        // gHyb = L.gridLayer.googleMutant({type: 'hybrid' })
+
+        var osmSat = L.tileLayer('https://api.mapbox.com/styles/v1/{id}/tiles/{z}/{x}/{y}?access_token={accessToken}', {
+        // attribution: 'Map data &copy; <a href="https://www.openstreetmap.org/">OpenStreetMap</a> contributors, <a href="https://creativecommons.org/licenses/by-sa/2.0/">CC-BY-SA</a>, Imagery © <a href="https://www.mapbox.com/">Mapbox</a>',
+        attribution: '© <a href="https://www.openstreetmap.org/">OSM</a> & <a href="https://www.mapbox.com/">Mapbox</a>', // Small map -simplified attribution
+        maxZoom: 18,
+        id: 'mapbox/satellite-v9',
+        tileSize: 512,
+        zoomOffset: -1,
+        accessToken: 'pk.eyJ1IjoibmljaG9sYXNpbm5vdmVudGl4IiwiYSI6ImNrZTJrdjdjcjBhYTIyeXBkamd2N2ZlengifQ.IXU45GintSGY47C7PlBGXA'
+        })
 
         var mapSitesL = new L.map('sitesMapDivL', {
             zoomControl: true,
         });
         
-        mapSitesL.addLayer(gHyb);
+        mapSitesL.addLayer(osmSat);
 
         var siteMarkers = []
         for (let i=0;i<trapgroupInfo.length;i++) {
@@ -3623,13 +3633,23 @@ function viewMergeIndividual(){
                         sitesMapDiv.setAttribute('style','height: 250px;')
                         col1.appendChild(sitesMapDiv)
                     
-                        gHyb = L.gridLayer.googleMutant({type: 'hybrid' })
-                    
+                        // gHyb = L.gridLayer.googleMutant({type: 'hybrid' })
+
+                        var osmSat = L.tileLayer('https://api.mapbox.com/styles/v1/{id}/tiles/{z}/{x}/{y}?access_token={accessToken}', {
+                        // attribution: 'Map data &copy; <a href="https://www.openstreetmap.org/">OpenStreetMap</a> contributors, <a href="https://creativecommons.org/licenses/by-sa/2.0/">CC-BY-SA</a>, Imagery © <a href="https://www.mapbox.com/">Mapbox</a>',
+                        attribution: '© <a href="https://www.openstreetmap.org/">OSM</a> & <a href="https://www.mapbox.com/">Mapbox</a>', // Small map -simplified attribution
+                        maxZoom: 18,
+                        id: 'mapbox/satellite-v9',
+                        tileSize: 512,
+                        zoomOffset: -1,
+                        accessToken: 'pk.eyJ1IjoibmljaG9sYXNpbm5vdmVudGl4IiwiYSI6ImNrZTJrdjdjcjBhYTIyeXBkamd2N2ZlengifQ.IXU45GintSGY47C7PlBGXA'
+                        })
+
                         var mapSitesR = new L.map('sitesMapDivR', {
                             zoomControl: true,
                         });
                     
-                        mapSitesR.addLayer(gHyb);
+                        mapSitesR.addLayer(osmSat);
                     
                         var siteMarkers = []
                         var added_coords = []

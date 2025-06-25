@@ -377,20 +377,20 @@ function initialiseSitesMap() {
                     accessToken: 'pk.eyJ1IjoibmljaG9sYXNpbm5vdmVudGl4IiwiYSI6ImNrZTJrdjdjcjBhYTIyeXBkamd2N2ZlengifQ.IXU45GintSGY47C7PlBGXA'
                 })
 
-                gSat = L.gridLayer.googleMutant({type: 'satellite'})
+                // gSat = L.gridLayer.googleMutant({type: 'satellite'})
                 // gStr = L.gridLayer.googleMutant({type: 'roadmap'})    
                 // gTer = L.gridLayer.googleMutant({type: 'terrain'})
-                gHyb = L.gridLayer.googleMutant({type: 'hybrid' })
+                // gHyb = L.gridLayer.googleMutant({type: 'hybrid' })
 
                 mapSites = new L.map('mapDivDraw', {
-                    layers: [gSat]
+                    layers: [osmSat]
                 });
 
                 baseMaps = {
-                    "Google Satellite": gSat,
+                    // "Google Satellite": gSat,
                     // "Google Roadmap": gStr,
                     // "Google Terrain": gTer,
-                    "Google Hybrid": gHyb,
+                    // "Google Hybrid": gHyb,
                     "OpenStreetMaps Satellite": osmSat,
                     "OpenStreetMaps Roadmap": osmSt
                 };
