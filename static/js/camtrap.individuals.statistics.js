@@ -130,10 +130,10 @@ function createIndivMap() {
                 accessToken: 'pk.eyJ1IjoibmljaG9sYXNpbm5vdmVudGl4IiwiYSI6ImNrZTJrdjdjcjBhYTIyeXBkamd2N2ZlengifQ.IXU45GintSGY47C7PlBGXA'
             })
 
-            gSat = L.gridLayer.googleMutant({type: 'satellite'})
+            // gSat = L.gridLayer.googleMutant({type: 'satellite'})
             // gStr = L.gridLayer.googleMutant({type: 'roadmap'})    
             // gTer = L.gridLayer.googleMutant({type: 'terrain'})
-            gHyb = L.gridLayer.googleMutant({type: 'hybrid' })
+            // gHyb = L.gridLayer.googleMutant({type: 'hybrid' })
 
             var cfg = {
                 "radius": 0.05,
@@ -159,14 +159,14 @@ function createIndivMap() {
             invHeatmapLayer = new HeatmapOverlay(invCfg);
 
             mapStats = new L.map('mapIndivDiv', {
-                layers: [gSat, heatmapLayer]
+                layers: [osmSat, heatmapLayer]
             });
 
             baseMaps = {
-                "Google Satellite": gSat,
+                // "Google Satellite": gSat,
                 // "Google Roadmap": gStr,
                 // "Google Terrain": gTer,
-                "Google Hybrid": gHyb,
+                // "Google Hybrid": gHyb,
                 "OpenStreetMaps Satellite": osmSat,
                 "OpenStreetMaps Roadmap": osmSt
             };
