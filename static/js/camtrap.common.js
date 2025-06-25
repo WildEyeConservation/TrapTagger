@@ -3044,6 +3044,10 @@ function onload (){
         pingServer()
     }
 
+    if (isTutorial) {
+        modalWelcome.modal({backdrop: 'static', keyboard: false});
+    }
+
     if (document.location.href.includes('task')) {
         switchToTask(/task=([^&]+)/.exec(document.location.href)[1])
     }
@@ -4026,6 +4030,9 @@ document.addEventListener('click', function(e) { if(document.activeElement.toStr
 //Maintain modalActive status
 modalWelcome.on('shown.bs.modal', function(){
     modalActive = true;
+});
+modalWelcome.on('hidden.bs.modal', function(){
+    modalActive = false;
 });
 modalAlert.on('shown.bs.modal', function(){
     modalActive = true;
