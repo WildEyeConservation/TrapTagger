@@ -1030,7 +1030,7 @@ def unknock_cluster(self,image_id, label_id, user_id, task_id):
             db.session.commit()
 
         # kick off reclustering
-        prepTask(task_id=task_id,trapgroup_ids=[trapgroup_id])
+        prepTask(task_id=task_id,trapgroup_ids=[trapgroup_id],bypass_update_statuses=True)
 
         #Add label to original cluster
         if label_id != None:
@@ -1106,6 +1106,8 @@ def unknock_cluster(self,image_id, label_id, user_id, task_id):
                         launch_task.apply_async(kwargs={'task_id':task_id})
                     
                     else:
+                        updateAllStatuses(task_id)
+                        task = db.session.query(Task).get(task_id)
                         task.status = 'Ready'
 
         db.session.commit()
@@ -6027,7 +6029,7 @@ def prepare_labelgroup_cluster_labels(task_id,trapgroup_id,query_limit,timestamp
     return True
 
 @celery.task(bind=True,max_retries=2,ignore_result=True)
-def prepTask(self, task_id, includes=None, translation=None, labels=None, auto_release=False, trapgroup_ids=None, timestamp=None):
+def prepTask(self, task_id, includes=None, translation=None, labels=None, auto_release=False, trapgroup_ids=None, timestamp=None, bypass_update_statuses=False):
     ''' Prepares/updates a task in terms of: labels, translations, clustering, labelgroups, classification & statuses '''
     
     try:
@@ -6162,7 +6164,7 @@ def prepTask(self, task_id, includes=None, translation=None, labels=None, auto_r
             if Config.DEBUGGING: print('{}: classified task {}'.format(time.time()-starttime,task_id))
 
             # We don't want to update the statuses in a knockdown scenario
-            if not timestamp: updateAllStatuses(task_id=task_id)
+            if not timestamp and not bypass_update_statuses: updateAllStatuses(task_id=task_id)
 
             if Config.DEBUGGING: print('{}: finished updating statuses for task {}'.format(time.time()-starttime,task_id))
         

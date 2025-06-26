@@ -1693,7 +1693,14 @@ function updateSiteFolderSelect(){
         var path = null;
         var pathDisplay = document.getElementById('pathDisplay');
         if (pathDisplay&&pathDisplay.options.length>2) {
-            path = pathDisplay.options[2].text;
+            // path = pathDisplay.options[2].text;
+            //find the longest path 
+            path = ''
+            for (let i=2;i<pathDisplay.options.length;i++) {
+                if (pathDisplay.options[i].text.length > path.length) {
+                    path = pathDisplay.options[i].text;
+                }
+            }
         }
         buildFolders(path, div_id, 'site');
 
@@ -1749,7 +1756,14 @@ function updateCamFolderSelect(){
         var path = null;
         var pathDisplay = document.getElementById('pathDisplay');
         if (pathDisplay&&pathDisplay.options.length>2) {
-            path = pathDisplay.options[2].text;
+            // path = pathDisplay.options[2].text;
+            //find the longest path
+            path = ''
+            for (let i=2;i<pathDisplay.options.length;i++) {
+                if (pathDisplay.options[i].text.length > path.length) {
+                    path = pathDisplay.options[i].text;
+                }
+            }
         }
         buildFolders(path, div_id, 'cam');
 

@@ -6467,8 +6467,9 @@ def getKnockCluster(task_id, knockedstatus, clusterID, index, imageIndex, T_inde
             elif (not queueing) and (not processing):
                 # Completely done - take the task out of a processing state
                 code = '-101'
-                task.status = 'SUCCESS'
+                task.status = 'Processing'
                 db.session.commit()
+                updateAllStatuses.delay(task_id=task_id,status=True)
             
             else:
                 # There is still some background processing going on - leave the task locked out
