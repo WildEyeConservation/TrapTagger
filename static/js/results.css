@@ -203,7 +203,7 @@ tr:hover td {
   color: white ;
 }
 
-.folder {
+.folderbtn {
   display: inline-block;
   padding: 2px 8px;
   background-color: #FFFFFF13;
@@ -211,15 +211,15 @@ tr:hover td {
   border-radius: 5px;
 }
 
-.folder.selected {
+.folderbtn.selected {
   background-color: #DF691A;
 }
 
-.folder.selected:hover {
+.folderbtn.selected:hover {
   background-color: #DF691A;
 }
 
-.folder:hover {
+.folderbtn:hover {
   background-color: rgba(223, 105, 26, 0.5);
 }
 

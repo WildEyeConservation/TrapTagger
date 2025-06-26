@@ -4587,20 +4587,20 @@ def extract_camera_name(camera_code,trapgroup_code,survey_name,trapgroup_tag,pat
             camera_code = re.compile(camera_code)
             tags = camera_code.search(path)
             if is_nth_folder_pattern and camera_code.groups >= 1:
-                tags = tags.group(1)
+                tags = tags.group(1) if tags else None
             else:
-                tags = tags.group()
-            camera_name = tags if tags else None
+                tags = tags.group() if tags else None
+            camera_name = tags
         else:
             camera_code = re.compile(camera_code)
             if is_nth_folder_pattern and camera_code.groups >= 1:
                 tags = camera_code.search(path)
-                tags = tags.group(1)
+                tags = tags.group(1) if tags else None
             else:
                 # If cam identifier not the same as the site identifier and not nth folder, remove the site identifier from the camera path
                 tags = camera_code.search(path.replace(trapgroup_tag,''))
-                tags = tags.group()
-            camera_name = tags if tags else None
+                tags = tags.group() if tags else None
+            camera_name = tags
 
     else:
         # Folder
