@@ -1178,10 +1178,20 @@ function resetNewSurveyPage() {
 
     document.getElementById('camAdvancedCheckbox').checked = false
     document.getElementById('camRegExp').checked = false
-    document.getElementById('camBotLvlFolder').checked = true
-    document.getElementById('camSameAsSite').checked = false
+    document.getElementById('camLvlFolder').checked = true
+    document.getElementById('camSameAsSite').checked = true
+    document.getElementById('multipleCam').checked = false
     document.getElementById('camIdDiv').hidden = true
-    document.getElementById('camOptionDesc').innerHTML = '<i>Each bottom-level folder in your dataset will be considered a different camera.</i>'
+    document.getElementById('camFolderDiv').hidden = true
+    document.getElementById('camOptionDesc').innerHTML = ''
+    document.getElementById('multiCamDiv').hidden = true
+
+    document.getElementById('siteFolderN').checked = true
+    document.getElementById('siteIdentifier').checked = false
+    document.getElementById('siteFolderDiv').hidden = false
+    document.getElementById('siteIdDiv').hidden = true
+    
+    document.getElementById('siteOptionDesc').innerHTML = '<i>Select the folder level from the path below that corresponds to the sites/stations in your folder structure. For example, in "Survey/Site1/Camera1", you should select the "Site1" folder.</i>'
 
     // document.getElementById('kmlFileUploadText').value = ''
     // document.getElementById('kmlFileUpload').value = ''
@@ -1217,6 +1227,11 @@ function resetNewSurveyPage() {
     surveyPermissionsDiv = document.querySelector('#surveyPermissionsDiv')
     while(surveyPermissionsDiv.firstChild){
         surveyPermissionsDiv.removeChild(surveyPermissionsDiv.firstChild);
+    }
+
+    siteFolderDiv = document.getElementById('siteFolderDiv')
+    while(siteFolderDiv.firstChild){
+        siteFolderDiv.removeChild(siteFolderDiv.firstChild);
     }
 
     confirmedEmpty = false
@@ -1361,6 +1376,10 @@ function buildBrowserUpload(divID) {
             checkTrapgroupCode()
         })
     }
+
+    updateSiteFolderSelect()
+    updateCamFolderSelect()
+    checkTrapgroupCode()
 }
 
 function pingTgCheck() {
@@ -1371,41 +1390,85 @@ function pingTgCheck() {
             folder = S3FolderInput.options[S3FolderInput.selectedIndex].text
 
             if (document.getElementById('addImagesTGCode')!=null) {
-                tgCode = document.getElementById('addImagesTGCode').value
+                siteFolderN = document.getElementById('siteFolderN_ES').checked
+                siteIdentifier = document.getElementById('siteIdentifierES').checked
+                if (siteFolderN) {
+                    tgCode = ''
+                    // look for a selected site folder
+                    selectedFolder = document.querySelector(".site-folder.selected");
+                    if (selectedFolder) {
+                        index = selectedFolder.dataset.index;
+                        tgCode = "(?:[^/]*/){"+index+"}([^/]*)"
+                    }
+                } else {
+                    tgCode = document.getElementById('addImagesTGCode').value
+                }
                 infoDiv = document.getElementById('addImagesStructureDiv')
                 camRegExp = document.getElementById('camRegExpES').checked
                 camSameAsSite = document.getElementById('camSameAsSiteES').checked
-                camBotLvlFolder = document.getElementById('camBotLvlFolderES').checked
+                camLvlFolder = document.getElementById('camLvlFolderES').checked
                 camAdvanced = document.getElementById('addImagesCamCheckbox').checked
-                if (camRegExp) {
-                    camCode = document.getElementById('addImagesCamCode').value
-                    if (!camAdvanced&&camCode!='') {
-                        camCode += '[0-9]+'
-                    }
-                } else if (camSameAsSite) {
+                if (camSameAsSite) {
                     camCode = tgCode
-                } else if (camBotLvlFolder) {
-                    camCode = 'None'
+                    camRegExp = false
+                    camLvlFolder = false
                 }
+                else{
+                    if (camRegExp) {
+                        camCode = document.getElementById('addImagesCamCode').value
+                        if (!camAdvanced&&camCode!='') {
+                            camCode += '[0-9]+'
+                        }
+                    } else if (camLvlFolder) {
+                        camCode = ''
+                        selectedFolder = document.querySelector(".cam-folder.selected");
+                        if (selectedFolder) {
+                            index = selectedFolder.dataset.index;
+                            camCode = "(?:[^/]*/){"+index+"}([^/]*)"
+                        }
+                    }
+                }
+
             } else {
-                tgCode = document.getElementById('newSurveyTGCode').value
+                siteFolderN = document.getElementById('siteFolderN').checked
+                siteIdentifier = document.getElementById('siteIdentifier').checked
+                if (siteFolderN) {
+                    tgCode = ''
+                    // look for a selected site folder
+                    selectedFolder = document.querySelector(".site-folder.selected");
+                    if (selectedFolder) {
+                        index = selectedFolder.dataset.index;
+                        tgCode = "(?:[^/]*/){"+index+"}([^/]*)"
+                    }
+                } else {
+                    tgCode = document.getElementById('newSurveyTGCode').value
+                }
                 infoDiv = document.getElementById('newSurveyStructureDiv')
                 camRegExp = document.getElementById('camRegExp').checked
                 camSameAsSite = document.getElementById('camSameAsSite').checked
-                camBotLvlFolder = document.getElementById('camBotLvlFolder').checked
+                camLvlFolder = document.getElementById('camLvlFolder').checked
                 camAdvanced = document.getElementById('camAdvancedCheckbox').checked
-                if (camRegExp) {
-                    camCode = document.getElementById('newSurveyCamCode').value
-                    if (!camAdvanced&&camCode!='') {
-                        camCode += '[0-9]+'
-                    }
-                } else if (camSameAsSite) {
+                if (camSameAsSite) {
                     camCode = tgCode
-                } else if (camBotLvlFolder) {
-                    camCode = 'None'
+                    camRegExp = false
+                    camLvlFolder = false
                 }
-            }
-
+                else{
+                    if (camRegExp) {
+                        camCode = document.getElementById('newSurveyCamCode').value
+                        if (!camAdvanced&&camCode!='') {
+                            camCode += '[0-9]+'
+                        }
+                    } else if (camLvlFolder) {
+                        camCode = ''
+                        selectedFolder = document.querySelector(".cam-folder.selected");
+                        if (selectedFolder) {
+                            index = selectedFolder.dataset.index;
+                            camCode = "(?:[^/]*/){"+index+"}([^/]*)"
+                        }
+                    }
+                }
+            }            
             if ((tgCode=='')||(folder=='')||(camCode=='')) {
                 infoDiv.innerHTML = ''
 
@@ -1441,19 +1504,20 @@ function pingTgCheck() {
 
             }
             else {
-
-                if (document.getElementById('addImagesTGCode')!=null) {
-                    if ((!document.getElementById('addImagesCheckbox').checked)&&(tgCode!='')) {
-                        tgCode+='[0-9]+'
-                        if (camSameAsSite) {
-                            camCode+='[0-9]+'
+                if (siteIdentifier) {
+                    if (document.getElementById('addImagesTGCode')!=null) {
+                        if ((!document.getElementById('addImagesCheckbox').checked)&&(tgCode!='')) {
+                            tgCode+='[0-9]+'
+                            if (camSameAsSite) {
+                                camCode+='[0-9]+'
+                            }
                         }
-                    }
-                } else {
-                    if ((!document.getElementById('newSurveyCheckbox').checked)&&(tgCode!='')) {
-                        tgCode+='[0-9]+'
-                        if (camSameAsSite) {
-                            camCode+='[0-9]+'
+                    } else {
+                        if ((!document.getElementById('newSurveyCheckbox').checked)&&(tgCode!='')) {
+                            tgCode+='[0-9]+'
+                            if (camSameAsSite) {
+                                camCode+='[0-9]+'
+                            }
                         }
                     }
                 }
@@ -1517,15 +1581,23 @@ function pingTgCheck() {
                                         page_count = 1
                                         var tgs = Object.keys(data.structure)
                                         // console.log(tgs)
+                                        var highestCamsPerSite = 0
                                         for (let i=0;i<tgs.length;i++) {
                                             globalSurveyStructure[page_count][tgs[i]] = data.structure[tgs[i]]
                                             if (Object.keys(globalSurveyStructure[page_count]).length == tags_per_page && i < tgs.length-1) {
                                                 page_count += 1
                                                 globalSurveyStructure[page_count] = {}
                                             }
+                                            highestCamsPerSite = Math.max(highestCamsPerSite, Object.keys(data.structure[tgs[i]]).length)
                                         }
 
                                         updateSurveyStructure()
+
+                                        if (highestCamsPerSite > 2) {
+                                            document.getElementById('modalAlertHeader').innerHTML = "Warning"
+                                            document.getElementById('modalAlertBody').innerHTML = "<p>More than 2 cameras are associated with at least one site/station. This is unusual, as sites/stations typically have only 1 or 2 cameras, and a survey typically contains multiple sites/stations.<br><br>Please verify that your site/station and camera identifiers are correct as well as the detected survey structure. If this setup is intentional, you may safely ignore this message.</p>"
+                                            modalAlert.modal({keyboard: true, backdrop: 'static'})
+                                        }
                                     }
                                     else{
                                         infoDiv.innerHTML = 'No structure found.'
@@ -1567,6 +1639,149 @@ function pingTgCheck() {
     }
 }
 
+function buildFolders(path, divID, folderType='site') {
+    /** Builds the folder structure into the specified div. */
+    var div = document.getElementById(divID);
+    while (div.firstChild) {
+        div.removeChild(div.firstChild);
+    }
+
+    if (path) {
+        var folders = path.split("/");
+        folders.forEach((folder, index) => {
+            let folderDiv = document.createElement("div");
+            folderDiv.className = "folder " + folderType + "-folder";
+            folderDiv.textContent = folder;
+            folderDiv.dataset.index = index;
+            folderDiv.id = folderType + 'Folder-' + index;
+            folderDiv.addEventListener("click", () => {
+                document.querySelectorAll("." + folderType + "-folder").forEach(el => el.classList.remove("selected"));
+                folderDiv.classList.add("selected");
+                checkTrapgroupCode();
+            });
+            if (index > 0) {
+                let slash = document.createElement("span");
+                slash.className = "slash";
+                slash.textContent = "/";
+                div.appendChild(slash);
+            }
+            div.appendChild(folderDiv);
+        });
+    } else {
+        div.innerHTML = 'No files selected.'
+    }
+}
+
+function updateSiteFolderSelect(){
+    /** Updates the site folder select element with the current folder structure. */
+
+    if (document.getElementById('siteFolderDivES') != null) {
+        var div_id = 'siteFolderDivES'
+        var browser = document.getElementById('BrowserAdd').checked;
+    }
+    else{
+        var div_id = 'siteFolderDiv'
+        var browser = document.getElementById('BrowserUpload').checked;
+    }
+
+    var siteFolderDiv = document.getElementById(div_id);
+    while (siteFolderDiv.firstChild) {
+        siteFolderDiv.removeChild(siteFolderDiv.firstChild);
+    }
+
+    if (browser) {
+        var path = null;
+        var pathDisplay = document.getElementById('pathDisplay');
+        if (pathDisplay&&pathDisplay.options.length>2) {
+            path = pathDisplay.options[2].text;
+        }
+        buildFolders(path, div_id, 'site');
+
+    } else {
+
+        var S3FolderInput = document.getElementById('S3FolderInput')
+        var s3_folder = S3FolderInput.options[S3FolderInput.selectedIndex].text
+        if (div_id == 'siteFolderDivES') {
+            var survey_id = selectedSurvey
+            var org_id = 0
+        }else{
+            var survey_id = 0
+            var org_id = document.getElementById('newSurveyOrg').value
+        }
+        
+        if ((org_id||survey_id)&&s3_folder) {
+            var xhttp = new XMLHttpRequest();
+            xhttp.open("GET", '/getFolderFirstFile/'+org_id+'/'+survey_id+'/'+s3_folder);
+            xhttp.onreadystatechange =
+            function(){
+                if (this.readyState == 4 && this.status == 200) {
+                    reply = JSON.parse(this.responseText);  
+                    buildFolders(reply, div_id, 'site');
+                }
+            }
+            xhttp.send();
+        }
+        else{
+            buildFolders(null, div_id, 'site');
+        }
+    }
+}
+
+
+function updateCamFolderSelect(){
+    /** Updates the cam folder select element with the current folder structure. */
+
+    if (document.getElementById('camFolderDivES') != null) {
+        var div_id = 'camFolderDivES'
+        var browser = document.getElementById('BrowserAdd').checked;
+    }
+    else{
+        var div_id = 'camFolderDiv'
+        var browser = document.getElementById('BrowserUpload').checked;
+    }
+
+    var camFolderDiv = document.getElementById(div_id);
+    while (camFolderDiv.firstChild) {
+        camFolderDiv.removeChild(camFolderDiv.firstChild);
+    }
+
+    if (browser) {
+        var path = null;
+        var pathDisplay = document.getElementById('pathDisplay');
+        if (pathDisplay&&pathDisplay.options.length>2) {
+            path = pathDisplay.options[2].text;
+        }
+        buildFolders(path, div_id, 'cam');
+
+    } else {
+
+        var S3FolderInput = document.getElementById('S3FolderInput')
+        var s3_folder = S3FolderInput.options[S3FolderInput.selectedIndex].text
+        if (div_id == 'camFolderDivES') {
+            var survey_id = selectedSurvey
+            var org_id = 0
+        }else{
+            var survey_id = 0
+            var org_id = document.getElementById('newSurveyOrg').value
+        }
+        if ((org_id||survey_id)&&s3_folder) {
+            var xhttp = new XMLHttpRequest();
+            xhttp.open("GET", '/getFolderFirstFile/'+org_id+'/'+survey_id+'/'+s3_folder);
+            xhttp.onreadystatechange =
+            function(){
+                if (this.readyState == 4 && this.status == 200) {
+                    reply = JSON.parse(this.responseText);  
+                    buildFolders(reply, div_id, 'cam');
+                }
+            }
+            xhttp.send();
+        }
+        else{
+            buildFolders(null, div_id, 'cam');
+        }
+    }
+}
+
 function checkTrapgroupCode() {
     /** Checks the trapgroup code and updates the TG info field. */
 
@@ -1575,60 +1790,113 @@ function checkTrapgroupCode() {
     structure_page = 1
 
     if (document.getElementById('addImagesTGCode')!=null) {
-        tgCode = document.getElementById('addImagesTGCode').value
+        siteFolderN = document.getElementById('siteFolderN_ES').checked
+        siteIdentifier = document.getElementById('siteIdentifierES').checked
+        if (siteFolderN) {
+            tgCode = ''
+            // look for a selected site folder
+            selectedFolder = document.querySelector(".site-folder.selected");
+            if (selectedFolder) {
+                index = selectedFolder.dataset.index;
+                tgCode = "(?:[^/]*/){"+index+"}([^/]*)"
+            }
+        } else {
+            tgCode = document.getElementById('addImagesTGCode').value
+        }
         infoDiv = document.getElementById('addImagesStructureDiv')
         browserChecked = document.getElementById('BrowserAdd').checked
         folderChecked = document.getElementById('S3BucketAdd').checked
-        camBotLvlFolder = document.getElementById('camBotLvlFolderES').value
+        camLvlFolder = document.getElementById('camLvlFolderES').checked
         camSameAsSite = document.getElementById('camSameAsSiteES').checked
         camRegExp = document.getElementById('camRegExpES').checked
-        if (camRegExp) {
-            camCode = document.getElementById('addImagesCamCode').value
-            if (!document.getElementById('addImagesCamCheckbox').checked&&camCode!='') {
-                camCode += '[0-9]+'
-            }
-        }
-        else if(camSameAsSite) {
+
+        if (camSameAsSite){
             camCode = tgCode
+            camLvlFolder = false
+            camRegExp = false
         }
         else{
-            camCode = 'None'
+            if (camRegExp) {
+                camCode = document.getElementById('addImagesCamCode').value
+                if (!document.getElementById('addImagesCamCheckbox').checked&&camCode!='') {
+                    camCode += '[0-9]+'
+                }
+            }
+            else if (camLvlFolder) {
+                camCode = ''
+                // look for a selected camera folder
+                selectedFolder = document.querySelector(".cam-folder.selected");
+                if (selectedFolder) {
+                    index = selectedFolder.dataset.index;
+                    camCode = "(?:[^/]*/){"+index+"}([^/]*)"
+                }
+            }
+            else{
+                camCode = 'None'
+            }
         }
     } else {
-        tgCode = document.getElementById('newSurveyTGCode').value
+        siteFolderN = document.getElementById('siteFolderN').checked
+        siteIdentifier = document.getElementById('siteIdentifier').checked
+        if (siteFolderN) {
+            tgCode = ''
+            // look for a selected site folder
+            selectedFolder = document.querySelector(".site-folder.selected");
+            if (selectedFolder) {
+                index = selectedFolder.dataset.index;
+                tgCode = "(?:[^/]*/){"+index+"}([^/]*)"
+            }
+        } else {
+            tgCode = document.getElementById('newSurveyTGCode').value
+        }
         infoDiv = document.getElementById('newSurveyStructureDiv')
         browserChecked = document.getElementById('BrowserUpload').checked
         folderChecked = document.getElementById('S3BucketUpload').checked
-        camBotLvlFolder = document.getElementById('camBotLvlFolder').value
+        camLvlFolder = document.getElementById('camLvlFolder').checked
         camSameAsSite = document.getElementById('camSameAsSite').checked
         camRegExp = document.getElementById('camRegExp').checked
-        if (camRegExp) {
-            camCode = document.getElementById('newSurveyCamCode').value
-            if (!document.getElementById('camAdvancedCheckbox').checked&&camCode!='') {
-                camCode += '[0-9]+'
-            }
-        }
-        else if(camSameAsSite) {
+
+        if(camSameAsSite) {
             camCode = tgCode
+            camLvlFolder = false
+            camRegExp = false
         }
         else{
-            camCode = 'None'
+            if (camRegExp) {
+                camCode = document.getElementById('newSurveyCamCode').value
+                if (!document.getElementById('camAdvancedCheckbox').checked&&camCode!='') {
+                    camCode += '[0-9]+'
+                }
+            } else if (camLvlFolder) {
+                camCode = ''
+                // look for a selected camera folder
+                selectedFolder = document.querySelector(".cam-folder.selected");
+                if (selectedFolder) {
+                    index = selectedFolder.dataset.index;
+                    camCode = "(?:[^/]*/){"+index+"}([^/]*)"
+                }
+            }
+            else{
+                camCode = 'None'
+            }
         }
     }
 
 
-    if (document.getElementById('addImagesTGCode')!=null) {
-        if ((!document.getElementById('addImagesCheckbox').checked)&&(tgCode!='')) {
-            tgCode+='[0-9]+'
-            if (camSameAsSite) {
-                camCode+='[0-9]+'
+    if (siteIdentifier) {
+        if (document.getElementById('addImagesTGCode')!=null) {
+            if ((!document.getElementById('addImagesCheckbox').checked)&&(tgCode!='')) {
+                tgCode+='[0-9]+'
+                if (camSameAsSite) {
+                    camCode+='[0-9]+'
+                }
             }
-        }
-    } else {
-        if ((!document.getElementById('newSurveyCheckbox').checked)&&(tgCode!='')) {
-            tgCode+='[0-9]+'
-            if (camSameAsSite) {
-                camCode+='[0-9]+'
+        } else {
+            if ((!document.getElementById('newSurveyCheckbox').checked)&&(tgCode!='')) {
+                tgCode+='[0-9]+'
+                if (camSameAsSite) {
+                    camCode+='[0-9]+'
+                }
             }
         }
     }
@@ -1653,25 +1921,45 @@ function checkTrapgroupCode() {
                 tgs = []
                 cams = []
                 structure = {}
+                indices = {}
                 for (let i=2;i<pathDisplay.options.length;i++) {
                     matches = pathDisplay.options[i].text.match(pattern)
+                    match = null 
+                    camMatch = null
+                    if (matches!=null) {
+                        if (siteFolderN){
+                            match = matches[1]
+                        }
+                        else{
+                            match = matches[0]
+                        }
+                    }
                     if (camCode == 'None') {
                         path_split = pathDisplay.options[i].text.split('/')
                         cam_folder = path_split[path_split.length-1]
-                        camMatches = [cam_folder]
+                        camMatch = cam_folder
                     }
                     else{
                         camPath = pathDisplay.options[i].text
-                        if (camCode != tgCode) {
-                            if (matches!=null) {
-                                camPath = camPath.replace(matches[0], '')
+                        if (camCode != tgCode && !camLvlFolder) {
+                            if (match!=null) {
+                                camPath = camPath.replace(match, '')
                             }
                         }
                         camMatches = camPath.match(camPattern)
+                        if (camMatches!=null) {
+                            if (camLvlFolder) {
+                                camMatch = camMatches[1]
+                            } else if (camSameAsSite && siteFolderN) {
+                                camMatch = camMatches[1]
+                            } else {
+                                camMatch = camMatches[0]
+                            }
+                        }
                     }
-                    if (matches!=null && camMatches!=null) {
-                        tg = matches[0]
-                        cam = camMatches[0]
+                    if (match!=null && camMatch!=null) {
+                        tg = match
+                        cam = camMatch
                         if (!tgs.includes(tg)) {
                             tgs.push(tg)
                         }
@@ -1686,6 +1974,24 @@ function checkTrapgroupCode() {
                         else {
                             structure[tg] = [cam]
                         }
+                        if (tg in indices) {
+                            idx = pathDisplay.options[i].text.indexOf(tg)
+                            if (cam in indices[tg]['cams']) {
+                                indices[tg]['cams'][cam] = pathDisplay.options[i].text.indexOf(cam)
+                            } else {
+                                indices[tg]['cams'][cam] = pathDisplay.options[i].text.indexOf(cam)
+                            }
+                            if (indices[tg]['index'] > idx) {
+                                indices[tg]['index'] = idx
+                            }
+                        } else {
+                            indices[tg] = {
+                                'index': pathDisplay.options[i].text.indexOf(tg),
+                                'cams': {}
+                            }
+                            indices[tg]['cams'][cam] = pathDisplay.options[i].text.indexOf(cam)
+                        }
+
                     }
                 }
 
@@ -1698,11 +2004,28 @@ function checkTrapgroupCode() {
                     validStructure = false
                 }
                 var totCams = 0
+                var highestCamsPerSite = 0
                 for (let i=0;i<tgs.length;i++) {
                     if (structure[tgs[i]].length==0) {
                         validStructure = false
                     }
                     totCams += structure[tgs[i]].length
+                    highestCamsPerSite = Math.max(highestCamsPerSite, structure[tgs[i]].length)
+                }
+
+                //Need to check that the cameras are not before the sites in the structure
+                for (let i=0;i<tgs.length;i++) {
+                    tg = tgs[i]
+                    for (let j=0;j<structure[tg].length;j++) {
+                        cam = structure[tg][j]
+                        if (indices[tg]['index'] > indices[tg]['cams'][cam]) {
+                            validStructure = false
+                            break
+                        }
+                    }
+                    if (!validStructure) {
+                        break
+                    }
                 }
 
                 if (validStructure) {
@@ -1720,6 +2043,12 @@ function checkTrapgroupCode() {
                             page_count += 1
                             globalSurveyStructure[page_count] = {}
                         }
+                    }
+
+                    if (highestCamsPerSite > 2) {
+                        document.getElementById('modalAlertHeader').innerHTML = "Warning"
+                        document.getElementById('modalAlertBody').innerHTML = "<p>More than 2 cameras are associated with at least one site/station. This is unusual, as sites/stations typically have only 1 or 2 cameras, and a survey typically contains multiple sites/stations.<br><br>Please verify that your site/station and camera identifiers are correct as well as the detected survey structure. If this setup is intentional, you may safely ignore this message.</p>"
+                        modalAlert.modal({keyboard: true, backdrop: 'static'})
                     }
                 }
                 else{
@@ -2148,8 +2477,14 @@ function buildBucketUpload(divID,folders) {
     }
 
     $("#S3FolderInput").change( function() {
+        updateSiteFolderSelect()
+        updateCamFolderSelect()
         checkTrapgroupCode()
-    })
+    });
+
+    updateSiteFolderSelect()
+    updateCamFolderSelect()
+    checkTrapgroupCode()
 }
 
 function buildAddIms() {
@@ -2250,17 +2585,77 @@ function buildAddIms() {
 
     div = document.createElement('div')
     div.setAttribute('style','font-size: 80%; margin-bottom: 2px')
-    div.innerHTML = '<i>The identifier used to designate a site in your folder structure. Eg. "Site" if your sites are stored in folders named "Site1", "Site2" etc. Becomes a <a href="https://www.w3schools.com/python/python_regex.asp">regular expression</a> search query if the advanced option is selected. Please note that a site is not an area - it is a singular point in space that can be described using a single pair of coordindates (latitude,longitude). If there are multiple cameras at a site, these cameras would typically be triggered by the same event - ie. an animal passing by. Typically, a multiple-camera-per-site setup would be cameras overlooking the same waterhole or bait station, or on either side of a game trail to capture both flanks of individuals as they pass by.</i>'
+    div.innerHTML = '<i>Select how you would like to identify your site. Please note that <span style="color: #DF691A">a site is not an area - it is a singular point in space</span> that can be described using a single pair of coordinates (latitude,longitude). If there are multiple cameras at a site, these cameras would typically be triggered by the same event - ie. an animal passing by. Typically, a multiple-camera-per-site setup would be cameras overlooking the same waterhole or bait station, or on either side of a game trail to capture both flanks of individuals as they pass by.</i>'
     addFilesDiv.appendChild(div)
 
-    info = document.createElement('div')
-    info.setAttribute('id','addImagesTGInfo')
-    info.setAttribute('style','font-size: 80%; color: #DF691A')
-    addFilesDiv.appendChild(info)
+    // info = document.createElement('div')
+    // info.setAttribute('id','addImagesTGInfo')
+    // info.setAttribute('style','font-size: 80%; color: #DF691A')
+    // addFilesDiv.appendChild(info)
+
+    var div = document.createElement('div')
+    div.style.marginBottom = '5px'
+    addFilesDiv.appendChild(div)
+
+    var radioDiv = document.createElement('div')
+    radioDiv.setAttribute('class','custom-control custom-radio custom-control-inline')
+    div.appendChild(radioDiv)
+
+    var input = document.createElement('input')
+    input.setAttribute('type','radio')
+    input.classList.add('custom-control-input')
+    input.setAttribute('id','siteFolderN_ES')
+    input.setAttribute('name','siteCodeSelection')
+    input.setAttribute('value','0')
+    input.checked = true
+    input.setAttribute('onchange','updateSiteDiv()')
+    radioDiv.appendChild(input)
+
+    var label = document.createElement('label')
+    label.classList.add('custom-control-label')
+    label.setAttribute('for','siteFolderN_ES')
+    label.innerHTML = 'Folder'
+    radioDiv.appendChild(label)
+
+    var radioDiv = document.createElement('div')
+    radioDiv.setAttribute('class','custom-control custom-radio custom-control-inline')
+    div.appendChild(radioDiv)
+    var input = document.createElement('input')
+    input.setAttribute('type','radio')
+    input.classList.add('custom-control-input')
+    input.setAttribute('id','siteIdentifierES')
+    input.setAttribute('name','siteCodeSelection')
+    input.setAttribute('value','0')
+    input.checked = false
+    input.setAttribute('onchange','updateSiteDiv()')
+    radioDiv.appendChild(input)
+
+    var label = document.createElement('label')
+    label.classList.add('custom-control-label')
+    label.setAttribute('for','siteIdentifierES')
+    label.innerHTML = 'Site Identifier'
+    radioDiv.appendChild(label)
+
+    var div = document.createElement('div')
+    div.id = 'addImagesSiteDesc'
+    div.setAttribute('style','font-size: 80%; margin-bottom: 2px')
+    div.innerHTML = '<i>Select the folder level from the path below that corresponds to the sites/stations in your folder structure. For example, in "Survey/Site1/Camera1", you should select the "Site1" folder.</i>'
+    addFilesDiv.appendChild(div)
+
+    var div = document.createElement('div')
+    div.setAttribute('id','siteFolderDivES')
+    div.innerHTML = 'No files selected.'
+    div.hidden = false
+    addFilesDiv.appendChild(div)
+
+    var div = document.createElement('div')
+    div.setAttribute('id','siteIdDivES')
+    div.hidden = true
+    addFilesDiv.appendChild(div)
 
     row = document.createElement('div')
     row.classList.add('row')
-    addFilesDiv.appendChild(row)
+    div.appendChild(row)
 
     col1 = document.createElement('div')
     col1.classList.add('col-lg-4')
@@ -2324,7 +2719,7 @@ function buildAddIms() {
 
     div = document.createElement('div')
     div.setAttribute('style','font-size: 80%; margin-bottom: 2px')
-    div.innerHTML = '<i>Select the method you would like to use to identify your cameras.</i>'
+    div.innerHTML = '<i>How many cameras do you have per site/station?</i>'
     addFilesDiv.appendChild(div)
 
     var div = document.createElement('div')
@@ -2338,8 +2733,8 @@ function buildAddIms() {
     var input = document.createElement('input')
     input.setAttribute('type','radio')
     input.classList.add('custom-control-input')
-    input.setAttribute('id','camBotLvlFolderES')
-    input.setAttribute('name','camCodeSelectionES')
+    input.setAttribute('id','camSameAsSiteES')
+    input.setAttribute('name','camSelectionES')
     input.setAttribute('value','customEx')
     input.checked = true
     input.setAttribute('onchange','updateCamDiv()')
@@ -2347,8 +2742,8 @@ function buildAddIms() {
 
     var label = document.createElement('label')
     label.classList.add('custom-control-label')
-    label.setAttribute('for','camBotLvlFolderES')
-    label.innerHTML = 'Folder'
+    label.setAttribute('for','camSameAsSiteES')
+    label.innerHTML = 'One camera per site/station'
     radioDiv.appendChild(label)
 
     var radioDiv = document.createElement('div')
@@ -2358,8 +2753,8 @@ function buildAddIms() {
     var input = document.createElement('input')
     input.setAttribute('type','radio')
     input.classList.add('custom-control-input')
-    input.setAttribute('id','camSameAsSiteES')
-    input.setAttribute('name','camCodeSelectionES')
+    input.setAttribute('id','multipleCamES')
+    input.setAttribute('name','camSelectionES')
     input.setAttribute('value','customEx')
     input.checked = false
     input.setAttribute('onchange','updateCamDiv()')
@@ -2367,8 +2762,42 @@ function buildAddIms() {
 
     var label = document.createElement('label')
     label.classList.add('custom-control-label')
-    label.setAttribute('for','camSameAsSiteES')
-    label.innerHTML = 'Site Identifier (one camera per site)'
+    label.setAttribute('for','multipleCamES')
+    label.innerHTML = 'Multiple cameras per site/station'
+    radioDiv.appendChild(label)
+
+    var multiCamDiv = document.createElement('div')
+    multiCamDiv.setAttribute('id','multiCamDivES')
+    multiCamDiv.hidden = true
+    addFilesDiv.appendChild(multiCamDiv)
+
+    div = document.createElement('div')
+    div.setAttribute('style','font-size: 80%; margin-bottom: 2px')
+    div.innerHTML = '<i>Select the method you would like to use to identify your cameras.</i>'
+    multiCamDiv.appendChild(div)
+
+    var div = document.createElement('div')
+    div.style.marginBottom = '5px'
+    multiCamDiv.appendChild(div)
+
+    var radioDiv = document.createElement('div')
+    radioDiv.setAttribute('class','custom-control custom-radio custom-control-inline')
+    div.appendChild(radioDiv)
+
+    var input = document.createElement('input')
+    input.setAttribute('type','radio')
+    input.classList.add('custom-control-input')
+    input.setAttribute('id','camLvlFolderES')
+    input.setAttribute('name','camCodeSelectionES')
+    input.setAttribute('value','customEx')
+    input.checked = true
+    input.setAttribute('onchange','updateCamDiv()')
+    radioDiv.appendChild(input)
+
+    var label = document.createElement('label')
+    label.classList.add('custom-control-label')
+    label.setAttribute('for','camLvlFolderES')
+    label.innerHTML = 'Folder'
     radioDiv.appendChild(label)
 
     var radioDiv = document.createElement('div')
@@ -2394,8 +2823,14 @@ function buildAddIms() {
     div = document.createElement('div')
     div.id = 'addImagesCamDesc'
     div.setAttribute('style','font-size: 80%; margin-bottom: 2px')
-    div.innerHTML = '<i>Each bottom-level folder in your dataset will be considered a different camera.</i>'
-    addFilesDiv.appendChild(div)
+    div.innerHTML = '<i>Select the folder level from the path below that corresponds to the cameras in your folder structure. For example, in "Survey/Site1/Camera1", you should select the "Camera1" folder.</i>'
+    multiCamDiv.appendChild(div)
+
+    var camFDiv = document.createElement('div')
+    camFDiv.setAttribute('id','camFolderDivES')
+    camFDiv.hidden = true
+    camFDiv.innerHTML = 'No files selected.'
+    addFilesDiv.appendChild(camFDiv)
 
     var camDiv = document.createElement('div')
     camDiv.id = 'addImagesCamDiv'
@@ -2468,7 +2903,7 @@ function buildAddIms() {
 
     var div = document.createElement('div')
     div.setAttribute('style','font-size: 80%; margin-bottom: 2px')
-    div.innerHTML = '<i>Check the detected structure of your survey. Eg. "Site1 : Camera1, Camera2" etc. </i>'
+    div.innerHTML = '<i>Check the detected structure of your survey. Eg. "Site1 : Camera1, Camera2", "Site2 : Camera3", etc. </i>'
     addFilesDiv.appendChild(div)
 
     var div = document.createElement('div')
@@ -4423,7 +4858,7 @@ document.getElementById('btnSaveSurvey').addEventListener('click', ()=>{
     newSurveyAnnotation = document.getElementById('newSurveyAnnotation').value
     detailedAccessSurvey = document.getElementById('detailedAccessSurveyCb').checked
     camRegExp = document.getElementById('camRegExp').checked
-    camBotLvlFolder = document.getElementById('camBotLvlFolder').checked
+    camLvlFolder = document.getElementById('camLvlFolder').checked
     camSameAsSite = document.getElementById('camSameAsSite').checked
     newSurveyStructureDiv = document.getElementById('newSurveyStructureDiv')
     classifier_id = document.querySelector('input[name="classifierSelection"]:checked')
@@ -4433,7 +4868,9 @@ document.getElementById('btnSaveSurvey').addEventListener('click', ()=>{
     newSurveyBaited = document.getElementById('newSurveyBaited').checked
     newSurveyMotion = document.getElementById('newSurveyMotion').checked
     newSurveyIgnoreSmallDets = document.getElementById('cbxIgnoreSmallDets').checked
-    newSurvyeIgnoreSkyDets = document.getElementById('cbxIgnoreSkyDets').checked
+    newSurveyIgnoreSkyDets = document.getElementById('cbxIgnoreSkyDets').checked
+    siteFolderN = document.getElementById('siteFolderN').checked
+    siteIdentifier = document.getElementById('siteIdentifier').checked
 
     while(document.getElementById('newSurveyErrors').firstChild){
         document.getElementById('newSurveyErrors').removeChild(document.getElementById('newSurveyErrors').firstChild);
@@ -4546,7 +4983,20 @@ document.getElementById('btnSaveSurvey').addEventListener('click', ()=>{
     if (emptySurvey){
         legalTGCode = true
         newSurveyTGCode = ''
+    } else if (siteFolderN) {
+        // Folder Level
+        newSurveyTGCode = ''
+        selectedFolder = document.querySelector(".site-folder.selected");
+        if (selectedFolder) {
+            index = selectedFolder.dataset.index;
+            newSurveyTGCode = "(?:[^/]*/){"+index+"}([^/]*)"
+        }
+        else{
+            legalTGCode = false
+            document.getElementById('newSurveyErrors').innerHTML = 'You have not selected the folder-level that represents your sites.'
+        }
     } else {
+        // Regular expression 
         if (newSurveyTGCode == '') {
             legalTGCode = false
             document.getElementById('newSurveyErrors').innerHTML = 'The site identifier field cannot be empty.'
@@ -4566,32 +5016,43 @@ document.getElementById('btnSaveSurvey').addEventListener('click', ()=>{
         legalCamCode = true
     }
     else{
-        if (camRegExp) {
-            // Regular expression
-            var newSurveyCamCode = document.getElementById('newSurveyCamCode').value
-            if (newSurveyCamCode == '') {
-                legalCamCode = false
-                document.getElementById('newSurveyErrors').innerHTML = 'The camera code field cannot be empty.'
-            }
-            else{
-                if (newSurveyCamCode.endsWith('.*') || newSurveyCamCode.endsWith('.+') || newSurveyCamCode.endsWith('.*[0-9]+') || newSurveyCamCode.endsWith('.+[0-9]+' )) {
-                    legalCamCode = false
-                    error_message = 'Your camera code is invalid. Please try again or send an email for assistance.'
-                    document.getElementById('newSurveyErrors').innerHTML = error_message 
-                }   
-            }
-        }
-        else if (camBotLvlFolder) {
-            // Bottom-level folder
-            legalCamCode = true
-        }
-        else if (camSameAsSite) {
+        if (camSameAsSite) {
             // Site identifier
             legalCamCode = legalTGCode
-        }
-        else {
-            legalCamCode = false
-            document.getElementById('newSurveyErrors').innerHTML = 'You must select a camera code option.'
+            camRegExp = false
+            camLvlFolder = false
+        }else{
+            if (camRegExp) {
+                // Regular expression
+                var newSurveyCamCode = document.getElementById('newSurveyCamCode').value
+                if (newSurveyCamCode == '') {
+                    legalCamCode = false
+                    document.getElementById('newSurveyErrors').innerHTML = 'The camera code field cannot be empty.'
+                }
+                else{
+                    if (newSurveyCamCode.endsWith('.*') || newSurveyCamCode.endsWith('.+') || newSurveyCamCode.endsWith('.*[0-9]+') || newSurveyCamCode.endsWith('.+[0-9]+' )) {
+                        legalCamCode = false
+                        error_message = 'Your camera code is invalid. Please try again or send an email for assistance.'
+                        document.getElementById('newSurveyErrors').innerHTML = error_message 
+                    }   
+                }
+            }
+            else if (camLvlFolder) {
+                // Folder level 
+                newSurveyCamCode = ''
+                selectedFolder = document.querySelector(".cam-folder.selected");
+                if (selectedFolder) {
+                    index = selectedFolder.dataset.index;
+                    newSurveyCamCode = "(?:[^/]*/){"+index+"}([^/]*)"
+                }
+                else{
+                    legalCamCode = false
+                    document.getElementById('newSurveyErrors').innerHTML = 'You have not selected the folder-level that represents your cameras.'
+                }
+            } else {
+                legalCamCode = false
+                document.getElementById('newSurveyErrors').innerHTML = 'You must select a camera code option.'
+            }
         }
     }
 
@@ -4605,7 +5066,7 @@ document.getElementById('btnSaveSurvey').addEventListener('click', ()=>{
             document.getElementById('newSurveyErrors').innerHTML = 'Please wait for your structure check to finish.'
         }
     
-        if ((newSurveyStructureDiv!=null)&&(newSurveyStructureDiv.innerHTML == '')||(newSurveyStructureDiv.innerHTML == 'Malformed expression. Please try again.')||(newSurveyStructureDiv.innerHTML == 'Invalid structure. Please check your site and camera identifiers.')) {
+        if ((newSurveyStructureDiv!=null)&&(newSurveyStructureDiv.innerHTML == '')||(newSurveyStructureDiv.innerHTML == 'Malformed expression. Please try again.')||(newSurveyStructureDiv.innerHTML == 'Invalid structure. Please check your site and camera identifiers.')||(newSurveyStructureDiv.innerHTML.includes('identifier is invalid'))) {
             legalTGCode = false
             legalCamCode = false
             document.getElementById('newSurveyErrors').innerHTML = 'Your specified site or camera identifiers are invalid. Please try again.'
@@ -4634,12 +5095,22 @@ document.getElementById('btnSaveSurvey').addEventListener('click', ()=>{
             });
             reader.readAsText(kmlFileUpload.files[0])
         } else {
+            if (siteFolderN) {
+                selectedFolder = document.querySelector(".site-folder.selected");
+                index = selectedFolder.dataset.index;
+                newSurveyTGCode = "(?:[^/]*/){"+index+"}([^/]*)"
+                newSurveyCheckboxChecked = true
+            }
+            else{
+                newSurveyTGCode = document.getElementById('newSurveyTGCode').value
+                newSurveyCheckboxChecked = newSurveyCheckbox.checked
+            }
             var formData = new FormData()
             formData.append("surveyName", surveyName)
             formData.append("newSurveyDescription", newSurveyDescription)
             formData.append("newSurveyTGCode", newSurveyTGCode)
             formData.append("newSurveyS3Folder", newSurveyS3Folder)
-            formData.append("checkbox", newSurveyCheckbox.checked.toString())
+            formData.append("checkbox", newSurveyCheckboxChecked.toString())
             formData.append("correctTimestamps", 'false')
             formData.append("classifier_id", classifier_id)
             formData.append("organisation_id", surveyOrganisation)
@@ -4648,17 +5119,22 @@ document.getElementById('btnSaveSurvey').addEventListener('click', ()=>{
             if (detailedAccessSurvey) {
                 formData.append("detailed_access", JSON.stringify(detailed_access))
             }
-            if (camRegExp) {
-                formData.append("newSurveyCamCode", document.getElementById('newSurveyCamCode').value)
-                formData.append("camCheckbox", document.getElementById('camAdvancedCheckbox').checked.toString())
-            }
-            else if (camBotLvlFolder) {
-                formData.append("newSurveyCamCode", 'None')
-                formData.append("camCheckbox", 'false')
-            }
-            else if (camSameAsSite) {
+            if (camSameAsSite) {
                 formData.append("newSurveyCamCode", newSurveyTGCode)
-                formData.append("camCheckbox", newSurveyCheckbox.checked.toString())
+                formData.append("camCheckbox", newSurveyCheckboxChecked.toString())
+            }
+            else{
+                if (camRegExp) {
+                    formData.append("newSurveyCamCode", document.getElementById('newSurveyCamCode').value)
+                    formData.append("camCheckbox", document.getElementById('camAdvancedCheckbox').checked.toString())
+                }
+                else if (camLvlFolder) {
+                    selectedFolder = document.querySelector(".cam-folder.selected");
+                    index = selectedFolder.dataset.index;
+                    newSurveyCamCode = "(?:[^/]*/){"+index+"}([^/]*)"
+                    formData.append("newSurveyCamCode", newSurveyCamCode)
+                    formData.append("camCheckbox", 'true')
+                }
             }
 
             if (newSurveyTrails) {
@@ -4683,7 +5159,7 @@ document.getElementById('btnSaveSurvey').addEventListener('click', ()=>{
                 formData.append("ignoreSmallDets", 'false')
             }
 
-            if(newSurvyeIgnoreSkyDets){
+            if(newSurveyIgnoreSkyDets){
                 formData.append("ignoreSkyDets", 'true')
             } else {
                 formData.append("ignoreSkyDets", 'false')
@@ -4799,62 +5275,89 @@ document.getElementById('btnAddFiles').addEventListener('click', ()=>{
     legalCamCode = true
     addImagesTGCode = document.getElementById('addImagesTGCode').value
     addImagesCheckboxChecked = document.getElementById('addImagesCheckbox').checked
+    siteFolderN_ES = document.getElementById('siteFolderN_ES').checked
 
-    if ((addImagesTGCode == '')||(addImagesTGCode == ' ')) {
-        legalTGCode = false
-        addFilesErrors.innerHTML = 'The site identifier field cannot be empty.'
-    } else if ((addImagesTGCode.includes('/'))||(addImagesTGCode.includes('\\'))) {
-        legalTGCode = false
-        addFilesErrors.innerHTML = 'The site identifier cannot contain slashes.'
-    }
-    else if (addImagesTGCode.endsWith('.*') || addImagesTGCode.endsWith('.+') || addImagesTGCode.endsWith('.*[0-9]+') || addImagesTGCode.endsWith('.+[0-9]+' )) {
-        legalTGCode = false
-        error_message = 'Your site identifier is invalid. Please try again or contact us for assistance.'
-        addFilesErrors.innerHTML = error_message 
-    }   
-
-    camRegExp = document.getElementById('camRegExpES').checked
-    camBotLvlFolder = document.getElementById('camBotLvlFolderES').checked
-    camSameAsSite = document.getElementById('camSameAsSiteES').checked
-
-    if (camRegExp) {
-        // Regular expression
-        addImagesCamCode = document.getElementById('addImagesCamCode').value
-        addImagesCamCheckboxChecked = document.getElementById('addImagesCamCheckbox').checked
-
-        if ((addImagesCamCode == '') || (addImagesCamCode == ' ')) {
-            legalCamCode = false
-            addFilesErrors.innerHTML = 'The camera code field cannot be empty.'
-        }
-        else if ((addImagesCamCode.includes('/'))||(addImagesCamCode.includes('\\'))) {
-            legalCamCode = false
-            addFilesErrors.innerHTML = 'The camera code cannot contain slashes.'
+    if (siteFolderN_ES) {
+        addImagesTGCode = ''
+        selectedFolder = document.querySelector(".site-folder.selected");
+        if (selectedFolder) {
+            index = selectedFolder.dataset.index;
+            addImagesTGCode = "(?:[^/]*/){"+index+"}([^/]*)"
+            addImagesCheckboxChecked = true
         }
         else{
-            if (addImagesCamCode.endsWith('.*') || addImagesCamCode.endsWith('.+') || addImagesCamCode.endsWith('.*[0-9]+') || addImagesCamCode.endsWith('.+[0-9]+' )) {
-                legalCamCode = false
-                error_message = 'Your camera code is invalid. Please try again or send an email for assistance.'
-                addFilesErrors.innerHTML = error_message 
-            }   
+            legalTGCode = false
+            addFilesErrors.innerHTML = 'You have not selected the folder-level that represents your sites.'
         }
     }
-    else if (camBotLvlFolder) {
-        // Bottom-level folder
-        legalCamCode = true
-        addImagesCamCode = 'None'	
-        addImagesCamCheckboxChecked = false
+    else{
+        if ((addImagesTGCode == '')||(addImagesTGCode == ' ')) {
+            legalTGCode = false
+            addFilesErrors.innerHTML = 'The site identifier field cannot be empty.'
+        } else if ((addImagesTGCode.includes('/'))||(addImagesTGCode.includes('\\'))) {
+            legalTGCode = false
+            addFilesErrors.innerHTML = 'The site identifier cannot contain slashes.'
+        }
+        else if (addImagesTGCode.endsWith('.*') || addImagesTGCode.endsWith('.+') || addImagesTGCode.endsWith('.*[0-9]+') || addImagesTGCode.endsWith('.+[0-9]+' )) {
+            legalTGCode = false
+            error_message = 'Your site identifier is invalid. Please try again or contact us for assistance.'
+            addFilesErrors.innerHTML = error_message 
+        }   
     }
-    else if (camSameAsSite) {
+
+    camRegExp = document.getElementById('camRegExpES').checked
+    camLvlFolder = document.getElementById('camLvlFolderES').checked
+    camSameAsSite = document.getElementById('camSameAsSiteES').checked
+
+    if (camSameAsSite) {
         // Site identifier
         legalCamCode = legalTGCode
         addImagesCamCode = addImagesTGCode
         addImagesCamCheckboxChecked = addImagesCheckboxChecked
-    }
-    else {
-        legalCamCode = false
-        addImagesCamCheckboxChecked = false
-        addImagesCamCode = ' '
-        document.getElementById('newSurveyErrors').innerHTML = 'You must select a camera code option.'
+        camRegExp = false
+        camLvlFolder = false
+    } else {
+        if (camRegExp) {
+            // Regular expression
+            addImagesCamCode = document.getElementById('addImagesCamCode').value
+            addImagesCamCheckboxChecked = document.getElementById('addImagesCamCheckbox').checked
+
+            if ((addImagesCamCode == '') || (addImagesCamCode == ' ')) {
+                legalCamCode = false
+                addFilesErrors.innerHTML = 'The camera code field cannot be empty.'
+            }
+            else if ((addImagesCamCode.includes('/'))||(addImagesCamCode.includes('\\'))) {
+                legalCamCode = false
+                addFilesErrors.innerHTML = 'The camera code cannot contain slashes.'
+            }
+            else{
+                if (addImagesCamCode.endsWith('.*') || addImagesCamCode.endsWith('.+') || addImagesCamCode.endsWith('.*[0-9]+') || addImagesCamCode.endsWith('.+[0-9]+' )) {
+                    legalCamCode = false
+                    error_message = 'Your camera code is invalid. Please try again or send an email for assistance.'
+                    addFilesErrors.innerHTML = error_message 
+                }   
+            }
+        }
+        else if (camLvlFolder) {
+            addImagesCamCheckboxChecked = false
+            addImagesCamCode = ''
+            //Folder level
+            selectedFolder = document.querySelector(".cam-folder.selected");
+            if (selectedFolder) {
+                index = selectedFolder.dataset.index;
+                addImagesCamCode = "(?:[^/]*/){"+index+"}([^/]*)"
+                addImagesCamCheckboxChecked = true
+            } else {
+                legalCamCode = false
+                addFilesErrors.innerHTML = 'You have not selected the folder-level that represents your cameras.'
+            }
+        
+        } else {
+            legalCamCode = false
+            addImagesCamCheckboxChecked = false
+            addImagesCamCode = ' '
+            document.getElementById('newSurveyErrors').innerHTML = 'You must select a camera code option.'
+        }
     }
     
     legalInput = false
@@ -4890,7 +5393,7 @@ document.getElementById('btnAddFiles').addEventListener('click', ()=>{
         document.getElementById('addFilesErrors').innerHTML = 'Please wait for your structure check to finish.'
     }
 
-    if ((addImagesStructureDiv!=null)&&((addImagesStructureDiv.innerHTML == '')||(addImagesStructureDiv.innerHTML == 'Malformed expression. Please try again.')||(addImagesStructureDiv.innerHTML == 'Invalid structure. Please check your site and camera identifiers.'))) {
+    if ((addImagesStructureDiv!=null)&&((addImagesStructureDiv.innerHTML == '')||(addImagesStructureDiv.innerHTML == 'Malformed expression. Please try again.')||(addImagesStructureDiv.innerHTML == 'Invalid structure. Please check your site and camera identifiers.')||(addImagesStructureDiv.innerHTML.includes('identifier is invalid')))) {
         legalTGCode = false
         legalCamCode = false
         document.getElementById('addFilesErrors').innerHTML = 'Your specified site or camera identifiers are invalid. Please try again.'
@@ -7214,34 +7717,42 @@ function updateStaticMap() {
 function updateCamDiv() {
     /** Updates the Camera Identifier Div based on the option selected */
 
-    if (document.getElementById('camRegExpES') != null) {
-        var camRegExp = document.getElementById('camRegExpES').checked 
-        var camBotLvlFolder = document.getElementById('camBotLvlFolderES').checked
+    if (document.getElementById('camSameAsSiteES') != null) {
         var camSameAsSite = document.getElementById('camSameAsSiteES').checked
+        var multipleCam = document.getElementById('multipleCamES').checked
+        var multiCamDiv = document.getElementById('multiCamDivES')
+        var camRegExp = document.getElementById('camRegExpES').checked 
+        var camLvlFolder = document.getElementById('camLvlFolderES').checked
         var camIdDiv = document.getElementById('addImagesCamDiv')
+        var camFolderDiv = document.getElementById('camFolderDivES')
         var camOptionDesc = document.getElementById('addImagesCamDesc')
-    }
-    else{
-        var camRegExp = document.getElementById('camRegExp').checked 
-        var camBotLvlFolder = document.getElementById('camBotLvlFolder').checked
+        var newSurveyCamBuilder = document.getElementById('addImagesCamBuilder')
+        var camAdvancedCheckbox = document.getElementById('addImagesCamCheckbox')
+        var newSurveyCamCode = document.getElementById('addImagesCamCode')
+
+    } else {
         var camSameAsSite = document.getElementById('camSameAsSite').checked
+        var multipleCam = document.getElementById('multipleCam').checked
+        var multiCamDiv = document.getElementById('multiCamDiv')
+        var camRegExp = document.getElementById('camRegExp').checked 
+        var camLvlFolder = document.getElementById('camLvlFolder').checked
         var camIdDiv = document.getElementById('camIdDiv')
+        var camFolderDiv = document.getElementById('camFolderDiv')
         var camOptionDesc = document.getElementById('camOptionDesc') 
+        var newSurveyCamBuilder = document.getElementById('newSurveyCamBuilder')
+        var camAdvancedCheckbox = document.getElementById('camAdvancedCheckbox')
+        var newSurveyCamCode = document.getElementById('newSurveyCamCode')
     }
 
-    if (camRegExp) {
-        camOptionDesc.innerHTML = '<i>The identifier used to designate a camera in your folder structure. Eg. "Camera" if your cameras are stored in folders named "Camera1", "Camera2" etc. Becomes a <a href="https://www.w3schools.com/python/python_regex.asp">regular expression</a> search query if the advanced option is selected.</i>'
-        camIdDiv.hidden = false
 
-        if (document.getElementById('addImagesCamBuilder') != null) {
-            var newSurveyCamBuilder = document.getElementById('addImagesCamBuilder')
-            var camAdvancedCheckbox = document.getElementById('addImagesCamCheckbox')
-            var newSurveyCamCode = document.getElementById('addImagesCamCode')
-        }
-        else{
-            var newSurveyCamBuilder = document.getElementById('newSurveyCamBuilder')
-            var camAdvancedCheckbox = document.getElementById('camAdvancedCheckbox')
-            var newSurveyCamCode = document.getElementById('newSurveyCamCode')
+    if (camSameAsSite){
+        multiCamDiv.hidden = true
+        camFolderDiv.hidden = true
+        camIdDiv.hidden = true
+        camOptionDesc.innerHTML = ''
+
+        while(camFolderDiv.firstChild){
+            camFolderDiv.removeChild(camFolderDiv.firstChild);
         }
 
         while(newSurveyCamBuilder.firstChild){
@@ -7249,17 +7760,92 @@ function updateCamDiv() {
         }
         camAdvancedCheckbox.checked = false
         newSurveyCamCode.value = ''
+        if (document.getElementById('camRegExpES') != null) {
+            document.getElementById('camRegExpES').checked = false
+            document.getElementById('camLvlFolderES').checked = true
+        } else {
+            document.getElementById('camRegExp').checked = false
+            document.getElementById('camLvlFolder').checked = true
+        }
+        checkTrapgroupCode()
+    } else if (multipleCam) {
+        multiCamDiv.hidden = false 
+        if (camRegExp){
+            camOptionDesc.innerHTML = '<i>The identifier used to designate a camera in your folder structure. Eg. "Camera" if your cameras are stored in folders named "Camera1", "Camera2" etc. Becomes a <a href="https://www.w3schools.com/python/python_regex.asp">regular expression</a> search query if the advanced option is selected.</i>'
+            camFolderDiv.hidden = true
+            camIdDiv.hidden = false
+
+            while(newSurveyCamBuilder.firstChild){
+                newSurveyCamBuilder.removeChild(newSurveyCamBuilder.firstChild);
+            }
+            camAdvancedCheckbox.checked = false
+            newSurveyCamCode.value = ''
+
+            checkTrapgroupCode()
+        }
+        else if (camLvlFolder){
+            camOptionDesc.innerHTML = '<i>Select the folder level from the path below that corresponds to the cameras in your folder structure. For example, in "Survey/Site1/Camera1", you should select the "Camera1" folder.</i>'
+            camIdDiv.hidden = true
+            camFolderDiv.hidden = false
+
+            while(camFolderDiv.firstChild){
+                camFolderDiv.removeChild(camFolderDiv.firstChild);
+            }
+
+            updateCamFolderSelect()
+            checkTrapgroupCode()
+        }
+    }
+
+}
+
+function updateSiteDiv() {
+    /** Updates the Site Identifier Div based on the option selected */
+
+    if (document.getElementById('siteFolderN_ES') != null) {
+        var siteFolderN = document.getElementById('siteFolderN_ES').checked 
+        var siteIdentifier = document.getElementById('siteIdentifierES').checked
+        var siteIdDiv = document.getElementById('siteIdDivES')
+        var siteFolderDiv = document.getElementById('siteFolderDivES')
+        var siteOptionDesc = document.getElementById('addImagesSiteDesc')
+    }
+    else{
+        var siteFolderN = document.getElementById('siteFolderN').checked 
+        var siteIdentifier = document.getElementById('siteIdentifier').checked
+        var siteIdDiv = document.getElementById('siteIdDiv')
+        var siteFolderDiv = document.getElementById('siteFolderDiv')
+        var siteOptionDesc = document.getElementById('siteOptionDesc') 
+    }
+
+    if (siteIdentifier) {
+        siteOptionDesc.innerHTML = '<i>The identifier used to designate a site in your folder structure. Eg. "Site" if your sites are stored in folders named "Site1", "Site2" etc. Becomes a <a href="https://www.w3schools.com/python/python_regex.asp">regular expression</a> search query if the advanced option is selected.</i>'
+        siteFolderDiv.hidden = true
+        siteIdDiv.hidden = false
+
+        if (document.getElementById('addImagesTgBuilder') != null) {
+            var surveyTgBuilder = document.getElementById('addImagesTgBuilder')
+            var surveyCheckbox = document.getElementById('addImagesCheckbox')
+            var surveyTGCode = document.getElementById('addImagesTGCode')
+        }
+        else{
+            var surveyTgBuilder = document.getElementById('newSurveyTgBuilder')
+            var surveyCheckbox = document.getElementById('newSurveyCheckbox')
+            var surveyTGCode = document.getElementById('newSurveyTGCode')
+        }
+
+        while(surveyTgBuilder.firstChild){
+            surveyTgBuilder.removeChild(surveyTgBuilder.firstChild);
+        }
+        surveyCheckbox.checked = false
+        surveyTGCode.value = ''
 
         checkTrapgroupCode()
     }
-    else if (camBotLvlFolder) {
-        camOptionDesc.innerHTML = '<i>Each bottom-level folder in your dataset will be considered a different camera.</i>'
-        camIdDiv.hidden = true
-        checkTrapgroupCode()
-    }
-    else if (camSameAsSite) {
-        camOptionDesc.innerHTML = '<i>The camera identifier will be the same as the site identifier.</i>'
-        camIdDiv.hidden = true
+    else if (siteFolderN) {
+        siteOptionDesc.innerHTML = '<i>Select the folder level from the path below that corresponds to the sites/stations in your folder structure. For example, in "Survey/Site1/Camera1", you should select the "Site1" folder.</i>'
+        siteIdDiv.hidden = true
+        siteFolderDiv.hidden = false
+        updateSiteFolderSelect()
         checkTrapgroupCode()
     }
 

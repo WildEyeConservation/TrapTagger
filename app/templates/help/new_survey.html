@@ -44,6 +44,12 @@ limitations under the License. -->
     Begin by giving your new survey a unique name, and an optional description. Select the organisation that will own the survey.
 </p>
 
+<h4>Data Source, Trigger Source and Advanced Options</h4>
+
+<p align="justify">
+   Next select the data and trigger source for your survey. You also have the option to select advanced options for your survey.
+</p>
+
 <h4>Permissions</h4>
 
 <p align="justify">
@@ -73,11 +79,25 @@ limitations under the License. -->
 </div>
 <br>
 
-<h4>Site Identifier</h4>
+<h4>Site/Station Identifier and Camera Identifier</h4>
 
 <p align="justify">
-    Thereafter, you must specify a site identifier. This is used to determine which folders within your folder structure relate to your camera sites.
-    By default, the system will look for folders that contain your specified string of characters along with any number of digits thereafter.
+    Thereafter, you must specify a site/station identifier as well as a camera identifier. This is used to determine which folders within your folder structure relate to your camera sites.
+    You will have two options identifying your sites and cameras:
+        <ol>
+            <li>Selecting the folder level from the folder path that represents your sites/stations and cameras.</li>
+            <li>Using a simple string matching approach, where you specify a string that is contained within the folder names or using a regular expression, which allows for more complex matching patterns.</li>
+        </ol>
+</p>
+
+<p align="justify">
+    The first option is the simplest. You will be displayed the first folder path of your own files and you can simply select the correct folder that correspons to your sites/stations.
+    If you only have one camera per site, you will have no need to specify the cameras. If you have multiple cameras per site,
+    you will also be displayed the first folder path of your own files and can you simply select the correct folder that corresponds to your cameras or use the matching approach described below.
+</p>
+
+<p align="justify">
+    In the second option, the system will look for folders that contain your specified string of characters along with any number of digits thereafter.
     The simplest example of this would be:
 </p>
 
@@ -97,8 +117,9 @@ limitations under the License. -->
     
 <p align="justify">    
     where a site identifier of the word "Site" would identify the folders "Site01", and "Site02" as containing 
-    all the images from sites 1, and 2 respectively. On the other hand, cameras are simply defined as the lowest-level folders. Do not worry though if your bottom-level 
-    folders do not correlate to cameras as their definition will not affect system performance.
+    all the images from sites 1, and 2 respectively. If you have multiple cameras per site, you can use the same principle to identify the camera folders,
+    for example, using "camera" as the camera identifier would identify the folders "camera1", and "camera2" as containing all the images from camera 1, and camera 2 respectively.
+    If you only have one camera per site, a camera identifier is not required.
 </p>
 
 <p align="justify">
@@ -115,4 +136,9 @@ limitations under the License. -->
 <p align="justify">
     Either way, the system will check your specified site identifier against the folder of images that you are importing, and report back both the number of sites identified,
     and their names. Use this information to ensure that you have specified the correct site identifier for your data.
+</p>
+
+<h4>Survey Structure</h4>
+<p align="justify">
+    Please verify the detected survey structure. The system will display the detected sites/stations and their cameras based on your identifiers.
 </p>

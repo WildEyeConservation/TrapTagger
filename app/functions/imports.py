@@ -2335,6 +2335,7 @@ def import_folder(s3Folder, survey_id, sourceBucket,destinationBucket,pipeline,m
     localsession.commit()
     sid=survey.id
     tag = survey.trapgroup_code
+    is_nth_folder_pattern = re.match(r'^\(\?:\[\^/]\*/\)\{\d+\}\([^)]*\)$', tag)
     tag = re.compile(tag)
 
     # Handle videos first so that their frames can be imported like normal images
@@ -2348,9 +2349,13 @@ def import_folder(s3Folder, survey_id, sourceBucket,destinationBucket,pipeline,m
             else:
                 tags = tag.search('/'.join(dirpath.split('/')[2:]))
             if tags:
-                camera_name = extract_camera_name(survey.camera_code,survey.trapgroup_code,survey.name,tags.group(),dirpath)
+                if is_nth_folder_pattern and tag.groups >= 1:
+                    tags = tags.group(1)
+                else:
+                    tags = tags.group()
+                camera_name = extract_camera_name(survey.camera_code,survey.trapgroup_code,survey.name,tags,dirpath)
                 if camera_name:
-                    trapgroup = Trapgroup.get_or_create(localsession, tags.group(), sid)
+                    trapgroup = Trapgroup.get_or_create(localsession, tags, sid)
                     survey.images_processing += len(jpegs)
                     localsession.commit()
 
@@ -2409,10 +2414,14 @@ def import_folder(s3Folder, survey_id, sourceBucket,destinationBucket,pipeline,m
                 tags = tag.search('/'.join(dirpath.split('/')[2:]))
             
             if tags:
-                camera_name = extract_camera_name(survey.camera_code,survey.trapgroup_code,survey.name,tags.group(),dirpath)
+                if is_nth_folder_pattern and tag.groups >= 1:
+                    tags = tags.group(1)
+                else:
+                    tags = tags.group()
+                camera_name = extract_camera_name(survey.camera_code,survey.trapgroup_code,survey.name,tags,dirpath)
                 
                 if camera_name:
-                    trapgroup = Trapgroup.get_or_create(localsession, tags.group(), sid)
+                    trapgroup = Trapgroup.get_or_create(localsession, tags, sid)
                     # survey.images_processing += len(jpegs)
                     # localsession.commit()
                     camera = Camera.get_or_create(localsession, trapgroup.id, dirpath)
@@ -2641,6 +2650,7 @@ def pipeline_csv(df,survey_id,tag,exclusions,source,destBucket,min_area,external
     survey.images_processing = 0
     survey.processing_initialised = True
     localsession.commit()
+    is_nth_folder_pattern = re.match(r'^\(\?:\[\^/]\*/\)\{\d+\}\([^)]*\)$', tag)
     tag = re.compile(tag)
 
     # Now handle images
@@ -2658,7 +2668,11 @@ def pipeline_csv(df,survey_id,tag,exclusions,source,destBucket,min_area,external
             tags = tag.search('/'.join(dirpath.split('/')[2:]))
             
             if tags:
-                trapgroup = Trapgroup.get_or_create(localsession, tags.group(), survey_id)
+                if is_nth_folder_pattern and tag.groups >= 1:
+                    tags = tags.group(1)
+                else:
+                    tags = tags.group()
+                trapgroup = Trapgroup.get_or_create(localsession, tags, survey_id)
                 survey.images_processing += len(jpegs)
                 localsession.commit()
                 camera = Camera.get_or_create(localsession, trapgroup.id, dirpath)
@@ -4243,6 +4257,7 @@ def pipelineLILA(self,dets_filename,images_filename,survey_name,tgcode_str,sourc
         skip_labels = ['unknown','none','fire','human','null','nothinghere','ignore']
         external = True
         update_image_info=True
+        is_nth_folder_pattern = re.match(r'^\(\?:\[\^/]\*/\)\{\d+\}\([^)]*\)$', tgcode_str)
         tgcode = re.compile(tgcode_str)
 
         with tempfile.NamedTemporaryFile(delete=True, suffix='.json') as temp_file:
@@ -4286,7 +4301,10 @@ def pipelineLILA(self,dets_filename,images_filename,survey_name,tgcode_str,sourc
             if len(df[df['filepath']==item['file']]) == 1:
                 tags = tgcode.search(item['file'])
                 if tags:
-                    tag = tags.group()
+                    if is_nth_folder_pattern and tgcode.groups >= 1:
+                        tag = tags.group(1)
+                    else:
+                        tag = tags.group()
                     species = [r for r in df[df['filepath']==item['file']]['species'].unique() if r.lower() not in skip_labels]
                     if species:
                         dirpath = '/'.join(item['file'].split('/')[:-1])
@@ -4346,6 +4364,7 @@ def pipelineLILA2(self,dets_filename,images_filename,survey_name,tgcode_str,sour
         skip_labels = ['unknown','none','fire','human','null','nothinghere','ignore']
         external = True
         update_image_info=True
+        is_nth_folder_pattern = re.match(r'^\(\?:\[\^/]\*/\)\{\d+\}\([^)]*\)$', tgcode_str)
         tgcode = re.compile(tgcode_str)
 
         with tempfile.NamedTemporaryFile(delete=True, suffix='.json') as temp_file:
@@ -4401,7 +4420,10 @@ def pipelineLILA2(self,dets_filename,images_filename,survey_name,tgcode_str,sour
             if len(df[df['filepath']==item['file']]) == 1:
                 tags = tgcode.search(item['file'])
                 if tags:
-                    tag = tags.group()
+                    if is_nth_folder_pattern and tgcode.groups >= 1:
+                        tag = tags.group(1)
+                    else:
+                        tag = tags.group()
                     species = [r for r in df[df['filepath']==item['file']]['species'].unique() if r.lower() not in skip_labels]
                     if species:
                         dirpath = '/'.join(item['file'].split('/')[:-1])
@@ -4554,21 +4576,31 @@ def extract_camera_name(camera_code,trapgroup_code,survey_name,trapgroup_tag,pat
 
     if camera_code:
         # Identifier
-
+        path = '/'.join(path.split('/')[2:])
         same_as_site = False
         if camera_code == trapgroup_code:
             same_as_site = True
 
+        is_nth_folder_pattern = re.match(r'^\(\?:\[\^/]\*/\)\{\d+\}\([^)]*\)$', camera_code)
+
         if same_as_site:
             camera_code = re.compile(camera_code)
-            tags = camera_code.search(path.replace(survey_name,''))
-            camera_name = tags.group() if tags else None
-        
+            tags = camera_code.search(path)
+            if is_nth_folder_pattern and camera_code.groups >= 1:
+                tags = tags.group(1)
+            else:
+                tags = tags.group()
+            camera_name = tags if tags else None
         else:
-            # If cam identifier not the same as the site identifier, remove the site identifier from the camera path
             camera_code = re.compile(camera_code)
-            tags = camera_code.search(path.replace(survey_name,'').replace(trapgroup_tag,''))
-            camera_name = tags.group() if tags else None
+            if is_nth_folder_pattern and camera_code.groups >= 1:
+                tags = camera_code.search(path)
+                tags = tags.group(1)
+            else:
+                # If cam identifier not the same as the site identifier and not nth folder, remove the site identifier from the camera path
+                tags = camera_code.search(path.replace(trapgroup_tag,''))
+                tags = tags.group()
+            camera_name = tags if tags else None
 
     else:
         # Folder
@@ -5671,6 +5703,7 @@ def process_folder(s3Folder, survey_id, sourceBucket):
     localsession.commit()
     sid=survey.id
     tag = survey.trapgroup_code
+    is_nth_folder_pattern = re.match(r'^\(\?:\[\^/]\*/\)\{\d+\}\([^)]*\)$', tag)
     tag = re.compile(tag)
 
     # Create trapgroups for each camera & batch images for detection
@@ -5687,9 +5720,13 @@ def process_folder(s3Folder, survey_id, sourceBucket):
             tags = tag.search('/'.join(camera.path.split('/')[2:]))
         
         if tags:
-            camera_name = extract_camera_name(survey.camera_code,survey.trapgroup_code,survey.name,tags.group(),camera.path)
+            if is_nth_folder_pattern and tag.groups >= 1:
+                tags = tags.group(1)
+            else:
+                tags = tags.group()
+            camera_name = extract_camera_name(survey.camera_code,survey.trapgroup_code,survey.name,tags,camera.path)
             if camera_name:
-                trapgroup = Trapgroup.get_or_create(localsession, tags.group(), sid)
+                trapgroup = Trapgroup.get_or_create(localsession, tags, sid)
                 camera.trapgroup = trapgroup
 
                 images_to_process = [{'id': r[0], 'filename': r[1]} for r in localsession.query(Image.id,Image.filename).filter(Image.camera==camera).filter(~Image.detections.any()).filter(Image.hash!=None).all()]

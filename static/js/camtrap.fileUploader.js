@@ -27,6 +27,8 @@ uploadWorker.onmessage = function(evt){
         uppy.addFiles(evt.data.args)
     } else if (evt.data.func=='updatePathDisplay') {
         updatePathDisplay(evt.data.args[0],evt.data.args[1])
+        updateSiteFolderSelect()
+        updateCamFolderSelect()
     } else if (evt.data.func=='checkTrapgroupCode') {
         checkTrapgroupCode()
     } else if (evt.data.func=='buildUploadProgress') {

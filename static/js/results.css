@@ -202,3 +202,28 @@ tr:hover td {
   border: 1px solid #DF691A;
   color: white ;
 }
+
+.folder {
+  display: inline-block;
+  padding: 2px 8px;
+  background-color: #FFFFFF13;
+  cursor: pointer;
+  border-radius: 5px;
+}
+
+.folder.selected {
+  background-color: #DF691A;
+}
+
+.folder.selected:hover {
+  background-color: #DF691A;
+}
+
+.folder:hover {
+  background-color: rgba(223, 105, 26, 0.5);
+}
+
+.slash {
+  margin: 0 4px;
+  user-select: none;
+}

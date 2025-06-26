@@ -316,45 +316,65 @@ limitations under the License. -->
 
                     <h5 style="margin-bottom: 2px">Site/Station Identifier</h5>
                     <div style="font-size: 80%; margin-bottom: 2px"><i>
-                        The identifier used to designate a site in your folder structure. Eg. "Site" if your sites are stored in folders named "Site1", "Site2" etc. Becomes 
-                        a <a href="https://www.w3schools.com/python/python_regex.asp">regular expression</a> search query if the advanced option is selected.
-                        Please note that a site is not an area - it is a singular point in space that can be described using a single pair of coordindates 
+                        Select how you would like to identify your site. Please note that <span style="color: #DF691A">a site is not an area - it is a singular point in space</span> that can be described using a single pair of coordinates 
                         (latitude,longitude). If there are multiple cameras at a site, these cameras would typically be triggered by the same event - ie. an animal 
                         passing by. Typically, a multiple-camera-per-site setup would be cameras overlooking the same waterhole or bait station, or on either side 
                         of a game trail to capture both flanks of individuals as they pass by.
                     </i></div>
-                    <!-- <div id="newSurveyTGInfo" style="font-size: 80%; color: #DF691A"></div> -->
-                    <div class="row">
-                        <div class='col-lg-4'>
-                            <input type="text" class="form-control" required id="newSurveyTGCode"></input>
-                        </div>
-                        <div class="col-lg-4">
-                            <div class="custom-control custom-checkbox">
-                                <input type="checkbox" class="custom-control-input" id="newSurveyCheckbox" name="newSurveyCheckbox">
-                                <label class="custom-control-label" for="newSurveyCheckbox">Advanced</label>
-                            </div>
-                        </div>
-                    </div>
-                    <div id="newSurveyTgBuilder"></div>
-                    <br>
-
-                    <h5 style="margin-bottom: 2px">Camera Identifier</h5>
-                    <div style="font-size: 80%; margin-bottom: 2px"><i>Select the method you would like to use to identify your cameras.</i></div>
                     <div style="margin-bottom: 5px">
                         <div class="custom-control custom-radio custom-control-inline">
-                            <input type="radio" class="custom-control-input" id="camBotLvlFolder" name="camCodeSelection" value='0' checked="true" onchange="updateCamDiv()">
-                            <label class="custom-control-label" for="camBotLvlFolder">Folder</label>
+                            <input type="radio" class="custom-control-input" id="siteFolderN" name="siteCodeSelection" value='0' checked="true" onchange="updateSiteDiv()">
+                            <label class="custom-control-label" for="siteFolderN">Folder</label>
                         </div> 
                         <div class="custom-control custom-radio custom-control-inline">
-                            <input type="radio" class="custom-control-input" id="camSameAsSite" name="camCodeSelection" value='0' onchange="updateCamDiv()">
-                            <label class="custom-control-label" for="camSameAsSite">Site Identifier (one camera per site)</label>
+                            <input type="radio" class="custom-control-input" id="siteIdentifier" name="siteCodeSelection" value='0' onchange="updateSiteDiv()">
+                            <label class="custom-control-label" for="siteIdentifier">Site Identifier</label>
+                        </div> 
+                    </div>
+                    <div style="font-size: 80%; margin-bottom: 2px" id="siteOptionDesc"><i>Select the folder level from the path below that corresponds to the sites/stations in your folder structure. For example, in "Survey/Site1/Camera1", you should select the "Site1" folder.</i></div>
+                    <div id="siteFolderDiv">No files selected.</div>
+                    <div id="siteIdDiv" hidden>
+                        <div class="row">
+                            <div class='col-lg-4'>
+                                <input type="text" class="form-control" required id="newSurveyTGCode"></input>
+                            </div>
+                            <div class="col-lg-4">
+                                <div class="custom-control custom-checkbox">
+                                    <input type="checkbox" class="custom-control-input" id="newSurveyCheckbox" name="newSurveyCheckbox">
+                                    <label class="custom-control-label" for="newSurveyCheckbox">Advanced</label>
+                                </div>
+                            </div>
+                        </div>
+                        <div id="newSurveyTgBuilder"></div>
+                    </div>
+                    <br>
+                    <h5 style="margin-bottom: 2px">Camera Identifier</h5>
+                    <div style="font-size: 80%; margin-bottom: 2px"><i>How many cameras do you have per site/station?</i></div>
+                    <div style="margin-bottom: 5px">
+                        <div class="custom-control custom-radio custom-control-inline">
+                            <input type="radio" class="custom-control-input" id="camSameAsSite" name="camSelection" value='0' onchange="updateCamDiv()" checked="true">
+                            <label class="custom-control-label" for="camSameAsSite">One camera per site/station</label>
                         </div> 
                         <div class="custom-control custom-radio custom-control-inline">
-                            <input type="radio" class="custom-control-input" id="camRegExp" name="camCodeSelection" value='2' onchange="updateCamDiv()">
-                            <label class="custom-control-label" for="camRegExp">Camera Identifier </label>
+                            <input type="radio" class="custom-control-input" id="multipleCam" name="camSelection" value='1' onchange="updateCamDiv()">
+                            <label class="custom-control-label" for="multipleCam">Multiple cameras per site/station</label>
                         </div>
                     </div>
-                    <div style="font-size: 80%; margin-bottom: 2px" id="camOptionDesc"><i>Each bottom-level folder in your dataset will be considered a different camera.</i></div>
+                    <div id="multiCamDiv" hidden>
+                        <div style="font-size: 80%; margin-bottom: 2px"><i>Select the method you would like to use to identify your cameras.</i></div>
+                        <div style="margin-bottom: 5px">
+                            <div class="custom-control custom-radio custom-control-inline">
+                                <input type="radio" class="custom-control-input" id="camLvlFolder" name="camCodeSelection" value='0' checked="true" onchange="updateCamDiv()">
+                                <label class="custom-control-label" for="camLvlFolder">Folder</label>
+                            </div> 
+                            <div class="custom-control custom-radio custom-control-inline">
+                                <input type="radio" class="custom-control-input" id="camRegExp" name="camCodeSelection" value='2' onchange="updateCamDiv()">
+                                <label class="custom-control-label" for="camRegExp">Camera Identifier </label>
+                            </div>
+                        </div>
+                        <div style="font-size: 80%; margin-bottom: 2px" id="camOptionDesc"><i>Select the folder level from the path below that corresponds to the cameras in your folder structure. For example, in "Survey/Site1/Camera1", you should select the "Camera1" folder.</i></div>
+                    </div>
+                    <div id="camFolderDiv" hidden>No files selected.</div>
                     <div id="camIdDiv" hidden>
                         <div class="row">
                             <div class='col-lg-4'>
@@ -372,7 +392,7 @@ limitations under the License. -->
                     
                     <br>
                     <h5 style="margin-bottom: 2px">Structure</h5>
-                    <div style="font-size: 80%; margin-bottom: 2px"><i>Check the detected structure of your survey. Eg. "Site1 : Camera1, Camera2" etc.</i></div>
+                    <div style="font-size: 80%; margin-bottom: 2px"><i>Check the detected structure of your survey. Eg. "Site1 : Camera1, Camera2", "Site2 : Camera3", etc.</i></div>
                     <div id="newSurveyStructureDiv" style="font-size: 80%; color: #DF691A"></div>
                     <div id="newSurveyStructureDiv2">
                         <div class="row">

@@ -7154,3 +7154,27 @@ def calculate_detection_score(raw_score,top,bottom,left,right,flank,timestamp):
 
     return final_score
 
+
+def find_first_file(bucket, prefix):
+    """Recursively find the first file in an S3 bucket with the given prefix."""
+
+    if not prefix.endswith('/'): prefix += '/'
+
+    response = GLOBALS.s3client.list_objects_v2(
+        Bucket=bucket,
+        Prefix=prefix,
+        Delimiter='/'
+    )
+
+    if 'Contents' in response:
+        for obj in response['Contents']:
+            if obj['Key'] != prefix:  # skip the "folder" itself
+                return obj['Key']
+
+    if 'CommonPrefixes' in response:
+        for cp in sorted(response['CommonPrefixes'], key=lambda x: x['Prefix']):
+            result = find_first_file(bucket, cp['Prefix'])
+            if result:
+                return result
+
+    return None

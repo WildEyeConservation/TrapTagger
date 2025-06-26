@@ -15500,3 +15500,25 @@ def getSiteCoords():
             }
 
     return json.dumps(coords)
+
+@app.route('/getFolderFirstFile/<org_id>/<survey_id>/<folder>')
+@login_required
+def getFolderFirstFile(org_id,survey_id,folder):
+    '''Fetches the first file in a specific folder of an organisation's bucket'''
+    file = None
+    if current_user.is_authenticated:
+        org_id = int(org_id) if org_id else None
+        survey_id = int(survey_id) if survey_id else None
+        if org_id and org_id!=0:
+            organisation = db.session.query(Organisation).join(UserPermissions).filter(UserPermissions.user_id==current_user.id).filter(UserPermissions.organisation_id==org_id).filter(UserPermissions.create==True).first()
+        elif survey_id and survey_id!=0:
+            organisation = db.session.query(Organisation).join(UserPermissions).join(Survey).filter(UserPermissions.user_id==current_user.id).filter(Survey.id==survey_id).filter(UserPermissions.create==True).first()
+        else: 
+            organisation = None
+
+        if organisation:
+            file = find_first_file(Config.BUCKET, organisation.folder +'/'+ folder)
+            if file:
+                file = '/'.join(file.split('/')[2:-1]) 
+
+    return json.dumps(file)

@@ -1769,13 +1769,15 @@ def findTrapgroupTags(self,tgCode,folder,organisation_id,surveyName,camCode):
         # isjpeg = re.compile('\.jpe?g$', re.I)
 
         try:
+            is_tg_nth_folder_pattern = re.match(r'^\(\?:\[\^/]\*/\)\{\d+\}\([^)]*\)$', tgCode)
+            is_cam_nth_folder_pattern = re.match(r'^\(\?:\[\^/]\*/\)\{\d+\}\([^)]*\)$', camCode)
             tgCode = re.compile(tgCode)
             if camCode == 'None':
                 camCode = None
             else:
                 camCode = re.compile(camCode)
 
-            if surveyName == '' or surveyName == 'None' or surveyName == 'null':
+            if surveyName == '' or surveyName == 'None' or surveyName == 'null' or surveyName == 'undefined':
                 surveyName = None
 
             allTags = []
@@ -1785,26 +1787,35 @@ def findTrapgroupTags(self,tgCode,folder,organisation_id,surveyName,camCode):
                 # jpegs = list(filter(isjpeg.search, filenames))
                 # if len(jpegs):
 
+                dirpath = '/'.join(dirpath.split('/')[2:])
                 if dirpath.find('_video_images_')!=-1:
                     dirpath = dirpath.split('/_video_images_')[0]
 
-                if surveyName:
-                    dirpath = dirpath.replace(surveyName+'/','')
+                # if surveyName:
+                #     dirpath = dirpath.replace(surveyName+'/','')
 
                 tags = tgCode.search(dirpath)
+                if tags:
+                    if is_tg_nth_folder_pattern and tgCode.groups >= 1:
+                        tags = tags.group(1)
+                    else:
+                        tags = tags.group()
                 if camCode:
                     if camCode != tgCode:
-                        if tags:
-                            dirpath = dirpath.replace(tags.group(),'')
+                        if tags and not is_cam_nth_folder_pattern:
+                            dirpath = dirpath.replace(tags,'')
                     cams = camCode.search(dirpath) 
                     if cams:
-                        cams = [cams.group()]
+                        if is_cam_nth_folder_pattern and camCode.groups >= 1:
+                            cams = cams.group(1)
+                        else:
+                            cams = cams.group()
                 else:
                     cam_path = dirpath.split('/')[-1]
-                    cams = [cam_path]
+                    cams = cam_path
                 if tags and cams:
-                    tag = tags.group()
-                    cam = cams[0]
+                    tag = tags
+                    cam = cams
                     if tag not in allTags:
                         allTags.append(tag)
                     if cam not in allCams:
