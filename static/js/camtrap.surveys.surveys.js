@@ -1191,7 +1191,7 @@ function resetNewSurveyPage() {
     document.getElementById('siteFolderDiv').hidden = false
     document.getElementById('siteIdDiv').hidden = true
     
-    document.getElementById('siteOptionDesc').innerHTML = '<i>Select the folder level from the path below that corresponds to the sites/stations in your folder structure. For example, in "Survey/Site1/Camera1", you should select the "Site1" folder.</i>'
+    document.getElementById('siteOptionDesc').innerHTML = '<i>Select the folder level in the example path that corresponds to its site/station. For example, in "Survey/Site1/Camera1", you should select the "Site1" folder.</i>'
 
     // document.getElementById('kmlFileUploadText').value = ''
     // document.getElementById('kmlFileUpload').value = ''
@@ -1595,7 +1595,7 @@ function pingTgCheck() {
 
                                         if (highestCamsPerSite > 2) {
                                             document.getElementById('modalAlertHeader').innerHTML = "Warning"
-                                            document.getElementById('modalAlertBody').innerHTML = "<p>More than 2 cameras are associated with at least one site/station. This is unusual, as sites/stations typically have only 1 or 2 cameras, and a survey typically contains multiple sites/stations.<br><br>Please verify that your site/station and camera identifiers are correct as well as the detected survey structure. If this setup is intentional, you may safely ignore this message.</p>"
+                                            document.getElementById('modalAlertBody').innerHTML = "<p>You currently have more than 2 cameras associated with one or more of your sites/stations. Whilst this is allowed, it is unusual as sites/stations typically only have 1 or 2 cameras. Please familiarise yourself with the definition of a site/station, and revise your identifiers accordingly:</p><p><i>A site is not an area - it is a singular point in space that can be described using a single pair of coordinates (latitude,longitude). If there are multiple cameras at a site, these cameras would typically be triggered by the same event - ie. an animal passing by. Typically, a multiple-camera-per-site setup would be cameras overlooking the same waterhole or bait station, or on either side of a game trail to capture both flanks of individuals as they pass by.</i></p><p>If this setup is intentional, you may disregard this warning.</p>"
                                             modalAlert.modal({keyboard: true, backdrop: 'static'})
                                         }
                                     }
@@ -2047,7 +2047,7 @@ function checkTrapgroupCode() {
 
                     if (highestCamsPerSite > 2) {
                         document.getElementById('modalAlertHeader').innerHTML = "Warning"
-                        document.getElementById('modalAlertBody').innerHTML = "<p>More than 2 cameras are associated with at least one site/station. This is unusual, as sites/stations typically have only 1 or 2 cameras, and a survey typically contains multiple sites/stations.<br><br>Please verify that your site/station and camera identifiers are correct as well as the detected survey structure. If this setup is intentional, you may safely ignore this message.</p>"
+                        document.getElementById('modalAlertBody').innerHTML = "<p>You currently have more than 2 cameras associated with one or more of your sites/stations. Whilst this is allowed, it is unusual as sites/stations typically only have 1 or 2 cameras. Please familiarise yourself with the definition of a site/station, and revise your identifiers accordingly:</p><p><i>A site is not an area - it is a singular point in space that can be described using a single pair of coordinates (latitude,longitude). If there are multiple cameras at a site, these cameras would typically be triggered by the same event - ie. an animal passing by. Typically, a multiple-camera-per-site setup would be cameras overlooking the same waterhole or bait station, or on either side of a game trail to capture both flanks of individuals as they pass by.</i></p><p>If this setup is intentional, you may disregard this warning.</p>"
                         modalAlert.modal({keyboard: true, backdrop: 'static'})
                     }
                 }
@@ -2578,14 +2578,22 @@ function buildAddIms() {
     })
 
     // Trapgroup Code
+    addFilesDiv.appendChild(document.createElement('br'))
     h5 = document.createElement('h5')
     h5.setAttribute('style','margin-bottom: 2px')
-    h5.innerHTML = 'Site/Station Identifier'
+    h5.innerHTML = 'Sites/Stations'
     addFilesDiv.appendChild(h5)
 
     div = document.createElement('div')
     div.setAttribute('style','font-size: 80%; margin-bottom: 2px')
-    div.innerHTML = '<i>Select how you would like to identify your site. Please note that <span style="color: #DF691A">a site is not an area - it is a singular point in space</span> that can be described using a single pair of coordinates (latitude,longitude). If there are multiple cameras at a site, these cameras would typically be triggered by the same event - ie. an animal passing by. Typically, a multiple-camera-per-site setup would be cameras overlooking the same waterhole or bait station, or on either side of a game trail to capture both flanks of individuals as they pass by.</i>'
+    div.innerHTML = '<i>Please note that <span style="color: #DF691A">a site is not an area - it is a singular point in space</span> that can be described using a single pair of coordinates (latitude,longitude). If there are multiple cameras at a site, these cameras would typically be triggered by the same event - ie. an animal passing by. Typically, a multiple-camera-per-site setup would be cameras overlooking the same waterhole or bait station, or on either side of a game trail to capture both flanks of individuals as they pass by.</i>'
+    addFilesDiv.appendChild(div)
+
+    addFilesDiv.appendChild(document.createElement('br'))
+
+    div = document.createElement('div')
+    div.setAttribute('style','font-size: 80%; margin-bottom: 2px')
+    div.innerHTML = '<i>Select how you would like to identify your sites in your folder structure:</i>'
     addFilesDiv.appendChild(div)
 
     // info = document.createElement('div')
@@ -2614,7 +2622,7 @@ function buildAddIms() {
     var label = document.createElement('label')
     label.classList.add('custom-control-label')
     label.setAttribute('for','siteFolderN_ES')
-    label.innerHTML = 'Folder'
+    label.innerHTML = 'Select Folder'
     radioDiv.appendChild(label)
 
     var radioDiv = document.createElement('div')
@@ -2636,10 +2644,12 @@ function buildAddIms() {
     label.innerHTML = 'Site Identifier'
     radioDiv.appendChild(label)
 
+    addFilesDiv.appendChild(document.createElement('br'))
+
     var div = document.createElement('div')
     div.id = 'addImagesSiteDesc'
     div.setAttribute('style','font-size: 80%; margin-bottom: 2px')
-    div.innerHTML = '<i>Select the folder level from the path below that corresponds to the sites/stations in your folder structure. For example, in "Survey/Site1/Camera1", you should select the "Site1" folder.</i>'
+    div.innerHTML = '<i>Select the folder level in the example path that corresponds to its site/station. For example, in "Survey/Site1/Camera1", you should select the "Site1" folder.</i>'
     addFilesDiv.appendChild(div)
 
     var div = document.createElement('div')
@@ -2714,7 +2724,7 @@ function buildAddIms() {
     // Camera Code
     h5 = document.createElement('h5')
     h5.setAttribute('style','margin-bottom: 2px')
-    h5.innerHTML = 'Camera Identifier'
+    h5.innerHTML = 'Cameras'
     addFilesDiv.appendChild(h5)
 
     div = document.createElement('div')
@@ -2771,9 +2781,11 @@ function buildAddIms() {
     multiCamDiv.hidden = true
     addFilesDiv.appendChild(multiCamDiv)
 
+    multiCamDiv.appendChild(document.createElement('br'))
+
     div = document.createElement('div')
     div.setAttribute('style','font-size: 80%; margin-bottom: 2px')
-    div.innerHTML = '<i>Select the method you would like to use to identify your cameras.</i>'
+    div.innerHTML = '<i>Select how you would like to identify your cameras in your folder structure:</i>'
     multiCamDiv.appendChild(div)
 
     var div = document.createElement('div')
@@ -2797,7 +2809,7 @@ function buildAddIms() {
     var label = document.createElement('label')
     label.classList.add('custom-control-label')
     label.setAttribute('for','camLvlFolderES')
-    label.innerHTML = 'Folder'
+    label.innerHTML = 'Select Folder'
     radioDiv.appendChild(label)
 
     var radioDiv = document.createElement('div')
@@ -2820,10 +2832,12 @@ function buildAddIms() {
     label.innerHTML = 'Camera Identifier'
     radioDiv.appendChild(label)
 
+    multiCamDiv.appendChild(document.createElement('br'))
+
     div = document.createElement('div')
     div.id = 'addImagesCamDesc'
     div.setAttribute('style','font-size: 80%; margin-bottom: 2px')
-    div.innerHTML = '<i>Select the folder level from the path below that corresponds to the cameras in your folder structure. For example, in "Survey/Site1/Camera1", you should select the "Camera1" folder.</i>'
+    div.innerHTML = '<i>Select the folder level in the example path that corresponds to its camera. For example, in "Survey/Site1/Camera1", you should select the "Camera1" folder.</i>'
     multiCamDiv.appendChild(div)
 
     var camFDiv = document.createElement('div')
@@ -7784,7 +7798,7 @@ function updateCamDiv() {
             checkTrapgroupCode()
         }
         else if (camLvlFolder){
-            camOptionDesc.innerHTML = '<i>Select the folder level from the path below that corresponds to the cameras in your folder structure. For example, in "Survey/Site1/Camera1", you should select the "Camera1" folder.</i>'
+            camOptionDesc.innerHTML = '<i>Select the folder level in the example path that corresponds to its camera. For example, in "Survey/Site1/Camera1", you should select the "Camera1" folder.</i>'
             camIdDiv.hidden = true
             camFolderDiv.hidden = false
 
@@ -7842,7 +7856,7 @@ function updateSiteDiv() {
         checkTrapgroupCode()
     }
     else if (siteFolderN) {
-        siteOptionDesc.innerHTML = '<i>Select the folder level from the path below that corresponds to the sites/stations in your folder structure. For example, in "Survey/Site1/Camera1", you should select the "Site1" folder.</i>'
+        siteOptionDesc.innerHTML = '<i>Select the folder level in the example path that corresponds to its site/station. For example, in "Survey/Site1/Camera1", you should select the "Site1" folder.</i>'
         siteIdDiv.hidden = true
         siteFolderDiv.hidden = false
         updateSiteFolderSelect()

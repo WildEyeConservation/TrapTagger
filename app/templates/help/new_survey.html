@@ -18,23 +18,31 @@ limitations under the License. -->
 
 <ul>
     <li>
-        A survey is just a set of files which can consist of images and/or videos. You can separate your data along any line you wish, be that be a survey per year, or per month, or per season.
+        A survey is simply a set of files which can consist of images and/or videos.
     </li>
     <li>
-        You can always add additional files to a survey at any time.
+        There is no hard limit on survey size, but it is recommended that you keep your survey to below 300 000 images/frames otherwise processing times can become excessive.
     </li>
     <li>
-        There is no limit on survey size, but it is recommended that you keep your survey size to under 300 000 files to experience best peformance.
+        If you are continually monitoring a particular area, you can simply separate your data into yearly, monthly, or seasonally, and then combine the results at the end as needed.
     </li>
     <li>
-        Files within a survey are broken down into sites and cameras, where you can have multiple cameras per site.
+        You can always add additional files to a survey at any time by using that 'add files' option.
     </li>
     <li>
-        For efficiency, sites and cameras are automatically defined according to the folder structure of the files you upload since files are typically stored in 
-        a folder structure with a folder per site, and a folder per camera within that.
+        Surveys consist of a number of sites/stations - which are points in space where your cameras are stationed.
     </li>
     <li>
-        Timestamps will be extracted directly from your image exif data or video metadata. Whilst site coordinates can be added in the edit survey window.
+        Each site can have multiple cameras - typically on either side of a game trail, or overlooking the same waterhole or bait station.
+    </li>
+    <li>
+        This site/station and camera information is extracted from the structure of the folder you upload - where one typically keeps a separate folder per site/station and then a separate folder per camera within that, with a consistent overarching naming schema.
+    </li>
+    <li>
+        Timestamps will be extracted directly from the EXIF data of your images and videos where possible. Failing that, these will be visually read off the file itself using AI. Where all else fails, timestamps can be corrected or added manually.
+    </li>
+    <li>
+        Coordinates are not required but can be added in the edit survey window.
     </li>
 </ul>
     
@@ -60,40 +68,45 @@ limitations under the License. -->
 <h4>Species Classifier</h4>
 
 <p align="justify">
-    Next select the species classifier that you would like to use as your species-identifying AI. Please note that the MegaDetector 
-    is used in each of the species classifiers as it is used for basic classification of vehicles, humans, and animals. 
-    MegaDetector should only be selected when the available species classifiers does not cover the species in your biome. 
+    Next select the species classifier that you would like to use to identify the species in your data. Always try use the most-localised classifier applicable to your data. 
+    So for example, if your data is from South Africa, the best classifier for your data would be the Southern-African classifier, then next best would be the sub-Saharan classifier, and then the global classifier. 
 </p>
 
 <h4>File Upload</h4>
 
 <p align="justify">
-    Thereafter you need to specify which files should be pocessed and associated with this survey. Your files can consist of images and/or videos.
-    Your files for the survey are uploaded using the browser:
+    Thereafter you need to specify which files (images and/or videos) should be pocessed and associated with this survey. Simply click the 'add files' button and then select 
+    the top-level folder containing all of your camera-trap data - across all the sites and cameras you want to process. If you see a pop-up from your browser requesting 
+    permission to access your files - grant it.
 </p>
 
-<div align="justify">
-    Upload the files directly through your internet browser by selecting your top-level folder of files to upload using the 'add files' button. 
-    The upload will commence when you press the create button, thereafter the files will be automatically imported upon upload completion. 
-    Please do not navigate from the surveys page otherwise the upload of files will stop.
-</div>
-<br>
-
-<h4>Site/Station Identifier and Camera Identifier</h4>
+<p align="justify"></p>
+    The actual upload will only start when you submit the form. This will occur through your browser, and thus you must keep the tab open in order for it to run. 
+    If the upload is interrupted for some reason, simply click the 'resume' button and re-select your data. The system will automatically determine what has already 
+    been uploaded and get back to where it left off.
+</p>
 
 <p align="justify">
-    Thereafter, you must specify a site/station identifier as well as a camera identifier. This is used to determine which folders within your folder structure relate to your camera sites.
-    You will have two options identifying your sites and cameras:
+    If the file selection capability or the uploader aren't functioning correctly, it is likely the result of your browser not supporting this functionality. Please switch to Google Chrome instead.
+</p>
+
+<br>
+
+<h4>Sites/Stations and Cameras</h4>
+
+<p align="justify">
+    Finally, you need to specify how your folders pertain to your sites/stations and cameras - where both are identified using the same techniques. If you only have one camera per site/station,
+    then you only need to identify your sites. There are two ways to go about this:
         <ol>
-            <li>Selecting the folder level from the folder path that represents your sites/stations and cameras.</li>
+            <li>Selecting the folder level from the folder path that represents your sites/stations or cameras.</li>
             <li>Using a simple string matching approach, where you specify a string that is contained within the folder names or using a regular expression, which allows for more complex matching patterns.</li>
         </ol>
 </p>
 
 <p align="justify">
-    The first option is the simplest. You will be displayed the first folder path of your own files and you can simply select the correct folder that correspons to your sites/stations.
-    If you only have one camera per site, you will have no need to specify the cameras. If you have multiple cameras per site,
-    you will also be displayed the first folder path of your own files and can you simply select the correct folder that corresponds to your cameras or use the matching approach described below.
+    The first option is the simplest. The deepest path in the folder you have selected will be displayed. You must then just click the folder that pertains to either your 
+    camera or site (depending on which one you are currently specifying). This selection (of say the 2nd folder down) is then automatically applied to the rest of your folders. 
+    If your folder paths are inconsistent, then you will need to use the matching appraoch instead.
 </p>
 
 <p align="justify">
@@ -140,5 +153,5 @@ limitations under the License. -->
 
 <h4>Survey Structure</h4>
 <p align="justify">
-    Please verify the detected survey structure. The system will display the detected sites/stations and their cameras based on your identifiers.
+    Please verify the detected survey structure as you will not be able to change it later on. The system will display the detected sites/stations and their cameras based on your identifiers.
 </p>
