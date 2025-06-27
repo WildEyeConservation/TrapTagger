@@ -1239,7 +1239,21 @@ function resetNewSurveyPage() {
     surveyFormData = null
 
     document.getElementById('btnSaveSurvey').disabled=false
+
     document.getElementById('newSurveyErrors').innerHTML = ''
+    document.getElementById('newSurveyNameErrors').innerHTML = ''
+    document.getElementById('newSurveyOrgErrors').innerHTML = ''
+    document.getElementById('newSurveyDescriptionErrors').innerHTML = ''
+    document.getElementById('newSurveyDataSourceErrors').innerHTML = ''
+    document.getElementById('newSurveyTriggerErrors').innerHTML = ''
+    document.getElementById('newSurveyAdvancedErrors').innerHTML = ''
+    document.getElementById('newSurveyPermissionErrors').innerHTML = ''
+    document.getElementById('newSurveyPermissionExceptionsErrors').innerHTML = ''
+    document.getElementById('newSurveyClassifierErrors').innerHTML = ''
+    document.getElementById('newSurveyUploadErrors').innerHTML = ''
+    document.getElementById('newSurveySiteErrors').innerHTML = ''
+    document.getElementById('newSurveyCamErrors').innerHTML = ''
+
 }
 
 function resetEditSurveyModal() {
@@ -1804,6 +1818,7 @@ function checkTrapgroupCode() {
     structure_page = 1
 
     if (document.getElementById('addImagesTGCode')!=null) {
+        document.getElementById('addFilesErrors').innerHTML = ''
         siteFolderN = document.getElementById('siteFolderN_ES').checked
         siteIdentifier = document.getElementById('siteIdentifierES').checked
         if (siteFolderN) {
@@ -1850,6 +1865,10 @@ function checkTrapgroupCode() {
             }
         }
     } else {
+        document.getElementById('newSurveyErrors').innerHTML = ''
+        document.getElementById('newSurveySiteErrors').innerHTML = ''
+        document.getElementById('newSurveyCamErrors').innerHTML = ''
+        document.getElementById('newSurveyUploadErrors').innerHTML = ''
         siteFolderN = document.getElementById('siteFolderN').checked
         siteIdentifier = document.getElementById('siteIdentifier').checked
         if (siteFolderN) {
@@ -2184,7 +2203,7 @@ function updateTgCode() {
             document.getElementById('addFilesErrors').innerHTML = error_message
         }
         else {
-            document.getElementById('newSurveyErrors').innerHTML = error_message
+            document.getElementById('newSurveySiteErrors').innerHTML = error_message
         }
     } else {
         checkTrapgroupCode()
@@ -4160,10 +4179,11 @@ $("#newSurveyCheckbox").change( function() {
 
     newSurveyCheckbox = document.getElementById('newSurveyCheckbox')
     if (newSurveyCheckbox.checked) {
-        document.getElementById('newSurveyErrors').innerHTML = 'Note that you are now required to enter a regular expression for your site identifier. It will be used to identify your sites based on your folder structure.'
+        // document.getElementById('newSurveySiteErrors').innerHTML = 'Note that you are now required to enter a regular expression for your site identifier. It will be used to identify your sites based on your folder structure.'
+        document.getElementById('newSurveySiteErrors').innerHTML = ''
         buildTgBuilderRow()
     } else {
-        document.getElementById('newSurveyErrors').innerHTML = ''
+        document.getElementById('newSurveySiteErrors').innerHTML = ''
 
         // Clear TG Builder
         newSurveyTgBuilder = document.getElementById('newSurveyTgBuilder')
@@ -4571,6 +4591,11 @@ function updateClassifierTable(url=null) {
                         }
                     });
                 }
+                else{
+                    input.addEventListener('change', function() {
+                        document.getElementById('newSurveyClassifierErrors').innerHTML = ''
+                    });
+                }
 
                 td = document.createElement('td')
                 td.setAttribute('style','text-align:left')
@@ -4904,8 +4929,22 @@ document.getElementById('btnSaveSurvey').addEventListener('click', ()=>{
         document.getElementById('newSurveyErrors').removeChild(document.getElementById('newSurveyErrors').firstChild);
     }
 
+    document.getElementById('newSurveyErrors').innerHTML = ''
+    document.getElementById('newSurveyNameErrors').innerHTML = ''
+    document.getElementById('newSurveyOrgErrors').innerHTML = ''
+    document.getElementById('newSurveyDescriptionErrors').innerHTML = ''
+    document.getElementById('newSurveyDataSourceErrors').innerHTML = ''
+    document.getElementById('newSurveyTriggerErrors').innerHTML = ''
+    document.getElementById('newSurveyAdvancedErrors').innerHTML = ''
+    document.getElementById('newSurveyPermissionErrors').innerHTML = ''
+    document.getElementById('newSurveyPermissionExceptionsErrors').innerHTML = ''
+    document.getElementById('newSurveyClassifierErrors').innerHTML = ''
+    document.getElementById('newSurveyUploadErrors').innerHTML = ''
+    document.getElementById('newSurveySiteErrors').innerHTML = ''
+    document.getElementById('newSurveyCamErrors').innerHTML = ''
+
     if (classifier_id==null) {
-        document.getElementById('newSurveyErrors').innerHTML = 'You must select a classifier.'
+        document.getElementById('newSurveyClassifierErrors').innerHTML = 'You must select a classifier.'
     } else {
         classifier_id = classifier_id.value
     }
@@ -4917,33 +4956,33 @@ document.getElementById('btnSaveSurvey').addEventListener('click', ()=>{
     legalName = true
     if (surveyName == '') {
         legalName = false
-        document.getElementById('newSurveyErrors').innerHTML = 'The name field cannot be empty.'
+        document.getElementById('newSurveyNameErrors').innerHTML = 'The name field cannot be empty.'
     } else if ((surveyName.includes('/'))||(surveyName.includes('\\'))) {
         legalName = false
-        document.getElementById('newSurveyErrors').innerHTML = 'The survey name cannot contain slashes.'
+        document.getElementById('newSurveyNameErrors').innerHTML = 'The survey name cannot contain slashes.'
     }
 
     legalOrganisation = true
     if (surveyOrganisation == ''){
         legalOrganisation = false
-        document.getElementById('newSurveyErrors').innerHTML = 'Please select an organisation.'
+        document.getElementById('newSurveyOrgErrors').innerHTML = 'Please select an organisation.'
     }
 
     legalDescription = true
     if ((newSurveyDescription.includes('/'))||(newSurveyDescription.includes('\\'))) {
         legalDescription = false
-        document.getElementById('newSurveyErrors').innerHTML = 'The survey description cannot contain slashes.'
+        document.getElementById('newSurveyDescriptionErrors').innerHTML = 'The survey description cannot contain slashes.'
     }
 
     legalPermission = true
     if (newSurveyPermission == ''){
         legalPermission = false
-        document.getElementById('newSurveyErrors').innerHTML = 'Please select a access level.'
+        document.getElementById('newSurveyPermissionErrors').innerHTML = 'Please select a access level.'
     }
 
     if (newSurveyAnnotation == ''){
         legalPermission = false
-        document.getElementById('newSurveyErrors').innerHTML = 'Please select an annotation access level.'
+        document.getElementById('newSurveyPermissionErrors').innerHTML = 'Please select an annotation access level.'
     }
 
     var detailed_access = []
@@ -4951,7 +4990,7 @@ document.getElementById('btnSaveSurvey').addEventListener('click', ()=>{
         // Get all selectors 
         var surveyUserPermissions =  document.querySelectorAll('[id^=surveyUserPermission-]')
         if (surveyUserPermissions.length==0) {
-            document.getElementById('newSurveyErrors').innerHTML = 'You must select at least one user to set permission exceptions for.'
+            document.getElementById('newSurveyPermissionExceptionsErrors').innerHTML = 'You must select at least one user to set permission exceptions for.'
             legalPermission = false
         } else {
             var dup_users = []
@@ -4969,7 +5008,7 @@ document.getElementById('btnSaveSurvey').addEventListener('click', ()=>{
                     })
                 }
                 else{
-                    document.getElementById('newSurveyErrors').innerHTML = 'You cannot select the same user twice.'
+                    document.getElementById('newSurveyPermissionExceptionsErrors').innerHTML = 'You cannot select the same user twice.'
                     legalPermission = false
                 }
             }
@@ -4982,18 +5021,18 @@ document.getElementById('btnSaveSurvey').addEventListener('click', ()=>{
         S3FolderInput = document.getElementById('S3FolderInput')
         newSurveyS3Folder = S3FolderInput.options[S3FolderInput.selectedIndex].text
         if (newSurveyS3Folder=='') {
-            document.getElementById('newSurveyErrors').innerHTML = 'The folder name field cannot be empty.'
+            document.getElementById('newSurveyUploadErrors').innerHTML = 'The folder name field cannot be empty.'
         } else if (newSurveyS3Folder.toLowerCase()=='none') {
-            document.getElementById('newSurveyErrors').innerHTML = 'The folder cannot be called "none".'
+            document.getElementById('newSurveyUploadErrors').innerHTML = 'The folder cannot be called "none".'
         } else if ((newSurveyS3Folder.includes('/'))||(newSurveyS3Folder.includes('\\'))) {
-            document.getElementById('newSurveyErrors').innerHTML = 'The folder name cannot contain slashes.'
+            document.getElementById('newSurveyUploadErrors').innerHTML = 'The folder name cannot contain slashes.'
         } else {
             legalInput = true
         }
     } else if (document.getElementById('BrowserUpload').checked == true) {
         pathDisplay = document.getElementById('pathDisplay')
         if (pathDisplay.options.length == 0) {
-            // document.getElementById('newSurveyErrors').innerHTML = 'You must select images to upload.'
+            // document.getElementById('newSurveyUploadErrors').innerHTML = 'You must select images to upload.'
             emptySurvey = true
             legalInput = true
             newSurveyS3Folder = 'none'
@@ -5003,7 +5042,7 @@ document.getElementById('btnSaveSurvey').addEventListener('click', ()=>{
             // files = inputFile.files
         }
     } else {
-        document.getElementById('newSurveyErrors').innerHTML = 'You must select an image upload method.'
+        document.getElementById('newSurveyUploadErrors').innerHTML = 'You must select an image upload method.'
     }
 
 
@@ -5021,19 +5060,19 @@ document.getElementById('btnSaveSurvey').addEventListener('click', ()=>{
         }
         else{
             legalTGCode = false
-            document.getElementById('newSurveyErrors').innerHTML = 'You have not selected the folder-level that represents your sites.'
+            document.getElementById('newSurveySiteErrors').innerHTML = 'You have not selected the folder-level that represents your sites.'
         }
     } else {
         // Regular expression 
         if (newSurveyTGCode == '') {
             legalTGCode = false
-            document.getElementById('newSurveyErrors').innerHTML = 'The site identifier field cannot be empty.'
+            document.getElementById('newSurveySiteErrors').innerHTML = 'The site identifier field cannot be empty.'
         }
         else{
             if (newSurveyTGCode.endsWith('.*') || newSurveyTGCode.endsWith('.+') || newSurveyTGCode.endsWith('.*[0-9]+') || newSurveyTGCode.endsWith('.+[0-9]+' )) {
                 legalTGCode = false
                 error_message = 'Your site identifier is invalid. Please try again or send an email for assistance.'
-                document.getElementById('newSurveyErrors').innerHTML = error_message 
+                document.getElementById('newSurveySiteErrors').innerHTML = error_message 
             }   
         }
     }
@@ -5055,13 +5094,13 @@ document.getElementById('btnSaveSurvey').addEventListener('click', ()=>{
                 var newSurveyCamCode = document.getElementById('newSurveyCamCode').value
                 if (newSurveyCamCode == '') {
                     legalCamCode = false
-                    document.getElementById('newSurveyErrors').innerHTML = 'The camera code field cannot be empty.'
+                    document.getElementById('newSurveyCamErrors').innerHTML = 'The camera code field cannot be empty.'
                 }
                 else{
                     if (newSurveyCamCode.endsWith('.*') || newSurveyCamCode.endsWith('.+') || newSurveyCamCode.endsWith('.*[0-9]+') || newSurveyCamCode.endsWith('.+[0-9]+' )) {
                         legalCamCode = false
                         error_message = 'Your camera code is invalid. Please try again or send an email for assistance.'
-                        document.getElementById('newSurveyErrors').innerHTML = error_message 
+                        document.getElementById('newSurveyCamErrors').innerHTML = error_message 
                     }   
                 }
             }
@@ -5075,11 +5114,11 @@ document.getElementById('btnSaveSurvey').addEventListener('click', ()=>{
                 }
                 else{
                     legalCamCode = false
-                    document.getElementById('newSurveyErrors').innerHTML = 'You have not selected the folder-level that represents your cameras.'
+                    document.getElementById('newSurveyCamErrors').innerHTML = 'You have not selected the folder-level that represents your cameras.'
                 }
             } else {
                 legalCamCode = false
-                document.getElementById('newSurveyErrors').innerHTML = 'You must select a camera code option.'
+                document.getElementById('newSurveyCamErrors').innerHTML = 'You must select a camera code option.'
             }
         }
     }
@@ -5097,7 +5136,8 @@ document.getElementById('btnSaveSurvey').addEventListener('click', ()=>{
         if ((newSurveyStructureDiv!=null)&&(newSurveyStructureDiv.innerHTML == '')||(newSurveyStructureDiv.innerHTML == 'Malformed expression. Please try again.')||(newSurveyStructureDiv.innerHTML == 'Invalid structure. Please check your site and camera identifiers.')||(newSurveyStructureDiv.innerHTML.includes('identifier is invalid'))) {
             legalTGCode = false
             legalCamCode = false
-            document.getElementById('newSurveyErrors').innerHTML = 'Your specified site or camera identifiers are invalid. Please try again.'
+            document.getElementById('newSurveySiteErrors').innerHTML = 'Your specified site or camera identifiers are invalid. Please try again.'
+            document.getElementById('newSurveyCamErrors').innerHTML = 'Your specified site or camera identifiers are invalid. Please try again.'
         }
     }
 
@@ -5384,7 +5424,7 @@ document.getElementById('btnAddFiles').addEventListener('click', ()=>{
             legalCamCode = false
             addImagesCamCheckboxChecked = false
             addImagesCamCode = ' '
-            document.getElementById('newSurveyErrors').innerHTML = 'You must select a camera code option.'
+            addFilesErrors.innerHTML = 'You must select a camera code option.'
         }
     }
     
@@ -5820,6 +5860,7 @@ $('#detailedAccessSurveyCb').change( function() {
 
 $('#newSurveyOrg').change( function() {
     /** Event listener for the organisation select on the create new survey modal. */
+    document.getElementById('newSurveyOrgErrors').innerHTML = ''
     if (document.getElementById('detailedAccessSurveyCb').checked) {
         org_id = document.getElementById('newSurveyOrg').value
         var xhttp = new XMLHttpRequest();
@@ -5920,6 +5961,7 @@ function buildSurveyPermissionRow(){
             else{
                 accessSlider.disabled = false
             }
+            document.getElementById('newSurveyPermissionExceptionsErrors').innerHTML = ''
         }
     }(IDNum));
 
@@ -6004,8 +6046,10 @@ function buildSurveyPermissionRow(){
 
     button.addEventListener('click', function () {
         this.parentNode.parentNode.remove()
+        document.getElementById('newSurveyPermissionExceptionsErrors').innerHTML = ''
     });
 
+    document.getElementById('newSurveyPermissionExceptionsErrors').innerHTML = ''
 }
 
 function changeEditSurveyTab(evt, tabName) {
@@ -7884,10 +7928,11 @@ $("#camAdvancedCheckbox").change( function() {
 
     var camAdvancedCheckbox = document.getElementById('camAdvancedCheckbox')
     if (camAdvancedCheckbox.checked && document.getElementById('camRegExp').checked) {
-        document.getElementById('newSurveyErrors').innerHTML = 'Note that you are now required to enter a regular expression for your camera identifier. It will be used to identify your cameras based on your folder structure.'
+        // document.getElementById('newSurveyCamErrors').innerHTML = 'Note that you are now required to enter a regular expression for your camera identifier. It will be used to identify your cameras based on your folder structure.'
+        document.getElementById('newSurveyCamErrors').innerHTML = ''
         buildCamBuilderRow()
     } else {
-        document.getElementById('newSurveyErrors').innerHTML = ''
+        document.getElementById('newSurveyCamErrors').innerHTML = ''
 
         // Clear TG Builder
         var newSurveyCamBuilder = document.getElementById('newSurveyCamBuilder')
@@ -7957,7 +8002,7 @@ function updateCamCode() {
             document.getElementById('addFilesErrors').innerHTML = error_message
         }
         else {
-            document.getElementById('newSurveyErrors').innerHTML = error_message
+            document.getElementById('newSurveyCamErrors').innerHTML = error_message
         }
     } else {
         checkTrapgroupCode()
@@ -9681,3 +9726,8 @@ modalConfirmRestore.on('hidden.bs.modal', function () {
         }
     }
 });
+
+function resetErrorDiv(div_id){
+    /** Resets the error div with the given ID. */
+    document.getElementById(div_id).innerHTML = '';
+}

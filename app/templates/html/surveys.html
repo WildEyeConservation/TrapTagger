@@ -136,9 +136,10 @@ limitations under the License. -->
                     <div style="font-size: 80%; margin-bottom: 2px"><i>A unique identifying name for the survey.</i></div>
                     <div class="row">
                         <div class='col-lg-4'>
-                            <input type="text" class="form-control" required id="newSurveyName"></input>
+                            <input type="text" class="form-control" required id="newSurveyName" onchange="resetErrorDiv('newSurveyNameErrors')"></input>
                         </div>
                     </div>
+                    <div id="newSurveyNameErrors" style="font-size: 80%; color: #DF691A"></div>
                     <br>
 
                     <h5 style="margin-bottom: 2px">Organisation</h5>
@@ -148,51 +149,55 @@ limitations under the License. -->
                             <select id="newSurveyOrg" class='form-control'></select>
                         </div>
                     </div>
+                    <div id="newSurveyOrgErrors" style="font-size: 80%; color: #DF691A"></div>
                     <br>
 
                     <h5 style="margin-bottom: 2px">Description (Optional)</h5>
                     <div style="font-size: 80%; margin-bottom: 2px"><i>Any additional information to be associated with the survey.</i></div>
                     <div class="row">
                         <div class='col-lg-8'>
-                            <textarea type="text" class="form-control" required id="newSurveyDescription" rows="2"></textarea>
+                            <textarea type="text" class="form-control" required id="newSurveyDescription" rows="2" onchange="resetErrorDiv('newSurveyDescriptionErrors')"></textarea>
                         </div>
                     </div>
+                    <div id="newSurveyDescriptionErrors" style="font-size: 80%; color: #DF691A"></div>
                     <br>
 
                     <h5 style="margin-bottom: 2px">Data Source</h5>
                     <div style="font-size: 80%; margin-bottom: 2px"><i>Select the source of your data. This optimises some processing parameters like using more-strict static-detection identification for waterhole data where animals can be quite stationary. If you are unsure, simply leave the default general selection.</i></div>
                     <div style="margin-bottom: 5px">
                         <div class="custom-control custom-radio custom-control-inline">
-                            <input type="radio" class="custom-control-input" id="newSurveyTrails" name="waterholeSelection" value='0' checked="true">
+                            <input type="radio" class="custom-control-input" id="newSurveyTrails" name="waterholeSelection" value='0' checked="true" onclick="resetErrorDiv('newSurveyDataSourceErrors')">
                             <label class="custom-control-label" for="newSurveyTrails">General</label>
                         </div> 
                         <div class="custom-control custom-radio custom-control-inline" hidden>
-                            <input type="radio" class="custom-control-input" id="newSurveyPlains" name="waterholeSelection" value='1'>
+                            <input type="radio" class="custom-control-input" id="newSurveyPlains" name="waterholeSelection" value='1' onclick="resetErrorDiv('newSurveyDataSourceErrors')">
                             <label class="custom-control-label" for="newSurveyPlains">Open plains</label>
                         </div>
                         <div class="custom-control custom-radio custom-control-inline">
-                            <input type="radio" class="custom-control-input" id="newSurveyWaterholes" name="waterholeSelection" value='2'>
+                            <input type="radio" class="custom-control-input" id="newSurveyWaterholes" name="waterholeSelection" value='2' onclick="resetErrorDiv('newSurveyDataSourceErrors')">
                             <label class="custom-control-label" for="newSurveyWaterholes">Waterholes</label>
                         </div> 
                         <div class="custom-control custom-radio custom-control-inline">
-                            <input type="radio" class="custom-control-input" id="newSurveyBaited" name="waterholeSelection" value='3'>
+                            <input type="radio" class="custom-control-input" id="newSurveyBaited" name="waterholeSelection" value='3' onclick="resetErrorDiv('newSurveyDataSourceErrors')">
                             <label class="custom-control-label" for="newSurveyBaited">Baited traps</label>
                         </div> 
                     </div>
+                    <div id="newSurveyDataSourceErrors" style="font-size: 80%; color: #DF691A"></div>
                     <br>
 
                     <h5 style="margin-bottom: 2px">Trigger Source</h5>
                     <div style="font-size: 80%; margin-bottom: 2px"><i>What triggers your cameras? Do they trigger on motion, or do they fire on a fixed time interval (timelapse mode). This affects how your images are clustered.</i></div>
                     <div style="margin-bottom: 5px">
                         <div class="custom-control custom-radio custom-control-inline">
-                            <input type="radio" class="custom-control-input" id="newSurveyMotion" name="triggerSelection" value='0' checked="true">
+                            <input type="radio" class="custom-control-input" id="newSurveyMotion" name="triggerSelection" value='0' checked="true" onclick="resetErrorDiv('newSurveyTriggerErrors')">
                             <label class="custom-control-label" for="newSurveyMotion">Motion</label>
                         </div> 
                         <div class="custom-control custom-radio custom-control-inline">
-                            <input type="radio" class="custom-control-input" id="newSurveyTime" name="triggerSelection" value='1'>
+                            <input type="radio" class="custom-control-input" id="newSurveyTime" name="triggerSelection" value='1'   onclick="resetErrorDiv('newSurveyTriggerErrors')">
                             <label class="custom-control-label" for="newSurveyTime">Time</label>
                         </div> 
                     </div>
+                    <div id="newSurveyTriggerErrors" style="font-size: 80%; color: #DF691A"></div>
                     <br>
 
                     <h5 style="margin-bottom: 2px">Advanced Options</h5>
@@ -204,18 +209,19 @@ limitations under the License. -->
                         <div class="row">
                             <div class="col-lg-2">
                                 <div class="custom-control custom-checkbox">
-                                    <input type="checkbox" class="custom-control-input" id="cbxIgnoreSmallDets" name="cbxIgnoreSmallDets">
+                                    <input type="checkbox" class="custom-control-input" id="cbxIgnoreSmallDets" name="cbxIgnoreSmallDets" onclick="resetErrorDiv('newSurveyAdvancedErrors')">
                                     <label class="custom-control-label" for="cbxIgnoreSmallDets">Ignore Small Detections</label>
                                 </div>
                             </div>
                             <div class="col-lg-2">
                                 <div class="custom-control custom-checkbox">
-                                    <input type="checkbox" class="custom-control-input" id="cbxIgnoreSkyDets" name="cbxIgnoreSkyDets">
+                                    <input type="checkbox" class="custom-control-input" id="cbxIgnoreSkyDets" name="cbxIgnoreSkyDets" onclick="resetErrorDiv('newSurveyAdvancedErrors')">
                                     <label class="custom-control-label" for="cbxIgnoreSkyDets">Ignore Sky Detections</label>
                                 </div>
                             </div>
                         </div>        
                     </div>
+                    <div id="newSurveyAdvancedErrors" style="font-size: 80%; color: #DF691A"></div>
                     <br>
 
                     <h5 style="margin-bottom: 2px">Permissions</h5>
@@ -226,7 +232,7 @@ limitations under the License. -->
                     </div>
                     <div class="row">
                         <div class='col-lg-4'>
-                            <select id="newSurveyPermission" class='form-control'>
+                            <select id="newSurveyPermission" class='form-control' onchange="resetErrorDiv('newSurveyPermissionErrors')">
                                 <option value="default" selected>Default</option>
                                 <option value="worker">Worker</option>
                                 <option value="hidden">Hidden</option>
@@ -235,7 +241,7 @@ limitations under the License. -->
                             </select>
                         </div>	
                         <div class='col-lg-4'>
-                            <select id="newSurveyAnnotation" class='form-control'>
+                            <select id="newSurveyAnnotation" class='form-control' onchange="resetErrorDiv('newSurveyPermissionErrors')">
                                 <option value="default" selected>Default</option>
                                 <option value="1">Yes</option>
                                 <option value="0">No</option>
@@ -243,11 +249,12 @@ limitations under the License. -->
                         </div>	
                         <div class="col-lg-4">
                             <div class="custom-control custom-checkbox">
-                                <input type="checkbox" class="custom-control-input" id="detailedAccessSurveyCb" name="detailedAccessSurveyCb">
+                                <input type="checkbox" class="custom-control-input" id="detailedAccessSurveyCb" name="detailedAccessSurveyCb" onclick="resetErrorDiv('newSurveyPermissionErrors')">
                                 <label class="custom-control-label" for="detailedAccessSurveyCb">Add Permission Exceptions</label>
                             </div>
                         </div>
                     </div>
+                    <div id="newSurveyPermissionErrors" style="font-size: 80%; color: #DF691A"></div>
                     <br>
 
                     <div id="detailedAccessSurveyDiv" hidden>
@@ -260,6 +267,7 @@ limitations under the License. -->
                         </div>
                         <div id="surveyPermissionsDiv"></div>
                         <button class="btn btn-info" type="button" id="btnAddSurveyPermissionRow" onclick=buildSurveyPermissionRow()>+</button>
+                        <div id="newSurveyPermissionExceptionsErrors" style="font-size: 80%; color: #DF691A"></div>
                         <br>
                         <br>
                     </div>
@@ -267,6 +275,7 @@ limitations under the License. -->
                     <h5 style="margin-bottom: 2px">Species Classifier</h5>
                     <div style="font-size: 80%; margin-bottom: 2px"><i>Select which species-identifying AI you would like to use.</i></div>
                     <div id="speciesClassifierDiv"></div>
+                    <div id="newSurveyClassifierErrors" style="font-size: 80%; color: #DF691A"></div>
                     <br>
 
                     <!-- <h5 style="margin-bottom: 2px">Coordinates (Optional)</h5>
@@ -301,11 +310,11 @@ limitations under the License. -->
                         <h5 style="margin-bottom: 2px">Upload Type</h5>
                         <div style="font-size: 80%; margin-bottom: 2px"><i>The file-upload method you would like to use.</i></div>
                         <div class="custom-control custom-radio custom-control-inline">
-                            <input type="radio" class="custom-control-input" id="BrowserUpload" name="newSurveySelection" value="customEx" checked="true">
+                            <input type="radio" class="custom-control-input" id="BrowserUpload" name="newSurveySelection" value="customEx" checked="true" onclick="resetErrorDiv('newSurveyUploadErrors')">
                             <label class="custom-control-label" for="BrowserUpload">Browser Upload (Recommended)</label>
                         </div>
                         <div class="custom-control custom-radio custom-control-inline">
-                            <input type="radio" class="custom-control-input" id="S3BucketUpload" name="newSurveySelection" value="customEx">
+                            <input type="radio" class="custom-control-input" id="S3BucketUpload" name="newSurveySelection" value="customEx" onclick="resetErrorDiv('newSurveyUploadErrors')">
                             <label class="custom-control-label" for="S3BucketUpload">Bucket Upload</label>
                         </div>
                         <br>
@@ -313,7 +322,7 @@ limitations under the License. -->
                     </div>
     
                     <div id="newSurveyFormDiv"></div>
-
+                    <div id="newSurveyUploadErrors" style="font-size: 80%; color: #DF691A"></div>
                     <br>
 
                     <h5 style="margin-bottom: 2px">Sites/Stations</h5>
@@ -354,7 +363,9 @@ limitations under the License. -->
                         </div>
                         <div id="newSurveyTgBuilder"></div>
                     </div>
+                    <div id="newSurveySiteErrors" style="font-size: 80%; color: #DF691A"></div>
                     <br>
+
                     <h5 style="margin-bottom: 2px">Cameras</h5>
                     <div style="font-size: 80%; margin-bottom: 2px"><i>How many cameras do you have per site/station?</i></div>
                     <div style="margin-bottom: 5px">
@@ -398,6 +409,7 @@ limitations under the License. -->
                         </div>
                         <div id="newSurveyCamBuilder"></div>
                     </div>      
+                    <div id="newSurveyCamErrors" style="font-size: 80%; color: #DF691A"></div>
                     
                     <br>
                     <h5 style="margin-bottom: 2px">Structure</h5>
