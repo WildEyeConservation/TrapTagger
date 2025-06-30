@@ -2617,10 +2617,10 @@ def edit_survey(self,survey_id,user_id,classifier_id,sky_masked,ignore_small_det
 
         # Classify survey
         if classifier_id:
-            skipUpdateStatuses = False
             classifier_id = int(classifier_id)
             survey = db.session.query(Survey).get(survey_id)
             if survey.classifier_id != classifier_id:
+                skipUpdateStatuses = False
                 re_classify_survey(survey_id=survey_id,classifier_id=classifier_id)
 
         # File Timestamps
