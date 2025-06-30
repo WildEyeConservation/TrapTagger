@@ -2607,6 +2607,8 @@ def edit_survey(self,survey_id,user_id,classifier_id,sky_masked,ignore_small_det
         if masks or ignore_small_detections!=None or sky_masked!=None:
             skipUpdateStatuses = False
             check_masked_and_hidden_detections(survey_id=survey_id)
+
+        if masks or ignore_small_detections!=None or sky_masked!=None or staticgroups:
             trapgroup_ids=[r[0] for r in db.session.query(Trapgroup.id).filter(Trapgroup.survey_id==survey_id).distinct().all()]
             task_ids=[r[0] for r in db.session.query(Task.id).filter(Task.survey_id==survey_id).filter(Task.name!='default').distinct().all()]
             for task_id in task_ids:
