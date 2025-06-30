@@ -2151,6 +2151,8 @@ def editSurvey():
                 ignore_small_detections = True
             else:
                 ignore_small_detections = None
+            if ignore_small_detections == survey.ignore_small_detections:
+                ignore_small_detections = None
 
         sky_masked = None
         if 'sky_masked' in request.form:
@@ -2161,10 +2163,12 @@ def editSurvey():
                 sky_masked = True
             else:
                 sky_masked = None
+            if sky_masked == survey.sky_masked:
+                sky_masked = None
 
 
         if status == 'success':
-            if classifier_id or ignore_small_detections or sky_masked or timestamps or coordData or masks or staticgroups or kml or imageTimestamps:
+            if classifier_id or ignore_small_detections!=None or sky_masked!=None or timestamps or coordData or masks or staticgroups or kml or imageTimestamps:
                 app.logger.info('Edit survey requested for {} with classifier: {}, ignore_small_detections: {}, sky_masked: {}, timestamps: {}, coordData: {}, masks: {}, staticgroups: {}, kml: {}, imageTimestamps: {}'.format(survey.name,classifier_id,ignore_small_detections,sky_masked,timestamps,coordData,masks,staticgroups,kml,imageTimestamps))
                 if classifier_id and survey.classifier_id != classifier_id:
                     if Config.DISABLE_RESTORE:
