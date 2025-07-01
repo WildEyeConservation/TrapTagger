@@ -4916,6 +4916,10 @@ def send_js(path):
         path = path.split('.')
         del path[-2]
         path = '.'.join(path)
+    elif 'results' in path and path.endswith('.css'):
+        path = path.split('.')
+        del path[-2]
+        path = '.'.join(path)
 
     return send_from_directory('../static/js', path)
 
