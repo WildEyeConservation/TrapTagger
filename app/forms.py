@@ -30,7 +30,7 @@ class RegistrationForm(FlaskForm):
     password = PasswordField('Password', validators=[DataRequired()])
     password2 = PasswordField(
         'Repeat Password', validators=[DataRequired(), EqualTo('password')])
-    sum_check = IntegerField('What is 3 + 4?', validators=[DataRequired()])
+    sum_check = IntegerField('What is 9 + 2?', validators=[DataRequired()])
     submit = SubmitField('Register')
 
     def validate_username(self, username):
@@ -54,7 +54,7 @@ class RegistrationForm(FlaskForm):
             raise ValidationError('Please use a different email address.')
 
     def validate_sum_check(self, sum_check):
-        if sum_check.data != 7:
+        if sum_check.data != 11:
             raise ValidationError('Incorrect answer.')
 
 class NewSurveyForm(FlaskForm):

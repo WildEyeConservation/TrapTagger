@@ -2275,7 +2275,7 @@ def addFiles():
 
     return json.dumps({'status': status, 'message': message, 'survey_id': upload_survey_id, 'survey_name': upload_survey_name})
 
-@app.route('/TTWorkerSignup', methods=['GET', 'POST'])
+@app.route('/TTUserSignup', methods=['GET', 'POST'])
 def TTWorkerSignup():
     '''Returns the form for worker signup, and handles its submission.'''
     if current_user.is_authenticated:
