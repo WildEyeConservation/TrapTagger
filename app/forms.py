@@ -68,10 +68,10 @@ class EnquiryForm(FlaskForm):
     email = StringField('Email', validators=[DataRequired(), Email()])
     description = TextAreaField('Description', validators=[DataRequired()])
     info = HiddenField('info')
-    sum_check = IntegerField('What is 3 + 4?', validators=[DataRequired()])
+    sum_check = IntegerField('What is 7 + 5?', validators=[DataRequired()])
 
     def validate_sum_check(self, sum_check):
-        if sum_check.data != 7:
+        if sum_check.data != 12:
             raise ValidationError('Incorrect answer.')
 
 class ResetPasswordForm(FlaskForm):

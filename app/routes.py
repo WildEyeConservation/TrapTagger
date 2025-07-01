@@ -3439,7 +3439,7 @@ def jobs():
         if not current_user.permissions: return redirect(url_for('landing'))
         return render_template('html/jobs.html', title='Jobs', helpFile='jobs_page', version=Config.VERSION)
 
-@app.route('/TTRegisterAdmin ', methods=['GET', 'POST'])
+@app.route('/TTOrgRegistration', methods=['GET', 'POST'])
 def TTRegisterAdmin():
     '''Renders the admin account registration page.'''
     logout = request.args.get('logout', None)
