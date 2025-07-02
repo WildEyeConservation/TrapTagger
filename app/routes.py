@@ -6459,9 +6459,9 @@ def getKnockCluster(task_id, knockedstatus, clusterID, index, imageIndex, T_inde
                                     .filter(or_(and_(Detection.source==model,Detection.score>Config.DETECTOR_THRESHOLDS[model]) for model in Config.DETECTOR_THRESHOLDS)) \
                                     .filter(Detection.static == False) \
                                     .filter(~Detection.status.in_(Config.DET_IGNORE_STATUSES)) \
-                                    .distinct().count()
+                                    .distinct().first()
 
-            if (cluster_count>0) and (not queueing) and (not processing):
+            if cluster_count and (not queueing) and (not processing):
                 # The are clusters to annotate and unknock et al are complete - launch
                 code = '-101'
                 task.tagging_level = '-1'
