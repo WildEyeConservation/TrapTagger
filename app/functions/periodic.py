@@ -227,7 +227,7 @@ def clean_up_redis():
                         timestamp = GLOBALS.redisClient.get(key)
                         if timestamp:
                             timestamp = datetime.fromtimestamp(float(timestamp.decode()))
-                            if datetime.utcnow() - timestamp > timedelta(minutes=10):
+                            if datetime.utcnow() - timestamp > timedelta(minutes=15):
                                 manageDownload(task_id)
                             else:
                                 checkRestoreDownloads(task_id)

@@ -9348,7 +9348,12 @@ def get_image_info():
     task = db.session.query(Task).get(task_id)
     # if task and (task.survey.user==current_user):
     if task and checkSurveyPermission(current_user.id,task.survey_id,'read'):
-        GLOBALS.redisClient.set('download_ping_'+str(task_id),datetime.utcnow().timestamp())
+
+        # If the download is stale - force a restart
+        if GLOBALS.redisClient.get('download_ping_'+str(task_id)):
+            GLOBALS.redisClient.set('download_ping_'+str(task_id),datetime.utcnow().timestamp())
+        else:
+            return {'redirect': url_for('surveys')}, 278
         
         individual_sorted = request.json['individual_sorted']
         species_sorted = request.json['species_sorted']
@@ -9416,7 +9421,12 @@ def get_required_files():
     task = db.session.query(Task).get(task_id)
     # if task and (task.survey.user==current_user):
     if task and checkSurveyPermission(current_user.id,task.survey_id,'read'):
-        GLOBALS.redisClient.set('download_ping_'+str(task_id),datetime.utcnow().timestamp())
+
+        # If the download is stale - force a restart
+        if GLOBALS.redisClient.get('download_ping_'+str(task_id)):
+            GLOBALS.redisClient.set('download_ping_'+str(task_id),datetime.utcnow().timestamp())
+        else:
+            return {'redirect': url_for('surveys')}, 278
 
         individual_sorted = request.json['individual_sorted']
         species_sorted = request.json['species_sorted']
@@ -9674,7 +9684,12 @@ def check_download_initialised():
     reply = {'status': 'ready'}
     # if task and (task.survey.user==current_user):
     if task and checkSurveyPermission(current_user.id,task.survey_id,'read'):
-        GLOBALS.redisClient.set('download_ping_'+str(task_id),datetime.utcnow().timestamp())
+
+        # If the download is stale - force a restart
+        if GLOBALS.redisClient.get('download_ping_'+str(task_id)):
+            GLOBALS.redisClient.set('download_ping_'+str(task_id),datetime.utcnow().timestamp())
+        else:
+            return {'redirect': url_for('surveys')}, 278
 
         filesToDownload = GLOBALS.redisClient.get(str(task.id)+'_filesToDownload')
         if filesToDownload:
@@ -9701,7 +9716,12 @@ def mark_images_downloaded():
         survey_id = db.session.query(Survey.id).join(Trapgroup).join(Camera).join(Video).filter(Video.id==video_ids[0]).first()[0]
 
         if survey_id and checkSurveyPermission(current_user.id,survey_id,'read'):
-            GLOBALS.redisClient.set('download_ping_'+str(task_id),datetime.utcnow().timestamp())
+
+            # If the download is stale - force a restart
+            if GLOBALS.redisClient.get('download_ping_'+str(task_id)):
+                GLOBALS.redisClient.set('download_ping_'+str(task_id),datetime.utcnow().timestamp())
+            else:
+                return {'redirect': url_for('surveys')}, 278
             
             videos = db.session.query(Video).filter(Video.id.in_(video_ids)).distinct().all()
             for video in videos:
@@ -9712,7 +9732,12 @@ def mark_images_downloaded():
         survey_id = db.session.query(Survey.id).join(Trapgroup).join(Camera).join(Image).filter(Image.id==image_ids[0]).first()[0]
 
         if survey_id and checkSurveyPermission(current_user.id,survey_id,'read'):
-            GLOBALS.redisClient.set('download_ping_'+str(task_id),datetime.utcnow().timestamp())
+
+            # If the download is stale - force a restart
+            if GLOBALS.redisClient.get('download_ping_'+str(task_id)):
+                GLOBALS.redisClient.set('download_ping_'+str(task_id),datetime.utcnow().timestamp())
+            else:
+                return {'redirect': url_for('surveys')}, 278
 
             images = db.session.query(Image).filter(Image.id.in_(image_ids)).distinct().all()
             for image in images:
@@ -14742,7 +14767,12 @@ def init_download_after_restore():
                     download_dict['task_name'] = task.name
                     download_request.status = 'Downloading'
                     db.session.commit()
-                    GLOBALS.redisClient.set('download_ping_'+str(task_id),datetime.utcnow().timestamp())
+
+                    # # If the download is stale - force a restart
+                    # if GLOBALS.redisClient.get('download_ping_'+str(task_id)):
+                    #     GLOBALS.redisClient.set('download_ping_'+str(task_id),datetime.utcnow().timestamp())
+                    # else:
+                    #     return {'redirect': url_for('surveys')}, 278
 
                     return json.dumps({'status': 'success', 'download_params': download_dict})
             except:
@@ -14762,7 +14792,13 @@ def init_download_request():
     status = 'error'
     if task and checkSurveyPermission(current_user.id,task.survey_id,'read') and task.status.lower() in Config.TASK_READY_STATUSES:
         try:
-            GLOBALS.redisClient.set('download_ping_'+str(task_id),datetime.utcnow().timestamp())
+
+            # # If the download is stale - force a restart
+            # if GLOBALS.redisClient.get('download_ping_'+str(task_id)):
+            #     GLOBALS.redisClient.set('download_ping_'+str(task_id),datetime.utcnow().timestamp())
+            # else:
+            #     return {'redirect': url_for('surveys')}, 278
+
             download_request = DownloadRequest(user_id=current_user.id, task_id=task_id, type='file', status='Downloading', timestamp=None)
             db.session.add(download_request)
             db.session.commit()
