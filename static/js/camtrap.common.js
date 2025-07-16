@@ -143,6 +143,7 @@ var globalMasks = {"map1": []}
 var maskMode = false
 var detectionGroups = {}
 var editedFlanks = {}
+var preloadImageIndex = {"map1": 0}
 
 // var colours = {
 //     'rgba(67,115,98,1)': false,
@@ -226,10 +227,25 @@ function preload(mapID = 'map1') {
     if (bucketName!=null) {
         if (isKnockdown||isTimestampCheck) {
             if (clusters[mapID][clusterIndex[mapID]].images.length > 1) {
-                for (let i=0;i<clusters[mapID][clusterIndex[mapID]].images.length;i++) {
+                if (isTimestampCheck){
+                    if (imageIndex[mapID] == 0){
+                        preloadImageIndex[mapID] = 0
+                    }
                     if ((clusters[mapID][clusterIndex[mapID]].id != '-99')&&(clusters[mapID][clusterIndex[mapID]].id != '-101')&&(clusters[mapID][clusterIndex[mapID]].id != '-782')) {
-                        im = new Image();
-                        im.src = "https://"+bucketName+".s3.amazonaws.com/" + modifyToCompURL(clusters[mapID][clusterIndex[mapID]].images[i].url)
+                        for (let j=0;j<3;j++) {
+                            if (preloadImageIndex[mapID]+j < clusters[mapID][clusterIndex[mapID]].images.length) {
+                                im = new Image();
+                                im.src = "https://"+bucketName+".s3.amazonaws.com/" + modifyToCompURL(clusters[mapID][clusterIndex[mapID]].images[preloadImageIndex[mapID]+j].url)
+                                preloadImageIndex[mapID] += 1
+                            }
+                        }
+                    }
+                } else {
+                    for (let i=0;i<clusters[mapID][clusterIndex[mapID]].images.length;i++) {
+                        if ((clusters[mapID][clusterIndex[mapID]].id != '-99')&&(clusters[mapID][clusterIndex[mapID]].id != '-101')&&(clusters[mapID][clusterIndex[mapID]].id != '-782')) {
+                            im = new Image();
+                            im.src = "https://"+bucketName+".s3.amazonaws.com/" + modifyToCompURL(clusters[mapID][clusterIndex[mapID]].images[i].url)
+                        }
                     }
                 }
             }
