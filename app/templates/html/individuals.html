@@ -296,6 +296,77 @@ limitations under the License. -->
                     <div class="col-lg-1"></div>
                 </div>
                 <br>
+
+                <div class="row">
+                    <div class="col-lg-1"></div>
+                    <div class="col-lg-10">
+                        <h5 style="margin-bottom: 2px">Individual Features:</h5>     
+                        <div style="font-size: 80%; margin-bottom: 2px"><i>Please note that you can only edit the features of the Primary Image for each flank. If you select a different Primary Image for a flank, any feature changes previously made for that flank will be lost.</i></div>
+                        <div id="individualFeaturesErrors" style="font-size: 80%; color: #DF691A"></div>
+                    </div>
+                    <div class="col-lg-1"></div>
+                </div>  
+                <div class="row">
+                    <div class="col-lg-1"></div>
+                    <div class="col-lg-5">
+                        <h6 style="margin-bottom: 5px">Left Flank:</h6>
+                        <div id="cxLeftPrimaryDiv">
+                            <label for="cxLeftPrimaryImage">Primary Image :</label>
+                            <label class="switch">
+                                <input type="checkbox" id="cxLeftPrimaryImage" checked><span class="slider round"></span>
+                            </label>
+                        </div>
+                        <div class="row">
+                            <div class="col-lg-1 d-flex align-items-center justify-content-end" style="padding:0;">
+                                <button class="btn btn-link" id="btnLeftFlankPrev"><i class="fa fa-chevron-circle-left fa-1x"></i></button>
+                            </div>
+                            <div class="col-lg-10">
+                                <center id="leftFeatureMap"></center>
+                            </div>
+                            <div class="col-lg-1 d-flex align-items-center justify-content-start" style="padding:0;">
+                                <button class="btn btn-link" id="btnLeftFlankNext"><i class="fa fa-chevron-circle-right fa-1x"></i></button>
+                            </div>
+                        </div>
+                        <div class="row" >
+                            <div class="col-lg-12 d-flex align-items-center justify-content-center">
+                                <div id="leftFlankPosition" style="font-size:60%;">
+                                    <ul class="pagination" id="leftFlankPaginationCircles" style="margin: 10px;"></ul>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-lg-5">
+                        <h6 style="margin-bottom: 5px">Right Flank:</h6>
+                        <div id="cxRightPrimaryDiv">
+                            <label for="cxRightPrimaryImage">Primary Image :</label>
+                            <label class="switch">
+                                <input type="checkbox" id="cxRightPrimaryImage" checked><span class="slider round"></span>
+                            </label>
+                        </div>
+                        <div class="row">
+                            <div class="col-lg-1 d-flex align-items-center justify-content-end" style="padding:0;">
+                                <button class="btn btn-link" id="btnRightFlankPrev"><i class="fa fa-chevron-circle-left fa-1x"></i></button>
+                            </div>
+                            <div class="col-lg-10">
+                                <center id="rightFeatureMap"></center>
+                            </div>
+                            <div class="col-lg-1 d-flex align-items-center justify-content-start" style="padding:0;">
+                                <button class="btn btn-link" id="btnRightFlankNext"><i class="fa fa-chevron-circle-right fa-1x"></i></button>
+                            </div>
+                        </div>
+                        <div class="row" >
+                            <div class="col-lg-12 d-flex align-items-center justify-content-center">
+                                <div id="rightFlankPosition" style="font-size:60%;">
+                                    <ul class="pagination" id="rightFlankPaginationCircles" style="margin: 10px;"></ul>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-lg-1"></div>
+                </div>
+                <div id="featureErrors" style="font-size: 80%; color: #DF691A"></div>
+                <br>
+
                 <div class="row">
                     <div class="col-lg-1"></div>
                     <div class="col-lg-10">
@@ -702,4 +773,6 @@ crossorigin=""/>
 <script src="js/Leaflet.BigImage.js"></script>
 <!-- <link rel="stylesheet" href="js/leaflet.contextmenu.css"/>
 <script src="js/leaflet.contextmenu.js"></script> -->
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet.draw/1.0.4/leaflet.draw.css"/>
+<script src="js/leaflet.draw.js"></script>
 {% endblock %}

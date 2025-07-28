@@ -19,7 +19,7 @@ from app.models import *
 from app.functions.globals import classifyTask, update_masks, retryTime, resolve_abandoned_jobs, addChildLabels, updateAllStatuses, deleteFile,\
                                     stringify_timestamp, rDets, update_staticgroups, detection_rating, chunker, verify_label, cleanup_empty_restored_images, \
                                     reconcile_cluster_labelgroup_labels_and_tags, hideSmallDetections, maskSky, checkChildTranslations, createChildTranslations, \
-                                    prepTask, removeHumans, sync_labels, sync_tags
+                                    prepTask, removeHumans, sync_labels, sync_tags, update_individuals_primary_dets
 from app.functions.individualID import calculate_detection_similarities, cleanUpIndividuals, check_individual_detection_mismatch
 from app.functions.imports import classifySurvey, s3traverse, classifyCluster, importKML, import_survey
 import GLOBALS
@@ -116,6 +116,7 @@ def delete_task(self,task_id):
                                         .filter(Trapgroup.survey_id==task.survey_id)\
                                         .distinct().all()]
                 
+                update_individuals = []
                 for individual in individuals:                    
                     individual.detections = [detection for detection in individual.detections if detection.id not in detections]
 
@@ -125,6 +126,7 @@ def delete_task(self,task_id):
                         individual.children = []
                         individual.tags = []
                         individual.tasks = []
+                        individual.primary_detections = []
                         indSimilarities = db.session.query(IndSimilarity).filter(or_(IndSimilarity.individual_1==individual.id,IndSimilarity.individual_2==individual.id)).all()
                         for indSimilarity in indSimilarities:
                             db.session.delete(indSimilarity)
@@ -133,8 +135,14 @@ def delete_task(self,task_id):
                         # no point doing this if its going to be deleted
                         individual.tasks.remove(task)
                         individual.tags = [tag for tag in individual.tags if tag.id not in tags]
+                        individual.primary_detections = [det for det in individual.primary_detections if det.id not in detections]
+                        if len(individual.primary_detections)==0:
+                            update_individuals.append(individual.id)                   
 
                 db.session.commit()
+
+                if update_individuals:
+                    update_individuals_primary_dets(individual_ids=update_individuals)
 
                 # for individual in individuals:
                 #     if individual not in individuals_to_delete:
@@ -348,6 +356,12 @@ def stop_task(self,task_id,live=False):
             if ',' not in task.tagging_level and task.init_complete and '-2' not in task.tagging_level:
                 check_individual_detection_mismatch(task_id=task_id)
 
+            # Update Individual Primary Images
+            if '-4' in task.tagging_level or '-5' in task.tagging_level:
+                task_ids = [r.id for r in task.sub_tasks]
+                task_ids.append(task.id)
+                update_individuals_primary_dets(task_ids=task_ids,species=task.tagging_level.split(',')[1])
+            
             updateAllStatuses(task_id=int(task_id))
 
             # if task_id in GLOBALS.mutex.keys(): GLOBALS.mutex.pop(task_id, None)
@@ -457,6 +471,19 @@ def delete_survey(self,survey_id):
                 if tempStatus != None:
                     status = tempStatus
                     message = tempMessage
+
+        #Delete features
+        if status != 'error':
+            try:
+                features = db.session.query(Feature).join(Detection).join(Image).join(Camera).join(Trapgroup).filter(Trapgroup.survey_id==survey_id).all()
+                for feature in features:
+                    db.session.delete(feature)
+                db.session.commit()
+                app.logger.info('Features deleted successfully.')
+            except:
+                status = 'error'
+                message = 'Could not delete features.'
+                app.logger.info('Failed to delete features.')
 
         #Delete detections
         if status != 'error':
@@ -2105,6 +2132,7 @@ def delete_individuals(self,task_ids, species):
                                 .filter(Task.id.in_(task_ids))\
                                 .all()
 
+        update_individuals = []
         for individual in individuals:
             individual.detections = [detection for detection in individual.detections if detection.id not in detections]
             if len(individual.detections)==0:
@@ -2112,6 +2140,7 @@ def delete_individuals(self,task_ids, species):
                 individual.children = []
                 individual.tags = []
                 individual.tasks = []
+                individual.primary_detections = []
                 # Delete Individual Similarities
                 indSims = db.session.query(IndSimilarity).filter(or_(IndSimilarity.individual_1==individual.id,IndSimilarity.individual_2==individual.id)).all()
                 for indSim in indSims:
@@ -2120,6 +2149,9 @@ def delete_individuals(self,task_ids, species):
             else:
                 individual.tasks = [task for task in individual.tasks if task.id not in task_ids]
                 individual.tags = [tag for tag in individual.tags if tag.task_id not in task_ids]
+                individual.primary_detections = [det for det in individual.primary_detections if det.id not in detections]
+                if len(individual.primary_detections)==0:
+                    update_individuals.append(individual.id)
 
 
         # Delete Detection similarities (where detections from sims are no longer associated with individuals)
@@ -2165,6 +2197,9 @@ def delete_individuals(self,task_ids, species):
         #     GLOBALS.ibs.delete_annots(aid_list)  
 
         db.session.commit()
+
+        if update_individuals:
+            update_individuals_primary_dets(individual_ids=update_individuals)
                 
         # Update statuses
         for task_id in task_ids:

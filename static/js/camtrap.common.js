@@ -211,6 +211,13 @@ function modifyToCompURL(url) {
     
 }
 
+function modifyToCropURL(url,detection_id) {
+    /** Modifies the source URL to the cropped image of detection */
+    splits=url.split('/')
+    crop_url = splits[0] + '-comp/' + splits[1] + '/_crops_/' + detection_id.toString() + '.JPG'
+    return crop_url
+}
+
 function checkImage(url){
     /** Checks if the url is an image or not */
     if (url.includes('jpg') || url.includes('JPG') || url.includes('jpeg') || url.includes('JPEG') || url.includes('png') || url.includes('PNG')) {
@@ -1677,7 +1684,8 @@ function updateSlider(mapID = 'map1') {
         for (let i=0;i<clusters[mapID][clusterIndex[mapID]].images.length;i++) {
             imageUrl = "https://"+bucketName+".s3.amazonaws.com/" + modifyToCompURL(clusters[mapID][clusterIndex[mapID]].images[i].url)
             img = document.createElement('img')
-            img.setAttribute('src',imageUrl)
+            // img.setAttribute('src',imageUrl)
+            img.setAttribute('data-splide-lazy',imageUrl)
             imgli = document.createElement('li')
             imgli.classList.add('splide__slide')
             imgli.appendChild(img)
@@ -1694,6 +1702,9 @@ function updateSlider(mapID = 'map1') {
             }
 
         }
+
+        client_width = document.getElementById(splides[mapID]).clientWidth
+        numberPages =Math.ceil(client_width/200) + 1 
     
         if (clusterPositionSplide[mapID]==null) {
             clusterPositionSplide[mapID] = new Splide( document.getElementById(splides[mapID]), {
@@ -1705,6 +1716,8 @@ function updateSlider(mapID = 'map1') {
                 gap         : 5,
                 pagination  : false,
                 cover       : true,
+                lazyLoad   : 'nearby',
+                preloadPages: numberPages,
                 breakpoints : {
                     '600': {
                         fixedWidth  : 66,

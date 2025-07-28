@@ -104,6 +104,13 @@ siteGroupings = db.Table('siteGroupings',
     db.UniqueConstraint('sitegroup_id', 'trapgroup_id')
 )
 
+individualPrimaryDetections = db.Table('individualPrimaryDetections',
+    db.Column('detection_id', db.Integer, db.ForeignKey('detection.id'), primary_key=True),
+    db.Column('individual_id', db.Integer, db.ForeignKey('individual.id'), primary_key=True),
+    db.Index('ix_individualPrimaryDetections_detection_id', 'detection_id', unique=False),
+    db.Index('ix_individualPrimaryDetections_individual_id', 'individual_id', unique=False)
+)
+
 class Image(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     filename = db.Column(db.String(64), index=False, unique=False)
@@ -237,6 +244,14 @@ class Labelgroup(db.Model):
     def __repr__(self):
         return '<Label group for detection {}>'.format(self.detection_id)
 
+class Feature(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    detection_id = db.Column(db.Integer, db.ForeignKey('detection.id'), index=True, unique=False)
+    shape = db.Column(Geometry('POLYGON', srid=32734), index=False, unique=False)
+
+    def __repr__(self):
+        return '<Feature {} for detection {}>'.format(self.id, self.detection_id)
+
 class Detection(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     image_id = db.Column(db.Integer, db.ForeignKey('image.id'), index=True)
@@ -255,6 +270,7 @@ class Detection(db.Model):
     staticgroup_id = db.Column(db.Integer, db.ForeignKey('staticgroup.id'), index=True)
     flank = db.Column(db.String(1), index=True) #left/right
     aid = db.Column(db.Integer, index=True) # annotation id for wbia db 
+    features = db.relationship('Feature', backref='detection', lazy=True)
 
     def __repr__(self):
         return '<Detection of class {} on image {}>'.format(self.category, self.image_id)
@@ -378,6 +394,8 @@ class Individual(db.Model):
                         secondaryjoin=id==individual_parent_child.c.child_id,
                         backref="parents"
     )
+    primary_selected = db.Column(db.Boolean, default=False, index=False)
+    primary_detections = db.relationship('Detection', secondary=individualPrimaryDetections, lazy=True, backref=db.backref('primary_individuals', lazy=True))
 
     def __repr__(self):
         return '<Individual {}>'.format(self.name)

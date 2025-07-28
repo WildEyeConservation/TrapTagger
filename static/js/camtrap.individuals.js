@@ -86,6 +86,18 @@ var mergeIndividualsFilters = {'task': null, 'mutual': null, 'search': null, 'or
 var individualBounds = []
 var individualCoords = []
 var fullResMerge = {'L': false, 'R': false}
+var individualBestDets = {}
+var imgMaps = {}
+var imgMapsHeight = {}
+var imgMapsWidth = {}
+var imgMapsActiveImage = {}
+var drawnFeatureItems = {}
+var leafletFeatureIDs = {}
+var featureDrawControl = {}
+var editingEnabled = false
+var globalFeatures = {}
+var individualFlankImages = {}
+var flankImageIndex = {'L': 0, 'R': 0 }
 
 function getIndividuals(page = null) {
     /** Gets a page of individuals. Gets the first page if none is specified. */
@@ -207,21 +219,32 @@ function getIndividuals(page = null) {
                     col.classList.add('col-lg-3')
                     row.appendChild(col)
 
-                    var center = document.createElement('center')
-                    col.appendChild(center)
+                    // var center = document.createElement('center')
+                    // col.appendChild(center)
 
-                    let div = document.createElement('div')
-                    div.id = 'indivImageDiv'+i
-                    center.appendChild(div)
+                    // let div = document.createElement('div')
+                    // div.id = 'indivImageDiv'+i
+                    // center.appendChild(div)
     
-                    prepImageMap('indivImageDiv'+i, newIndividual.url, newIndividual.detection, 14.10)
+                    // prepImageMap('indivImageDiv'+i, newIndividual.url, newIndividual.detection, 14.10)
+
+                    image = document.createElement('img')
+                    image.setAttribute('width','100%')
+                    image.src = "https://"+bucketName+".s3.amazonaws.com/" + modifyToCropURL(newIndividual.url, newIndividual.detection.id)
+                    col.appendChild(image)
+
+                    image.addEventListener('error', function(wrapURL) {
+                        return function() {
+                            this.src = "https://"+bucketName+".s3.amazonaws.com/" + modifyToCompURL(wrapURL)
+                        }
+                    }(newIndividual.url));
 
                     h5 = document.createElement('h5')
                     h5.setAttribute('align','center')
                     h5.innerHTML = newIndividual.name
                     col.appendChild(h5)
 
-                    div.addEventListener('click', function(individualID,individualName){
+                    image.addEventListener('click', function(individualID,individualName){
                         return function() {
                             getIndividual(individualID,individualName)
                         }
@@ -326,6 +349,8 @@ function getIndividualInfo(individualID){
 
                 individualBounds = info.bounds
 
+                individualBestDets = info.best_dets
+
                 if (info.access == 'write'){
                     document.getElementById('newIndividualName').readOnly = false
                     document.getElementById('idNotes').readOnly = false
@@ -355,6 +380,7 @@ function getIndividualInfo(individualID){
             }
 
             initialiseStats()
+            initFeatureMaps()
         }
     }
     xhttp.open("GET", '/getIndividualInfo/'+individualID);
@@ -623,6 +649,27 @@ function initialiseMapAndSlider(){
     list.classList.add('splide__list')
     list.setAttribute('id','imageSplide')
     track.appendChild(list)
+
+    var leftFeatureMap = document.getElementById('leftFeatureMap')
+    while(leftFeatureMap.firstChild){
+        leftFeatureMap.removeChild(leftFeatureMap.firstChild);
+    }
+
+    var rightFeatureMap = document.getElementById('rightFeatureMap')
+    while(rightFeatureMap.firstChild){
+        rightFeatureMap.removeChild(rightFeatureMap.firstChild);
+    }
+
+    var leftFeatureMapDiv = document.createElement('div')
+    leftFeatureMapDiv.setAttribute('id','leftFeatureMapDiv')
+    leftFeatureMapDiv.setAttribute('style','height: 400px')
+    leftFeatureMap.appendChild(leftFeatureMapDiv)
+
+    var rightFeatureMapDiv = document.createElement('div')
+    rightFeatureMapDiv.setAttribute('id','rightFeatureMapDiv')
+    rightFeatureMapDiv.setAttribute('style','height: 400px')
+    rightFeatureMap.appendChild(rightFeatureMapDiv)
+
 }
 
 function individualTags(individual_id){
@@ -935,6 +982,16 @@ function cleanModalIndividual() {
     while(orderAssociationsDiv.firstChild){
         orderAssociationsDiv.removeChild(orderAssociationsDiv.firstChild);
     }
+
+    leftFeatureMap = document.getElementById('leftFeatureMap')
+    while(leftFeatureMap.firstChild){
+        leftFeatureMap.removeChild(leftFeatureMap.firstChild);
+    }
+
+    rightFeatureMap = document.getElementById('rightFeatureMap')
+    while(rightFeatureMap.firstChild){
+        rightFeatureMap.removeChild(rightFeatureMap.firstChild);
+    }
     
     individualSplide = null
     individualImages = null
@@ -971,6 +1028,20 @@ function cleanModalIndividual() {
     document.getElementById('endDateIndiv').value = ''
 
     document.getElementById('statsSelect').value = '2'
+
+    imgMaps = {}
+    imgMapsHeight = {}
+    imgMapsWidth = {}
+    imgMapsActiveImage = {}
+    drawnFeatureItems = {}
+    leafletFeatureIDs = {}
+    featureDrawControl = {}
+    editingEnabled = false
+    // globalFeatures = {'removed':[], 'added':{}, 'edited':{}}
+    globalFeatures = {}
+    individualBestDets = null
+    individualFlankImages = {}
+    flankImageIndex = {'L': 0, 'R': 0}
 }
 
 modalIndividual.on('hidden.bs.modal', function(){
@@ -1749,6 +1820,8 @@ document.getElementById('btnSubmitInfoChange').addEventListener('click', functio
         submitIndividualNotes()
     }
 
+    submitFeatures()
+
     // submitFlanks()
 });
 
@@ -2186,26 +2259,44 @@ function buildAssociation(association,n){
     imageCell.setAttribute('style','width: 25%; border: 1px solid rgba(0,0,0,0.2); border-collapse: collapse; text-align: center; vertical-align: middle;')
     row.appendChild(imageCell);
 
-    var center = document.createElement('center')
-    imageCell.appendChild(center)
+    // var center = document.createElement('center')
+    // imageCell.appendChild(center)
 
-    var div = document.createElement('div')
-    div.id = 'associationImageDiv'+n.toString()
-    div.setAttribute('style','width: 100%; height: 100%; overflow: hidden;')
-    center.appendChild(div)
+    // var div = document.createElement('div')
+    // div.id = 'associationImageDiv'+n.toString()
+    // div.setAttribute('style','width: 100%; height: 100%; overflow: hidden;')
+    // center.appendChild(div)
 
-    prepImageMap('associationImageDiv'+n.toString(), association.url, association.detection, 14.15)
+    // prepImageMap('associationImageDiv'+n.toString(), association.url, association.detection, 14.15)
 
-    div.addEventListener('click', function(individualID,individualName,wN){
+    // div.addEventListener('click', function(individualID,individualName,wN){
+    //     return function() {
+    //         mergeMap['associationImageDiv'+wN.toString()].remove()
+    //         mergeMap['associationImageDiv'+wN.toString()] = null
+    //         cleanModalIndividual()
+    //         getIndividual(individualID,individualName, true)
+    //         modalIndividual.scrollTop(0)
+    //     }
+    // }(association.id,association.name,n));
+  
+    image = document.createElement('img')
+    image.setAttribute('width','100%')
+    image.src = "https://"+bucketName+".s3.amazonaws.com/" + modifyToCropURL(association.url, association.detection.id)
+    imageCell.appendChild(image)
+
+    image.addEventListener('error', function(wrapURL) {
         return function() {
-            mergeMap['associationImageDiv'+wN.toString()].remove()
-            mergeMap['associationImageDiv'+wN.toString()] = null
+            this.src = "https://"+bucketName+".s3.amazonaws.com/" + modifyToCompURL(wrapURL)
+        }
+    }(association.url));
+
+    image.addEventListener('click', function(individualID,individualName){
+        return function() {
             cleanModalIndividual()
             getIndividual(individualID,individualName, true)
             modalIndividual.scrollTop(0)
         }
-    }(association.id,association.name,n));
-
+    }(association.id,association.name));
     
     var nameCell = document.createElement('td');
     nameCell.setAttribute('style','width: 25%; border: 1px solid rgba(0,0,0,0.2); border-collapse: collapse;  text-align: center; vertical-align: middle;')
@@ -3253,7 +3344,8 @@ function updateMergeSlider(mapID, divIDImageSplide, divID) {
 
     for (let i=0;i<mergeImages[mapID].length;i++) {
         img = document.createElement('img')
-        img.setAttribute('src',"https://"+bucketName+".s3.amazonaws.com/" + modifyToCompURL(mergeImages[mapID][i].url))
+        // img.setAttribute('src',"https://"+bucketName+".s3.amazonaws.com/" + modifyToCompURL(mergeImages[mapID][i].url))
+        img.setAttribute('data-splide-lazy',"https://"+bucketName+".s3.amazonaws.com/" + modifyToCompURL(mergeImages[mapID][i].url))
         imgli = document.createElement('li')
         imgli.classList.add('splide__slide')
         imgli.appendChild(img)
@@ -3261,6 +3353,10 @@ function updateMergeSlider(mapID, divIDImageSplide, divID) {
     }
 
     if (mergeSplide[mapID]==null) {
+
+        client_width = document.getElementById(divID).clientWidth
+        numberPages =Math.ceil(client_width/200) + 1
+        
         // Initialise Splide
         mergeSplide[mapID] = new Splide( document.getElementById(divID), { 
             rewind      : false,
@@ -3271,6 +3367,8 @@ function updateMergeSlider(mapID, divIDImageSplide, divID) {
             gap         : 5,
             pagination  : false,
             cover       : true,
+            lazyLoad    : 'nearby',
+            preloadPages: numberPages,
             breakpoints : {
                 '600': {
                     fixedWidth  : 66,
@@ -3398,14 +3496,25 @@ function getMergeIndividuals(page = null) {
                 col.classList.add('col-lg-4')
                 row.appendChild(col)
 
-                let center = document.createElement('center')
-                col.appendChild(center)
+                // let center = document.createElement('center')
+                // col.appendChild(center)
 
-                let div = document.createElement('div')
-                div.setAttribute('id','imgDiv'+i)
-                center.appendChild(div)
+                // let div = document.createElement('div')
+                // div.setAttribute('id','imgDiv'+i)
+                // center.appendChild(div)
 
-                prepImageMap('imgDiv'+i, newIndividual.url, newIndividual.detection)
+                // prepImageMap('imgDiv'+i, newIndividual.url, newIndividual.detection)
+
+                image = document.createElement('img')
+                image.setAttribute('width','100%')
+                image.src = "https://"+bucketName+".s3.amazonaws.com/" + modifyToCropURL(newIndividual.url, newIndividual.detection.id)
+                col.appendChild(image)
+
+                image.addEventListener('error', function(wrapURL) {
+                    return function() {
+                        this.src = "https://"+bucketName+".s3.amazonaws.com/" + modifyToCompURL(wrapURL)
+                    }
+                }(newIndividual.url));
 
                 let h5 = document.createElement('h5')
                 h5.setAttribute('align','center')
@@ -3413,7 +3522,7 @@ function getMergeIndividuals(page = null) {
                 h5.innerHTML = newIndividual.name
                 col.appendChild(h5)
 
-                div.addEventListener('click', function(individualID,individualName){
+                image.addEventListener('click', function(individualID,individualName){
                     return function() {
                         selectedMergeIndividual = individualID
                         selectedMergeIndividualName = individualName
@@ -4149,6 +4258,654 @@ function updateMergePaginationCircles(current,total){
     }
 
 }
+
+function initFeatureMaps(){
+    /** Initialises the feature maps for the individual modal. */
+    //Left feature
+    var leftFeatureMapDiv = document.getElementById('leftFeatureMapDiv')
+    while (leftFeatureMapDiv.firstChild) {
+        leftFeatureMapDiv.removeChild(leftFeatureMapDiv.firstChild);
+    }
+
+    var xhttp = new XMLHttpRequest();
+    xhttp.onreadystatechange = function() {
+        if (this.readyState == 4 && this.status == 200) {
+            var response = JSON.parse(this.responseText);
+            // Process the response as needed
+            individualFlankImages['L'] = response.data;
+            flankImageIndex['L'] = 0
+            globalFeatures['L'] = {}
+            if (individualFlankImages['L'].length > 0) {
+                if (imgMaps['leftFeatureMapDiv'] != null) {
+                    imgMaps['leftFeatureMapDiv'].remove();
+                }
+                prepFeatureMap('leftFeatureMapDiv', 'L', individualFlankImages['L'][0].url, individualFlankImages['L'][0].detection, 30);
+            }
+            else {
+                leftFeatureMapDiv.innerHTML = 'No Left Flank Features';
+                updateFeatureButtons('L');
+            }
+            
+        }
+    };
+    xhttp.open("GET", '/getIndividualFlankDets/'+selectedIndividual+'/L');
+    xhttp.send();
+
+    //Right feature
+    var rightFeatureMapDiv = document.getElementById('rightFeatureMapDiv')
+    while (rightFeatureMapDiv.firstChild) {
+        rightFeatureMapDiv.removeChild(rightFeatureMapDiv.firstChild);
+    }
+
+    var xhttp = new XMLHttpRequest();
+    xhttp.onreadystatechange = function() {
+        if (this.readyState == 4 && this.status == 200) {
+            var response = JSON.parse(this.responseText);
+            // Process the response as needed
+            individualFlankImages['R'] = response.data;
+            flankImageIndex['R'] = 0
+            globalFeatures['R'] = {}
+            if (individualFlankImages['R'].length > 0) {
+                if (imgMaps['rightFeatureMapDiv'] != null) {
+                    imgMaps['rightFeatureMapDiv'].remove();
+                }
+                prepFeatureMap('rightFeatureMapDiv', 'R', individualFlankImages['R'][0].url, individualFlankImages['R'][0].detection, 30);
+            }
+            else {
+                rightFeatureMapDiv.innerHTML = 'No Right Flank Features';
+                updateFeatureButtons('R');
+            }
+        }
+    }
+    xhttp.open("GET", '/getIndividualFlankDets/'+selectedIndividual+'/R');
+    xhttp.send();
+}
+
+function prepFeatureMap(div_id, flank, image_url, detection,size=15) {
+    /** Prepares the image map for the individual modal. */
+    if (bucketName != null) {
+        var imageUrl = "https://"+bucketName+".s3.amazonaws.com/" + modifyToCropURL(image_url,detection.id)
+        var img = new Image();
+        img.onload = function(){
+            w = this.width
+            h = this.height
+            if (w>h) {
+                document.getElementById(div_id).setAttribute('style','height: calc('+size+'vw *'+(h/w)+');  width:'+size+'vw')
+            } else {
+                document.getElementById(div_id).setAttribute('style','height: calc('+size+'vw *'+(w/h)+');  width:'+size+'vw')
+            }
+            L.Browser.touch = true
+        
+            imgMaps[div_id] = new L.map(div_id, {
+                crs: L.CRS.Simple,
+                maxZoom: 10,
+                center: [0, 0],
+                zoomSnap: 0
+            })
+
+            var h1 = document.getElementById(div_id).clientHeight
+            var w1 = document.getElementById(div_id).clientWidth
+            var southWest = imgMaps[div_id].unproject([0, h1], 2);
+            var northEast = imgMaps[div_id].unproject([w1, 0], 2);
+            var bounds = new L.LatLngBounds(southWest, northEast);
+
+            imgMapsActiveImage[div_id] = L.imageOverlay(imageUrl, bounds).addTo(imgMaps[div_id]);
+
+            imgMapsActiveImage[div_id].on('load', function() {
+                if (individualFlankImages[flank].length > 0 && individualFlankImages[flank][flankImageIndex[flank]] != null) {
+                    addFeatures(div_id, individualFlankImages[flank][flankImageIndex[flank]].detection)
+                }
+            });
+
+            imgMapsWidth[div_id] = northEast.lng
+            imgMapsHeight[div_id] = southWest.lat
+            imgMaps[div_id].setMaxBounds(bounds);
+            imgMaps[div_id].fitBounds(bounds)
+            imgMaps[div_id].setMinZoom(imgMaps[div_id].getZoom())
+
+            imgMaps[div_id].on('resize', function(){
+                if (imgMaps[div_id] != null&&document.getElementById(div_id) && document.getElementById(div_id).clientHeight) {
+                    var h1 = document.getElementById(div_id).clientHeight
+                    var w1 = document.getElementById(div_id).clientWidth
+
+                    var southWest = imgMaps[div_id].unproject([0, h1], 2);
+                    var northEast = imgMaps[div_id].unproject([w1, 0], 2);
+                    var bounds = new L.LatLngBounds(southWest, northEast);
+
+                    imgMapsWidth[div_id] = northEast.lng
+                    imgMapsHeight[div_id] = southWest.lat
+
+                    imgMaps[div_id].invalidateSize()
+                    imgMaps[div_id].setMaxBounds(bounds)
+                    imgMaps[div_id].fitBounds(bounds)
+                    imgMaps[div_id].setMinZoom(imgMaps[div_id].getMinZoom())
+                    imgMapsActiveImage[div_id].setBounds(bounds)
+
+                    if (individualFlankImages[flank].length > 0 && individualFlankImages[flank][flankImageIndex[flank]] != null) {
+                        addFeatures(div_id, individualFlankImages[flank][flankImageIndex[flank]].detection)
+                    }
+                }
+            });
+
+            imgMaps[div_id].on('drag', function(divID, wrapBounds) {
+                /** Prevents the map from being dragged outside of the bounds. */
+                return function () {
+                    imgMaps[div_id].panInsideBounds(wrapBounds, { animate: false });
+                }
+            }(div_id, bounds));
+
+
+            drawnFeatureItems[div_id] = new L.FeatureGroup();
+            imgMaps[div_id].addLayer(drawnFeatureItems[div_id]);
+            leafletFeatureIDs[div_id] = {}
+
+            featureOptions = {
+                color: "rgba(91,192,222,1)",
+                fill: true,
+                fillOpacity: 0.0,
+                opacity: 0.8,
+                weight:3,
+                contextmenu: false,
+            }
+
+            if (featureDrawControl[div_id] != null) {
+                featureDrawControl[div_id].remove()
+            }
+            featureDrawControl[div_id] = new L.Control.Draw({
+                draw: {
+                    polygon: {
+                        shapeOptions: featureOptions,
+                        allowIntersection: false,
+                    },
+                    polyline: false,
+                    circle: false,
+                    circlemarker: false,
+                    marker: false,
+                    rectangle: false
+                },
+                edit: {
+                    featureGroup: drawnFeatureItems[div_id],
+                }
+            });
+            imgMaps[div_id].addControl(featureDrawControl[div_id]);
+            featureDrawControl[div_id]._toolbars.draw._toolbarContainer.children[0].title = 'Draw a feature'
+
+
+            featureEditPrep(flank,div_id)
+
+            updateFeatureButtons(flank);
+
+        }
+        img.src = imageUrl
+    }
+}
+
+function addFeatures(div_id, detection) {
+    /** Adds features to the map. */
+    featureOptions = {
+        color: "rgba(91,192,222,1)",
+        fill: true,
+        fillOpacity: 0.0,
+        opacity: 0.8,
+        weight:3,
+        contextmenu: false,
+    }
+
+    drawnFeatureItems[div_id].clearLayers()
+    leafletFeatureIDs[div_id] = {}
+
+    for (let i=0;i<detection.features.length;i++) {
+        var feature = detection.features[i]
+
+        if (globalFeatures[detection.flank][detection.id] && globalFeatures[detection.flank][detection.id]['removed'].includes(feature.id.toString())) {
+            continue          
+        }
+
+        if (globalFeatures[detection.flank][detection.id] && globalFeatures[detection.flank][detection.id]['edited'][feature.id]) {
+            var poly_coords = []
+            for (let j=0;j<globalFeatures[detection.flank][detection.id]['edited'][feature.id].coords.length;j++) {
+                poly_coords.push([globalFeatures[detection.flank][detection.id]['edited'][feature.id].coords[j][1]*imgMapsHeight[div_id],globalFeatures[detection.flank][detection.id]['edited'][feature.id].coords[j][0]*imgMapsWidth[div_id]])
+            }
+        } else {
+            var poly_coords = []
+            for (let j=0;j<feature.coords.length;j++) {
+                poly_coords.push([feature.coords[j][1]*imgMapsHeight[div_id],feature.coords[j][0]*imgMapsWidth[div_id]])
+            }
+        }
+
+        var poly = L.polygon(poly_coords, featureOptions).addTo(imgMaps[div_id])
+        drawnFeatureItems[div_id].addLayer(poly)
+        leafletFeatureIDs[div_id][feature.id] = poly._leaflet_id
+    }
+
+    if (globalFeatures[detection.flank][detection.id] && globalFeatures[detection.flank][detection.id]['added']) {
+        for (let feature_id in globalFeatures[detection.flank][detection.id]['added']) {
+            var feature = globalFeatures[detection.flank][detection.id]['added'][feature_id]
+            var poly_coords = []
+            for (let j=0;j<feature.coords.length;j++) {
+                poly_coords.push([feature.coords[j][1]*imgMapsHeight[div_id],feature.coords[j][0]*imgMapsWidth[div_id]])
+            }
+            var poly = L.polygon(poly_coords, featureOptions).addTo(imgMaps[div_id])
+            drawnFeatureItems[div_id].addLayer(poly)
+            leafletFeatureIDs[div_id]['l_'+poly._leaflet_id] = poly._leaflet_id
+        }
+    }
+}
+
+function updateFeatureButtons(flank) {
+    /** Updates the feature buttons in the modal. */
+
+    if (flank=='L') {
+        var leftBtn = document.getElementById('btnLeftFlankPrev')
+        var rightBtn = document.getElementById('btnLeftFlankNext')
+        var flankImagesPosition = document.getElementById('leftFlankPosition')
+        var paginationCircles = document.getElementById('leftFlankPaginationCircles')
+        var cxPrimaryImage = document.getElementById('cxLeftPrimaryImage')
+        var cxPrimaryDiv = document.getElementById('cxLeftPrimaryDiv')
+        var div_id = 'leftFeatureMapDiv'
+    }
+    else if (flank=='R') {
+        var leftBtn = document.getElementById('btnRightFlankPrev')
+        var rightBtn = document.getElementById('btnRightFlankNext')
+        var flankImagesPosition = document.getElementById('rightFlankPosition')
+        var paginationCircles = document.getElementById('rightFlankPaginationCircles')
+        var cxPrimaryImage = document.getElementById('cxRightPrimaryImage')
+        var cxPrimaryDiv = document.getElementById('cxRightPrimaryDiv')
+        var div_id = 'rightFeatureMapDiv'
+    }
+
+    if (featureDrawControl[div_id]) {
+        if(individualBestDets[flank] && individualBestDets[flank].length > 0 && individualBestDets[flank][0].detection.id == individualFlankImages[flank][flankImageIndex[flank]].detection.id) {
+            cxPrimaryImage.checked = true
+            featureDrawControl[div_id]._toolbars.draw._toolbarContainer.style.display = 'block';
+            featureDrawControl[div_id]._toolbars.edit._toolbarContainer.style.display = 'block';
+        } else {
+            cxPrimaryImage.checked = false
+            featureDrawControl[div_id]._toolbars.draw._toolbarContainer.style.display = 'none';
+            featureDrawControl[div_id]._toolbars.edit._toolbarContainer.style.display = 'none';
+        }
+    }
+
+
+    if (individualFlankImages[flank].length == 0) {
+        leftBtn.hidden = true
+        rightBtn.hidden = true
+        cxPrimaryDiv.hidden = true
+    } else{
+        leftBtn.hidden = false
+        rightBtn.hidden = false
+        cxPrimaryDiv.hidden = false
+    }
+
+    if (flankImageIndex[flank] == 0) {
+        leftBtn.disabled = true
+    }
+    else {
+        leftBtn.disabled = false
+    }
+    if (flankImageIndex[flank] == individualFlankImages[flank].length - 1) {
+        rightBtn.disabled = true
+    }
+    else {
+        rightBtn.disabled = false
+    }
+
+    var cirNum = individualFlankImages[flank].length
+    var circlesIndex = flankImageIndex[flank]
+
+    if (flankImagesPosition != null) {
+        while (paginationCircles.firstChild) {
+            paginationCircles.removeChild(paginationCircles.firstChild);
+        }
+
+        var beginIndex = 0
+        var endIndex = cirNum
+        var multiple = false
+        if (cirNum > 10) {
+            multiple =  true
+            beginIndex = Math.max(0,circlesIndex-2)
+            if (beginIndex < 2) {
+                beginIndex = 0
+                endIndex = 5
+            }
+            else {
+                endIndex = Math.min(cirNum,circlesIndex+3)
+                if (endIndex > cirNum-2) {
+                    endIndex = cirNum
+                    beginIndex = cirNum - 5
+                }
+            }
+        }
+
+        if (multiple && beginIndex != 0 && circlesIndex > 2) {
+            first = document.createElement('li')
+            first.addEventListener('click', function() {updateFlankImageIndex(flank, 0);});
+            // first.style.fontSize = '80%'
+            first.innerHTML = '1'
+            paginationCircles.append(first)
+        
+            more = document.createElement('li')
+            more.setAttribute('class','disabled')
+            // more.style.fontSize = '80%'
+            more.innerHTML = '...'
+            paginationCircles.append(more)
+        }
+
+
+        for (let i=beginIndex;i<endIndex;i++) {
+            li = document.createElement('li')
+            li.innerHTML = (i+1).toString()
+            li.addEventListener('click', function() {updateFlankImageIndex(flank, i);});
+            // li.style.fontSize = '80%'
+            paginationCircles.append(li)
+
+            if (i == circlesIndex) {
+                li.setAttribute('class','active')
+            } else {
+                li.setAttribute('class','')
+            }
+        }
+
+        if (multiple && endIndex != cirNum && circlesIndex < cirNum-3) {
+            more = document.createElement('li')
+            more.setAttribute('class','disabled')
+            more.innerHTML = '...'
+            // more.style.fontSize = '80%'
+            paginationCircles.append(more)
+
+            last_index = cirNum - 1
+            last = document.createElement('li')
+            last.addEventListener('click', function() {updateFlankImageIndex(flank, last_index);});
+            last.innerHTML = (last_index+1).toString()
+            last.style.fontSize = '80%'
+            paginationCircles.append(last)
+        }
+    }
+}
+
+function updateFlankImageIndex(flank,index) {
+    /** Updates the flank image index and refreshes the feature map. */
+    if (index >= 0 && index < individualFlankImages[flank].length) {
+        flankImageIndex[flank] = index
+        updateFeatureMap(flank)
+    }
+}
+
+function updateFeatureMap(flank){
+    /** Updates the feature map for the selected flank. */
+    if (flank == 'L') {
+        var div_id = 'leftFeatureMapDiv'
+    }
+    else if (flank == 'R') {
+        var div_id = 'rightFeatureMapDiv'
+    }
+
+    if (imgMaps[div_id] == null){
+        prepFeatureMap(div_id, individualFlankImages[flank][flankImageIndex[flank]].url, individualFlankImages[flank][flankImageIndex[flank]].detection, 35)
+    }
+    else if (imgMapsActiveImage[div_id] != null && individualFlankImages[flank][flankImageIndex[flank]] != null) {
+        imgMapsActiveImage[div_id].setUrl("https://"+bucketName+".s3.amazonaws.com/" + modifyToCropURL(individualFlankImages[flank][flankImageIndex[flank]].url, individualFlankImages[flank][flankImageIndex[flank]].detection.id));
+    }
+
+    updateFeatureButtons(flank);
+}
+
+$('#btnLeftFlankPrev').click( function() {
+    /** Goes to the previous left flank image. */
+    if (flankImageIndex['L'] > 0) {
+        updateFlankImageIndex('L', flankImageIndex['L'] - 1)
+    } else {
+        updateFeatureButtons('L');
+    }
+});
+
+$('#btnLeftFlankNext').click( function() {
+    /** Goes to the next left flank image. */
+    if (flankImageIndex['L'] < individualFlankImages['L'].length - 1) {
+        updateFlankImageIndex('L', flankImageIndex['L'] + 1)
+    } else {
+        updateFeatureButtons('L');
+    }
+});
+
+$('#btnRightFlankPrev').click( function() {
+    /** Goes to the previous right flank image. */
+    if (flankImageIndex['R'] > 0) {
+        updateFlankImageIndex('R', flankImageIndex['R'] - 1)
+    } else {
+        updateFeatureButtons('R');
+    }
+});
+
+$('#btnRightFlankNext').click( function() {
+    /** Goes to the next right flank image. */
+    if (flankImageIndex['R'] < individualFlankImages['R'].length - 1) {
+        updateFlankImageIndex('R', flankImageIndex['R'] + 1)
+    } else {
+        updateFeatureButtons('R');
+    }
+});
+
+
+$('#cxLeftPrimaryImage').on('change', function() {
+    /** Toggles the primary image for the features. */
+    updateFlankPrimary(this.checked, 'L', 'leftFeatureMapDiv');
+});
+
+
+$('#cxRightPrimaryImage').on('change', function() {
+    /** Toggles the primary image for the features. */
+    updateFlankPrimary(this.checked, 'R', 'rightFeatureMapDiv');
+});
+
+function updateFlankPrimary(checked,flank,div_id) {
+    /** Updates the flank primary image. */
+    det_id = individualFlankImages[flank][flankImageIndex[flank]].detection.id
+    if (checked) {
+        /** Sets the current flank image as the primary image. */
+        featureDrawControl[div_id]._toolbars.draw._toolbarContainer.style.display = 'block';
+        featureDrawControl[div_id]._toolbars.edit._toolbarContainer.style.display = 'block';
+        if (!globalFeatures[flank][det_id]) {
+            globalFeatures[flank][det_id] = {}
+        }
+        globalFeatures[flank][det_id]['edited'] = {}
+        globalFeatures[flank][det_id]['added'] = {}
+        globalFeatures[flank][det_id]['removed'] = []
+        globalFeatures[flank][det_id]['user_selected'] = 'true'
+        individualBestDets[flank] = [{
+            'detection': individualFlankImages[flank][flankImageIndex[flank]].detection,
+            'url': individualFlankImages[flank][flankImageIndex[flank]].url,
+        }]
+    } else {
+        /** Unsets the current flank image as the primary image. */
+        featureDrawControl[div_id]._toolbars.draw._toolbarContainer.style.display = 'none';
+        featureDrawControl[div_id]._toolbars.edit._toolbarContainer.style.display = 'none';
+        delete globalFeatures[flank][det_id]
+        individualBestDets[flank] = []
+    }
+}
+
+
+function featureEditPrep(flank,div_id){
+
+    imgMaps[div_id].on("draw:drawstart", function(e) {
+        /** Enables editing when drawing starts. */
+        editingEnabled = true
+    })
+
+    imgMaps[div_id].on("draw:drawstop", function(e) {
+        /** Disables editing when drawing stops. */
+        editingEnabled = false
+    })
+
+    imgMaps[div_id].on("draw:editstart", function(e) {
+        /** Enables editing when editing starts. */
+        editingEnabled = true
+    })
+
+    imgMaps[div_id].on("draw:editstop", function(e) {
+        /** Disables editing when editing stops and updates the features. */
+        document.getElementById('individualFeaturesErrors').innerHTML = ""
+        editingEnabled = false
+
+        // check any overlaps
+        var isOverlapping = false;
+        drawnFeatureItems[div_id].eachLayer(function (layer) {
+            var bounds = layer.getBounds();
+            drawnFeatureItems[div_id].eachLayer(function (otherLayer) {
+                if (layer !== otherLayer && bounds.intersects(otherLayer.getBounds())) {
+                    isOverlapping = true;
+                    return; // Use return to exit the inner function
+                }
+            });
+            if (isOverlapping){return; } // Exit the outer function if an overlap is found
+        });
+
+        if (isOverlapping && document.getElementById('individualFeaturesErrors') != null) {
+            document.getElementById('individualFeaturesErrors').innerHTML = "The feature you've outlined overlaps with another feature. It is recommended that you either adjust the existing feature or delete it and create a new one."
+        }
+
+        updateFeatures(flank,div_id)
+    })
+
+    imgMaps[div_id].on("draw:deletestart", function(e) {
+        /** Enables editing when deleting starts. */
+        editingEnabled = true
+    })
+
+    imgMaps[div_id].on("draw:deletestop", function(e) {
+        /** Disables editing when deleting stops and updates the features. */
+        document.getElementById('individualFeaturesErrors').innerHTML = ""
+        editingEnabled = false
+        updateFeatures(flank,div_id)
+    })
+
+    imgMaps[div_id].on('draw:created', function (e) {
+        /** Adds a new feature when created. */
+        document.getElementById('individualFeaturesErrors').innerHTML = ""
+        var newLayer = e.layer;
+        var newBounds = newLayer.getBounds();
+        var isOverlapping = false;
+
+        drawnFeatureItems[div_id].eachLayer(function (layer) {
+            if (newBounds.intersects(layer.getBounds())) {
+                isOverlapping = true;
+            }
+        });
+
+        if (isOverlapping && document.getElementById('individualFeaturesErrors') != null) {
+            document.getElementById('individualFeaturesErrors').innerHTML = "The feature you've outlined overlaps with another feature. It is recommended that you either adjust the existing feature or delete it and create a new one."
+        }
+        
+        drawnFeatureItems[div_id].addLayer(newLayer);
+
+        leafletFeatureIDs[div_id]['l_' + newLayer._leaflet_id] = newLayer._leaflet_id
+ 
+        updateFeatures(flank,div_id)
+
+    });
+
+}
+
+function updateFeatures(flank,divID) {
+    /** Updates the features after an edit has been performed. */
+
+    det_id = individualFlankImages[flank][flankImageIndex[flank]].detection.id
+    if (!globalFeatures[flank][det_id]) {
+        globalFeatures[flank][det_id] = {}
+
+        globalFeatures[flank][det_id]['user_selected'] = 'false'
+        globalFeatures[flank][det_id]['removed'] = []
+    }
+
+    globalFeatures[flank][det_id]['edited'] = {}
+    globalFeatures[flank][det_id]['added'] = {}
+    // globalFeatures[flank][det_id]['removed'] = []
+
+    drawnFeatureItems[divID].eachLayer(function (layer) {
+        /** Iterates through each drawn feature and updates the global features. */
+        var coords = layer._latlngs;
+        if (coords.length > 0) {
+            coords = coords[0];
+        }
+        var new_coords = [];
+        for (var j = 0; j < coords.length; j++) {
+            new_coords.push([coords[j].lng / imgMapsWidth[divID], coords[j].lat / imgMapsHeight[divID]]);
+        }
+        new_coords.push(new_coords[0]); // Ensure the polygon is closed
+        var featureID = Object.keys(leafletFeatureIDs[divID]).find(key => leafletFeatureIDs[divID][key] === layer._leaflet_id);
+        if (featureID) {
+            if (featureID.startsWith('l_')) {
+                // New feature added
+                globalFeatures[flank][det_id]['added'][featureID] = {
+                    'coords': new_coords,
+                    'detection_id': det_id,
+                };
+            } else {
+                // Existing feature edited
+                globalFeatures[flank][det_id]['edited'][featureID] = {
+                    'coords': new_coords,
+                    'detection_id': det_id,
+                };
+            }
+        }
+    });
+
+    // Remove features that are not in the drawn items
+
+    for (var featureID in leafletFeatureIDs[divID]) {
+        /** Checks if the feature is still in the drawn items and removes it if not. */
+        if (!drawnFeatureItems[divID].getLayer(leafletFeatureIDs[divID][featureID])) {
+            if (featureID.startsWith('l_')) {
+                // If it's a new feature, remove it from added
+                delete globalFeatures[flank][det_id]['added'][featureID];
+            } else {
+                // If it's an existing feature, add it to removed
+                globalFeatures[flank][det_id]['removed'].push(featureID);
+                delete globalFeatures[flank][det_id]['edited'][featureID];
+            }
+            delete leafletFeatureIDs[divID][featureID];
+        }
+    }
+
+    globalFeatures[flank][det_id]['removed'] = [...new Set(globalFeatures[flank][det_id]['removed'])];
+
+}
+
+function submitFeatures(){
+    /** Submits the features for the selected individual. */
+    var featuresDict = {}
+    for (let flank in globalFeatures) {
+        for (let det_id in globalFeatures[flank]) {
+            if (globalFeatures[flank][det_id]['user_selected'] == 'true' || (Object.keys(globalFeatures[flank][det_id]['edited']).length > 0 || Object.keys(globalFeatures[flank][det_id]['added']).length > 0 || globalFeatures[flank][det_id]['removed'].length > 0)) {
+                featuresDict[det_id] = globalFeatures[flank][det_id]
+            }
+        }
+    }
+
+    console.log(featuresDict)
+
+    if (Object.keys(featuresDict).length > 0 && selectedIndividual != null && document.getElementById('individualFeaturesErrors').innerHTML == "") {
+        var formData = new FormData()
+        formData.append("features", JSON.stringify(featuresDict))
+        formData.append("individual_id", selectedIndividual)
+
+        var xhttp = new XMLHttpRequest();
+        xhttp.onreadystatechange =
+        function(){
+            if (this.readyState == 4 && this.status == 200) {
+                reply = JSON.parse(this.responseText);
+                console.log(reply)
+                initFeatureMaps()
+            }
+        }
+        xhttp.open("POST", '/submitFeatures');
+        xhttp.send(formData)
+
+    }
+
+}
+
 
 function onload(){
     /**Function for initialising the page on load.*/

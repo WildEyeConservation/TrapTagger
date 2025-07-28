@@ -19,7 +19,7 @@ from app.models import *
 from app.functions.globals import addChildLabels, resolve_abandoned_jobs, createTurkcodes, deleteTurkcodes, \
                                     updateTaskCompletionStatus, updateLabelCompletionStatus, updateIndividualIdStatus, retryTime, chunker, \
                                     getClusterClassifications, checkForIdWork, numify_timestamp, rDets, prep_required_images, updateAllStatuses, classifyTask, cleanup_empty_restored_images,\
-                                    reconcile_cluster_labelgroup_labels_and_tags, generateUniqueName
+                                    reconcile_cluster_labelgroup_labels_and_tags, generateUniqueName, update_individuals_primary_dets
 from app.functions.individualID import calculate_detection_similarities, cleanUpIndividuals, calculate_individual_similarities, check_individual_detection_mismatch
 # from app.functions.results import resetImageDownloadStatus, resetVideoDownloadStatus
 import GLOBALS
@@ -106,6 +106,13 @@ def wrapUpTask(self,task_id):
         
         if ',' not in task.tagging_level and task.init_complete and '-2' not in task.tagging_level:
             check_individual_detection_mismatch(task_id=task_id)
+
+        # Update Individual Primary Images
+        if '-4' in task.tagging_level or '-5' in task.tagging_level:
+            task_ids = [r.id for r in task.sub_tasks]
+            task_ids.append(task.id)
+            species = task.tagging_level.split(',')[1]
+            update_individuals_primary_dets(task_ids=task_ids,species=species)
 
         updateAllStatuses(task_id=task_id)
 

@@ -29,6 +29,9 @@ const modalNextIndividual = $('#modalNextIndividual');
 const modalAlertNextIndividual = $('#modalAlertNextIndividual');
 const btnNoteRecon = document.querySelector('#btnNoteRecon');
 const btnDuplicate = document.querySelector('#btnDuplicate');
+const modalIndividualFeatures = $('#modalIndividualFeatures');
+const leftPanel = document.getElementById('leftSidePanel');
+const rightPanel = document.getElementById('rightSidePanel');
 var dbDetIds = {}
 var toolTipsOpen = true
 var popUpsOpen = true
@@ -70,6 +73,17 @@ var imgMaps = {}
 var imgMapsHeight = {}
 var imgMapsWidth = {}
 var imgMapsActiveImage = {}
+var drawnFeatureItems = {}
+var leafletFeatureIDs = {}
+var featureDrawControl = {}
+var editingEnabled = false
+var selectedDetection = null
+var globalFeatures = {'removed':[], 'added':{}, 'edited':{}}
+var blockHotkeys = false
+var individualData={}
+var individualFlankImages = []
+var flankImageIndex = 0
+var currentBestDetection = null
 
 function radians(degrees) {
     /** Converts desgres into radians. */
@@ -105,7 +119,7 @@ function acceptSuggestion() {
                 reply = JSON.parse(this.responseText);
                 submittedResponse = false
                 if (reply.status == 'success') {
-                    actions.push([clusters['map1'][clusterIndex['map1']].id,clusters['map2'][clusterIndex['map2']].id])
+                    actions.push([clusters['map1'][clusterIndex['map1']].id,clusters['map2'][clusterIndex['map2']].id,reply.undo_id])
                     updateProgBar(reply.progress)
                     getSuggestions()
                 }
@@ -139,7 +153,7 @@ function suggestionUnidentifiable() {
                 reply = JSON.parse(this.responseText);
                 submittedResponse = false
                 if (reply.status == 'success') {
-                    actions.push([reply.id,clusters['map2'][clusterIndex['map2']].id])
+                    actions.push([reply.id,clusters['map2'][clusterIndex['map2']].id,0])
                     prog_bar = document.getElementById('progress')
                     updateProgBar([prog_bar.ariaValueNow,prog_bar.ariaValueMax-1])
                     getSuggestions()
@@ -171,7 +185,7 @@ function rejectSuggestion() {
                 reply = JSON.parse(this.responseText);
                 submittedResponse = false
                 if (reply.status == 'success') {
-                    actions.push([clusters['map1'][clusterIndex['map1']].id,clusters['map2'][clusterIndex['map2']].id])
+                    actions.push([clusters['map1'][clusterIndex['map1']].id,clusters['map2'][clusterIndex['map2']].id,0])
                     updateProgBar(reply.progress)
                     getSuggestions()
                 }
@@ -202,7 +216,7 @@ function skipSuggestion() {
                 reply = JSON.parse(this.responseText);
                 submittedResponse = false
                 if (reply.status == 'success') {
-                    actions.push([clusters['map1'][clusterIndex['map1']].id,clusters['map2'][clusterIndex['map2']].id])
+                    actions.push([clusters['map1'][clusterIndex['map1']].id,clusters['map2'][clusterIndex['map2']].id,0])
                     updateProgBar(reply.progress)
                     getSuggestions()
                 }
@@ -300,7 +314,7 @@ function undoPreviousSuggestion() {
                     }
                 }
             }(previous[0],previous[1]);
-            xhttp.open("GET", '/undoPreviousSuggestion/'+previous[0]+'/'+previous[1]);
+            xhttp.open("GET", '/undoPreviousSuggestion/'+previous[0]+'/'+previous[1]+'/'+previous[2]);
             xhttp.send();
 
             if ((!modalWait2.is(':visible'))&&(!modalWait.is(':visible'))) {
@@ -639,31 +653,37 @@ function idKeys(key) {
             }
         }
     } else {
-        switch (key){
-            case 'arrowleft': prevImage('map2')
-                break;
-            case 'arrowright': nextImage('map2')
-                break;
-            case 'a': prevImage('map1')
-                break;
-            case 'd': nextImage('map1')
-                break;
-            case 'r': rejectSuggestion()
-                break;
-            case ' ': acceptSuggestion()
-                break;
-            case 's': skipSuggestion()
-                break;
-            case 'u': suggestionUnidentifiable()
-                break;
-            case '`':
-            case '~':
-                undoPreviousSuggestion()
-                break;
-            case 'n': idNextCluster()
-                break;
-            case 'h': document.getElementById('cxFeaturesHeatmap').click()
-                break;
+        if ((leftPanel.style.display == 'block' || rightPanel.style.display == 'block')&&blockHotkeys) {
+            // allow for typing
+        } else {
+            closeLeftSidePanel()
+            closeRightSidePanel()
+            switch (key){
+                case 'arrowleft': prevImage('map2')
+                    break;
+                case 'arrowright': nextImage('map2')
+                    break;
+                case 'a': prevImage('map1')
+                    break;
+                case 'd': nextImage('map1')
+                    break;
+                case 'r': rejectSuggestion()
+                    break;
+                case ' ': acceptSuggestion()
+                    break;
+                case 's': skipSuggestion()
+                    break;
+                case 'u': suggestionUnidentifiable()
+                    break;
+                case '`':
+                case '~':
+                    undoPreviousSuggestion()
+                    break;
+                case 'n': idNextCluster()
+                    break;
+                case 'h': document.getElementById('cxFeaturesHeatmap').click()
+                    break;
+            }
         }
     }
 }
@@ -2004,7 +2024,7 @@ function buildKnownIndividuals(){
             window.location.replace(JSON.parse(this.responseText)['redirect'])
         } else if (this.readyState == 4 && this.status == 200) {
             reply = JSON.parse(this.responseText);
-            console.log(reply)
+            // console.log(reply)
             var select = document.getElementById('knownTaskSelect')
             clearSelect(select)
             fillSelect(select, ['All'], ['-1'])
@@ -2077,7 +2097,7 @@ function getKnownIndividuals(page = null){
             window.location.replace(JSON.parse(this.responseText)['redirect'])
         } else if (this.readyState == 4 && this.status == 200) {
             reply = JSON.parse(this.responseText);
-            console.log(reply)
+            // console.log(reply)
             var known_individuals = reply.individuals
             var knownIndividualsDiv = document.getElementById('knownIndividualsDiv')
             while(knownIndividualsDiv.firstChild){
@@ -2102,16 +2122,22 @@ function getKnownIndividuals(page = null){
                 col.classList.add('col-lg-4')
                 row.appendChild(col)
 
-                // let image = document.createElement('img')
-                // image.setAttribute('width','100%')
-                // image.src = "https://"+bucketName+".s3.amazonaws.com/" + modifyToCompURL(newIndividual.url)
-                // col.appendChild(image)
+                // let div = document.createElement('div')
+                // div.setAttribute('id','imgDiv'+i)
+                // col.appendChild(div)
 
-                let div = document.createElement('div')
-                div.setAttribute('id','imgDiv'+i)
-                col.appendChild(div)
+                // prepImageMap('imgDiv'+i, newIndividual.url, newIndividual.detection)
 
-                prepImageMap('imgDiv'+i, newIndividual.url, newIndividual.detection)
+                image = document.createElement('img')
+                image.setAttribute('width','100%')
+                image.src = "https://"+bucketName+".s3.amazonaws.com/" + modifyToCropURL(newIndividual.url, newIndividual.detection.id)
+                col.appendChild(image)
+
+                image.addEventListener('error', function(wrapURL) {
+                    return function() {
+                        this.src = "https://"+bucketName+".s3.amazonaws.com/" + modifyToCompURL(wrapURL)
+                    }
+                }(newIndividual.url));
 
                 let h5 = document.createElement('h5')
                 h5.setAttribute('align','center')
@@ -2119,15 +2145,7 @@ function getKnownIndividuals(page = null){
                 h5.innerHTML = newIndividual.name
                 col.appendChild(h5)
 
-                // image.addEventListener('click', function(individualID,individualName){
-                //     return function() {
-                //         selectedKnownIndividual = individualID
-                //         selectedKnownIndividualName = individualName
-                //         viewKnownIndividual()
-                //     }
-                // }(newIndividual.id,newIndividual.name));
-
-                div.addEventListener('click', function(individualID,individualName){
+                image.addEventListener('click', function(individualID,individualName){
                     return function() {
                         selectedKnownIndividual = individualID
                         selectedKnownIndividualName = individualName
@@ -2189,7 +2207,7 @@ function viewKnownIndividual(mapID='known') {
     function(){
         if (this.readyState == 4 && this.status == 200) {
             reply = JSON.parse(this.responseText);
-            console.log(reply)
+            // console.log(reply)
             // knownImages =  reply.individual
             clusters[mapID][clusterIndex[mapID]] = {
                 id: 0,
@@ -2672,18 +2690,23 @@ function updateKnownPaginationCircles(current,total){
     }
 }
 
-function prepImageMap(div_id, image_url, detection) {
+function prepImageMap(div_id, image_url, detection, size=10,crop=false) {
     /** Prepares the image map for the individual modal. */
     if (bucketName != null) {
-        var imageUrl = "https://"+bucketName+".s3.amazonaws.com/" + modifyToCompURL(image_url)
+        if (crop){
+            var imageUrl = "https://"+bucketName+".s3.amazonaws.com/" + modifyToCropURL(image_url, detection.id)
+        }
+        else{
+            var imageUrl = "https://"+bucketName+".s3.amazonaws.com/" + modifyToCompURL(image_url)
+        }
         var img = new Image();
         img.onload = function(){
             w = this.width
             h = this.height
             if (w>h) {
-                document.getElementById(div_id).setAttribute('style','height: calc(10vw *'+(h/w)+');  width:10vw')
+                document.getElementById(div_id).setAttribute('style','height: calc('+size+'vw *'+(h/w)+');  width:'+size+'vw')
             } else {
-                document.getElementById(div_id).setAttribute('style','height: calc(10vw *'+(w/h)+');  width:10vw')
+                document.getElementById(div_id).setAttribute('style','height: calc('+size+'vw *'+(w/h)+');  width:'+size+'vw')
             }
             L.Browser.touch = true
         
@@ -2717,11 +2740,21 @@ function prepImageMap(div_id, image_url, detection) {
             imgMapsActiveImage[div_id].on('load', function() {
                 // I want to zoom the map to fit the bounds of detection
                 if (detection != null) {
-                    det_bounds = [[detection.top*imgMapsHeight[div_id],detection.left*imgMapsWidth[div_id]],[detection.bottom*imgMapsHeight[div_id],detection.right*imgMapsWidth[div_id]]]
-                    imgMaps[div_id].fitBounds(det_bounds, {padding: [10,10]});
+                    if (!this._url.includes('/_crops_/')) {
+                        det_bounds = [[detection.top*imgMapsHeight[div_id],detection.left*imgMapsWidth[div_id]],[detection.bottom*imgMapsHeight[div_id],detection.right*imgMapsWidth[div_id]]]
+                        imgMaps[div_id].fitBounds(det_bounds, {padding: [10,10]});
+                    }
+                    if (detection.features){
+                        addFeatures(div_id, detection.features)
+                    }
                 }
             });
 
+            imgMapsActiveImage[div_id].on('error', function(wrapURL) {
+                return function() {
+                    this.setUrl("https://"+bucketName+".s3.amazonaws.com/" + modifyToCompURL(wrapURL))
+                }
+            }(imageUrl));
 
             imgMapsWidth[div_id] = northEast.lng
             imgMapsHeight[div_id] = southWest.lat
@@ -2749,16 +2782,1169 @@ function prepImageMap(div_id, image_url, detection) {
                     imgMaps[div_id].setMinZoom(imgMaps[div_id].getZoom())
                     imgMapsActiveImage[div_id].setBounds(bounds)
 
-                    setTimeout(function() {
-                        if (detection != null) {
-                            var det_bounds = [[detection.top*imgMapsHeight[div_id],detection.left*imgMapsWidth[div_id]],[detection.bottom*imgMapsHeight[div_id],detection.right*imgMapsWidth[div_id]]]
-                            imgMaps[div_id].fitBounds(det_bounds, {padding: [10,10]});
-                        }
-                    }, 500);
+                    if (detection.features){
+                        addFeatures(div_id, detection.features)
+                    }
+
+                    if(!crop && detection != null) {
+                        setTimeout(function() {
+                            if (detection != null) {
+                                var det_bounds = [[detection.top*imgMapsHeight[div_id],detection.left*imgMapsWidth[div_id]],[detection.bottom*imgMapsHeight[div_id],detection.right*imgMapsWidth[div_id]]]
+                                imgMaps[div_id].fitBounds(det_bounds, {padding: [10,10]});
+                            }
+                        }, 500);
+                    }
                 }
             });
+
+            if (detection.features) {
+                drawnFeatureItems[div_id] = new L.FeatureGroup();
+                imgMaps[div_id].addLayer(drawnFeatureItems[div_id]);
+                leafletFeatureIDs[div_id] = {}
+            }
+
+        }
+        img.onerror = function() {
+            if(crop){
+                prepImageMap(div_id, image_url, detection, size, false)
+            } 
+        }
+        img.src = imageUrl
+    }
+}
+
+function openLeftSidePanel() {
+    const navbar = document.getElementById('navbar');
+    const navbarHeight = navbar.offsetHeight;
+    const fullPageHeight = Math.max(document.documentElement.scrollHeight, window.innerHeight) - navbarHeight;
+    leftPanel.style.height = fullPageHeight +'px';
+    leftPanel.style.display = 'block';
+    populatePanel('left', clusters['map1'][clusterIndex['map1']].id);  
+}
+
+function closeLeftSidePanel() {
+    leftPanel.style.display = 'none';
+    cleanPanel('left');
+}
+
+function openRightSidePanel() {
+    /** Initializes the right side panel. */
+    const navbar = document.getElementById('navbar');
+    const navbarHeight = navbar.offsetHeight;
+    const fullPageHeight = Math.max(document.documentElement.scrollHeight, window.innerHeight) - navbarHeight;
+    rightPanel.style.height = fullPageHeight + 'px';
+    rightPanel.style.display = 'block';
+    populatePanel('right', clusters['map2'][clusterIndex['map2']].id);  
+}
+
+function closeRightSidePanel() {
+    rightPanel.style.display = 'none';
+    cleanPanel('right');
+}
+
+function updateBlockHotkeys(val){
+    blockHotkeys = val
+}
+
+
+function populatePanel(panel,individual_id){
+    /** Populates the side panel with information about the selected individual. */
+    var panelInfo = document.getElementById(panel + 'PanelInfoDiv')
+    while(panelInfo.firstChild){
+        panelInfo.removeChild(panelInfo.firstChild);
+    }
+
+    individualData[panel]={}
+    
+    var xhttp = new XMLHttpRequest();
+    xhttp.onreadystatechange =
+    function(){
+        if (this.readyState == 4 && this.status == 200) {
+            var info = JSON.parse(this.responseText);
+
+            console.log(info)
+
+            var panelInfo = document.getElementById(panel + 'PanelInfoDiv')
+            while(panelInfo.firstChild){
+                panelInfo.removeChild(panelInfo.firstChild);
+            }
+
+            var panelContent = document.getElementById(panel + 'SidePanelContent')
+            panelContent.style.display = 'block'
+
+            var row = document.createElement('div')
+            row.classList.add('row')
+            panelInfo.appendChild(row)
+
+            var col1 = document.createElement('div')
+            col1.classList.add('col-lg-6')
+            row.appendChild(col1)
+
+            var col2 = document.createElement('div')
+            col2.classList.add('col-lg-6')
+            row.appendChild(col2)
+
+            var info4 = document.createElement('div')
+            info4.innerHTML = 'Name: '
+            col1.appendChild(info4)
+
+            var nameInput = document.createElement('input')
+            nameInput.setAttribute('id',panel+'NameInput')
+            nameInput.setAttribute('type','text')
+            nameInput.setAttribute('class','form-control')
+            nameInput.setAttribute('style','margin-bottom: 3px; font-size: 100%;')
+            nameInput.value = info.name
+            individualData[panel].name = info.name
+            col1.appendChild(nameInput)
+
+            nameInput.addEventListener('focus', () => updateBlockHotkeys(true));
+            nameInput.addEventListener('blur', () => updateBlockHotkeys(false));
+            nameInput.addEventListener('change', function(wrpPanel,indivID){
+                return function() {
+                    var infoName = individualData[wrpPanel].name
+                    if (infoName != this.value) {
+                        var newName = this.value
+                        if(newName == ''){
+                            this.value = infoName
+                        }
+                        else if (newName.toLowerCase() == 'unidentifiable'){
+                            this.value = infoName
+                        }
+                        else if(newName.includes('/')||newName.includes('\\')){
+                            this.value = infoName
+                        }
+                        else{
+                            var formData = new FormData()
+                            formData.append("individual_id", JSON.stringify(indivID))
+                            formData.append("name", JSON.stringify(newName))
+
+                            var xhttp = new XMLHttpRequest();
+                            xhttp.open("POST", '/editIndividualName');
+                            xhttp.onreadystatechange =
+                            function(){
+                                if (this.readyState == 4 && this.status == 200) {
+                                    reply = JSON.parse(this.responseText);
+                                    console.log(reply)
+                                    if (reply.name!=null){
+                                        document.getElementById(wrpPanel+'NameInput').value = reply.name
+                                        individualData[wrpPanel].name = reply.name
+                                    }
+                                    else{
+                                        document.getElementById(wrpPanel+'NameInput').value = infoName
+                                    }
+   
+                                }
+                            }
+                            xhttp.send(formData);
+                        }
+                    }
+                }
+            }(panel, individual_id));
+
+            var info5 = document.createElement('div')
+            info5.innerHTML = 'First Seen: '
+            col1.appendChild(info5)
+
+            info5 = document.createElement('div')
+            info5.setAttribute('style','margin-bottom: 3px;')
+            if (info.seen_range[0] == null) {
+                info5.innerHTML = 'None'
+            } else {
+                info5.innerHTML = info.seen_range[0]
+            }
+            col1.appendChild(info5)
+
+            var info6 = document.createElement('div')
+            info6.innerHTML = 'Last Seen: '
+            col1.appendChild(info6)
+
+            info6 = document.createElement('div')
+            info6.setAttribute('style','margin-bottom: 3px;')
+            if (info.seen_range[1] == null) {
+                info6.innerHTML = 'None'
+            } else {
+                info6.innerHTML =info.seen_range[1]
+            }
+            col1.appendChild(info6)
+
+            var info8 = document.createElement('div')
+            info8.setAttribute('style','margin-top: 3px;')
+            info8.innerHTML = 'Notes: '
+            col1.appendChild(info8)
+
+            var note = info.notes != null && info.notes.length > 0 ? info.notes : ''
+            var notebox = document.createElement('textarea')
+            notebox.setAttribute('id',panel+'Notebox')
+            notebox.setAttribute('rows','2')
+            notebox.setAttribute('class','form-control')
+            notebox.setAttribute('style','resize: none; font-size: 100%;')
+            notebox.value = note
+            col1.appendChild(notebox)
+
+            notebox.addEventListener('focus', () => updateBlockHotkeys(true));
+            notebox.addEventListener('blur', () => updateBlockHotkeys(false));
+
+            notebox.addEventListener('change', function(wrpPanel,indivID){
+                return function() {
+                    var infoNote = individualData[wrpPanel].note
+                    if (infoNote != this.value) {
+                        var newNote = this.value
+                        if(newNote == ''){
+                            this.value = infoNote
+                        }
+                        else if(newNote.length > 512)
+                        {
+                            this.value = infoNote
+                        }
+                        else{
+
+                            var formData = new FormData()
+                            formData.append("individual_id", JSON.stringify(indivID))
+                            formData.append("note", JSON.stringify(newNote))
+                            formData.append("type", JSON.stringify('individual'))
+
+                            var xhttp = new XMLHttpRequest();
+                            xhttp.open("POST", '/assignNote');
+                            xhttp.onreadystatechange =
+                            function(){
+                                if (this.readyState == 4 && this.status == 200) {
+                                    reply = JSON.parse(this.responseText);
+                                    if (reply=='success'){
+                                        individualData[wrpPanel].note = newNote
+                                    }      
+                                    else{
+                                        document.getElementById(wrpPanel+'Notebox').value = infoNote
+                                    }        
+                                }
+                            }
+                            xhttp.send(formData);
+                        }  
+                    }
+                }
+            }(panel, individual_id));
+            
+            // Site info 
+            var trapgroupInfo = []
+            var noCoords = true
+            for (let i=0;i<info.coords.length;i++) {
+                var site = {
+                    tag: info.coords[i][0],
+                    latitude: info.coords[i][1],
+                    longitude: info.coords[i][2]
+                }
+                var found = false
+                for (let j=0;j<trapgroupInfo.length;j++) {
+                    if (trapgroupInfo[j].tag == site.tag) {
+                        found = true
+                        break
+                    }
+                }
+                if (!found) {
+                    trapgroupInfo.push(site)
+                    if (site.latitude != 0 || site.longitude != 0) {
+                        noCoords = false
+                    }
+                }
+            }
+
+            if (noCoords) {
+                var site_tags = []
+                for (let i=0;i<trapgroupInfo.length;i++) {
+                    site_tags.push(trapgroupInfo[i].tag)
+                }
+
+                var info9 = document.createElement('div')
+                info9.innerHTML = 'Sites: ' + site_tags.join(', ')
+                col2.appendChild(info9)
+
+            }
+            else{
+                var info9 = document.createElement('div')
+                info9.innerHTML = 'Sites:'
+                col2.appendChild(info9)
+            
+                var sitesMapDiv = document.createElement('div')
+                sitesMapDiv.setAttribute('id',panel+'mapDiv')
+                sitesMapDiv.setAttribute('style','height: 200px;')
+                col2.appendChild(sitesMapDiv)
+            
+                
+                var osmSat = L.tileLayer('https://api.mapbox.com/styles/v1/{id}/tiles/{z}/{x}/{y}?access_token={accessToken}', {
+                // attribution: 'Map data &copy; <a href="https://www.openstreetmap.org/">OpenStreetMap</a> contributors, <a href="https://creativecommons.org/licenses/by-sa/2.0/">CC-BY-SA</a>, Imagery © <a href="https://www.mapbox.com/">Mapbox</a>',
+                attribution: '© <a href="https://www.openstreetmap.org/">OSM</a> & <a href="https://www.mapbox.com/">Mapbox</a>', // Small map -simplified attribution
+                maxZoom: 18,
+                id: 'mapbox/satellite-v9',
+                tileSize: 512,
+                zoomOffset: -1,
+                accessToken: 'pk.eyJ1IjoibmljaG9sYXNpbm5vdmVudGl4IiwiYSI6ImNrZTJrdjdjcjBhYTIyeXBkamd2N2ZlengifQ.IXU45GintSGY47C7PlBGXA'
+                })
+            
+                var mapSites = new L.map(panel+'mapDiv', {
+                    zoomControl: true,
+                });
+            
+                mapSites.addLayer(osmSat);
+            
+                var siteMarkers = []
+                var added_coords = []
+                for (let i=0;i<trapgroupInfo.length;i++) {
+                    marker = L.marker([trapgroupInfo[i].latitude, trapgroupInfo[i].longitude]).addTo(mapSites)
+                    siteMarkers.push(marker)
+                    mapSites.addLayer(marker)
+                    marker.bindPopup(trapgroupInfo[i].tag);
+                    marker.on('mouseover', function (e) {
+                        this.openPopup();
+                    });
+                    marker.on('mouseout', function (e) {
+                        this.closePopup();
+                    });
+                    added_coords.push(trapgroupInfo[i].latitude + ',' + trapgroupInfo[i].longitude)
+                }
+
+            
+                var group = new L.featureGroup(siteMarkers);
+                mapSites.fitBounds(group.getBounds().pad(0.1))
+                if(siteMarkers.length == 1) {
+                    mapSites.setZoom(10)
+                }
+
+                if (info.bounds.length == 1){
+                    var circle = L.circle([info.bounds[0][0], info.bounds[0][1]], {
+                        color: "rgba(91,192,222,1)",
+                        fill: true,
+                        fillOpacity: 0.2,
+                        opacity: 0.8,
+                        radius: 1000,
+                        weight:3,
+                        contextmenu: false,
+                    }).addTo(mapSites)
+                } else {
+                    var poly2 = L.polygon(info.bounds, {
+                        color: "rgba(91,192,222,1)",
+                        fill: true,
+                        fillOpacity: 0.2,
+                        opacity: 0.8,
+                        weight:3,
+                        contextmenu: false,
+                    }).addTo(mapSites)
+                }
+
+            }
+
+            var info7 = document.createElement('div')
+            info7.innerHTML = 'Tags: '
+            panelInfo.appendChild(info7)
+
+            var tagDiv = document.createElement('div')
+            tagDiv.setAttribute('id',panel+'TagDiv')
+            panelInfo.appendChild(tagDiv)
+
+            for (let i=0;i<info.all_tags.length;i++) {
+                var tag = info.all_tags[i]
+        
+                var checkDiv = document.createElement('div')
+                checkDiv.setAttribute('class','custom-control custom-checkbox')
+                checkDiv.setAttribute('style','display: inline-block; padding-right: 0.5rem;')
+                tagDiv.appendChild(checkDiv)
+        
+                var input = document.createElement('input')
+                input.setAttribute('type','checkbox')
+                input.classList.add('custom-control-input')
+                input.setAttribute('id',panel+'Cbx_'+tag)
+                input.setAttribute('name',panel+'Cbx_'+tag)
+                checkDiv.appendChild(input)
+
+                if (info.tags.includes(tag)) {
+                    input.checked = true
+                } else {
+                    input.checked = false
+                }
+    
+                var label = document.createElement('label')
+                label.classList.add('custom-control-label')
+                label.setAttribute('for',panel+'Cbx_'+tag)
+                label.innerHTML = tag
+                label.setAttribute('style','font-size: 100%;')
+                checkDiv.appendChild(label)
+
+                input.addEventListener('change', function(wrpPanel,indivID,tagName){
+                    return function() {
+                        var formData = new FormData()
+                        formData.append("individual_id", JSON.stringify(indivID))
+                        formData.append("tag", JSON.stringify(tagName))
+                        formData.append("add", JSON.stringify(this.checked.toString()))
+
+                        var xhttp = new XMLHttpRequest();
+                        xhttp.open("POST", '/editIndividualTag');
+                        xhttp.onreadystatechange =
+                        function(){
+                            if (this.readyState == 4 && this.status == 200) {
+                                reply = JSON.parse(this.responseText);
+                                console.log(reply)
+                                if (reply.tags!=null){
+                                    individualData[wrpPanel].tags = reply.tags
+                                }
+                            }
+                        }
+                        xhttp.send(formData);
+                    }
+                }(panel, individual_id, tag));
+            }
+
+            var info10 = document.createElement('div')
+            info10.setAttribute('style','margin-top: 3px;')
+            // info10.innerHTML = 'Left Flank Features:'
+            info10.innerHTML = 'Primary Left Flank Image with Features:'
+            panelInfo.appendChild(info10)
+
+            // Best Left Flank Image with features (if any image or features exist)
+            if (info.best_dets && info.best_dets.L && info.best_dets.L.length > 0) {
+                var center = document.createElement('center')
+                panelInfo.appendChild(center)
+                
+                var leftFlankDiv = document.createElement('div')
+                leftFlankDiv.setAttribute('id',panel+'LeftFlankDiv')
+                center.appendChild(leftFlankDiv)
+
+                best_left_det = info.best_dets.L[0]
+
+                prepImageMap(panel+'LeftFlankDiv', best_left_det.url, best_left_det.detection,16,true)
+
+                leftFlankDiv.addEventListener('click', function(wrapPanel,wrapURL,wrapDet) {
+                    return function() {
+                        let map_id = wrapPanel == 'left' ? 'map1' : 'map2'
+                        var indiv_id = clusters[map_id][clusterIndex[map_id]].id
+                        var xhttp = new XMLHttpRequest();
+                        xhttp.onreadystatechange = function() {
+                            if (this.readyState == 4 && this.status == 200) {
+                                var response = JSON.parse(this.responseText);
+                                // Process the response as needed
+                                individualFlankImages = response.data;
+                                flankImageIndex = 0
+                                if (individualFlankImages.length > 0) {
+                                    selectedDetection = individualFlankImages[0].detection
+                                    currentBestDetection = selectedDetection.id
+                                    modalIndividualFeatures.modal({keyboard: true});
+                                }
+                            }
+                        };
+                        xhttp.open("GET", '/getIndividualFlankDets/'+indiv_id+'/L');
+                        xhttp.send();
+                    }
+                }(panel,best_left_det.url, best_left_det.detection));
+
+            } else {
+                info10 = document.createElement('div')
+                info10.innerHTML = 'None'
+                panelInfo.appendChild(info10)
+            }
+            
+
+            var info11 = document.createElement('div')
+            info11.setAttribute('style','margin-top: 3px;')
+            // info11.innerHTML = 'Right Flank Features:'
+            info11.innerHTML = 'Primary Right Flank Image with Features:'
+            panelInfo.appendChild(info11)
+
+            // Best Right Flank Image with features (if any image or features exist)
+            if (info.best_dets && info.best_dets.R && info.best_dets.R.length > 0) {
+                var center = document.createElement('center')
+                panelInfo.appendChild(center)
+
+                var rightFlankDiv = document.createElement('div')
+                rightFlankDiv.setAttribute('id',panel+'RightFlankDiv')
+                center.appendChild(rightFlankDiv)
+
+                best_right_det = info.best_dets.R[0]
+
+                prepImageMap(panel+'RightFlankDiv', best_right_det.url, best_right_det.detection,16,true)
+
+                rightFlankDiv.addEventListener('click', function(wrapPanel,wrapURL,wrapDet) {
+                    return function() {
+                        let map_id = wrapPanel == 'right' ? 'map2' : 'map1'
+                        var indiv_id = clusters[map_id][clusterIndex[map_id]].id
+                        var xhttp = new XMLHttpRequest();
+                        xhttp.onreadystatechange = function() {
+                            if (this.readyState == 4 && this.status == 200) {
+                                var response = JSON.parse(this.responseText);
+                                // Process the response as needed
+                                individualFlankImages = response.data;
+                                flankImageIndex = 0
+                                if (individualFlankImages.length > 0) {
+                                    selectedDetection = individualFlankImages[0].detection
+                                    currentBestDetection = selectedDetection.id
+                                    modalIndividualFeatures.modal({keyboard: true});
+                                }
+                            }
+                        };
+                        xhttp.open("GET", '/getIndividualFlankDets/'+indiv_id+'/R');
+                        xhttp.send();
+                    }
+                }(panel,best_right_det.url, best_right_det.detection));
+            }
+            else {
+                info11 = document.createElement('div')
+                info11.innerHTML = 'None'
+                panelInfo.appendChild(info11)
+            }
+
+        }
+    }
+    xhttp.open("GET", '/getIndividualInfo/'+individual_id);
+    xhttp.send();
+
+}
+
+function cleanPanel(panel) {
+    /** Cleans the side panel. */
+    var panelInfo = document.getElementById(panel + 'PanelInfoDiv')
+    while(panelInfo.firstChild){
+        panelInfo.removeChild(panelInfo.firstChild);
+    }
+
+    for (let div of Object.keys(imgMaps)) {
+        if (div.startsWith(panel)) {
+            delete imgMaps[div]
+            delete imgMapsActiveImage[div]
+            delete imgMapsWidth[div]
+            delete imgMapsHeight[div]
+            delete drawnFeatureItems[div]
+            delete leafletFeatureIDs[div]
+        }
+    }
+
+    individualData[panel] = {}
+}
+
+document.addEventListener('click', function(event) {
+    /** Closes the side panels if clicked outside of them. */
+    if (document.getElementById('leftSidePanel') == null || document.getElementById('rightSidePanel') == null || editingEnabled) {
+        return
+    }
+    if (leftPanel.style.display == 'block' || rightPanel.style.display == 'block') {
+        var isLeftPanel = leftPanel.contains(event.target);
+        var isRightPanel = rightPanel.contains(event.target);
+        var isLeftButton = document.getElementById('openSidePanelLeft').contains(event.target);
+        var isRightButton = document.getElementById('openSidePanelRight').contains(event.target);
+        var isMap = false 
+        for (let div of Object.keys(imgMaps)) {
+            if (imgMaps[div].getContainer().contains(event.target)) {
+                isMap = true
+                break
+            }
+        }
+
+        if (!isLeftPanel && !isRightPanel && !isLeftButton && !isRightButton && !isMap) {
+            if (leftPanel.style.display == 'block') {
+                closeLeftSidePanel()
+            }
+            if (rightPanel.style.display == 'block') {
+                closeRightSidePanel()
+            }
+        }
+    }
+});
+
+
+window.addEventListener('resize', function(event) {
+    // Make sure the side panels are resized correctly only if visible
+    const leftPanel = document.getElementById('leftSidePanel');
+    const rightPanel = document.getElementById('rightSidePanel');
+
+    const navbar = document.getElementById('navbar');
+    const navbarHeight = navbar.offsetHeight;
+    const fullPageHeight = Math.max(document.documentElement.scrollHeight, window.innerHeight) - navbarHeight;
+    if (leftPanel.style.display === 'block') {
+        leftPanel.style.height = fullPageHeight + 'px';
+    }
+    if (rightPanel.style.display === 'block') {
+        rightPanel.style.height = fullPageHeight + 'px';
+    }
+});
+
+function prepFeatureModal(url, detection) {
+    /** Prepares the modal for the individual features. */
+    var individualFeaturesDiv = document.getElementById('individualFeaturesDiv')
+    while (individualFeaturesDiv.firstChild) {
+        individualFeaturesDiv.removeChild(individualFeaturesDiv.firstChild);
+    }
+
+    var row = document.createElement('div')
+    row.classList.add('row')
+    individualFeaturesDiv.appendChild(row)
+
+    var col1 = document.createElement('div')
+    col1.classList.add('col-lg-1','d-flex', 'align-items-center', 'justify-content-end')
+    col1.setAttribute('style','padding-right: 0px;')
+    row.appendChild(col1)
+
+    var col2 = document.createElement('div')
+    col2.classList.add('col-lg-10')
+    row.appendChild(col2)
+
+    var col3 = document.createElement('div')
+    col3.classList.add('col-lg-1','d-flex', 'align-items-center', 'justify-content-start')
+    col3.setAttribute('style','padding-left: 0px;')
+    row.appendChild(col3)
+
+    var center = document.createElement('center')
+    col2.appendChild(center)
+
+    var leftBtn = document.createElement('button')
+    leftBtn.setAttribute('id','featureLeftBtn')
+    leftBtn.setAttribute('class','btn btn-link')
+    leftBtn.setAttribute('style','padding: 0px;')
+    leftBtn.innerHTML = '<i class="fa fa-chevron-circle-left fa-2x"></i>'
+    col1.appendChild(leftBtn)
+
+    leftBtn.addEventListener('click', function() {
+        /** Moves to the previous feature in the modal. */
+        if (flankImageIndex > 0) {
+            flankImageIndex -= 1
+            updateFeatureMap()
+        }
+    });
+    
+
+    var rightBtn = document.createElement('button')
+    rightBtn.setAttribute('id','featureRightBtn')
+    rightBtn.setAttribute('class','btn btn-link')
+    rightBtn.setAttribute('style','padding: 0px;')
+    rightBtn.innerHTML = '<i class="fa fa-chevron-circle-right fa-2x"></i>'
+    col3.appendChild(rightBtn)
+
+    rightBtn.addEventListener('click', function() {
+        /** Moves to the next feature in the modal. */
+        if (flankImageIndex < individualFlankImages.length - 1) {
+            flankImageIndex += 1
+            updateFeatureMap()
+        }
+    });
+    
+
+    var featureMapDiv = document.createElement('div')
+    featureMapDiv.setAttribute('id','featureMapDiv')
+    featureMapDiv.setAttribute('style','height: 700px;')
+    center.appendChild(featureMapDiv)
+
+    var rowDiv = document.createElement('div');
+    rowDiv.classList.add('row');
+    col2.appendChild(rowDiv);
+
+    var colDiv = document.createElement('div');
+    colDiv.classList.add('col-lg-12', 'd-flex', 'align-items-center', 'justify-content-center');
+    rowDiv.appendChild(colDiv);
+
+    var paginationDiv = document.createElement('div');
+    paginationDiv.id = 'flankImagesPosition';
+    colDiv.appendChild(paginationDiv);
+
+    var paginationUl = document.createElement('ul');
+    paginationUl.classList.add('pagination');
+    paginationUl.id = 'flankPaginationCircles';
+    paginationUl.style.margin = '5px';
+    paginationDiv.appendChild(paginationUl);
+
+    prepFeatureMap('featureMapDiv', url, detection, 35)
+
+}
+
+function prepFeatureMap(div_id, image_url, detection,size=15) {
+    /** Prepares the image map for the individual modal. */
+    if (bucketName != null) {
+        var imageUrl = "https://"+bucketName+".s3.amazonaws.com/" + modifyToCropURL(image_url, detection.id)
+        var img = new Image();
+        img.onload = function(){
+            w = this.width
+            h = this.height
+            if (w>h) {
+                document.getElementById(div_id).setAttribute('style','height: calc('+size+'vw *'+(h/w)+');  width:'+size+'vw')
+            } else {
+                document.getElementById(div_id).setAttribute('style','height: calc('+size+'vw *'+(w/h)+');  width:'+size+'vw')
+            }
+            L.Browser.touch = true
+        
+            imgMaps[div_id] = new L.map(div_id, {
+                crs: L.CRS.Simple,
+                maxZoom: 10,
+                center: [0, 0],
+                zoomSnap: 0
+            })
+
+            var h1 = document.getElementById(div_id).clientHeight
+            var w1 = document.getElementById(div_id).clientWidth
+            var southWest = imgMaps[div_id].unproject([0, h1], 2);
+            var northEast = imgMaps[div_id].unproject([w1, 0], 2);
+            var bounds = new L.LatLngBounds(southWest, northEast);
+
+            imgMapsActiveImage[div_id] = L.imageOverlay(imageUrl, bounds).addTo(imgMaps[div_id]);
+
+            imgMapsActiveImage[div_id].on('load', function() {
+                if (individualFlankImages.length > 0 && individualFlankImages[flankImageIndex] != null) {
+                    addFeatures(div_id, individualFlankImages[flankImageIndex].detection.features)
+                }
+            });
+
+            imgMapsWidth[div_id] = northEast.lng
+            imgMapsHeight[div_id] = southWest.lat
+            imgMaps[div_id].setMaxBounds(bounds);
+            imgMaps[div_id].fitBounds(bounds)
+            imgMaps[div_id].setMinZoom(imgMaps[div_id].getZoom())
+
+            imgMaps[div_id].on('resize', function(){
+                if (imgMaps[div_id] != null&&document.getElementById(div_id) && document.getElementById(div_id).clientHeight) {
+                    var h1 = document.getElementById(div_id).clientHeight
+                    var w1 = document.getElementById(div_id).clientWidth
+
+                    var southWest = imgMaps[div_id].unproject([0, h1], 2);
+                    var northEast = imgMaps[div_id].unproject([w1, 0], 2);
+                    var bounds = new L.LatLngBounds(southWest, northEast);
+
+                    imgMapsWidth[div_id] = northEast.lng
+                    imgMapsHeight[div_id] = southWest.lat
+
+                    imgMaps[div_id].invalidateSize()
+                    imgMaps[div_id].setMaxBounds(bounds)
+                    imgMaps[div_id].fitBounds(bounds)
+                    imgMaps[div_id].setMinZoom(imgMaps[div_id].getMinZoom())
+                    imgMapsActiveImage[div_id].setBounds(bounds)
+
+                    // addFeatures(div_id, detection.features)
+                    addFeatures(div_id, individualFlankImages[flankImageIndex].detection.features)
+                }
+            });
+
+            imgMaps[div_id].on('drag', function(divID, wrapBounds) {
+                /** Prevents the map from being dragged outside of the bounds. */
+                return function () {
+                    imgMaps[div_id].panInsideBounds(wrapBounds, { animate: false });
+                }
+            }(div_id, bounds));
+
+
+            drawnFeatureItems[div_id] = new L.FeatureGroup();
+            imgMaps[div_id].addLayer(drawnFeatureItems[div_id]);
+            leafletFeatureIDs[div_id] = {}
+
+            featureOptions = {
+                color: "rgba(91,192,222,1)",
+                fill: true,
+                fillOpacity: 0.0,
+                opacity: 0.8,
+                weight:3,
+                contextmenu: false,
+            }
+
+            if (featureDrawControl[div_id] != null) {
+                featureDrawControl[div_id].remove()
+            }
+            featureDrawControl[div_id] = new L.Control.Draw({
+                draw: {
+                    polygon: {
+                        shapeOptions: featureOptions,
+                        allowIntersection: false,
+                    },
+                    polyline: false,
+                    circle: false,
+                    circlemarker: false,
+                    marker: false,
+                    rectangle: false
+                },
+                edit: {
+                    featureGroup: drawnFeatureItems[div_id],
+                }
+            });
+            imgMaps[div_id].addControl(featureDrawControl[div_id]);
+            featureDrawControl[div_id]._toolbars.draw._toolbarContainer.children[0].title = 'Draw a feature'
+
+            featureEditPrep(div_id)
+            updateFeatureButtons();
 
         }
         img.src = imageUrl
     }
 }
+
+function updateFeatureMap(div_id='featureMapDiv'){
+
+    if (imgMaps[div_id] == null){
+        prepFeatureMap(div_id, individualFlankImages[flankImageIndex].url, individualFlankImages[flankImageIndex].detection, 35)
+    }
+    else if (imgMapsActiveImage[div_id] != null && individualFlankImages[flankImageIndex] != null) {
+        imgMapsActiveImage[div_id].setUrl("https://"+bucketName+".s3.amazonaws.com/" + modifyToCropURL(individualFlankImages[flankImageIndex].url, individualFlankImages[flankImageIndex].detection.id));
+    }
+
+    updateFeatureButtons();
+}
+
+function updateFeatureButtons() {
+    /** Updates the feature buttons in the modal. */
+    var leftBtn = document.getElementById('featureLeftBtn')
+    var rightBtn = document.getElementById('featureRightBtn')
+    var cxPrimaryImage = document.getElementById('cxPrimaryImage')
+
+    if (selectedDetection!= null && individualFlankImages[flankImageIndex].detection.id==selectedDetection.id) {
+        cxPrimaryImage.checked = true
+        featureDrawControl['featureMapDiv']._toolbars.draw._toolbarContainer.style.display = 'block';
+        featureDrawControl['featureMapDiv']._toolbars.edit._toolbarContainer.style.display = 'block';
+    } else {
+        cxPrimaryImage.checked = false
+        featureDrawControl['featureMapDiv']._toolbars.draw._toolbarContainer.style.display = 'none';
+        featureDrawControl['featureMapDiv']._toolbars.edit._toolbarContainer.style.display = 'none';
+    }
+
+    if (flankImageIndex == 0) {
+        leftBtn.disabled = true
+    }
+    else {
+        leftBtn.disabled = false
+    }
+    if (flankImageIndex == individualFlankImages.length - 1) {
+        rightBtn.disabled = true
+    }
+    else {
+        rightBtn.disabled = false
+    }
+
+    var cirNum = individualFlankImages.length
+    var circlesIndex = flankImageIndex
+    var flankImagesPosition = document.getElementById('flankImagesPosition')
+    var paginationCircles = document.getElementById('flankPaginationCircles')
+
+
+    if (flankImagesPosition != null) {
+        while (paginationCircles.firstChild) {
+            paginationCircles.removeChild(paginationCircles.firstChild);
+        }
+
+        var beginIndex = 0
+        var endIndex = cirNum
+        var multiple = false
+        if (cirNum > 10) {
+            multiple =  true
+            beginIndex = Math.max(0,circlesIndex-2)
+            if (beginIndex < 2) {
+                beginIndex = 0
+                endIndex = 5
+            }
+            else {
+                endIndex = Math.min(cirNum,circlesIndex+3)
+                if (endIndex > cirNum-2) {
+                    endIndex = cirNum
+                    beginIndex = cirNum - 5
+                }
+            }
+        }
+
+        if (multiple && beginIndex != 0 && circlesIndex > 2) {
+            first = document.createElement('li')
+            first.setAttribute('onclick','updateFlankImageIndex(0)')
+            first.style.fontSize = '60%'
+            first.innerHTML = '1'
+            paginationCircles.append(first)
+        
+            more = document.createElement('li')
+            more.setAttribute('class','disabled')
+            more.style.fontSize = '60%'
+            more.innerHTML = '...'
+            paginationCircles.append(more)
+        }
+
+
+        for (let i=beginIndex;i<endIndex;i++) {
+            li = document.createElement('li')
+            li.innerHTML = (i+1).toString()
+            li.setAttribute('onclick','updateFlankImageIndex('+(i).toString()+')')
+            li.style.fontSize = '60%'
+            paginationCircles.append(li)
+
+            if (i == circlesIndex) {
+                li.setAttribute('class','active')
+            } else {
+                li.setAttribute('class','')
+            }
+        }
+
+        if (multiple && endIndex != cirNum && circlesIndex < cirNum-3) {
+            more = document.createElement('li')
+            more.setAttribute('class','disabled')
+            more.innerHTML = '...'
+            more.style.fontSize = '60%'
+            paginationCircles.append(more)
+
+            last_index = cirNum - 1
+            last = document.createElement('li')
+            last.setAttribute('onclick','updateFlankImageIndex('+(last_index).toString()+')')
+            last.innerHTML = (last_index+1).toString()
+            last.style.fontSize = '60%'
+            paginationCircles.append(last)
+        }
+    }
+}
+
+function updateFlankImageIndex(index) {
+    /** Updates the flank image index and refreshes the feature map. */
+    if (index >= 0 && index < individualFlankImages.length) {
+        flankImageIndex = index
+        updateFeatureMap()
+    }
+}
+
+$('#cxPrimaryImage').on('change', function() {
+    /** Toggles the primary image for the features. */
+    if (this.checked) {
+        // Set the current flank image as the primary image
+        selectedDetection = individualFlankImages[flankImageIndex].detection;
+        featureDrawControl['featureMapDiv']._toolbars.draw._toolbarContainer.style.display = 'block';
+        featureDrawControl['featureMapDiv']._toolbars.edit._toolbarContainer.style.display = 'block';
+        addFeatures('featureMapDiv', selectedDetection.features);
+    } else {
+        // Unset the current flank image as the primary image
+        selectedDetection = null;
+        featureDrawControl['featureMapDiv']._toolbars.draw._toolbarContainer.style.display = 'none';
+        featureDrawControl['featureMapDiv']._toolbars.edit._toolbarContainer.style.display = 'none';
+    }
+});
+
+function addFeatures(div_id, features) {
+    /** Adds features to the map. */
+    featureOptions = {
+        color: "rgba(91,192,222,1)",
+        fill: true,
+        fillOpacity: 0.0,
+        opacity: 0.8,
+        weight:3,
+        contextmenu: false,
+    }
+
+    drawnFeatureItems[div_id].clearLayers()
+    leafletFeatureIDs[div_id] = {}
+
+    for (let i=0;i<features.length;i++) {
+        var feature = features[i]
+        var poly_coords = []
+        for (let j=0;j<feature.coords.length;j++) {
+            poly_coords.push([feature.coords[j][1]*imgMapsHeight[div_id],feature.coords[j][0]*imgMapsWidth[div_id]])
+        }
+        var poly = L.polygon(poly_coords, featureOptions).addTo(imgMaps[div_id])
+        drawnFeatureItems[div_id].addLayer(poly)
+        leafletFeatureIDs[div_id][feature.id] = poly._leaflet_id
+    }
+}
+
+function featureEditPrep(div_id){
+
+    imgMaps[div_id].on("draw:drawstart", function(e) {
+        /** Enables editing when drawing starts. */
+        editingEnabled = true
+    })
+
+    imgMaps[div_id].on("draw:drawstop", function(e) {
+        /** Disables editing when drawing stops. */
+        editingEnabled = false
+    })
+
+    imgMaps[div_id].on("draw:editstart", function(e) {
+        /** Enables editing when editing starts. */
+        editingEnabled = true
+    })
+
+    imgMaps[div_id].on("draw:editstop", function(e) {
+        /** Disables editing when editing stops and updates the features. */
+        document.getElementById('individualFeaturesErrors').innerHTML = ""
+        editingEnabled = false
+
+        // check any overlaps
+        var isOverlapping = false;
+        drawnFeatureItems[div_id].eachLayer(function (layer) {
+            var bounds = layer.getBounds();
+            drawnFeatureItems[div_id].eachLayer(function (otherLayer) {
+                if (layer !== otherLayer && bounds.intersects(otherLayer.getBounds())) {
+                    isOverlapping = true;
+                    return; // Use return to exit the inner function
+                }
+            });
+            if (isOverlapping){return; } // Exit the outer function if an overlap is found
+        });
+
+        if (isOverlapping && document.getElementById('individualFeaturesErrors') != null) {
+            document.getElementById('individualFeaturesErrors').innerHTML = "The feature you've outlined overlaps with another feature. It is recommended that you either adjust the existing feature or delete it and create a new one."
+        }
+
+        updateFeatures(div_id)
+    })
+
+    imgMaps[div_id].on("draw:deletestart", function(e) {
+        /** Enables editing when deleting starts. */
+        editingEnabled = true
+    })
+
+    imgMaps[div_id].on("draw:deletestop", function(e) {
+        /** Disables editing when deleting stops and updates the features. */
+        document.getElementById('individualFeaturesErrors').innerHTML = ""
+        editingEnabled = false
+        updateFeatures(div_id)
+    })
+
+    imgMaps[div_id].on('draw:created', function (e) {
+        /** Adds a new feature when created. */
+        document.getElementById('individualFeaturesErrors').innerHTML = ""
+        var newLayer = e.layer;
+        var newBounds = newLayer.getBounds();
+        var isOverlapping = false;
+
+        drawnFeatureItems[div_id].eachLayer(function (layer) {
+            if (newBounds.intersects(layer.getBounds())) {
+                isOverlapping = true;
+            }
+        });
+
+        if (isOverlapping && document.getElementById('individualFeaturesErrors') != null) {
+            document.getElementById('individualFeaturesErrors').innerHTML = "The feature you've outlined overlaps with another feature. It is recommended that you either adjust the existing feature or delete it and create a new one."
+        }
+        
+        drawnFeatureItems[div_id].addLayer(newLayer);
+
+        leafletFeatureIDs[div_id]['l_' + newLayer._leaflet_id] = newLayer._leaflet_id
+        var new_feature = {'id':'l_' + newLayer._leaflet_id, 'coords':[]}
+        selectedDetection.features.push(new_feature)
+
+        updateFeatures(div_id)
+
+    });
+
+}
+
+function cleanFeatureMap(){
+    // Cleans the feature map when the modal is closed. */
+    var individualFeaturesDiv = document.getElementById('individualFeaturesDiv')
+    while (individualFeaturesDiv.firstChild) {
+        individualFeaturesDiv.removeChild(individualFeaturesDiv.firstChild);
+    }
+
+    delete imgMaps['featureMapDiv'];
+    delete imgMapsActiveImage['featureMapDiv'];
+    delete drawnFeatureItems['featureMapDiv'];
+    delete leafletFeatureIDs['featureMapDiv'];
+    delete featureDrawControl['featureMapDiv'];
+
+    selectedDetection = null;
+    currentBestDetection = null;
+    editingEnabled = false;
+    globalFeatures = {
+        'added': {},
+        'edited': {},
+        'removed': []
+    };
+    individualFlankImages = [];
+    flankImageIndex = 0;
+}
+
+modalIndividualFeatures.on('shown.bs.modal', function () {
+    /** Prepares the modal for the individual features when shown. */
+    if (individualFlankImages.length > 0) {
+        closeLeftSidePanel()
+        closeRightSidePanel()
+        prepFeatureModal(individualFlankImages[flankImageIndex].url, individualFlankImages[flankImageIndex].detection)
+        // updateFeatureMap()
+    }
+});
+
+modalIndividualFeatures.on('hidden.bs.modal', function () {
+    /** Cleans the modal when hidden. */
+    cleanFeatureMap()
+});
+
+function updateFeatures(divID) {
+    /** Updates the features after an edit has been performed. */
+
+    for (var i=0;i<selectedDetection.features.length;i++) {
+        if (drawnFeatureItems[divID].getLayer(leafletFeatureIDs[divID][selectedDetection.features[i].id]) == null) {
+            if (!selectedDetection.features[i].id.toString().startsWith('l_')) {
+                globalFeatures['removed'].push(selectedDetection.features[i].id)
+                delete globalFeatures['edited'][selectedDetection.features[i].id]
+            }
+            else{
+                delete globalFeatures['added'][selectedDetection.features[i].id]
+            }
+            delete leafletFeatureIDs[divID][selectedDetection.features[i].id]
+            selectedDetection.features.splice(i,1)
+            i -= 1
+        }
+        else{
+            var coords = drawnFeatureItems[divID].getLayer(leafletFeatureIDs[divID][selectedDetection.features[i].id])._latlngs[0]
+            var new_coords = []
+            for (var j=0;j<coords.length;j++) {
+                new_coords.push([coords[j].lng/imgMapsWidth[divID],coords[j].lat/imgMapsHeight[divID]])
+            }
+            new_coords.push(new_coords[0])
+
+            let edit_coords = false
+            // Check if coords are different
+            if (selectedDetection.features[i].coords.length == new_coords.length) {
+                for (var j=0;j<selectedDetection.features[i].coords.length;j++) {
+                    if (selectedDetection.features[i].coords[j][0] != new_coords[j][0] || selectedDetection.features[i].coords[j][1] != new_coords[j][1]) {
+                        edit_coords = true
+                        break
+                    }
+                }
+            }
+            else{
+                edit_coords = true
+            }
+
+            if (edit_coords) {
+                selectedDetection.features[i].coords = new_coords
+                if (selectedDetection.features[i].id.toString().startsWith('l_')) {
+                    globalFeatures['added'][selectedDetection.features[i].id] = {
+                        'coords': new_coords,
+                        'detection_id': selectedDetection.id,
+                    }
+                }
+                else{
+                    // globalFeatures['edited'][selectedDetection.features[i].id] = new_coords
+                    globalFeatures['edited'][selectedDetection.features[i].id] = {
+                        'coords': new_coords,
+                        'detection_id': selectedDetection.id,
+                    }
+                }
+
+            }
+        }
+    }
+}
+
+$('#btnSubmitFeatures').click(function() {
+    /** Submits the features after editing. */
+    if (document.getElementById('individualFeaturesErrors').innerHTML != '') {
+        return;
+    }
+
+    if (selectedDetection == null) {
+        document.getElementById('individualFeaturesErrors').innerHTML = "You have no primary image selected.";
+    }
+
+    if (Object.keys(globalFeatures['added']).length == 0 && Object.keys(globalFeatures['edited']).length == 0 && globalFeatures['removed'].length == 0 && selectedDetection.id==currentBestDetection) {
+        modalIndividualFeatures.modal('hide');
+        return;
+    }
+
+    console.log('Submitting features:', globalFeatures);
+
+    var formData = new FormData();
+    formData.append('detection_id', selectedDetection.id);
+    formData.append('features', JSON.stringify(globalFeatures));
+    formData.append('primary_user_selected', JSON.stringify(selectedDetection.id==currentBestDetection ? 'false' : 'true'));
+    formData.append('individual_id', JSON.stringify(selectedDetection.individual_id));
+
+    var xhttp = new XMLHttpRequest();
+    xhttp.onreadystatechange = function() {
+        if (this.readyState == 4 && this.status == 200) {
+            modalIndividualFeatures.modal('hide');
+            reply = JSON.parse(this.responseText);
+            console.log(reply);
+        }
+    };
+    xhttp.open("POST", "/submitDetectionFeatures");
+    xhttp.send(formData);
+});

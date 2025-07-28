@@ -6858,6 +6858,12 @@ function modifyToCompURL(url) {
     return splits.join('/')
 }
 
+function modifyToCropURL(url,detection_id) {
+    /** Modifies the source URL to the cropped image of detection */
+    splits=url.split('/')
+    crop_url = splits[0] + '-comp/' + splits[1] + '/_crops_/' + detection_id.toString() + '.JPG'
+    return crop_url
+}
 
 function updateMaskMap() {
     /** Updates the mask map after an action has been performed. */

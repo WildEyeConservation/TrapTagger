@@ -7112,6 +7112,10 @@ def calculate_detection_score(raw_score,top,bottom,left,right,flank,timestamp):
         'aspect_ratio_score': 0.1
     }
 
+    # Check all valid values (not none)
+    if raw_score is None or top is None or bottom is None or left is None or right is None:
+        return 0
+
     # Timestamp score (daylight hours favorable)
     timestamp_score = 1.0 if timestamp and 6 < timestamp.hour < 18 else 0.5
 
@@ -7133,7 +7137,7 @@ def calculate_detection_score(raw_score,top,bottom,left,right,flank,timestamp):
             size_score = size_score * 0.5
 
     # Flank score (ambiguous flank less favorable)
-    flank_score = 0.5 if flank == 'A' else 1.0
+    flank_score = 0.5 if flank and flank == 'A' else 1.0
 
     # Aspect ratio score (favorable aspect ratio)
     width = right - left
@@ -7180,3 +7184,85 @@ def find_first_file(bucket, prefix):
                 return result
 
     return None
+
+def update_individuals_primary_dets(task_ids=[],species=None,individual_ids=None):
+    '''Finds the best detection for each individual and sets it as the primary detections.'''
+
+    app.logger.info('Updating primary detections for individuals:')
+    if individual_ids:
+        app.logger.info('Individual IDs: '+str(individual_ids))
+    else:
+        app.logger.info('Task IDs: '+str(task_ids))
+    start = time.time()
+
+    scores = {}
+
+    data = rDets(db.session.query(
+        Individual,
+        Detection,
+        Image.corrected_timestamp
+    )\
+    .join(Detection,Individual.detections)\
+    .join(Image)\
+    .filter(Individual.name!='unidentifiable')\
+    .filter(Individual.active==True))
+
+    if individual_ids: 
+        data = data.filter(Individual.id.in_(individual_ids))
+    else:
+        data = data.join(Task,Individual.tasks).filter(Task.id.in_(task_ids))
+
+    if species:
+        data = data.filter(Individual.species==species)
+
+    data = data.distinct().all()
+
+    
+    for individual, det, timestamp in data:
+        raw_score = det.score
+        top = det.top
+        bottom = det.bottom
+        left = det.left
+        right = det.right
+        flank = det.flank
+        nr_features = len(det.features)
+        is_user_selected_primary = individual.primary_selected and det in individual.primary_detections 
+        
+        # Calculate scores
+        if individual not in scores:
+            scores[individual] = {}
+        if flank not in scores[individual]:
+            scores[individual][flank] = {}
+        scores[individual][flank][det] = calculate_detection_score(raw_score,top,bottom,left,right,flank,timestamp)
+
+        # If detection was selected by the user as primary detection, we want the detection to be selected as the best detection
+        if is_user_selected_primary:
+            scores[individual][flank][det] += 100
+
+        # If the detection has features, we want to give it a higher score
+        if nr_features > 0: scores[individual][flank][det] += 200
+        
+ 
+    for individual in scores:
+        best_dets = []
+        if scores[individual]:
+            for flank in scores[individual]:
+                if flank != 'A': # we do not want a best detection for the ambiguous flank
+                    if scores[individual][flank]:
+                        best_detection = max(scores[individual][flank], key=scores[individual][flank].get)
+                        if best_detection:
+                            best_dets.append(best_detection)
+        
+        if best_dets: 
+            best_dets = sorted(best_dets, key=lambda x: scores[individual][x.flank][x], reverse=True) #Order the best_dets by score 
+        else: 
+            best_dets = [max(scores[individual]['A'], key=scores[individual]['A'].get)] if 'A' in scores[individual] and scores[individual]['A'] else []
+        
+        individual.primary_detections = best_dets
+
+        
+    db.session.commit()
+
+    app.logger.info('Finished updating primary detections for individuals in '+str(round(time.time()-start,2))+' seconds')
+
+    return True

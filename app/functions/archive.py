@@ -20,6 +20,7 @@ from app.functions.globals import retryTime, checkForIdWork, taggingLevelSQ, upd
 from app.functions.individualID import calculate_detection_similarities
 from app.functions.admin import edit_survey
 from app.functions.results import generate_wildbook_export
+from app.functions.imports import s3traverse
 import GLOBALS
 from sqlalchemy.sql import func, distinct, or_, alias, and_
 from sqlalchemy import desc
@@ -32,6 +33,9 @@ import os
 import zipfile
 import json
 from botocore.exceptions import ClientError
+import numpy as np
+from PIL import Image as PILImage
+import tempfile
 
 def check_restore_status(key):
     '''
@@ -446,10 +450,15 @@ def restore_images_for_id(self,task_id,days,tier,restore_time,extend=False):
                     GLOBALS.redisClient.set('id_launch_kwargs_'+str(task.survey.id),json.dumps(launch_kwargs))
                     db.session.commit()
                 else:
+                    # if algorithm:
+                    #     calculate_detection_similarities.apply_async(kwargs={'task_ids':task_ids,'species':species,'algorithm':algorithm})
+                    # else:
+                    #     launch_task.apply_async(kwargs={'task_id':task_id})
                     if algorithm:
-                        calculate_detection_similarities.apply_async(kwargs={'task_ids':task_ids,'species':species,'algorithm':algorithm})
+                        launch_kwargs = {'task_ids':task_ids,'species':species,'algorithm':algorithm, 'tagging_level':taggingLevel, 'task_id':task_id}
                     else:
-                        launch_task.apply_async(kwargs={'task_id':task_id})
+                        launch_kwargs = {'task_id':task_id, 'tagging_level':taggingLevel}
+                    dearchive_and_crop_individuals.apply_async(kwargs={'task_id':task_id,'launch_kwargs':launch_kwargs})
         else:
             updateAllStatuses(task_id=task_id)
             task = db.session.query(Task).get(task_id)
@@ -1031,7 +1040,7 @@ def restore_images_for_export(self,task_id, data, user_name, download_request_id
     return True
 
 @celery.task(bind=True,max_retries=2,ignore_result=True)
-def change_storage_for_individual_id(self,task_id,launch_kwargs):
+def dearchive_and_crop_individuals(self,task_id,launch_kwargs):
     '''Copies images to standard storage for individual ID.'''
     try:
         if 'species' in launch_kwargs:
@@ -1065,18 +1074,53 @@ def change_storage_for_individual_id(self,task_id,launch_kwargs):
                         .filter(Image.expiry_date<Config.ID_IMAGE_EXPIRY_DATE)\
                         .order_by(Image.id).distinct().all()
 
-        # Change storege class to standard 
+        # Change storage class to standard 
         if images:
-            for image in images:
-                try:
-                    image_key = image[2] + '/' + image[1]
-                    GLOBALS.s3client.copy_object(Bucket=Config.BUCKET, CopySource={'Bucket': Config.BUCKET, 'Key': image_key},Key=image_key,StorageClass='STANDARD')
-                    image[0].expiry_date = Config.ID_IMAGE_EXPIRY_DATE  # Set expiry date to far in the future (to avoid re-archiving, and not cause issues with other restores)
-                except Exception as e:
-                    app.logger.error('Error changing storage class for {}: {}'.format(image_key, str(e)))
+            # for image in images:
+            for chunk in chunker(images, 1000):
+                for image in chunk:
+                    try:
+                        image_key = image[2] + '/' + image[1]
+                        GLOBALS.s3client.copy_object(Bucket=Config.BUCKET, CopySource={'Bucket': Config.BUCKET, 'Key': image_key},Key=image_key,StorageClass='STANDARD')
+                        image[0].expiry_date = Config.ID_IMAGE_EXPIRY_DATE  # Set expiry date to far in the future (to avoid re-archiving, and not cause issues with other restores)
+                    except Exception as e:
+                        app.logger.error('Error changing storage class for {}: {}'.format(image_key, str(e)))
+                db.session.commit()
 
-        db.session.commit()
+        # Crop images for individual ID
+        tasks = db.session.query(Task).filter(Task.id.in_(task_ids)).all()
+        crop_folders=[]
+        for task in tasks: 
+            crop_folders.append(task.survey.organisation.folder + '-comp/' + task.survey.folder + '/_crops_')
 
+        cropped_det_ids = []
+        for path in crop_folders:
+            for dirpath, folders, filenames in s3traverse(Config.BUCKET, path):
+                cropped_det_ids.extend([filename.rsplit('.')[0] for filename in filenames])
+
+        data = rDets(db.session.query(Detection.id,Detection.left,Detection.right,Detection.top,Detection.bottom,Image.filename,Camera.path)\
+                            .join(Image,Detection.image_id==Image.id)\
+                            .join(Camera,Image.camera_id==Camera.id)\
+                            .join(Labelgroup,Labelgroup.detection_id==Detection.id)\
+                            .join(Task,Labelgroup.task_id==Task.id)\
+                            .join(Label,Labelgroup.labels)\
+                            .filter(Task.id.in_(task_ids))\
+                            .filter(Label.description==species))\
+                            .order_by(Detection.id).distinct().all()
+
+        for item in data:
+            detection_id = item[0]
+            if str(detection_id) in cropped_det_ids: continue
+            bbox_dict = {
+                'left': item[1],
+                'right': item[2],
+                'top': item[3],
+                'bottom': item[4]
+            }
+            image_path = item[6] + '/' + item[5]
+            crop_image(detection_id,image_path,bbox_dict)
+
+        # Launch id task
         del launch_kwargs['tagging_level']   
         if 'algorithm' in launch_kwargs.keys():
             del launch_kwargs['task_id']
@@ -1094,5 +1138,86 @@ def change_storage_for_individual_id(self,task_id,launch_kwargs):
 
     finally:
         db.session.remove()
+
+    return True
+
+def crop_image(detection_id,image_path,bbox_dict):
+    '''Crops an image based on the bounding box provided.'''
+    try:
+        with tempfile.NamedTemporaryFile(delete=True, suffix='.JPG') as temp_file:
+            print(f'Downloading {image_path} from S3')
+            try:
+                GLOBALS.s3client.download_file(Bucket=Config.BUCKET, Key=image_path, Filename=temp_file.name)
+            except Exception as e:
+                print(f'Error downloading {image_path} from S3: {e}')
+                return
+
+            image = PILImage.open(temp_file.name)
+            image_data = np.array(image)
+            h, w = image_data.shape[:2]
+
+            x1 = max(0, min(1, bbox_dict['left']))
+            x2 = max(0, min(1, bbox_dict['right']))
+            y1 = max(0, min(1, bbox_dict['top']))
+            y2 = max(0, min(1, bbox_dict['bottom']))
+
+            box_x1 = int(x1 * w)
+            box_x2 = int(x2 * w)
+            box_y1 = int(y1 * h)
+            box_y2 = int(y2 * h)
+
+            aspect_ratio = w / h
+
+            box_width = box_x2 - box_x1
+            box_height = box_y2 - box_y1
+            box_center_x = (box_x1 + box_x2) // 2
+            box_center_y = (box_y1 + box_y2) // 2
+
+            if box_width / box_height > aspect_ratio:
+                new_height = int(box_width / aspect_ratio)
+                new_width = box_width
+            else:
+                new_width = int(box_height * aspect_ratio)
+                new_height = box_height
+
+            new_x1 = box_center_x - new_width // 2
+            new_x2 = box_center_x + new_width // 2
+            new_y1 = box_center_y - new_height // 2
+            new_y2 = box_center_y + new_height // 2
+
+            if new_x1 < 0:
+                new_x2 += -new_x1
+                new_x1 = 0
+            if new_x2 > w:
+                new_x1 -= (new_x2 - w)
+                new_x2 = w
+            if new_y1 < 0:
+                new_y2 += -new_y1
+                new_y1 = 0
+            if new_y2 > h:
+                new_y1 -= (new_y2 - h)
+                new_y2 = h
+
+            new_x1 = max(0, new_x1)
+            new_x2 = min(w, new_x2)
+            new_y1 = max(0, new_y1)
+            new_y2 = min(h, new_y2)
+
+            cropped_image = image.crop((new_x1, new_y1, new_x2, new_y2))
+
+            # TODO: Might need to add dynamic compression here 
+
+            with tempfile.NamedTemporaryFile(delete=False, suffix='.JPG') as cropped_temp_file:
+                cropped_image.save(cropped_temp_file.name)
+                cropped_temp_file.flush()
+                splits = image_path.split('/')
+                crop_image_path = splits[0] + '-comp' + '/' + splits[1] +'/_crops_/' + str(detection_id) + '.JPG'
+                print(f'Uploading cropped image to S3: {crop_image_path}')
+                try:
+                    GLOBALS.s3client.upload_file(Bucket=Config.BUCKET, Key=crop_image_path, Filename=cropped_temp_file.name)
+                except Exception as e:
+                    print(f'Error uploading cropped image to S3: {e}')
+    except Exception as e:
+        app.logger.info(f'Error cropping image for detection {detection_id}: {e}')
 
     return True

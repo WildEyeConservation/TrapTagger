@@ -21,7 +21,7 @@ deleteTurkcodes, createTurkcodes, deleteFile, cleanup_empty_restored_images, upd
 from app.functions.imports import import_survey
 from app.functions.admin import stop_task, edit_survey
 from app.functions.annotation import freeUpWork, wrapUpTask
-from app.functions.archive import restore_images_for_id, restore_files_for_download, process_files_for_download, extract_zips, change_storage_for_individual_id
+from app.functions.archive import restore_images_for_id, restore_files_for_download, process_files_for_download, extract_zips, dearchive_and_crop_individuals
 from app.functions.individualID import calculate_detection_similarities
 from app.functions.results import generate_wildbook_export
 import GLOBALS
@@ -1068,7 +1068,7 @@ def monitorFileRestores():
                     #     calculate_detection_similarities.apply_async(kwargs=launch_kwargs)
                     # else:
                     #     launch_task.apply_async(kwargs=launch_kwargs)
-                    change_storage_for_individual_id.apply_async(kwargs={'task_id': task.id, 'launch_kwargs': launch_kwargs})
+                    dearchive_and_crop_individuals.apply_async(kwargs={'task_id': task.id, 'launch_kwargs': launch_kwargs})
                 except:
                     survey.require_launch = None
                     survey.status = 'Ready'

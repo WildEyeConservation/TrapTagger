@@ -34,6 +34,13 @@ function modifyToCompURL(url) {
     }
 }
 
+function modifyToCropURL(url,detection_id) {
+    /** Modifies the source URL to the cropped image of detection */
+    splits=url.split('/')
+    crop_url = splits[0] + '-comp/' + splits[1] + '/_crops_/' + detection_id.toString() + '.JPG'
+    return crop_url
+}
+
 function checkIfImage(url){
     /** Checks if the url is an image or not */
     if (url.includes('jpg') || url.includes('JPG') || url.includes('jpeg') || url.includes('JPEG') || url.includes('png') || url.includes('PNG')) {
@@ -64,12 +71,16 @@ function updateSlider() {
 
     for (let i=0;i<individualImages.length;i++) {
         img = document.createElement('img')
-        img.setAttribute('src',"https://"+bucketName+".s3.amazonaws.com/" + modifyToCompURL(individualImages[i].url))
+        // img.setAttribute('src',"https://"+bucketName+".s3.amazonaws.com/" + modifyToCompURL(individualImages[i].url))
+        img.setAttribute('data-splide-lazy',"https://"+bucketName+".s3.amazonaws.com/" + modifyToCompURL(individualImages[i].url))
         imgli = document.createElement('li')
         imgli.classList.add('splide__slide')
         imgli.appendChild(img)
         imageSplide.appendChild(imgli)
     }
+
+    client_width = document.getElementById('splide').clientWidth
+    numberPages =Math.ceil(client_width/200) + 1
 
     if (individualSplide==null) {
         // Initialise Splide
@@ -82,6 +93,8 @@ function updateSlider() {
             gap         : 5,
             pagination  : false,
             cover       : true,
+            lazyLoad    : 'nearby',
+            preloadPages: numberPages,
             breakpoints : {
                 '600': {
                     fixedWidth  : 66,
@@ -114,6 +127,10 @@ function updateSlider() {
                 individualSplide.go(imageIndex)
             }
         }(track));
+
+        individualSplide.on('lazyload', (img) => {
+            console.log('Lazy-loaded image:', img.dataset.splideLazy);
+        });
 
     } else {
         individualSplide.refresh()

@@ -28,8 +28,17 @@ limitations under the License. -->
             <div id="debugImage" align="center"></div>
         </p>
 
-        <h5>Current Individual</h5>
+        <div class="row" style="margin-bottom: 4px;">
+            <div class="col-lg-1">
+                <span id="openSidePanelLeft" onclick="openLeftSidePanel()" style="font-size: 24px; cursor: pointer;">&#9776;</span>
+            </div>
+            <div class="col-lg-10 d-flex align-items-center justify-content-center">
+                <h5 style="margin:0px">Current Individual</h5>
+            </div>
+            <div class="col-lg-1"> </div>
+        </div>
         
+
         <center>
             <div id="mapDiv" style='height: 800px'></div>
         </center>
@@ -131,7 +140,16 @@ limitations under the License. -->
             <div id="debugImage2" align="center"></div>
         </p>
 
-        <h5>Suggested Match</h5>
+        <div class="row" style="margin-bottom: 4px;">
+            <div class="col-lg-1"></div>
+            <div class="col-lg-10 d-flex align-items-center justify-content-center">
+                <h5 style="margin:0px">Suggested Match</h5>
+            </div>
+            <div class="col-lg-1 text-end">
+                <span id="openSidePanelRight" onclick="openRightSidePanel()" style="font-size: 24px; cursor: pointer;">&#9776;</span>
+            </div>
+        </div>
+
         
         <center>
             <div id="mapdiv2" style='height: 800px'></div>
@@ -382,6 +400,43 @@ limitations under the License. -->
       
     </div>
 </div>
+
+<!-- Individual Features Modal -->
+<div id="modalIndividualFeatures" class="modal fade" role="dialog"  tabindex="-1">
+    <div class="modal-dialog" style="max-width: 50%;">
+      
+        <!-- Modal content-->
+        <div class="modal-content">
+            <div class="modal-header">
+                <h4 class="modal-title">Features</h4>
+                <button type="button" class="close" data-dismiss="modal">&times;</button>
+            </div>
+            <div class="modal-body">
+                <div id="individualFeaturesErrors" style="font-size: 80%; color: #DF691A"></div>
+                <h5 style="margin-bottom: 2px">Description</h5>
+                <div style="font-size: 80%; margin-bottom: 2px"><i>Here you can add or edit the features on the primary left/right image of the individual. A feature can be a distinguishing pattern, a mark, or a characteristic that can be used to easily identify the individual. If you
+                    are not satisfied with the primary image, you can select a different image as the primary image. Note that you can only add features to the primary image.</i></div>
+                <div>
+                    <label for="cxPrimaryImage">Primary Image :</label>
+                    <label class="switch">
+                        <input type="checkbox" id="cxPrimaryImage" checked><span class="slider round"></span>
+                    </label>
+                </div>
+                <div id="individualFeaturesDiv"></div>
+            </div>
+            <div class='modal-footer'>
+                <div class='col-lg-3'>
+                    <button id='btnCancelFeatures' type='button' class='btn btn-info btn-block' data-dismiss="modal">Cancel</button>
+                </div>
+                <div class='col-lg-3'>
+                    <button id='btnSubmitFeatures' type='button' class='btn btn-primary btn-block'>Submit</button>
+                </div>
+            </div>
+        </div>
+      
+    </div>
+</div>
+
 {% endblock %}
 
 {% block page_scripts %}
