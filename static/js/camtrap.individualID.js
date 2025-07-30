@@ -84,6 +84,7 @@ var individualData={}
 var individualFlankImages = []
 var flankImageIndex = 0
 var currentBestDetection = null
+var imgMapsFullRes = {}
 
 function radians(degrees) {
     /** Converts desgres into radians. */
@@ -3208,7 +3209,7 @@ function populatePanel(panel,individual_id){
 
                 best_left_det = info.best_dets.L[0]
 
-                prepImageMap(panel+'LeftFlankDiv', best_left_det.url, best_left_det.detection,16,true)
+                prepImageMap(panel+'LeftFlankDiv', best_left_det.url, best_left_det.detection,16)
 
                 leftFlankDiv.addEventListener('click', function(wrapPanel,wrapURL,wrapDet) {
                     return function() {
@@ -3257,7 +3258,7 @@ function populatePanel(panel,individual_id){
 
                 best_right_det = info.best_dets.R[0]
 
-                prepImageMap(panel+'RightFlankDiv', best_right_det.url, best_right_det.detection,16,true)
+                prepImageMap(panel+'RightFlankDiv', best_right_det.url, best_right_det.detection,16)
 
                 rightFlankDiv.addEventListener('click', function(wrapPanel,wrapURL,wrapDet) {
                     return function() {
@@ -3310,6 +3311,7 @@ function cleanPanel(panel) {
             delete imgMapsHeight[div]
             delete drawnFeatureItems[div]
             delete leafletFeatureIDs[div]
+            delete imgMapsFullRes[div]
         }
     }
 
@@ -3452,7 +3454,9 @@ function prepFeatureModal(url, detection) {
 function prepFeatureMap(div_id, image_url, detection,size=15) {
     /** Prepares the image map for the individual modal. */
     if (bucketName != null) {
-        var imageUrl = "https://"+bucketName+".s3.amazonaws.com/" + modifyToCropURL(image_url, detection.id)
+        imgMapsFullRes[div_id] = false
+        // var imageUrl = "https://"+bucketName+".s3.amazonaws.com/" + modifyToCropURL(image_url, detection.id)
+        var imageUrl = "https://"+bucketName+".s3.amazonaws.com/" + modifyToCompURL(image_url)
         var img = new Image();
         img.onload = function(){
             w = this.width
@@ -3481,7 +3485,12 @@ function prepFeatureMap(div_id, image_url, detection,size=15) {
 
             imgMapsActiveImage[div_id].on('load', function() {
                 if (individualFlankImages.length > 0 && individualFlankImages[flankImageIndex] != null) {
-                    addFeatures(div_id, individualFlankImages[flankImageIndex].detection.features)
+                    let det = individualFlankImages[flankImageIndex].detection
+                    if (det != null) {
+                        det_bounds = [[det.top*imgMapsHeight[div_id],det.left*imgMapsWidth[div_id]],[det.bottom*imgMapsHeight[div_id],det.right*imgMapsWidth[div_id]]]
+                        imgMaps[div_id].fitBounds(det_bounds, {padding: [10,10]});
+                        addFeatures(div_id, individualFlankImages[flankImageIndex].detection.features)
+                    }
                 }
             });
 
@@ -3509,8 +3518,15 @@ function prepFeatureMap(div_id, image_url, detection,size=15) {
                     imgMaps[div_id].setMinZoom(imgMaps[div_id].getMinZoom())
                     imgMapsActiveImage[div_id].setBounds(bounds)
 
-                    // addFeatures(div_id, detection.features)
                     addFeatures(div_id, individualFlankImages[flankImageIndex].detection.features)
+
+                    setTimeout(function() {
+                        let det = individualFlankImages[flankImageIndex].detection
+                        if (det != null) {
+                            var det_bounds = [[det.top*imgMapsHeight[div_id],det.left*imgMapsWidth[div_id]],[det.bottom*imgMapsHeight[div_id],det.right*imgMapsWidth[div_id]]]
+                            imgMaps[div_id].fitBounds(det_bounds, {padding: [10,10]});
+                        }
+                    }, 500);
                 }
             });
 
@@ -3520,6 +3536,15 @@ function prepFeatureMap(div_id, image_url, detection,size=15) {
                     imgMaps[div_id].panInsideBounds(wrapBounds, { animate: false });
                 }
             }(div_id, bounds));
+
+            imgMaps[div_id].on('zoomstart', function(divID) {
+                return function () { 
+                    if (!imgMapsFullRes[divID]) {
+                        imgMapsActiveImage[divID].setUrl("https://"+bucketName+".s3.amazonaws.com/" + individualFlankImages[flankImageIndex].url);
+                        imgMapsFullRes[divID] = true;
+                    }
+                }
+            }(div_id));
 
 
             drawnFeatureItems[div_id] = new L.FeatureGroup();
@@ -3571,7 +3596,9 @@ function updateFeatureMap(div_id='featureMapDiv'){
         prepFeatureMap(div_id, individualFlankImages[flankImageIndex].url, individualFlankImages[flankImageIndex].detection, 35)
     }
     else if (imgMapsActiveImage[div_id] != null && individualFlankImages[flankImageIndex] != null) {
-        imgMapsActiveImage[div_id].setUrl("https://"+bucketName+".s3.amazonaws.com/" + modifyToCropURL(individualFlankImages[flankImageIndex].url, individualFlankImages[flankImageIndex].detection.id));
+        // imgMapsActiveImage[div_id].setUrl("https://"+bucketName+".s3.amazonaws.com/" + modifyToCropURL(individualFlankImages[flankImageIndex].url, individualFlankImages[flankImageIndex].detection.id));
+        imgMapsFullRes[div_id] = false
+        imgMapsActiveImage[div_id].setUrl("https://"+bucketName+".s3.amazonaws.com/" + modifyToCompURL(individualFlankImages[flankImageIndex].url));
     }
 
     updateFeatureButtons();
@@ -3759,7 +3786,7 @@ function featureEditPrep(div_id){
         drawnFeatureItems[div_id].eachLayer(function (layer) {
             var bounds = layer.getBounds();
             drawnFeatureItems[div_id].eachLayer(function (otherLayer) {
-                if (layer !== otherLayer && bounds.intersects(otherLayer.getBounds())) {
+                if (layer != otherLayer && bounds.intersects(otherLayer.getBounds())) {
                     isOverlapping = true;
                     return; // Use return to exit the inner function
                 }
@@ -3792,6 +3819,14 @@ function featureEditPrep(div_id){
         var newLayer = e.layer;
         var newBounds = newLayer.getBounds();
         var isOverlapping = false;
+
+        // Check if the new feature is contained within det_bounds
+        var detection = individualFlankImages[flankImageIndex].detection
+        var det_bounds = [[detection.top*imgMapsHeight[div_id], detection.left*imgMapsWidth[div_id]],[detection.bottom*imgMapsHeight[div_id], detection.right*imgMapsWidth[div_id]]]
+        det_bounds = L.latLngBounds(det_bounds)
+        if (!det_bounds.contains(newBounds)) {
+            return;
+        }
 
         drawnFeatureItems[div_id].eachLayer(function (layer) {
             if (newBounds.intersects(layer.getBounds())) {
@@ -3827,6 +3862,7 @@ function cleanFeatureMap(){
     delete drawnFeatureItems['featureMapDiv'];
     delete leafletFeatureIDs['featureMapDiv'];
     delete featureDrawControl['featureMapDiv'];
+    delete imgMapsFullRes['featureMapDiv'];
 
     selectedDetection = null;
     currentBestDetection = null;
@@ -3857,7 +3893,7 @@ modalIndividualFeatures.on('hidden.bs.modal', function () {
 
 function updateFeatures(divID) {
     /** Updates the features after an edit has been performed. */
-
+    var any_out_of_bounds = false
     for (var i=0;i<selectedDetection.features.length;i++) {
         if (drawnFeatureItems[divID].getLayer(leafletFeatureIDs[divID][selectedDetection.features[i].id]) == null) {
             if (!selectedDetection.features[i].id.toString().startsWith('l_')) {
@@ -3872,6 +3908,17 @@ function updateFeatures(divID) {
             i -= 1
         }
         else{
+            var outofbounds = false
+            var detection = individualFlankImages[flankImageIndex].detection
+            var det_bounds = [[detection.top*imgMapsHeight[divID], detection.left*imgMapsWidth[divID]],[detection.bottom*imgMapsHeight[divID], detection.right*imgMapsWidth[divID]]]
+            det_bounds = L.latLngBounds(det_bounds)
+            if (!det_bounds.contains(drawnFeatureItems[divID].getLayer(leafletFeatureIDs[divID][selectedDetection.features[i].id]).getBounds())) {
+                outofbounds = true
+            }
+            if (outofbounds) {
+                any_out_of_bounds = true
+                continue
+            }
             var coords = drawnFeatureItems[divID].getLayer(leafletFeatureIDs[divID][selectedDetection.features[i].id])._latlngs[0]
             var new_coords = []
             for (var j=0;j<coords.length;j++) {
@@ -3912,6 +3959,10 @@ function updateFeatures(divID) {
             }
         }
     }
+    if (any_out_of_bounds) {
+        addFeatures(divID, selectedDetection.features);
+    }
+    
 }
 
 $('#btnSubmitFeatures').click(function() {

@@ -1682,7 +1682,12 @@ function updateSlider(mapID = 'map1') {
             clusterPosition[mapID].removeChild(clusterPosition[mapID].firstChild);
         }
         for (let i=0;i<clusters[mapID][clusterIndex[mapID]].images.length;i++) {
-            imageUrl = "https://"+bucketName+".s3.amazonaws.com/" + modifyToCompURL(clusters[mapID][clusterIndex[mapID]].images[i].url)
+            // imageUrl = "https://"+bucketName+".s3.amazonaws.com/" + modifyToCompURL(clusters[mapID][clusterIndex[mapID]].images[i].url)
+            if (clusters[mapID][clusterIndex[mapID]].images[i].detections.length > 0 && !taggingLevel.includes('-4')) {
+                imageUrl = "https://"+bucketName+".s3.amazonaws.com/" + modifyToCropURL(clusters[mapID][clusterIndex[mapID]].images[i].url,clusters[mapID][clusterIndex[mapID]].images[i].detections[0].id)
+            } else {
+                imageUrl = "https://"+bucketName+".s3.amazonaws.com/" + modifyToCompURL(clusters[mapID][clusterIndex[mapID]].images[i].url)
+            }
             img = document.createElement('img')
             // img.setAttribute('src',imageUrl)
             img.setAttribute('data-splide-lazy',imageUrl)

@@ -72,7 +72,12 @@ function updateSlider() {
     for (let i=0;i<individualImages.length;i++) {
         img = document.createElement('img')
         // img.setAttribute('src',"https://"+bucketName+".s3.amazonaws.com/" + modifyToCompURL(individualImages[i].url))
-        img.setAttribute('data-splide-lazy',"https://"+bucketName+".s3.amazonaws.com/" + modifyToCompURL(individualImages[i].url))
+        if (individualImages[i].detections.length > 0) {
+            image_url = "https://"+bucketName+".s3.amazonaws.com/" + modifyToCropURL(individualImages[i].url,individualImages[i].detections[0].id)
+        } else {
+            image_url = "https://"+bucketName+".s3.amazonaws.com/" + modifyToCompURL(individualImages[i].url)
+        }
+        img.setAttribute('data-splide-lazy', image_url)
         imgli = document.createElement('li')
         imgli.classList.add('splide__slide')
         imgli.appendChild(img)

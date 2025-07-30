@@ -1118,6 +1118,10 @@ def dearchive_and_crop_individuals(self,task_id,launch_kwargs):
                 'bottom': item[4]
             }
             image_path = item[6] + '/' + item[5]
+            # Make comp path 
+            splits = image_path.split('/')
+            splits[0] = splits[0] + '-comp'
+            image_path = '/'.join(splits)
             crop_image(detection_id,image_path,bbox_dict)
 
         # Launch id task
@@ -1205,13 +1209,14 @@ def crop_image(detection_id,image_path,bbox_dict):
 
             cropped_image = image.crop((new_x1, new_y1, new_x2, new_y2))
 
-            # TODO: Might need to add dynamic compression here 
-
             with tempfile.NamedTemporaryFile(delete=False, suffix='.JPG') as cropped_temp_file:
                 cropped_image.save(cropped_temp_file.name)
                 cropped_temp_file.flush()
                 splits = image_path.split('/')
-                crop_image_path = splits[0] + '-comp' + '/' + splits[1] +'/_crops_/' + str(detection_id) + '.JPG'
+                if splits[0][-5:] == '-comp':
+                    crop_image_path = splits[0] + '/' + splits[1] + '/_crops_/' + str(detection_id) + '.JPG'
+                else:
+                    crop_image_path = splits[0] + '-comp' + '/' + splits[1] +'/_crops_/' + str(detection_id) + '.JPG'
                 print(f'Uploading cropped image to S3: {crop_image_path}')
                 try:
                     GLOBALS.s3client.upload_file(Bucket=Config.BUCKET, Key=crop_image_path, Filename=cropped_temp_file.name)
