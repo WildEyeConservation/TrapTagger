@@ -19,6 +19,7 @@ var barData = {}
 var lineData = {}
 var activeBaseLayer = null
 var spatialExportControl = null
+var markerDict = {}
 var polarColours = {'rgba(10,120,80,0.2)':false,
                     'rgba(255,255,255,0.2)':false,
                     'rgba(223,105,26,0.2)':false,
@@ -60,8 +61,51 @@ var lineColours = {
     'rgba(79,193,25,0.9)': false
     }
 
+var orangeMarker = null
+var blueMarker = null
+
 function createIndivMap() {
     /** Initialises the individual heat map. */
+
+    orangeMarker = L.icon({
+        iconUrl: 'data:image/svg+xml;charset=UTF-8,' + encodeURIComponent(`
+            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 25 41" width="25" height="41">
+            <path 
+                d="M12.5 0C5.6 0 0 5.6 0 12.5 0 21.9 12.5 41 12.5 41S25 21.9 25 12.5C25 5.6 19.4 0 12.5 0z" 
+                fill="#ff6600ff"
+                stroke="#7A4F01"
+                stroke-width="0.25"
+            />
+            <circle cx="12.5" cy="13" r="5" fill="white"/>
+            </svg>
+        `),
+        iconSize: [25, 41],
+        iconAnchor: [12.5, 41],
+        popupAnchor: [0, -34],
+        shadowUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/images/marker-shadow.png',
+        shadowSize: [41, 41],
+        shadowAnchor: [13, 41]
+    });
+
+    blueMarker = L.icon({
+        iconUrl: 'data:image/svg+xml;charset=UTF-8,' + encodeURIComponent(`
+            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 25 41" width="25" height="41">
+            <path 
+                d="M12.5 0C5.6 0 0 5.6 0 12.5 0 21.9 12.5 41 12.5 41S25 21.9 25 12.5C25 5.6 19.4 0 12.5 0z" 
+                fill="#2A81CB"
+                stroke="#2F3E50"
+                stroke-width="0.25"
+            />
+            <circle cx="12.5" cy="13" r="5" fill="white"/>
+            </svg>
+        `),
+        iconSize: [25, 41],
+        iconAnchor: [12.5, 41],
+        popupAnchor: [0, -34],
+        shadowUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/images/marker-shadow.png',
+        shadowSize: [41, 41],
+        shadowAnchor: [13, 41]
+    });
 
     var xhttp = new XMLHttpRequest();
     xhttp.onreadystatechange =
@@ -187,7 +231,7 @@ function createIndivMap() {
             markers = []
             refMarkers = []
             for (let i=0;i<trapgroupInfo.length;i++) {
-                marker = L.marker([trapgroupInfo[i].latitude, trapgroupInfo[i].longitude]).addTo(mapStats)
+                marker = L.marker([trapgroupInfo[i].latitude, trapgroupInfo[i].longitude], {icon: blueMarker}).addTo(mapStats)
                 markers.push(marker)
                 mapStats.addLayer(marker)
                 
@@ -201,6 +245,7 @@ function createIndivMap() {
                 });
                 
                 refMarkers.push({lat:trapgroupInfo[i].latitude,lng:trapgroupInfo[i].longitude,count:1000,tag:trapgroupInfo[i].tag})
+                markerDict[trapgroupInfo[i].tag] = marker
             }
             refData = {max:2000,data:refMarkers}
             invHeatmapLayer.setData(refData)
@@ -408,12 +453,14 @@ function createIndivMap() {
                 value = logslider(value)
                 document.getElementById('radiusSliderspan').innerHTML = Math.floor(value*1000)
                 
-                if(document.getElementById('normalisationCheckBox').checked){
+                if(document.getElementById('normalisationCheckBox').checked||document.getElementById('normaliseOutliersCheckBox').checked){
                     reScaleNormalisation(value)
                 }
                 else{
                     heatmapLayer.cfg.radius = value
-                    heatmapLayer._update()
+                    if (document.getElementById('heatMapCheckBox').checked) {
+                        heatmapLayer._update()
+                    }
                 }
             
             });
@@ -473,6 +520,28 @@ function createIndivMap() {
             checkBoxDiv.appendChild(checkBoxLabel)
 
             $("#normalisationCheckBox").change( function() {
+                updateHeatMap()
+            });
+
+            checkBoxDiv = document.createElement('div')
+            checkBoxDiv.setAttribute('class','custom-control custom-checkbox')
+            selectorDiv.appendChild(checkBoxDiv)
+
+            checkBox = document.createElement('input')
+            checkBox.setAttribute('type','checkbox')
+            checkBox.setAttribute('class','custom-control-input')
+            checkBox.setAttribute('id','normaliseOutliersCheckBox')
+            checkBox.setAttribute('name','normaliseOutliersCheckBox')
+            checkBox.checked = false 
+            checkBoxDiv.appendChild(checkBox)
+
+            checkBoxLabel = document.createElement('label')
+            checkBoxLabel.setAttribute('class','custom-control-label')
+            checkBoxLabel.setAttribute('for','normaliseOutliersCheckBox')
+            checkBoxLabel.innerHTML = 'Normalise Outliers'
+            checkBoxDiv.appendChild(checkBoxLabel)
+
+            $("#normaliseOutliersCheckBox").change( function() {
                 updateHeatMap()
             });
 
@@ -547,10 +616,34 @@ function updateHeatMap(){
                     if(reply.data[i].count > hm_max){
                         hm_max = reply.data[i].count
                     }
-                } 
+                }
+                m = markerDict[reply.data[i].tag]
+                if (m) {
+                    m.bindPopup(reply.data[i].tag + '<br>Count: ' + reply.data[i].count);
+                    if (reply.data[i].count > 0) {
+                        m.setIcon(orangeMarker);
+                    } else {
+                        m.setIcon(blueMarker);
+                    }
+                }
             }
 
             heatMapData = JSON.parse(JSON.stringify(hm_data))
+
+            if (document.getElementById('normaliseOutliersCheckBox').checked) {
+                /** Normalises the heatmap data to remove outliers with logarithmic scaling. */
+                maxVal = 0
+                for (let i=0;i<hm_data.length;i++) {
+                    if (hm_data[i].count != 0) {
+                        hm_data[i].count = Math.log(hm_data[i].count+1)
+                        if (hm_data[i].count > maxVal) {
+                            maxVal = hm_data[i].count
+                        }
+                    }
+                }
+                hm_max = maxVal
+            }
+
             if (document.getElementById('normalisationCheckBox').checked) {
                 if (document.getElementById('heatMapCheckBox').checked) {
                     mapStats.removeLayer(heatmapLayer)
@@ -580,7 +673,9 @@ function updateHeatMap(){
             }
             heatmapLayer._data = []
             heatmapLayer.setData(data);
-            heatmapLayer._update()
+            if (document.getElementById('heatMapCheckBox').checked) {
+                heatmapLayer._update()
+            }
         }
     }
     xhttp.open("POST", '/getTrapgroupCountsIndividual/'+selectedIndividual+'/'+baseUnit);
@@ -621,19 +716,38 @@ function reScaleNormalisation(newScale) {
     invHeatmapLayer.cfg.radius = newScale
     invHeatmapLayer._update()
 
-    maxVal = 0
-    for (let i=0;i< hmdata.length;i++) {
-        value = invHeatmapLayer._heatmap.getValueAt(mapStats.latLngToLayerPoint(L.latLng({lat:hmdata[i].lat, lng:hmdata[i].lng})))
-        if (value!=0) {
-            hmdata[i].count = (1000*hmdata[i].count)/value
-            if (hmdata[i].count>maxVal) {
-                maxVal = hmdata[i].count
+    if (document.getElementById('normaliseOutliersCheckBox').checked) {
+        /** Normalises the heatmap data to remove outliers with logarithmic scaling. */
+        maxVal = 0
+        for (let i=0;i< hmdata.length;i++) {
+            if (hmdata[i].count != 0) {
+                hmdata[i].count = Math.log(hmdata[i].count+1)
+                if (hmdata[i].count > maxVal) {
+                    maxVal = hmdata[i].count
+                }
             }
         }
+        hmmax = maxVal
     }
-    hmmax = 1.25*maxVal
+
+    if (document.getElementById('normalisationCheckBox').checked) {
+        maxVal = 0
+        for (let i=0;i< hmdata.length;i++) {
+            value = invHeatmapLayer._heatmap.getValueAt(mapStats.latLngToLayerPoint(L.latLng({lat:hmdata[i].lat, lng:hmdata[i].lng})))
+            if (value!=0) {
+                hmdata[i].count = (1000*hmdata[i].count)/value
+                if (hmdata[i].count>maxVal) {
+                    maxVal = hmdata[i].count
+                }
+            }
+        }
+        hmmax = 1.25*maxVal
+    }
+
     mapStats.removeLayer(invHeatmapLayer)
-    mapStats.addLayer(heatmapLayer)
+    if (document.getElementById('heatMapCheckBox').checked) {
+        mapStats.addLayer(heatmapLayer)
+    }
 
     data ={
         'data' : hmdata,
@@ -643,7 +757,9 @@ function reScaleNormalisation(newScale) {
     heatmapLayer._data = []
     heatmapLayer.setData(data);
     heatmapLayer.cfg.radius = newScale
-    heatmapLayer._update()
+    if (document.getElementById('heatMapCheckBox').checked){
+        heatmapLayer._update()
+    }
 }
 
 function createIndivPolarChart() {

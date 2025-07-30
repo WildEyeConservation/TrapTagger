@@ -160,6 +160,9 @@ var globalSCRResults = null
 var ssPolygon = null
 var globalIndividualSpecies = []
 var resultsFolder = null
+var orangeMarker = null 
+var blueMarker = null
+var markersDict = {}
 
 const modalExportAlert = $('#modalExportAlert')
 const modalCovariates = $('#modalCovariates')
@@ -657,6 +660,7 @@ function disablePanel(){
         document.getElementById('radiusSlider').disabled = true
         document.getElementById('markerCheckBox').disabled = true
         document.getElementById('normalisationCheckBox').disabled = true
+        document.getElementById('normaliseOutliersCheckBox').disabled = true
         document.getElementById('heatMapCheckBox').disabled = true
         document.getElementById('relativeAbundanceDiv').disabled = true
         document.getElementById('normaliseBySiteEffort').disabled = true
@@ -818,6 +822,7 @@ function enablePanel(){
         document.getElementById('radiusSlider').disabled = false
         document.getElementById('markerCheckBox').disabled = false
         document.getElementById('normalisationCheckBox').disabled = false
+        document.getElementById('normaliseOutliersCheckBox').disabled = false
         document.getElementById('heatMapCheckBox').disabled = false
         document.getElementById('relativeAbundanceDiv').disabled = false
         document.getElementById('normaliseBySiteEffort').disabled = false
@@ -941,6 +946,7 @@ function enablePanel(){
         document.getElementById('radiusSlider').disabled = false;
         document.getElementById('markerCheckBox').disabled = false;
         document.getElementById('normalisationCheckBox').disabled = false;
+        document.getElementById('normaliseOutliersCheckBox').disabled = false;
         document.getElementById('heatMapCheckBox').disabled = false;
         if (document.getElementById('excludeNothing')) {
             document.getElementById('excludeNothing').disabled = false;
@@ -1238,8 +1244,9 @@ function generateSpatial(){
 
                 markers = []
                 refMarkers = []
+                markersDict = {}
                 for (let i=0;i<trapgroupInfo.length;i++) {
-                    marker = L.marker([trapgroupInfo[i].latitude, trapgroupInfo[i].longitude]).addTo(map)
+                    marker = L.marker([trapgroupInfo[i].latitude, trapgroupInfo[i].longitude],{icon:blueMarker}).addTo(map)
                     markers.push(marker)
                     map.addLayer(marker)
                     marker.bindPopup(trapgroupInfo[i].tag);
@@ -1250,6 +1257,7 @@ function generateSpatial(){
                         this.closePopup();
                     });
                     refMarkers.push({lat:trapgroupInfo[i].latitude,lng:trapgroupInfo[i].longitude,count:1000,tag:trapgroupInfo[i].tag})
+                    markersDict[trapgroupInfo[i].tag+'_xxx_'+trapgroupInfo[i].latitude+'_xxx_'+trapgroupInfo[i].longitude] = marker
                 }
                 refData = {max:2000,data:refMarkers}
                 invHeatmapLayer.setData(refData)
@@ -2185,9 +2193,10 @@ function updateMap(){
 
                 markers = []
                 refMarkers = []
+                markersDict = {}
                 if (trapgroupInfo.length > 0) {
                     for (let i=0;i<trapgroupInfo.length;i++) {
-                        marker = L.marker([trapgroupInfo[i].latitude, trapgroupInfo[i].longitude]).addTo(map)
+                        marker = L.marker([trapgroupInfo[i].latitude, trapgroupInfo[i].longitude],{icon:blueMarker}).addTo(map)
                         markers.push(marker)
                         map.addLayer(marker)
                         marker.bindPopup(trapgroupInfo[i].tag);
@@ -2198,6 +2207,7 @@ function updateMap(){
                             this.closePopup();
                         });
                         refMarkers.push({lat:trapgroupInfo[i].latitude,lng:trapgroupInfo[i].longitude,count:1000,tag:trapgroupInfo[i].tag})
+                        markersDict[trapgroupInfo[i].tag+'_xxx_'+trapgroupInfo[i].latitude+'_xxx_'+trapgroupInfo[i].longitude] = marker
                     }
                     refData = {max:2000,data:refMarkers}
                     invHeatmapLayer.setData(refData)
@@ -3776,11 +3786,13 @@ $("#radiusSlider").change( function() {
     if (heatmapLayer == null) {
         return
     }
-    if (document.getElementById('normalisationCheckBox').checked) {
+    if (document.getElementById('normalisationCheckBox').checked|| document.getElementById('normaliseOutliersCheckBox').checked) {
         reScaleNormalisation(value)
     } else {
         heatmapLayer.cfg.radius = value
-        heatmapLayer._update()
+        if (document.getElementById('heatMapCheckBox').checked) {
+            heatmapLayer._update()
+        }
     }
 });
 
@@ -3805,6 +3817,14 @@ $("#markerCheckBox").change( function() {
 });
 
 $("#normalisationCheckBox").change( function() {
+    /** Updates the results when the normalisation checkbox is changed */
+    if (heatmapLayer == null) {
+        return
+    }
+    updateHeatMap()
+});
+
+$("#normaliseOutliersCheckBox").change( function() {
     /** Updates the results when the normalisation checkbox is changed */
     if (heatmapLayer == null) {
         return
@@ -9459,24 +9479,39 @@ function buildSCR(results, tab){
         div2.appendChild(input)
 
         $("#radiusSliderSRC").change( function(counts, max_count){
-            
             return function(){
-                scale = document.getElementById('radiusSliderSRC').value
+                // Update the heatmap layer with the new radius
+                var scale = document.getElementById('radiusSliderSRC').value
                 scale = logslider(scale)
-                
-                if (document.getElementById('nomaliseCxSRC').checked){
-                    var mapSRC = map['mapDiv_srcHeatmap']
+                var mapSRC = map['mapDiv_srcHeatmap']
 
-                    var heatmap_data = []
-                    for (let i=0;i<counts.length;i++) {
-                        var tag = counts[i].site_id.split('_')[0]
-                        var latitude = counts[i].site_id.split('_')[1]
-                        var longitude = counts[i].site_id.split('_')[2]
-                        var count = counts[i].count
-                        if (count > 0){
-                            heatmap_data.push({lat:latitude,lng:longitude,count:count,tag:tag})
-                        } 
+                var hm_data = []
+                for (let i=0;i<counts.length;i++) {
+                    var tag = counts[i].site_id.split('_')[0]
+                    var latitude = counts[i].site_id.split('_')[1]
+                    var longitude = counts[i].site_id.split('_')[2]
+                    var count = counts[i].count
+                    if (count > 0){
+                        hm_data.push({lat:latitude,lng:longitude,count:count,tag:tag})
+                    } 
+                }
+                var hm_max = max_count
+
+                if (document.getElementById('normaliseOutliersSRC').checked){
+                    // Normalise with logarithm
+                    var maxVal = 0
+                    for (let i=0;i<hm_data.length;i++) {
+                        if (hm_data[i].count != 0) {
+                            hm_data[i].count = Math.log(hm_data[i].count+1)
+                            if (hm_data[i].count > maxVal) {
+                                maxVal = hm_data[i].count
+                            }
+                        }
                     }
+                    hm_max = maxVal
+                }
+
+                if (document.getElementById('normaliseCxSRC').checked){
 
                     mapSRC.removeLayer(heatmapLayer)
                     mapSRC.addLayer(invHeatmapLayer)
@@ -9485,7 +9520,6 @@ function buildSCR(results, tab){
                     invHeatmapLayer._update()
 
                     var maxVal = 0
-                    var hm_data = heatmap_data
                     for (let i=0;i<hm_data.length;i++) {
                         value = invHeatmapLayer._heatmap.getValueAt(mapSRC.latLngToLayerPoint(L.latLng({lat:hm_data[i].lat, lng:hm_data[i].lng})))
                         if (value!=0) {
@@ -9498,19 +9532,19 @@ function buildSCR(results, tab){
 
                     hm_max = 1.25*maxVal
                     mapSRC.removeLayer(invHeatmapLayer)
-                    mapSRC.addLayer(heatmapLayer)
-
-                    heatmapLayer._data = []
-                    var data = {max:hm_max,data:hm_data}
-                    heatmapLayer.setData(data)
-                    heatmapLayer.cfg.radius = scale
-                    heatmapLayer._update()
-
+                    if (document.getElementById('showHeatMapSRC').checked){
+                        mapSRC.addLayer(heatmapLayer)
+                    }
                 }
-                else{
-                    heatmapLayer.cfg.radius = scale
+
+                heatmapLayer._data = []
+                var data = {max:hm_max,data:hm_data}
+                heatmapLayer.setData(data)
+                heatmapLayer.cfg.radius = scale
+                if (document.getElementById('showHeatMapSRC').checked){
                     heatmapLayer._update()
                 }
+
             }
             
         }(indiv_counts, max_count));
@@ -9576,20 +9610,21 @@ function buildSCR(results, tab){
         var input = document.createElement('input')
         input.setAttribute('type','checkbox')
         input.setAttribute('class','custom-control-input')
-        input.setAttribute('id','nomaliseCxSRC')
-        input.setAttribute('name','nomaliseCxSRC')
+        input.setAttribute('id','normaliseCxSRC')
+        input.setAttribute('name','normaliseCxSRC')
         cxDiv.appendChild(input)
 
         
         var label = document.createElement('label')
         label.setAttribute('class','custom-control-label')
-        label.setAttribute('for','nomaliseCxSRC')
+        label.setAttribute('for','normaliseCxSRC')
         label.innerHTML = 'Normalise for Site Density'
         cxDiv.appendChild(label)
 
-        document.getElementById('nomaliseCxSRC').addEventListener('change', function(counts, max_count){
+        document.getElementById('normaliseCxSRC').addEventListener('change', function(counts, max_count){
             return function(){
-                var checkbox = document.getElementById('nomaliseCxSRC')
+                var checkbox = document.getElementById('normaliseCxSRC')
+                var checkboxOutliers = document.getElementById('normaliseOutliersSRC')
                 var mapSRC = map['mapDiv_srcHeatmap']
 
                 var heatmap_data = []
@@ -9601,13 +9636,28 @@ function buildSCR(results, tab){
                         heatmap_data.push({lat:latitude,lng:longitude,count:count,tag:tag})
                     } 
                 }
+                var hm_data = heatmap_data
+                var hm_max = max_count
+
+                if (checkboxOutliers.checked){
+                    // Normalise with logarithm
+                    var maxVal = 0
+                    for (let i=0;i<hm_data.length;i++) {
+                        if (hm_data[i].count != 0) {
+                            hm_data[i].count = Math.log(hm_data[i].count+1)
+                            if (hm_data[i].count > maxVal) {
+                                maxVal = hm_data[i].count
+                            }
+                        }
+                    }
+                    hm_max = maxVal
+                }
 
                 if (checkbox.checked){
                     mapSRC.removeLayer(heatmapLayer)
                     mapSRC.addLayer(invHeatmapLayer)
 
                     var maxVal = 0
-                    var hm_data = heatmap_data
                     for (let i=0;i<hm_data.length;i++) {
                         value = invHeatmapLayer._heatmap.getValueAt(mapSRC.latLngToLayerPoint(L.latLng({lat:hm_data[i].lat, lng:hm_data[i].lng})))
                         if (value!=0) {
@@ -9620,22 +9670,97 @@ function buildSCR(results, tab){
 
                     hm_max = 1.25*maxVal
                     mapSRC.removeLayer(invHeatmapLayer)
-                    mapSRC.addLayer(heatmapLayer)
-
-                    var data = {max:hm_max,data:hm_data}
-                    heatmapLayer.setData(data)
-
+                    if (document.getElementById('showHeatMapSRC').checked){
+                        mapSRC.addLayer(heatmapLayer)
+                    }
                 }
-                else{
+
+                var data = {max:hm_max,data:hm_data}
+                heatmapLayer.setData(data)
+                if (document.getElementById('showHeatMapSRC').checked){
+                    heatmapLayer._update()
+                }
+
+            }
+        }(indiv_counts, max_count));
+           
+        var cxDiv = document.createElement('div')
+        cxDiv.classList.add('custom-control')
+        cxDiv.classList.add('custom-checkbox')
+        col.appendChild(cxDiv)
+
+        var input = document.createElement('input')
+        input.setAttribute('type','checkbox')
+        input.setAttribute('class','custom-control-input')
+        input.setAttribute('id','normaliseOutliersSRC')
+        input.setAttribute('name','normaliseOutliersSRC')
+        cxDiv.appendChild(input)
+
+        
+        var label = document.createElement('label')
+        label.setAttribute('class','custom-control-label')
+        label.setAttribute('for','normaliseOutliersSRC')
+        label.innerHTML = 'Normalise Outliers'
+        cxDiv.appendChild(label)
+
+        document.getElementById('normaliseOutliersSRC').addEventListener('change', function(counts, max_count){
+            return function(){
+                var checkbox = document.getElementById('normaliseCxSRC')
+                var checkboxOutliers = document.getElementById('normaliseOutliersSRC')
+                var mapSRC = map['mapDiv_srcHeatmap']
+
+                var heatmap_data = []
+                for (let i=0;i<counts.length;i++) {
+                    var latitude = counts[i].site_id.split('_')[1]
+                    var longitude = counts[i].site_id.split('_')[2]
+                    var count = counts[i].count
+                    if (count > 0){
+                        heatmap_data.push({lat:latitude,lng:longitude,count:count,tag:tag})
+                    } 
+                }
+                var hm_data = heatmap_data
+                var hm_max = max_count
+
+                if (checkboxOutliers.checked){
+                    // Normalise with logarithm
+                    var maxVal = 0
+                    for (let i=0;i<hm_data.length;i++) {
+                        if (hm_data[i].count != 0) {
+                            hm_data[i].count = Math.log(hm_data[i].count+1)
+                            if (hm_data[i].count > maxVal) {
+                                maxVal = hm_data[i].count
+                            }
+                        }
+                    }
+                    hm_max = maxVal
+                }
+
+                if (checkbox.checked){
                     mapSRC.removeLayer(heatmapLayer)
                     mapSRC.addLayer(invHeatmapLayer)
-        
-                    var data = {max:max_count,data:heatmap_data}
-                    heatmapLayer.setData(data)
 
+                    var maxVal = 0
+                    for (let i=0;i<hm_data.length;i++) {
+                        value = invHeatmapLayer._heatmap.getValueAt(mapSRC.latLngToLayerPoint(L.latLng({lat:hm_data[i].lat, lng:hm_data[i].lng})))
+                        if (value!=0) {
+                            hm_data[i].count = (1000*hm_data[i].count)/value
+                            if (hm_data[i].count>maxVal) {
+                                maxVal = hm_data[i].count
+                            }
+                        }
+                    }
+
+                    hm_max = 1.25*maxVal
                     mapSRC.removeLayer(invHeatmapLayer)
-                    mapSRC.addLayer(heatmapLayer)
-                    
+                    if (document.getElementById('showHeatMapSRC').checked){
+                        mapSRC.addLayer(heatmapLayer)
+                    }
+                }
+
+                var data = {max:hm_max,data:hm_data}
+                heatmapLayer.setData(data)
+                if (document.getElementById('showHeatMapSRC').checked){
+                    heatmapLayer._update()
                 }
             }
         }(indiv_counts, max_count));
@@ -9796,8 +9921,12 @@ function buildSCR(results, tab){
             var tag = indiv_counts[i].site_id.split('_')[0]
             var latitude = indiv_counts[i].site_id.split('_')[1]
             var longitude = indiv_counts[i].site_id.split('_')[2]
-
-            marker = L.marker([latitude, longitude]).addTo(map[map_id])
+            var count = indiv_counts[i].count
+            if (count > 0){
+                marker = L.marker([latitude, longitude],{icon:orangeMarker}).addTo(map[map_id])
+            } else {
+                marker = L.marker([latitude, longitude],{icon:blueMarker}).addTo(map[map_id])
+            }
             markers.push(marker)
             map[map_id].addLayer(marker)
             text = '<b>Site: </b>' + tag + '<br><b>Count: </b>' + indiv_counts[i].count
@@ -9921,7 +10050,7 @@ function initialiseDensityHeatmap(map_densities, max_density, sites_density, map
         var longitude = sites_density[i].site_id.split('_')[2]
         var density = parseFloat(sites_density[i].density).toFixed(4)
 
-        marker = L.marker([latitude, longitude]).addTo(map[map_id])
+        marker = L.marker([latitude, longitude], {icon: blueMarker}).addTo(map[map_id])
         densMarkers.push(marker)
         map[map_id].addLayer(marker)
         text = '<b>Site: </b>' + tag + '<br><b>Density: </b>' + density
@@ -10645,6 +10774,46 @@ function onload(){
     pingServer()
     initialiseGroups()
     // cancelResults()
+
+    orangeMarker = L.icon({
+        iconUrl: 'data:image/svg+xml;charset=UTF-8,' + encodeURIComponent(`
+            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 25 41" width="25" height="41">
+            <path 
+                d="M12.5 0C5.6 0 0 5.6 0 12.5 0 21.9 12.5 41 12.5 41S25 21.9 25 12.5C25 5.6 19.4 0 12.5 0z" 
+                fill="#ff6600ff"
+                stroke="#7A4F01"
+                stroke-width="0.25"
+            />
+            <circle cx="12.5" cy="13" r="5" fill="white"/>
+            </svg>
+        `),
+        iconSize: [25, 41],
+        iconAnchor: [12.5, 41],
+        popupAnchor: [0, -34],
+        shadowUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/images/marker-shadow.png',
+        shadowSize: [41, 41],
+        shadowAnchor: [13, 41]
+    });
+
+    blueMarker = L.icon({
+        iconUrl: 'data:image/svg+xml;charset=UTF-8,' + encodeURIComponent(`
+            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 25 41" width="25" height="41">
+            <path 
+                d="M12.5 0C5.6 0 0 5.6 0 12.5 0 21.9 12.5 41 12.5 41S25 21.9 25 12.5C25 5.6 19.4 0 12.5 0z" 
+                fill="#2A81CB"
+                stroke="#2F3E50"
+                stroke-width="0.25"
+            />
+            <circle cx="12.5" cy="13" r="5" fill="white"/>
+            </svg>
+        `),
+        iconSize: [25, 41],
+        iconAnchor: [12.5, 41],
+        popupAnchor: [0, -34],
+        shadowUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/images/marker-shadow.png',
+        shadowSize: [41, 41],
+        shadowAnchor: [13, 41]
+    });
 }
 
 window.addEventListener('load', onload, false);

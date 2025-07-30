@@ -31,6 +31,10 @@ var chartColours = {
     'rgba(79,193,25,0.6)': false
 }
 
+var orangeMarker = null 
+var blueMarker = null
+var markersDict = {}
+
 function buildPolarSelectorRow() {
     /** Builds a new species selector row for the Naive Activity analysis polar chart. */
 
@@ -811,6 +815,46 @@ function createBar() {
 function createMap() {
     /** Initialises the species heat map. */
 
+    orangeMarker = L.icon({
+        iconUrl: 'data:image/svg+xml;charset=UTF-8,' + encodeURIComponent(`
+            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 25 41" width="25" height="41">
+            <path 
+                d="M12.5 0C5.6 0 0 5.6 0 12.5 0 21.9 12.5 41 12.5 41S25 21.9 25 12.5C25 5.6 19.4 0 12.5 0z" 
+                fill="#ff6600ff"
+                stroke="#7A4F01"
+                stroke-width="0.25"
+            />
+            <circle cx="12.5" cy="13" r="5" fill="white"/>
+            </svg>
+        `),
+        iconSize: [25, 41],
+        iconAnchor: [12.5, 41],
+        popupAnchor: [0, -34],
+        shadowUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/images/marker-shadow.png',
+        shadowSize: [41, 41],
+        shadowAnchor: [13, 41]
+    });
+
+    blueMarker = L.icon({
+        iconUrl: 'data:image/svg+xml;charset=UTF-8,' + encodeURIComponent(`
+            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 25 41" width="25" height="41">
+            <path 
+                d="M12.5 0C5.6 0 0 5.6 0 12.5 0 21.9 12.5 41 12.5 41S25 21.9 25 12.5C25 5.6 19.4 0 12.5 0z" 
+                fill="#2A81CB"
+                stroke="#2F3E50"
+                stroke-width="0.25"
+            />
+            <circle cx="12.5" cy="13" r="5" fill="white"/>
+            </svg>
+        `),
+        iconSize: [25, 41],
+        iconAnchor: [12.5, 41],
+        popupAnchor: [0, -34],
+        shadowUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/images/marker-shadow.png',
+        shadowSize: [41, 41],
+        shadowAnchor: [13, 41]
+    });
+
     var formData = new FormData();
     formData.append('task_ids', JSON.stringify([selectedTask]));
 
@@ -941,8 +985,9 @@ function createMap() {
 
             markers = []
             refMarkers = []
+            markersDict = {}
             for (let i=0;i<trapgroupInfo.length;i++) {
-                marker = L.marker([trapgroupInfo[i].latitude, trapgroupInfo[i].longitude]).addTo(map)
+                marker = L.marker([trapgroupInfo[i].latitude, trapgroupInfo[i].longitude], {icon: blueMarker}).addTo(map)
                 markers.push(marker)
                 map.addLayer(marker)
                 marker.bindPopup(trapgroupInfo[i].tag);
@@ -953,6 +998,7 @@ function createMap() {
                     this.closePopup();
                 });
                 refMarkers.push({lat:trapgroupInfo[i].latitude,lng:trapgroupInfo[i].longitude,count:1000,tag:trapgroupInfo[i].tag})
+                markersDict[trapgroupInfo[i].tag+'_xxx_'+trapgroupInfo[i].latitude+'_xxx_'+trapgroupInfo[i].longitude] = marker;
             }
             refData = {max:2000,data:refMarkers}
             invHeatmapLayer.setData(refData)
@@ -1228,11 +1274,13 @@ function createMap() {
                         value = document.getElementById('radiusSlider').value
                         value = logslider(value)
                         document.getElementById('radiusSliderspan').innerHTML = Math.floor(value*1000)
-                        if (document.getElementById('normalisationCheckBox').checked) {
+                        if (document.getElementById('normalisationCheckBox').checked||document.getElementById('normaliseOutliersCheckBox').checked) {
                             reScaleNormalisation(value)
                         } else {
                             heatmapLayer.cfg.radius = value
-                            heatmapLayer._update()
+                            if (document.getElementById('heatMapCheckBox').checked) {
+                                heatmapLayer._update()
+                            }
                         }
                     });
         
@@ -1293,6 +1341,30 @@ function createMap() {
                     $("#normalisationCheckBox").change( function() {
                         updateHeatMap()
                     });
+
+
+                    checkBoxDiv = document.createElement('div')
+                    checkBoxDiv.setAttribute('class','custom-control custom-checkbox')
+                    selectorDiv.appendChild(checkBoxDiv)
+
+                    checkBox = document.createElement('input')
+                    checkBox.setAttribute('type','checkbox')
+                    checkBox.setAttribute('class','custom-control-input')
+                    checkBox.setAttribute('id','normaliseOutliersCheckBox')
+                    checkBox.setAttribute('name','normaliseOutliersCheckBox')
+                    checkBox.checked = false 
+                    checkBoxDiv.appendChild(checkBox)
+
+                    checkBoxLabel = document.createElement('label')
+                    checkBoxLabel.setAttribute('class','custom-control-label')
+                    checkBoxLabel.setAttribute('for','normaliseOutliersCheckBox')
+                    checkBoxLabel.innerHTML = 'Normalise Outliers'
+                    checkBoxDiv.appendChild(checkBoxLabel)
+
+                    $("#normaliseOutliersCheckBox").change( function() {
+                        updateHeatMap()
+                    });
+
 
                     checkBoxDiv = document.createElement('div')
                     checkBoxDiv.setAttribute('class','custom-control custom-checkbox')
