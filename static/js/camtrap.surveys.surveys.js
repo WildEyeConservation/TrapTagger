@@ -5163,7 +5163,7 @@ document.getElementById('btnSaveSurvey').addEventListener('click', ()=>{
             });
             reader.readAsText(kmlFileUpload.files[0])
         } else {
-            if (siteFolderN) {
+            if ((siteFolderN)&&(pathDisplay.options.length>0)) {
                 selectedFolder = document.querySelector(".site-folder.selected");
                 index = selectedFolder.dataset.index;
                 newSurveyTGCode = "(?:[^/]*/){"+index+"}([^/]*)"
@@ -8573,7 +8573,7 @@ function updateSurveyStructure(){
         }
     }
     else{
-        if (infoDiv.innerHTML != 'Checking...') {
+        if ((infoDiv.innerHTML != 'Checking...')&&(pathDisplay.options.length>0)) {
             infoDiv.innerHTML = 'Invalid structure. Please check your site and camera identifiers.'
         }
     }
