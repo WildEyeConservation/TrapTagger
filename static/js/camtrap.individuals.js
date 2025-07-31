@@ -1812,6 +1812,8 @@ modalLaunchID.on('hidden.bs.modal', function(){
 document.getElementById('btnSubmitInfoChange').addEventListener('click', function(){
     /** Submits the changes to the individual's information. */
 
+    this.disabled = true
+
     submitIndividualTags()
 
     if(document.getElementById('individualName').innerHTML != document.getElementById('newIndividualName').value){
@@ -4936,6 +4938,13 @@ function updateFeatures(flank,divID) {
 
 function submitFeatures(){
     /** Submits the features for the selected individual. */
+
+    if (editingEnabled) {
+        document.getElementById('individualFeaturesErrors').innerHTML = "Please finish editing before submitting features."
+        document.getElementById('btnSubmitInfoChange').disabled = false
+        return;
+    }
+
     var featuresDict = {}
     for (let flank in globalFeatures) {
         for (let det_id in globalFeatures[flank]) {
@@ -4958,12 +4967,15 @@ function submitFeatures(){
             if (this.readyState == 4 && this.status == 200) {
                 reply = JSON.parse(this.responseText);
                 console.log(reply)
+                document.getElementById('btnSubmitInfoChange').disabled = false
                 initFeatureMaps()
             }
         }
         xhttp.open("POST", '/submitFeatures');
         xhttp.send(formData)
 
+    } else{
+        document.getElementById('btnSubmitInfoChange').disabled = false
     }
 
 }

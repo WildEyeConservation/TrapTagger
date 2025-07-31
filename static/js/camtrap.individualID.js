@@ -3878,6 +3878,8 @@ function cleanFeatureMap(){
 
 modalIndividualFeatures.on('shown.bs.modal', function () {
     /** Prepares the modal for the individual features when shown. */
+    document.getElementById('individualFeaturesErrors').innerHTML = ""
+    document.getElementById('btnSubmitFeatures').disabled = false;
     if (individualFlankImages.length > 0) {
         closeLeftSidePanel()
         closeRightSidePanel()
@@ -3967,15 +3969,26 @@ function updateFeatures(divID) {
 
 $('#btnSubmitFeatures').click(function() {
     /** Submits the features after editing. */
+    this.disabled = true;
+    if (editingEnabled) {
+        document.getElementById('individualFeaturesErrors').innerHTML = "You cannot submit features while editing.";
+        this.disabled = false;
+        return;
+    }
+
     if (document.getElementById('individualFeaturesErrors').innerHTML != '') {
+        this.disabled = false;
         return;
     }
 
     if (selectedDetection == null) {
         document.getElementById('individualFeaturesErrors').innerHTML = "You have no primary image selected.";
+        this.disabled = false;
+        return;
     }
 
     if (Object.keys(globalFeatures['added']).length == 0 && Object.keys(globalFeatures['edited']).length == 0 && globalFeatures['removed'].length == 0 && selectedDetection.id==currentBestDetection) {
+        this.disabled = false;
         modalIndividualFeatures.modal('hide');
         return;
     }
@@ -3983,19 +3996,23 @@ $('#btnSubmitFeatures').click(function() {
     console.log('Submitting features:', globalFeatures);
 
     var formData = new FormData();
-    formData.append('detection_id', selectedDetection.id);
-    formData.append('features', JSON.stringify(globalFeatures));
-    formData.append('primary_user_selected', JSON.stringify(selectedDetection.id==currentBestDetection ? 'false' : 'true'));
+    var featuresDict = {}
+    featuresDict[selectedDetection.id] = globalFeatures
+    featuresDict[selectedDetection.id]['user_selected'] = selectedDetection.id==currentBestDetection ? 'false' : 'true'
+
+    formData.append('features', JSON.stringify(featuresDict));
     formData.append('individual_id', JSON.stringify(selectedDetection.individual_id));
 
     var xhttp = new XMLHttpRequest();
     xhttp.onreadystatechange = function() {
         if (this.readyState == 4 && this.status == 200) {
-            modalIndividualFeatures.modal('hide');
             reply = JSON.parse(this.responseText);
-            console.log(reply);
+            // console.log(reply);
+            document.getElementById('individualFeaturesErrors').innerHTML = ""
+            document.getElementById('btnSubmitFeatures').disabled = false;
+            modalIndividualFeatures.modal('hide');
         }
     };
-    xhttp.open("POST", "/submitDetectionFeatures");
+    xhttp.open("POST", "/submitFeatures");
     xhttp.send(formData);
 });

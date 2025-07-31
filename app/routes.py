@@ -15990,85 +15990,6 @@ def getFolderFirstFile(org_id,survey_id,folder):
 
     return json.dumps(file)
 
-@app.route('/submitDetectionFeatures', methods=['POST'])
-@login_required
-def submitDetectionFeatures():
-    '''Submits the features of a detection'''
-
-    detection_id = ast.literal_eval(request.form['detection_id'])
-    features =  ast.literal_eval(request.form['features'])
-    primary_user_selected = ast.literal_eval(request.form['primary_user_selected'])
-    individual_id = ast.literal_eval(request.form['individual_id']) if 'individual_id' in request.form else None
-
-    detection = db.session.query(Detection).get(detection_id)
-    status = 'error'
-    message = 'An error occured.'
-
-    if not (detection and (checkSurveyPermission(current_user.id,detection.image.camera.trapgroup.survey_id,'write') or checkAnnotationPermission(current_user.parent_id,current_user.turkcode[0].task.id))):
-        return {'redirect': url_for('done')}, 278
-
-    if primary_user_selected == 'true':
-        # Set the detection as the new primary detection
-        individual = db.session.query(Individual).join(Detection,Individual.detections).filter(Individual.id==individual_id).filter(Detection.id==detection_id).first()
-        if individual: 
-            for prim_det in individual.primary_detections:
-                if prim_det.flank==detection.flank: individual.primary_detections.remove(prim_det)
-            individual.primary_detections.append(detection)
-            individual.primary_selected = True
-            
-
-    app.logger.info('Submitting features for detection {}'.format(detection_id))
-    app.logger.info(features)
-
-    if features:
-        if features['removed']:
-            del_features = db.session.query(Feature).filter(Feature.detection_id==detection_id).filter(Feature.id.in_(features['removed'])).distinct().all()
-            for feature in del_features:
-                db.session.delete(feature)
-
-        if features['edited']:
-            for feature_id in features['edited']:
-                feature = features['edited'][feature_id]
-                poly_coords = feature['coords']
-                poly_string = 'POLYGON(('
-                for coord in poly_coords:
-                    if round(coord[0],2) == 0 or coord[0] < 0 : coord[0] = 0
-                    if round(coord[1],2) == 0 or coord[1] < 0: coord[1] = 0
-                    if round(coord[0],2) == 1 or coord[0] > 1: coord[0] = 1
-                    if round(coord[1],2) == 1 or coord[1] > 1: coord[1] = 1
-                    poly_string += str(coord[0]) + ' ' + str(coord[1]) + ','
-                poly_string = poly_string[:-1] + '))'
-                poly_area = db.session.query(func.ST_Area(func.ST_GeomFromText(poly_string))).first()[0]
-                if poly_area > Config.MIN_MASK_AREA:
-                    feature = db.session.query(Feature).filter(Feature.id==feature_id).filter(Feature.detection_id==detection_id).first()
-                    if feature:
-                        feature.shape = poly_string
-
-        if features['added']:
-            for feature_id in features['added']:
-                feature = features['added'][feature_id]
-                poly_coords = feature['coords']
-                poly_string = 'POLYGON(('
-                for coord in poly_coords:
-                    if round(coord[0],2) == 0 or coord[0] < 0 : coord[0] = 0
-                    if round(coord[1],2) == 0 or coord[1] < 0: coord[1] = 0
-                    if round(coord[0],2) == 1 or coord[0] > 1: coord[0] = 1
-                    if round(coord[1],2) == 1 or coord[1] > 1: coord[1] = 1
-                    poly_string += str(coord[0]) + ' ' + str(coord[1]) + ','
-                poly_string = poly_string[:-1] + '))'
-                poly_area = db.session.query(func.ST_Area(func.ST_GeomFromText(poly_string))).first()[0]
-                if poly_area > Config.MIN_MASK_AREA:
-                    check = db.session.query(Feature).filter(Feature.shape==poly_string).filter(Feature.detection_id==detection_id).first()
-                    if not check:
-                        new_feature = Feature(shape=poly_string, detection_id=detection_id)
-                        db.session.add(new_feature)
-
-        db.session.commit()
-        status = 'success'
-        message = ''
-
-    return json.dumps({'status': status, 'message': message})
-
 @app.route('/submitFeatures', methods=['POST'])
 @login_required
 def submitFeatures():
@@ -16087,7 +16008,8 @@ def submitFeatures():
         for detection in detections:
             if detection not in individual.detections: continue
             detection_id = str(detection.id)
-            
+            det_area = (detection.right - detection.left) * (detection.bottom - detection.top)
+
             if features[detection_id]['removed']:
                 del_features = db.session.query(Feature).filter(Feature.detection_id==detection_id).filter(Feature.id.in_(features[detection_id]['removed'])).distinct().all()
                 for feature in del_features:
@@ -16106,7 +16028,7 @@ def submitFeatures():
                         poly_string += str(coord[0]) + ' ' + str(coord[1]) + ','
                     poly_string = poly_string[:-1] + '))'
                     poly_area = db.session.query(func.ST_Area(func.ST_GeomFromText(poly_string))).first()[0]
-                    if poly_area > Config.MIN_MASK_AREA:
+                    if poly_area > 0 and poly_area < det_area:
                         feature = db.session.query(Feature).filter(Feature.id==feature_id).filter(Feature.detection_id==detection_id).first()
                         if feature:
                             feature.shape = poly_string
@@ -16124,7 +16046,7 @@ def submitFeatures():
                         poly_string += str(coord[0]) + ' ' + str(coord[1]) + ','
                     poly_string = poly_string[:-1] + '))'
                     poly_area = db.session.query(func.ST_Area(func.ST_GeomFromText(poly_string))).first()[0]
-                    if poly_area > Config.MIN_MASK_AREA:    
+                    if poly_area > 0 and poly_area < det_area:
                         check = db.session.query(Feature).filter(Feature.shape==poly_string).filter(Feature.detection_id==detection_id).first()
                         if not check:
                             new_feature = Feature(shape=poly_string, detection_id=detection_id)
