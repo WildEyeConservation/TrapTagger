@@ -357,6 +357,7 @@ def stop_task(self,task_id,live=False):
                 check_individual_detection_mismatch(task_id=task_id)
 
             # Update Individual Primary Images
+            task = db.session.query(Task).get(task_id)
             if '-4' in task.tagging_level or '-5' in task.tagging_level:
                 task_ids = [r.id for r in task.sub_tasks]
                 task_ids.append(task.id)
