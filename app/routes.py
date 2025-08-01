@@ -5537,68 +5537,6 @@ def acceptSuggestion(individual_1,individual_2):
 
         if Config.DEBUGGING: app.logger.info('Individual {} combined into individual {}'.format(individual2.name,individual1.name))
 
-        # Primary Dets
-        prim_dets1 = {}
-        prim_dets2 = {}
-        flanks = []
-        final_prim_dets = {}
-        for det in individual1.primary_detections:
-            prim_dets1[det.flank]= det
-            flanks.append(det.flank)
-        for det in individual2.primary_detections:
-            prim_dets2[det.flank]= det
-            flanks.append(det.flank)
-
-        flanks = list(set(flanks))
-        conflict = False
-        skip_flank_A = True
-        if flanks == ['A']: skip_flank_A = False
-
-        for flank in flanks:
-            if flank == 'A' and skip_flank_A: continue
-            prim_det1 = prim_dets1.get(flank)
-            prim_det2 = prim_dets2.get(flank)
-            use_score = False
-            if prim_det1 and prim_det2:
-                features1 = bool(prim_det1.features)
-                features2 = bool(prim_det2.features)
-                if features1 and features2:
-                    # conflict = True
-                    # break
-                    use_score = True
-                elif features1 and not features2:
-                    final_prim_dets[flank] = prim_det1
-                elif features2 and not features1:
-                    final_prim_dets[flank] = prim_det2
-                else:
-                    if individual1.primary_selected and individual2.primary_selected:
-                        # conflict = True
-                        # break
-                        use_score = True
-                    elif individual1.primary_selected:
-                        final_prim_dets[flank] = prim_det1
-                    elif individual2.primary_selected:
-                        final_prim_dets[flank] = prim_det2
-                    else:
-                        use_score=True
-                if use_score:
-                    score1 = calculate_detection_score(prim_det1.score,prim_det1.top,prim_det1.bottom,prim_det1.left,prim_det1.right,flank,prim_det1.image.corrected_timestamp)
-                    score2 = calculate_detection_score(prim_det2.score,prim_det2.top,prim_det2.bottom,prim_det2.left,prim_det2.right,flank,prim_det2.image.corrected_timestamp)
-                    if score1 >= score2:
-                        final_prim_dets[flank] = prim_det1
-                    else:
-                        final_prim_dets[flank] = prim_det2
-            elif prim_det1:
-                final_prim_dets[flank] = prim_det1
-            elif prim_det2:
-                final_prim_dets[flank] = prim_det2
-            else:
-                final_prim_dets[flank] = None
-
-        # if conflict:
-        #     #TODO: return info for modal 
-        #     pass
-
         # Create a third indiviudal that copies the first one, for individual undo 
         individual3 = Individual(name=individual1.name, active=False, species=individual1.species, user_id=individual1.user_id, timestamp=individual1.timestamp)
         individual3.detections = individual1.detections
@@ -5647,6 +5585,59 @@ def acceptSuggestion(individual_1,individual_2):
         individual1.detections.extend(individual2.detections)
         individual1.user_id = current_user.id
         individual1.timestamp = datetime.utcnow()
+
+        # Primary Dets
+        # Hierarchy: 1. Features 2. User selection 3. Score
+        prim_dets1 = {}
+        prim_dets2 = {}
+        flanks = []
+        final_prim_dets = {}
+        for det in individual1.primary_detections:
+            prim_dets1[det.flank]= det
+            flanks.append(det.flank)
+        for det in individual2.primary_detections:
+            prim_dets2[det.flank]= det
+            flanks.append(det.flank)
+
+        flanks = list(set(flanks))
+        skip_flank_A = True
+        if flanks == ['A']: skip_flank_A = False
+
+        for flank in flanks:
+            if flank == 'A' and skip_flank_A: continue
+            prim_det1 = prim_dets1.get(flank)
+            prim_det2 = prim_dets2.get(flank)
+            use_score = False
+            use_user_selection = False
+            if prim_det1 and prim_det2:
+                features1 = len(prim_det1.features)
+                features2 = len(prim_det2.features)
+                if features1 != features2:
+                    final_prim_dets[flank] = prim_det1 if features1 > features2 else prim_det2
+                else:
+                    use_user_selection = True
+
+                if use_user_selection:
+                    if individual1.primary_selected and individual2.primary_selected:
+                        use_score = True
+                    elif individual1.primary_selected:
+                        final_prim_dets[flank] = prim_det1
+                    elif individual2.primary_selected:
+                        final_prim_dets[flank] = prim_det2
+                    else:
+                        use_score=True
+
+                if use_score:
+                    score1 = calculate_detection_score(prim_det1.score,prim_det1.top,prim_det1.bottom,prim_det1.left,prim_det1.right,flank,prim_det1.image.corrected_timestamp)
+                    score2 = calculate_detection_score(prim_det2.score,prim_det2.top,prim_det2.bottom,prim_det2.left,prim_det2.right,flank,prim_det2.image.corrected_timestamp)
+                    final_prim_dets[flank] = prim_det1 if score1 >= score2 else prim_det2
+
+            elif prim_det1:
+                final_prim_dets[flank] = prim_det1
+            elif prim_det2:
+                final_prim_dets[flank] = prim_det2
+            else:
+                final_prim_dets[flank] = None
 
         final_prim_dets_list = []
         for flank in final_prim_dets:
@@ -7303,6 +7294,7 @@ def getTrapgroupCountsIndividual(individual_id,baseUnit):
 
     data = []
     maxVal = 0
+    hull_coords = []
     
     start_date = ast.literal_eval(request.form['start_date'])
     end_date = ast.literal_eval(request.form['end_date'])
@@ -7351,7 +7343,17 @@ def getTrapgroupCountsIndividual(individual_id,baseUnit):
 
         data = list(data_check.values())
 
-    return json.dumps({'max':maxVal,'data':data})
+        # Get convex hull for the trapgroup coordinates where count > 0
+        if data:
+            coords = np.array([(item['lng'], item['lat']) for item in data if item['count'] > 0])
+            if len(coords) > 3: 
+                hull = ConvexHull(coords)
+                hull_points = coords[hull.vertices]
+                hull_coords = [(lat, lon) for lon, lat in hull_points]
+            else:
+                hull_coords = [(lat, lon) for lon, lat in coords] 
+
+    return json.dumps({'max':maxVal,'data':data, 'hull_coords': hull_coords})
 
 # @app.route('/assignTag/<clusterID>/<tagID>')
 # @login_required

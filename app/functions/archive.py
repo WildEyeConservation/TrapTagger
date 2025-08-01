@@ -1145,7 +1145,7 @@ def dearchive_and_crop_individuals(self,task_id,launch_kwargs):
 
     return True
 
-def crop_image(detection_id,image_path,bbox_dict):
+def crop_image(detection_id,image_path,bbox_dict,min_size=200):
     '''Crops an image based on the bounding box provided.'''
     try:
         with tempfile.NamedTemporaryFile(delete=True, suffix='.JPG') as temp_file:
@@ -1176,6 +1176,9 @@ def crop_image(detection_id,image_path,bbox_dict):
             box_height = box_y2 - box_y1
             box_center_x = (box_x1 + box_x2) // 2
             box_center_y = (box_y1 + box_y2) // 2
+
+            box_width = max(box_width, min_size)
+            box_height = max(box_height, min_size)
 
             if box_width / box_height > aspect_ratio:
                 new_height = int(box_width / aspect_ratio)

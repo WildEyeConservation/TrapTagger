@@ -7240,9 +7240,8 @@ def update_individuals_primary_dets(task_ids=[],species=None,individual_ids=None
             scores[individual][flank][det] += 100
 
         # If the detection has features, we want to give it a higher score
-        if nr_features > 0: scores[individual][flank][det] += 200
-        
- 
+        if nr_features > 0: scores[individual][flank][det] += (200*nr_features)
+
     for individual in scores:
         best_dets = []
         if scores[individual]:

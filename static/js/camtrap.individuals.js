@@ -21,8 +21,7 @@ const btnPrevTasks = document.getElementById('btnPrevTasks');
 const btnNextTasks = document.getElementById('btnNextTasks');
 const modalMergeIndividual = $('#modalMergeIndividual');
 const modalDissociateImage = $('#modalDissociateImage');
-// const modalMergeIndividualLeft = $('#modalMergeIndividualLeft');
-// const modalMergeIndividualRight = $('#modalMergeIndividualRight');
+const modalDiscard = $('#modalDiscard');
 
 var modalAlertIndividualsReturn = false
 var individualSplide = null
@@ -84,6 +83,7 @@ var selectedIndividual = null
 var selectedIndividualName = null
 var mergeIndividualsFilters = {'task': null, 'mutual': null, 'search': null, 'order': null, 'tags': null, 'page': null}
 var individualBounds = []
+var mergeBounds = []
 var individualCoords = []
 var fullResMerge = {'L': false, 'R': false}
 var individualBestDets = {}
@@ -99,6 +99,12 @@ var globalFeatures = {}
 var individualFlankImages = {}
 var flankImageIndex = {'L': 0, 'R': 0 }
 var imgMapsFullRes = {}
+var tabActiveIndiv = 'baseIndivSummaryTab'
+var associationClick = false
+var associationID = null
+var associationName = null
+var unsavedChanges = false
+var convexHullPolygon = null 
 
 function getIndividuals(page = null) {
     /** Gets a page of individuals. Gets the first page if none is specified. */
@@ -247,7 +253,11 @@ function getIndividuals(page = null) {
 
                     image.addEventListener('click', function(individualID,individualName){
                         return function() {
-                            getIndividual(individualID,individualName)
+                            // getIndividual(individualID,individualName)
+                            cleanModalIndividual()
+                            selectedIndividual = individualID
+                            selectedIndividualName = individualName
+                            document.getElementById('openIndivSummary').click()
                         }
                     }(newIndividual.id,newIndividual.name));
 
@@ -380,8 +390,8 @@ function getIndividualInfo(individualID){
 
             }
 
-            initialiseStats()
-            initFeatureMaps()
+            // initialiseStats()
+            // initFeatureMaps()
         }
     }
     xhttp.open("GET", '/getIndividualInfo/'+individualID);
@@ -522,7 +532,7 @@ function getIndividual(individualID, individualName, association=false, order_va
                     //     }
                     // });
 
-                    buildAssociationTable(individualID)
+                    // buildAssociationTable(individualID)
 
                     if(association){
                         prepMapIndividual(individualImages[0])
@@ -708,6 +718,10 @@ function individualTags(individual_id){
                     label.setAttribute('for',tag+'box')
                     label.innerHTML = tag
                     checkDiv.appendChild(label)
+
+                    input.addEventListener('click', function() {
+                        unsavedChanges = true
+                    });
 
                 }
             }
@@ -1044,6 +1058,8 @@ function cleanModalIndividual() {
     individualBestDets = null
     individualFlankImages = {}
     flankImageIndex = {'L': 0, 'R': 0}
+    unsavedChanges = false
+    convexHullPolygon = null
 }
 
 modalIndividual.on('hidden.bs.modal', function(){
@@ -1058,9 +1074,18 @@ modalIndividual.on('hidden.bs.modal', function(){
         mergeIndividualsOpened = false
     }
     else {
-        cleanModalIndividual()
-        getIndividuals(current_page)
-        getTasks()
+        if (unsavedChanges) {
+            if (associationClick){
+                document.getElementById('discardText').innerHTML = 'Any unsaved changes made to this individual will be lost if you close this window and open the selected associated individual.'
+            } else {
+                document.getElementById('discardText').innerHTML = 'Any unsaved changes made to this individual will be lost if you close this window.'
+            }
+            modalDiscard.modal({keyboard: false, backdrop: 'static'});
+        } else {
+            cleanModalIndividual()
+            getIndividuals(current_page)
+            getTasks()
+        }
     }
 });
 
@@ -1826,6 +1851,7 @@ document.getElementById('btnSubmitInfoChange').addEventListener('click', functio
 
     submitFeatures()
 
+    unsavedChanges = false
     // submitFlanks()
 });
 
@@ -2296,9 +2322,20 @@ function buildAssociation(association,n){
 
     image.addEventListener('click', function(individualID,individualName){
         return function() {
-            cleanModalIndividual()
-            getIndividual(individualID,individualName, true)
-            modalIndividual.scrollTop(0)
+            associationClick = true
+            associationID = individualID
+            associationName = individualName
+            if (unsavedChanges) {
+                modalIndividual.modal('hide')
+            } else {
+                cleanModalIndividual()
+                // getIndividual(individualID,individualName, true)
+                selectedIndividual = individualID
+                selectedIndividualName = individualName
+                
+                document.getElementById('openIndivSummary').click()
+                modalIndividual.scrollTop(0)
+            }
         }
     }(association.id,association.name));
     
@@ -2829,7 +2866,9 @@ function initialiseMergeIndividualsLeft(){
     individualCoords = trapgroupInfo
 
     if (mergeImageOnly) {
-        individualBounds = [[individualCoords[0].latitude, individualCoords[0].longitude]]
+        mergeBounds = [[individualCoords[0].latitude, individualCoords[0].longitude]]
+    } else {
+        mergeBounds = individualBounds
     }
 
     if (noCoords) {
@@ -2893,8 +2932,8 @@ function initialiseMergeIndividualsLeft(){
             mapSitesL.setZoom(10)
         }
 
-        if (individualBounds.length == 1) {
-            var circle = L.circle([individualBounds[0][0], individualBounds[0][1]], {
+        if (mergeBounds.length == 1) {
+            var circle = L.circle([mergeBounds[0][0], mergeBounds[0][1]], {
                 color: "rgba(223,105,26,1)",
                 fill: true,
                 fillOpacity: 0.2,
@@ -2905,7 +2944,7 @@ function initialiseMergeIndividualsLeft(){
             }).addTo(mapSitesL)
         
         } else {
-            var poly1 = L.polygon(individualBounds, {
+            var poly1 = L.polygon(mergeBounds, {
                 color: "rgba(223,105,26,1)",
                 fill: true,
                 fillOpacity: 0.2,
@@ -3808,8 +3847,8 @@ function viewMergeIndividual(){
                         }
 
 
-                        if (individualBounds.length == 1){
-                            var circle = L.circle([individualBounds[0][0], individualBounds[0][1]], {
+                        if (mergeBounds.length == 1){
+                            var circle = L.circle([mergeBounds[0][0], mergeBounds[0][1]], {
                                 color: "rgba(223,105,26,1)",
                                 fill: true,
                                 fillOpacity: 0.2,
@@ -3819,7 +3858,7 @@ function viewMergeIndividual(){
                                 contextmenu: false,
                             }).addTo(mapSitesR)
                         } else {
-                            var poly1 = L.polygon(individualBounds, {
+                            var poly1 = L.polygon(mergeBounds, {
                                 color: "rgba(223,105,26,1)",
                                 fill: true,
                                 fillOpacity: 0.2,
@@ -4649,7 +4688,7 @@ function updateFeatureButtons(flank) {
             last = document.createElement('li')
             last.addEventListener('click', function() {updateFlankImageIndex(flank, last_index);});
             last.innerHTML = (last_index+1).toString()
-            last.style.fontSize = '80%'
+            // last.style.fontSize = '80%'
             paginationCircles.append(last)
         }
     }
@@ -4723,12 +4762,14 @@ $('#btnRightFlankNext').click( function() {
 
 $('#cxLeftPrimaryImage').on('change', function() {
     /** Toggles the primary image for the features. */
+    unsavedChanges = true
     updateFlankPrimary(this.checked, 'L', 'leftFeatureMapDiv');
 });
 
 
 $('#cxRightPrimaryImage').on('change', function() {
     /** Toggles the primary image for the features. */
+    unsavedChanges = true
     updateFlankPrimary(this.checked, 'R', 'rightFeatureMapDiv');
 });
 
@@ -4856,6 +4897,7 @@ function featureEditPrep(flank,div_id){
 
 function updateFeatures(flank,divID) {
     /** Updates the features after an edit has been performed. */
+    unsavedChanges = true
     any_out_of_bounds = false
     det_id = individualFlankImages[flank][flankImageIndex[flank]].detection.id
     if (!globalFeatures[flank][det_id]) {
@@ -4980,6 +5022,103 @@ function submitFeatures(){
 
 }
 
+function changeIndivTab(evt, tabName) {
+    /** Opens the indivs tab */
+
+    var mainModal = document.getElementById('modalIndividual')
+    var tabcontent = mainModal.getElementsByClassName("tabcontent");
+    for (let i = 0; i < tabcontent.length; i++) {
+        tabcontent[i].style.display = "none";
+    }
+
+    var tablinks = mainModal.getElementsByClassName("tablinks");
+    for (let i = 0; i < tablinks.length; i++) {
+        tablinks[i].className = tablinks[i].className.replace(" active", "");
+    }
+
+    document.getElementById(tabName).style.display = "block";
+    evt.currentTarget.className += " active";
+    tabActiveIndiv = tabName
+
+    if (tabName == 'baseIndivSummaryTab') {
+        // getIndividual(selectedIndividual,selectedIndividualName)
+        openIndivTab()
+    }
+    else if (tabName == 'baseIndivFeaturesTab') {
+        // initFeatureMaps()
+        openFeaturesTab()
+    }
+    else if (tabName == 'baseIndivStatsTab') {
+        // initialiseStats()
+        openStatsTab()
+    }
+    else if (tabName == 'baseIndivAssociationsTab') {
+        // buildAssociationTable(selectedIndividual)
+        openAssociationsTab()
+    }
+
+}
+
+function openIndivTab() {
+    /** Opens the individual tab and populates the individual data. */
+    if (map==null||associationClick) {
+        getIndividual(selectedIndividual,selectedIndividualName,associationClick)
+        associationClick = false
+    }
+}
+
+function openFeaturesTab() {
+    /** Opens the features tab and initialises the feature maps. */
+    if (Object.keys(individualFlankImages).length == 0) {
+        initFeatureMaps()
+    }
+}
+
+function openStatsTab() {
+    /** Opens the stats tab and initialises the stats. */
+    if (document.getElementById('statisticsDiv').firstChild===null) {
+        initialiseStats()
+    }
+}
+
+function openAssociationsTab() {
+    /** Opens the associations tab and builds the association table. */
+    if (document.getElementById('associationsDiv').firstChild===null) {
+        buildAssociationTable(selectedIndividual)
+    }
+}
+
+$('#newIndividualName').on('change', function() {
+    unsavedChanges = true
+});
+
+$('#idNotes').on('change', function() {
+    unsavedChanges = true
+});
+
+$('#btnCancelDiscard').click( function() {
+    /** Cancels the discard and reopens the modal. */
+    associationClick = false
+    modalDiscard.modal('hide')
+    modalIndividual.modal({keyboard: true})
+});
+
+$('#btnConfirmDiscard').click( function() {
+    /** Confirms the discard and closes the modal. */
+    modalDiscard.modal('hide')
+    if (associationClick) {
+        /** If the discard was triggered by an association click, reset the individual selection. */
+            associationClick = false
+            cleanModalIndividual()
+            selectedIndividual = associationID
+            selectedIndividualName = associationName
+            document.getElementById('openIndivSummary').click()
+    } else {
+        cleanModalIndividual()
+        getIndividuals(current_page)
+        getTasks()
+    }
+});
 
 function onload(){
     /**Function for initialising the page on load.*/

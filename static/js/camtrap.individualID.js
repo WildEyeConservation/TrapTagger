@@ -2804,6 +2804,10 @@ function prepImageMap(div_id, image_url, detection, size=10,crop=false) {
                 leafletFeatureIDs[div_id] = {}
             }
 
+            if (leftPanel.style.display == 'block' || rightPanel.style.display == 'block') {
+                updatePanelHeights()
+            }
+
         }
         img.onerror = function() {
             if(crop){
@@ -2836,6 +2840,20 @@ function openRightSidePanel() {
     rightPanel.style.height = fullPageHeight + 'px';
     rightPanel.style.display = 'block';
     populatePanel('right', clusters['map2'][clusterIndex['map2']].id);  
+}
+
+function updatePanelHeights() {
+    /** Updates the height of the left and right side panels. */
+    const navbar = document.getElementById('navbar');
+    const navbarHeight = navbar.offsetHeight;
+    const fullPageHeight = Math.max(document.documentElement.scrollHeight, window.innerHeight) - navbarHeight;
+    if (leftPanel.style.display === 'block') {
+        leftPanel.style.height = fullPageHeight + 'px';
+    }
+
+    if (rightPanel.style.display === 'block') {
+        rightPanel.style.height = fullPageHeight + 'px';
+    }
 }
 
 function closeRightSidePanel() {

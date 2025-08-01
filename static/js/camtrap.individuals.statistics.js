@@ -571,6 +571,39 @@ function createIndivMap() {
                     mapStats.removeLayer(heatmapLayer)
                 }
             });
+
+            checkBoxDiv = document.createElement('div')
+            checkBoxDiv.setAttribute('class','custom-control custom-checkbox')
+            selectorDiv.appendChild(checkBoxDiv)
+
+            checkBox = document.createElement('input')
+            checkBox.setAttribute('type','checkbox')
+            checkBox.setAttribute('class','custom-control-input')
+            checkBox.setAttribute('id','polygonCheckBox')
+            checkBox.setAttribute('name','polygonCheckBox')
+            checkBox.checked = false
+            checkBoxDiv.appendChild(checkBox)
+
+            checkBoxLabel = document.createElement('label')
+            checkBoxLabel.setAttribute('class','custom-control-label')
+            checkBoxLabel.setAttribute('for','polygonCheckBox')
+            checkBoxLabel.innerHTML = 'Show Convex Hull Polygon'
+            checkBoxDiv.appendChild(checkBoxLabel)
+
+            $("#polygonCheckBox").change( function() {
+                if (this.checked) {
+                    if (convexHullPolygon!= null) {
+                        mapStats.addLayer(convexHullPolygon);
+                    } else {
+                        updateHeatMap()
+                    }
+                } else {
+                    if (mapStats.hasLayer(convexHullPolygon)) {
+                        mapStats.removeLayer(convexHullPolygon);
+                    }
+                }
+
+            });
             
             updateHeatMap()
         }
@@ -675,6 +708,41 @@ function updateHeatMap(){
             heatmapLayer.setData(data);
             if (document.getElementById('heatMapCheckBox').checked) {
                 heatmapLayer._update()
+            }
+
+            // Update the convex hull polygon
+            hull_coords = reply.hull_coords
+            if (mapStats.hasLayer(convexHullPolygon)) {
+                mapStats.removeLayer(convexHullPolygon);
+            }
+            convexHullPolygon = null
+            if (hull_coords.length > 0) {
+                if (hull_coords.length == 1) {
+                    convexHullPolygon = L.circle(hull_coords[0], {
+                        color: "rgba(223,105,26,1)",
+                        fill: true,
+                        fillOpacity: 0.2,
+                        opacity: 0.8,
+                        radius: 1000,
+                        weight:3,
+                        contextmenu: false,
+                    })
+                } else {
+                    convexHullPolygon = L.polygon(hull_coords, {
+                        color: "rgba(223,105,26,1)",
+                        fill: true,
+                        fillOpacity: 0.2,
+                        opacity: 0.8,
+                        weight:3,
+                        contextmenu: false,
+                    })
+                }
+            }
+
+            if (document.getElementById('polygonCheckBox').checked) {
+                if (convexHullPolygon != null) {
+                    mapStats.addLayer(convexHullPolygon);
+                }
             }
         }
     }
