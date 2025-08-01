@@ -16157,4 +16157,31 @@ def getIndividualFlankDets(individual_id, flank):
     reply = list(flank_dets.values())
 
     return json.dumps({'status': 'success', 'data': reply})
-    
+
+@app.route('/getIndividualHullCoords/<individual_id>')
+@login_required
+def getIndividualHullCoords(individual_id):
+    '''Returns the hull coordinates for a specific individual'''
+
+    hull_points = []
+    coords = []
+    individual = db.session.query(Individual).get(individual_id)
+    if individual and individual.active and (all(checkAnnotationPermission(current_user.parent_id,task.id) for task in individual.tasks) or any(checkSurveyPermission(current_user.id,task.survey_id,'read') for task in individual.tasks)):    
+        # Get the convex hull of all the indiviudals coordinates
+        coords = [tuple(row) for row in db.session.query(Trapgroup.tag, Trapgroup.latitude, Trapgroup.longitude)\
+                        .join(Camera)\
+                        .join(Image)\
+                        .join(Detection)\
+                        .filter(Detection.individuals.contains(individual))\
+                        .filter(and_(Trapgroup.latitude!=0, Trapgroup.longitude!=0))\
+                        .distinct().all()]
+
+        if len(coords) > 3:
+            points = np.array([(lon, lat) for tag, lat, lon in coords])
+            hull = ConvexHull(points)
+            hull_points = points[hull.vertices]
+            hull_points = [(lat, lon) for lon, lat in hull_points]
+        else:
+            hull_points = [(lat, lon) for tag, lat, lon in coords]
+
+    return json.dumps({'hull_coords': hull_points, 'coords': coords})

@@ -2881,7 +2881,7 @@ function populatePanel(panel,individual_id){
         if (this.readyState == 4 && this.status == 200) {
             var info = JSON.parse(this.responseText);
 
-            console.log(info)
+            // console.log(info)
 
             var panelInfo = document.getElementById(panel + 'PanelInfoDiv')
             while(panelInfo.firstChild){
@@ -3127,9 +3127,66 @@ function populatePanel(panel,individual_id){
                     mapSites.setZoom(10)
                 }
 
+                if (panel=='right'){
+                    colour = "rgba(91,192,222,1)"
+                    map1_indiv_id = clusters['map1'][clusterIndex['map1']].id
+                    var xhttp = new XMLHttpRequest();
+                    xhttp.onreadystatechange =
+                    function(){
+                        if (this.readyState == 4 && this.status == 200) {
+                            reply = JSON.parse(this.responseText);
+                            coords = reply.coords
+                            hull_coords = reply.hull_coords
+                            if (coords && coords.length>0 && hull_coords && hull_coords.length > 0) {
+
+                                for (let i=0;i<coords.length;i++) {
+                                    if (added_coords.includes(coords[i][1] + ',' + coords[i][2])) {
+                                        continue
+                                    }
+                                    var marker = L.marker([coords[i][1], coords[i][2]]).addTo(mapSites)
+                                    marker.bindPopup(coords[i][0]);
+                                    marker.on('mouseover', function (e) {
+                                        this.openPopup();
+                                    });
+                                    marker.on('mouseout', function (e) {
+                                        this.closePopup();
+                                    });
+                                }
+
+
+                                if (hull_coords.length == 1) {
+                                    var circle = L.circle([hull_coords[0][0], hull_coords[0][1]], {
+                                        color: "rgba(223,105,26,1)",
+                                        fill: true,
+                                        fillOpacity: 0.2,
+                                        opacity: 0.8,
+                                        radius: 1000,
+                                        weight:3,
+                                        contextmenu: false,
+                                    }).addTo(mapSites)
+                                } else {
+                                    var poly = L.polygon(hull_coords, {
+                                        color: "rgba(223,105,26,1)",
+                                        fill: true,
+                                        fillOpacity: 0.2,
+                                        opacity: 0.8,
+                                        weight:3,
+                                        contextmenu: false,
+                                    }).addTo(mapSites)
+                                }
+                            } 
+                        }
+                    }
+                    xhttp.open("GET", '/getIndividualHullCoords/'+map1_indiv_id);
+                    xhttp.send();
+
+                } else {
+                    colour = "rgba(223,105,26,1)"
+                }
+
                 if (info.bounds.length == 1){
                     var circle = L.circle([info.bounds[0][0], info.bounds[0][1]], {
-                        color: "rgba(91,192,222,1)",
+                        color: colour,
                         fill: true,
                         fillOpacity: 0.2,
                         opacity: 0.8,
@@ -3139,7 +3196,7 @@ function populatePanel(panel,individual_id){
                     }).addTo(mapSites)
                 } else {
                     var poly2 = L.polygon(info.bounds, {
-                        color: "rgba(91,192,222,1)",
+                        color: colour,
                         fill: true,
                         fillOpacity: 0.2,
                         opacity: 0.8,
