@@ -997,6 +997,7 @@ function cleanModalIndividual() {
     while(orderAssociationsDiv.firstChild){
         orderAssociationsDiv.removeChild(orderAssociationsDiv.firstChild);
     }
+    orderAssociationsDiv.hidden = true
 
     leftFeatureMap = document.getElementById('leftFeatureMap')
     while(leftFeatureMap.firstChild){
@@ -2084,6 +2085,8 @@ function buildAssociationTable(individual_id){
 
     
     var orderAssociationsDiv = document.getElementById('orderAssociationsDiv');
+    orderAssociationsDiv.hidden = true 
+
     var h5 = document.createElement('h5')
     h5.innerHTML = 'Order'
     h5.setAttribute('style','margin-bottom: 2px')
@@ -2249,8 +2252,11 @@ function getIndividualAssociations(individual_id, page=null){
                 while (orderAssociationsDiv.firstChild) {
                     orderAssociationsDiv.removeChild(orderAssociationsDiv.firstChild);
                 }
+                orderAssociationsDiv.hidden = true;
             }
             else{
+                var orderAssociationsDiv = document.getElementById('orderAssociationsDiv');
+                orderAssociationsDiv.hidden = false;
                 for (let i=0;i<reply.associations.length;i++) {
                     buildAssociation(reply.associations[i],i)
                 }

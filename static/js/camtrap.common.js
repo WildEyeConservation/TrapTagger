@@ -377,7 +377,7 @@ function buildDetection(image,detection,mapID = 'map1',colour=null) {
         else if (isIDing && (document.getElementById('btnSendToBack')==null)&&(mapID!='known')) {
             //Set the map view to fit detection bounds when viewing individual
             fitBoundsInProcess[mapID] = true
-            map[mapID].fitBounds(rect.getBounds(), {padding: [10,10]});
+            map[mapID].fitBounds(rect.getBounds(), {padding: [10,10], animate:false});
             // map[mapID].once('moveend', function(wrapMapID,wrapDetectionID) {
             //     return function() {
             //         if (fitBoundsInProcess[wrapMapID]) {

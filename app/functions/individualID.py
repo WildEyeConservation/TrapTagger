@@ -1236,8 +1236,7 @@ def check_individual_detection_mismatch(self,task_id,cluster_id=None):
                 # wbia_detections.append(detection)
                 if detection in individual.primary_detections:
                     individual.primary_detections.remove(detection)
-                    if len(individual.primary_detections) == 0:
-                        update_individuals.append(individual.id)
+                    update_individuals.append(individual.id)
 
         # Delete individuals with no detections
         individuals = db.session.query(Individual)\

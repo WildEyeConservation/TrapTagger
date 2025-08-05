@@ -640,6 +640,9 @@ def getAllIndividuals():
 @login_required
 def editIndividualName():
     ''' Edit the specified individual's name '''
+
+    if (not current_user.admin) and (not GLOBALS.redisClient.sismember('active_jobs_'+str(current_user.turkcode[0].task_id),current_user.username)): return {'redirect': url_for('done')}, 278
+
     error = ''
     individual_id = ast.literal_eval(request.form['individual_id'])
     name = ast.literal_eval(request.form['name'])
@@ -821,6 +824,8 @@ def deleteIndividual(individual_id):
 def getIndividual(individual_id):
     '''Returns a dictionary of all images associated with the specified individual with the following info: ID, URL, timestamp, trapgroup, and detections.'''
     
+    if (not current_user.admin) and (not GLOBALS.redisClient.sismember('active_jobs_'+str(current_user.turkcode[0].task_id),current_user.username)): return {'redirect': url_for('done')}, 278
+
     reply = []
     access = None
     individual_id = int(individual_id)
@@ -5352,8 +5357,7 @@ def dissociateDetection(detection_id):
 
         if detection in individual.primary_detections:
             individual.primary_detections.remove(detection)
-            if len(individual.primary_detections) == 0 and individual_id: # Only do this if the request comes from the Individuals page, if launched task primary images will be updated later
-                update_individuals_primary_dets(individual_ids=[individual.id])
+            update_individuals_primary_dets(individual_ids=[individual.id])
 
 
         individuals1 = [r[0] for r in db.session.query(Individual.id)\
@@ -15684,6 +15688,9 @@ def mergeDetectionIntoIndividual():
 @login_required
 def getMergeTasks(id,id_type):
     '''Returns a paginated dictionary of all tasks where other individuals can be merged into the selected individual'''
+
+    if (not current_user.admin) and (not GLOBALS.redisClient.sismember('active_jobs_'+str(current_user.turkcode[0].task_id),current_user.username)): return {'redirect': url_for('done')}, 278
+
     individual_id = None
     task_id = None
     if id_type == 'individual':
@@ -16004,6 +16011,8 @@ def submitFeatures():
     status = 'error'
     message = 'An error occured.'
 
+    if (not current_user.admin) and (not GLOBALS.redisClient.sismember('active_jobs_'+str(current_user.turkcode[0].task_id),current_user.username)): return {'redirect': url_for('done')}, 278
+
     if individual and individual.active and (all(checkSurveyPermission(current_user.id,task.survey_id,'write') for task in individual.tasks) or all(checkAnnotationPermission(current_user.parent_id,task.id) for task in individual.tasks)):
         detection_ids = features.keys()
         detections = db.session.query(Detection).filter(Detection.id.in_(detection_ids)).distinct().all()
@@ -16072,6 +16081,8 @@ def submitFeatures():
 def editIndividualTag():
     ''' Edits a tag for the specified individual'''
 
+    if (not current_user.admin) and (not GLOBALS.redisClient.sismember('active_jobs_'+str(current_user.turkcode[0].task_id),current_user.username)): return {'redirect': url_for('done')}, 278
+
     individual_id = ast.literal_eval(request.form['individual_id'])
     individual = db.session.query(Individual).get(individual_id)
     tag = ast.literal_eval(request.form['tag'])
@@ -16097,6 +16108,8 @@ def editIndividualTag():
 @login_required
 def getIndividualFlankDets(individual_id, flank):
     '''Returns a dictionary of all detections for a specific flank of an individual with any drawn features'''
+
+    if (not current_user.admin) and (not GLOBALS.redisClient.sismember('active_jobs_'+str(current_user.turkcode[0].task_id),current_user.username)): return {'redirect': url_for('done')}, 278
 
     reply = []
     individual = db.session.query(Individual).get(individual_id)

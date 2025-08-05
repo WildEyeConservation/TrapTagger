@@ -7196,6 +7196,7 @@ def update_individuals_primary_dets(task_ids=[],species=None,individual_ids=None
     start = time.time()
 
     scores = {}
+    user_selected_dets = {}
 
     data = rDets(db.session.query(
         Individual,
@@ -7216,7 +7217,6 @@ def update_individuals_primary_dets(task_ids=[],species=None,individual_ids=None
         data = data.filter(Individual.species==species)
 
     data = data.distinct().all()
-
     
     for individual, det, timestamp in data:
         raw_score = det.score
@@ -7238,6 +7238,9 @@ def update_individuals_primary_dets(task_ids=[],species=None,individual_ids=None
         # If detection was selected by the user as primary detection, we want the detection to be selected as the best detection
         if is_user_selected_primary:
             scores[individual][flank][det] += 100
+            if individual.id not in user_selected_dets:
+                user_selected_dets[individual.id] = []
+            user_selected_dets[individual.id].append(det.id)
 
         # If the detection has features, we want to give it a higher score
         if nr_features > 0: scores[individual][flank][det] += (200*nr_features)
@@ -7256,7 +7259,13 @@ def update_individuals_primary_dets(task_ids=[],species=None,individual_ids=None
             best_dets = sorted(best_dets, key=lambda x: scores[individual][x.flank][x], reverse=True) #Order the best_dets by score 
         else: 
             best_dets = [max(scores[individual]['A'], key=scores[individual]['A'].get)] if 'A' in scores[individual] and scores[individual]['A'] else []
-        
+
+        # Check if the individual will still have user_selected primary detections
+        if individual.primary_selected:
+            selected_dets = user_selected_dets.get(individual.id, [])
+            if not any(det.id in selected_dets for det in best_dets):
+                individual.primary_selected = False
+              
         individual.primary_detections = best_dets
 
         

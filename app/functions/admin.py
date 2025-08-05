@@ -135,8 +135,9 @@ def delete_task(self,task_id):
                         # no point doing this if its going to be deleted
                         individual.tasks.remove(task)
                         individual.tags = [tag for tag in individual.tags if tag.id not in tags]
+                        prim_count = len(individual.primary_detections)
                         individual.primary_detections = [det for det in individual.primary_detections if det.id not in detections]
-                        if len(individual.primary_detections)==0:
+                        if len(individual.primary_detections)==0 or len(individual.primary_detections) != prim_count:
                             update_individuals.append(individual.id)                   
 
                 db.session.commit()
@@ -2150,8 +2151,9 @@ def delete_individuals(self,task_ids, species):
             else:
                 individual.tasks = [task for task in individual.tasks if task.id not in task_ids]
                 individual.tags = [tag for tag in individual.tags if tag.task_id not in task_ids]
+                prim_count = len(individual.primary_detections)
                 individual.primary_detections = [det for det in individual.primary_detections if det.id not in detections]
-                if len(individual.primary_detections)==0:
+                if len(individual.primary_detections)==0 or len(individual.primary_detections) != prim_count:
                     update_individuals.append(individual.id)
 
 

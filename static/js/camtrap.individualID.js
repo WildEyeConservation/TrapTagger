@@ -1662,8 +1662,21 @@ function getMatchingKpts(detID1, detID2) {
 
     id = detID1 + '_' + detID2
     if (id in savedKpts) {
-        addHotspotsHeatmap('map1', savedKpts[id].kpts[detID1], savedKpts[id].scores, detection_zoom['map1'][detID1])
-        addHotspotsHeatmap('map2', savedKpts[id].kpts[detID2], savedKpts[id].scores, detection_zoom['map2'][detID2])
+        zoom1 = detection_zoom['map1'][detID1]
+        zoom2 = detection_zoom['map2'][detID2]
+        if (zoom1==0||zoom1==null){
+            det1 = clusters['map1'][clusterIndex['map1']].images[imageIndex['map1']].detections[0]
+            det_bounds = [[det1.top*mapHeight['map1'],det1.left*mapWidth['map1']],[det1.bottom*mapHeight['map1'],det1.right*mapWidth['map1']]]
+            zoom1 = map['map1'].getBoundsZoom(det_bounds,false,[10, 10])
+        }
+        if (zoom2==0||zoom2==null){
+            det2 = clusters['map2'][clusterIndex['map2']].images[imageIndex['map2']].detections[0]
+            det_bounds = [[det2.top*mapHeight['map2'],det2.left*mapWidth['map2']],[det2.bottom*mapHeight['map2'],det2.right*mapWidth['map2']]]
+            zoom2 = map['map2'].getBoundsZoom(det_bounds,false,[10, 10])
+        }
+
+        addHotspotsHeatmap('map1', savedKpts[id].kpts[detID1], savedKpts[id].scores, zoom1)
+        addHotspotsHeatmap('map2', savedKpts[id].kpts[detID2], savedKpts[id].scores, zoom2)
     }
     else{
         var xhttp = new XMLHttpRequest();
@@ -1679,9 +1692,22 @@ function getMatchingKpts(detID1, detID2) {
 
                 id = wrapDetID1 + '_' + wrapDetID2
                 savedKpts[id] = results
-    
-                addHotspotsHeatmap('map1', results.kpts[wrapDetID1], results.scores,detection_zoom['map1'][wrapDetID1])
-                addHotspotsHeatmap('map2', results.kpts[wrapDetID2], results.scores,detection_zoom['map2'][wrapDetID2])
+            
+                zoom1 = detection_zoom['map1'][wrapDetID1]
+                zoom2 = detection_zoom['map2'][wrapDetID2]
+                if (zoom1==0||zoom1==null){
+                    det1 = clusters['map1'][clusterIndex['map1']].images[imageIndex['map1']].detections[0]
+                    det_bounds = [[det1.top*mapHeight['map1'],det1.left*mapWidth['map1']],[det1.bottom*mapHeight['map1'],det1.right*mapWidth['map1']]]
+                    zoom1 = map['map1'].getBoundsZoom(det_bounds,false,[10, 10])
+                }
+                if (zoom2==0||zoom2==null){
+                    det2 = clusters['map2'][clusterIndex['map2']].images[imageIndex['map2']].detections[0]
+                    det_bounds = [[det2.top*mapHeight['map2'],det2.left*mapWidth['map2']],[det2.bottom*mapHeight['map2'],det2.right*mapWidth['map2']]]
+                    zoom2 = map['map2'].getBoundsZoom(det_bounds,false,[10, 10])
+                }
+
+                addHotspotsHeatmap('map1', results.kpts[wrapDetID1], results.scores, zoom1)
+                addHotspotsHeatmap('map2', results.kpts[wrapDetID2], results.scores, zoom2)
             }
         }}(detID1,detID2);
         xhttp.open("GET", '/ibsHandler/getMatchingKpts/'+detID1+'/'+detID2);
@@ -2206,7 +2232,9 @@ function viewKnownIndividual(mapID='known') {
     var xhttp = new XMLHttpRequest();
     xhttp.onreadystatechange =
     function(){
-        if (this.readyState == 4 && this.status == 200) {
+        if (this.readyState == 4 && this.status == 278) {
+            window.location.replace(JSON.parse(this.responseText)['redirect'])
+        } else if (this.readyState == 4 && this.status == 200) {
             reply = JSON.parse(this.responseText);
             // console.log(reply)
             // knownImages =  reply.individual
@@ -2271,7 +2299,9 @@ function viewKnownIndividual(mapID='known') {
             var xhttp = new XMLHttpRequest();
             xhttp.onreadystatechange =
             function(){
-                if (this.readyState == 4 && this.status == 200) {
+                if (this.readyState == 4 && this.status == 278) {
+                    window.location.replace(JSON.parse(this.responseText)['redirect'])
+                } else if (this.readyState == 4 && this.status == 200) {
                     var info = JSON.parse(this.responseText);
                 
                     var info1 = document.createElement('div')
@@ -2878,7 +2908,9 @@ function populatePanel(panel,individual_id){
     var xhttp = new XMLHttpRequest();
     xhttp.onreadystatechange =
     function(){
-        if (this.readyState == 4 && this.status == 200) {
+        if (this.readyState == 4 && this.status == 278) {
+            window.location.replace(JSON.parse(this.responseText)['redirect'])
+        } else if (this.readyState == 4 && this.status == 200) {
             var info = JSON.parse(this.responseText);
 
             // console.log(info)
@@ -2941,7 +2973,9 @@ function populatePanel(panel,individual_id){
                             xhttp.open("POST", '/editIndividualName');
                             xhttp.onreadystatechange =
                             function(){
-                                if (this.readyState == 4 && this.status == 200) {
+                                if (this.readyState == 4 && this.status == 278) {
+                                    window.location.replace(JSON.parse(this.responseText)['redirect'])
+                                } else if (this.readyState == 4 && this.status == 200) {
                                     reply = JSON.parse(this.responseText);
                                     console.log(reply)
                                     if (reply.name!=null){
@@ -3026,7 +3060,9 @@ function populatePanel(panel,individual_id){
                             xhttp.open("POST", '/assignNote');
                             xhttp.onreadystatechange =
                             function(){
-                                if (this.readyState == 4 && this.status == 200) {
+                                if (this.readyState == 4 && this.status == 278) {
+                                    window.location.replace(JSON.parse(this.responseText)['redirect'])
+                                } else if (this.readyState == 4 && this.status == 200) {
                                     reply = JSON.parse(this.responseText);
                                     if (reply=='success'){
                                         individualData[wrpPanel].note = newNote
@@ -3254,7 +3290,9 @@ function populatePanel(panel,individual_id){
                         xhttp.open("POST", '/editIndividualTag');
                         xhttp.onreadystatechange =
                         function(){
-                            if (this.readyState == 4 && this.status == 200) {
+                            if (this.readyState == 4 && this.status == 278) {
+                                window.location.replace(JSON.parse(this.responseText)['redirect'])
+                            } else if (this.readyState == 4 && this.status == 200) {
                                 reply = JSON.parse(this.responseText);
                                 console.log(reply)
                                 if (reply.tags!=null){
@@ -3292,7 +3330,9 @@ function populatePanel(panel,individual_id){
                         var indiv_id = clusters[map_id][clusterIndex[map_id]].id
                         var xhttp = new XMLHttpRequest();
                         xhttp.onreadystatechange = function() {
-                            if (this.readyState == 4 && this.status == 200) {
+                            if (this.readyState == 4 && this.status == 278) {
+                                window.location.replace(JSON.parse(this.responseText)['redirect'])
+                            } else if (this.readyState == 4 && this.status == 200) {
                                 var response = JSON.parse(this.responseText);
                                 // Process the response as needed
                                 individualFlankImages = response.data;
@@ -3341,7 +3381,9 @@ function populatePanel(panel,individual_id){
                         var indiv_id = clusters[map_id][clusterIndex[map_id]].id
                         var xhttp = new XMLHttpRequest();
                         xhttp.onreadystatechange = function() {
-                            if (this.readyState == 4 && this.status == 200) {
+                            if (this.readyState == 4 && this.status == 278) {
+                                window.location.replace(JSON.parse(this.responseText)['redirect'])
+                            } else if (this.readyState == 4 && this.status == 200) {
                                 var response = JSON.parse(this.responseText);
                                 // Process the response as needed
                                 individualFlankImages = response.data;
@@ -4068,7 +4110,7 @@ $('#btnSubmitFeatures').click(function() {
         return;
     }
 
-    console.log('Submitting features:', globalFeatures);
+    // console.log('Submitting features:', globalFeatures);
 
     var formData = new FormData();
     var featuresDict = {}
@@ -4080,7 +4122,9 @@ $('#btnSubmitFeatures').click(function() {
 
     var xhttp = new XMLHttpRequest();
     xhttp.onreadystatechange = function() {
-        if (this.readyState == 4 && this.status == 200) {
+        if (this.readyState == 4 && this.status == 278) {
+            window.location.replace(JSON.parse(this.responseText)['redirect'])
+        } else if (this.readyState == 4 && this.status == 200) {
             reply = JSON.parse(this.responseText);
             // console.log(reply);
             document.getElementById('individualFeaturesErrors').innerHTML = ""
