@@ -324,7 +324,16 @@ def clean_up_redis():
                     if user==None:
                         GLOBALS.redisClient.delete(key)
                     elif datetime.utcnow() - user.last_ping > timedelta(minutes=3):
-                        resolve_abandoned_jobs([[user,user.turkcode[0].task]])
+                        # check number of active users for task 
+                        count = db.session.query(User.parent_id)\
+                                        .join(Turkcode,Turkcode.user_id==User.id)\
+                                        .join(Task,Task.id==Turkcode.task_id)\
+                                        .filter(User.parent_id!=None)\
+                                        .filter(Task.id==user.turkcode[0].task_id)\
+                                        .filter(User.last_ping>(datetime.utcnow()-timedelta(minutes=30)))\
+                                        .distinct().count()
+                        if count != 1:
+                            resolve_abandoned_jobs([[user,user.turkcode[0].task]])
 
             elif any(name in key for name in ['lambda_invoked', 'lambda_completed', 'upload_complete']):
                 survey_id = key.split('_')[-1]
@@ -495,12 +504,32 @@ def manageTasks():
             active_jobs.extend([r.decode() for r in GLOBALS.redisClient.smembers('active_jobs_'+str(task_id))])
 
         #Look for abandoned jobs
+        # abandoned_jobs = session.query(User,Task)\
+        #                     .join(Turkcode,Turkcode.user_id==User.id)\
+        #                     .join(Task)\
+        #                     .filter(User.parent_id!=None)\
+        #                     .filter(Turkcode.code.in_(active_jobs))\
+        #                     .filter(User.last_ping<(datetime.utcnow()-timedelta(minutes=3)))\
+        #                     .all()
+
+        # Do not consider a job abandoned if there is only one active user 
+        task_user_count = session.query(Task.id, func.coalesce(func.count(distinct(User.parent_id)),0).label('count'))\
+                            .join(Turkcode, Turkcode.task_id==Task.id)\
+                            .join(User, Turkcode.user_id==User.id)\
+                            .filter(User.parent_id!=None)\
+                            .filter(Task.id.in_(task_ids))\
+                            .filter(User.last_ping>(datetime.utcnow()-timedelta(minutes=30)))\
+                            .group_by(Task.id)\
+                            .subquery()
+
         abandoned_jobs = session.query(User,Task)\
                             .join(Turkcode,Turkcode.user_id==User.id)\
                             .join(Task)\
+                            .outerjoin(task_user_count, task_user_count.c.id==Task.id)\
                             .filter(User.parent_id!=None)\
                             .filter(Turkcode.code.in_(active_jobs))\
                             .filter(User.last_ping<(datetime.utcnow()-timedelta(minutes=3)))\
+                            .filter(or_(task_user_count.c.count==None, task_user_count.c.count!=1))\
                             .all()
 
         if abandoned_jobs:
