@@ -73,7 +73,20 @@ async function checkFileBatch() {
             let item = proposedQueue.pop(0)
             var file = await item[1].getFile()
             let hash = ''
+            var total_pixel = null
+            if (file.type.startsWith('image/')) {
+                try {
+                    // Get Image resolution
+                    let blob = file.slice(0, file.size);
+                    let bitmap = await createImageBitmap(blob);
+                    total_pixel = bitmap.width * bitmap.height;
+                } catch (e) {
+                    total_pixel = null;
+                }
+            }
             if (file != null && file.size > 500000000) { // 500MB
+                largeFiles += 1
+            } else if (total_pixel != null && total_pixel > 65000000) { // 65MP
                 largeFiles += 1
             } else {
                 let fileData = await new Promise((resolve, reject) => {
