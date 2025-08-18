@@ -197,6 +197,7 @@ class Survey(db.Model):
     api_keys = db.relationship('APIKey', backref='survey', lazy=True)
     zips = db.relationship('Zip', backref='survey', lazy=True)
     require_launch = db.Column(db.DateTime, index=True)
+    area_id = db.Column(db.Integer, db.ForeignKey('area.id'), index=True, unique=False)
 
     def __repr__(self):
         return '<Survey {}>'.format(self.name)
@@ -355,6 +356,7 @@ class Label(db.Model):
     task_id = db.Column(db.Integer, db.ForeignKey('task.id'), index=True)
     algorithm = db.Column(db.String(64), index=False) #hotspotter/heuristic (for Individual ID)
     icID_q1_complete = db.Column(db.Boolean, default=False, index=False) # Individual ID first quantile complete
+    indID_allowed = db.Column(db.Boolean, default=True, index=False) # Independent Individual ID allowed
     children = db.relationship('Label', backref=db.backref('parent', remote_side=[id]), lazy=True)
     translations = db.relationship('Translation', backref='label', lazy=True)
     individuals = db.relationship('Individual', backref='label', lazy=True)
@@ -451,6 +453,7 @@ class Task(db.Model):
     cluster_count = db.Column(db.Integer, index=False)
     clusters_remaining = db.Column(db.Integer, index=False)
     empty_count = db.Column(db.Integer, index=False)
+    areaID_library = db.Column(db.Boolean, default=False, index=True) # Has Area Library for Individuals 
     clusters = db.relationship('Cluster', backref='task', lazy=True)
     turkcodes = db.relationship('Turkcode', backref='task', lazy=True)
     labels = db.relationship('Label', backref='task', lazy=True)
@@ -726,6 +729,14 @@ class DownloadRequest(db.Model):
 
     def __repr__(self):
         return '<Download request type {} for task {} and user {}>'.format(self.type,self.task_id,self.user_id)
+
+class Area(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    name = db.Column(db.String(64), index=False)
+    surveys = db.relationship('Survey', backref='area', lazy=True)
+    
+    def __repr__(self):
+        return '<Area {}>'.format(self.name)
 
 db.Index('ix_det_srce_scre_stc_stat_class_classcre', Detection.source, Detection.score, Detection.static, Detection.status, Detection.classification, Detection.class_score)
 db.Index('ix_cluster_examined_task', Cluster.examined, Cluster.task_id)

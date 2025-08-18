@@ -176,6 +176,11 @@ function getLabelsSitesTagsAndGroups(){
     var formData = new FormData()
     formData.append('task_ids', JSON.stringify(tasks))
 
+    var area_id = document.getElementById('areaSelect').value
+    if (area_id!=null || area_id!= '' || area_id!='0'){
+        formData.append('area_id', JSON.stringify(area_id))
+    }
+
     var xhttp = new XMLHttpRequest();
     xhttp.open("POST", '/getAllLabelsTagsSitesAndGroups', true);
     xhttp.onreadystatechange =
@@ -1105,6 +1110,10 @@ function generateSpatial(){
     if (tasks != '-1'){
         var formData = new FormData();
         formData.append('task_ids', JSON.stringify(tasks));
+        var area_id = document.getElementById('areaSelect').value
+        if (area_id!=null || area_id!= '' || area_id!='0'){
+            formData.append('area_id', JSON.stringify(area_id))
+        }
 
         var xhttp = new XMLHttpRequest();
         xhttp.onreadystatechange =
@@ -2164,6 +2173,10 @@ function updateMap(){
         if (group_ids != '0' && group_ids != '-1') {
             formData.append('group_ids', JSON.stringify(group_ids));
         }
+        var area_id = document.getElementById('areaSelect').value
+        if (area_id!=null || area_id!= '' || area_id!='0'){
+            formData.append('area_id', JSON.stringify(area_id))
+        }
 
         var xhttp = new XMLHttpRequest();
         xhttp.onreadystatechange =
@@ -2271,6 +2284,10 @@ function updateActivity(check=false){
         formData.append('overlap', JSON.stringify(overlap));
         formData.append('csv', JSON.stringify('0'));
         formData.append('groups', JSON.stringify(groups));
+        var area_id = document.getElementById('areaSelect').value
+        if (area_id!=null || area_id!= '' || area_id!='0'){
+            formData.append('area_id', JSON.stringify(area_id))
+        }
     
         if(startDate != ''){
             startDate = startDate + ' 00:00:00'
@@ -2524,6 +2541,10 @@ function getActivityPatternCSV(check=false){
         formData.append('overlap', JSON.stringify(overlap));
         formData.append('csv', JSON.stringify('1'));
         formData.append('groups', JSON.stringify(groups));
+        var area_id = document.getElementById('areaSelect').value
+        if (area_id!=null || area_id!= '' || area_id!='0'){
+            formData.append('area_id', JSON.stringify(area_id))
+        }
     
         if(startDate != ''){
             startDate = startDate + ' 00:00:00'
@@ -3392,6 +3413,12 @@ function updateChartStyle(){
 function getSurveysAndAnnotationSets(){
     // Gets the surveys and annotation sets for the task selection
 
+    var url = '/getSurveysAndTasksForResults';
+    var area_id = document.getElementById('areaSelect').value
+    if (area_id!=null || area_id!= '' || area_id!='0'){
+        url += '?area_id=' + area_id
+    }
+
     var surveyAndAsDiv = document.getElementById('surveyAndAsDiv')
     while (surveyAndAsDiv.firstChild) {
         surveyAndAsDiv.removeChild(surveyAndAsDiv.firstChild);
@@ -3414,7 +3441,7 @@ function getSurveysAndAnnotationSets(){
             buildSurveysAndSets(reply.surveys, reply.tasks)
         }
     }
-    xhttp.open("GET", '/getSurveysAndTasksForResults');
+    xhttp.open("GET", url);
     xhttp.send();
     
 }
@@ -3759,6 +3786,10 @@ $("#xAxisSelector").change( function() {
                 var formData = new FormData()
                 formData.append("task_ids", JSON.stringify(tasks))
                 formData.append("species", JSON.stringify(species))
+                var area_id = document.getElementById('areaSelect').value
+                if (area_id!=null || area_id!= '' || area_id!='0'){
+                    formData.append('area_id', JSON.stringify(area_id))
+                }
 
                 var xhttp = new XMLHttpRequest();
                 xhttp.open("POST", '/checkSightingEditStatus');
@@ -4165,7 +4196,8 @@ function clearResults(){
 
     }
     else if (tabActive == 'baseDataDiv'){
-        getSurveysAndAnnotationSets()
+        // getSurveysAndAnnotationSets()
+        getAreas()
     }
     else if (tabActive == 'baseSitesDiv'){
         initialiseGroups()
@@ -4479,6 +4511,10 @@ function getSummary(check){
         formData.append('sites', JSON.stringify(sites))
         formData.append('groups', JSON.stringify(groups))
         formData.append('normaliseBySite', JSON.stringify(normaliseBySite))
+        var area_id = document.getElementById('areaSelect').value
+        if (area_id!=null || area_id!= '' || area_id!='0'){
+            formData.append('area_id', JSON.stringify(area_id))
+        }
 
         document.getElementById('resultsDiv').style.display = 'none'
         document.getElementById('loadingDiv').style.display = 'block'
@@ -6146,6 +6182,10 @@ function updateOccupancy(check=false){
         formData.append('covOptions', JSON.stringify(globalCovariateOptions));
         formData.append('csv', JSON.stringify('0'));
         formData.append('groups', JSON.stringify(groups));
+        var area_id = document.getElementById('areaSelect').value
+        if (area_id!=null || area_id!= '' || area_id!='0'){
+            formData.append('area_id', JSON.stringify(area_id))
+        }
 
         if(startDate != ''){
             startDate = startDate + ' 00:00:00'
@@ -6307,6 +6347,11 @@ function getOccupancyCSV(check=false){
             var timeToIndependenceUnit = document.getElementById('timeToIndependenceUnit').value
             formData.append('timeToIndependence', JSON.stringify(timeToIndependence))
             formData.append('timeToIndependenceUnit', JSON.stringify(timeToIndependenceUnit))
+        }
+
+        var area_id = document.getElementById('areaSelect').value
+        if (area_id!=null || area_id!= '' || area_id!='0'){
+            formData.append('area_id', JSON.stringify(area_id))
         }
     }
 
@@ -7901,6 +7946,10 @@ function exportCSV(){
         formData.append('siteCovs', JSON.stringify(siteCovariates));
         formData.append('detCovs', JSON.stringify(detectionCovariates));
         formData.append('task_ids', JSON.stringify(tasks));
+        var area_id = document.getElementById('areaSelect').value
+        if (area_id!=null || area_id!= '' || area_id!='0'){
+            formData.append('area_id', JSON.stringify(area_id))
+        }
         
         document.getElementById('covariatesError').innerHTML = 'Downloading CSV...'
         var xhttp = new XMLHttpRequest();
@@ -7980,6 +8029,11 @@ function updateSCR(check=false){
         formData.append('csv', JSON.stringify('0'));
         formData.append('groups', JSON.stringify(groups));
         formData.append('flank', JSON.stringify(flank));
+
+        var area_id = document.getElementById('areaSelect').value
+        if (area_id!=null || area_id!= '' || area_id!='0'){
+            formData.append('area_id', JSON.stringify(area_id))
+        }
 
         if(startDate != ''){
             startDate = startDate + ' 00:00:00'
@@ -10148,6 +10202,11 @@ function getSCRcsv(check=false){
             endDate = endDate + ' 23:59:59'
             formData.append('endDate', JSON.stringify(endDate));
         }
+
+        var area_id = document.getElementById('areaSelect').value
+        if (area_id!=null || area_id!= '' || area_id!='0'){
+            formData.append('area_id', JSON.stringify(area_id))
+        }
     }
 
     if (species != '-1' && validSCR && tasks != '-1' && validDates){
@@ -10513,6 +10572,10 @@ function cancelResults(){
     var tasks = getSelectedTasks()
     formData.append('result_type', JSON.stringify(result_type));
     formData.append('task_ids', JSON.stringify(tasks));
+    var area_id = document.getElementById('areaSelect').value
+    if (area_id!=null || area_id!= '' || area_id!='0'){
+        formData.append('area_id', JSON.stringify(area_id))
+    }
 
     var xhttp = new XMLHttpRequest();
     xhttp.onreadystatechange =
@@ -10762,9 +10825,38 @@ function openAnalysisHelp(){
 
 }
 
+function getAreas(){
+    /** Fetches the areas from the server and populates the area selector. */
+    var xhttp = new XMLHttpRequest();
+    xhttp.onreadystatechange = function() {
+        if (this.readyState == 4 && this.status == 200) {
+            var reply = JSON.parse(this.responseText);
+            var areas = reply.areas
+            var areaSelect = document.getElementById('areaSelect')
+            clearSelect(areaSelect)
+            var areaOptionTexts = ['All']
+            var areaOptionValues = ['0']
+            for (var i=0;i<areas.length;i++) {
+                areaOptionTexts.push(areas[i].name)
+                areaOptionValues.push(areas[i].id)
+            }
+            fillSelect(areaSelect,areaOptionTexts,areaOptionValues)
+
+            getSurveysAndAnnotationSets()
+        }
+    };
+    xhttp.open("GET", '/getAreas');
+    xhttp.send();
+}
+
+$('#areaSelect').on('change', function() {
+    getSurveysAndAnnotationSets()
+});
+
 function onload(){
     /**Function for initialising the page on load.*/
-    getSurveysAndAnnotationSets()
+    // getSurveysAndAnnotationSets()
+    getAreas()
     document.getElementById("openDataTab").click();
     barData = {}
     polarData = {}

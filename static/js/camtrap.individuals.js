@@ -165,6 +165,7 @@ function getIndividuals(page = null) {
         formData.append("trap_name", JSON.stringify(selectedSite))
         formData.append('start_date', JSON.stringify(selectedStartDate))
         formData.append('end_date', JSON.stringify(selectedEndDate))
+        formData.append("area_id", JSON.stringify(document.getElementById('areaSelect').value))
 
         request = '/getAllIndividuals'
         if (page != null) {
@@ -1085,7 +1086,7 @@ modalIndividual.on('hidden.bs.modal', function(){
         } else {
             cleanModalIndividual()
             getIndividuals(current_page)
-            getTasks()
+            // getTasks()
         }
     }
 });
@@ -1449,15 +1450,22 @@ function addSurvey(){
         addSurveyTask = document.getElementById('addSurveyTask1')
     }
     else{
+        var areaSelect = document.getElementById('areaSelect')
+        var survey_url = '/getSurveys'
+        if (areaSelect.value != '0') {
+            survey_url += '?area=' + areaSelect.value;
+        }
+
         var xhttp = new XMLHttpRequest();
         xhttp.onreadystatechange =
         function(){
             if (this.readyState == 4 && this.status == 200) {
                 surveys = JSON.parse(this.responseText);  
                 buildSurveySelect()
+                getIndividuals()
             }
         }
-        xhttp.open("GET", '/getSurveys');
+        xhttp.open("GET", survey_url);
         xhttp.send();
 
         addSurveyTask = document.getElementById('addSurveyTask')
@@ -1832,7 +1840,7 @@ modalLaunchID.on('hidden.bs.modal', function(){
     modalActive = false
     btnLaunch.disabled=false
     getIndividuals(current_page)
-    getTasks()
+    // getTasks()
 })
 
 document.getElementById('btnSubmitInfoChange').addEventListener('click', function(){
@@ -1872,150 +1880,150 @@ $('#individualSearch').change( function() {
     getIndividuals()
 });
 
-function buildIdTask(task){
-    idTasksListDiv = document.getElementById('idTasksListDiv'); 
-    newTask = document.createElement('div')
-    newTask.setAttribute("style", "border-bottom: 1px solid rgb(60,74,89); padding: 1.25rem;")
+// function buildIdTask(task){
+//     idTasksListDiv = document.getElementById('idTasksListDiv'); 
+//     newTask = document.createElement('div')
+//     newTask.setAttribute("style", "border-bottom: 1px solid rgb(60,74,89); padding: 1.25rem;")
 
-    idTasksListDiv.appendChild(newTask)
+//     idTasksListDiv.appendChild(newTask)
 
-    entireRow = document.createElement('div')
-    entireRow.classList.add('row');
-    newTask.appendChild(entireRow)
+//     entireRow = document.createElement('div')
+//     entireRow.classList.add('row');
+//     newTask.appendChild(entireRow)
 
-    taskDiv = document.createElement('div')
-    taskDiv.classList.add('col-lg-9');
-    entireRow.appendChild(taskDiv)
-    headingElement = document.createElement('h5')
-    headingElement.innerHTML = task.name
-    taskDiv.appendChild(headingElement)
+//     taskDiv = document.createElement('div')
+//     taskDiv.classList.add('col-lg-9');
+//     entireRow.appendChild(taskDiv)
+//     headingElement = document.createElement('h5')
+//     headingElement.innerHTML = task.name
+//     taskDiv.appendChild(headingElement)
 
-    stopTaskCol = document.createElement('div')
-    stopTaskCol.setAttribute('class', 'col-lg-3');
-    stopTaskBtn = document.createElement('button')
-    stopTaskBtn.setAttribute("class","btn btn-danger btn-block btn-sm")
-    stopTaskBtn.innerHTML = '&times;'
-    stopTaskCol.appendChild(stopTaskBtn)
-    entireRow.appendChild(stopTaskCol)
+//     stopTaskCol = document.createElement('div')
+//     stopTaskCol.setAttribute('class', 'col-lg-3');
+//     stopTaskBtn = document.createElement('button')
+//     stopTaskBtn.setAttribute("class","btn btn-danger btn-block btn-sm")
+//     stopTaskBtn.innerHTML = '&times;'
+//     stopTaskCol.appendChild(stopTaskBtn)
+//     entireRow.appendChild(stopTaskCol)
 
-    if (task.remaining == 'Preparing...'){
-        stopTaskBtn.disabled = true
-    }
-    else{
-        stopTaskBtn.disabled = false
-    }
+//     if (task.remaining == 'Preparing...'){
+//         stopTaskBtn.disabled = true
+//     }
+//     else{
+//         stopTaskBtn.disabled = false
+//     }
 
-    stopTaskBtn.addEventListener('click', function(wrapTaskId) {
-        return function() {
-            var xhttp = new XMLHttpRequest();
-            xhttp.onreadystatechange =
-            function(){
-                if (this.readyState == 4 && this.status == 200) {
-                    reply = JSON.parse(this.responseText);   
-                    if (reply=='success') {
-                        getTasks()
-                    }
-                }
-            }
-            xhttp.open("GET", '/stopTask/'+wrapTaskId);
-            xhttp.send();
-        }
-    }(task.id));
+//     stopTaskBtn.addEventListener('click', function(wrapTaskId) {
+//         return function() {
+//             var xhttp = new XMLHttpRequest();
+//             xhttp.onreadystatechange =
+//             function(){
+//                 if (this.readyState == 4 && this.status == 200) {
+//                     reply = JSON.parse(this.responseText);   
+//                     if (reply=='success') {
+//                         getTasks()
+//                     }
+//                 }
+//             }
+//             xhttp.open("GET", '/stopTask/'+wrapTaskId);
+//             xhttp.send();
+//         }
+//     }(task.id));
         
 
-    entireRow = document.createElement('div')
-    entireRow.classList.add('row');
-    newTask.appendChild(entireRow)
+//     entireRow = document.createElement('div')
+//     entireRow.classList.add('row');
+//     newTask.appendChild(entireRow)
 
-    jobProgressBarCol = document.createElement('div')
-    jobProgressBarCol.classList.add('col-lg-12');
+//     jobProgressBarCol = document.createElement('div')
+//     jobProgressBarCol.classList.add('col-lg-12');
     
-    jobProgressBarDiv = document.createElement('div')
-    jobProgressBarDiv.setAttribute("id","jobProgressBarDiv"+task.id)
+//     jobProgressBarDiv = document.createElement('div')
+//     jobProgressBarDiv.setAttribute("id","jobProgressBarDiv"+task.id)
 
-    var newProg = document.createElement('div');
-    newProg.classList.add('progress');
-    newProg.setAttribute('style','background-color: #3C4A59')
+//     var newProg = document.createElement('div');
+//     newProg.classList.add('progress');
+//     newProg.setAttribute('style','background-color: #3C4A59')
 
-    var newProgInner = document.createElement('div');
-    newProgInner.classList.add('progress-bar');
-    newProgInner.classList.add('progress-bar-striped');
-    newProgInner.classList.add('progress-bar-animated');
-    newProgInner.classList.add('active');
-    newProgInner.setAttribute("role", "progressbar");
-    newProgInner.setAttribute("id", "progBar"+task.id);
-    newProgInner.setAttribute("aria-valuenow", task.completed);
-    newProgInner.setAttribute("aria-valuemin", "0");
-    newProgInner.setAttribute("aria-valuemax", task.total);
-    newProgInner.setAttribute("style", "width:"+(task.completed/task.total)*100+"%;transition:none; ");
-    newProgInner.innerHTML = task.remaining
+//     var newProgInner = document.createElement('div');
+//     newProgInner.classList.add('progress-bar');
+//     newProgInner.classList.add('progress-bar-striped');
+//     newProgInner.classList.add('progress-bar-animated');
+//     newProgInner.classList.add('active');
+//     newProgInner.setAttribute("role", "progressbar");
+//     newProgInner.setAttribute("id", "progBar"+task.id);
+//     newProgInner.setAttribute("aria-valuenow", task.completed);
+//     newProgInner.setAttribute("aria-valuemin", "0");
+//     newProgInner.setAttribute("aria-valuemax", task.total);
+//     newProgInner.setAttribute("style", "width:"+(task.completed/task.total)*100+"%;transition:none; ");
+//     newProgInner.innerHTML = task.remaining
 
-    newProg.appendChild(newProgInner);
-    jobProgressBarDiv.appendChild(newProg);
-    jobProgressBarCol.appendChild(jobProgressBarDiv);
-    entireRow.appendChild(jobProgressBarCol)
+//     newProg.appendChild(newProgInner);
+//     jobProgressBarDiv.appendChild(newProg);
+//     jobProgressBarCol.appendChild(jobProgressBarDiv);
+//     entireRow.appendChild(jobProgressBarCol)
 
-}
+// }
 
-function getTasks(url=null){
-    /** Gets the current individual ID tasks */
+// function getTasks(url=null){
+//     /** Gets the current individual ID tasks */
 
-    if (url==null) {
-        request = '/getJobs?individual_id=' + true
-    }
-    else{
-        request = url
-    }
+//     if (url==null) {
+//         request = '/getJobs?individual_id=' + true
+//     }
+//     else{
+//         request = url
+//     }
 
-    var xhttp = new XMLHttpRequest();
-    xhttp.onreadystatechange =
-    function(){
-        if (this.readyState == 4 && this.status == 200) {
-            reply = JSON.parse(this.responseText);
-            // console.log(reply)
-            idTasksListDiv = document.getElementById('idTasksListDiv'); 
-            while(idTasksListDiv.firstChild){
-                idTasksListDiv.removeChild(idTasksListDiv.firstChild);
-            }
+//     var xhttp = new XMLHttpRequest();
+//     xhttp.onreadystatechange =
+//     function(){
+//         if (this.readyState == 4 && this.status == 200) {
+//             reply = JSON.parse(this.responseText);
+//             // console.log(reply)
+//             idTasksListDiv = document.getElementById('idTasksListDiv'); 
+//             while(idTasksListDiv.firstChild){
+//                 idTasksListDiv.removeChild(idTasksListDiv.firstChild);
+//             }
 
-            for (let i=0;i<reply.jobs.length;i++) {
-                buildIdTask(reply.jobs[i])
-            }
+//             for (let i=0;i<reply.jobs.length;i++) {
+//                 buildIdTask(reply.jobs[i])
+//             }
 
-            if (reply.next_url==null) {
-                btnNextTasks.style.visibility = 'hidden'
-            } else {
-                btnNextTasks.style.visibility = 'visible'
-                next_url = reply.next_url + '&individual_id=' + true
-            }
+//             if (reply.next_url==null) {
+//                 btnNextTasks.style.visibility = 'hidden'
+//             } else {
+//                 btnNextTasks.style.visibility = 'visible'
+//                 next_url = reply.next_url + '&individual_id=' + true
+//             }
 
-            if (reply.prev_url==null) {
-                btnPrevTasks.style.visibility = 'hidden'
-            } else {
-                btnPrevTasks.style.visibility = 'visible'
-                prev_url = reply.prev_url + '&individual_id=' + true
-            }
+//             if (reply.prev_url==null) {
+//                 btnPrevTasks.style.visibility = 'hidden'
+//             } else {
+//                 btnPrevTasks.style.visibility = 'visible'
+//                 prev_url = reply.prev_url + '&individual_id=' + true
+//             }
 
-            if(jobTimer!=null){	
-                clearTimeout(jobTimer);
-            }
-            jobTimer = setTimeout(function(){getTasks(url)}, 10000);
+//             if(jobTimer!=null){	
+//                 clearTimeout(jobTimer);
+//             }
+//             jobTimer = setTimeout(function(){getTasks(url)}, 10000);
 
-        }
-    }
-    xhttp.open("GET", request);
-    xhttp.send();
-}
+//         }
+//     }
+//     xhttp.open("GET", request);
+//     xhttp.send();
+// }
 
-btnNextTasks.addEventListener('click', ()=>{
-    /** Loads the next set of paginated surveys. */
-    getTasks(next_url)
-});
+// btnNextTasks.addEventListener('click', ()=>{
+//     /** Loads the next set of paginated surveys. */
+//     getTasks(next_url)
+// });
 
-btnPrevTasks.addEventListener('click', ()=>{
-    /** Loads the previous set of paginated surveys. */
-    getTasks(prev_url)
-});
+// btnPrevTasks.addEventListener('click', ()=>{
+//     /** Loads the previous set of paginated surveys. */
+//     getTasks(prev_url)
+// });
 
 function clear_filters(){
     /** Clears all the filters and updates the page accordingly. */
@@ -2029,7 +2037,8 @@ function clear_filters(){
         addSurveyTask.removeChild(addSurveyTask.firstChild);
     }
 
-    addSurvey()
+    // addSurvey()
+    getAreas()
 
     document.getElementById('individualSpeciesSelector').value = '0'
     document.getElementById('individualTagSelector').value = 'None'
@@ -5122,16 +5131,56 @@ $('#btnConfirmDiscard').click( function() {
     } else {
         cleanModalIndividual()
         getIndividuals(current_page)
-        getTasks()
+        // getTasks()
     }
+});
+
+function getAreas(){
+    /** Fetches the areas from the server and populates the area selector. */
+    var xhttp = new XMLHttpRequest();
+    xhttp.onreadystatechange = function() {
+        if (this.readyState == 4 && this.status == 200) {
+            var reply = JSON.parse(this.responseText);
+            var areas = reply.areas
+            var areaSelect = document.getElementById('areaSelect')
+            clearSelect(areaSelect)
+            var areaOptionTexts = ['All']
+            var areaOptionValues = ['0']
+            for (var i=0;i<areas.length;i++) {
+                areaOptionTexts.push(areas[i].name)
+                areaOptionValues.push(areas[i].id)
+            }
+            fillSelect(areaSelect,areaOptionTexts,areaOptionValues)
+
+            addSurvey()
+            checkSurvey()
+        }
+    };
+    xhttp.open("GET", '/getAreas');
+    xhttp.send();
+}
+
+$('#areaSelect').on('change', function() {
+    /** Updates the area when the area selector changes. */
+    surveySelect = document.getElementById('surveySelect')
+    while(surveySelect.firstChild){
+        surveySelect.removeChild(surveySelect.firstChild);
+    }
+    addSurveyTask = document.getElementById('addSurveyTask')
+    while(addSurveyTask.firstChild){
+        addSurveyTask.removeChild(addSurveyTask.firstChild);
+    }
+    addSurvey()
+    checkSurvey()
 });
 
 function onload(){
     /**Function for initialising the page on load.*/
-    addSurvey()
-    checkSurvey()
+    getAreas()
+    // addSurvey()
+    // checkSurvey()
     populateSelectors()
-    getTasks()
+    // getTasks()
 
 }
 

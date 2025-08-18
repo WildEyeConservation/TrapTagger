@@ -18,7 +18,7 @@ from app import app, db, celery
 from app.models import *
 from app.functions.globals import retryTime, checkForIdWork, taggingLevelSQ, updateAllStatuses, rDets, calculate_restore_expiry_date, chunker, launch_task
 from app.functions.individualID import calculate_detection_similarities
-from app.functions.admin import edit_survey
+from app.functions.admin import edit_survey, delete_individuals
 from app.functions.results import generate_wildbook_export
 from app.functions.imports import s3traverse
 import GLOBALS
@@ -554,6 +554,23 @@ def restore_images_for_classification(self,survey_id,days,edit_survey_args,tier,
                     require_wait = True
         
         if (restored_image or restore_date) and require_wait:
+            if edit_survey_args['delete_area_individuals'] == True:
+                # Have to delete the individuals in the case that someone cancels the restore
+                task = db.session.query(Task).filter(Task.survey_id==survey_id).filter(Task.areaID_library==True).first()
+                if task:
+                    IndividualTask = alias(Task)
+                    count_sq = db.session.query(Individual.id, func.count(IndividualTask.c.id).label('count'))\
+                                        .join(Task, Individual.tasks)\
+                                        .join(IndividualTask, Individual.tasks)\
+                                        .filter(Task.id==task.id)\
+                                        .group_by(Individual.id).subquery()
+                    species = [r[0] for r in db.session.query(Individual.species)\
+                                        .join(count_sq, Individual.id==count_sq.c.id)\
+                                        .filter(count_sq.c.count>1).distinct().all()]
+                    if species: 
+                        delete_individuals(task_ids=[task.id], species=species)
+
+            survey = db.session.query(Survey).get(survey_id)
             survey.status = 'Restoring Files'   
             if restored_image:
                 survey.require_launch = datetime.utcnow() + timedelta(seconds=restore_time)

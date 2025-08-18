@@ -1089,7 +1089,7 @@ def monitorFileRestores():
                     survey.require_launch = None
                     survey.status = 'Processing'
                     for sub_task in task.sub_tasks:
-                        sub_task.survey.status = 'Processing'
+                        sub_task.survey.status = 'ID Processing'
                     db.session.commit()        
                     # del launch_kwargs['tagging_level']   
                     # if 'algorithm' in launch_kwargs.keys():

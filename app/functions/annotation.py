@@ -85,6 +85,7 @@ def wrapUpTask(self,task_id):
 
     try:
         task = db.session.query(Task).get(task_id)
+        sub_task_ids = [st.id for st in task.sub_tasks]
 
         GLOBALS.redisClient.delete('active_jobs_'+str(task.id))
         GLOBALS.redisClient.delete('job_pool_'+str(task.id))
@@ -116,6 +117,8 @@ def wrapUpTask(self,task_id):
             update_individuals_primary_dets(task_ids=task_ids,species=species)
 
         updateAllStatuses(task_id=task_id)
+        for sub_task_id in sub_task_ids:
+            updateIndividualIdStatus(task_id=int(sub_task_id))
 
         task = db.session.query(Task).get(task_id)
         task.current_name = None
@@ -200,24 +203,37 @@ def wrapUpTask(self,task_id):
         #         calculate_individual_similarities.delay(task.id,species)	
         #     else:
         #         task.survey.status = 'Ready'
+        skip_subtasks = False
         if 'processing' not in task.survey.status:
             if '-4' in task.tagging_level:
                 tL = re.split(',',task.tagging_level)
                 species = tL[1]
                 task.survey.status = 'processing'
-                db.session.commit()
-                if tL[4]=='h':
-                    calculate_detection_similarities.delay(task_ids=[task_id],species=species,algorithm='hotspotter')
-                elif tL[4]=='n':
-                    calculate_detection_similarities.delay(task_ids=[task_id],species=species,algorithm='none')
+                if tL[5]=='a' and len(task.sub_tasks)>0:
+                    t_ids = [task_id]
+                    skip_subtasks = True
+                    for st in task.sub_tasks: t_ids.append(st.id)
+                    task.tagging_level = '-5,'+species+',-1,100,'+tL[4]
+                    db.session.commit()
+                    if tL[4]=='h':
+                        calculate_detection_similarities.delay(task_ids=t_ids,species=species,algorithm='hotspotter')
+                    elif tL[4]=='n':
+                        calculate_detection_similarities.delay(task_ids=t_ids,species=species,algorithm='none')
+                else:
+                    db.session.commit()
+                    if tL[4]=='h':
+                        calculate_detection_similarities.delay(task_ids=[task_id],species=species,algorithm='hotspotter')
+                    elif tL[4]=='n':
+                        calculate_detection_similarities.delay(task_ids=[task_id],species=species,algorithm='none')
             else:
                 task.survey.status = 'Ready'
 
         # handle multi-tasks
-        for sub_task in task.sub_tasks:
-            sub_task.status = 'SUCCESS'
-            sub_task.survey.status = 'Ready'
-        task.sub_tasks = []
+        if not skip_subtasks:
+            for sub_task in task.sub_tasks:
+                sub_task.status = 'SUCCESS'
+                sub_task.survey.status = 'Ready'
+            task.sub_tasks = []
 
         #remove trapgroup list from redis
         GLOBALS.redisClient.delete('trapgroups_'+str(task.survey_id))

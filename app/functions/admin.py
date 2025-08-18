@@ -19,7 +19,7 @@ from app.models import *
 from app.functions.globals import classifyTask, update_masks, retryTime, resolve_abandoned_jobs, addChildLabels, updateAllStatuses, deleteFile,\
                                     stringify_timestamp, rDets, update_staticgroups, detection_rating, chunker, verify_label, cleanup_empty_restored_images, \
                                     reconcile_cluster_labelgroup_labels_and_tags, hideSmallDetections, maskSky, checkChildTranslations, createChildTranslations, \
-                                    prepTask, removeHumans, sync_labels, sync_tags, update_individuals_primary_dets
+                                    prepTask, removeHumans, sync_labels, sync_tags, update_individuals_primary_dets, updateIndividualIdStatus
 from app.functions.individualID import calculate_detection_similarities, cleanUpIndividuals, check_individual_detection_mismatch
 from app.functions.imports import classifySurvey, s3traverse, classifyCluster, importKML, import_survey
 import GLOBALS
@@ -117,7 +117,17 @@ def delete_task(self,task_id):
                                         .distinct().all()]
                 
                 update_individuals = []
-                for individual in individuals:                    
+                update_tasks = []
+                if task.areaID_library:
+                    IndividualTask = alias(Task)
+                    update_tasks = [r[0] for r in db.session.query(Task.id)\
+                                                    .join(Individual,Task.individuals)\
+                                                    .join(IndividualTask,Individual.tasks)\
+                                                    .filter(IndividualTask.c.id==task_id)\
+                                                    .filter(Task.id!=task_id)\
+                                                    .distinct().all()]
+
+                for individual in individuals:
                     individual.detections = [detection for detection in individual.detections if detection.id not in detections]
 
                     if len(individual.detections)==0:
@@ -144,6 +154,10 @@ def delete_task(self,task_id):
 
                 if update_individuals:
                     update_individuals_primary_dets(individual_ids=update_individuals)
+
+                for tid in update_tasks:
+                    # Update Area Library Id Status of previous mutual tasks 
+                    updateIndividualIdStatus(tid)
 
                 # for individual in individuals:
                 #     if individual not in individuals_to_delete:
@@ -304,6 +318,7 @@ def stop_task(self,task_id,live=False):
 
     try:
         task = db.session.query(Task).get(int(task_id))
+        sub_task_ids = [st.id for st in task.sub_tasks]
 
         if task.status.lower() not in Config.TASK_READY_STATUSES:
             survey = task.survey
@@ -365,6 +380,8 @@ def stop_task(self,task_id,live=False):
                 update_individuals_primary_dets(task_ids=task_ids,species=task.tagging_level.split(',')[1])
             
             updateAllStatuses(task_id=int(task_id))
+            for sub_task_id in sub_task_ids:
+                updateIndividualIdStatus(task_id=int(sub_task_id))
 
             # if task_id in GLOBALS.mutex.keys(): GLOBALS.mutex.pop(task_id, None)
 
@@ -775,6 +792,17 @@ def delete_survey(self,survey_id):
                 status = 'error'
                 message = 'Could not delete survey.'
                 app.logger.info('Failed to delete survey')
+
+        # Delete empty areas 
+        if status != 'error':
+            try:
+                areas = db.session.query(Area).filter(~Area.surveys.any()).all()
+                for area in areas:
+                    db.session.delete(area)
+                db.session.commit()
+                app.logger.info('Empty areas deleted successfully.')
+            except:
+                app.logger.info('Failed to delete empty areas')
 
         if status == 'error':
             app.logger.info('Failed to delete survey {}: {}'.format(survey_id,message))
@@ -2104,7 +2132,7 @@ def updateStatistics(self):
 
 
 @celery.task(bind=True,max_retries=5,ignore_result=True)
-def delete_individuals(self,task_ids, species):
+def delete_individuals(self,task_ids, species, skip_update_status=False):
     ''' Deletes all individuals of the specified species in the specified tasks. '''
     try:
         app.logger.info('Deleting individuals of species {} in tasks {}'.format(species,task_ids))
@@ -2135,6 +2163,17 @@ def delete_individuals(self,task_ids, species):
                                 .all()
 
         update_individuals = []
+        update_tasks = []
+        if task.areaID_library:
+            IndividualTask = alias(Task)
+            update_tasks = [r[0] for r in db.session.query(Task.id)\
+                                            .join(Individual,Task.individuals)\
+                                            .join(IndividualTask,Individual.tasks)\
+                                            .filter(IndividualTask.c.id.in_(task_ids))\
+                                            .filter(Individual.species.in_(species))\
+                                            .filter(Task.id.notin_(task_ids))\
+                                            .distinct().all()]
+
         for individual in individuals:
             individual.detections = [detection for detection in individual.detections if detection.id not in detections]
             if len(individual.detections)==0:
@@ -2203,12 +2242,17 @@ def delete_individuals(self,task_ids, species):
 
         if update_individuals:
             update_individuals_primary_dets(individual_ids=update_individuals)
-                
-        # Update statuses
-        for task_id in task_ids:
-            updateAllStatuses(task_id=task_id)
-            task = db.session.query(Task).get(task_id)
-            task.status = 'Ready'
+
+        for tid in update_tasks:
+            # Update Area Library Id Status of previous mutual tasks 
+            updateIndividualIdStatus(tid)
+        
+        if not skip_update_status:       
+            # Update statuses
+            for task_id in task_ids:
+                updateAllStatuses(task_id=task_id)
+                task = db.session.query(Task).get(task_id)
+                task.status = 'Ready'
 
         db.session.commit()
 
@@ -2597,7 +2641,7 @@ def recluster_after_image_timestamp_change(survey_id,image_timestamps):
 
 
 @celery.task(bind=True,max_retries=5,ignore_result=True)
-def edit_survey(self,survey_id,user_id,classifier_id,sky_masked,ignore_small_detections,masks,staticgroups,timestamps,image_timestamps,coord_data,kml_file):
+def edit_survey(self,survey_id,user_id,classifier_id,sky_masked,ignore_small_detections,masks,staticgroups,timestamps,image_timestamps,coord_data,kml_file,delete_area_individuals):
     '''Celery task that handles the editing of a survey.'''
     try:
         survey = db.session.query(Survey).get(survey_id)
@@ -2613,6 +2657,23 @@ def edit_survey(self,survey_id,user_id,classifier_id,sky_masked,ignore_small_det
         # KML
         if kml_file:
             importKML(survey_id)
+
+        # Individuals 
+        if delete_area_individuals:
+            skipUpdateStatuses = False
+            task = db.session.query(Task).filter(Task.survey_id==survey_id).filter(Task.areaID_library==True).first()
+            if task:
+                IndividualTask = alias(Task)
+                count_sq = db.session.query(Individual.id, func.count(IndividualTask.c.id).label('count'))\
+                                    .join(Task, Individual.tasks)\
+                                    .join(IndividualTask, Individual.tasks)\
+                                    .filter(Task.id==task.id)\
+                                    .group_by(Individual.id).subquery()
+                species = [r[0] for r in db.session.query(Individual.species)\
+                                    .join(count_sq, Individual.id==count_sq.c.id)\
+                                    .filter(count_sq.c.count>1).distinct().all()]
+                if species: 
+                    delete_individuals(task_ids=[task.id], species=species, skip_update_status=True)
 
         # Static groups
         if staticgroups:

@@ -3709,7 +3709,7 @@ def import_survey(self,survey_id,preprocess_done=False,live=False,launch_id=None
                 task.status = 'PENDING'
                 task.survey.status = 'Launched'
                 for sub_task in task.sub_tasks:
-                    sub_task.status = 'Processing'
+                    sub_task.status = 'ID Processing'
                     sub_task.survey.status = 'Launched'
                 db.session.commit()
                 launch_task.delay(task_id=launch_id)

@@ -664,7 +664,7 @@ def updateIndividualIdStatus(task_id):
     
     labels = db.session.query(Label).filter(Label.task_id==task_id).filter(~Label.children.any()).all()
     task = db.session.query(Task).get(task_id)
-
+    IndividualTask = alias(Task)
     for label in labels:
 
         individualsSQ = db.session.query(Individual)\
@@ -703,6 +703,30 @@ def updateIndividualIdStatus(task_id):
         
         label.icID_count = checkForIdWork([label.task_id],label.description,'-1')
         
+        # Check if multi-task (area id) has been launched - if so independent ID id not be allowed
+        tasks_count = db.session.query(Task.id)\
+                            .join(Individual,Task.individuals)\
+                            .join(IndividualTask,Individual.tasks)\
+                            .filter(Individual.species==label.description)\
+                            .filter(IndividualTask.c.id==task_id)\
+                            .distinct().count()
+        if tasks_count > 1:
+            label.indID_allowed = False 
+        else: 
+            label.indID_allowed = True
+
+
+    # Check if task has had area_id launched
+    area_tasks_count = db.session.query(Task.id)\
+                        .join(Individual,Task.individuals)\
+                        .join(IndividualTask,Individual.tasks)\
+                        .filter(IndividualTask.c.id==task_id)\
+                        .distinct().count()
+    if area_tasks_count > 1:
+        task.areaID_library = True 
+    else:
+        task.areaID_library = False
+
     db.session.commit()
 
     return True
@@ -6499,7 +6523,7 @@ def launch_task(self,task_id,classify=False):
             task.status = 'PENDING'
             task.survey.status = 'Launched'
             for tsk in task.sub_tasks:
-                tsk.status = 'Processing'
+                tsk.status = 'ID Processing'
                 tsk.survey.status = 'Launched'
 
             db.session.commit()
