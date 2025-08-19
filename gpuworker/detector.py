@@ -29,7 +29,8 @@ s3client = boto3.client('s3')
 detectors = {
     'MDv4': {'filename':"gpuworker/md_v4.1.0.pb"},
     'MDv5a': {'filename':"md_v5a.0.0.pt"},
-    'MDv5b': {'filename':"md_v5b.0.0.pt"}
+    'MDv5b': {'filename':"md_v5b.0.0.pt"},
+    'MDv1000redwood': {'filename':"md_v1000.0.0-redwood.pt"}
 }
 
 def infer(batch,sourceBucket,external,model,threshold=0.05,pass_images=False):

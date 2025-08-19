@@ -25,6 +25,7 @@ RUN pip3 install torch torchvision torchaudio
 WORKDIR /code
 RUN wget "https://github.com/microsoft/CameraTraps/releases/download/v5.0/md_v5a.0.0.pt"
 RUN wget "https://github.com/microsoft/CameraTraps/releases/download/v5.0/md_v5b.0.0.pt"
+RUN wget "https://github.com/agentmorris/MegaDetector/releases/download/v1000.0/md_v1000.0.0-redwood.pt"
 RUN wget "https://dl.fbaipublicfiles.com/segment_anything/sam_vit_h_4b8939.pth"
 RUN git clone https://github.com/ultralytics/yolov5.git && cd yolov5 && git checkout 2e10909
 RUN mkdir CameraTraps

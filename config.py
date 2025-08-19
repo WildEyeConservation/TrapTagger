@@ -36,7 +36,7 @@ class Config(object):
     BUCKET = os.environ.get('BUCKET')
     SKIP_ID = -117
     SKY_CONST = 0.33
-    DETECTOR = 'MDv5b'
+    DETECTOR = 'MDv1000redwood'
     VAT=1.15
     ADMIN_USERS = ['Admin','WildEye','Dashboard','Wild Parks','Nicholas','Marguerite','API']
     AWS_S3_UPLOAD_ACCESS_KEY_ID = os.environ.get('AWS_S3_UPLOAD_ACCESS_KEY_ID')
@@ -49,6 +49,7 @@ class Config(object):
         'MDv4': 0.8,
         'MDv5a': 0.2,
         'MDv5b': 0.1,
+        'MDv1000redwood': 0.3,
         'error': 1.0,
         'golden': 0.9,
         'user': 0,
