@@ -1273,6 +1273,11 @@ function submitIndividual(){
             individuals[individualIndex][globalIndividual]['known'] = 'false'
             buildIndividuals()
             modalNewIndividual.modal('hide');
+            if (isIDing && (document.getElementById('btnSendToBack')==null)) {
+                setRectOptions()
+            } else if (isIDing && (document.getElementById('btnSendToBack')!=null)) {
+                setClusterIDRectOptions()
+            }
         } else {
             document.getElementById('newIndividualErrors').innerHTML = 'That is a reserved name. Please choose another.'
         }
@@ -1304,7 +1309,11 @@ function submitKnownIndividual() {
         individuals[individualIndex][globalIndividual]['tags'] = tags
         buildIndividuals()
         modalNewIndividual.modal('hide');
-
+        if (isIDing && (document.getElementById('btnSendToBack')==null)) {
+            setRectOptions()
+        } else if (isIDing && (document.getElementById('btnSendToBack')!=null)) {
+            setClusterIDRectOptions()
+        }
     }
 
 }
@@ -1325,6 +1334,11 @@ function cancelIndividual() {
     individualIndex -= 1
     modalNewIndividual.modal('hide');
     previousClick = null
+    if (isIDing && (document.getElementById('btnSendToBack')==null)) {
+        setRectOptions()
+    } else if (isIDing && (document.getElementById('btnSendToBack')!=null)) {
+        setClusterIDRectOptions()
+    }
 }
 
 btnCancelIndividual.addEventListener('click', ()=>{

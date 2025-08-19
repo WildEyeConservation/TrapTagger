@@ -4437,8 +4437,10 @@ def getJobs():
                                 Survey.name,
                                 Task.init_complete,
                                 Task.is_bounding,
-                                Organisation.name
+                                Organisation.name,
+                                Area.name
                             ).join(Survey,Task.survey_id==Survey.id)\
+                            .outerjoin(Area,Survey.area_id==Area.id)\
                             .outerjoin(completeJobsSQ,completeJobsSQ.c.id==Task.id),current_user.id)
                             # .join(User,Survey.user_id==User.id)\
                             # .outerjoin(Worker, User.workers)\
@@ -4546,13 +4548,14 @@ def getJobs():
             if '-5' in taskInfo['tagging_level']:
                 dbTask = db.session.query(Task).get(taskInfo['id'])
                 if dbTask.sub_tasks:
+                    area = item[10] + ' ' if item[10] else ''
                     species = re.split(',',taskInfo['tagging_level'])[1]
-                    name = species+' Individual ID'
+                    name = area + species+' Individual ID'
 
                     count = 1
                     while name in individual_id_names:
                         count += 1
-                        name = species+' Individual ID '+str(count)
+                        name = area + species+' Individual ID '+str(count)
                     individual_id_names.append(name)
 
                     taskInfo['name'] = name
@@ -16056,6 +16059,7 @@ def getMergeTasks(id,id_type):
     tags = []
     area_id = None
     indiv_tids = []
+    sub_task_ids = []
     if individual_id:
         individual = db.session.query(Individual).get(individual_id)
         if individual and individual.active==True and all(checkSurveyPermission(current_user.id,task.survey_id,'write') for task in individual.tasks):
@@ -16069,6 +16073,7 @@ def getMergeTasks(id,id_type):
             species = task.tagging_level.split(',')[1]
             indiv_tids = [task_id]
             area_id = task.survey.area_id
+            sub_task_ids = [t.id for t in task.sub_tasks]
 
     if indiv_tids:            
         IndividualTask = alias(Task)
@@ -16091,7 +16096,10 @@ def getMergeTasks(id,id_type):
             tasks = db.session.query(Task.id, Task.name, Survey.name, Survey.id)\
                                 .join(Survey)\
                                 .join(Individual,Task.individuals)\
-                                .filter(Task.status.in_(['SUCCESS', 'Stopped', 'Ready']))\
+                                .filter(or_(
+                                    Task.status.in_(['SUCCESS', 'Stopped', 'Ready']), 
+                                    and_(Task.status=='ID Processing',Task.id.in_(sub_task_ids))
+                                ))\
                                 .filter(Individual.species==species)\
                                 .filter(Individual.name != 'unidentifiable')\
                                 .filter(Task.id.in_(task_ids))
@@ -16121,7 +16129,10 @@ def getMergeTasks(id,id_type):
                                 .join(Survey)\
                                 .join(Individual,Task.individuals)\
                                 .outerjoin(area_id_surveys, Task.survey_id==area_id_surveys.c.id)\
-                                .filter(Task.status.in_(['SUCCESS', 'Stopped', 'Ready']))\
+                                .filter(or_(
+                                    Task.status.in_(['SUCCESS', 'Stopped', 'Ready']), 
+                                    and_(Task.status=='ID Processing',Task.id.in_(sub_task_ids))
+                                ))\
                                 .filter(Individual.species==species)\
                                 .filter(Individual.name != 'unidentifiable')\
                                 .filter(Survey.area_id==area_id)\
@@ -16191,10 +16202,14 @@ def getKnownIndividuals():
         if other_tasks_has_area_lib:
             task_id = task.id 
 
+        sub_task_ids = [t.id for t in task.sub_tasks]
         tasks = annotationPermissionSQ(db.session.query(Task.id)\
                                 .join(Survey)\
                                 .filter(Survey.area_id==area_id)\
-                                .filter(Task.status.in_(['SUCCESS', 'Stopped', 'Ready']))\
+                                .filter(or_(
+                                    Task.status.in_(['SUCCESS', 'Stopped', 'Ready']), 
+                                    and_(Task.status=='ID Processing',Task.id.in_(sub_task_ids))
+                                ))\
                                 ,current_user.parent_id)
 
         if task_id:
@@ -16239,7 +16254,6 @@ def getKnownIndividuals():
                             .outerjoin(Image, BestDetection.c.image_id==Image.id)\
                             .outerjoin(Camera)\
                             .filter(Task.id.in_(task_ids))\
-                            .filter(Task.status.in_(['SUCCESS', 'Stopped', 'Ready']))\
                             .filter(individual_filters)\
                             .filter(or_(Detection.image_id==Image.id, Image.id==None))
 
