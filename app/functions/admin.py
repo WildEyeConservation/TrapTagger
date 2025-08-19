@@ -837,6 +837,9 @@ def checkAndRelease(self,task_id):
         if task and (task.status=='Waiting'):
             task.status = 'Stopped'
             task.survey.status = 'Ready'
+            for sub_task in task.sub_tasks:
+                sub_task.status = 'Stopped'
+                sub_task.survey.status = 'Ready'
             db.session.commit()
 
     except Exception as exc:
@@ -2163,16 +2166,14 @@ def delete_individuals(self,task_ids, species, skip_update_status=False):
                                 .all()
 
         update_individuals = []
-        update_tasks = []
-        if task.areaID_library:
-            IndividualTask = alias(Task)
-            update_tasks = [r[0] for r in db.session.query(Task.id)\
-                                            .join(Individual,Task.individuals)\
-                                            .join(IndividualTask,Individual.tasks)\
-                                            .filter(IndividualTask.c.id.in_(task_ids))\
-                                            .filter(Individual.species.in_(species))\
-                                            .filter(Task.id.notin_(task_ids))\
-                                            .distinct().all()]
+        IndividualTask = alias(Task)
+        update_tasks = [r[0] for r in db.session.query(Task.id)\
+                                        .join(Individual,Task.individuals)\
+                                        .join(IndividualTask,Individual.tasks)\
+                                        .filter(IndividualTask.c.id.in_(task_ids))\
+                                        .filter(Individual.species.in_(species))\
+                                        .filter(Task.id.notin_(task_ids))\
+                                        .distinct().all()]
 
         for individual in individuals:
             individual.detections = [detection for detection in individual.detections if detection.id not in detections]

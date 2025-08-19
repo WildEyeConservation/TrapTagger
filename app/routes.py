@@ -197,8 +197,12 @@ def launchTask():
                 taggingLevel = '-5,'+species+',0,100,'+tL[4]
             else:
                 taggingLevel = '-5,'+species+',-1'
-            
-    tasks = db.session.query(Task).filter(Task.id.in_([int(r) for r in task_ids])).filter(func.lower(Task.status).in_(Config.TASK_READY_STATUSES)).all()
+
+    tasks = db.session.query(Task).join(Survey)\
+                        .filter(Task.id.in_([int(r) for r in task_ids]))\
+                        .filter(func.lower(Task.status).in_(Config.TASK_READY_STATUSES))\
+                        .filter(func.lower(Survey.status).in_(Config.SURVEY_READY_STATUSES))\
+                        .distinct().all()
 
     # check task statuses
     if len(tasks) != len(task_ids):
@@ -6228,16 +6232,18 @@ def getIndividualInfo(individual_id):
                         .join(Detection)\
                         .filter(Detection.individuals.contains(individual))\
                         .distinct().all()]
-
-        if len(coords) > 3:
-            points = np.array([(lon, lat) for tag, lat, lon in coords])
-            hull = ConvexHull(points)
-            hull_points = points[hull.vertices]
-            hull_points = [(lat, lon) for lon, lat in hull_points]
+        
+        points = np.array([(lon, lat) for tag, lat, lon in coords if (lon!=0 or lat!=0)])
+        if len(points) > 3:
+            try:
+                hull = ConvexHull(points)
+                hull_points = points[hull.vertices]
+                hull_points = [(lat, lon) for lon, lat in hull_points]
+            except:
+                hull_points = [(lat, lon) for lon, lat in points]
         else:
-            hull_points = [(lat, lon) for tag, lat, lon in coords]
-        
-        
+            hull_points = [(lat, lon) for lon, lat in points]
+
         # Best image and detection for left and right flank 
         best_dets_data= db.session.query(
                             Detection.id, 
@@ -7538,11 +7544,14 @@ def getTrapgroupCountsIndividual(individual_id,baseUnit):
 
         # Get convex hull for the trapgroup coordinates where count > 0
         if data:
-            coords = np.array([(item['lng'], item['lat']) for item in data if item['count'] > 0])
+            coords = np.array([(item['lng'], item['lat']) for item in data if (item['count'] > 0 and (item['lat'] != 0 or item['lng'] != 0))])
             if len(coords) > 3: 
-                hull = ConvexHull(coords)
-                hull_points = coords[hull.vertices]
-                hull_coords = [(lat, lon) for lon, lat in hull_points]
+                try:
+                    hull = ConvexHull(coords)
+                    hull_points = coords[hull.vertices]
+                    hull_coords = [(lat, lon) for lon, lat in hull_points]
+                except: 
+                    hull_coords = [(lat, lon) for lon, lat in coords]
             else:
                 hull_coords = [(lat, lon) for lon, lat in coords] 
 
@@ -16557,14 +16566,17 @@ def getIndividualHullCoords(individual_id):
                         .join(Image)\
                         .join(Detection)\
                         .filter(Detection.individuals.contains(individual))\
-                        .filter(and_(Trapgroup.latitude!=0, Trapgroup.longitude!=0))\
+                        .filter(or_(Trapgroup.latitude != 0, Trapgroup.longitude != 0))\
                         .distinct().all()]
 
         if len(coords) > 3:
-            points = np.array([(lon, lat) for tag, lat, lon in coords])
-            hull = ConvexHull(points)
-            hull_points = points[hull.vertices]
-            hull_points = [(lat, lon) for lon, lat in hull_points]
+            try:
+                points = np.array([(lon, lat) for tag, lat, lon in coords])
+                hull = ConvexHull(points)
+                hull_points = points[hull.vertices]
+                hull_points = [(lat, lon) for lon, lat in hull_points]
+            except: 
+                hull_points = [(lat, lon) for tag, lat, lon in coords]
         else:
             hull_points = [(lat, lon) for tag, lat, lon in coords]
 

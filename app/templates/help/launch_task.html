@@ -20,7 +20,7 @@ limitations under the License. -->
         Launched annotation sets appear on the jobs page for your workers to annotate.
     </li>
     <li>
-        There are 6 different types of annotation task working from left to right through the list, going from the most coarse information down to the most granular.
+        There are 8 different types of annotation task working from left to right through the list, going from the most coarse information down to the most granular.
     </li>
     <li>
         Each annotation type can also be launched for a particular species of interest.
@@ -71,6 +71,12 @@ limitations under the License. -->
 </div>
 <br>
 
+<h4>Related Clusters Check</h4>
+<div align="justify">
+    Here you can check for any missing labels based on clusters that are related from the same site within a similar time frame. 
+</div>
+<br>
+
 <h4>Empty Label Check</h4>
 <div align="justify">
     Here you can check the clusters where no sightings were found in any of the images belonging to the cluster. Please note that the chances of missed sightings 
@@ -101,7 +107,7 @@ limitations under the License. -->
 </div>
 <br>
 
-<h4>Individual Identification</h4>
+<!-- <h4>Individual Identification</h4>
 <div align="justify">
     Here you can identify specific individuals of a particular species. There are three levels to this task: cluster identification, inter-cluster identification, and exhaustive.
 </div>
@@ -124,4 +130,30 @@ limitations under the License. -->
 <p align="justify">
     In the final level, you can do an exhaustive search across all unchecked combinations of individuals with no threshold. This will allow you to ensure that your individual set is as 
     accurate as possible. Hopefully by this stage you have substantially reduced the number of individuals to the point that this exhaustive search is reasonable.
+</p> -->
+
+<h4>Individual Identification</h4>
+<div align="justify">
+    Here you can identify specific individuals of a particular species.
+</div>
+<br>
+<p align="justify">
+    In the first stage, you identify individuals within a cluster, using the contextual information at hand to find multiple view angles of each individual. This is particularly 
+    useful for combining both sides of an individual, especially when you have multiple cameras per site.
+</p>
+<p align="justify">
+    In the second stage, individuals can be identified across clusters based on their calculated similarity, using a dynamic threshold.
+    You will be allocated an individual and then be offered potential matches that you can either accept, reject, or skip. Skipped pairings of individuals will be removed from the pool until you relaunch this annotation 
+    task, with the idea that you can then revisit those pairings when they have more images associated with them.
+</p>
+
+<p align="justify">
+    You can select which individual ID algorithm to use. At present you can either use Hotspotter in conjunction with a 
+    heuristic algorithm, or the heuristic algorithm on its own. Hotspotter is a pattern-recognition algorithm that performs well on species like leopards and zebra, but 
+    struggles on non-patterned species. As such, it is recommended that you rather use the heuristic on its own for such non-patterned species as it will be detrimental to the identification process.
+</p>
+
+<p align="justify">
+    Finally, you must select which Individual Library you would like to use to identify individuals. You have the option to identify individuals within the survey 
+    independently or against the survey area's individual library. Note that the area library will include all surveys in this area with individuals of the selected species.
 </p>
