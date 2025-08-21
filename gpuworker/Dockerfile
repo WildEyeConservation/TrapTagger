@@ -27,10 +27,6 @@ RUN wget "https://github.com/agentmorris/MegaDetector/releases/download/v5.0/md_
 RUN wget "https://github.com/agentmorris/MegaDetector/releases/download/v5.0/md_v5b.0.1.pt"
 RUN wget "https://github.com/agentmorris/MegaDetector/releases/download/v1000.0/md_v1000.0.0-redwood.pt"
 RUN wget "https://dl.fbaipublicfiles.com/segment_anything/sam_vit_h_4b8939.pth"
-#RUN git clone https://github.com/ultralytics/yolov5.git && cd yolov5 && git checkout 2e10909
-#RUN mkdir CameraTraps
-#RUN cp -r yolov5/utils CameraTraps/utils
-#RUN cp -r yolov5/models CameraTraps/models
 RUN git clone https://github.com/chaneyddtt/ScarceNet.git && cd ScarceNet && git checkout df4fa6b
 RUN pip install gdown
 ENV PATH="$HOME/.local/bin:$PATH"
@@ -43,24 +39,24 @@ RUN pip install \
     -e git+https://github.com/facebookresearch/segment-anything.git@6fdee8f2727f4506cfbbe553e23b895e27956588#egg=segment-anything\
     humanfriendly==10.0\
     jsonpickle==3.0.4\
-    matplotlib==3.3.0\
+    matplotlib==3.8.0\
     Pillow==10.3.0\
     requests==2.32.3\
     redis==5.0.4\
     tqdm==4.66.4\
-    pandas==1.1.4\
+    pandas==2.1.1\
     progressbar2==4.4.2\
     pylint==3.2.2\
     scikit-image==0.18.3\
-    scikit-learn==1.0.1\
+    scikit-learn==1.3.1\
     xlrd==2.0.1\
     pillow-simd==9.0.0.post1\
     boto3==1.34.116\
     opencv-python==4.9.0.80\
     PyYAML==6.0.1\
-    seaborn==0.9.0\
+    seaborn==0.11.0\
     yacs==0.1.8\
-    numpy==1.19.3\
+    numpy==1.26.4\
     wbia-pyflann==3.3.0\
     wbia-pyhesaff==3.0.2\
     wbia-utool==3.4.0\
