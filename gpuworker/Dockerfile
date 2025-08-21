@@ -13,24 +13,24 @@
 # limitations under the License.
 
 FROM nvidia/cuda:11.4.1-cudnn8-runtime-ubi8
-FROM python:3.8.12
+FROM python:3.9.13
 RUN apt-get update && \
     apt-get upgrade -y && \
     apt-get install -y git 
-RUN apt-get install ffmpeg libsm6 libxext6 postgresql -y
+RUN apt-get install ffmpeg libsm6 libxext6 postgresql libgl1 libglib2.0-0 -y
 RUN apt-get install wget
 RUN apt-get install unzip
 RUN pip install --upgrade pip
 RUN pip3 install torch torchvision torchaudio
 WORKDIR /code
-RUN wget "https://github.com/microsoft/CameraTraps/releases/download/v5.0/md_v5a.0.0.pt"
-RUN wget "https://github.com/microsoft/CameraTraps/releases/download/v5.0/md_v5b.0.0.pt"
+RUN wget "https://github.com/agentmorris/MegaDetector/releases/download/v5.0/md_v5a.0.1.pt"
+RUN wget "https://github.com/agentmorris/MegaDetector/releases/download/v5.0/md_v5b.0.1.pt"
 RUN wget "https://github.com/agentmorris/MegaDetector/releases/download/v1000.0/md_v1000.0.0-redwood.pt"
 RUN wget "https://dl.fbaipublicfiles.com/segment_anything/sam_vit_h_4b8939.pth"
-RUN git clone https://github.com/ultralytics/yolov5.git && cd yolov5 && git checkout 2e10909
-RUN mkdir CameraTraps
-RUN cp -r yolov5/utils CameraTraps/utils
-RUN cp -r yolov5/models CameraTraps/models
+#RUN git clone https://github.com/ultralytics/yolov5.git && cd yolov5 && git checkout 2e10909
+#RUN mkdir CameraTraps
+#RUN cp -r yolov5/utils CameraTraps/utils
+#RUN cp -r yolov5/models CameraTraps/models
 RUN git clone https://github.com/chaneyddtt/ScarceNet.git && cd ScarceNet && git checkout df4fa6b
 RUN pip install gdown
 ENV PATH="$HOME/.local/bin:$PATH"
@@ -38,6 +38,7 @@ RUN gdown https://drive.google.com/uc?id=1MQGyyf1MQjETRG_CRBMEfrV0IFiis_ZQ
 RUN unzip -p ScarceNet_final_models.zip ScarceNet_final_models/output_part25_updatev2/model_best.pth > model_best.pth
 RUN rm ScarceNet_final_models.zip
 RUN pip install \
+    megadetector==10.0.3\
     celery==5.4.0\
     -e git+https://github.com/facebookresearch/segment-anything.git@6fdee8f2727f4506cfbbe553e23b895e27956588#egg=segment-anything\
     humanfriendly==10.0\
