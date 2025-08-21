@@ -18,8 +18,6 @@ import tempfile
 import boto3
 import requests
 from botocore.exceptions import ClientError
-from megadetector.visualization import visualization_utils as vis_utils
-from megadetector.detection import run_detector
 
 detector=None
 s3client = boto3.client('s3')
@@ -56,10 +54,12 @@ def infer(batch,sourceBucket,external,model,threshold=0.05,pass_images=False):
 
     try:
         print('Recieved batch of {} images.'.format(len(batch)))
+        from megadetector.visualization import visualization_utils as vis_utils
         global detector
         
         if detector==None:
             print('Initialising')
+            from megadetector.detection import run_detector
             detector = run_detector.load_detector(detectors[model]['filename'])
 
         if pass_images: images = {}
