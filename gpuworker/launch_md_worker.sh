@@ -49,6 +49,9 @@ for ((i=0;$((i<$NUMGPUS));i++)) do
       -e QUEUE \
       -e WORKER_NUMBER=$i \
       -e CUDA_VISIBLE_DEVICES=$i \
+      -e WBIA_DB_NAME \
+      -e WBIA_DB_SERVER \
+      -e WBIA_DIR \
       -v /home/ubuntu/TrapTagger/gpuworker:/code/gpuworker \
       --hostname worker$i@$1 \
       --gpus all \
