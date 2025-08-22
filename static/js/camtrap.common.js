@@ -333,7 +333,7 @@ function buildDetection(image,detection,mapID = 'map1',colour=null) {
                 // rect._tooltip.options.offset = offset
                 // rect._tooltip.options.opacity = 0.8
                 // rect.openTooltip()
-                if (individuals[individualIndex][detection.individual]['auto_name'] != 'true') {
+                if (individuals[individualIndex][detection.individual]['auto_name'] != 'true' && !['', null,undefined].includes(individuals[individualIndex][detection.individual].name)) {
                     var center = L.latLng([(rect._bounds._northEast.lat+rect._bounds._southWest.lat)/2,(rect._bounds._northEast.lng+rect._bounds._southWest.lng)/2])
                     var top = L.latLng([rect._bounds._northEast.lat,(rect._bounds._northEast.lng+rect._bounds._southWest.lng)/2])
                     var centerPoint = map[mapID].latLngToContainerPoint(center)

@@ -4426,6 +4426,11 @@ function prepFeatureMap(div_id, flank, image_url, detection,size=15) {
                     }
                 }
             });
+            imgMapsActiveImage[div_id].on('error', function() {
+                if (!this._url.includes('-comp')) {
+                    this.setUrl("https://"+bucketName+".s3.amazonaws.com/" + modifyToCompURL(individualFlankImages[flank][flankImageIndex[flank]].url));
+                }
+            });
 
             imgMapsWidth[div_id] = northEast.lng
             imgMapsHeight[div_id] = southWest.lat

@@ -675,6 +675,7 @@ def editIndividualName():
                             .filter(Survey.area_id==area_id)\
                             .filter(Individual.species==individual.species)\
                             .filter(Individual.name==name)\
+                            .filter(Individual.active==True)\
                             .first()
             if check:
                 error = "Duplicate name detected. Please enter a different name."
@@ -16012,6 +16013,10 @@ def mergeDetectionIntoIndividual():
                                     .filter(Detection.individuals.contains(merge_individual))\
                                     .filter(Task.id.in_(task_ids))\
                                     .distinct().all()
+
+        if len(merge_individual.tasks) > 1:
+            for tsk in merge_individual.tasks:
+                if not tsk.areaID_library: tsk.areaID_library=True
 
         individual.active = True
         merge_individual.active = True

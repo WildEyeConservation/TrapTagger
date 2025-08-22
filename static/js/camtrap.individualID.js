@@ -814,7 +814,7 @@ function buildIndividuals() {
                     // }
 
                     drawnItems[mapID]._layers[leafletID].setStyle({color: colour})
-                    if (autoName=='true'){
+                    if (autoName=='true'||individualName==null||individualName=='') {
                         continue
                     }
                     drawnItems[mapID]._layers[leafletID].bindPopup(individualName, {closeButton: false, autoClose: false, closeOnClick: false, autoPan: false, minWidth: 0})
@@ -912,7 +912,7 @@ function buildIndividualsObject() {
 
                                     individuals[individualIndex][info.id]['tags'] = info.tags
                                     individuals[individualIndex][info.id]['name'] = info.name
-                                    individuals[individualIndex][info.id]['notes'] = info.notes
+                                    individuals[individualIndex][info.id]['notes'] = info.notes ?? '';
                                     individuals[individualIndex][info.id]['children'] = info.children
                                     individuals[individualIndex][info.id]['family'] = info.family
                                     individuals[individualIndex][info.id]['known'] = 'false'
@@ -2940,7 +2940,9 @@ function populatePanel(panel,individual_id){
         } else if (this.readyState == 4 && this.status == 200) {
             var info = JSON.parse(this.responseText);
 
-            // console.log(info)
+            if (info=='error'){
+                return;
+            }
 
             var panelInfo = document.getElementById(panel + 'PanelInfoDiv')
             while(panelInfo.firstChild){
@@ -3635,6 +3637,11 @@ function prepFeatureMap(div_id, image_url, detection,size=15) {
                         imgMaps[div_id].fitBounds(det_bounds, {padding: [10,10]});
                         addFeatures(div_id, individualFlankImages[flankImageIndex].detection.features)
                     }
+                }
+            });
+            imgMapsActiveImage[div_id].on('error', function() {
+                if (!this._url.includes('-comp')) {
+                    this.setUrl("https://"+bucketName+".s3.amazonaws.com/" + modifyToCompURL(individualFlankImages[flankImageIndex].url));
                 }
             });
 
