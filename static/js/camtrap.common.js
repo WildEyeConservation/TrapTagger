@@ -333,28 +333,29 @@ function buildDetection(image,detection,mapID = 'map1',colour=null) {
                 // rect._tooltip.options.offset = offset
                 // rect._tooltip.options.opacity = 0.8
                 // rect.openTooltip()
+                if (individuals[individualIndex][detection.individual]['auto_name'] != 'true') {
+                    var center = L.latLng([(rect._bounds._northEast.lat+rect._bounds._southWest.lat)/2,(rect._bounds._northEast.lng+rect._bounds._southWest.lng)/2])
+                    var top = L.latLng([rect._bounds._northEast.lat,(rect._bounds._northEast.lng+rect._bounds._southWest.lng)/2])
+                    var centerPoint = map[mapID].latLngToContainerPoint(center)
+                    var topPoint = map[mapID].latLngToContainerPoint(top)
+                    var offset = [0,topPoint.y-centerPoint.y]
 
-                var center = L.latLng([(rect._bounds._northEast.lat+rect._bounds._southWest.lat)/2,(rect._bounds._northEast.lng+rect._bounds._southWest.lng)/2])
-                var top = L.latLng([rect._bounds._northEast.lat,(rect._bounds._northEast.lng+rect._bounds._southWest.lng)/2])
-                var centerPoint = map[mapID].latLngToContainerPoint(center)
-                var topPoint = map[mapID].latLngToContainerPoint(top)
-                var offset = [0,topPoint.y-centerPoint.y]
-
-                // If the popup is too close to the top of the map, move it down
-                if (rect._bounds._northEast.lat >= map[mapID].getBounds().getNorth()-15) {
-                    offset = [0, 0]
-                }
+                    // If the popup is too close to the top of the map, move it down
+                    if (rect._bounds._northEast.lat >= map[mapID].getBounds().getNorth()-15) {
+                        offset = [0, 0]
+                    }
         
-                rect.bindPopup(individuals[individualIndex][detection.individual].name,{closeButton: false, autoClose: false, closeOnClick: false, autoPan: false, minWidth: 0})
-                rect._popup.options.offset = offset
+                    rect.bindPopup(individuals[individualIndex][detection.individual].name,{closeButton: false, autoClose: false, closeOnClick: false, autoPan: false, minWidth: 0})
 
-                rect.on('mouseover', function (e) {
-                    this.openPopup();
-                });
-                rect.on('mouseout', function (e) {
-                    this.closePopup();
-                });
+                    rect._popup.options.offset = offset
 
+                    rect.on('mouseover', function (e) {
+                        this.openPopup();
+                    });
+                    rect.on('mouseout', function (e) {
+                        this.closePopup();
+                    });
+                }
             }
 
             if (detection.id in editedFlanks) {

@@ -5795,7 +5795,7 @@ document.getElementById('btnEditSurvey').addEventListener('click', ()=>{
             formData.append("createNewArea", 'true')
         }
         if (surveyAreaEditOption != null) {
-            formData.append('area_edit_option', surveyAreaEditOption)
+            formData.append('edit_area_option', surveyAreaEditOption)
         }
 
         var xhttp = new XMLHttpRequest();
@@ -10177,7 +10177,7 @@ $('#editAreaConfirm').on('click', function () {
     if (document.getElementById('mergeAreas').checked) {
         surveyAreaEditOption = 'merge';
     } else if (document.getElementById('delIndivsAndMove').checked) {
-        surveyAreaEditOption = 'delete_indivs';
+        surveyAreaEditOption = 'delete_individuals';
     } else {
         surveyAreaEditOption = null;
     }

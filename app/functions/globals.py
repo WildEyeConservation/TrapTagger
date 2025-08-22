@@ -6587,12 +6587,13 @@ def launch_task(self,task_id,classify=False):
 
                     admin = db.session.query(User).filter(User.username == 'Admin').first()
                     for detection in detections:
-                        newIndividual = Individual( name=generateUniqueName(task_id,label.description,tL[2]),
-                                                    species=species,
+                        newIndividual = Individual( species=species,
                                                     user_id=admin.id,
                                                     timestamp=datetime.utcnow())
 
                         db.session.add(newIndividual)
+                        db.session.flush()
+                        newIndividual.name = str(newIndividual.id)
                         newIndividual.detections = [detection]
                         newIndividual.tasks = [task]
                         newIndividualsAdded = True
@@ -7296,5 +7297,48 @@ def update_individuals_primary_dets(task_ids=[],species=None,individual_ids=None
     db.session.commit()
 
     app.logger.info('Finished updating primary detections for individuals in '+str(round(time.time()-start,2))+' seconds')
+
+    return True
+
+def update_duplicate_individual_names(area_id):
+    '''Updates the names of individuals in a specific area to ensure uniqueness.'''
+    if not area_id: return True
+
+    dup_names = [r[0] for r in db.session.query(Individual.name)\
+                                .join(Task, Individual.tasks)\
+                                .join(Survey)\
+                                .filter(Survey.area_id==area_id)\
+                                .filter(Individual.name.like('% (%)'))\
+                                .all()]
+
+    duplicate_individuals_sq = db.session.query(
+                                    Individual.id,
+                                    Individual.name,
+                                    func.row_number().over(
+                                        partition_by=[Individual.species, Individual.name],
+                                        order_by=Individual.id
+                                    ).label("rn")
+                                )\
+                                .join(Task,Individual.tasks)\
+                                .join(Survey)\
+                                .filter(Survey.area_id==area_id)\
+                                .filter(Individual.active==True)\
+                                .filter(Individual.name!='unidentifiable')\
+                                .distinct().subquery()
+
+    duplicate_individuals = db.session.query(Individual,duplicate_individuals_sq.c.rn)\
+                                        .join(duplicate_individuals_sq, Individual.id == duplicate_individuals_sq.c.id)\
+                                        .filter(duplicate_individuals_sq.c.rn > 1)\
+                                        .distinct().all()
+
+    for individual, rn in duplicate_individuals:
+        new_name = f"{individual.name} ({rn})"
+        while new_name in dup_names:
+            rn += 1
+            new_name = f"{individual.name} ({rn})"
+        individual.name = new_name
+        dup_names.append(individual.name)
+    
+    db.session.commit()
 
     return True

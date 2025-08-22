@@ -714,9 +714,10 @@ function generateName() {
 
 function prepIndividualModal() {
     /** Initialises the new individal modal. */
+    document.getElementById('autoGenerateNameRb').click()
     document.getElementById('newIndividualName').value = ''
     document.getElementById('notebox').value = ''
-    generateName()
+    // generateName()
 
     if (globalTags.length>0) {
         characteristicsDiv = document.getElementById('characteristicsDiv')
@@ -789,6 +790,7 @@ function buildIndividuals() {
     for (let individualID in individuals[individualIndex]) {
         colour = individuals[individualIndex][individualID].colour
         individualName = individuals[individualIndex][individualID].name
+        autoName = individuals[individualIndex][individualID].auto_name
 
         // Tooltips and recolour
         for (let mapID in dbDetIds) {
@@ -812,6 +814,9 @@ function buildIndividuals() {
                     // }
 
                     drawnItems[mapID]._layers[leafletID].setStyle({color: colour})
+                    if (autoName=='true'){
+                        continue
+                    }
                     drawnItems[mapID]._layers[leafletID].bindPopup(individualName, {closeButton: false, autoClose: false, closeOnClick: false, autoPan: false, minWidth: 0})
                     drawnItems[mapID]._layers[leafletID].on('mouseover', function (e) {
                         this.openPopup();
@@ -914,6 +919,7 @@ function buildIndividualsObject() {
                                     if (info.surveys.length>1) {
                                         individuals[individualIndex][info.id]['known'] = 'true'
                                     }
+                                    individuals[individualIndex][info.id]['auto_name'] = 'false'
                                     buildIndividuals()
 
                                     stat = true
@@ -1258,7 +1264,7 @@ function submitIndividuals() {
 function submitIndividual(){
     /** Submits the new-individual modal, adding the individual to the individuals object for the cluster, and building the bounding boxes. */
     if (!blockIndividualSubmit) {
-        if (!['','dummy','unidentifiable'].includes(document.getElementById('newIndividualName').value.toLowerCase())) {
+        if (document.getElementById('autoGenerateNameRb').checked||(!['','dummy','unidentifiable'].includes(document.getElementById('newIndividualName').value.toLowerCase()))) {
             document.getElementById('newIndividualErrors').innerHTML = ''
             tags = []
             for (let i=0;i<globalTags.length;i++) {
@@ -1268,7 +1274,13 @@ function submitIndividual(){
                 }
             }
             individuals[individualIndex][globalIndividual]['tags'] = tags
-            individuals[individualIndex][globalIndividual]['name'] = document.getElementById('newIndividualName').value
+            if (document.getElementById('autoGenerateNameRb').checked) {
+                individuals[individualIndex][globalIndividual]['name'] = ''
+                individuals[individualIndex][globalIndividual]['auto_name'] = 'true'
+            } else {
+                individuals[individualIndex][globalIndividual]['name'] = document.getElementById('newIndividualName').value
+                individuals[individualIndex][globalIndividual]['auto_name'] = 'false'
+            }
             individuals[individualIndex][globalIndividual]['notes'] = document.getElementById('notebox').value
             individuals[individualIndex][globalIndividual]['known'] = 'false'
             buildIndividuals()
@@ -1297,6 +1309,7 @@ function submitKnownIndividual() {
         individuals[individualIndex][globalIndividual]['id'] = selectedKnownIndividual
         individuals[individualIndex][globalIndividual]['name'] = selectedKnownIndividualName
         individuals[individualIndex][globalIndividual]['notes'] = document.getElementById('knownNotebox').value
+        individuals[individualIndex][globalIndividual]['auto_name'] = 'false'
 
         var tags = []
         var allCbx = document.querySelectorAll('[id^="Cbx_"]')
@@ -4148,4 +4161,16 @@ $('#btnSubmitFeatures').click(function() {
     };
     xhttp.open("POST", "/submitFeatures");
     xhttp.send(formData);
+});
+
+$('#customNameRb').on('change', function (){
+    if (this.checked) {
+        document.getElementById('newIndividualName').hidden = false;
+    }
+});
+
+$('#autoGenerateNameRb').on('change', function (){
+    if (this.checked) {
+        document.getElementById('newIndividualName').hidden = true;
+    }
 });

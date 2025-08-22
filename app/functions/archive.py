@@ -554,7 +554,7 @@ def restore_images_for_classification(self,survey_id,days,edit_survey_args,tier,
                     require_wait = True
         
         if (restored_image or restore_date) and require_wait:
-            if edit_survey_args['delete_area_individuals'] == True:
+            if edit_survey_args['edit_area_option'] == 'delete_individuals':
                 # Have to delete the individuals in the case that someone cancels the restore
                 task = db.session.query(Task).filter(Task.survey_id==survey_id).filter(Task.areaID_library==True).first()
                 if task:

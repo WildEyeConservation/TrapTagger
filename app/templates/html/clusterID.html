@@ -269,10 +269,20 @@ limitations under the License. -->
                     <div id="newIndividualErrors" style="font-size: 80%; color: #DF691A"></div>
 
                     <h5 style="margin-bottom: 2px">Name</h5>
-                    <div style="font-size: 80%; margin-bottom: 2px"><i>An identifying name for the new individual.</i></div>
+                    <div style="font-size: 80%; margin-bottom: 0px"><i>An identifying name for the new individual.</i></div>
+                    <div style="margin-bottom: 4px">
+                        <div class="custom-control custom-radio custom-control-inline">
+                            <input type="radio" class="custom-control-input" id="autoGenerateNameRb" name="nameIndivOpions" value='0' checked>
+                            <label class="custom-control-label" for="autoGenerateNameRb">Auto Generate Name</label>
+                        </div>
+                        <div class="custom-control custom-radio custom-control-inline">
+                            <input type="radio" class="custom-control-input" id="customNameRb" name="nameIndivOpions" value='1'>
+                            <label class="custom-control-label" for="customNameRb">Custom Name</label>
+                        </div> 
+                    </div>
                     <div class="row">
                         <div class='col-lg-4'>
-                            <input type="text" class="form-control" required id="newIndividualName"></input>
+                            <input type="text" class="form-control" required id="newIndividualName" hidden></input>
                         </div>
                     </div>
                     <br>

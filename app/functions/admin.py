@@ -19,7 +19,7 @@ from app.models import *
 from app.functions.globals import classifyTask, update_masks, retryTime, resolve_abandoned_jobs, addChildLabels, updateAllStatuses, deleteFile,\
                                     stringify_timestamp, rDets, update_staticgroups, detection_rating, chunker, verify_label, cleanup_empty_restored_images, \
                                     reconcile_cluster_labelgroup_labels_and_tags, hideSmallDetections, maskSky, checkChildTranslations, createChildTranslations, \
-                                    prepTask, removeHumans, sync_labels, sync_tags, update_individuals_primary_dets, updateIndividualIdStatus
+                                    prepTask, removeHumans, sync_labels, sync_tags, update_individuals_primary_dets, updateIndividualIdStatus, update_duplicate_individual_names
 from app.functions.individualID import calculate_detection_similarities, cleanUpIndividuals, check_individual_detection_mismatch
 from app.functions.imports import classifySurvey, s3traverse, classifyCluster, importKML, import_survey
 import GLOBALS
@@ -2642,7 +2642,7 @@ def recluster_after_image_timestamp_change(survey_id,image_timestamps):
 
 
 @celery.task(bind=True,max_retries=5,ignore_result=True)
-def edit_survey(self,survey_id,user_id,classifier_id,sky_masked,ignore_small_detections,masks,staticgroups,timestamps,image_timestamps,coord_data,kml_file,delete_area_individuals):
+def edit_survey(self,survey_id,user_id,classifier_id,sky_masked,ignore_small_detections,masks,staticgroups,timestamps,image_timestamps,coord_data,kml_file,edit_area_option):
     '''Celery task that handles the editing of a survey.'''
     try:
         survey = db.session.query(Survey).get(survey_id)
@@ -2660,21 +2660,26 @@ def edit_survey(self,survey_id,user_id,classifier_id,sky_masked,ignore_small_det
             importKML(survey_id)
 
         # Individuals 
-        if delete_area_individuals:
-            skipUpdateStatuses = False
-            task = db.session.query(Task).filter(Task.survey_id==survey_id).filter(Task.areaID_library==True).first()
-            if task:
-                IndividualTask = alias(Task)
-                count_sq = db.session.query(Individual.id, func.count(IndividualTask.c.id).label('count'))\
-                                    .join(Task, Individual.tasks)\
-                                    .join(IndividualTask, Individual.tasks)\
-                                    .filter(Task.id==task.id)\
-                                    .group_by(Individual.id).subquery()
-                species = [r[0] for r in db.session.query(Individual.species)\
-                                    .join(count_sq, Individual.id==count_sq.c.id)\
-                                    .filter(count_sq.c.count>1).distinct().all()]
-                if species: 
-                    delete_individuals(task_ids=[task.id], species=species, skip_update_status=True)
+        if edit_area_option:
+            if edit_area_option=='delete_individuals':
+                skipUpdateStatuses = False
+                task = db.session.query(Task).filter(Task.survey_id==survey_id).filter(Task.areaID_library==True).first()
+                if task:
+                    IndividualTask = alias(Task)
+                    count_sq = db.session.query(Individual.id, func.count(IndividualTask.c.id).label('count'))\
+                                        .join(Task, Individual.tasks)\
+                                        .join(IndividualTask, Individual.tasks)\
+                                        .filter(Task.id==task.id)\
+                                        .group_by(Individual.id).subquery()
+                    species = [r[0] for r in db.session.query(Individual.species)\
+                                        .join(count_sq, Individual.id==count_sq.c.id)\
+                                        .filter(count_sq.c.count>1).distinct().all()]
+                    if species: 
+                        delete_individuals(task_ids=[task.id], species=species, skip_update_status=True)
+            
+            elif edit_area_option=='merge':
+                survey = db.session.query(Survey).get(survey_id)
+                update_duplicate_individual_names(survey.area_id)
 
         # Static groups
         if staticgroups:
