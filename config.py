@@ -675,7 +675,7 @@ class Config(object):
             'repo': os.environ.get('MAIN_GIT_REPO'),
             'branch': BRANCH,
             'user_data': 
-                'bash /home/ubuntu/TrapTagger/gpuworker/launch_gpu_worker.sh ' + 
+                'bash /home/ubuntu/TrapTagger/gpuworker/launch.sh ' + 
                 'similarity_worker_{}' + ' ' + 
                 HOST_IP + ' ' + 
                 'similarity ' + 
@@ -814,7 +814,7 @@ class Config(object):
         'max_instances': MAX_CLASSIFICATION,
         'rate': 35,
         'user_data':
-            'bash /home/ubuntu/TrapTagger/gpuworker/launch_gpu_worker.sh ' + 
+            'bash /home/ubuntu/TrapTagger/gpuworker/launch.sh ' + 
             'classification_worker_{}' + ' ' + 
             HOST_IP + ' ' + 
             '{} ' + 

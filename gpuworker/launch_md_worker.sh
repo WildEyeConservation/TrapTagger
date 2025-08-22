@@ -84,7 +84,7 @@ while $flag; do
     # Spot instance has been re-allocated
     echo "Spot instance re-allocated! Shutting down..."
     for ((i=0;$((i<$NUMGPUS));i++)) do
-      docker exec gpuworker$i python3 gpuworker/cleanup_worker.py || STATUS=$?
+      docker exec md_worker$i python3 gpuworker/cleanup_worker.py || STATUS=$?
       echo "Cleanup status: "$STATUS
     done
     flag=false
@@ -94,7 +94,7 @@ while $flag; do
   if [ $(($(date -u +%s)-$LAUNCH_TIME)) -ge $SETUP_PERIOD ] && [ $((COUNT/$IDLE_MULTIPLIER)) -ge 1 ]; then
     echo "Checking idleness.."
     COUNT=0
-    docker exec gpuworker0 bash gpuworker/celery_worker_monitor.sh || STATUS=$?
+    docker exec md_worker0 bash gpuworker/celery_worker_monitor.sh || STATUS=$?
     echo "STATUS="$STATUS
     if [ $STATUS == 23 ] || [ $STATUS == 100 ]; then
       # Worker is idle or is in an error state
@@ -105,7 +105,7 @@ while $flag; do
     if [ $IDLE_COUNT == 2 ]; then
       echo "Worker idle. Shutting down..."
       for ((i=0;$((i<$NUMGPUS));i++)) do
-        docker exec gpuworker$i python3 gpuworker/cleanup_worker.py || STATUS=$?
+        docker exec md_worker$i python3 gpuworker/cleanup_worker.py || STATUS=$?
         echo "Cleanup status: "$STATUS
       done
       flag=false
@@ -115,7 +115,7 @@ while $flag; do
 done
 
 for ((i=0;$((i<$NUMGPUS));i++)) do
-  docker stop gpuworker$i
+  docker stop md_worker$i
 done
 
 echo "Containers shut down. Goodbye."
