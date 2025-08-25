@@ -1139,7 +1139,7 @@ def dearchive_and_crop_individuals(self,task_id,launch_kwargs):
             splits = image_path.split('/')
             splits[0] = splits[0] + '-comp'
             image_path = '/'.join(splits)
-            crop_image(detection_id,image_path,bbox_dict)
+            crop_image_to_individual(detection_id,image_path,bbox_dict)
 
         # Launch id task
         del launch_kwargs['tagging_level']   
@@ -1162,7 +1162,7 @@ def dearchive_and_crop_individuals(self,task_id,launch_kwargs):
 
     return True
 
-def crop_image(detection_id,image_path,bbox_dict,min_size=200):
+def crop_image_to_individual(detection_id,image_path,bbox_dict,min_size=200):
     '''Crops an image based on the bounding box provided.'''
     try:
         with tempfile.NamedTemporaryFile(delete=True, suffix='.JPG') as temp_file:
