@@ -16110,17 +16110,9 @@ def getMergeTasks(id,id_type):
             tasks = db.session.query(Task.id, Task.name, Survey.name, Survey.id)\
                                 .join(Survey)\
                                 .join(Individual,Task.individuals)\
-                                .filter(or_(
-                                    and_(Task.status.in_(Config.TASK_READY_STATUSES), Survey.status.in_(Config.SURVEY_READY_STATUSES)), 
-                                    and_(Task.status=='ID Processing',Task.id.in_(sub_task_ids))
-                                ))\
                                 .filter(Individual.species==species)\
                                 .filter(Individual.name != 'unidentifiable')\
                                 .filter(Task.id.in_(task_ids))
-            if individual_id:
-                tasks = surveyPermissionsSQ(tasks,current_user.id,'write').distinct().all()
-            else:
-                tasks = annotationPermissionSQ(tasks,current_user.parent_id).distinct().all()
         else:
             exclude_tasks = db.session.query(Task.id)\
                             .join(Individual,Task.individuals)\
@@ -16135,10 +16127,6 @@ def getMergeTasks(id,id_type):
                                 .join(Individual,Task.individuals)\
                                 .outerjoin(exclude_tasks, Task.id==exclude_tasks.c.id)\
                                 .outerjoin(area_id_surveys, Task.survey_id==area_id_surveys.c.id)\
-                                .filter(or_(
-                                    and_(Task.status.in_(Config.TASK_READY_STATUSES), Survey.status.in_(Config.SURVEY_READY_STATUSES)), 
-                                    and_(Task.status=='ID Processing',Task.id.in_(sub_task_ids))
-                                ))\
                                 .filter(Individual.species==species)\
                                 .filter(Individual.name != 'unidentifiable')\
                                 .filter(exclude_tasks.c.id==None)\
@@ -16146,10 +16134,19 @@ def getMergeTasks(id,id_type):
                                 .filter(Survey.area_id!=None)\
                                 .filter(or_(Task.areaID_library==True, area_id_surveys.c.id==None))
 
-            if individual_id:
-                tasks = surveyPermissionsSQ(tasks,current_user.id,'write').distinct().all()
-            else:
-                tasks = annotationPermissionSQ(tasks,current_user.parent_id).distinct().all()
+        if individual_id:
+            tasks = tasks.filter(or_(
+                and_(Task.status.in_(Config.TASK_READY_STATUSES), Survey.status.in_(Config.SURVEY_READY_STATUSES)), 
+                and_(Task.status=='ID Processing',Task.id.in_(sub_task_ids))
+            ))
+            tasks = surveyPermissionsSQ(tasks,current_user.id,'write').distinct().all()
+        else:
+            tasks = tasks.filter(or_(
+                and_(Task.status.in_(Config.TASK_READY_STATUSES), Survey.status.in_(Config.SURVEY_READY_STATUSES)), 
+                and_(Task.status=='ID Processing',Task.id.in_(sub_task_ids)),
+                Task.id==task_id,
+            ))
+            tasks = annotationPermissionSQ(tasks,current_user.parent_id).distinct().all()
                                     
         for task in tasks:
             task_info.append({
@@ -16215,7 +16212,8 @@ def getKnownIndividuals():
                                 .filter(Survey.area_id==area_id)\
                                 .filter(or_(
                                     and_(Task.status.in_(Config.TASK_READY_STATUSES), Survey.status.in_(Config.SURVEY_READY_STATUSES)), 
-                                    and_(Task.status=='ID Processing',Task.id.in_(sub_task_ids))
+                                    and_(Task.status=='ID Processing',Task.id.in_(sub_task_ids)),
+                                    Task.id==task.id,
                                 ))\
                                 ,current_user.parent_id)
 
