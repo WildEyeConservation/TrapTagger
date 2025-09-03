@@ -410,9 +410,12 @@ function buildDetection(image,detection,mapID = 'map1',colour=null) {
                         sendBoundingBack()
                     }
                     else if(!drawControl._toolbars.edit._activeMode && !drawControl._toolbars.draw._activeMode){
-                        if (prevClickBounding != null){
+                        if (!(isBounding && event.ctrlKey)) {
                             colour = "rgba(223,105,26,1)"
-                            prevClickBounding.rect.setStyle({color: colour}); //un-highlight old selection
+                            // prevClickBounding.rect.setStyle({color: colour}); //un-highlight old selection
+                            for (let leafletID in drawnItems[mapID]._layers) {
+                                drawnItems[mapID]._layers[leafletID].setStyle({color: colour}); //un-highlight all selections
+                            }
                         }
                     
                         wrapRect.setStyle({color: "rgba(225,225,225,1)"}); //highlight new selection
@@ -425,9 +428,12 @@ function buildDetection(image,detection,mapID = 'map1',colour=null) {
             rect.addEventListener('contextmenu', function(wrapRect){
                 return function() {
                     if(!drawControl._toolbars.edit._activeMode && !drawControl._toolbars.draw._activeMode){
-                        if (prevClickBounding != null){
+                         if (!(isBounding && event.ctrlKey)) {
                             colour = "rgba(223,105,26,1)"
-                            prevClickBounding.rect.setStyle({color: colour}); //un-highlight old selection
+                            // prevClickBounding.rect.setStyle({color: colour}); //un-highlight old selection
+                            for (let leafletID in drawnItems[mapID]._layers) {
+                                drawnItems[mapID]._layers[leafletID].setStyle({color: colour}); //un-highlight all selections
+                            }
                         }
                     
                         wrapRect.setStyle({color: "rgba(225,225,225,1)"}); //highlight new selection
@@ -814,6 +820,9 @@ function updateCanvas(mapID = 'map1') {
             if ((bucketName!=null) && (Object.keys(activeImage).includes(mapID)) && (imageIndex[mapID]<clusters[mapID][clusterIndex[mapID]].images.length)) {
                 if ((isBounding)||(isIDing && (document.getElementById('btnSendToBack')==null))) {
                     setRectOptions()
+                    if (isBounding){
+                        buildBoundingKeys()
+                    }
                 }
                 image=clusters[mapID][clusterIndex[mapID]].images[imageIndex[mapID]]
 
@@ -3845,6 +3854,26 @@ document.onkeyup = function(event){
             case 'h': hideBoundingLabels()
                 break;
             case 'b': sendBoundingBack()
+                break;
+            case 'o': buildOtherKeys()
+                break;
+            case ('1'):assignBoundingLabel(hotkeys[1])
+                break;
+            case ('2'):assignBoundingLabel(hotkeys[2])
+                break;
+            case ('3'):assignBoundingLabel(hotkeys[3])
+                break;
+            case ('4'):assignBoundingLabel(hotkeys[4])
+                break;
+            case ('5'):assignBoundingLabel(hotkeys[5])
+                break;
+            case ('6'):assignBoundingLabel(hotkeys[6])
+                break;
+            case ('7'):assignBoundingLabel(hotkeys[7])
+                break;
+            case ('8'):assignBoundingLabel(hotkeys[8])
+                break;
+            case ('9'):assignBoundingLabel(hotkeys[9])
                 break;
         }
     } else if (isStaticCheck) {

@@ -23,6 +23,7 @@ import time
 import threading
 from sqlalchemy.sql import func, or_, alias, distinct, and_, literal_column, case
 from sqlalchemy import desc, insert
+from sqlalchemy.orm import joinedload
 import random
 import string
 from datetime import datetime, timedelta
@@ -479,17 +480,23 @@ def updateTaskCompletionStatus(task_id):
     
     # task.complete = complete
 
-    subq = db.session.query(detectionLabels.c.labelgroup_id.label('labelgroupID'), func.count(distinct(detectionLabels.c.label_id)).label('labelCount')) \
-                    .join(Labelgroup,Labelgroup.id==detectionLabels.c.labelgroup_id) \
-                    .filter(Labelgroup.task_id==task_id) \
-                    .group_by(detectionLabels.c.labelgroup_id) \
-                    .subquery()
+    # subq = db.session.query(detectionLabels.c.labelgroup_id.label('labelgroupID'), func.count(distinct(detectionLabels.c.label_id)).label('labelCount')) \
+    #                 .join(Labelgroup,Labelgroup.id==detectionLabels.c.labelgroup_id) \
+    #                 .filter(Labelgroup.task_id==task_id) \
+    #                 .group_by(detectionLabels.c.labelgroup_id) \
+    #                 .subquery()
+
+    subq = db.session.query(labelstable.c.cluster_id.label('clusterID'), func.count(distinct(labelstable.c.label_id)).label('labelCount')) \
+                            .join(Cluster,Cluster.id==labelstable.c.cluster_id) \
+                            .filter(Cluster.task_id==task_id) \
+                            .group_by(labelstable.c.cluster_id) \
+                            .subquery()
 
     task.unchecked_multi_count = db.session.query(Cluster) \
                     .join(Image,Cluster.images) \
                     .join(Detection) \
                     .join(Labelgroup) \
-                    .join(subq, subq.c.labelgroupID==Labelgroup.id) \
+                    .join(subq, subq.c.clusterID==Cluster.id) \
                     .filter(Labelgroup.task_id==task_id) \
                     .filter(Labelgroup.checked==False) \
                     .filter(Cluster.task_id==task_id) \
@@ -6178,6 +6185,8 @@ def prepTask(self, task_id, includes=None, translation=None, labels=None, auto_r
 
             if Config.DEBUGGING: print('{}: classified task {}'.format(time.time()-starttime,task_id))
 
+            process_multi_labels(task_id,trapgroup_ids)
+
             # We don't want to update the statuses in a knockdown scenario
             if not timestamp and not bypass_update_statuses: updateAllStatuses(task_id=task_id)
 
@@ -7195,3 +7204,164 @@ def find_first_file(bucket, prefix):
                 return result
 
     return None
+
+def process_multi_labels(task_id,trapgroup_ids=None):
+    ''' Processes multi labels for a given task ID. Based on classification match of label, parent label, child label, or associated label (share a parent). 
+        Add any dropped cluster labels to labelgroup with lowest classification score. 
+    '''
+
+    starttime=datetime.now()
+
+    translations_dict = {lab[0]: lab[1] for lab in db.session.query(Translation.classification, Translation.label_id)\
+                                .filter(Translation.task_id==task_id)\
+                                .filter(Translation.label_id!=None)\
+                                .filter(Translation.label_id!=GLOBALS.nothing_id)\
+                                .filter(Translation.label_id!=GLOBALS.unknown_id)\
+                                .distinct().all()}
+
+    labels_dict = {}
+    labels = db.session.query(Label).filter(Label.task_id==task_id).distinct().all()    
+    labels.extend(db.session.query(Label).filter(Label.id.in_([GLOBALS.vhl_id,GLOBALS.nothing_id,GLOBALS.unknown_id,GLOBALS.knocked_id])).distinct().all())
+    for label in labels:
+        labels_dict[label.id] = label
+    
+
+    lg_label_count_sq = db.session.query(Labelgroup.id.label('lg_id'), func.count(Label.id).label('lg_label_count')) \
+                                .join(Label,Labelgroup.labels)\
+                                .filter(Labelgroup.task_id==task_id)\
+                                .group_by(Labelgroup.id).subquery()
+
+    subq = db.session.query(labelstable.c.cluster_id.label('clusterID'), func.count(distinct(labelstable.c.label_id)).label('labelCount')) \
+                                .join(Cluster,Cluster.id==labelstable.c.cluster_id) \
+                                .filter(Cluster.task_id==task_id) \
+                                .group_by(labelstable.c.cluster_id) \
+                                .subquery()
+
+    # Get counts of labels in cluster 
+    label_counts = rDets(db.session.query(Cluster.id.label('cluster_id'), Label.id.label('label_id'), func.count(Label.id).label('label_count'))\
+                                .join(Image, Cluster.images)\
+                                .join(Detection, Detection.image_id == Image.id)\
+                                .join(Labelgroup, Labelgroup.detection_id == Detection.id)\
+                                .join(Label, Labelgroup.labels)\
+                                .join(subq, subq.c.clusterID == Cluster.id)\
+                                .join(lg_label_count_sq, lg_label_count_sq.c.lg_id == Labelgroup.id)\
+                                .filter(Cluster.task_id == task_id)\
+                                .filter(subq.c.labelCount > 1)\
+                                .filter(Labelgroup.task_id==task_id)\
+                                .filter(or_(
+                                    Labelgroup.checked == True,
+                                    lg_label_count_sq.c.lg_label_count == 1
+                                )))\
+                                .group_by(Cluster.id, Label.id).subquery()
+
+    
+    cluster_label_counts = db.session.query(Cluster.id, Label.id, func.coalesce(label_counts.c.label_count, 0).label('count'))\
+                                .join(Label,Cluster.labels)\
+                                .join(subq, subq.c.clusterID==Cluster.id)\
+                                .outerjoin(label_counts, and_(label_counts.c.cluster_id == Cluster.id, label_counts.c.label_id == Label.id))\
+                                .filter(Cluster.task_id==task_id)\
+                                .filter(subq.c.labelCount > 1)
+
+    if trapgroup_ids:
+        cluster_label_counts = cluster_label_counts.join(Image,Cluster.images).join(Camera, Image.camera).filter(Camera.trapgroup_id.in_(trapgroup_ids))
+
+    cluster_label_counts = cluster_label_counts.distinct().all()
+
+    cluster_counts = {}
+    for cluster_id, label_id, count in cluster_label_counts:
+        if cluster_id not in cluster_counts:
+            cluster_counts[cluster_id]={}
+        cluster_counts[cluster_id][label_id] = count
+
+
+    multi_labelgroups = rDets(db.session.query(Labelgroup,Detection.classification, Detection.class_score, Cluster.id)\
+                                .join(Detection)\
+                                .join(Image)\
+                                .join(Cluster,Image.clusters)\
+                                .join(lg_label_count_sq,Labelgroup.id==lg_label_count_sq.c.lg_id)\
+                                .join(subq, subq.c.clusterID==Cluster.id)\
+                                .options(joinedload(Labelgroup.labels))\
+                                .filter(Labelgroup.task_id==task_id)\
+                                .filter(Cluster.task_id==task_id)\
+                                .filter(Labelgroup.checked==False)\
+                                .filter(lg_label_count_sq.c.lg_label_count > 1)\
+                                .filter(subq.c.labelCount > 1)\
+                                .order_by(Cluster.id, Labelgroup.id))
+
+    if trapgroup_ids:
+        multi_labelgroups = multi_labelgroups.join(Camera, Image.camera).filter(Camera.trapgroup_id.in_(trapgroup_ids))
+
+    multi_labelgroups = multi_labelgroups.distinct().all()
+
+    if Config.DEBUGGING: app.logger.info('Multi label groups found: {}'.format(len(multi_labelgroups)))
+
+    data = {}
+    for lg, classification, class_score, cluster_id in multi_labelgroups:
+        if cluster_id not in data:
+            data[cluster_id] = []
+        data[cluster_id].append({
+            'labelgroup': lg,
+            'classification': classification,
+            'class_score': class_score if class_score else 0,
+        })
+
+    # Assign labels
+    for cluster_id,labelgroup_data in data.items():
+        counts = cluster_counts[cluster_id]
+        for lg in labelgroup_data:
+            labelgroup = lg['labelgroup']
+            classification = lg['classification']
+            class_label = labels_dict.get(translations_dict.get(classification))
+            chosen_label = None 
+            lg_labels = set(labelgroup.labels)
+            if class_label:
+                if class_label in lg_labels: 
+                    # 1. Classification matches label
+                    chosen_label = class_label
+                elif class_label.parent and class_label.parent in lg_labels:
+                    # 2. Classification matches parent label
+                    chosen_label = class_label.parent
+                else:
+                    # 3. Classification matches a child label
+                    for child in class_label.children:
+                        if child in lg_labels:
+                            chosen_label = child
+                            break
+                    # 4. Classification matches associated label (shares parent)
+                    if not chosen_label and class_label.parent:
+                        for child in class_label.parent.children:
+                            if child in lg_labels: 
+                                chosen_label = child
+                                break 
+            if not chosen_label:
+                # 5. Majority label
+                maj_id = max(counts.items(), key=lambda x: x[1])[0]
+                maj_label = labels_dict.get(maj_id)
+                if maj_label and maj_label in lg_labels: 
+                    chosen_label = maj_label 
+
+            if chosen_label:
+                labelgroup.labels = [chosen_label]
+
+            for lab in labelgroup.labels:
+                counts[lab.id] = counts.get(lab.id, 0) + 1
+
+        # Check for any dropped cluster labels (cluster counts still 0) andd then add drooped label to labelgroup with lowest class score
+        for label_id, count in counts.items():
+            if count == 0:
+                dropped_label = labels_dict.get(label_id)
+                lowest_class_score_lg = min(labelgroup_data, key=lambda x: x['class_score'], default=None)
+                if lowest_class_score_lg:
+                    if dropped_label not in lowest_class_score_lg['labelgroup'].labels: lowest_class_score_lg['labelgroup'].labels.append(dropped_label)
+                else:
+                    if dropped_label not in labelgroup_data[-1]['labelgroup'].labels: labelgroup_data[-1]['labelgroup'].labels.append(dropped_label)
+                counts[label_id] = 1
+                
+        
+    db.session.commit()
+
+    endtime=datetime.now()
+    duration = endtime - starttime
+    if Config.DEBUGGING: app.logger.info('Multi labels processed in: {}'.format(duration))
+
+    return True

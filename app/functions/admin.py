@@ -19,7 +19,7 @@ from app.models import *
 from app.functions.globals import classifyTask, update_masks, retryTime, resolve_abandoned_jobs, addChildLabels, updateAllStatuses, deleteFile,\
                                     stringify_timestamp, rDets, update_staticgroups, detection_rating, chunker, verify_label, cleanup_empty_restored_images, \
                                     reconcile_cluster_labelgroup_labels_and_tags, hideSmallDetections, maskSky, checkChildTranslations, createChildTranslations, \
-                                    prepTask, removeHumans, sync_labels, sync_tags
+                                    prepTask, removeHumans, sync_labels, sync_tags, process_multi_labels
 from app.functions.individualID import calculate_detection_similarities, cleanUpIndividuals, check_individual_detection_mismatch
 from app.functions.imports import classifySurvey, s3traverse, classifyCluster, importKML, import_survey
 import GLOBALS
@@ -344,6 +344,7 @@ def stop_task(self,task_id,live=False):
             db.session.commit()
 
             reconcile_cluster_labelgroup_labels_and_tags(task_id)
+            process_multi_labels(task_id)
 
             if ',' not in task.tagging_level and task.init_complete and '-2' not in task.tagging_level:
                 check_individual_detection_mismatch(task_id=task_id)
@@ -1046,6 +1047,7 @@ def handleTaskEdit(self,task_id,labelChanges,tagChanges,translationChanges,delet
                     classifyTask(task_id)
                     if GLOBALS.vhl_id in prev_labels:
                         removeHumans(task_id)
+                    process_multi_labels(task_id)
             
             db.session.commit()
 

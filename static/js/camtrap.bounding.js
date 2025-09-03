@@ -85,6 +85,9 @@ function loadNewCluster(mapID = 'map1') {
                                                 required: []
                                             }
 
+                                            // Sort image detections by area
+                                            newsubcluster.images[0].detections.sort((a, b) => ((b.right-b.left)*(b.bottom-b.top)) - ((a.right-a.left)*(a.bottom-a.top)))
+
                                             if ((clusters[mapID].length>0)&&(clusters[mapID][clusters[mapID].length-1].id=='-101')&&(clusterIndex[mapID] < clusters[mapID].length-1)) {
                                                 clusters[mapID].splice(clusters[mapID].length-1, 0, newsubcluster)
                                             } else {
@@ -122,7 +125,7 @@ window.addEventListener('load', onload, false);
 document.addEventListener('click', function(event){
     /** Un-highlights the selected bounding box */
     if(!drawControl._toolbars.edit._activeMode && !drawControl._toolbars.draw._activeMode){
-        if (event.target.classList.contains('leaflet-interactive')==false){
+        if (event.target.classList.contains('leaflet-interactive')==false&&event.target.classList.contains('bounding-btn')==false){
             clearBoundingSelect()  
         }   
     }   
@@ -227,6 +230,16 @@ function sightingAnalysisMapPrep(mapID = 'map1') {
         }
         dbDetIds[mapID][layer._leaflet_id] = 'n'+addDetCnt.toString()
         addDetCnt+=1
+
+        // add eventlistener to highligh bounding box when selected
+        layer.on('click', function() {
+            var colour = "rgba(223,105,26,1)"
+            for (let leafletID in drawnItems[mapID]._layers) {
+                drawnItems[mapID]._layers[leafletID].setStyle({color: colour}); //un-highlight all selections
+            }
+            this.setStyle({color: "rgba(225,225,225,1)"}); //highlight selected
+            prevClickBounding = {'rect': this};
+        });
     });
 
     map[mapID].on('zoom', function(e){
@@ -657,11 +670,11 @@ function sendBoundingBack() {
 
 }
 
-function clearBoundingSelect(){
+function clearBoundingSelect(mapID = 'map1') {
     /** Clears(Un-highlight) the selected bounding box */
-    if ((prevClickBounding != null)){
-        colour = "rgba(223,105,26,1)"
-        prevClickBounding.rect.setStyle({color: colour}); //un-highlight old selection
+    colour = "rgba(223,105,26,1)"
+    for (let leafletID in drawnItems[mapID]._layers) {
+        drawnItems[mapID]._layers[leafletID].setStyle({color: colour}); //un-highlight all selections
     }
     prevClickBounding = null
 }
@@ -677,4 +690,144 @@ function fetchLabelHierarchy() {
     }
     xhttp.open("GET", '/getLabelHierarchy/'+selectedTask);
     xhttp.send();
+}
+
+function buildBoundingKeys(mapID='map1'){
+    /** Builds the buttons for the bounding keys */
+    while(divBtns.firstChild){
+        divBtns.removeChild(divBtns.firstChild);
+    }
+    hotkeys = Array(10).fill(EMPTY_HOTKEY_ID)
+
+    current_labels = clusters[mapID][clusterIndex[mapID]].label
+    for (let i=0;i<current_labels.length;i++) {
+
+        var newbtn = document.createElement('button');
+        newbtn.classList.add('btn');
+        newbtn.classList.add('btn-primary');
+        newbtn.innerHTML = current_labels[i];
+        if (i<9){
+            newbtn.innerHTML += ' ('+(i+1).toString()+')';
+            hotkeys[i+1] = current_labels[i];
+        } 
+        newbtn.setAttribute("id", 1);
+        newbtn.classList.add('btn-block');
+        newbtn.classList.add('btn-sm');
+        newbtn.classList.add('bounding-btn');
+        newbtn.setAttribute("style", "margin-top: 3px; margin-bottom: 3px");
+        newbtn.addEventListener('click', ()=>{
+            assignBoundingLabel(current_labels[i]);
+        });
+        divBtns.appendChild(newbtn);
+
+    }
+
+    var otherBtn = document.createElement('button');
+    otherBtn.classList.add('btn');
+    otherBtn.classList.add('btn-info');
+    otherBtn.innerHTML = 'Other (O)';
+    otherBtn.setAttribute("id", 1);
+    otherBtn.classList.add('btn-block');
+    otherBtn.classList.add('btn-sm');
+    otherBtn.classList.add('bounding-btn');
+    otherBtn.setAttribute("style", "margin-top: 3px; margin-bottom: 3px");
+    otherBtn.addEventListener('click', ()=>{
+        buildOtherKeys();
+    });
+    divBtns.appendChild(otherBtn);
+
+}
+
+function buildOtherKeys(level=null, mapID='map1'){
+    /** Builds the buttons for the other keys in the hierarchy */
+
+    if (editingEnabled){
+        return
+    }
+
+    while(divBtns.firstChild){
+        divBtns.removeChild(divBtns.firstChild);
+    }
+    hotkeys = Array(10).fill(EMPTY_HOTKEY_ID)
+
+    var backBtn = document.createElement('button');
+    backBtn.classList.add('btn');
+    backBtn.classList.add('btn-danger');
+    backBtn.innerHTML = 'Back';
+    backBtn.setAttribute("id", 1);
+    backBtn.classList.add('btn-block');
+    backBtn.classList.add('btn-sm');
+    backBtn.classList.add('bounding-btn');
+    backBtn.setAttribute("style", "margin-top: 3px; margin-bottom: 3px");
+    backBtn.addEventListener('click', ()=>{
+        if (level==null){
+            buildBoundingKeys(mapID);
+        } else {
+            buildOtherKeys(null,mapID);
+        }
+    });
+    divBtns.appendChild(backBtn);
+
+    if (level == null){
+        var current_labels = Object.keys(labelHierarchy);
+    } else {
+        var current_labels = Object.keys(labelHierarchy[level]);
+    }
+
+    for (let i=0;i<current_labels.length;i++) {
+        var newbtn = document.createElement('button');
+        newbtn.classList.add('btn');
+        newbtn.classList.add('btn-primary');
+        newbtn.innerHTML = current_labels[i];
+        newbtn.setAttribute("id", 1);
+        newbtn.classList.add('btn-block');
+        newbtn.classList.add('btn-sm');
+        newbtn.classList.add('bounding-btn');
+        newbtn.setAttribute("style", "margin-top: 3px; margin-bottom: 3px");
+        newbtn.addEventListener('click', ()=>{
+            // check whether there is another level
+            if (level == null) {
+                check = Object.keys(labelHierarchy[current_labels[i]]).length > 0;
+            } else {
+                check = Object.keys(labelHierarchy[level][current_labels[i]]).length > 0;
+            }
+            if (check) {
+                // If there is another level, build the keys for that level
+                buildOtherKeys(current_labels[i], mapID);
+            } else {
+                assignBoundingLabel(current_labels[i]);
+            }
+        });
+        divBtns.appendChild(newbtn);
+    }
+}
+
+function assignBoundingLabel(label,mapID='map1') {
+    /** Assigns the selected label to the currently selected bounding boxes - if nothing selected apply to all */
+    if (!editingEnabled && label!=EMPTY_HOTKEY_ID){
+        selected_colour = "rgba(225,225,225,1)";
+        none_selected = true 
+
+        for (let leafletID in drawnItems[mapID]._layers) {
+            if (drawnItems[mapID]._layers[leafletID].options.color==selected_colour) {
+                drawnItems[mapID]._layers[leafletID]._tooltip._content = label;
+                if (toolTipsOpen) {
+                    drawnItems[mapID]._layers[leafletID].openTooltip()
+                }
+                none_selected = false;
+            }
+        }
+
+        if (none_selected){
+            for (let leafletID in drawnItems[mapID]._layers) {
+                drawnItems[mapID]._layers[leafletID]._tooltip._content = label;
+                if (toolTipsOpen) {
+                    drawnItems[mapID]._layers[leafletID].openTooltip()
+                }
+            }
+        }
+
+        clearBoundingSelect(mapID);
+        buildBoundingKeys(mapID);
+    }
 }
