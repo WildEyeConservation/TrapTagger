@@ -6740,6 +6740,10 @@ def launch_task(self,task_id,classify=False):
 
                 # db.session.commit()
         
+        # Process multi labels for  Multi-Species Differentiation
+        if '-1' in taggingLevel and isBounding:
+            process_multi_labels(task_id)
+
         # Mark clusters that need to be examined
         if '-5' in taggingLevel:
             cluster_count = checkForIdWork(task_ids,species,tL[2])

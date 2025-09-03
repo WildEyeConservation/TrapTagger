@@ -32,6 +32,7 @@ var editingEnabled = false
 var multiContextVal = 0
 var subDividedContList
 var prevClickBounding = null
+var boundingClusterLabels = {}
 
 // const modalNote = $('#modalNote');
 
@@ -84,6 +85,8 @@ function loadNewCluster(mapID = 'map1') {
                                                 ready: true,
                                                 required: []
                                             }
+
+                                            boundingClusterLabels[newsubcluster.id] = newsubcluster.label
 
                                             // Sort image detections by area
                                             newsubcluster.images[0].detections.sort((a, b) => ((b.right-b.left)*(b.bottom-b.top)) - ((a.right-a.left)*(a.bottom-a.top)))
@@ -234,8 +237,10 @@ function sightingAnalysisMapPrep(mapID = 'map1') {
         // add eventlistener to highligh bounding box when selected
         layer.on('click', function() {
             var colour = "rgba(223,105,26,1)"
-            for (let leafletID in drawnItems[mapID]._layers) {
-                drawnItems[mapID]._layers[leafletID].setStyle({color: colour}); //un-highlight all selections
+            if (!event.ctrlKey){
+                for (let leafletID in drawnItems[mapID]._layers) {
+                    drawnItems[mapID]._layers[leafletID].setStyle({color: colour}); //un-highlight all selections
+                }
             }
             this.setStyle({color: "rgba(225,225,225,1)"}); //highlight selected
             prevClickBounding = {'rect': this};
@@ -417,9 +422,9 @@ function setRectOptions(mapID = 'map1') {
 
     menuItems = []
     indexNum = 0
-    for (let i=0;i<clusters[mapID][clusterIndex[mapID]].label.length;i++) {
+    for (let i=0;i<boundingClusterLabels[clusters[mapID][clusterIndex[mapID]].id].length;i++) {
         item = {
-            text: clusters[mapID][clusterIndex[mapID]].label[i],
+            text: boundingClusterLabels[clusters[mapID][clusterIndex[mapID]].id][i],
             index: indexNum,
             callback: updateTargetRect
         }
@@ -516,6 +521,10 @@ function submitChanges(mapID = 'map1') {
                         clusters[mapID][clusterIndex[mapID]].images[imageIndex[mapID]].detections[i].right = drawnItems[mapID]._layers[leafletID]._bounds._northEast.lng/mapWidth[mapID]
                     }
                 }
+            }
+
+            if (!boundingClusterLabels[clusters[mapID][clusterIndex[mapID]].id].includes(drawnItems[mapID]._layers[leafletID]._tooltip._content)){
+                boundingClusterLabels[clusters[mapID][clusterIndex[mapID]].id].push(drawnItems[mapID]._layers[leafletID]._tooltip._content)
             }
         }
 
@@ -699,7 +708,7 @@ function buildBoundingKeys(mapID='map1'){
     }
     hotkeys = Array(10).fill(EMPTY_HOTKEY_ID)
 
-    current_labels = clusters[mapID][clusterIndex[mapID]].label
+    current_labels = boundingClusterLabels[clusters[mapID][clusterIndex[mapID]].id]
     for (let i=0;i<current_labels.length;i++) {
 
         var newbtn = document.createElement('button');
