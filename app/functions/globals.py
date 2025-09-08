@@ -7290,7 +7290,7 @@ def process_multi_labels(task_id,trapgroup_ids=None):
                                 .filter(Labelgroup.checked==False)\
                                 .filter(lg_label_count_sq.c.lg_label_count > 1)\
                                 .filter(subq.c.labelCount > 1)\
-                                .order_by(Cluster.id, Labelgroup.id))
+                                .order_by(Cluster.id, Detection.class_score.desc()))
 
     if trapgroup_ids:
         multi_labelgroups = multi_labelgroups.join(Camera, Image.camera).filter(Camera.trapgroup_id.in_(trapgroup_ids))
