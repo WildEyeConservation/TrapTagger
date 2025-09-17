@@ -3778,6 +3778,7 @@ def update_existing_er_report(row,er_api_key,er_object_id):
 
     payload = {
         "recorded_at": row['timestamp'].isoformat(),
+        "title": row['species'].capitalize() + " Detected",
         "location": {
             "lat": row['trapgroup_lat'],
             "lon": row['trapgroup_lon']
@@ -3825,7 +3826,8 @@ def create_new_er_report(row,er_api_key,er_url):
 
     payload = {
         "source": str(row['cluster_id']),
-        "title": "TrapTagger Event",
+        "title": row['species'].capitalize() + " Detected",
+        "event_type": "traptagger_integration",
         "recorded_at": row['timestamp'].isoformat(),
         "location": {
             "lat": row['trapgroup_lat'],
