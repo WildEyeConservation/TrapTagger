@@ -137,6 +137,9 @@ function acceptSuggestion() {
         clusters['map1'][clusterIndex['map1']].images.push(...clusters['map2'][clusterIndex['map2']].images)
         sliderIndex['map1'] = '-1'
         savedKpts = {}
+        if (document.getElementById('displayFlank')!=null) {
+            document.getElementById('displayFlank').value = '0'
+        }
         update('map1')
     }
 }
@@ -301,6 +304,9 @@ function undoPreviousSuggestion() {
                             if (clusters['map1'][clusterIndex['map1']].id == parseInt(reply.id)) {
                                 sliderIndex['map1'] = '-1'
                                 clusters['map1'][clusterIndex['map1']].images = reply.images
+                                if (document.getElementById('displayFlank')!=null) {
+                                    document.getElementById('displayFlank').value = '0'
+                                }
                                 update('map1')
                             }
 
@@ -394,6 +400,9 @@ function getSuggestions(prevID = null) {
                             sliderIndex['map2'] = '-1'
                             if (!('map2' in clusterPosition)) {
                                 clusterPosition["map2"] = document.getElementById('clusterPositionSplide2')
+                            }
+                            if (document.getElementById('displayFlank')!=null) {
+                                document.getElementById('displayFlank').value = '0'
                             }
                             update('map2')
                             goToMax()
@@ -540,6 +549,9 @@ function loadNewCluster(mapID = 'map1') {
                                                 }
                                                 
                                                 if (clusters[wrapMapID].length-1 == clusterIndex[wrapMapID]){
+                                                    if (document.getElementById('displayFlank')!=null) {
+                                                        document.getElementById('displayFlank').value = '0'
+                                                    }
                                                     update(wrapMapID)
     
                                                     if ((mapID == 'map1')&&(mapdiv2 != null)) {
@@ -683,6 +695,14 @@ function idKeys(key) {
                 case 'n': idNextCluster()
                     break;
                 case 'h': document.getElementById('cxFeaturesHeatmap').click()
+                    break;
+                case '0': updateFlanks('0')
+                    break;
+                case '1': updateFlanks('1')
+                    break;
+                case '2': updateFlanks('2')
+                    break;
+                case '3': updateFlanks('3')
                     break;
             }
         }
@@ -4181,3 +4201,36 @@ $('#autoGenerateNameRb').on('change', function (){
         document.getElementById('newIndividualName').hidden = true;
     }
 });
+
+$('#displayFlank').on('change', function (){
+    /** Updates the flank images when the flank selection is changed. */
+    updateFlanks(this.value)
+});
+
+function updateFlanks(value='0') {
+    /** Updates the flank images when the flank selection is changed. */
+    if (document.getElementById('displayFlank').value == value || !['0','1','2','3'].includes(value)) {
+        return;
+    }
+    document.getElementById('displayFlank').value = value
+    updateSlider('map1',true)
+    if (clusterPositionSplide['map1'].index == 0) {
+        if (sliderImageIndexMap['map1'].length > 0) {
+            imageIndex['map1'] = sliderImageIndexMap['map1'][0]
+        }
+        update('map1')
+        updateKpts()
+    } else {
+        clusterPositionSplide['map1'].go(0)
+    }
+    updateSlider('map2',true)
+    if (clusterPositionSplide['map2'].index == 0) {
+        if (sliderImageIndexMap['map2'].length > 0) {
+            imageIndex['map2'] = sliderImageIndexMap['map2'][0]
+        }
+        update('map2')
+        updateKpts()
+    } else {
+        clusterPositionSplide['map2'].go(0)
+    }
+}

@@ -322,7 +322,7 @@ def restore_images_for_id(self,task_id,days,tier,restore_time,extend=False):
             task_ids.append(sub_task.id)
         
         algorithm = None
-        if '-5' in taggingLevel and len(task_ids) > 1:
+        if '-5' in taggingLevel and len(tL)>4:
             if tL[4]=='h':
                 algorithm = 'hotspotter'
             elif tL[4]=='n':

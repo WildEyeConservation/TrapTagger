@@ -144,6 +144,7 @@ var maskMode = false
 var detectionGroups = {}
 var editedFlanks = {}
 var preloadImageIndex = {"map1": 0}
+var sliderImageIndexMap = {"map1": [], "map2": []}
 
 // var colours = {
 //     'rgba(67,115,98,1)': false,
@@ -1282,6 +1283,9 @@ function goToPrevCluster(mapID = 'map1') {
 
     if (isIDing && (document.getElementById('btnSendToBack')==null)) {
         updateProgress()
+        if (document.getElementById('displayFlank')!=null) {
+            document.getElementById('displayFlank').value = '0'
+        }
     }
 
     reachedEnd = false
@@ -1691,14 +1695,37 @@ function backImage(mapID = 'map1'){
     }
 }
 
-function updateSlider(mapID = 'map1') {
+function updateSlider(mapID = 'map1', update_flank = false) {
     /** Updates the specified image slider. Initialises it if needed. */
-    if ((document.getElementById(splides[mapID]) != null) && (sliderIndex[mapID] != clusterIndex[mapID]) && (typeof clusters[mapID][clusterIndex[mapID]] != 'undefined') && (bucketName != null) && (!['-101','-99','-782'].includes(clusters[mapID][clusterIndex[mapID]].id))) {
+    if (((document.getElementById(splides[mapID]) != null) && (sliderIndex[mapID] != clusterIndex[mapID]) && (typeof clusters[mapID][clusterIndex[mapID]] != 'undefined') && (bucketName != null) && (!['-101','-99','-782'].includes(clusters[mapID][clusterIndex[mapID]].id)))|| update_flank) {
         sliderIndex[mapID] = clusterIndex[mapID]
         while(clusterPosition[mapID].firstChild){
             clusterPosition[mapID].removeChild(clusterPosition[mapID].firstChild);
         }
+        sliderImageIndexMap[mapID] = []
+        let currentFlank = null;
+        var skipFlank = false;
+        const dfEl = document.getElementById('displayFlank');
+        if (dfEl != null) {
+            const val = dfEl.value;
+            currentFlank = (val === '1') ? 'Left' : (val === '2') ? 'Right' : (val === '3') ? 'Ambiguous' : null;
+            if (currentFlank){
+                // check if there are any images with this flank
+                skipFlank = true;
+                for (let i=0;i<clusters[mapID][clusterIndex[mapID]].images.length;i++) {
+                    if (clusters[mapID][clusterIndex[mapID]].images[i].detections.length > 0 && clusters[mapID][clusterIndex[mapID]].images[i].detections[0].flank == currentFlank) {
+                        skipFlank = false;
+                        break;
+                    }
+                }
+            }
+        }
+        
         for (let i=0;i<clusters[mapID][clusterIndex[mapID]].images.length;i++) {
+            if ((mapID!='known')&&(currentFlank != null) &&(!skipFlank)&& clusters[mapID][clusterIndex[mapID]].images[i].detections.length > 0 && (clusters[mapID][clusterIndex[mapID]].images[i].detections[0].flank != currentFlank)) {
+                continue;
+            }
+            sliderImageIndexMap[mapID].push(i)
             // imageUrl = "https://"+bucketName+".s3.amazonaws.com/" + modifyToCompURL(clusters[mapID][clusterIndex[mapID]].images[i].url)
             if (clusters[mapID][clusterIndex[mapID]].images[i].detections.length > 0 && !taggingLevel.includes('-4')) {
                 imageUrl = "https://"+bucketName+".s3.amazonaws.com/" + modifyToCropURL(clusters[mapID][clusterIndex[mapID]].images[i].url,clusters[mapID][clusterIndex[mapID]].images[i].detections[0].id)
@@ -1711,6 +1738,13 @@ function updateSlider(mapID = 'map1') {
             imgli = document.createElement('li')
             imgli.classList.add('splide__slide')
             imgli.appendChild(img)
+
+            // add a error handler to the image to replace it with the compressed version if the crop does not exist
+            img.onerror = function() {
+                this.onerror = null;
+                this.src = "https://"+bucketName+".s3.amazonaws.com/" + modifyToCompURL(clusters[mapID][clusterIndex[mapID]].images[i].url);
+            }
+
             clusterPosition[mapID].appendChild(imgli)
             if (document.getElementById('btnSendToBack') != null) {
                 // Create a divider between images from different clusters
@@ -1750,7 +1784,8 @@ function updateSlider(mapID = 'map1') {
 
             clusterPositionSplide[mapID].on( 'moved', function(wrapMapID) {
                 return function() {
-                    imageIndex[wrapMapID] = clusterPositionSplide[wrapMapID].index
+                    // imageIndex[wrapMapID] = clusterPositionSplide[wrapMapID].index
+                    imageIndex[wrapMapID] = sliderImageIndexMap[wrapMapID][clusterPositionSplide[wrapMapID].index]
                     if (wrapMapID=='known'){
                         updateCanvas(wrapMapID)
                         document.getElementById('tgInfoKnown').innerHTML = 'Site: ' + clusters[wrapMapID][clusterIndex[wrapMapID]].images[imageIndex[wrapMapID]].trapgroup.tag
@@ -1768,8 +1803,10 @@ function updateSlider(mapID = 'map1') {
             clusterPositionSplide[mapID].on( 'click', function(wrapMapID,wrapTrack) {
                 return function(event) {
                     // imageIndex[wrapMapID] = parseInt(event.target.attributes.id.value.split("slide")[1])-1
-                    imageIndex[wrapMapID] = event.index
-                    clusterPositionSplide[wrapMapID].go(imageIndex[wrapMapID])
+                    // imageIndex[wrapMapID] = event.index
+                    imageIndex[wrapMapID] = sliderImageIndexMap[wrapMapID][event.index]
+                    // clusterPositionSplide[wrapMapID].go(imageIndex[wrapMapID])
+                    clusterPositionSplide[wrapMapID].go(event.index)
                     if (wrapMapID=='known'){
                         updateCanvas(wrapMapID)
                         document.getElementById('tgInfoKnown').innerHTML = 'Site: ' + clusters[wrapMapID][clusterIndex[wrapMapID]].images[imageIndex[wrapMapID]].trapgroup.tag
@@ -1863,6 +1900,9 @@ function nextCluster(mapID = 'map1') {
                 actions = []
                 preLoadCount = 1
                 updateProgress()
+                if (document.getElementById('displayFlank')!=null) {
+                    document.getElementById('displayFlank').value = '0'
+                }
             } else {
                 preLoadCount = 20
             }

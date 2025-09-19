@@ -188,6 +188,11 @@ limitations under the License. -->
                 </div>
             </div>
             <div class="card-body" id="editDiv">
+                <div class="row" style="margin-bottom: 10px;">
+                    <div class="col-lg-12">
+                        <button type='button' class='btn btn-primary btn-block' id='btnEditUnidentifiable'>Edit Unidentifiable</button>
+                    </div>
+                </div>
                 <div class="row">
                     <div class="col-lg-12">
                         <button type='button' class='btn btn-danger btn-block' id='btnDeleteIndividuals'>Delete Individuals</button>
@@ -242,6 +247,7 @@ limitations under the License. -->
                         <button id='btnRemoveImg' class="btn btn-danger btn-block" style="margin-top: 2px; margin-bottom: 2px;">Dissociate Image</button>
                         <button id='btnMergeIndiv' class="btn btn-danger btn-block" style="margin-top: 2px; margin-bottom: 2px;">Merge Individual</button>
                         <!-- <button id='btnMergeImg' class="btn btn-danger btn-block" style="margin-top: 2px; margin-bottom: 2px;">Merge Image</button> -->
+                        <button id='btnIndivUnidentifiable' class="btn btn-danger btn-block" style="margin-top: 2px; margin-bottom: 2px;">Mark Unidentifiable</button>
                         <!-- <button class='btn btn-primary btn-block' id="btnSubmitInfoChange" style="margin-top: 2px; margin-bottom: 2px;">Submit Changes</button> -->
                         <br>
 
@@ -763,6 +769,104 @@ limitations under the License. -->
     </div>
 </div>
 
+
+<!-- Individuals Modal -->
+<div id="modalUnidentifiable" class="modal fade" role="dialog" tabindex="-1">
+  <div class="modal-dialog" style="max-width: 80%;">
+
+    <!-- Modal content-->
+    <div class="modal-content">
+        <div class="modal-header">
+            <div class='col-lg-11' style="padding: 0px">
+                <h4 class="modal-title">Unidentifiable Sightings</h4>
+            </div>
+            <div class='col-lg-1' style="padding: 0px">
+                <div class="row">
+                    <div class='col-lg-6' style="padding: 0px">
+                        <button class='btn btn-primary btn-sm pull-right' onclick="helpOpen('unidentifiable_sightings')">Help</button>
+                    </div>
+                    <div class='col-lg-5' style="padding: 0px">
+                        <button id="helpx" type="button" class="close" data-dismiss="modal">&times;</button>
+                    </div>
+                    <div class='col-lg-1' style="padding: 0px"></div>
+                </div>
+            </div>
+        </div>
+
+        <div class="modal-body" style="min-height:400px">
+            <div id="unidDiv">
+                <div class="row">
+                    <div class="col-lg-2">
+                        <h6 style="margin-bottom: 0.0rem;">Surveys and Annotation Sets: </h6>
+                        <select id='unidTaskSelect' class='form-control'></select>
+
+                        <h6 style="margin-bottom: 0.0rem; margin-top: 0.5rem;">Species: </h6>
+                        <select id='unidSpeciesSelect' class='form-control'></select>
+             
+                        <h6 style="margin-bottom: 0.0rem; margin-top: 0.5rem;">Sites: </h6>
+                        <select id='unidSitesSelect' class='form-control'></select>  
+
+                        <h6 style="margin-top: 0.5rem; margin-bottom: 0.0rem;">Start Date:</h6>
+                        <input type="date" id="startDateUnid" name="startDate">
+                        
+                        <h6 style="margin-bottom: 0.0rem; margin-top: 0.5rem;">End Date:</h6>
+                        <input type="date" id="endDateUnid" name="endDate">
+                        <div id="dateErrorsUnid" style="font-size: 80%; color: #DF691A"></div>  
+
+                        <h6 style="margin-bottom: 0.0rem; margin-top: 0.5rem;">Order Images:</h6>
+                        <select name='orderUnidImages' id='orderUnidImages' class='form-control'>
+                            <option value="1">Timestamp</option>
+                            <option value="2">Site</option>
+                            <option value="3">Detection Rating</option>
+                        </select>
+
+                        <div class="custom-control custom-radio custom-control-inline">
+                            <input type="radio" class="custom-control-input" id="ascOrderUnid" name="orderUnidImages" value='asc' checked>
+                            <label class="custom-control-label" for="ascOrderUnid">Ascending</label>
+                        </div>
+                        <div class="custom-control custom-radio custom-control-inline">
+                            <input type="radio" class="custom-control-input" id="decOrderUnid" name="orderUnidImages" value='dec'>
+                            <label class="custom-control-label" for="decOrderUnid">Descending</label>
+                        </div>
+
+                    </div>
+                    <div class="col-lg-8">
+                        <center id="centerMapUnid"></center>
+                    </div>
+                    <div class="col-lg-2">
+                        <h5 align="left" style="margin-top: 0.5rem; margin-bottom: 0rem;">Survey: </h5> 
+                        <div id="surveysDivUnid"></div>
+                        <h5 align="left" style="margin-top: 0.5rem; margin-bottom: 0rem;">Site: </h5> 
+                        <div id="tgInfoUnid"></div>
+                        <h5 align="left" style="margin-top: 0.5rem; margin-bottom: 0rem;">Timestamp: </h5>
+                        <div id="timeInfoUnid"></div>
+                        <h5 align="left" style="margin-top: 0.5rem; margin-bottom: 0rem;">Label: </h5>    
+                        <div id="labelsDivUnid"></div>  
+                    </div>
+                </div>
+                <div class="row">
+                    <div class="col-lg-2"></div>
+                    <div class="col-lg-8">
+                        <div id="splideDivUnid"></div>    
+                    </div>
+                    <div class="col-lg-2"></div>
+                </div>
+            </div>
+        </div>
+        <div class='modal-footer'>
+            <div class='col-lg-2'>
+                <button id='btnRestoreDetUnid' class="btn btn-primary btn-block" style="margin-top: 2px; margin-bottom: 2px;">Restore Sighting</button>
+            </div>
+            <div class='col-lg-2'>
+                <button type='button' class='btn btn-info btn-block' data-dismiss='modal'>Close</button>
+            </div>
+          </div>
+      </div>
+
+  </div>
+</div>
+
+
 {% endblock %}
 
 {% block page_scripts %}
@@ -783,8 +887,8 @@ crossorigin=""/>
 <script src="js/Chart.bundle.min.js"></script>
 <link rel="stylesheet" href="js/Leaflet.BigImage.css">
 <script src="js/Leaflet.BigImage.js"></script>
-<!-- <link rel="stylesheet" href="js/leaflet.contextmenu.css"/>
-<script src="js/leaflet.contextmenu.js"></script> -->
+<link rel="stylesheet" href="js/leaflet.contextmenu.css"/>
+<script src="js/leaflet.contextmenu.js"></script>
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet.draw/1.0.4/leaflet.draw.css"/>
 <script src="js/leaflet.draw.js"></script>
 {% endblock %}

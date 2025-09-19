@@ -22,6 +22,7 @@ const btnNextTasks = document.getElementById('btnNextTasks');
 const modalMergeIndividual = $('#modalMergeIndividual');
 const modalDissociateImage = $('#modalDissociateImage');
 const modalDiscard = $('#modalDiscard');
+const modalUnidentifiable = $('#modalUnidentifiable');
 
 var modalAlertIndividualsReturn = false
 var individualSplide = null
@@ -61,7 +62,7 @@ var activeImage = null
 var rectOptions = null
 var mapWidth = null
 var mapHeight = null
-// var changed_flanks = {}
+var changed_flanks = {}
 var mergeIndividualsOpened = false
 var mergeMap = {'L': null, 'R': null}
 var mergeActiveImage = {'L': null, 'R': null}
@@ -104,7 +105,8 @@ var associationClick = false
 var associationID = null
 var associationName = null
 var unsavedChanges = false
-var convexHullPolygon = null 
+var convexHullPolygon = null
+var unidentifiableOpen = false
 
 function getIndividuals(page = null) {
     /** Gets a page of individuals. Gets the first page if none is specified. */
@@ -377,6 +379,7 @@ function getIndividualInfo(individualID){
                         document.getElementById('btnRemoveImg').disabled = false
                         // document.getElementById('btnMergeImg').disabled = false
                     }
+                    document.getElementById('btnIndivUnidentifiable').disabled = false
                 }
                 else{
                     document.getElementById('newIndividualName').readOnly = true
@@ -387,6 +390,7 @@ function getIndividualInfo(individualID){
                     document.getElementById('btnSubmitInfoChange').disabled = true
                     // document.getElementById('btnMergeImg').disabled = true
                     document.getElementById('btnMergeIndiv').disabled = true
+                    document.getElementById('btnIndivUnidentifiable').disabled = true
                 }
 
             }
@@ -476,6 +480,7 @@ function getIndividual(individualID, individualName, association=false, order_va
                     }
 
                     document.getElementById('btnDelIndiv').addEventListener('click', ()=>{
+                        removeIndividualEventListeners()
                         if (individualImages.length > 1){
                             document.getElementById('modalAlertIndividualsHeader').innerHTML = 'Confirmation'
                             document.getElementById('modalAlertIndividualsBody').innerHTML = 'Do you want to permanently delete this individual?'
@@ -497,6 +502,7 @@ function getIndividual(individualID, individualName, association=false, order_va
 
 
                     document.getElementById('btnRemoveImg').addEventListener('click', ()=>{
+                        removeIndividualEventListeners()
                         if (individualImages.length > 1){
                             // document.getElementById('modalAlertIndividualsHeader').innerHTML = 'Confirmation'
                             // document.getElementById('modalAlertIndividualsBody').innerHTML = 'Do you want to permanently remove this image from this individual?'
@@ -520,6 +526,17 @@ function getIndividual(individualID, individualName, association=false, order_va
                         modalIndividual.modal('hide')
                         modalMergeIndividual.modal({keyboard: true});
 
+                    });
+
+                    document.getElementById('btnIndivUnidentifiable').addEventListener('click', ()=>{
+                        removeIndividualEventListeners()
+                        document.getElementById('modalAlertIndividualsHeader').innerHTML = 'Confirmation'
+                        document.getElementById('modalAlertIndividualsBody').innerHTML = 'Do you want mark this individual as unidentifiable?'
+                        document.getElementById('btnContinueIndividualAlert').setAttribute('onclick','markUnidentifiable()')
+                        document.getElementById('btnCancelIndividualAlert').setAttribute('onclick','modalIndividual.modal({keyboard: true});')
+                        modalAlertIndividualsReturn = true
+                        modalIndividual.modal('hide')
+                        modalAlertIndividuals.modal({keyboard: true});
                     });
 
                     // document.getElementById('btnMergeImg').addEventListener('click', ()=>{
@@ -932,8 +949,11 @@ function validateDateRange() {
         var dateError = document.getElementById('dateErrorsIndiv')	
         var startDate = document.getElementById('startDateIndiv').value;
         var endDate = document.getElementById('endDateIndiv').value;
-    }
-    else{
+    }else if(modalUnidentifiable.is(':visible')){
+        var dateError = document.getElementById('dateErrorsUnid')
+        var startDate = document.getElementById('startDateUnid').value;
+        var endDate = document.getElementById('endDateUnid').value;
+    }else{
         var dateError = document.getElementById('dateErrors')
         var startDate = document.getElementById('startDate').value;
         var endDate = document.getElementById('endDate').value;
@@ -1025,7 +1045,7 @@ function cleanModalIndividual() {
     minDate = null
     maxDate = null
     addedDetections = false
-    // changed_flanks = {}
+    changed_flanks = {}
 
     document.getElementById('tgInfo').innerHTML = 'Site: '
     document.getElementById('timeInfo').innerHTML = ''
@@ -2731,33 +2751,33 @@ modalIndividualsError.on('hidden.bs.modal', function(){
     }
 });
 
-// function submitFlanks(){
-//     /** Submits the flanks for the individual's detections. */
+function submitFlanks(){
+    /** Submits the flanks for the individual's detections. */
 
-//     var formData = new FormData()
-//     formData.append("individual_id", JSON.stringify(selectedIndividual))
-//     formData.append("flanks", JSON.stringify(changed_flanks))	
+    var formData = new FormData()
+    formData.append("individual_id", JSON.stringify(selectedIndividual))
+    formData.append("flanks", JSON.stringify(changed_flanks))	
 
-//     var xhttp = new XMLHttpRequest();
-//     xhttp.onreadystatechange =
-//     function(){
-//         if (this.readyState == 4 && this.status == 200) {
-//             reply = JSON.parse(this.responseText);  
-//             if (reply.status=='success') {
-//                 for (let i=0;i<individualImages.length;i++) {
-//                     detection_id = individualImages[i].detections[0].id
-//                     if (changed_flanks[detection_id] != undefined) {
-//                         individualImages[i].detections[0].flank = changed_flanks[detection_id]
-//                         delete changed_flanks[detection_id]
-//                     }
-//                 }
-//             }
-//         }
-//     }
-//     xhttp.open("POST", '/submitIndividualFlanks');
-//     xhttp.send(formData);
+    var xhttp = new XMLHttpRequest();
+    xhttp.onreadystatechange =
+    function(){
+        if (this.readyState == 4 && this.status == 200) {
+            reply = JSON.parse(this.responseText);  
+            if (reply.status=='success') {
+                for (let i=0;i<individualImages.length;i++) {
+                    detection_id = individualImages[i].detections[0].id
+                    if (changed_flanks[detection_id] != undefined) {
+                        individualImages[i].detections[0].flank = changed_flanks[detection_id]
+                        delete changed_flanks[detection_id]
+                    }
+                }
+            }
+        }
+    }
+    xhttp.open("POST", '/submitIndividualFlanks');
+    xhttp.send(formData);
 
-// }
+}
 
 
 function initialiseMergeIndividualsLeft(){
@@ -3413,6 +3433,12 @@ function updateMergeSlider(mapID, divIDImageSplide, divID) {
         imgli.classList.add('splide__slide')
         imgli.appendChild(img)
         imageSplide.appendChild(imgli)
+
+        // add a error handler to the image to replace it with the compressed version if the crop does not exist
+        img.onerror = function() {
+            this.onerror = null;
+            this.src = "https://"+bucketName+".s3.amazonaws.com/" + modifyToCompURL(mergeImages[mapID][i].url)
+        };
     }
 
     if (mergeSplide[mapID]==null) {
@@ -5179,6 +5205,373 @@ $('#areaSelect').on('change', function() {
     checkSurvey()
 });
 
+function getUnidentifiable(){
+    /** Fetches unidentifiable sightings based on the selected filters. */
+
+    var species = document.getElementById('unidSpeciesSelect').value
+    var site = document.getElementById('unidSitesSelect').value
+    var task = document.getElementById('unidTaskSelect').value
+
+    var order_value = document.getElementById("orderUnidImages").value
+    if(document.getElementById('ascOrderUnid').checked){
+        order_value = 'a' + order_value
+    }
+    else{
+        order_value = 'd' + order_value
+    }
+
+    validateDateRange()
+    
+    if(validDate && document.getElementById("startDateUnid").value != "" ){
+        startDate = document.getElementById("startDateUnid").value + ' 00:00:00'
+    }
+    else{
+        startDate = ''
+    }
+
+    if(validDate && document.getElementById("endDateUnid").value != "" ){
+        endDate = document.getElementById("endDateUnid").value + ' 23:59:59'
+    }
+    else{
+        endDate = ''
+    }
+
+    var formData = new FormData()
+    formData.append("species", JSON.stringify(species))
+    formData.append("site", JSON.stringify(site))
+    formData.append("task_id", JSON.stringify(task))
+    formData.append("order", JSON.stringify(order_value))
+    formData.append("start_date", JSON.stringify(startDate))
+    formData.append("end_date", JSON.stringify(endDate))
+
+
+    var xhttp = new XMLHttpRequest();
+    xhttp.onreadystatechange =
+    function(){
+        if (this.readyState == 4 && this.status == 200) {
+            reply = JSON.parse(this.responseText);
+            individualImages = reply.individual
+            if (individualImages.length>0){
+
+                document.getElementById('tgInfoUnid').innerHTML = individualImages[0].trapgroup.tag
+                document.getElementById('timeInfoUnid').innerHTML = individualImages[0].timestamp
+
+                document.getElementById('labelsDivUnid').innerHTML =  individualImages[0].detections[0].species
+                document.getElementById('surveysDivUnid').innerHTML = individualImages[0].detections[0].task
+
+                initUnidMap()
+                prepMapIndividual(individualImages[0])
+                updateSlider()
+            } else {
+                var center = document.getElementById('centerMapUnid')
+                while(center.firstChild){
+                    center.removeChild(center.firstChild)
+                }
+
+                var splideDiv = document.getElementById('splideDivUnid')
+                while(splideDiv.firstChild){
+                    splideDiv.removeChild(splideDiv.firstChild);
+                }
+
+                document.getElementById('tgInfoUnid').innerHTML = ''
+                document.getElementById('timeInfoUnid').innerHTML = ''
+                
+                document.getElementById('labelsDivUnid').innerHTML =  ''
+                document.getElementById('surveysDivUnid').innerHTML = ''
+
+                var noData = document.createElement('h4')
+                noData.setAttribute('style','color: white; text-align: center; margin-top: 20px')
+                noData.innerHTML = 'No unidentifiable sightings found.'
+                center.appendChild(noData)
+            }
+
+        }
+    };
+    xhttp.open("POST", '/getUnidentifiable');
+    xhttp.send(formData)
+        
+}
+
+$('#btnEditUnidentifiable').click( function() {
+    /** Opens the unidentifiable modal. */
+    cleanUnidentifiableModal()
+    modalUnidentifiable.modal({keyboard: true})
+});
+
+function cleanUnidentifiableModal() {
+    /** Cleans the unidentifiable modal */
+    var splideDiv = document.getElementById('splideDivUnid')
+    while(splideDiv.firstChild){
+        splideDiv.removeChild(splideDiv.firstChild);
+    }
+
+    var center = document.getElementById('centerMapUnid')
+    while(center.firstChild){
+        center.removeChild(center.firstChild)
+    }
+
+    clearSelect(document.getElementById('unidSpeciesSelect'))
+    clearSelect(document.getElementById('unidSitesSelect'))
+    clearSelect(document.getElementById('unidTaskSelect'))
+
+    document.getElementById('ascOrderUnid').checked = true
+    document.getElementById('orderUnidImages').value = '1'	
+    document.getElementById('startDateUnid').value = ''
+    document.getElementById('endDateUnid').value = ''
+
+    document.getElementById('tgInfoUnid').innerHTML = ''
+    document.getElementById('timeInfoUnid').innerHTML = ''
+    
+    document.getElementById('labelsDivUnid').innerHTML =  ''
+    document.getElementById('surveysDivUnid').innerHTML = ''
+
+    individualSplide = null
+    individualImages = null
+    mapReady = null
+    finishedDisplaying = true
+    activeImage = null
+    drawnItems = null
+    fullRes = false
+    rectOptions = null
+    mapWidth = null
+    mapHeight = null
+    map = null
+    addedDetections = false
+
+}
+
+modalUnidentifiable.on('shown.bs.modal', function () {
+    /** Initializes the unidentifiable modal when shown. */
+    if (!helpReturn && !modalAlertIndividualsReturn) {
+        unidentifiableOpen = true
+        initUnidentifiable()
+    } else {
+        helpReturn = false
+        modalAlertIndividualsReturn = false
+    }
+});
+
+modalUnidentifiable.on('hidden.bs.modal', function () {
+    /** Cleans the unidentifiable modal when hidden. */
+    if (!helpReturn && !modalAlertIndividualsReturn) {
+        unidentifiableOpen = false
+        cleanUnidentifiableModal()
+    }
+});
+
+
+function initUnidMap(){
+    /** Initializes the unidentifiable map and slider components. */
+    map = null
+    individualSplide = null
+
+    var center = document.getElementById('centerMapUnid')
+    while(center.firstChild){
+        center.removeChild(center.firstChild)
+    }
+
+    var mapDiv = document.createElement('div')
+    mapDiv.setAttribute('id','mapDiv')
+    mapDiv.setAttribute('style','height: 700px')
+    center.appendChild(mapDiv)
+
+
+    var splideDiv = document.getElementById('splideDivUnid')
+
+    while(splideDiv.firstChild){
+        splideDiv.removeChild(splideDiv.firstChild);
+    }
+
+    var card = document.createElement('div')
+    card.classList.add('card')
+    card.setAttribute('style','background-color: rgb(60, 74, 89);margin-top: 5px; margin-bottom: 5px; margin-left: 5px; margin-right: 5px; padding-top: 5px; padding-bottom: 5px; padding-left: 5px; padding-right: 5px')
+    splideDiv.appendChild(card)
+
+    var body = document.createElement('div')
+    body.classList.add('card-body')
+    body.setAttribute('style','margin-top: 0px; margin-bottom: 0px; margin-left: 0px; margin-right: 0px; padding-top: 0px; padding-bottom: 0px; padding-left: 0px; padding-right: 0px')
+    card.appendChild(body)
+
+    var splide = document.createElement('div')
+    splide.classList.add('splide')
+    splide.setAttribute('id','splide')
+    body.appendChild(splide)
+
+    var track = document.createElement('div')
+    track.classList.add('splide__track')
+    splide.appendChild(track)
+
+    var list = document.createElement('ul')
+    list.classList.add('splide__list')
+    list.setAttribute('id','imageSplide')
+    track.appendChild(list)
+
+}
+
+function initUnidentifiable() {
+    /** Initializes the unidentifiable modal by resetting components. */
+
+    var xhttp = new XMLHttpRequest();
+    xhttp.onreadystatechange = function(){
+        if (this.readyState == 4 && this.status == 200) {
+            reply = JSON.parse(this.responseText);
+
+            //Populate species selector
+            texts = ['All']
+            texts.push(...reply.species)
+            values = ['0']
+            values.push(...reply.species)
+            clearSelect(document.getElementById('unidSpeciesSelect'))
+            fillSelect(document.getElementById('unidSpeciesSelect'), texts, values)
+
+            //Populate site selector
+            texts = ['All']
+            texts.push(...reply.sites)
+            values = ['0']
+            values.push(...reply.sites)
+            clearSelect(document.getElementById('unidSitesSelect'))
+            fillSelect(document.getElementById('unidSitesSelect'), texts, values)
+
+
+            texts = ['All']
+            values = ['0']
+            for (let i=0;i<reply.tasks.length;i++) {
+                texts.push(reply.tasks[i].name)
+                values.push(reply.tasks[i].id)
+            }
+            clearSelect(document.getElementById('unidTaskSelect'))
+            fillSelect(document.getElementById('unidTaskSelect'), texts, values)
+
+            getUnidentifiable()
+        }
+    }
+    xhttp.open("GET", '/getAllUnidSpeciesSitesAndTasks');
+    xhttp.send();
+
+}
+
+$('#orderUnidImages').on('change', function() {
+    getUnidentifiable()
+});
+
+$('#ascOrderUnid').on('change', function() {
+    getUnidentifiable()
+});
+
+$('#ascOrderUnid').on('change', function() {
+    getUnidentifiable()
+});
+
+$('#unidSitesSelect').on('change', function() {
+    getUnidentifiable()
+});
+
+$('#unidSpeciesSelect').on('change', function() {
+    getUnidentifiable()
+});
+
+$('#unidTaskSelect').on('change', function() {
+    getUnidentifiable()
+});
+
+$("#startDateUnid").change( function() {
+    /** Listener for the start date selector on the the individuals page. */
+    validateDateRange()
+    if(validDate){
+        getUnidentifiable()
+    }
+})
+
+$("#endDateUnid").change( function() {
+    /** Listener for the end date selector on the the individuals page. */
+    validateDateRange()
+    if(validDate){
+        getUnidentifiable()
+    }
+})
+
+function restoreUnidSighting(){
+    /** Restores the unidentifiable sighting to a new individual. */
+    document.getElementById('btnContinueIndividualAlert').disabled = true
+    modalAlertIndividuals.modal('hide')
+    
+    if (individualImages.length > 0 && individualImages[individualSplide.index].access=='write'){
+        var image = individualImages[individualSplide.index]
+        var detection = image.detections[0]
+
+        individualImages.splice(individualSplide.index, 1)
+        if (individualImages.length == 0){
+            var center = document.getElementById('centerMapUnid')
+            while(center.firstChild){
+                center.removeChild(center.firstChild)
+            }
+
+            var splideDiv = document.getElementById('splideDivUnid')
+            while(splideDiv.firstChild){
+                splideDiv.removeChild(splideDiv.firstChild);
+            }
+
+            document.getElementById('tgInfoUnid').innerHTML = ''
+            document.getElementById('timeInfoUnid').innerHTML = ''
+            
+            document.getElementById('labelsDivUnid').innerHTML =  ''
+            document.getElementById('surveysDivUnid').innerHTML = ''
+
+            var noData = document.createElement('h4')
+            noData.setAttribute('style','color: white; text-align: center; margin-top: 20px')
+            noData.innerHTML = 'No unidentifiable sightings found.'
+            center.appendChild(noData)
+        } else {
+            updateSlider()
+            if (individualSplide.index > 0){
+                individualSplide.go(0)
+            }
+            else{
+                finishedDisplaying = false
+                image = individualImages[individualSplide.index]
+
+                document.getElementById('tgInfoUnid').innerHTML = image.trapgroup.tag
+                document.getElementById('timeInfoUnid').innerHTML = image.timestamp
+                document.getElementById('labelsDivUnid').innerHTML =  image.detections[0].species
+                document.getElementById('surveysDivUnid').innerHTML = image.detections[0].task
+
+                addedDetections = false
+                activeImage.setUrl("https://"+bucketName+".s3.amazonaws.com/" + modifyToCompURL(image.url))
+            }
+        }
+
+        var xhttp = new XMLHttpRequest();
+        xhttp.onreadystatechange =
+        function(){
+            if (this.readyState == 4 && this.status == 200) {
+                reply = JSON.parse(this.responseText);
+                if (document.getElementById('btnContinueIndividualAlert')) {
+                    document.getElementById('btnContinueIndividualAlert').disabled = false
+                    removeIndividualEventListeners()
+                }
+            }
+        }
+        xhttp.open("GET", '/restoreUnidentifiableDetection/'+detection.id.toString()+'/'+detection.individual_id.toString());
+        xhttp.send();
+
+        modalUnidentifiable.modal({keyboard: true});
+    }
+}
+
+$('#btnRestoreDetUnid').on('click', function() {
+    /** Restores the unidentifiable detection. */
+    removeIndividualEventListeners()
+    if (individualImages.length > 0 && individualImages[individualSplide.index].access=='write'){
+        document.getElementById('modalAlertIndividualsHeader').innerHTML = 'Confirmation'
+        document.getElementById('modalAlertIndividualsBody').innerHTML = 'Do you want to restore this sighting? This will create a new individual with this sighting.'
+        document.getElementById('btnContinueIndividualAlert').setAttribute('onclick','restoreUnidSighting()')
+        document.getElementById('btnCancelIndividualAlert').setAttribute('onclick','modalUnidentifiable.modal({keyboard: true});')
+        modalAlertIndividualsReturn = true
+        modalUnidentifiable.modal('hide')
+        modalAlertIndividuals.modal({keyboard: true});
+    }
+});
+
 function onload(){
     /**Function for initialising the page on load.*/
     getAreas()
@@ -5189,12 +5582,12 @@ function onload(){
 
 }
 
-// document.onclick = function () {
-//     /** Hides the context menu when clicking outside of it. */
-//     if (map && map.contextmenu.isVisible()) {
-//         map.contextmenu.hide()
-//     }
-// }
+document.onclick = function () {
+    /** Hides the context menu when clicking outside of it. */
+    if (map && map.contextmenu.isVisible()) {
+        map.contextmenu.hide()
+    }
+}
 
 window.addEventListener('load', onload, false);
 

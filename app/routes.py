@@ -193,10 +193,11 @@ def launchTask():
         label = db.session.query(Label).filter(Label.description==species).filter(Label.task_id==task_ids[0]).first()
         if label.icID_allowed:
             # Should be -5 
-            if len(task_ids)>1:
-                taggingLevel = '-5,'+species+',0,100,'+tL[4]
-            else:
-                taggingLevel = '-5,'+species+',-1'
+            # if len(task_ids)>1:
+            #     taggingLevel = '-5,'+species+',0,100,'+tL[4]
+            # else:
+            #     taggingLevel = '-5,'+species+',-1'
+            taggingLevel = '-5,'+species+',0,100,'+tL[4]
 
     tasks = db.session.query(Task).join(Survey)\
                         .filter(Task.id.in_([int(r) for r in task_ids]))\
@@ -14795,24 +14796,39 @@ def getMatchingKpts(det_id1,det_id2):
 # NOTE: We are currenlty not allowing the users to edit a detection flank on the Individuals page and it can only be edited 
 #     in a Cluster ID (-4 task). The reason we have disallowed this is because of having to recalculate all detection similarities 
 #     and individual similaties associated with the detection whose flank has changed. 
-# @app.route('/submitIndividualFlanks', methods=['POST'])
-# @login_required
-# def submitIndividualFlanks():
-#     ''' Edit the flanks of the specified individual's detections. '''
-#     status = 'error'
-#     individual_id = ast.literal_eval(request.form['individual_id'])
-#     flanks = ast.literal_eval(request.form['flanks'])
-#     individual = db.session.query(Individual).get(individual_id)
-#     if flanks:
-#         if individual and all(checkSurveyPermission(current_user.id,task.survey_id,'write') for task in individual.tasks):
-#             detection_ids = list(flanks.keys())
-#             detections = db.session.query(Detection).filter(Detection.id.in_(detection_ids)).all()
-#             for detection in detections:
-#                 detection.flank = Config.FLANK_DB[flanks[str(detection.id)].lower()]
-#             db.session.commit()
-#             status = 'success'
+@app.route('/submitIndividualFlanks', methods=['POST'])
+@login_required
+def submitIndividualFlanks():
+    ''' Edit the flanks of the specified individual's detections. '''
+    status = 'error'
+    individual_id = ast.literal_eval(request.form['individual_id'])
+    flanks = ast.literal_eval(request.form['flanks'])
+    individual = db.session.query(Individual).get(individual_id)
+    if flanks:
+        if individual and all(checkSurveyPermission(current_user.id,task.survey_id,'write') for task in individual.tasks):
+            detection_ids = list(flanks.keys())
+            detections = db.session.query(Detection).filter(Detection.id.in_(detection_ids)).all()
+            det_ids = []
+            for detection in detections:
+                if detection.flank != Config.FLANK_DB[flanks[str(detection.id)].lower()]:
+                    detection.flank = Config.FLANK_DB[flanks[str(detection.id)].lower()]
+                    det_ids.append(detection.id)
 
-#     return json.dumps({'status': status}) 
+            detSims = db.session.query(DetSimilarity).filter(or_(DetSimilarity.detection_1.in_(det_ids), DetSimilarity.detection_2.in_(det_ids))).all()
+            for detSim in detSims:
+                db.session.delete(detSim)
+
+            indSims = db.session.query(IndSimilarity)\
+                                .filter(or_(IndSimilarity.individual_1==individual.id, IndSimilarity.individual_2==individual.id))\
+                                .filter(or_(IndSimilarity.detection_1.in_(det_ids), IndSimilarity.detection_2.in_(det_ids))).all()
+            
+            for indSim in indSims:
+                db.session.delete(indSim)
+           
+            db.session.commit()
+            status = 'success'
+
+    return json.dumps({'status': status}) 
 
 @app.route('/api/v1/addImage', methods=['POST'])
 def addImage():
@@ -16697,3 +16713,242 @@ def getAreaIdTasks(task_id, species):
         surveys = list(survey_data.values())
 
     return json.dumps({'status': 'success', 'surveys': surveys})
+
+@app.route('/getUnidentifiable', methods=['POST'])
+@login_required
+def getUnidentifiable():
+    '''Returns a list of unidentifiable detections based on the specified filters'''
+    reply = []
+    access = 'hidden'
+    task_id = ast.literal_eval(request.form['task_id'])   
+    species = ast.literal_eval(request.form['species'])
+    start_date = ast.literal_eval(request.form['start_date'])
+    end_date = ast.literal_eval(request.form['end_date'])
+    order = ast.literal_eval(request.form['order']) 
+    site = ast.literal_eval(request.form['site']) 
+
+
+    if task_id:
+        if task_id  == '0':
+            tasks = surveyPermissionsSQ(db.session.query(Task.id, Survey.id).join(Survey),current_user.id, 'read')
+        else:
+            tasks = surveyPermissionsSQ(db.session.query(Task.id, Survey.id).join(Survey).filter(Task.id==task_id),current_user.id, 'read')
+        tasks = tasks.distinct().all()
+        task_ids = [r[0] for r in tasks]
+        survey_ids = [r[1] for r in tasks] 
+        survey_ids = list(set(survey_ids))
+
+        write_access_surveys = [r[0] for r in surveyPermissionsSQ(db.session.query(Survey.id),current_user.id, 'write').filter(Survey.id.in_(survey_ids)).distinct().all()]
+
+        unidentifiable = rDets(db.session.query(
+                    Detection.id,
+                    Detection.top,
+                    Detection.left,
+                    Detection.right,
+                    Detection.bottom,
+                    Detection.flank,
+                    Image.id,
+                    Image.filename,
+                    Image.corrected_timestamp,
+                    Camera.path,
+                    Trapgroup.id,
+                    Trapgroup.tag,
+                    Trapgroup.latitude,
+                    Trapgroup.longitude,
+                    Trapgroup.altitude,
+                    Individual.id,
+                    Individual.species,
+                    Task.name,
+                    Survey.name,
+                    Survey.id
+                )\
+                .join(Image, Image.id==Detection.image_id)\
+                .join(Camera, Camera.id==Image.camera_id)\
+                .join(Trapgroup, Trapgroup.id==Camera.trapgroup_id)\
+                .join(Individual, Detection.individuals)\
+                .join(Task, Individual.tasks)\
+                .join(Survey, Task.survey_id==Survey.id)\
+                .filter(Individual.name=='unidentifiable')\
+                .filter(Trapgroup.survey_id.in_(survey_ids))\
+                .filter(Task.id.in_(task_ids)))
+
+
+        if species != '0':
+            unidentifiable = unidentifiable.filter(Individual.species==species)
+
+        if site != '0':
+            unidentifiable = unidentifiable.filter(Trapgroup.tag==site)
+
+        if start_date:
+            unidentifiable = unidentifiable.filter(Image.corrected_timestamp>=start_date)
+
+        if end_date:
+            unidentifiable = unidentifiable.filter(Image.corrected_timestamp<=end_date)
+
+        if order == 'a1':
+            unidentifiable = unidentifiable.order_by(Image.corrected_timestamp)
+        elif order == 'd1':
+            unidentifiable = unidentifiable.order_by(desc(Image.corrected_timestamp))
+        elif order == 'a2':
+            unidentifiable = unidentifiable.order_by(Trapgroup.tag)
+        elif order == 'd2':
+            unidentifiable = unidentifiable.order_by(desc(Trapgroup.tag))
+        elif order == 'a3':
+            unidentifiable = unidentifiable.order_by(Image.detection_rating)
+        elif order == 'd3':
+            unidentifiable = unidentifiable.order_by(desc(Image.detection_rating))
+            
+        
+        unidentifiable = unidentifiable.distinct().all()
+
+        for data in unidentifiable:
+            detection_id, top, left, right, bottom, flank, image_id, filename, timestamp, path, trapgroup_id, tag, latitude, longitude, altitude, individual_id, species, task, survey, survey_id = data
+            reply.append({
+                'id': image_id,
+                'url': (path + '/' + filename).replace('+','%2B').replace('?','%3F').replace('#','%23').replace('\\','%5C'),
+                'timestamp': timestamp.strftime('%Y-%m-%d %H:%M:%S') if timestamp else '',
+                'trapgroup':{
+                    'id': trapgroup_id,
+                    'tag': tag,
+                    'latitude': latitude,
+                    'longitude': longitude,
+                    'altitude': altitude
+                },
+                'detections': [{
+                    'id': detection_id,
+                    'top': top,
+                    'left': left,
+                    'right': right,
+                    'bottom': bottom,
+                    'flank': flank,
+                    'species': species,
+                    'static': False,
+                    'task': '{} {}'.format(survey,task),
+                    'individual_id': individual_id
+                }],
+                'access': 'write' if survey_id in write_access_surveys else 'read'
+            })
+
+    return json.dumps({'individual': reply, 'access': access})
+
+@app.route('/markUnidentifiable/<individual_id>')
+@login_required
+def markUnidentifiable(individual_id):
+    '''Marks the individual as unidentifiable.'''
+
+    if (not current_user.admin) and (not GLOBALS.redisClient.sismember('active_jobs_'+str(current_user.turkcode[0].task_id),current_user.username)): return {'redirect': url_for('done')}, 278
+
+    individual = db.session.query(Individual).get(int(individual_id))
+    if individual and individual.active and all(checkSurveyPermission(current_user.id,task.survey_id,'write') for task in individual.tasks):
+        individual.active = False
+        db.session.commit()
+        
+        if Config.DEBUGGING: app.logger.info('Individual {} from tasks {} marked as unidentifiable'.format(individual.name, individual.tasks))
+
+        task_ids = [task.id for task in individual.tasks]
+        unidentifiables = {r.tasks[0].id: r for r in db.session.query(Individual)\
+                            .filter(Individual.tasks.any(Task.id.in_(task_ids)))\
+                            .filter(Individual.species==individual.species)\
+                            .filter(Individual.name=='unidentifiable')\
+                            .distinct().all()}
+        detection_tasks = {r[0]: r[1] for r in db.session.query(Detection.id, Labelgroup.task_id)\
+                                        .join(Labelgroup)\
+                                        .join(Individual,Detection.individuals)\
+                                        .filter(Individual.id==individual.id)\
+                                        .filter(Labelgroup.task_id.in_(task_ids))\
+                                        .distinct().all()}
+        for detection in individual.detections:
+            unidentifiable = unidentifiables.get(detection_tasks.get(detection.id))
+            if detection not in unidentifiable.detections:
+                unidentifiable.detections.append(detection)
+        
+        allSimilarities = db.session.query(IndSimilarity).filter(or_(IndSimilarity.individual_1==individual.id,IndSimilarity.individual_2==individual.id)).distinct().all()
+        for similarity in allSimilarities:
+            db.session.delete(similarity)
+
+        individual.detections = []
+        individual.primary_detections = []
+        individual.tags = []
+        individual.children = []
+        individual.parents = []
+        individual.tasks = []
+        db.session.delete(individual)
+
+        db.session.commit()
+
+        return json.dumps({'status': 'success'})
+
+    return json.dumps({'status': 'error'})
+
+@app.route('/getAllUnidSpeciesSitesAndTasks')
+@login_required
+def getAllUnidSpeciesSitesAndTasks():
+    '''Returns all species, sites and tasks that have unidentifiable individuals'''
+
+    species = [r[0] for r in surveyPermissionsSQ(db.session.query(Individual.species).join(Task, Individual.tasks).join(Survey).filter(Individual.name=='unidentifiable'),current_user.id,'read').order_by(Individual.species).distinct().all()]
+    sites = [r[0] for r in surveyPermissionsSQ(db.session.query(Trapgroup.tag).join(Survey).join(Task).join(Individual,Task.individuals).filter(Individual.name=='unidentifiable'),current_user.id,'read').order_by(Trapgroup.tag).distinct().all()]
+    tasks = surveyPermissionsSQ(db.session.query(Task.id, Task.name, Survey.name)\
+                    .join(Survey)\
+                    .join(Individual, Task.individuals)\
+                    .filter(Individual.name=='unidentifiable')\
+                    .filter(Task.status.in_(Config.TASK_READY_STATUSES))\
+                    .filter(Survey.status.in_(Config.SURVEY_READY_STATUSES))
+                    ,current_user.id,'read').order_by(Task.id.desc()).distinct().all()
+    tasks = [{'id': t[0], 'name': t[2] + ' - ' + t[1]} for t in tasks]
+
+    return json.dumps({'species': species, 'sites': sites, 'tasks': tasks})
+
+@app.route('/restoreUnidentifiableDetection/<detection_id>/<individual_id>')
+@login_required
+def restoreUnidentifiableDetection(detection_id, individual_id):
+    '''Restores a detection from an unidentifiable individual to a new identifiable individual'''
+
+    status = 'error'
+    detection = db.session.query(Detection).get(int(detection_id))
+    individual = db.session.query(Individual)\
+                        .filter(Individual.id==int(individual_id))\
+                        .filter(Individual.name=='unidentifiable')\
+                        .filter(Individual.detections.contains(detection))\
+                        .first()
+    if detection and individual and all(checkSurveyPermission(current_user.id,task.survey_id,'write') for task in individual.tasks):
+        
+        individual.detections.remove(detection)
+
+        newIndividual = Individual( species=individual.species,
+                                    user_id=current_user.id,
+                                    timestamp=datetime.utcnow())
+
+        db.session.add(newIndividual)
+        db.session.flush()
+        newIndividual.name = str(newIndividual.id)
+        newIndividual.detections.append(detection)
+        newIndividual.primary_detections = [detection]
+
+        task_ids = [t.id for t in individual.tasks]
+
+        newIndividual.tasks = db.session.query(Task)\
+                                        .join(Survey)\
+                                        .join(Trapgroup)\
+                                        .join(Camera)\
+                                        .join(Image)\
+                                        .filter(Image.detections.contains(detection))\
+                                        .filter(Task.id.in_(task_ids))\
+                                        .distinct().all()
+
+        db.session.commit()
+
+        individuals = [r[0] for r in db.session.query(Individual.id)\
+                                        .join(Task,Individual.tasks)\
+                                        .filter(Task.id.in_(task_ids))\
+                                        .filter(Individual.species==individual.species)\
+                                        .filter(Individual.name!='unidentifiable')\
+                                        .filter(Individual.id != newIndividual.id)\
+                                        .all()]
+
+        calculate_individual_similarity.delay(individual1=newIndividual.id,individuals2=individuals,species=individual.species)
+
+        status = 'success'
+    
+    return json.dumps({'status':status})
+
+    

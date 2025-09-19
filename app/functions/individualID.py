@@ -850,7 +850,10 @@ def calculate_individual_similarities(self,task_id,species):
 
         task = db.session.query(Task).get(task_id)
         # task.survey.images_processing = 0
-        if task.sub_tasks and ('-5' in task.tagging_level):
+        # if task.sub_tasks and ('-5' in task.tagging_level):
+        if '-5' in task.tagging_level:
+            if not task.sub_tasks:
+                task.tagging_level = '-5,'+species+',-1'
             task.survey.status = 'Launched'
             db.session.commit()
             from app.functions.globals import launch_task
