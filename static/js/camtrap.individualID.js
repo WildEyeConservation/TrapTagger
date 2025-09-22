@@ -4204,15 +4204,20 @@ $('#autoGenerateNameRb').on('change', function (){
 
 $('#displayFlank').on('change', function (){
     /** Updates the flank images when the flank selection is changed. */
-    updateFlanks(this.value)
+    updateFlanks()
 });
 
-function updateFlanks(value='0') {
+function updateFlanks(value=null) {
     /** Updates the flank images when the flank selection is changed. */
-    if (document.getElementById('displayFlank').value == value || !['0','1','2','3'].includes(value)) {
-        return;
+    if (value == null) {
+        value = document.getElementById('displayFlank').value
+    } else {
+        if (document.getElementById('displayFlank').value == value || !['0','1','2','3'].includes(value)) {
+            return;
+        }
+        document.getElementById('displayFlank').value = value
     }
-    document.getElementById('displayFlank').value = value
+    
     updateSlider('map1',true)
     if (clusterPositionSplide['map1'].index == 0) {
         if (sliderImageIndexMap['map1'].length > 0) {
