@@ -3802,6 +3802,7 @@ def update_existing_er_report(row,er_api_key,er_object_id):
 
     payload = {
         "recorded_at": row['timestamp'].isoformat(),
+        "title": row['species'].capitalize() + " Detected",
         "location": {
             "lat": row['trapgroup_lat'],
             "lon": row['trapgroup_lon']
@@ -3849,7 +3850,8 @@ def create_new_er_report(row,er_api_key,er_url):
 
     payload = {
         "source": str(row['cluster_id']),
-        "title": "TrapTagger Event",
+        "title": row['species'].capitalize() + " Detected",
+        "event_type": "traptagger_integration",
         "recorded_at": row['timestamp'].isoformat(),
         "location": {
             "lat": row['trapgroup_lat'],
@@ -5083,8 +5085,24 @@ def cluster_timestampless(task_id,trapgroup_id,starting_last_cluster_id,query_li
                         .outerjoin(ERIDSQ, ERIDSQ.c.cluster_id==Cluster.id)\
                         .filter(Cluster.task_id == task_id)\
                         .subquery()
+
+    imageSQ = db.session.query(
+                                Image.id.label('image_id'),
+                                func.row_number().over(order_by=[Video.id,Image.id]).label("row_number")
+                            )\
+                            .outerjoin(irrelevantImagesSQ,irrelevantImagesSQ.c.image_id==Image.id)\
+                            .join(Camera)\
+                            .outerjoin(Video)\
+                            .filter(Camera.trapgroup_id==trapgroup_id)\
+                            .filter(Image.corrected_timestamp==None)\
+                            .filter(irrelevantImagesSQ.c.labelgroup_id==None)\
+                            .order_by(Video.id,Image.id)\
+                            .subquery()
     
-    while True:
+    current_row = 0
+    final_row = db.session.query(imageSQ.c.row_number).order_by(desc(imageSQ.c.row_number)).first()
+    final_row = final_row[0] if final_row else 0
+    while current_row!=final_row:
         imageData = db.session.query(
                                 Image,
                                 Video.id,
@@ -5092,17 +5110,16 @@ def cluster_timestampless(task_id,trapgroup_id,starting_last_cluster_id,query_li
                                 clusterInfoSQ.c.user_id,
                                 clusterInfoSQ.c.timestamp,
                                 clusterInfoSQ.c.checked,
-                                clusterInfoSQ.c.er_ids
+                                clusterInfoSQ.c.er_ids,
+                                imageSQ.c.row_number
                             )\
+                            .join(imageSQ,imageSQ.c.image_id==Image.id)\
                             .outerjoin(clusterInfoSQ,clusterInfoSQ.c.image_id==Image.id)\
-                            .outerjoin(irrelevantImagesSQ,irrelevantImagesSQ.c.image_id==Image.id)\
                             .join(Camera)\
                             .outerjoin(Video)\
-                            .filter(Camera.trapgroup_id==trapgroup_id)\
-                            .filter(Image.corrected_timestamp==None)\
+                            .filter(imageSQ.c.row_number>current_row)\
                             .filter(or_(clusterInfoSQ.c.row_number==1,clusterInfoSQ.c.row_number==None))\
-                            .filter(irrelevantImagesSQ.c.labelgroup_id==None)\
-                            .order_by(Video.id)\
+                            .order_by(imageSQ.c.row_number)\
                             .distinct().limit(query_limit).all()
         
         if not imageData: break
@@ -5115,7 +5132,7 @@ def cluster_timestampless(task_id,trapgroup_id,starting_last_cluster_id,query_li
         clusters = []
         images = []
         current_video = None
-        for image, video_id, notes, user_id, timestamp, checked, er_ids in imageData:
+        for image, video_id, notes, user_id, timestamp, checked, er_ids, row_number in imageData:
 
             if er_ids: er_ids = [er_id for er_id in er_ids.split(',')]
 
@@ -5154,6 +5171,7 @@ def cluster_timestampless(task_id,trapgroup_id,starting_last_cluster_id,query_li
             if cluster_checked is None: cluster_checked = checked
             if er_ids: cluster_er_ids.extend(er_ids)
             images.append(image)
+            current_row = row_number
 
         # save the last cluster
         if images:
@@ -5173,8 +5191,6 @@ def cluster_timestampless(task_id,trapgroup_id,starting_last_cluster_id,query_li
         if clusters:
             db.session.add_all(clusters)
             db.session.commit()
-
-        if len(imageData) < query_limit: break
     
     return True
 
@@ -5200,7 +5216,8 @@ def time_based_clustering(task_id,trapgroup_id,query_limit,timestamp=None):
     imageSQ = db.session.query(
                             Image.id.label('id'),
                             Image.corrected_timestamp.label('timestamp'),
-                            func.lag(Image.corrected_timestamp).over(order_by=Image.corrected_timestamp).label("prev_timestamp")
+                            Image.filename.label('filename'),
+                            func.lag(Image.corrected_timestamp).over(order_by=[Image.corrected_timestamp,Image.filename]).label("prev_timestamp")
                         )\
                         .outerjoin(irrelevantImagesSQ,irrelevantImagesSQ.c.image_id==Image.id)\
                         .join(Camera)\
@@ -5217,7 +5234,7 @@ def time_based_clustering(task_id,trapgroup_id,query_limit,timestamp=None):
     # Here we generate clusters based on time deltas of less than a minute
     clusterSQ = db.session.query(
                             imageSQ.c.id.label('id'),
-                            func.row_number().over(order_by=imageSQ.c.timestamp).label("row_number"),
+                            func.row_number().over(order_by=[imageSQ.c.timestamp,imageSQ.c.filename]).label("row_number"),
                             func.sum(
                                 case(
                                     (
@@ -5228,7 +5245,7 @@ def time_based_clustering(task_id,trapgroup_id,query_limit,timestamp=None):
                                     else_=0
                                 )
                             )
-                            .over(order_by=imageSQ.c.timestamp).label('cluster_number')
+                            .over(order_by=[imageSQ.c.timestamp,imageSQ.c.filename]).label('cluster_number')
                         )\
                         .subquery()
 
@@ -5282,7 +5299,7 @@ def time_based_clustering(task_id,trapgroup_id,query_limit,timestamp=None):
                             .outerjoin(clusterInfoSQ,clusterInfoSQ.c.image_id==Image.id)\
                             .filter(or_(clusterInfoSQ.c.row_number==1,clusterInfoSQ.c.row_number==None))\
                             .filter(clusterSQ.c.row_number>current_row)\
-                            .order_by(Image.corrected_timestamp).limit(query_limit).all()
+                            .order_by(clusterSQ.c.row_number).limit(query_limit).all()
 
         if clusterQuery==[]: break
 

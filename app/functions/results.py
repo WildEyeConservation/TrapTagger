@@ -2511,7 +2511,7 @@ def calculate_results_summary(self, task_ids, baseUnit, sites, groups, startDate
                 hill_number = 1/sum([(count/total_count)**2 for count in species_count_list if count != 0])
 
                 # Calculate Pielou's Evenness
-                pielous_evenness = shannon_index/math.log(len(species_count_list))
+                pielous_evenness = shannon_index/math.log(len(species_count_list)) if len(species_count_list) > 1 else 0
 
                 # Calculate Species Richness
                 species_richness = len(species_count_list)
