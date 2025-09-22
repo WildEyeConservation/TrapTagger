@@ -655,6 +655,7 @@ function flankMapPrep() {
             original_flank = individualImages[individualSplide.index].detections[0].flank
             if (original_flank != e.el.textContent) {
                 changed_flanks[detection_id] = e.el.textContent
+                unsavedChanges = true
             }
             else{
                 delete changed_flanks[detection_id]

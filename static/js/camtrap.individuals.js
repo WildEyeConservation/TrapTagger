@@ -1878,10 +1878,13 @@ document.getElementById('btnSubmitInfoChange').addEventListener('click', functio
         submitIndividualNotes()
     }
 
+    if(Object.keys(changed_flanks).length > 0){
+        submitFlanks()
+    }
+
     submitFeatures()
 
     unsavedChanges = false
-    // submitFlanks()
 });
 
 $('.modal').on("hidden.bs.modal", function (e) { 
@@ -5356,6 +5359,7 @@ modalUnidentifiable.on('hidden.bs.modal', function () {
     if (!helpReturn && !modalAlertIndividualsReturn) {
         unidentifiableOpen = false
         cleanUnidentifiableModal()
+        getIndividuals(current_page)
     }
 });
 
