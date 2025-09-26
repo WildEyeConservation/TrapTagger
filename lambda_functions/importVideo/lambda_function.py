@@ -142,15 +142,16 @@ def lambda_handler(event, context):
                     width = None
                     height = None
 
-                try:
-                    video_stream = next((stream for stream in probe['streams'] if stream['codec_type'] == 'video'), None)
-                    video_fps = int(video_stream['r_frame_rate'].split('/')[0]) / int(video_stream['r_frame_rate'].split('/')[1])
-                    video_frames = int(video_stream['nb_frames'])
-                    still_rate = get_still_rate(video_fps,video_frames)
-                except:
-                    video_fps = None
-                    video_frames = None
-                    still_rate = None
+                still_rate = None
+                # try:
+                #     video_stream = next((stream for stream in probe['streams'] if stream['codec_type'] == 'video'), None)
+                #     video_fps = int(video_stream['r_frame_rate'].split('/')[0]) / int(video_stream['r_frame_rate'].split('/')[1])
+                #     video_frames = int(video_stream['nb_frames']) if 'nb_frames' in video_stream else int(round(float(probe['format']['duration']) * video_fps))
+                #     still_rate = get_still_rate(video_fps,video_frames)
+                # except:
+                #     video_fps = None
+                #     video_frames = None
+                #     still_rate = None
                 
                 # Compress Video
                 input_video = ffmpeg.input(download_path)
