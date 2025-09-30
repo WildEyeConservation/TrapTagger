@@ -79,7 +79,7 @@ limitations under the License. -->
     <div class="col-lg-2" style="text-align: center;">
         <br>
         <div id="debugInfo" style="font-size: 12px;"></div>
-        <!-- <br> -->
+        <br>
         <br>
         <div id="distDelta" style="font-size:20px"></div>
         <br>
@@ -125,14 +125,24 @@ limitations under the License. -->
             </div>
         </div>
         <br>
-        <div style="margin:0; display: flex; align-items: center; ">
-            <label for="displayFlank" style="font-size: 80%; margin: 0; white-space: nowrap;">Display Flank:</label>
-            <select id="displayFlank" name="displayFlank" class="form-control" style="margin-left: 8px; display: inline-block;">
-                <option value="0" selected>All (0)</option>
-                <option value="1">Left (1)</option>
-                <option value="2">Right (2)</option>
-                <option value="3">Ambiguous (3)</option>
-            </select>
+        <div>
+            <label style="font-size: 80%; margin: 0; white-space: nowrap; margin-right: 8px;">Display Flank:</label>
+            <div class="custom-control custom-radio custom-control-inline" style="margin-right: 8px;">
+                <input type="radio" class="custom-control-input" id="allFlank" name="displayFlank" value='all' checked="true">
+                <label class="custom-control-label" for="allFlank">All (0)</label>
+            </div> 
+            <div class="custom-control custom-radio custom-control-inline" style="margin-right: 8px;">
+                <input type="radio" class="custom-control-input" id="leftFlank" name="displayFlank" value='left'>
+                <label class="custom-control-label" for="leftFlank">Left (1)</label>
+            </div> 
+            <div class="custom-control custom-radio custom-control-inline" style="margin-right: 8px;">
+                <input type="radio" class="custom-control-input" id="rightFlank" name="displayFlank" value='right'>
+                <label class="custom-control-label" for="rightFlank">Right (2)</label>
+            </div>
+            <div class="custom-control custom-radio custom-control-inline" style="margin-right: 8px;">
+                <input type="radio" class="custom-control-input" id="ambiguousFlank" name="displayFlank" value='ambiguous'>
+                <label class="custom-control-label" for="ambiguousFlank">Ambiguous (3)</label>
+            </div>
         </div>
         <br>
         <button id="btnAcceptSuggestion" class="btn btn-primary btn-block" onclick=acceptSuggestion()>Accept Suggestion (Space)</button>

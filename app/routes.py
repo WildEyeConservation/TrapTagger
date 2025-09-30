@@ -211,6 +211,12 @@ def launchTask():
     else:
         statusPass = True
 
+    if '-4' in taggingLevel or '-5' in taggingLevel:
+        # Check that all tasks have an area associated
+        area_check = db.session.query(Task.id).join(Survey).filter(Task.id.in_([int(r) for r in task_ids])).filter(Survey.area_id==None).first()
+        if area_check:
+            return json.dumps({'message': 'You must associate an area with your survey before launching Individual ID.', 'status': 'Error'})
+
 
     # Check if any surveys are busy with a dearchival process
     surveys = [task.survey for task in tasks]
@@ -1852,10 +1858,11 @@ def createNewSurvey():
                 status = 'error'
                 message = 'Invalid area name. Please enter a new one.'
         else:
-            check = db.session.query(Area).join(Survey).filter(Survey.organisation_id==organisation_id).filter(Area.id==newSurveyArea).first()
-            if not check:
-                status = 'error'
-                message = 'The selected area does not exist for this organisation. Please choose a different area or create a new one.'
+            if newSurveyArea != '-1':
+                check = db.session.query(Area).join(Survey).filter(Survey.organisation_id==organisation_id).filter(Area.id==newSurveyArea).first()
+                if not check:
+                    status = 'error'
+                    message = 'The selected area does not exist for this organisation. Please choose a different area or create a new one.'
 
         org_check = db.session.query(Organisation).filter(Organisation.id==organisation_id).join(UserPermissions).filter(UserPermissions.user_id==current_user.id).filter(UserPermissions.create==True).first()
         if not org_check:
@@ -1880,7 +1887,10 @@ def createNewSurvey():
                 newArea = Area(name=newSurveyArea)
                 db.session.add(newArea)
             else:
-                newArea = db.session.query(Area).get(newSurveyArea)
+                if newSurveyArea == '-1':
+                    newArea = None
+                else:
+                    newArea = db.session.query(Area).get(newSurveyArea)
 
             # Create survey
             if emptySurvey:
@@ -2393,19 +2403,28 @@ def editSurvey():
                                     survey.area.name = survey_area
                             area_commit = True
                 else:
-                    area = db.session.query(Area).join(Survey).join(Organisation).filter(Organisation.id==survey.organisation_id).filter(Area.id==survey_area).first()
-                    if area and survey.area_id != area.id: 
-                        old_area_id = survey.area_id
-                        survey.area = area
-                        if old_area_id and edit_area_option and edit_area_option=='merge':
-                            area_surveys = db.session.query(Survey).filter(Survey.area_id==old_area_id).filter(Survey.area_id!=None).all()
-                            for s in area_surveys: s.area = area 
-                        area_commit = True 
+                    if survey_area =='-1':
+                        if survey.area != None:
+                            if not edit_area_option or edit_area_option!='merge':
+                                survey.area = None
+                                area_commit = True
+                    else:
+                        area = db.session.query(Area).join(Survey).join(Organisation).filter(Organisation.id==survey.organisation_id).filter(Area.id==survey_area).first()
+                        if area and survey.area_id != area.id: 
+                            old_area_id = survey.area_id
+                            survey.area = area
+                            if old_area_id and edit_area_option and edit_area_option=='merge':
+                                area_surveys = db.session.query(Survey).filter(Survey.area_id==old_area_id).filter(Survey.area_id!=None).all()
+                                for s in area_surveys: s.area = area 
+                            area_commit = True 
                 if area_commit:
                     empty_areas = db.session.query(Area).filter(~Area.surveys.any()).all()
                     for area in empty_areas:
                         db.session.delete(area)
                     db.session.commit()
+                else:
+                    survey_area = None
+                    edit_area_option = None
 
         if status == 'success':
             if classifier_id or ignore_small_detections!=None or sky_masked!=None or timestamps or coordData or masks or staticgroups or kml or imageTimestamps or edit_area_option:
@@ -14807,9 +14826,6 @@ def getMatchingKpts(det_id1,det_id2):
 
     return json.dumps({'results': results})
 
-# NOTE: We are currenlty not allowing the users to edit a detection flank on the Individuals page and it can only be edited 
-#     in a Cluster ID (-4 task). The reason we have disallowed this is because of having to recalculate all detection similarities 
-#     and individual similaties associated with the detection whose flank has changed. 
 @app.route('/submitIndividualFlanks', methods=['POST'])
 @login_required
 def submitIndividualFlanks():
@@ -15701,6 +15717,7 @@ def getMergeIndividuals():
     if individual and individual.active==True and all(checkSurveyPermission(current_user.id,task.survey_id,'write') for task in individual.tasks):
         species = individual.species
         area_id = individual.tasks[0].survey.area_id
+        if not area_id: mutual = True
             
         IndividualTask = alias(Task)
         mutual_tasks = db.session.query(Task.id, Task.survey_id)\
@@ -16007,7 +16024,7 @@ def mergeDetectionIntoIndividual():
     merge_individual = db.session.query(Individual).get(merge_indiviudal_id)
 
     if detection and individual and merge_individual and individual.active==True and merge_individual.active==True and  all(checkSurveyPermission(current_user.id,task.survey_id,'write') for task in individual.tasks) and all(checkSurveyPermission(current_user.id,task.survey_id,'write') for task in merge_individual.tasks):
-        individual.active = False
+        if individual.name != 'unidentifiable': individual.active = False
         merge_individual.active = False
         db.session.commit()
         if Config.DEBUGGING: app.logger.info('Detection {} merged into individual {}'.format(detection.id,merge_individual.id))
@@ -16024,15 +16041,16 @@ def mergeDetectionIntoIndividual():
         task_ids = [task.id for task in individual.tasks]
         task_ids.extend([task.id for task in merge_individual.tasks])
 
-        individual.tasks = db.session.query(Task)\
-                                    .join(Survey)\
-                                    .join(Trapgroup)\
-                                    .join(Camera)\
-                                    .join(Image)\
-                                    .join(Detection)\
-                                    .filter(Detection.individuals.contains(individual))\
-                                    .filter(Task.id.in_(task_ids))\
-                                    .distinct().all()
+        if individual.name != 'unidentifiable':
+            individual.tasks = db.session.query(Task)\
+                                        .join(Survey)\
+                                        .join(Trapgroup)\
+                                        .join(Camera)\
+                                        .join(Image)\
+                                        .join(Detection)\
+                                        .filter(Detection.individuals.contains(individual))\
+                                        .filter(Task.id.in_(task_ids))\
+                                        .distinct().all()
 
         merge_individual.tasks = db.session.query(Task)\
                                     .join(Survey)\
@@ -16048,23 +16066,29 @@ def mergeDetectionIntoIndividual():
             for tsk in merge_individual.tasks:
                 if not tsk.areaID_library: tsk.areaID_library=True
 
-        individual.active = True
+        if individual.name != 'unidentifiable': individual.active = True
         merge_individual.active = True
         
         db.session.commit()
 
-        update_individuals_primary_dets(individual_ids=[individual.id,merge_individual.id])
+        if individual.name != 'unidentifiable':
+            update_individuals_primary_dets(individual_ids=[individual.id,merge_individual.id])
+        else:
+            update_individuals_primary_dets(individual_ids=[merge_individual.id])
 
-        individuals1 = [r[0] for r in db.session.query(Individual.id)\
-                                                    .join(Task,Individual.tasks)\
-                                                    .join(IndSimilarity, or_(IndSimilarity.individual_1==Individual.id,IndSimilarity.individual_2==Individual.id))\
-                                                    .filter(Task.id.in_([task.id for task in individual.tasks]))\
-                                                    .filter(Individual.species==individual.species)\
-                                                    .filter(Individual.name!='unidentifiable')\
-                                                    .filter(Individual.id != individual.id)\
-                                                    .filter(or_(IndSimilarity.individual_1==individual.id,IndSimilarity.individual_2==individual.id))\
-                                                    .all()]
-        calculate_individual_similarity.delay(individual1=individual.id,individuals2=individuals1,species=individual.species)
+        if individual.name != 'unidentifiable':
+            individuals1 = [r[0] for r in db.session.query(Individual.id)\
+                                                        .join(Task,Individual.tasks)\
+                                                        .join(IndSimilarity, or_(IndSimilarity.individual_1==Individual.id,IndSimilarity.individual_2==Individual.id))\
+                                                        .filter(Task.id.in_([task.id for task in individual.tasks]))\
+                                                        .filter(Individual.species==individual.species)\
+                                                        .filter(Individual.name!='unidentifiable')\
+                                                        .filter(Individual.id != individual.id)\
+                                                        .filter(or_(IndSimilarity.individual_1==individual.id,IndSimilarity.individual_2==individual.id))\
+                                                        .all()]
+            calculate_individual_similarity.delay(individual1=individual.id,individuals2=individuals1,species=individual.species)
+        else: 
+            individuals1 = []
         
         individuals2 = [r[0] for r in db.session.query(Individual.id)\
                                             .join(Task,Individual.tasks)\
@@ -16118,6 +16142,8 @@ def getMergeTasks(id,id_type):
             indiv_tids = [task_id]
             area_id = task.survey.area_id
             sub_task_ids = [t.id for t in task.sub_tasks]
+
+    if not area_id: mutual = True
 
     if indiv_tids:            
         IndividualTask = alias(Task)
@@ -16699,6 +16725,7 @@ def getAreaIdTasks(task_id, species):
                                 .filter(Task.survey_id!=task.survey_id)\
                                 .outerjoin(area_id_surveys, Task.survey_id==area_id_surveys.c.id)\
                                 .filter(or_(Task.areaID_library==True, area_id_surveys.c.id==None))\
+                                .filter(Survey.area_id!=None)\
                                 .distinct().all()
 
         survey_data = {
@@ -16853,11 +16880,16 @@ def markUnidentifiable(individual_id):
     if (not current_user.admin) and (not GLOBALS.redisClient.sismember('active_jobs_'+str(current_user.turkcode[0].task_id),current_user.username)): return {'redirect': url_for('done')}, 278
 
     individual = db.session.query(Individual).get(int(individual_id))
+    detection_id = request.args.get('detection_id', None, type=int)
     if individual and individual.active and all(checkSurveyPermission(current_user.id,task.survey_id,'write') for task in individual.tasks):
         individual.active = False
         db.session.commit()
         
-        if Config.DEBUGGING: app.logger.info('Individual {} from tasks {} marked as unidentifiable'.format(individual.name, individual.tasks))
+        if Config.DEBUGGING:
+            if detection_id:
+                app.logger.info('Detection {} from individual {} from tasks {} marked as unidentifiable'.format(detection_id, individual.name, individual.tasks))
+            else:
+                app.logger.info('Individual {} from tasks {} marked as unidentifiable'.format(individual.name, individual.tasks))
 
         task_ids = [task.id for task in individual.tasks]
         unidentifiables = {r.tasks[0].id: r for r in db.session.query(Individual)\
@@ -16865,28 +16897,62 @@ def markUnidentifiable(individual_id):
                             .filter(Individual.species==individual.species)\
                             .filter(Individual.name=='unidentifiable')\
                             .distinct().all()}
-        detection_tasks = {r[0]: r[1] for r in db.session.query(Detection.id, Labelgroup.task_id)\
+        det_task_query = db.session.query(Detection.id, Labelgroup.task_id)\
                                         .join(Labelgroup)\
                                         .join(Individual,Detection.individuals)\
                                         .filter(Individual.id==individual.id)\
-                                        .filter(Labelgroup.task_id.in_(task_ids))\
-                                        .distinct().all()}
-        for detection in individual.detections:
-            unidentifiable = unidentifiables.get(detection_tasks.get(detection.id))
-            if detection not in unidentifiable.detections:
-                unidentifiable.detections.append(detection)
-        
-        allSimilarities = db.session.query(IndSimilarity).filter(or_(IndSimilarity.individual_1==individual.id,IndSimilarity.individual_2==individual.id)).distinct().all()
-        for similarity in allSimilarities:
-            db.session.delete(similarity)
+                                        .filter(Labelgroup.task_id.in_(task_ids))
 
-        individual.detections = []
-        individual.primary_detections = []
-        individual.tags = []
-        individual.children = []
-        individual.parents = []
-        individual.tasks = []
-        db.session.delete(individual)
+        if detection_id: det_task_query = det_task_query.filter(Detection.id==detection_id)
+
+        detection_tasks = {r[0]: r[1] for r in det_task_query.distinct().all()}
+
+        if detection_id:
+            detection = db.session.query(Detection).get(detection_id)
+            if detection and detection in individual.detections:
+                unidentifiable = unidentifiables.get(detection_tasks.get(detection.id))
+                
+                if detection not in unidentifiable.detections:
+                    unidentifiable.detections.append(detection)
+                    individual.detections.remove(detection)
+
+                    if detection in individual.primary_detections: 
+                        individual.primary_detections.remove(detection)
+                        db.session.commit()
+                        update_individuals_primary_dets(individual_ids=[individual.id])
+                    
+            individual.active = True
+            db.session.commit()   
+
+            individuals1 = [r[0] for r in db.session.query(Individual.id)\
+                                    .join(Task,Individual.tasks)\
+                                    .join(IndSimilarity, or_(IndSimilarity.individual_1==Individual.id,IndSimilarity.individual_2==Individual.id))\
+                                    .filter(Task.id.in_(task_ids))\
+                                    .filter(Individual.species==individual.species)\
+                                    .filter(Individual.name!='unidentifiable')\
+                                    .filter(Individual.id != individual.id)\
+                                    .filter(or_(IndSimilarity.individual_1==individual.id,IndSimilarity.individual_2==individual.id))\
+                                    .filter(or_(IndSimilarity.detection_1==int(detection_id),IndSimilarity.detection_2==int(detection_id)))\
+                                    .all()]    
+            if individuals1: calculate_individual_similarity.delay(individual1=individual.id,individuals2=individuals1,species=individual.species)
+
+        else: 
+            for detection in individual.detections:
+                unidentifiable = unidentifiables.get(detection_tasks.get(detection.id))
+                if detection not in unidentifiable.detections:
+                    unidentifiable.detections.append(detection)
+            
+            allSimilarities = db.session.query(IndSimilarity).filter(or_(IndSimilarity.individual_1==individual.id,IndSimilarity.individual_2==individual.id)).distinct().all()
+            for similarity in allSimilarities:
+                db.session.delete(similarity)
+
+            individual.detections = []
+            individual.primary_detections = []
+            individual.tags = []
+            individual.children = []
+            individual.parents = []
+            individual.tasks = []
+            db.session.delete(individual)
 
         db.session.commit()
 

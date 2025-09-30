@@ -634,6 +634,48 @@ function markUnidentifiable() {
     }
 }
 
+function markImgUnidentifiable() {
+    /** Marks the currently displayed img as unidentifiable. */
+    
+    if (individualImages.length > 1){
+        var image = individualImages[individualSplide.index]
+        var detection = image.detections[0]
+
+        individualImages.splice(individualSplide.index, 1)
+        updateSlider()
+        if (individualSplide.index > 0){
+            individualSplide.go(0)
+        }
+        else{
+            finishedDisplaying = false
+            image = individualImages[0]
+            document.getElementById('tgInfo').innerHTML = "Site: " + image.trapgroup.tag
+            document.getElementById('timeInfo').innerHTML = image.timestamp
+            addedDetections = false
+            var isImage = checkIfImage(image.url)
+            var isActiveImage = checkIfImage(activeImage._url)
+            if (isImage != isActiveImage) {
+                updateMapIndividual(image.url)
+            }
+            updatePlayControlImage()
+            activeImage.setUrl("https://"+bucketName+".s3.amazonaws.com/" + modifyToCompURL(image.url))
+        }
+    
+        var xhttp = new XMLHttpRequest();
+        xhttp.onreadystatechange =
+        function(){
+            if (this.readyState == 4 && this.status == 200) {
+                reply = JSON.parse(this.responseText);
+            }
+        }
+        xhttp.open("GET", '/markUnidentifiable/'+selectedIndividual.toString()+'?detection_id='+detection.id.toString());
+        xhttp.send();
+
+        modalIndividual.modal({keyboard: true});
+    }
+    
+}
+
 function removeIndividualEventListeners() {
     /** Removes event listeners from the map when the individual modal is closed. */
     document.getElementById('btnContinueIndividualAlert').removeEventListener('click', deleteIndividual)

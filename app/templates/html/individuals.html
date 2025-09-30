@@ -709,19 +709,23 @@ limitations under the License. -->
         <!-- Modal content-->
         <div class="modal-content">
             <div class="modal-header">
-                <h4 class="modal-title">Dissociate Image</h4>
+                <h4 class="modal-title" id="modalDissociateTitle">Dissociate Image</h4>
                 <button id="helpx" type="button" class="close" data-dismiss="modal">&times;</button>
             </div>
             <div class="modal-body">
                 <div id="divDissociateImage">
-                    <div style="font-size: 80%; margin-bottom: 2px"><i>Dissociating an image will remove the image from the individual it is currently associated with. You can either create a new individual for the image or move it to an existing individual.</i></div>
-                    <div class="custom-control custom-radio custom-control-inline">
+                    <div id="dissociateImageInfo" style="font-size: 80%; margin-bottom: 2px"><i>Dissociating an image will remove the image from the individual it is currently associated with. You can either create a new individual for the image, move it to an existing individual, or mark it as unidentifiable.</i></div>
+                    <div class="custom-control custom-radio">
                         <input type="radio" class="custom-control-input" id="removeImg" name="dissociateImage" value='new' checked>
                         <label class="custom-control-label" for="removeImg">Create New Individual</label>
                     </div>
-                    <div class="custom-control custom-radio custom-control-inline">
+                    <div class="custom-control custom-radio">
                         <input type="radio" class="custom-control-input" id="moveImg" name="dissociateImage" value='move'>
                         <label class="custom-control-label" for="moveImg">Move to Existing Individual</label>
+                    </div> 
+                    <div class="custom-control custom-radio" id="unidentifiableDiv" style="display: none;">
+                        <input type="radio" class="custom-control-input" id="imgUnidentifiable" name="dissociateImage" value='unidentifiable'>
+                        <label class="custom-control-label" for="imgUnidentifiable">Mark as Unidentifiable</label>
                     </div> 
                 </div>
             </div>

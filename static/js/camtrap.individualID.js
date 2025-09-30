@@ -137,8 +137,8 @@ function acceptSuggestion() {
         clusters['map1'][clusterIndex['map1']].images.push(...clusters['map2'][clusterIndex['map2']].images)
         sliderIndex['map1'] = '-1'
         savedKpts = {}
-        if (document.getElementById('displayFlank')!=null) {
-            document.getElementById('displayFlank').value = '0'
+        if (document.getElementById('allFlank')!=null) {
+            updateFlankButtons()
         }
         update('map1')
     }
@@ -304,8 +304,8 @@ function undoPreviousSuggestion() {
                             if (clusters['map1'][clusterIndex['map1']].id == parseInt(reply.id)) {
                                 sliderIndex['map1'] = '-1'
                                 clusters['map1'][clusterIndex['map1']].images = reply.images
-                                if (document.getElementById('displayFlank')!=null) {
-                                    document.getElementById('displayFlank').value = '0'
+                                if (document.getElementById('allFlank')!=null) {
+                                    updateFlankButtons()
                                 }
                                 update('map1')
                             }
@@ -401,8 +401,15 @@ function getSuggestions(prevID = null) {
                             if (!('map2' in clusterPosition)) {
                                 clusterPosition["map2"] = document.getElementById('clusterPositionSplide2')
                             }
-                            if (document.getElementById('displayFlank')!=null) {
-                                document.getElementById('displayFlank').value = '0'
+                            if (document.getElementById('allFlank')!=null) {
+                                let all_flanks = new Set()
+                                for (let i=0;i<clusters['map2'][clusterIndex['map2']].images.length;i++) {
+                                    for (let n=0;n<clusters['map2'][clusterIndex['map2']].images[i].detections.length;n++) {
+                                        all_flanks.add(clusters['map2'][clusterIndex['map2']].images[i].detections[n].flank.toLowerCase())
+                                    }
+                                }
+                                clusters['map2'][clusterIndex['map2']].all_flanks = Array.from(all_flanks)
+                                updateFlankButtons()
                             }
                             update('map2')
                             goToMax()
@@ -549,8 +556,15 @@ function loadNewCluster(mapID = 'map1') {
                                                 }
                                                 
                                                 if (clusters[wrapMapID].length-1 == clusterIndex[wrapMapID]){
-                                                    if (document.getElementById('displayFlank')!=null) {
-                                                        document.getElementById('displayFlank').value = '0'
+                                                    if (document.getElementById('allFlank')!=null) {
+                                                        let all_flanks = new Set()
+                                                        for (let i=0;i<clusters[wrapMapID][clusterIndex[wrapMapID]].images.length;i++) {
+                                                            for (let n=0;n<clusters[wrapMapID][clusterIndex[wrapMapID]].images[i].detections.length;n++) {
+                                                                all_flanks.add(clusters[wrapMapID][clusterIndex[wrapMapID]].images[i].detections[n].flank.toLowerCase())
+                                                            }
+                                                        }
+                                                        clusters[wrapMapID][clusterIndex[wrapMapID]].all_flanks = Array.from(all_flanks)
+                                                        updateFlankButtons()
                                                     }
                                                     update(wrapMapID)
     
@@ -696,13 +710,13 @@ function idKeys(key) {
                     break;
                 case 'h': document.getElementById('cxFeaturesHeatmap').click()
                     break;
-                case '0': updateFlanks('0')
+                case '0': updateFlanks('all', true)
                     break;
-                case '1': updateFlanks('1')
+                case '1': updateFlanks('left', true)
                     break;
-                case '2': updateFlanks('2')
+                case '2': updateFlanks('right', true)
                     break;
-                case '3': updateFlanks('3')
+                case '3': updateFlanks('ambiguous', true)
                     break;
             }
         }
@@ -4202,40 +4216,85 @@ $('#autoGenerateNameRb').on('change', function (){
     }
 });
 
-$('#displayFlank').on('change', function (){
+$('#allFlank').on('change', function (){
     /** Updates the flank images when the flank selection is changed. */
-    updateFlanks()
+    if (this.checked) {
+        updateFlanks('all')
+    }
 });
 
-function updateFlanks(value=null) {
+$('#leftFlank').on('change', function (){
     /** Updates the flank images when the flank selection is changed. */
-    if (value == null) {
-        value = document.getElementById('displayFlank').value
-    } else {
-        if (document.getElementById('displayFlank').value == value || !['0','1','2','3'].includes(value)) {
-            return;
-        }
-        document.getElementById('displayFlank').value = value
+    if (this.checked) {
+        updateFlanks('left')
     }
-    
+});
+
+$('#rightFlank').on('change', function (){
+    /** Updates the flank images when the flank selection is changed. */
+    if (this.checked) {
+        updateFlanks('right')
+    }
+});
+
+$('#ambiguousFlank').on('change', function (){
+    /** Updates the flank images when the flank selection is changed. */
+    if (this.checked) {
+        updateFlanks('ambiguous')
+    }
+});
+
+function updateFlanks(value='all',hotkey=false) {
+    /** Updates the flank images when the flank selection is changed. */
+
+    if (!['all','left','right','ambiguous'].includes(value)) {
+        value = 'all'
+    }
+
+    var flankRadio = document.getElementById(value+'Flank')
+    if (flankRadio == null || flankRadio.disabled || (hotkey && flankRadio.checked)) {
+        return;
+    }
+    flankRadio.checked = true
+
     updateSlider('map1',true)
-    if (clusterPositionSplide['map1'].index == 0) {
-        if (sliderImageIndexMap['map1'].length > 0) {
-            imageIndex['map1'] = sliderImageIndexMap['map1'][0]
-        }
-        update('map1')
-        updateKpts()
-    } else {
-        clusterPositionSplide['map1'].go(0)
-    }
     updateSlider('map2',true)
-    if (clusterPositionSplide['map2'].index == 0) {
-        if (sliderImageIndexMap['map2'].length > 0) {
-            imageIndex['map2'] = sliderImageIndexMap['map2'][0]
-        }
-        update('map2')
-        updateKpts()
+    if (value=='all') {
+        goToMax()
     } else {
-        clusterPositionSplide['map2'].go(0)
+        if (clusterPositionSplide['map1'].index == 0) {
+            if (sliderImageIndexMap['map1'].length > 0) {
+                imageIndex['map1'] = sliderImageIndexMap['map1'][0]
+            }
+            update('map1')
+        } else {
+            clusterPositionSplide['map1'].go(0)
+        }
+        if (clusterPositionSplide['map2'].index == 0) {
+            if (sliderImageIndexMap['map2'].length > 0) {
+                imageIndex['map2'] = sliderImageIndexMap['map2'][0]
+            }
+            update('map2')
+        } else {
+            clusterPositionSplide['map2'].go(0)
+        }
+        updateKpts()
+    }
+}
+
+function updateFlankButtons(){
+    /** Updates the flank radio buttons based on available flanks. */
+    var allFlank = document.getElementById('allFlank')
+    allFlank.checked = true
+
+    let flanks1 = new Set(clusters?.['map1']?.[clusterIndex?.['map1']]?.all_flanks || []);
+    let flanks2 = new Set(clusters?.['map2']?.[clusterIndex?.['map2']]?.all_flanks || []);
+    var common_flanks = new Set([...flanks1].filter(x => flanks2.has(x)));
+    for (let flank of ['left','right','ambiguous']) {
+        if (!common_flanks.has(flank)) {
+            document.getElementById(flank+'Flank').disabled = true
+        } else {
+            document.getElementById(flank+'Flank').disabled = false
+        }
     }
 }

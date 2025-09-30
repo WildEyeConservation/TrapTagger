@@ -1283,8 +1283,8 @@ function goToPrevCluster(mapID = 'map1') {
 
     if (isIDing && (document.getElementById('btnSendToBack')==null)) {
         updateProgress()
-        if (document.getElementById('displayFlank')!=null) {
-            document.getElementById('displayFlank').value = '0'
+        if (document.getElementById('allFlank')!=null) {
+            updateFlankButtons()
         }
     }
 
@@ -1704,25 +1704,17 @@ function updateSlider(mapID = 'map1', update_flank = false) {
         }
         sliderImageIndexMap[mapID] = []
         let currentFlank = null;
-        var skipFlank = false;
-        const dfEl = document.getElementById('displayFlank');
-        if (dfEl != null) {
-            const val = dfEl.value;
-            currentFlank = (val === '1') ? 'Left' : (val === '2') ? 'Right' : (val === '3') ? 'Ambiguous' : null;
-            if (currentFlank){
-                // check if there are any images with this flank
-                skipFlank = true;
-                for (let i=0;i<clusters[mapID][clusterIndex[mapID]].images.length;i++) {
-                    if (clusters[mapID][clusterIndex[mapID]].images[i].detections.length > 0 && clusters[mapID][clusterIndex[mapID]].images[i].detections[0].flank == currentFlank) {
-                        skipFlank = false;
-                        break;
-                    }
+        if (document.getElementById('allFlank') != null) {
+            for (let flankOption of ['left','right','ambiguous']) {
+                if (document.getElementById(flankOption+'Flank').checked) {
+                    currentFlank = flankOption
+                    break
                 }
             }
         }
         
         for (let i=0;i<clusters[mapID][clusterIndex[mapID]].images.length;i++) {
-            if ((mapID!='known')&&(currentFlank != null) &&(!skipFlank)&& clusters[mapID][clusterIndex[mapID]].images[i].detections.length > 0 && (clusters[mapID][clusterIndex[mapID]].images[i].detections[0].flank != currentFlank)) {
+            if ((mapID!='known')&&(currentFlank != null) && clusters[mapID][clusterIndex[mapID]].images[i].detections.length > 0 && (clusters[mapID][clusterIndex[mapID]].images[i].detections[0].flank.toLowerCase() != currentFlank)) {
                 continue;
             }
             sliderImageIndexMap[mapID].push(i)
@@ -1900,8 +1892,8 @@ function nextCluster(mapID = 'map1') {
                 actions = []
                 preLoadCount = 1
                 updateProgress()
-                if (document.getElementById('displayFlank')!=null) {
-                    document.getElementById('displayFlank').value = '0'
+                if (document.getElementById('allFlank')!=null) {
+                    updateFlankButtons()
                 }
             } else {
                 preLoadCount = 20

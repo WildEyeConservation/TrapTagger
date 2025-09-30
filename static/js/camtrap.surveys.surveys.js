@@ -5790,6 +5790,16 @@ document.getElementById('btnEditSurvey').addEventListener('click', ()=>{
                     createNewArea = false 
                     editAreaName = false
                 }
+                if (survey_area=='-1'&&surveyAreaLib) {
+                    if (surveyAreaEditOption == null || surveyAreaEditOption == 'merge') {
+                        survey_area = 'none'
+                        createNewArea = false
+                        editAreaName = false
+                        surveyAreaEditOption = null
+                    }
+                }
+            } else {
+                survey_area = 'none'
             }
         }
     }
@@ -5823,7 +5833,7 @@ document.getElementById('btnEditSurvey').addEventListener('click', ()=>{
         } else if (createNewArea) {
             formData.append("createNewArea", 'true')
         }
-        if (surveyAreaEditOption != null) {
+        if (surveyAreaEditOption != null && survey_area != 'none') {
             formData.append('edit_area_option', surveyAreaEditOption)
         }
 
@@ -6116,8 +6126,8 @@ function getOrgAreas(org_id){
             var areas = reply.areas
             var areaSelect = document.getElementById('newSurveyArea')
             clearSelect(areaSelect)
-            var areaOptionTexts = ['']
-            var areaOptionValues = ['']
+            var areaOptionTexts = ['None']
+            var areaOptionValues = ['-1']
             for (var i=0;i<areas.length;i++) {
                 areaOptionTexts.push(areas[i].name)
                 areaOptionValues.push(areas[i].id)
@@ -10046,8 +10056,8 @@ function openArea(){
                 var areas = reply.areas;
                 surveyAreaLib = reply.area_lib;
 
-                var areaOptionTexts = []
-                var areaOptionValues = []
+                var areaOptionTexts = ['None']
+                var areaOptionValues = ['-1']
                 var surveyAreaName = ''
                 for (var i = 0; i < areas.length; i++) {
                     areaOptionTexts.push(areas[i].name)
@@ -10152,6 +10162,7 @@ function openArea(){
                         document.getElementById('surveyAreaText').value = ''
                         if (surveyAreaLib) {
                             areaConfirmOpen = true;
+                            document.getElementById('mergeAreas').checked = true;
                             modalEditSurvey.modal('hide');
                             modalEditAreaAlert.modal('show');
                         }
@@ -10177,11 +10188,21 @@ function openArea(){
 
                 // Populate the survey area select
                 fillSelect(surveyAreaSelect, areaOptionTexts, areaOptionValues)
+                if (surveyArea==null){
+                    surveyArea = '-1'
+                }
                 surveyAreaSelect.value = surveyArea; 
 
                 $('#surveyAreaSelect').on('change', function() {
                     if (surveyAreaSelect.value != surveyArea && surveyAreaLib && surveyAreaEditOption==null) {
                         areaConfirmOpen = true;
+                        if (surveyAreaSelect.value == '-1') {
+                            document.getElementById('mergeAreas').disabled = true;
+                            document.getElementById('delIndivsAndMove').checked = true;
+                        } else {
+                            document.getElementById('mergeAreas').disabled = false;
+                            document.getElementById('mergeAreas').checked = true;
+                        }
                         modalEditSurvey.modal('hide');
                         modalEditAreaAlert.modal('show');
                     }
