@@ -2746,6 +2746,15 @@ def edit_survey(self,survey_id,user_id,classifier_id,sky_masked,ignore_small_det
 
         survey = db.session.query(Survey).get(survey_id)
         survey.status = 'Ready'
+
+        date_query = db.session.query(func.min(Image.corrected_timestamp), func.max(Image.corrected_timestamp))\
+                            .join(Camera)\
+                            .join(Trapgroup)\
+                            .filter(Trapgroup.survey_id==survey_id)\
+                            .filter(Image.corrected_timestamp!=None).first()
+        survey.start_date = date_query[0] if date_query else None
+        survey.end_date = date_query[1] if date_query else None
+        
         db.session.commit()
         app.logger.info('Finished editing survey {}'.format(survey_id))
         GLOBALS.redisClient.delete('edit_survey_{}'.format(survey_id))

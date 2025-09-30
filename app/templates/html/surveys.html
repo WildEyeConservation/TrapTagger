@@ -63,10 +63,10 @@ limitations under the License. -->
 
         <div class='card-header' style="margin-top: 0px; margin-bottom: 0px">
           <div class='row' style="margin-top: 0px; margin-bottom: 0px">
-            <div class="col-lg-3 d-flex align-items-center">
+            <div class="col-lg-2 d-flex align-items-center">
                 <h3 style="margin: 0;">Your Surveys</h3>
             </div>
-            <div class='col-lg-3'>
+            <div class='col-lg-2'>
                 <label for='surveySearch' style="margin:0">Search:</label>
                 <input type="text" class="form-control" id="surveySearch" style="margin-bottom: 2px;"></input>
             </div>
@@ -83,12 +83,18 @@ limitations under the License. -->
                 </select>
             </div>
             <div class='col-lg-2'>
+                <label for='yearSelect' style="margin:0">Year:</label>
+                <select name='yearSelect' id='yearSelect' class='form-control' style="margin-bottom: 2px;">
+                    <option value="0">All</option>
+                </select>
+            </div>
+            <div class='col-lg-2'>
                 <label for='orderSelect' style="margin:0">Order By:</label>
                 <select name='orderSelect' id='orderSelect' class='form-control' style="margin-bottom: 2px;">
                     <option value="5">Descending Add Date</option>
                     <option value="2">Ascending Add Date</option>
-                    <!-- <option value="4">Descending Survey Date</option>
-                    <option value="1">Ascending Survey Date</option> -->
+                    <option value="4">Descending Survey Date</option>
+                    <option value="1">Ascending Survey Date</option>
                     <option value="3">Alphabetical</option>
                     <option value="6">Organisation</option>
                     <option value="7">Area</option>
@@ -2324,7 +2330,7 @@ limitations under the License. -->
                 <div>
                     <div class="custom-control custom-radio custom-control-inline">
                         <input type="radio" class="custom-control-input" id="mergeAreas" name="editAreaLibOption" value="0" checked="true">
-                        <label class="custom-control-label" for="delIndivsAndMove">
+                        <label class="custom-control-label" for="mergeAreas">
                             Move all surveys from the current area into the new area
                         </label>
                     </div> 

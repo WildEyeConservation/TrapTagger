@@ -4032,6 +4032,7 @@ def getHomeSurveys():
     search = request.args.get('search', '', type=str)
     org = request.args.get('org', 0, type=int)
     area = request.args.get('area', 0, type=int)
+    year = request.args.get('year', 0, type=int)
     current_downloads = request.args.get('downloads', '', type=str)
     permission_order = [None, 'worker', 'hidden', 'read', 'write', 'admin']
 
@@ -4075,7 +4076,9 @@ def getHomeSurveys():
                                 SurveyShare.permission,
                                 UserPermissions.create,
                                 Survey.require_launch,
-                                Area.name
+                                Area.name,
+                                Survey.start_date,
+                                Survey.end_date
                             ).outerjoin(Task,Task.survey_id==Survey.id)\
                             .outerjoin(siteSQ,siteSQ.c.id==Survey.id)\
                             .outerjoin(completeJobsSQ,completeJobsSQ.c.id==Task.id)\
@@ -4106,7 +4109,9 @@ def getHomeSurveys():
                                     'status': surveyStatus, 
                                     'numTrapgroups': item[7] if item[7] else 0,
                                     'organisation': item[17],
-                                    'area': item[28] if item[28] else 'None',
+                                    'area': item[28] if item[28] else 'No Area Set',
+                                    'start_date': item[29].strftime('%Y-%m-%d') if item[29] else 'N/A',
+                                    'end_date': item[30].strftime('%Y-%m-%d') if item[30] else 'N/A',
                                     'tasks': []}
 
             if 'preprocessing' in surveyStatus.lower():
@@ -4204,26 +4209,33 @@ def getHomeSurveys():
     if area != 0:
         survey_base_query = survey_base_query.filter(Survey.area_id==area)
 
+    # Year filter
+    if year != 0:
+        # year between start and end date
+        survey_base_query = survey_base_query.filter(Survey.start_date<=datetime(year,12,31,23,59,59)).filter(Survey.end_date>=datetime(year,1,1,0,0,0))
+
     # add all the searches to the base query
     searches = re.split('[ ,]',search)
     for search in searches:
         survey_base_query = survey_base_query.filter(or_(Survey.name.contains(search),Task.name.contains(search)))
 
     # add the order to the base query
-    # if order == 1:
-    #     #Survey date
-    #     timestampSQ = db.session.query(Survey.id,func.min(Image.corrected_timestamp).label('timestamp')).join(Trapgroup).join(Camera).join(Image).subquery()
-    #     survey_base_query = survey_base_query.join(timestampSQ,timestampSQ.c.id==Survey.id).order_by(timestampSQ.c.timestamp)
+    if order == 1:
+        #Survey date
+        # timestampSQ = db.session.query(Survey.id,func.min(Image.corrected_timestamp).label('timestamp')).join(Trapgroup).join(Camera).join(Image).subquery()
+        # survey_base_query = survey_base_query.join(timestampSQ,timestampSQ.c.id==Survey.id).order_by(timestampSQ.c.timestamp)
+        survey_base_query = survey_base_query.order_by(Survey.start_date)
     if order == 2:
         #Survey add date
         survey_base_query = survey_base_query.order_by(Survey.id)
     elif order == 3:
         #Alphabetical
         survey_base_query = survey_base_query.order_by(Survey.name)
-    # elif order == 4:
-    #     #Survey date descending
-    #     timestampSQ = db.session.query(Survey.id,func.min(Image.corrected_timestamp).label('timestamp')).join(Trapgroup).join(Camera).join(Image).subquery()
-    #     survey_base_query = survey_base_query.join(timestampSQ,timestampSQ.c.id==Survey.id).order_by(desc(timestampSQ.c.timestamp))
+    elif order == 4:
+        #Survey date descending
+        # timestampSQ = db.session.query(Survey.id,func.min(Image.corrected_timestamp).label('timestamp')).join(Trapgroup).join(Camera).join(Image).subquery()
+        # survey_base_query = survey_base_query.join(timestampSQ,timestampSQ.c.id==Survey.id).order_by(desc(timestampSQ.c.timestamp))
+        survey_base_query = survey_base_query.order_by(desc(Survey.start_date))
     elif order == 5:
         #Add date descending
         survey_base_query = survey_base_query.order_by(desc(Survey.id))
@@ -4260,7 +4272,9 @@ def getHomeSurveys():
                                         'status': surveyStatus, 
                                         'numTrapgroups': item[7] if item[7] else 0,
                                         'organisation': item[17],
-                                        'area': item[28] if item[28] else 'None',
+                                        'area': item[28] if item[28] else 'No Area Set',
+                                        'start_date': item[29].strftime('%Y-%m-%d') if item[29] else 'N/A',
+                                        'end_date': item[30].strftime('%Y-%m-%d') if item[30] else 'N/A',
                                         'tasks': []}
 
                 if 'preprocessing' in surveyStatus.lower():
@@ -4366,8 +4380,8 @@ def getHomeSurveys():
         for survey_id in survey_ids:
             survey_data[survey_id] = survey_data2[survey_id]
 
-        next_url = url_for('getHomeSurveys', page=(page+1), order=order, downloads=current_downloads, search=search, org=org, area=area) if has_next else None
-        prev_url = url_for('getHomeSurveys', page=(page-1), order=order, downloads=current_downloads, search=search, org=org, area=area) if has_prev else None
+        next_url = url_for('getHomeSurveys', page=(page+1), order=order, downloads=current_downloads, search=search, org=org, area=area, year=year) if has_next else None
+        prev_url = url_for('getHomeSurveys', page=(page-1), order=order, downloads=current_downloads, search=search, org=org, area=area, year=year) if has_prev else None
 
     else:
         next_url = None

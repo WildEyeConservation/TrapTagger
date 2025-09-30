@@ -3602,6 +3602,43 @@ def import_survey(self,survey_id,preprocess_done=False,live=False,launch_id=None
             return True
 
         survey.images_processing = survey.image_count + survey.video_count 
+        
+        # Update counts: 
+        survey_folder = survey.organisation.folder+'/'+survey.folder+'/%'
+        survey_folder = survey_folder.replace('_','\\_')
+
+        survey.image_count = db.session.query(Image).join(Camera).outerjoin(Trapgroup).outerjoin(Video)\
+                            .filter(or_(
+                                Trapgroup.survey_id==survey_id,
+                                and_(Camera.trapgroup_id==None,Camera.path.like(survey_folder))
+                            ))\
+                            .filter(Video.id==None)\
+                            .distinct().count()
+        survey.video_count = db.session.query(Video).join(Camera).outerjoin(Trapgroup)\
+                            .filter(or_(
+                                Trapgroup.survey_id==survey_id,
+                                and_(Camera.trapgroup_id==None,Camera.path.like(survey_folder))
+                            ))\
+                            .distinct().count()
+        survey.frame_count = db.session.query(Image).join(Camera).join(Video).outerjoin(Trapgroup)\
+                            .filter(or_(
+                                Trapgroup.survey_id==survey_id,
+                                and_(Camera.trapgroup_id==None,Camera.path.like(survey_folder))
+                            ))\
+                            .distinct().count()
+
+        # Update dates
+        date_query = db.session.query(func.min(Image.corrected_timestamp), func.max(Image.corrected_timestamp))\
+                            .join(Camera)\
+                            .outerjoin(Trapgroup)\
+                            .filter(or_(
+                                Trapgroup.survey_id==survey_id,
+                                and_(Camera.trapgroup_id==None,Camera.path.like(survey_folder))
+                            ))\
+                            .filter(Image.corrected_timestamp!=None).first()
+        survey.start_date = date_query[0] if date_query else None
+        survey.end_date = date_query[1] if date_query else None
+
         db.session.commit()
 
         # First half import -> always performed
@@ -3624,6 +3661,14 @@ def import_survey(self,survey_id,preprocess_done=False,live=False,launch_id=None
 
             extract_missing_timestamps(survey_id)
             timestamp_check = db.session.query(Image.id).join(Camera).join(Trapgroup).filter(Trapgroup.survey_id==survey_id).filter(Image.corrected_timestamp==None).filter(Image.skipped!=True).first()
+
+            date_query = db.session.query(func.min(Image.corrected_timestamp), func.max(Image.corrected_timestamp))\
+                                .join(Camera)\
+                                .join(Trapgroup)\
+                                .filter(Trapgroup.survey_id==survey_id)\
+                                .filter(Image.corrected_timestamp!=None).first()
+            survey.start_date = date_query[0] if date_query else None
+            survey.end_date = date_query[1] if date_query else None
 
             survey = db.session.query(Survey).get(survey_id)
             survey.status='Processing Cameras'

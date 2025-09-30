@@ -444,6 +444,12 @@ function buildSurveys(survey,disableSurvey) {
     infoElementRow3.setAttribute('style',"margin-left: 10px")
     infoCol.appendChild(infoElementRow3)
 
+    infoElementRow4 = document.createElement('div')
+    infoElementRow4.classList.add('row');
+    infoElementRow4.classList.add('center');
+    infoElementRow4.setAttribute('style',"margin-left: 10px")
+    surveyDiv.appendChild(infoElementRow4)
+
     if ((survey.status.toLowerCase()!='uploading')&&(survey.status.toLowerCase()!='preprocessing')){
         
         infoElementDescription = document.createElement('div')
@@ -480,6 +486,19 @@ function buildSurveys(survey,disableSurvey) {
         infoFiller.classList.add('col-lg-6');
         infoElementRow3.appendChild(infoFiller)	
 
+        infoElementDate = document.createElement('div')
+        infoElementDate.classList.add('col-lg-12');
+        infoElementDate.setAttribute("style","font-size: 80%")
+        if (survey.start_date != 'N/A' && survey.end_date != 'N/A') {
+            infoElementDate.innerHTML = 'Date Range: ' + survey.start_date + ' to ' + survey.end_date
+        } else if (survey.start_date != 'N/A' && survey.end_date == 'N/A') {
+            infoElementDate.innerHTML = 'Start Date: ' + survey.start_date
+        } else if (survey.start_date == 'N/A' && survey.end_date != 'N/A') {
+            infoElementDate.innerHTML = 'End Date: ' + survey.end_date
+        } else {
+            infoElementDate.innerHTML = 'Date Range: N/A'
+        }
+        infoElementRow4.appendChild(infoElementDate)
 
     } else {
         infoElementDescription = document.createElement('div')
@@ -4860,6 +4879,7 @@ function generate_url() {
     var search = document.getElementById('surveySearch').value
     var org = document.getElementById('orgSelect').value
     var area = document.getElementById('areaSelect').value
+    var year = document.getElementById('yearSelect').value
 
     if (org==null||org=='') {
         org = '0'
@@ -4867,9 +4887,12 @@ function generate_url() {
     if (area==null||area=='') {
         area = '0'
     }
+    if (year==null||year=='') {
+        year = '0'
+    }
 
     // return '/getHomeSurveys?page=1&order='+order+'&search='+search.toString()+'&downloads='+currentDownloads.toString()
-    return '/getHomeSurveys?page=1&order='+order+'&search='+search.toString()+'&org='+org+'&area='+area
+    return '/getHomeSurveys?page=1&order='+order+'&search='+search.toString()+'&org='+org+'&area='+area+'&year='+year
 }
 
 $('#orderSelect').change( function() {
@@ -4917,6 +4940,12 @@ $('#orgSelect').change( function() {
 
 $('#areaSelect').change( function() {
     /** Listens for changes in the area selection and updates the page accordingly. */
+    url = generate_url()
+    updatePage(url)
+});
+
+$('#yearSelect').change( function() {
+    /** Listens for changes in the year selection and updates the page accordingly. */
     url = generate_url()
     updatePage(url)
 });
@@ -9969,6 +9998,19 @@ function populateFilters() {
             let areaOptionTexts = ['All']
             let areaOptionValues = ['0']
             fillSelect(areaSelect, areaOptionTexts, areaOptionValues)
+
+            // Year select
+            var yearSelect = document.getElementById('yearSelect');
+            clearSelect(yearSelect);
+            let yearOptionTexts = ['All']
+            let yearOptionValues = ['0']
+            // Years from now to 2000
+            let currentYear = new Date().getFullYear();
+            for (let year = currentYear; year >= 2000; year--) {
+                yearOptionTexts.push(year.toString())
+                yearOptionValues.push(year.toString())
+            }
+            fillSelect(yearSelect, yearOptionTexts, yearOptionValues)
 
         }
     };

@@ -198,6 +198,8 @@ class Survey(db.Model):
     zips = db.relationship('Zip', backref='survey', lazy=True)
     require_launch = db.Column(db.DateTime, index=True)
     area_id = db.Column(db.Integer, db.ForeignKey('area.id'), index=True, unique=False)
+    start_date = db.Column(db.DateTime, index=True)
+    end_date = db.Column(db.DateTime, index=True)
 
     def __repr__(self):
         return '<Survey {}>'.format(self.name)
