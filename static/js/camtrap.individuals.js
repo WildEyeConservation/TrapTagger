@@ -5404,12 +5404,9 @@ function cleanUnidentifiableModal() {
 
 modalUnidentifiable.on('shown.bs.modal', function () {
     /** Initializes the unidentifiable modal when shown. */
-    if (!helpReturn && !modalAlertIndividualsReturn) {
+    if (map== null || !unidentifiableOpen) {
         unidentifiableOpen = true
         initUnidentifiable()
-    } else {
-        helpReturn = false
-        modalAlertIndividualsReturn = false
     }
 });
 

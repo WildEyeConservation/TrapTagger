@@ -10163,6 +10163,7 @@ function openArea(){
                         if (surveyAreaLib) {
                             areaConfirmOpen = true;
                             document.getElementById('mergeAreas').checked = true;
+                            document.getElementById('mergeAreas').disabled = false;
                             modalEditSurvey.modal('hide');
                             modalEditAreaAlert.modal('show');
                         }
