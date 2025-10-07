@@ -1549,6 +1549,7 @@ function IDMapPrep(mapID = 'map1') {
                 fitBoundsInProcess[wrapMapID] = false
                 // updateKpts()
             }
+            updateKpts()
         }
     }(mapID));
 }
@@ -4285,6 +4286,10 @@ function updateFlanks(value='all',hotkey=false) {
 function updateFlankButtons(){
     /** Updates the flank radio buttons based on available flanks. */
     var allFlank = document.getElementById('allFlank')
+    if (!allFlank.checked) {
+        sliderIndex['map1'] = '-1'
+        sliderIndex['map2'] = '-1'
+    }
     allFlank.checked = true
 
     let flanks1 = new Set(clusters?.['map1']?.[clusterIndex?.['map1']]?.all_flanks || []);

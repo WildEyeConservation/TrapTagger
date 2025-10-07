@@ -1785,7 +1785,7 @@ function updateSlider(mapID = 'map1', update_flank = false) {
                     } else {
                         update(wrapMapID)
                         if (isIDing && (document.getElementById('btnSendToBack')==null)) {
-                            updateKpts()
+                            // updateKpts()
                         }
                     }
                 }
@@ -1806,7 +1806,7 @@ function updateSlider(mapID = 'map1', update_flank = false) {
                     } else {
                         update(wrapMapID)
                         if (isIDing && (document.getElementById('btnSendToBack')==null)) {
-                            updateKpts()
+                            // updateKpts()
                         }
                     }
                 }
