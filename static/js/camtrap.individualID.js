@@ -4277,9 +4277,9 @@ function updateFlanks(value='all',hotkey=false) {
             update('map2')
         } else {
             clusterPositionSplide['map2'].go(0)
-        }
-        updateKpts()
+        } 
     }
+    updateKpts()
 }
 
 function updateFlankButtons(){

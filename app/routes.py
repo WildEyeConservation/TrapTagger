@@ -5485,7 +5485,9 @@ def undoPreviousSuggestion(individual_1,individual_2,individual_3):
                                             'right': detection.right,
                                             'category': detection.category,
                                             'individual': '-1',
-                                            'static': detection.static})
+                                            'static': detection.static,
+                                            'flank': Config.FLANK_TEXT[detection.flank].capitalize()
+                                            })
 
                 images.append(output)
 
