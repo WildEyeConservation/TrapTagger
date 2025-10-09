@@ -5682,7 +5682,7 @@ def suggestionUnidentifiable(individual_id):
     # num2 = task.size + task.test_size
 
     # if individual and individual.active and (task in individual.tasks) and ((current_user.parent in individual.tasks[0].survey.user.workers) or (current_user.parent == individual.tasks[0].survey.user)):
-    if individual and individual.active and (task in individual.tasks) and all(checkAnnotationPermission(current_user.parent_id,task_id) for task_id in task_ids):
+    if individual and individual.active and any(t.id in task_ids for t in individual.tasks) and all(checkAnnotationPermission(current_user.parent_id,task_id) for task_id in task_ids):
         
         if Config.DEBUGGING: app.logger.info('Individual {} marked as unidentifiable'.format(individual.name))
 
