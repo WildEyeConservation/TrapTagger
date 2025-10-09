@@ -4056,6 +4056,7 @@ def getHomeSurveys():
     permission_order = [None, 'worker', 'hidden', 'read', 'write', 'admin']
 
     siteSQ = db.session.query(Survey.id,func.count(Trapgroup.id).label('count')).join(Trapgroup).group_by(Survey.id).subquery()
+    camsSQ = db.session.query(Survey.id,func.count(distinct(Cameragroup.id)).label('count')).join(Trapgroup).join(Camera).join(Cameragroup,Cameragroup.id==Camera.cameragroup_id).group_by(Survey.id).subquery()
     # availableJobsSQ = db.session.query(Task.id,func.count(Turkcode.id).label('count')).join(Turkcode).filter(Turkcode.active==True).group_by(Task.id).subquery()
     completeJobsSQ = db.session.query(Task.id,(func.count(Turkcode.id)-Task.jobs_finished).label('count'))\
                                         .join(Turkcode)\
@@ -4072,7 +4073,7 @@ def getHomeSurveys():
                                 Survey.description,
                                 Survey.image_count,
                                 Survey.video_count,
-                                Survey.frame_count,
+                                camsSQ.c.count,
                                 Survey.status,
                                 siteSQ.c.count,
                                 Task.id,
@@ -4100,6 +4101,7 @@ def getHomeSurveys():
                                 Survey.end_date
                             ).outerjoin(Task,Task.survey_id==Survey.id)\
                             .outerjoin(siteSQ,siteSQ.c.id==Survey.id)\
+                            .outerjoin(camsSQ,camsSQ.c.id==Survey.id)\
                             .outerjoin(completeJobsSQ,completeJobsSQ.c.id==Task.id)\
                             .outerjoin(Area,Survey.area_id==Area.id)
                             .filter(or_(Task.id==None,~Task.name.contains('_o_l_d_'))),current_user.id,'read', ShareUserPermissions)
@@ -4124,11 +4126,11 @@ def getHomeSurveys():
                                     'description': item[2], 
                                     'numImages': item[3], 
                                     'numVideos': item[4], 
-                                    'numFrames': item[5], 
+                                    'numCams': item[5] if item[5] else 0, 
                                     'status': surveyStatus, 
                                     'numTrapgroups': item[7] if item[7] else 0,
                                     'organisation': item[17],
-                                    'area': item[28] if item[28] else 'No Area Set',
+                                    'area': item[28] if item[28] else 'No Area Defined',
                                     'start_date': item[29].strftime('%Y-%m-%d') if item[29] else 'N/A',
                                     'end_date': item[30].strftime('%Y-%m-%d') if item[30] else 'N/A',
                                     'tasks': []}
@@ -4287,11 +4289,11 @@ def getHomeSurveys():
                                         'description': item[2], 
                                         'numImages': item[3], 
                                         'numVideos': item[4], 
-                                        'numFrames': item[5], 
+                                        'numCams': item[5] if item[5] else 0,
                                         'status': surveyStatus, 
                                         'numTrapgroups': item[7] if item[7] else 0,
                                         'organisation': item[17],
-                                        'area': item[28] if item[28] else 'No Area Set',
+                                        'area': item[28] if item[28] else 'No Area Defined',
                                         'start_date': item[29].strftime('%Y-%m-%d') if item[29] else 'N/A',
                                         'end_date': item[30].strftime('%Y-%m-%d') if item[30] else 'N/A',
                                         'tasks': []}

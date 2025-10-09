@@ -448,64 +448,137 @@ function buildSurveys(survey,disableSurvey) {
     infoElementRow4.classList.add('row');
     infoElementRow4.classList.add('center');
     infoElementRow4.setAttribute('style',"margin-left: 10px")
-    surveyDiv.appendChild(infoElementRow4)
+    infoCol.appendChild(infoElementRow4)
+    // surveyDiv.appendChild(infoElementRow4)
 
     if ((survey.status.toLowerCase()!='uploading')&&(survey.status.toLowerCase()!='preprocessing')){
-        
-        infoElementDescription = document.createElement('div')
-        infoElementDescription.classList.add('col-lg-6');
-        infoElementDescription.setAttribute("style","font-size: 80%")
-        infoElementDescription.innerHTML = 'Status: ' + survey.status
-        infoElementRow1.appendChild(infoElementDescription)
+        const formatter = new Intl.NumberFormat('fr-FR');
+
+        infoElementStatus = document.createElement('div')
+        infoElementStatus.classList.add('col-lg-12');
+        infoElementStatus.classList.add('px-2');
+        infoElementStatus.setAttribute("style","font-size: 80%")
+        flexContainer = document.createElement('div');
+        flexContainer.style.display = 'flex';
+        flexContainer.style.justifyContent = 'space-between';
+        flexContainer.style.width = '100%';
+        infoElementlabel = document.createElement('span');
+        infoElementlabel.textContent = 'Status:';
+        infoElementvalue = document.createElement('span');
+        infoElementvalue.textContent = survey.status;
+        flexContainer.appendChild(infoElementlabel);
+        flexContainer.appendChild(infoElementvalue);
+        infoElementStatus.appendChild(flexContainer);
+        infoElementRow1.appendChild(infoElementStatus);
 
         infoElementNumTrapgroups = document.createElement('div')
         infoElementNumTrapgroups.classList.add('col-lg-6');
+        infoElementNumTrapgroups.classList.add('px-2');
         infoElementNumTrapgroups.setAttribute("style","font-size: 80%")
-        infoElementNumTrapgroups.innerHTML = 'Sites: ' + survey.numTrapgroups
-        infoElementRow1.appendChild(infoElementNumTrapgroups)
+        flexContainer = document.createElement('div');
+        flexContainer.style.display = 'flex';
+        flexContainer.style.justifyContent = 'space-between';
+        flexContainer.style.width = '100%';
+        infoElementlabel = document.createElement('span');
+        infoElementlabel.textContent = 'Sites:';
+        infoElementvalue = document.createElement('span');
+        infoElementvalue.textContent = formatter.format(survey.numTrapgroups);
+        flexContainer.appendChild(infoElementlabel);
+        flexContainer.appendChild(infoElementvalue);
+        infoElementNumTrapgroups.appendChild(flexContainer);
+        infoElementRow2.appendChild(infoElementNumTrapgroups);
+
+        infoElementNumCameras = document.createElement('div')
+        infoElementNumCameras.classList.add('col-lg-6');
+        infoElementNumCameras.classList.add('px-2');
+        infoElementNumCameras.setAttribute("style","font-size: 80%")
+        flexContainer = document.createElement('div');
+        flexContainer.style.display = 'flex';
+        flexContainer.style.justifyContent = 'space-between';
+        flexContainer.style.width = '100%';
+        infoElementlabel = document.createElement('span');
+        infoElementlabel.textContent = 'Cameras:';
+        infoElementvalue = document.createElement('span');
+        infoElementvalue.textContent = formatter.format(survey.numCams);
+        flexContainer.appendChild(infoElementlabel);
+        flexContainer.appendChild(infoElementvalue);
+        infoElementNumCameras.appendChild(flexContainer);
+        infoElementRow2.appendChild(infoElementNumCameras);
 
         infoElementNumImages = document.createElement('div')
         infoElementNumImages.classList.add('col-lg-6');
+        infoElementNumImages.classList.add('px-2');
         infoElementNumImages.setAttribute("style","font-size: 80%")
-        infoElementNumImages.innerHTML = 'Images: ' + survey.numImages
-        infoElementRow2.appendChild(infoElementNumImages)
+        flexContainer = document.createElement('div');
+        flexContainer.style.display = 'flex';
+        flexContainer.style.justifyContent = 'space-between';
+        flexContainer.style.width = '100%';
+        infoElementlabel = document.createElement('span');
+        infoElementlabel.textContent = 'Images:';
+        infoElementvalue = document.createElement('span');
+        infoElementvalue.textContent = formatter.format(survey.numImages);
+        flexContainer.appendChild(infoElementlabel);
+        flexContainer.appendChild(infoElementvalue);
+        infoElementNumImages.appendChild(flexContainer);
+        infoElementRow3.appendChild(infoElementNumImages);
 
         infoElementNumVideos = document.createElement('div')
         infoElementNumVideos.classList.add('col-lg-6');
+        infoElementNumVideos.classList.add('px-2');
         infoElementNumVideos.setAttribute("style","font-size: 80%")
-        infoElementNumVideos.innerHTML = 'Videos: ' + survey.numVideos
-        infoElementRow2.appendChild(infoElementNumVideos)
+        flexContainer = document.createElement('div');
+        flexContainer.style.display = 'flex';
+        flexContainer.style.justifyContent = 'space-between';
+        flexContainer.style.width = '100%';
+        infoElementlabel = document.createElement('span');
+        infoElementlabel.textContent = 'Videos:';
+        infoElementvalue = document.createElement('span');
+        infoElementvalue.textContent = formatter.format(survey.numVideos);
+        flexContainer.appendChild(infoElementlabel);
+        flexContainer.appendChild(infoElementvalue);
+        infoElementNumVideos.appendChild(flexContainer);
+        infoElementRow3.appendChild(infoElementNumVideos);
 
-        infoElementNumFrames = document.createElement('div')
-        infoElementNumFrames.classList.add('col-lg-6');
-        infoElementNumFrames.setAttribute("style","font-size: 80%")
-        infoElementNumFrames.innerHTML = 'Frames: ' + survey.numFrames
-        infoElementRow3.appendChild(infoElementNumFrames)
-
-        infoFiller = document.createElement('div')
-        infoFiller.classList.add('col-lg-6');
-        infoElementRow3.appendChild(infoFiller)	
-
-        infoElementDate = document.createElement('div')
-        infoElementDate.classList.add('col-lg-12');
-        infoElementDate.setAttribute("style","font-size: 80%")
-        if (survey.start_date != 'N/A' && survey.end_date != 'N/A') {
-            infoElementDate.innerHTML = 'Date Range: ' + survey.start_date + ' to ' + survey.end_date
-        } else if (survey.start_date != 'N/A' && survey.end_date == 'N/A') {
-            infoElementDate.innerHTML = 'Start Date: ' + survey.start_date
-        } else if (survey.start_date == 'N/A' && survey.end_date != 'N/A') {
-            infoElementDate.innerHTML = 'End Date: ' + survey.end_date
-        } else {
-            infoElementDate.innerHTML = 'Date Range: N/A'
-        }
-        infoElementRow4.appendChild(infoElementDate)
+        infoElementPeriod = document.createElement('div')
+        infoElementPeriod.classList.add('col-lg-12');
+        infoElementPeriod.classList.add('px-2');
+        infoElementPeriod.setAttribute("style","font-size: 80%")
+        flexContainer = document.createElement('div');
+        flexContainer.style.display = 'flex';
+        flexContainer.style.justifyContent = 'space-between';
+        flexContainer.style.width = '100%';
+        infoElementlabel = document.createElement('span');
+        infoElementlabel.textContent = 'Period:';
+        infoElementvalue = document.createElement('span');
+        infoElementvalue.textContent = survey.start_date.replaceAll('-','/') + ' - ' + survey.end_date.replaceAll('-','/');
+        flexContainer.appendChild(infoElementlabel);
+        flexContainer.appendChild(infoElementvalue);
+        infoElementPeriod.appendChild(flexContainer);
+        infoElementRow4.appendChild(infoElementPeriod);
 
     } else {
-        infoElementDescription = document.createElement('div')
-        infoElementDescription.classList.add('col-lg-12');
-        infoElementDescription.setAttribute("style","font-size: 80%")
-        infoElementDescription.innerHTML = 'Status: ' + survey.status
-        infoElementRow1.appendChild(infoElementDescription)
+        // infoElementDescription = document.createElement('div')
+        // infoElementDescription.classList.add('col-lg-12');
+        // infoElementDescription.setAttribute("style","font-size: 80%")
+        // infoElementDescription.innerHTML = 'Status: ' + survey.status
+        // infoElementRow1.appendChild(infoElementDescription)
+
+        infoElementStatus = document.createElement('div')
+        infoElementStatus.classList.add('col-lg-12');
+        infoElementStatus.classList.add('px-2');
+        infoElementStatus.setAttribute("style","font-size: 80%")
+        flexContainer = document.createElement('div');
+        flexContainer.style.display = 'flex';
+        flexContainer.style.justifyContent = 'space-between';
+        flexContainer.style.width = '100%';
+        infoElementlabel = document.createElement('span');
+        infoElementlabel.textContent = 'Status:';
+        infoElementvalue = document.createElement('span');
+        infoElementvalue.textContent = survey.status;
+        flexContainer.appendChild(infoElementlabel);
+        flexContainer.appendChild(infoElementvalue);
+        infoElementStatus.appendChild(flexContainer);
+        infoElementRow1.appendChild(infoElementStatus);
     }
 
     if (!['',' ','null','None',null].includes(survey.description)) {
@@ -517,6 +590,7 @@ function buildSurveys(survey,disableSurvey) {
 
         infoElementFiller = document.createElement('div')
         infoElementFiller.classList.add('col-lg-12');
+        infoElementFiller.classList.add('px-2');
         infoElementFiller.setAttribute("style","font-size: 80%")
         infoElementFiller.innerHTML = 'Description: ' + survey.description
         infoElementRow0.appendChild(infoElementFiller)
