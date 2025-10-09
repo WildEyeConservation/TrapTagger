@@ -117,12 +117,18 @@ function updateSlider() {
         individualSplide.on( 'moved', function() {
             if (bucketName!=null) {
                 finishedDisplaying = false
-                image = individualImages[individualSplide.index]
+                var image = individualImages[individualSplide.index]
                 if (document.getElementById('tgInfoUnid') != null && (modalUnidentifiable.is(':visible')||unidentifiableOpen)) {
                     document.getElementById('tgInfoUnid').innerHTML = image.trapgroup.tag
                     document.getElementById('timeInfoUnid').innerHTML = image.timestamp
                     document.getElementById('labelsDivUnid').innerHTML =  image.detections[0].species
                     document.getElementById('surveysDivUnid').innerHTML = image.detections[0].task
+                    if (image.access=='write'){
+                        document.getElementById('btnRestoreDetUnid').disabled = false
+                    }
+                    else{
+                        document.getElementById('btnRestoreDetUnid').disabled = true
+                    }
                 } else {
                     document.getElementById('tgInfo').innerHTML = "Site: " + image.trapgroup.tag
                     document.getElementById('timeInfo').innerHTML = image.timestamp
