@@ -471,13 +471,17 @@ function getIndividual(individualID, individualName, association=false, order_va
 
                     individualTags(individualID)
 
-                    if (individualImages.length == 1){
+                    if (individualAccess == 'write'){
+                        if (individualImages.length == 1){
+                            document.getElementById('btnRemoveImg').disabled = true
+                            // document.getElementById('btnMergeImg').disabled = true
+                        }
+                        else{
+                            document.getElementById('btnRemoveImg').disabled = false
+                            // document.getElementById('btnMergeImg').disabled = false
+                        }
+                    } else {
                         document.getElementById('btnRemoveImg').disabled = true
-                        // document.getElementById('btnMergeImg').disabled = true
-                    }
-                    else{
-                        document.getElementById('btnRemoveImg').disabled = false
-                        // document.getElementById('btnMergeImg').disabled = false
                     }
 
                     document.getElementById('btnDelIndiv').addEventListener('click', ()=>{
@@ -604,13 +608,17 @@ function updateIndividual(individualID, individualName, order_value = 'a1', site
                     document.getElementById('tgInfo').innerHTML = 'Site: ' + individualImages[0].trapgroup.tag
                     document.getElementById('timeInfo').innerHTML = individualImages[0].timestamp
 
-                    if (individualImages.length == 1){
+                    if (individualAccess == 'write'){
+                        if (individualImages.length == 1){
+                            document.getElementById('btnRemoveImg').disabled = true
+                            // document.getElementById('btnMergeImg').disabled = true
+                        }
+                        else{
+                            document.getElementById('btnRemoveImg').disabled = false
+                            // document.getElementById('btnMergeImg').disabled = false
+                        }
+                    } else {
                         document.getElementById('btnRemoveImg').disabled = true
-                        // document.getElementById('btnMergeImg').disabled = true
-                    }
-                    else{
-                        document.getElementById('btnRemoveImg').disabled = false
-                        // document.getElementById('btnMergeImg').disabled = false
                     }
 
                     initialiseMapAndSlider()
@@ -4692,9 +4700,21 @@ function updateFeatureButtons(flank) {
     if (featureDrawControl[div_id]) {
         if(individualBestDets[flank] && individualBestDets[flank].length > 0 && individualBestDets[flank][0].detection.id == individualFlankImages[flank][flankImageIndex[flank]].detection.id) {
             cxPrimaryImage.checked = true
-            featureDrawControl[div_id]._toolbars.draw._toolbarContainer.style.display = 'block';
-            featureDrawControl[div_id]._toolbars.edit._toolbarContainer.style.display = 'block';
+            if (individualAccess=='write') {
+                cxPrimaryImage.disabled = false
+                featureDrawControl[div_id]._toolbars.draw._toolbarContainer.style.display = 'block';
+                featureDrawControl[div_id]._toolbars.edit._toolbarContainer.style.display = 'block';
+            } else {
+                cxPrimaryImage.disabled = true
+                featureDrawControl[div_id]._toolbars.draw._toolbarContainer.style.display = 'none';
+                featureDrawControl[div_id]._toolbars.edit._toolbarContainer.style.display = 'none';
+            }
         } else {
+            if (individualAccess=='write') {
+                cxPrimaryImage.disabled = false
+            } else {
+                cxPrimaryImage.disabled = true
+            }
             cxPrimaryImage.checked = false
             featureDrawControl[div_id]._toolbars.draw._toolbarContainer.style.display = 'none';
             featureDrawControl[div_id]._toolbars.edit._toolbarContainer.style.display = 'none';
@@ -5317,6 +5337,13 @@ function getUnidentifiable(){
                 document.getElementById('labelsDivUnid').innerHTML =  individualImages[0].detections[0].species
                 document.getElementById('surveysDivUnid').innerHTML = individualImages[0].detections[0].task
 
+                if (individualImages[0].access=='write'){
+                    document.getElementById('btnRestoreDetUnid').disabled = false
+                }
+                else{
+                    document.getElementById('btnRestoreDetUnid').disabled = true
+                }
+
                 initUnidMap()
                 prepMapIndividual(individualImages[0])
                 updateSlider()
@@ -5341,6 +5368,8 @@ function getUnidentifiable(){
                 noData.setAttribute('style','color: white; text-align: center; margin-top: 20px')
                 noData.innerHTML = 'No unidentifiable sightings found.'
                 center.appendChild(noData)
+
+                document.getElementById('btnRestoreDetUnid').disabled = true
             }
 
         }

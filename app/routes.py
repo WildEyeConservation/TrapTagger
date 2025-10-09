@@ -16571,7 +16571,7 @@ def getIndividualFlankDets(individual_id, flank):
 
     reply = []
     individual = db.session.query(Individual).get(individual_id)
-    if not (individual and individual.active and (all(checkSurveyPermission(current_user.id,task.survey_id,'write') for task in individual.tasks) or all(checkAnnotationPermission(current_user.parent_id,task.id) for task in individual.tasks))):
+    if not (individual and individual.active and (all(checkSurveyPermission(current_user.id,task.survey_id,'read') for task in individual.tasks) or all(checkAnnotationPermission(current_user.parent_id,task.id) for task in individual.tasks))):
         return json.dumps({'status': 'error', 'message': 'You do not have permission.'})
 
     prim_det_sq = db.session.query(Detection.id)\
@@ -16815,7 +16815,9 @@ def getUnidentifiable():
                 .join(Survey, Task.survey_id==Survey.id)\
                 .filter(Individual.name=='unidentifiable')\
                 .filter(Trapgroup.survey_id.in_(survey_ids))\
-                .filter(Task.id.in_(task_ids)))
+                .filter(Task.id.in_(task_ids)))\
+                .filter(Task.status.in_(Config.TASK_READY_STATUSES))\
+                .filter(Survey.status.in_(Config.SURVEY_READY_STATUSES))
 
 
         if species != '0':
