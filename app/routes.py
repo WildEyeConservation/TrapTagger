@@ -510,7 +510,7 @@ def getAllIndividuals():
             tasks = surveyPermissionsSQ(db.session.query(Task.id, Survey.id).join(Survey).filter(Task.id.in_(task_ids)),current_user.id, 'read')
         if area_id and area_id != '0':
             tasks = tasks.filter(Survey.area_id==area_id)
-        tasks = tasks.distinct().all()
+        tasks = tasks.filter(Task.status.in_(Config.TASK_READY_STATUSES)).filter(Survey.status.in_(Config.SURVEY_READY_STATUSES)).distinct().all()
         task_ids = [r[0] for r in tasks]
         survey_ids = [r[1] for r in tasks] 
 
@@ -531,7 +531,6 @@ def getAllIndividuals():
                     .outerjoin(Image, BestDetection.c.image_id==Image.id)\
                     .outerjoin(Camera)\
                     .filter(Task.id.in_(task_ids))\
-                    .filter(Task.status.in_(['SUCCESS', 'Stopped', 'Ready']))\
                     .filter(Individual.name!='unidentifiable')\
                     .filter(Individual.active==True)\
                     .filter(or_(Detection.image_id==Image.id, Image.id==None))

@@ -7326,7 +7326,15 @@ def update_duplicate_individual_names(area_id):
                                 .join(Survey)\
                                 .filter(Survey.area_id==area_id)\
                                 .filter(Individual.name.like('% (%)'))\
-                                .all()]
+                                .distinct().all()]
+
+    individuals_sq = db.session.query(Individual.id)\
+                                .join(Task,Individual.tasks)\
+                                .join(Survey)\
+                                .filter(Survey.area_id==area_id)\
+                                .filter(Individual.active==True)\
+                                .filter(Individual.name!='unidentifiable')\
+                                .distinct().subquery()
 
     duplicate_individuals_sq = db.session.query(
                                     Individual.id,
@@ -7336,12 +7344,8 @@ def update_duplicate_individual_names(area_id):
                                         order_by=Individual.id
                                     ).label("rn")
                                 )\
-                                .join(Task,Individual.tasks)\
-                                .join(Survey)\
-                                .filter(Survey.area_id==area_id)\
-                                .filter(Individual.active==True)\
-                                .filter(Individual.name!='unidentifiable')\
-                                .distinct().subquery()
+                                .join(individuals_sq, Individual.id == individuals_sq.c.id)\
+                                .subquery()
 
     duplicate_individuals = db.session.query(Individual,duplicate_individuals_sq.c.rn)\
                                         .join(duplicate_individuals_sq, Individual.id == duplicate_individuals_sq.c.id)\
