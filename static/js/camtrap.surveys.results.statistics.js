@@ -1301,7 +1301,7 @@ function createMap() {
                     checkBoxLabel = document.createElement('label')
                     checkBoxLabel.setAttribute('class','custom-control-label')
                     checkBoxLabel.setAttribute('for','markerCheckBox')
-                    checkBoxLabel.innerHTML = 'Show Sites'
+                    checkBoxLabel.innerHTML = 'Sites'
                     checkBoxDiv.appendChild(checkBoxLabel)
         
                     $("#markerCheckBox").change( function() {
@@ -1381,7 +1381,7 @@ function createMap() {
                     checkBoxLabel = document.createElement('label')
                     checkBoxLabel.setAttribute('class','custom-control-label')
                     checkBoxLabel.setAttribute('for','heatMapCheckBox')
-                    checkBoxLabel.innerHTML = 'Show Heat Map'
+                    checkBoxLabel.innerHTML = 'Heatmap'
                     checkBoxDiv.appendChild(checkBoxLabel)
         
                     $("#heatMapCheckBox").change( function() {

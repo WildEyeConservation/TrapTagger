@@ -1099,34 +1099,29 @@ def handleIndividualUndo(indSimilarity,individual1,individual2,individual3,task_
             ###########################################################
 
             allSimilarities = db.session.query(IndSimilarity).filter(or_(IndSimilarity.individual_1==individual1.id,IndSimilarity.individual_2==individual1.id)).distinct().all()
+            Det1 = alias(Detection)
+            Det2 = alias(Detection)
+            IndividualDetections1 = alias(individualDetections)
+            IndividualDetections2 = alias(individualDetections)
             for similarity in allSimilarities:
                 similarity.score = similarity.old_score
-
-                maxSim = None
-                maxVal = 0
-                for detection1 in individual1.detections:
-                    for detection2 in individual2.detections:
-                        detSim = db.session.query(DetSimilarity).filter(
-                            or_(
-                                and_(
-                                    DetSimilarity.detection_1==detection1.id,
-                                    DetSimilarity.detection_2==detection2.id),
-                                and_(
-                                    DetSimilarity.detection_1==detection2.id,
-                                    DetSimilarity.detection_2==detection1.id)
-                            )
-                        ).first()
-
-                        if detSim and detSim.score >= maxVal:
-                            maxVal = detSim.score
-                            maxSim = detSim
-
+                maxSim = db.session.query(DetSimilarity)\
+                                        .join(Det1, Det1.c.id==DetSimilarity.detection_1)\
+                                        .join(Det2, Det2.c.id==DetSimilarity.detection_2)\
+                                        .join(IndividualDetections1, IndividualDetections1.c.detection_id==Det1.c.id)\
+                                        .join(IndividualDetections2, IndividualDetections2.c.detection_id==Det2.c.id)\
+                                        .filter(or_(
+                                            and_(IndividualDetections1.c.individual_id==similarity.individual_1,IndividualDetections2.c.individual_id==similarity.individual_2),
+                                            and_(IndividualDetections1.c.individual_id==similarity.individual_2,IndividualDetections2.c.individual_id==similarity.individual_1)
+                                        ))\
+                                        .order_by(DetSimilarity.score.desc())\
+                                        .first()
                 if maxSim:
                     similarity.detection_1 = maxSim.detection_1
                     similarity.detection_2 = maxSim.detection_2
-                elif detSim:
-                    similarity.detection_1 = detSim.detection_1
-                    similarity.detection_2 = detSim.detection_2
+                else:
+                    similarity.detection_1 = None
+                    similarity.detection_2 = None
 
     db.session.commit()
     return True

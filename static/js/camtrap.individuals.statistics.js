@@ -482,7 +482,7 @@ function createIndivMap() {
             checkBoxLabel = document.createElement('label')
             checkBoxLabel.setAttribute('class','custom-control-label')
             checkBoxLabel.setAttribute('for','markerCheckBox')
-            checkBoxLabel.innerHTML = 'Show Sites'
+            checkBoxLabel.innerHTML = 'Sites'
             checkBoxDiv.appendChild(checkBoxLabel)
 
             $("#markerCheckBox").change( function() {
@@ -560,7 +560,7 @@ function createIndivMap() {
             checkBoxLabel = document.createElement('label')
             checkBoxLabel.setAttribute('class','custom-control-label')
             checkBoxLabel.setAttribute('for','heatMapCheckBox')
-            checkBoxLabel.innerHTML = 'Show Heat Map'
+            checkBoxLabel.innerHTML = 'Heatmap'
             checkBoxDiv.appendChild(checkBoxLabel)
 
             $("#heatMapCheckBox").change( function() {
@@ -587,7 +587,7 @@ function createIndivMap() {
             checkBoxLabel = document.createElement('label')
             checkBoxLabel.setAttribute('class','custom-control-label')
             checkBoxLabel.setAttribute('for','polygonCheckBox')
-            checkBoxLabel.innerHTML = 'Show Convex Hull Polygon'
+            checkBoxLabel.innerHTML = 'Polygon'
             checkBoxDiv.appendChild(checkBoxLabel)
 
             $("#polygonCheckBox").change( function() {
@@ -1096,8 +1096,8 @@ function buildSiteSelectorRow() {
         sites_id.push(allSites[i].id)
     }
 
-    trapgroupNames = ['None', 'All', ...sites]
-    trapgroupValues = ['-1', '0', ...sites]
+    trapgroupNames = ['All', ...sites]
+    trapgroupValues = ['0', ...sites]
 
     IDNum = getIdNumforNext('trapgroupSelect')
     selectorColumn = document.getElementById('selectorColumn')
@@ -1169,6 +1169,14 @@ function buildSiteSelectorRow() {
             }
         }
     }(IDNum));
+
+    var selection = document.getElementById('statsSelect').value
+    if (selection == '1') {
+        updatePolarData(IDNum)
+    }
+    else if (selection == '4') {
+        updateLineData(IDNum)
+    }
 
 }
 

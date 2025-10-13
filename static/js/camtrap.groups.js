@@ -61,9 +61,9 @@ function searchSites() {
     formData.append('search', JSON.stringify(search));
     formData.append('advanced', JSON.stringify(advancedSearch.toString()));
     formData.append('task_ids', JSON.stringify(task_ids));
-    var area_id = document.getElementById('areaSelect').value
-    if (area_id!=null || area_id!= '' || area_id!='0'){
-        formData.append('area_id', JSON.stringify(area_id))
+    var area = document.getElementById('areaSelect').value
+    if (area!=null || area!= '' || area!='0'){
+        formData.append('area', JSON.stringify(area))
     }
 
     var xhttp = new XMLHttpRequest();
@@ -308,9 +308,9 @@ function initialiseSitesMap() {
     if (tasks != '-1'){
         var formData = new FormData();
         formData.append('task_ids', JSON.stringify(tasks));
-        var area_id = document.getElementById('areaSelect').value
-        if (area_id!=null || area_id!= '' || area_id!='0'){
-            formData.append('area_id', JSON.stringify(area_id))
+        var area = document.getElementById('areaSelect').value
+        if (area!=null || area!= '' || area!='0'){
+            formData.append('area', JSON.stringify(area))
         }
 
         var xhttp = new XMLHttpRequest();
@@ -689,9 +689,9 @@ function getGroups() {
     task_ids = getSelectedTasks()
     var formData = new FormData();
     formData.append('task_ids', JSON.stringify(task_ids));
-    var area_id = document.getElementById('areaSelect').value
-    if (area_id!=null || area_id!= '' || area_id!='0'){
-        formData.append('area_id', JSON.stringify(area_id))
+    var area = document.getElementById('areaSelect').value
+    if (area!=null || area!= '' || area!='0'){
+        formData.append('area', JSON.stringify(area))
     }
     
     var xhttp = new XMLHttpRequest();

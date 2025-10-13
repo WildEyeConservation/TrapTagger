@@ -451,7 +451,7 @@ function buildSurveys(survey,disableSurvey) {
     infoCol.appendChild(infoElementRow4)
     // surveyDiv.appendChild(infoElementRow4)
 
-    if ((survey.status.toLowerCase()!='uploading')&&(survey.status.toLowerCase()!='preprocessing')){
+    if ((survey.status.toLowerCase()!='uploading')&&(survey.status.toLowerCase()!='preprocessing')&&(survey.status.toLowerCase()!='import queued')) {
         const formatter = new Intl.NumberFormat('fr-FR');
 
         infoElementStatus = document.createElement('div')
@@ -1367,6 +1367,7 @@ function resetNewSurveyPage() {
     document.getElementById('newSurveyAreaText').value = ''
     clearSelect(document.getElementById('newSurveyArea'))
     document.getElementById('createNewAreaCx').checked = false
+    document.getElementById('newSurveyAreaSelect').checked = true
 
 }
 
@@ -4983,33 +4984,8 @@ $('#surveySearch').change( function() {
 
 $('#orgSelect').change( function() {
     /** Listens for changes in the organisation selection and updates the page accordingly. */
-    var orgId = this.value;
-    var areaSelect = document.getElementById('areaSelect');
-    clearSelect(areaSelect);
-    var areaOptionTexts = ['All']
-    var areaOptionValues = ['0']
-    if (orgId == '0') {
-        fillSelect(areaSelect, areaOptionTexts, areaOptionValues)
-        url = generate_url()
-        updatePage(url)
-    } else {
-        var xhttp = new XMLHttpRequest();
-        xhttp.onreadystatechange = function() {
-            if (this.readyState == 4 && this.status == 200) {
-                var reply = JSON.parse(this.responseText);
-                var areas = reply.areas;
-                for (var i = 0; i < areas.length; i++) {
-                    areaOptionTexts.push(areas[i].name);
-                    areaOptionValues.push(areas[i].id);
-                }
-                fillSelect(areaSelect, areaOptionTexts, areaOptionValues);
-                url = generate_url()
-                updatePage(url)
-            }
-        };
-        xhttp.open("GET", '/getAreas?org_id=' + orgId);
-        xhttp.send();
-    }
+    url = generate_url()
+    updatePage(url)
 });
 
 $('#areaSelect').change( function() {
@@ -6209,7 +6185,7 @@ function getOrgAreas(org_id){
             fillSelect(areaSelect,areaOptionTexts,areaOptionValues)
         }
     }
-    xhttp.open("GET", '/getAreas?org_id=' + org_id);
+    xhttp.open("GET", '/getAreas?org_id=' + org_id + '&id=true');
     xhttp.send();
 }
 
@@ -10062,11 +10038,9 @@ function populateFilters() {
     xhttp.onreadystatechange = function() {
         if (this.readyState == 4 && this.status == 200) {
             var reply = JSON.parse(this.responseText);
-            
-            var orgSelect = document.getElementById('orgSelect');
-            var areaSelect = document.getElementById('areaSelect');
 
             // Organisation select
+            var orgSelect = document.getElementById('orgSelect');
             clearSelect(orgSelect);
             let optionTexts = ['All']
             let optionValues = ['0']           
@@ -10076,30 +10050,47 @@ function populateFilters() {
             }
             fillSelect(orgSelect, optionTexts, optionValues)
             orgSelect.value = '0'; // Default to 'All' organisations
-
-            // Area select
-            clearSelect(areaSelect);
-            let areaOptionTexts = ['All']
-            let areaOptionValues = ['0']
-            fillSelect(areaSelect, areaOptionTexts, areaOptionValues)
-
-            // Year select
-            var yearSelect = document.getElementById('yearSelect');
-            clearSelect(yearSelect);
-            let yearOptionTexts = ['All']
-            let yearOptionValues = ['0']
-            // Years from now to 2000
-            let currentYear = new Date().getFullYear();
-            for (let year = currentYear; year >= 2000; year--) {
-                yearOptionTexts.push(year.toString())
-                yearOptionValues.push(year.toString())
-            }
-            fillSelect(yearSelect, yearOptionTexts, yearOptionValues)
-
+            
         }
     };
     xhttp.open("GET", '/getOrganisations');
     xhttp.send();
+
+    var xhttp = new XMLHttpRequest();
+    xhttp.onreadystatechange = function() {
+        if (this.readyState == 4 && this.status == 200) {
+            var reply = JSON.parse(this.responseText);
+            var areas = reply.areas;
+
+            // Area select
+            var areaSelect = document.getElementById('areaSelect');
+            clearSelect(areaSelect);
+            let areaOptionTexts = ['All']
+            let areaOptionValues = ['0']
+            for (var i = 0; i < areas.length; i++) {
+                areaOptionTexts.push(areas[i]);
+                areaOptionValues.push(areas[i]);
+            }
+            fillSelect(areaSelect, areaOptionTexts, areaOptionValues);
+            areaSelect.value = '0'; // Default to 'All' areas
+        }
+    };
+    xhttp.open("GET", '/getAreas');
+    xhttp.send();
+
+    // Year select
+    var yearSelect = document.getElementById('yearSelect');
+    clearSelect(yearSelect);
+    let yearOptionTexts = ['All']
+    let yearOptionValues = ['0']
+    // Years from now to 2000
+    let currentYear = new Date().getFullYear();
+    for (let year = currentYear; year >= 2000; year--) {
+        yearOptionTexts.push(year.toString())
+        yearOptionValues.push(year.toString())
+    }
+    fillSelect(yearSelect, yearOptionTexts, yearOptionValues)
+
 }
 
 function updateSurveyArea() {

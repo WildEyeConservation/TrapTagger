@@ -33,7 +33,7 @@ limitations under the License. -->
                 <span id="openSidePanelLeft" onclick="openLeftSidePanel()" style="font-size: 24px; cursor: pointer;">&#9776;</span>
             </div>
             <div class="col-lg-10 d-flex align-items-center justify-content-center">
-                <h5 style="margin:0px">Current Individual</h5>
+                <h5 style="margin:0px" id="idName1">Current Individual</h5>
             </div>
             <div class="col-lg-1"> </div>
         </div>
@@ -90,7 +90,7 @@ limitations under the License. -->
         <!-- <br> -->
         <div id="heatmapDiv">
             <div class="text-center">
-                <label for="cxFeaturesHeatmap">Matching Features Heatmap (H): </label>
+                <label for="cxFeaturesHeatmap">Heatmap (H): </label>
                 <label class="switch">
                     <input type="checkbox" id="cxFeaturesHeatmap"><span class="slider round"></span>
                 </label>
@@ -126,22 +126,22 @@ limitations under the License. -->
         </div>
         <br>
         <div>
-            <label style="font-size: 80%; margin: 0; white-space: nowrap; margin-right: 8px;">Display Flank:</label>
+            <label style="font-size: 80%; margin: 0; white-space: nowrap; margin-right: 8px;">Flank:</label>
             <div class="custom-control custom-radio custom-control-inline" style="margin-right: 8px;">
                 <input type="radio" class="custom-control-input" id="allFlank" name="displayFlank" value='all' checked="true">
-                <label class="custom-control-label" for="allFlank">All (0)</label>
+                <label class="custom-control-label" for="allFlank" style="cursor: pointer;">All (1)</label>
             </div> 
             <div class="custom-control custom-radio custom-control-inline" style="margin-right: 8px;">
                 <input type="radio" class="custom-control-input" id="leftFlank" name="displayFlank" value='left'>
-                <label class="custom-control-label" for="leftFlank">Left (1)</label>
+                <label class="custom-control-label" for="leftFlank" style="cursor: pointer;">Left (2)</label>
             </div> 
             <div class="custom-control custom-radio custom-control-inline" style="margin-right: 8px;">
                 <input type="radio" class="custom-control-input" id="rightFlank" name="displayFlank" value='right'>
-                <label class="custom-control-label" for="rightFlank">Right (2)</label>
+                <label class="custom-control-label" for="rightFlank" style="cursor: pointer;">Right (3)</label>
             </div>
             <div class="custom-control custom-radio custom-control-inline" style="margin-right: 8px;">
                 <input type="radio" class="custom-control-input" id="ambiguousFlank" name="displayFlank" value='ambiguous'>
-                <label class="custom-control-label" for="ambiguousFlank">Ambiguous (3)</label>
+                <label class="custom-control-label" for="ambiguousFlank" style="cursor: pointer;">Ambiguous (4)</label>
             </div>
         </div>
         <br>
@@ -163,7 +163,7 @@ limitations under the License. -->
         <div class="row" style="margin-bottom: 4px;">
             <div class="col-lg-1"></div>
             <div class="col-lg-10 d-flex align-items-center justify-content-center">
-                <h5 style="margin:0px">Suggested Match</h5>
+                <h5 style="margin:0px" id="idName2">Suggested Match</h5>
             </div>
             <div class="col-lg-1 text-end">
                 <span id="openSidePanelRight" onclick="openRightSidePanel()" style="font-size: 24px; cursor: pointer;">&#9776;</span>
@@ -434,8 +434,9 @@ limitations under the License. -->
             <div class="modal-body">
                 <div id="individualFeaturesErrors" style="font-size: 80%; color: #DF691A"></div>
                 <h5 style="margin-bottom: 2px">Description</h5>
-                <div style="font-size: 80%; margin-bottom: 2px"><i>Here you can add or edit the features on the primary left/right image of the individual. A feature can be a distinguishing pattern, a mark, or a characteristic that can be used to easily identify the individual. If you
-                    are not satisfied with the primary image, you can select a different image as the primary image. Note that you can only add features to the primary image.</i></div>
+                <div style="font-size: 80%; margin-bottom: 2px"><i>Here you can add or edit the features on the primary left/right image of the individual. 
+                    A feature can be a distinguishing pattern or mark that can be used to easily identify the individual. You can select a different image as the 
+                    primary image. Note that you can only add features to the primary image.</i></div>
                 <div>
                     <label for="cxPrimaryImage">Primary Image :</label>
                     <label class="switch">

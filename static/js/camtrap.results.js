@@ -176,9 +176,9 @@ function getLabelsSitesTagsAndGroups(){
     var formData = new FormData()
     formData.append('task_ids', JSON.stringify(tasks))
 
-    var area_id = document.getElementById('areaSelect').value
-    if (area_id!=null || area_id!= '' || area_id!='0'){
-        formData.append('area_id', JSON.stringify(area_id))
+    var area = document.getElementById('areaSelect').value
+    if (area!=null || area!= '' || area!='0'){
+        formData.append('area', JSON.stringify(area))
     }
 
     var xhttp = new XMLHttpRequest();
@@ -1110,9 +1110,9 @@ function generateSpatial(){
     if (tasks != '-1'){
         var formData = new FormData();
         formData.append('task_ids', JSON.stringify(tasks));
-        var area_id = document.getElementById('areaSelect').value
-        if (area_id!=null || area_id!= '' || area_id!='0'){
-            formData.append('area_id', JSON.stringify(area_id))
+        var area = document.getElementById('areaSelect').value
+        if (area!=null || area!= '' || area!='0'){
+            formData.append('area', JSON.stringify(area))
         }
 
         var xhttp = new XMLHttpRequest();
@@ -2173,9 +2173,9 @@ function updateMap(){
         if (group_ids != '0' && group_ids != '-1') {
             formData.append('group_ids', JSON.stringify(group_ids));
         }
-        var area_id = document.getElementById('areaSelect').value
-        if (area_id!=null || area_id!= '' || area_id!='0'){
-            formData.append('area_id', JSON.stringify(area_id))
+        var area = document.getElementById('areaSelect').value
+        if (area!=null || area!= '' || area!='0'){
+            formData.append('area', JSON.stringify(area))
         }
 
         var xhttp = new XMLHttpRequest();
@@ -2284,9 +2284,9 @@ function updateActivity(check=false){
         formData.append('overlap', JSON.stringify(overlap));
         formData.append('csv', JSON.stringify('0'));
         formData.append('groups', JSON.stringify(groups));
-        var area_id = document.getElementById('areaSelect').value
-        if (area_id!=null || area_id!= '' || area_id!='0'){
-            formData.append('area_id', JSON.stringify(area_id))
+        var area = document.getElementById('areaSelect').value
+        if (area!=null || area!= '' || area!='0'){
+            formData.append('area', JSON.stringify(area))
         }
     
         if(startDate != ''){
@@ -2541,9 +2541,9 @@ function getActivityPatternCSV(check=false){
         formData.append('overlap', JSON.stringify(overlap));
         formData.append('csv', JSON.stringify('1'));
         formData.append('groups', JSON.stringify(groups));
-        var area_id = document.getElementById('areaSelect').value
-        if (area_id!=null || area_id!= '' || area_id!='0'){
-            formData.append('area_id', JSON.stringify(area_id))
+        var area = document.getElementById('areaSelect').value
+        if (area!=null || area!= '' || area!='0'){
+            formData.append('area', JSON.stringify(area))
         }
     
         if(startDate != ''){
@@ -3414,9 +3414,9 @@ function getSurveysAndAnnotationSets(){
     // Gets the surveys and annotation sets for the task selection
 
     var url = '/getSurveysAndTasksForResults';
-    var area_id = document.getElementById('areaSelect').value
-    if (area_id!=null || area_id!= '' || area_id!='0'){
-        url += '?area_id=' + area_id
+    var area = document.getElementById('areaSelect').value
+    if (area!=null || area!= '' || area!='0'){
+        url += '?area=' + area
     }
 
     var surveyAndAsDiv = document.getElementById('surveyAndAsDiv')
@@ -3786,9 +3786,9 @@ $("#xAxisSelector").change( function() {
                 var formData = new FormData()
                 formData.append("task_ids", JSON.stringify(tasks))
                 formData.append("species", JSON.stringify(species))
-                var area_id = document.getElementById('areaSelect').value
-                if (area_id!=null || area_id!= '' || area_id!='0'){
-                    formData.append('area_id', JSON.stringify(area_id))
+                var area = document.getElementById('areaSelect').value
+                if (area!=null || area!= '' || area!='0'){
+                    formData.append('area', JSON.stringify(area))
                 }
 
                 var xhttp = new XMLHttpRequest();
@@ -4511,9 +4511,9 @@ function getSummary(check){
         formData.append('sites', JSON.stringify(sites))
         formData.append('groups', JSON.stringify(groups))
         formData.append('normaliseBySite', JSON.stringify(normaliseBySite))
-        var area_id = document.getElementById('areaSelect').value
-        if (area_id!=null || area_id!= '' || area_id!='0'){
-            formData.append('area_id', JSON.stringify(area_id))
+        var area = document.getElementById('areaSelect').value
+        if (area!=null || area!= '' || area!='0'){
+            formData.append('area', JSON.stringify(area))
         }
 
         document.getElementById('resultsDiv').style.display = 'none'
@@ -6182,9 +6182,9 @@ function updateOccupancy(check=false){
         formData.append('covOptions', JSON.stringify(globalCovariateOptions));
         formData.append('csv', JSON.stringify('0'));
         formData.append('groups', JSON.stringify(groups));
-        var area_id = document.getElementById('areaSelect').value
-        if (area_id!=null || area_id!= '' || area_id!='0'){
-            formData.append('area_id', JSON.stringify(area_id))
+        var area = document.getElementById('areaSelect').value
+        if (area!=null || area!= '' || area!='0'){
+            formData.append('area', JSON.stringify(area))
         }
 
         if(startDate != ''){
@@ -6349,9 +6349,9 @@ function getOccupancyCSV(check=false){
             formData.append('timeToIndependenceUnit', JSON.stringify(timeToIndependenceUnit))
         }
 
-        var area_id = document.getElementById('areaSelect').value
-        if (area_id!=null || area_id!= '' || area_id!='0'){
-            formData.append('area_id', JSON.stringify(area_id))
+        var area = document.getElementById('areaSelect').value
+        if (area!=null || area!= '' || area!='0'){
+            formData.append('area', JSON.stringify(area))
         }
     }
 
@@ -7946,9 +7946,9 @@ function exportCSV(){
         formData.append('siteCovs', JSON.stringify(siteCovariates));
         formData.append('detCovs', JSON.stringify(detectionCovariates));
         formData.append('task_ids', JSON.stringify(tasks));
-        var area_id = document.getElementById('areaSelect').value
-        if (area_id!=null || area_id!= '' || area_id!='0'){
-            formData.append('area_id', JSON.stringify(area_id))
+        var area = document.getElementById('areaSelect').value
+        if (area!=null || area!= '' || area!='0'){
+            formData.append('area', JSON.stringify(area))
         }
         
         document.getElementById('covariatesError').innerHTML = 'Downloading CSV...'
@@ -8030,9 +8030,9 @@ function updateSCR(check=false){
         formData.append('groups', JSON.stringify(groups));
         formData.append('flank', JSON.stringify(flank));
 
-        var area_id = document.getElementById('areaSelect').value
-        if (area_id!=null || area_id!= '' || area_id!='0'){
-            formData.append('area_id', JSON.stringify(area_id))
+        var area = document.getElementById('areaSelect').value
+        if (area!=null || area!= '' || area!='0'){
+            formData.append('area', JSON.stringify(area))
         }
 
         if(startDate != ''){
@@ -9368,7 +9368,7 @@ function buildSCR(results, tab){
         var label = document.createElement('label')
         label.setAttribute('class','custom-control-label')
         label.setAttribute('for','showSitesDHM')
-        label.innerHTML = 'Show Sites'
+        label.innerHTML = 'Sites'
         cxDiv.appendChild(label)
 
         document.getElementById('showSitesDHM').addEventListener('change', function(){
@@ -9413,7 +9413,7 @@ function buildSCR(results, tab){
         var label = document.createElement('label')
         label.setAttribute('class','custom-control-label')
         label.setAttribute('for','showHeatMapDHM')
-        label.innerHTML = 'Show Heatmap'
+        label.innerHTML = 'Heatmap'
         cxDiv.appendChild(label)
 
         document.getElementById('showHeatMapDHM').addEventListener('change', function(){
@@ -9627,7 +9627,7 @@ function buildSCR(results, tab){
         var label = document.createElement('label')
         label.setAttribute('class','custom-control-label')
         label.setAttribute('for','showSitesSRC')
-        label.innerHTML = 'Show Sites'
+        label.innerHTML = 'Sites'
         cxDiv.appendChild(label)
 
         document.getElementById('showSitesSRC').addEventListener('change', function(){
@@ -9843,7 +9843,7 @@ function buildSCR(results, tab){
         var label = document.createElement('label')
         label.setAttribute('class','custom-control-label')
         label.setAttribute('for','showHeatMapSRC')
-        label.innerHTML = 'Show Heatmap'
+        label.innerHTML = 'Heatmap'
         cxDiv.appendChild(label)
 
         document.getElementById('showHeatMapSRC').addEventListener('change', function(){
@@ -10203,9 +10203,9 @@ function getSCRcsv(check=false){
             formData.append('endDate', JSON.stringify(endDate));
         }
 
-        var area_id = document.getElementById('areaSelect').value
-        if (area_id!=null || area_id!= '' || area_id!='0'){
-            formData.append('area_id', JSON.stringify(area_id))
+        var area = document.getElementById('areaSelect').value
+        if (area!=null || area!= '' || area!='0'){
+            formData.append('area', JSON.stringify(area))
         }
     }
 
@@ -10572,9 +10572,9 @@ function cancelResults(){
     var tasks = getSelectedTasks()
     formData.append('result_type', JSON.stringify(result_type));
     formData.append('task_ids', JSON.stringify(tasks));
-    var area_id = document.getElementById('areaSelect').value
-    if (area_id!=null || area_id!= '' || area_id!='0'){
-        formData.append('area_id', JSON.stringify(area_id))
+    var area = document.getElementById('areaSelect').value
+    if (area!=null || area!= '' || area!='0'){
+        formData.append('area', JSON.stringify(area))
     }
 
     var xhttp = new XMLHttpRequest();
@@ -10837,8 +10837,8 @@ function getAreas(){
             var areaOptionTexts = ['All']
             var areaOptionValues = ['0']
             for (var i=0;i<areas.length;i++) {
-                areaOptionTexts.push(areas[i].name)
-                areaOptionValues.push(areas[i].id)
+                areaOptionTexts.push(areas[i])
+                areaOptionValues.push(areas[i])
             }
             fillSelect(areaSelect,areaOptionTexts,areaOptionValues)
 

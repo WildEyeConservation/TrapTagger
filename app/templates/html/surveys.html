@@ -175,16 +175,20 @@ limitations under the License. -->
 
                     <h5 style="margin-bottom: 2px">Survey Area</h5>
                     <div style="font-size: 80%; margin-bottom: 2px"><i>Select the area associated with this survey. This refers to the name of the protected area, national park, or similar location where the survey was conducted.</i></div>
+                    <div style="margin-bottom: 5px">
+                        <div class="custom-control custom-radio custom-control-inline">
+                            <input type="radio" class="custom-control-input" id="newSurveyAreaSelect" name="areaSelection" value='0' checked="true" onclick="updateSurveyArea()">
+                            <label class="custom-control-label" for="newSurveyAreaSelect">Select Area</label>
+                        </div> 
+                        <div class="custom-control custom-radio custom-control-inline">
+                            <input type="radio" class="custom-control-input" id="createNewAreaCx" name="areaSelection" value='1'   onclick="updateSurveyArea()">
+                            <label class="custom-control-label" for="createNewAreaCx">Create New Area</label>
+                        </div> 
+                    </div>
                     <div class="row">
                         <div class='col-lg-4'>
                             <select id="newSurveyArea" class='form-control'></select>
                             <input id="newSurveyAreaText" type="text" class="form-control" style="display:none;" placeholder="New Area Name"></input>
-                        </div>
-                        <div class='col-lg-4 d-flex align-items-center'>
-                            <div class="custom-control custom-checkbox">
-                                <input type="checkbox" class="custom-control-input" id="createNewAreaCx" name="createNewAreaCx" onclick="updateSurveyArea()">
-                                <label class="custom-control-label" for="createNewAreaCx">Create New Area</label>
-                            </div>
                         </div>
                     </div>
                     <div id="newSurveyAreaErrors" style="font-size: 80%; color: #DF691A"></div>

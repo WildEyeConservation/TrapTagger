@@ -168,7 +168,7 @@ function getIndividuals(page = null) {
         formData.append("trap_name", JSON.stringify(selectedSite))
         formData.append('start_date', JSON.stringify(selectedStartDate))
         formData.append('end_date', JSON.stringify(selectedEndDate))
-        formData.append("area_id", JSON.stringify(document.getElementById('areaSelect').value))
+        formData.append("area", JSON.stringify(document.getElementById('areaSelect').value))
 
         request = '/getAllIndividuals'
         if (page != null) {
@@ -242,6 +242,21 @@ function getIndividuals(page = null) {
                     image = document.createElement('img')
                     image.setAttribute('width','100%')
                     image.src = "https://"+bucketName+".s3.amazonaws.com/" + modifyToCropURL(newIndividual.url, newIndividual.detection.id)
+
+                    image.style.cursor = 'pointer'
+                    image.style.boxShadow = '0 4px 8px 0 rgba(0, 0, 0, 0.2), 0 6px 20px 0 rgba(0, 0, 0, 0.19)'
+                    image.style.borderRadius = '4px'
+
+                    image.addEventListener('mouseover', function() {
+                        this.style.boxShadow = '0 8px 16px 0 rgba(0, 0, 0, 0.2), 0 12px 40px 0 rgba(0, 0, 0, 0.19)'
+                        this.style.transform = 'scale(1.03)'
+                    });
+
+                    image.addEventListener('mouseout', function() {
+                        this.style.boxShadow = '0 4px 8px 0 rgba(0, 0, 0, 0.2), 0 6px 20px 0 rgba(0, 0, 0, 0.19)'
+                        this.style.transform = 'scale(1)'
+                    });
+
                     col.appendChild(image)
 
                     image.addEventListener('error', function(wrapURL) {
@@ -366,7 +381,7 @@ function getIndividualInfo(individualID){
 
                 individualBestDets = info.best_dets
 
-                if (info.access == 'write'){
+                if (individualAccess == 'write'){
                     document.getElementById('newIndividualName').readOnly = false
                     document.getElementById('idNotes').readOnly = false
                     document.getElementById('btnDelIndiv').disabled = false
@@ -480,8 +495,16 @@ function getIndividual(individualID, individualName, association=false, order_va
                             document.getElementById('btnRemoveImg').disabled = false
                             // document.getElementById('btnMergeImg').disabled = false
                         }
+                        document.getElementById('btnSubmitInfoChange').disabled = false
+                        document.getElementById('btnDelIndiv').disabled = false
+                        document.getElementById('btnMergeIndiv').disabled = false
+                        document.getElementById('btnIndivUnidentifiable').disabled = false
                     } else {
                         document.getElementById('btnRemoveImg').disabled = true
+                        document.getElementById('btnDelIndiv').disabled = true
+                        document.getElementById('btnSubmitInfoChange').disabled = true
+                        document.getElementById('btnMergeIndiv').disabled = true
+                        document.getElementById('btnIndivUnidentifiable').disabled = true
                     }
 
                     document.getElementById('btnDelIndiv').addEventListener('click', ()=>{
@@ -617,8 +640,16 @@ function updateIndividual(individualID, individualName, order_value = 'a1', site
                             document.getElementById('btnRemoveImg').disabled = false
                             // document.getElementById('btnMergeImg').disabled = false
                         }
+                        document.getElementById('btnSubmitInfoChange').disabled = false
+                        document.getElementById('btnDelIndiv').disabled = false
+                        document.getElementById('btnMergeIndiv').disabled = false
+                        document.getElementById('btnIndivUnidentifiable').disabled = false
                     } else {
                         document.getElementById('btnRemoveImg').disabled = true
+                        document.getElementById('btnDelIndiv').disabled = true
+                        document.getElementById('btnSubmitInfoChange').disabled = true
+                        document.getElementById('btnMergeIndiv').disabled = true
+                        document.getElementById('btnIndivUnidentifiable').disabled = true 
                     }
 
                     initialiseMapAndSlider()
@@ -2363,6 +2394,10 @@ function buildAssociation(association,n){
     image.src = "https://"+bucketName+".s3.amazonaws.com/" + modifyToCropURL(association.url, association.detection.id)
     imageCell.appendChild(image)
 
+    image.style.cursor = 'pointer'
+    image.style.boxShadow = '0 4px 8px 0 rgba(0, 0, 0, 0.2), 0 6px 20px 0 rgba(0, 0, 0, 0.19)'
+    image.style.borderRadius = '4px'
+
     image.addEventListener('error', function(wrapURL) {
         return function() {
             this.src = "https://"+bucketName+".s3.amazonaws.com/" + modifyToCompURL(wrapURL)
@@ -3612,6 +3647,20 @@ function getMergeIndividuals(page = null) {
                 image.setAttribute('width','100%')
                 image.src = "https://"+bucketName+".s3.amazonaws.com/" + modifyToCropURL(newIndividual.url, newIndividual.detection.id)
                 col.appendChild(image)
+
+                image.style.cursor = 'pointer'
+                image.style.boxShadow = '0 4px 8px 0 rgba(0, 0, 0, 0.2), 0 6px 20px 0 rgba(0, 0, 0, 0.19)'
+                image.style.borderRadius = '4px'
+
+                image.addEventListener('mouseover', function() {
+                    this.style.boxShadow = '0 8px 16px 0 rgba(0, 0, 0, 0.2), 0 12px 40px 0 rgba(0, 0, 0, 0.19)'
+                    this.style.transform = 'scale(1.03)'
+                });
+
+                image.addEventListener('mouseout', function() {
+                    this.style.boxShadow = '0 4px 8px 0 rgba(0, 0, 0, 0.2), 0 6px 20px 0 rgba(0, 0, 0, 0.19)'
+                    this.style.transform = 'scale(1)'
+                });
 
                 image.addEventListener('error', function(wrapURL) {
                     return function() {
@@ -5256,8 +5305,8 @@ function getAreas(){
             var areaOptionTexts = ['All']
             var areaOptionValues = ['0']
             for (var i=0;i<areas.length;i++) {
-                areaOptionTexts.push(areas[i].name)
-                areaOptionValues.push(areas[i].id)
+                areaOptionTexts.push(areas[i])
+                areaOptionValues.push(areas[i])
             }
             fillSelect(areaSelect,areaOptionTexts,areaOptionValues)
 

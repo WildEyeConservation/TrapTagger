@@ -423,7 +423,8 @@ def fetch_clusters(taggingLevel,task_id,isBounding,trapgroup_id,limit=None,id=No
                             'tag_ids': [],
                             'groundTruth': [],
                             'trapGroup': 'None',
-                            'notes': row[2]
+                            'notes': row[2],
+                            'name': row[0].name
                         }
 
                     # Handle images
@@ -1507,6 +1508,9 @@ def translate_cluster_for_client(clusterInfo,reqId,limit,isBounding,taggingLevel
                 cluster_dict['site_tag'] = clusterInfo[cluster_id]['site_tag']
                 cluster_dict['latitude'] = clusterInfo[cluster_id]['latitude']
                 cluster_dict['longitude'] = clusterInfo[cluster_id]['longitude']
+
+            if '-5' in taggingLevel:
+                cluster_dict['name'] = clusterInfo[cluster_id]['name']
 
             if (('-3' in taggingLevel) or ('-8' in taggingLevel)) and (len(classification)==0):
                 cluster = db.session.query(Cluster).get(cluster_id)

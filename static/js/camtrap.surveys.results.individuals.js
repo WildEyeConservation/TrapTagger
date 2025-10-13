@@ -124,6 +124,20 @@ function getIndividuals(page = null) {
                 image.src = "https://"+bucketName+".s3.amazonaws.com/" + modifyToCropURL(newIndividual.url, newIndividual.detection.id)
                 col.appendChild(image)
 
+                image.style.cursor = 'pointer'
+                image.style.boxShadow = '0 4px 8px 0 rgba(0, 0, 0, 0.2), 0 6px 20px 0 rgba(0, 0, 0, 0.19)'
+                image.style.borderRadius = '4px'
+
+                image.addEventListener('mouseover', function() {
+                    this.style.boxShadow = '0 8px 16px 0 rgba(0, 0, 0, 0.2), 0 12px 40px 0 rgba(0, 0, 0, 0.19)'
+                    this.style.transform = 'scale(1.03)'
+                });
+
+                image.addEventListener('mouseout', function() {
+                    this.style.boxShadow = '0 4px 8px 0 rgba(0, 0, 0, 0.2), 0 6px 20px 0 rgba(0, 0, 0, 0.19)'
+                    this.style.transform = 'scale(1)'
+                });
+
                 image.addEventListener('error', function(wrapURL) {
                     return function() {
                         this.src = "https://"+bucketName+".s3.amazonaws.com/" + modifyToCompURL(wrapURL)

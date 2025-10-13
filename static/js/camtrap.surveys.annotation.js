@@ -17,6 +17,7 @@ var taskCompletionStatus = 'False'
 var speciesDisabled = {}
 var independentDisabled = {}
 var areaDisabled = null 
+var noArea = null
 
 launchMTurkTaskBtn.addEventListener('click', ()=>{
     /** Event listener for the launch-task button. Submits all info to the server after doing the necessary checks. */
@@ -38,17 +39,34 @@ launchMTurkTaskBtn.addEventListener('click', ()=>{
         }
     }
     else if (tabActiveLaunch == 'baseIndividualTab') {
-        confirmRestore = true
-        modalLaunchTask.modal('hide')
-        // document.getElementById('modalConfirmBodyRestore').innerHTML = '<p>Individual identification jobs require the restoration of the raw images of your chosen species from our archival storage for both processing and viewing purposes. This process will take 48 hours to complete. Thereafter, you will have 30 days to complete the identification job before the raw images are returned to archival storage. However, if you are still actively working on it at the end of this period, it will be automatically extended to allow you to finish.<br><br>Would you like to proceed?</p>'
-        document.getElementById('modalConfirmBodyRestore').innerHTML = '<p>Individual identification jobs require the restoration of the raw images of your chosen species from our archival storage for both processing and viewing purposes. This process will take 48 hours to complete. Thereafter, the raw images will be permanently returned to standard storage so that you can have immediate access to the raw images when working with your individuals.<br><br>Would you like to proceed?</p>'
-        btnConfirmRestore.disabled = false
-        modalConfirmRestore.modal({keyboard: true})
+        var idcheck = true 
+        if (noArea=='true'){
+            idcheck = false
+            document.getElementById('launchErrors').innerHTML = 'Individual Identification requires the survey to have an area defined. Please define an area for the survey before launching.'
+        } else{
+            if (!(document.getElementById('hotspotter').checked || document.getElementById('heuristic').checked)) {
+                idcheck = false
+                document.getElementById('launchErrors').innerHTML = 'Please select an algorithm. '
+            }
+            if (!(document.getElementById('independentID').checked || document.getElementById('areaID').checked)) {
+                idcheck = false
+                document.getElementById('launchErrors').innerHTML += 'Please select an individual library option. '
+            }
+        }
 
-        removeRestoreEventListeners()
+        if (idcheck) {
+            confirmRestore = true
+            modalLaunchTask.modal('hide')
+            // document.getElementById('modalConfirmBodyRestore').innerHTML = '<p>Individual identification jobs require the restoration of the raw images of your chosen species from our archival storage for both processing and viewing purposes. This process will take 48 hours to complete. Thereafter, you will have 30 days to complete the identification job before the raw images are returned to archival storage. However, if you are still actively working on it at the end of this period, it will be automatically extended to allow you to finish.<br><br>Would you like to proceed?</p>'
+            document.getElementById('modalConfirmBodyRestore').innerHTML = '<p>Individual identification jobs require the restoration of the raw images of your chosen species from our archival storage for both processing and viewing purposes. This process will take 48 hours to complete. Thereafter, the raw images will be permanently returned to standard storage so that you can have immediate access to the raw images when working with your individuals.<br><br>Would you like to proceed?</p>'
+            btnConfirmRestore.disabled = false
+            modalConfirmRestore.modal({keyboard: true})
 
-        btnConfirmRestore.addEventListener('click', confirmRestoreLaunch);
-        btnCancelRestore.addEventListener('click', cancelRestoreLaunch);
+            removeRestoreEventListeners()
+
+            btnConfirmRestore.addEventListener('click', confirmRestoreLaunch);
+            btnCancelRestore.addEventListener('click', cancelRestoreLaunch);
+        }
     }
     else{
         launchTask()
@@ -123,6 +141,7 @@ function launchTask(){
             taskTaggingLevel += ',n'
         } else {
             allow = false
+            document.getElementById('launchErrors').innerHTML = 'Please select an algorithm.'
         }
         var independentID = document.getElementById('independentID')
         var areaID = document.getElementById('areaID')
@@ -141,6 +160,7 @@ function launchTask(){
             selectedTasks = [...new Set(selectedTasks)] // Remove duplicates
         } else{
             allow = false
+            document.getElementById('launchErrors').innerHTML = 'Please select an individual library option.'
         }
     }
 
@@ -566,6 +586,7 @@ function resetLaunchTaskPage() {
     document.getElementById('openInfoTab').disabled = true
     document.getElementById('openSpeciesLabellingTab').disabled = false
     document.getElementById('openEmptyTab').disabled = true
+    document.getElementById('launchErrors').innerHTML = ''
     // document.getElementById('openMaskedTab').disabled = true
     clearSelect(document.getElementById('taskTaggingLevel'))
 
@@ -878,7 +899,7 @@ function openIndividualID() {
         document.getElementById('openEmptyTab').disabled = true
         // document.getElementById('openMaskedTab').disabled = true
 
-        document.getElementById('annotationDescription').innerHTML = "<i>Identify specific individuals for a chosen individual. Begin by identifying individuals on a cluster-by-cluster basis to try combine multiple viewing angles. Then identify individuals across different clusters based on suggested matches. It is recommended that you correct your sightings (boxes) for your species of interest before beginning this process/</i>"
+        document.getElementById('annotationDescription').innerHTML = "<i>Identify specific individuals for a chosen individual. Begin by identifying individuals on a cluster-by-cluster basis to try combine multiple viewing angles. Then identify individuals across different clusters based on suggested matches. It is recommended that you correct your sightings (boxes) for your species of interest before beginning this process. Note that individual identification requires the survey to have an area defined.</i>"
         clearSelect(document.getElementById('taskTaggingLevel'))
         var xhttp = new XMLHttpRequest();
         xhttp.open("GET", '/getTaggingLevelsbyTask/'+selectedTask+'/individualID');
@@ -891,12 +912,18 @@ function openIndividualID() {
                 speciesDisabled = reply.disabled.icID
                 independentDisabled = reply.disabled.indID
                 areaDisabled = reply.disabled.areaID
+                noArea = reply.disabled.noArea
 
                 // if (speciesDisabled[document.getElementById('taskTaggingLevel').options[document.getElementById('taskTaggingLevel').selectedIndex].text] == 'true') {
                 //     document.getElementById('idStage').disabled = true
                 // } else {
                 //     document.getElementById('idStage').disabled = false
                 // }
+                if (noArea=='true'){
+                    document.getElementById('launchErrors').innerHTML = 'Individual Identification requires the survey to have an area defined. Please define an area for the survey before launching.'
+                } else {
+                    document.getElementById('launchErrors').innerHTML = ''
+                }
 
                 if (independentDisabled[document.getElementById('taskTaggingLevel').options[document.getElementById('taskTaggingLevel').selectedIndex].text] == 'true') {
                     document.getElementById('independentID').disabled = true

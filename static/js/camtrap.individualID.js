@@ -401,6 +401,11 @@ function getSuggestions(prevID = null) {
                             if (!('map2' in clusterPosition)) {
                                 clusterPosition["map2"] = document.getElementById('clusterPositionSplide2')
                             }
+
+                            update('map2')
+                            goToMax()
+                            updateKpts()
+
                             if (document.getElementById('allFlank')!=null) {
                                 let all_flanks = new Set()
                                 for (let i=0;i<clusters['map2'][clusterIndex['map2']].images.length;i++) {
@@ -411,9 +416,6 @@ function getSuggestions(prevID = null) {
                                 clusters['map2'][clusterIndex['map2']].all_flanks = Array.from(all_flanks)
                                 updateFlankButtons()
                             }
-                            update('map2')
-                            goToMax()
-                            updateKpts()
                             
                             individualDistance = document.getElementById('individualDistance')
                             if (individualDistance != null) {
@@ -556,6 +558,13 @@ function loadNewCluster(mapID = 'map1') {
                                                 }
                                                 
                                                 if (clusters[wrapMapID].length-1 == clusterIndex[wrapMapID]){
+              
+                                                    update(wrapMapID)
+    
+                                                    if ((mapID == 'map1')&&(mapdiv2 != null)) {
+                                                        getSuggestions()
+                                                    }
+
                                                     if (document.getElementById('allFlank')!=null) {
                                                         let all_flanks = new Set()
                                                         for (let i=0;i<clusters[wrapMapID][clusterIndex[wrapMapID]].images.length;i++) {
@@ -565,11 +574,6 @@ function loadNewCluster(mapID = 'map1') {
                                                         }
                                                         clusters[wrapMapID][clusterIndex[wrapMapID]].all_flanks = Array.from(all_flanks)
                                                         updateFlankButtons()
-                                                    }
-                                                    update(wrapMapID)
-    
-                                                    if ((mapID == 'map1')&&(mapdiv2 != null)) {
-                                                        getSuggestions()
                                                     }
                                         
                                                     if (document.getElementById('btnSendToBack')!=null) {
@@ -614,7 +618,7 @@ function nextIndividual() {
     nextCluster()
 }
 
-function idKeys(key) {
+function idKeys(key, location=null) {
     /** Sets up the hotkeys for the individual ID tasks. */
     if (document.getElementById('btnSendToBack')!=null) {
         if (modalNewIndividual.is(':visible')) {
@@ -683,8 +687,10 @@ function idKeys(key) {
         if ((leftPanel.style.display == 'block' || rightPanel.style.display == 'block')&&blockHotkeys) {
             // allow for typing
         } else {
-            closeLeftSidePanel()
-            closeRightSidePanel()
+            if (key!='shift'){
+                closeLeftSidePanel()
+                closeRightSidePanel()
+            }
             switch (key){
                 case 'arrowleft': prevImage('map2')
                     break;
@@ -710,13 +716,25 @@ function idKeys(key) {
                     break;
                 case 'h': document.getElementById('cxFeaturesHeatmap').click()
                     break;
-                case '0': updateFlanks('all', true)
+                case '1': updateFlanks('all', true)
                     break;
-                case '1': updateFlanks('left', true)
+                case '2': updateFlanks('left', true)
                     break;
-                case '2': updateFlanks('right', true)
+                case '3': updateFlanks('right', true)
                     break;
-                case '3': updateFlanks('ambiguous', true)
+                case '4': updateFlanks('ambiguous', true)
+                    break;
+                case 'shift': 
+                    if (location != null && location == 1 && leftPanel.style.display != 'block') {
+                        openLeftSidePanel()
+                    } else if (location != null && location == 2 && rightPanel.style.display != 'block') {
+                        openRightSidePanel()
+                    }
+                    break;
+                case 'enter':
+                    if (modalNextIndividual.is(':visible') && modalActive == true) {
+                        nextIndividual()
+                    }
                     break;
             }
         }
@@ -2222,6 +2240,20 @@ function getKnownIndividuals(page = null){
                 image.src = "https://"+bucketName+".s3.amazonaws.com/" + modifyToCropURL(newIndividual.url, newIndividual.detection.id)
                 col.appendChild(image)
 
+                image.style.cursor = 'pointer'
+                image.style.boxShadow = '0 4px 8px 0 rgba(0, 0, 0, 0.2), 0 6px 20px 0 rgba(0, 0, 0, 0.19)'
+                image.style.borderRadius = '4px'
+
+                image.addEventListener('mouseover', function() {
+                    this.style.boxShadow = '0 8px 16px 0 rgba(0, 0, 0, 0.2), 0 12px 40px 0 rgba(0, 0, 0, 0.19)'
+                    this.style.transform = 'scale(1.03)'
+                });
+
+                image.addEventListener('mouseout', function() {
+                    this.style.boxShadow = '0 4px 8px 0 rgba(0, 0, 0, 0.2), 0 6px 20px 0 rgba(0, 0, 0, 0.19)'
+                    this.style.transform = 'scale(1)'
+                });
+
                 image.addEventListener('error', function(wrapURL) {
                     return function() {
                         this.src = "https://"+bucketName+".s3.amazonaws.com/" + modifyToCompURL(wrapURL)
@@ -3041,10 +3073,18 @@ function populatePanel(panel,individual_id){
                                     window.location.replace(JSON.parse(this.responseText)['redirect'])
                                 } else if (this.readyState == 4 && this.status == 200) {
                                     reply = JSON.parse(this.responseText);
-                                    console.log(reply)
+                                    // console.log(reply)
                                     if (reply.name!=null){
                                         document.getElementById(wrpPanel+'NameInput').value = reply.name
                                         individualData[wrpPanel].name = reply.name
+                                        if (wrpPanel == 'left'){
+                                            clusters['map1'][clusterIndex['map1']].name = reply.name
+                                            document.getElementById('idName1').innerHTML = 'Current Individual: '+reply.name
+                                        }
+                                        else if (wrpPanel == 'right'){
+                                            clusters['map2'][clusterIndex['map2']].name = reply.name
+                                            document.getElementById('idName2').innerHTML = 'Current Individual: '+reply.name
+                                        }
                                     }
                                     else{
                                         document.getElementById(wrpPanel+'NameInput').value = infoName
@@ -3341,6 +3381,7 @@ function populatePanel(panel,individual_id){
                 label.setAttribute('for',panel+'Cbx_'+tag)
                 label.innerHTML = tag
                 label.setAttribute('style','font-size: 100%;')
+                label.style.cursor = 'pointer'
                 checkDiv.appendChild(label)
 
                 input.addEventListener('change', function(wrpPanel,indivID,tagName){
@@ -3370,19 +3411,32 @@ function populatePanel(panel,individual_id){
             }
 
             var info10 = document.createElement('div')
-            info10.setAttribute('style','margin-top: 3px;')
-            // info10.innerHTML = 'Left Flank Features:'
-            info10.innerHTML = 'Primary Left Flank Image with Features:'
+            info10.setAttribute('style','margin-top: 3px; margin-bottom: 3px;')
+            info10.innerHTML = 'Primary Left Flank:'
             panelInfo.appendChild(info10)
 
             // Best Left Flank Image with features (if any image or features exist)
             if (info.best_dets && info.best_dets.L && info.best_dets.L.length > 0) {
                 var center = document.createElement('center')
                 panelInfo.appendChild(center)
+
+                var leftParentDiv = document.createElement('div')
+                leftParentDiv.setAttribute('style','display: inline-block; position: relative; overflow: hidden;')
+                leftParentDiv.style.cursor = 'pointer'
+                leftParentDiv.style.borderRadius = '4px'
+                leftParentDiv.style.boxShadow = '0 4px 8px 0 rgba(0, 0, 0, 0.2), 0 6px 20px 0 rgba(0, 0, 0, 0.19)'
+                center.appendChild(leftParentDiv)
+
+                leftParentDiv.addEventListener('mouseover', function() {
+                    this.style.boxShadow = '0 8px 16px 0 rgba(0, 0, 0, 0.3), 0 12px 40px 0 rgba(0, 0, 0, 0.25)'
+                });
+                leftParentDiv.addEventListener('mouseout', function() {
+                    this.style.boxShadow = '0 4px 8px 0 rgba(0, 0, 0, 0.2), 0 6px 20px 0 rgba(0, 0, 0, 0.19)'
+                });
                 
                 var leftFlankDiv = document.createElement('div')
                 leftFlankDiv.setAttribute('id',panel+'LeftFlankDiv')
-                center.appendChild(leftFlankDiv)
+                leftParentDiv.appendChild(leftFlankDiv)
 
                 best_left_det = info.best_dets.L[0]
 
@@ -3421,9 +3475,8 @@ function populatePanel(panel,individual_id){
             
 
             var info11 = document.createElement('div')
-            info11.setAttribute('style','margin-top: 3px;')
-            // info11.innerHTML = 'Right Flank Features:'
-            info11.innerHTML = 'Primary Right Flank Image with Features:'
+            info11.setAttribute('style','margin-top: 3px; margin-bottom: 3px;')
+            info11.innerHTML = 'Primary Right Flank:'
             panelInfo.appendChild(info11)
 
             // Best Right Flank Image with features (if any image or features exist)
@@ -3431,9 +3484,23 @@ function populatePanel(panel,individual_id){
                 var center = document.createElement('center')
                 panelInfo.appendChild(center)
 
+                var rightParentDiv = document.createElement('div')
+                rightParentDiv.setAttribute('style','display: inline-block; position: relative; overflow: hidden;')
+                rightParentDiv.style.borderRadius = '4px'
+                rightParentDiv.style.cursor = 'pointer'
+                rightParentDiv.style.boxShadow = '0 4px 8px 0 rgba(0, 0, 0, 0.2), 0 6px 20px 0 rgba(0, 0, 0, 0.19)'
+                center.appendChild(rightParentDiv)
+
+                rightParentDiv.addEventListener('mouseover', function() {
+                    this.style.boxShadow = '0 8px 16px 0 rgba(0, 0, 0, 0.3), 0 12px 40px 0 rgba(0, 0, 0, 0.25)'
+                });
+                rightParentDiv.addEventListener('mouseout', function() {
+                    this.style.boxShadow = '0 4px 8px 0 rgba(0, 0, 0, 0.2), 0 6px 20px 0 rgba(0, 0, 0, 0.19)'
+                });
+
                 var rightFlankDiv = document.createElement('div')
                 rightFlankDiv.setAttribute('id',panel+'RightFlankDiv')
-                center.appendChild(rightFlankDiv)
+                rightParentDiv.appendChild(rightFlankDiv)
 
                 best_right_det = info.best_dets.R[0]
 
@@ -4219,6 +4286,7 @@ $('#autoGenerateNameRb').on('change', function (){
 
 $('#allFlank').on('change', function (){
     /** Updates the flank images when the flank selection is changed. */
+    this.blur();
     if (this.checked) {
         updateFlanks('all')
     }
@@ -4226,6 +4294,7 @@ $('#allFlank').on('change', function (){
 
 $('#leftFlank').on('change', function (){
     /** Updates the flank images when the flank selection is changed. */
+    this.blur();
     if (this.checked) {
         updateFlanks('left')
     }
@@ -4233,6 +4302,7 @@ $('#leftFlank').on('change', function (){
 
 $('#rightFlank').on('change', function (){
     /** Updates the flank images when the flank selection is changed. */
+    this.blur();
     if (this.checked) {
         updateFlanks('right')
     }
@@ -4240,6 +4310,7 @@ $('#rightFlank').on('change', function (){
 
 $('#ambiguousFlank').on('change', function (){
     /** Updates the flank images when the flank selection is changed. */
+    this.blur();
     if (this.checked) {
         updateFlanks('ambiguous')
     }

@@ -960,8 +960,17 @@ function updateCanvas(mapID = 'map1') {
                         }
                     }
                     else if (isIDing && document.getElementById('btnSendToBack')==null) {
-                        activeImage[mapID].setUrl("https://"+bucketName+".s3.amazonaws.com/" + image.url)
-                        fullRes[mapID] = true
+                        // activeImage[mapID].setUrl("https://"+bucketName+".s3.amazonaws.com/" + image.url)
+                        // fullRes[mapID] = true
+                        possible_urls = ['https://'+bucketName+'.s3.amazonaws.com/'+image.url, 'https://'+bucketName+'.s3.amazonaws.com/'+modifyToCompURL(image.url)]
+                        let currentActive = activeImage[mapID]._url
+                        if (currentActive != null && !possible_urls.includes(currentActive)) {
+                            fullRes[mapID] = false
+                            activeImage[mapID].setUrl("https://"+bucketName+".s3.amazonaws.com/" + modifyToCompURL(image.url))
+                        } else if (currentActive == null) {
+                            fullRes[mapID] = true
+                            activeImage[mapID].setUrl("https://"+bucketName+".s3.amazonaws.com/" + image.url)
+                        }
                     }
                     else{
                         activeImage[mapID].setUrl("https://"+bucketName+".s3.amazonaws.com/" + modifyToCompURL(image.url))
@@ -1066,6 +1075,12 @@ function updateCanvas(mapID = 'map1') {
                         else {
                             heatmapDiv.hidden = true
                         }
+                    }
+                    if(mapID=='map1'){
+                        document.getElementById('idName1').innerHTML = 'Current Individual: '+clusters[mapID][clusterIndex[mapID]].name
+                    }
+                    else if(mapID=='map2'){
+                        document.getElementById('idName2').innerHTML = 'Suggested Match: '+clusters[mapID][clusterIndex[mapID]].name
                     }
                 }
                 
@@ -3722,7 +3737,11 @@ document.onkeyup = function(event){
     }
 
     if (isIDing) {
-        idKeys(event.key.toLowerCase())
+        let loc = null
+        if (event.key.toLowerCase() == 'shift') {
+            loc = event.location
+        }
+        idKeys(event.key.toLowerCase(), loc)
     } else if (isTagging||isReviewing) {
         // console.log(event)
         if (((typeof modalNote == 'undefined') || (!modalNote.is(':visible'))) && !isNoteActive && !isDateActive) {

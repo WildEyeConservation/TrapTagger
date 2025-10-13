@@ -289,18 +289,18 @@ function updatePolarErrors() {
 
             if(selectedTask){
                 var tasks = [selectedTask]
-                var area_id = null
+                var area = null
             }else{
                 var tasks = getSelectedTasks()
-                var area_id = document.getElementById('areaSelect').value
+                var area = document.getElementById('areaSelect').value
             }
 
             if (tasks != '-1') {
                 var formData = new FormData()
                 formData.append("task_ids", JSON.stringify(tasks))
                 formData.append("species", JSON.stringify(species))
-                if (area_id!=null || area_id!= '' || area_id!='0'){
-                    formData.append('area_id', JSON.stringify(area_id))
+                if (area!=null || area!= '' || area!='0'){
+                    formData.append('area', JSON.stringify(area))
                 }
     
                 var xhttp = new XMLHttpRequest();
@@ -337,18 +337,18 @@ function updateBarErrors() {
             species = speciesSelector.options[speciesSelector.selectedIndex].text
             if(selectedTask){
                 var tasks = [selectedTask]
-                var area_id = null
+                var area = null
             }else{
                 var tasks = getSelectedTasks()
-                var area_id = document.getElementById('areaSelect').value
+                var area = document.getElementById('areaSelect').value
             }
 
             if (tasks != '-1') {
                 var formData = new FormData()
                 formData.append("task_ids", JSON.stringify(tasks))
                 formData.append("species", JSON.stringify(species))
-                if (area_id!=null || area_id!= '' || area_id!='0'){
-                    formData.append('area_id', JSON.stringify(area_id))
+                if (area!=null || area!= '' || area!='0'){
+                    formData.append('area', JSON.stringify(area))
                 }
 
                 var xhttp = new XMLHttpRequest();
@@ -398,7 +398,7 @@ function updatePolarData(IDNum) {
 
     if(selectedTask){
         var tasks = [selectedTask]
-        var area_id = null
+        var area = null
     }else{
         var tasks = getSelectedTasks()
         var normliseBySite = document.getElementById('normaliseBySiteEffort').checked
@@ -408,7 +408,7 @@ function updatePolarData(IDNum) {
         else {
             normliseBySite = '0'
         }
-        var area_id = document.getElementById('areaSelect').value
+        var area = document.getElementById('areaSelect').value
     }
 
     if (species == 'All') {
@@ -463,8 +463,8 @@ function updatePolarData(IDNum) {
         formData.append('endDate', JSON.stringify(endDate));
         formData.append('group', JSON.stringify(group));
 
-        if (area_id!=null || area_id!= '' || area_id!='0'){
-            formData.append('area_id', JSON.stringify(area_id))
+        if (area!=null || area!= '' || area!='0'){
+            formData.append('area', JSON.stringify(area))
         }
 
         if (baseUnitSelection == '4'){
@@ -612,7 +612,7 @@ function updateBarData(IDNum) {
 
     if(selectedTask){
         var tasks = [selectedTask]
-        var area_id = null
+        var area = null
     }else{
         var tasks = getSelectedTasks()
         var selectedSites = getSelectedSites()
@@ -625,7 +625,7 @@ function updateBarData(IDNum) {
         else {
             normaliseBySite = '0'
         }
-        var area_id = document.getElementById('areaSelect').value
+        var area = document.getElementById('areaSelect').value
     }
 
     if(species == 'All'){
@@ -645,8 +645,8 @@ function updateBarData(IDNum) {
         formData.append('normaliseBySite', JSON.stringify(normaliseBySite));
     }
 
-    if (area_id!=null || area_id!= '' || area_id!='0'){
-        formData.append('area_id', JSON.stringify(area_id))
+    if (area!=null || area!= '' || area!='0'){
+        formData.append('area', JSON.stringify(area))
     }
 
     if (baseUnitSelection == '4'){
@@ -785,18 +785,18 @@ function updateBaseUnitPolar() {
 
             if(selectedTask){
                 var tasks = [selectedTask]
-                var area_id = null
+                var area = null
             }else{
                 var tasks = getSelectedTasks()
-                var area_id = document.getElementById('areaSelect').value
+                var area = document.getElementById('areaSelect').value
             }
 
             if (tasks != '-1') {
                 var formData = new FormData()
                 formData.append("task_ids", JSON.stringify(tasks))
                 formData.append("species", JSON.stringify(species))
-                if (area_id!=null || area_id!= '' || area_id!='0'){
-                    formData.append('area_id', JSON.stringify(area_id))
+                if (area!=null || area!= '' || area!='0'){
+                    formData.append('area', JSON.stringify(area))
                 }
 
                 var xhttp = new XMLHttpRequest();
@@ -830,17 +830,17 @@ function updateBaseUnitBar() {
             species = speciesSelector.options[speciesSelector.selectedIndex].text
             if(selectedTask){
                 var tasks = [selectedTask]
-                var area_id = null
+                var area = null
             }else{
                 var tasks = getSelectedTasks()
-                var area_id = document.getElementById('areaSelect').value
+                var area = document.getElementById('areaSelect').value
             }
             if (tasks != '-1') {
                 var formData = new FormData()
                 formData.append("task_ids", JSON.stringify(tasks))
                 formData.append("species", JSON.stringify(species))
-                if (area_id!=null || area_id!= '' || area_id!='0'){
-                    formData.append('area_id', JSON.stringify(area_id))
+                if (area!=null || area!= '' || area!='0'){
+                    formData.append('area', JSON.stringify(area))
                 }
 
                 var xhttp = new XMLHttpRequest();
@@ -967,7 +967,7 @@ function updateHeatMap() {
 
     if(selectedTask){
         var tasks = [selectedTask]
-        var area_id = null
+        var area = null
     }else{
         var tasks = getSelectedTasks()
         var selectedSites = getSelectedSites()
@@ -980,7 +980,7 @@ function updateHeatMap() {
         else {
             normaliseBySite = '0'
         }
-        var area_id = document.getElementById('areaSelect').value
+        var area = document.getElementById('areaSelect').value
     }
 
     if(species == 'All'){
@@ -994,8 +994,8 @@ function updateHeatMap() {
             var formData = new FormData()
             formData.append("task_ids", JSON.stringify(tasks))
             formData.append("species", JSON.stringify(species))
-            if (area_id!=null || area_id!= '' || area_id!='0'){
-                formData.append('area_id', JSON.stringify(area_id))
+            if (area!=null || area!= '' || area!='0'){
+                formData.append('area', JSON.stringify(area))
             }
 
             var xhttp = new XMLHttpRequest();
@@ -1042,8 +1042,8 @@ function updateHeatMap() {
                 formData.append('normaliseBySite', JSON.stringify(normaliseBySite));
             }
 
-            if (area_id!=null || area_id!= '' || area_id!='0'){
-                formData.append('area_id', JSON.stringify(area_id))
+            if (area!=null || area!= '' || area!='0'){
+                formData.append('area', JSON.stringify(area))
             }
 
             if (baseUnit == '4'){
@@ -1212,7 +1212,7 @@ function updateLineData(IDNum){
 
     if(selectedTask){
         var tasks = [selectedTask]
-        var area_id = null
+        var area = null
     }else{
         var tasks = getSelectedTasks()
         var normliseBySite = document.getElementById('normaliseBySiteEffort').checked
@@ -1222,7 +1222,7 @@ function updateLineData(IDNum){
         else {
             normliseBySite = '0'
         }
-        var area_id = document.getElementById('areaSelect').value
+        var area = document.getElementById('areaSelect').value
     }
 
     if (species == 'All') {
@@ -1275,8 +1275,8 @@ function updateLineData(IDNum){
     formData.append('endDate', JSON.stringify(endDate));
     formData.append('group', JSON.stringify(group));
 
-    if (area_id!=null || area_id!= '' || area_id!='0'){
-        formData.append('area_id', JSON.stringify(area_id))
+    if (area!=null || area!= '' || area!='0'){
+        formData.append('area', JSON.stringify(area))
     }
 
     if (baseUnitSelection == '4'){
@@ -1465,18 +1465,18 @@ function updateLineErrors() {
 
             if(selectedTask){
                 var tasks = [selectedTask]
-                var area_id = null
+                var area = null
             }else{
                 var tasks = getSelectedTasks()
-                var area_id = document.getElementById('areaSelect').value
+                var area = document.getElementById('areaSelect').value
             }
 
             if (tasks != '-1') {
                 var formData = new FormData()
                 formData.append("task_ids", JSON.stringify(tasks))
                 formData.append("species", JSON.stringify(species))
-                if (area_id!=null || area_id!= '' || area_id!='0'){
-                    formData.append('area_id', JSON.stringify(area_id))
+                if (area!=null || area!= '' || area!='0'){
+                    formData.append('area', JSON.stringify(area))
                 }
 
                 var xhttp = new XMLHttpRequest();
@@ -1511,18 +1511,18 @@ function updateBaseUnitLine() {
 
             if(selectedTask){
                 var tasks = [selectedTask]
-                var area_id = null
+                var area = null
             }else{
                 var tasks = getSelectedTasks()
-                var area_id = document.getElementById('areaSelect').value
+                var area = document.getElementById('areaSelect').value
             }
 
             if (tasks != '-1') {
                 var formData = new FormData()
                 formData.append("task_ids", JSON.stringify(tasks))
                 formData.append("species", JSON.stringify(species))
-                if (area_id!=null || area_id!= '' || area_id!='0'){
-                    formData.append('area_id', JSON.stringify(area_id))
+                if (area!=null || area!= '' || area!='0'){
+                    formData.append('area', JSON.stringify(area))
                 }
 
                 var xhttp = new XMLHttpRequest();
