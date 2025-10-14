@@ -82,6 +82,9 @@ def lambda_handler(event, context):
                 video_fps = video.get(cv2.CAP_PROP_FPS)
                 video_frames = video.get(cv2.CAP_PROP_FRAME_COUNT)
                 fps = get_still_rate(video_fps,video_frames)
+                # Update video still_rate (fps) in database
+                update_query = 'UPDATE video SET still_rate = %s WHERE camera_id = %s'
+                cursor.execute(update_query, (fps, camera_id))
                 ret, frame = video.read()
                 count = 0
                 count_frame = 0
