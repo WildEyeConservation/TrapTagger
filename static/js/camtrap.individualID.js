@@ -725,10 +725,20 @@ function idKeys(key, location=null) {
                 case '4': updateFlanks('ambiguous', true)
                     break;
                 case 'shift': 
-                    if (location != null && location == 1 && leftPanel.style.display != 'block') {
-                        openLeftSidePanel()
-                    } else if (location != null && location == 2 && rightPanel.style.display != 'block') {
-                        openRightSidePanel()
+                    if (!shiftHeld) {
+                        if (location != null && location == 1) {
+                            if (leftPanel.style.display != 'block') {
+                                openLeftSidePanel()
+                            } else {
+                                closeLeftSidePanel()
+                            }
+                        } else if (location != null && location == 2) {
+                            if (rightPanel.style.display != 'block') {
+                                openRightSidePanel()
+                            } else {
+                                closeRightSidePanel()
+                            }
+                        }
                     }
                     break;
                 case 'enter':

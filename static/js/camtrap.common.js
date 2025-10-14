@@ -79,6 +79,7 @@ var idIndiv101 = false
 var isMaskCheck = false
 var isTimestampCheck
 var ctrlHeld = false
+var shiftHeld = false
 
 const divBtns = document.querySelector('#divBtns');
 const catcounts = document.querySelector('#categorycounts');
@@ -962,14 +963,13 @@ function updateCanvas(mapID = 'map1') {
                     else if (isIDing && document.getElementById('btnSendToBack')==null) {
                         // activeImage[mapID].setUrl("https://"+bucketName+".s3.amazonaws.com/" + image.url)
                         // fullRes[mapID] = true
-                        possible_urls = ['https://'+bucketName+'.s3.amazonaws.com/'+image.url, 'https://'+bucketName+'.s3.amazonaws.com/'+modifyToCompURL(image.url)]
                         let currentActive = activeImage[mapID]._url
-                        if (currentActive != null && !possible_urls.includes(currentActive)) {
-                            fullRes[mapID] = false
-                            activeImage[mapID].setUrl("https://"+bucketName+".s3.amazonaws.com/" + modifyToCompURL(image.url))
-                        } else if (currentActive == null) {
+                        if (currentActive != null && currentActive == "https://"+bucketName+".s3.amazonaws.com/" + image.url) {2
                             fullRes[mapID] = true
                             activeImage[mapID].setUrl("https://"+bucketName+".s3.amazonaws.com/" + image.url)
+                        } else {
+                            fullRes[mapID] = false
+                            activeImage[mapID].setUrl("https://"+bucketName+".s3.amazonaws.com/" + modifyToCompURL(image.url))
                         }
                     }
                     else{
@@ -1076,11 +1076,14 @@ function updateCanvas(mapID = 'map1') {
                             heatmapDiv.hidden = true
                         }
                     }
-                    if(mapID=='map1'){
-                        document.getElementById('idName1').innerHTML = 'Current Individual: '+clusters[mapID][clusterIndex[mapID]].name
-                    }
-                    else if(mapID=='map2'){
-                        document.getElementById('idName2').innerHTML = 'Suggested Match: '+clusters[mapID][clusterIndex[mapID]].name
+
+                    if (document.getElementById('idName1')!=null && document.getElementById('idName2')!=null){
+                        if(mapID=='map1'){
+                            document.getElementById('idName1').innerHTML = 'Current Individual: '+clusters[mapID][clusterIndex[mapID]].name
+                        }
+                        else if(mapID=='map2'){
+                            document.getElementById('idName2').innerHTML = 'Suggested Match: '+clusters[mapID][clusterIndex[mapID]].name
+                        }
                     }
                 }
                 
@@ -3958,6 +3961,11 @@ document.onkeyup = function(event){
         }
     }
     ctrlHeld = false
+    if (event.shiftKey) {
+        shiftHeld = true
+    } else {
+        shiftHeld = false
+    }
 }
 
 document.onkeydown = function(event){
