@@ -3602,6 +3602,8 @@ def import_survey(self,survey_id,preprocess_done=False,live=False,launch_id=None
             return True
 
         survey.images_processing = survey.image_count + survey.video_count 
+        survey.status = 'Importing'
+        db.session.commit()
         
         # Update counts: 
         survey_folder = survey.organisation.folder+'/'+survey.folder+'/%'
@@ -3628,16 +3630,21 @@ def import_survey(self,survey_id,preprocess_done=False,live=False,launch_id=None
                             .distinct().count()
 
         # Update dates
-        date_query = db.session.query(func.min(Image.corrected_timestamp), func.max(Image.corrected_timestamp))\
+        date_query1 = db.session.query(func.min(Image.corrected_timestamp), func.max(Image.corrected_timestamp))\
+                            .join(Camera)\
+                            .join(Trapgroup)\
+                            .filter(Trapgroup.survey_id==survey_id)\
+                            .filter(Image.corrected_timestamp!=None).first()
+        date_query2 = db.session.query(func.min(Image.corrected_timestamp), func.max(Image.corrected_timestamp))\
                             .join(Camera)\
                             .outerjoin(Trapgroup)\
-                            .filter(or_(
-                                Trapgroup.survey_id==survey_id,
-                                and_(Camera.trapgroup_id==None,Camera.path.like(survey_folder))
-                            ))\
+                            .filter(Trapgroup.id==None)\
+                            .filter(Camera.path.like(survey_folder))\
                             .filter(Image.corrected_timestamp!=None).first()
-        survey.start_date = date_query[0] if date_query else None
-        survey.end_date = date_query[1] if date_query else None
+        min_date = min(filter(None, [date_query1[0], date_query2[0]]), default=None)
+        max_date = max(filter(None, [date_query1[1], date_query2[1]]), default=None)
+        survey.start_date = min_date
+        survey.end_date = max_date
 
         db.session.commit()
 

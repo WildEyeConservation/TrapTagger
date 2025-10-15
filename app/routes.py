@@ -4066,8 +4066,8 @@ def getHomeSurveys():
     current_downloads = request.args.get('downloads', '', type=str)
     permission_order = [None, 'worker', 'hidden', 'read', 'write', 'admin']
 
-    siteSQ = db.session.query(Survey.id,func.count(Trapgroup.id).label('count')).join(Trapgroup).group_by(Survey.id).subquery()
-    camsSQ = db.session.query(Survey.id,func.count(distinct(Cameragroup.id)).label('count')).join(Trapgroup).join(Camera).join(Cameragroup,Cameragroup.id==Camera.cameragroup_id).group_by(Survey.id).subquery()
+    # siteSQ = db.session.query(Survey.id,func.count(Trapgroup.id).label('count')).join(Trapgroup).group_by(Survey.id).subquery()
+    # camsSQ = db.session.query(Survey.id,func.count(distinct(Cameragroup.id)).label('count')).join(Trapgroup).join(Camera).join(Cameragroup,Cameragroup.id==Camera.cameragroup_id).group_by(Survey.id).subquery()
     # availableJobsSQ = db.session.query(Task.id,func.count(Turkcode.id).label('count')).join(Turkcode).filter(Turkcode.active==True).group_by(Task.id).subquery()
     completeJobsSQ = db.session.query(Task.id,(func.count(Turkcode.id)-Task.jobs_finished).label('count'))\
                                         .join(Turkcode)\
@@ -4084,9 +4084,9 @@ def getHomeSurveys():
                                 Survey.description,
                                 Survey.image_count,
                                 Survey.video_count,
-                                camsSQ.c.count,
+                                None, #camsSQ.c.count,
                                 Survey.status,
-                                siteSQ.c.count,
+                                None, #siteSQ.c.count,
                                 Task.id,
                                 Task.name,
                                 Task.status,
@@ -4111,8 +4111,6 @@ def getHomeSurveys():
                                 Survey.start_date,
                                 Survey.end_date
                             ).outerjoin(Task,Task.survey_id==Survey.id)\
-                            .outerjoin(siteSQ,siteSQ.c.id==Survey.id)\
-                            .outerjoin(camsSQ,camsSQ.c.id==Survey.id)\
                             .outerjoin(completeJobsSQ,completeJobsSQ.c.id==Task.id)\
                             .outerjoin(Area,Survey.area_id==Area.id)
                             .filter(or_(Task.id==None,~Task.name.contains('_o_l_d_'))),current_user.id,'read', ShareUserPermissions)
@@ -4120,6 +4118,13 @@ def getHomeSurveys():
     # uploading/downloading surveys always need to be on the page
     compulsory_surveys = survey_base_query.filter(Survey.status=='Uploading').all()
     if current_downloads != '': compulsory_surveys.extend(survey_base_query.filter(Survey.id.in_(re.split('[,]',current_downloads))).all())
+
+    if compulsory_surveys:
+        compulsory_ids = set([s[0] for s in compulsory_surveys])
+        site_and_cam_counts = {r[0] : (r[1],r[2]) for r  in  db.session.query(Trapgroup.survey_id, func.count(distinct(Trapgroup.id)).label('site_count'), func.count(distinct(Cameragroup.id)).label('cam_count'))\
+                                .join(Camera, Camera.trapgroup_id==Trapgroup.id)\
+                                .join(Cameragroup, Cameragroup.id==Camera.cameragroup_id)\
+                                .filter(Trapgroup.survey_id.in_(compulsory_ids)).group_by(Trapgroup.survey_id).all()}
 
     # digest survey data
     survey_data = {}
@@ -4132,14 +4137,15 @@ def getHomeSurveys():
             if surveyStatus in ['indprocessing','Preparing Download']:
                 surveyStatus = 'processing'
 
+            sc_count = site_and_cam_counts.get(item[0], (0,0))
             survey_data[item[0]] = {'id': item[0],
                                     'name': item[1], 
                                     'description': item[2], 
                                     'numImages': item[3], 
                                     'numVideos': item[4], 
-                                    'numCams': item[5] if item[5] else 0, 
+                                    'numCams': sc_count[1],
                                     'status': surveyStatus, 
-                                    'numTrapgroups': item[7] if item[7] else 0,
+                                    'numTrapgroups': sc_count[0],
                                     'organisation': item[17],
                                     'area': item[28] if item[28] else 'No Area Defined',
                                     'start_date': item[29].strftime('%Y-%m-%d') if item[29] else 'N/A',
@@ -4283,6 +4289,12 @@ def getHomeSurveys():
     
     if count > 0:
         surveys = survey_base_query.all()
+        if surveys:
+            sids = set([s[0] for s in surveys])
+            site_and_cam_counts = {r[0] : (r[1],r[2]) for r  in  db.session.query(Trapgroup.survey_id, func.count(distinct(Trapgroup.id)).label('site_count'), func.count(distinct(Cameragroup.id)).label('cam_count'))\
+                            .join(Camera, Camera.trapgroup_id==Trapgroup.id)\
+                            .join(Cameragroup, Cameragroup.id==Camera.cameragroup_id)\
+                            .filter(Trapgroup.survey_id.in_(sids)).group_by(Trapgroup.survey_id).all()}
 
         # digest the rest of the data
         survey_data2 = {}
@@ -4295,14 +4307,15 @@ def getHomeSurveys():
                 if surveyStatus in ['indprocessing','Preparing Download']:
                     surveyStatus = 'processing'
 
+                sc_count = site_and_cam_counts.get(item[0], (0,0))
                 survey_data2[item[0]] = {'id': item[0],
                                         'name': item[1], 
                                         'description': item[2], 
                                         'numImages': item[3], 
                                         'numVideos': item[4], 
-                                        'numCams': item[5] if item[5] else 0,
+                                        'numCams': sc_count[1],
                                         'status': surveyStatus, 
-                                        'numTrapgroups': item[7] if item[7] else 0,
+                                        'numTrapgroups': sc_count[0],
                                         'organisation': item[17],
                                         'area': item[28] if item[28] else 'No Area Defined',
                                         'start_date': item[29].strftime('%Y-%m-%d') if item[29] else 'N/A',
