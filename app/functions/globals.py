@@ -671,7 +671,7 @@ def updateIndividualIdStatus(task_id):
     
     labels = db.session.query(Label).filter(Label.task_id==task_id).filter(~Label.children.any()).all()
     task = db.session.query(Task).get(task_id)
-
+    IndividualTask = alias(Task)
     for label in labels:
 
         individualsSQ = db.session.query(Individual)\
@@ -710,6 +710,30 @@ def updateIndividualIdStatus(task_id):
         
         label.icID_count = checkForIdWork([label.task_id],label.description,'-1')
         
+        # Check if multi-task (area id) has been launched - if so independent ID id not be allowed
+        tasks_count = db.session.query(Task.id)\
+                            .join(Individual,Task.individuals)\
+                            .join(IndividualTask,Individual.tasks)\
+                            .filter(Individual.species==label.description)\
+                            .filter(IndividualTask.c.id==task_id)\
+                            .distinct().count()
+        if tasks_count > 1:
+            label.indID_allowed = False 
+        else: 
+            label.indID_allowed = True
+
+
+    # Check if task has had area_id launched
+    area_tasks_count = db.session.query(Task.id)\
+                        .join(Individual,Task.individuals)\
+                        .join(IndividualTask,Individual.tasks)\
+                        .filter(IndividualTask.c.id==task_id)\
+                        .distinct().count()
+    if area_tasks_count > 1:
+        task.areaID_library = True 
+    else:
+        task.areaID_library = False
+
     db.session.commit()
 
     return True
@@ -3785,6 +3809,7 @@ def update_existing_er_report(row,er_api_key,er_object_id):
 
     payload = {
         "recorded_at": row['timestamp'].isoformat(),
+        "title": row['species'].capitalize() + " Detected",
         "location": {
             "lat": row['trapgroup_lat'],
             "lon": row['trapgroup_lon']
@@ -3832,7 +3857,8 @@ def create_new_er_report(row,er_api_key,er_url):
 
     payload = {
         "source": str(row['cluster_id']),
-        "title": "TrapTagger Event",
+        "title": row['species'].capitalize() + " Detected",
+        "event_type": "traptagger_integration",
         "recorded_at": row['timestamp'].isoformat(),
         "location": {
             "lat": row['trapgroup_lat'],
@@ -6523,7 +6549,7 @@ def launch_task(self,task_id,classify=False):
             task.status = 'PENDING'
             task.survey.status = 'Launched'
             for tsk in task.sub_tasks:
-                tsk.status = 'Processing'
+                tsk.status = 'ID Processing'
                 tsk.survey.status = 'Launched'
 
             db.session.commit()
@@ -6587,12 +6613,13 @@ def launch_task(self,task_id,classify=False):
 
                     admin = db.session.query(User).filter(User.username == 'Admin').first()
                     for detection in detections:
-                        newIndividual = Individual( name=generateUniqueName(task_id,label.description,tL[2]),
-                                                    species=species,
+                        newIndividual = Individual( species=species,
                                                     user_id=admin.id,
                                                     timestamp=datetime.utcnow())
 
                         db.session.add(newIndividual)
+                        db.session.flush()
+                        newIndividual.name = str(newIndividual.id)
                         newIndividual.detections = [detection]
                         newIndividual.tasks = [task]
                         newIndividualsAdded = True
@@ -7140,6 +7167,10 @@ def calculate_detection_score(raw_score,top,bottom,left,right,flank,timestamp):
         'aspect_ratio_score': 0.1
     }
 
+    # Check all valid values (not none)
+    if raw_score is None or top is None or bottom is None or left is None or right is None:
+        return 0
+
     # Timestamp score (daylight hours favorable)
     timestamp_score = 1.0 if timestamp and 6 < timestamp.hour < 18 else 0.5
 
@@ -7161,7 +7192,7 @@ def calculate_detection_score(raw_score,top,bottom,left,right,flank,timestamp):
             size_score = size_score * 0.5
 
     # Flank score (ambiguous flank less favorable)
-    flank_score = 0.5 if flank == 'A' else 1.0
+    flank_score = 0.5 if flank and flank == 'A' else 1.0
 
     # Aspect ratio score (favorable aspect ratio)
     width = right - left
@@ -7367,5 +7398,142 @@ def process_multi_labels(task_id,trapgroup_ids=None):
     endtime=datetime.now()
     duration = endtime - starttime
     if Config.DEBUGGING: app.logger.info('Multi labels processed in: {}'.format(duration))
+
+    return True
+
+def update_individuals_primary_dets(task_ids=[],species=None,individual_ids=None):
+    '''Finds the best detection for each individual and sets it as the primary detections.'''
+
+    app.logger.info('Updating primary detections for individuals:')
+    if individual_ids:
+        app.logger.info('Individual IDs: '+str(individual_ids))
+    else:
+        app.logger.info('Task IDs: '+str(task_ids))
+    start = time.time()
+
+    scores = {}
+    user_selected_dets = {}
+
+    data = rDets(db.session.query(
+        Individual,
+        Detection,
+        Image.corrected_timestamp
+    )\
+    .join(Detection,Individual.detections)\
+    .join(Image)\
+    .filter(Individual.name!='unidentifiable')\
+    .filter(Individual.active==True))
+
+    if individual_ids: 
+        data = data.filter(Individual.id.in_(individual_ids))
+    else:
+        data = data.join(Task,Individual.tasks).filter(Task.id.in_(task_ids))
+
+    if species:
+        data = data.filter(Individual.species==species)
+
+    data = data.distinct().all()
+    
+    for individual, det, timestamp in data:
+        raw_score = det.score
+        top = det.top
+        bottom = det.bottom
+        left = det.left
+        right = det.right
+        flank = det.flank
+        nr_features = len(det.features)
+        is_user_selected_primary = individual.primary_selected and det in individual.primary_detections 
+        
+        # Calculate scores
+        if individual not in scores:
+            scores[individual] = {}
+        if flank not in scores[individual]:
+            scores[individual][flank] = {}
+        scores[individual][flank][det] = calculate_detection_score(raw_score,top,bottom,left,right,flank,timestamp)
+
+        # If detection was selected by the user as primary detection, we want the detection to be selected as the best detection
+        if is_user_selected_primary:
+            scores[individual][flank][det] += 100
+            if individual.id not in user_selected_dets:
+                user_selected_dets[individual.id] = []
+            user_selected_dets[individual.id].append(det.id)
+
+        # If the detection has features, we want to give it a higher score
+        if nr_features > 0: scores[individual][flank][det] += (200*nr_features)
+
+    for individual in scores:
+        best_dets = []
+        if scores[individual]:
+            for flank in scores[individual]:
+                if flank != 'A': # we do not want a best detection for the ambiguous flank
+                    if scores[individual][flank]:
+                        best_detection = max(scores[individual][flank], key=scores[individual][flank].get)
+                        if best_detection:
+                            best_dets.append(best_detection)
+        
+        if best_dets: 
+            best_dets = sorted(best_dets, key=lambda x: scores[individual][x.flank][x], reverse=True) #Order the best_dets by score 
+        else: 
+            best_dets = [max(scores[individual]['A'], key=scores[individual]['A'].get)] if 'A' in scores[individual] and scores[individual]['A'] else []
+
+        # Check if the individual will still have user_selected primary detections
+        if individual.primary_selected:
+            selected_dets = user_selected_dets.get(individual.id, [])
+            if not any(det.id in selected_dets for det in best_dets):
+                individual.primary_selected = False
+              
+        individual.primary_detections = best_dets
+
+        
+    db.session.commit()
+
+    app.logger.info('Finished updating primary detections for individuals in '+str(round(time.time()-start,2))+' seconds')
+
+    return True
+
+def update_duplicate_individual_names(area_id):
+    '''Updates the names of individuals in a specific area to ensure uniqueness.'''
+    if not area_id: return True
+
+    dup_names = [r[0] for r in db.session.query(Individual.name)\
+                                .join(Task, Individual.tasks)\
+                                .join(Survey)\
+                                .filter(Survey.area_id==area_id)\
+                                .filter(Individual.name.like('% (%)'))\
+                                .distinct().all()]
+
+    individuals_sq = db.session.query(Individual.id)\
+                                .join(Task,Individual.tasks)\
+                                .join(Survey)\
+                                .filter(Survey.area_id==area_id)\
+                                .filter(Individual.active==True)\
+                                .filter(Individual.name!='unidentifiable')\
+                                .distinct().subquery()
+
+    duplicate_individuals_sq = db.session.query(
+                                    Individual.id,
+                                    Individual.name,
+                                    func.row_number().over(
+                                        partition_by=[Individual.species, Individual.name],
+                                        order_by=Individual.id
+                                    ).label("rn")
+                                )\
+                                .join(individuals_sq, Individual.id == individuals_sq.c.id)\
+                                .subquery()
+
+    duplicate_individuals = db.session.query(Individual,duplicate_individuals_sq.c.rn)\
+                                        .join(duplicate_individuals_sq, Individual.id == duplicate_individuals_sq.c.id)\
+                                        .filter(duplicate_individuals_sq.c.rn > 1)\
+                                        .distinct().all()
+
+    for individual, rn in duplicate_individuals:
+        new_name = f"{individual.name} ({rn})"
+        while new_name in dup_names:
+            rn += 1
+            new_name = f"{individual.name} ({rn})"
+        individual.name = new_name
+        dup_names.append(individual.name)
+    
+    db.session.commit()
 
     return True

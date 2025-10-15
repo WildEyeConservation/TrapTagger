@@ -21,8 +21,8 @@ const btnPrevTasks = document.getElementById('btnPrevTasks');
 const btnNextTasks = document.getElementById('btnNextTasks');
 const modalMergeIndividual = $('#modalMergeIndividual');
 const modalDissociateImage = $('#modalDissociateImage');
-// const modalMergeIndividualLeft = $('#modalMergeIndividualLeft');
-// const modalMergeIndividualRight = $('#modalMergeIndividualRight');
+const modalDiscard = $('#modalDiscard');
+const modalUnidentifiable = $('#modalUnidentifiable');
 
 var modalAlertIndividualsReturn = false
 var individualSplide = null
@@ -62,7 +62,7 @@ var activeImage = null
 var rectOptions = null
 var mapWidth = null
 var mapHeight = null
-// var changed_flanks = {}
+var changed_flanks = {}
 var mergeIndividualsOpened = false
 var mergeMap = {'L': null, 'R': null}
 var mergeActiveImage = {'L': null, 'R': null}
@@ -84,8 +84,30 @@ var selectedIndividual = null
 var selectedIndividualName = null
 var mergeIndividualsFilters = {'task': null, 'mutual': null, 'search': null, 'order': null, 'tags': null, 'page': null}
 var individualBounds = []
+var mergeBounds = []
 var individualCoords = []
 var fullResMerge = {'L': false, 'R': false}
+var individualBestDets = {}
+var imgMaps = {}
+var imgMapsHeight = {}
+var imgMapsWidth = {}
+var imgMapsActiveImage = {}
+var drawnFeatureItems = {}
+var leafletFeatureIDs = {}
+var featureDrawControl = {}
+var editingEnabled = false
+var globalFeatures = {}
+var individualFlankImages = {}
+var flankImageIndex = {'L': 0, 'R': 0 }
+var imgMapsFullRes = {}
+var tabActiveIndiv = 'baseIndivSummaryTab'
+var associationClick = false
+var associationID = null
+var associationName = null
+var unsavedChanges = false
+var convexHullPolygon = null
+var unidentifiableOpen = false
+var individualTasks = []
 
 function getIndividuals(page = null) {
     /** Gets a page of individuals. Gets the first page if none is specified. */
@@ -146,6 +168,7 @@ function getIndividuals(page = null) {
         formData.append("trap_name", JSON.stringify(selectedSite))
         formData.append('start_date', JSON.stringify(selectedStartDate))
         formData.append('end_date', JSON.stringify(selectedEndDate))
+        formData.append("area", JSON.stringify(document.getElementById('areaSelect').value))
 
         request = '/getAllIndividuals'
         if (page != null) {
@@ -207,23 +230,53 @@ function getIndividuals(page = null) {
                     col.classList.add('col-lg-3')
                     row.appendChild(col)
 
-                    var center = document.createElement('center')
-                    col.appendChild(center)
+                    // var center = document.createElement('center')
+                    // col.appendChild(center)
 
-                    let div = document.createElement('div')
-                    div.id = 'indivImageDiv'+i
-                    center.appendChild(div)
+                    // let div = document.createElement('div')
+                    // div.id = 'indivImageDiv'+i
+                    // center.appendChild(div)
     
-                    prepImageMap('indivImageDiv'+i, newIndividual.url, newIndividual.detection, 14.10)
+                    // prepImageMap('indivImageDiv'+i, newIndividual.url, newIndividual.detection, 14.10)
+
+                    image = document.createElement('img')
+                    image.setAttribute('width','100%')
+                    image.src = "https://"+bucketName+".s3.amazonaws.com/" + modifyToCropURL(newIndividual.url, newIndividual.detection.id)
+
+                    image.style.cursor = 'pointer'
+                    image.style.boxShadow = '0 4px 8px 0 rgba(0, 0, 0, 0.2), 0 6px 20px 0 rgba(0, 0, 0, 0.19)'
+                    image.style.borderRadius = '4px'
+
+                    image.addEventListener('mouseover', function() {
+                        this.style.boxShadow = '0 8px 16px 0 rgba(0, 0, 0, 0.2), 0 12px 40px 0 rgba(0, 0, 0, 0.19)'
+                        this.style.transform = 'scale(1.03)'
+                    });
+
+                    image.addEventListener('mouseout', function() {
+                        this.style.boxShadow = '0 4px 8px 0 rgba(0, 0, 0, 0.2), 0 6px 20px 0 rgba(0, 0, 0, 0.19)'
+                        this.style.transform = 'scale(1)'
+                    });
+
+                    col.appendChild(image)
+
+                    image.addEventListener('error', function(wrapURL) {
+                        return function() {
+                            this.src = "https://"+bucketName+".s3.amazonaws.com/" + modifyToCompURL(wrapURL)
+                        }
+                    }(newIndividual.url));
 
                     h5 = document.createElement('h5')
                     h5.setAttribute('align','center')
                     h5.innerHTML = newIndividual.name
                     col.appendChild(h5)
 
-                    div.addEventListener('click', function(individualID,individualName){
+                    image.addEventListener('click', function(individualID,individualName){
                         return function() {
-                            getIndividual(individualID,individualName)
+                            // getIndividual(individualID,individualName)
+                            cleanModalIndividual()
+                            selectedIndividual = individualID
+                            selectedIndividualName = individualName
+                            document.getElementById('openIndivSummary').click()
                         }
                     }(newIndividual.id,newIndividual.name));
 
@@ -326,7 +379,9 @@ function getIndividualInfo(individualID){
 
                 individualBounds = info.bounds
 
-                if (info.access == 'write'){
+                individualBestDets = info.best_dets
+
+                if (individualAccess == 'write'){
                     document.getElementById('newIndividualName').readOnly = false
                     document.getElementById('idNotes').readOnly = false
                     document.getElementById('btnDelIndiv').disabled = false
@@ -340,6 +395,7 @@ function getIndividualInfo(individualID){
                         document.getElementById('btnRemoveImg').disabled = false
                         // document.getElementById('btnMergeImg').disabled = false
                     }
+                    document.getElementById('btnIndivUnidentifiable').disabled = false
                 }
                 else{
                     document.getElementById('newIndividualName').readOnly = true
@@ -350,11 +406,13 @@ function getIndividualInfo(individualID){
                     document.getElementById('btnSubmitInfoChange').disabled = true
                     // document.getElementById('btnMergeImg').disabled = true
                     document.getElementById('btnMergeIndiv').disabled = true
+                    document.getElementById('btnIndivUnidentifiable').disabled = true
                 }
 
             }
 
-            initialiseStats()
+            // initialiseStats()
+            // initFeatureMaps()
         }
     }
     xhttp.open("GET", '/getIndividualInfo/'+individualID);
@@ -428,16 +486,29 @@ function getIndividual(individualID, individualName, association=false, order_va
 
                     individualTags(individualID)
 
-                    if (individualImages.length == 1){
+                    if (individualAccess == 'write'){
+                        if (individualImages.length == 1){
+                            document.getElementById('btnRemoveImg').disabled = true
+                            // document.getElementById('btnMergeImg').disabled = true
+                        }
+                        else{
+                            document.getElementById('btnRemoveImg').disabled = false
+                            // document.getElementById('btnMergeImg').disabled = false
+                        }
+                        document.getElementById('btnSubmitInfoChange').disabled = false
+                        document.getElementById('btnDelIndiv').disabled = false
+                        document.getElementById('btnMergeIndiv').disabled = false
+                        document.getElementById('btnIndivUnidentifiable').disabled = false
+                    } else {
                         document.getElementById('btnRemoveImg').disabled = true
-                        // document.getElementById('btnMergeImg').disabled = true
-                    }
-                    else{
-                        document.getElementById('btnRemoveImg').disabled = false
-                        // document.getElementById('btnMergeImg').disabled = false
+                        document.getElementById('btnDelIndiv').disabled = true
+                        document.getElementById('btnSubmitInfoChange').disabled = true
+                        document.getElementById('btnMergeIndiv').disabled = true
+                        document.getElementById('btnIndivUnidentifiable').disabled = true
                     }
 
                     document.getElementById('btnDelIndiv').addEventListener('click', ()=>{
+                        removeIndividualEventListeners()
                         if (individualImages.length > 1){
                             document.getElementById('modalAlertIndividualsHeader').innerHTML = 'Confirmation'
                             document.getElementById('modalAlertIndividualsBody').innerHTML = 'Do you want to permanently delete this individual?'
@@ -459,6 +530,7 @@ function getIndividual(individualID, individualName, association=false, order_va
 
 
                     document.getElementById('btnRemoveImg').addEventListener('click', ()=>{
+                        removeIndividualEventListeners()
                         if (individualImages.length > 1){
                             // document.getElementById('modalAlertIndividualsHeader').innerHTML = 'Confirmation'
                             // document.getElementById('modalAlertIndividualsBody').innerHTML = 'Do you want to permanently remove this image from this individual?'
@@ -468,10 +540,11 @@ function getIndividual(individualID, individualName, association=false, order_va
                             modalIndividual.modal('hide')
                             // modalAlertIndividuals.modal({keyboard: true});
                             document.getElementById('removeImg').checked = true
+                            document.getElementById('modalDissociateTitle').innerHTML = 'Dissociate Image'
+                            document.getElementById('dissociateImageInfo').innerHTML = '<i>Dissociating an image will remove the image from the individual it is currently associated with. You can either create a new individual for the image, move it to an existing individual, or mark it as unidentifiable.</i>';
+                            document.getElementById('unidentifiableDiv').style.display = 'block'
                             modalDissociateImage.modal({keyboard: true});
                         }
-
-                        
                     });
 
                     document.getElementById('btnMergeIndiv').addEventListener('click', ()=>{
@@ -482,6 +555,17 @@ function getIndividual(individualID, individualName, association=false, order_va
                         modalIndividual.modal('hide')
                         modalMergeIndividual.modal({keyboard: true});
 
+                    });
+
+                    document.getElementById('btnIndivUnidentifiable').addEventListener('click', ()=>{
+                        removeIndividualEventListeners()
+                        document.getElementById('modalAlertIndividualsHeader').innerHTML = 'Confirmation'
+                        document.getElementById('modalAlertIndividualsBody').innerHTML = 'Do you want mark this individual as unidentifiable? This individual will be deleted and all sightings associated with this individual will be marked as unidentifiable.'
+                        document.getElementById('btnContinueIndividualAlert').setAttribute('onclick','markUnidentifiable()')
+                        document.getElementById('btnCancelIndividualAlert').setAttribute('onclick','modalIndividual.modal({keyboard: true});')
+                        modalAlertIndividualsReturn = true
+                        modalIndividual.modal('hide')
+                        modalAlertIndividuals.modal({keyboard: true});
                     });
 
                     // document.getElementById('btnMergeImg').addEventListener('click', ()=>{
@@ -495,7 +579,7 @@ function getIndividual(individualID, individualName, association=false, order_va
                     //     }
                     // });
 
-                    buildAssociationTable(individualID)
+                    // buildAssociationTable(individualID)
 
                     if(association){
                         prepMapIndividual(individualImages[0])
@@ -547,13 +631,25 @@ function updateIndividual(individualID, individualName, order_value = 'a1', site
                     document.getElementById('tgInfo').innerHTML = 'Site: ' + individualImages[0].trapgroup.tag
                     document.getElementById('timeInfo').innerHTML = individualImages[0].timestamp
 
-                    if (individualImages.length == 1){
+                    if (individualAccess == 'write'){
+                        if (individualImages.length == 1){
+                            document.getElementById('btnRemoveImg').disabled = true
+                            // document.getElementById('btnMergeImg').disabled = true
+                        }
+                        else{
+                            document.getElementById('btnRemoveImg').disabled = false
+                            // document.getElementById('btnMergeImg').disabled = false
+                        }
+                        document.getElementById('btnSubmitInfoChange').disabled = false
+                        document.getElementById('btnDelIndiv').disabled = false
+                        document.getElementById('btnMergeIndiv').disabled = false
+                        document.getElementById('btnIndivUnidentifiable').disabled = false
+                    } else {
                         document.getElementById('btnRemoveImg').disabled = true
-                        // document.getElementById('btnMergeImg').disabled = true
-                    }
-                    else{
-                        document.getElementById('btnRemoveImg').disabled = false
-                        // document.getElementById('btnMergeImg').disabled = false
+                        document.getElementById('btnDelIndiv').disabled = true
+                        document.getElementById('btnSubmitInfoChange').disabled = true
+                        document.getElementById('btnMergeIndiv').disabled = true
+                        document.getElementById('btnIndivUnidentifiable').disabled = true 
                     }
 
                     initialiseMapAndSlider()
@@ -623,6 +719,27 @@ function initialiseMapAndSlider(){
     list.classList.add('splide__list')
     list.setAttribute('id','imageSplide')
     track.appendChild(list)
+
+    var leftFeatureMap = document.getElementById('leftFeatureMap')
+    while(leftFeatureMap.firstChild){
+        leftFeatureMap.removeChild(leftFeatureMap.firstChild);
+    }
+
+    var rightFeatureMap = document.getElementById('rightFeatureMap')
+    while(rightFeatureMap.firstChild){
+        rightFeatureMap.removeChild(rightFeatureMap.firstChild);
+    }
+
+    var leftFeatureMapDiv = document.createElement('div')
+    leftFeatureMapDiv.setAttribute('id','leftFeatureMapDiv')
+    leftFeatureMapDiv.setAttribute('style','height: 400px')
+    leftFeatureMap.appendChild(leftFeatureMapDiv)
+
+    var rightFeatureMapDiv = document.createElement('div')
+    rightFeatureMapDiv.setAttribute('id','rightFeatureMapDiv')
+    rightFeatureMapDiv.setAttribute('style','height: 400px')
+    rightFeatureMap.appendChild(rightFeatureMapDiv)
+
 }
 
 function individualTags(individual_id){
@@ -660,6 +777,10 @@ function individualTags(individual_id){
                     label.setAttribute('for',tag+'box')
                     label.innerHTML = tag
                     checkDiv.appendChild(label)
+
+                    input.addEventListener('click', function() {
+                        unsavedChanges = true
+                    });
 
                 }
             }
@@ -869,8 +990,11 @@ function validateDateRange() {
         var dateError = document.getElementById('dateErrorsIndiv')	
         var startDate = document.getElementById('startDateIndiv').value;
         var endDate = document.getElementById('endDateIndiv').value;
-    }
-    else{
+    }else if(modalUnidentifiable.is(':visible')){
+        var dateError = document.getElementById('dateErrorsUnid')
+        var startDate = document.getElementById('startDateUnid').value;
+        var endDate = document.getElementById('endDateUnid').value;
+    }else{
         var dateError = document.getElementById('dateErrors')
         var startDate = document.getElementById('startDate').value;
         var endDate = document.getElementById('endDate').value;
@@ -935,6 +1059,17 @@ function cleanModalIndividual() {
     while(orderAssociationsDiv.firstChild){
         orderAssociationsDiv.removeChild(orderAssociationsDiv.firstChild);
     }
+    orderAssociationsDiv.hidden = true
+
+    leftFeatureMap = document.getElementById('leftFeatureMap')
+    while(leftFeatureMap.firstChild){
+        leftFeatureMap.removeChild(leftFeatureMap.firstChild);
+    }
+
+    rightFeatureMap = document.getElementById('rightFeatureMap')
+    while(rightFeatureMap.firstChild){
+        rightFeatureMap.removeChild(rightFeatureMap.firstChild);
+    }
     
     individualSplide = null
     individualImages = null
@@ -951,7 +1086,7 @@ function cleanModalIndividual() {
     minDate = null
     maxDate = null
     addedDetections = false
-    // changed_flanks = {}
+    changed_flanks = {}
 
     document.getElementById('tgInfo').innerHTML = 'Site: '
     document.getElementById('timeInfo').innerHTML = ''
@@ -971,6 +1106,23 @@ function cleanModalIndividual() {
     document.getElementById('endDateIndiv').value = ''
 
     document.getElementById('statsSelect').value = '2'
+
+    imgMaps = {}
+    imgMapsHeight = {}
+    imgMapsWidth = {}
+    imgMapsActiveImage = {}
+    imgMapsFullRes = {}
+    drawnFeatureItems = {}
+    leafletFeatureIDs = {}
+    featureDrawControl = {}
+    editingEnabled = false
+    // globalFeatures = {'removed':[], 'added':{}, 'edited':{}}
+    globalFeatures = {}
+    individualBestDets = null
+    individualFlankImages = {}
+    flankImageIndex = {'L': 0, 'R': 0}
+    unsavedChanges = false
+    convexHullPolygon = null
 }
 
 modalIndividual.on('hidden.bs.modal', function(){
@@ -985,14 +1137,24 @@ modalIndividual.on('hidden.bs.modal', function(){
         mergeIndividualsOpened = false
     }
     else {
-        cleanModalIndividual()
-        getIndividuals(current_page)
-        getTasks()
+        if (unsavedChanges) {
+            if (associationClick){
+                document.getElementById('discardText').innerHTML = 'Any unsaved changes made to this individual will be lost if you close this window and open the selected associated individual.'
+            } else {
+                document.getElementById('discardText').innerHTML = 'Any unsaved changes made to this individual will be lost if you close this window.'
+            }
+            modalDiscard.modal({keyboard: false, backdrop: 'static'});
+        } else {
+            cleanModalIndividual()
+            getIndividuals(current_page)
+            // getTasks()
+        }
     }
 });
 
 modalIndividual.on('shown.bs.modal', function(){
     /** Initialises the individual modal when opened. */
+    unidentifiableOpen = false
     if (map==null){
         prepMapIndividual(individualImages[0])
         updateSlider()
@@ -1350,15 +1512,22 @@ function addSurvey(){
         addSurveyTask = document.getElementById('addSurveyTask1')
     }
     else{
+        var areaSelect = document.getElementById('areaSelect')
+        var survey_url = '/getSurveys'
+        if (areaSelect.value != '0') {
+            survey_url += '?area=' + areaSelect.value;
+        }
+
         var xhttp = new XMLHttpRequest();
         xhttp.onreadystatechange =
         function(){
             if (this.readyState == 4 && this.status == 200) {
                 surveys = JSON.parse(this.responseText);  
                 buildSurveySelect()
+                getIndividuals()
             }
         }
-        xhttp.open("GET", '/getSurveys');
+        xhttp.open("GET", survey_url);
         xhttp.send();
 
         addSurveyTask = document.getElementById('addSurveyTask')
@@ -1733,11 +1902,13 @@ modalLaunchID.on('hidden.bs.modal', function(){
     modalActive = false
     btnLaunch.disabled=false
     getIndividuals(current_page)
-    getTasks()
+    // getTasks()
 })
 
 document.getElementById('btnSubmitInfoChange').addEventListener('click', function(){
     /** Submits the changes to the individual's information. */
+
+    this.disabled = true
 
     submitIndividualTags()
 
@@ -1749,7 +1920,13 @@ document.getElementById('btnSubmitInfoChange').addEventListener('click', functio
         submitIndividualNotes()
     }
 
-    // submitFlanks()
+    if(Object.keys(changed_flanks).length > 0){
+        submitFlanks()
+    }
+
+    submitFeatures()
+
+    unsavedChanges = false
 });
 
 $('.modal').on("hidden.bs.modal", function (e) { 
@@ -1768,150 +1945,150 @@ $('#individualSearch').change( function() {
     getIndividuals()
 });
 
-function buildIdTask(task){
-    idTasksListDiv = document.getElementById('idTasksListDiv'); 
-    newTask = document.createElement('div')
-    newTask.setAttribute("style", "border-bottom: 1px solid rgb(60,74,89); padding: 1.25rem;")
+// function buildIdTask(task){
+//     idTasksListDiv = document.getElementById('idTasksListDiv'); 
+//     newTask = document.createElement('div')
+//     newTask.setAttribute("style", "border-bottom: 1px solid rgb(60,74,89); padding: 1.25rem;")
 
-    idTasksListDiv.appendChild(newTask)
+//     idTasksListDiv.appendChild(newTask)
 
-    entireRow = document.createElement('div')
-    entireRow.classList.add('row');
-    newTask.appendChild(entireRow)
+//     entireRow = document.createElement('div')
+//     entireRow.classList.add('row');
+//     newTask.appendChild(entireRow)
 
-    taskDiv = document.createElement('div')
-    taskDiv.classList.add('col-lg-9');
-    entireRow.appendChild(taskDiv)
-    headingElement = document.createElement('h5')
-    headingElement.innerHTML = task.name
-    taskDiv.appendChild(headingElement)
+//     taskDiv = document.createElement('div')
+//     taskDiv.classList.add('col-lg-9');
+//     entireRow.appendChild(taskDiv)
+//     headingElement = document.createElement('h5')
+//     headingElement.innerHTML = task.name
+//     taskDiv.appendChild(headingElement)
 
-    stopTaskCol = document.createElement('div')
-    stopTaskCol.setAttribute('class', 'col-lg-3');
-    stopTaskBtn = document.createElement('button')
-    stopTaskBtn.setAttribute("class","btn btn-danger btn-block btn-sm")
-    stopTaskBtn.innerHTML = '&times;'
-    stopTaskCol.appendChild(stopTaskBtn)
-    entireRow.appendChild(stopTaskCol)
+//     stopTaskCol = document.createElement('div')
+//     stopTaskCol.setAttribute('class', 'col-lg-3');
+//     stopTaskBtn = document.createElement('button')
+//     stopTaskBtn.setAttribute("class","btn btn-danger btn-block btn-sm")
+//     stopTaskBtn.innerHTML = '&times;'
+//     stopTaskCol.appendChild(stopTaskBtn)
+//     entireRow.appendChild(stopTaskCol)
 
-    if (task.remaining == 'Preparing...'){
-        stopTaskBtn.disabled = true
-    }
-    else{
-        stopTaskBtn.disabled = false
-    }
+//     if (task.remaining == 'Preparing...'){
+//         stopTaskBtn.disabled = true
+//     }
+//     else{
+//         stopTaskBtn.disabled = false
+//     }
 
-    stopTaskBtn.addEventListener('click', function(wrapTaskId) {
-        return function() {
-            var xhttp = new XMLHttpRequest();
-            xhttp.onreadystatechange =
-            function(){
-                if (this.readyState == 4 && this.status == 200) {
-                    reply = JSON.parse(this.responseText);   
-                    if (reply=='success') {
-                        getTasks()
-                    }
-                }
-            }
-            xhttp.open("GET", '/stopTask/'+wrapTaskId);
-            xhttp.send();
-        }
-    }(task.id));
+//     stopTaskBtn.addEventListener('click', function(wrapTaskId) {
+//         return function() {
+//             var xhttp = new XMLHttpRequest();
+//             xhttp.onreadystatechange =
+//             function(){
+//                 if (this.readyState == 4 && this.status == 200) {
+//                     reply = JSON.parse(this.responseText);   
+//                     if (reply=='success') {
+//                         getTasks()
+//                     }
+//                 }
+//             }
+//             xhttp.open("GET", '/stopTask/'+wrapTaskId);
+//             xhttp.send();
+//         }
+//     }(task.id));
         
 
-    entireRow = document.createElement('div')
-    entireRow.classList.add('row');
-    newTask.appendChild(entireRow)
+//     entireRow = document.createElement('div')
+//     entireRow.classList.add('row');
+//     newTask.appendChild(entireRow)
 
-    jobProgressBarCol = document.createElement('div')
-    jobProgressBarCol.classList.add('col-lg-12');
+//     jobProgressBarCol = document.createElement('div')
+//     jobProgressBarCol.classList.add('col-lg-12');
     
-    jobProgressBarDiv = document.createElement('div')
-    jobProgressBarDiv.setAttribute("id","jobProgressBarDiv"+task.id)
+//     jobProgressBarDiv = document.createElement('div')
+//     jobProgressBarDiv.setAttribute("id","jobProgressBarDiv"+task.id)
 
-    var newProg = document.createElement('div');
-    newProg.classList.add('progress');
-    newProg.setAttribute('style','background-color: #3C4A59')
+//     var newProg = document.createElement('div');
+//     newProg.classList.add('progress');
+//     newProg.setAttribute('style','background-color: #3C4A59')
 
-    var newProgInner = document.createElement('div');
-    newProgInner.classList.add('progress-bar');
-    newProgInner.classList.add('progress-bar-striped');
-    newProgInner.classList.add('progress-bar-animated');
-    newProgInner.classList.add('active');
-    newProgInner.setAttribute("role", "progressbar");
-    newProgInner.setAttribute("id", "progBar"+task.id);
-    newProgInner.setAttribute("aria-valuenow", task.completed);
-    newProgInner.setAttribute("aria-valuemin", "0");
-    newProgInner.setAttribute("aria-valuemax", task.total);
-    newProgInner.setAttribute("style", "width:"+(task.completed/task.total)*100+"%;transition:none; ");
-    newProgInner.innerHTML = task.remaining
+//     var newProgInner = document.createElement('div');
+//     newProgInner.classList.add('progress-bar');
+//     newProgInner.classList.add('progress-bar-striped');
+//     newProgInner.classList.add('progress-bar-animated');
+//     newProgInner.classList.add('active');
+//     newProgInner.setAttribute("role", "progressbar");
+//     newProgInner.setAttribute("id", "progBar"+task.id);
+//     newProgInner.setAttribute("aria-valuenow", task.completed);
+//     newProgInner.setAttribute("aria-valuemin", "0");
+//     newProgInner.setAttribute("aria-valuemax", task.total);
+//     newProgInner.setAttribute("style", "width:"+(task.completed/task.total)*100+"%;transition:none; ");
+//     newProgInner.innerHTML = task.remaining
 
-    newProg.appendChild(newProgInner);
-    jobProgressBarDiv.appendChild(newProg);
-    jobProgressBarCol.appendChild(jobProgressBarDiv);
-    entireRow.appendChild(jobProgressBarCol)
+//     newProg.appendChild(newProgInner);
+//     jobProgressBarDiv.appendChild(newProg);
+//     jobProgressBarCol.appendChild(jobProgressBarDiv);
+//     entireRow.appendChild(jobProgressBarCol)
 
-}
+// }
 
-function getTasks(url=null){
-    /** Gets the current individual ID tasks */
+// function getTasks(url=null){
+//     /** Gets the current individual ID tasks */
 
-    if (url==null) {
-        request = '/getJobs?individual_id=' + true
-    }
-    else{
-        request = url
-    }
+//     if (url==null) {
+//         request = '/getJobs?individual_id=' + true
+//     }
+//     else{
+//         request = url
+//     }
 
-    var xhttp = new XMLHttpRequest();
-    xhttp.onreadystatechange =
-    function(){
-        if (this.readyState == 4 && this.status == 200) {
-            reply = JSON.parse(this.responseText);
-            // console.log(reply)
-            idTasksListDiv = document.getElementById('idTasksListDiv'); 
-            while(idTasksListDiv.firstChild){
-                idTasksListDiv.removeChild(idTasksListDiv.firstChild);
-            }
+//     var xhttp = new XMLHttpRequest();
+//     xhttp.onreadystatechange =
+//     function(){
+//         if (this.readyState == 4 && this.status == 200) {
+//             reply = JSON.parse(this.responseText);
+//             // console.log(reply)
+//             idTasksListDiv = document.getElementById('idTasksListDiv'); 
+//             while(idTasksListDiv.firstChild){
+//                 idTasksListDiv.removeChild(idTasksListDiv.firstChild);
+//             }
 
-            for (let i=0;i<reply.jobs.length;i++) {
-                buildIdTask(reply.jobs[i])
-            }
+//             for (let i=0;i<reply.jobs.length;i++) {
+//                 buildIdTask(reply.jobs[i])
+//             }
 
-            if (reply.next_url==null) {
-                btnNextTasks.style.visibility = 'hidden'
-            } else {
-                btnNextTasks.style.visibility = 'visible'
-                next_url = reply.next_url + '&individual_id=' + true
-            }
+//             if (reply.next_url==null) {
+//                 btnNextTasks.style.visibility = 'hidden'
+//             } else {
+//                 btnNextTasks.style.visibility = 'visible'
+//                 next_url = reply.next_url + '&individual_id=' + true
+//             }
 
-            if (reply.prev_url==null) {
-                btnPrevTasks.style.visibility = 'hidden'
-            } else {
-                btnPrevTasks.style.visibility = 'visible'
-                prev_url = reply.prev_url + '&individual_id=' + true
-            }
+//             if (reply.prev_url==null) {
+//                 btnPrevTasks.style.visibility = 'hidden'
+//             } else {
+//                 btnPrevTasks.style.visibility = 'visible'
+//                 prev_url = reply.prev_url + '&individual_id=' + true
+//             }
 
-            if(jobTimer!=null){	
-                clearTimeout(jobTimer);
-            }
-            jobTimer = setTimeout(function(){getTasks(url)}, 10000);
+//             if(jobTimer!=null){	
+//                 clearTimeout(jobTimer);
+//             }
+//             jobTimer = setTimeout(function(){getTasks(url)}, 10000);
 
-        }
-    }
-    xhttp.open("GET", request);
-    xhttp.send();
-}
+//         }
+//     }
+//     xhttp.open("GET", request);
+//     xhttp.send();
+// }
 
-btnNextTasks.addEventListener('click', ()=>{
-    /** Loads the next set of paginated surveys. */
-    getTasks(next_url)
-});
+// btnNextTasks.addEventListener('click', ()=>{
+//     /** Loads the next set of paginated surveys. */
+//     getTasks(next_url)
+// });
 
-btnPrevTasks.addEventListener('click', ()=>{
-    /** Loads the previous set of paginated surveys. */
-    getTasks(prev_url)
-});
+// btnPrevTasks.addEventListener('click', ()=>{
+//     /** Loads the previous set of paginated surveys. */
+//     getTasks(prev_url)
+// });
 
 function clear_filters(){
     /** Clears all the filters and updates the page accordingly. */
@@ -1925,7 +2102,8 @@ function clear_filters(){
         addSurveyTask.removeChild(addSurveyTask.firstChild);
     }
 
-    addSurvey()
+    // addSurvey()
+    getAreas()
 
     document.getElementById('individualSpeciesSelector').value = '0'
     document.getElementById('individualTagSelector').value = 'None'
@@ -1981,6 +2159,8 @@ function buildAssociationTable(individual_id){
 
     
     var orderAssociationsDiv = document.getElementById('orderAssociationsDiv');
+    orderAssociationsDiv.hidden = true 
+
     var h5 = document.createElement('h5')
     h5.innerHTML = 'Order'
     h5.setAttribute('style','margin-bottom: 2px')
@@ -2146,8 +2326,11 @@ function getIndividualAssociations(individual_id, page=null){
                 while (orderAssociationsDiv.firstChild) {
                     orderAssociationsDiv.removeChild(orderAssociationsDiv.firstChild);
                 }
+                orderAssociationsDiv.hidden = true;
             }
             else{
+                var orderAssociationsDiv = document.getElementById('orderAssociationsDiv');
+                orderAssociationsDiv.hidden = false;
                 for (let i=0;i<reply.associations.length;i++) {
                     buildAssociation(reply.associations[i],i)
                 }
@@ -2186,26 +2369,59 @@ function buildAssociation(association,n){
     imageCell.setAttribute('style','width: 25%; border: 1px solid rgba(0,0,0,0.2); border-collapse: collapse; text-align: center; vertical-align: middle;')
     row.appendChild(imageCell);
 
-    var center = document.createElement('center')
-    imageCell.appendChild(center)
+    // var center = document.createElement('center')
+    // imageCell.appendChild(center)
 
-    var div = document.createElement('div')
-    div.id = 'associationImageDiv'+n.toString()
-    div.setAttribute('style','width: 100%; height: 100%; overflow: hidden;')
-    center.appendChild(div)
+    // var div = document.createElement('div')
+    // div.id = 'associationImageDiv'+n.toString()
+    // div.setAttribute('style','width: 100%; height: 100%; overflow: hidden;')
+    // center.appendChild(div)
 
-    prepImageMap('associationImageDiv'+n.toString(), association.url, association.detection, 14.15)
+    // prepImageMap('associationImageDiv'+n.toString(), association.url, association.detection, 14.15)
 
-    div.addEventListener('click', function(individualID,individualName,wN){
+    // div.addEventListener('click', function(individualID,individualName,wN){
+    //     return function() {
+    //         mergeMap['associationImageDiv'+wN.toString()].remove()
+    //         mergeMap['associationImageDiv'+wN.toString()] = null
+    //         cleanModalIndividual()
+    //         getIndividual(individualID,individualName, true)
+    //         modalIndividual.scrollTop(0)
+    //     }
+    // }(association.id,association.name,n));
+  
+    image = document.createElement('img')
+    image.setAttribute('width','100%')
+    image.src = "https://"+bucketName+".s3.amazonaws.com/" + modifyToCropURL(association.url, association.detection.id)
+    imageCell.appendChild(image)
+
+    image.style.cursor = 'pointer'
+    image.style.boxShadow = '0 4px 8px 0 rgba(0, 0, 0, 0.2), 0 6px 20px 0 rgba(0, 0, 0, 0.19)'
+    image.style.borderRadius = '4px'
+
+    image.addEventListener('error', function(wrapURL) {
         return function() {
-            mergeMap['associationImageDiv'+wN.toString()].remove()
-            mergeMap['associationImageDiv'+wN.toString()] = null
-            cleanModalIndividual()
-            getIndividual(individualID,individualName, true)
-            modalIndividual.scrollTop(0)
+            this.src = "https://"+bucketName+".s3.amazonaws.com/" + modifyToCompURL(wrapURL)
         }
-    }(association.id,association.name,n));
+    }(association.url));
 
+    image.addEventListener('click', function(individualID,individualName){
+        return function() {
+            associationClick = true
+            associationID = individualID
+            associationName = individualName
+            if (unsavedChanges) {
+                modalIndividual.modal('hide')
+            } else {
+                cleanModalIndividual()
+                // getIndividual(individualID,individualName, true)
+                selectedIndividual = individualID
+                selectedIndividualName = individualName
+                
+                document.getElementById('openIndivSummary').click()
+                modalIndividual.scrollTop(0)
+            }
+        }
+    }(association.id,association.name));
     
     var nameCell = document.createElement('td');
     nameCell.setAttribute('style','width: 25%; border: 1px solid rgba(0,0,0,0.2); border-collapse: collapse;  text-align: center; vertical-align: middle;')
@@ -2584,33 +2800,33 @@ modalIndividualsError.on('hidden.bs.modal', function(){
     }
 });
 
-// function submitFlanks(){
-//     /** Submits the flanks for the individual's detections. */
+function submitFlanks(){
+    /** Submits the flanks for the individual's detections. */
 
-//     var formData = new FormData()
-//     formData.append("individual_id", JSON.stringify(selectedIndividual))
-//     formData.append("flanks", JSON.stringify(changed_flanks))	
+    var formData = new FormData()
+    formData.append("individual_id", JSON.stringify(selectedIndividual))
+    formData.append("flanks", JSON.stringify(changed_flanks))	
 
-//     var xhttp = new XMLHttpRequest();
-//     xhttp.onreadystatechange =
-//     function(){
-//         if (this.readyState == 4 && this.status == 200) {
-//             reply = JSON.parse(this.responseText);  
-//             if (reply.status=='success') {
-//                 for (let i=0;i<individualImages.length;i++) {
-//                     detection_id = individualImages[i].detections[0].id
-//                     if (changed_flanks[detection_id] != undefined) {
-//                         individualImages[i].detections[0].flank = changed_flanks[detection_id]
-//                         delete changed_flanks[detection_id]
-//                     }
-//                 }
-//             }
-//         }
-//     }
-//     xhttp.open("POST", '/submitIndividualFlanks');
-//     xhttp.send(formData);
+    var xhttp = new XMLHttpRequest();
+    xhttp.onreadystatechange =
+    function(){
+        if (this.readyState == 4 && this.status == 200) {
+            reply = JSON.parse(this.responseText);  
+            if (reply.status=='success') {
+                for (let i=0;i<individualImages.length;i++) {
+                    detection_id = individualImages[i].detections[0].id
+                    if (changed_flanks[detection_id] != undefined) {
+                        individualImages[i].detections[0].flank = changed_flanks[detection_id]
+                        delete changed_flanks[detection_id]
+                    }
+                }
+            }
+        }
+    }
+    xhttp.open("POST", '/submitIndividualFlanks');
+    xhttp.send(formData);
 
-// }
+}
 
 
 function initialiseMergeIndividualsLeft(){
@@ -2690,7 +2906,7 @@ function initialiseMergeIndividualsLeft(){
 
     var info7 = document.createElement('div')
     info7.setAttribute('style','font-size: 80%; margin-bottom: 5px;')
-    var tags =  currentTags.length > 0 ? currentTags.join(', ') : 'None'
+    var tags =  currentTags!= null && currentTags.length > 0 ? currentTags.join(', ') : 'None'
     info7.innerHTML = 'Tags: ' + tags
     col1.appendChild(info7)
 
@@ -2734,7 +2950,9 @@ function initialiseMergeIndividualsLeft(){
     individualCoords = trapgroupInfo
 
     if (mergeImageOnly) {
-        individualBounds = [[individualCoords[0].latitude, individualCoords[0].longitude]]
+        mergeBounds = [[individualCoords[0].latitude, individualCoords[0].longitude]]
+    } else {
+        mergeBounds = individualBounds
     }
 
     if (noCoords) {
@@ -2798,8 +3016,8 @@ function initialiseMergeIndividualsLeft(){
             mapSitesL.setZoom(10)
         }
 
-        if (individualBounds.length == 1) {
-            var circle = L.circle([individualBounds[0][0], individualBounds[0][1]], {
+        if (mergeBounds.length == 1) {
+            var circle = L.circle([mergeBounds[0][0], mergeBounds[0][1]], {
                 color: "rgba(223,105,26,1)",
                 fill: true,
                 fillOpacity: 0.2,
@@ -2810,7 +3028,7 @@ function initialiseMergeIndividualsLeft(){
             }).addTo(mapSitesL)
         
         } else {
-            var poly1 = L.polygon(individualBounds, {
+            var poly1 = L.polygon(mergeBounds, {
                 color: "rgba(223,105,26,1)",
                 fill: true,
                 fillOpacity: 0.2,
@@ -3253,14 +3471,30 @@ function updateMergeSlider(mapID, divIDImageSplide, divID) {
 
     for (let i=0;i<mergeImages[mapID].length;i++) {
         img = document.createElement('img')
-        img.setAttribute('src',"https://"+bucketName+".s3.amazonaws.com/" + modifyToCompURL(mergeImages[mapID][i].url))
+        // img.setAttribute('src',"https://"+bucketName+".s3.amazonaws.com/" + modifyToCompURL(mergeImages[mapID][i].url))
+        if (mergeImages[mapID][i].detections.length>0){
+            image_url = "https://"+bucketName+".s3.amazonaws.com/" + modifyToCropURL(mergeImages[mapID][i].url, mergeImages[mapID][i].detections[0].id)
+        } else {
+            image_url = "https://"+bucketName+".s3.amazonaws.com/" + modifyToCompURL(mergeImages[mapID][i].url)
+        }
+        img.setAttribute('data-splide-lazy', image_url)
         imgli = document.createElement('li')
         imgli.classList.add('splide__slide')
         imgli.appendChild(img)
         imageSplide.appendChild(imgli)
+
+        // add a error handler to the image to replace it with the compressed version if the crop does not exist
+        img.onerror = function() {
+            this.onerror = null;
+            this.src = "https://"+bucketName+".s3.amazonaws.com/" + modifyToCompURL(mergeImages[mapID][i].url)
+        };
     }
 
     if (mergeSplide[mapID]==null) {
+
+        client_width = document.getElementById(divID).clientWidth
+        numberPages =Math.ceil(client_width/200) + 1
+        
         // Initialise Splide
         mergeSplide[mapID] = new Splide( document.getElementById(divID), { 
             rewind      : false,
@@ -3271,6 +3505,8 @@ function updateMergeSlider(mapID, divIDImageSplide, divID) {
             gap         : 5,
             pagination  : false,
             cover       : true,
+            lazyLoad    : 'nearby',
+            preloadPages: numberPages,
             breakpoints : {
                 '600': {
                     fixedWidth  : 66,
@@ -3398,14 +3634,39 @@ function getMergeIndividuals(page = null) {
                 col.classList.add('col-lg-4')
                 row.appendChild(col)
 
-                let center = document.createElement('center')
-                col.appendChild(center)
+                // let center = document.createElement('center')
+                // col.appendChild(center)
 
-                let div = document.createElement('div')
-                div.setAttribute('id','imgDiv'+i)
-                center.appendChild(div)
+                // let div = document.createElement('div')
+                // div.setAttribute('id','imgDiv'+i)
+                // center.appendChild(div)
 
-                prepImageMap('imgDiv'+i, newIndividual.url, newIndividual.detection)
+                // prepImageMap('imgDiv'+i, newIndividual.url, newIndividual.detection)
+
+                image = document.createElement('img')
+                image.setAttribute('width','100%')
+                image.src = "https://"+bucketName+".s3.amazonaws.com/" + modifyToCropURL(newIndividual.url, newIndividual.detection.id)
+                col.appendChild(image)
+
+                image.style.cursor = 'pointer'
+                image.style.boxShadow = '0 4px 8px 0 rgba(0, 0, 0, 0.2), 0 6px 20px 0 rgba(0, 0, 0, 0.19)'
+                image.style.borderRadius = '4px'
+
+                image.addEventListener('mouseover', function() {
+                    this.style.boxShadow = '0 8px 16px 0 rgba(0, 0, 0, 0.2), 0 12px 40px 0 rgba(0, 0, 0, 0.19)'
+                    this.style.transform = 'scale(1.03)'
+                });
+
+                image.addEventListener('mouseout', function() {
+                    this.style.boxShadow = '0 4px 8px 0 rgba(0, 0, 0, 0.2), 0 6px 20px 0 rgba(0, 0, 0, 0.19)'
+                    this.style.transform = 'scale(1)'
+                });
+
+                image.addEventListener('error', function(wrapURL) {
+                    return function() {
+                        this.src = "https://"+bucketName+".s3.amazonaws.com/" + modifyToCompURL(wrapURL)
+                    }
+                }(newIndividual.url));
 
                 let h5 = document.createElement('h5')
                 h5.setAttribute('align','center')
@@ -3413,7 +3674,7 @@ function getMergeIndividuals(page = null) {
                 h5.innerHTML = newIndividual.name
                 col.appendChild(h5)
 
-                div.addEventListener('click', function(individualID,individualName){
+                image.addEventListener('click', function(individualID,individualName){
                     return function() {
                         selectedMergeIndividual = individualID
                         selectedMergeIndividualName = individualName
@@ -3690,8 +3951,8 @@ function viewMergeIndividual(){
                         }
 
 
-                        if (individualBounds.length == 1){
-                            var circle = L.circle([individualBounds[0][0], individualBounds[0][1]], {
+                        if (mergeBounds.length == 1){
+                            var circle = L.circle([mergeBounds[0][0], mergeBounds[0][1]], {
                                 color: "rgba(223,105,26,1)",
                                 fill: true,
                                 fillOpacity: 0.2,
@@ -3701,7 +3962,7 @@ function viewMergeIndividual(){
                                 contextmenu: false,
                             }).addTo(mapSitesR)
                         } else {
-                            var poly1 = L.polygon(individualBounds, {
+                            var poly1 = L.polygon(mergeBounds, {
                                 color: "rgba(223,105,26,1)",
                                 fill: true,
                                 fillOpacity: 0.2,
@@ -3786,7 +4047,11 @@ function viewMergeIndividual(){
 $('#btnMerge').click( function() {
     if (mergeImageOnly){
         document.getElementById('modalAlertIndividualsHeader').innerHTML = 'Confirmation'
-        document.getElementById('modalAlertIndividualsBody').innerHTML = 'Do you want to merge the selected image from individual '+selectedIndividualName+' into individual '+selectedMergeIndividualName+'?'
+        if (selectedIndividualName == 'Unidentifiable Sighting') {
+            document.getElementById('modalAlertIndividualsBody').innerHTML = 'Do you want to merge the sighting marked as unidentifiable into individual '+selectedMergeIndividualName+'?'
+        } else {
+            document.getElementById('modalAlertIndividualsBody').innerHTML = 'Do you want to merge the selected image from individual '+selectedIndividualName+' into individual '+selectedMergeIndividualName+'?'
+        }
         document.getElementById('btnContinueIndividualAlert').setAttribute('onclick','mergeImage()')
         document.getElementById('btnCancelIndividualAlert').setAttribute('onclick','modalMergeIndividual.modal({keyboard: true});')
         modalAlertIndividualsReturn = true
@@ -3943,6 +4208,15 @@ function mergeImage(){
     modalAlertIndividuals.modal('hide')
 
     detection_id = individualImages[individualSplide.index].detections[0].id
+    if (unidentifiableOpen){
+        access = individualImages[individualSplide.index].access
+        if (access != 'write'){
+            cleanupMergeIndividuals()
+            cleanModalIndividual()
+            cleanUnidentifiableModal()
+            getIndividuals()
+        }
+    }
     if (selectedIndividual != null && selectedMergeIndividual != null) {
         var formData = new FormData()
         formData.append("merge_individual_id", JSON.stringify(selectedMergeIndividual))
@@ -3956,6 +4230,7 @@ function mergeImage(){
                 reply = JSON.parse(this.responseText);
                 cleanupMergeIndividuals()
                 cleanModalIndividual()
+                cleanUnidentifiableModal()
                 getIndividuals()
             }
         }
@@ -4029,11 +4304,19 @@ modalMergeIndividual.on('hidden.bs.modal', function(){
     if (!modalAlertIndividualsReturn && !helpReturn) {
         cleanupMergeIndividuals()
         if (confirmMerge) {
-            cleanModalIndividual()
+            if (unidentifiableOpen){
+                cleanUnidentifiableModal()
+            } else {
+                cleanModalIndividual()
+            }
             confirmMerge = false
         }
         else{
-            modalIndividual.modal({keyboard: true})
+            if (unidentifiableOpen){
+                modalUnidentifiable.modal({keyboard: true})
+            } else {
+                modalIndividual.modal({keyboard: true})
+            }
         }
     }
 })
@@ -4043,30 +4326,60 @@ $('#btnConfirmDissociate').click( function() {
     /** Confirms the dissociation of the selected individual. */
 
     var removeImg = document.getElementById('removeImg').checked
-    if (removeImg) {
-        if (individualImages.length > 1){
-            modalDissociateImage.modal('hide')
-            removeImage()
+    var moveImg = document.getElementById('moveImg').checked
+    var imgUnidentifiable = document.getElementById('imgUnidentifiable').checked
+    if (unidentifiableOpen){
+        if (removeImg) {
+            if (individualImages.length > 0 && individualImages[individualSplide.index].access=='write'){
+                modalDissociateImage.modal('hide')
+                restoreUnidSighting()
+            }
+        } else if (moveImg) {
+            if (individualImages.length > 0 && individualImages[individualSplide.index].access=='write'){
+                cleanupMergeIndividuals()
+                mergeIndividualsOpened = true
+                mergeImageOnly = true
+                mergeImages['L'] = [individualImages[individualSplide.index]]
+                individualTasks = [mergeImages['L'][0].detections[0].task]
+                selectedIndividual = mergeImages['L'][0].detections[0].individual_id
+                selectedIndividualName = 'Unidentifiable Sighting'
+                modalDissociateImage.modal('hide')
+                modalMergeIndividual.modal({keyboard: true});
+            }
+        }
+    } else {
+        if (removeImg) {
+            if (individualImages.length > 1){
+                modalDissociateImage.modal('hide')
+                removeImage()
+            }
+        } else if (moveImg) {
+            if (individualImages.length > 1){
+                cleanupMergeIndividuals()
+                mergeIndividualsOpened = true
+                mergeImageOnly = true
+                mergeImages['L'] = [individualImages[individualSplide.index]]
+                modalDissociateImage.modal('hide')
+                modalMergeIndividual.modal({keyboard: true});
+            }
+        } else if (imgUnidentifiable) {
+            if (individualImages.length > 1){
+                modalDissociateImage.modal('hide')
+                markImgUnidentifiable()
+            }
         }
     }
-    else{
-        if (individualImages.length > 1){
-            cleanupMergeIndividuals()
-            mergeIndividualsOpened = true
-            mergeImageOnly = true
-            mergeImages['L'] = [individualImages[individualSplide.index]]
-            modalDissociateImage.modal('hide')
-            modalMergeIndividual.modal({keyboard: true});
-        }
-    }
-
 })
 
 $('#btnCancelDissociate').click( function() {
     /** Cancels the dissociation of the selected individual. */
     modalDissociateImage.modal('hide')
     document.getElementById('removeImg').checked = true
-    modalIndividual.modal({keyboard: true});
+    if (unidentifiableOpen){
+        modalUnidentifiable.modal({keyboard: true})
+    } else {
+        modalIndividual.modal({keyboard: true});
+    }
 })
 
 function updateMergePaginationCircles(current,total){
@@ -4150,21 +4463,1272 @@ function updateMergePaginationCircles(current,total){
 
 }
 
-function onload(){
-    /**Function for initialising the page on load.*/
-    addSurvey()
-    checkSurvey()
-    populateSelectors()
-    getTasks()
+function initFeatureMaps(){
+    /** Initialises the feature maps for the individual modal. */
+    //Left feature
+    var leftFeatureMapDiv = document.getElementById('leftFeatureMapDiv')
+    while (leftFeatureMapDiv.firstChild) {
+        leftFeatureMapDiv.removeChild(leftFeatureMapDiv.firstChild);
+    }
+
+    var xhttp = new XMLHttpRequest();
+    xhttp.onreadystatechange = function() {
+        if (this.readyState == 4 && this.status == 200) {
+            var response = JSON.parse(this.responseText);
+            // Process the response as needed
+            individualFlankImages['L'] = response.data;
+            flankImageIndex['L'] = 0
+            globalFeatures['L'] = {}
+            if (individualFlankImages['L'].length > 0) {
+                if (imgMaps['leftFeatureMapDiv'] != null) {
+                    imgMaps['leftFeatureMapDiv'].remove();
+                }
+                prepFeatureMap('leftFeatureMapDiv', 'L', individualFlankImages['L'][0].url, individualFlankImages['L'][0].detection, 30);
+            }
+            else {
+                leftFeatureMapDiv.innerHTML = 'No Left Flank Features';
+                updateFeatureButtons('L');
+            }
+            
+        }
+    };
+    xhttp.open("GET", '/getIndividualFlankDets/'+selectedIndividual+'/L');
+    xhttp.send();
+
+    //Right feature
+    var rightFeatureMapDiv = document.getElementById('rightFeatureMapDiv')
+    while (rightFeatureMapDiv.firstChild) {
+        rightFeatureMapDiv.removeChild(rightFeatureMapDiv.firstChild);
+    }
+
+    var xhttp = new XMLHttpRequest();
+    xhttp.onreadystatechange = function() {
+        if (this.readyState == 4 && this.status == 200) {
+            var response = JSON.parse(this.responseText);
+            // Process the response as needed
+            individualFlankImages['R'] = response.data;
+            flankImageIndex['R'] = 0
+            globalFeatures['R'] = {}
+            if (individualFlankImages['R'].length > 0) {
+                if (imgMaps['rightFeatureMapDiv'] != null) {
+                    imgMaps['rightFeatureMapDiv'].remove();
+                }
+                prepFeatureMap('rightFeatureMapDiv', 'R', individualFlankImages['R'][0].url, individualFlankImages['R'][0].detection, 30);
+            }
+            else {
+                rightFeatureMapDiv.innerHTML = 'No Right Flank Features';
+                updateFeatureButtons('R');
+            }
+        }
+    }
+    xhttp.open("GET", '/getIndividualFlankDets/'+selectedIndividual+'/R');
+    xhttp.send();
+}
+
+function prepFeatureMap(div_id, flank, image_url, detection,size=15) {
+    /** Prepares the image map for the individual modal. */
+    if (bucketName != null) {
+        // var imageUrl = "https://"+bucketName+".s3.amazonaws.com/" + modifyToCropURL(image_url,detection.id)
+        imgMapsFullRes[div_id] = false
+        var imageUrl = "https://"+bucketName+".s3.amazonaws.com/" + modifyToCompURL(image_url)
+        var img = new Image();
+        img.onload = function(){
+            w = this.width
+            h = this.height
+            if (w>h) {
+                document.getElementById(div_id).setAttribute('style','height: calc('+size+'vw *'+(h/w)+');  width:'+size+'vw')
+            } else {
+                document.getElementById(div_id).setAttribute('style','height: calc('+size+'vw *'+(w/h)+');  width:'+size+'vw')
+            }
+            L.Browser.touch = true
+        
+            imgMaps[div_id] = new L.map(div_id, {
+                crs: L.CRS.Simple,
+                maxZoom: 10,
+                center: [0, 0],
+                zoomSnap: 0
+            })
+
+            var h1 = document.getElementById(div_id).clientHeight
+            var w1 = document.getElementById(div_id).clientWidth
+            var southWest = imgMaps[div_id].unproject([0, h1], 2);
+            var northEast = imgMaps[div_id].unproject([w1, 0], 2);
+            var bounds = new L.LatLngBounds(southWest, northEast);
+
+            imgMapsActiveImage[div_id] = L.imageOverlay(imageUrl, bounds).addTo(imgMaps[div_id]);
+
+            imgMapsActiveImage[div_id].on('load', function() {
+                if (individualFlankImages[flank].length > 0 && individualFlankImages[flank][flankImageIndex[flank]] != null) {
+                    addFeatures(div_id, individualFlankImages[flank][flankImageIndex[flank]].detection)
+                    let det = individualFlankImages[flank][flankImageIndex[flank]].detection
+                    if (det != null) {
+                        det_bounds = [[det.top*imgMapsHeight[div_id],det.left*imgMapsWidth[div_id]],[det.bottom*imgMapsHeight[div_id],det.right*imgMapsWidth[div_id]]]
+                        imgMaps[div_id].fitBounds(det_bounds, {padding: [10,10]});
+                    }
+                }
+            });
+            imgMapsActiveImage[div_id].on('error', function() {
+                if (!this._url.includes('-comp')) {
+                    this.setUrl("https://"+bucketName+".s3.amazonaws.com/" + modifyToCompURL(individualFlankImages[flank][flankImageIndex[flank]].url));
+                }
+            });
+
+            imgMapsWidth[div_id] = northEast.lng
+            imgMapsHeight[div_id] = southWest.lat
+            imgMaps[div_id].setMaxBounds(bounds);
+            imgMaps[div_id].fitBounds(bounds)
+            imgMaps[div_id].setMinZoom(imgMaps[div_id].getZoom())
+
+            imgMaps[div_id].on('resize', function(){
+                if (imgMaps[div_id] != null&&document.getElementById(div_id) && document.getElementById(div_id).clientHeight) {
+                    var h1 = document.getElementById(div_id).clientHeight
+                    var w1 = document.getElementById(div_id).clientWidth
+
+                    var southWest = imgMaps[div_id].unproject([0, h1], 2);
+                    var northEast = imgMaps[div_id].unproject([w1, 0], 2);
+                    var bounds = new L.LatLngBounds(southWest, northEast);
+
+                    imgMapsWidth[div_id] = northEast.lng
+                    imgMapsHeight[div_id] = southWest.lat
+
+                    imgMaps[div_id].invalidateSize()
+                    imgMaps[div_id].setMaxBounds(bounds)
+                    imgMaps[div_id].fitBounds(bounds)
+                    imgMaps[div_id].setMinZoom(imgMaps[div_id].getMinZoom())
+                    imgMapsActiveImage[div_id].setBounds(bounds)
+
+                    if (individualFlankImages[flank].length > 0 && individualFlankImages[flank][flankImageIndex[flank]] != null) {
+                        addFeatures(div_id, individualFlankImages[flank][flankImageIndex[flank]].detection)
+                    }
+
+                    setTimeout(function() {
+                        let det = individualFlankImages[flank][flankImageIndex[flank]].detection
+                        if (det != null) {
+                            var det_bounds = [[det.top*imgMapsHeight[div_id],det.left*imgMapsWidth[div_id]],[det.bottom*imgMapsHeight[div_id],det.right*imgMapsWidth[div_id]]]
+                            imgMaps[div_id].fitBounds(det_bounds, {padding: [10,10]});
+                        }
+                    }, 500);
+                }
+            });
+
+            imgMaps[div_id].on('drag', function(divID, wrapBounds) {
+                /** Prevents the map from being dragged outside of the bounds. */
+                return function () {
+                    imgMaps[divID].panInsideBounds(wrapBounds, { animate: false });
+                }
+            }(div_id, bounds));
+
+            imgMaps[div_id].on('zoomstart', function(divID) {
+                return function () { 
+                    if (!imgMapsFullRes[divID]) {
+                        imgMapsActiveImage[divID].setUrl("https://"+bucketName+".s3.amazonaws.com/" + individualFlankImages[flank][flankImageIndex[flank]].url);
+                        imgMapsFullRes[divID] = true;
+                    }
+                }
+            }(div_id));
+
+            drawnFeatureItems[div_id] = new L.FeatureGroup();
+            imgMaps[div_id].addLayer(drawnFeatureItems[div_id]);
+            leafletFeatureIDs[div_id] = {}
+
+            featureOptions = {
+                color: "rgba(91,192,222,1)",
+                fill: true,
+                fillOpacity: 0.0,
+                opacity: 0.8,
+                weight:3,
+                contextmenu: false,
+            }
+
+            if (featureDrawControl[div_id] != null) {
+                featureDrawControl[div_id].remove()
+            }
+            featureDrawControl[div_id] = new L.Control.Draw({
+                draw: {
+                    polygon: {
+                        shapeOptions: featureOptions,
+                        allowIntersection: false,
+                    },
+                    polyline: false,
+                    circle: false,
+                    circlemarker: false,
+                    marker: false,
+                    rectangle: false
+                },
+                edit: {
+                    featureGroup: drawnFeatureItems[div_id],
+                }
+            });
+            imgMaps[div_id].addControl(featureDrawControl[div_id]);
+            featureDrawControl[div_id]._toolbars.draw._toolbarContainer.children[0].title = 'Draw a feature'
+
+
+            featureEditPrep(flank,div_id)
+
+            updateFeatureButtons(flank);
+
+        }
+        img.src = imageUrl
+    }
+}
+
+function addFeatures(div_id, detection) {
+    /** Adds features to the map. */
+    featureOptions = {
+        color: "rgba(91,192,222,1)",
+        fill: true,
+        fillOpacity: 0.0,
+        opacity: 0.8,
+        weight:3,
+        contextmenu: false,
+    }
+
+    drawnFeatureItems[div_id].clearLayers()
+    leafletFeatureIDs[div_id] = {}
+
+    for (let i=0;i<detection.features.length;i++) {
+        var feature = detection.features[i]
+
+        if (globalFeatures[detection.flank][detection.id] && globalFeatures[detection.flank][detection.id]['removed'].includes(feature.id.toString())) {
+            continue          
+        }
+
+        if (globalFeatures[detection.flank][detection.id] && globalFeatures[detection.flank][detection.id]['edited'][feature.id]) {
+            var poly_coords = []
+            for (let j=0;j<globalFeatures[detection.flank][detection.id]['edited'][feature.id].coords.length;j++) {
+                poly_coords.push([globalFeatures[detection.flank][detection.id]['edited'][feature.id].coords[j][1]*imgMapsHeight[div_id],globalFeatures[detection.flank][detection.id]['edited'][feature.id].coords[j][0]*imgMapsWidth[div_id]])
+            }
+        } else {
+            var poly_coords = []
+            for (let j=0;j<feature.coords.length;j++) {
+                poly_coords.push([feature.coords[j][1]*imgMapsHeight[div_id],feature.coords[j][0]*imgMapsWidth[div_id]])
+            }
+        }
+
+        var poly = L.polygon(poly_coords, featureOptions).addTo(imgMaps[div_id])
+        drawnFeatureItems[div_id].addLayer(poly)
+        leafletFeatureIDs[div_id][feature.id] = poly._leaflet_id
+    }
+
+    if (globalFeatures[detection.flank][detection.id] && globalFeatures[detection.flank][detection.id]['added']) {
+        for (let feature_id in globalFeatures[detection.flank][detection.id]['added']) {
+            var feature = globalFeatures[detection.flank][detection.id]['added'][feature_id]
+            var poly_coords = []
+            for (let j=0;j<feature.coords.length;j++) {
+                poly_coords.push([feature.coords[j][1]*imgMapsHeight[div_id],feature.coords[j][0]*imgMapsWidth[div_id]])
+            }
+            var poly = L.polygon(poly_coords, featureOptions).addTo(imgMaps[div_id])
+            drawnFeatureItems[div_id].addLayer(poly)
+            leafletFeatureIDs[div_id][feature_id] = poly._leaflet_id
+        }
+    }
+}
+
+function updateFeatureButtons(flank) {
+    /** Updates the feature buttons in the modal. */
+
+    if (flank=='L') {
+        var leftBtn = document.getElementById('btnLeftFlankPrev')
+        var rightBtn = document.getElementById('btnLeftFlankNext')
+        var flankImagesPosition = document.getElementById('leftFlankPosition')
+        var paginationCircles = document.getElementById('leftFlankPaginationCircles')
+        var cxPrimaryImage = document.getElementById('cxLeftPrimaryImage')
+        var cxPrimaryDiv = document.getElementById('cxLeftPrimaryDiv')
+        var div_id = 'leftFeatureMapDiv'
+    }
+    else if (flank=='R') {
+        var leftBtn = document.getElementById('btnRightFlankPrev')
+        var rightBtn = document.getElementById('btnRightFlankNext')
+        var flankImagesPosition = document.getElementById('rightFlankPosition')
+        var paginationCircles = document.getElementById('rightFlankPaginationCircles')
+        var cxPrimaryImage = document.getElementById('cxRightPrimaryImage')
+        var cxPrimaryDiv = document.getElementById('cxRightPrimaryDiv')
+        var div_id = 'rightFeatureMapDiv'
+    }
+
+    if (featureDrawControl[div_id]) {
+        if(individualBestDets[flank] && individualBestDets[flank].length > 0 && individualBestDets[flank][0].detection.id == individualFlankImages[flank][flankImageIndex[flank]].detection.id) {
+            cxPrimaryImage.checked = true
+            if (individualAccess=='write') {
+                cxPrimaryImage.disabled = false
+                featureDrawControl[div_id]._toolbars.draw._toolbarContainer.style.display = 'block';
+                featureDrawControl[div_id]._toolbars.edit._toolbarContainer.style.display = 'block';
+            } else {
+                cxPrimaryImage.disabled = true
+                featureDrawControl[div_id]._toolbars.draw._toolbarContainer.style.display = 'none';
+                featureDrawControl[div_id]._toolbars.edit._toolbarContainer.style.display = 'none';
+            }
+        } else {
+            if (individualAccess=='write') {
+                cxPrimaryImage.disabled = false
+            } else {
+                cxPrimaryImage.disabled = true
+            }
+            cxPrimaryImage.checked = false
+            featureDrawControl[div_id]._toolbars.draw._toolbarContainer.style.display = 'none';
+            featureDrawControl[div_id]._toolbars.edit._toolbarContainer.style.display = 'none';
+        }
+    }
+
+
+    if (individualFlankImages[flank].length == 0) {
+        leftBtn.hidden = true
+        rightBtn.hidden = true
+        cxPrimaryDiv.hidden = true
+    } else{
+        leftBtn.hidden = false
+        rightBtn.hidden = false
+        cxPrimaryDiv.hidden = false
+    }
+
+    if (flankImageIndex[flank] == 0) {
+        leftBtn.disabled = true
+    }
+    else {
+        leftBtn.disabled = false
+    }
+    if (flankImageIndex[flank] == individualFlankImages[flank].length - 1) {
+        rightBtn.disabled = true
+    }
+    else {
+        rightBtn.disabled = false
+    }
+
+    var cirNum = individualFlankImages[flank].length
+    var circlesIndex = flankImageIndex[flank]
+
+    if (flankImagesPosition != null) {
+        while (paginationCircles.firstChild) {
+            paginationCircles.removeChild(paginationCircles.firstChild);
+        }
+
+        var beginIndex = 0
+        var endIndex = cirNum
+        var multiple = false
+        if (cirNum > 10) {
+            multiple =  true
+            beginIndex = Math.max(0,circlesIndex-2)
+            if (beginIndex < 2) {
+                beginIndex = 0
+                endIndex = 5
+            }
+            else {
+                endIndex = Math.min(cirNum,circlesIndex+3)
+                if (endIndex > cirNum-2) {
+                    endIndex = cirNum
+                    beginIndex = cirNum - 5
+                }
+            }
+        }
+
+        if (multiple && beginIndex != 0 && circlesIndex > 2) {
+            first = document.createElement('li')
+            first.addEventListener('click', function() {updateFlankImageIndex(flank, 0);});
+            // first.style.fontSize = '80%'
+            first.innerHTML = '1'
+            paginationCircles.append(first)
+        
+            more = document.createElement('li')
+            more.setAttribute('class','disabled')
+            // more.style.fontSize = '80%'
+            more.innerHTML = '...'
+            paginationCircles.append(more)
+        }
+
+
+        for (let i=beginIndex;i<endIndex;i++) {
+            li = document.createElement('li')
+            li.innerHTML = (i+1).toString()
+            li.addEventListener('click', function() {updateFlankImageIndex(flank, i);});
+            // li.style.fontSize = '80%'
+            paginationCircles.append(li)
+
+            if (i == circlesIndex) {
+                li.setAttribute('class','active')
+            } else {
+                li.setAttribute('class','')
+            }
+        }
+
+        if (multiple && endIndex != cirNum && circlesIndex < cirNum-3) {
+            more = document.createElement('li')
+            more.setAttribute('class','disabled')
+            more.innerHTML = '...'
+            // more.style.fontSize = '80%'
+            paginationCircles.append(more)
+
+            last_index = cirNum - 1
+            last = document.createElement('li')
+            last.addEventListener('click', function() {updateFlankImageIndex(flank, last_index);});
+            last.innerHTML = (last_index+1).toString()
+            // last.style.fontSize = '80%'
+            paginationCircles.append(last)
+        }
+    }
+}
+
+function updateFlankImageIndex(flank,index) {
+    /** Updates the flank image index and refreshes the feature map. */
+    if (index >= 0 && index < individualFlankImages[flank].length) {
+        flankImageIndex[flank] = index
+        updateFeatureMap(flank)
+    }
+}
+
+function updateFeatureMap(flank){
+    /** Updates the feature map for the selected flank. */
+    if (flank == 'L') {
+        var div_id = 'leftFeatureMapDiv'
+    }
+    else if (flank == 'R') {
+        var div_id = 'rightFeatureMapDiv'
+    }
+
+    if (imgMaps[div_id] == null){
+        prepFeatureMap(div_id, flank, individualFlankImages[flank][flankImageIndex[flank]].url, individualFlankImages[flank][flankImageIndex[flank]].detection, 30)
+    }
+    else if (imgMapsActiveImage[div_id] != null && individualFlankImages[flank][flankImageIndex[flank]] != null) {
+        // imgMapsActiveImage[div_id].setUrl("https://"+bucketName+".s3.amazonaws.com/" + modifyToCropURL(individualFlankImages[flank][flankImageIndex[flank]].url, individualFlankImages[flank][flankImageIndex[flank]].detection.id));
+        imgMapsFullRes[div_id] = false
+        imgMapsActiveImage[div_id].setUrl("https://"+bucketName+".s3.amazonaws.com/" + modifyToCompURL(individualFlankImages[flank][flankImageIndex[flank]].url));
+    }
+
+    updateFeatureButtons(flank);
+}
+
+$('#btnLeftFlankPrev').click( function() {
+    /** Goes to the previous left flank image. */
+    if (flankImageIndex['L'] > 0) {
+        updateFlankImageIndex('L', flankImageIndex['L'] - 1)
+    } else {
+        updateFeatureButtons('L');
+    }
+});
+
+$('#btnLeftFlankNext').click( function() {
+    /** Goes to the next left flank image. */
+    if (flankImageIndex['L'] < individualFlankImages['L'].length - 1) {
+        updateFlankImageIndex('L', flankImageIndex['L'] + 1)
+    } else {
+        updateFeatureButtons('L');
+    }
+});
+
+$('#btnRightFlankPrev').click( function() {
+    /** Goes to the previous right flank image. */
+    if (flankImageIndex['R'] > 0) {
+        updateFlankImageIndex('R', flankImageIndex['R'] - 1)
+    } else {
+        updateFeatureButtons('R');
+    }
+});
+
+$('#btnRightFlankNext').click( function() {
+    /** Goes to the next right flank image. */
+    if (flankImageIndex['R'] < individualFlankImages['R'].length - 1) {
+        updateFlankImageIndex('R', flankImageIndex['R'] + 1)
+    } else {
+        updateFeatureButtons('R');
+    }
+});
+
+
+$('#cxLeftPrimaryImage').on('change', function() {
+    /** Toggles the primary image for the features. */
+    unsavedChanges = true
+    updateFlankPrimary(this.checked, 'L', 'leftFeatureMapDiv');
+});
+
+
+$('#cxRightPrimaryImage').on('change', function() {
+    /** Toggles the primary image for the features. */
+    unsavedChanges = true
+    updateFlankPrimary(this.checked, 'R', 'rightFeatureMapDiv');
+});
+
+function updateFlankPrimary(checked,flank,div_id) {
+    /** Updates the flank primary image. */
+    det_id = individualFlankImages[flank][flankImageIndex[flank]].detection.id
+    if (checked) {
+        /** Sets the current flank image as the primary image. */
+        featureDrawControl[div_id]._toolbars.draw._toolbarContainer.style.display = 'block';
+        featureDrawControl[div_id]._toolbars.edit._toolbarContainer.style.display = 'block';
+        if (!globalFeatures[flank][det_id]) {
+            globalFeatures[flank][det_id] = {}
+        }
+        globalFeatures[flank][det_id]['edited'] = {}
+        globalFeatures[flank][det_id]['added'] = {}
+        globalFeatures[flank][det_id]['removed'] = []
+        globalFeatures[flank][det_id]['user_selected'] = 'true'
+        individualBestDets[flank] = [{
+            'detection': individualFlankImages[flank][flankImageIndex[flank]].detection,
+            'url': individualFlankImages[flank][flankImageIndex[flank]].url,
+        }]
+    } else {
+        /** Unsets the current flank image as the primary image. */
+        featureDrawControl[div_id]._toolbars.draw._toolbarContainer.style.display = 'none';
+        featureDrawControl[div_id]._toolbars.edit._toolbarContainer.style.display = 'none';
+        delete globalFeatures[flank][det_id]
+        individualBestDets[flank] = []
+    }
+}
+
+
+function featureEditPrep(flank,div_id){
+
+    imgMaps[div_id].on("draw:drawstart", function(e) {
+        /** Enables editing when drawing starts. */
+        editingEnabled = true
+    })
+
+    imgMaps[div_id].on("draw:drawstop", function(e) {
+        /** Disables editing when drawing stops. */
+        editingEnabled = false
+    })
+
+    imgMaps[div_id].on("draw:editstart", function(e) {
+        /** Enables editing when editing starts. */
+        editingEnabled = true
+    })
+
+    imgMaps[div_id].on("draw:editstop", function(e) {
+        /** Disables editing when editing stops and updates the features. */
+        document.getElementById('individualFeaturesErrors').innerHTML = ""
+        editingEnabled = false
+
+        // check any overlaps
+        var isOverlapping = false;
+        drawnFeatureItems[div_id].eachLayer(function (layer) {
+            var bounds = layer.getBounds();
+            drawnFeatureItems[div_id].eachLayer(function (otherLayer) {
+                if (layer != otherLayer && bounds.intersects(otherLayer.getBounds())) {
+                    isOverlapping = true;
+                    return; // Use return to exit the inner function
+                }
+            });
+            if (isOverlapping){return; } // Exit the outer function if an overlap is found
+        });
+
+        if (isOverlapping && document.getElementById('individualFeaturesErrors') != null) {
+            document.getElementById('individualFeaturesErrors').innerHTML = "The feature you've outlined overlaps with another feature. It is recommended that you either adjust the existing feature or delete it and create a new one."
+        }
+
+        updateFeatures(flank,div_id)
+    })
+
+    imgMaps[div_id].on("draw:deletestart", function(e) {
+        /** Enables editing when deleting starts. */
+        editingEnabled = true
+    })
+
+    imgMaps[div_id].on("draw:deletestop", function(e) {
+        /** Disables editing when deleting stops and updates the features. */
+        document.getElementById('individualFeaturesErrors').innerHTML = ""
+        editingEnabled = false
+        updateFeatures(flank,div_id)
+    })
+
+    imgMaps[div_id].on('draw:created', function (e) {
+        /** Adds a new feature when created. */
+        document.getElementById('individualFeaturesErrors').innerHTML = ""
+        var newLayer = e.layer;
+        var newBounds = newLayer.getBounds();
+        var isOverlapping = false;
+
+        // Check if the new feature is contained within det_bounds
+        var detection = individualFlankImages[flank][flankImageIndex[flank]].detection
+        var det_bounds = [[detection.top*imgMapsHeight[div_id], detection.left*imgMapsWidth[div_id]],[detection.bottom*imgMapsHeight[div_id], detection.right*imgMapsWidth[div_id]]]
+        det_bounds = L.latLngBounds(det_bounds)
+        if (!det_bounds.contains(newBounds)) {
+            return;
+        }
+
+        drawnFeatureItems[div_id].eachLayer(function (layer) {
+            if (newBounds.intersects(layer.getBounds())) {
+                isOverlapping = true;
+            }
+        });
+
+        if (isOverlapping && document.getElementById('individualFeaturesErrors') != null) {
+            document.getElementById('individualFeaturesErrors').innerHTML = "The feature you've outlined overlaps with another feature. It is recommended that you either adjust the existing feature or delete it and create a new one."
+        }
+        
+        drawnFeatureItems[div_id].addLayer(newLayer);
+        let added_ids = []
+        if (globalFeatures[flank][detection.id] && globalFeatures[flank][detection.id]['added']) {
+            added_ids = Object.keys(globalFeatures[flank][detection.id]['added']);
+        }
+        let new_id = 'l_' + (added_ids.length > 0 ? Math.max(...added_ids.map(id => parseInt(id.replace('l_', '')))) + 1 : 1);
+
+        leafletFeatureIDs[div_id][new_id] = newLayer._leaflet_id
+
+        updateFeatures(flank,div_id)
+
+    });
 
 }
 
-// document.onclick = function () {
-//     /** Hides the context menu when clicking outside of it. */
-//     if (map && map.contextmenu.isVisible()) {
-//         map.contextmenu.hide()
-//     }
-// }
+function updateFeatures(flank,divID) {
+    /** Updates the features after an edit has been performed. */
+    unsavedChanges = true
+    any_out_of_bounds = false
+    det_id = individualFlankImages[flank][flankImageIndex[flank]].detection.id
+    if (!globalFeatures[flank][det_id]) {
+        globalFeatures[flank][det_id] = {}
+
+        globalFeatures[flank][det_id]['user_selected'] = 'false'
+        globalFeatures[flank][det_id]['removed'] = []
+        globalFeatures[flank][det_id]['edited'] = {}
+        globalFeatures[flank][det_id]['added'] = {}
+    }
+
+    // globalFeatures[flank][det_id]['edited'] = {}
+    // globalFeatures[flank][det_id]['added'] = {}
+    // globalFeatures[flank][det_id]['removed'] = []
+
+    drawnFeatureItems[divID].eachLayer(function (layer) {
+        /** Iterates through each drawn feature and updates the global features. */
+        var coords = layer._latlngs;
+        if (coords.length > 0) {
+            coords = coords[0];
+        }
+
+        var outofbounds = false
+        var detection = individualFlankImages[flank][flankImageIndex[flank]].detection
+        var det_bounds = [[detection.top*imgMapsHeight[divID], detection.left*imgMapsWidth[divID]],[detection.bottom*imgMapsHeight[divID], detection.right*imgMapsWidth[divID]]]
+        det_bounds = L.latLngBounds(det_bounds)
+        if (!det_bounds.contains(layer.getBounds())) {
+            outofbounds = true
+        }
+        if (outofbounds) {
+            any_out_of_bounds = true  
+            // go to next layer
+            return;
+        }
+        var new_coords = [];
+        for (var j = 0; j < coords.length; j++) {
+            new_coords.push([coords[j].lng / imgMapsWidth[divID], coords[j].lat / imgMapsHeight[divID]]);
+        }
+        new_coords.push(new_coords[0]); // Ensure the polygon is closed
+        var featureID = Object.keys(leafletFeatureIDs[divID]).find(key => leafletFeatureIDs[divID][key] === layer._leaflet_id);
+        if (featureID) {
+            if (featureID.startsWith('l_')) {
+                // New feature added
+                globalFeatures[flank][det_id]['added'][featureID] = {
+                    'coords': new_coords,
+                    'detection_id': det_id,
+                };
+            } else {
+                // Existing feature edited
+                globalFeatures[flank][det_id]['edited'][featureID] = {
+                    'coords': new_coords,
+                    'detection_id': det_id,
+                };
+            }
+        }
+    });
+
+    // Remove features that are not in the drawn items
+
+    for (var featureID in leafletFeatureIDs[divID]) {
+        /** Checks if the feature is still in the drawn items and removes it if not. */
+        if (!drawnFeatureItems[divID].getLayer(leafletFeatureIDs[divID][featureID])) {
+            if (featureID.startsWith('l_')) {
+                // If it's a new feature, remove it from added
+                delete globalFeatures[flank][det_id]['added'][featureID];
+            } else {
+                // If it's an existing feature, add it to removed
+                globalFeatures[flank][det_id]['removed'].push(featureID);
+                delete globalFeatures[flank][det_id]['edited'][featureID];
+            }
+            delete leafletFeatureIDs[divID][featureID];
+        }
+    }
+
+    globalFeatures[flank][det_id]['removed'] = [...new Set(globalFeatures[flank][det_id]['removed'])];
+    if (any_out_of_bounds){
+        addFeatures(divID, individualFlankImages[flank][flankImageIndex[flank]].detection)
+    }
+}
+
+function submitFeatures(){
+    /** Submits the features for the selected individual. */
+
+    if (editingEnabled) {
+        document.getElementById('individualFeaturesErrors').innerHTML = "Please finish editing before submitting features."
+        document.getElementById('btnSubmitInfoChange').disabled = false
+        return;
+    }
+
+    var featuresDict = {}
+    for (let flank in globalFeatures) {
+        for (let det_id in globalFeatures[flank]) {
+            if (globalFeatures[flank][det_id]['user_selected'] == 'true' || (Object.keys(globalFeatures[flank][det_id]['edited']).length > 0 || Object.keys(globalFeatures[flank][det_id]['added']).length > 0 || globalFeatures[flank][det_id]['removed'].length > 0)) {
+                featuresDict[det_id] = globalFeatures[flank][det_id]
+            }
+        }
+    }
+
+    console.log(featuresDict)
+
+    if (Object.keys(featuresDict).length > 0 && selectedIndividual != null && document.getElementById('individualFeaturesErrors').innerHTML == "") {
+        var formData = new FormData()
+        formData.append("features", JSON.stringify(featuresDict))
+        formData.append("individual_id", selectedIndividual)
+
+        var xhttp = new XMLHttpRequest();
+        xhttp.onreadystatechange =
+        function(){
+            if (this.readyState == 4 && this.status == 200) {
+                reply = JSON.parse(this.responseText);
+                console.log(reply)
+                document.getElementById('btnSubmitInfoChange').disabled = false
+                initFeatureMaps()
+            }
+        }
+        xhttp.open("POST", '/submitFeatures');
+        xhttp.send(formData)
+
+    } else{
+        document.getElementById('btnSubmitInfoChange').disabled = false
+    }
+
+}
+
+function changeIndivTab(evt, tabName) {
+    /** Opens the indivs tab */
+
+    var mainModal = document.getElementById('modalIndividual')
+    var tabcontent = mainModal.getElementsByClassName("tabcontent");
+    for (let i = 0; i < tabcontent.length; i++) {
+        tabcontent[i].style.display = "none";
+    }
+
+    var tablinks = mainModal.getElementsByClassName("tablinks");
+    for (let i = 0; i < tablinks.length; i++) {
+        tablinks[i].className = tablinks[i].className.replace(" active", "");
+    }
+
+    document.getElementById(tabName).style.display = "block";
+    evt.currentTarget.className += " active";
+    tabActiveIndiv = tabName
+
+    if (tabName == 'baseIndivSummaryTab') {
+        // getIndividual(selectedIndividual,selectedIndividualName)
+        openIndivTab()
+    }
+    else if (tabName == 'baseIndivFeaturesTab') {
+        // initFeatureMaps()
+        openFeaturesTab()
+    }
+    else if (tabName == 'baseIndivStatsTab') {
+        // initialiseStats()
+        openStatsTab()
+    }
+    else if (tabName == 'baseIndivAssociationsTab') {
+        // buildAssociationTable(selectedIndividual)
+        openAssociationsTab()
+    }
+
+}
+
+function openIndivTab() {
+    /** Opens the individual tab and populates the individual data. */
+    if (map==null||associationClick) {
+        getIndividual(selectedIndividual,selectedIndividualName,associationClick)
+        associationClick = false
+    }
+}
+
+function openFeaturesTab() {
+    /** Opens the features tab and initialises the feature maps. */
+    if (Object.keys(individualFlankImages).length == 0) {
+        initFeatureMaps()
+    }
+}
+
+function openStatsTab() {
+    /** Opens the stats tab and initialises the stats. */
+    if (document.getElementById('statisticsDiv').firstChild===null) {
+        initialiseStats()
+    }
+}
+
+function openAssociationsTab() {
+    /** Opens the associations tab and builds the association table. */
+    if (document.getElementById('associationsDiv').firstChild===null) {
+        buildAssociationTable(selectedIndividual)
+    }
+}
+
+$('#newIndividualName').on('change', function() {
+    unsavedChanges = true
+});
+
+$('#idNotes').on('change', function() {
+    unsavedChanges = true
+});
+
+$('#btnCancelDiscard').click( function() {
+    /** Cancels the discard and reopens the modal. */
+    associationClick = false
+    modalDiscard.modal('hide')
+    modalIndividual.modal({keyboard: true})
+});
+
+$('#btnConfirmDiscard').click( function() {
+    /** Confirms the discard and closes the modal. */
+    modalDiscard.modal('hide')
+    if (associationClick) {
+        /** If the discard was triggered by an association click, reset the individual selection. */
+            associationClick = false
+            cleanModalIndividual()
+            selectedIndividual = associationID
+            selectedIndividualName = associationName
+            document.getElementById('openIndivSummary').click()
+    } else {
+        cleanModalIndividual()
+        getIndividuals(current_page)
+        // getTasks()
+    }
+});
+
+function getAreas(){
+    /** Fetches the areas from the server and populates the area selector. */
+    var xhttp = new XMLHttpRequest();
+    xhttp.onreadystatechange = function() {
+        if (this.readyState == 4 && this.status == 200) {
+            var reply = JSON.parse(this.responseText);
+            var areas = reply.areas
+            var areaSelect = document.getElementById('areaSelect')
+            clearSelect(areaSelect)
+            var areaOptionTexts = ['All']
+            var areaOptionValues = ['0']
+            for (var i=0;i<areas.length;i++) {
+                areaOptionTexts.push(areas[i])
+                areaOptionValues.push(areas[i])
+            }
+            fillSelect(areaSelect,areaOptionTexts,areaOptionValues)
+
+            addSurvey()
+            checkSurvey()
+        }
+    };
+    xhttp.open("GET", '/getAreas');
+    xhttp.send();
+}
+
+$('#areaSelect').on('change', function() {
+    /** Updates the area when the area selector changes. */
+    surveySelect = document.getElementById('surveySelect')
+    while(surveySelect.firstChild){
+        surveySelect.removeChild(surveySelect.firstChild);
+    }
+    addSurveyTask = document.getElementById('addSurveyTask')
+    while(addSurveyTask.firstChild){
+        addSurveyTask.removeChild(addSurveyTask.firstChild);
+    }
+    addSurvey()
+    checkSurvey()
+});
+
+function getUnidentifiable(){
+    /** Fetches unidentifiable sightings based on the selected filters. */
+
+    var species = document.getElementById('unidSpeciesSelect').value
+    var site = document.getElementById('unidSitesSelect').value
+    var task = document.getElementById('unidTaskSelect').value
+
+    var order_value = document.getElementById("orderUnidImages").value
+    if(document.getElementById('ascOrderUnid').checked){
+        order_value = 'a' + order_value
+    }
+    else{
+        order_value = 'd' + order_value
+    }
+
+    validateDateRange()
+    
+    if(validDate && document.getElementById("startDateUnid").value != "" ){
+        startDate = document.getElementById("startDateUnid").value + ' 00:00:00'
+    }
+    else{
+        startDate = ''
+    }
+
+    if(validDate && document.getElementById("endDateUnid").value != "" ){
+        endDate = document.getElementById("endDateUnid").value + ' 23:59:59'
+    }
+    else{
+        endDate = ''
+    }
+
+    var formData = new FormData()
+    formData.append("species", JSON.stringify(species))
+    formData.append("site", JSON.stringify(site))
+    formData.append("task_id", JSON.stringify(task))
+    formData.append("order", JSON.stringify(order_value))
+    formData.append("start_date", JSON.stringify(startDate))
+    formData.append("end_date", JSON.stringify(endDate))
+
+
+    var xhttp = new XMLHttpRequest();
+    xhttp.onreadystatechange =
+    function(){
+        if (this.readyState == 4 && this.status == 200) {
+            reply = JSON.parse(this.responseText);
+            individualImages = reply.individual
+            if (individualImages.length>0){
+
+                document.getElementById('tgInfoUnid').innerHTML = individualImages[0].trapgroup.tag
+                document.getElementById('timeInfoUnid').innerHTML = individualImages[0].timestamp
+
+                document.getElementById('labelsDivUnid').innerHTML =  individualImages[0].detections[0].species
+                document.getElementById('surveysDivUnid').innerHTML = individualImages[0].detections[0].task
+
+                if (individualImages[0].access=='write'){
+                    document.getElementById('btnRestoreDetUnid').disabled = false
+                }
+                else{
+                    document.getElementById('btnRestoreDetUnid').disabled = true
+                }
+
+                initUnidMap()
+                prepMapIndividual(individualImages[0])
+                updateSlider()
+            } else {
+                var center = document.getElementById('centerMapUnid')
+                while(center.firstChild){
+                    center.removeChild(center.firstChild)
+                }
+
+                var splideDiv = document.getElementById('splideDivUnid')
+                while(splideDiv.firstChild){
+                    splideDiv.removeChild(splideDiv.firstChild);
+                }
+
+                document.getElementById('tgInfoUnid').innerHTML = ''
+                document.getElementById('timeInfoUnid').innerHTML = ''
+                
+                document.getElementById('labelsDivUnid').innerHTML =  ''
+                document.getElementById('surveysDivUnid').innerHTML = ''
+
+                var noData = document.createElement('h4')
+                noData.setAttribute('style','color: white; text-align: center; margin-top: 20px')
+                noData.innerHTML = 'No unidentifiable sightings found.'
+                center.appendChild(noData)
+
+                document.getElementById('btnRestoreDetUnid').disabled = true
+            }
+
+        }
+    };
+    xhttp.open("POST", '/getUnidentifiable');
+    xhttp.send(formData)
+        
+}
+
+$('#btnEditUnidentifiable').click( function() {
+    /** Opens the unidentifiable modal. */
+    cleanModalIndividual()
+    cleanUnidentifiableModal()
+    modalUnidentifiable.modal({keyboard: true})
+});
+
+function cleanUnidentifiableModal() {
+    /** Cleans the unidentifiable modal */
+    var splideDiv = document.getElementById('splideDivUnid')
+    while(splideDiv.firstChild){
+        splideDiv.removeChild(splideDiv.firstChild);
+    }
+
+    var center = document.getElementById('centerMapUnid')
+    while(center.firstChild){
+        center.removeChild(center.firstChild)
+    }
+
+    clearSelect(document.getElementById('unidSpeciesSelect'))
+    clearSelect(document.getElementById('unidSitesSelect'))
+    clearSelect(document.getElementById('unidTaskSelect'))
+
+    document.getElementById('ascOrderUnid').checked = true
+    document.getElementById('orderUnidImages').value = '1'	
+    document.getElementById('startDateUnid').value = ''
+    document.getElementById('endDateUnid').value = ''
+
+    document.getElementById('tgInfoUnid').innerHTML = ''
+    document.getElementById('timeInfoUnid').innerHTML = ''
+    
+    document.getElementById('labelsDivUnid').innerHTML =  ''
+    document.getElementById('surveysDivUnid').innerHTML = ''
+
+    individualSplide = null
+    individualImages = null
+    mapReady = null
+    finishedDisplaying = true
+    activeImage = null
+    drawnItems = null
+    fullRes = false
+    rectOptions = null
+    mapWidth = null
+    mapHeight = null
+    map = null
+    addedDetections = false
+    selectedIndividual = null
+    selectedIndividualName = null
+    individualTasks = []
+
+}
+
+modalUnidentifiable.on('shown.bs.modal', function () {
+    /** Initializes the unidentifiable modal when shown. */
+    if (map== null || !unidentifiableOpen) {
+        unidentifiableOpen = true
+        initUnidentifiable()
+    }
+});
+
+modalUnidentifiable.on('hidden.bs.modal', function () {
+    /** Cleans the unidentifiable modal when hidden. */
+    if (!helpReturn && !modalAlertIndividualsReturn) {
+        unidentifiableOpen = false
+        cleanUnidentifiableModal()
+        getIndividuals(current_page)
+    } else {
+        helpReturn = false
+        modalAlertIndividualsReturn = false
+    }
+});
+
+
+function initUnidMap(){
+    /** Initializes the unidentifiable map and slider components. */
+    map = null
+    individualSplide = null
+
+    var center = document.getElementById('centerMapUnid')
+    while(center.firstChild){
+        center.removeChild(center.firstChild)
+    }
+
+    var mapDiv = document.createElement('div')
+    mapDiv.setAttribute('id','mapDiv')
+    mapDiv.setAttribute('style','height: 700px')
+    center.appendChild(mapDiv)
+
+
+    var splideDiv = document.getElementById('splideDivUnid')
+
+    while(splideDiv.firstChild){
+        splideDiv.removeChild(splideDiv.firstChild);
+    }
+
+    var card = document.createElement('div')
+    card.classList.add('card')
+    card.setAttribute('style','background-color: rgb(60, 74, 89);margin-top: 5px; margin-bottom: 5px; margin-left: 5px; margin-right: 5px; padding-top: 5px; padding-bottom: 5px; padding-left: 5px; padding-right: 5px')
+    splideDiv.appendChild(card)
+
+    var body = document.createElement('div')
+    body.classList.add('card-body')
+    body.setAttribute('style','margin-top: 0px; margin-bottom: 0px; margin-left: 0px; margin-right: 0px; padding-top: 0px; padding-bottom: 0px; padding-left: 0px; padding-right: 0px')
+    card.appendChild(body)
+
+    var splide = document.createElement('div')
+    splide.classList.add('splide')
+    splide.setAttribute('id','splide')
+    body.appendChild(splide)
+
+    var track = document.createElement('div')
+    track.classList.add('splide__track')
+    splide.appendChild(track)
+
+    var list = document.createElement('ul')
+    list.classList.add('splide__list')
+    list.setAttribute('id','imageSplide')
+    track.appendChild(list)
+
+}
+
+function initUnidentifiable() {
+    /** Initializes the unidentifiable modal by resetting components. */
+
+    var xhttp = new XMLHttpRequest();
+    xhttp.onreadystatechange = function(){
+        if (this.readyState == 4 && this.status == 200) {
+            reply = JSON.parse(this.responseText);
+
+            //Populate species selector
+            texts = ['All']
+            texts.push(...reply.species)
+            values = ['0']
+            values.push(...reply.species)
+            clearSelect(document.getElementById('unidSpeciesSelect'))
+            fillSelect(document.getElementById('unidSpeciesSelect'), texts, values)
+
+            //Populate site selector
+            texts = ['All']
+            texts.push(...reply.sites)
+            values = ['0']
+            values.push(...reply.sites)
+            clearSelect(document.getElementById('unidSitesSelect'))
+            fillSelect(document.getElementById('unidSitesSelect'), texts, values)
+
+
+            texts = ['All']
+            values = ['0']
+            for (let i=0;i<reply.tasks.length;i++) {
+                texts.push(reply.tasks[i].name)
+                values.push(reply.tasks[i].id)
+            }
+            clearSelect(document.getElementById('unidTaskSelect'))
+            fillSelect(document.getElementById('unidTaskSelect'), texts, values)
+
+            getUnidentifiable()
+        }
+    }
+    xhttp.open("GET", '/getAllUnidSpeciesSitesAndTasks');
+    xhttp.send();
+
+}
+
+$('#orderUnidImages').on('change', function() {
+    getUnidentifiable()
+});
+
+$('#ascOrderUnid').on('change', function() {
+    getUnidentifiable()
+});
+
+$('#ascOrderUnid').on('change', function() {
+    getUnidentifiable()
+});
+
+$('#unidSitesSelect').on('change', function() {
+    getUnidentifiable()
+});
+
+$('#unidSpeciesSelect').on('change', function() {
+    getUnidentifiable()
+});
+
+$('#unidTaskSelect').on('change', function() {
+    getUnidentifiable()
+});
+
+$("#startDateUnid").change( function() {
+    /** Listener for the start date selector on the the individuals page. */
+    validateDateRange()
+    if(validDate){
+        getUnidentifiable()
+    }
+})
+
+$("#endDateUnid").change( function() {
+    /** Listener for the end date selector on the the individuals page. */
+    validateDateRange()
+    if(validDate){
+        getUnidentifiable()
+    }
+})
+
+function restoreUnidSighting(){
+    /** Restores the unidentifiable sighting to a new individual. */
+    document.getElementById('btnContinueIndividualAlert').disabled = true
+    modalAlertIndividuals.modal('hide')
+    
+    if (individualImages.length > 0 && individualImages[individualSplide.index].access=='write'){
+        var image = individualImages[individualSplide.index]
+        var detection = image.detections[0]
+
+        individualImages.splice(individualSplide.index, 1)
+        if (individualImages.length == 0){
+            var center = document.getElementById('centerMapUnid')
+            while(center.firstChild){
+                center.removeChild(center.firstChild)
+            }
+
+            var splideDiv = document.getElementById('splideDivUnid')
+            while(splideDiv.firstChild){
+                splideDiv.removeChild(splideDiv.firstChild);
+            }
+
+            document.getElementById('tgInfoUnid').innerHTML = ''
+            document.getElementById('timeInfoUnid').innerHTML = ''
+            
+            document.getElementById('labelsDivUnid').innerHTML =  ''
+            document.getElementById('surveysDivUnid').innerHTML = ''
+
+            var noData = document.createElement('h4')
+            noData.setAttribute('style','color: white; text-align: center; margin-top: 20px')
+            noData.innerHTML = 'No unidentifiable sightings found.'
+            center.appendChild(noData)
+        } else {
+            updateSlider()
+            if (individualSplide.index > 0){
+                individualSplide.go(0)
+            }
+            else{
+                finishedDisplaying = false
+                image = individualImages[individualSplide.index]
+
+                document.getElementById('tgInfoUnid').innerHTML = image.trapgroup.tag
+                document.getElementById('timeInfoUnid').innerHTML = image.timestamp
+                document.getElementById('labelsDivUnid').innerHTML =  image.detections[0].species
+                document.getElementById('surveysDivUnid').innerHTML = image.detections[0].task
+
+                addedDetections = false
+                activeImage.setUrl("https://"+bucketName+".s3.amazonaws.com/" + modifyToCompURL(image.url))
+            }
+        }
+
+        var xhttp = new XMLHttpRequest();
+        xhttp.onreadystatechange =
+        function(){
+            if (this.readyState == 4 && this.status == 200) {
+                reply = JSON.parse(this.responseText);
+                if (document.getElementById('btnContinueIndividualAlert')) {
+                    document.getElementById('btnContinueIndividualAlert').disabled = false
+                    removeIndividualEventListeners()
+                }
+            }
+        }
+        xhttp.open("GET", '/restoreUnidentifiableDetection/'+detection.id.toString()+'/'+detection.individual_id.toString());
+        xhttp.send();
+
+        modalUnidentifiable.modal({keyboard: true});
+    }
+}
+
+$('#btnRestoreDetUnid').on('click', function() {
+    /** Restores the unidentifiable detection. */
+    removeIndividualEventListeners()
+    if (individualImages.length > 0 && individualImages[individualSplide.index].access=='write'){
+        modalAlertIndividualsReturn = true
+        modalUnidentifiable.modal('hide')
+        document.getElementById('removeImg').checked = true
+        document.getElementById('modalDissociateTitle').innerHTML = 'Restore Sighting'
+        document.getElementById('dissociateImageInfo').innerHTML = '<i>Do you want to restore this sighting from being marked as unidentifiable? You can either create a new individual for the sighting or move it to an existing individual.</i>';
+        document.getElementById('unidentifiableDiv').style.display = 'none'
+        modalDissociateImage.modal({keyboard: true});
+    }
+});
+
+function onload(){
+    /**Function for initialising the page on load.*/
+    getAreas()
+    // addSurvey()
+    // checkSurvey()
+    populateSelectors()
+    // getTasks()
+
+}
+
+document.onclick = function () {
+    /** Hides the context menu when clicking outside of it. */
+    if (map && map.contextmenu.isVisible()) {
+        map.contextmenu.hide()
+    }
+}
 
 window.addEventListener('load', onload, false);
 

@@ -12,11 +12,11 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-// const detection_flanks = ['Left','Right','Ambiguous']
-// var targetRect = null
-// var targetUpdated = false
-// var dbDetIds = {}
-// var toolTipsOpen = true
+const detection_flanks = ['Left','Right','Ambiguous']
+var targetRect = null
+var targetUpdated = false
+var dbDetIds = {}
+var toolTipsOpen = true
 
 function modifyToCompURL(url) {
     /** Modifies the source URL to the compressed folder of the user */
@@ -32,6 +32,13 @@ function modifyToCompURL(url) {
         splits[splits.length-1]=splits[splits.length-1].substring(0, splits[splits.length-1].lastIndexOf('.'))+'.mp4'
         return splits.join('/')
     }
+}
+
+function modifyToCropURL(url,detection_id) {
+    /** Modifies the source URL to the cropped image of detection */
+    splits=url.split('/')
+    crop_url = splits[0] + '-comp/' + splits[1] + '/_crops_/' + detection_id.toString() + '.JPG'
+    return crop_url
 }
 
 function checkIfImage(url){
@@ -64,12 +71,27 @@ function updateSlider() {
 
     for (let i=0;i<individualImages.length;i++) {
         img = document.createElement('img')
-        img.setAttribute('src',"https://"+bucketName+".s3.amazonaws.com/" + modifyToCompURL(individualImages[i].url))
+        // img.setAttribute('src',"https://"+bucketName+".s3.amazonaws.com/" + modifyToCompURL(individualImages[i].url))
+        if (individualImages[i].detections.length > 0) {
+            image_url = "https://"+bucketName+".s3.amazonaws.com/" + modifyToCropURL(individualImages[i].url,individualImages[i].detections[0].id)
+        } else {
+            image_url = "https://"+bucketName+".s3.amazonaws.com/" + modifyToCompURL(individualImages[i].url)
+        }
+        img.setAttribute('data-splide-lazy', image_url)
         imgli = document.createElement('li')
         imgli.classList.add('splide__slide')
         imgli.appendChild(img)
         imageSplide.appendChild(imgli)
+
+        // add a error handler to the image to replace it with the compressed version if the crop does not exist
+        img.onerror = function() {
+            this.onerror = null;
+            this.src = "https://"+bucketName+".s3.amazonaws.com/" + modifyToCompURL(individualImages[i].url);
+        };
     }
+
+    client_width = document.getElementById('splide').clientWidth
+    numberPages =Math.ceil(client_width/200) + 1
 
     if (individualSplide==null) {
         // Initialise Splide
@@ -82,6 +104,8 @@ function updateSlider() {
             gap         : 5,
             pagination  : false,
             cover       : true,
+            lazyLoad    : 'nearby',
+            preloadPages: numberPages,
             breakpoints : {
                 '600': {
                     fixedWidth  : 66,
@@ -93,9 +117,22 @@ function updateSlider() {
         individualSplide.on( 'moved', function() {
             if (bucketName!=null) {
                 finishedDisplaying = false
-                image = individualImages[individualSplide.index]
-                document.getElementById('tgInfo').innerHTML = "Site: " + image.trapgroup.tag
-                document.getElementById('timeInfo').innerHTML = image.timestamp
+                var image = individualImages[individualSplide.index]
+                if (document.getElementById('tgInfoUnid') != null && (modalUnidentifiable.is(':visible')||unidentifiableOpen)) {
+                    document.getElementById('tgInfoUnid').innerHTML = image.trapgroup.tag
+                    document.getElementById('timeInfoUnid').innerHTML = image.timestamp
+                    document.getElementById('labelsDivUnid').innerHTML =  image.detections[0].species
+                    document.getElementById('surveysDivUnid').innerHTML = image.detections[0].task
+                    if (image.access=='write'){
+                        document.getElementById('btnRestoreDetUnid').disabled = false
+                    }
+                    else{
+                        document.getElementById('btnRestoreDetUnid').disabled = true
+                    }
+                } else {
+                    document.getElementById('tgInfo').innerHTML = "Site: " + image.trapgroup.tag
+                    document.getElementById('timeInfo').innerHTML = image.timestamp
+                }
                 addedDetections = false
                 var isImage = checkIfImage(image.url)
                 var isActiveImage = checkIfImage(activeImage._url)
@@ -133,27 +170,27 @@ function addDetectionsIndividual(image) {
                 rect = L.rectangle([[detection.top*mapHeight,detection.left*mapWidth],[detection.bottom*mapHeight,detection.right*mapWidth]], rectOptions)
                 drawnItems.addLayer(rect)
                 
-                // if (document.getElementById('btnSubmitInfoChange') != null) {
-                //     if (Object.keys(changed_flanks).includes(detection.id.toString())) {
-                //         flank = changed_flanks[detection.id]
-                //     } else {
-                //         flank = detection.flank
-                //     }
+                if (document.getElementById('btnSubmitInfoChange') != null && !(modalUnidentifiable.is(':visible')||unidentifiableOpen)) {
+                    if (Object.keys(changed_flanks).includes(detection.id.toString())) {
+                        flank = changed_flanks[detection.id]
+                    } else {
+                        flank = detection.flank
+                    }
 
-                //     rect.bindTooltip(flank,{permanent: true, direction:"center"})
+                    rect.bindTooltip(flank,{permanent: true, direction:"center"})
 
-                //     var center = L.latLng([(rect._bounds._northEast.lat+rect._bounds._southWest.lat)/2,(rect._bounds._northEast.lng+rect._bounds._southWest.lng)/2])
-                //     var bottom = L.latLng([rect._bounds._southWest.lat,(rect._bounds._northEast.lng+rect._bounds._southWest.lng)/2])
-                //     var centerPoint = map.latLngToContainerPoint(center)
-                //     var bottomPoint = map.latLngToContainerPoint(bottom)
-                //     var offset = [0,centerPoint.y-bottomPoint.y]
+                    var center = L.latLng([(rect._bounds._northEast.lat+rect._bounds._southWest.lat)/2,(rect._bounds._northEast.lng+rect._bounds._southWest.lng)/2])
+                    var bottom = L.latLng([rect._bounds._southWest.lat,(rect._bounds._northEast.lng+rect._bounds._southWest.lng)/2])
+                    var centerPoint = map.latLngToContainerPoint(center)
+                    var bottomPoint = map.latLngToContainerPoint(bottom)
+                    var offset = [0,centerPoint.y-bottomPoint.y]
             
-                //     rect._tooltip.options.offset = offset
-                //     rect._tooltip.options.opacity = 0.8
-                //     rect.openTooltip()
+                    rect._tooltip.options.offset = offset
+                    rect._tooltip.options.opacity = 0.8
+                    rect.openTooltip()
 
-                //     dbDetIds[rect._leaflet_id.toString()] = detection.id.toString()
-                // }
+                    dbDetIds[rect._leaflet_id.toString()] = detection.id.toString()
+                }
             }
         }
         finishedDisplaying = true
@@ -200,7 +237,7 @@ function prepMapIndividual(image) {
     
             activeImage = L.imageOverlay(imageUrl, bounds).addTo(map);
             activeImage.on('load', function() {
-                // addedDetections = false
+                addedDetections = false
                 addDetectionsIndividual(individualImages[individualSplide.index])
             });
             activeImage.on('error', function() {
@@ -265,29 +302,29 @@ function prepMapIndividual(image) {
                 }
             });    
 
-            // if (document.getElementById('btnSubmitInfoChange') != null) {
-            //     updateIndividualRectOptions()
-            //     flankMapPrep()
-            // }
-            // else{
-            //     rectOptions = {
-            //         color: "rgba(223,105,26,1)",
-            //         fill: true,
-            //         fillOpacity: 0.0,
-            //         opacity: 0.8,
-            //         weight:3,
-            //         contextmenu: false,
-            //     }      
-            // }
+            if (document.getElementById('btnSubmitInfoChange') != null && !(modalUnidentifiable.is(':visible')||unidentifiableOpen)){
+                updateIndividualRectOptions()
+                flankMapPrep()
+            }
+            else{
+                rectOptions = {
+                    color: "rgba(223,105,26,1)",
+                    fill: true,
+                    fillOpacity: 0.0,
+                    opacity: 0.8,
+                    weight:3,
+                    contextmenu: false,
+                }      
+            }
 
-            rectOptions = {
-                color: "rgba(223,105,26,1)",
-                fill: true,
-                fillOpacity: 0.0,
-                opacity: 0.8,
-                weight:3,
-                contextmenu: false,
-            }            
+            // rectOptions = {
+            //     color: "rgba(223,105,26,1)",
+            //     fill: true,
+            //     fillOpacity: 0.0,
+            //     opacity: 0.8,
+            //     weight:3,
+            //     contextmenu: false,
+            // }            
 
             if (videoUrl != null) {
 
@@ -384,29 +421,29 @@ function updateMapIndividual( url){
             drawnItems = new L.FeatureGroup();
             map.addLayer(drawnItems);
             
-            // if (document.getElementById('btnSubmitInfoChange') != null) {
-            //     updateIndividualRectOptions()
-            //     flankMapPrep()
-            // }
-            // else{
-            //     rectOptions = {
-            //         color: "rgba(223,105,26,1)",
-            //         fill: true,
-            //         fillOpacity: 0.0,
-            //         opacity: 0.8,
-            //         weight:3,
-            //         contextmenu: false,
-            //     }      
-            // }
+            if (document.getElementById('btnSubmitInfoChange') != null && !(modalUnidentifiable.is(':visible')||unidentifiableOpen)) {
+                updateIndividualRectOptions()
+                flankMapPrep()
+            }
+            else{
+                rectOptions = {
+                    color: "rgba(223,105,26,1)",
+                    fill: true,
+                    fillOpacity: 0.0,
+                    opacity: 0.8,
+                    weight:3,
+                    contextmenu: false,
+                }      
+            }
 
-            rectOptions = {
-                color: "rgba(223,105,26,1)",
-                fill: true,
-                fillOpacity: 0.0,
-                opacity: 0.8,
-                weight:3,
-                contextmenu: false,
-            }    
+            // rectOptions = {
+            //     color: "rgba(223,105,26,1)",
+            //     fill: true,
+            //     fillOpacity: 0.0,
+            //     opacity: 0.8,
+            //     weight:3,
+            //     contextmenu: false,
+            // }    
 
             updatePlayControlImage()
             
@@ -516,6 +553,7 @@ function deleteIndividual() {
             reply = JSON.parse(this.responseText);
             if (document.getElementById('btnContinueIndividualAlert')) {
                 document.getElementById('btnContinueIndividualAlert').disabled = false
+                removeIndividualEventListeners()
             }
             getIndividuals(current_page)
         }
@@ -565,6 +603,7 @@ function removeImage() {
                 reply = JSON.parse(this.responseText);
                 if (document.getElementById('btnContinueIndividualAlert')) {
                     document.getElementById('btnContinueIndividualAlert').disabled = false
+                    removeIndividualEventListeners()
                 }
             }
         }
@@ -576,105 +615,181 @@ function removeImage() {
     
 }
 
+function markUnidentifiable() {
+    /** Marks the selected individual as unidentifiable. */
+    document.getElementById('btnContinueIndividualAlert').disabled = true
+    modalAlertIndividuals.modal('hide')
+    cleanModalIndividual()
+    var xhttp = new XMLHttpRequest();
+    xhttp.onreadystatechange =
+    function(){
+        if (this.readyState == 4 && this.status == 200) {
+            reply = JSON.parse(this.responseText);
+            if (document.getElementById('btnContinueIndividualAlert')) {
+                document.getElementById('btnContinueIndividualAlert').disabled = false
+                removeIndividualEventListeners()
+            }
+            getIndividuals(current_page)
+        }
+    }
+    xhttp.open("GET", '/markUnidentifiable/'+selectedIndividual.toString());
+    xhttp.send();
+
+    if (document.getElementById('modalIndividuals')) {
+        modalIndividuals.modal({keyboard: true});
+    }
+}
+
+function markImgUnidentifiable() {
+    /** Marks the currently displayed img as unidentifiable. */
+    
+    if (individualImages.length > 1){
+        var image = individualImages[individualSplide.index]
+        var detection = image.detections[0]
+
+        individualImages.splice(individualSplide.index, 1)
+        updateSlider()
+        if (individualSplide.index > 0){
+            individualSplide.go(0)
+        }
+        else{
+            finishedDisplaying = false
+            image = individualImages[0]
+            document.getElementById('tgInfo').innerHTML = "Site: " + image.trapgroup.tag
+            document.getElementById('timeInfo').innerHTML = image.timestamp
+            addedDetections = false
+            var isImage = checkIfImage(image.url)
+            var isActiveImage = checkIfImage(activeImage._url)
+            if (isImage != isActiveImage) {
+                updateMapIndividual(image.url)
+            }
+            updatePlayControlImage()
+            activeImage.setUrl("https://"+bucketName+".s3.amazonaws.com/" + modifyToCompURL(image.url))
+        }
+    
+        var xhttp = new XMLHttpRequest();
+        xhttp.onreadystatechange =
+        function(){
+            if (this.readyState == 4 && this.status == 200) {
+                reply = JSON.parse(this.responseText);
+            }
+        }
+        xhttp.open("GET", '/markUnidentifiable/'+selectedIndividual.toString()+'?detection_id='+detection.id.toString());
+        xhttp.send();
+
+        modalIndividual.modal({keyboard: true});
+    }
+    
+}
+
+function removeIndividualEventListeners() {
+    /** Removes event listeners from the map when the individual modal is closed. */
+    document.getElementById('btnContinueIndividualAlert').removeEventListener('click', deleteIndividual)
+    document.getElementById('btnContinueIndividualAlert').removeEventListener('click', removeImage)
+    document.getElementById('btnContinueIndividualAlert').removeEventListener('click', markUnidentifiable)
+    document.getElementById('btnContinueIndividualAlert').removeEventListener('click', restoreUnidSighting)
+}
+
 // NOTE: We are currenlty not allowing the users to edit a detection flank on the Individuals page and it can only be edited 
 // in a Cluster ID (-4 task). The reason we have disallowed this is because of having to recalculate all detection similarities 
 // and individual similaties associated with the detection whose flank has changed. 
 
-// function flankMapPrep() {
-//     /** Finishes prepping the map for intra-cluster individual ID by adding the dissociate option to the context menu. */
+function flankMapPrep() {
+    /** Finishes prepping the map for intra-cluster individual ID by adding the dissociate option to the context menu. */
 
-//     map.on('contextmenu.select', function(e) {
-//         if (targetUpdated) {  
-//             detection_id = dbDetIds[targetRect.toString()]
-//             original_flank = individualImages[individualSplide.index].detections[0].flank
-//             if (original_flank != e.el.textContent) {
-//                 changed_flanks[detection_id] = e.el.textContent
-//             }
-//             else{
-//                 delete changed_flanks[detection_id]
-//             }
+    map.on('contextmenu.select', function(e) {
+        if (targetUpdated) {  
+            detection_id = dbDetIds[targetRect.toString()]
+            original_flank = individualImages[individualSplide.index].detections[0].flank
+            if (original_flank != e.el.textContent) {
+                changed_flanks[detection_id] = e.el.textContent
+                unsavedChanges = true
+            }
+            else{
+                delete changed_flanks[detection_id]
+            }
             
-//             drawnItems._layers[targetRect].closeTooltip()
-//             drawnItems._layers[targetRect]._tooltip._content=e.el.textContent
-//             if (toolTipsOpen) {
-//                 drawnItems._layers[targetRect].openTooltip()
-//             }
+            drawnItems._layers[targetRect].closeTooltip()
+            drawnItems._layers[targetRect]._tooltip._content=e.el.textContent
+            if (toolTipsOpen) {
+                drawnItems._layers[targetRect].openTooltip()
+            }
 
-//             targetUpdated = false
-//         } else {
-//             alert('Error! Select is being handled before target updated.')
-//         }
-//     });
+            targetUpdated = false
+        } else {
+            alert('Error! Select is being handled before target updated.')
+        }
+    });
 
-//     map.on('contextmenu', function (e) {
-//         /** remove duplicate items on more than one right click of contextmenu*/
-//         nr_items = 2*detection_flanks.length - 1
+    map.on('contextmenu', function (e) {
+        /** remove duplicate items on more than one right click of contextmenu*/
+        nr_items = 2*detection_flanks.length - 1
 
-//         if(map.contextmenu._items.length > nr_items){
-//             for (let i=map.contextmenu._items.length-1;i>nr_items-1;i--) 
-//             {
-//                 map.contextmenu.removeItem(i)
-//             }
-//         } 
-//     });
+        if(map.contextmenu._items.length > nr_items){
+            for (let i=map.contextmenu._items.length-1;i>nr_items-1;i--) 
+            {
+                map.contextmenu.removeItem(i)
+            }
+        } 
+    });
 
-//     map.on('zoom', function(e){
-//         /** update position of bounding box labels on zoom */
-//         if (toolTipsOpen) {
-//             for (let layer in drawnItems._layers) {
-//                 var drawn_layer = drawnItems._layers[layer]
-//                 var center = L.latLng([(drawn_layer._bounds._northEast.lat+drawn_layer._bounds._southWest.lat)/2,(drawn_layer._bounds._northEast.lng+drawn_layer._bounds._southWest.lng)/2])
-//                 var bottom = L.latLng([drawn_layer._bounds._southWest.lat,(drawn_layer._bounds._northEast.lng+drawn_layer._bounds._southWest.lng)/2])
-//                 var centerPoint = map.latLngToContainerPoint(center)
-//                 var bottomPoint = map.latLngToContainerPoint(bottom)
-//                 var offset = [0,centerPoint.y-bottomPoint.y]
-//                 drawn_layer._tooltip.options.offset = offset
-//             }
-//         }
-//     });
-// }
+    map.on('zoom', function(e){
+        /** update position of bounding box labels on zoom */
+        if (toolTipsOpen) {
+            for (let layer in drawnItems._layers) {
+                var drawn_layer = drawnItems._layers[layer]
+                var center = L.latLng([(drawn_layer._bounds._northEast.lat+drawn_layer._bounds._southWest.lat)/2,(drawn_layer._bounds._northEast.lng+drawn_layer._bounds._southWest.lng)/2])
+                var bottom = L.latLng([drawn_layer._bounds._southWest.lat,(drawn_layer._bounds._northEast.lng+drawn_layer._bounds._southWest.lng)/2])
+                var centerPoint = map.latLngToContainerPoint(center)
+                var bottomPoint = map.latLngToContainerPoint(bottom)
+                var offset = [0,centerPoint.y-bottomPoint.y]
+                drawn_layer._tooltip.options.offset = offset
+            }
+        }
+    });
+}
 
-// function updateIndividualRectOptions() {
-//     /** Sets the bounding box options. */
+function updateIndividualRectOptions() {
+    /** Sets the bounding box options. */
 
-//     var menuItems = []
-//     var index = 0
+    var menuItems = []
+    var index = 0
     
-//     for (let i=0;i<detection_flanks.length;i++) {
-//         menuItems.push({
-//             text: detection_flanks[i],
-//             index: index,
-//             callback: updateTargetRect
-//         })
-//         index += 1
+    for (let i=0;i<detection_flanks.length;i++) {
+        menuItems.push({
+            text: detection_flanks[i],
+            index: index,
+            callback: updateTargetRect
+        })
+        index += 1
 
-//         menuItems.push({
-//             separator: true,
-//             index: index
-//         })
-//         index += 1
-//     }
+        menuItems.push({
+            separator: true,
+            index: index
+        })
+        index += 1
+    }
 
-//     rectOptions = {
-//         color: "rgba(223,105,26,1)",
-//         fill: true,
-//         fillOpacity: 0.0,
-//         opacity: 0.8,
-//         weight:3,
-//         contextmenu: true,
-//         contextmenuWidth: 140,
-//         contextmenuItems: menuItems
-//     }
-// }
+    rectOptions = {
+        color: "rgba(223,105,26,1)",
+        fill: true,
+        fillOpacity: 0.0,
+        opacity: 0.8,
+        weight:3,
+        contextmenu: true,
+        contextmenuWidth: 140,
+        contextmenuItems: menuItems
+    }
+}
 
-// function updateTargetRect (e) {
-//     /** Updates the targetRect global to the Leaflet ID of the recangle clicked on by the user. */
-//     if (e.relatedTarget) {
-//         targetRect = e.relatedTarget._leaflet_id
-//     }
-//     contextLocation = e.latlng
-//     targetUpdated = true
-// }
+function updateTargetRect (e) {
+    /** Updates the targetRect global to the Leaflet ID of the recangle clicked on by the user. */
+    if (e.relatedTarget) {
+        targetRect = e.relatedTarget._leaflet_id
+    }
+    contextLocation = e.latlng
+    targetUpdated = true
+}
 
 function prepImageMap(div_id, image_url, detection, vw=10) {
     /** Prepares the image map for the individual modal. */

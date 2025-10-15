@@ -289,14 +289,19 @@ function updatePolarErrors() {
 
             if(selectedTask){
                 var tasks = [selectedTask]
+                var area = null
             }else{
                 var tasks = getSelectedTasks()
+                var area = document.getElementById('areaSelect').value
             }
 
             if (tasks != '-1') {
                 var formData = new FormData()
                 formData.append("task_ids", JSON.stringify(tasks))
                 formData.append("species", JSON.stringify(species))
+                if (area!=null || area!= '' || area!='0'){
+                    formData.append('area', JSON.stringify(area))
+                }
     
                 var xhttp = new XMLHttpRequest();
                 xhttp.open("POST", '/checkSightingEditStatus');
@@ -332,14 +337,19 @@ function updateBarErrors() {
             species = speciesSelector.options[speciesSelector.selectedIndex].text
             if(selectedTask){
                 var tasks = [selectedTask]
+                var area = null
             }else{
                 var tasks = getSelectedTasks()
+                var area = document.getElementById('areaSelect').value
             }
 
             if (tasks != '-1') {
                 var formData = new FormData()
                 formData.append("task_ids", JSON.stringify(tasks))
                 formData.append("species", JSON.stringify(species))
+                if (area!=null || area!= '' || area!='0'){
+                    formData.append('area', JSON.stringify(area))
+                }
 
                 var xhttp = new XMLHttpRequest();
                 xhttp.open("POST", '/checkSightingEditStatus');
@@ -388,6 +398,7 @@ function updatePolarData(IDNum) {
 
     if(selectedTask){
         var tasks = [selectedTask]
+        var area = null
     }else{
         var tasks = getSelectedTasks()
         var normliseBySite = document.getElementById('normaliseBySiteEffort').checked
@@ -397,6 +408,7 @@ function updatePolarData(IDNum) {
         else {
             normliseBySite = '0'
         }
+        var area = document.getElementById('areaSelect').value
     }
 
     if (species == 'All') {
@@ -450,6 +462,10 @@ function updatePolarData(IDNum) {
         formData.append('startDate', JSON.stringify(startDate));
         formData.append('endDate', JSON.stringify(endDate));
         formData.append('group', JSON.stringify(group));
+
+        if (area!=null || area!= '' || area!='0'){
+            formData.append('area', JSON.stringify(area))
+        }
 
         if (baseUnitSelection == '4'){
             var timeToIndependence = document.getElementById('timeToIndependence').value
@@ -596,6 +612,7 @@ function updateBarData(IDNum) {
 
     if(selectedTask){
         var tasks = [selectedTask]
+        var area = null
     }else{
         var tasks = getSelectedTasks()
         var selectedSites = getSelectedSites()
@@ -608,6 +625,7 @@ function updateBarData(IDNum) {
         else {
             normaliseBySite = '0'
         }
+        var area = document.getElementById('areaSelect').value
     }
 
     if(species == 'All'){
@@ -625,6 +643,10 @@ function updateBarData(IDNum) {
         formData.append('sites_ids', JSON.stringify(sites));
         formData.append('groups', JSON.stringify(groups));
         formData.append('normaliseBySite', JSON.stringify(normaliseBySite));
+    }
+
+    if (area!=null || area!= '' || area!='0'){
+        formData.append('area', JSON.stringify(area))
     }
 
     if (baseUnitSelection == '4'){
@@ -763,14 +785,19 @@ function updateBaseUnitPolar() {
 
             if(selectedTask){
                 var tasks = [selectedTask]
+                var area = null
             }else{
                 var tasks = getSelectedTasks()
+                var area = document.getElementById('areaSelect').value
             }
 
             if (tasks != '-1') {
                 var formData = new FormData()
                 formData.append("task_ids", JSON.stringify(tasks))
                 formData.append("species", JSON.stringify(species))
+                if (area!=null || area!= '' || area!='0'){
+                    formData.append('area', JSON.stringify(area))
+                }
 
                 var xhttp = new XMLHttpRequest();
                 xhttp.open("POST", '/checkSightingEditStatus');
@@ -803,13 +830,18 @@ function updateBaseUnitBar() {
             species = speciesSelector.options[speciesSelector.selectedIndex].text
             if(selectedTask){
                 var tasks = [selectedTask]
+                var area = null
             }else{
                 var tasks = getSelectedTasks()
+                var area = document.getElementById('areaSelect').value
             }
             if (tasks != '-1') {
                 var formData = new FormData()
                 formData.append("task_ids", JSON.stringify(tasks))
                 formData.append("species", JSON.stringify(species))
+                if (area!=null || area!= '' || area!='0'){
+                    formData.append('area', JSON.stringify(area))
+                }
 
                 var xhttp = new XMLHttpRequest();
                 xhttp.open("POST", '/checkSightingEditStatus');
@@ -861,24 +893,50 @@ function reScaleNormalisation(newScale) {
     invHeatmapLayer.cfg.radius = newScale
     invHeatmapLayer._update()
 
-    maxVal = 0
-    for (let i=0;i<reply.data.length;i++) {
-        value = invHeatmapLayer._heatmap.getValueAt(map.latLngToLayerPoint(L.latLng({lat:reply.data[i].lat, lng:reply.data[i].lng})))
-        if (value!=0) {
-            reply.data[i].count = (1000*reply.data[i].count)/value
-            if (reply.data[i].count>maxVal) {
-                maxVal = reply.data[i].count
+    // remove 0
+    reply.data = reply.data.filter(function (item) {
+        return item.count > 0;
+    });
+
+    if (document.getElementById('normaliseOutliersCheckBox').checked) {
+        /** Normalises the heatmap data to remove outliers with logarithmic scaling. */
+        maxVal = 0
+        for (let i=0;i<reply.data.length;i++) {
+            if (reply.data[i].count != 0) {
+                reply.data[i].count = Math.log(reply.data[i].count+1)
+                if (reply.data[i].count > maxVal) {
+                    maxVal = reply.data[i].count
+                }
             }
         }
+        reply.max = maxVal
     }
-    reply.max = 1.25*maxVal
+
+    if (document.getElementById('normalisationCheckBox').checked) {
+        maxVal = 0
+        for (let i=0;i<reply.data.length;i++) {
+            value = invHeatmapLayer._heatmap.getValueAt(map.latLngToLayerPoint(L.latLng({lat:reply.data[i].lat, lng:reply.data[i].lng})))
+            if (value!=0) {
+                reply.data[i].count = (1000*reply.data[i].count)/value
+                if (reply.data[i].count>maxVal) {
+                    maxVal = reply.data[i].count
+                }
+            }
+        }
+        reply.max = 1.25*maxVal
+    }
+
     map.removeLayer(invHeatmapLayer)
-    map.addLayer(heatmapLayer)
+    if (document.getElementById('heatMapCheckBox').checked) {
+        map.addLayer(heatmapLayer)
+    }
 
     heatmapLayer._data = []
     heatmapLayer.setData(reply);
     heatmapLayer.cfg.radius = newScale
-    heatmapLayer._update()
+    if (document.getElementById('heatMapCheckBox').checked) {
+        heatmapLayer._update()
+    }
 }
 
 function updateHeatMap() {
@@ -909,6 +967,7 @@ function updateHeatMap() {
 
     if(selectedTask){
         var tasks = [selectedTask]
+        var area = null
     }else{
         var tasks = getSelectedTasks()
         var selectedSites = getSelectedSites()
@@ -921,6 +980,7 @@ function updateHeatMap() {
         else {
             normaliseBySite = '0'
         }
+        var area = document.getElementById('areaSelect').value
     }
 
     if(species == 'All'){
@@ -934,6 +994,9 @@ function updateHeatMap() {
             var formData = new FormData()
             formData.append("task_ids", JSON.stringify(tasks))
             formData.append("species", JSON.stringify(species))
+            if (area!=null || area!= '' || area!='0'){
+                formData.append('area', JSON.stringify(area))
+            }
 
             var xhttp = new XMLHttpRequest();
             xhttp.open("POST", '/checkSightingEditStatus');
@@ -979,6 +1042,10 @@ function updateHeatMap() {
                 formData.append('normaliseBySite', JSON.stringify(normaliseBySite));
             }
 
+            if (area!=null || area!= '' || area!='0'){
+                formData.append('area', JSON.stringify(area))
+            }
+
             if (baseUnit == '4'){
                 var timeToIndependence = document.getElementById('timeToIndependence').value
                 var timeToIndependenceUnit = document.getElementById('timeToIndependenceUnit').value
@@ -1000,6 +1067,45 @@ function updateHeatMap() {
 
                     if (!selectedTask){
                         enablePanel()
+                    }
+
+                    // Update markers
+                    for (let m in markersDict) {
+                        tag = m.split('_xxx_')[0]
+                        markersDict[m].bindPopup(tag + '<br>Count: 0');
+                        markersDict[m].setIcon(blueMarker);
+                    }
+
+                    // Update popups to include count and have orange markers
+                    for (let i=0;i<reply.data.length;i++) {
+                        m = markersDict[reply.data[i].tag + '_xxx_' + reply.data[i].lat + '_xxx_' + reply.data[i].lng]
+                        if (m) {
+                            m.bindPopup(reply.data[i].tag + '<br>Count: ' + reply.data[i].count);
+                            if (reply.data[i].count > 0) {
+                                m.setIcon(orangeMarker);
+                            } else {
+                                m.setIcon(blueMarker);
+                            }
+                        }
+                    }
+
+                    // remove 0 counts
+                    reply.data = reply.data.filter(function (item) {
+                        return item.count > 0;
+                    });
+
+                    if (document.getElementById('normaliseOutliersCheckBox').checked) {
+                        /** Normalises the heatmap data to remove outliers with logarithmic scaling. */
+                        maxVal = 0
+                        for (let i=0;i<reply.data.length;i++) {
+                            if (reply.data[i].count != 0) {
+                                reply.data[i].count = Math.log(reply.data[i].count+1)
+                                if (reply.data[i].count > maxVal) {
+                                    maxVal = reply.data[i].count
+                                }
+                            }
+                        }
+                        reply.max = maxVal
                     }
 
                     if (document.getElementById('normalisationCheckBox').checked) {
@@ -1026,7 +1132,9 @@ function updateHeatMap() {
 
                     heatmapLayer._data = []
                     heatmapLayer.setData(reply);
-                    heatmapLayer._update()
+                    if (document.getElementById('heatMapCheckBox').checked) {
+                        heatmapLayer._update()
+                    }
                 }
                 else if (this.readyState == 4 && this.status != 200) {
                     if (!selectedTask){
@@ -1104,6 +1212,7 @@ function updateLineData(IDNum){
 
     if(selectedTask){
         var tasks = [selectedTask]
+        var area = null
     }else{
         var tasks = getSelectedTasks()
         var normliseBySite = document.getElementById('normaliseBySiteEffort').checked
@@ -1113,6 +1222,7 @@ function updateLineData(IDNum){
         else {
             normliseBySite = '0'
         }
+        var area = document.getElementById('areaSelect').value
     }
 
     if (species == 'All') {
@@ -1164,7 +1274,10 @@ function updateLineData(IDNum){
     formData.append('startDate', JSON.stringify(startDate));
     formData.append('endDate', JSON.stringify(endDate));
     formData.append('group', JSON.stringify(group));
-    
+
+    if (area!=null || area!= '' || area!='0'){
+        formData.append('area', JSON.stringify(area))
+    }
 
     if (baseUnitSelection == '4'){
         var timeToIndependence = document.getElementById('timeToIndependence').value
@@ -1352,14 +1465,19 @@ function updateLineErrors() {
 
             if(selectedTask){
                 var tasks = [selectedTask]
+                var area = null
             }else{
                 var tasks = getSelectedTasks()
+                var area = document.getElementById('areaSelect').value
             }
 
             if (tasks != '-1') {
                 var formData = new FormData()
                 formData.append("task_ids", JSON.stringify(tasks))
                 formData.append("species", JSON.stringify(species))
+                if (area!=null || area!= '' || area!='0'){
+                    formData.append('area', JSON.stringify(area))
+                }
 
                 var xhttp = new XMLHttpRequest();
                 xhttp.open("POST", '/checkSightingEditStatus');
@@ -1393,14 +1511,19 @@ function updateBaseUnitLine() {
 
             if(selectedTask){
                 var tasks = [selectedTask]
+                var area = null
             }else{
                 var tasks = getSelectedTasks()
+                var area = document.getElementById('areaSelect').value
             }
 
             if (tasks != '-1') {
                 var formData = new FormData()
                 formData.append("task_ids", JSON.stringify(tasks))
                 formData.append("species", JSON.stringify(species))
+                if (area!=null || area!= '' || area!='0'){
+                    formData.append('area', JSON.stringify(area))
+                }
 
                 var xhttp = new XMLHttpRequest();
                 xhttp.open("POST", '/checkSightingEditStatus');

@@ -75,7 +75,6 @@ var addTaskInfo = null
 var addTaskDescriptions = null
 var addTaskHeading = false
 var editTranslationsSubmitted = false
-var speciesDisabled
 var legalTags
 var tagIdTranslate
 var deletedTags
@@ -191,6 +190,7 @@ const btnCancelRestore = document.querySelector('#btnCancelRestore')
 const modalConfirmDownload = $('#modalConfirmDownload');
 const modalConfirmExport = $('#modalConfirmExport');
 const modalEditTaskAlert = $('#modalEditTaskAlert');
+const modalEditAreaAlert = $('#modalEditAreaAlert');
 
 var polarColours = {'rgba(10,120,80,0.2)':false,
                     'rgba(255,255,255,0.2)':false,
@@ -349,6 +349,11 @@ var mergeMap = {}
 var mergeActiveImage = {}
 var mergeMapWidth = {}
 var mergeMapHeight = {}
+var surveyArea = null
+var surveyAreaLib = null
+var surveyAreaEditOption = null
+var areaConfirmOpen = false
+var windowReload = false 
 
 function buildSurveys(survey,disableSurvey) {
     /**
@@ -374,10 +379,13 @@ function buildSurveys(survey,disableSurvey) {
     entireRowHeading.classList.add('row');
     surveyDivHeading = document.createElement('div')
     surveyDivHeading.classList.add('col-lg-6');
-    surveyDivHeading.setAttribute('style',"margin-bottom: 10px;")
+    surveyDivHeading.setAttribute('style',"margin-bottom: 5px;")
     taskDivHeading = document.createElement('div')
     taskDivHeading.classList.add('col-lg-6');
-    taskDivHeading.setAttribute('style',"padding-left: 10px; padding-top:35px; font-size: 110%;")
+    // taskDivHeading.setAttribute('style',"padding-left: 10px; padding-top:35px; font-size: 110%;")
+    taskDivHeading.classList.add('d-flex');
+    taskDivHeading.classList.add('align-items-end');
+    taskDivHeading.setAttribute('style',"padding-left: 10px; margin-bottom: 5px; font-size: 110%;")
     entireRowHeading.appendChild(surveyDivHeading)
     entireRowHeading.appendChild(taskDivHeading)
     newSurveyDiv.appendChild(entireRowHeading)
@@ -402,6 +410,11 @@ function buildSurveys(survey,disableSurvey) {
     organisationDiv.setAttribute('style',"margin-left: 10px; margin-right:10px; font-size: 80%;")
     organisationDiv.innerHTML = '<i>' + survey.organisation + '</i>'
     surveyDivHeading.appendChild(organisationDiv)
+
+    areaDiv = document.createElement('div')
+    areaDiv.setAttribute('style',"margin-left: 10px; margin-right:10px; font-size: 80%;")
+    areaDiv.innerHTML = '<i>' + survey.area + '</i>'
+    surveyDivHeading.appendChild(areaDiv)
 
     newSurveyDiv.appendChild(entireRow)
 
@@ -431,49 +444,141 @@ function buildSurveys(survey,disableSurvey) {
     infoElementRow3.setAttribute('style',"margin-left: 10px")
     infoCol.appendChild(infoElementRow3)
 
-    if ((survey.status.toLowerCase()!='uploading')&&(survey.status.toLowerCase()!='preprocessing')){
-        
-        infoElementDescription = document.createElement('div')
-        infoElementDescription.classList.add('col-lg-6');
-        infoElementDescription.setAttribute("style","font-size: 80%")
-        infoElementDescription.innerHTML = 'Status: ' + survey.status
-        infoElementRow1.appendChild(infoElementDescription)
+    infoElementRow4 = document.createElement('div')
+    infoElementRow4.classList.add('row');
+    infoElementRow4.classList.add('center');
+    infoElementRow4.setAttribute('style',"margin-left: 10px")
+    infoCol.appendChild(infoElementRow4)
+    // surveyDiv.appendChild(infoElementRow4)
+
+    if ((survey.status.toLowerCase()!='uploading')&&(survey.status.toLowerCase()!='preprocessing')&&(survey.status.toLowerCase()!='import queued')) {
+        const formatter = new Intl.NumberFormat('fr-FR');
+
+        infoElementStatus = document.createElement('div')
+        infoElementStatus.classList.add('col-lg-12');
+        infoElementStatus.classList.add('px-2');
+        infoElementStatus.setAttribute("style","font-size: 80%")
+        flexContainer = document.createElement('div');
+        flexContainer.style.display = 'flex';
+        flexContainer.style.justifyContent = 'space-between';
+        flexContainer.style.width = '100%';
+        infoElementlabel = document.createElement('span');
+        infoElementlabel.textContent = 'Status:';
+        infoElementvalue = document.createElement('span');
+        infoElementvalue.textContent = survey.status;
+        flexContainer.appendChild(infoElementlabel);
+        flexContainer.appendChild(infoElementvalue);
+        infoElementStatus.appendChild(flexContainer);
+        infoElementRow1.appendChild(infoElementStatus);
 
         infoElementNumTrapgroups = document.createElement('div')
         infoElementNumTrapgroups.classList.add('col-lg-6');
+        infoElementNumTrapgroups.classList.add('px-2');
         infoElementNumTrapgroups.setAttribute("style","font-size: 80%")
-        infoElementNumTrapgroups.innerHTML = 'Sites: ' + survey.numTrapgroups
-        infoElementRow1.appendChild(infoElementNumTrapgroups)
+        flexContainer = document.createElement('div');
+        flexContainer.style.display = 'flex';
+        flexContainer.style.justifyContent = 'space-between';
+        flexContainer.style.width = '100%';
+        infoElementlabel = document.createElement('span');
+        infoElementlabel.textContent = 'Sites:';
+        infoElementvalue = document.createElement('span');
+        infoElementvalue.textContent = formatter.format(survey.numTrapgroups);
+        flexContainer.appendChild(infoElementlabel);
+        flexContainer.appendChild(infoElementvalue);
+        infoElementNumTrapgroups.appendChild(flexContainer);
+        infoElementRow2.appendChild(infoElementNumTrapgroups);
+
+        infoElementNumCameras = document.createElement('div')
+        infoElementNumCameras.classList.add('col-lg-6');
+        infoElementNumCameras.classList.add('px-2');
+        infoElementNumCameras.setAttribute("style","font-size: 80%")
+        flexContainer = document.createElement('div');
+        flexContainer.style.display = 'flex';
+        flexContainer.style.justifyContent = 'space-between';
+        flexContainer.style.width = '100%';
+        infoElementlabel = document.createElement('span');
+        infoElementlabel.textContent = 'Cameras:';
+        infoElementvalue = document.createElement('span');
+        infoElementvalue.textContent = formatter.format(survey.numCams);
+        flexContainer.appendChild(infoElementlabel);
+        flexContainer.appendChild(infoElementvalue);
+        infoElementNumCameras.appendChild(flexContainer);
+        infoElementRow2.appendChild(infoElementNumCameras);
 
         infoElementNumImages = document.createElement('div')
         infoElementNumImages.classList.add('col-lg-6');
+        infoElementNumImages.classList.add('px-2');
         infoElementNumImages.setAttribute("style","font-size: 80%")
-        infoElementNumImages.innerHTML = 'Images: ' + survey.numImages
-        infoElementRow2.appendChild(infoElementNumImages)
+        flexContainer = document.createElement('div');
+        flexContainer.style.display = 'flex';
+        flexContainer.style.justifyContent = 'space-between';
+        flexContainer.style.width = '100%';
+        infoElementlabel = document.createElement('span');
+        infoElementlabel.textContent = 'Images:';
+        infoElementvalue = document.createElement('span');
+        infoElementvalue.textContent = formatter.format(survey.numImages);
+        flexContainer.appendChild(infoElementlabel);
+        flexContainer.appendChild(infoElementvalue);
+        infoElementNumImages.appendChild(flexContainer);
+        infoElementRow3.appendChild(infoElementNumImages);
 
         infoElementNumVideos = document.createElement('div')
         infoElementNumVideos.classList.add('col-lg-6');
+        infoElementNumVideos.classList.add('px-2');
         infoElementNumVideos.setAttribute("style","font-size: 80%")
-        infoElementNumVideos.innerHTML = 'Videos: ' + survey.numVideos
-        infoElementRow2.appendChild(infoElementNumVideos)
+        flexContainer = document.createElement('div');
+        flexContainer.style.display = 'flex';
+        flexContainer.style.justifyContent = 'space-between';
+        flexContainer.style.width = '100%';
+        infoElementlabel = document.createElement('span');
+        infoElementlabel.textContent = 'Videos:';
+        infoElementvalue = document.createElement('span');
+        infoElementvalue.textContent = formatter.format(survey.numVideos);
+        flexContainer.appendChild(infoElementlabel);
+        flexContainer.appendChild(infoElementvalue);
+        infoElementNumVideos.appendChild(flexContainer);
+        infoElementRow3.appendChild(infoElementNumVideos);
 
-        infoElementNumFrames = document.createElement('div')
-        infoElementNumFrames.classList.add('col-lg-6');
-        infoElementNumFrames.setAttribute("style","font-size: 80%")
-        infoElementNumFrames.innerHTML = 'Frames: ' + survey.numFrames
-        infoElementRow3.appendChild(infoElementNumFrames)
-
-        infoFiller = document.createElement('div')
-        infoFiller.classList.add('col-lg-6');
-        infoElementRow3.appendChild(infoFiller)	
-
+        infoElementPeriod = document.createElement('div')
+        infoElementPeriod.classList.add('col-lg-12');
+        infoElementPeriod.classList.add('px-2');
+        infoElementPeriod.setAttribute("style","font-size: 80%")
+        flexContainer = document.createElement('div');
+        flexContainer.style.display = 'flex';
+        flexContainer.style.justifyContent = 'space-between';
+        flexContainer.style.width = '100%';
+        infoElementlabel = document.createElement('span');
+        infoElementlabel.textContent = 'Period:';
+        infoElementvalue = document.createElement('span');
+        infoElementvalue.textContent = survey.start_date.replaceAll('-','/') + ' - ' + survey.end_date.replaceAll('-','/');
+        flexContainer.appendChild(infoElementlabel);
+        flexContainer.appendChild(infoElementvalue);
+        infoElementPeriod.appendChild(flexContainer);
+        infoElementRow4.appendChild(infoElementPeriod);
 
     } else {
-        infoElementDescription = document.createElement('div')
-        infoElementDescription.classList.add('col-lg-12');
-        infoElementDescription.setAttribute("style","font-size: 80%")
-        infoElementDescription.innerHTML = 'Status: ' + survey.status
-        infoElementRow1.appendChild(infoElementDescription)
+        // infoElementDescription = document.createElement('div')
+        // infoElementDescription.classList.add('col-lg-12');
+        // infoElementDescription.setAttribute("style","font-size: 80%")
+        // infoElementDescription.innerHTML = 'Status: ' + survey.status
+        // infoElementRow1.appendChild(infoElementDescription)
+
+        infoElementStatus = document.createElement('div')
+        infoElementStatus.classList.add('col-lg-12');
+        infoElementStatus.classList.add('px-2');
+        infoElementStatus.setAttribute("style","font-size: 80%")
+        flexContainer = document.createElement('div');
+        flexContainer.style.display = 'flex';
+        flexContainer.style.justifyContent = 'space-between';
+        flexContainer.style.width = '100%';
+        infoElementlabel = document.createElement('span');
+        infoElementlabel.textContent = 'Status:';
+        infoElementvalue = document.createElement('span');
+        infoElementvalue.textContent = survey.status;
+        flexContainer.appendChild(infoElementlabel);
+        flexContainer.appendChild(infoElementvalue);
+        infoElementStatus.appendChild(flexContainer);
+        infoElementRow1.appendChild(infoElementStatus);
     }
 
     if (!['',' ','null','None',null].includes(survey.description)) {
@@ -485,6 +590,7 @@ function buildSurveys(survey,disableSurvey) {
 
         infoElementFiller = document.createElement('div')
         infoElementFiller.classList.add('col-lg-12');
+        infoElementFiller.classList.add('px-2');
         infoElementFiller.setAttribute("style","font-size: 80%")
         infoElementFiller.innerHTML = 'Description: ' + survey.description
         infoElementRow0.appendChild(infoElementFiller)
@@ -948,6 +1054,7 @@ function onload(){
     /**Function for initialising the page on load.*/
     document.getElementById('downloadsNav').hidden = false
     updatePage(current_page)
+    populateFilters()
 }
 
 window.addEventListener('load', onload, false);
@@ -1253,6 +1360,14 @@ function resetNewSurveyPage() {
     document.getElementById('newSurveyUploadErrors').innerHTML = ''
     document.getElementById('newSurveySiteErrors').innerHTML = ''
     document.getElementById('newSurveyCamErrors').innerHTML = ''
+    document.getElementById('newSurveyAreaErrors').innerHTML = ''
+
+    document.getElementById('newSurveyAreaText').style.display = 'none'
+    document.getElementById('newSurveyArea').style.display = 'block'
+    document.getElementById('newSurveyAreaText').value = ''
+    clearSelect(document.getElementById('newSurveyArea'))
+    document.getElementById('createNewAreaCx').checked = false
+    document.getElementById('newSurveyAreaSelect').checked = true
 
 }
 
@@ -3948,6 +4063,11 @@ function clearEditSurveyModal() {
         editSurveyStructureDiv.removeChild(editSurveyStructureDiv.firstChild);
     }
 
+    editAreaDiv = document.getElementById('editAreaDiv')
+    while(editAreaDiv.firstChild){
+        editAreaDiv.removeChild(editAreaDiv.firstChild);
+    }
+
     tabActiveEditSurvey = 'baseAddCoordinatesTab'
     global_corrected_timestamps = {}
     global_original_timestamps = {}
@@ -4019,6 +4139,10 @@ function clearEditSurveyModal() {
     surveyClassifierName = null
     confirmClassifierChange = false
     confirmRestore = false
+    surveyAreaLib = null
+    surveyArea = null
+    surveyAreaEditOption = null
+    areaConfirmOpen = false
 }
 
 function clearAddFilesModal(){
@@ -4792,9 +4916,9 @@ modalEditSurvey.on('shown.bs.modal', function(){
 modalEditSurvey.on('hidden.bs.modal', function(){
     /** Clears the edit-survey modal when closed. */
 
-    if (!helpReturn && !alertReload &&!confirmRestore) {
+    if (!helpReturn && !alertReload && !confirmRestore && !areaConfirmOpen) {
         modalConfirmEditClose.modal({keyboard: true});
-    } else if (!helpReturn && !confirmRestore && alertReload) {
+    } else if (!helpReturn && !confirmRestore && !areaConfirmOpen && alertReload) {
         resetEditSurveyModal()
         document.getElementById('btnEditSurvey').disabled = false
     } else {
@@ -4826,10 +4950,24 @@ modalAddFiles.on('hidden.bs.modal', function(){
 
 function generate_url() {
     /** Generates the url based on the current order selection and search query */
-    order = orderSelect.options[orderSelect.selectedIndex].value
-    search = document.getElementById('surveySearch').value
+    var order = document.getElementById('orderSelect').value
+    var search = document.getElementById('surveySearch').value
+    var org = document.getElementById('orgSelect').value
+    var area = document.getElementById('areaSelect').value
+    var year = document.getElementById('yearSelect').value
+
+    if (org==null||org=='') {
+        org = '0'
+    }
+    if (area==null||area=='') {
+        area = '0'
+    }
+    if (year==null||year=='') {
+        year = '0'
+    }
+
     // return '/getHomeSurveys?page=1&order='+order+'&search='+search.toString()+'&downloads='+currentDownloads.toString()
-    return '/getHomeSurveys?page=1&order='+order+'&search='+search.toString()
+    return '/getHomeSurveys?page=1&order='+order+'&search='+search.toString()+'&org='+org+'&area='+area+'&year='+year
 }
 
 $('#orderSelect').change( function() {
@@ -4840,6 +4978,24 @@ $('#orderSelect').change( function() {
 
 $('#surveySearch').change( function() {
     /** Listens for changes in the survey search barr and updates the page accordingly. */
+    url = generate_url()
+    updatePage(url)
+});
+
+$('#orgSelect').change( function() {
+    /** Listens for changes in the organisation selection and updates the page accordingly. */
+    url = generate_url()
+    updatePage(url)
+});
+
+$('#areaSelect').change( function() {
+    /** Listens for changes in the area selection and updates the page accordingly. */
+    url = generate_url()
+    updatePage(url)
+});
+
+$('#yearSelect').change( function() {
+    /** Listens for changes in the year selection and updates the page accordingly. */
     url = generate_url()
     updatePage(url)
 });
@@ -4924,6 +5080,7 @@ document.getElementById('btnSaveSurvey').addEventListener('click', ()=>{
     newSurveyIgnoreSkyDets = document.getElementById('cbxIgnoreSkyDets').checked
     siteFolderN = document.getElementById('siteFolderN').checked
     siteIdentifier = document.getElementById('siteIdentifier').checked
+    createNewArea = document.getElementById('createNewAreaCx').checked
 
     while(document.getElementById('newSurveyErrors').firstChild){
         document.getElementById('newSurveyErrors').removeChild(document.getElementById('newSurveyErrors').firstChild);
@@ -4942,6 +5099,7 @@ document.getElementById('btnSaveSurvey').addEventListener('click', ()=>{
     document.getElementById('newSurveyUploadErrors').innerHTML = ''
     document.getElementById('newSurveySiteErrors').innerHTML = ''
     document.getElementById('newSurveyCamErrors').innerHTML = ''
+    document.getElementById('newSurveyAreaErrors').innerHTML = ''
 
     if (classifier_id==null) {
         document.getElementById('newSurveyClassifierErrors').innerHTML = 'You must select a classifier.'
@@ -4966,6 +5124,24 @@ document.getElementById('btnSaveSurvey').addEventListener('click', ()=>{
     if (surveyOrganisation == ''){
         legalOrganisation = false
         document.getElementById('newSurveyOrgErrors').innerHTML = 'Please select an organisation.'
+    }
+
+    legalArea = true
+    if (createNewArea) {
+        newSurveyArea = document.getElementById('newSurveyAreaText').value
+        if (newSurveyArea == '') {
+            legalArea = false
+            document.getElementById('newSurveyAreaErrors').innerHTML = 'The area field cannot be empty.'
+        } else if ((newSurveyArea.includes('/'))||(newSurveyArea.includes('\\'))) {
+            legalArea = false
+            document.getElementById('newSurveyAreaErrors').innerHTML = 'The area name cannot contain slashes.'
+        }
+    } else {
+        newSurveyArea = document.getElementById('newSurveyArea').value
+        if (newSurveyArea == ''|| newSurveyArea == null) {
+            legalArea = false
+            document.getElementById('newSurveyAreaErrors').innerHTML = 'Please select an area.'
+        } 
     }
 
     legalDescription = true
@@ -5141,7 +5317,7 @@ document.getElementById('btnSaveSurvey').addEventListener('click', ()=>{
         }
     }
 
-    if (legalName&&legalOrganisation&&legalDescription&&legalPermission&&legalTGCode&&legalInput&&structureCheckReady&&classifier_id&&legalCamCode) {
+    if (legalName&&legalOrganisation&&legalDescription&&legalPermission&&legalTGCode&&legalInput&&structureCheckReady&&classifier_id&&legalCamCode&&legalArea) {
         document.getElementById('btnSaveSurvey').disabled = true
         if (false) {
             var reader = new FileReader()
@@ -5232,6 +5408,11 @@ document.getElementById('btnSaveSurvey').addEventListener('click', ()=>{
             } else {
                 formData.append("ignoreSkyDets", 'false')
             }
+
+            if (createNewArea) {
+                formData.append("createNewArea", 'true')
+            }
+            formData.append("newSurveyArea", newSurveyArea)
 
             if (emptySurvey) {
                 formData.append("emptySurvey", 'true')
@@ -5610,8 +5791,75 @@ document.getElementById('btnEditSurvey').addEventListener('click', ()=>{
         }
     }
 
+    // Area Selection
+    legalArea = true
+    var createNewArea = false
+    var editAreaName = false
+    survey_area = 'none'
+    if (document.getElementById('createSurveyArea')!= null) {
+        if (document.getElementById('createSurveyArea').checked) {
+            createNewArea = true
+            survey_area = document.getElementById('surveyAreaText').value
+            if (survey_area == '') {
+                legalArea = false
+                document.getElementById('editSurveyErrors').innerHTML = 'The area field cannot be empty.'
+            } else if ((survey_area.includes('/'))||(survey_area.includes('\\'))) {
+                legalArea = false
+                document.getElementById('editSurveyErrors').innerHTML = 'The area name cannot contain slashes.'
+            } else {
+                let areaTexts = Array.from(document.getElementById('surveyAreaSelect').options, o => o.text);
+                if (areaTexts.includes(survey_area)) {
+                    legalArea = false
+                    document.getElementById('editSurveyErrors').innerHTML = 'The area name already exists. Please choose a different name.'
+                }
+            }
+            if (surveyAreaLib && surveyAreaEditOption == null) {
+                survey_area = 'none'
+                createNewArea = false 
+                editAreaName = false
+            }
+        } else if (document.getElementById('editAreaName').checked) {
+            editAreaName = true
+            survey_area = document.getElementById('surveyAreaText').value
+            if (survey_area == '') {
+                legalArea = false
+                document.getElementById('editSurveyErrors').innerHTML = 'The area field cannot be empty.'
+            } else if ((survey_area.includes('/'))||(survey_area.includes('\\'))) {
+                legalArea = false
+                document.getElementById('editSurveyErrors').innerHTML = 'The area name cannot contain slashes.'
+            }
+        } else {
+            survey_area = document.getElementById('surveyAreaSelect').value
+            if (survey_area!=surveyArea) {
+                if (survey_area == ''|| survey_area == null) {
+                    legalArea = false
+                    document.getElementById('editSurveyErrors').innerHTML = 'Please select an area.'
+                }
+                if (surveyAreaLib && surveyAreaEditOption == null) {
+                    survey_area = 'none'
+                    createNewArea = false 
+                    editAreaName = false
+                }
+                if (survey_area=='-1'&&surveyAreaLib) {
+                    if (surveyAreaEditOption == null || surveyAreaEditOption == 'merge') {
+                        survey_area = 'none'
+                        createNewArea = false
+                        editAreaName = false
+                        surveyAreaEditOption = null
+                    }
+                }
+            } else {
+                survey_area = 'none'
+            }
+        }
+    }
+    if (survey_area!='none'){
+        windowReload = true
+    } else {
+        windowReload = false
+    }
 
-    if (legalFile&&legalClassifier&&!editingEnabled&&legalTimestamp) {
+    if (legalFile&&legalClassifier&&!editingEnabled&&legalTimestamp&&legalArea) {
         document.getElementById('btnEditSurvey').disabled = true
 
         var formData = new FormData()
@@ -5629,7 +5877,16 @@ document.getElementById('btnEditSurvey').addEventListener('click', ()=>{
         else if (document.getElementById('addCoordinatesKMLMethod').checked) {
             formData.append("kml", kmlFileUpload.files[0])
         }
-    
+        formData.append("survey_area", survey_area)
+        if (editAreaName) {
+            formData.append("editAreaName", 'true')
+        } else if (createNewArea) {
+            formData.append("createNewArea", 'true')
+        }
+        if (surveyAreaEditOption != null && survey_area != 'none') {
+            formData.append('edit_area_option', surveyAreaEditOption)
+        }
+
         var xhttp = new XMLHttpRequest();
         xhttp.open("POST", '/editSurvey');
         xhttp.onreadystatechange =
@@ -5781,6 +6038,10 @@ modalAlert.on('hidden.bs.modal', function(){
     if (stopFlag==false) {
         stopFlag = true
         updatePage(current_page)
+    } else if (windowReload) {
+        windowReload = false 
+        alertReload = false 
+        window.location.reload()
     } else if (alertReload) {
         alertReload = false
         updatePage(current_page)
@@ -5818,6 +6079,9 @@ function getOrganisations(){
                 optionValues.push(organisations[i].id)
             }
             fillSelect(select,optionTexts,optionValues)
+
+            org_id = select.value
+            getOrgAreas(org_id)
         }
     }
     xhttp.open("GET", '/getOrganisations?create=true');
@@ -5861,6 +6125,10 @@ $('#detailedAccessSurveyCb').change( function() {
 $('#newSurveyOrg').change( function() {
     /** Event listener for the organisation select on the create new survey modal. */
     document.getElementById('newSurveyOrgErrors').innerHTML = ''
+
+    org_id = this.value
+    getOrgAreas(org_id)
+
     if (document.getElementById('detailedAccessSurveyCb').checked) {
         org_id = document.getElementById('newSurveyOrg').value
         var xhttp = new XMLHttpRequest();
@@ -5897,6 +6165,29 @@ $('#newSurveyOrg').change( function() {
         xhttp.send();
     }
 });
+
+function getOrgAreas(org_id){
+    /** Gets the areas for the specified organisation and populates the area select for the new survey modal. */
+    var xhttp = new XMLHttpRequest();
+    xhttp.onreadystatechange = function(){
+        if (this.readyState == 4 && this.status == 200) {
+            reply = JSON.parse(this.responseText);
+
+            var areas = reply.areas
+            var areaSelect = document.getElementById('newSurveyArea')
+            clearSelect(areaSelect)
+            var areaOptionTexts = ['None']
+            var areaOptionValues = ['-1']
+            for (var i=0;i<areas.length;i++) {
+                areaOptionTexts.push(areas[i].name)
+                areaOptionValues.push(areas[i].id)
+            }
+            fillSelect(areaSelect,areaOptionTexts,areaOptionValues)
+        }
+    }
+    xhttp.open("GET", '/getAreas?org_id=' + org_id + '&id=true');
+    xhttp.send();
+}
 
 function buildSurveyPermissionRow(){
     /** Builds a row for the detailed survey permission section on the create new survey modal. */
@@ -6093,6 +6384,9 @@ function changeEditSurveyTab(evt, tabName) {
     }
     else if (tabName == 'baseEditImgTimestampsTab') {
         openEditImageTimestamps()
+    }
+    else if (tabName == 'baseAreaTab') {
+        openArea()
     }
 
     document.getElementById('editSurveyErrors').innerHTML = ''
@@ -6858,6 +7152,12 @@ function modifyToCompURL(url) {
     return splits.join('/')
 }
 
+function modifyToCropURL(url,detection_id) {
+    /** Modifies the source URL to the cropped image of detection */
+    splits=url.split('/')
+    crop_url = splits[0] + '-comp/' + splits[1] + '/_crops_/' + detection_id.toString() + '.JPG'
+    return crop_url
+}
 
 function updateMaskMap() {
     /** Updates the mask map after an action has been performed. */
@@ -9731,3 +10031,284 @@ function resetErrorDiv(div_id){
     /** Resets the error div with the given ID. */
     document.getElementById(div_id).innerHTML = '';
 }
+
+function populateFilters() {
+    /** Populates the filters for the survey images. */
+    var xhttp = new XMLHttpRequest();
+    xhttp.onreadystatechange = function() {
+        if (this.readyState == 4 && this.status == 200) {
+            var reply = JSON.parse(this.responseText);
+
+            // Organisation select
+            var orgSelect = document.getElementById('orgSelect');
+            clearSelect(orgSelect);
+            let optionTexts = ['All']
+            let optionValues = ['0']           
+            for (let i=0;i<reply.organisations.length;i++) {
+                optionTexts.push(reply.organisations[i].name)
+                optionValues.push(reply.organisations[i].id)
+            }
+            fillSelect(orgSelect, optionTexts, optionValues)
+            orgSelect.value = '0'; // Default to 'All' organisations
+            
+        }
+    };
+    xhttp.open("GET", '/getOrganisations');
+    xhttp.send();
+
+    var xhttp = new XMLHttpRequest();
+    xhttp.onreadystatechange = function() {
+        if (this.readyState == 4 && this.status == 200) {
+            var reply = JSON.parse(this.responseText);
+            var areas = reply.areas;
+
+            // Area select
+            var areaSelect = document.getElementById('areaSelect');
+            clearSelect(areaSelect);
+            let areaOptionTexts = ['All']
+            let areaOptionValues = ['0']
+            for (var i = 0; i < areas.length; i++) {
+                areaOptionTexts.push(areas[i]);
+                areaOptionValues.push(areas[i]);
+            }
+            fillSelect(areaSelect, areaOptionTexts, areaOptionValues);
+            areaSelect.value = '0'; // Default to 'All' areas
+        }
+    };
+    xhttp.open("GET", '/getAreas');
+    xhttp.send();
+
+    // Year select
+    var yearSelect = document.getElementById('yearSelect');
+    clearSelect(yearSelect);
+    let yearOptionTexts = ['All']
+    let yearOptionValues = ['0']
+    // Years from now to 2000
+    let currentYear = new Date().getFullYear();
+    for (let year = currentYear; year >= 2000; year--) {
+        yearOptionTexts.push(year.toString())
+        yearOptionValues.push(year.toString())
+    }
+    fillSelect(yearSelect, yearOptionTexts, yearOptionValues)
+
+}
+
+function updateSurveyArea() {
+    /** Updates the survey area based on the selected checkbox. */
+    var createNewAreaCx = document.getElementById('createNewAreaCx');
+    if (createNewAreaCx.checked) {
+        document.getElementById('newSurveyArea').style.display = 'none';
+        document.getElementById('newSurveyAreaText').style.display = 'block';
+    } else {
+        document.getElementById('newSurveyAreaText').style.display = 'none';
+        document.getElementById('newSurveyArea').style.display = 'block';
+    }
+}
+
+function openArea(){
+    /** Opens the area tab in edit survey modal. */
+
+    var editAreaDiv = document.getElementById('editAreaDiv');
+    if (editAreaDiv.firstChild==null) {
+        surveyAreaLib = null;
+        surveyArea = null;
+        surveyAreaEditOption = null;
+        areaConfirmOpen = false
+        xhttp = new XMLHttpRequest();
+        xhttp.onreadystatechange = function() {
+            if (this.readyState == 4 && this.status == 200) {
+                var reply = JSON.parse(this.responseText);
+                var areas = reply.areas;
+                surveyAreaLib = reply.area_lib;
+
+                var areaOptionTexts = ['None']
+                var areaOptionValues = ['-1']
+                var surveyAreaName = ''
+                for (var i = 0; i < areas.length; i++) {
+                    areaOptionTexts.push(areas[i].name)
+                    areaOptionValues.push(areas[i].id)
+                    if (areas[i].active==true){
+                        surveyArea = areas[i].id;
+                        surveyAreaName = areas[i].name;
+                    }
+                }
+
+                var h5 = document.createElement('h5')
+                h5.innerHTML = 'Survey Area'
+                h5.setAttribute('style','margin-bottom: 2px')
+                editAreaDiv.appendChild(h5)
+
+                var div = document.createElement('div')
+                div.setAttribute('style','font-size: 80%; margin-bottom: 2px')
+                div.innerHTML = '<i> Here you can edit the area associated with your survey. This refers to the name of the protected area, national park, or similar location where the survey was conducted.</i>'
+                editAreaDiv.appendChild(div)
+
+                var optionDiv = document.createElement('div')
+                optionDiv.setAttribute('class','custom-control custom-radio custom-control-inline')
+                editAreaDiv.appendChild(optionDiv)
+                
+                var input = document.createElement('input')
+                input.setAttribute('type','radio')
+                input.setAttribute('class','custom-control-input')
+                input.setAttribute('id','selectSurveyArea')
+                input.setAttribute('name','areaEditMethod')
+                input.setAttribute('value','customEx')
+                input.checked = true
+                optionDiv.appendChild(input)
+
+                var label = document.createElement('label')
+                label.setAttribute('class','custom-control-label')
+                label.setAttribute('for','selectSurveyArea')
+                label.innerHTML = 'Select Area'
+                optionDiv.appendChild(label)
+
+                $('#selectSurveyArea').on('change', function() {
+                    if (this.checked) {
+                        surveyAreaEditOption = null;
+                        document.getElementById('surveyAreaText').style.display = 'none';
+                        document.getElementById('surveyAreaSelect').style.display = 'block';
+                        document.getElementById('surveyAreaSelect').value = surveyArea
+                    }
+                });
+
+                var optionDiv = document.createElement('div')
+                optionDiv.setAttribute('class','custom-control custom-radio custom-control-inline')
+                editAreaDiv.appendChild(optionDiv)
+                
+                var input = document.createElement('input')
+                input.setAttribute('type','radio')
+                input.setAttribute('class','custom-control-input')
+                input.setAttribute('id','editAreaName')
+                input.setAttribute('name','areaEditMethod')
+                input.setAttribute('value','customEx')
+                optionDiv.appendChild(input)
+
+                var label = document.createElement('label')
+                label.setAttribute('class','custom-control-label')
+                label.setAttribute('for','editAreaName')
+                label.innerHTML = 'Edit Area Name'
+                optionDiv.appendChild(label)
+                if (surveyAreaName != '') {
+                    $('#editAreaName').on('change', function() {
+                        if (this.checked) {
+                            surveyAreaEditOption = null;
+                            document.getElementById('surveyAreaSelect').style.display = 'none';
+                            document.getElementById('surveyAreaText').style.display = 'block';
+                            document.getElementById('surveyAreaText').value = surveyAreaName;
+                        }
+                    });
+                } else {
+                    input.disabled = true;
+                }
+
+                var optionDiv = document.createElement('div')
+                optionDiv.setAttribute('class','custom-control custom-radio custom-control-inline')
+                editAreaDiv.appendChild(optionDiv)
+                
+                var input = document.createElement('input')
+                input.setAttribute('type','radio')
+                input.setAttribute('class','custom-control-input')
+                input.setAttribute('id','createSurveyArea')
+                input.setAttribute('name','areaEditMethod')
+                input.setAttribute('value','customEx')
+                optionDiv.appendChild(input)
+
+                var label = document.createElement('label')
+                label.setAttribute('class','custom-control-label')
+                label.setAttribute('for','createSurveyArea')
+                label.innerHTML = 'Create New Area'
+                optionDiv.appendChild(label)
+
+                $('#createSurveyArea').on('change', function() {
+                    if (this.checked) {
+                        surveyAreaEditOption = null; 
+                        document.getElementById('surveyAreaSelect').style.display = 'none';
+                        document.getElementById('surveyAreaText').style.display = 'block';
+                        document.getElementById('surveyAreaText').value = ''
+                        if (surveyAreaLib) {
+                            areaConfirmOpen = true;
+                            document.getElementById('mergeAreas').checked = true;
+                            document.getElementById('mergeAreas').disabled = false;
+                            modalEditSurvey.modal('hide');
+                            modalEditAreaAlert.modal('show');
+                        }
+                    }
+                });
+
+                editAreaDiv.appendChild(document.createElement('br'))
+                editAreaDiv.appendChild(document.createElement('br'))
+
+                var row = document.createElement('div')
+                row.classList.add('row')
+                editAreaDiv.appendChild(row)
+
+                var col1 = document.createElement('div')
+                col1.classList.add('col-lg-4')
+                row.appendChild(col1)
+
+                var surveyAreaSelect = document.createElement('select')
+                surveyAreaSelect.classList.add('form-control')
+                surveyAreaSelect.setAttribute('id', 'surveyAreaSelect')
+                surveyAreaSelect.style.display = 'block';
+                col1.appendChild(surveyAreaSelect)
+
+                // Populate the survey area select
+                fillSelect(surveyAreaSelect, areaOptionTexts, areaOptionValues)
+                if (surveyArea==null){
+                    surveyArea = '-1'
+                }
+                surveyAreaSelect.value = surveyArea; 
+
+                $('#surveyAreaSelect').on('change', function() {
+                    if (surveyAreaSelect.value != surveyArea && surveyAreaLib && surveyAreaEditOption==null) {
+                        areaConfirmOpen = true;
+                        if (surveyAreaSelect.value == '-1') {
+                            document.getElementById('mergeAreas').disabled = true;
+                            document.getElementById('delIndivsAndMove').checked = true;
+                        } else {
+                            document.getElementById('mergeAreas').disabled = false;
+                            document.getElementById('mergeAreas').checked = true;
+                        }
+                        modalEditSurvey.modal('hide');
+                        modalEditAreaAlert.modal('show');
+                    }
+                });
+
+                var surveyAreaInput = document.createElement('input')
+                surveyAreaInput.setAttribute('type', 'text')
+                surveyAreaInput.classList.add('form-control')
+                surveyAreaInput.setAttribute('id', 'surveyAreaText')
+                surveyAreaInput.setAttribute('placeholder', 'Area Name')
+                surveyAreaInput.style.display = 'none';
+                col1.appendChild(surveyAreaInput)
+
+            }
+        };
+        xhttp.open("GET", '/getSurveyAreas/' + selectedSurvey);
+        xhttp.send();
+
+    }
+
+}
+
+modalEditAreaAlert.on('hidden.bs.modal', function () {
+    /** Event handler for when the edit area alert modal is hidden. If no option is selected - reset area */
+    areaConfirmOpen = false;
+    if (surveyAreaEditOption==null) {
+        document.getElementById('selectSurveyArea').click()
+        document.getElementById('surveyAreaSelect').value = surveyArea; 
+    }
+    modalEditSurvey.modal({keyboard: true});
+});
+
+$('#editAreaConfirm').on('click', function () {
+    /** Event handler for when the edit area confirmation button is clicked. */
+    if (document.getElementById('mergeAreas').checked) {
+        surveyAreaEditOption = 'merge';
+    } else if (document.getElementById('delIndivsAndMove').checked) {
+        surveyAreaEditOption = 'delete_individuals';
+    } else {
+        surveyAreaEditOption = null;
+    }
+    modalEditAreaAlert.modal('hide');
+});

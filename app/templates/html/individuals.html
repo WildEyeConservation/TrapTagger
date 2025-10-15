@@ -23,6 +23,16 @@ limitations under the License. -->
             </div>
             <div class="card-body" id="filterCardDiv">
                 <div id="filterDiv">
+                    <h5 style="margin-bottom: 2px">Survey Areas</h5>
+                    <div style="font-size: 80%; margin-bottom: 2px"><i>Select which survey areas you would like to see individuals for.</i></div>
+                    <div class="row">
+                        <div class='col-lg-10'>
+                            <select id="areaSelect" class='form-control'></select>
+                        </div>
+                    </div>  
+                    <div id="areaErrors" style="font-size: 80%; color: #DF691A"></div>
+                    <br>
+
                     <h5 style="margin-bottom: 2px">Surveys and annotation sets</h5>
                     <div style="font-size: 80%; margin-bottom: 2px"><i>Select which surveys and annotation sets you would like to see individuals for.</i></div>
                     <div id="surveySelect"></div>
@@ -133,7 +143,7 @@ limitations under the License. -->
         </div>
     </div>
     <div class="col-lg-2" style="padding-right: 30px;">
-        <div class="card" style='min-height:400px' id="tasksCard">
+        <!-- <div class="card" style='min-height:400px' id="tasksCard">
             <div class='card-header' style="margin-top: 0px; margin-bottom: 0px; border-bottom: 1px solid rgb(60,74,89); ">
                 <div class="row">
                     <div class="col-lg-9">
@@ -167,7 +177,7 @@ limitations under the License. -->
                     
         </div>
 
-        <br>
+        <br> -->
 
         <div class="card"  id="editCard">
             <div class='card-header' style="margin-top: 0px; margin-bottom: 0px; border-bottom: 1px solid rgb(60,74,89); ">
@@ -178,6 +188,11 @@ limitations under the License. -->
                 </div>
             </div>
             <div class="card-body" id="editDiv">
+                <div class="row" style="margin-bottom: 10px;">
+                    <div class="col-lg-12">
+                        <button type='button' class='btn btn-primary btn-block' id='btnEditUnidentifiable'>Edit Unidentifiable</button>
+                    </div>
+                </div>
                 <div class="row">
                     <div class="col-lg-12">
                         <button type='button' class='btn btn-danger btn-block' id='btnDeleteIndividuals'>Delete Individuals</button>
@@ -195,27 +210,36 @@ limitations under the License. -->
 <div id="modalIndividual" class="modal fade" role="dialog" tabindex="-1">
   <div class="modal-dialog" style="max-width: 95%;">
 
-      <!-- Modal content-->
-      <div class="modal-content">
-            <div class="modal-header">
-                <div class='col-lg-11' style="padding: 0px">
-                    <h4 id="individualName" class="modal-title"></h4>                   
+    <!-- Modal content-->
+    <div class="modal-content">
+        <div class="modal-header">
+            <div class='col-lg-11' style="padding: 0px">
+                <h4 id="individualName" class="modal-title"></h4>                   
+            </div>
+            <div class='col-lg-1' style="padding: 0px">
+                <div class="row">
+                    <div class='col-lg-6' style="padding: 0px">
+                        <button class='btn btn-primary btn-sm pull-right' onclick="helpOpen('view_individual_all')">Help</button>
+                    </div>
+                    <div class='col-lg-5' style="padding: 0px">
+                        <button id="helpx" type="button" class="close" data-dismiss="modal">&times;</button>
+                    </div>
+                    <div class='col-lg-1' style="padding: 0px"></div>
                 </div>
-              <div class='col-lg-1' style="padding: 0px">
-                  <div class="row">
-                      <div class='col-lg-6' style="padding: 0px">
-                          <button class='btn btn-primary btn-sm pull-right' onclick="helpOpen('view_individual_all')">Help</button>
-                      </div>
-                      <div class='col-lg-5' style="padding: 0px">
-                          <button id="helpx" type="button" class="close" data-dismiss="modal">&times;</button>
-                      </div>
-                      <div class='col-lg-1' style="padding: 0px"></div>
-                  </div>
-              </div>
-          </div>
-          <div class="modal-body" style="min-height:400px">
+            </div>
+        </div>
 
-            <div id="individualDiv">
+        <div class="tab" id="indivTabs">
+            <button id="openIndivSummary" class="tablinks" onclick="changeIndivTab(event, 'baseIndivSummaryTab')">Summary</button>
+            <button id="openIndivFeatures" class="tablinks" onclick="changeIndivTab(event, 'baseIndivFeaturesTab')">Features</button>
+            <button id="openIndivStats" class="tablinks" onclick="changeIndivTab(event, 'baseIndivStatsTab')">Statistics</button>
+            <button id="openIndivAssociations" class="tablinks" onclick="changeIndivTab(event, 'baseIndivAssociationsTab')">Associations</button>
+        </div>
+        
+        <div class="modal-body" style="min-height:400px">
+
+            <!-- <div id="individualDiv"> -->
+            <div class="tabcontent" id="baseIndivSummaryTab">   
                 <div class="row">
                     <div class="col-lg-1"></div>
                     <div class="col-lg-2">
@@ -223,7 +247,8 @@ limitations under the License. -->
                         <button id='btnRemoveImg' class="btn btn-danger btn-block" style="margin-top: 2px; margin-bottom: 2px;">Dissociate Image</button>
                         <button id='btnMergeIndiv' class="btn btn-danger btn-block" style="margin-top: 2px; margin-bottom: 2px;">Merge Individual</button>
                         <!-- <button id='btnMergeImg' class="btn btn-danger btn-block" style="margin-top: 2px; margin-bottom: 2px;">Merge Image</button> -->
-                        <button class='btn btn-primary btn-block' id="btnSubmitInfoChange" style="margin-top: 2px; margin-bottom: 2px;">Submit Changes</button>
+                        <button id='btnIndivUnidentifiable' class="btn btn-danger btn-block" style="margin-top: 2px; margin-bottom: 2px;">Mark Unidentifiable</button>
+                        <!-- <button class='btn btn-primary btn-block' id="btnSubmitInfoChange" style="margin-top: 2px; margin-bottom: 2px;">Submit Changes</button> -->
                         <br>
 
                         <h5 style="margin-bottom: 2px">Filter Images:</h5>
@@ -296,18 +321,94 @@ limitations under the License. -->
                     <div class="col-lg-1"></div>
                 </div>
                 <br>
+            </div>
+
+            <div class="tabcontent" id="baseIndivFeaturesTab">
+                <div class="row">
+                    <div class="col-lg-1"></div>
+                    <div class="col-lg-10">
+                        <h5 style="margin-bottom: 2px">Individual Features:</h5>     
+                        <div style="font-size: 80%; margin-bottom: 2px"><i>Please note that you can only edit the features of the Primary Image for each flank. If you select a different Primary Image for a flank, any feature changes previously made for that flank will be lost.</i></div>
+                        <div id="individualFeaturesErrors" style="font-size: 80%; color: #DF691A"></div>
+                        <br>
+                    </div>
+                    <div class="col-lg-1"></div>
+                </div>  
+                <div class="row">
+                    <div class="col-lg-1"></div>
+                    <div class="col-lg-5">
+                        <h5 style="margin-bottom: 5px">Left Flank:</h5>
+                        <div id="cxLeftPrimaryDiv">
+                            <label for="cxLeftPrimaryImage">Primary Image :</label>
+                            <label class="switch">
+                                <input type="checkbox" id="cxLeftPrimaryImage" checked><span class="slider round"></span>
+                            </label>
+                        </div>
+                        <div class="row">
+                            <div class="col-lg-1 d-flex align-items-center justify-content-end" style="padding:0;">
+                                <button class="btn btn-link" id="btnLeftFlankPrev"><i class="fa fa-chevron-circle-left fa-1x"></i></button>
+                            </div>
+                            <div class="col-lg-10">
+                                <center id="leftFeatureMap"></center>
+                            </div>
+                            <div class="col-lg-1 d-flex align-items-center justify-content-start" style="padding:0;">
+                                <button class="btn btn-link" id="btnLeftFlankNext"><i class="fa fa-chevron-circle-right fa-1x"></i></button>
+                            </div>
+                        </div>
+                        <div class="row" >
+                            <div class="col-lg-12 d-flex align-items-center justify-content-center">
+                                <div id="leftFlankPosition" style="font-size:60%;">
+                                    <ul class="pagination" id="leftFlankPaginationCircles" style="margin: 10px;"></ul>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-lg-5">
+                        <h5 style="margin-bottom: 5px">Right Flank:</h5>
+                        <div id="cxRightPrimaryDiv">
+                            <label for="cxRightPrimaryImage">Primary Image :</label>
+                            <label class="switch">
+                                <input type="checkbox" id="cxRightPrimaryImage" checked><span class="slider round"></span>
+                            </label>
+                        </div>
+                        <div class="row">
+                            <div class="col-lg-1 d-flex align-items-center justify-content-end" style="padding:0;">
+                                <button class="btn btn-link" id="btnRightFlankPrev"><i class="fa fa-chevron-circle-left fa-1x"></i></button>
+                            </div>
+                            <div class="col-lg-10">
+                                <center id="rightFeatureMap"></center>
+                            </div>
+                            <div class="col-lg-1 d-flex align-items-center justify-content-start" style="padding:0;">
+                                <button class="btn btn-link" id="btnRightFlankNext"><i class="fa fa-chevron-circle-right fa-1x"></i></button>
+                            </div>
+                        </div>
+                        <div class="row" >
+                            <div class="col-lg-12 d-flex align-items-center justify-content-center">
+                                <div id="rightFlankPosition" style="font-size:60%;">
+                                    <ul class="pagination" id="rightFlankPaginationCircles" style="margin: 10px;"></ul>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-lg-1"></div>
+                </div>
+                <div id="featureErrors" style="font-size: 80%; color: #DF691A"></div>
+                <br>
+
+            </div>
+
+            <div class="tabcontent" id="baseIndivStatsTab">
                 <div class="row">
                     <div class="col-lg-1"></div>
                     <div class="col-lg-10">
                         <div class="row">
-                            <div class="col-lg-2">
+                            <div class="col-lg-10">
                                 <h5 style="margin-bottom: 2px">Individual Statistics:</h5>
                             </div>
                         </div>
                         <div class="row">
                             <div class="col-lg-2">
                                 <select name='statsSelect' id='statsSelect' class='form-control'>
-                                    <option value="0">None</option>
                                     <option value="1">Naive Activity Analysis</option>
                                     <option value="2" selected>Spatial Analysis</option>
                                     <option value="3">Numerical Analysis</option>
@@ -330,13 +431,16 @@ limitations under the License. -->
                     <div class="col-lg-1"></div>
                 </div>
                 <br>
+            </div>
+
+            <div class="tabcontent" id="baseIndivAssociationsTab">
                 <div class="row">
                     <div class="col-lg-1"></div>
-                    <div class="col-lg-2">
+                    <div class="col-lg-10">
                         <h5 style="margin-bottom: 2px">Individual Associations:</h5>                  
                     </div>
-                    <div class="col-lg-9"></div>
-                </div>  
+                    <div class="col-lg-1"></div>
+                </div>
                 <div class="row">
                     <div class="col-lg-1"></div>
                     <div class="col-lg-10">
@@ -346,22 +450,23 @@ limitations under the License. -->
                                 <div id="associationsDiv"></div>
                             </div>
                             <div class="col-lg-2">
-                                <div id="orderAssociationsDiv"></div>
+                                <div id="orderAssociationsDiv" hidden></div>
                             </div>
                         </div>
                     </div>
                     <div class="col-lg-1"></div>	
                 </div>
             </div>
+            <!-- </div> -->
         
-          </div>
-          <div class='modal-footer'>
-
-              <div class='col-lg-1'>
-                  <button id="indivClose" type='button' class='btn btn-info btn-block' 
-                  data-dismiss='modal'>Close</button>
-              </div>
-
+        </div>
+        <div class='modal-footer'>
+            <div class='col-lg-2'>
+                <button class='btn btn-primary btn-block' id="btnSubmitInfoChange" style="margin-top: 2px; margin-bottom: 2px;">Submit Changes</button>
+            </div>
+            <div class='col-lg-2'>
+                <button id="indivClose" type='button' class='btn btn-info btn-block' data-dismiss='modal'>Close</button>
+            </div>
           </div>
       </div>
 
@@ -596,51 +701,6 @@ limitations under the License. -->
     </div>
   </div>
 
-
-  <!-- Modal 1 -->
-<!-- <div id="modalMergeIndividualLeft" class="modal fade" role="dialog" tabindex="-1" data-backdrop="static">
-    <div class="modal-dialog" style="max-width: 40%; position: fixed; top: 5%; left: 5%; margin: 0;">
-        <div class="modal-content">
-            <div class="modal-header">
-                <h4 class="modal-title">Left Content</h4>
-                <button id="helpx1" type="button" class="close" data-dismiss="modal">&times;</button>
-            </div>
-            <div class="modal-body">
-                <div id="mCol1"></div>
-                <div id="individualMergeDivL"></div>
-            </div>
-            <div class="modal-footer">
-                <button type='button' class='btn btn-info' data-dismiss='modal'>Close</button>
-            </div>
-        </div>
-    </div>
-</div> -->
-
-<!-- Modal 2 -->
-<!-- <div id="modalMergeIndividualRight" class="modal fade" role="dialog" tabindex="-1" data-backdrop="static">
-    <div class="modal-dialog" style="max-width: 40%; position: fixed; top: 5%; right: 5%; margin: 0;">
-        <div class="modal-content">
-            <div class="modal-header">
-                <h4 class="modal-title">Right Content</h4>
-                <button id="helpx2" type="button" class="close" data-dismiss="modal">&times;</button>
-            </div>
-            <div class="modal-body">
-                <div id="mCol2"></div>
-                <div id="individualMergeDivR"></div>
-            </div>
-            <div class="modal-footer">
-                <div class='col-lg-1'>
-                    <button id="btnMerge" type='button' class='btn btn-primary btn-block' hidden>Merge</button>
-                </div>
-                <div class='col-lg-1'>
-                    <button type='button' class='btn btn-info btn-block' data-dismiss='modal'>Close</button>
-                </div>
-            </div>
-        </div>
-    </div>
-</div> -->
-
-
   <!-- Individual alert Modal -->
 <div id="modalDissociateImage" class="modal fade" role="dialog" tabindex="-1">
     <div class="modal-dialog">
@@ -648,19 +708,23 @@ limitations under the License. -->
         <!-- Modal content-->
         <div class="modal-content">
             <div class="modal-header">
-                <h4 class="modal-title">Dissociate Image</h4>
+                <h4 class="modal-title" id="modalDissociateTitle">Dissociate Image</h4>
                 <button id="helpx" type="button" class="close" data-dismiss="modal">&times;</button>
             </div>
             <div class="modal-body">
                 <div id="divDissociateImage">
-                    <div style="font-size: 80%; margin-bottom: 2px"><i>Dissociating an image will remove the image from the individual it is currently associated with. You can either create a new individual for the image or move it to an existing individual.</i></div>
-                    <div class="custom-control custom-radio custom-control-inline">
+                    <div id="dissociateImageInfo" style="font-size: 80%; margin-bottom: 2px"><i>Dissociating an image will remove the image from the individual it is currently associated with. You can either create a new individual for the image, move it to an existing individual, or mark it as unidentifiable.</i></div>
+                    <div class="custom-control custom-radio">
                         <input type="radio" class="custom-control-input" id="removeImg" name="dissociateImage" value='new' checked>
                         <label class="custom-control-label" for="removeImg">Create New Individual</label>
                     </div>
-                    <div class="custom-control custom-radio custom-control-inline">
+                    <div class="custom-control custom-radio">
                         <input type="radio" class="custom-control-input" id="moveImg" name="dissociateImage" value='move'>
                         <label class="custom-control-label" for="moveImg">Move to Existing Individual</label>
+                    </div> 
+                    <div class="custom-control custom-radio" id="unidentifiableDiv" style="display: none;">
+                        <input type="radio" class="custom-control-input" id="imgUnidentifiable" name="dissociateImage" value='unidentifiable'>
+                        <label class="custom-control-label" for="imgUnidentifiable">Mark as Unidentifiable</label>
                     </div> 
                 </div>
             </div>
@@ -679,6 +743,132 @@ limitations under the License. -->
   
     </div>
 </div>
+
+<!-- Confirm edit survey close Modal -->
+<div id="modalDiscard" class="modal fade" role="dialog" tabindex="-1">
+    <div class="modal-dialog">
+        <!-- Modal content-->
+        <div class="modal-content">
+            <div class="modal-header">
+                <h4 class="modal-title">Please Confirm</h4>
+            </div>
+            <div class="modal-body">
+                <p align="justify" id="discardText">
+                    Any unsaved changes made to this individual will be lost if you close this window.
+                </p>
+                <p align="justify">
+                    Do you wish to continue?
+                </p>
+            </div>
+            <div class="modal-footer">
+                <div class="col-lg-3">
+                    <button id="btnCancelDiscard" type="button" class="btn btn-info btn-block" data-dismiss="modal">Cancel</button>
+                </div>
+                <div class="col-lg-3">
+                    <button id="btnConfirmDiscard" type="button" class="btn btn-danger btn-block" data-dismiss="modal">Discard</button>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+
+<!-- Individuals Modal -->
+<div id="modalUnidentifiable" class="modal fade" role="dialog" tabindex="-1">
+  <div class="modal-dialog" style="max-width: 80%;">
+
+    <!-- Modal content-->
+    <div class="modal-content">
+        <div class="modal-header">
+            <div class='col-lg-11' style="padding: 0px">
+                <h4 class="modal-title">Unidentifiable Sightings</h4>
+            </div>
+            <div class='col-lg-1' style="padding: 0px">
+                <div class="row">
+                    <div class='col-lg-6' style="padding: 0px">
+                        <button class='btn btn-primary btn-sm pull-right' onclick="helpOpen('unidentifiable_sightings')">Help</button>
+                    </div>
+                    <div class='col-lg-5' style="padding: 0px">
+                        <button id="helpx" type="button" class="close" data-dismiss="modal">&times;</button>
+                    </div>
+                    <div class='col-lg-1' style="padding: 0px"></div>
+                </div>
+            </div>
+        </div>
+
+        <div class="modal-body" style="min-height:400px">
+            <div id="unidDiv">
+                <div class="row">
+                    <div class="col-lg-2">
+                        <h6 style="margin-bottom: 0.0rem;">Surveys and Annotation Sets: </h6>
+                        <select id='unidTaskSelect' class='form-control'></select>
+
+                        <h6 style="margin-bottom: 0.0rem; margin-top: 0.5rem;">Species: </h6>
+                        <select id='unidSpeciesSelect' class='form-control'></select>
+             
+                        <h6 style="margin-bottom: 0.0rem; margin-top: 0.5rem;">Sites: </h6>
+                        <select id='unidSitesSelect' class='form-control'></select>  
+
+                        <h6 style="margin-top: 0.5rem; margin-bottom: 0.0rem;">Start Date:</h6>
+                        <input type="date" id="startDateUnid" name="startDate">
+                        
+                        <h6 style="margin-bottom: 0.0rem; margin-top: 0.5rem;">End Date:</h6>
+                        <input type="date" id="endDateUnid" name="endDate">
+                        <div id="dateErrorsUnid" style="font-size: 80%; color: #DF691A"></div>  
+
+                        <h6 style="margin-bottom: 0.0rem; margin-top: 0.5rem;">Order Images:</h6>
+                        <select name='orderUnidImages' id='orderUnidImages' class='form-control'>
+                            <option value="1">Timestamp</option>
+                            <option value="2">Site</option>
+                            <option value="3">Detection Rating</option>
+                        </select>
+
+                        <div class="custom-control custom-radio custom-control-inline">
+                            <input type="radio" class="custom-control-input" id="ascOrderUnid" name="orderUnidImages" value='asc' checked>
+                            <label class="custom-control-label" for="ascOrderUnid">Ascending</label>
+                        </div>
+                        <div class="custom-control custom-radio custom-control-inline">
+                            <input type="radio" class="custom-control-input" id="decOrderUnid" name="orderUnidImages" value='dec'>
+                            <label class="custom-control-label" for="decOrderUnid">Descending</label>
+                        </div>
+
+                    </div>
+                    <div class="col-lg-8">
+                        <center id="centerMapUnid"></center>
+                    </div>
+                    <div class="col-lg-2">
+                        <h5 align="left" style="margin-top: 0.5rem; margin-bottom: 0rem;">Survey: </h5> 
+                        <div id="surveysDivUnid"></div>
+                        <h5 align="left" style="margin-top: 0.5rem; margin-bottom: 0rem;">Site: </h5> 
+                        <div id="tgInfoUnid"></div>
+                        <h5 align="left" style="margin-top: 0.5rem; margin-bottom: 0rem;">Timestamp: </h5>
+                        <div id="timeInfoUnid"></div>
+                        <h5 align="left" style="margin-top: 0.5rem; margin-bottom: 0rem;">Label: </h5>    
+                        <div id="labelsDivUnid"></div>  
+                    </div>
+                </div>
+                <div class="row">
+                    <div class="col-lg-2"></div>
+                    <div class="col-lg-8">
+                        <div id="splideDivUnid"></div>    
+                    </div>
+                    <div class="col-lg-2"></div>
+                </div>
+            </div>
+        </div>
+        <div class='modal-footer'>
+            <div class='col-lg-2'>
+                <button id='btnRestoreDetUnid' class="btn btn-primary btn-block" style="margin-top: 2px; margin-bottom: 2px;" disabled>Restore Sighting</button>
+            </div>
+            <div class='col-lg-2'>
+                <button type='button' class='btn btn-info btn-block' data-dismiss='modal'>Close</button>
+            </div>
+          </div>
+      </div>
+
+  </div>
+</div>
+
 
 {% endblock %}
 
@@ -700,6 +890,8 @@ crossorigin=""/>
 <script src="js/Chart.bundle.min.js"></script>
 <link rel="stylesheet" href="js/Leaflet.BigImage.css">
 <script src="js/Leaflet.BigImage.js"></script>
-<!-- <link rel="stylesheet" href="js/leaflet.contextmenu.css"/>
-<script src="js/leaflet.contextmenu.js"></script> -->
+<link rel="stylesheet" href="js/leaflet.contextmenu.css"/>
+<script src="js/leaflet.contextmenu.js"></script>
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet.draw/1.0.4/leaflet.draw.css"/>
+<script src="js/leaflet.draw.js"></script>
 {% endblock %}

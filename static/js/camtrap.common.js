@@ -79,6 +79,7 @@ var idIndiv101 = false
 var isMaskCheck = false
 var isTimestampCheck
 var ctrlHeld = false
+var shiftHeld = false
 
 const divBtns = document.querySelector('#divBtns');
 const catcounts = document.querySelector('#categorycounts');
@@ -144,6 +145,7 @@ var maskMode = false
 var detectionGroups = {}
 var editedFlanks = {}
 var preloadImageIndex = {"map1": 0}
+var sliderImageIndexMap = {"map1": [], "map2": []}
 
 // var colours = {
 //     'rgba(67,115,98,1)': false,
@@ -210,6 +212,13 @@ function modifyToCompURL(url) {
         return splits.join('/')
     }
     
+}
+
+function modifyToCropURL(url,detection_id) {
+    /** Modifies the source URL to the cropped image of detection */
+    splits=url.split('/')
+    crop_url = splits[0] + '-comp/' + splits[1] + '/_crops_/' + detection_id.toString() + '.JPG'
+    return crop_url
 }
 
 function checkImage(url){
@@ -326,28 +335,29 @@ function buildDetection(image,detection,mapID = 'map1',colour=null) {
                 // rect._tooltip.options.offset = offset
                 // rect._tooltip.options.opacity = 0.8
                 // rect.openTooltip()
+                if (individuals[individualIndex][detection.individual]['auto_name'] != 'true' && !['', null,undefined].includes(individuals[individualIndex][detection.individual].name)) {
+                    var center = L.latLng([(rect._bounds._northEast.lat+rect._bounds._southWest.lat)/2,(rect._bounds._northEast.lng+rect._bounds._southWest.lng)/2])
+                    var top = L.latLng([rect._bounds._northEast.lat,(rect._bounds._northEast.lng+rect._bounds._southWest.lng)/2])
+                    var centerPoint = map[mapID].latLngToContainerPoint(center)
+                    var topPoint = map[mapID].latLngToContainerPoint(top)
+                    var offset = [0,topPoint.y-centerPoint.y]
 
-                var center = L.latLng([(rect._bounds._northEast.lat+rect._bounds._southWest.lat)/2,(rect._bounds._northEast.lng+rect._bounds._southWest.lng)/2])
-                var top = L.latLng([rect._bounds._northEast.lat,(rect._bounds._northEast.lng+rect._bounds._southWest.lng)/2])
-                var centerPoint = map[mapID].latLngToContainerPoint(center)
-                var topPoint = map[mapID].latLngToContainerPoint(top)
-                var offset = [0,topPoint.y-centerPoint.y]
-
-                // If the popup is too close to the top of the map, move it down
-                if (rect._bounds._northEast.lat >= map[mapID].getBounds().getNorth()-15) {
-                    offset = [0, 0]
-                }
+                    // If the popup is too close to the top of the map, move it down
+                    if (rect._bounds._northEast.lat >= map[mapID].getBounds().getNorth()-15) {
+                        offset = [0, 0]
+                    }
         
-                rect.bindPopup(individuals[individualIndex][detection.individual].name,{closeButton: false, autoClose: false, closeOnClick: false, autoPan: false, minWidth: 0})
-                rect._popup.options.offset = offset
+                    rect.bindPopup(individuals[individualIndex][detection.individual].name,{closeButton: false, autoClose: false, closeOnClick: false, autoPan: false, minWidth: 0})
 
-                rect.on('mouseover', function (e) {
-                    this.openPopup();
-                });
-                rect.on('mouseout', function (e) {
-                    this.closePopup();
-                });
+                    rect._popup.options.offset = offset
 
+                    rect.on('mouseover', function (e) {
+                        this.openPopup();
+                    });
+                    rect.on('mouseout', function (e) {
+                        this.closePopup();
+                    });
+                }
             }
 
             if (detection.id in editedFlanks) {
@@ -370,7 +380,7 @@ function buildDetection(image,detection,mapID = 'map1',colour=null) {
         else if (isIDing && (document.getElementById('btnSendToBack')==null)&&(mapID!='known')) {
             //Set the map view to fit detection bounds when viewing individual
             fitBoundsInProcess[mapID] = true
-            map[mapID].fitBounds(rect.getBounds(), {padding: [10,10]});
+            map[mapID].fitBounds(rect.getBounds(), {padding: [10,10], animate:false});
             // map[mapID].once('moveend', function(wrapMapID,wrapDetectionID) {
             //     return function() {
             //         if (fitBoundsInProcess[wrapMapID]) {
@@ -960,8 +970,16 @@ function updateCanvas(mapID = 'map1') {
                         }
                     }
                     else if (isIDing && document.getElementById('btnSendToBack')==null) {
-                        activeImage[mapID].setUrl("https://"+bucketName+".s3.amazonaws.com/" + image.url)
-                        fullRes[mapID] = true
+                        // activeImage[mapID].setUrl("https://"+bucketName+".s3.amazonaws.com/" + image.url)
+                        // fullRes[mapID] = true
+                        let currentActive = activeImage[mapID]._url
+                        if (currentActive != null && currentActive == "https://"+bucketName+".s3.amazonaws.com/" + image.url) {2
+                            fullRes[mapID] = true
+                            activeImage[mapID].setUrl("https://"+bucketName+".s3.amazonaws.com/" + image.url)
+                        } else {
+                            fullRes[mapID] = false
+                            activeImage[mapID].setUrl("https://"+bucketName+".s3.amazonaws.com/" + modifyToCompURL(image.url))
+                        }
                     }
                     else{
                         activeImage[mapID].setUrl("https://"+bucketName+".s3.amazonaws.com/" + modifyToCompURL(image.url))
@@ -1065,6 +1083,15 @@ function updateCanvas(mapID = 'map1') {
                         }
                         else {
                             heatmapDiv.hidden = true
+                        }
+                    }
+
+                    if (document.getElementById('idName1')!=null && document.getElementById('idName2')!=null){
+                        if(mapID=='map1'){
+                            document.getElementById('idName1').innerHTML = 'Current Individual: '+clusters[mapID][clusterIndex[mapID]].name
+                        }
+                        else if(mapID=='map2'){
+                            document.getElementById('idName2').innerHTML = 'Suggested Match: '+clusters[mapID][clusterIndex[mapID]].name
                         }
                     }
                 }
@@ -1283,6 +1310,9 @@ function goToPrevCluster(mapID = 'map1') {
 
     if (isIDing && (document.getElementById('btnSendToBack')==null)) {
         updateProgress()
+        if (document.getElementById('allFlank')!=null) {
+            updateFlankButtons()
+        }
     }
 
     reachedEnd = false
@@ -1692,20 +1722,48 @@ function backImage(mapID = 'map1'){
     }
 }
 
-function updateSlider(mapID = 'map1') {
+function updateSlider(mapID = 'map1', update_flank = false) {
     /** Updates the specified image slider. Initialises it if needed. */
-    if ((document.getElementById(splides[mapID]) != null) && (sliderIndex[mapID] != clusterIndex[mapID]) && (typeof clusters[mapID][clusterIndex[mapID]] != 'undefined') && (bucketName != null) && (!['-101','-99','-782'].includes(clusters[mapID][clusterIndex[mapID]].id))) {
+    if (((document.getElementById(splides[mapID]) != null) && (sliderIndex[mapID] != clusterIndex[mapID]) && (typeof clusters[mapID][clusterIndex[mapID]] != 'undefined') && (bucketName != null) && (!['-101','-99','-782'].includes(clusters[mapID][clusterIndex[mapID]].id)))|| update_flank) {
         sliderIndex[mapID] = clusterIndex[mapID]
         while(clusterPosition[mapID].firstChild){
             clusterPosition[mapID].removeChild(clusterPosition[mapID].firstChild);
         }
+        sliderImageIndexMap[mapID] = []
+        let currentFlank = null;
+        if (document.getElementById('allFlank') != null) {
+            for (let flankOption of ['left','right','ambiguous']) {
+                if (document.getElementById(flankOption+'Flank').checked) {
+                    currentFlank = flankOption
+                    break
+                }
+            }
+        }
+        
         for (let i=0;i<clusters[mapID][clusterIndex[mapID]].images.length;i++) {
-            imageUrl = "https://"+bucketName+".s3.amazonaws.com/" + modifyToCompURL(clusters[mapID][clusterIndex[mapID]].images[i].url)
+            if ((mapID!='known')&&(currentFlank != null) && clusters[mapID][clusterIndex[mapID]].images[i].detections.length > 0 && (clusters[mapID][clusterIndex[mapID]].images[i].detections[0].flank.toLowerCase() != currentFlank)) {
+                continue;
+            }
+            sliderImageIndexMap[mapID].push(i)
+            // imageUrl = "https://"+bucketName+".s3.amazonaws.com/" + modifyToCompURL(clusters[mapID][clusterIndex[mapID]].images[i].url)
+            if (clusters[mapID][clusterIndex[mapID]].images[i].detections.length > 0 && !taggingLevel.includes('-4')) {
+                imageUrl = "https://"+bucketName+".s3.amazonaws.com/" + modifyToCropURL(clusters[mapID][clusterIndex[mapID]].images[i].url,clusters[mapID][clusterIndex[mapID]].images[i].detections[0].id)
+            } else {
+                imageUrl = "https://"+bucketName+".s3.amazonaws.com/" + modifyToCompURL(clusters[mapID][clusterIndex[mapID]].images[i].url)
+            }
             img = document.createElement('img')
-            img.setAttribute('src',imageUrl)
+            // img.setAttribute('src',imageUrl)
+            img.setAttribute('data-splide-lazy',imageUrl)
             imgli = document.createElement('li')
             imgli.classList.add('splide__slide')
             imgli.appendChild(img)
+
+            // add a error handler to the image to replace it with the compressed version if the crop does not exist
+            img.onerror = function() {
+                this.onerror = null;
+                this.src = "https://"+bucketName+".s3.amazonaws.com/" + modifyToCompURL(clusters[mapID][clusterIndex[mapID]].images[i].url);
+            }
+
             clusterPosition[mapID].appendChild(imgli)
             if (document.getElementById('btnSendToBack') != null) {
                 // Create a divider between images from different clusters
@@ -1719,6 +1777,9 @@ function updateSlider(mapID = 'map1') {
             }
 
         }
+
+        client_width = document.getElementById(splides[mapID]).clientWidth
+        numberPages =Math.ceil(client_width/200) + 1 
     
         if (clusterPositionSplide[mapID]==null) {
             clusterPositionSplide[mapID] = new Splide( document.getElementById(splides[mapID]), {
@@ -1730,6 +1791,8 @@ function updateSlider(mapID = 'map1') {
                 gap         : 5,
                 pagination  : false,
                 cover       : true,
+                lazyLoad   : 'nearby',
+                preloadPages: numberPages,
                 breakpoints : {
                     '600': {
                         fixedWidth  : 66,
@@ -1740,7 +1803,8 @@ function updateSlider(mapID = 'map1') {
 
             clusterPositionSplide[mapID].on( 'moved', function(wrapMapID) {
                 return function() {
-                    imageIndex[wrapMapID] = clusterPositionSplide[wrapMapID].index
+                    // imageIndex[wrapMapID] = clusterPositionSplide[wrapMapID].index
+                    imageIndex[wrapMapID] = sliderImageIndexMap[wrapMapID][clusterPositionSplide[wrapMapID].index]
                     if (wrapMapID=='known'){
                         updateCanvas(wrapMapID)
                         document.getElementById('tgInfoKnown').innerHTML = 'Site: ' + clusters[wrapMapID][clusterIndex[wrapMapID]].images[imageIndex[wrapMapID]].trapgroup.tag
@@ -1748,7 +1812,7 @@ function updateSlider(mapID = 'map1') {
                     } else {
                         update(wrapMapID)
                         if (isIDing && (document.getElementById('btnSendToBack')==null)) {
-                            updateKpts()
+                            // updateKpts()
                         }
                     }
                 }
@@ -1758,8 +1822,10 @@ function updateSlider(mapID = 'map1') {
             clusterPositionSplide[mapID].on( 'click', function(wrapMapID,wrapTrack) {
                 return function(event) {
                     // imageIndex[wrapMapID] = parseInt(event.target.attributes.id.value.split("slide")[1])-1
-                    imageIndex[wrapMapID] = event.index
-                    clusterPositionSplide[wrapMapID].go(imageIndex[wrapMapID])
+                    // imageIndex[wrapMapID] = event.index
+                    imageIndex[wrapMapID] = sliderImageIndexMap[wrapMapID][event.index]
+                    // clusterPositionSplide[wrapMapID].go(imageIndex[wrapMapID])
+                    clusterPositionSplide[wrapMapID].go(event.index)
                     if (wrapMapID=='known'){
                         updateCanvas(wrapMapID)
                         document.getElementById('tgInfoKnown').innerHTML = 'Site: ' + clusters[wrapMapID][clusterIndex[wrapMapID]].images[imageIndex[wrapMapID]].trapgroup.tag
@@ -1767,7 +1833,7 @@ function updateSlider(mapID = 'map1') {
                     } else {
                         update(wrapMapID)
                         if (isIDing && (document.getElementById('btnSendToBack')==null)) {
-                            updateKpts()
+                            // updateKpts()
                         }
                     }
                 }
@@ -1853,6 +1919,9 @@ function nextCluster(mapID = 'map1') {
                 actions = []
                 preLoadCount = 1
                 updateProgress()
+                if (document.getElementById('allFlank')!=null) {
+                    updateFlankButtons()
+                }
             } else {
                 preLoadCount = 20
             }
@@ -3680,7 +3749,11 @@ document.onkeyup = function(event){
     }
 
     if (isIDing) {
-        idKeys(event.key.toLowerCase())
+        let loc = null
+        if (event.key.toLowerCase() == 'shift') {
+            loc = event.location
+        }
+        idKeys(event.key.toLowerCase(), loc)
     } else if (isTagging||isReviewing) {
         // console.log(event)
         if (((typeof modalNote == 'undefined') || (!modalNote.is(':visible'))) && !isNoteActive && !isDateActive) {
@@ -3917,6 +3990,11 @@ document.onkeyup = function(event){
         }
     }
     ctrlHeld = false
+    if (event.shiftKey) {
+        shiftHeld = true
+    } else {
+        shiftHeld = false
+    }
 }
 
 document.onkeydown = function(event){

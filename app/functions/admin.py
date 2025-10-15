@@ -19,7 +19,7 @@ from app.models import *
 from app.functions.globals import classifyTask, update_masks, retryTime, resolve_abandoned_jobs, addChildLabels, updateAllStatuses, deleteFile,\
                                     stringify_timestamp, rDets, update_staticgroups, detection_rating, chunker, verify_label, cleanup_empty_restored_images, \
                                     reconcile_cluster_labelgroup_labels_and_tags, hideSmallDetections, maskSky, checkChildTranslations, createChildTranslations, \
-                                    prepTask, removeHumans, sync_labels, sync_tags, process_multi_labels
+                                    prepTask, removeHumans, sync_labels, sync_tags, update_individuals_primary_dets, updateIndividualIdStatus, update_duplicate_individual_names, process_multi_labels
 from app.functions.individualID import calculate_detection_similarities, cleanUpIndividuals, check_individual_detection_mismatch
 from app.functions.imports import classifySurvey, s3traverse, classifyCluster, importKML, import_survey
 import GLOBALS
@@ -116,7 +116,18 @@ def delete_task(self,task_id):
                                         .filter(Trapgroup.survey_id==task.survey_id)\
                                         .distinct().all()]
                 
-                for individual in individuals:                    
+                update_individuals = []
+                update_tasks = []
+                if task.areaID_library:
+                    IndividualTask = alias(Task)
+                    update_tasks = [r[0] for r in db.session.query(Task.id)\
+                                                    .join(Individual,Task.individuals)\
+                                                    .join(IndividualTask,Individual.tasks)\
+                                                    .filter(IndividualTask.c.id==task_id)\
+                                                    .filter(Task.id!=task_id)\
+                                                    .distinct().all()]
+
+                for individual in individuals:
                     individual.detections = [detection for detection in individual.detections if detection.id not in detections]
 
                     if len(individual.detections)==0:
@@ -125,6 +136,7 @@ def delete_task(self,task_id):
                         individual.children = []
                         individual.tags = []
                         individual.tasks = []
+                        individual.primary_detections = []
                         indSimilarities = db.session.query(IndSimilarity).filter(or_(IndSimilarity.individual_1==individual.id,IndSimilarity.individual_2==individual.id)).all()
                         for indSimilarity in indSimilarities:
                             db.session.delete(indSimilarity)
@@ -133,8 +145,19 @@ def delete_task(self,task_id):
                         # no point doing this if its going to be deleted
                         individual.tasks.remove(task)
                         individual.tags = [tag for tag in individual.tags if tag.id not in tags]
+                        prim_count = len(individual.primary_detections)
+                        individual.primary_detections = [det for det in individual.primary_detections if det.id not in detections]
+                        if len(individual.primary_detections)==0 or len(individual.primary_detections) != prim_count:
+                            update_individuals.append(individual.id)                   
 
                 db.session.commit()
+
+                if update_individuals:
+                    update_individuals_primary_dets(individual_ids=update_individuals)
+
+                for tid in update_tasks:
+                    # Update Area Library Id Status of previous mutual tasks 
+                    updateIndividualIdStatus(tid)
 
                 # for individual in individuals:
                 #     if individual not in individuals_to_delete:
@@ -295,6 +318,7 @@ def stop_task(self,task_id,live=False):
 
     try:
         task = db.session.query(Task).get(int(task_id))
+        sub_task_ids = [st.id for st in task.sub_tasks]
 
         if task.status.lower() not in Config.TASK_READY_STATUSES:
             survey = task.survey
@@ -349,7 +373,16 @@ def stop_task(self,task_id,live=False):
             if ',' not in task.tagging_level and task.init_complete and '-2' not in task.tagging_level:
                 check_individual_detection_mismatch(task_id=task_id)
 
+            # Update Individual Primary Images
+            task = db.session.query(Task).get(task_id)
+            if '-4' in task.tagging_level or '-5' in task.tagging_level:
+                task_ids = [r.id for r in task.sub_tasks]
+                task_ids.append(task.id)
+                update_individuals_primary_dets(task_ids=task_ids,species=task.tagging_level.split(',')[1])
+            
             updateAllStatuses(task_id=int(task_id))
+            for sub_task_id in sub_task_ids:
+                updateIndividualIdStatus(task_id=int(sub_task_id))
 
             # if task_id in GLOBALS.mutex.keys(): GLOBALS.mutex.pop(task_id, None)
 
@@ -458,6 +491,19 @@ def delete_survey(self,survey_id):
                 if tempStatus != None:
                     status = tempStatus
                     message = tempMessage
+
+        #Delete features
+        if status != 'error':
+            try:
+                features = db.session.query(Feature).join(Detection).join(Image).join(Camera).join(Trapgroup).filter(Trapgroup.survey_id==survey_id).all()
+                for feature in features:
+                    db.session.delete(feature)
+                db.session.commit()
+                app.logger.info('Features deleted successfully.')
+            except:
+                status = 'error'
+                message = 'Could not delete features.'
+                app.logger.info('Failed to delete features.')
 
         #Delete detections
         if status != 'error':
@@ -748,6 +794,17 @@ def delete_survey(self,survey_id):
                 message = 'Could not delete survey.'
                 app.logger.info('Failed to delete survey')
 
+        # Delete empty areas 
+        if status != 'error':
+            try:
+                areas = db.session.query(Area).filter(~Area.surveys.any()).all()
+                for area in areas:
+                    db.session.delete(area)
+                db.session.commit()
+                app.logger.info('Empty areas deleted successfully.')
+            except:
+                app.logger.info('Failed to delete empty areas')
+
         if status == 'error':
             app.logger.info('Failed to delete survey {}: {}'.format(survey_id,message))
             # print(message)
@@ -781,6 +838,9 @@ def checkAndRelease(self,task_id):
         if task and (task.status=='Waiting'):
             task.status = 'Stopped'
             task.survey.status = 'Ready'
+            for sub_task in task.sub_tasks:
+                sub_task.status = 'Stopped'
+                sub_task.survey.status = 'Ready'
             db.session.commit()
 
     except Exception as exc:
@@ -2077,7 +2137,7 @@ def updateStatistics(self):
 
 
 @celery.task(bind=True,max_retries=5,ignore_result=True)
-def delete_individuals(self,task_ids, species):
+def delete_individuals(self,task_ids, species, skip_update_status=False):
     ''' Deletes all individuals of the specified species in the specified tasks. '''
     try:
         app.logger.info('Deleting individuals of species {} in tasks {}'.format(species,task_ids))
@@ -2107,6 +2167,16 @@ def delete_individuals(self,task_ids, species):
                                 .filter(Task.id.in_(task_ids))\
                                 .all()
 
+        update_individuals = []
+        IndividualTask = alias(Task)
+        update_tasks = [r[0] for r in db.session.query(Task.id)\
+                                        .join(Individual,Task.individuals)\
+                                        .join(IndividualTask,Individual.tasks)\
+                                        .filter(IndividualTask.c.id.in_(task_ids))\
+                                        .filter(Individual.species.in_(species))\
+                                        .filter(Task.id.notin_(task_ids))\
+                                        .distinct().all()]
+
         for individual in individuals:
             individual.detections = [detection for detection in individual.detections if detection.id not in detections]
             if len(individual.detections)==0:
@@ -2114,6 +2184,7 @@ def delete_individuals(self,task_ids, species):
                 individual.children = []
                 individual.tags = []
                 individual.tasks = []
+                individual.primary_detections = []
                 # Delete Individual Similarities
                 indSims = db.session.query(IndSimilarity).filter(or_(IndSimilarity.individual_1==individual.id,IndSimilarity.individual_2==individual.id)).all()
                 for indSim in indSims:
@@ -2122,6 +2193,10 @@ def delete_individuals(self,task_ids, species):
             else:
                 individual.tasks = [task for task in individual.tasks if task.id not in task_ids]
                 individual.tags = [tag for tag in individual.tags if tag.task_id not in task_ids]
+                prim_count = len(individual.primary_detections)
+                individual.primary_detections = [det for det in individual.primary_detections if det.id not in detections]
+                if len(individual.primary_detections)==0 or len(individual.primary_detections) != prim_count:
+                    update_individuals.append(individual.id)
 
 
         # Delete Detection similarities (where detections from sims are no longer associated with individuals)
@@ -2167,12 +2242,20 @@ def delete_individuals(self,task_ids, species):
         #     GLOBALS.ibs.delete_annots(aid_list)  
 
         db.session.commit()
-                
-        # Update statuses
-        for task_id in task_ids:
-            updateAllStatuses(task_id=task_id)
-            task = db.session.query(Task).get(task_id)
-            task.status = 'Ready'
+
+        if update_individuals:
+            update_individuals_primary_dets(individual_ids=update_individuals)
+
+        for tid in update_tasks:
+            # Update Area Library Id Status of previous mutual tasks 
+            updateIndividualIdStatus(tid)
+        
+        if not skip_update_status:       
+            # Update statuses
+            for task_id in task_ids:
+                updateAllStatuses(task_id=task_id)
+                task = db.session.query(Task).get(task_id)
+                task.status = 'Ready'
 
         db.session.commit()
 
@@ -2561,7 +2644,7 @@ def recluster_after_image_timestamp_change(survey_id,image_timestamps):
 
 
 @celery.task(bind=True,max_retries=5,ignore_result=True)
-def edit_survey(self,survey_id,user_id,classifier_id,sky_masked,ignore_small_detections,masks,staticgroups,timestamps,image_timestamps,coord_data,kml_file):
+def edit_survey(self,survey_id,user_id,classifier_id,sky_masked,ignore_small_detections,masks,staticgroups,timestamps,image_timestamps,coord_data,kml_file,edit_area_option):
     '''Celery task that handles the editing of a survey.'''
     try:
         survey = db.session.query(Survey).get(survey_id)
@@ -2577,6 +2660,28 @@ def edit_survey(self,survey_id,user_id,classifier_id,sky_masked,ignore_small_det
         # KML
         if kml_file:
             importKML(survey_id)
+
+        # Individuals 
+        if edit_area_option:
+            if edit_area_option=='delete_individuals':
+                skipUpdateStatuses = False
+                task = db.session.query(Task).filter(Task.survey_id==survey_id).filter(Task.areaID_library==True).first()
+                if task:
+                    IndividualTask = alias(Task)
+                    count_sq = db.session.query(Individual.id, func.count(IndividualTask.c.id).label('count'))\
+                                        .join(Task, Individual.tasks)\
+                                        .join(IndividualTask, Individual.tasks)\
+                                        .filter(Task.id==task.id)\
+                                        .group_by(Individual.id).subquery()
+                    species = [r[0] for r in db.session.query(Individual.species)\
+                                        .join(count_sq, Individual.id==count_sq.c.id)\
+                                        .filter(count_sq.c.count>1).distinct().all()]
+                    if species: 
+                        delete_individuals(task_ids=[task.id], species=species, skip_update_status=True)
+            
+            elif edit_area_option=='merge':
+                survey = db.session.query(Survey).get(survey_id)
+                update_duplicate_individual_names(survey.area_id)
 
         # Static groups
         if staticgroups:
@@ -2643,6 +2748,15 @@ def edit_survey(self,survey_id,user_id,classifier_id,sky_masked,ignore_small_det
 
         survey = db.session.query(Survey).get(survey_id)
         survey.status = 'Ready'
+
+        date_query = db.session.query(func.min(Image.corrected_timestamp), func.max(Image.corrected_timestamp))\
+                            .join(Camera)\
+                            .join(Trapgroup)\
+                            .filter(Trapgroup.survey_id==survey_id)\
+                            .filter(Image.corrected_timestamp!=None).first()
+        survey.start_date = date_query[0] if date_query else None
+        survey.end_date = date_query[1] if date_query else None
+        
         db.session.commit()
         app.logger.info('Finished editing survey {}'.format(survey_id))
         GLOBALS.redisClient.delete('edit_survey_{}'.format(survey_id))

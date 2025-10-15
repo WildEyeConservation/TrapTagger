@@ -30,6 +30,17 @@ limitations under the License. -->
 
             <div class="card-body" id="filterCardDiv">
                 <div id="baseDataDiv" class="tabcontent">
+                    <!-- Survey Areas -->
+                    <h5 style="margin-bottom: 2px">Survey Areas</h5>
+                    <div style="font-size: 80%; margin-bottom: 2px"><i>Select which survey areas you would like to see results for.</i></div>
+                    <div class="row">
+                        <div class='col-lg-10' style="padding-right:0">
+                            <select id="areaSelect" class='form-control'></select>
+                        </div>
+                    </div>  
+                    <div id="areaErrors" style="font-size: 80%; color: #DF691A"></div>
+                    <br>
+
                     <!-- 1. Surveys -->
                     <h5 style="margin-bottom: 2px">Surveys and Annotation Sets</h5>
                     <div style="font-size: 80%; margin-bottom: 2px"><i>Select which surveys you would like to see results for.</i></div>
@@ -586,7 +597,7 @@ limitations under the License. -->
                         <br>
                         <div class="custom-control custom-checkbox">
                             <input type="checkbox" class="custom-control-input" id="markerCheckBox" name="markerCheckBox" checked>
-                            <label class="custom-control-label" for="markerCheckBox">Show Sites</label>
+                            <label class="custom-control-label" for="markerCheckBox">Sites</label>
                         </div>
 
                         <div class="custom-control custom-checkbox">
@@ -595,8 +606,13 @@ limitations under the License. -->
                         </div>
 
                         <div class="custom-control custom-checkbox">
+                            <input type="checkbox" class="custom-control-input" id="normaliseOutliersCheckBox" name="normaliseOutliersCheckBox">
+                            <label class="custom-control-label" for="normaliseOutliersCheckBox">Normalise Outliers</label>
+                        </div>
+
+                        <div class="custom-control custom-checkbox">
                             <input type="checkbox" class="custom-control-input" id="heatMapCheckBox" name="heatMapCheckBox" checked>
-                            <label class="custom-control-label" for="heatMapCheckBox">Show Heat Map</label>
+                            <label class="custom-control-label" for="heatMapCheckBox">Heatmap</label>
                         </div>
 
                         <div id="extraSpatOptionsDiv"></div>

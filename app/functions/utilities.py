@@ -17,9 +17,9 @@ limitations under the License.
 from app import app, db, celery
 from app.models import *
 from app.functions.globals import *
-from app.functions.imports import archive_images, archive_empty_images, archive_videos, classifySurvey
+from app.functions.imports import archive_images, archive_empty_images, archive_videos, classifySurvey, s3traverse
 from app.functions.admin import stop_task
-from app.functions.archive import check_storage_class, get_restore_info
+from app.functions.archive import check_storage_class, get_restore_info, crop_image_to_individual
 import GLOBALS
 from sqlalchemy.sql import func, or_, and_, alias
 from sqlalchemy import desc, extract
@@ -1995,4 +1995,103 @@ def showClustering(trapgroup_id,task_id):
         print(text)
         prev_cluster = cluster_id
     
+    return True
+
+def crop_images_for_individuals(task_id):
+    ''' Crops images for all individuals for a specified task. '''     
+    # Crop images for individual ID
+
+    app.logger.info('Cropping images for individuals for task {}'.format(task_id))
+
+    task = db.session.query(Task).get(task_id)
+    task_species = [r[0] for r in db.session.query(Individual.species).join(Task, Individual.tasks).filter(Task.id==task.id).distinct().all()]
+
+    data = rDets(db.session.query(Detection.id,Detection.left,Detection.right,Detection.top,Detection.bottom,Image.filename,Camera.path)\
+                        .join(Image,Detection.image_id==Image.id)\
+                        .join(Camera,Image.camera_id==Camera.id)\
+                        .join(Labelgroup,Labelgroup.detection_id==Detection.id)\
+                        .join(Task,Labelgroup.task_id==Task.id)\
+                        .join(Label,Labelgroup.labels)\
+                        .filter(Task.id==task.id)\
+                        .filter(Label.description.in_(task_species))\
+                        .order_by(Detection.id)).distinct().all()
+
+    for item in data:
+        detection_id = item[0]
+        bbox_dict = {
+            'left': item[1],
+            'right': item[2],
+            'top': item[3],
+            'bottom': item[4]
+        }
+        image_path = item[6] + '/' + item[5]
+        # Make comp path 
+        splits = image_path.split('/')
+        splits[0] = splits[0] + '-comp'
+        image_path = '/'.join(splits)
+        crop_image_to_individual(detection_id,image_path,bbox_dict)
+
+    return True
+
+@celery.task(bind=True,max_retries=2,ignore_result=True)
+def dearchive_individual_images(self,task_id,crop=False):
+    ''' Moves images back to Standard storage'''
+    try:
+        task = db.session.query(Task).get(task_id)
+        task_species = [r[0] for r in db.session.query(Individual.species).join(Task, Individual.tasks).filter(Task.id==task.id).distinct().all()]
+
+        cluster_sq = rDets(db.session.query(Cluster.id)\
+            .join(Image,Cluster.images)\
+            .join(Detection)\
+            .join(Labelgroup)\
+            .join(Label,Labelgroup.labels)\
+            .filter(Cluster.task_id==task_id)\
+            .filter(Labelgroup.task_id==task_id)\
+            .filter(Label.description.in_(task_species))\
+            ).subquery()
+
+        images = db.session.query(Image,Image.filename,Camera.path)\
+                        .join(Camera)\
+                        .join(Cluster,Image.clusters)\
+                        .join(cluster_sq,Cluster.id==cluster_sq.c.id)\
+                        .filter(Cluster.task_id==task_id)\
+                        .filter(cluster_sq.c.id!=None)\
+                        .filter(Image.expiry_date>datetime.utcnow())\
+                        .filter(Image.expiry_date<Config.ID_IMAGE_EXPIRY_DATE)\
+                        .order_by(Image.id).distinct().all()
+
+        app.logger.info('Dearchiving {} images for task {}'.format(len(images),task_id))
+
+        # Change storage class to standard 
+        if images:
+            # for image in images:
+            for chunk in chunker(images, 1000):
+                for image in chunk:
+                    try:
+                        image_key = image[2] + '/' + image[1]
+                        GLOBALS.s3client.copy_object(Bucket=Config.BUCKET, CopySource={'Bucket': Config.BUCKET, 'Key': image_key},Key=image_key,StorageClass='STANDARD')
+                        image[0].expiry_date = Config.ID_IMAGE_EXPIRY_DATE  # Set expiry date to far in the future (to avoid re-archiving, and not cause issues with other restores)
+                    except Exception as e:
+                        app.logger.error('Error changing storage class for {}: {}'.format(image_key, str(e)))
+                db.session.commit()
+
+
+        if crop: 
+            crop_images_for_individuals(task_id)
+
+        app.logger.info('Updating individual ID status and primary detections for task {}'.format(task_id))
+        updateIndividualIdStatus(task_id)
+        update_individuals_primary_dets(task_ids=[task_id])
+
+    except Exception as exc:
+        app.logger.info(' ')
+        app.logger.info('!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!')
+        app.logger.info(traceback.format_exc())
+        app.logger.info('!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!')
+        app.logger.info(' ')
+        self.retry(exc=exc, countdown= retryTime(self.request.retries))
+
+    finally:
+        db.session.remove()
+
     return True

@@ -63,20 +63,41 @@ limitations under the License. -->
 
         <div class='card-header' style="margin-top: 0px; margin-bottom: 0px">
           <div class='row' style="margin-top: 0px; margin-bottom: 0px">
-            <div class='col-lg-4'>
-                <h3>Your Surveys</h3>
+            <div class="col-lg-2 d-flex align-items-center">
+                <h3 style="margin: 0;">Your Surveys</h3>
             </div>
-            <div class='col-lg-4'>
-                <input type="text" class="form-control" placeholder="Search" id="surveySearch"></input>
-            </div>
-            <div class='col-lg-2'></div>
             <div class='col-lg-2'>
-                <select name='orderSelect' id='orderSelect' class='form-control'>
+                <label for='surveySearch' style="margin:0">Search:</label>
+                <input type="text" class="form-control" id="surveySearch" style="margin-bottom: 2px;"></input>
+            </div>
+            <div class='col-lg-2'>
+                <label for='orgSelect' style="margin:0">Organisation:</label>
+                <select name='orgSelect' id='orgSelect' class='form-control' style="margin-bottom: 2px;">
+                    <option value="0">All</option>
+                </select>
+            </div>
+            <div class='col-lg-2'>
+                <label for='areaSelect' style="margin:0">Area:</label>
+                <select name='areaSelect' id='areaSelect' class='form-control' style="margin-bottom: 2px;">
+                    <option value="0">All</option>
+                </select>
+            </div>
+            <div class='col-lg-2'>
+                <label for='yearSelect' style="margin:0">Year:</label>
+                <select name='yearSelect' id='yearSelect' class='form-control' style="margin-bottom: 2px;">
+                    <option value="0">All</option>
+                </select>
+            </div>
+            <div class='col-lg-2'>
+                <label for='orderSelect' style="margin:0">Order By:</label>
+                <select name='orderSelect' id='orderSelect' class='form-control' style="margin-bottom: 2px;">
                     <option value="5">Descending Add Date</option>
                     <option value="2">Ascending Add Date</option>
-                    <!-- <option value="4">Descending Survey Date</option>
-                    <option value="1">Ascending Survey Date</option> -->
+                    <option value="4">Descending Survey Date</option>
+                    <option value="1">Ascending Survey Date</option>
                     <option value="3">Alphabetical</option>
+                    <option value="6">Organisation</option>
+                    <option value="7">Area</option>
                 </select>
             </div>
           </div>
@@ -150,6 +171,27 @@ limitations under the License. -->
                         </div>
                     </div>
                     <div id="newSurveyOrgErrors" style="font-size: 80%; color: #DF691A"></div>
+                    <br>
+
+                    <h5 style="margin-bottom: 2px">Survey Area</h5>
+                    <div style="font-size: 80%; margin-bottom: 2px"><i>Select the area associated with this survey. This refers to the name of the protected area, national park, or similar location where the survey was conducted.</i></div>
+                    <div style="margin-bottom: 5px">
+                        <div class="custom-control custom-radio custom-control-inline">
+                            <input type="radio" class="custom-control-input" id="newSurveyAreaSelect" name="areaSelection" value='0' checked="true" onclick="updateSurveyArea()">
+                            <label class="custom-control-label" for="newSurveyAreaSelect">Select Area</label>
+                        </div> 
+                        <div class="custom-control custom-radio custom-control-inline">
+                            <input type="radio" class="custom-control-input" id="createNewAreaCx" name="areaSelection" value='1'   onclick="updateSurveyArea()">
+                            <label class="custom-control-label" for="createNewAreaCx">Create New Area</label>
+                        </div> 
+                    </div>
+                    <div class="row">
+                        <div class='col-lg-4'>
+                            <select id="newSurveyArea" class='form-control'></select>
+                            <input id="newSurveyAreaText" type="text" class="form-control" style="display:none;" placeholder="New Area Name"></input>
+                        </div>
+                    </div>
+                    <div id="newSurveyAreaErrors" style="font-size: 80%; color: #DF691A"></div>
                     <br>
 
                     <h5 style="margin-bottom: 2px">Description (Optional)</h5>
@@ -510,6 +552,7 @@ limitations under the License. -->
                 <button id="openEditTimestampsTab" class="tablinks" onclick="changeEditSurveyTab(event, 'baseEditTimestampsTab')">Camera Timestamps</button>
                 <button id="openEditImgTimestampsTab" class="tablinks" onclick="changeEditSurveyTab(event, 'baseEditImgTimestampsTab')">File Timestamps</button>
                 <button id="openEditClassifierTab" class="tablinks" onclick="changeEditSurveyTab(event, 'baseEditClassifierTab')">Species Classifier</button>
+                <button id="openAreaTab" class="tablinks" onclick="changeEditSurveyTab(event, 'baseAreaTab')">Area</button>
                 <button id="openAdvancedTab" class="tablinks" onclick="changeEditSurveyTab(event, 'baseAdvancedTab')">Advanced Options</button>
                 <button id="openEditMasksTab" class="tablinks" onclick="changeEditSurveyTab(event, 'baseEditMasksTab')">Masks</button>
                 <button id="openStaticTab" class="tablinks" onclick="changeEditSurveyTab(event, 'baseStaticTab')">Static Detections</button>
@@ -538,6 +581,9 @@ limitations under the License. -->
                 </div>
                 <div class="tabcontent" id="baseStaticTab">
                     <div id="editStaticDiv"></div>
+                </div>
+                <div class="tabcontent" id="baseAreaTab">
+                    <div id="editAreaDiv"></div>
                 </div>
                 <div class="tabcontent" id="baseStructureTab">
                     <div id="editSurveyStructureDiv"></div>
@@ -2266,6 +2312,50 @@ limitations under the License. -->
             <div class='modal-footer'>
                 <div class='col-lg-3'>
                     <button id="editTaskAlertClose" type='button' class='btn btn-info btn-block' data-dismiss='modal'>Close</button>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Alert Modal -->
+<div id="modalEditAreaAlert" class="modal fade" role="dialog" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h4 class="modal-title">Alert</h4>
+                <button id="helpx" type="button" class="close" data-dismiss="modal">&times;</button>
+            </div>
+            <div class="modal-body">
+                <p align="justify">
+                    This survey shares an Individual Library with other surveys in the same area. 
+                    Choose how you would like to update the survey's area:
+                </p>
+                <div>
+                    <div class="custom-control custom-radio custom-control-inline">
+                        <input type="radio" class="custom-control-input" id="mergeAreas" name="editAreaLibOption" value="0" checked="true">
+                        <label class="custom-control-label" for="mergeAreas">
+                            Move all surveys from the current area into the new area
+                        </label>
+                    </div> 
+
+                    <div class="custom-control custom-radio custom-control-inline">
+                        <input type="radio" class="custom-control-input" id="delIndivsAndMove" name="editAreaLibOption" value="1">
+                        <label class="custom-control-label" for="delIndivsAndMove">
+                            Delete this survey’s library individuals and move the survey to the new area
+                        </label>
+                    </div> 
+                </div>
+                <br>
+                <div><i>Warning: Please note that these changes cannot be undone.</i></div>     
+            </div>
+
+            <div class='modal-footer'>
+                <div class='col-lg-3'>
+                    <button id="editAreaCancel" type='button' class='btn btn-info btn-block' data-dismiss='modal'>Cancel</button>
+                </div>
+                <div class='col-lg-3'>
+                    <button id="editAreaConfirm" type='button' class='btn btn-danger btn-block' data-dismiss='modal'>Confirm</button>
                 </div>
             </div>
         </div>

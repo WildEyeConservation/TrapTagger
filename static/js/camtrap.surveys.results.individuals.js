@@ -110,21 +110,46 @@ function getIndividuals(page = null) {
                 col.classList.add('col-lg-3')
                 row.appendChild(col)
 
-                var center = document.createElement('center')
-                col.appendChild(center)
+                // var center = document.createElement('center')
+                // col.appendChild(center)
 
-                let div = document.createElement('div')
-                div.id = 'indivImageDiv'+i
-                center.appendChild(div)
+                // let div = document.createElement('div')
+                // div.id = 'indivImageDiv'+i
+                // center.appendChild(div)
 
-                prepImageMap('indivImageDiv'+i, newIndividual.url, newIndividual.detection, 21)
+                // prepImageMap('indivImageDiv'+i, newIndividual.url, newIndividual.detection, 21)
+
+                image = document.createElement('img')
+                image.setAttribute('width','100%')
+                image.src = "https://"+bucketName+".s3.amazonaws.com/" + modifyToCropURL(newIndividual.url, newIndividual.detection.id)
+                col.appendChild(image)
+
+                image.style.cursor = 'pointer'
+                image.style.boxShadow = '0 4px 8px 0 rgba(0, 0, 0, 0.2), 0 6px 20px 0 rgba(0, 0, 0, 0.19)'
+                image.style.borderRadius = '4px'
+
+                image.addEventListener('mouseover', function() {
+                    this.style.boxShadow = '0 8px 16px 0 rgba(0, 0, 0, 0.2), 0 12px 40px 0 rgba(0, 0, 0, 0.19)'
+                    this.style.transform = 'scale(1.03)'
+                });
+
+                image.addEventListener('mouseout', function() {
+                    this.style.boxShadow = '0 4px 8px 0 rgba(0, 0, 0, 0.2), 0 6px 20px 0 rgba(0, 0, 0, 0.19)'
+                    this.style.transform = 'scale(1)'
+                });
+
+                image.addEventListener('error', function(wrapURL) {
+                    return function() {
+                        this.src = "https://"+bucketName+".s3.amazonaws.com/" + modifyToCompURL(wrapURL)
+                    }
+                }(newIndividual.url));
 
                 h5 = document.createElement('h5')
                 h5.setAttribute('align','center')
                 h5.innerHTML = newIndividual.name
                 col.appendChild(h5)
 
-                div.addEventListener('click', function(individualID,individualName){
+                image.addEventListener('click', function(individualID,individualName){
                     return function() {
                         selectedIndividual = individualID
 

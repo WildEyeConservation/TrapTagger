@@ -227,3 +227,23 @@ tr:hover td {
   margin: 0 4px;
   user-select: none;
 }
+
+.sidePanelLeft {
+  position: absolute;
+  left: 0;
+  width: 22vw;
+  background-color: #4E5D6C;
+  z-index: 1001;
+  display: none;
+  border: 1px solid rgba(60, 74, 89, 0.8);
+}
+
+.sidePanelRight {
+  position: absolute;
+  right: 0;
+  width: 22vw;
+  background-color: #4E5D6C;
+  z-index: 1001;
+  display: none;
+  border: 1px solid rgba(60, 74, 89, 0.8);
+}

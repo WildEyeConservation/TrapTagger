@@ -16,7 +16,7 @@ limitations under the License.
 
 from app import app, db, celery
 from app.models import *
-from app.functions.globals import coordinateDistance, retryTime, rDets, updateIndividualIdStatus, chunker, process_detections_for_individual_id
+from app.functions.globals import coordinateDistance, retryTime, rDets, updateIndividualIdStatus, chunker, process_detections_for_individual_id, update_individuals_primary_dets
 import GLOBALS
 import time
 from sqlalchemy.sql import func, or_, and_, alias, distinct
@@ -520,7 +520,7 @@ def calculate_individual_similarity(self,individual1,individuals2,species,parame
         individual1 = db.session.query(Individual).get(individual1)
         individuals2 = db.session.query(Individual).filter(Individual.id.in_(individuals2)).all()
 
-        task_ids = [t.id for t in individual1.tasks]
+        task_ids = [t.id for t in individual1.tasks] if individual1 else []
         algorithm = db.session.query(Label.algorithm).filter(Label.description==species).filter(Label.task_id.in_(task_ids)).first()[0]
 
         # # Find all family
@@ -850,7 +850,10 @@ def calculate_individual_similarities(self,task_id,species):
 
         task = db.session.query(Task).get(task_id)
         # task.survey.images_processing = 0
-        if task.sub_tasks and ('-5' in task.tagging_level):
+        # if task.sub_tasks and ('-5' in task.tagging_level):
+        if '-5' in task.tagging_level:
+            if not task.sub_tasks:
+                task.tagging_level = '-5,'+species+',-1'
             task.survey.status = 'Launched'
             db.session.commit()
             from app.functions.globals import launch_task
@@ -984,7 +987,7 @@ def calculate_individual_similarities(self,task_id,species):
 
 #     return True
 
-def handleIndividualUndo(indSimilarity,individual1,individual2,task_id):
+def handleIndividualUndo(indSimilarity,individual1,individual2,individual3,task_id):
     '''
     Handles the undoing of a user's last action based on the info recieved.
 
@@ -992,6 +995,7 @@ def handleIndividualUndo(indSimilarity,individual1,individual2,task_id):
             indSimilarity (IndSimilarity): The individual similarity object between the two individuals
             individual1 (Individual): The first individual
             individual2 (Individual): The second individual
+            individual3 (Individual): The old copy of the first individual (from accept)
             task_id (int): The current task
     '''
 
@@ -1041,80 +1045,83 @@ def handleIndividualUndo(indSimilarity,individual1,individual2,task_id):
             #TODO: This could be improved - not very efficient, but will do the job for now
 
             if individual1.name != 'unidentifiable':
+                if individual3:
+                    individual1.name = individual3.name
+                    individual1.notes = individual3.notes
+                    individual1.primary_detections = individual3.primary_detections
+                    individual1.tags = individual3.tags
+                    individual1.children = individual3.children
+                    individual1.parents = individual3.parents
+                    
+                else:
+                    if individual2.notes not in ['',None]:
+                        if individual1.notes == individual2.notes:
+                            individual1.notes = None
+                        else:
+                            individual1.notes = re.split(individual2.notes,individual1.notes)[0]
+                    
+                    for child in individual2.children:
+                        # lazy check
+                        remove_child = True
+                        for parent in child.parents:
+                            if parent != individual1:
+                                if parent.detections[0] in individual1.detections:
+                                    remove_child = False
+                                    break
+                                            
+                        if remove_child and (child in individual1.children):
+                            individual1.children.remove(child)
 
-                if individual2.notes not in ['',None]:
-                    if individual1.notes == individual2.notes:
-                        individual1.notes = None
-                    else:
-                        individual1.notes = re.split(individual2.notes,individual1.notes)[0]
-                
-                for child in individual2.children:
-                    # lazy check
-                    remove_child = True
-                    for parent in child.parents:
-                        if parent != individual1:
-                            if parent.detections[0] in individual1.detections:
-                                remove_child = False
-                                break
-                                        
-                    if remove_child and (child in individual1.children):
-                        individual1.children.remove(child)
+                    for parent in individual2.parents:
+                        # lazy check
+                        remove_parent = True
+                        for child in parent.children:
+                            if child != individual1:
+                                if child.detections[0] in individual1.detections:
+                                    remove_parent = False
+                                    break
 
-                for parent in individual2.parents:
-                    # lazy check
-                    remove_parent = True
-                    for child in parent.children:
-                        if child != individual1:
-                            if child.detections[0] in individual1.detections:
-                                remove_parent = False
-                                break
+                        if remove_parent and (parent in individual1.parents):
+                            individual1.parents.remove(parent)
 
-                    if remove_parent and (parent in individual1.parents):
-                        individual1.parents.remove(parent)
+                    for tag in individual2.tags:
+                        # lazy check
+                        remove_tag = True
+                        for individual in tag.individuals:
+                            if individual != individual1:
+                                if individual.detections[0] in individual1.detections:
+                                    remove_tag = False
+                                    break
 
-                for tag in individual2.tags:
-                    # lazy check
-                    remove_tag = True
-                    for individual in tag.individuals:
-                        if individual != individual1:
-                            if individual.detections[0] in individual1.detections:
-                                remove_tag = False
-                                break
-
-                    if remove_tag and (tag in individual1.tags):
-                        individual1.tags.remove(tag)
+                        if remove_tag and (tag in individual1.tags):
+                            individual1.tags.remove(tag)
 
             ###########################################################
 
             allSimilarities = db.session.query(IndSimilarity).filter(or_(IndSimilarity.individual_1==individual1.id,IndSimilarity.individual_2==individual1.id)).distinct().all()
+            Det1 = alias(Detection)
+            Det2 = alias(Detection)
+            IndividualDetections1 = alias(individualDetections)
+            IndividualDetections2 = alias(individualDetections)
             for similarity in allSimilarities:
                 similarity.score = similarity.old_score
-
-                maxSim = None
-                maxVal = 0
-                for detection1 in individual1.detections:
-                    for detection2 in individual2.detections:
-                        detSim = db.session.query(DetSimilarity).filter(
-                            or_(
-                                and_(
-                                    DetSimilarity.detection_1==detection1.id,
-                                    DetSimilarity.detection_2==detection2.id),
-                                and_(
-                                    DetSimilarity.detection_1==detection2.id,
-                                    DetSimilarity.detection_2==detection1.id)
-                            )
-                        ).first()
-
-                        if detSim and detSim.score >= maxVal:
-                            maxVal = detSim.score
-                            maxSim = detSim
-
+                maxSim = db.session.query(DetSimilarity)\
+                                        .join(Det1, Det1.c.id==DetSimilarity.detection_1)\
+                                        .join(Det2, Det2.c.id==DetSimilarity.detection_2)\
+                                        .join(IndividualDetections1, IndividualDetections1.c.detection_id==Det1.c.id)\
+                                        .join(IndividualDetections2, IndividualDetections2.c.detection_id==Det2.c.id)\
+                                        .filter(or_(
+                                            and_(IndividualDetections1.c.individual_id==similarity.individual_1,IndividualDetections2.c.individual_id==similarity.individual_2),
+                                            and_(IndividualDetections1.c.individual_id==similarity.individual_2,IndividualDetections2.c.individual_id==similarity.individual_1)
+                                        ))\
+                                        .order_by(DetSimilarity.score.desc())\
+                                        .first()
                 if maxSim:
                     similarity.detection_1 = maxSim.detection_1
                     similarity.detection_2 = maxSim.detection_2
-                elif detSim:
-                    similarity.detection_1 = detSim.detection_1
-                    similarity.detection_2 = detSim.detection_2
+                else:
+                    similarity.detection_1 = None
+                    similarity.detection_2 = None
 
     db.session.commit()
     return True
@@ -1136,6 +1143,7 @@ def cleanUpIndividuals(task_id):
             db.session.delete(similarity)
         individual.tags = []
         individual.detections = []
+        individual.primary_detections = []
         individual.children = []
         individual.parents = []
         individual.tasks = []
@@ -1212,6 +1220,7 @@ def check_individual_detection_mismatch(self,task_id,cluster_id=None):
         individuals_data = {}
         individuals_species = {}
         wbia_detections = []
+        update_individuals = []
         for d in data:
             if d[2] not in individuals_data.keys():
                 individuals_data[d[2]] = [d[0]]
@@ -1223,7 +1232,9 @@ def check_individual_detection_mismatch(self,task_id,cluster_id=None):
             if detection in individual.detections:
                 individual.detections.remove(detection)
                 # wbia_detections.append(detection)
-
+                if detection in individual.primary_detections:
+                    individual.primary_detections.remove(detection)
+                    update_individuals.append(individual.id)
 
         # Delete individuals with no detections
         individuals = db.session.query(Individual)\
@@ -1239,12 +1250,14 @@ def check_individual_detection_mismatch(self,task_id,cluster_id=None):
                 db.session.delete(similarity)
 
             individual.detections = []
+            individual.primary_detections = []
             individual.tags = []
             individual.children = []
             individual.parents = []
             individual.tasks = []
             db.session.delete(individual)
             del individuals_data[individual.id]
+            if individual.id in update_individuals: update_individuals.remove(individual.id)
             
 
         # Clean up WBIA data & Detection similarities if they are not associated with any other individual for other tasks 
@@ -1274,6 +1287,9 @@ def check_individual_detection_mismatch(self,task_id,cluster_id=None):
         #     GLOBALS.ibs.delete_annots(aid_list)  
                 
         db.session.commit()
+
+        if update_individuals:
+            update_individuals_primary_dets(individual_ids=update_individuals)
 
         # Recalculate similarities where removed detections were used
         individuals_check = []

@@ -3602,6 +3602,50 @@ def import_survey(self,survey_id,preprocess_done=False,live=False,launch_id=None
             return True
 
         survey.images_processing = survey.image_count + survey.video_count 
+        survey.status = 'Importing'
+        db.session.commit()
+        
+        # Update counts: 
+        survey_folder = survey.organisation.folder+'/'+survey.folder+'/%'
+        survey_folder = survey_folder.replace('_','\\_')
+
+        survey.image_count = db.session.query(Image).join(Camera).outerjoin(Trapgroup).outerjoin(Video)\
+                            .filter(or_(
+                                Trapgroup.survey_id==survey_id,
+                                and_(Camera.trapgroup_id==None,Camera.path.like(survey_folder))
+                            ))\
+                            .filter(Video.id==None)\
+                            .distinct().count()
+        survey.video_count = db.session.query(Video).join(Camera).outerjoin(Trapgroup)\
+                            .filter(or_(
+                                Trapgroup.survey_id==survey_id,
+                                and_(Camera.trapgroup_id==None,Camera.path.like(survey_folder))
+                            ))\
+                            .distinct().count()
+        survey.frame_count = db.session.query(Image).join(Camera).join(Video).outerjoin(Trapgroup)\
+                            .filter(or_(
+                                Trapgroup.survey_id==survey_id,
+                                and_(Camera.trapgroup_id==None,Camera.path.like(survey_folder))
+                            ))\
+                            .distinct().count()
+
+        # Update dates
+        date_query1 = db.session.query(func.min(Image.corrected_timestamp), func.max(Image.corrected_timestamp))\
+                            .join(Camera)\
+                            .join(Trapgroup)\
+                            .filter(Trapgroup.survey_id==survey_id)\
+                            .filter(Image.corrected_timestamp!=None).first()
+        date_query2 = db.session.query(func.min(Image.corrected_timestamp), func.max(Image.corrected_timestamp))\
+                            .join(Camera)\
+                            .outerjoin(Trapgroup)\
+                            .filter(Trapgroup.id==None)\
+                            .filter(Camera.path.like(survey_folder))\
+                            .filter(Image.corrected_timestamp!=None).first()
+        min_date = min(filter(None, [date_query1[0], date_query2[0]]), default=None)
+        max_date = max(filter(None, [date_query1[1], date_query2[1]]), default=None)
+        survey.start_date = min_date
+        survey.end_date = max_date
+
         db.session.commit()
 
         # First half import -> always performed
@@ -3624,6 +3668,14 @@ def import_survey(self,survey_id,preprocess_done=False,live=False,launch_id=None
 
             extract_missing_timestamps(survey_id)
             timestamp_check = db.session.query(Image.id).join(Camera).join(Trapgroup).filter(Trapgroup.survey_id==survey_id).filter(Image.corrected_timestamp==None).filter(Image.skipped!=True).first()
+
+            date_query = db.session.query(func.min(Image.corrected_timestamp), func.max(Image.corrected_timestamp))\
+                                .join(Camera)\
+                                .join(Trapgroup)\
+                                .filter(Trapgroup.survey_id==survey_id)\
+                                .filter(Image.corrected_timestamp!=None).first()
+            survey.start_date = date_query[0] if date_query else None
+            survey.end_date = date_query[1] if date_query else None
 
             survey = db.session.query(Survey).get(survey_id)
             survey.status='Processing Cameras'
@@ -3709,7 +3761,7 @@ def import_survey(self,survey_id,preprocess_done=False,live=False,launch_id=None
                 task.status = 'PENDING'
                 task.survey.status = 'Launched'
                 for sub_task in task.sub_tasks:
-                    sub_task.status = 'Processing'
+                    sub_task.status = 'ID Processing'
                     sub_task.survey.status = 'Launched'
                 db.session.commit()
                 launch_task.delay(task_id=launch_id)

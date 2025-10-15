@@ -19,7 +19,7 @@ from app.models import *
 from app.functions.globals import addChildLabels, resolve_abandoned_jobs, createTurkcodes, deleteTurkcodes, \
                                     updateTaskCompletionStatus, updateLabelCompletionStatus, updateIndividualIdStatus, retryTime, chunker, \
                                     getClusterClassifications, checkForIdWork, numify_timestamp, rDets, prep_required_images, updateAllStatuses, classifyTask, cleanup_empty_restored_images,\
-                                    reconcile_cluster_labelgroup_labels_and_tags, generateUniqueName, process_multi_labels
+                                    reconcile_cluster_labelgroup_labels_and_tags, generateUniqueName, update_individuals_primary_dets, process_multi_labels
 from app.functions.individualID import calculate_detection_similarities, cleanUpIndividuals, calculate_individual_similarities, check_individual_detection_mismatch
 # from app.functions.results import resetImageDownloadStatus, resetVideoDownloadStatus
 import GLOBALS
@@ -85,6 +85,7 @@ def wrapUpTask(self,task_id):
 
     try:
         task = db.session.query(Task).get(task_id)
+        sub_task_ids = [st.id for st in task.sub_tasks]
 
         GLOBALS.redisClient.delete('active_jobs_'+str(task.id))
         GLOBALS.redisClient.delete('job_pool_'+str(task.id))
@@ -108,7 +109,17 @@ def wrapUpTask(self,task_id):
         if ',' not in task.tagging_level and task.init_complete and '-2' not in task.tagging_level:
             check_individual_detection_mismatch(task_id=task_id)
 
+        # Update Individual Primary Images
+        task = db.session.query(Task).get(task_id)
+        if '-4' in task.tagging_level or '-5' in task.tagging_level:
+            task_ids = [r.id for r in task.sub_tasks]
+            task_ids.append(task.id)
+            species = task.tagging_level.split(',')[1]
+            update_individuals_primary_dets(task_ids=task_ids,species=species)
+
         updateAllStatuses(task_id=task_id)
+        for sub_task_id in sub_task_ids:
+            updateIndividualIdStatus(task_id=int(sub_task_id))
 
         task = db.session.query(Task).get(task_id)
         task.current_name = None
@@ -193,24 +204,37 @@ def wrapUpTask(self,task_id):
         #         calculate_individual_similarities.delay(task.id,species)	
         #     else:
         #         task.survey.status = 'Ready'
+        skip_subtasks = False
         if 'processing' not in task.survey.status:
             if '-4' in task.tagging_level:
                 tL = re.split(',',task.tagging_level)
                 species = tL[1]
                 task.survey.status = 'processing'
-                db.session.commit()
-                if tL[4]=='h':
-                    calculate_detection_similarities.delay(task_ids=[task_id],species=species,algorithm='hotspotter')
-                elif tL[4]=='n':
-                    calculate_detection_similarities.delay(task_ids=[task_id],species=species,algorithm='none')
+                if tL[5]=='a' and len(task.sub_tasks)>0:
+                    t_ids = [task_id]
+                    skip_subtasks = True
+                    for st in task.sub_tasks: t_ids.append(st.id)
+                    task.tagging_level = '-5,'+species+',-1,100,'+tL[4]
+                    db.session.commit()
+                    if tL[4]=='h':
+                        calculate_detection_similarities.delay(task_ids=t_ids,species=species,algorithm='hotspotter')
+                    elif tL[4]=='n':
+                        calculate_detection_similarities.delay(task_ids=t_ids,species=species,algorithm='none')
+                else:
+                    db.session.commit()
+                    if tL[4]=='h':
+                        calculate_detection_similarities.delay(task_ids=[task_id],species=species,algorithm='hotspotter')
+                    elif tL[4]=='n':
+                        calculate_detection_similarities.delay(task_ids=[task_id],species=species,algorithm='none')
             else:
                 task.survey.status = 'Ready'
 
         # handle multi-tasks
-        for sub_task in task.sub_tasks:
-            sub_task.status = 'SUCCESS'
-            sub_task.survey.status = 'Ready'
-        task.sub_tasks = []
+        if not skip_subtasks:
+            for sub_task in task.sub_tasks:
+                sub_task.status = 'SUCCESS'
+                sub_task.survey.status = 'Ready'
+            task.sub_tasks = []
 
         #remove trapgroup list from redis
         GLOBALS.redisClient.delete('trapgroups_'+str(task.survey_id))
@@ -400,7 +424,8 @@ def fetch_clusters(taggingLevel,task_id,isBounding,trapgroup_id,limit=None,id=No
                             'tag_ids': [],
                             'groundTruth': [],
                             'trapGroup': 'None',
-                            'notes': row[2]
+                            'notes': row[2],
+                            'name': row[0].name
                         }
 
                     # Handle images
@@ -1484,6 +1509,9 @@ def translate_cluster_for_client(clusterInfo,reqId,limit,isBounding,taggingLevel
                 cluster_dict['site_tag'] = clusterInfo[cluster_id]['site_tag']
                 cluster_dict['latitude'] = clusterInfo[cluster_id]['latitude']
                 cluster_dict['longitude'] = clusterInfo[cluster_id]['longitude']
+
+            if '-5' in taggingLevel:
+                cluster_dict['name'] = clusterInfo[cluster_id]['name']
 
             if (('-3' in taggingLevel) or ('-8' in taggingLevel)) and (len(classification)==0):
                 cluster = db.session.query(Cluster).get(cluster_id)

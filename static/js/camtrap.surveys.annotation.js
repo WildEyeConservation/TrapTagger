@@ -14,6 +14,10 @@
 
 var tabActiveLaunch = 'baseSpeciesLabellingTab'
 var taskCompletionStatus = 'False'
+var speciesDisabled = {}
+var independentDisabled = {}
+var areaDisabled = null 
+var noArea = null
 
 launchMTurkTaskBtn.addEventListener('click', ()=>{
     /** Event listener for the launch-task button. Submits all info to the server after doing the necessary checks. */
@@ -35,17 +39,34 @@ launchMTurkTaskBtn.addEventListener('click', ()=>{
         }
     }
     else if (tabActiveLaunch == 'baseIndividualTab') {
-        confirmRestore = true
-        modalLaunchTask.modal('hide')
-        // document.getElementById('modalConfirmBodyRestore').innerHTML = '<p>Individual identification jobs require the restoration of the raw images of your chosen species from our archival storage for both processing and viewing purposes. This process will take 48 hours to complete. Thereafter, you will have 30 days to complete the identification job before the raw images are returned to archival storage. However, if you are still actively working on it at the end of this period, it will be automatically extended to allow you to finish.<br><br>Would you like to proceed?</p>'
-        document.getElementById('modalConfirmBodyRestore').innerHTML = '<p>Individual identification jobs require the restoration of the raw images of your chosen species from our archival storage for both processing and viewing purposes. This process will take 48 hours to complete. Thereafter, the raw images will be permanently returned to standard storage so that you can have immediate access to the raw images when working with your individuals.<br><br>Would you like to proceed?</p>'
-        btnConfirmRestore.disabled = false
-        modalConfirmRestore.modal({keyboard: true})
+        var idcheck = true 
+        if (noArea=='true'){
+            idcheck = false
+            document.getElementById('launchErrors').innerHTML = 'Individual Identification requires the survey to have an area defined. Please define an area for the survey before launching.'
+        } else{
+            if (!(document.getElementById('hotspotter').checked || document.getElementById('heuristic').checked)) {
+                idcheck = false
+                document.getElementById('launchErrors').innerHTML = 'Please select an algorithm. '
+            }
+            if (!(document.getElementById('independentID').checked || document.getElementById('areaID').checked)) {
+                idcheck = false
+                document.getElementById('launchErrors').innerHTML += 'Please select an individual library option. '
+            }
+        }
 
-        removeRestoreEventListeners()
+        if (idcheck) {
+            confirmRestore = true
+            modalLaunchTask.modal('hide')
+            // document.getElementById('modalConfirmBodyRestore').innerHTML = '<p>Individual identification jobs require the restoration of the raw images of your chosen species from our archival storage for both processing and viewing purposes. This process will take 48 hours to complete. Thereafter, you will have 30 days to complete the identification job before the raw images are returned to archival storage. However, if you are still actively working on it at the end of this period, it will be automatically extended to allow you to finish.<br><br>Would you like to proceed?</p>'
+            document.getElementById('modalConfirmBodyRestore').innerHTML = '<p>Individual identification jobs require the restoration of the raw images of your chosen species from our archival storage for both processing and viewing purposes. This process will take 48 hours to complete. Thereafter, the raw images will be permanently returned to standard storage so that you can have immediate access to the raw images when working with your individuals.<br><br>Would you like to proceed?</p>'
+            btnConfirmRestore.disabled = false
+            modalConfirmRestore.modal({keyboard: true})
 
-        btnConfirmRestore.addEventListener('click', confirmRestoreLaunch);
-        btnCancelRestore.addEventListener('click', cancelRestoreLaunch);
+            removeRestoreEventListeners()
+
+            btnConfirmRestore.addEventListener('click', confirmRestoreLaunch);
+            btnCancelRestore.addEventListener('click', cancelRestoreLaunch);
+        }
     }
     else{
         launchTask()
@@ -77,38 +98,69 @@ function launchTask(){
     }
 
     allow = true
+    var selectedTasks = [selectedTask]
     if (tabActiveLaunch == 'baseIndividualTab'){
-        taskTaggingLevel = document.getElementById('idStage').value+','+document.getElementById('taskTaggingLevel').options[document.getElementById('taskTaggingLevel').selectedIndex].text
-        if (document.getElementById('idStage').value=='-4') {
-            // if (document.getElementById('wordName').checked) {
-            //     taskTaggingLevel += ',w'
-            // } else if (document.getElementById('numberedName').checked) {
-            //     taskTaggingLevel += ',n'
-            // } else {
-            //     allow = false
-            // }
+        // taskTaggingLevel = document.getElementById('idStage').value+','+document.getElementById('taskTaggingLevel').options[document.getElementById('taskTaggingLevel').selectedIndex].text
+        // if (document.getElementById('idStage').value=='-4') {
+        //     // if (document.getElementById('wordName').checked) {
+        //     //     taskTaggingLevel += ',w'
+        //     // } else if (document.getElementById('numberedName').checked) {
+        //     //     taskTaggingLevel += ',n'
+        //     // } else {
+        //     //     allow = false
+        //     // }
+        //     taskTaggingLevel += ',n'
+        //     taskTaggingLevel += ',m'
+        //     // if (document.getElementById('autoGenSingles').checked) {
+        //     //     taskTaggingLevel += ',a'
+        //     // } else if (document.getElementById('manualSingles').checked) {
+        //     //     taskTaggingLevel += ',m'
+        //     // } else {
+        //     //     allow = false
+        //     // }
+        //     if (document.getElementById('hotspotter').checked) {
+        //         taskTaggingLevel += ',h'
+        //     } else if (document.getElementById('heuristic').checked) {
+        //         taskTaggingLevel += ',n'
+        //     } else {
+        //         allow = false
+        //     }
+        // } else if (document.getElementById('idStage').value=='-5') {
+        //     if (document.getElementById('idStage')[document.getElementById('idStage').selectedIndex].text == 'Exhaustive') {
+        //         taskTaggingLevel += ',0'
+        //     } else {
+        //         taskTaggingLevel += ',-1'
+        //     }
+        // }
+        taskTaggingLevel = '-4,' + document.getElementById('taskTaggingLevel').options[document.getElementById('taskTaggingLevel').selectedIndex].text
+        taskTaggingLevel += ',n'
+        taskTaggingLevel += ',m'
+        if (document.getElementById('hotspotter').checked) {
+            taskTaggingLevel += ',h'
+        } else if (document.getElementById('heuristic').checked) {
             taskTaggingLevel += ',n'
-            taskTaggingLevel += ',m'
-            // if (document.getElementById('autoGenSingles').checked) {
-            //     taskTaggingLevel += ',a'
-            // } else if (document.getElementById('manualSingles').checked) {
-            //     taskTaggingLevel += ',m'
-            // } else {
-            //     allow = false
-            // }
-            if (document.getElementById('hotspotter').checked) {
-                taskTaggingLevel += ',h'
-            } else if (document.getElementById('heuristic').checked) {
-                taskTaggingLevel += ',n'
-            } else {
-                allow = false
+        } else {
+            allow = false
+            document.getElementById('launchErrors').innerHTML = 'Please select an algorithm.'
+        }
+        var independentID = document.getElementById('independentID')
+        var areaID = document.getElementById('areaID')
+        if (!independentID.disabled && independentID.checked){
+            taskTaggingLevel += ',i'
+        } else if (!areaID.disabled && areaID.checked) {
+            taskTaggingLevel += ',a'
+            var allAreaTasks = document.querySelectorAll('[id^=idTaskSelect-]')
+            var area_task_ids = []
+            for (let i = 0; i < allAreaTasks.length; i++) {
+                if (allAreaTasks[i].value != '') {
+                    area_task_ids.push(parseInt(allAreaTasks[i].value))
+                }
             }
-        } else if (document.getElementById('idStage').value=='-5') {
-            if (document.getElementById('idStage')[document.getElementById('idStage').selectedIndex].text == 'Exhaustive') {
-                taskTaggingLevel += ',0'
-            } else {
-                taskTaggingLevel += ',-1'
-            }
+            selectedTasks = selectedTasks.concat(area_task_ids)
+            selectedTasks = [...new Set(selectedTasks)] // Remove duplicates
+        } else{
+            allow = false
+            document.getElementById('launchErrors').innerHTML = 'Please select an individual library option.'
         }
     }
 
@@ -127,7 +179,7 @@ function launchTask(){
         document.getElementById('launchMTurkTaskBtn').disabled=true
 
         var formData = new FormData()
-        formData.append("selectedTasks", JSON.stringify([selectedTask]))
+        formData.append("selectedTasks", JSON.stringify(selectedTasks))
         formData.append("taskSize", taskSize)
         formData.append("taskTaggingLevel", taskTaggingLevel)
         formData.append("isBounding", isBounding)
@@ -534,6 +586,7 @@ function resetLaunchTaskPage() {
     document.getElementById('openInfoTab').disabled = true
     document.getElementById('openSpeciesLabellingTab').disabled = false
     document.getElementById('openEmptyTab').disabled = true
+    document.getElementById('launchErrors').innerHTML = ''
     // document.getElementById('openMaskedTab').disabled = true
     clearSelect(document.getElementById('taskTaggingLevel'))
 
@@ -657,10 +710,16 @@ $("#taskTaggingLevel").change( function() {
     /** Listens for changes in the task tagging level, and enables/disables the individual ID stage selector accordingly. */
     
     if (tabActiveLaunch=='baseIndividualTab') {
-        if (speciesDisabled[document.getElementById('taskTaggingLevel').options[document.getElementById('taskTaggingLevel').selectedIndex].text] == 'true') {
-            document.getElementById('idStage').disabled = true
+        // if (speciesDisabled[document.getElementById('taskTaggingLevel').options[document.getElementById('taskTaggingLevel').selectedIndex].text] == 'true') {
+        //     document.getElementById('idStage').disabled = true
+        // } else {
+        //     document.getElementById('idStage').disabled = false
+        // }
+
+        if (independentDisabled[document.getElementById('taskTaggingLevel').options[document.getElementById('taskTaggingLevel').selectedIndex].text] == 'true') {
+            document.getElementById('independentID').disabled = true
         } else {
-            document.getElementById('idStage').disabled = false
+            document.getElementById('independentID').disabled = false
         }
     }
 })
@@ -669,7 +728,7 @@ function buildIndividualOptions() {
     /** Builds the individual ID form in the launch task modal. */
     
     individualOptionsDiv = document.getElementById('individualOptionsDiv')
-    individualOptionsDiv.appendChild(document.createElement('br'))
+    // individualOptionsDiv.appendChild(document.createElement('br'))
 
     // algorithm
     h5 = document.createElement('h5')
@@ -721,7 +780,7 @@ function buildIndividualOptions() {
     label.innerHTML = 'Heuristic Only (None)'
     radio.appendChild(label)
 
-    individualOptionsDiv.appendChild(document.createElement('br'))
+    // individualOptionsDiv.appendChild(document.createElement('br'))
 
     // names
     // h5 = document.createElement('h5')
@@ -840,7 +899,7 @@ function openIndividualID() {
         document.getElementById('openEmptyTab').disabled = true
         // document.getElementById('openMaskedTab').disabled = true
 
-        document.getElementById('annotationDescription').innerHTML = "<i>Identify specific individuals for a chosen individual. Begin by identifying individuals on a cluster-by-cluster basis to try combine multiple viewing angles. Then identify individuals across different clusters based on suggested matches. It is recommended that you correct your sightings (boxes) for your species of interest before beginning this process/</i>"
+        document.getElementById('annotationDescription').innerHTML = "<i>Identify specific individuals for a chosen individual. Begin by identifying individuals on a cluster-by-cluster basis to try combine multiple viewing angles. Then identify individuals across different clusters based on suggested matches. It is recommended that you correct your sightings (boxes) for your species of interest before beginning this process. Note that individual identification requires the survey to have an area defined.</i>"
         clearSelect(document.getElementById('taskTaggingLevel'))
         var xhttp = new XMLHttpRequest();
         xhttp.open("GET", '/getTaggingLevelsbyTask/'+selectedTask+'/individualID');
@@ -850,12 +909,32 @@ function openIndividualID() {
                 reply = JSON.parse(this.responseText);  
                 clearSelect(document.getElementById('taskTaggingLevel'))
                 fillSelect(document.getElementById('taskTaggingLevel'), reply.texts, reply.values, reply.colours)
-                speciesDisabled = reply.disabled
+                speciesDisabled = reply.disabled.icID
+                independentDisabled = reply.disabled.indID
+                areaDisabled = reply.disabled.areaID
+                noArea = reply.disabled.noArea
 
-                if (speciesDisabled[document.getElementById('taskTaggingLevel').options[document.getElementById('taskTaggingLevel').selectedIndex].text] == 'true') {
-                    document.getElementById('idStage').disabled = true
+                // if (speciesDisabled[document.getElementById('taskTaggingLevel').options[document.getElementById('taskTaggingLevel').selectedIndex].text] == 'true') {
+                //     document.getElementById('idStage').disabled = true
+                // } else {
+                //     document.getElementById('idStage').disabled = false
+                // }
+                if (noArea=='true'){
+                    document.getElementById('launchErrors').innerHTML = 'Individual Identification requires the survey to have an area defined. Please define an area for the survey before launching.'
                 } else {
-                    document.getElementById('idStage').disabled = false
+                    document.getElementById('launchErrors').innerHTML = ''
+                }
+
+                if (independentDisabled[document.getElementById('taskTaggingLevel').options[document.getElementById('taskTaggingLevel').selectedIndex].text] == 'true') {
+                    document.getElementById('independentID').disabled = true
+                } else {
+                    document.getElementById('independentID').disabled = false
+                }
+
+                if (areaDisabled=='true'){
+                    document.getElementById('areaID').disabled = true
+                } else {
+                    document.getElementById('areaID').disabled = false
                 }
 
                 document.getElementById('openSightingTab').disabled = false
@@ -877,46 +956,117 @@ function openIndividualID() {
         }
 
         // ID stage
-        h5 = document.createElement('h5')
-        h5.setAttribute('style','margin-bottom: 2px')
-        h5.innerHTML = 'Identification Stage'
-        individualLevel.appendChild(h5)
+        // h5 = document.createElement('h5')
+        // h5.setAttribute('style','margin-bottom: 2px')
+        // h5.innerHTML = 'Identification Stage'
+        // individualLevel.appendChild(h5)
     
-        div = document.createElement('div')
-        div.setAttribute('style','font-size: 80%; margin-bottom: 2px')
-        div.innerHTML = '<i>Select the stage of individual identification you would like to launch.</i>'
-        individualLevel.appendChild(div)
+        // div = document.createElement('div')
+        // div.setAttribute('style','font-size: 80%; margin-bottom: 2px')
+        // div.innerHTML = '<i>Select the stage of individual identification you would like to launch.</i>'
+        // individualLevel.appendChild(div)
     
-        row = document.createElement('div')
-        row.classList.add('row')
-        individualLevel.appendChild(row)
+        // row = document.createElement('div')
+        // row.classList.add('row')
+        // individualLevel.appendChild(row)
     
-        col1 = document.createElement('div')
-        col1.classList.add('col-lg-4')
-        row.appendChild(col1)
+        // col1 = document.createElement('div')
+        // col1.classList.add('col-lg-4')
+        // row.appendChild(col1)
     
-        input = document.createElement('select')
-        input.classList.add('form-control')
-        input.setAttribute('id','idStage')
-        col1.appendChild(input)
+        // input = document.createElement('select')
+        // input.classList.add('form-control')
+        // input.setAttribute('id','idStage')
+        // col1.appendChild(input)
 
-        $("#idStage").change( function() {
-            individualOptionsDiv = document.getElementById('individualOptionsDiv')
-            while(individualOptionsDiv.firstChild){
-                individualOptionsDiv.removeChild(individualOptionsDiv.firstChild);
-            }
-            if (document.getElementById('idStage').value=='-4') {
-                buildIndividualOptions()
-            }
-        })
+        // $("#idStage").change( function() {
+        //     individualOptionsDiv = document.getElementById('individualOptionsDiv')
+        //     while(individualOptionsDiv.firstChild){
+        //         individualOptionsDiv.removeChild(individualOptionsDiv.firstChild);
+        //     }
+        //     if (document.getElementById('idStage').value=='-4') {
+        //         buildIndividualOptions()
+        //     }
+        // })
 
-        fillSelect(input, ['Cluster Identification', 'Inter-cluster Identification'], ['-4','-5'])
+        // fillSelect(input, ['Cluster Identification', 'Inter-cluster Identification'], ['-4','-5'])
 
         individualOptionsDiv = document.createElement('div')
         individualOptionsDiv.setAttribute('id','individualOptionsDiv')
         individualLevel.appendChild(individualOptionsDiv)
 
         buildIndividualOptions()
+
+        individualLevel.appendChild(document.createElement('br'))
+
+        // lib
+        var h5 = document.createElement('h5')
+        h5.setAttribute('style','margin-bottom: 2px')
+        h5.innerHTML = 'Individual Library'
+        individualLevel.appendChild(h5)
+
+        var div = document.createElement('div')
+        div.setAttribute('style','font-size: 80%; margin-bottom: 2px')
+        div.innerHTML = '<i>Select what individual library you want to use in the individual identification.</i>'
+        individualLevel.appendChild(div)
+
+        var row = document.createElement('div')
+        individualLevel.appendChild(row)
+
+        var radio = document.createElement('div')
+        radio.setAttribute('class','custom-control custom-radio custom-control-inline')
+        row.appendChild(radio)
+
+        var input = document.createElement('input')
+        input.setAttribute('type','radio')
+        input.setAttribute('class','custom-control-input')
+        input.setAttribute('id','independentID')
+        input.setAttribute('name','libSelection')
+        input.setAttribute('value','customEx')
+        input.disabled = true
+        radio.appendChild(input)
+
+        var label = document.createElement('label')
+        label.setAttribute('class','custom-control-label')
+        label.setAttribute('for','independentID')
+        label.innerHTML = 'ID Survey Independently'
+        radio.appendChild(label)
+
+        $('#independentID').on('change', function() {
+            if (this.checked) {
+                updateAreaIdTasks()
+            }
+        });
+
+        radio = document.createElement('div')
+        radio.setAttribute('class','custom-control custom-radio custom-control-inline')
+        row.appendChild(radio)
+
+        input = document.createElement('input')
+        input.setAttribute('type','radio')
+        input.setAttribute('class','custom-control-input')
+        input.setAttribute('id','areaID')
+        input.setAttribute('name','libSelection')
+        input.setAttribute('value','customEx')
+        input.disabled = true
+        radio.appendChild(input)
+
+        label = document.createElement('label')
+        label.setAttribute('class','custom-control-label')
+        label.setAttribute('for','areaID')
+        label.innerHTML = 'ID Against Area Library'
+        radio.appendChild(label)
+
+        $('#areaID').on('change', function() {
+            if (this.checked) {
+                updateAreaIdTasks()
+            }
+        });
+
+        var divIdSurveys = document.createElement('div')
+        divIdSurveys.setAttribute('id','divIdSurveys')
+        divIdSurveys.style.display = 'none'
+        individualLevel.appendChild(divIdSurveys)
 
     } else {
         individualLevel = document.getElementById('individualLevel')
@@ -1377,3 +1527,102 @@ function openRelatedTag() {
         xhttp.send();
     }
 }
+
+function updateAreaIdTasks(){
+    /** Updates the areaID tasks  */
+
+    var divIdSurveys = document.getElementById('divIdSurveys')
+    divIdSurveys.style.display = 'none'
+    while (divIdSurveys.firstChild) {
+        divIdSurveys.removeChild(divIdSurveys.firstChild);
+    }
+
+    if (document.getElementById('areaID').checked) {
+        var id_species = document.getElementById('taskTaggingLevel').options[document.getElementById('taskTaggingLevel').selectedIndex].text
+        var xhttp = new XMLHttpRequest();
+        xhttp.open("GET", '/getAreaIdTasks/'+selectedTask+'/'+id_species);
+        xhttp.onreadystatechange =
+        function(){
+            if (this.readyState == 4 && this.status == 200) {
+                reply = JSON.parse(this.responseText);
+                if (document.getElementById('areaID').checked) {
+                    // Update the UI with the new area ID tasks
+                    var id_surveys = reply.surveys
+                    var divIdSurveys = document.getElementById('divIdSurveys')
+                    while (divIdSurveys.firstChild) {
+                        divIdSurveys.removeChild(divIdSurveys.firstChild);
+                    }
+
+                    divIdSurveys.appendChild(document.createElement('br'))
+
+                    var h5 = document.createElement('h5')
+                    h5.setAttribute('style','margin-bottom: 2px')
+                    h5.innerHTML = 'Area Annotation Sets'
+                    divIdSurveys.appendChild(h5)
+
+                    var div = document.createElement('div')
+                    div.setAttribute('style','font-size: 80%; margin-bottom: 2px')
+                    div.innerHTML = '<i>The following annotation sets will be used in the identification against the area library. If a survey has more than one possible annotation set, please select the annotation set you would like to use.</i>'
+                    divIdSurveys.appendChild(div)
+
+                    var row = document.createElement('div')
+                    row.classList.add('row')
+                    divIdSurveys.appendChild(row)
+
+                    var conflict = false
+
+                    for (let i = 0 ; i < id_surveys.length; i++) {
+                        var id_survey = id_surveys[i]
+                        var id_tasks = id_survey.tasks
+                        if (!conflict && id_tasks.length > 1) {
+                            conflict = true
+                        }
+
+                        var surveyDiv = document.createElement('div')
+                        surveyDiv.classList.add('row')
+                        divIdSurveys.appendChild(surveyDiv)
+                
+                        var surveyName = document.createElement('div')
+                        surveyName.classList.add('col-4')
+                        surveyName.style = 'display: flex; align-items: center;'
+                        surveyName.innerHTML = id_survey.name
+                        surveyDiv.appendChild(surveyName)
+                
+                        var surveySets = document.createElement('div')
+                        surveySets.classList.add('col-4')
+                        surveySets.style = 'display: flex; align-items: center;'
+                        surveyDiv.appendChild(surveySets)
+                
+                        var idTaskSelect = document.createElement('select')
+                        idTaskSelect.classList.add('form-control')
+                        idTaskSelect.id = 'idTaskSelect-' + id_survey.id
+                        surveySets.appendChild(idTaskSelect)
+
+                        var optionTexts = []
+                        var optionValues = []
+                        for(let j = 0; j < id_tasks.length; j++) {
+                            optionTexts.push(id_tasks[j].name)
+                            optionValues.push(id_tasks[j].id)
+                        }
+                        clearSelect(idTaskSelect)
+                        fillSelect(idTaskSelect, optionTexts, optionValues)
+                    }
+
+                    if (conflict){
+                        divIdSurveys.style.display = 'block'
+                    } else {
+                        divIdSurveys.style.display = 'none'
+                    }
+                }
+            }
+        }
+        xhttp.send();
+    }
+}
+
+$('#taskTaggingLevel').on('change', function() {
+    /** Updates the area tasks when species change */
+    if (tabActiveLaunch=='baseIndividualTab' && document.getElementById('areaID') && document.getElementById('areaID').checked) {
+        updateAreaIdTasks()
+    }
+});

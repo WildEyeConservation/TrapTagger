@@ -186,14 +186,36 @@ def launchTask():
     #                                     .filter(Survey.user==current_user)\
     #                                     .filter(Task.status.in_(Config.TASK_READY_STATUSES))\
     #                                     .distinct().all()]
-                    
-    tasks = db.session.query(Task).filter(Task.id.in_([int(r) for r in task_ids])).filter(func.lower(Task.status).in_(Config.TASK_READY_STATUSES)).all()
+
+    if '-4' in taggingLevel: 
+        tL = taggingLevel.split(',')
+        species = tL[1]
+        label = db.session.query(Label).filter(Label.description==species).filter(Label.task_id==task_ids[0]).first()
+        if label.icID_allowed:
+            # Should be -5 
+            # if len(task_ids)>1:
+            #     taggingLevel = '-5,'+species+',0,100,'+tL[4]
+            # else:
+            #     taggingLevel = '-5,'+species+',-1'
+            taggingLevel = '-5,'+species+',0,100,'+tL[4]
+
+    tasks = db.session.query(Task).join(Survey)\
+                        .filter(Task.id.in_([int(r) for r in task_ids]))\
+                        .filter(func.lower(Task.status).in_(Config.TASK_READY_STATUSES))\
+                        .filter(func.lower(Survey.status).in_(Config.SURVEY_READY_STATUSES))\
+                        .distinct().all()
 
     # check task statuses
     if len(tasks) != len(task_ids):
         statusPass = False
     else:
         statusPass = True
+
+    if '-4' in taggingLevel or '-5' in taggingLevel:
+        # Check that all tasks have an area associated
+        area_check = db.session.query(Task.id).join(Survey).filter(Task.id.in_([int(r) for r in task_ids])).filter(Survey.area_id==None).first()
+        if area_check:
+            return json.dumps({'message': 'You must define an area for your survey before launching Individual ID.', 'status': 'Error'})
 
 
     # Check if any surveys are busy with a dearchival process
@@ -234,50 +256,50 @@ def launchTask():
             if indCount < 2:
                 return json.dumps({'message': 'There are too few individuals for your selection. Individual ID requires at least 2 individuals.', 'status': 'Error'})
 
-    if (len(task_ids)>1) and ('-5' in taggingLevel):
-        # species = re.split(',',taggingLevel)[1]
-        individuals_in_selection = db.session.query(Individual)\
-                                            .join(Task,Individual.tasks)\
-                                            .filter(Task.id.in_(task_ids))\
-                                            .filter(Individual.species==species)\
-                                            .subquery()
+    # if (len(task_ids)>1) and ('-5' in taggingLevel):
+    #     # species = re.split(',',taggingLevel)[1]
+    #     individuals_in_selection = db.session.query(Individual)\
+    #                                         .join(Task,Individual.tasks)\
+    #                                         .filter(Task.id.in_(task_ids))\
+    #                                         .filter(Individual.species==species)\
+    #                                         .subquery()
 
-        # Check that all tasks associated with indivuals in this grouping are included
-        applicableTasks = db.session.query(Task)\
-                                    .join(Individual,Task.individuals)\
-                                    .join(individuals_in_selection, individuals_in_selection.c.id==Individual.id)\
-                                    .distinct().all()
+    #     # Check that all tasks associated with indivuals in this grouping are included
+    #     applicableTasks = db.session.query(Task)\
+    #                                 .join(Individual,Task.individuals)\
+    #                                 .join(individuals_in_selection, individuals_in_selection.c.id==Individual.id)\
+    #                                 .distinct().all()
 
-        missing_tasks = [task for task in applicableTasks if task not in tasks]
+    #     missing_tasks = [task for task in applicableTasks if task not in tasks]
         
-        if missing_tasks:
-            message = 'The following annotation sets are already associated with individuals in your selection and thus must also be included: '
-            for task in missing_tasks:
-                message += task.survey.name + ': ' + task.name + ', '
-            message = message[:-2]
+    #     if missing_tasks:
+    #         message = 'The following annotation sets are already associated with individuals in your selection and thus must also be included: '
+    #         for task in missing_tasks:
+    #             message += task.survey.name + ': ' + task.name + ', '
+    #         message = message[:-2]
 
-            return json.dumps({'message': message, 'status': 'Error'})
+    #         return json.dumps({'message': message, 'status': 'Error'})
 
-        # Check individuals not already associated to another task in a survey     
-        problem_surveys_sq = db.session.query(Survey,func.count(distinct(Task.id)).label('count'))\
-                                            .join(Task)\
-                                            .join(Individual,Task.individuals)\
-                                            .join(individuals_in_selection, individuals_in_selection.c.id==Individual.id)\
-                                            .group_by(Survey.id)\
-                                            .subquery()
+    #     # Check individuals not already associated to another task in a survey     
+    #     problem_surveys_sq = db.session.query(Survey,func.count(distinct(Task.id)).label('count'))\
+    #                                         .join(Task)\
+    #                                         .join(Individual,Task.individuals)\
+    #                                         .join(individuals_in_selection, individuals_in_selection.c.id==Individual.id)\
+    #                                         .group_by(Survey.id)\
+    #                                         .subquery()
 
-        problem_surveys = db.session.query(Survey)\
-                                            .join(problem_surveys_sq, Survey.id==problem_surveys_sq.c.id)\
-                                            .filter(problem_surveys_sq.c.count>1)\
-                                            .distinct().all()
+    #     problem_surveys = db.session.query(Survey)\
+    #                                         .join(problem_surveys_sq, Survey.id==problem_surveys_sq.c.id)\
+    #                                         .filter(problem_surveys_sq.c.count>1)\
+    #                                         .distinct().all()
 
-        if problem_surveys:
-            message = 'The following surveys already have another annotation set assoicated with the stipulated individual pool: '
-            for survey in problem_surveys:
-                message += survey.name + ', '
-            message = message[:-2] + '.'
+    #     if problem_surveys:
+    #         message = 'The following surveys already have another annotation set assoicated with the stipulated individual pool: '
+    #         for survey in problem_surveys:
+    #             message += survey.name + ', '
+    #         message = message[:-2] + '.'
 
-            return json.dumps({'message': message, 'status': 'Error'})
+    #         return json.dumps({'message': message, 'status': 'Error'})
     
     if ('-4' in taggingLevel) or ('-5' in taggingLevel) or ('-7' in taggingLevel):
         if Config.DISABLE_RESTORE:
@@ -360,7 +382,7 @@ def launchTask():
         if len(task_ids) > 1:
             task.sub_tasks = [tsk for tsk in tasks if tsk != task]
             for sub_task in task.sub_tasks:
-                sub_task.status = 'Processing'
+                sub_task.status = 'ID Processing'
                 sub_task.survey.status = 'Launched'
 
         task.size = taskSize
@@ -471,31 +493,48 @@ def getAllIndividuals():
     start_date = ast.literal_eval(request.form['start_date'])
     end_date = ast.literal_eval(request.form['end_date'])
     search = ast.literal_eval(request.form['search'])
+    area = ast.literal_eval(request.form['area'])
 
     page = request.args.get('page', 1, type=int)
     order = request.args.get('order', 1, type=int)
 
-    if Config.DEBUGGING: app.logger.info('Get All Individuals for {}, {}, {}, {}, {},{} , {}, {}, {}'.format(task_ids,species_name,tag_name,trap_name,start_date,end_date,page,order,search))
+    if Config.DEBUGGING: app.logger.info('Get All Individuals for {}, {}, {}, {}, {}, {}, {}, {}, {}, {}'.format(area,task_ids,species_name,tag_name,trap_name,start_date,end_date,page,order,search))
 
     reply = []
     next = None
     prev = None
     if task_ids:
         if task_ids[0] == '0':
-            tasks = surveyPermissionsSQ(db.session.query(Task.id, Survey.id).join(Survey),current_user.id, 'read').distinct().all()
+            tasks = surveyPermissionsSQ(db.session.query(Task.id, Survey.id).join(Survey),current_user.id, 'read')
         else:
-            tasks = surveyPermissionsSQ(db.session.query(Task.id, Survey.id).join(Survey).filter(Task.id.in_(task_ids)),current_user.id, 'read').distinct().all()
+            tasks = surveyPermissionsSQ(db.session.query(Task.id, Survey.id).join(Survey).filter(Task.id.in_(task_ids)),current_user.id, 'read')
+        if area and area != '0':
+            tasks = tasks.join(Area).filter(Area.name==area)
+        # tasks = tasks.filter(Task.status.in_(Config.TASK_READY_STATUSES)).filter(Survey.status.in_(Config.SURVEY_READY_STATUSES)).distinct().all()
+        tasks = tasks.distinct().all()
         task_ids = [r[0] for r in tasks]
         survey_ids = [r[1] for r in tasks] 
 
-    individuals = db.session.query(Individual.id,Individual.name)\
-                        .join(Detection,Individual.detections)\
-                        .join(Image)\
-                        .join(Task,Individual.tasks)\
-                        .filter(Task.id.in_(task_ids))\
-                        .filter(Task.status.in_(['SUCCESS', 'Stopped', 'Ready']))\
-                        .filter(Individual.name!='unidentifiable')\
-                        .filter(Individual.active==True)
+    # individuals = db.session.query(Individual.id,Individual.name)\
+    #                     .join(Detection,Individual.detections)\
+    #                     .join(Image)\
+    #                     .join(Task,Individual.tasks)\
+    #                     .filter(Task.id.in_(task_ids))\
+    #                     .filter(Task.status.in_(['SUCCESS', 'Stopped', 'Ready']))\
+    #                     .filter(Individual.name!='unidentifiable')\
+    #                     .filter(Individual.active==True)
+
+    BestDetection = alias(Detection)
+    individuals = db.session.query(Individual.id,Individual.name,Image.filename,Camera.path,Detection.id,Detection.top,Detection.left,Detection.right,Detection.bottom)\
+                    .join(Task,Individual.tasks)\
+                    .join(Detection,Individual.detections)\
+                    .outerjoin(BestDetection, Individual.primary_detections)\
+                    .outerjoin(Image, BestDetection.c.image_id==Image.id)\
+                    .outerjoin(Camera)\
+                    .filter(Task.id.in_(task_ids))\
+                    .filter(Individual.name!='unidentifiable')\
+                    .filter(Individual.active==True)\
+                    .filter(or_(Detection.image_id==Image.id, Image.id==None))
 
     if species_name !='0': individuals = individuals.filter(Individual.species==species_name)
 
@@ -505,11 +544,39 @@ def getAllIndividuals():
         else:
             individuals = individuals.filter(Individual.tags.any(Tag.description==tag_name))
     
-    if trap_name != '0': individuals = individuals.join(Camera).join(Trapgroup).filter(Trapgroup.tag == trap_name)
+    # if trap_name != '0': individuals = individuals.join(Camera).join(Trapgroup).filter(Trapgroup.tag == trap_name)
     
-    if start_date: individuals = individuals.filter(Image.corrected_timestamp >= start_date)
+    # if start_date: individuals = individuals.filter(Image.corrected_timestamp >= start_date)
 
-    if end_date: individuals = individuals.filter(Image.corrected_timestamp <= end_date)
+    # if end_date: individuals = individuals.filter(Image.corrected_timestamp <= end_date)
+
+    if trap_name != '0': 
+        trap_sq = db.session.query(Individual.id,Trapgroup.id)\
+                            .join(Detection,Individual.detections)\
+                            .join(Image)\
+                            .join(Camera)\
+                            .join(Trapgroup)\
+                            .filter(Trapgroup.tag == trap_name)\
+                            .subquery()
+        individuals = individuals.join(trap_sq, trap_sq.c.id == Individual.id).filter(trap_sq.c.id != None)
+
+    if start_date:
+        sd_sq = db.session.query(Individual.id)\
+                            .join(Detection,Individual.detections)\
+                            .join(Image)\
+                            .filter(Image.corrected_timestamp >= start_date)\
+                            .group_by(Individual.id)\
+                            .subquery()
+        individuals = individuals.join(sd_sq, sd_sq.c.id == Individual.id).filter(sd_sq.c.id != None)
+
+    if end_date:
+        ed_sq = db.session.query(Individual.id)\
+                            .join(Detection,Individual.detections)\
+                            .join(Image)\
+                            .filter(Image.corrected_timestamp <= end_date)\
+                            .group_by(Individual.id)\
+                            .subquery()
+        individuals = individuals.join(ed_sq, ed_sq.c.id == Individual.id).filter(ed_sq.c.id != None)
 
     searches = re.split('[ ,]',search)
     for search in searches:
@@ -544,9 +611,31 @@ def getAllIndividuals():
         # Join the existing query with the subquery and order by the most recent timestamp
         individuals = individuals.join(subquery, subquery.c.id == Individual.id).order_by(subquery.c.min_timestamp)
 
-    individuals = individuals.distinct().paginate(page, 12, False)
+    # individuals = individuals.distinct().paginate(page, 12, False)
 
-    best_detections = calculate_individual_best_detection([individual[0] for individual in individuals.items])
+    # best_detections = calculate_individual_best_detection([individual[0] for individual in individuals.items])
+
+    individuals = individuals.distinct().group_by(Individual.id).paginate(page, 12, False)
+
+    best_detections = {}
+    bd_ids = []
+    for individual in individuals.items:
+        if individual[2]:
+            best_detections[individual[0]] = {
+                'filename': individual[2],
+                'path': individual[3],
+                'det_id': individual[4],
+                'top': individual[5],
+                'left': individual[6],
+                'right': individual[7],
+                'bottom': individual[8]
+            }
+        else:
+            bd_ids.append(individual[0])
+
+    if bd_ids:
+        # Calculate best detections for individuals that do not have a primary detection
+        best_detections.update(calculate_individual_best_detection(bd_ids))
 
     for individual in individuals.items:
         # Get the best detection for the individual
@@ -560,6 +649,7 @@ def getAllIndividuals():
             'name': name,
             'url': (best_detection['path'] + '/' + best_detection['filename']).replace('+','%2B').replace('?','%3F').replace('#','%23').replace('\\','%5C'),
             'detection': {
+                'id': best_detection['det_id'],
                 'top': best_detection['top'],
                 'left': best_detection['left'],
                 'right': best_detection['right'],
@@ -576,30 +666,36 @@ def getAllIndividuals():
 @login_required
 def editIndividualName():
     ''' Edit the specified individual's name '''
+
+    if (not current_user.admin) and (not GLOBALS.redisClient.sismember('active_jobs_'+str(current_user.turkcode[0].task_id),current_user.username)): return {'redirect': url_for('done')}, 278
+
     error = ''
     individual_id = ast.literal_eval(request.form['individual_id'])
     name = ast.literal_eval(request.form['name'])
     individual = db.session.query(Individual).get(individual_id)
     if name != '' and name.lower() != 'unidentifiable' and not any(c in name for c in ['/','\\']):
-        if individual and individual.active and all(checkSurveyPermission(current_user.id,task.survey_id,'write') for task in individual.tasks):
+        if individual and individual.active and (all(checkSurveyPermission(current_user.id,task.survey_id,'write') for task in individual.tasks) or all(checkAnnotationPermission(current_user.parent_id,task.id) for task in individual.tasks)):
+            area_id = individual.tasks[0].survey.area_id
             check = db.session.query(Individual)\
                             .join(Task,Individual.tasks)\
+                            .join(Survey)\
+                            .filter(Survey.area_id==area_id)\
                             .filter(Individual.species==individual.species)\
                             .filter(Individual.name==name)\
-                            .filter(Task.id.in_([r.id for r in individual.tasks]))\
+                            .filter(Individual.active==True)\
                             .first()
             if check:
                 error = "Duplicate name detected. Please enter a different name."
             else:
                 individual.name = name
                 db.session.commit()
-                return json.dumps({'status': 'success'}) 
+                return json.dumps({'status': 'success', 'name': individual.name})
         else:
             error = 'Could not edit individual name.'
     else:
         error = "Invalid name. Please enter a different name."
 
-    return json.dumps({'status': error}) 
+    return json.dumps({'status': error, 'name': individual.name if individual else None})
 
 @app.route('/getIndividuals/<task_id>/<species>')
 @login_required
@@ -613,12 +709,49 @@ def getIndividuals(task_id,species):
     if task and checkSurveyPermission(current_user.id,task.survey_id,'read'):
         page = request.args.get('page', 1, type=int)
         
-        if species.lower()=='all':
-            individuals = db.session.query(Individual.id,Individual.name).filter(Individual.tasks.contains(task)).filter(Individual.name!='unidentifiable').filter(Individual.active==True).order_by(Individual.name).distinct().paginate(page, 8, False)
-        else:
-            individuals = db.session.query(Individual.id,Individual.name).filter(Individual.tasks.contains(task)).filter(Individual.name!='unidentifiable').filter(Individual.active==True).filter(Individual.species==species).order_by(Individual.name).distinct().paginate(page, 8, False)
+        # if species.lower()=='all':
+        #     individuals = db.session.query(Individual.id,Individual.name).filter(Individual.tasks.contains(task)).filter(Individual.name!='unidentifiable').filter(Individual.active==True).order_by(Individual.name).distinct().paginate(page, 8, False)
+        # else:
+        #     individuals = db.session.query(Individual.id,Individual.name).filter(Individual.tasks.contains(task)).filter(Individual.name!='unidentifiable').filter(Individual.active==True).filter(Individual.species==species).order_by(Individual.name).distinct().paginate(page, 8, False)
 
-        best_detections = calculate_individual_best_detection([individual[0] for individual in individuals.items])
+        BestDetection = alias(Detection)
+        individuals = db.session.query(Individual.id,Individual.name,Image.filename,Camera.path,Detection.id,Detection.top,Detection.left,Detection.right,Detection.bottom)\
+                    .join(Task,Individual.tasks)\
+                    .join(Detection,Individual.detections)\
+                    .outerjoin(BestDetection, Individual.primary_detections)\
+                    .outerjoin(Image, BestDetection.c.image_id==Image.id)\
+                    .outerjoin(Camera)\
+                    .filter(Task.id==task_id)\
+                    .filter(Individual.name!='unidentifiable')\
+                    .filter(Individual.active==True)\
+                    .filter(or_(Detection.image_id==Image.id, Image.id==None))
+        
+        if species.lower() != 'all':
+            individuals = individuals.filter(Individual.species==species)
+
+        individuals = individuals.distinct().group_by(Individual.id).order_by(Individual.name).paginate(page, 8, False)
+
+        # best_detections = calculate_individual_best_detection([individual[0] for individual in individuals.items])
+
+        best_detections = {}
+        bd_ids = []
+        for individual in individuals.items:
+            if individual[2]:
+                best_detections[individual[0]] = {
+                    'filename': individual[2],
+                    'path': individual[3],
+                    'det_id': individual[4],
+                    'top': individual[5],
+                    'left': individual[6],
+                    'right': individual[7],
+                    'bottom': individual[8]
+                }
+            else:
+                bd_ids.append(individual[0])
+
+        if bd_ids:
+            # Calculate best detections for individuals that do not have a primary detection
+            best_detections.update(calculate_individual_best_detection(bd_ids))
 
         for individual in individuals.items:
             # Get the best detection for the individual
@@ -633,6 +766,7 @@ def getIndividuals(task_id,species):
                 'name': name,
                 'url': (best_detection['path'] + '/' + best_detection['filename']).replace('+','%2B').replace('?','%3F').replace('#','%23').replace('\\','%5C'),
                 'detection': {
+                    'id': best_detection['det_id'],
                     'top': best_detection['top'],
                     'left': best_detection['left'],
                     'right': best_detection['right'],
@@ -666,13 +800,15 @@ def deleteIndividual(individual_id):
         task_ids = [r.id for r in individual.tasks]
 
         for detection in individual.detections:
-            newIndividual = Individual( name=generateUniqueName(task.id,individual.species,'n'),
-                                        species=individual.species,
+            newIndividual = Individual(species=individual.species,
                                         user_id=current_user.id,
                                         timestamp=datetime.utcnow())
 
             db.session.add(newIndividual)
+            db.session.flush()
+            newIndividual.name = str(newIndividual.id)
             newIndividual.detections.append(detection)
+            newIndividual.primary_detections.append(detection)
             newIndividual.tasks = db.session.query(Task)\
                                         .join(Survey)\
                                         .join(Trapgroup)\
@@ -701,6 +837,7 @@ def deleteIndividual(individual_id):
             db.session.delete(similarity)
 
         individual.detections = []
+        individual.primary_detections = []
         individual.tags = []
         individual.children = []
         individual.parents = []
@@ -717,6 +854,8 @@ def deleteIndividual(individual_id):
 def getIndividual(individual_id):
     '''Returns a dictionary of all images associated with the specified individual with the following info: ID, URL, timestamp, trapgroup, and detections.'''
     
+    if (not current_user.admin) and (not GLOBALS.redisClient.sismember('active_jobs_'+str(current_user.turkcode[0].task_id),current_user.username)): return {'redirect': url_for('done')}, 278
+
     reply = []
     access = None
     individual_id = int(individual_id)
@@ -731,11 +870,11 @@ def getIndividual(individual_id):
     # if individual and (individual.tasks[0].survey.user==current_user):
     if individual and individual.active==True:
         survey_ids = []
-        for task in individual.tasks:
-            if current_user.admin and checkSurveyPermission(current_user.id,task.survey_id,'read'):
-                survey_ids.append(task.survey_id)
-            elif current_user.parent_id and checkAnnotationPermission(current_user.parent_id,task.id):
-                survey_ids.append(task.survey_id)
+        task_ids = [task.id for task in individual.tasks]
+        if current_user.admin:
+            survey_ids = [r[0] for r in surveyPermissionsSQ(db.session.query(Survey.id).join(Task).filter(Task.id.in_(task_ids)),current_user.id, 'read').distinct().all()]
+        elif current_user.parent_id:
+            survey_ids = [r[0] for r in annotationPermissionSQ(db.session.query(Survey.id).join(Task).filter(Task.id.in_(task_ids)),current_user.parent_id).distinct().all()]  
 
         images = db.session.query(
                         Image.id,
@@ -831,7 +970,17 @@ def getIndividual(individual_id):
             })
 
         if survey_ids:
-            access = 'write' if all(checkSurveyPermission(current_user.id,task.survey_id,'write') for task in individual.tasks) else 'read'
+            # access = 'write' if all(checkSurveyPermission(current_user.id,task.survey_id,'write') for task in individual.tasks) else 'read'
+            check_surveys =  [r[0] for r in surveyPermissionsSQ(db.session.query(Survey.id)\
+                                                                    .join(Task)\
+                                                                    .filter(Task.id.in_(task_ids))\
+                                                                    .filter(Task.status.in_(Config.TASK_READY_STATUSES))\
+                                                                    .filter(Survey.status.in_(Config.SURVEY_READY_STATUSES))\
+                                                                    ,current_user.id, 'write').distinct().all()]
+            if set(survey_ids).issubset(set(check_surveys)):
+                access = 'write'
+            else:
+                access = 'read'
         else:
             access = 'hidden'
 
@@ -938,15 +1087,33 @@ def getTaggingLevelsbyTask(task_id,task_type):
         texts = []
         values = []
         colours = []
-        disabled = {}
+        disabled = {
+            'icID' : {},
+            'indID': {},
+            'areaID': 'false',
+            'noArea': 'false'
+        }
+
+        if not task.survey.area_id:
+            disabled['noArea'] = 'true'
+
+        if not task.areaID_library:
+            area_check = db.session.query(Task.id).filter(Task.survey_id==task.survey_id).filter(Task.areaID_library==True).first()
+            if area_check: disabled['areaID'] = 'true'
+
         labels = db.session.query(Label).filter(Label.task_id==task_id).filter(~Label.children.any()).all()
 
         for label in labels:
-
+            
             if label.icID_allowed:
-                disabled[label.description] = 'false'
+                disabled['icID'][label.description] = 'false'
             else:
-                disabled[label.description] = 'true'
+                disabled['icID'][label.description] = 'true'
+
+            if label.indID_allowed:
+                disabled['indID'][label.description] = 'false'
+            else:
+                disabled['indID'][label.description] = 'true'
 
             if label.icID_allowed:
                 count = label.icID_count
@@ -1370,16 +1537,21 @@ def checkSightingEditStatus():
 
     task_ids = ast.literal_eval(request.form['task_ids'])
     species = ast.literal_eval(request.form['species'])
+    if 'area' in request.form:
+        area = ast.literal_eval(request.form['area'])
+    else:
+        area = None
 
     status = 'success'
     message = ''
 
     if task_ids:
         if task_ids[0] == '0':
-            tasks = surveyPermissionsSQ(db.session.query(Task.id, Task.survey_id).join(Survey), current_user.id, 'read').distinct().all()
+            tasks = surveyPermissionsSQ(db.session.query(Task.id, Task.survey_id).join(Survey), current_user.id, 'read')
         else:
-            tasks = surveyPermissionsSQ(db.session.query(Task.id, Task.survey_id).join(Survey).filter(Task.id.in_(task_ids)), current_user.id, 'read').distinct().all()
-
+            tasks = surveyPermissionsSQ(db.session.query(Task.id, Task.survey_id).join(Survey).filter(Task.id.in_(task_ids)), current_user.id, 'read')
+        if area and area != '0':  tasks = tasks.join(Area).filter(Area.name==area)
+        tasks = tasks.distinct().all()
         task_ids = [r[0] for r in tasks]
     
         subq = db.session.query(labelstable.c.cluster_id.label('clusterID'), func.count(distinct(labelstable.c.label_id)).label('labelCount')) \
@@ -1602,6 +1774,7 @@ def createNewSurvey():
         triggerSource = request.form['triggerSource']
         ignoreSmallDets = request.form['ignoreSmallDets']
         ignoreSkyDets = request.form['ignoreSkyDets']
+        newSurveyArea = request.form['newSurveyArea'].strip()
 
         if 'detailed_access' in request.form:
             detailed_access = ast.literal_eval(request.form['detailed_access'])
@@ -1614,6 +1787,12 @@ def createNewSurvey():
             if emptySurvey == 'true':
                 emptySurvey = True
                 newSurveyS3Folder=surveyName
+
+        createNewArea = False
+        if 'createNewArea' in request.form:
+            createNewArea = request.form['createNewArea']
+            if createNewArea == 'true':
+                createNewArea = True
 
         surveyName = surveyName.strip()
         if newSurveyS3Folder=='none':
@@ -1681,6 +1860,28 @@ def createNewSurvey():
                 status = 'error'
                 message = 'Coordinates file must have a name.' 
 
+        if createNewArea:
+            newSurveyArea = newSurveyArea.strip()
+            if newSurveyArea and ('/' not in newSurveyArea or '\\' not in newSurveyArea):
+                check = db.session.query(Area).join(Survey).filter(Survey.organisation_id==organisation_id).filter(Area.name==newSurveyArea).first()
+                if check:
+                    status = 'error'
+                    message = 'An area with that name already exists for this organisation. Please choose a different name or select the correct area.'
+            else:
+                status = 'error'
+                message = 'Invalid area name. Please enter a new one.'
+        else:
+            if newSurveyArea != '-1':
+                check = db.session.query(Area).join(Survey).filter(Survey.organisation_id==organisation_id).filter(Area.id==newSurveyArea).first()
+                if not check:
+                    status = 'error'
+                    message = 'The selected area does not exist for this organisation. Please choose a different area or create a new one.'
+
+        org_check = db.session.query(Organisation).filter(Organisation.id==organisation_id).join(UserPermissions).filter(UserPermissions.user_id==current_user.id).filter(UserPermissions.create==True).first()
+        if not org_check:
+            status = 'error'
+            message = 'You do not have permission to create surveys for this organisation.'
+
         # test = db.session.query(Survey).filter(Survey.organisation_id==organisation_id).filter(Survey.status=='Uploading').first()
         # if test and (newSurveyS3Folder=='none'):
         #     status = 'error'
@@ -1694,15 +1895,25 @@ def createNewSurvey():
                     uploaded_file.save(temp_file.name)
                     GLOBALS.s3client.put_object(Bucket=Config.BUCKET,Key=key,Body=temp_file)
 
+            if createNewArea:
+                # Create new area
+                newArea = Area(name=newSurveyArea)
+                db.session.add(newArea)
+            else:
+                if newSurveyArea == '-1':
+                    newArea = None
+                else:
+                    newArea = db.session.query(Area).get(newSurveyArea)
+
             # Create survey
             if emptySurvey:
-                newSurvey = Survey(name=surveyName, description=newSurveyDescription, organisation_id=organisation_id, status='Ready', correct_timestamps=correctTimestamps, classifier_id=int(classifier_id), folder=newSurveyS3Folder, type=dataSource, trigger_source=triggerSource, ignore_small_detections=ignoreSmallDets, sky_masked=ignoreSkyDets)
+                newSurvey = Survey(name=surveyName, description=newSurveyDescription, organisation_id=organisation_id, status='Ready', correct_timestamps=correctTimestamps, classifier_id=int(classifier_id), folder=newSurveyS3Folder, type=dataSource, trigger_source=triggerSource, ignore_small_detections=ignoreSmallDets, sky_masked=ignoreSkyDets, area=newArea)
                 db.session.add(newSurvey)
 
                 defaultTask = Task(name='default', survey=newSurvey, tagging_level='-1', test_size=0, status='Ready')
                 db.session.add(defaultTask)
             else:
-                newSurvey = Survey(name=surveyName, description=newSurveyDescription, trapgroup_code=newSurveyTGCode, organisation_id=organisation_id, status='Uploading', correct_timestamps=correctTimestamps, classifier_id=int(classifier_id), camera_code=newSurveyCamCode, folder=newSurveyS3Folder, type=dataSource, trigger_source=triggerSource, ignore_small_detections=ignoreSmallDets, sky_masked=ignoreSkyDets)
+                newSurvey = Survey(name=surveyName, description=newSurveyDescription, trapgroup_code=newSurveyTGCode, organisation_id=organisation_id, status='Uploading', correct_timestamps=correctTimestamps, classifier_id=int(classifier_id), camera_code=newSurveyCamCode, folder=newSurveyS3Folder, type=dataSource, trigger_source=triggerSource, ignore_small_detections=ignoreSmallDets, sky_masked=ignoreSkyDets, area=newArea)
                 db.session.add(newSurvey)
 
             # Add permissions
@@ -2166,10 +2377,71 @@ def editSurvey():
             if sky_masked == survey.sky_masked:
                 sky_masked = None
 
+        survey_area = None 
+        edit_area_option = None
+        if 'survey_area' in request.form:
+            survey_area = request.form['survey_area']
+            if survey_area == 'none':
+                survey_area = None
+            elif survey_area:
+                area_commit = False
+                if 'edit_area_option' in request.form: 
+                    edit_area_option = request.form['edit_area_option']
+                    area_lib_check = db.session.query(Task).filter(Task.survey_id==survey_id).filter(Task.areaID_library==True).first()
+                    if not area_lib_check: edit_area_option = None
+
+                if 'createNewArea' in request.form or 'editAreaName' in request.form:
+                    survey_area = survey_area.strip()
+                    action = None
+                    if 'createNewArea' in request.form and request.form['createNewArea'] =='true':
+                        action = 'create'
+                    elif 'editAreaName' in request.form and request.form['editAreaName'] =='true':
+                        action = 'edit'
+                    if action:
+                        check_area = db.session.query(Area).join(Survey).join(Organisation).filter(Organisation.id==survey.organisation_id).filter(Area.name==survey_area).first()
+                        if check_area:
+                            status = 'error'
+                            message = 'An area with that name already exists for this organisation. Please choose a different name or select the correct area.'
+                        else:
+                            if action == 'create':
+                                old_area_id = survey.area_id
+                                newArea = Area(name=survey_area)
+                                db.session.add(newArea)
+                                survey.area = newArea
+                                if old_area_id and edit_area_option and edit_area_option=='merge':
+                                    area_surveys = db.session.query(Survey).filter(Survey.area_id==old_area_id).filter(Survey.area_id!=None).all()
+                                    for s in area_surveys: s.area = newArea
+                            elif action == 'edit':
+                                if survey.area and survey.area.name!=survey_area:
+                                    survey.area.name = survey_area
+                            area_commit = True
+                else:
+                    if survey_area =='-1':
+                        if survey.area != None:
+                            if not edit_area_option or edit_area_option!='merge':
+                                survey.area = None
+                                area_commit = True
+                    else:
+                        area = db.session.query(Area).join(Survey).join(Organisation).filter(Organisation.id==survey.organisation_id).filter(Area.id==survey_area).first()
+                        if area and survey.area_id != area.id: 
+                            old_area_id = survey.area_id
+                            survey.area = area
+                            if old_area_id and edit_area_option and edit_area_option=='merge':
+                                area_surveys = db.session.query(Survey).filter(Survey.area_id==old_area_id).filter(Survey.area_id!=None).all()
+                                for s in area_surveys: s.area = area 
+                            area_commit = True 
+                if area_commit:
+                    empty_areas = db.session.query(Area).filter(~Area.surveys.any()).all()
+                    for area in empty_areas:
+                        db.session.delete(area)
+                    db.session.commit()
+                else:
+                    survey_area = None
+                    edit_area_option = None
 
         if status == 'success':
-            if classifier_id or ignore_small_detections!=None or sky_masked!=None or timestamps or coordData or masks or staticgroups or kml or imageTimestamps:
-                app.logger.info('Edit survey requested for {} with classifier: {}, ignore_small_detections: {}, sky_masked: {}, timestamps: {}, coordData: {}, masks: {}, staticgroups: {}, kml: {}, imageTimestamps: {}'.format(survey.name,classifier_id,ignore_small_detections,sky_masked,timestamps,coordData,masks,staticgroups,kml,imageTimestamps))
+            if classifier_id or ignore_small_detections!=None or sky_masked!=None or timestamps or coordData or masks or staticgroups or kml or imageTimestamps or edit_area_option:
+                app.logger.info('Edit survey requested for {} with classifier: {}, ignore_small_detections: {}, sky_masked: {}, timestamps: {}, coordData: {}, masks: {}, staticgroups: {}, kml: {}, imageTimestamps: {}, edit_area_option: {}'.format(survey.name,classifier_id,ignore_small_detections,sky_masked,timestamps,coordData,masks,staticgroups,kml,imageTimestamps,edit_area_option))
                 if classifier_id and survey.classifier_id != classifier_id:
                     if Config.DISABLE_RESTORE:
                         status = 'error'
@@ -2177,15 +2449,15 @@ def editSurvey():
                     else:
                         survey.status = 'Processing'
                         db.session.commit()
-                        edit_survey_args = {'survey_id':survey.id,'user_id':current_user.id,'classifier_id':classifier_id,'ignore_small_detections':ignore_small_detections,'sky_masked':sky_masked,'timestamps':timestamps,'coord_data':coordData,'masks':masks,'staticgroups':staticgroups,'kml_file':kml,'image_timestamps':imageTimestamps}
+                        edit_survey_args = {'survey_id':survey.id,'user_id':current_user.id,'classifier_id':classifier_id,'ignore_small_detections':ignore_small_detections,'sky_masked':sky_masked,'timestamps':timestamps,'coord_data':coordData,'masks':masks,'staticgroups':staticgroups,'kml_file':kml,'image_timestamps':imageTimestamps, 'edit_area_option': edit_area_option}
                         GLOBALS.redisClient.set('edit_survey_{}'.format(survey_id),json.dumps(edit_survey_args))
                         restore_images_for_classification.delay(survey_id=survey.id,days=Config.EDIT_RESTORE_DAYS,edit_survey_args=edit_survey_args,tier=Config.RESTORE_TIER,restore_time=Config.RESTORE_TIME)
                 else:
                     survey.status = 'Processing'
                     db.session.commit()
-                    edit_survey_args = {'survey_id':survey.id,'user_id':current_user.id,'classifier_id':classifier_id,'ignore_small_detections':ignore_small_detections,'sky_masked':sky_masked,'timestamps':timestamps,'coord_data':coordData,'masks':masks,'staticgroups':staticgroups,'kml_file':kml,'image_timestamps':imageTimestamps}
+                    edit_survey_args = {'survey_id':survey.id,'user_id':current_user.id,'classifier_id':classifier_id,'ignore_small_detections':ignore_small_detections,'sky_masked':sky_masked,'timestamps':timestamps,'coord_data':coordData,'masks':masks,'staticgroups':staticgroups,'kml_file':kml,'image_timestamps':imageTimestamps, 'edit_area_option': edit_area_option}
                     GLOBALS.redisClient.set('edit_survey_{}'.format(survey_id),json.dumps(edit_survey_args))
-                    edit_survey.delay(survey_id=survey.id,user_id=current_user.id,classifier_id=classifier_id,ignore_small_detections=ignore_small_detections,sky_masked=sky_masked,timestamps=timestamps,coord_data=coordData,masks=masks,staticgroups=staticgroups,kml_file=kml,image_timestamps=imageTimestamps)
+                    edit_survey.delay(survey_id=survey.id,user_id=current_user.id,classifier_id=classifier_id,ignore_small_detections=ignore_small_detections,sky_masked=sky_masked,timestamps=timestamps,coord_data=coordData,masks=masks,staticgroups=staticgroups,kml_file=kml,image_timestamps=imageTimestamps,edit_area_option=edit_area_option)
 
     else:
         status = 'error'
@@ -2423,14 +2695,21 @@ def getPolarData():
     else:
         normaliseBySite = False
 
+    if 'area' in request.form:
+        area = ast.literal_eval(request.form['area'])
+    else:
+        area = None
+
     if Config.DEBUGGING: app.logger.info('Polar data requested for tasks:{} species:{} base:{} reqID:{} trapgroup:{} group:{} sD:{} eD:{} TTI:{} TTIU:{}'.format(task_ids,species,baseUnit,reqID,trapgroup,group,startDate,endDate,timeToIndependence,timeToIndependenceUnit))
 
     reply = []
     if task_ids:
         if task_ids[0] == '0':
-            tasks = surveyPermissionsSQ(db.session.query(Task.id, Task.survey_id).join(Survey).filter(Task.name != 'default').filter(~Task.name.contains('_o_l_d_')).filter(~Task.name.contains('_copying')).group_by(Task.survey_id).order_by(Task.id), current_user.id, 'read').distinct().all()
+            tasks = surveyPermissionsSQ(db.session.query(Task.id, Task.survey_id).join(Survey).filter(Task.name != 'default').filter(~Task.name.contains('_o_l_d_')).filter(~Task.name.contains('_copying')).group_by(Task.survey_id).order_by(Task.id), current_user.id, 'read')
         else:
-            tasks = surveyPermissionsSQ(db.session.query(Task.id, Task.survey_id).join(Survey).filter(Task.id.in_(task_ids)), current_user.id, 'read').distinct().all()
+            tasks = surveyPermissionsSQ(db.session.query(Task.id, Task.survey_id).join(Survey).filter(Task.id.in_(task_ids)), current_user.id, 'read')
+        if area and area != '0':  tasks = tasks.join(Area).filter(Area.name==area)
+        tasks = tasks.distinct().all()
         task_ids = [r[0] for r in tasks]
         survey_ids = list(set([r[1] for r in tasks]))
 
@@ -2679,15 +2958,22 @@ def getBarData():
     else:
         normaliseBySite = False
 
+    if 'area' in request.form:
+        area = ast.literal_eval(request.form['area'])
+    else:
+        area = None
+
     if Config.DEBUGGING: app.logger.info('Bar data requested for tasks:{} species:{} base:{} axis:{} sites:{} groups:{} sD:{} eD:{} TTI:{} TTIU:{}'.format(task_ids,species,baseUnit,axis,sites_ids,groups,startDate,endDate,timeToIndependence,timeToIndependenceUnit))
 
     data = []
     data_labels = []
     if task_ids:
         if task_ids[0] == '0':
-            tasks = surveyPermissionsSQ(db.session.query(Task.id, Task.survey_id).join(Survey).filter(Task.name != 'default').filter(~Task.name.contains('_o_l_d_')).filter(~Task.name.contains('_copying')).group_by(Task.survey_id).order_by(Task.id), current_user.id, 'read').distinct().all()
+            tasks = surveyPermissionsSQ(db.session.query(Task.id, Task.survey_id).join(Survey).filter(Task.name != 'default').filter(~Task.name.contains('_o_l_d_')).filter(~Task.name.contains('_copying')).group_by(Task.survey_id).order_by(Task.id), current_user.id, 'read')
         else:
-            tasks = surveyPermissionsSQ(db.session.query(Task.id, Task.survey_id).join(Survey).filter(Task.id.in_(task_ids)), current_user.id, 'read').distinct().all()
+            tasks = surveyPermissionsSQ(db.session.query(Task.id, Task.survey_id).join(Survey).filter(Task.id.in_(task_ids)), current_user.id, 'read')
+        if area and area != '0':  tasks = tasks.join(Area).filter(Area.name==area)
+        tasks = tasks.distinct().all()
         task_ids = [r[0] for r in tasks]
         survey_ids = list(set([r[1] for r in tasks]))
 
@@ -2901,7 +3187,7 @@ def getBarDataIndividual():
             labels = ['Surveys Count']
 
         elif axis == '2': #Trapgroup count
-            trapgroups = [trapgroup for task in individual.tasks for trapgroup in task.survey.trapgroups if trapgroup.survey_id in survey_ids]
+            trapgroups = db.session.query(Trapgroup).filter(Trapgroup.survey_id.in_(survey_ids)).order_by(Trapgroup.tag).distinct().all()
             check_data = {}
             for trapgroup in trapgroups:
                 count = baseQuery.filter(Trapgroup.tag==trapgroup.tag).distinct().count()
@@ -3774,10 +4060,14 @@ def getHomeSurveys():
     page = request.args.get('page', 1, type=int)
     order = request.args.get('order', 5, type=int)
     search = request.args.get('search', '', type=str)
+    org = request.args.get('org', 0, type=int)
+    area = request.args.get('area', '0', type=str)
+    year = request.args.get('year', 0, type=int)
     current_downloads = request.args.get('downloads', '', type=str)
     permission_order = [None, 'worker', 'hidden', 'read', 'write', 'admin']
 
-    siteSQ = db.session.query(Survey.id,func.count(Trapgroup.id).label('count')).join(Trapgroup).group_by(Survey.id).subquery()
+    # siteSQ = db.session.query(Survey.id,func.count(Trapgroup.id).label('count')).join(Trapgroup).group_by(Survey.id).subquery()
+    # camsSQ = db.session.query(Survey.id,func.count(distinct(Cameragroup.id)).label('count')).join(Trapgroup).join(Camera).join(Cameragroup,Cameragroup.id==Camera.cameragroup_id).group_by(Survey.id).subquery()
     # availableJobsSQ = db.session.query(Task.id,func.count(Turkcode.id).label('count')).join(Turkcode).filter(Turkcode.active==True).group_by(Task.id).subquery()
     completeJobsSQ = db.session.query(Task.id,(func.count(Turkcode.id)-Task.jobs_finished).label('count'))\
                                         .join(Turkcode)\
@@ -3794,9 +4084,9 @@ def getHomeSurveys():
                                 Survey.description,
                                 Survey.image_count,
                                 Survey.video_count,
-                                Survey.frame_count,
+                                None, #camsSQ.c.count,
                                 Survey.status,
-                                siteSQ.c.count,
+                                None, #siteSQ.c.count,
                                 Task.id,
                                 Task.name,
                                 Task.status,
@@ -3817,14 +4107,24 @@ def getHomeSurveys():
                                 SurveyShare.permission,
                                 UserPermissions.create,
                                 Survey.require_launch,
+                                Area.name,
+                                Survey.start_date,
+                                Survey.end_date
                             ).outerjoin(Task,Task.survey_id==Survey.id)\
-                            .outerjoin(siteSQ,siteSQ.c.id==Survey.id)\
                             .outerjoin(completeJobsSQ,completeJobsSQ.c.id==Task.id)\
+                            .outerjoin(Area,Survey.area_id==Area.id)
                             .filter(or_(Task.id==None,~Task.name.contains('_o_l_d_'))),current_user.id,'read', ShareUserPermissions)
 
     # uploading/downloading surveys always need to be on the page
     compulsory_surveys = survey_base_query.filter(Survey.status=='Uploading').all()
     if current_downloads != '': compulsory_surveys.extend(survey_base_query.filter(Survey.id.in_(re.split('[,]',current_downloads))).all())
+
+    if compulsory_surveys:
+        compulsory_ids = set([s[0] for s in compulsory_surveys])
+        site_and_cam_counts = {r[0] : (r[1],r[2]) for r  in  db.session.query(Trapgroup.survey_id, func.count(distinct(Trapgroup.id)).label('site_count'), func.count(distinct(Cameragroup.id)).label('cam_count'))\
+                                .join(Camera, Camera.trapgroup_id==Trapgroup.id)\
+                                .join(Cameragroup, Cameragroup.id==Camera.cameragroup_id)\
+                                .filter(Trapgroup.survey_id.in_(compulsory_ids)).group_by(Trapgroup.survey_id).all()}
 
     # digest survey data
     survey_data = {}
@@ -3837,15 +4137,19 @@ def getHomeSurveys():
             if surveyStatus in ['indprocessing','Preparing Download']:
                 surveyStatus = 'processing'
 
+            sc_count = site_and_cam_counts.get(item[0], (0,0))
             survey_data[item[0]] = {'id': item[0],
                                     'name': item[1], 
                                     'description': item[2], 
                                     'numImages': item[3], 
                                     'numVideos': item[4], 
-                                    'numFrames': item[5], 
+                                    'numCams': sc_count[1],
                                     'status': surveyStatus, 
-                                    'numTrapgroups': item[7] if item[7] else 0,
+                                    'numTrapgroups': sc_count[0],
                                     'organisation': item[17],
+                                    'area': item[28] if item[28] else 'No Area Defined',
+                                    'start_date': item[29].strftime('%Y-%m-%d') if item[29] else 'N/A',
+                                    'end_date': item[30].strftime('%Y-%m-%d') if item[30] else 'N/A',
                                     'tasks': []}
 
             if 'preprocessing' in surveyStatus.lower():
@@ -3875,9 +4179,13 @@ def getHomeSurveys():
 
             jobsAvailable = GLOBALS.redisClient.scard('job_pool_'+str(item[8]))
 
+            taskStatus = item[10]
+            if taskStatus == 'ID Processing':
+                taskStatus = 'Processing'
+
             taskInfo = {'id': item[8],
                         'name': item[9],
-                        'status': item[10],
+                        'status': taskStatus,
                         'complete': item[11],
                         'tagging_level': item[12],
                         'total': item[13],
@@ -3931,35 +4239,62 @@ def getHomeSurveys():
         else:
             survey_data[survey_id]['create'] = False
 
+    # Org filter 
+    if org != 0:
+        survey_base_query = survey_base_query.filter(Survey.organisation_id==org)
+
+    # Area filter
+    if area and area != '0':
+        survey_base_query = survey_base_query.filter(Area.name==area)
+
+    # Year filter
+    if year != 0:
+        # year between start and end date
+        survey_base_query = survey_base_query.filter(Survey.start_date<=datetime(year,12,31,23,59,59)).filter(Survey.end_date>=datetime(year,1,1,0,0,0))
+
     # add all the searches to the base query
     searches = re.split('[ ,]',search)
     for search in searches:
         survey_base_query = survey_base_query.filter(or_(Survey.name.contains(search),Task.name.contains(search)))
 
     # add the order to the base query
-    # if order == 1:
-    #     #Survey date
-    #     timestampSQ = db.session.query(Survey.id,func.min(Image.corrected_timestamp).label('timestamp')).join(Trapgroup).join(Camera).join(Image).subquery()
-    #     survey_base_query = survey_base_query.join(timestampSQ,timestampSQ.c.id==Survey.id).order_by(timestampSQ.c.timestamp)
+    if order == 1:
+        #Survey date
+        # timestampSQ = db.session.query(Survey.id,func.min(Image.corrected_timestamp).label('timestamp')).join(Trapgroup).join(Camera).join(Image).subquery()
+        # survey_base_query = survey_base_query.join(timestampSQ,timestampSQ.c.id==Survey.id).order_by(timestampSQ.c.timestamp)
+        survey_base_query = survey_base_query.order_by(Survey.start_date)
     if order == 2:
         #Survey add date
         survey_base_query = survey_base_query.order_by(Survey.id)
     elif order == 3:
         #Alphabetical
         survey_base_query = survey_base_query.order_by(Survey.name)
-    # elif order == 4:
-    #     #Survey date descending
-    #     timestampSQ = db.session.query(Survey.id,func.min(Image.corrected_timestamp).label('timestamp')).join(Trapgroup).join(Camera).join(Image).subquery()
-    #     survey_base_query = survey_base_query.join(timestampSQ,timestampSQ.c.id==Survey.id).order_by(desc(timestampSQ.c.timestamp))
+    elif order == 4:
+        #Survey date descending
+        # timestampSQ = db.session.query(Survey.id,func.min(Image.corrected_timestamp).label('timestamp')).join(Trapgroup).join(Camera).join(Image).subquery()
+        # survey_base_query = survey_base_query.join(timestampSQ,timestampSQ.c.id==Survey.id).order_by(desc(timestampSQ.c.timestamp))
+        survey_base_query = survey_base_query.order_by(desc(Survey.start_date))
     elif order == 5:
         #Add date descending
         survey_base_query = survey_base_query.order_by(desc(Survey.id))
+    elif order == 6:
+        # Organisation
+        survey_base_query = survey_base_query.order_by(Survey.organisation_id, Survey.id.desc())
+    elif order == 7:
+        # Area 
+        survey_base_query = survey_base_query.order_by(Survey.area_id, Survey.id.desc())
 
     count = 5-len(survey_data)
     if count <=0: count = 1
     
     if count > 0:
         surveys = survey_base_query.all()
+        if surveys:
+            sids = set([s[0] for s in surveys])
+            site_and_cam_counts = {r[0] : (r[1],r[2]) for r  in  db.session.query(Trapgroup.survey_id, func.count(distinct(Trapgroup.id)).label('site_count'), func.count(distinct(Cameragroup.id)).label('cam_count'))\
+                            .join(Camera, Camera.trapgroup_id==Trapgroup.id)\
+                            .join(Cameragroup, Cameragroup.id==Camera.cameragroup_id)\
+                            .filter(Trapgroup.survey_id.in_(sids)).group_by(Trapgroup.survey_id).all()}
 
         # digest the rest of the data
         survey_data2 = {}
@@ -3972,15 +4307,19 @@ def getHomeSurveys():
                 if surveyStatus in ['indprocessing','Preparing Download']:
                     surveyStatus = 'processing'
 
+                sc_count = site_and_cam_counts.get(item[0], (0,0))
                 survey_data2[item[0]] = {'id': item[0],
                                         'name': item[1], 
                                         'description': item[2], 
                                         'numImages': item[3], 
                                         'numVideos': item[4], 
-                                        'numFrames': item[5], 
+                                        'numCams': sc_count[1],
                                         'status': surveyStatus, 
-                                        'numTrapgroups': item[7] if item[7] else 0,
+                                        'numTrapgroups': sc_count[0],
                                         'organisation': item[17],
+                                        'area': item[28] if item[28] else 'No Area Defined',
+                                        'start_date': item[29].strftime('%Y-%m-%d') if item[29] else 'N/A',
+                                        'end_date': item[30].strftime('%Y-%m-%d') if item[30] else 'N/A',
                                         'tasks': []}
 
                 if 'preprocessing' in surveyStatus.lower():
@@ -4009,10 +4348,13 @@ def getHomeSurveys():
                 if clusters_remaining: clusters_remaining = int(clusters_remaining.decode())
 
                 jobsAvailable = GLOBALS.redisClient.scard('job_pool_'+str(item[8]))
+                taskStatus = item[10]
+                if taskStatus == 'ID Processing':
+                    taskStatus = 'Processing'
 
                 taskInfo = {'id': item[8],
                             'name': item[9],
-                            'status': item[10],
+                            'status': taskStatus,
                             'complete': item[11],
                             'tagging_level': item[12],
                             'total': item[13],
@@ -4083,8 +4425,8 @@ def getHomeSurveys():
         for survey_id in survey_ids:
             survey_data[survey_id] = survey_data2[survey_id]
 
-        next_url = url_for('getHomeSurveys', page=(page+1), order=order, downloads=current_downloads, search=search) if has_next else None
-        prev_url = url_for('getHomeSurveys', page=(page-1), order=order, downloads=current_downloads, search=search) if has_prev else None
+        next_url = url_for('getHomeSurveys', page=(page+1), order=order, downloads=current_downloads, search=search, org=org, area=area, year=year) if has_next else None
+        prev_url = url_for('getHomeSurveys', page=(page-1), order=order, downloads=current_downloads, search=search, org=org, area=area, year=year) if has_prev else None
 
     else:
         next_url = None
@@ -4102,8 +4444,8 @@ def getHomeSurveys():
 
             if task['tagging_level'] and ('-5' in task['tagging_level']) and (task['status']=='PROGRESS'):
                 dbTask = db.session.query(Task).get(task['id'])
-                if dbTask.sub_tasks:
-                    task['status'] = 'Processing'
+                # if dbTask.sub_tasks:
+                    # task['status'] = 'Processing'
 
                 if task['remaining'] != None:
                     task['remaining'] = str(task['remaining']) + ' individuals remaining'
@@ -4155,8 +4497,10 @@ def getJobs():
                                 Survey.name,
                                 Task.init_complete,
                                 Task.is_bounding,
-                                Organisation.name
+                                Organisation.name,
+                                Area.name
                             ).join(Survey,Task.survey_id==Survey.id)\
+                            .outerjoin(Area,Survey.area_id==Area.id)\
                             .outerjoin(completeJobsSQ,completeJobsSQ.c.id==Task.id),current_user.id)
                             # .join(User,Survey.user_id==User.id)\
                             # .outerjoin(Worker, User.workers)\
@@ -4264,13 +4608,14 @@ def getJobs():
             if '-5' in taskInfo['tagging_level']:
                 dbTask = db.session.query(Task).get(taskInfo['id'])
                 if dbTask.sub_tasks:
+                    area = item[10] + ' ' if item[10] else ''
                     species = re.split(',',taskInfo['tagging_level'])[1]
-                    name = species+' Individual ID'
+                    name = area + species+' Individual ID'
 
                     count = 1
                     while name in individual_id_names:
                         count += 1
-                        name = species+' Individual ID '+str(count)
+                        name = area + species+' Individual ID '+str(count)
                     individual_id_names.append(name)
 
                     taskInfo['name'] = name
@@ -5103,15 +5448,19 @@ def skipSuggestion(individual_1,individual_2):
             return json.dumps({'status': 'success', 'progress': getProgress(int(individual_1),task.id)})
     return json.dumps({'status': 'error'})
 
-@app.route('/undoPreviousSuggestion/<individual_1>/<individual_2>')
+@app.route('/undoPreviousSuggestion/<individual_1>/<individual_2>/<individual_3>')
 @login_required
-def undoPreviousSuggestion(individual_1,individual_2):
+def undoPreviousSuggestion(individual_1,individual_2,individual_3):
     '''Undoes the previous action for the two speciefied individual IDs. Returns error/success status, progress numbers and the current images associated with the first individual.'''
 
     if (not current_user.admin) and (not GLOBALS.redisClient.sismember('active_jobs_'+str(current_user.turkcode[0].task_id),current_user.username)): return {'redirect': url_for('done')}, 278
 
     individual1 = db.session.query(Individual).get(int(individual_1))
     individual2 = db.session.query(Individual).get(int(individual_2))
+    if int(individual_3)!= 0:
+        individual3 = db.session.query(Individual).get(int(individual_3))
+    else:
+        individual3=None
     task = current_user.turkcode[0].task
     task_ids = [r.id for r in task.sub_tasks]
     task_ids.append(task.id)
@@ -5131,7 +5480,7 @@ def undoPreviousSuggestion(individual_1,individual_2):
                                         )).first()
 
         if indSimilarity or (individual1.name == 'unidentifiable'):
-            handleIndividualUndo(indSimilarity,individual1,individual2,task.id)
+            handleIndividualUndo(indSimilarity,individual1,individual2,individual3,task.id)
 
             db.session.commit()
             sortedImages = db.session.query(Image).join(Detection).filter(Detection.individuals.contains(individual1)).order_by(Image.corrected_timestamp).all()
@@ -5162,7 +5511,9 @@ def undoPreviousSuggestion(individual_1,individual_2):
                                             'right': detection.right,
                                             'category': detection.category,
                                             'individual': '-1',
-                                            'static': detection.static})
+                                            'static': detection.static,
+                                            'flank': Config.FLANK_TEXT[detection.flank].capitalize()
+                                            })
 
                 images.append(output)
 
@@ -5196,7 +5547,8 @@ def dissociateDetection(detection_id):
 
         if not individual_id:
             individual = db.session.query(Individual)\
-                                    .filter(Individual.tasks.contains(task))\
+                                    .join(Task,Individual.tasks)\
+                                    .filter(Task.id.in_([t.id for t in tasks]))\
                                     .filter(Individual.detections.contains(detection))\
                                     .filter(Individual.active==True)\
                                     .first()
@@ -5204,13 +5556,15 @@ def dissociateDetection(detection_id):
         if individual and (detection in individual.detections[:]):
             individual.detections.remove(detection)
 
-        newIndividual = Individual( name=generateUniqueName(task.id,individual.species,'n'),
-                                    species=individual.species,
+        newIndividual = Individual( species=individual.species,
                                     user_id=current_user.id,
                                     timestamp=datetime.utcnow())
 
         db.session.add(newIndividual)
+        db.session.flush()
+        newIndividual.name = str(newIndividual.id)
         newIndividual.detections.append(detection)
+        newIndividual.primary_detections = [detection]
 
         if task.sub_tasks:
             task_ids = [r.id for r in task.sub_tasks]
@@ -5240,6 +5594,11 @@ def dissociateDetection(detection_id):
         for similarity in allSimilarities:
             similarity.old_score = similarity.score
         db.session.commit()
+
+        if detection in individual.primary_detections:
+            individual.primary_detections.remove(detection)
+            update_individuals_primary_dets(individual_ids=[individual.id])
+
 
         individuals1 = [r[0] for r in db.session.query(Individual.id)\
                                                     .join(Task,Individual.tasks)\
@@ -5348,7 +5707,7 @@ def suggestionUnidentifiable(individual_id):
     # num2 = task.size + task.test_size
 
     # if individual and individual.active and (task in individual.tasks) and ((current_user.parent in individual.tasks[0].survey.user.workers) or (current_user.parent == individual.tasks[0].survey.user)):
-    if individual and individual.active and (task in individual.tasks) and all(checkAnnotationPermission(current_user.parent_id,task_id) for task_id in task_ids):
+    if individual and individual.active and any(t.id in task_ids for t in individual.tasks) and all(checkAnnotationPermission(current_user.parent_id,task_id) for task_id in task_ids):
         
         if Config.DEBUGGING: app.logger.info('Individual {} marked as unidentifiable'.format(individual.name))
 
@@ -5422,6 +5781,31 @@ def acceptSuggestion(individual_1,individual_2):
 
         if Config.DEBUGGING: app.logger.info('Individual {} combined into individual {}'.format(individual2.name,individual1.name))
 
+        # Create a third indiviudal that copies the first one, for individual undo 
+        individual3 = Individual(name=individual1.name, active=False, species=individual1.species, user_id=individual1.user_id, timestamp=individual1.timestamp)
+        individual3.detections = individual1.detections
+        individual3.primary_detections = individual1.primary_detections
+        individual3.children = individual1.children
+        individual3.parents = individual1.parents
+        individual3.tags = individual1.tags
+        individual3.notes = individual1.notes
+        individual3.tasks = individual1.tasks
+        db.session.add(individual3)
+
+        # Best name
+        best_name = None
+        if individual1.name.isdigit() and not individual2.name.isdigit():
+            best_name = individual2.name
+        elif individual2.name.isdigit() and not individual1.name.isdigit():
+            best_name = individual1.name
+    
+        if not best_name: 
+            best_name = individual1.name 
+            if len(individual2.detections) > len(individual1.detections):
+                best_name = individual2.name
+        
+        if best_name: individual1.name = best_name 
+
         if individual2.notes != individual1.notes:
             if individual1.notes==None:
                 individual1.notes = individual2.notes
@@ -5445,6 +5829,66 @@ def acceptSuggestion(individual_1,individual_2):
         individual1.detections.extend(individual2.detections)
         individual1.user_id = current_user.id
         individual1.timestamp = datetime.utcnow()
+
+        # Primary Dets
+        # Hierarchy: 1. Features 2. User selection 3. Score
+        prim_dets1 = {}
+        prim_dets2 = {}
+        flanks = []
+        final_prim_dets = {}
+        for det in individual1.primary_detections:
+            prim_dets1[det.flank]= det
+            flanks.append(det.flank)
+        for det in individual2.primary_detections:
+            prim_dets2[det.flank]= det
+            flanks.append(det.flank)
+
+        flanks = list(set(flanks))
+        skip_flank_A = True
+        if flanks == ['A']: skip_flank_A = False
+
+        for flank in flanks:
+            if flank == 'A' and skip_flank_A: continue
+            prim_det1 = prim_dets1.get(flank)
+            prim_det2 = prim_dets2.get(flank)
+            use_score = False
+            use_user_selection = False
+            if prim_det1 and prim_det2:
+                features1 = len(prim_det1.features)
+                features2 = len(prim_det2.features)
+                if features1 != features2:
+                    final_prim_dets[flank] = prim_det1 if features1 > features2 else prim_det2
+                else:
+                    use_user_selection = True
+
+                if use_user_selection:
+                    if individual1.primary_selected and individual2.primary_selected:
+                        use_score = True
+                    elif individual1.primary_selected:
+                        final_prim_dets[flank] = prim_det1
+                    elif individual2.primary_selected:
+                        final_prim_dets[flank] = prim_det2
+                    else:
+                        use_score=True
+
+                if use_score:
+                    score1 = calculate_detection_score(prim_det1.score,prim_det1.top,prim_det1.bottom,prim_det1.left,prim_det1.right,flank,prim_det1.image.corrected_timestamp)
+                    score2 = calculate_detection_score(prim_det2.score,prim_det2.top,prim_det2.bottom,prim_det2.left,prim_det2.right,flank,prim_det2.image.corrected_timestamp)
+                    final_prim_dets[flank] = prim_det1 if score1 >= score2 else prim_det2
+
+            elif prim_det1:
+                final_prim_dets[flank] = prim_det1
+            elif prim_det2:
+                final_prim_dets[flank] = prim_det2
+            else:
+                final_prim_dets[flank] = None
+
+        final_prim_dets_list = []
+        for flank in final_prim_dets:
+            if final_prim_dets[flank]:
+                final_prim_dets_list.append(final_prim_dets[flank])
+        individual1.primary_detections = final_prim_dets_list
+
 
         task_ids.extend([t.id for t in individual1.tasks])
         task_ids.extend([t.id for t in individual2.tasks])
@@ -5493,7 +5937,7 @@ def acceptSuggestion(individual_1,individual_2):
         individual2.active = False
         db.session.commit()
         
-        return json.dumps({'status': 'success', 'progress': getProgress(int(individual_1),task.id)})
+        return json.dumps({'status': 'success', 'progress': getProgress(int(individual_1),task.id), 'undo_id': individual3.id})
     return json.dumps({'status': 'error'})
 
 @app.route('/rejectSuggestion/<individual_1>/<individual_2>')
@@ -5668,7 +6112,7 @@ def getSuggestion(individual_id):
                                     )]}
                     for image in sortedImages]
 
-            reply = {'id': individual.id, 'max_pair': [suggestion.detection_1,suggestion.detection_2], 'classification': [],'required': [], 'images': images, 'label': [], 'tags': [], 'groundTruth': [], 'trapGroup': 'None'}
+            reply = {'id': individual.id, 'name': individual.name, 'max_pair': [suggestion.detection_1,suggestion.detection_2], 'classification': [],'required': [], 'images': images, 'label': [], 'tags': [], 'groundTruth': [], 'trapGroup': 'None'}
 
             if Config.DEBUGGING:
                 territorySize = 15
@@ -5849,22 +6293,95 @@ def getIndividualInfo(individual_id):
 
         
         # GEt the convex hull of all the indiviudals coordinates
-        coords = db.session.query(Trapgroup.latitude, Trapgroup.longitude)\
+        coords = [tuple(row) for row in db.session.query(Trapgroup.tag, Trapgroup.latitude, Trapgroup.longitude)\
                         .join(Camera)\
                         .join(Image)\
                         .join(Detection)\
                         .filter(Detection.individuals.contains(individual))\
+                        .distinct().all()]
+        
+        points = np.array([(lon, lat) for tag, lat, lon in coords if (lon!=0 or lat!=0)])
+        if len(points) > 3:
+            try:
+                hull = ConvexHull(points)
+                hull_points = points[hull.vertices]
+                hull_points = [(lat, lon) for lon, lat in hull_points]
+            except:
+                hull_points = [(lat, lon) for lon, lat in points]
+        else:
+            hull_points = [(lat, lon) for lon, lat in points]
+
+        # Best image and detection for left and right flank 
+        best_dets_data= db.session.query(
+                            Detection.id, 
+                            Detection.flank, 
+                            Detection.top, 
+                            Detection.bottom, 
+                            Detection.left, 
+                            Detection.right, 
+                            Image.filename, 
+                            Camera.path,
+                            Feature.id, 
+                            func.ST_AsGeoJSON(Feature.shape)
+                        )\
+                        .join(Image, Image.id==Detection.image_id)\
+                        .join(Camera)\
+                        .join(Individual, Detection.primary_individuals)\
+                        .outerjoin(Feature, Feature.detection_id==Detection.id)\
+                        .filter(Individual.id==individual_id)\
                         .distinct().all()
 
-        if len(coords) > 3:
-            points = np.array([(lon, lat) for lat, lon in coords])
-            hull = ConvexHull(points)
-            hull_points = points[hull.vertices]
-            hull_points = [(lat, lon) for lon, lat in hull_points]
-        else:
-            hull_points = [(lat, lon) for lat, lon in coords]
-        
-        return json.dumps({'id': individual_id, 'name': individual.name, 'tags': [tag.description for tag in individual.tags], 'label': individual.species,  'notes': individual.notes, 'children': [child.id for child in individual.children], 'family': family, 'surveys': indiv_surveys, 'seen_range': [firstSeen, lastSeen], 'access': access, 'bounds': hull_points})
+
+        best_dets = {
+            'L': {},
+            'R': {}
+        }
+
+        for det_id, flank, top, bottom, left, right, filename, path, feature_id, shape in best_dets_data:
+            if flank in ['L', 'R']:
+                if det_id not in best_dets[flank]:
+                    # Create a new entry for this flank if it doesn't exist
+                    best_dets[flank][det_id] = {
+                        'url': (path + '/' + filename).replace('+','%2B').replace('?','%3F').replace('#','%23').replace('\\','%5C'),
+                        'detection': {
+                            'id': det_id,
+                            'top': top,
+                            'bottom': bottom,
+                            'left': left,
+                            'right': right,
+                            'features': []
+                        }
+                    }
+                if feature_id:
+                    # Add the feature to the detection if it exists
+                    best_dets[flank][det_id]['detection']['features'].append({
+                        'id': feature_id,
+                        'coords': json.loads(shape)['coordinates'][0],
+                    })
+
+        best_dets['L'] = list(best_dets['L'].values())
+        best_dets['R'] = list(best_dets['R'].values())
+
+        all_tags = [r[0] for r in db.session.query(Tag.description).filter(Tag.task_id.in_([t.id for t in individual.tasks])).distinct().all()]
+
+        reply = {
+            'id': individual_id,
+            'name': individual.name,
+            'tags': [tag.description for tag in individual.tags],
+            'label': individual.species,
+            'notes': individual.notes,
+            'children': [child.id for child in individual.children],
+            'family': family,
+            'surveys': indiv_surveys,
+            'seen_range': [firstSeen, lastSeen],
+            'access': access,
+            'bounds': hull_points,
+            'coords': coords,
+            'best_dets': best_dets,
+            'all_tags': all_tags
+        }
+
+        return json.dumps(reply)
     else:
         return json.dumps('error')
 
@@ -5906,21 +6423,21 @@ def submitIndividuals():
         detection = db.session.query(Detection).get(individuals[list(individuals.keys())[0]]['detections'][0])
         # if detection and ((current_user.parent in detection.image.camera.trapgroup.survey.user.workers) or (current_user.parent == detection.image.camera.trapgroup.survey.user)):
         if detection and checkAnnotationPermission(current_user.parent_id,task.id):
+            area_id = task.survey.area_id
             # First check names:
             problemNames = []
             for individualID in individuals:
                 if 'known' not in individuals[individualID]:
                     individuals[individualID]['known'] = 'false'
 
-                if individuals[individualID]['name'].lower() != 'unidentifiable' and individuals[individualID]['known'] != 'true':
-                    check = db.session.query(Individual)
+                if individuals[individualID]['name'].lower() != 'unidentifiable' and individuals[individualID]['known'] != 'true' and individuals[individualID]['auto_name']=='false':
+                    check = db.session.query(Individual).join(Task,Individual.tasks).join(Survey).filter(Survey.area_id==area_id)
 
                     if 'n' not in individualID:
                         check = check.filter(Individual.id!=int(individualID))
 
                     check = check.filter(Individual.species==species)\
                                         .filter(Individual.name==individuals[individualID]['name'])\
-                                        .filter(Individual.tasks.contains(task))\
                                         .first()
                     
                     if check:
@@ -5940,27 +6457,42 @@ def submitIndividuals():
                         # Modify individuals
                         individual = db.session.query(Individual).get(int(individualID))
                         individual.user_id = current_user.id
-                        if individuals[individualID]['known'] == 'true' and task not in individual.tasks: individual.tasks.append(task)
+                        if individuals[individualID]['known'] == 'true':
+                            if task not in individual.tasks: individual.tasks.append(task)
+                            if len(individual.tasks) > 1:
+                                for tsk in individual.tasks:
+                                    if not tsk.areaID_library: tsk.areaID_library=True
 
                     else:
                         # Create new individual
-                        name = individuals[individualID]['name']
+                        use_id = True
+                        if individuals[individualID]['auto_name'] == 'false':
+                            use_id = False
+                            name = individuals[individualID]['name']
 
-                        check = db.session.query(Individual)\
-                                            .filter(Individual.species==species)\
-                                            .filter(Individual.name==name)\
-                                            .filter(Individual.tasks.contains(task))\
-                                            .first()
+                            check = db.session.query(Individual)\
+                                                .join(Task,Individual.tasks)\
+                                                .join(Survey)\
+                                                .filter(Survey.area_id==area_id)\
+                                                .filter(Individual.species==species)\
+                                                .filter(Individual.name==name)\
+                                                .first()
 
-                        if check:
-                            name = generateUniqueName(task_id,species,tL[2])
+                            if check:
+                                # name = generateUniqueName(task_id,species,tL[2])
+                                use_id = True
+                        
 
                         individual = Individual(
-                            name = name,
                             species = species,
                             user_id = current_user.id
                         )
                         db.session.add(individual)
+                        if use_id: 
+                            db.session.flush()
+                            individual.name = str(individual.id)
+                        else: 
+                            individual.name = name 
                         individual.tasks = [task]
 
                     if individuals[individualID]['known'] == 'true':
@@ -6719,6 +7251,10 @@ def getCoords():
         group_ids = ast.literal_eval(request.form['group_ids'])
     else:
         group_ids = None
+    if 'area' in request.form:
+        area = ast.literal_eval(request.form['area'])
+    else:
+        area = None
     trapgroups = []
     trapgroups_data = []
 
@@ -6727,9 +7263,11 @@ def getCoords():
     if current_user and current_user.is_authenticated:
         if task_ids:
             if task_ids[0] == '0':
-                tasks = surveyPermissionsSQ(db.session.query(Task.id, Task.survey_id).join(Survey).filter(Task.name != 'default').filter(~Task.name.contains('_o_l_d_')).filter(~Task.name.contains('_copying')).group_by(Task.survey_id).order_by(Task.id), current_user.id, 'read').distinct().all()
+                tasks = surveyPermissionsSQ(db.session.query(Task.id, Task.survey_id).join(Survey).filter(Task.name != 'default').filter(~Task.name.contains('_o_l_d_')).filter(~Task.name.contains('_copying')).group_by(Task.survey_id).order_by(Task.id), current_user.id, 'read')
             else:
-                tasks = surveyPermissionsSQ(db.session.query(Task.id, Task.survey_id).join(Survey).filter(Task.id.in_(task_ids)), current_user.id, 'read').distinct().all()
+                tasks = surveyPermissionsSQ(db.session.query(Task.id, Task.survey_id).join(Survey).filter(Task.id.in_(task_ids)), current_user.id, 'read')
+            if area and area != '0':  tasks = tasks.join(Area).filter(Area.name==area)
+            tasks = tasks.distinct().all()
             task_ids = [r[0] for r in tasks]
             survey_ids = list(set([r[1] for r in tasks]))
 
@@ -6843,14 +7381,21 @@ def getTrapgroupCounts():
     else:
         normaliseBySite = False
 
+    if 'area' in request.form:
+        area = ast.literal_eval(request.form['area'])
+    else:
+        area = None
+
     if Config.DEBUGGING: app.logger.info('The following parameters were passed to getTrapgroupCounts: task_ids: {}, species: {}, baseUnit: {}, sites: {}, groups: {}, startDate: {}, endDate: {}, timeToIndependence: {}, timeToIndependenceUnit: {}'.format(task_ids, species, baseUnit, sites, groups, startDate, endDate, timeToIndependence, timeToIndependenceUnit))
     data = []
     maxVal = 0
     if task_ids:
         if task_ids[0] == '0':
-            tasks = surveyPermissionsSQ(db.session.query(Task.id, Task.survey_id).join(Survey).filter(Task.name != 'default').filter(~Task.name.contains('_o_l_d_')).filter(~Task.name.contains('_copying')).group_by(Task.survey_id).order_by(Task.id), current_user.id, 'read').distinct().all()
+            tasks = surveyPermissionsSQ(db.session.query(Task.id, Task.survey_id).join(Survey).filter(Task.name != 'default').filter(~Task.name.contains('_o_l_d_')).filter(~Task.name.contains('_copying')).group_by(Task.survey_id).order_by(Task.id), current_user.id, 'read')
         else:
-            tasks = surveyPermissionsSQ(db.session.query(Task.id, Task.survey_id).join(Survey).filter(Task.id.in_(task_ids)), current_user.id, 'read').distinct().all()
+            tasks = surveyPermissionsSQ(db.session.query(Task.id, Task.survey_id).join(Survey).filter(Task.id.in_(task_ids)), current_user.id, 'read')
+        if area and area != '0':  tasks = tasks.join(Area).filter(Area.name==area)
+        tasks = tasks.distinct().all()
         task_ids = [t[0] for t in tasks]
         survey_ids = list(set([t[1] for t in tasks]))
 
@@ -7023,6 +7568,7 @@ def getTrapgroupCountsIndividual(individual_id,baseUnit):
 
     data = []
     maxVal = 0
+    hull_coords = []
     
     start_date = ast.literal_eval(request.form['start_date'])
     end_date = ast.literal_eval(request.form['end_date'])
@@ -7071,7 +7617,20 @@ def getTrapgroupCountsIndividual(individual_id,baseUnit):
 
         data = list(data_check.values())
 
-    return json.dumps({'max':maxVal,'data':data})
+        # Get convex hull for the trapgroup coordinates where count > 0
+        if data:
+            coords = np.array([(item['lng'], item['lat']) for item in data if (item['count'] > 0 and (item['lat'] != 0 or item['lng'] != 0))])
+            if len(coords) > 3: 
+                try:
+                    hull = ConvexHull(coords)
+                    hull_points = coords[hull.vertices]
+                    hull_coords = [(lat, lon) for lon, lat in hull_points]
+                except: 
+                    hull_coords = [(lat, lon) for lon, lat in coords]
+            else:
+                hull_coords = [(lat, lon) for lon, lat in coords] 
+
+    return json.dumps({'max':maxVal,'data':data, 'hull_coords': hull_coords})
 
 # @app.route('/assignTag/<clusterID>/<tagID>')
 # @login_required
@@ -7561,8 +8120,12 @@ def initKeys():
 def getSurveys():
     '''Returns a list of survey names and IDs owned by the current user.'''
     requiredPermission = request.args.get('requiredPermission',None)
+    area = request.args.get('area',None)
     if requiredPermission==None: requiredPermission = 'read'
-    surveys = [tuple(row) for row in surveyPermissionsSQ(db.session.query(Survey.id, Survey.name),current_user.id,requiredPermission).distinct().all()]
+    surveys = surveyPermissionsSQ(db.session.query(Survey.id, Survey.name),current_user.id,requiredPermission)
+    if area and area != '0': 
+        surveys = surveys.join(Area).filter(Area.name==area)
+    surveys = [tuple(row) for row in surveys.distinct().all()]
     return json.dumps(surveys)
 
 @app.route('/getWorkerSurveys')
@@ -10047,7 +10610,20 @@ def getIndividualAssociations(individual_id, order):
             .filter(Detection.individuals.contains(individual))\
             .subquery()
 
-        associations = db.session.query(Individual.id,Individual.name,func.count(distinct(Cluster.id)).label('cluster_count'),func.count(distinct(imageSQ.c.id)).label('image_count'))\
+        # associations = db.session.query(Individual.id,Individual.name,func.count(distinct(Cluster.id)).label('cluster_count'),func.count(distinct(imageSQ.c.id)).label('image_count'))\
+        #     .join(Task,Individual.tasks)\
+        #     .join(Detection,Individual.detections)\
+        #     .join(Image)\
+        #     .join(Cluster,Image.clusters)\
+        #     .join(clusterSQ,clusterSQ.c.id==Cluster.id)\
+        #     .outerjoin(imageSQ,imageSQ.c.id==Image.id)\
+        #     .filter(Task.id.in_(task_ids))\
+        #     .filter(Individual.name!='unidentifiable')\
+        #     .filter(Individual.id!=individual.id)\
+        #     .filter(Individual.active==True)\
+        #     .group_by(Individual.id)
+
+        countsSQ = db.session.query(Individual.id,func.count(distinct(Cluster.id)).label('cluster_count'),func.count(distinct(imageSQ.c.id)).label('image_count'))\
             .join(Task,Individual.tasks)\
             .join(Detection,Individual.detections)\
             .join(Image)\
@@ -10055,9 +10631,34 @@ def getIndividualAssociations(individual_id, order):
             .join(clusterSQ,clusterSQ.c.id==Cluster.id)\
             .outerjoin(imageSQ,imageSQ.c.id==Image.id)\
             .filter(Task.id.in_(task_ids))\
+            .group_by(Individual.id)\
+            .subquery()
+
+        BestDetection = alias(Detection)
+        associations = db.session.query(
+                Individual.id,
+                Individual.name,
+                countsSQ.c.cluster_count,
+                countsSQ.c.image_count,
+                Image.filename,
+                Camera.path,
+                Detection.id,
+                Detection.top,
+                Detection.left,
+                Detection.bottom,
+                Detection.right
+            )\
+            .join(Task,Individual.tasks)\
+            .join(Detection,Individual.detections)\
+            .outerjoin(BestDetection,Individual.primary_detections)\
+            .outerjoin(Image,BestDetection.c.image_id==Image.id)\
+            .outerjoin(Camera)\
+            .join(countsSQ,countsSQ.c.id==Individual.id)\
+            .filter(Task.id.in_(task_ids))\
             .filter(Individual.name!='unidentifiable')\
             .filter(Individual.id!=individual.id)\
             .filter(Individual.active==True)\
+            .filter(or_(Detection.image_id==Image.id, Image.id==None))\
             .group_by(Individual.id)
 
         # Order the associations
@@ -10066,27 +10667,51 @@ def getIndividualAssociations(individual_id, order):
             associations = associations.order_by(Individual.name)     
         elif order == 'a2':
             # Asc Cluster Count
-            associations = associations.order_by(func.count(distinct(Cluster.id)).asc())        
+            # associations = associations.order_by(func.count(distinct(Cluster.id)).asc())        
+            associations = associations.order_by(countsSQ.c.cluster_count.asc())
         elif order == 'a3':
             # Asc Images count
-            associations = associations.order_by(func.count(distinct(Image.id)).asc())            
+            # associations = associations.order_by(func.count(distinct(Image.id)).asc())            
+            associations = associations.order_by(countsSQ.c.image_count.asc()) 
         elif order == 'd1':
             # Desc Name
             associations = associations.order_by(desc(Individual.name))
         elif order == 'd2':
             # Desc Cluster count
-            associations = associations.order_by(func.count(distinct(Cluster.id)).desc())  
+            associations = associations.order_by(countsSQ.c.cluster_count.desc())
         elif order == 'd3':
             # Desc Sightings count
-            associations = associations.order_by(func.count(distinct(Image.id)).desc())
+            # associations = associations.order_by(func.count(distinct(Image.id)).desc())
+            associations = associations.order_by(countsSQ.c.image_count.desc())
         else:
             # Default order
-            associations = associations.order_by(func.count(distinct(Cluster.id)).desc())
+            # associations = associations.order_by(func.count(distinct(Cluster.id)).desc())
+            associations = associations.order_by(countsSQ.c.cluster_count.desc())
 
         # Paginate
         associations = associations.paginate(page, 3, False)
 
-        best_detections = calculate_individual_best_detection([individual[0] for individual in associations.items])
+        # best_detections = calculate_individual_best_detection([individual[0] for individual in associations.items])
+
+        best_detections = {}
+        bd_ids = []
+        for association in associations.items:
+            if association[4]:
+                best_detections[association[0]] = {
+                    'filename': association[4],
+                    'path': association[5],
+                    'det_id': association[6],
+                    'top': association[7],
+                    'left': association[8],
+                    'right': association[9],
+                    'bottom': association[10]
+                }
+            else:
+                bd_ids.append(association[0])
+
+        if bd_ids:
+            # Calculate best detections for individuals that do not have a primary detection
+            best_detections.update(calculate_individual_best_detection(bd_ids))
 
         for association in associations.items:
 
@@ -10102,6 +10727,7 @@ def getIndividualAssociations(individual_id, order):
                     'image_count': association[3],
                     'url': (best_detection['path'] + '/' + best_detection['filename']).replace('+','%2B').replace('?','%3F').replace('#','%23').replace('\\','%5C'),
                     'detection': {
+                        'id': best_detection['det_id'],
                         'top': best_detection['top'],
                         'left': best_detection['left'],
                         'right': best_detection['right'],
@@ -10141,22 +10767,57 @@ def results():
 def getAllLabelsTagsSitesAndGroups():
     '''Returns all the labels, sites, and tags for the specified tasks.'''
     task_ids = ast.literal_eval(request.form['task_ids'])
+    if 'area' in request.form:
+        area = ast.literal_eval(request.form['area'])
+    else:
+        area = None
     sites_data = []
     sites_ids = []
     unique_sites = {}
+    labels = []
+    tags = []
+    group_ids = []
+    group_names = []
+    individual_species = []
     if task_ids and task_ids != '-1':
-        if task_ids[0] == '0':
-            labels = [r[0] for r in surveyPermissionsSQ(db.session.query(Label.description).join(Task).join(Survey),current_user.id,'read').distinct().all()]
-            tags = [r[0] for r in surveyPermissionsSQ(db.session.query(Tag.description).join(Task).join(Survey),current_user.id,'read').distinct().all()]
-            sites = surveyPermissionsSQ(db.session.query(Trapgroup.id, Trapgroup.tag, Trapgroup.latitude, Trapgroup.longitude).join(Survey),current_user.id,'read').order_by(Trapgroup.id).all()
-            groups = surveyPermissionsSQ(db.session.query(Sitegroup.id, Sitegroup.name).join(Trapgroup, Sitegroup.trapgroups).join(Survey),current_user.id,'read').distinct().all()
-            individual_species = [r[0] for r in surveyPermissionsSQ(db.session.query(Individual.species).join(Task,Individual.tasks).join(Survey),current_user.id,'read').distinct().all()]
-        else:
-            labels = [r[0] for r in surveyPermissionsSQ(db.session.query(Label.description).join(Task).join(Survey),current_user.id,'read').filter(Task.id.in_(task_ids)).distinct().all()]
-            sites = surveyPermissionsSQ(db.session.query(Trapgroup.id, Trapgroup.tag, Trapgroup.latitude, Trapgroup.longitude).join(Survey).join(Task),current_user.id,'read').filter(Task.id.in_(task_ids)).order_by(Trapgroup.id).all()
-            tags = [r[0] for r in surveyPermissionsSQ(db.session.query(Tag.description).join(Task).join(Survey),current_user.id,'read').filter(Task.id.in_(task_ids)).distinct().all()]
-            groups = surveyPermissionsSQ(db.session.query(Sitegroup.id, Sitegroup.name).join(Trapgroup, Sitegroup.trapgroups).join(Survey).join(Task),current_user.id,'read').filter(Task.id.in_(task_ids)).distinct().all()
-            individual_species = [r[0] for r in surveyPermissionsSQ(db.session.query(Individual.species).join(Task,Individual.tasks).join(Survey),current_user.id,'read').filter(Task.id.in_(task_ids)).distinct().all()]
+        # if task_ids[0] == '0':
+        #     labels = [r[0] for r in surveyPermissionsSQ(db.session.query(Label.description).join(Task).join(Survey),current_user.id,'read').distinct().all()]
+        #     tags = [r[0] for r in surveyPermissionsSQ(db.session.query(Tag.description).join(Task).join(Survey),current_user.id,'read').distinct().all()]
+        #     sites = surveyPermissionsSQ(db.session.query(Trapgroup.id, Trapgroup.tag, Trapgroup.latitude, Trapgroup.longitude).join(Survey),current_user.id,'read').order_by(Trapgroup.id).all()
+        #     groups = surveyPermissionsSQ(db.session.query(Sitegroup.id, Sitegroup.name).join(Trapgroup, Sitegroup.trapgroups).join(Survey),current_user.id,'read').distinct().all()
+        #     individual_species = [r[0] for r in surveyPermissionsSQ(db.session.query(Individual.species).join(Task,Individual.tasks).join(Survey),current_user.id,'read').distinct().all()]
+        # else:
+        #     labels = [r[0] for r in surveyPermissionsSQ(db.session.query(Label.description).join(Task).join(Survey),current_user.id,'read').filter(Task.id.in_(task_ids)).distinct().all()]
+        #     sites = surveyPermissionsSQ(db.session.query(Trapgroup.id, Trapgroup.tag, Trapgroup.latitude, Trapgroup.longitude).join(Survey).join(Task),current_user.id,'read').filter(Task.id.in_(task_ids)).order_by(Trapgroup.id).all()
+        #     tags = [r[0] for r in surveyPermissionsSQ(db.session.query(Tag.description).join(Task).join(Survey),current_user.id,'read').filter(Task.id.in_(task_ids)).distinct().all()]
+        #     groups = surveyPermissionsSQ(db.session.query(Sitegroup.id, Sitegroup.name).join(Trapgroup, Sitegroup.trapgroups).join(Survey).join(Task),current_user.id,'read').filter(Task.id.in_(task_ids)).distinct().all()
+        #     individual_species = [r[0] for r in surveyPermissionsSQ(db.session.query(Individual.species).join(Task,Individual.tasks).join(Survey),current_user.id,'read').filter(Task.id.in_(task_ids)).distinct().all()]
+
+        labels = surveyPermissionsSQ(db.session.query(Label.description).join(Task).join(Survey),current_user.id,'read')
+        tags = surveyPermissionsSQ(db.session.query(Tag.description).join(Task).join(Survey),current_user.id,'read')
+        sites = surveyPermissionsSQ(db.session.query(Trapgroup.id, Trapgroup.tag, Trapgroup.latitude, Trapgroup.longitude).join(Survey).join(Task),current_user.id,'read')
+        groups = surveyPermissionsSQ(db.session.query(Sitegroup.id, Sitegroup.name).join(Trapgroup, Sitegroup.trapgroups).join(Survey).join(Task),current_user.id,'read')
+        individual_species = surveyPermissionsSQ(db.session.query(Individual.species).join(Task,Individual.tasks).join(Survey),current_user.id,'read')
+
+        if task_ids[0] != '0':
+            labels = labels.filter(Task.id.in_(task_ids))
+            tags = tags.filter(Task.id.in_(task_ids))
+            sites = sites.filter(Task.id.in_(task_ids))
+            groups = groups.filter(Task.id.in_(task_ids))
+            individual_species = individual_species.filter(Task.id.in_(task_ids))
+
+        if area and area != '0': 
+            labels = labels.join(Area).filter(Area.name==area)
+            tags = tags.join(Area).filter(Area.name==area)
+            sites = sites.join(Area).filter(Area.name==area)
+            groups = groups.join(Area).filter(Area.name==area)
+            individual_species = individual_species.join(Area).filter(Area.name==area)
+
+        labels = [r[0] for r in labels.order_by(Label.description).distinct().all()]
+        tags = [r[0] for r in tags.order_by(Tag.description).distinct().all()]
+        sites = sites.order_by(Trapgroup.id).distinct().all()
+        groups = groups.order_by(Sitegroup.name).distinct().all()
+        individual_species = [r[0] for r in individual_species.order_by(Individual.species).distinct().all()]
 
         for site in sites:
             site_info = {'tag': site.tag, 'latitude': site.latitude, 'longitude': site.longitude}
@@ -10221,15 +10882,22 @@ def getLineData():
     else:
         normaliseBySite = False
 
+    if 'area' in request.form:
+        area = ast.literal_eval(request.form['area'])
+    else:
+        area = None
+
     if Config.DEBUGGING: app.logger.info('Line data requested for tasks:{} species:{} baseUnit:{} trapgroup:{} timeUnit:{} timeUnitNumber:{} group:{} startDate:{} endDate:{} timeToIndependence:{} timeToIndependenceUnit:{}'.format(task_ids,species,baseUnit,trapgroup,timeUnit,timeUnitNumber,group,startDate,endDate,timeToIndependence,timeToIndependenceUnit))
 
     data = []
     data_labels = []
     if task_ids:
         if task_ids[0] == '0':
-            tasks = surveyPermissionsSQ(db.session.query(Task.id, Task.survey_id).join(Survey).filter(Task.name != 'default').filter(~Task.name.contains('_o_l_d_')).filter(~Task.name.contains('_copying')).group_by(Task.survey_id).order_by(Task.id), current_user.id, 'read').distinct().all()
+            tasks = surveyPermissionsSQ(db.session.query(Task.id, Task.survey_id).join(Survey).filter(Task.name != 'default').filter(~Task.name.contains('_o_l_d_')).filter(~Task.name.contains('_copying')).group_by(Task.survey_id).order_by(Task.id), current_user.id, 'read')
         else:
-            tasks = surveyPermissionsSQ(db.session.query(Task.id, Task.survey_id).join(Survey).filter(Task.id.in_(task_ids)), current_user.id, 'read').distinct().all()
+            tasks = surveyPermissionsSQ(db.session.query(Task.id, Task.survey_id).join(Survey).filter(Task.id.in_(task_ids)), current_user.id, 'read')
+        if area and area != '0':  tasks = tasks.join(Area).filter(Area.name==area)
+        tasks = tasks.distinct().all()
         task_ids = [r[0] for r in tasks]
         survey_ids = list(set([r[1] for r in tasks]))
 
@@ -10595,12 +11263,17 @@ def searchSites():
     search = ast.literal_eval(request.form['search'])
     advanced = ast.literal_eval(request.form['advanced'])
     task_ids = ast.literal_eval(request.form['task_ids'])
+    if 'area' in request.form:
+        area = ast.literal_eval(request.form['area'])
+    else:
+        area = None
 
     if task_ids:
         if task_ids[0] == '0':
             sites = surveyPermissionsSQ(db.session.query(Trapgroup.id, Trapgroup.tag, Trapgroup.latitude, Trapgroup.longitude).join(Survey),current_user.id,'read')
         else:
             sites = surveyPermissionsSQ(db.session.query(Trapgroup.id, Trapgroup.tag, Trapgroup.latitude, Trapgroup.longitude).join(Survey).join(Task).filter(Task.id.in_(task_ids)),current_user.id,'read')
+        if area and area != '0':  sites = sites.join(Area).filter(Area.name==area)
 
     if Config.DEBUGGING: app.logger.info('Searching for sites matching {} {} for tasks {}'.format(search, advanced, task_ids))
 
@@ -10673,12 +11346,19 @@ def getGroups():
     groups = []
     survey_ids = []
     task_ids = ast.literal_eval(request.form['task_ids'])
+    if 'area' in request.form:
+        area = ast.literal_eval(request.form['area'])
+    else:
+        area = None
+    
     if current_user and current_user.is_authenticated:
         if task_ids:
             if task_ids[0] == '0':
-                survey_ids = [r[0] for r in surveyPermissionsSQ(db.session.query(Survey.id),current_user.id,'read').distinct().all()]
+                survey_ids = surveyPermissionsSQ(db.session.query(Survey.id),current_user.id,'read')
             else:
-                survey_ids = [r[0] for r in surveyPermissionsSQ(db.session.query(Survey.id).join(Task).filter(Task.id.in_(task_ids)),current_user.id,'read').distinct().all()]
+                survey_ids = surveyPermissionsSQ(db.session.query(Survey.id).join(Task).filter(Task.id.in_(task_ids)),current_user.id,'read')
+            if area and area != '0':  survey_ids = survey_ids.join(Area).filter(Area.name==area)
+            survey_ids = [r[0] for r in survey_ids.distinct().all()]
 
         subquery = db.session.query(Sitegroup)\
                         .join(Trapgroup, Sitegroup.trapgroups)\
@@ -10786,7 +11466,7 @@ def deleteGroup(group_id):
 @login_required
 def getSurveysAndTasksForResults():
     ''' Get a list of surveys and tasks for the results page '''
-
+    area = request.args.get('area', None, type=str)
     if current_user and current_user.is_authenticated:
         surveys = surveyPermissionsSQ(db.session.query(
                                     Survey.id,
@@ -10797,9 +11477,13 @@ def getSurveysAndTasksForResults():
                                 .join(Task)\
                                 .filter(~Task.name.contains('_o_l_d_'))\
                                 .filter(~Task.name.contains('_copying'))\
-                                .filter(Task.name != 'default'),current_user.id,'read')\
-                                .order_by(Survey.id, Task.id).all()
+                                .filter(Task.name != 'default'),current_user.id,'read')
         
+        if area and area != '0':
+            surveys = surveys.join(Area).filter(Area.name==area)
+
+        surveys = surveys.order_by(Survey.id, Task.id).distinct().all()
+
         survey_data = {}
         task_data = {}
         for item in surveys:
@@ -10855,7 +11539,11 @@ def getActivityPattern():
         else:
             csv = False
         folder = None
-        if Config.DEBUGGING: app.logger.info('Activity data requested for {} {} {} {} {} {} {} {} {} {}'.format(task_ids,species,baseUnit,trapgroups,startDate,endDate,unit,centre,time,overlap))
+        if 'area' in request.form:
+            area = ast.literal_eval(request.form['area'])
+        else:
+            area = None
+        if Config.DEBUGGING: app.logger.info('Activity data requested for {} {} {} {} {} {} {} {} {} {} {}'.format(task_ids,species,baseUnit,trapgroups,startDate,endDate,unit,centre,time,overlap,area))
     else:
         task_ids = None
         folder = ast.literal_eval(request.form['folder'])
@@ -10867,6 +11555,13 @@ def getActivityPattern():
     R_type = 'activity'
     if current_user.is_authenticated and current_user.admin:
         if task_ids:
+            if area and area != '0': 
+                tasks = surveyPermissionsSQ(db.session.query(Task.id).join(Survey).join(Area).filter(Area.name==area).filter(Task.name != 'default').filter(~Task.name.contains('_o_l_d_')).filter(~Task.name.contains('_copying')), current_user.id, 'read')
+                if task_ids[0] != '0': tasks = tasks.filter(Task.id.in_(task_ids))
+                tasks = tasks.distinct().all()
+                task_ids = [r[0] for r in tasks]
+                if not task_ids: return json.dumps({'status': status, 'activity_results': activity_results, 'message': message, 'folder': folder})
+
             if task_ids[0] == '0':
                 survey = surveyPermissionsSQ(db.session.query(Survey.id, Organisation.folder).join(Task).filter(Task.name != 'default').filter(~Task.name.contains('_o_l_d_')).filter(~Task.name.contains('_copying')).group_by(Task.survey_id).order_by(Task.id), current_user.id, 'read').first()
             else:
@@ -10964,6 +11659,11 @@ def getResultsSummary():
         else:
             normaliseBySite = False
 
+        if 'area' in request.form:
+            area = ast.literal_eval(request.form['area'])
+        else:
+            area = None
+
         if Config.DEBUGGING: app.logger.info('Results summary for tasks:{} baseUnit:{} sites:{} groups:{} startDate:{} endDate:{} trapUnit:{} timeToIndependence:{} timeToIndependenceUnit:{}'.format(task_ids,baseUnit,sites,groups,startDate,endDate,trapUnit,timeToIndependence,timeToIndependenceUnit))
     else:
         task_ids = None
@@ -10975,6 +11675,13 @@ def getResultsSummary():
     message = None
     if current_user.is_authenticated and current_user.admin:
         if task_ids:
+            if area and area != '0':
+                tasks = surveyPermissionsSQ(db.session.query(Task.id).join(Survey).join(Area).filter(Area.name==area).filter(Task.name != 'default').filter(~Task.name.contains('_o_l_d_')).filter(~Task.name.contains('_copying')), current_user.id, 'read')
+                if task_ids[0] != '0': tasks = tasks.filter(Task.id.in_(task_ids))
+                tasks = tasks.distinct().all()
+                task_ids = [r[0] for r in tasks]
+                if not task_ids: return json.dumps({'status': status, 'summary': summary, 'message': message})
+
             if GLOBALS.redisClient.get('analysis_' + str(current_user.id)):
                 result_id = GLOBALS.redisClient.get('analysis_' + str(current_user.id))
                 try:
@@ -11054,6 +11761,11 @@ def getOccupancy():
         
         folder = None
 
+        if 'area' in request.form:
+            area = ast.literal_eval(request.form['area'])
+        else:
+            area = None
+
         if Config.DEBUGGING: app.logger.info('Occupancy data requested for tasks:{} species:{} baseUnit:{} trapgroups:{} window:{} siteCovs:{} detCovs:{} covOptions:{} groups:{} startDate:{} endDate:{} csv:{}'.format(task_ids,species,baseUnit,trapgroups,window,siteCovs,detCovs,covOptions,groups,startDate,endDate,csv))
     else:
         task_ids = None
@@ -11066,6 +11778,13 @@ def getOccupancy():
     R_type = 'occupancy'
     if current_user.is_authenticated and current_user.admin:
         if task_ids:
+            if area and area != '0':
+                tasks = surveyPermissionsSQ(db.session.query(Task.id).join(Survey).join(Area).filter(Area.name==area).filter(Task.name != 'default').filter(~Task.name.contains('_o_l_d_')).filter(~Task.name.contains('_copying')), current_user.id, 'read')
+                if task_ids[0] != '0': tasks = tasks.filter(Task.id.in_(task_ids))
+                tasks = tasks.distinct().all()
+                task_ids = [r[0] for r in tasks]
+                if not task_ids: return json.dumps({'status': status, 'results': occupancy_results, 'message': message, 'folder': folder})
+
             if task_ids[0] == '0':
                 survey = surveyPermissionsSQ(db.session.query(Survey.id, Organisation.folder).join(Task).filter(Task.name != 'default').filter(~Task.name.contains('_o_l_d_')).filter(~Task.name.contains('_copying')).group_by(Task.survey_id).order_by(Task.id), current_user.id, 'read').first()
             else:
@@ -11128,8 +11847,20 @@ def getCovariateCSV():
     task_ids = ast.literal_eval(request.form['task_ids'])
     cov_url = None
 
+    if 'area' in request.form:
+        area = ast.literal_eval(request.form['area'])
+    else:
+        area = None
+
     if current_user.is_authenticated and current_user.admin:
         if task_ids:
+            if area and area != '0': 
+                tasks = surveyPermissionsSQ(db.session.query(Task.id).join(Survey).join(Area).filter(Area.name==area).filter(Task.name != 'default').filter(~Task.name.contains('_o_l_d_')).filter(~Task.name.contains('_copying')), current_user.id, 'read')
+                if task_ids[0] != '0': tasks = tasks.filter(Task.id.in_(task_ids))
+                tasks = tasks.distinct().all()
+                task_ids = [r[0] for r in tasks]
+                if not task_ids: return json.dumps({'cov_url': cov_url})
+
             if task_ids[0] == '0':
                 survey = surveyPermissionsSQ(db.session.query(Survey.id, Organisation.folder).join(Task).filter(Task.name != 'default').filter(~Task.name.contains('_o_l_d_')).filter(~Task.name.contains('_copying')).group_by(Task.survey_id).order_by(Task.id), current_user.id, 'read').first()
             else:
@@ -11223,6 +11954,11 @@ def getSpatialCaptureRecapture():
 
         folder = None
 
+        if 'area' in request.form:
+            area = ast.literal_eval(request.form['area'])
+        else:
+            area = None
+
         if Config.DEBUGGING: app.logger.info('SCR data requested for tasks:{} species:{} trapgroups:{} groups:{} window:{} tags:{} siteCovs:{} covOptions:{} startDate:{} endDate:{} csv:{}'.format(task_ids,species,trapgroups,groups,window,tags,siteCovs,covOptions,startDate,endDate,csv))
     else:
         task_ids = None
@@ -11235,6 +11971,13 @@ def getSpatialCaptureRecapture():
     R_type = 'scr'
     if current_user.is_authenticated and current_user.admin:
         if task_ids:
+            if area and area != '0':
+                tasks = surveyPermissionsSQ(db.session.query(Task.id).join(Survey).join(Area).filter(Area.name==area).filter(Task.name != 'default').filter(~Task.name.contains('_o_l_d_')).filter(~Task.name.contains('_copying')), current_user.id, 'read')
+                if task_ids[0] != '0': tasks = tasks.filter(Task.id.in_(task_ids))
+                tasks = tasks.distinct().all()
+                task_ids = [r[0] for r in tasks]
+                if not task_ids: return json.dumps({'status': status, 'results': scr_results, 'message': msg, 'folder': folder})
+
             if task_ids[0] == '0':
                 survey = surveyPermissionsSQ(db.session.query(Survey.id, Organisation.folder).join(Task).filter(Task.name != 'default').filter(~Task.name.contains('_o_l_d_')).filter(~Task.name.contains('_copying')).group_by(Task.survey_id).order_by(Task.id), current_user.id, 'read').first()
             else:
@@ -11358,9 +12101,21 @@ def cancelResults():
     status = 'FAILURE'
     result_type = ast.literal_eval(request.form['result_type'])
     task_ids = ast.literal_eval(request.form['task_ids'])
-    
+
+    if 'area' in request.form:
+        area = ast.literal_eval(request.form['area'])
+    else:
+        area = None
+
     if current_user.is_authenticated and current_user.admin:
         if task_ids:
+            if area and area != '0':
+                tasks = surveyPermissionsSQ(db.session.query(Task.id).join(Survey).join(Area).filter(Area.name==area).filter(Task.name != 'default').filter(~Task.name.contains('_o_l_d_')).filter(~Task.name.contains('_copying')), current_user.id, 'read')
+                if task_ids[0] != '0': tasks = tasks.filter(Task.id.in_(task_ids))
+                tasks = tasks.distinct().all()
+                task_ids = [r[0] for r in tasks]
+                if not task_ids: return json.dumps({'status': status})
+
             if task_ids[0] == '0':
                 survey = surveyPermissionsSQ(db.session.query(Survey.id, Organisation.folder).join(Task).filter(Task.name != 'default').filter(~Task.name.contains('_o_l_d_')).filter(~Task.name.contains('_copying')).group_by(Task.survey_id).order_by(Task.id), current_user.id, 'read').first()
             else:
@@ -14088,27 +14843,39 @@ def getMatchingKpts(det_id1,det_id2):
 
     return json.dumps({'results': results})
 
-# NOTE: We are currenlty not allowing the users to edit a detection flank on the Individuals page and it can only be edited 
-#     in a Cluster ID (-4 task). The reason we have disallowed this is because of having to recalculate all detection similarities 
-#     and individual similaties associated with the detection whose flank has changed. 
-# @app.route('/submitIndividualFlanks', methods=['POST'])
-# @login_required
-# def submitIndividualFlanks():
-#     ''' Edit the flanks of the specified individual's detections. '''
-#     status = 'error'
-#     individual_id = ast.literal_eval(request.form['individual_id'])
-#     flanks = ast.literal_eval(request.form['flanks'])
-#     individual = db.session.query(Individual).get(individual_id)
-#     if flanks:
-#         if individual and all(checkSurveyPermission(current_user.id,task.survey_id,'write') for task in individual.tasks):
-#             detection_ids = list(flanks.keys())
-#             detections = db.session.query(Detection).filter(Detection.id.in_(detection_ids)).all()
-#             for detection in detections:
-#                 detection.flank = Config.FLANK_DB[flanks[str(detection.id)].lower()]
-#             db.session.commit()
-#             status = 'success'
+@app.route('/submitIndividualFlanks', methods=['POST'])
+@login_required
+def submitIndividualFlanks():
+    ''' Edit the flanks of the specified individual's detections. '''
+    status = 'error'
+    individual_id = ast.literal_eval(request.form['individual_id'])
+    flanks = ast.literal_eval(request.form['flanks'])
+    individual = db.session.query(Individual).get(individual_id)
+    if flanks:
+        if individual and all(checkSurveyPermission(current_user.id,task.survey_id,'write') for task in individual.tasks):
+            detection_ids = list(flanks.keys())
+            detections = db.session.query(Detection).filter(Detection.id.in_(detection_ids)).all()
+            det_ids = []
+            for detection in detections:
+                if detection.flank != Config.FLANK_DB[flanks[str(detection.id)].lower()]:
+                    detection.flank = Config.FLANK_DB[flanks[str(detection.id)].lower()]
+                    det_ids.append(detection.id)
 
-#     return json.dumps({'status': status}) 
+            detSims = db.session.query(DetSimilarity).filter(or_(DetSimilarity.detection_1.in_(det_ids), DetSimilarity.detection_2.in_(det_ids))).all()
+            for detSim in detSims:
+                db.session.delete(detSim)
+
+            indSims = db.session.query(IndSimilarity)\
+                                .filter(or_(IndSimilarity.individual_1==individual.id, IndSimilarity.individual_2==individual.id))\
+                                .filter(or_(IndSimilarity.detection_1.in_(det_ids), IndSimilarity.detection_2.in_(det_ids))).all()
+            
+            for indSim in indSims:
+                db.session.delete(indSim)
+           
+            db.session.commit()
+            status = 'success'
+
+    return json.dumps({'status': status}) 
 
 @app.route('/api/v1/addImage', methods=['POST'])
 def addImage():
@@ -14698,7 +15465,7 @@ def restore_for_download():
         raw_files = request.json['raw_files']
         delete_items = request.json['delete_items']
 
-        app.logger.info('Individual Sorted: {} Species Sorted: {} Flat Structure: {} Include Empties: {} Species: {} Include Video: {} Include Frames: {} Raw Files: {} Delete Items: {}'.format(individual_sorted, species_sorted, flat_structure, include_empties, species, include_video, include_frames, raw_files, delete_items))
+        if Config.DEBUGGING: app.logger.info('Individual Sorted: {} Species Sorted: {} Flat Structure: {} Include Empties: {} Species: {} Include Video: {} Include Frames: {} Raw Files: {} Delete Items: {}'.format(individual_sorted, species_sorted, flat_structure, include_empties, species, include_video, include_frames, raw_files, delete_items))
 
         if raw_files or include_video or include_empties:
 
@@ -14966,6 +15733,8 @@ def getMergeIndividuals():
     individual = db.session.query(Individual).get(individual_id)
     if individual and individual.active==True and all(checkSurveyPermission(current_user.id,task.survey_id,'write') for task in individual.tasks):
         species = individual.species
+        area_id = individual.tasks[0].survey.area_id
+        if not area_id: mutual = True
             
         IndividualTask = alias(Task)
         mutual_tasks = db.session.query(Task.id, Task.survey_id)\
@@ -14978,9 +15747,15 @@ def getMergeIndividuals():
         mutual_sids = [r[1] for r in mutual_tasks]
         mutual_sids = list(set(mutual_sids))
 
+        other_tasks_has_area_lib = db.session.query(Task.survey_id).filter(Task.survey_id.in_(mutual_sids)).filter(Task.id.notin_(mutual_tids)).filter(Task.areaID_library==True).first()
+        if other_tasks_has_area_lib:
+            mutual = True
+
         tasks = surveyPermissionsSQ(db.session.query(Task.id)\
                                 .join(Survey)\
-                                .filter(Task.status.in_(['SUCCESS', 'Stopped', 'Ready']))\
+                                .filter(Survey.area_id==area_id)\
+                                .filter(Task.status.in_(Config.TASK_READY_STATUSES))\
+                                .filter(Survey.status.in_(Config.SURVEY_READY_STATUSES))\
                                 ,current_user.id,'write')
 
         if task_id:
@@ -14997,9 +15772,13 @@ def getMergeIndividuals():
                             .filter(IndividualTask.c.id.notin_(mutual_tids))\
                             .distinct().subquery()
 
-            tasks = tasks.outerjoin(exclude_tasks, Task.id==exclude_tasks.c.id)\
-                            .filter(exclude_tasks.c.id==None)\
-                            .distinct().all()
+            tasks = tasks.outerjoin(exclude_tasks, Task.id==exclude_tasks.c.id).filter(exclude_tasks.c.id==None)
+            
+            area_id_surveys = db.session.query(Survey.id).join(Task).filter(Survey.area_id==area_id).filter(Task.areaID_library==True).subquery()
+            tasks = tasks.outerjoin(area_id_surveys, Task.survey_id==area_id_surveys.c.id)\
+                                .filter(or_(area_id_surveys.c.id==None, Task.areaID_library==True))\
+                                .filter(Survey.area_id!=None)\
+                                .distinct().all()
 
             task_ids = [r[0] for r in tasks]
 
@@ -15010,11 +15789,22 @@ def getMergeIndividuals():
             Individual.id != individual_id,
         )    
 
-        individuals = db.session.query(Individual.id, Individual.name)\
+        # individuals = db.session.query(Individual.id, Individual.name)\
+        #                     .join(Task,Individual.tasks)\
+        #                     .filter(Task.id.in_(task_ids))\
+        #                     .filter(Task.status.in_(['SUCCESS', 'Stopped', 'Ready']))\
+        #                     .filter(individual_filters)
+
+        BestDetection = alias(Detection)
+        individuals = db.session.query(Individual.id, Individual.name, Image.filename, Camera.path, Detection.id, Detection.top, Detection.left, Detection.right, Detection.bottom)\
                             .join(Task,Individual.tasks)\
+                            .join(Detection,Individual.detections)\
+                            .outerjoin(BestDetection, Individual.primary_detections)\
+                            .outerjoin(Image, BestDetection.c.image_id==Image.id)\
+                            .outerjoin(Camera)\
                             .filter(Task.id.in_(task_ids))\
-                            .filter(Task.status.in_(['SUCCESS', 'Stopped', 'Ready']))\
-                            .filter(individual_filters)
+                            .filter(individual_filters)\
+                            .filter(or_(Detection.image_id==Image.id, Image.id==None))                 
 
         if tag:
             individuals = individuals.filter(Individual.tags.any(Tag.description==tag))
@@ -15073,7 +15863,27 @@ def getMergeIndividuals():
         # individuals = individuals.distinct().paginate(page, 12, False)
         individuals = individuals.distinct().group_by(Individual.id).paginate(page, 12, False)
 
-        best_detections = calculate_individual_best_detection([individual[0] for individual in individuals.items])
+        # best_detections = calculate_individual_best_detection([individual[0] for individual in individuals.items])
+
+        best_detections = {}
+        bd_ids = []
+        for individual in individuals.items:
+            if individual[2]:
+                best_detections[individual[0]] = {
+                    'filename': individual[2],
+                    'path': individual[3],
+                    'det_id': individual[4],
+                    'top': individual[5],
+                    'left': individual[6],
+                    'right': individual[7],
+                    'bottom': individual[8]
+                }
+            else:
+                bd_ids.append(individual[0])
+
+        if bd_ids:
+            # Calculate best detections for individuals that do not have a primary detection
+            best_detections.update(calculate_individual_best_detection(bd_ids))
 
         for individual in individuals.items:
             id = individual[0]
@@ -15088,6 +15898,7 @@ def getMergeIndividuals():
                 'name': name,
                 'url': (best_detection['path'] + '/' + best_detection['filename']).replace('+','%2B').replace('?','%3F').replace('#','%23').replace('\\','%5C'),
                 'detection': {
+                    'id': best_detection['det_id'],
                     'top': best_detection['top'],
                     'left': best_detection['left'],
                     'right': best_detection['right'],
@@ -15178,11 +15989,16 @@ def mergeIndividuals():
                             .filter(Task.id.in_(task_ids))\
                             .distinct().all()
 
+        if len(individual1.tasks) > 1:
+            for tsk in individual1.tasks:
+                if not tsk.areaID_library: tsk.areaID_library=True
+
         allSimilarities = db.session.query(IndSimilarity).filter(or_(IndSimilarity.individual_1==individual2.id,IndSimilarity.individual_2==individual2.id)).distinct().all()
         for similarity in allSimilarities:
             db.session.delete(similarity)
         individual2.tags = []
         individual2.detections = []
+        individual2.primary_detections = []
         individual2.children = []
         individual2.parents = []
         individual2.tasks = []
@@ -15191,6 +16007,8 @@ def mergeIndividuals():
         individual1.name = name if name else individual1.name
         individual1.active = True
         db.session.commit()
+
+        update_individuals_primary_dets(individual_ids=[individual1.id])
 
         individuals2 = [r[0] for r in db.session.query(Individual.id)\
                                                     .join(Task,Individual.tasks)\
@@ -15223,7 +16041,7 @@ def mergeDetectionIntoIndividual():
     merge_individual = db.session.query(Individual).get(merge_indiviudal_id)
 
     if detection and individual and merge_individual and individual.active==True and merge_individual.active==True and  all(checkSurveyPermission(current_user.id,task.survey_id,'write') for task in individual.tasks) and all(checkSurveyPermission(current_user.id,task.survey_id,'write') for task in merge_individual.tasks):
-        individual.active = False
+        if individual.name != 'unidentifiable': individual.active = False
         merge_individual.active = False
         db.session.commit()
         if Config.DEBUGGING: app.logger.info('Detection {} merged into individual {}'.format(detection.id,merge_individual.id))
@@ -15234,18 +16052,22 @@ def mergeDetectionIntoIndividual():
         if detection not in merge_individual.detections:
             merge_individual.detections.append(detection)
 
+        if detection in individual.primary_detections:
+            individual.primary_detections.remove(detection)
+        
         task_ids = [task.id for task in individual.tasks]
         task_ids.extend([task.id for task in merge_individual.tasks])
 
-        individual.tasks = db.session.query(Task)\
-                                    .join(Survey)\
-                                    .join(Trapgroup)\
-                                    .join(Camera)\
-                                    .join(Image)\
-                                    .join(Detection)\
-                                    .filter(Detection.individuals.contains(individual))\
-                                    .filter(Task.id.in_(task_ids))\
-                                    .distinct().all()
+        if individual.name != 'unidentifiable':
+            individual.tasks = db.session.query(Task)\
+                                        .join(Survey)\
+                                        .join(Trapgroup)\
+                                        .join(Camera)\
+                                        .join(Image)\
+                                        .join(Detection)\
+                                        .filter(Detection.individuals.contains(individual))\
+                                        .filter(Task.id.in_(task_ids))\
+                                        .distinct().all()
 
         merge_individual.tasks = db.session.query(Task)\
                                     .join(Survey)\
@@ -15257,21 +16079,33 @@ def mergeDetectionIntoIndividual():
                                     .filter(Task.id.in_(task_ids))\
                                     .distinct().all()
 
-        individual.active = True
+        if len(merge_individual.tasks) > 1:
+            for tsk in merge_individual.tasks:
+                if not tsk.areaID_library: tsk.areaID_library=True
+
+        if individual.name != 'unidentifiable': individual.active = True
         merge_individual.active = True
         
         db.session.commit()
 
-        individuals1 = [r[0] for r in db.session.query(Individual.id)\
-                                                    .join(Task,Individual.tasks)\
-                                                    .join(IndSimilarity, or_(IndSimilarity.individual_1==Individual.id,IndSimilarity.individual_2==Individual.id))\
-                                                    .filter(Task.id.in_([task.id for task in individual.tasks]))\
-                                                    .filter(Individual.species==individual.species)\
-                                                    .filter(Individual.name!='unidentifiable')\
-                                                    .filter(Individual.id != individual.id)\
-                                                    .filter(or_(IndSimilarity.individual_1==individual.id,IndSimilarity.individual_2==individual.id))\
-                                                    .all()]
-        calculate_individual_similarity.delay(individual1=individual.id,individuals2=individuals1,species=individual.species)
+        if individual.name != 'unidentifiable':
+            update_individuals_primary_dets(individual_ids=[individual.id,merge_individual.id])
+        else:
+            update_individuals_primary_dets(individual_ids=[merge_individual.id])
+
+        if individual.name != 'unidentifiable':
+            individuals1 = [r[0] for r in db.session.query(Individual.id)\
+                                                        .join(Task,Individual.tasks)\
+                                                        .join(IndSimilarity, or_(IndSimilarity.individual_1==Individual.id,IndSimilarity.individual_2==Individual.id))\
+                                                        .filter(Task.id.in_([task.id for task in individual.tasks]))\
+                                                        .filter(Individual.species==individual.species)\
+                                                        .filter(Individual.name!='unidentifiable')\
+                                                        .filter(Individual.id != individual.id)\
+                                                        .filter(or_(IndSimilarity.individual_1==individual.id,IndSimilarity.individual_2==individual.id))\
+                                                        .all()]
+            calculate_individual_similarity.delay(individual1=individual.id,individuals2=individuals1,species=individual.species)
+        else: 
+            individuals1 = []
         
         individuals2 = [r[0] for r in db.session.query(Individual.id)\
                                             .join(Task,Individual.tasks)\
@@ -15293,6 +16127,9 @@ def mergeDetectionIntoIndividual():
 @login_required
 def getMergeTasks(id,id_type):
     '''Returns a paginated dictionary of all tasks where other individuals can be merged into the selected individual'''
+
+    if (not current_user.admin) and (not GLOBALS.redisClient.sismember('active_jobs_'+str(current_user.turkcode[0].task_id),current_user.username)): return {'redirect': url_for('done')}, 278
+
     individual_id = None
     task_id = None
     if id_type == 'individual':
@@ -15305,19 +16142,25 @@ def getMergeTasks(id,id_type):
     mutual = True if mutual == 1 else False
     task_info = []
     tags = []
-
+    area_id = None
     indiv_tids = []
+    sub_task_ids = []
     if individual_id:
         individual = db.session.query(Individual).get(individual_id)
         if individual and individual.active==True and all(checkSurveyPermission(current_user.id,task.survey_id,'write') for task in individual.tasks):
             species = individual.species
             indiv_tids = [task.id for task in individual.tasks]
+            area_id = individual.tasks[0].survey.area_id
     elif task_id:
         if (not current_user.admin) and (not GLOBALS.redisClient.sismember('active_jobs_'+str(current_user.turkcode[0].task_id),current_user.username)): return {'redirect': url_for('done')}, 278 
         task = db.session.query(Task).get(task_id)
         if task and checkAnnotationPermission(current_user.parent_id,task.id):
             species = task.tagging_level.split(',')[1]
             indiv_tids = [task_id]
+            area_id = task.survey.area_id
+            sub_task_ids = [t.id for t in task.sub_tasks]
+
+    if not area_id: mutual = True
 
     if indiv_tids:            
         IndividualTask = alias(Task)
@@ -15332,18 +16175,17 @@ def getMergeTasks(id,id_type):
         survey_ids = [r[1] for r in mutual_tasks]
         survey_ids = list(set(survey_ids))
 
+        other_tasks_has_area_lib = db.session.query(Task.survey_id).filter(Task.survey_id.in_(survey_ids)).filter(Task.id.notin_(task_ids)).filter(Task.areaID_library==True).first()
+        if other_tasks_has_area_lib:
+            mutual = True
+
         if mutual:
             tasks = db.session.query(Task.id, Task.name, Survey.name, Survey.id)\
                                 .join(Survey)\
                                 .join(Individual,Task.individuals)\
-                                .filter(Task.status.in_(['SUCCESS', 'Stopped', 'Ready']))\
                                 .filter(Individual.species==species)\
                                 .filter(Individual.name != 'unidentifiable')\
                                 .filter(Task.id.in_(task_ids))
-            if individual_id:
-                tasks = surveyPermissionsSQ(tasks,current_user.id,'write').distinct().all()
-            else:
-                tasks = annotationPermissionSQ(tasks,current_user.parent_id).distinct().all()
         else:
             exclude_tasks = db.session.query(Task.id)\
                             .join(Individual,Task.individuals)\
@@ -15352,19 +16194,32 @@ def getMergeTasks(id,id_type):
                             .filter(IndividualTask.c.id.notin_(task_ids))\
                             .distinct().subquery()
 
+            area_id_surveys = db.session.query(Survey.id).join(Task).filter(Survey.area_id==area_id).filter(Task.areaID_library==True).subquery()
             tasks = db.session.query(Task.id, Task.name, Survey.name, Survey.id)\
                                 .join(Survey)\
                                 .join(Individual,Task.individuals)\
                                 .outerjoin(exclude_tasks, Task.id==exclude_tasks.c.id)\
-                                .filter(Task.status.in_(['SUCCESS', 'Stopped', 'Ready']))\
+                                .outerjoin(area_id_surveys, Task.survey_id==area_id_surveys.c.id)\
                                 .filter(Individual.species==species)\
                                 .filter(Individual.name != 'unidentifiable')\
-                                .filter(exclude_tasks.c.id==None)
+                                .filter(exclude_tasks.c.id==None)\
+                                .filter(Survey.area_id==area_id)\
+                                .filter(Survey.area_id!=None)\
+                                .filter(or_(Task.areaID_library==True, area_id_surveys.c.id==None))
 
-            if individual_id:
-                tasks = surveyPermissionsSQ(tasks,current_user.id,'write').distinct().all()
-            else:
-                tasks = annotationPermissionSQ(tasks,current_user.parent_id).distinct().all()
+        if individual_id:
+            tasks = tasks.filter(or_(
+                and_(Task.status.in_(Config.TASK_READY_STATUSES), Survey.status.in_(Config.SURVEY_READY_STATUSES)), 
+                and_(Task.status=='ID Processing',Task.id.in_(sub_task_ids))
+            ))
+            tasks = surveyPermissionsSQ(tasks,current_user.id,'write').distinct().all()
+        else:
+            tasks = tasks.filter(or_(
+                and_(Task.status.in_(Config.TASK_READY_STATUSES), Survey.status.in_(Config.SURVEY_READY_STATUSES)), 
+                and_(Task.status=='ID Processing',Task.id.in_(sub_task_ids)),
+                Task.id==task_id,
+            ))
+            tasks = annotationPermissionSQ(tasks,current_user.parent_id).distinct().all()
                                     
         for task in tasks:
             task_info.append({
@@ -15407,6 +16262,7 @@ def getKnownIndividuals():
     task = cluster.task
     if task and checkAnnotationPermission(current_user.parent_id,task.id):
         species = task.tagging_level.split(',')[1]
+        area_id = task.survey.area_id
             
         IndividualTask = alias(Task)
         mutual_tasks = db.session.query(Task.id, Task.survey_id)\
@@ -15419,9 +16275,19 @@ def getKnownIndividuals():
         mutual_sids = [r[1] for r in mutual_tasks]
         mutual_sids = list(set(mutual_sids))
 
+        other_tasks_has_area_lib = db.session.query(Task.survey_id).filter(Task.survey_id.in_(mutual_sids)).filter(Task.id.notin_(mutual_tids)).filter(Task.areaID_library==True).first()
+        if other_tasks_has_area_lib:
+            task_id = task.id 
+
+        sub_task_ids = [t.id for t in task.sub_tasks]
         tasks = annotationPermissionSQ(db.session.query(Task.id)\
                                 .join(Survey)\
-                                .filter(Task.status.in_(['SUCCESS', 'Stopped', 'Ready']))\
+                                .filter(Survey.area_id==area_id)\
+                                .filter(or_(
+                                    and_(Task.status.in_(Config.TASK_READY_STATUSES), Survey.status.in_(Config.SURVEY_READY_STATUSES)), 
+                                    and_(Task.status=='ID Processing',Task.id.in_(sub_task_ids)),
+                                    Task.id==task.id,
+                                ))\
                                 ,current_user.parent_id)
 
         if task_id:
@@ -15435,9 +16301,13 @@ def getKnownIndividuals():
                             .filter(IndividualTask.c.id.notin_(mutual_tids))\
                             .distinct().subquery()
 
-            tasks = tasks.outerjoin(exclude_tasks, Task.id==exclude_tasks.c.id)\
-                            .filter(exclude_tasks.c.id==None)\
-                            .distinct().all()
+            tasks = tasks.outerjoin(exclude_tasks, Task.id==exclude_tasks.c.id).filter(exclude_tasks.c.id==None)
+
+            area_id_surveys = db.session.query(Survey.id).join(Task).filter(Survey.area_id==area_id).filter(Task.areaID_library==True).subquery()
+            tasks = tasks.outerjoin(area_id_surveys, Task.survey_id==area_id_surveys.c.id)\
+                                .filter(or_(area_id_surveys.c.id==None, Task.areaID_library==True))\
+                                .filter(Survey.area_id!=None)\
+                                .distinct().all()
 
             task_ids = [r[0] for r in tasks]
 
@@ -15447,11 +16317,22 @@ def getKnownIndividuals():
             Individual.species == species
         )    
 
-        individuals = db.session.query(Individual.id, Individual.name)\
+        # individuals = db.session.query(Individual.id, Individual.name)\
+        #                     .join(Task,Individual.tasks)\
+        #                     .filter(Task.id.in_(task_ids))\
+        #                     .filter(Task.status.in_(['SUCCESS', 'Stopped', 'Ready']))\
+        #                     .filter(individual_filters)
+
+        BestDetection = alias(Detection)
+        individuals = db.session.query(Individual.id, Individual.name, Image.filename, Camera.path, Detection.id, Detection.top, Detection.left, Detection.right, Detection.bottom)\
                             .join(Task,Individual.tasks)\
+                            .join(Detection,Individual.detections)\
+                            .outerjoin(BestDetection, Individual.primary_detections)\
+                            .outerjoin(Image, BestDetection.c.image_id==Image.id)\
+                            .outerjoin(Camera)\
                             .filter(Task.id.in_(task_ids))\
-                            .filter(Task.status.in_(['SUCCESS', 'Stopped', 'Ready']))\
-                            .filter(individual_filters)
+                            .filter(individual_filters)\
+                            .filter(or_(Detection.image_id==Image.id, Image.id==None))
 
         if tag:
             individuals = individuals.filter(Individual.tags.any(Tag.description==tag))
@@ -15497,7 +16378,27 @@ def getKnownIndividuals():
         # individuals = individuals.distinct().paginate(page, 9, False)
         individuals = individuals.distinct().group_by(Individual.id).paginate(page, 9, False)
 
-        best_detections = calculate_individual_best_detection([individual[0] for individual in individuals.items])
+        # best_detections = calculate_individual_best_detection([individual[0] for individual in individuals.items])
+
+        best_detections = {}
+        bd_ids = []
+        for individual in individuals.items:
+            if individual[2]:
+                best_detections[individual[0]] = {
+                    'filename': individual[2],
+                    'path': individual[3],
+                    'det_id': individual[4],
+                    'top': individual[5],
+                    'left': individual[6],
+                    'right': individual[7],
+                    'bottom': individual[8]
+                }
+            else:
+                bd_ids.append(individual[0])
+
+        if bd_ids:
+            # Calculate best detections for individuals that do not have a primary detection
+            best_detections.update(calculate_individual_best_detection(bd_ids))
 
         for individual in individuals.items:
             id = individual[0]
@@ -15512,6 +16413,7 @@ def getKnownIndividuals():
                 'name': name,
                 'url': (best_detection['path'] + '/' + best_detection['filename']).replace('+','%2B').replace('?','%3F').replace('#','%23').replace('\\','%5C'),
                 'detection': {
+                    'id': best_detection['det_id'],
                     'top': best_detection['top'],
                     'left': best_detection['left'],
                     'right': best_detection['right'],
@@ -15567,3 +16469,589 @@ def getFolderFirstFile(org_id,survey_id,folder):
                 file = '/'.join(file.split('/')[2:-1]) 
 
     return json.dumps(file)
+
+@app.route('/submitFeatures', methods=['POST'])
+@login_required
+def submitFeatures():
+    '''Submits the features of a detection'''
+
+    features =  ast.literal_eval(request.form['features'])
+    individual_id = ast.literal_eval(request.form['individual_id']) 
+
+    individual = db.session.query(Individual).get(individual_id)
+    status = 'error'
+    message = 'An error occured.'
+
+    if (not current_user.admin) and (not GLOBALS.redisClient.sismember('active_jobs_'+str(current_user.turkcode[0].task_id),current_user.username)): return {'redirect': url_for('done')}, 278
+
+    if individual and individual.active and (all(checkSurveyPermission(current_user.id,task.survey_id,'write') for task in individual.tasks) or all(checkAnnotationPermission(current_user.parent_id,task.id) for task in individual.tasks)):
+        detection_ids = features.keys()
+        detections = db.session.query(Detection).filter(Detection.id.in_(detection_ids)).distinct().all()
+        for detection in detections:
+            if detection not in individual.detections: continue
+            detection_id = str(detection.id)
+            det_area = (detection.right - detection.left) * (detection.bottom - detection.top)
+
+            if features[detection_id]['removed']:
+                del_features = db.session.query(Feature).filter(Feature.detection_id==detection_id).filter(Feature.id.in_(features[detection_id]['removed'])).distinct().all()
+                for feature in del_features:
+                    db.session.delete(feature)
+
+            if features[detection_id]['edited']:
+                for feature_id in features[detection_id]['edited']:
+                    feature = features[detection_id]['edited'][feature_id]
+                    poly_coords = feature['coords']
+                    poly_string = 'POLYGON(('
+                    for coord in poly_coords:
+                        if round(coord[0],2) == 0 or coord[0] < 0 : coord[0] = 0
+                        if round(coord[1],2) == 0 or coord[1] < 0: coord[1] = 0
+                        if round(coord[0],2) == 1 or coord[0] > 1: coord[0] = 1
+                        if round(coord[1],2) == 1 or coord[1] > 1: coord[1] = 1
+                        poly_string += str(coord[0]) + ' ' + str(coord[1]) + ','
+                    poly_string = poly_string[:-1] + '))'
+                    poly_area = db.session.query(func.ST_Area(func.ST_GeomFromText(poly_string))).first()[0]
+                    if poly_area > 0 and poly_area < det_area:
+                        feature = db.session.query(Feature).filter(Feature.id==feature_id).filter(Feature.detection_id==detection_id).first()
+                        if feature:
+                            feature.shape = poly_string
+
+            if features[detection_id]['added']:
+                for feature_id in features[detection_id]['added']:
+                    feature = features[detection_id]['added'][feature_id]
+                    poly_coords = feature['coords']
+                    poly_string = 'POLYGON(('
+                    for coord in poly_coords:
+                        if round(coord[0],2) == 0 or coord[0] < 0 : coord[0] = 0
+                        if round(coord[1],2) == 0 or coord[1] < 0: coord[1] = 0
+                        if round(coord[0],2) == 1 or coord[0] > 1: coord[0] = 1
+                        if round(coord[1],2) == 1 or coord[1] > 1: coord[1] = 1
+                        poly_string += str(coord[0]) + ' ' + str(coord[1]) + ','
+                    poly_string = poly_string[:-1] + '))'
+                    poly_area = db.session.query(func.ST_Area(func.ST_GeomFromText(poly_string))).first()[0]
+                    if poly_area > 0 and poly_area < det_area:
+                        check = db.session.query(Feature).filter(Feature.shape==poly_string).filter(Feature.detection_id==detection_id).first()
+                        if not check:
+                            new_feature = Feature(shape=poly_string, detection_id=detection_id)
+                            db.session.add(new_feature)
+
+            if features[detection_id]['user_selected'] == 'true':
+                # Set the detection as the new primary detection
+                for prim_det in individual.primary_detections:
+                    if prim_det.flank==detection.flank: individual.primary_detections.remove(prim_det)
+                individual.primary_detections.append(detection)
+                individual.primary_selected = True
+
+        db.session.commit()
+        status = 'success'
+        message = ''
+        
+    return json.dumps({'status': status, 'message': message})
+
+@app.route('/editIndividualTag', methods=['POST'])
+@login_required
+def editIndividualTag():
+    ''' Edits a tag for the specified individual'''
+
+    if (not current_user.admin) and (not GLOBALS.redisClient.sismember('active_jobs_'+str(current_user.turkcode[0].task_id),current_user.username)): return {'redirect': url_for('done')}, 278
+
+    individual_id = ast.literal_eval(request.form['individual_id'])
+    individual = db.session.query(Individual).get(individual_id)
+    tag = ast.literal_eval(request.form['tag'])
+    add = ast.literal_eval(request.form['add'])
+    if individual and individual.active and (all(checkSurveyPermission(current_user.id,task.survey_id,'write') for task in individual.tasks) or all(checkAnnotationPermission(current_user.parent_id,task.id) for task in individual.tasks)):
+        if tag:
+            if add=='false':
+                tag_obj = db.session.query(Tag).join(Individual, Tag.individuals).filter(Individual.id==individual_id).filter(Tag.description==tag).first()
+                if tag_obj and tag_obj in individual.tags:
+                    individual.tags.remove(tag_obj)
+            elif add=='true':
+                tag_obj = db.session.query(Tag).join(Task, Tag.task).filter(Task.id.in_([task.id for task in individual.tasks])).filter(Tag.description==tag).first()
+                if tag_obj and tag_obj not in individual.tags:
+                    individual.tags.append(tag_obj)
+
+        db.session.commit()
+
+        return json.dumps('success')
+    
+    return json.dumps('error')
+
+@app.route('/getIndividualFlankDets/<individual_id>/<flank>')
+@login_required
+def getIndividualFlankDets(individual_id, flank):
+    '''Returns a dictionary of all detections for a specific flank of an individual with any drawn features'''
+
+    if (not current_user.admin) and (not GLOBALS.redisClient.sismember('active_jobs_'+str(current_user.turkcode[0].task_id),current_user.username)): return {'redirect': url_for('done')}, 278
+
+    reply = []
+    individual = db.session.query(Individual).get(individual_id)
+    if not (individual and individual.active and (all(checkSurveyPermission(current_user.id,task.survey_id,'read') for task in individual.tasks) or all(checkAnnotationPermission(current_user.parent_id,task.id) for task in individual.tasks))):
+        return json.dumps({'status': 'error', 'message': 'You do not have permission.'})
+
+    prim_det_sq = db.session.query(Detection.id)\
+                        .join(Individual, Detection.primary_individuals)\
+                        .filter(Individual.id==individual_id)\
+                        .filter(Detection.flank==flank).subquery()
+    
+    dets_data= db.session.query(
+                    Detection.id, 
+                    Detection.flank, 
+                    Detection.top, 
+                    Detection.bottom, 
+                    Detection.left, 
+                    Detection.right, 
+                    Image.filename, 
+                    Camera.path,
+                    Feature.id, 
+                    func.ST_AsGeoJSON(Feature.shape)
+                )\
+                .join(Image, Image.id==Detection.image_id)\
+                .join(Camera)\
+                .join(Individual, Detection.individuals)\
+                .outerjoin(Feature, Feature.detection_id==Detection.id)\
+                .filter(Individual.id==individual_id)\
+                .filter(Detection.flank==flank)\
+                .outerjoin(prim_det_sq, Detection.id==prim_det_sq.c.id)\
+                .order_by(prim_det_sq.c.id.desc(), Feature.id.desc())\
+                .distinct().all()
+        
+    flank_dets = {}
+    for det_id, flank, top, bottom, left, right, filename, path, feature_id, shape in dets_data:
+        if det_id not in flank_dets:
+            # Create a new entry for this flank if it doesn't exist
+            flank_dets[det_id] = {
+                'url': (path + '/' + filename).replace('+','%2B').replace('?','%3F').replace('#','%23').replace('\\','%5C'),
+                'detection': {
+                    'id': det_id,
+                    'top': top,
+                    'bottom': bottom,
+                    'left': left,
+                    'right': right,
+                    'flank': flank,
+                    'features': [],
+                    'individual_id': individual_id,
+                }
+            }
+        if feature_id:
+            # Add the feature to the detection if it exists
+            flank_dets[det_id]['detection']['features'].append({
+                'id': feature_id,
+                'coords': json.loads(shape)['coordinates'][0],
+            })
+
+    reply = list(flank_dets.values())
+
+    return json.dumps({'status': 'success', 'data': reply})
+
+@app.route('/getIndividualHullCoords/<individual_id>')
+@login_required
+def getIndividualHullCoords(individual_id):
+    '''Returns the hull coordinates for a specific individual'''
+
+    hull_points = []
+    coords = []
+    individual = db.session.query(Individual).get(individual_id)
+    if individual and individual.active and (all(checkAnnotationPermission(current_user.parent_id,task.id) for task in individual.tasks) or any(checkSurveyPermission(current_user.id,task.survey_id,'read') for task in individual.tasks)):    
+        # Get the convex hull of all the indiviudals coordinates
+        coords = [tuple(row) for row in db.session.query(Trapgroup.tag, Trapgroup.latitude, Trapgroup.longitude)\
+                        .join(Camera)\
+                        .join(Image)\
+                        .join(Detection)\
+                        .filter(Detection.individuals.contains(individual))\
+                        .filter(or_(Trapgroup.latitude != 0, Trapgroup.longitude != 0))\
+                        .distinct().all()]
+
+        if len(coords) > 3:
+            try:
+                points = np.array([(lon, lat) for tag, lat, lon in coords])
+                hull = ConvexHull(points)
+                hull_points = points[hull.vertices]
+                hull_points = [(lat, lon) for lon, lat in hull_points]
+            except: 
+                hull_points = [(lat, lon) for tag, lat, lon in coords]
+        else:
+            hull_points = [(lat, lon) for tag, lat, lon in coords]
+
+    return json.dumps({'hull_coords': hull_points, 'coords': coords})
+
+@app.route('/getAreas')
+@login_required
+def getAreas():
+    '''Returns a list of areas for the current user'''
+    org_id = request.args.get('org_id', None, type=int)
+    id = request.args.get('id', False, type=bool)
+    reply = []
+    if current_user and current_user.is_authenticated:
+        areas = db.session.query(Area.id,Area.name).join(Survey).join(Organisation).join(UserPermissions).filter(UserPermissions.user_id==current_user.id)
+        if org_id:
+            areas = areas.filter(Organisation.id==org_id)
+        if id:
+            areas = areas.distinct().all()
+            for area in areas:
+                reply.append({
+                    'id': area[0],
+                    'name': area[1]
+                })
+        else:
+            reply = list(set([r[1] for r in areas.order_by(Area.name).distinct().all()]))
+
+    return json.dumps({'areas': reply})
+
+@app.route('/getSurveyAreas/<survey_id>')
+@login_required
+def getSurveyAreas(survey_id):
+    '''Returns the current area of a survey as well as the other areas that are available for the survey'''
+    areas = []
+    survey = db.session.query(Survey).get(survey_id)
+    if survey and checkSurveyPermission(current_user.id,survey_id,'read'):
+        # Get the current area of the survey
+        if survey.area_id:
+            areas.append({
+                'id': survey.area_id,
+                'name': survey.area.name,
+                'active': True
+            })
+
+            # Get other areas available for the survey
+            other_areas = db.session.query(Area.id, Area.name).join(Survey).join(Organisation).filter(Organisation.id==survey.organisation_id).filter(Area.id!=survey.area_id).distinct().all()
+        else:
+            other_areas = db.session.query(Area.id, Area.name).join(Survey).join(Organisation).filter(Organisation.id==survey.organisation_id).distinct().all()
+
+        for area in other_areas:
+            areas.append({
+                'id': area[0],
+                'name': area[1],
+                'active': False
+            })
+
+        area_lib_check = bool(db.session.query(Task).filter(Task.survey_id==survey_id).filter(Task.areaID_library==True).first())
+
+    return json.dumps({'status': 'success', 'areas': areas, 'area_lib': area_lib_check})
+
+@app.route('/getAreaIdTasks/<task_id>/<species>')
+@login_required
+def getAreaIdTasks(task_id, species):
+    '''Returns the area ID and tasks for a specific task and species'''
+    surveys = []
+    task = db.session.query(Task).get(task_id)
+    if task and checkSurveyPermission(current_user.id, task.survey_id, 'write'):
+        area_id = task.survey.area_id
+        area_id_surveys = db.session.query(Survey.id).join(Task).filter(Survey.area_id==area_id).filter(Task.areaID_library==True).subquery()
+        area_tasks = db.session.query(Task.id, Survey.id, Task.name, Survey.name)\
+                                .join(Survey)\
+                                .filter(Survey.area_id==area_id)\
+                                .join(Individual, Task.individuals)\
+                                .filter(Individual.species==species)\
+                                .join(Label, and_(Label.task_id==Task.id, Label.description==species))\
+                                .filter(Label.icID_allowed==True)\
+                                .filter(Task.survey_id!=task.survey_id)\
+                                .outerjoin(area_id_surveys, Task.survey_id==area_id_surveys.c.id)\
+                                .filter(or_(Task.areaID_library==True, area_id_surveys.c.id==None))\
+                                .filter(Survey.area_id!=None)\
+                                .distinct().all()
+
+        survey_data = {
+            task.survey_id: {
+                'id': task.survey_id,
+                'name': task.survey.name,
+                'tasks': [{
+                    'id': task.id,
+                    'name': task.name
+                }]
+            }
+        }
+
+        for t in area_tasks:
+            if t[1] not in survey_data:
+                survey_data[t[1]] = {
+                    'id': t[1],
+                    'name': t[3],
+                    'tasks': []
+                }
+            survey_data[t[1]]['tasks'].append({
+                'id': t[0],
+                'name': t[2]
+            })
+
+        surveys = list(survey_data.values())
+
+    return json.dumps({'status': 'success', 'surveys': surveys})
+
+@app.route('/getUnidentifiable', methods=['POST'])
+@login_required
+def getUnidentifiable():
+    '''Returns a list of unidentifiable detections based on the specified filters'''
+    reply = []
+    access = 'hidden'
+    task_id = ast.literal_eval(request.form['task_id'])   
+    species = ast.literal_eval(request.form['species'])
+    start_date = ast.literal_eval(request.form['start_date'])
+    end_date = ast.literal_eval(request.form['end_date'])
+    order = ast.literal_eval(request.form['order']) 
+    site = ast.literal_eval(request.form['site']) 
+
+
+    if task_id:
+        if task_id  == '0':
+            tasks = surveyPermissionsSQ(db.session.query(Task.id, Survey.id).join(Survey),current_user.id, 'read')
+        else:
+            tasks = surveyPermissionsSQ(db.session.query(Task.id, Survey.id).join(Survey).filter(Task.id==task_id),current_user.id, 'read')
+        tasks = tasks.distinct().all()
+        task_ids = [r[0] for r in tasks]
+        survey_ids = [r[1] for r in tasks] 
+        survey_ids = list(set(survey_ids))
+
+        write_access_surveys = [r[0] for r in surveyPermissionsSQ(db.session.query(Survey.id),current_user.id, 'write').filter(Survey.id.in_(survey_ids)).distinct().all()]
+
+        unidentifiable = rDets(db.session.query(
+                    Detection.id,
+                    Detection.top,
+                    Detection.left,
+                    Detection.right,
+                    Detection.bottom,
+                    Detection.flank,
+                    Image.id,
+                    Image.filename,
+                    Image.corrected_timestamp,
+                    Camera.path,
+                    Trapgroup.id,
+                    Trapgroup.tag,
+                    Trapgroup.latitude,
+                    Trapgroup.longitude,
+                    Trapgroup.altitude,
+                    Individual.id,
+                    Individual.species,
+                    Task.name,
+                    Survey.name,
+                    Survey.id
+                )\
+                .join(Image, Image.id==Detection.image_id)\
+                .join(Camera, Camera.id==Image.camera_id)\
+                .join(Trapgroup, Trapgroup.id==Camera.trapgroup_id)\
+                .join(Individual, Detection.individuals)\
+                .join(Task, Individual.tasks)\
+                .join(Survey, Task.survey_id==Survey.id)\
+                .filter(Individual.name=='unidentifiable')\
+                .filter(Trapgroup.survey_id.in_(survey_ids))\
+                .filter(Task.id.in_(task_ids)))\
+                .filter(Task.status.in_(Config.TASK_READY_STATUSES))\
+                .filter(Survey.status.in_(Config.SURVEY_READY_STATUSES))
+
+
+        if species != '0':
+            unidentifiable = unidentifiable.filter(Individual.species==species)
+
+        if site != '0':
+            unidentifiable = unidentifiable.filter(Trapgroup.tag==site)
+
+        if start_date:
+            unidentifiable = unidentifiable.filter(Image.corrected_timestamp>=start_date)
+
+        if end_date:
+            unidentifiable = unidentifiable.filter(Image.corrected_timestamp<=end_date)
+
+        if order == 'a1':
+            unidentifiable = unidentifiable.order_by(Image.corrected_timestamp)
+        elif order == 'd1':
+            unidentifiable = unidentifiable.order_by(desc(Image.corrected_timestamp))
+        elif order == 'a2':
+            unidentifiable = unidentifiable.order_by(Trapgroup.tag)
+        elif order == 'd2':
+            unidentifiable = unidentifiable.order_by(desc(Trapgroup.tag))
+        elif order == 'a3':
+            unidentifiable = unidentifiable.order_by(Image.detection_rating)
+        elif order == 'd3':
+            unidentifiable = unidentifiable.order_by(desc(Image.detection_rating))
+            
+        
+        unidentifiable = unidentifiable.distinct().all()
+
+        for data in unidentifiable:
+            detection_id, top, left, right, bottom, flank, image_id, filename, timestamp, path, trapgroup_id, tag, latitude, longitude, altitude, individual_id, species, task, survey, survey_id = data
+            reply.append({
+                'id': image_id,
+                'url': (path + '/' + filename).replace('+','%2B').replace('?','%3F').replace('#','%23').replace('\\','%5C'),
+                'timestamp': timestamp.strftime('%Y-%m-%d %H:%M:%S') if timestamp else '',
+                'trapgroup':{
+                    'id': trapgroup_id,
+                    'tag': tag,
+                    'latitude': latitude,
+                    'longitude': longitude,
+                    'altitude': altitude
+                },
+                'detections': [{
+                    'id': detection_id,
+                    'top': top,
+                    'left': left,
+                    'right': right,
+                    'bottom': bottom,
+                    'flank': flank,
+                    'species': species,
+                    'static': False,
+                    'task': '{} {}'.format(survey,task),
+                    'individual_id': individual_id
+                }],
+                'access': 'write' if survey_id in write_access_surveys else 'read'
+            })
+
+    return json.dumps({'individual': reply, 'access': access})
+
+@app.route('/markUnidentifiable/<individual_id>')
+@login_required
+def markUnidentifiable(individual_id):
+    '''Marks the individual as unidentifiable.'''
+
+    if (not current_user.admin) and (not GLOBALS.redisClient.sismember('active_jobs_'+str(current_user.turkcode[0].task_id),current_user.username)): return {'redirect': url_for('done')}, 278
+
+    individual = db.session.query(Individual).get(int(individual_id))
+    detection_id = request.args.get('detection_id', None, type=int)
+    if individual and individual.active and all(checkSurveyPermission(current_user.id,task.survey_id,'write') for task in individual.tasks):
+        individual.active = False
+        db.session.commit()
+        
+        if Config.DEBUGGING:
+            if detection_id:
+                app.logger.info('Detection {} from individual {} from tasks {} marked as unidentifiable'.format(detection_id, individual.name, individual.tasks))
+            else:
+                app.logger.info('Individual {} from tasks {} marked as unidentifiable'.format(individual.name, individual.tasks))
+
+        task_ids = [task.id for task in individual.tasks]
+        unidentifiables = {r.tasks[0].id: r for r in db.session.query(Individual)\
+                            .filter(Individual.tasks.any(Task.id.in_(task_ids)))\
+                            .filter(Individual.species==individual.species)\
+                            .filter(Individual.name=='unidentifiable')\
+                            .distinct().all()}
+        det_task_query = db.session.query(Detection.id, Labelgroup.task_id)\
+                                        .join(Labelgroup)\
+                                        .join(Individual,Detection.individuals)\
+                                        .filter(Individual.id==individual.id)\
+                                        .filter(Labelgroup.task_id.in_(task_ids))
+
+        if detection_id: det_task_query = det_task_query.filter(Detection.id==detection_id)
+
+        detection_tasks = {r[0]: r[1] for r in det_task_query.distinct().all()}
+
+        if detection_id:
+            detection = db.session.query(Detection).get(detection_id)
+            if detection and detection in individual.detections:
+                unidentifiable = unidentifiables.get(detection_tasks.get(detection.id))
+                
+                if detection not in unidentifiable.detections:
+                    unidentifiable.detections.append(detection)
+                    individual.detections.remove(detection)
+
+                    if detection in individual.primary_detections: 
+                        individual.primary_detections.remove(detection)
+                        db.session.commit()
+                        update_individuals_primary_dets(individual_ids=[individual.id])
+                    
+            individual.active = True
+            db.session.commit()   
+
+            individuals1 = [r[0] for r in db.session.query(Individual.id)\
+                                    .join(Task,Individual.tasks)\
+                                    .join(IndSimilarity, or_(IndSimilarity.individual_1==Individual.id,IndSimilarity.individual_2==Individual.id))\
+                                    .filter(Task.id.in_(task_ids))\
+                                    .filter(Individual.species==individual.species)\
+                                    .filter(Individual.name!='unidentifiable')\
+                                    .filter(Individual.id != individual.id)\
+                                    .filter(or_(IndSimilarity.individual_1==individual.id,IndSimilarity.individual_2==individual.id))\
+                                    .filter(or_(IndSimilarity.detection_1==int(detection_id),IndSimilarity.detection_2==int(detection_id)))\
+                                    .all()]    
+            if individuals1: calculate_individual_similarity.delay(individual1=individual.id,individuals2=individuals1,species=individual.species)
+
+        else: 
+            for detection in individual.detections:
+                unidentifiable = unidentifiables.get(detection_tasks.get(detection.id))
+                if detection not in unidentifiable.detections:
+                    unidentifiable.detections.append(detection)
+            
+            allSimilarities = db.session.query(IndSimilarity).filter(or_(IndSimilarity.individual_1==individual.id,IndSimilarity.individual_2==individual.id)).distinct().all()
+            for similarity in allSimilarities:
+                db.session.delete(similarity)
+
+            individual.detections = []
+            individual.primary_detections = []
+            individual.tags = []
+            individual.children = []
+            individual.parents = []
+            individual.tasks = []
+            db.session.delete(individual)
+
+        db.session.commit()
+
+        return json.dumps({'status': 'success'})
+
+    return json.dumps({'status': 'error'})
+
+@app.route('/getAllUnidSpeciesSitesAndTasks')
+@login_required
+def getAllUnidSpeciesSitesAndTasks():
+    '''Returns all species, sites and tasks that have unidentifiable individuals'''
+
+    species = [r[0] for r in surveyPermissionsSQ(db.session.query(Individual.species).join(Task, Individual.tasks).join(Survey).filter(Individual.name=='unidentifiable'),current_user.id,'read').order_by(Individual.species).distinct().all()]
+    sites = [r[0] for r in surveyPermissionsSQ(db.session.query(Trapgroup.tag).join(Survey).join(Task).join(Individual,Task.individuals).filter(Individual.name=='unidentifiable'),current_user.id,'read').order_by(Trapgroup.tag).distinct().all()]
+    tasks = surveyPermissionsSQ(db.session.query(Task.id, Task.name, Survey.name)\
+                    .join(Survey)\
+                    .join(Individual, Task.individuals)\
+                    .filter(Individual.name=='unidentifiable')\
+                    .filter(Task.status.in_(Config.TASK_READY_STATUSES))\
+                    .filter(Survey.status.in_(Config.SURVEY_READY_STATUSES))
+                    ,current_user.id,'read').order_by(Task.id.desc()).distinct().all()
+    tasks = [{'id': t[0], 'name': t[2] + ' - ' + t[1]} for t in tasks]
+
+    return json.dumps({'species': species, 'sites': sites, 'tasks': tasks})
+
+@app.route('/restoreUnidentifiableDetection/<detection_id>/<individual_id>')
+@login_required
+def restoreUnidentifiableDetection(detection_id, individual_id):
+    '''Restores a detection from an unidentifiable individual to a new identifiable individual'''
+
+    status = 'error'
+    detection = db.session.query(Detection).get(int(detection_id))
+    individual = db.session.query(Individual)\
+                        .filter(Individual.id==int(individual_id))\
+                        .filter(Individual.name=='unidentifiable')\
+                        .filter(Individual.detections.contains(detection))\
+                        .first()
+    if detection and individual and all(checkSurveyPermission(current_user.id,task.survey_id,'write') for task in individual.tasks):
+        
+        individual.detections.remove(detection)
+
+        newIndividual = Individual( species=individual.species,
+                                    user_id=current_user.id,
+                                    timestamp=datetime.utcnow())
+
+        db.session.add(newIndividual)
+        db.session.flush()
+        newIndividual.name = str(newIndividual.id)
+        newIndividual.detections.append(detection)
+        newIndividual.primary_detections = [detection]
+
+        task_ids = [t.id for t in individual.tasks]
+
+        newIndividual.tasks = db.session.query(Task)\
+                                        .join(Survey)\
+                                        .join(Trapgroup)\
+                                        .join(Camera)\
+                                        .join(Image)\
+                                        .filter(Image.detections.contains(detection))\
+                                        .filter(Task.id.in_(task_ids))\
+                                        .distinct().all()
+
+        db.session.commit()
+
+        individuals = [r[0] for r in db.session.query(Individual.id)\
+                                        .join(Task,Individual.tasks)\
+                                        .filter(Task.id.in_(task_ids))\
+                                        .filter(Individual.species==individual.species)\
+                                        .filter(Individual.name!='unidentifiable')\
+                                        .filter(Individual.id != newIndividual.id)\
+                                        .all()]
+
+        calculate_individual_similarity.delay(individual1=newIndividual.id,individuals2=individuals,species=individual.species)
+
+        status = 'success'
+    
+    return json.dumps({'status':status})
+
+    
