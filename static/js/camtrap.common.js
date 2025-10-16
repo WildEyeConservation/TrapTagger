@@ -3154,6 +3154,10 @@ function onload (){
         }
     }
 
+    if (isBounding){
+        updateProgress()
+    }
+
     if (isComparison) {
         prepareTable()
     }
@@ -3929,6 +3933,8 @@ document.onkeyup = function(event){
             case 'b': sendBoundingBack()
                 break;
             case 'o': buildOtherKeys()
+                break;
+            case 's': skipBoundingCluster()
                 break;
             case ('1'):assignBoundingLabel(hotkeys[1])
                 break;

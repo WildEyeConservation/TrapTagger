@@ -709,6 +709,7 @@ function buildBoundingKeys(mapID='map1'){
     hotkeys = Array(10).fill(EMPTY_HOTKEY_ID)
 
     current_labels = boundingClusterLabels[clusters[mapID][clusterIndex[mapID]].id]
+    current_labels.sort();
     for (let i=0;i<current_labels.length;i++) {
 
         var newbtn = document.createElement('button');
@@ -838,5 +839,38 @@ function assignBoundingLabel(label,mapID='map1') {
 
         clearBoundingSelect(mapID);
         buildBoundingKeys(mapID);
+    }
+}
+
+function skipBoundingCluster(mapID='map1') {
+    /** Skips the current cluster, and marks it as examined on the server. */
+
+    var currentIndex = clusterIndex[mapID]
+    var currentID = clusters[mapID][currentIndex].id
+    var newIndex = currentIndex + 1
+    while ((newIndex < clusters[mapID].length) && (clusters[mapID][newIndex].id == currentID)) {
+        newIndex += 1
+    }
+
+    if (newIndex-1 < clusters[mapID].length) {
+
+        var xhttp = new XMLHttpRequest();
+        xhttp.onreadystatechange =
+        function(){
+            if (this.readyState == 4 && this.status == 278) {
+                window.location.replace(JSON.parse(this.responseText)['redirect'])
+            }
+            else if (this.readyState == 4 && this.status == 200) {
+                reply = JSON.parse(this.responseText)
+                clusters[mapID][currentIndex].ready = true
+                updateProgBar(reply.progress)
+            }
+        }
+        xhttp.open("GET", '/skipBoundingCluster/'+currentID);
+        xhttp.send();
+
+        clusterIndex[mapID] = newIndex -1
+        clusters[mapID][currentIndex].ready = false
+        nextCluster(mapID)
     }
 }

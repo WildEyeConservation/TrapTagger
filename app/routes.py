@@ -17054,4 +17054,23 @@ def restoreUnidentifiableDetection(detection_id, individual_id):
     
     return json.dumps({'status':status})
 
-    
+@app.route('/skipBoundingCluster/<cluster_id>')
+@login_required
+def skipBoundingCluster(cluster_id):
+    ''' Skips the current cluster in bounding job.'''
+
+    if (not current_user.admin) and (not GLOBALS.redisClient.sismember('active_jobs_'+str(current_user.turkcode[0].task_id),current_user.username)):
+        return {'redirect': url_for('done')}, 278
+
+    cluster = db.session.query(Cluster).get(int(cluster_id))
+    if cluster and (checkAnnotationPermission(current_user.parent_id,cluster.task_id)):
+        cluster.examined = True
+        cluster.user_id = current_user.id
+        cluster.timestamp = datetime.utcnow()
+        db.session.commit()
+        num = db.session.query(Cluster).filter(Cluster.user_id==current_user.id).count()
+        num2 = cluster.task.size + cluster.task.test_size
+
+        return json.dumps({'status': 'success', 'progress': (num,num2)})
+
+    return {'redirect': url_for('done')}, 278

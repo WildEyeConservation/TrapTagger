@@ -49,26 +49,24 @@ limitations under the License. -->
 
         <div class="control-group">
             <div class="row" >
-                <div class="col-lg-2"></div>
-                <div class="col-lg-8">
+                <div class="col-lg-1"></div>
+                <div class="col-lg-10">
                     <div class="row" >
-                        <div class="col-lg-1"></div>
                         <div class="col-lg-3">
                             <button id="prevCluster" class="btn btn-secondary btn-block" onclick=prevCluster()>Back</button>
                         </div>
-                        <div class="col-lg-2">
+                        <div class="col-lg-3">
                             <button id="btnSendBoundingBack" class="btn btn-primary btn-block" onclick=sendBoundingBack() > Send to (B)ack</button>
-                        </div>
-                        <div class="col-lg-2">
-                            <button id="btnRedirectToDone" class="btn btn-success btn-block" onclick=redirectToDone()>Save & Exit</button>
                         </div>
                         <div class="col-lg-3">
                             <button id="nextCluster" class="btn btn-primary btn-block" onclick=submitChanges()>Next</button>
                         </div>
-                        <div class="col-lg-1"></div>
+                        <div class="col-lg-3">
+                            <button id="skipCluster" class="btn btn-secondary btn-block" onclick="skipBoundingCluster()">(S)kip Cluster</button>
+                        </div>
                     </div>
                 </div>
-                <div class="col-lg-2"></div>
+                <div class="col-lg-1"></div>
             </div>
         </div>
 
@@ -79,6 +77,7 @@ limitations under the License. -->
             <div class='card-body'>
                 <div class="control-group">            
                     <div id="divBtns"></div>
+                    <button id="btnRedirectToDone" class="btn btn-success btn-block btn-sm" onclick=redirectToDone()>Save & Exit</button>
                 </div>
             </div>
         </div>
