@@ -563,6 +563,8 @@ function submitChanges(mapID = 'map1') {
                     }
                     bounding_actions.push({type: 'submit'})
                     clusters[wrapMapID][wrapClusterID].ready = true
+                    skip_count= bounding_actions.filter(action => action.type ==='skip').length
+                    reply.progress[0] += skip_count
                     updateProgBar(reply.progress)
                     updateButtons()
                 }
@@ -866,6 +868,8 @@ function skipBoundingCluster(mapID='map1') {
                 reply = JSON.parse(this.responseText)
                 bounding_actions.push({type: 'skip', index: currentIndex})
                 clusters[mapID][currentIndex].ready = true
+                skip_count= bounding_actions.filter(action => action.type ==='skip').length
+                reply.progress[0] += skip_count
                 updateProgBar(reply.progress)
             }
         }

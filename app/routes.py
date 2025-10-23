@@ -17065,8 +17065,8 @@ def skipBoundingCluster(cluster_id):
     cluster = db.session.query(Cluster).get(int(cluster_id))
     if cluster and (checkAnnotationPermission(current_user.parent_id,cluster.task_id)):
         cluster.examined = True
-        cluster.user_id = current_user.id
-        cluster.timestamp = datetime.utcnow()
+        # cluster.user_id = current_user.id
+        # cluster.timestamp = datetime.utcnow()
         db.session.commit()
         num = db.session.query(Cluster).filter(Cluster.user_id==current_user.id).count()
         num2 = cluster.task.size + cluster.task.test_size
