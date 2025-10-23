@@ -1284,6 +1284,16 @@ function goToPrevCluster(mapID = 'map1') {
     if (batchComplete && isTimestampCheck) {
         imageIndex[mapID] = clusters[mapID][clusterIndex[mapID]].images.length-1   
     }
+    if (isBounding) {
+        if (bounding_actions.length > 0) {
+            let bounding_action = bounding_actions.pop();
+            if (bounding_action.type == 'skip') {2
+                if (bounding_action.index >= 0 && bounding_action.index < clusterIndex[mapID]) {
+                    clusterIndex[mapID] = bounding_action.index;
+                }
+            }
+        }
+    }
     updateClusterLabels(mapID)
 
     if (isTagging && !isTutorial && (taggingLevel == '-1' || parseInt(taggingLevel) > 0)) {

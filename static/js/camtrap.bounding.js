@@ -33,6 +33,7 @@ var multiContextVal = 0
 var subDividedContList
 var prevClickBounding = null
 var boundingClusterLabels = {}
+var bounding_actions = []
 
 // const modalNote = $('#modalNote');
 
@@ -560,6 +561,7 @@ function submitChanges(mapID = 'map1') {
                             }
                         }
                     }
+                    bounding_actions.push({type: 'submit'})
                     clusters[wrapMapID][wrapClusterID].ready = true
                     updateProgBar(reply.progress)
                     updateButtons()
@@ -862,6 +864,7 @@ function skipBoundingCluster(mapID='map1') {
             }
             else if (this.readyState == 4 && this.status == 200) {
                 reply = JSON.parse(this.responseText)
+                bounding_actions.push({type: 'skip', index: currentIndex})
                 clusters[mapID][currentIndex].ready = true
                 updateProgBar(reply.progress)
             }

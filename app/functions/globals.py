@@ -7244,7 +7244,6 @@ def process_multi_labels(task_id,trapgroup_ids=None):
     ''' Processes multi labels for a given task ID. Based on classification match of label, parent label, child label, or associated label (share a parent). 
         Add any dropped cluster labels to labelgroup with lowest classification score. 
     '''
-
     starttime=datetime.now()
 
     translations_dict = {lab[0]: lab[1] for lab in db.session.query(Translation.classification, Translation.label_id)\
@@ -7255,11 +7254,27 @@ def process_multi_labels(task_id,trapgroup_ids=None):
                                 .distinct().all()}
 
     labels_dict = {}
+    parent_children = {}
     labels = db.session.query(Label).filter(Label.task_id==task_id).distinct().all()    
     labels.extend(db.session.query(Label).filter(Label.id.in_([GLOBALS.vhl_id,GLOBALS.nothing_id,GLOBALS.unknown_id,GLOBALS.knocked_id])).distinct().all())
     for label in labels:
         labels_dict[label.id] = label
-    
+        if label.parent_id:
+            if label.parent_id not in parent_children:
+                parent_children[label.parent_id] = []
+            parent_children[label.parent_id].append(label.id)
+
+    label_ids = list(set(translations_dict.values()))
+    label_levels = {}
+    for label_id in label_ids:
+        parent_id = labels_dict[label_id].parent_id
+        children_ids = parent_children.get(label_id, [])
+        label_levels[label_id] = {'0': [label_id]}
+        if children_ids:
+            label_levels[label_id]['1'] = children_ids
+        if parent_id:
+            label_levels[label_id]['2'] = [parent_id]
+            label_levels[label_id]['3'] = parent_children.get(parent_id, [])
 
     lg_label_count_sq = db.session.query(Labelgroup.id.label('lg_id'), func.count(Label.id).label('lg_label_count')) \
                                 .join(Label,Labelgroup.labels)\
@@ -7348,32 +7363,23 @@ def process_multi_labels(task_id,trapgroup_ids=None):
             classification = lg['classification']
             class_label = labels_dict.get(translations_dict.get(classification))
             chosen_label = None 
-            lg_labels = set(labelgroup.labels)
+            lg_label_ids = set([lab.id for lab in labelgroup.labels])
             if class_label:
-                if class_label in lg_labels: 
-                    # 1. Classification matches label
-                    chosen_label = class_label
-                elif class_label.parent and class_label.parent in lg_labels:
-                    # 2. Classification matches parent label
-                    chosen_label = class_label.parent
-                else:
-                    # 3. Classification matches a child label
-                    for child in class_label.children:
-                        if child in lg_labels:
-                            chosen_label = child
-                            break
-                    # 4. Classification matches associated label (shares parent)
-                    if not chosen_label and class_label.parent:
-                        for child in class_label.parent.children:
-                            if child in lg_labels: 
-                                chosen_label = child
-                                break 
+                # Get match based on label levels
+                # 0. Classification matches label
+                # 1. Classification matches a child label
+                # 2. Classification matches parent label
+                # 3. Classification matches sibling label (shares parent)
+                for level_ids in label_levels.get(class_label.id, {}).values():
+                    chosen_label = next((labels_dict.get(lab_id) for lab_id in level_ids if lab_id in lg_label_ids), None)
+                    if chosen_label:
+                        break
+
             if not chosen_label:
-                # 5. Majority label
+                # 4. Majority label
                 maj_id = max(counts.items(), key=lambda x: x[1])[0]
-                maj_label = labels_dict.get(maj_id)
-                if maj_label and maj_label in lg_labels: 
-                    chosen_label = maj_label 
+                if maj_id and maj_id in lg_label_ids:
+                    chosen_label = labels_dict.get(maj_id)
 
             if chosen_label:
                 labelgroup.labels = [chosen_label]
@@ -7381,7 +7387,7 @@ def process_multi_labels(task_id,trapgroup_ids=None):
             for lab in labelgroup.labels:
                 counts[lab.id] = counts.get(lab.id, 0) + 1
 
-        # Check for any dropped cluster labels (cluster counts still 0) andd then add drooped label to labelgroup with lowest class score
+        # Check for any dropped cluster labels (cluster counts still 0) and then add dropped label to labelgroup with lowest class score
         for label_id, count in counts.items():
             if count == 0:
                 dropped_label = labels_dict.get(label_id)
@@ -7395,9 +7401,7 @@ def process_multi_labels(task_id,trapgroup_ids=None):
         
     db.session.commit()
 
-    endtime=datetime.now()
-    duration = endtime - starttime
-    if Config.DEBUGGING: app.logger.info('Multi labels processed in: {}'.format(duration))
+    app.logger.info('Multi labels processed in: {}'.format(datetime.now() - starttime))
 
     return True
 
