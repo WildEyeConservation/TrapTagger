@@ -7376,10 +7376,11 @@ def process_multi_labels(task_id,trapgroup_ids=None):
                         break
 
             if not chosen_label:
-                # 4. Majority label
-                maj_id = max(counts.items(), key=lambda x: x[1])[0]
-                if maj_id and maj_id in lg_label_ids:
-                    chosen_label = labels_dict.get(maj_id)
+                # 4. Majority label only if not all counts are equal
+                if len(set(counts.values())) > 1:
+                    maj_id = max(counts.items(), key=lambda x: x[1])[0]
+                    if maj_id and maj_id in lg_label_ids:
+                        chosen_label = labels_dict.get(maj_id)
 
             if chosen_label:
                 labelgroup.labels = [chosen_label]
