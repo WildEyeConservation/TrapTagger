@@ -237,7 +237,7 @@ function prepMapIndividual(image) {
     
             activeImage = L.imageOverlay(imageUrl, bounds).addTo(map);
             activeImage.on('load', function() {
-                addedDetections = false
+                // addedDetections = false
                 addDetectionsIndividual(individualImages[individualSplide.index])
             });
             activeImage.on('error', function() {
