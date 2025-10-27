@@ -673,11 +673,11 @@ function sendBoundingBack() {
     clearBoundingSelect()
     if (sendBackBoundingMode) {
         sendBackBoundingMode = false
-        document.getElementById('btnSendBoundingBack').setAttribute('class','btn btn-primary btn-block')
+        document.getElementById('btnSendBoundingBack').setAttribute('class','btn btn-danger btn-block btn-sm')
         document.getElementById('btnSendBoundingBack').innerHTML = 'Send to (B)ack'
     } else {
         sendBackBoundingMode = true
-        document.getElementById('btnSendBoundingBack').setAttribute('class','btn btn-danger btn-block')
+        document.getElementById('btnSendBoundingBack').setAttribute('class','btn btn-danger btn-block btn-sm')
         document.getElementById('btnSendBoundingBack').innerHTML = 'Cancel'
     }  
 

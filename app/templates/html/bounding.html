@@ -52,18 +52,14 @@ limitations under the License. -->
                 <div class="col-lg-1"></div>
                 <div class="col-lg-10">
                     <div class="row" >
+                        <div class="col-lg-3"></div>
                         <div class="col-lg-3">
                             <button id="prevCluster" class="btn btn-secondary btn-block" onclick=prevCluster()>Back</button>
                         </div>
                         <div class="col-lg-3">
-                            <button id="btnSendBoundingBack" class="btn btn-primary btn-block" onclick=sendBoundingBack() > Send to (B)ack</button>
-                        </div>
-                        <div class="col-lg-3">
                             <button id="nextCluster" class="btn btn-primary btn-block" onclick=submitChanges()>Next</button>
                         </div>
-                        <div class="col-lg-3">
-                            <button id="skipCluster" class="btn btn-secondary btn-block" onclick="skipBoundingCluster()">(S)kip Cluster</button>
-                        </div>
+                        <div class="col-lg-3"></div>
                     </div>
                 </div>
                 <div class="col-lg-1"></div>
@@ -75,7 +71,9 @@ limitations under the License. -->
         <p></p>
         <div class='card' style="font-size:80%">
             <div class='card-body'>
-                <div class="control-group">            
+                <div class="control-group">   
+                    <button id="btnSendBoundingBack" style="margin-top: 3px; margin-bottom: 3px" class="btn btn-danger btn-block btn-sm" onclick=sendBoundingBack() > Send to (B)ack</button>    
+                    <button id="skipCluster" style="margin-top: 3px; margin-bottom: 3px" class="btn btn-danger btn-block btn-sm" onclick="skipBoundingCluster()">(S)kip Cluster</button>  
                     <div id="divBtns"></div>
                     <button id="btnRedirectToDone" class="btn btn-success btn-block btn-sm" onclick=redirectToDone()>Save & Exit</button>
                 </div>
