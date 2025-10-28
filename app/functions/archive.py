@@ -1108,7 +1108,10 @@ def dearchive_and_crop_individuals(self,task_id,launch_kwargs):
         tasks = db.session.query(Task).filter(Task.id.in_(task_ids)).all()
         crop_folders=[]
         for task in tasks: 
-            crop_folders.append(task.survey.organisation.folder + '-comp/' + task.survey.folder + '/_crops_')
+            if task.survey.folder:
+                crop_folders.append(task.survey.organisation.folder + '-comp/' + task.survey.folder + '/_crops_')
+            else:
+                crop_folders.append(task.survey.organisation.folder + '-comp/' + task.survey.name + '/_crops_')
 
         cropped_det_ids = []
         for path in crop_folders:
