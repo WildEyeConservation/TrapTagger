@@ -491,13 +491,13 @@ limitations under the License. -->
 
 <!-- Add images Modal -->
 <div id="modalAddFiles" class="modal fade" role="dialog" tabindex="-1">
-    <div class="modal-dialog" style="max-width: 50%;">
+    <div class="modal-dialog" style="max-width: 70%;">
   
         <!-- Modal content-->
         <div class="modal-content">
             <div class="modal-header">
                 <div class='col-lg-10' style="padding: 0px">
-                    <h4 id="addFilesHeader" class="modal-title">Add Files</h4>
+                    <h4 id="addFilesHeader" class="modal-title">Manage Files</h4>
                 </div>
                 <div class='col-lg-1' style="padding: 0px">
                     <button class='btn btn-primary btn-sm pull-right' onclick="helpOpen('add_files')">Help</button>
@@ -507,9 +507,20 @@ limitations under the License. -->
                 </div>
             </div>
 
+            <div class="tab" id="addFilesTabs">
+                <button id="openAddFilesTab" class="tablinks" onclick="changeFilesTab(event, 'baseAddFilesTab')">Add Files</button>
+                <button id="openEditFilesTab" class="tablinks" onclick="changeFilesTab(event, 'baseEditFilesTab')">Edit Files</button>
+            </div>
+
             <div class="modal-body">
-                <div id="addFilesErrors" style="font-size: 80%; color: #DF691A"></div>
-                <div id="addFilesDiv"></div>
+                <div class="tabcontent" id="baseAddFilesTab">
+                    <div id="addFilesErrors" style="font-size: 80%; color: #DF691A"></div>
+                    <div id="addFilesDiv"></div>
+                </div>
+                <div class="tabcontent" id="baseEditFilesTab">
+                    <div id="editFilesErrors" style="font-size: 80%; color: #DF691A"></div>
+                    <div id="editFilesDiv"></div>
+                </div>
             </div>
             <div class='modal-footer'>
                 <div class='col-lg-8'></div>
@@ -556,7 +567,7 @@ limitations under the License. -->
                 <button id="openAdvancedTab" class="tablinks" onclick="changeEditSurveyTab(event, 'baseAdvancedTab')">Advanced Options</button>
                 <button id="openEditMasksTab" class="tablinks" onclick="changeEditSurveyTab(event, 'baseEditMasksTab')">Masks</button>
                 <button id="openStaticTab" class="tablinks" onclick="changeEditSurveyTab(event, 'baseStaticTab')">Static Detections</button>
-                <button id="openStructureTab" class="tablinks" onclick="changeEditSurveyTab(event, 'baseStructureTab')">Structure</button>
+                <!-- <button id="openStructureTab" class="tablinks" onclick="changeEditSurveyTab(event, 'baseStructureTab')">Structure</button> -->
             </div>
 
             <div class="modal-body">
@@ -585,9 +596,9 @@ limitations under the License. -->
                 <div class="tabcontent" id="baseAreaTab">
                     <div id="editAreaDiv"></div>
                 </div>
-                <div class="tabcontent" id="baseStructureTab">
+                <!-- <div class="tabcontent" id="baseStructureTab">
                     <div id="editSurveyStructureDiv"></div>
-                </div>
+                </div> -->
             </div>
             <div class='modal-footer'>
 
@@ -2362,6 +2373,137 @@ limitations under the License. -->
     </div>
 </div>
 
+<div id="modalConfirmEditFiles" class="modal fade" role="dialog" tabindex="-1">
+    <div class="modal-dialog">
+        <!-- Modal content-->
+        <div class="modal-content">
+            <div class="modal-header">
+                <h4 class="modal-title">Please Confirm</h4>
+                <button id="helpx" type="button" class="close" data-dismiss="modal">&times;</button>
+            </div>
+            <div class="modal-body">
+                <p align="justify" id="confirmEditFilesBody"></p>
+                <p align="justify">
+                    Do you wish to continue?
+                </p>
+            </div>
+            <div class="modal-footer">
+                <div class="col-lg-3">
+                    <button id="btnConfirmEditFiles" type="button" class="btn btn-danger btn-block" data-dismiss="modal">Confirm</button>
+                </div>
+                <div class="col-lg-3">
+                    <button id="btnCancelEditFiles" type="button" class="btn btn-info btn-block" data-dismiss="modal">Cancel</button>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div id="modalMoveFolder" class="modal fade" role="dialog" tabindex="-1">
+    <div class="modal-dialog">
+        <!-- Modal content-->
+        <div class="modal-content">
+            <div class="modal-header">
+                <h4 class="modal-title">Move Folder</h4>
+                <button id="helpx" type="button" class="close" data-dismiss="modal">&times;</button>
+            </div>
+            <div class="modal-body">
+                <p align="justify">
+                    Select the destination site and camera where you would like to move the selected folder to.
+                </p>
+                <div class="row">
+                    <div class='col-lg-6'>
+                        <b>Site</b>
+                    </div>
+                    <div class='col-lg-6'>
+                        <b>Camera</b>
+                    </div>
+                </div>
+                <div class="row">
+                    <div class='col-lg-6'>
+                        <select id="moveFolderSiteSelector" class='form-control'></select>
+                    </div>
+                    <div class='col-lg-6'>
+                        <select id="moveFolderCameraSelector" class='form-control'></select>
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <div class="col-lg-3">
+                    <button id="btnConfirmMoveFolder" type="button" class="btn btn-primary btn-block" data-dismiss="modal">Move</button>
+                </div>
+                <div class="col-lg-3">
+                    <button id="btnCancelMoveFolder" type="button" class="btn btn-info btn-block" data-dismiss="modal">Cancel</button>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div id="modalFolderFiles" class="modal fade" role="dialog" tabindex="-1">
+    <div class="modal-dialog" style="max-width: 70%;">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h4 class="modal-title">Folder Contents</h4>
+                <button id="helpx" type="button" class="close" data-dismiss="modal">&times;</button>
+            </div>
+            <div class="modal-body">
+                <h5 style="margin-bottom: 2px">Folder: <span id="folderPathDisplay"></span></h5>
+                <div style="font-size: 80%; margin-bottom: 2px"><i>Here you can view and select files within the folder to delete.</i></div>
+                <br>
+                <div class="row">
+                    <div class='col-lg-3'>
+                        <div id="filterContentsDiv">
+                            <h6>Search:</h6>
+                            <input type="text" class="form-control" id="filterFolderContentsInput" placeholder="Type to search...">
+                            <div class="custom-control custom-checkbox">
+                                <input type="checkbox" class="custom-control-input" id="regExpCbxContents" name="regExpCbxContents"> 
+                                <label class="custom-control-label" for="regExpCbxContents">Regular Expression</label>
+                            </div>
+                            <br>
+                            <h6 style="margin-bottom: 2px">File Timestamps:</h6>
+                            <div class="row">
+                                <div class='col-lg-6'>
+                                    <label for="startDateContents" style="margin-bottom: 2px">Start:</label>
+                                    <input type="date" id="startDateContents">
+                                </div>
+                                <div class='col-lg-6'>
+                                    <label for="endDateContents" style="margin-bottom: 2px">End:</label>
+                                    <input type="date" id="endDateContents">
+                                </div>
+                            </div>
+                            <br>
+                            <h6 style="margin-bottom: 2px">File Upload Dates:</h6>
+                            <div class="row">
+                                <div class='col-lg-6'>
+                                    <label for="startUploadDateContents" style="margin-bottom: 2px">Start:</label>
+                                    <input type="date" id="startUploadDateContents">
+                                </div>
+                                <div class='col-lg-6'>
+                                    <label for="endUploadDateContents" style="margin-bottom: 2px">End:</label>
+                                    <input type="date" id="endUploadDateContents">
+                                </div>
+                            </div>
+                            <br>
+                        </div>
+                    </div>
+                    <div class='col-lg-9'>
+                        <div id="folderContentsDiv"></div>
+                    </div>
+                </div>
+            </div>
+            <div class='modal-footer'>
+                <div class='col-lg-2'>
+                    <button id="btnConfirmDeleteFiles" type='button' class='btn btn-danger btn-block'>Confirm</button>
+                </div>
+                <div class='col-lg-2'>
+                    <button id="folderFilesClose" type='button' class='btn btn-info btn-block' data-dismiss='modal'>Close</button>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
 {% endblock %}
 
 {% block page_scripts %}
@@ -2388,6 +2530,7 @@ limitations under the License. -->
 <script src="js/camtrap.surveys.results.individuals.v{{ version }}.js"></script>
 <script src="js/camtrap.surveys.results.statistics.v{{ version }}.js"></script>
 <script src="js/camtrap.surveys.tasks.v{{ version }}.js"></script>
+<script src="js/camtrap.surveys.files.v{{ version }}.js"></script>
 <script src="js/camtrap.fileUploader.v{{ version }}.js"></script>
 <script src="js/camtrap.fileDownloader.v{{ version }}.js"></script>
 <link rel="stylesheet" href="https://unpkg.com/leaflet@1.6.0/dist/leaflet.css"

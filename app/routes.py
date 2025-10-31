@@ -2536,6 +2536,8 @@ def addFiles():
                         GLOBALS.redisClient.set('lambda_invoked_'+str(survey_id),0)
                         GLOBALS.redisClient.set('lambda_completed_'+str(survey_id),0)
                         GLOBALS.redisClient.set('upload_complete_'+str(survey_id), 'False')
+                        GLOBALS.redisClient.set('upload_user_'+str(survey_id),current_user.id)
+                        GLOBALS.redisClient.set('upload_ping_'+str(survey_id),datetime.utcnow().timestamp())
         
         else:
             status = 'error'
@@ -4136,6 +4138,8 @@ def getHomeSurveys():
             surveyStatus = item[6]
             if surveyStatus in ['indprocessing','Preparing Download']:
                 surveyStatus = 'processing'
+            elif 'failed' in surveyStatus.lower():
+                surveyStatus = 'Failed'
 
             sc_count = site_and_cam_counts.get(item[0], (0,0))
             survey_data[item[0]] = {'id': item[0],
@@ -4306,6 +4310,8 @@ def getHomeSurveys():
                 surveyStatus = item[6]
                 if surveyStatus in ['indprocessing','Preparing Download']:
                     surveyStatus = 'processing'
+                elif 'failed' in surveyStatus.lower():
+                    surveyStatus = 'Failed'
 
                 sc_count = site_and_cam_counts.get(item[0], (0,0))
                 survey_data2[item[0]] = {'id': item[0],
@@ -17074,3 +17080,126 @@ def skipBoundingCluster(cluster_id):
         return json.dumps({'status': 'success', 'progress': (num,num2)})
 
     return {'redirect': url_for('done')}, 278
+
+@app.route('/cancelUpload/<survey_id>')
+@login_required
+def cancelUpload(survey_id):
+    '''Cancels an ongoing upload for a survey.'''
+    status = 'error'
+    message = 'An error occurred while cancelling the upload.'
+    organisation_id, survey_status = db.session.query(Organisation.id,Survey.status).join(Survey).filter(Survey.id==survey_id).first()
+    if organisation_id and (survey_status=='Uploading'):
+        userPermissions = db.session.query(UserPermissions).filter(UserPermissions.organisation_id==organisation_id).filter(UserPermissions.user_id==current_user.id).first()
+        # TODO: WHAT PERMISSIONS REQUIRED?
+        if userPermissions and userPermissions.create:
+            if checkUploadUser(current_user.id,survey_id):
+                status = 'success'
+                message = 'The upload has been cancelled.'
+                survey = db.session.query(Survey).get(survey_id)
+                survey.status = 'Processing'
+                db.session.commit()
+                GLOBALS.redisClient.delete('upload_ping_'+str(survey_id))
+                GLOBALS.redisClient.delete('upload_user_'+str(survey_id))
+                cancel_upload.delay(survey_id=survey_id)
+            else:
+                status = 'error'
+                message = 'The survey is currently being uploaded to by another user.'
+
+    return json.dumps({'status': status, 'message': message})
+
+@app.route('/getSurveyFolders/<survey_id>')
+@login_required
+def getSurveyFolders(survey_id):
+    '''Returns a dictionary of the survey's folders (Sites, Cameras, Folders)'''
+    
+    folders = []
+    survey = db.session.query(Survey).get(survey_id)
+
+    if survey and checkSurveyPermission(current_user.id,survey_id,'read'):
+
+        video_subquery = db.session.query(Cameragroup.id, func.SUBSTRING_INDEX(Camera.path, '/_video_images_',1).label('video_path'), func.count(distinct(Image.id)).label('frame_count'), func.count(distinct(Video.id)).label('vid_count'))\
+                    .join(Camera, Camera.cameragroup_id==Cameragroup.id)\
+                    .join(Image, Image.camera_id==Camera.id)\
+                    .join(Video, Video.camera_id==Camera.id)\
+                    .join(Trapgroup, Trapgroup.id==Camera.trapgroup_id)\
+                    .filter(Trapgroup.survey_id==survey_id)\
+                    .filter(Camera.path.contains('_video_images_'))\
+                    .group_by(Cameragroup.id, func.SUBSTRING_INDEX(Camera.path, '/_video_images_',1))\
+                    .subquery()
+
+        image_subquery = db.session.query(Cameragroup.id, Camera.path.label('image_path'), func.count(distinct(Image.id)).label('image_count'))\
+                            .join(Camera, Camera.cameragroup_id==Cameragroup.id)\
+                            .join(Image, Image.camera_id==Camera.id)\
+                            .join(Trapgroup, Trapgroup.id==Camera.trapgroup_id)\
+                            .filter(Trapgroup.survey_id==survey_id)\
+                            .filter(~Camera.path.contains('_video_images_'))\
+                            .group_by(Cameragroup.id, Camera.id)\
+                            .subquery()
+
+        data = db.session.query(Trapgroup.id, Trapgroup.tag, Cameragroup.id, Cameragroup.name, image_subquery.c.image_path, video_subquery.c.video_path, image_subquery.c.image_count, video_subquery.c.vid_count, video_subquery.c.frame_count)\
+                            .join(Camera, Camera.trapgroup_id==Trapgroup.id)\
+                            .join(Cameragroup, Cameragroup.id==Camera.cameragroup_id)\
+                            .outerjoin(image_subquery, image_subquery.c.id==Cameragroup.id)\
+                            .outerjoin(video_subquery, video_subquery.c.id==Cameragroup.id)\
+                            .filter(Trapgroup.survey_id==survey_id)\
+                            .order_by(Trapgroup.tag, Cameragroup.name)\
+                            .distinct().all()
+
+        folders = {}
+        for site_id, site_tag, camera_id, camera_name, img_path, vid_path, img_count, vid_count, frame_count in data:
+            if site_id not in folders:
+                folders[site_id] = {
+                    'site_id': site_id,
+                    'site': site_tag,
+                    'cameras': {}
+                }
+            if camera_id not in folders[site_id]['cameras']:
+                folders[site_id]['cameras'][camera_id] = {
+                    'camera_id': camera_id,
+                    'camera': camera_name,
+                    'folders': []
+                }
+            path = img_path if img_path else vid_path
+            folders[site_id]['cameras'][camera_id]['folders'].append({
+                'folder': path,
+                'image_count': img_count if img_count else 0,
+                'video_count': vid_count if vid_count else 0,
+                'frame_count': frame_count if frame_count else 0
+            })
+
+    return json.dumps({'survey': survey_id, 'folders': folders})
+
+@app.route('/getFolderContents/<cameragroup_id>', methods=['POST'])
+@login_required
+def getFolderContents(cameragroup_id):
+    '''Returns a list of filenames for a specific folder'''
+    filenames = []
+    folder= ast.literal_eval(request.form['folder'])
+    cameragroup = db.session.query(Cameragroup).get(cameragroup_id)
+
+    if cameragroup and folder and checkSurveyPermission(current_user.id,cameragroup.cameras[0].trapgroup.survey_id,'read'):
+        images = db.session.query(Image.id, Image.filename, Camera.path)\
+                            .join(Camera)\
+                            .filter(Camera.cameragroup_id==cameragroup_id)\
+                            .filter(Camera.path.contains(folder))\
+                            .filter(~Camera.videos.any())\
+                            .order_by(Image.filename).distinct().all()
+        videos = db.session.query(Video.id, Video.filename, func.SUBSTRING_INDEX(Camera.path, '/_video_images_',1).label('path'))\
+                            .join(Camera)\
+                            .filter(Camera.cameragroup_id==cameragroup_id)\
+                            .filter(Camera.path.contains(folder))\
+                            .order_by(Video.filename).distinct().all()
+        for img in images:
+            filenames.append({
+                'id': img[0],
+                'name': img[2] + '/' + img[1]
+            })
+        for vid in videos:
+            filenames.append({
+                'id': vid[0],
+                'name': vid[2] + '/' + vid[1]
+            })
+        
+        filenames = sorted(filenames, key=lambda x: x['name'])
+
+    return json.dumps({'files': filenames})

@@ -158,6 +158,10 @@ tr:hover td {
   background: rgba(255, 255, 255, 0.2);
 }
 
+td[contenteditable="true"]:focus {
+  outline-color: rgba(223, 105, 26, 0.8)
+}
+
 .badge {
   background-color: #DF691A;
   color: rgba(255,255,255,0.75);

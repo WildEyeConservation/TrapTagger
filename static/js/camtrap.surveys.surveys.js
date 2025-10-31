@@ -191,6 +191,9 @@ const modalConfirmDownload = $('#modalConfirmDownload');
 const modalConfirmExport = $('#modalConfirmExport');
 const modalEditTaskAlert = $('#modalEditTaskAlert');
 const modalEditAreaAlert = $('#modalEditAreaAlert');
+const modalConfirmEditFiles = $('#modalConfirmEditFiles');
+const modalMoveFolder = $('#modalMoveFolder');
+const modalFolderFiles = $('#modalFolderFiles');
 
 var polarColours = {'rgba(10,120,80,0.2)':false,
                     'rgba(255,255,255,0.2)':false,
@@ -354,6 +357,20 @@ var surveyAreaLib = null
 var surveyAreaEditOption = null
 var areaConfirmOpen = false
 var windowReload = false 
+var selectedStep = null
+var tabActiveManageFiles = 'baseAddFilesTab'
+var surveyDeletedFolders = {}
+var surveyFolders = {}
+var surveyMovedFolders = {}
+var surveyDeletedFiles = []
+var surveyEditedNames = {'site': {},'camera': {}}
+var siteNames = {}
+var camNames = {}
+var confirmEditFiles = false
+var editFilesActionOpen = false
+var selectedViewFolder = null
+var selectedFolderToMove = null
+var folderFiles = []
 
 function buildSurveys(survey,disableSurvey) {
     /**
@@ -735,12 +752,33 @@ function buildSurveys(survey,disableSurvey) {
             taskDiv.appendChild(row)
     
             col1 = document.createElement('div')
-            col1.classList.add('col-lg-9')
+            col1.classList.add('col-lg-6')
             row.appendChild(col1)
-    
+
+            col3 = document.createElement('div')
+            col3.classList.add('col-lg-3')
+            row.appendChild(col3)
+
             col2 = document.createElement('div')
             col2.classList.add('col-lg-3')
             row.appendChild(col2)
+       
+            var btnCancel = document.createElement('button')
+            btnCancel.setAttribute("class","btn btn-danger btn-sm")
+            btnCancel.setAttribute("style","float: right;") 
+            btnCancel.innerHTML = 'Cancel Upload'
+            btnCancel.id = 'btnCancelUpload'+survey.id
+            col3.appendChild(btnCancel)
+            btnCancel.addEventListener('click', function(wrapSurveyId) {
+                return function() {
+                    selectedSurvey = wrapSurveyId
+                    document.getElementById('modalConfirmHeader').innerHTML = 'Confirmation Required'
+                    document.getElementById('modalConfirmBody').innerHTML = 'Do you wish to cancel uploading files to ' + survey.name + '? This will delete any new files already uploaded.'
+                    document.getElementById('btnConfirm').addEventListener('click', confirmCancelUpload);
+                    document.getElementById('confirmclose').addEventListener('click', removeCancelUploadListeners);
+                    modalConfirm.modal({keyboard: true});
+                }
+            }(survey.id));
     
             btnResume = document.createElement('button')
             btnResume.setAttribute("class","btn btn-primary btn-sm")
@@ -889,19 +927,12 @@ function buildSurveys(survey,disableSurvey) {
                     confirmStep = 'Static Detection Check'
                     warningMsg = '<i> Please note that skipping this step may result in missed animal detections that were wrongly marked as static. It may have an impact on the accuracy of your data. It is strongly recommended to complete this step.</i>'
                 }
+                selectedStep = step
 
                 document.getElementById('modalConfirmHeader').innerHTML = 'Confirmation Required'
                 document.getElementById('modalConfirmBody').innerHTML = 'Do you wish to skip ' + confirmStep + ' for this survey?<br><br>' + warningMsg
-                document.getElementById('btnConfirm').addEventListener('click', function() {
-                    var xhttp = new XMLHttpRequest();
-                    xhttp.onreadystatechange = function() {
-                        if (this.readyState == 4 && this.status == 200) {
-                            updatePage(current_page)
-                        }
-                    }
-                    xhttp.open("GET", "/skipPreprocessing/"+wrapSurveyId+"/"+step);
-                    xhttp.send();
-                });
+                document.getElementById('btnConfirm').addEventListener('click', confirmSkipPreprocessing);
+                document.getElementById('confirmclose').addEventListener('click', removeSkipPreprocessingListeners);
                 modalConfirm.modal({keyboard: true});
             }
         }(survey.id, survey.prep_progress));
@@ -944,17 +975,18 @@ function buildSurveys(survey,disableSurvey) {
         addImagesBtn.setAttribute("class","btn btn-primary btn-block btn-sm")
         addImagesBtn.setAttribute("id","addImagesBtn"+survey.id)
         addImagesBtn.setAttribute("style","white-space: normal; word-wrap: break-word;")
-        addImagesBtn.innerHTML = 'Add Files'
+        addImagesBtn.innerHTML = 'Manage Files'
         addImagesCol.appendChild(addImagesBtn)
     
         addImagesBtn.addEventListener('click', function(wrapSurveyName,wrapSurveyId) {
             return function() {
                 surveyName = wrapSurveyName
                 selectedSurvey = wrapSurveyId
-                document.getElementById('addFilesHeader').innerHTML =  'Add Files: ' + wrapSurveyName
+                document.getElementById('addFilesHeader').innerHTML =  'Manage Files: ' + wrapSurveyName
                 clearAddFilesModal()
                 modalAddFiles.modal({keyboard: true});
-                openAddImages()
+                document.getElementById('openAddFilesTab').click()
+                // openAddImages()
             }
         }(survey.name,survey.id));
 
@@ -1203,6 +1235,64 @@ function removeSurveyDeleteListeners() {
     document.getElementById('btnConfirm').removeEventListener('click', confirmSurveyDelete);
     document.getElementById('confirmclose').removeEventListener('click', removeSurveyDeleteListeners);
 }
+
+function confirmSkipPreprocessing() {
+    /** Handles the confirmation of skipping a preprocessing step, submitting the request to the server. */
+    removeSkipPreprocessingListeners()
+    modalConfirm.modal('hide');
+
+    var xhttp = new XMLHttpRequest();
+    xhttp.onreadystatechange = function() {
+        if (this.readyState == 4 && this.status == 200) {
+            updatePage(current_page)
+        }
+    }
+    xhttp.open("GET", "/skipPreprocessing/"+selectedSurvey+"/"+selectedStep);
+    xhttp.send();
+}
+
+function removeSkipPreprocessingListeners() {
+    /** Removes the event listens from the buttons of the skip-preprocessing confirmation modal. */
+    document.getElementById('btnConfirm').removeEventListener('click', confirmSkipPreprocessing);
+    document.getElementById('confirmclose').removeEventListener('click', removeSkipPreprocessingListeners);
+}
+
+function confirmCancelUpload() {
+    /** Handles the confirmation of cancelling an upload, submitting the request to the server. */
+    removeCancelUploadListeners()
+    modalConfirm.modal('hide');
+    var xhttp = new XMLHttpRequest();
+    xhttp.onreadystatechange = function() {
+        if (this.readyState == 4 && this.status == 200) {
+            reply = JSON.parse(this.responseText);
+            console.log(reply)
+            if (reply.status=='success') {
+                updatePage(current_page)
+            } else {
+                document.getElementById('modalAlertHeader').innerHTML = 'Error'
+                document.getElementById('modalAlertBody').innerHTML = reply.message
+                modalAlert.modal({keyboard: true});
+            }
+        }
+    }
+    xhttp.open("GET", "/cancelUpload/"+selectedSurvey);
+    xhttp.send();
+}
+
+function removeCancelUploadListeners() {
+    /** Removes the event listens from the buttons of the cancel-upload confirmation modal. */
+    document.getElementById('btnConfirm').removeEventListener('click', confirmCancelUpload);
+    document.getElementById('confirmclose').removeEventListener('click', removeCancelUploadListeners);
+}
+
+modalConfirm.on('hidden.bs.modal', function (e) {
+    /** Ensures that the event listeners are removed when the confirmation modal is closed without confirmation. */
+    removeSurveyDeleteListeners()
+    removeSkipPreprocessingListeners()
+    removeCancelUploadListeners()
+    removeTaskDeleteListeners()
+    removeKnockdownListeners()
+});
 
 btnNewSurvey.addEventListener('click', ()=>{
     /** Event listener that opens the new survey modal. */
@@ -4058,10 +4148,10 @@ function clearEditSurveyModal() {
         editStaticDiv.removeChild(editStaticDiv.firstChild);
     }
 
-    editSurveyStructureDiv = document.getElementById('editSurveyStructureDiv')
-    while(editSurveyStructureDiv.firstChild){
-        editSurveyStructureDiv.removeChild(editSurveyStructureDiv.firstChild);
-    }
+    // editSurveyStructureDiv = document.getElementById('editSurveyStructureDiv')
+    // while(editSurveyStructureDiv.firstChild){
+    //     editSurveyStructureDiv.removeChild(editSurveyStructureDiv.firstChild);
+    // }
 
     editAreaDiv = document.getElementById('editAreaDiv')
     while(editAreaDiv.firstChild){
@@ -4148,10 +4238,29 @@ function clearEditSurveyModal() {
 function clearAddFilesModal(){
     /** Clears the add files modal */
 
-    addFilesDiv = document.getElementById('addFilesDiv') 
+    let addFilesDiv = document.getElementById('addFilesDiv') 
     while(addFilesDiv.firstChild){
         addFilesDiv.removeChild(addFilesDiv.firstChild);
     }
+
+    let editFilesDiv = document.getElementById('editFilesDiv')
+    while(editFilesDiv.firstChild){
+        editFilesDiv.removeChild(editFilesDiv.firstChild);
+    }
+
+    tabActiveManageFiles = 'baseAddFilesTab'
+    surveyDeletedFolders = {}
+    surveyFolders = {}
+    surveyMovedFolders = {}
+    surveyDeletedFiles = []
+    surveyEditedNames = {'site': {},'camera': {}}
+    siteNames = {}
+    camNames = {}
+    confirmEditFiles = false
+    editFilesActionOpen = false
+    selectedViewFolder = null
+    selectedFolderToMove = null
+    folderFiles = []
 }
 
 function buildAdvancedOptions() {
@@ -4941,10 +5050,12 @@ $('#btnConfirmCloseES').click( function() {
 
 modalAddFiles.on('hidden.bs.modal', function(){
     /** Clears the add-files modal when closed. */
-    if (!helpReturn) {
+    if (!helpReturn && !confirmEditFiles && !editFilesActionOpen) {
         clearAddFilesModal()
     } else {
         helpReturn = false
+        confirmEditFiles = false
+        editFilesActionOpen = false
     }
 });
 
@@ -5513,8 +5624,20 @@ $('#btnConfirmEmpty').click( function() {
 });
 
 document.getElementById('btnAddFiles').addEventListener('click', ()=>{
-    /** Handles the submission of the add files modal. */
+    /** Handles the submission of the files modal. */
+    if (tabActiveManageFiles=='baseAddFilesTab') {
+        addFiles()
+    } else if (tabActiveManageFiles=='baseEditFilesTab') {
+        if (Object.keys(surveyDeletedFolders).length>0 || Object.keys(surveyMovedFolders).length>0 || surveyDeletedFiles.length>0 || Object.keys(surveyEditedNames['site']).length>0 || Object.keys(surveyEditedNames['camera']).length>0) {
+            confirmEditFiles = true
+            modalAddFiles.modal('hide')
+            modalConfirmEditFiles.modal({keyboard: true});
+        }
+    }
+});
 
+function addFiles(){
+    /** Gathers the info from the add-files modal and submits it to the server. */
     var addFilesErrors = document.getElementById('addFilesErrors')
     while(addFilesErrors.firstChild){
         addFilesErrors.removeChild(addFilesErrors.firstChild);
@@ -5683,7 +5806,7 @@ document.getElementById('btnAddFiles').addEventListener('click', ()=>{
         xhttp.send(formData);
     }
 
-});
+}
 
 
 document.getElementById('btnEditSurvey').addEventListener('click', ()=>{
@@ -6379,9 +6502,9 @@ function changeEditSurveyTab(evt, tabName) {
     else if (tabName == 'baseStaticTab'){
         openStaticDetections()
     }
-    else if (tabName == 'baseStructureTab'){
-        openStructure()
-    }
+    // else if (tabName == 'baseStructureTab'){
+    //     openStructure()
+    // }
     else if (tabName == 'baseEditImgTimestampsTab') {
         openEditImageTimestamps()
     }
@@ -8664,6 +8787,7 @@ function buildStructure(structure_url='/getSurveyStructure') {
             // table.classList.add('table-hover');
             table.style.borderCollapse = 'collapse'
             table.style.border = '1px solid rgba(0,0,0,0)'
+            table.id = 'stucture_table'
             structureDiv.appendChild(table)
 
             var thead = document.createElement('thead')
@@ -8715,7 +8839,7 @@ function buildStructure(structure_url='/getSurveyStructure') {
                             tr.appendChild(tdSite);
 
                             tdSite.addEventListener('mouseenter', function () {
-                                highlightCells(this);
+                                highlightCells(this,table.id);
                             });
                     
                             tdSite.addEventListener('mouseleave', function () {
@@ -8734,7 +8858,7 @@ function buildStructure(structure_url='/getSurveyStructure') {
                             tr.appendChild(tdCamera);
 
                             tdCamera.addEventListener('mouseenter', function () {
-                                highlightCells(this);
+                                highlightCells(this,table.id);
                             });
 
                             tdCamera.addEventListener('mouseleave', function () {
@@ -8751,7 +8875,7 @@ function buildStructure(structure_url='/getSurveyStructure') {
                         tr.appendChild(tdFolder);
 
                         tdFolder.addEventListener('mouseenter', function () {
-                            highlightCells(this);
+                            highlightCells(this,table.id);
                         });
 
                         tdFolder.addEventListener('mouseleave', function () {
@@ -8766,7 +8890,7 @@ function buildStructure(structure_url='/getSurveyStructure') {
                         tr.appendChild(tdImageCount);
 
                         tdImageCount.addEventListener('mouseenter', function () {
-                            highlightCells(this);
+                            highlightCells(this,table.id);
                         });
 
                         tdImageCount.addEventListener('mouseleave', function () {
@@ -8781,7 +8905,7 @@ function buildStructure(structure_url='/getSurveyStructure') {
                         tr.appendChild(tdVideoCount);
 
                         tdVideoCount.addEventListener('mouseenter', function () {
-                            highlightCells(this);
+                            highlightCells(this,table.id);
                         });
 
                         tdVideoCount.addEventListener('mouseleave', function () {
@@ -8796,7 +8920,7 @@ function buildStructure(structure_url='/getSurveyStructure') {
                         tr.appendChild(tdFrameCount);
 
                         tdFrameCount.addEventListener('mouseenter', function () {
-                            highlightCells(this);
+                            highlightCells(this,table.id);
                         });
 
                         tdFrameCount.addEventListener('mouseleave', function () {
@@ -8904,19 +9028,21 @@ function nextStructure(){
 }
 
 
-function highlightCells(cell) {
+function highlightCells(cell,table_id) {
     /** Highlights the cells in the structure table. */
     clearHighlights();
 
-    cellsToHighlight = [cell];
+    var table = document.getElementById(table_id)
 
-    cellClass = cell.classList[0];
+    var cellsToHighlight = [cell];
+
+    var cellClass = cell.classList[0];
     
 
     if(cellClass == 'site'){
-        cellSiteClass = cell.classList[1];
+        var cellSiteClass = cell.classList[1];
         //Find all cells with site class
-        var allCells = document.querySelectorAll('.' + cellSiteClass);
+        var allCells = table.querySelectorAll('.' + cellSiteClass);
         for (let i = 0; i < allCells.length; i++) {
             cellsToHighlight.push(allCells[i]);
         }
@@ -8926,12 +9052,12 @@ function highlightCells(cell) {
         cellCameraClass = cell.classList[1];
         cellSiteClass = cell.classList[2];
 
-        var allCells = document.querySelectorAll('.' + cellCameraClass + '.' + cellSiteClass);
+        var allCells = table.querySelectorAll('.' + cellCameraClass + '.' + cellSiteClass);
         for (let i = 0; i < allCells.length; i++) {
             cellsToHighlight.push(allCells[i]);
         }
 
-        var siteCell = document.querySelector('.' + cellSiteClass + '.site');
+        var siteCell = table.querySelector('.' + cellSiteClass + '.site');
         cellsToHighlight.push(siteCell);
     }
     else{
@@ -8944,11 +9070,11 @@ function highlightCells(cell) {
         }
 
         //Find camera cell with same class as current cell
-        var cameraCell = document.querySelector('.' + cellCameraClass + '.' + cellSiteClass + '.camera');
+        var cameraCell = table.querySelector('.' + cellCameraClass + '.' + cellSiteClass + '.camera');
         cellsToHighlight.push(cameraCell);
         
         //Find site cell with same class as current cell
-        var siteCell = document.querySelector('.' + cellSiteClass + '.site');
+        var siteCell = table.querySelector('.' + cellSiteClass + '.site');
         cellsToHighlight.push(siteCell);
     }
 

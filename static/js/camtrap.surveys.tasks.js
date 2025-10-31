@@ -213,15 +213,13 @@ function buildTask(taskDiv, task, disableSurvey, survey) {
         if (task.status=='successInitial') {
             launchTaskBtn.addEventListener('click', function(wrapTaskId) {
                 return function() {
+                    selectedTask = wrapTaskId
                     document.getElementById('modalConfirmHeader').innerHTML = 'Knocked-Down Analysis'
                     document.getElementById('modalConfirmBody').innerHTML = 'You have marked cameras as knocked down. You now need to check whether they were picked up before the end of the survey. \
                     This is performed in the knocked-down analysis where you are shown a number of images from each knocked-down camera. You must indicate whether they are knocked down or not \
                     to determine if/when the camera was picked up. Do you wish to continue?'
-                    document.getElementById('btnConfirm').addEventListener('click', function(wrapWrapTaskId) {
-                        return function() {
-                            window.location.href = '/exploreKnockdowns?task='+wrapWrapTaskId;
-                        }
-                    }(wrapTaskId));
+                    document.getElementById('btnConfirm').addEventListener('click', confirmKnockdown);
+                    document.getElementById('confirmclose').addEventListener('click', removeKnockdownListeners);
                     modalConfirm.modal({keyboard: true});
                 }
             }(task.id));
@@ -386,6 +384,19 @@ function removeTaskDeleteListeners() {
     /** Remoces the event listeners on the task-deletion confirmation modal */
     document.getElementById('btnConfirm').removeEventListener('click', confirmTaskDelete);
     document.getElementById('confirmclose').removeEventListener('click', removeTaskDeleteListeners);
+}
+
+function confirmKnockdown() {
+    /** Confirms that the user wishes to explore the knockdowns for the selected task. */
+    removeKnockdownListeners()
+    modalConfirm.modal('hide')
+    window.location.href = '/exploreKnockdowns?task='+selectedTask;
+}
+
+function removeKnockdownListeners() {
+    /** Removes the event listeners on the knockdown confirmation modal */
+    document.getElementById('btnConfirm').removeEventListener('click', confirmKnockdown);
+    document.getElementById('confirmclose').removeEventListener('click', removeKnockdownListeners);
 }
 
 function resetModalAddTask1() {

@@ -34,6 +34,7 @@ from config import Config
 import json
 import boto3
 from celery.result import allow_join_result
+import time
 
 @celery.task(bind=True,max_retries=5,ignore_result=True)
 def delete_task(self,task_id):
@@ -2846,5 +2847,94 @@ def check_masked_and_hidden_detections(survey_id):
     for image in set(images):
         image.detection_rating = detection_rating(image)
     db.session.commit()
+
+    return True
+
+@celery.task(bind=True,max_retries=5,ignore_result=True)
+def cancel_upload(self,survey_id):
+    '''Deletes all newly uploaded images and videos.'''
+    try:
+        app.logger.info('Cancelling upload for survey {}'.format(survey_id))
+        # Wait for lambda tasks to finish
+        try:
+            app.logger.info('Waiting for lambda tasks to finish...')
+            lambda_completed = int(GLOBALS.redisClient.get('lambda_completed_'+str(survey_id)).decode())
+            lambda_invoked = int(GLOBALS.redisClient.get('lambda_invoked_'+str(survey_id)).decode())
+            total_wait = 0
+            while lambda_completed < lambda_invoked and total_wait < 20:
+                time.sleep(60)
+                total_wait += 1
+                lambda_completed = int(GLOBALS.redisClient.get('lambda_completed_'+str(survey_id)).decode())
+                lambda_invoked = int(GLOBALS.redisClient.get('lambda_invoked_'+str(survey_id)).decode())
+        except:
+            pass
+        app.logger.info('Lambda tasks finished')
+
+        db.session.remove()
+        survey = db.session.query(Survey).get(survey_id)
+        survey_folder = survey.organisation.folder+'/'+survey.name+'/%'
+        survey_folder = survey_folder.replace('_','\\_')
+
+        #Delete floating images (from unfinished upload)
+        try:
+            images = db.session.query(Image, Camera.path).join(Camera).filter(Camera.path.like(survey_folder)).filter(Camera.trapgroup_id==None).all()
+            for image, path in images:
+                image_key = path + '/' + image.filename
+                splits = image_key.split('/')
+                splits[0] = splits[0] + '-comp'
+                image_comp_key = '/'.join(splits)
+                GLOBALS.s3client.delete_object(Bucket=Config.BUCKET, Key=image_key)
+                GLOBALS.s3client.delete_object(Bucket=Config.BUCKET, Key=image_comp_key)
+                db.session.delete(image)
+            db.session.commit()
+            app.logger.info('Floating images deleted successfully.')
+        except:
+            app.logger.info('Failed to delete floating images.')
+
+        #Delete floating videos (from unfinished upload)
+        try:
+            videos = db.session.query(Video, Camera.path).join(Camera).filter(Camera.path.like(survey_folder)).filter(Camera.trapgroup_id==None).all()
+            for video, path in videos:
+                video_path = path.split('/_video_images_/')[0]
+                video_key = video_path + '/' + video.filename
+                splits = video_path.split('/')
+                splits[0] = splits[0]+'-comp'
+                video_comp_key = '/'.join(splits) + '/' + video.filename.rsplit('.', 1)[0] + '.mp4'
+                GLOBALS.s3client.delete_object(Bucket=Config.BUCKET, Key=video_key)
+                GLOBALS.s3client.delete_object(Bucket=Config.BUCKET, Key=video_comp_key)
+                db.session.delete(video)
+            db.session.commit()
+            app.logger.info('Floating videos deleted successfully.')
+        except:
+            app.logger.info('Failed to delete floating videos.')
+
+        #Delete floating cameras (from unfinished upload)
+        try:
+            cameras = db.session.query(Camera).filter(Camera.path.like(survey_folder)).filter(Camera.trapgroup_id==None).filter(~Camera.images.any()).filter(~Camera.videos.any()).all()
+            for camera in cameras:
+                db.session.delete(camera)
+            db.session.commit()
+            app.logger.info('Floating cameras deleted successfully.')
+        except:
+            app.logger.info('Failed to delete floating cameras.')
+
+
+        GLOBALS.redisClient.delete('lambda_invoked_'+str(survey_id))
+        GLOBALS.redisClient.delete('lambda_completed_'+str(survey_id))
+
+        survey = db.session.query(Survey).get(survey_id)
+        survey.status = 'Ready'
+        db.session.commit()
+
+    except Exception as exc:
+        app.logger.info(' ')
+        app.logger.info('!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!')
+        app.logger.info(traceback.format_exc())
+        app.logger.info('!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!')
+        app.logger.info(' ')
+        self.retry(exc=exc, countdown= retryTime(self.request.retries))
+
+    finally:
+        db.session.remove()
 
     return True
