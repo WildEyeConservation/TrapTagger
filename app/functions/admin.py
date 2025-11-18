@@ -127,19 +127,28 @@ def delete_task(self,task_id):
                                                     .filter(Task.id!=task_id)\
                                                     .distinct().all()]
 
+                detections = set(detections)
                 for individual in individuals:
+                    det_count = len(individual.detections)
                     individual.detections = [detection for detection in individual.detections if detection.id not in detections]
+                    new_det_count = len(individual.detections)
+                    if det_count != new_det_count:
+                        indSimilarities = db.session.query(IndSimilarity).filter(or_(IndSimilarity.individual_1==individual.id,IndSimilarity.individual_2==individual.id)).all()
+                        for indSimilarity in indSimilarities:
+                            if new_det_count == 0 or indSimilarity.detection_1 in detections or indSimilarity.detection_2 in detections:
+                                if indSimilarity.score < 0 and new_det_count > 0:
+                                    indSimilarity.detection_1 = None
+                                    indSimilarity.detection_2 = None
+                                else:
+                                    db.session.delete(indSimilarity)
 
-                    if len(individual.detections)==0:
+                    if new_det_count==0:
                         # individuals_to_delete.append(individual)
                         individual.detections = []
                         individual.children = []
                         individual.tags = []
                         individual.tasks = []
                         individual.primary_detections = []
-                        indSimilarities = db.session.query(IndSimilarity).filter(or_(IndSimilarity.individual_1==individual.id,IndSimilarity.individual_2==individual.id)).all()
-                        for indSimilarity in indSimilarities:
-                            db.session.delete(indSimilarity)
                         db.session.delete(individual)
                     else:
                         # no point doing this if its going to be deleted
@@ -2177,18 +2186,27 @@ def delete_individuals(self,task_ids, species, skip_update_status=False):
                                         .filter(Task.id.notin_(task_ids))\
                                         .distinct().all()]
 
+        detections = set(detections)
         for individual in individuals:
+            det_count = len(individual.detections)
             individual.detections = [detection for detection in individual.detections if detection.id not in detections]
-            if len(individual.detections)==0:
+            new_det_count = len(individual.detections)
+            if det_count != new_det_count:
+                indSimilarities = db.session.query(IndSimilarity).filter(or_(IndSimilarity.individual_1==individual.id,IndSimilarity.individual_2==individual.id)).all()
+                for indSimilarity in indSimilarities:
+                    if new_det_count == 0 or indSimilarity.detection_1 in detections or indSimilarity.detection_2 in detections:
+                        if indSimilarity.score < 0 and new_det_count > 0:
+                            indSimilarity.detection_1 = None
+                            indSimilarity.detection_2 = None
+                        else:
+                            db.session.delete(indSimilarity)
+
+            if new_det_count==0:
                 individual.detections = []
                 individual.children = []
                 individual.tags = []
                 individual.tasks = []
                 individual.primary_detections = []
-                # Delete Individual Similarities
-                indSims = db.session.query(IndSimilarity).filter(or_(IndSimilarity.individual_1==individual.id,IndSimilarity.individual_2==individual.id)).all()
-                for indSim in indSims:
-                    db.session.delete(indSim)
                 db.session.delete(individual)
             else:
                 individual.tasks = [task for task in individual.tasks if task.id not in task_ids]
