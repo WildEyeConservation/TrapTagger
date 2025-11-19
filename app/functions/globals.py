@@ -4829,6 +4829,7 @@ def update_labelgroup_labels_tags(self,cluster_id):
                                 .distinct().limit(10000).all()
                 
                 for labelgroup in labelgroups:
+                    labelgroup.checked = False
                     labelgroup.labels.append(label)
 
                 db.session.commit()
@@ -4853,6 +4854,7 @@ def update_labelgroup_labels_tags(self,cluster_id):
                                 .distinct().limit(10000).all()
                 
                 for labelgroup in labelgroups:
+                    labelgroup.checked = False
                     labelgroup.labels.remove(label)
 
                 db.session.commit()
@@ -7300,7 +7302,8 @@ def process_multi_labels(task_id,trapgroup_ids=None):
                                 .filter(Labelgroup.task_id==task_id)\
                                 .filter(or_(
                                     Labelgroup.checked == True,
-                                    lg_label_count_sq.c.lg_label_count == 1
+                                    lg_label_count_sq.c.lg_label_count == 1,
+                                    Detection.individuals.any()
                                 )))\
                                 .group_by(Cluster.id, Label.id).subquery()
 
@@ -7336,7 +7339,8 @@ def process_multi_labels(task_id,trapgroup_ids=None):
                                 .filter(Labelgroup.checked==False)\
                                 .filter(lg_label_count_sq.c.lg_label_count > 1)\
                                 .filter(subq.c.labelCount > 1)\
-                                .order_by(Cluster.id, Detection.class_score.desc()))
+                                .filter(~Detection.individuals.any())\
+                                .order_by(Cluster.id, Detection.id))
 
     if trapgroup_ids:
         multi_labelgroups = multi_labelgroups.join(Camera, Image.camera).filter(Camera.trapgroup_id.in_(trapgroup_ids))
@@ -7375,12 +7379,12 @@ def process_multi_labels(task_id,trapgroup_ids=None):
                     if chosen_label:
                         break
 
-            if not chosen_label:
-                # 4. Majority label only if not all counts are equal
-                if len(set(counts.values())) > 1:
-                    maj_id = max(counts.items(), key=lambda x: x[1])[0]
-                    if maj_id and maj_id in lg_label_ids:
-                        chosen_label = labels_dict.get(maj_id)
+            # if not chosen_label:
+            #     # 4. Majority label only if not all counts are equal
+            #     if len(set(counts.values())) > 1:
+            #         maj_id = max(counts.items(), key=lambda x: x[1])[0]
+            #         if maj_id and maj_id in lg_label_ids:
+            #             chosen_label = labels_dict.get(maj_id)
 
             if chosen_label:
                 labelgroup.labels = [chosen_label]

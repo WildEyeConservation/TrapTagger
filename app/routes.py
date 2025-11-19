@@ -7846,6 +7846,7 @@ def assignLabel(clusterID):
                             labelgroup.tags = cluster.tags
                         else:
                             labelgroup.labels = cluster.labels
+                            labelgroup.checked = False
 
                     # This allows the vast majority of clusters' labelgroups to be updated and just pushes the extreme clases to a celery task to prevent timeouts
                     if len(labelgroups)==400:
