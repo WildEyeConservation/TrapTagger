@@ -299,7 +299,7 @@ function updatePolarErrors() {
                 var formData = new FormData()
                 formData.append("task_ids", JSON.stringify(tasks))
                 formData.append("species", JSON.stringify(species))
-                if (area!=null || area!= '' || area!='0'){
+                if (area!=null && area!= '' && area!='0'){
                     formData.append('area', JSON.stringify(area))
                 }
     
@@ -347,7 +347,7 @@ function updateBarErrors() {
                 var formData = new FormData()
                 formData.append("task_ids", JSON.stringify(tasks))
                 formData.append("species", JSON.stringify(species))
-                if (area!=null || area!= '' || area!='0'){
+                if (area!=null && area!= '' && area!='0'){
                     formData.append('area', JSON.stringify(area))
                 }
 
@@ -463,7 +463,7 @@ function updatePolarData(IDNum) {
         formData.append('endDate', JSON.stringify(endDate));
         formData.append('group', JSON.stringify(group));
 
-        if (area!=null || area!= '' || area!='0'){
+        if (area!=null && area!= '' && area!='0'){
             formData.append('area', JSON.stringify(area))
         }
 
@@ -645,7 +645,7 @@ function updateBarData(IDNum) {
         formData.append('normaliseBySite', JSON.stringify(normaliseBySite));
     }
 
-    if (area!=null || area!= '' || area!='0'){
+    if (area!=null && area!= '' && area!='0'){
         formData.append('area', JSON.stringify(area))
     }
 
@@ -795,7 +795,7 @@ function updateBaseUnitPolar() {
                 var formData = new FormData()
                 formData.append("task_ids", JSON.stringify(tasks))
                 formData.append("species", JSON.stringify(species))
-                if (area!=null || area!= '' || area!='0'){
+                if (area!=null && area!= '' && area!='0'){
                     formData.append('area', JSON.stringify(area))
                 }
 
@@ -839,7 +839,7 @@ function updateBaseUnitBar() {
                 var formData = new FormData()
                 formData.append("task_ids", JSON.stringify(tasks))
                 formData.append("species", JSON.stringify(species))
-                if (area!=null || area!= '' || area!='0'){
+                if (area!=null && area!= '' && area!='0'){
                     formData.append('area', JSON.stringify(area))
                 }
 
@@ -994,7 +994,7 @@ function updateHeatMap() {
             var formData = new FormData()
             formData.append("task_ids", JSON.stringify(tasks))
             formData.append("species", JSON.stringify(species))
-            if (area!=null || area!= '' || area!='0'){
+            if (area!=null && area!= '' && area!='0'){
                 formData.append('area', JSON.stringify(area))
             }
 
@@ -1042,7 +1042,7 @@ function updateHeatMap() {
                 formData.append('normaliseBySite', JSON.stringify(normaliseBySite));
             }
 
-            if (area!=null || area!= '' || area!='0'){
+            if (area!=null && area!= '' && area!='0'){
                 formData.append('area', JSON.stringify(area))
             }
 
@@ -1275,7 +1275,7 @@ function updateLineData(IDNum){
     formData.append('endDate', JSON.stringify(endDate));
     formData.append('group', JSON.stringify(group));
 
-    if (area!=null || area!= '' || area!='0'){
+    if (area!=null && area!= '' && area!='0'){
         formData.append('area', JSON.stringify(area))
     }
 
@@ -1475,7 +1475,7 @@ function updateLineErrors() {
                 var formData = new FormData()
                 formData.append("task_ids", JSON.stringify(tasks))
                 formData.append("species", JSON.stringify(species))
-                if (area!=null || area!= '' || area!='0'){
+                if (area!=null && area!= '' && area!='0'){
                     formData.append('area', JSON.stringify(area))
                 }
 
@@ -1521,7 +1521,7 @@ function updateBaseUnitLine() {
                 var formData = new FormData()
                 formData.append("task_ids", JSON.stringify(tasks))
                 formData.append("species", JSON.stringify(species))
-                if (area!=null || area!= '' || area!='0'){
+                if (area!=null && area!= '' && area!='0'){
                     formData.append('area', JSON.stringify(area))
                 }
 

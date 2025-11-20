@@ -62,7 +62,7 @@ function searchSites() {
     formData.append('advanced', JSON.stringify(advancedSearch.toString()));
     formData.append('task_ids', JSON.stringify(task_ids));
     var area = document.getElementById('areaSelect').value
-    if (area!=null || area!= '' || area!='0'){
+    if (area!=null && area!= '' && area!='0'){
         formData.append('area', JSON.stringify(area))
     }
 
@@ -309,7 +309,7 @@ function initialiseSitesMap() {
         var formData = new FormData();
         formData.append('task_ids', JSON.stringify(tasks));
         var area = document.getElementById('areaSelect').value
-        if (area!=null || area!= '' || area!='0'){
+        if (area!=null && area!= '' && area!='0'){
             formData.append('area', JSON.stringify(area))
         }
 
@@ -690,7 +690,7 @@ function getGroups() {
     var formData = new FormData();
     formData.append('task_ids', JSON.stringify(task_ids));
     var area = document.getElementById('areaSelect').value
-    if (area!=null || area!= '' || area!='0'){
+    if (area!=null && area!= '' && area!='0'){
         formData.append('area', JSON.stringify(area))
     }
     

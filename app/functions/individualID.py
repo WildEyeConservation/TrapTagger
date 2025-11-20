@@ -1202,14 +1202,25 @@ def check_individual_detection_mismatch(self,task_id,cluster_id=None):
     try:
         task = db.session.query(Task).get(task_id)
         
+        match_sq = db.session.query(Detection.id.label('detID'))\
+                                .join(Individual,Detection.individuals)\
+                                .join(Labelgroup)\
+                                .join(Label, Labelgroup.labels)\
+                                .filter(Labelgroup.task_id==task_id)\
+                                .filter(Individual.species==Label.description)\
+                                .filter(Individual.tasks.contains(task))\
+                                .distinct().subquery()
+
         # Get all detections whose labels differ from their individuals' species and remove them from the individuals
         data = rDets(db.session.query(Detection.id, Label.description, Individual.id, Individual.species)\
                                 .join(Individual,Detection.individuals)\
                                 .join(Labelgroup)\
                                 .join(Label, Labelgroup.labels)\
+                                .outerjoin(match_sq, match_sq.c.detID==Detection.id)\
                                 .filter(Labelgroup.task_id==task_id)\
                                 .filter(Individual.species!=Label.description)\
                                 .filter(Individual.tasks.contains(task))\
+                                .filter(match_sq.c.detID==None)\
                                 )
 
         if cluster_id:

@@ -177,7 +177,7 @@ function getLabelsSitesTagsAndGroups(){
     formData.append('task_ids', JSON.stringify(tasks))
 
     var area = document.getElementById('areaSelect').value
-    if (area!=null || area!= '' || area!='0'){
+    if (area!=null && area!= '' && area!='0'){
         formData.append('area', JSON.stringify(area))
     }
 
@@ -1111,7 +1111,7 @@ function generateSpatial(){
         var formData = new FormData();
         formData.append('task_ids', JSON.stringify(tasks));
         var area = document.getElementById('areaSelect').value
-        if (area!=null || area!= '' || area!='0'){
+        if (area!=null && area!= '' && area!='0'){
             formData.append('area', JSON.stringify(area))
         }
 
@@ -2174,7 +2174,7 @@ function updateMap(){
             formData.append('group_ids', JSON.stringify(group_ids));
         }
         var area = document.getElementById('areaSelect').value
-        if (area!=null || area!= '' || area!='0'){
+        if (area!=null && area!= '' && area!='0'){
             formData.append('area', JSON.stringify(area))
         }
 
@@ -2285,7 +2285,7 @@ function updateActivity(check=false){
         formData.append('csv', JSON.stringify('0'));
         formData.append('groups', JSON.stringify(groups));
         var area = document.getElementById('areaSelect').value
-        if (area!=null || area!= '' || area!='0'){
+        if (area!=null && area!= '' && area!='0'){
             formData.append('area', JSON.stringify(area))
         }
     
@@ -2542,7 +2542,7 @@ function getActivityPatternCSV(check=false){
         formData.append('csv', JSON.stringify('1'));
         formData.append('groups', JSON.stringify(groups));
         var area = document.getElementById('areaSelect').value
-        if (area!=null || area!= '' || area!='0'){
+        if (area!=null && area!= '' && area!='0'){
             formData.append('area', JSON.stringify(area))
         }
     
@@ -3415,7 +3415,7 @@ function getSurveysAndAnnotationSets(){
 
     var url = '/getSurveysAndTasksForResults';
     var area = document.getElementById('areaSelect').value
-    if (area!=null || area!= '' || area!='0'){
+    if (area!=null && area!= '' && area!='0'){
         url += '?area=' + area
     }
 
@@ -3787,7 +3787,7 @@ $("#xAxisSelector").change( function() {
                 formData.append("task_ids", JSON.stringify(tasks))
                 formData.append("species", JSON.stringify(species))
                 var area = document.getElementById('areaSelect').value
-                if (area!=null || area!= '' || area!='0'){
+                if (area!=null && area!= '' && area!='0'){
                     formData.append('area', JSON.stringify(area))
                 }
 
@@ -4512,7 +4512,7 @@ function getSummary(check){
         formData.append('groups', JSON.stringify(groups))
         formData.append('normaliseBySite', JSON.stringify(normaliseBySite))
         var area = document.getElementById('areaSelect').value
-        if (area!=null || area!= '' || area!='0'){
+        if (area!=null && area!= '' && area!='0'){
             formData.append('area', JSON.stringify(area))
         }
 
@@ -6183,7 +6183,7 @@ function updateOccupancy(check=false){
         formData.append('csv', JSON.stringify('0'));
         formData.append('groups', JSON.stringify(groups));
         var area = document.getElementById('areaSelect').value
-        if (area!=null || area!= '' || area!='0'){
+        if (area!=null && area!= '' && area!='0'){
             formData.append('area', JSON.stringify(area))
         }
 
@@ -6350,7 +6350,7 @@ function getOccupancyCSV(check=false){
         }
 
         var area = document.getElementById('areaSelect').value
-        if (area!=null || area!= '' || area!='0'){
+        if (area!=null && area!= '' && area!='0'){
             formData.append('area', JSON.stringify(area))
         }
     }
@@ -7947,7 +7947,7 @@ function exportCSV(){
         formData.append('detCovs', JSON.stringify(detectionCovariates));
         formData.append('task_ids', JSON.stringify(tasks));
         var area = document.getElementById('areaSelect').value
-        if (area!=null || area!= '' || area!='0'){
+        if (area!=null && area!= '' && area!='0'){
             formData.append('area', JSON.stringify(area))
         }
         
@@ -8031,7 +8031,7 @@ function updateSCR(check=false){
         formData.append('flank', JSON.stringify(flank));
 
         var area = document.getElementById('areaSelect').value
-        if (area!=null || area!= '' || area!='0'){
+        if (area!=null && area!= '' && area!='0'){
             formData.append('area', JSON.stringify(area))
         }
 
@@ -10204,7 +10204,7 @@ function getSCRcsv(check=false){
         }
 
         var area = document.getElementById('areaSelect').value
-        if (area!=null || area!= '' || area!='0'){
+        if (area!=null && area!= '' && area!='0'){
             formData.append('area', JSON.stringify(area))
         }
     }
@@ -10573,7 +10573,7 @@ function cancelResults(){
     formData.append('result_type', JSON.stringify(result_type));
     formData.append('task_ids', JSON.stringify(tasks));
     var area = document.getElementById('areaSelect').value
-    if (area!=null || area!= '' || area!='0'){
+    if (area!=null && area!= '' && area!='0'){
         formData.append('area', JSON.stringify(area))
     }
 
