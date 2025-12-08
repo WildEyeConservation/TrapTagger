@@ -1474,3 +1474,27 @@ def get_featurematches(aid1,aid2):
     data = [d for d in data if d is not None]
 
     return data
+
+def check_label_and_species_match(task_ids,species):
+    ''' Checks if the label description matches the specified species.'''
+
+    labels = db.session.query(Label).filter(Label.task_id.in_(task_ids)).filter(Label.description==species).all()
+    check = False
+    for label in labels:
+        if label.description != species:
+            label.description = species
+            check = True
+    db.session.commit()
+
+    if check:
+        individuals = db.session.query(Individual)\
+                            .join(Task,Individual.tasks)\
+                            .filter(Task.id.in_(task_ids))\
+                            .filter(Individual.species==species)\
+                            .all()
+        for individual in individuals:
+            if individual.species != species:
+                individual.species = species
+        db.session.commit()
+
+    return True 
