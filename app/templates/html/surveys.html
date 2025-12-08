@@ -1400,12 +1400,12 @@ limitations under the License. -->
                     <div style="font-size: 80%; margin-bottom: 2px"><i>Select the date range for which you want your data to be included in the CSV file. By default no date filter is applied.</i></div>
                     <div class="row">
                         <div class='col-lg-3'>
-                            <label for="startDateCSV">Start date:</label><br>
-                            <input type="date" id="startDateCSV" name="startDateCSV">
+                            <label for="startDateCSV" style="margin-bottom: 2px">Start date:</label><br>
+                            <input type="date" id="startDateCSV" class="form-control" name="startDateCSV">
                         </div>
                         <div class='col-lg-3'>
-                            <label for="endDateCSV">End date:</label><br>
-                            <input type="date" id="endDateCSV" name="endDateCSV">
+                            <label for="endDateCSV" style="margin-bottom: 2px">End date:</label><br>
+                            <input type="date" id="endDateCSV" class="form-control" name="endDateCSV">
                         </div>
                     </div>
                     <div id="dateErrorsCSV" style="font-size: 80%; color: #DF691A"></div>
@@ -2462,32 +2462,26 @@ limitations under the License. -->
                             </div>
                             <br>
                             <h6 style="margin-bottom: 2px">File Timestamps:</h6>
-                            <div class="row">
-                                <div class='col-lg-6'>
-                                    <label for="startDateContents" style="margin-bottom: 2px">Start:</label>
-                                    <input type="date" id="startDateContents">
-                                </div>
-                                <div class='col-lg-6'>
-                                    <label for="endDateContents" style="margin-bottom: 2px">End:</label>
-                                    <input type="date" id="endDateContents">
-                                </div>
-                            </div>
+                            <label for="startDateContents" style="margin-bottom: 2px; display: block;">Start:</label>
+                            <input type="date" id="startDateContents" class="form-control">
+                            <label for="endDateContents" style="margin-bottom: 2px; display: block;">End:</label>
+                            <input type="date" id="endDateContents" class="form-control">
                             <br>
-                            <h6 style="margin-bottom: 2px">File Upload Dates:</h6>
-                            <div class="row">
-                                <div class='col-lg-6'>
-                                    <label for="startUploadDateContents" style="margin-bottom: 2px">Start:</label>
-                                    <input type="date" id="startUploadDateContents">
-                                </div>
-                                <div class='col-lg-6'>
-                                    <label for="endUploadDateContents" style="margin-bottom: 2px">End:</label>
-                                    <input type="date" id="endUploadDateContents">
-                                </div>
-                            </div>
+                            <h6 style="margin-bottom: 2px">Last Modified Dates:</h6>
+                            <label for="lastModifiedStartDate" style="margin-bottom: 2px; display: block;">Start:</label>
+                            <input type="date" id="lastModifiedStartDate" class="form-control">
+                            <label for="lastModifiedEndDate" style="margin-bottom: 2px; display: block;">End:</label>
+                            <input type="date" id="lastModifiedEndDate" class="form-control">
                             <br>
                         </div>
                     </div>
                     <div class='col-lg-9'>
+                        <div display="flex" align-items="center" style="margin-bottom: 5px;">
+                            <label for="selectAllFiles" style="margin: 0; padding-right: 5px;" class="h6">Select All</label>
+                            <label class="switch">
+                                <input type="checkbox" id="selectAllFiles"><span class="slider round"></span>
+                            </label>
+                        </div>
                         <div id="folderContentsDiv"></div>
                     </div>
                 </div>

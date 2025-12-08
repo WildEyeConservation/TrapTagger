@@ -5631,6 +5631,7 @@ document.getElementById('btnAddFiles').addEventListener('click', ()=>{
         if (Object.keys(surveyDeletedFolders).length>0 || Object.keys(surveyMovedFolders).length>0 || surveyDeletedFiles.length>0 || Object.keys(surveyEditedNames['site']).length>0 || Object.keys(surveyEditedNames['camera']).length>0) {
             confirmEditFiles = true
             modalAddFiles.modal('hide')
+            document.getElementById('btnConfirmEditFiles').disabled = false
             modalConfirmEditFiles.modal({keyboard: true});
         }
     }

@@ -348,27 +348,28 @@ function createPolarChart() {
                     startDateLabel = document.createElement('label');
                     startDateLabel.textContent = 'Start date:';
                     startDateLabel.setAttribute('for', 'startDate');
+                    startDateLabel.setAttribute('style', 'margin-bottom: 2px');
                     dateRange.appendChild(startDateLabel)
         
-                    dateRange.appendChild(document.createElement('br'));
         
                     startDateInput = document.createElement('input');
                     startDateInput.setAttribute('type', 'date');
                     startDateInput.setAttribute('id', 'startDate');
+                    startDateInput.setAttribute('class', 'form-control');
                     dateRange.appendChild(startDateInput)
         
-                    dateRange.appendChild(document.createElement('br'));
         
                     endDateLabel = document.createElement('label');
                     endDateLabel.textContent = 'End date:';
                     endDateLabel.setAttribute('for', 'endDate');
+                    endDateLabel.setAttribute('style', 'margin-bottom: 2px');
                     dateRange.appendChild(endDateLabel)
         
-                    dateRange.appendChild(document.createElement('br'));
         
                     endDateInput = document.createElement('input');
                     endDateInput.setAttribute('type', 'date');
                     endDateInput.setAttribute('id', 'endDate');
+                    endDateInput.setAttribute('class', 'form-control');
                     dateRange.appendChild(endDateInput)
         
                     dateError = document.createElement('div')
@@ -623,27 +624,28 @@ function createBar() {
                     startDateLabel = document.createElement('label');
                     startDateLabel.textContent = 'Start date:';
                     startDateLabel.setAttribute('for', 'startDate');
+                    startDateLabel.setAttribute('style', 'margin-bottom: 2px');
                     dateRange.appendChild(startDateLabel)
         
-                    dateRange.appendChild(document.createElement('br'));
         
                     startDateInput = document.createElement('input');
                     startDateInput.setAttribute('type', 'date');
                     startDateInput.setAttribute('id', 'startDate');
+                    startDateInput.setAttribute('class', 'form-control');
                     dateRange.appendChild(startDateInput)
         
-                    dateRange.appendChild(document.createElement('br'));
         
                     endDateLabel = document.createElement('label');
                     endDateLabel.textContent = 'End date:';
                     endDateLabel.setAttribute('for', 'endDate');
+                    endDateLabel.setAttribute('style', 'margin-bottom: 2px');
                     dateRange.appendChild(endDateLabel)
         
-                    dateRange.appendChild(document.createElement('br'));
         
                     endDateInput = document.createElement('input');
                     endDateInput.setAttribute('type', 'date');
                     endDateInput.setAttribute('id', 'endDate');
+                    endDateInput.setAttribute('class', 'form-control');
                     dateRange.appendChild(endDateInput)
         
                     dateError = document.createElement('div')
@@ -1172,27 +1174,28 @@ function createMap() {
                     startDateLabel = document.createElement('label');
                     startDateLabel.textContent = 'Start date:';
                     startDateLabel.setAttribute('for', 'startDate');
+                    startDateLabel.setAttribute('style', 'margin-bottom: 2px');
                     dateRange.appendChild(startDateLabel)
         
-                    dateRange.appendChild(document.createElement('br'));
         
                     startDateInput = document.createElement('input');
                     startDateInput.setAttribute('type', 'date');
                     startDateInput.setAttribute('id', 'startDate');
+                    startDateInput.setAttribute('class', 'form-control');
                     dateRange.appendChild(startDateInput)
         
-                    dateRange.appendChild(document.createElement('br'));
         
                     endDateLabel = document.createElement('label');
                     endDateLabel.textContent = 'End date:';
                     endDateLabel.setAttribute('for', 'endDate');
+                    endDateLabel.setAttribute('style', 'margin-bottom: 2px');
                     dateRange.appendChild(endDateLabel)
         
-                    dateRange.appendChild(document.createElement('br'));
         
                     endDateInput = document.createElement('input');
                     endDateInput.setAttribute('type', 'date');
                     endDateInput.setAttribute('id', 'endDate');
+                    endDateInput.setAttribute('class', 'form-control');
                     dateRange.appendChild(endDateInput)
         
                     dateError = document.createElement('div')
@@ -1603,27 +1606,28 @@ function createLine(){
                     startDateLabel = document.createElement('label');
                     startDateLabel.textContent = 'Start date:';
                     startDateLabel.setAttribute('for', 'startDate');
+                    startDateLabel.setAttribute('style', 'margin-bottom: 2px');
                     dateRange.appendChild(startDateLabel)
         
-                    dateRange.appendChild(document.createElement('br'));
         
                     startDateInput = document.createElement('input');
                     startDateInput.setAttribute('type', 'date');
                     startDateInput.setAttribute('id', 'startDate');
+                    startDateInput.setAttribute('class', 'form-control');
                     dateRange.appendChild(startDateInput)
         
-                    dateRange.appendChild(document.createElement('br'));
         
                     endDateLabel = document.createElement('label');
                     endDateLabel.textContent = 'End date:';
                     endDateLabel.setAttribute('for', 'endDate');
+                    endDateLabel.setAttribute('style', 'margin-bottom: 2px');
                     dateRange.appendChild(endDateLabel)
         
-                    dateRange.appendChild(document.createElement('br'));
         
                     endDateInput = document.createElement('input');
                     endDateInput.setAttribute('type', 'date');
                     endDateInput.setAttribute('id', 'endDate');
+                    endDateInput.setAttribute('class', 'form-control');
                     dateRange.appendChild(endDateInput)
         
                     dateError = document.createElement('div')

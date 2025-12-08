@@ -12,6 +12,10 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+var deleted_file_ids = new Set();
+var file_last_modified = {};
+var currentFileOrder = {'column': 'filename', 'direction': 'asc'};
+
 function changeFilesTab(evt, tabName) {
     /** Opens the files tab */
 
@@ -492,7 +496,7 @@ function buildSurveyFolders(type='folder'){
                             }
                             if (!optionTextsCam.includes(camNames[camID])){
                                 optionTextsCam = [camNames[camID]].concat(optionTextsCam)
-                                optionValuesCam = [camID].concat(optionValuesCam)
+                                optionValuesCam = ['n'+camID].concat(optionValuesCam)
                             }
                             fillSelect(cameraSelect, optionTextsCam, optionValuesCam)
 
@@ -603,7 +607,7 @@ function buildSurveyFolders(type='folder'){
 function removeFolder(site_id,cam_id,folder_path,source){
     /** Removes a folder from the source (either 'surveyFolders' or 'surveyDeletedFolders'). */
     site_id = parseInt(site_id);
-    cam_id = parseInt(cam_id);
+    // cam_id = parseInt(cam_id);
     if (!source[site_id] || !source[site_id].cameras[cam_id]){
         return;
     }
@@ -624,7 +628,7 @@ function removeFolder(site_id,cam_id,folder_path,source){
 function addFolder(site_id, site_name, cam_id, cam_name, folder_obj, source){
     /** Adds a folder to the source (either 'surveyFolders' or 'surveyDeletedFolders'). */
     site_id = parseInt(site_id);
-    cam_id = parseInt(cam_id);
+    // cam_id = parseInt(cam_id);
     if (!source[site_id]){
         source[site_id] = { site_id: site_id, site: site_name, cameras: {} };
     }
@@ -642,9 +646,81 @@ $('#btnCancelEditFiles').on('click', function() {
 
 $('#btnConfirmEditFiles').on('click', function() {
     /** Event listener for the confirmation of the editing of files. */
-
-
+    editFiles();
 });
+
+function editFiles() {
+    /** Edits the survey files based on the user's changes. */
+    document.getElementById('btnConfirmEditFiles').disabled = true
+
+    if (Object.keys(surveyDeletedFolders).length == 0 && surveyDeletedFiles.length == 0 && Object.keys(surveyMovedFolders).length == 0 && Object.keys(surveyEditedNames['site']).length == 0 && Object.keys(surveyEditedNames['camera']).length == 0){
+        document.getElementById('btnConfirmEditFiles').disabled = false
+        modalConfirmEditFiles.modal('hide')
+    } else {
+
+        // update the cam names for moved folders
+        let move_folders = []
+        for (let folder in surveyMovedFolders){
+            let new_cam_id = surveyMovedFolders[folder]['new_camera_id'];
+            if (new_cam_id.startsWith('n')){
+                if (surveyEditedNames['camera'][new_cam_id]){
+                    surveyMovedFolders[folder]['new_camera_name'] = surveyEditedNames['camera'][new_cam_id];
+                } else {
+                    surveyMovedFolders[folder]['new_camera_name'] = camNames[new_cam_id.slice(1)];
+                }
+            }
+            move_folders.push(surveyMovedFolders[folder]);
+        }
+
+        //remove 'n'ids from surveyEditedNames
+        let cleanEditedNames = {'site': {},'camera': {}};
+        for (let site_id in surveyEditedNames['site']){
+            cleanEditedNames['site'][site_id] = surveyEditedNames['site'][site_id];
+        }
+        for (let cam_id in surveyEditedNames['camera']){
+            if (!cam_id.startsWith('n')){
+                cleanEditedNames['camera'][cam_id] = surveyEditedNames['camera'][cam_id];
+            }
+        }
+
+        let deleted_folders = [];
+        for (let site_id in surveyDeletedFolders){
+            for (let cam_id in surveyDeletedFolders[site_id].cameras){
+                for (let i = 0; i < surveyDeletedFolders[site_id].cameras[cam_id].folders.length; i++) {
+                    let folder = surveyDeletedFolders[site_id].cameras[cam_id].folders[i];
+                    deleted_folders.push(folder.folder);
+                }
+            }
+        }
+
+        var formData = new FormData();
+        console.log(surveyDeletedFolders, surveyDeletedFiles, surveyMovedFolders, cleanEditedNames)
+        formData.append('delete_folders', JSON.stringify(deleted_folders));
+        formData.append('delete_files', JSON.stringify(surveyDeletedFiles));
+        formData.append('move_folders', JSON.stringify(move_folders));
+        formData.append('name_changes', JSON.stringify(cleanEditedNames));
+
+        var xhttp = new XMLHttpRequest();
+        xhttp.onreadystatechange =
+        function(){
+            if (this.readyState == 4 && this.status == 200) {
+                reply = JSON.parse(this.responseText);
+                modalConfirmEditFiles.modal('hide')
+                document.getElementById('btnConfirmEditFiles').disabled = false
+                if (reply.status=='success') {
+                    updatePage(current_page);
+                } else {
+                    document.getElementById('modalAlertHeader').innerHTML = 'Error'
+                    document.getElementById('modalAlertBody').innerHTML = reply.message
+                    modalAlert.modal({keyboard: true});
+                }
+            }
+        }
+        xhttp.open("POST", '/editSurveyFiles/'+selectedSurvey);
+        xhttp.send(formData);
+
+    }
+}
 
 function openEditFiles() {
     /** Opens the edit files tab. */
@@ -670,14 +746,40 @@ function openEditFiles() {
         var div = document.createElement('div')
         div.id = 'folderDiv'
         editFilesDiv.appendChild(div)
+
+        var searchRow = document.createElement('div')
+        searchRow.setAttribute('class','row')
+        searchRow.setAttribute('style','margin-top: 4px; margin-bottom: 4px')
+        editFilesDiv.appendChild(searchRow)
+
+        var scol1 = document.createElement('div')
+        scol1.setAttribute('class', 'col-4')
+        searchRow.appendChild(scol1)
+
+        var scol2 = document.createElement('div')
+        scol2.setAttribute('class', 'col-4')
+        searchRow.appendChild(scol2)
+
+        var scol3 = document.createElement('div')
+        scol3.setAttribute('class', 'col-4')
+        searchRow.appendChild(scol3)
+
+        var input = document.createElement('input')
+        input.setAttribute('type', 'text')
+        input.setAttribute('class', 'form-control')
+        input.setAttribute('placeholder', 'Search structure...')
+        input.id = 'searchStructureInput'
+        scol2.appendChild(input)
         
+        $('#searchStructureInput').change(function() {
+            filterFolderStructure();
+        });
 
         headingDiv = document.createElement('div')
         headingDiv.id = 'delFoldersHeadingDiv'
         headingDiv.hidden = true
         editFilesDiv.appendChild(headingDiv)
 
-        headingDiv.appendChild(document.createElement('br'))
 
         var h5 = document.createElement('h5')
         h5.setAttribute('style','margin-bottom: 2px')
@@ -732,12 +834,18 @@ $('#btnConfirmMoveFolder').on('click', function() {
             old_site_id = surveyMovedFolders[selectedFolderToMove.folder]['old_site_id']
             old_camera_id = surveyMovedFolders[selectedFolderToMove.folder]['old_camera_id']
         }
+        if (new_camera_id.startsWith('n')){
+            camNames[new_camera_id] = camNames[new_camera_id.slice(1)];
+        }
         surveyMovedFolders[selectedFolderToMove.folder] = {
             'folder': selectedFolderToMove.folder,
             'old_site_id': old_site_id,
             'old_camera_id': old_camera_id,
             'new_site_id': new_site_id,
             'new_camera_id': new_camera_id,
+            'image_count': selectedFolderToMove.image_count,
+            'video_count': selectedFolderToMove.video_count,
+            'frame_count': selectedFolderToMove.frame_count
         };
         removeFolder(selectedFolderToMove.site_id, selectedFolderToMove.camera_id, selectedFolderToMove.folder, surveyFolders);
         selectedFolderToMove.moved = true;
@@ -767,7 +875,7 @@ modalFolderFiles.on('hidden.bs.modal', function () {
 function validateName(name, type, site_id=null, camera_id=null){ 
     /** Validates the edited site or camera name. */
     var valid_name = true;
-    var pattern = /^[a-zA-Z0-9 _-]+$/;
+    var pattern = /^[A-Za-z0-9._ -]+$/;
     if (name==null || name.length == 0 || name.length > 64 || !pattern.test(name)) {
         valid_name = false;
         return valid_name;
@@ -818,48 +926,228 @@ $('#moveFolderSiteSelector').on('change', function() {
     }
     if (!optionTextsCam.includes(camNames[camID])){
         optionTextsCam = [camNames[camID]].concat(optionTextsCam)
-        optionValuesCam = [camID].concat(optionValuesCam)
+        optionValuesCam = ['n'+camID].concat(optionValuesCam)
     }
     fillSelect(cameraSelect, optionTextsCam, optionValuesCam);
 });
 
 modalFolderFiles.on('shown.bs.modal', function () {
     /** Event handler for when the folder files modal is shown. */
-    // buildFolderFilesTable();
+
+    deleted_file_ids = new Set();
+    file_last_modified = {};
+    getLastModified();
+});
+
+$('#filterFolderContentsInput').change(function() {
+    /** Event listener for filtering the folder contents table. */
     getFolderContents();
 });
 
-function getFolderContents() {
-    /** Gets the contents of the selected folder via an AJAX request. */
+$('#startDateContents').change(function() {
+    /** Event listener for filtering the folder contents table by start date. */
+    getFolderContents();
+});
+
+$('#endDateContents').change(function() {
+    /** Event listener for filtering the folder contents table by end date. */
+    getFolderContents();
+});
+
+$('#regExpCbxContents').on('change', function() {
+    /** Event listener for toggling regex search in the folder contents table. */
+    getFolderContents();
+});
+
+function getFolderContents(include_empty_last_modified=false) {
+    /** Gets the contents of the selected folder. */
+    editFiltersDisabledState(true);
     var contentsDiv = document.getElementById('folderContentsDiv');
     while (contentsDiv.firstChild) {
         contentsDiv.removeChild(contentsDiv.firstChild);
     }
 
+    contentsDiv.style.display = 'flex';
+    contentsDiv.style.alignItems = 'center';
+    contentsDiv.style.justifyContent = 'center';
+    contentsDiv.style.height = '100%';
+
+    var loadCircle = document.createElement('div');
+    loadCircle.setAttribute('class','loading-circle');
+    contentsDiv.appendChild(loadCircle);
+    loadCircle.style.display = 'block';
+
+    document.getElementById('selectAllFiles').checked = false;
+
     if (selectedViewFolder && selectedViewFolder.folder && selectedViewFolder.camera_id) {
 
         var formData = new FormData();
         formData.append('folder', JSON.stringify(selectedViewFolder.folder));
-        
+        var regex_check = document.getElementById('regExpCbxContents').checked;
+        var search_value = document.getElementById('filterFolderContentsInput').value;
+        if (regex_check){
+            formData.append('search', JSON.stringify(''));
+        } else {
+            formData.append('search', JSON.stringify(search_value));
+        }
+        var start_date = document.getElementById('startDateContents').value; 
+        if(start_date != ''){
+            start_date = start_date + ' 00:00:00'  
+        } else {
+            start_date = ''
+        }
+        formData.append('start_date', JSON.stringify(start_date));
+        var end_date = document.getElementById('endDateContents').value;
+        if(end_date != ''){
+            end_date = end_date + ' 23:59:59'
+        } else {
+            end_date = ''
+        }
+        formData.append('end_date', JSON.stringify(end_date));
+        if (include_empty_last_modified) {
+            formData.append('include_zip_lm', JSON.stringify(file_last_modified));
+        }
+
         var xhttp = new XMLHttpRequest();
         xhttp.onreadystatechange =
         function(){
             if (this.readyState == 4 && this.status == 200) {
                 reply = JSON.parse(this.responseText);
                 folderFiles = reply.files;
+
+                if (reply.empty_last_modified) {
+                    for (let file in reply.empty_last_modified) {
+                        file_last_modified[file] = (new Date(reply.empty_last_modified[file])).toLocaleDateString('en-CA').replace(/-/g, "/");
+                    }
+                }
+
+                if (regex_check && search_value.trim() != ''){
+                    var pattern = new RegExp(search_value);
+                    folderFiles = folderFiles.filter(function(fileObj) {
+                        return pattern.test(fileObj.name);
+                    });
+                }
+
                 let already_deleted_file_ids = surveyDeletedFiles.map(f => f.id);
+                already_deleted_file_ids = already_deleted_file_ids.concat((Array.from(deleted_file_ids)));
                 for (var file_idx in folderFiles) {
                     if (already_deleted_file_ids.includes(folderFiles[file_idx].id)) {
                         folderFiles[file_idx].to_delete = true;
                     }
+                    // asign last modified date
+                    let lm_date = file_last_modified[folderFiles[file_idx].folder+'/'+folderFiles[file_idx].name] ? file_last_modified[folderFiles[file_idx].folder+'/'+folderFiles[file_idx].name] : null;
+                    if (!lm_date && folderFiles[file_idx].type=='video'){
+                        let idx = folderFiles[file_idx].name.lastIndexOf('.')
+                        let fn = folderFiles[file_idx].name.substring(0, idx) + '.mp4';
+                        lm_date = file_last_modified[folderFiles[file_idx].folder+'/'+fn] ? file_last_modified[folderFiles[file_idx].folder+'/'+fn] : null;
+                    }
+                    folderFiles[file_idx].last_modified = lm_date;
                 }
+
+                //Filter by last modified date
+                var lm_start_date = document.getElementById('lastModifiedStartDate').value;
+                var lm_end_date = document.getElementById('lastModifiedEndDate').value;
+                if (lm_start_date != '' || lm_end_date != '') {
+                    let start_dt = lm_start_date != '' ? new Date(lm_start_date + ' 00:00:00') : null;
+                    let end_dt = lm_end_date != '' ? new Date(lm_end_date + ' 23:59:59') : null;
+                    folderFiles = folderFiles.filter(function(fileObj) {
+                        let lm_date = fileObj.last_modified ? fileObj.last_modified : null;
+                        if (!lm_date) {
+                            return false;
+                        }
+                        let file_lm = new Date(lm_date);
+                        if (start_dt && file_lm < start_dt) {
+                            return false;
+                        }
+                        if (end_dt && file_lm > end_dt) {
+                            return false;
+                        }
+                        return true;
+                    });
+                }
+                
+                orderFilesBy(currentFileOrder.column, currentFileOrder.direction);
                 buildContentsTable();
+                editFiltersDisabledState(false);
             }
         }
         xhttp.open("POST", '/getFolderContents/'+selectedViewFolder.camera_id);
         xhttp.send(formData);
 
+    } else {
+        while (contentsDiv.firstChild) {
+            contentsDiv.removeChild(contentsDiv.firstChild);
+        }
+        editFiltersDisabledState(false);
     }
+}
+
+function getLastModified(token=null) {
+    /** Gets the contents of the selected folder. */
+    if (!token) {
+        editFiltersDisabledState(true);
+        var contentsDiv = document.getElementById('folderContentsDiv');
+        while (contentsDiv.firstChild) {
+            contentsDiv.removeChild(contentsDiv.firstChild);
+        }
+
+        contentsDiv.style.display = 'flex';
+        contentsDiv.style.alignItems = 'center';
+        contentsDiv.style.justifyContent = 'center';
+        contentsDiv.style.height = '100%';
+
+        var loadCircle = document.createElement('div');
+        loadCircle.setAttribute('class','loading-circle');
+        contentsDiv.appendChild(loadCircle);
+        loadCircle.style.display = 'block';
+    }
+    
+    if (selectedViewFolder && selectedViewFolder.folder && selectedViewFolder.camera_id) {
+        var formData = new FormData();
+        formData.append('folder', JSON.stringify(selectedViewFolder.folder));
+        formData.append('cameragroup_id', JSON.stringify(selectedViewFolder.camera_id));
+        if (token) {
+            formData.append('token', JSON.stringify(token));
+        }
+
+        var xhttp = new XMLHttpRequest();
+        xhttp.onreadystatechange =
+        function(){
+            if (this.readyState == 4 && this.status == 200) {
+                reply = JSON.parse(this.responseText);
+                console.log(reply);
+                let contents = reply.contents;
+
+                // Object.assign(file_last_modified, contents.files);
+                for (let file in contents.files) {
+                    file_last_modified[file] = (new Date(contents.files[file])).toLocaleDateString('en-CA').replace(/-/g, "/");
+                }
+                if (contents.token!=null) {
+                    getLastModified(contents.token);
+                } else {
+                    getFolderContents(true);
+                }
+            }
+        }
+        xhttp.open("POST", '/getFolderLastModified');
+        xhttp.send(formData);
+
+    } else {
+        while (contentsDiv.firstChild) {
+            contentsDiv.removeChild(contentsDiv.firstChild);
+        }
+        editFiltersDisabledState(false);
+    }
+}
+
+function editFiltersDisabledState(state) {
+    document.getElementById('filterFolderContentsInput').disabled = state;
+    document.getElementById('startDateContents').disabled = state;
+    document.getElementById('endDateContents').disabled = state;
+    document.getElementById('regExpCbxContents').disabled = state;
+    document.getElementById('lastModifiedStartDate').disabled = state;
+    document.getElementById('lastModifiedEndDate').disabled = state;
+    document.getElementById('selectAllFiles').disabled = state;
 }
 
 function buildContentsTable() {
@@ -868,6 +1156,9 @@ function buildContentsTable() {
     while (contentsDiv.firstChild) {
         contentsDiv.removeChild(contentsDiv.firstChild);
     }
+
+    contentsDiv.style.alignItems = 'flex-start';
+    contentsDiv.style.justifyContent = 'flex-start';
 
     if (folderFiles.length == 0) {
         var div = document.createElement('div');
@@ -902,9 +1193,80 @@ function buildContentsTable() {
     thFilename.innerHTML = 'Filename';
     headerRow.appendChild(thFilename);
 
+    if (currentFileOrder.column == 'filename') {
+        if (currentFileOrder.direction == 'asc') {
+            thFilename.innerHTML += ' <i class="fa fa-sort-up"></i>';
+        } else {
+            thFilename.innerHTML += ' <i class="fa fa-sort-down"></i>';
+        }
+    }
+
+    // add ordering functionality to the name header column
+    thFilename.style.cursor = 'pointer';
+    thFilename.title = 'Sort by Filename';
+    thFilename.addEventListener('click', function() {
+        /** Event listener for sorting the folder contents table by filename. */
+        if (currentFileOrder.column == 'filename' && currentFileOrder.direction == 'asc') {
+            orderFilesBy('filename', 'desc');
+        } else {
+            orderFilesBy('filename', 'asc');
+        }
+        buildContentsTable();
+    });
+
+    var thTimestamp = document.createElement('th');
+    thTimestamp.setAttribute('style', 'width: 22%; vertical-align: middle; padding: 8px 12px;');
+    thTimestamp.innerHTML = 'Timestamp';
+    headerRow.appendChild(thTimestamp);
+
+    if (currentFileOrder.column == 'timestamp') {
+        if (currentFileOrder.direction == 'asc') {
+            thTimestamp.innerHTML += ' <i class="fa fa-sort-up"></i>';
+        } else {
+            thTimestamp.innerHTML += ' <i class="fa fa-sort-down"></i>';
+        }
+    }
+
+    thTimestamp.style.cursor = 'pointer';
+    thTimestamp.title = 'Sort by Timestamp';
+    thTimestamp.addEventListener('click', function() {
+        /** Event listener for sorting the folder contents table by timestamp. */
+        if (currentFileOrder.column == 'timestamp' && currentFileOrder.direction == 'asc') {
+            orderFilesBy('timestamp', 'desc');
+        } else {
+            orderFilesBy('timestamp', 'asc');
+        }
+        buildContentsTable();
+    });
+
+    var thLastModified = document.createElement('th');
+    thLastModified.setAttribute('style', 'width: 14%; vertical-align: middle; padding: 8px 12px;');
+    thLastModified.innerHTML = 'Last Modified';
+    headerRow.appendChild(thLastModified);
+
+    if (currentFileOrder.column == 'last_modified') {
+        if (currentFileOrder.direction == 'asc') {
+            thLastModified.innerHTML += ' <i class="fa fa-sort-up"></i>';
+        } else {
+            thLastModified.innerHTML += ' <i class="fa fa-sort-down"></i>';
+        }
+    }
+
+    thLastModified.style.cursor = 'pointer';
+    thLastModified.title = 'Sort by Last Modified';
+    thLastModified.addEventListener('click', function() {
+        /** Event listener for sorting the folder contents table by last modified date. */
+        if (currentFileOrder.column == 'last_modified' && currentFileOrder.direction == 'asc') {
+            orderFilesBy('last_modified', 'desc');
+        } else {
+            orderFilesBy('last_modified', 'asc');
+        }
+        buildContentsTable();
+    });
+
     var thDelete = document.createElement('th');
     thDelete.innerHTML = 'Delete';
-    thDelete.setAttribute('style', 'width: 8%; text-align: center; vertical-align: middle; padding: 8px 12px;');
+    thDelete.setAttribute('style', 'width: 6%; text-align: center; vertical-align: middle; padding: 8px 12px;');
     headerRow.appendChild(thDelete);
 
     var tbody = document.createElement('tbody');
@@ -918,8 +1280,18 @@ function buildContentsTable() {
 
         var tdFilename = document.createElement('td');
         tdFilename.setAttribute('style', 'text-align: left; vertical-align: middle; padding: 8px 12px;');
-        tdFilename.innerHTML = fileObj.name.split('/').slice(1).join('/');
+        tdFilename.innerHTML = fileObj.name;
         tr.appendChild(tdFilename); 
+
+        var tdTimestamp = document.createElement('td');
+        tdTimestamp.setAttribute('style', 'text-align: left; vertical-align: middle; padding: 8px 12px;');
+        tdTimestamp.innerHTML = fileObj.timestamp;
+        tr.appendChild(tdTimestamp);
+
+        var tdLastModified = document.createElement('td');
+        tdLastModified.setAttribute('style', 'text-align: left; vertical-align: middle; padding: 8px 12px;');
+        tdLastModified.innerHTML = fileObj.last_modified ? fileObj.last_modified : 'N/A';
+        tr.appendChild(tdLastModified);
 
         var tdDelete = document.createElement('td');
         tdDelete.setAttribute('style', 'text-align: center; vertical-align: middle; padding: 8px 12px;');
@@ -937,6 +1309,7 @@ function buildContentsTable() {
                 return function() {
                     /** Event listener for undoing the deletion of a file from the folder contents table. */
                     delete folderFiles[fileIDX].to_delete;
+                    deleted_file_ids.delete(folderFiles[fileIDX].id);
                     var scrollpos = document.getElementById('folder_contents_table_div').scrollTop;
                     buildContentsTable();
                     if (document.getElementById('folder_contents_table_div')) {
@@ -959,6 +1332,7 @@ function buildContentsTable() {
                 return function() {
                     /** Event listener for deleting a file from the folder contents table. */
                     folderFiles[fileIDX].to_delete = true;
+                    deleted_file_ids.add(folderFiles[fileIDX].id);
                     var scrollpos = document.getElementById('folder_contents_table_div').scrollTop;
                     buildContentsTable();
                     if (document.getElementById('folder_contents_table_div')) {
@@ -980,7 +1354,18 @@ function cleanFolderContents() {
 
     folderFiles = [];
     selectedViewFolder = null;
+    deleted_file_ids.clear();
+    currentFileOrder = { column: 'filename', direction: 'asc' };
+    file_last_modified = {};
+
     document.getElementById('folderPathDisplay').innerHTML = '';
+    document.getElementById('filterFolderContentsInput').value = '';
+    document.getElementById('startDateContents').value = '';
+    document.getElementById('endDateContents').value = '';
+    document.getElementById('lastModifiedStartDate').value = '';
+    document.getElementById('lastModifiedEndDate').value = '';
+    document.getElementById('regExpCbxContents').checked = false;
+    document.getElementById('selectAllFiles').checked = false;
 }
 
 $('#btnConfirmDeleteFiles').on('click', function() {
@@ -990,17 +1375,22 @@ $('#btnConfirmDeleteFiles').on('click', function() {
     for (var file_idx in folderFiles) {
         var fileObj = folderFiles[file_idx];
         if (fileObj.to_delete && !already_deleted_file_ids.includes(fileObj.id)) {
-            surveyDeletedFiles.push({
-                'id': fileObj.id,
-                'name': fileObj.name,
-                'folder': selectedViewFolder.folder,
-            });
+            let opj_cpy = Object.assign({}, fileObj);
+            delete opj_cpy.to_delete;
+            surveyDeletedFiles.push(opj_cpy);
         } else if (!fileObj.to_delete && already_deleted_file_ids.includes(fileObj.id)) {
             remove_ids.push(fileObj.id);
         }
     }
     surveyDeletedFiles = surveyDeletedFiles.filter(function(value, index, arr){
         return !remove_ids.includes(value.id);
+    });
+    //order by folder and name
+    surveyDeletedFiles.sort(function(a, b) {
+        if (a.folder === b.folder) {
+            return a.name.localeCompare(b.name);
+        }
+        return a.folder.localeCompare(b.folder);
     });
     modalFolderFiles.modal('hide');
     buildSurveyDeletedFiles();
@@ -1064,7 +1454,7 @@ function buildSurveyDeletedFiles() {
 
         var tdFilename = document.createElement('td');
         tdFilename.setAttribute('style', 'text-align: left; vertical-align: middle; padding: 8px 12px;');
-        tdFilename.innerHTML = fileObj.name.split('/').slice(1).join('/');
+        tdFilename.innerHTML = fileObj.folder.split('/').slice(1).join('/') + '/' + fileObj.name;
         tr.appendChild(tdFilename); 
 
         var tdRestore = document.createElement('td');
@@ -1080,7 +1470,6 @@ function buildSurveyDeletedFiles() {
         restoreIcon.addEventListener('click', function(fileIDX) {
             return function() {
                 /** Event listener for restoring a deleted file from the survey deleted files section. */
-                let fileObj = surveyDeletedFiles[fileIDX];
                 surveyDeletedFiles.splice(fileIDX, 1);
                 var scrollpos = document.getElementById('deleted_files_table_div').scrollTop;
                 buildSurveyDeletedFiles();
@@ -1090,4 +1479,97 @@ function buildSurveyDeletedFiles() {
             };
         }(file_idx));
     }
+}
+
+function filterFolderStructure() {
+    /** Filters the folder structure table based on the search input. */
+    var input = document.getElementById('searchStructureInput');
+    var filter = input.value.toLowerCase();
+
+    var xhttp = new XMLHttpRequest();
+    xhttp.onreadystatechange =
+    function(){
+        if (this.readyState == 4 && this.status == 200) {
+            reply = JSON.parse(this.responseText);
+            folders = reply.folders
+            surveyFolders = folders
+
+            // remove all the folders that are in deleted folders
+            for (let site_id in surveyDeletedFolders){
+                for (let cam_id in surveyDeletedFolders[site_id].cameras){
+                    for (let i = 0; i < surveyDeletedFolders[site_id].cameras[cam_id].folders.length; i++) {
+                        let folder = surveyDeletedFolders[site_id].cameras[cam_id].folders[i];
+                        removeFolder(site_id, cam_id, folder.folder, surveyFolders);
+                    }
+                }
+            }
+
+            // move folders that are in moved folders
+            for (let folder in surveyMovedFolders){
+                let moveInfo = surveyMovedFolders[folder];
+                removeFolder(moveInfo.old_site_id, moveInfo.old_camera_id, moveInfo.folder, surveyFolders);
+                let folderObj = { folder: moveInfo.folder, image_count: moveInfo.image_count, video_count: moveInfo.video_count, frame_count: moveInfo.frame_count, moved: true };
+                addFolder(moveInfo.new_site_id, siteNames[moveInfo.new_site_id], moveInfo.new_camera_id, camNames[moveInfo.new_camera_id], folderObj, surveyFolders);
+            }
+
+            buildSurveyFolders()
+        }
+    }
+    xhttp.open("GET", '/getSurveyFolders/'+selectedSurvey+'?search='+encodeURIComponent(filter));
+    xhttp.send();
+}
+
+$('#lastModifiedStartDate, #lastModifiedEndDate').on('change', function() {
+    /** Event listener for filtering the folder contents table by last modified date. */
+    getFolderContents();
+});
+
+$('#selectAllFiles').on('change', function() {
+    /** Event listener for selecting or deselecting all files in the folder contents table. */
+    var selectAll = this.checked;
+    for (var file_idx in folderFiles) {
+        var fileObj = folderFiles[file_idx];
+        if (selectAll) {
+            if (!fileObj.to_delete) {
+                folderFiles[file_idx].to_delete = true;
+                deleted_file_ids.add(fileObj.id);
+            }
+        } else {
+            if (fileObj.to_delete) {
+                delete folderFiles[file_idx].to_delete;
+                deleted_file_ids.delete(fileObj.id);
+            }
+        }
+    }
+    buildContentsTable();
+});
+
+function orderFilesBy(column, direction) {
+    /** Orders the folder files by the specified column and direction. */
+
+    folderFiles.sort(function(a, b) {
+        var res = 0;
+        if (column == 'filename') {
+            if (a.name < b.name) res = -1;
+            else if (a.name > b.name) res = 1;
+            else res = 0;
+        } else if (column == 'timestamp') {
+            res = new Date(a.timestamp) - new Date(b.timestamp);
+        } else if (column == 'last_modified') {
+            res = new Date(a.last_modified) - new Date(b.last_modified);
+        }
+
+        res = direction == 'asc' ? res : -res;
+
+        if (res == 0) {
+            if (a.name < b.name) res = -1;
+            else if (a.name > b.name) res = 1;
+            else res = 0;
+        }
+
+        return res;
+    });
+
+    currentFileOrder.column = column;
+    currentFileOrder.direction = direction;
 }

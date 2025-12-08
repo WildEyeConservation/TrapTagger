@@ -17091,8 +17091,7 @@ def cancelUpload(survey_id):
     organisation_id, survey_status = db.session.query(Organisation.id,Survey.status).join(Survey).filter(Survey.id==survey_id).first()
     if organisation_id and (survey_status=='Uploading'):
         userPermissions = db.session.query(UserPermissions).filter(UserPermissions.organisation_id==organisation_id).filter(UserPermissions.user_id==current_user.id).first()
-        # TODO: WHAT PERMISSIONS REQUIRED?
-        if userPermissions and userPermissions.create:
+        if userPermissions and userPermissions.delete:
             if checkUploadUser(current_user.id,survey_id):
                 status = 'success'
                 message = 'The upload has been cancelled.'
@@ -17115,6 +17114,7 @@ def getSurveyFolders(survey_id):
     
     folders = []
     survey = db.session.query(Survey).get(survey_id)
+    search = request.args.get('search', '', type=str)
 
     if survey and checkSurveyPermission(current_user.id,survey_id,'read'):
 
@@ -17142,9 +17142,13 @@ def getSurveyFolders(survey_id):
                             .join(Cameragroup, Cameragroup.id==Camera.cameragroup_id)\
                             .outerjoin(image_subquery, image_subquery.c.id==Cameragroup.id)\
                             .outerjoin(video_subquery, video_subquery.c.id==Cameragroup.id)\
-                            .filter(Trapgroup.survey_id==survey_id)\
-                            .order_by(Trapgroup.tag, Cameragroup.name)\
-                            .distinct().all()
+                            .filter(Trapgroup.survey_id==survey_id)
+                            
+        if search:
+            search_pattern = f"%{search}%"
+            data = data.filter(or_(Trapgroup.tag.like(search_pattern), Cameragroup.name.like(search_pattern), image_subquery.c.image_path.like(search_pattern), video_subquery.c.video_path.like(search_pattern)))
+        
+        data = data.order_by(Trapgroup.tag, Cameragroup.name).distinct().all()
 
         folders = {}
         for site_id, site_tag, camera_id, camera_name, img_path, vid_path, img_count, vid_count, frame_count in data:
@@ -17174,33 +17178,204 @@ def getSurveyFolders(survey_id):
 @login_required
 def getFolderContents(cameragroup_id):
     '''Returns a list of filenames for a specific folder'''
+    reply = {'files': []} 
     filenames = []
     folder= ast.literal_eval(request.form['folder'])
     cameragroup = db.session.query(Cameragroup).get(cameragroup_id)
 
+    if 'search' in request.form:
+        search = ast.literal_eval(request.form['search'])
+    else:
+        search = ''
+
+    if 'start_date' in request.form:
+        start_date = ast.literal_eval(request.form['start_date'])
+    else:
+        start_date = None
+
+    if 'end_date' in request.form:
+        end_date = ast.literal_eval(request.form['end_date'])
+    else:
+        end_date = None
+
+    if 'include_zip_lm' in request.form:
+        include_zip_lm = True
+    else:
+        include_zip_lm = False
+
     if cameragroup and folder and checkSurveyPermission(current_user.id,cameragroup.cameras[0].trapgroup.survey_id,'read'):
-        images = db.session.query(Image.id, Image.filename, Camera.path)\
+        images = db.session.query(Image.id, Image.filename, Camera.path, Image.corrected_timestamp, Image.zip_id)\
                             .join(Camera)\
                             .filter(Camera.cameragroup_id==cameragroup_id)\
                             .filter(Camera.path.contains(folder))\
-                            .filter(~Camera.videos.any())\
-                            .order_by(Image.filename).distinct().all()
-        videos = db.session.query(Video.id, Video.filename, func.SUBSTRING_INDEX(Camera.path, '/_video_images_',1).label('path'))\
+                            .filter(~Camera.videos.any())
+
+        if search:
+            search_pattern = f"%{search}%"
+            images = images.filter(Image.filename.like(search_pattern))
+
+        if start_date: images = images.filter(Image.corrected_timestamp>=start_date)
+
+        if end_date: images = images.filter(Image.corrected_timestamp<=end_date)
+
+        images = images.order_by(Image.filename).distinct().all()
+
+        video_timestamp_subquery = db.session.query(Video.id.label('video_id'), func.min(Image.corrected_timestamp).label('video_timestamp'), func.min(Image.zip_id).label('video_zip_id'))\
+                                        .join(Camera, Camera.id==Video.camera_id)\
+                                        .join(Image, Image.camera_id==Camera.id)\
+                                        .filter(Camera.cameragroup_id==cameragroup_id)\
+                                        .filter(Camera.path.contains(folder))\
+                                        .group_by(Video.id)\
+                                        .subquery()
+
+        videos = db.session.query(Video.id, Video.filename, func.SUBSTRING_INDEX(Camera.path, '/_video_images_',1).label('path'), video_timestamp_subquery.c.video_timestamp, video_timestamp_subquery.c.video_zip_id)\
                             .join(Camera)\
+                            .join(video_timestamp_subquery, video_timestamp_subquery.c.video_id == Video.id)\
                             .filter(Camera.cameragroup_id==cameragroup_id)\
-                            .filter(Camera.path.contains(folder))\
-                            .order_by(Video.filename).distinct().all()
+                            .filter(Camera.path.contains(folder))
+
+        if search:
+            search_pattern = f"%{search}%"
+            videos = videos.filter(Video.filename.like(search_pattern))
+
+
+        if start_date: videos = videos.filter(video_timestamp_subquery.c.video_timestamp>=start_date)
+        if end_date: videos = videos.filter(video_timestamp_subquery.c.video_timestamp<=end_date)
+
+        videos = videos.order_by(Video.filename).distinct().all()
+
+        zip_last_modified = {}
+        if include_zip_lm:
+            org_folder = db.session.query(Organisation.folder).join(Survey).join(Trapgroup).join(Camera).filter(Camera.cameragroup_id==cameragroup_id).first()
+            zip_ids = set()
+            for img in images:
+                if img[4]: zip_ids.add(img[4])
+            for vid in videos:
+                if vid[4]: zip_ids.add(vid[4])
+            prefix = org_folder[0] + '-comp/' + Config.SURVEY_ZIP_FOLDER + '/'
+            for zip_id in zip_ids:
+                try:
+                    resp = GLOBALS.s3client.head_object(Bucket=Config.BUCKET, Key=prefix + str(zip_id) + '.zip')
+                    zip_last_modified[zip_id] = resp['LastModified'].strftime('%Y-%m-%dT%H:%M:%SZ')
+                except Exception as e:
+                    zip_last_modified[zip_id] = 'N/A'
+
+        empty_last_modified = {}
         for img in images:
             filenames.append({
                 'id': img[0],
-                'name': img[2] + '/' + img[1]
+                'name': img[1],
+                'folder': img[2],
+                'timestamp': stringify_timestamp(img[3]),
+                'type': 'image'
             })
+            if img[4] and include_zip_lm: empty_last_modified[img[2]+'/'+img[1]] = zip_last_modified.get(img[4], 'N/A')
         for vid in videos:
             filenames.append({
                 'id': vid[0],
-                'name': vid[2] + '/' + vid[1]
+                'name': vid[1],
+                'folder': vid[2],
+                'timestamp': stringify_timestamp(vid[3]),
+                'type': 'video'
             })
-        
+            if vid[4] and include_zip_lm: empty_last_modified[vid[2]+'/'+vid[1]] = zip_last_modified.get(vid[4], 'N/A')
+
         filenames = sorted(filenames, key=lambda x: x['name'])
 
-    return json.dumps({'files': filenames})
+        if include_zip_lm:
+            reply['empty_last_modified'] = empty_last_modified
+
+        reply['files'] = filenames
+
+    return json.dumps(reply)
+
+@app.route('/editSurveyFiles/<survey_id>', methods=['POST'])
+@login_required
+def editSurveyFiles(survey_id):
+    '''Edits (delete, move, rename) survey files.'''
+    
+    status = 'error'
+    message = 'An error occurred while editing the survey files.'
+    delete_folders = ast.literal_eval(request.form['delete_folders'])
+    delete_files = ast.literal_eval(request.form['delete_files'])
+    move_folders = ast.literal_eval(request.form['move_folders'])
+    name_changes = ast.literal_eval(request.form['name_changes'])
+
+    survey = db.session.query(Survey).get(survey_id)
+    if survey and checkSurveyPermission(current_user.id,survey_id,'write') and survey.status.lower() in Config.SURVEY_READY_STATUSES:
+        del_allowed = False
+        if delete_folders or delete_files:
+            userPermissions = db.session.query(UserPermissions).filter(UserPermissions.organisation_id==survey.organisation_id).filter(UserPermissions.user_id==current_user.id).first()
+            if userPermissions and userPermissions.delete:
+                del_allowed = True
+        else:
+            del_allowed = True
+
+        if not del_allowed:
+            return json.dumps({'status': 'error', 'message': 'You do not have permission to delete files from this survey.'})
+
+        if delete_folders or delete_files or move_folders or name_changes.get('site') or name_changes.get('camera'):
+            survey.status = 'Processing'
+            db.session.commit()
+            edit_files_args = {
+                'delete_folders': delete_folders,
+                'delete_files': delete_files,
+                'move_folders': move_folders,
+                'name_changes': name_changes
+            }
+            GLOBALS.redisClient.set('edit_survey_files_{}'.format(survey_id),json.dumps(edit_files_args))
+            app.logger.info(edit_files_args)
+            edit_survey_files.apply_async(kwargs={'survey_id': survey_id, 'name_changes': name_changes, 'delete_folders': delete_folders, 'delete_files': delete_files, 'move_folders': move_folders})
+
+        status = 'success'
+        message = ''
+
+    return json.dumps({'status': status, 'message': message})
+
+@app.route('/getFolderLastModified', methods=['POST'])
+@login_required
+def getFolderLastModified():
+    '''Returns the last modified timestamp for a specific folder'''
+
+    contents = {'files': {}, 'token': None}
+    folder = ast.literal_eval(request.form['folder'])
+    if 'token' in request.form:
+        token = ast.literal_eval(request.form['token'])
+    else:
+        token = None
+
+    cameragroup_id = ast.literal_eval(request.form['cameragroup_id'])
+    cameragroup = db.session.query(Cameragroup).get(cameragroup_id)
+
+    if cameragroup and folder and checkSurveyPermission(current_user.id,cameragroup.cameras[0].trapgroup.survey_id,'read'):
+
+        splits = folder.split('/')
+        splits[0] = splits[0] + '-comp'
+        folder = '/'.join(splits)
+
+        files = {}
+        count = 0
+
+        while count < 5:
+            # traverse s3 folder
+            params = {
+                'Bucket': Config.BUCKET,
+                'Prefix': folder if folder.endswith('/') else folder + '/',
+                'Delimiter': '/'
+            }
+            if token:
+                params['ContinuationToken'] = token
+            response = GLOBALS.s3client.list_objects_v2(**params)
+ 
+            for r in response.get("Contents", []):
+                files[r['Key'].replace('-comp', '')] = r['LastModified'].strftime('%Y-%m-%dT%H:%M:%SZ')
+
+            token = response.get('NextContinuationToken', None)
+            if not token:
+                break
+            count += 1
+                    
+        contents['files'] = files
+        contents['token'] = token
+
+    return json.dumps({'contents': contents})

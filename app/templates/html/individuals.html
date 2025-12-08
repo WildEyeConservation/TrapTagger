@@ -72,11 +72,14 @@ limitations under the License. -->
 
                     <h5 style="margin-bottom: 2px">Date range</h5>
                     <div style="font-size: 80%; margin-bottom: 2px"><i>Select the date range you would like to see individuals for.</i></div>
-                    <label for="startDate">Start date:</label><br>
-                    <input type="date" id="startDate" name="startDate">
-                    <br>
-                    <label for="endDate">End date:</label><br>
-                    <input type="date" id="endDate" name="endDate">
+                    <div class="row">
+                        <div class='col-lg-10'>
+                            <label for="startDate" style="margin-bottom: 2px;">Start date:</label><br>
+                            <input type="date" id="startDate" class='form-control' name="startDate">
+                            <label for="endDate" style="margin-bottom: 2px; margin-top: 4px;">End date:</label><br>
+                            <input type="date" id="endDate" class='form-control' name="endDate">
+                        </div>
+                    </div>
                     <div id="dateErrors" style="font-size: 80%; color: #DF691A"></div>
                 </div>
             </div>
@@ -255,7 +258,12 @@ limitations under the License. -->
                         <h6 style="margin-bottom: 0.0rem;">Sites: </h6>
                         <select id='sitesIndividualSelector' class='form-control'></select>  
                         <h6 style="margin-top: 0.5rem; margin-bottom: 0.0rem;">Date range:</h6>
-                        <div id="dateDiv"><input type="date" id="startDateIndiv" name="startDate"> - <input type="date" id="endDateIndiv" name="endDate"></div>                    
+                        <div id="dateDiv">
+                            <label for="startDateIndiv" style="margin-bottom: 2px;">Start date:</label>
+                            <input type="date" id="startDateIndiv" name="startDate" class="form-control">
+                            <label for="endDateIndiv" style="margin-bottom: 2px;">End date:</label>
+                            <input type="date" id="endDateIndiv" name="endDate" class="form-control">
+                        </div>                    
                         <div id="dateErrorsIndiv" style="font-size: 80%; color: #DF691A"></div>
                         <br>     
                         
@@ -810,10 +818,10 @@ limitations under the License. -->
                         <select id='unidSitesSelect' class='form-control'></select>  
 
                         <h6 style="margin-top: 0.5rem; margin-bottom: 0.0rem;">Start Date:</h6>
-                        <input type="date" id="startDateUnid" name="startDate">
+                        <input type="date" id="startDateUnid" class='form-control' name="startDate">
                         
                         <h6 style="margin-bottom: 0.0rem; margin-top: 0.5rem;">End Date:</h6>
-                        <input type="date" id="endDateUnid" name="endDate">
+                        <input type="date" id="endDateUnid" class='form-control' name="endDate">
                         <div id="dateErrorsUnid" style="font-size: 80%; color: #DF691A"></div>  
 
                         <h6 style="margin-bottom: 0.0rem; margin-top: 0.5rem;">Order Images:</h6>

@@ -274,27 +274,28 @@ function createIndivMap() {
             startDateLabel = document.createElement('label');
             startDateLabel.textContent = 'Start date:';
             startDateLabel.setAttribute('for', 'startDateSpatial');
+            startDateLabel.setAttribute('style', 'margin-bottom: 2px');
             dateRange.appendChild(startDateLabel)
 
-            dateRange.appendChild(document.createElement('br'));
 
             startDateInput = document.createElement('input');
             startDateInput.setAttribute('type', 'date');
             startDateInput.setAttribute('id', 'startDateSpatial');
+            startDateInput.setAttribute('class', 'form-control');
             dateRange.appendChild(startDateInput)
 
-            dateRange.appendChild(document.createElement('br'));
 
             endDateLabel = document.createElement('label');
             endDateLabel.textContent = 'End date:';
             endDateLabel.setAttribute('for', 'endDateSpatial');
+            endDateLabel.setAttribute('style', 'margin-bottom: 2px');
             dateRange.appendChild(endDateLabel)
 
-            dateRange.appendChild(document.createElement('br'));
 
             endDateInput = document.createElement('input');
             endDateInput.setAttribute('type', 'date');
             endDateInput.setAttribute('id', 'endDateSpatial');
+            endDateInput.setAttribute('class', 'form-control');
             dateRange.appendChild(endDateInput)
 
             dateError = document.createElement('div')
@@ -970,27 +971,28 @@ function createIndivPolarChart() {
     startDateLabel = document.createElement('label');
     startDateLabel.textContent = 'Start date:';
     startDateLabel.setAttribute('for', 'startDateTemp');
+    startDateLabel.setAttribute('style', 'margin-bottom: 2px');
     dateRange.appendChild(startDateLabel)
 
-    dateRange.appendChild(document.createElement('br'));
 
     startDateInput = document.createElement('input');
     startDateInput.setAttribute('type', 'date');
     startDateInput.setAttribute('id', 'startDateTemp');
+    startDateInput.setAttribute('class', 'form-control');
     dateRange.appendChild(startDateInput)
 
-    dateRange.appendChild(document.createElement('br'));
 
     endDateLabel = document.createElement('label');
     endDateLabel.textContent = 'End date:';
     endDateLabel.setAttribute('for', 'endDateTemp');
+    endDateLabel.setAttribute('style', 'margin-bottom: 2px');
     dateRange.appendChild(endDateLabel)
 
-    dateRange.appendChild(document.createElement('br'));
 
     endDateInput = document.createElement('input');
     endDateInput.setAttribute('type', 'date');
     endDateInput.setAttribute('id', 'endDateTemp');
+    endDateInput.setAttribute('class', 'form-control');
     dateRange.appendChild(endDateInput)
 
     dateError = document.createElement('div')
@@ -1623,27 +1625,27 @@ function createIndivBar() {
     startDateLabel = document.createElement('label');
     startDateLabel.textContent = 'Start date:';
     startDateLabel.setAttribute('for', 'startDateNum');
+    startDateLabel.setAttribute('style', 'margin-bottom: 2px');
     dateRange.appendChild(startDateLabel)
-
-    dateRange.appendChild(document.createElement('br'));
 
     startDateInput = document.createElement('input');
     startDateInput.setAttribute('type', 'date');
     startDateInput.setAttribute('id', 'startDateNum');
+    startDateInput.setAttribute('class', 'form-control');
     dateRange.appendChild(startDateInput)
 
-    dateRange.appendChild(document.createElement('br'));
 
     endDateLabel = document.createElement('label');
     endDateLabel.textContent = 'End date:';
     endDateLabel.setAttribute('for', 'endDateNum');
+    endDateLabel.setAttribute('style', 'margin-bottom: 2px');
     dateRange.appendChild(endDateLabel)
 
-    dateRange.appendChild(document.createElement('br'));
 
     endDateInput = document.createElement('input');
     endDateInput.setAttribute('type', 'date');
     endDateInput.setAttribute('id', 'endDateNum');
+    endDateInput.setAttribute('class', 'form-control');
     dateRange.appendChild(endDateInput)
 
     dateError = document.createElement('div')
@@ -1867,27 +1869,28 @@ function createIndivLine() {
     startDateLabel = document.createElement('label');
     startDateLabel.textContent = 'Start date:';
     startDateLabel.setAttribute('for', 'startDateTime');
+    startDateLabel.setAttribute('style', 'margin-bottom: 2px');
     dateRange.appendChild(startDateLabel)
 
-    dateRange.appendChild(document.createElement('br'));
 
     startDateInput = document.createElement('input');
     startDateInput.setAttribute('type', 'date');
     startDateInput.setAttribute('id', 'startDateTime');
+    startDateInput.setAttribute('class', 'form-control');
     dateRange.appendChild(startDateInput)
 
-    dateRange.appendChild(document.createElement('br'));
 
     endDateLabel = document.createElement('label');
     endDateLabel.textContent = 'End date:';
     endDateLabel.setAttribute('for', 'endDateTime');
+    endDateLabel.setAttribute('style', 'margin-bottom: 2px');
     dateRange.appendChild(endDateLabel)
 
-    dateRange.appendChild(document.createElement('br'));
 
     endDateInput = document.createElement('input');
     endDateInput.setAttribute('type', 'date');
     endDateInput.setAttribute('id', 'endDateTime');
+    endDateInput.setAttribute('class', 'form-control');
     dateRange.appendChild(endDateInput)
 
     dateError = document.createElement('div')
