@@ -812,7 +812,7 @@ def calculate_individual_similarities(self,task_id,species):
                                             .filter(Task.id.in_(task_ids))\
                                             .filter(Individual.species==species)\
                                             .filter(Individual.name!='unidentifiable')\
-                                            .all()]
+                                            .distinct().all()]
 
         individuals2 = individuals1.copy()
 
