@@ -2212,22 +2212,44 @@ function checkTrapgroupCode() {
                         else {
                             structure[tg] = [cam]
                         }
-                        if (tg in indices) {
-                            idx = pathDisplay.options[i].text.indexOf(tg)
-                            if (cam in indices[tg]['cams']) {
-                                indices[tg]['cams'][cam] = pathDisplay.options[i].text.indexOf(cam)
-                            } else {
-                                indices[tg]['cams'][cam] = pathDisplay.options[i].text.indexOf(cam)
+                        
+                        tg_idx = pathDisplay.options[i].text.indexOf(tg)
+                        if (siteFolderN){
+                            tgCodeIndex = parseInt(tgCode.replace('(?:[^/]*/){','').replace('}([^/]*)',''))
+                            fldr_idx = tgCodeIndex
+                            if (fldr_idx > 0){
+                                tg_idx = pathDisplay.options[i].text.indexOf('/',0)
+                                for (let j=1;j<fldr_idx;j++){
+                                    tg_idx = pathDisplay.options[i].text.indexOf('/',tg_idx+1)
+                                }
+                                tg_idx += 1
                             }
-                            if (indices[tg]['index'] > idx) {
-                                indices[tg]['index'] = idx
+                        }
+
+                        cam_idx = pathDisplay.options[i].text.indexOf(cam)
+                        if (camLvlFolder){
+                            camCodeIndex = parseInt(camCode.replace('(?:[^/]*/){','').replace('}([^/]*)',''))
+                            fldr_idx = camCodeIndex
+                            if (fldr_idx > 0){
+                                cam_idx = pathDisplay.options[i].text.indexOf('/',0)
+                                for (let j=1;j<fldr_idx;j++){
+                                    cam_idx = pathDisplay.options[i].text.indexOf('/',cam_idx+1)
+                                }
+                                cam_idx += 1
+                            }
+                        }
+
+                        if (tg in indices) {
+                            indices[tg]['cams'][cam] = cam_idx
+                            if (indices[tg]['index'] > tg_idx) {
+                                indices[tg]['index'] = tg_idx
                             }
                         } else {
                             indices[tg] = {
-                                'index': pathDisplay.options[i].text.indexOf(tg),
+                                'index': tg_idx,
                                 'cams': {}
                             }
-                            indices[tg]['cams'][cam] = pathDisplay.options[i].text.indexOf(cam)
+                            indices[tg]['cams'][cam] = cam_idx
                         }
 
                     }

@@ -17,7 +17,7 @@ limitations under the License.
 from app import app, db, celery
 from app.models import *
 from app.functions.globals import retryTime, checkForIdWork, taggingLevelSQ, updateAllStatuses, rDets, calculate_restore_expiry_date, chunker, launch_task
-from app.functions.individualID import calculate_detection_similarities
+from app.functions.individualID import calculate_detection_similarities, check_label_and_species_match
 from app.functions.admin import edit_survey, delete_individuals
 from app.functions.results import generate_wildbook_export
 from app.functions.imports import s3traverse
@@ -320,6 +320,8 @@ def restore_images_for_id(self,task_id,days,tier,restore_time,extend=False):
         task_ids = [task_id]
         for sub_task in task.sub_tasks:
             task_ids.append(sub_task.id)
+
+        check_label_and_species_match(task_ids,species)
         
         algorithm = None
         if '-5' in taggingLevel and len(tL)>4:
