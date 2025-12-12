@@ -5654,6 +5654,30 @@ document.getElementById('btnAddFiles').addEventListener('click', ()=>{
             confirmEditFiles = true
             modalAddFiles.modal('hide')
             document.getElementById('btnConfirmEditFiles').disabled = false
+            let confirm_msg = 'The following changes will be made to the survey:<br><ul>'
+            if (Object.keys(surveyDeletedFolders).length>0) {
+                count = 0
+                for (let site_id in surveyDeletedFolders){
+                    for (let cam_id in surveyDeletedFolders[site_id].cameras){
+                        count += surveyDeletedFolders[site_id].cameras[cam_id].folders.length
+                    }
+                }
+                confirm_msg += '<li>Delete '+count+' folder(s)</li>'
+            }
+            if (surveyDeletedFiles.length>0) {
+                confirm_msg += '<li>Delete '+surveyDeletedFiles.length+' file(s)</li>'
+            }
+            if (Object.keys(surveyMovedFolders).length>0) {
+                confirm_msg += '<li>Move '+Object.keys(surveyMovedFolders).length+' folder(s)</li>'
+            }
+            if (Object.keys(surveyEditedNames['site']).length>0) {
+                confirm_msg += '<li>Edit the name(s) of '+Object.keys(surveyEditedNames['site']).length+' site(s)</li>'
+            }
+            if (Object.keys(surveyEditedNames['camera']).length>0) {
+                confirm_msg += '<li>Edit the name(s) of '+Object.keys(surveyEditedNames['camera']).length+' camera(s)</li>'
+            }
+            confirm_msg += '</ul>'
+            document.getElementById('confirmEditFilesBody').innerHTML = confirm_msg
             modalConfirmEditFiles.modal({keyboard: true});
         }
     }
