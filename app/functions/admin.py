@@ -2990,7 +2990,6 @@ def edit_survey_files(self, survey_id, name_changes, move_folders, delete_folder
         # 3. Move folders
         if status != 'error' and move_folders:
             # Note: need to handle renaming of cam names of folders that moved where a new cg needs to be created
-            # ALso include cleanup of empty etc
             skip_updates = False
             status, trapgroups = move_survey_folders(survey_id=survey_id, folders=move_folders)
             if status == 'success':
@@ -3098,16 +3097,13 @@ def edit_site_and_camera_names(survey_id, name_changes):
         for cameragroup, trapgroup_id in all_cameragroups:
             if trapgroup_id not in proposed_cameragroup_names:
                 proposed_cameragroup_names[trapgroup_id] = {}
+                camera_names_by_trapgroup[trapgroup_id] = set()
             new_name = camera_changes.get(str(cameragroup.id))
             if new_name and new_name != cameragroup.name:
                 proposed_cameragroup_names[trapgroup_id][cameragroup] = new_name
-                if trapgroup_id not in camera_names_by_trapgroup:
-                    camera_names_by_trapgroup[trapgroup_id] = set()
                 camera_names_by_trapgroup[trapgroup_id].add(new_name.lower())
             else:
                 proposed_cameragroup_names[trapgroup_id][cameragroup] = cameragroup.name
-                if trapgroup_id not in camera_names_by_trapgroup:
-                    camera_names_by_trapgroup[trapgroup_id] = set()
                 camera_names_by_trapgroup[trapgroup_id].add(cameragroup.name.lower())
 
         # Check for duplicates
@@ -3160,30 +3156,33 @@ def delete_survey_files(survey_id, files):
         batch_vid_ids = list(batch_vid_ids)
         batch_cam_ids = list(batch_cam_ids)
         if status != 'error':
-            # TODO: CLEAR AFFECTED CLUSTER LABELS AND LABELGROUP LABELS
-            # affected_clusters = db.session.query(Cluster)\
-            #                             .join(Image,Cluster.images)\
-            #                             .filter(Image.id.in_(batch_img_ids))\
-            #                             .filter(Cluster.user_id!=None)\
-            #                             .filter(Cluster.labels.any())\
-            #                             .distinct().all()
-            # for cluster in affected_clusters:
-            #     cluster.user_id = None
-            #     cluster.timestamp = None
-            #     cluster.labels = []
+            # Drop labels from image batch clusters and labelgroups
+            clusterSQ = db.session.query(Cluster.id).join(Image,Cluster.images).filter(Image.id.in_(batch_img_ids)).subquery()
 
-            # affected_labelgroups = db.session.query(Labelgroup)\
-            #                             .join(Detection)\
-            #                             .join(Image)\
-            #                             .filter(Image.id.in_(batch_img_ids))\
-            #                             .filter(Labelgroup.checked==False)\
-            #                             .filter(Labelgroup.labels.any())\
-            #                             .distinct().all()
+            affected_clusters = db.session.query(Cluster)\
+                                .join(clusterSQ, Cluster.id==clusterSQ.c.id)\
+                                .filter(Cluster.labels.any())\
+                                .distinct().all()
+            
+            for cluster in affected_clusters:
+                cluster.user_id = None
+                cluster.timestamp = None
+                cluster.labels = []
 
-            # for labelgroup in affected_labelgroups:
-            #     labelgroup.labels = []
+            affected_labelgroups = db.session.query(Labelgroup)\
+                                .join(Detection)\
+                                .join(Image)\
+                                .join(Cluster,Image.clusters)\
+                                .join(clusterSQ,clusterSQ.c.id==Cluster.id)\
+                                .filter(clusterSQ.c.id!=None)\
+                                .filter(Labelgroup.checked==False)\
+                                .filter(Labelgroup.labels.any())\
+                                .distinct().all()
+        
+            for labelgroup in affected_labelgroups:
+                labelgroup.labels = []
 
-            # db.session.commit()
+            db.session.commit()
 
             status = delete_survey_data(survey_id=survey_id, camera_ids=batch_cam_ids, image_ids=batch_img_ids, video_ids=batch_vid_ids)
         else:
@@ -3213,32 +3212,32 @@ def delete_survey_folders(survey_id, folders):
                 camera_ids.append(camera_id)
                 if trapgroup_id not in folder_trapgroups: folder_trapgroups.append(trapgroup_id)
 
-    # TODO: CLEAR AFFECTED CLUSTER LABELS AND LABELGROUP LABELS
+    # Drop labels from folder clusters and labelgroups
+    clusterSQ = db.session.query(Cluster.id).join(Image,Cluster.images).filter(Image.camera_id.in_(camera_ids)).subquery()
 
-    # affected_clusters = db.session.query(Cluster)\
-    #                                 .join(Image,Cluster.images)\
-    #                                 .filter(Image.camera_id.in_(camera_ids))\
-    #                                 .filter(Cluster.user_id!=None)\
-    #                                 .filter(Cluster.labels.any())\
-    #                                 .distinct().all()
+    affected_clusters = db.session.query(Cluster)\
+                                    .join(clusterSQ, Cluster.id==clusterSQ.c.id)\
+                                    .filter(Cluster.labels.any())\
+                                    .distinct().all()
+    for cluster in affected_clusters:
+        cluster.user_id = None
+        cluster.timestamp = None
+        cluster.labels = []
 
-    # for cluster in affected_clusters:
-    #     cluster.user_id = None
-    #     cluster.timestamp = None
-    #     cluster.labels = []
+    affected_labelgroups = db.session.query(Labelgroup)\
+                        .join(Detection)\
+                        .join(Image)\
+                        .join(Cluster,Image.clusters)\
+                        .join(clusterSQ,clusterSQ.c.id==Cluster.id)\
+                        .filter(clusterSQ.c.id!=None)\
+                        .filter(Labelgroup.checked==False)\
+                        .filter(Labelgroup.labels.any())\
+                        .distinct().all()
 
-    # affected_labelgroups = db.session.query(Labelgroup)\
-    #                                 .join(Detection)\
-    #                                 .join(Image)\
-    #                                 .filter(Image.camera_id.in_(camera_ids))\
-    #                                 .filter(Labelgroup.checked==False)\
-    #                                 .filter(Labelgroup.labels.any())\
-    #                                 .distinct().all()
-    
-    # for labelgroup in affected_labelgroups:
-    #     labelgroup.labels = []
+    for labelgroup in affected_labelgroups:
+        labelgroup.labels = []
 
-    # db.session.commit()
+    db.session.commit()
 
     status = delete_survey_data(survey_id=survey_id, camera_ids=camera_ids, image_ids=[], video_ids=[])
 
@@ -3604,8 +3603,7 @@ def move_survey_folders(survey_id, folders):
     app.logger.info('Moving {} folders for survey {}'.format(len(folders), survey_id))
     affected_trapgroups = set()
     status = 'success'
-
-    # TODO: CLEAR AFFECTED CLUSTER LABELS AND LABELGROUP LABELS
+    moved_folders = set()
 
     for folder in folders:
         cameras = db.session.query(Camera).join(Trapgroup).filter(Trapgroup.survey_id==survey_id).filter(or_(Camera.path==folder['folder'], Camera.path.like(folder['folder']+'/%'))).distinct().all()
@@ -3623,10 +3621,52 @@ def move_survey_folders(survey_id, folders):
                 affected_trapgroups.add(camera.trapgroup_id)
                 camera.trapgroup_id = new_site.id
                 camera.cameragroup = new_cameragroup
+                moved_folders.add(camera.path)
             affected_trapgroups.add(new_site.id)
 
     db.session.commit()
 
-    delete_empty_data(survey_id=survey_id)
+    # Delete associated cluster and labelgroup labels for clusters containing more than one trapgroup 
+    cluster_site_counts_sq = db.session.query(Cluster.id, func.count(distinct(Trapgroup.id)).label('count'))\
+                            .join(Image,Cluster.images)\
+                            .join(Camera, Image.camera_id==Camera.id)\
+                            .join(Trapgroup, Camera.trapgroup_id==Trapgroup.id)\
+                            .filter(Trapgroup.survey_id==survey_id)\
+                            .group_by(Cluster.id).subquery()
+
+    clusterSQ = db.session.query(Cluster.id)\
+                    .join(Image,Cluster.images)\
+                    .join(Camera, Image.camera_id==Camera.id)\
+                    .join(cluster_site_counts_sq, Cluster.id==cluster_site_counts_sq.c.id)\
+                    .filter(Camera.path.in_(list(moved_folders)))\
+                    .filter(cluster_site_counts_sq.c.count>1)\
+                    .subquery()
+
+    affected_clusters = db.session.query(Cluster)\
+                                .join(clusterSQ, Cluster.id==clusterSQ.c.id)\
+                                .filter(Cluster.labels.any())\
+                                .distinct().all()
+    
+    for cluster in affected_clusters:
+        cluster.user_id = None
+        cluster.timestamp = None
+        cluster.labels = []
+
+    affected_labelgroups = db.session.query(Labelgroup)\
+                        .join(Detection)\
+                        .join(Image)\
+                        .join(Cluster,Image.clusters)\
+                        .join(clusterSQ,clusterSQ.c.id==Cluster.id)\
+                        .filter(clusterSQ.c.id!=None)\
+                        .filter(Labelgroup.checked==False)\
+                        .filter(Labelgroup.labels.any())\
+                        .distinct().all()
+    
+    for labelgroup in affected_labelgroups:
+        labelgroup.labels = []
+
+    db.session.commit()
+
+    status = delete_empty_data(survey_id=survey_id)
 
     return (status, affected_trapgroups)

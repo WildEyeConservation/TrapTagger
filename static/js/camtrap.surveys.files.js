@@ -660,6 +660,7 @@ function editFiles() {
 
         // update the cam names for moved folders
         let move_folders = []
+        let i = 0;
         for (let folder in surveyMovedFolders){
             let new_cam_id = surveyMovedFolders[folder]['new_camera_id'];
             if (new_cam_id.startsWith('n')){
@@ -670,6 +671,10 @@ function editFiles() {
                 }
             }
             move_folders.push(surveyMovedFolders[folder]);
+            delete move_folders[i]['image_count'];
+            delete move_folders[i]['video_count'];
+            delete move_folders[i]['frame_count'];
+            i += 1;
         }
 
         //remove 'n'ids from surveyEditedNames
