@@ -2997,11 +2997,15 @@ def edit_survey_files(self, survey_id, name_changes, move_folders, delete_folder
             else:
                 status = 'error'
 
-        # 4. Rename sites and cameras
+        # 4. Delete empty data 
+        if status != 'error' and (delete_files or delete_folders or move_folders):
+            status = delete_empty_data(survey_id=survey_id)
+
+        # 5. Rename sites and cameras
         if status != 'error' and name_changes:
             edit_site_and_camera_names(survey_id=survey_id, name_changes=name_changes)
 
-        # 5. Finalise
+        # 6. Finalise
         if status == 'error':
             survey = db.session.query(Survey).get(survey_id)
             survey.status = 'Failed Editing Files'
@@ -3009,9 +3013,8 @@ def edit_survey_files(self, survey_id, name_changes, move_folders, delete_folder
             app.logger.info('Editing survey files for survey {} failed.'.format(survey_id))
 
         else:
-            app.logger.info('Finalising editing survey files for survey {}'.format(survey_id))
             if not skip_updates:
-                task_ids = [r[0] for r in db.session.query(Task.id).filter(Task.survey_id==survey_id).distinct().all()] # NOTE: do for all tasks?
+                task_ids = [r[0] for r in db.session.query(Task.id).filter(Task.survey_id==survey_id).distinct().all()]
                 if prep_task_trapgroups:
                     trapgroups = [r[0] for r in db.session.query(Trapgroup.id).filter(Trapgroup.survey_id==survey_id).filter(Trapgroup.id.in_(prep_task_trapgroups)).distinct().all()]
                     for task_id in task_ids:
@@ -3188,11 +3191,9 @@ def delete_survey_files(survey_id, files):
         else:
             break
 
-    if status != 'error':
-        status = delete_empty_data(survey_id=survey_id)
-        affected_trapgroups = set([r[0] for r in db.session.query(Trapgroup.id).filter(Trapgroup.id.in_(affected_trapgroups)).distinct().all()])
-    else:
-        app.logger.info('Failed to delete survey files for survey {}'.format(survey_id))
+    affected_trapgroups = set([r[0] for r in db.session.query(Trapgroup.id).filter(Trapgroup.id.in_(affected_trapgroups)).distinct().all()])
+    
+    if status == 'error': app.logger.info('Failed to delete survey files for survey {}'.format(survey_id))
 
     return (status, affected_trapgroups)
 
@@ -3241,10 +3242,7 @@ def delete_survey_folders(survey_id, folders):
 
     status = delete_survey_data(survey_id=survey_id, camera_ids=camera_ids, image_ids=[], video_ids=[])
 
-    if status != 'error':
-        status = delete_empty_data(survey_id=survey_id)
-    else:
-        app.logger.info('Failed to delete survey folders for survey {}'.format(survey_id))
+    if status == 'error': app.logger.info('Failed to delete survey folders for survey {}'.format(survey_id))
 
     affected_trapgroups = set([r[0] for r in db.session.query(Trapgroup.id).filter(Trapgroup.id.in_(folder_trapgroups)).distinct().all()])
 
@@ -3667,6 +3665,5 @@ def move_survey_folders(survey_id, folders):
 
     db.session.commit()
 
-    status = delete_empty_data(survey_id=survey_id)
 
     return (status, affected_trapgroups)

@@ -1246,7 +1246,7 @@ function buildContentsTable() {
 
     var thLastModified = document.createElement('th');
     thLastModified.setAttribute('style', 'width: 14%; vertical-align: middle; padding: 8px 12px;');
-    thLastModified.innerHTML = 'Last Modified';
+    thLastModified.innerHTML = 'Import Date';
     headerRow.appendChild(thLastModified);
 
     if (currentFileOrder.column == 'last_modified') {
@@ -1258,7 +1258,7 @@ function buildContentsTable() {
     }
 
     thLastModified.style.cursor = 'pointer';
-    thLastModified.title = 'Sort by Last Modified';
+    thLastModified.title = 'Sort by Import Date';
     thLastModified.addEventListener('click', function() {
         /** Event listener for sorting the folder contents table by last modified date. */
         if (currentFileOrder.column == 'last_modified' && currentFileOrder.direction == 'asc') {
