@@ -478,18 +478,24 @@ function buildSurveyFolders(type='folder'){
                             clearSelect(select)
                             let optionTexts = []
                             let optionValues = []
-                            let sids = Object.keys(surveyFolders).sort((a, b) => siteNames[a].localeCompare(siteNames[b]));
-                            for (let sid of sids) {
+                            // let sids = Object.keys(surveyFolders).sort((a, b) => siteNames[a].localeCompare(siteNames[b]));
+                            // for (let sid of sids) {
+                            //     optionTexts.push(siteNames[sid])
+                            //     optionValues.push(sid)
+                            // }
+                            for (let sid in siteNames) {
                                 optionTexts.push(siteNames[sid])
                                 optionValues.push(sid)
                             }
+                            optionTexts.push('NEW SITE')
+                            optionValues.push('new')
                             fillSelect(select, optionTexts, optionValues)
 
                             var cameraSelect = document.getElementById('moveFolderCameraSelector');
                             clearSelect(cameraSelect)
                             let optionTextsCam = []
                             let optionValuesCam = []
-                            let cids = Object.keys(surveyFolders[sids[0]].cameras).sort((a, b) => camNames[a].localeCompare(camNames[b]));
+                            let cids = Object.keys(surveyFolders[optionValues[0]].cameras).sort((a, b) => camNames[a].localeCompare(camNames[b]));
                             for (let cid of cids) {
                                 optionTextsCam.push(camNames[cid])
                                 optionValuesCam.push(cid)
@@ -501,6 +507,8 @@ function buildSurveyFolders(type='folder'){
                             fillSelect(cameraSelect, optionTextsCam, optionValuesCam)
 
                             modalAddFiles.modal('hide');
+                            document.getElementById('moveFolderSiteName').style.display = 'none';
+                            document.getElementById('moveFolderSiteName').value = '';
                             modalMoveFolder.modal({keyboard: true});
                         };
                     }(site_id, camera_id, folder));
@@ -606,7 +614,7 @@ function buildSurveyFolders(type='folder'){
 
 function removeFolder(site_id,cam_id,folder_path,source){
     /** Removes a folder from the source (either 'surveyFolders' or 'surveyDeletedFolders'). */
-    site_id = parseInt(site_id);
+    // site_id = parseInt(site_id);
     // cam_id = parseInt(cam_id);
     if (!source[site_id] || !source[site_id].cameras[cam_id]){
         return;
@@ -622,12 +630,15 @@ function removeFolder(site_id,cam_id,folder_path,source){
 
     if (Object.keys(source[site_id].cameras).length == 0){
         delete source[site_id];
+        if (site_id.startsWith('n')){
+            delete siteNames[site_id];
+        }
     }
 }
 
 function addFolder(site_id, site_name, cam_id, cam_name, folder_obj, source){
     /** Adds a folder to the source (either 'surveyFolders' or 'surveyDeletedFolders'). */
-    site_id = parseInt(site_id);
+    // site_id = parseInt(site_id);
     // cam_id = parseInt(cam_id);
     if (!source[site_id]){
         source[site_id] = { site_id: site_id, site: site_name, cameras: {} };
@@ -662,6 +673,14 @@ function editFiles() {
         let move_folders = []
         let i = 0;
         for (let folder in surveyMovedFolders){
+            let new_site_id = surveyMovedFolders[folder]['new_site_id'];
+            if (new_site_id.startsWith('n')){
+                if (surveyEditedNames['site'][new_site_id]){
+                    surveyMovedFolders[folder]['new_site_name'] = surveyEditedNames['site'][new_site_id];
+                } else {
+                    surveyMovedFolders[folder]['new_site_name'] = siteNames[new_site_id];
+                }
+            }
             let new_cam_id = surveyMovedFolders[folder]['new_camera_id'];
             if (new_cam_id.startsWith('n')){
                 if (surveyEditedNames['camera'][new_cam_id]){
@@ -680,7 +699,9 @@ function editFiles() {
         //remove 'n'ids from surveyEditedNames
         let cleanEditedNames = {'site': {},'camera': {}};
         for (let site_id in surveyEditedNames['site']){
-            cleanEditedNames['site'][site_id] = surveyEditedNames['site'][site_id];
+            if (!site_id.startsWith('n')){
+                cleanEditedNames['site'][site_id] = surveyEditedNames['site'][site_id];
+            }
         }
         for (let cam_id in surveyEditedNames['camera']){
             if (!cam_id.startsWith('n')){
@@ -699,7 +720,7 @@ function editFiles() {
         }
 
         var formData = new FormData();
-        console.log(surveyDeletedFolders, surveyDeletedFiles, surveyMovedFolders, cleanEditedNames)
+        // console.log(surveyDeletedFolders, surveyDeletedFiles, surveyMovedFolders, cleanEditedNames)
         formData.append('delete_folders', JSON.stringify(deleted_folders));
         formData.append('delete_files', JSON.stringify(surveyDeletedFiles));
         formData.append('move_folders', JSON.stringify(move_folders));
@@ -830,7 +851,16 @@ $('#btnConfirmMoveFolder').on('click', function() {
     /** Event listener for confirming the move folder action. */
     var select = document.getElementById('moveFolderSiteSelector');
     var camSelect = document.getElementById('moveFolderCameraSelector');
-    var new_site_id = select.value;
+    if (select.value == 'new'){
+        var new_name = document.getElementById('moveFolderSiteName').value.trim();
+        if (!validateName(new_name, 'site')){
+            return;
+        } 
+        var new_site_id = 'n'+Date.now();
+        siteNames[new_site_id] = new_name;
+    } else {
+        var new_site_id = select.value;
+    }
     var new_camera_id = camSelect.value;
     if (new_site_id != selectedFolderToMove.site_id || new_camera_id != selectedFolderToMove.camera_id) {
         let old_site_id = selectedFolderToMove.site_id
@@ -922,11 +952,13 @@ $('#moveFolderSiteSelector').on('change', function() {
     let camID = selectedFolderToMove.camera_id;
     let optionTextsCam = [];
     let optionValuesCam = [];
-    let cids = Object.keys(surveyFolders[site_id].cameras).sort((a, b) => camNames[a].localeCompare(camNames[b]));
-    for (let cid of cids) {
-        if (cid != camID) {
-            optionTextsCam.push(camNames[cid]);
-            optionValuesCam.push(cid);
+    if (site_id != 'new' && surveyFolders[site_id]) {
+        let cids = Object.keys(surveyFolders[site_id].cameras).sort((a, b) => camNames[a].localeCompare(camNames[b]));
+        for (let cid of cids) {
+            if (cid != camID) {
+                optionTextsCam.push(camNames[cid]);
+                optionValuesCam.push(cid);
+            }
         }
     }
     if (!optionTextsCam.includes(camNames[camID])){
@@ -934,6 +966,14 @@ $('#moveFolderSiteSelector').on('change', function() {
         optionValuesCam = ['n'+camID].concat(optionValuesCam)
     }
     fillSelect(cameraSelect, optionTextsCam, optionValuesCam);
+
+    document.getElementById('moveFolderSiteName').value = '';
+    if (site_id == 'new'){
+        document.getElementById('moveFolderSiteName').style.display = 'block';
+        document.getElementById('moveFolderSiteName').focus();
+    } else {
+        document.getElementById('moveFolderSiteName').style.display = 'none';
+    }
 });
 
 modalFolderFiles.on('shown.bs.modal', function () {
@@ -1120,10 +1160,8 @@ function getLastModified(token=null) {
         function(){
             if (this.readyState == 4 && this.status == 200) {
                 reply = JSON.parse(this.responseText);
-                console.log(reply);
                 let contents = reply.contents;
 
-                // Object.assign(file_last_modified, contents.files);
                 for (let file in contents.files) {
                     file_last_modified[file] = (new Date(contents.files[file])).toLocaleDateString('en-CA').replace(/-/g, "/");
                 }

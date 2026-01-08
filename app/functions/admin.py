@@ -3057,8 +3057,6 @@ def edit_survey_files(self, survey_id, name_changes, move_folders, delete_folder
 def edit_site_and_camera_names(survey_id, name_changes):
     ''' Edits site and camera names based on the specified changes. '''
     
-    app.logger.info('Editing site and camera names for survey {}'.format(survey_id))
-
     site_changes = {}
     camera_changes = {}
     valid_name_regex = re.compile('^[A-Za-z0-9._ -]+$')
@@ -3074,6 +3072,7 @@ def edit_site_and_camera_names(survey_id, name_changes):
 
 
     if site_changes: 
+        app.logger.info('Editing site names for survey {}'.format(survey_id))
         all_sites = db.session.query(Trapgroup).filter(Trapgroup.survey_id==survey_id).distinct().all()  
         proposed_site_tags = {}
         all_tags = set()
@@ -3094,6 +3093,7 @@ def edit_site_and_camera_names(survey_id, name_changes):
                     site.tag = new_tag
 
     if camera_changes:
+        app.logger.info('Editing camera names for survey {}'.format(survey_id))
         all_cameragroups = db.session.query(Cameragroup, Trapgroup.id).join(Camera, Cameragroup.id==Camera.cameragroup_id).join(Trapgroup).filter(Trapgroup.survey_id==survey_id).distinct().all()
         proposed_cameragroup_names = {}
         camera_names_by_trapgroup = {}
@@ -3607,22 +3607,36 @@ def move_survey_folders(survey_id, folders):
         cameras = db.session.query(Camera).join(Trapgroup).filter(Trapgroup.survey_id==survey_id).filter(or_(Camera.path==folder['folder'], Camera.path.like(folder['folder']+'/%'))).distinct().all()
         new_site_id = folder.get('new_site_id')
         new_camera_id = folder.get('new_camera_id')
-        new_site = db.session.query(Trapgroup).filter(Trapgroup.survey_id==survey_id).filter(Trapgroup.id==new_site_id).first()
+
+        if 'n' in str(new_site_id):
+            new_site_name = folder.get('new_site_name')
+            new_site = db.session.query(Trapgroup).filter(Trapgroup.survey_id==survey_id).filter(Trapgroup.tag==new_site_name).first()
+            if not new_site:
+                new_site = Trapgroup(tag=new_site_name, survey_id=survey_id, altitude=0, latitude=0, longitude=0)
+                db.session.add(new_site)
+        else:
+            new_site = db.session.query(Trapgroup).filter(Trapgroup.survey_id==survey_id).filter(Trapgroup.id==new_site_id).first()
+
         if 'n' in str(new_camera_id):
             new_camera_name = folder.get('new_camera_name')
-            new_cameragroup = Cameragroup(name=new_camera_name)
-            db.session.add(new_cameragroup)
+            new_cameragroup = db.session.query(Cameragroup).join(Camera, Cameragroup.id==Camera.cameragroup_id).join(Trapgroup).filter(Trapgroup.survey_id==survey_id).filter(Trapgroup.tag==new_site.tag).filter(Cameragroup.name==new_camera_name).first()
+            if not new_cameragroup:
+                new_cameragroup = Cameragroup(name=new_camera_name)
+                db.session.add(new_cameragroup)
         else: 
             new_cameragroup = db.session.query(Cameragroup).join(Camera, Cameragroup.id==Camera.cameragroup_id).filter(Camera.trapgroup_id==new_site_id).filter(Cameragroup.id==new_camera_id).first()
+        
         if new_site and new_cameragroup: 
             for camera in cameras:
-                affected_trapgroups.add(camera.trapgroup_id)
-                camera.trapgroup_id = new_site.id
+                affected_trapgroups.add(camera.trapgroup)
+                camera.trapgroup = new_site
                 camera.cameragroup = new_cameragroup
                 moved_folders.add(camera.path)
-            affected_trapgroups.add(new_site.id)
+            affected_trapgroups.add(new_site)
 
     db.session.commit()
+
+    affected_trapgroups = set([tg.id for tg in affected_trapgroups])    
 
     # Delete associated cluster and labelgroup labels for clusters containing more than one trapgroup 
     cluster_site_counts_sq = db.session.query(Cluster.id, func.count(distinct(Trapgroup.id)).label('count'))\
