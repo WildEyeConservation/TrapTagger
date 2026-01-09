@@ -3731,11 +3731,12 @@ def import_survey(self,survey_id,preprocess_done=False,live=False,launch_id=None
             updateSurveyDetectionRatings(survey_id=survey_id)
 
             # Update clustering, classification and statuses for the non-default tasks
+            survey = db.session.query(Survey).get(survey_id)
             survey.status='re-Clustering'
             db.session.commit()
             task_ids = [r[0] for r in db.session.query(Task.id).filter(Task.survey_id==survey_id).filter(Task.name!='default').all()]
             for task_id in task_ids:
-                prepTask(task_id)
+                prepTask(task_id=task_id,added_files=True)
                 task = db.session.query(Task).get(task_id)
                 task.status = 'Ready'
                 db.session.commit()

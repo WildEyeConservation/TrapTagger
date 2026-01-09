@@ -5974,7 +5974,7 @@ def add_new_task(survey_id, name, includes=None, translation=None, labels=None, 
 
     return task_id
 
-def prepare_labelgroup_cluster_labels(task_id,trapgroup_id,query_limit,timestamp=None):
+def prepare_labelgroup_cluster_labels(task_id,trapgroup_id,query_limit,timestamp=None,added_files=False):
     ''' Prepares the labelgroups and clusters for re-clustering by removing AI, unknown and nothing labels. '''
     
     # Drop AI labels as the classifier might have seen a different cluster - these will be re-classified at the end
@@ -6006,86 +6006,111 @@ def prepare_labelgroup_cluster_labels(task_id,trapgroup_id,query_limit,timestamp
 
     # Drop unknown and nothing labels to be conservative - there could now be more info after a re-cluster
     nothingLabel = db.session.query(Label).get(GLOBALS.nothing_id)
-    while True:
-        labelgroups = db.session.query(Labelgroup)\
-                                .join(Detection)\
-                                .join(Image)\
-                                .join(Camera)\
-                                .filter(Labelgroup.labels.contains(nothingLabel))\
-                                .filter(Labelgroup.task_id==task_id)\
-                                .filter(Camera.trapgroup_id==trapgroup_id)
-
-        if timestamp: labelgroups = labelgroups.filter(Image.corrected_timestamp>=timestamp)
-
-        labelgroups = labelgroups.distinct().limit(query_limit).all()
-
-        for labelgroup in labelgroups:
-            labelgroup.labels = []
-
-        if len(labelgroups)<query_limit: break
-
     unknownLabel = db.session.query(Label).get(GLOBALS.unknown_id)
-    while True:
-        labelgroups = db.session.query(Labelgroup)\
-                                .join(Detection)\
-                                .join(Image)\
-                                .join(Camera)\
-                                .filter(Labelgroup.labels.contains(unknownLabel))\
-                                .filter(Labelgroup.task_id==task_id)\
-                                .filter(Camera.trapgroup_id==trapgroup_id)
+    skip_nothing_and_unknown = False
+    if added_files:
+        # if new files were added, only drop labels if there is an overlap in time
+        skip_nothing_and_unknown = True
 
-        if timestamp: labelgroups = labelgroups.filter(Image.corrected_timestamp>=timestamp)
+        imageSQ = db.session.query(Image.id).join(Cluster,Image.clusters).filter(Cluster.task_id==task_id).subquery()
+        current_start, current_end = db.session.query(func.min(Image.corrected_timestamp), func.max(Image.corrected_timestamp))\
+                                        .join(Camera)\
+                                        .filter(Camera.trapgroup_id==trapgroup_id)\
+                                        .filter(Image.corrected_timestamp!=None)\
+                                        .join(imageSQ,imageSQ.c.id==Image.id)\
+                                        .first()
 
-        labelgroups = labelgroups.distinct().limit(query_limit).all()
+        new_start, new_end = db.session.query(func.min(Image.corrected_timestamp), func.max(Image.corrected_timestamp))\
+                                       .join(Camera)\
+                                        .filter(Camera.trapgroup_id==trapgroup_id)\
+                                        .filter(Image.corrected_timestamp!=None)\
+                                        .outerjoin(imageSQ,imageSQ.c.id==Image.id)\
+                                        .filter(imageSQ.c.id==None)\
+                                        .first()
 
-        for labelgroup in labelgroups:
-            labelgroup.labels = []
-
-        if len(labelgroups)<query_limit: break
-
-    # we need to do this for all clusters too - otherwise their username will be copied across and not be auto-classified
-    while True:
-        clusters = db.session.query(Cluster)\
-                                .join(Image.clusters)\
-                                .join(Camera)\
-                                .filter(Cluster.labels.contains(nothingLabel))\
-                                .filter(Cluster.task_id==task_id)\
-                                .filter(Camera.trapgroup_id==trapgroup_id)
+        if current_start and current_end and new_start and new_end:
+            if not ((new_end + timedelta(minutes=1)) < current_start or (new_start - timedelta(minutes=1)) > (current_end)):
+                skip_nothing_and_unknown = False
         
-        if timestamp: clusters = clusters.filter(Image.corrected_timestamp>=timestamp)
+    if not skip_nothing_and_unknown:
+        while True:
+            labelgroups = db.session.query(Labelgroup)\
+                                    .join(Detection)\
+                                    .join(Image)\
+                                    .join(Camera)\
+                                    .filter(Labelgroup.labels.contains(nothingLabel))\
+                                    .filter(Labelgroup.task_id==task_id)\
+                                    .filter(Camera.trapgroup_id==trapgroup_id)
 
-        clusters = clusters.distinct().limit(query_limit).all()
+            if timestamp: labelgroups = labelgroups.filter(Image.corrected_timestamp>=timestamp)
 
-        for cluster in clusters:
-            cluster.user_id = None
-            cluster.timestamp = None
-            # cluster.labels = []
+            labelgroups = labelgroups.distinct().limit(query_limit).all()
 
-        if len(clusters)<query_limit: break
+            for labelgroup in labelgroups:
+                labelgroup.labels = []
 
-    while True:
-        clusters = db.session.query(Cluster)\
-                                .join(Image.clusters)\
-                                .join(Camera)\
-                                .filter(Cluster.labels.contains(unknownLabel))\
-                                .filter(Cluster.task_id==task_id)\
-                                .filter(Camera.trapgroup_id==trapgroup_id)
-        
-        if timestamp: clusters = clusters.filter(Image.corrected_timestamp>=timestamp)
+            if len(labelgroups)<query_limit: break
+        while True:
+            labelgroups = db.session.query(Labelgroup)\
+                                    .join(Detection)\
+                                    .join(Image)\
+                                    .join(Camera)\
+                                    .filter(Labelgroup.labels.contains(unknownLabel))\
+                                    .filter(Labelgroup.task_id==task_id)\
+                                    .filter(Camera.trapgroup_id==trapgroup_id)
 
-        clusters = clusters.distinct().limit(query_limit).all()
+            if timestamp: labelgroups = labelgroups.filter(Image.corrected_timestamp>=timestamp)
 
-        for cluster in clusters:
-            cluster.user_id = None
-            cluster.timestamp = None
-            # cluster.labels = []
+            labelgroups = labelgroups.distinct().limit(query_limit).all()
 
-        if len(clusters)<query_limit: break
+            for labelgroup in labelgroups:
+                labelgroup.labels = []
+
+            if len(labelgroups)<query_limit: break
+
+        # we need to do this for all clusters too - otherwise their username will be copied across and not be auto-classified
+        while True:
+            clusters = db.session.query(Cluster)\
+                                    .join(Image.clusters)\
+                                    .join(Camera)\
+                                    .filter(Cluster.labels.contains(nothingLabel))\
+                                    .filter(Cluster.task_id==task_id)\
+                                    .filter(Camera.trapgroup_id==trapgroup_id)
+            
+            if timestamp: clusters = clusters.filter(Image.corrected_timestamp>=timestamp)
+
+            clusters = clusters.distinct().limit(query_limit).all()
+
+            for cluster in clusters:
+                cluster.user_id = None
+                cluster.timestamp = None
+                # cluster.labels = []
+
+            if len(clusters)<query_limit: break
+
+        while True:
+            clusters = db.session.query(Cluster)\
+                                    .join(Image.clusters)\
+                                    .join(Camera)\
+                                    .filter(Cluster.labels.contains(unknownLabel))\
+                                    .filter(Cluster.task_id==task_id)\
+                                    .filter(Camera.trapgroup_id==trapgroup_id)
+            
+            if timestamp: clusters = clusters.filter(Image.corrected_timestamp>=timestamp)
+
+            clusters = clusters.distinct().limit(query_limit).all()
+
+            for cluster in clusters:
+                cluster.user_id = None
+                cluster.timestamp = None
+                # cluster.labels = []
+
+            if len(clusters)<query_limit: break
 
     return True
 
 @celery.task(bind=True,max_retries=2,ignore_result=True)
-def prepTask(self, task_id, includes=None, translation=None, labels=None, auto_release=False, trapgroup_ids=None, timestamp=None, bypass_update_statuses=False):
+def prepTask(self, task_id, includes=None, translation=None, labels=None, auto_release=False, trapgroup_ids=None, timestamp=None, bypass_update_statuses=False, added_files=False):
     ''' Prepares/updates a task in terms of: labels, translations, clustering, labelgroups, classification & statuses '''
     
     try:
@@ -6138,14 +6163,15 @@ def prepTask(self, task_id, includes=None, translation=None, labels=None, auto_r
                         'query_limit': query_limit,
                         'timestamp': timestamp,
                         'starting_last_cluster_id': starting_last_cluster_id,
-                        'trigger_source': trigger_source
+                        'trigger_source': trigger_source,
+                        'added_files': added_files
                 },queue='parallel'))
 
             wait_for_parallel(results)
 
         else:
             for trapgroup_id in trapgroup_ids:
-                cluster_trapgroup(task_id,trapgroup_id,query_limit,timestamp,starting_last_cluster_id,trigger_source)
+                cluster_trapgroup(task_id,trapgroup_id,query_limit,timestamp,starting_last_cluster_id,trigger_source,added_files)
 
         if Config.DEBUGGING: print('{}: Finished clustering task {}'.format(time.time()-starttime,task_id))
 
@@ -6248,11 +6274,11 @@ def prepTask(self, task_id, includes=None, translation=None, labels=None, auto_r
     return True
 
 @celery.task(bind=True,max_retries=2)
-def cluster_trapgroup(self,task_id,trapgroup_id,query_limit,timestamp,starting_last_cluster_id,trigger_source):
+def cluster_trapgroup(self,task_id,trapgroup_id,query_limit,timestamp,starting_last_cluster_id,trigger_source,added_files=False):
         
     try:
         # drop AI, nothing and unknown labels - to allow re-classification at end to work fully
-        prepare_labelgroup_cluster_labels(task_id,trapgroup_id,query_limit,timestamp)
+        prepare_labelgroup_cluster_labels(task_id,trapgroup_id,query_limit,timestamp,added_files)
 
         # First handle timestampless images and videos
         cluster_timestampless(task_id,trapgroup_id,starting_last_cluster_id,query_limit)
