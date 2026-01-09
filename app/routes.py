@@ -17260,6 +17260,8 @@ def getFolderContents(cameragroup_id):
                 except Exception as e:
                     zip_last_modified[zip_id] = 'N/A'
 
+
+        site_id = cameragroup.cameras[0].trapgroup.id
         empty_last_modified = {}
         for img in images:
             filenames.append({
@@ -17267,7 +17269,8 @@ def getFolderContents(cameragroup_id):
                 'name': img[1],
                 'folder': img[2],
                 'timestamp': stringify_timestamp(img[3]),
-                'type': 'image'
+                'type': 'image',
+                'site_id': site_id
             })
             if img[4] and include_zip_lm: empty_last_modified[img[2]+'/'+img[1]] = zip_last_modified.get(img[4], 'N/A')
         for vid in videos:
@@ -17276,7 +17279,8 @@ def getFolderContents(cameragroup_id):
                 'name': vid[1],
                 'folder': vid[2],
                 'timestamp': stringify_timestamp(vid[3]),
-                'type': 'video'
+                'type': 'video',
+                'site_id': site_id
             })
             if vid[4] and include_zip_lm: empty_last_modified[vid[2]+'/'+vid[1]] = zip_last_modified.get(vid[4], 'N/A')
 

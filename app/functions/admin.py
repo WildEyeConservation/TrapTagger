@@ -3016,10 +3016,12 @@ def edit_survey_files(self, survey_id, name_changes, move_folders, delete_folder
             if not skip_updates:
                 task_ids = [r[0] for r in db.session.query(Task.id).filter(Task.survey_id==survey_id).distinct().all()]
                 if prep_task_trapgroups:
-                    trapgroups = [r[0] for r in db.session.query(Trapgroup.id).filter(Trapgroup.survey_id==survey_id).filter(Trapgroup.id.in_(prep_task_trapgroups)).distinct().all()]
+                    trapgroup_ids = [r[0] for r in db.session.query(Trapgroup.id).filter(Trapgroup.survey_id==survey_id).filter(Trapgroup.id.in_(prep_task_trapgroups)).distinct().all()]
+                    app.logger.info('Running prepTask for tasks {} and trapgroups {}'.format(task_ids, trapgroup_ids))
                     for task_id in task_ids:
-                        prepTask(task_id=task_id,trapgroup_ids=trapgroups)
+                        prepTask(task_id=task_id,trapgroup_ids=trapgroup_ids)
                 else:
+                    app.logger.info('Running updateAllStatuses for tasks {}'.format(task_ids))
                     for task_id in task_ids:
                         updateAllStatuses(task_id=task_id)
 
@@ -3135,6 +3137,7 @@ def delete_survey_files(survey_id, files):
             image_ids.append(file.get('id'))
         elif file.get('type') == 'video' and file.get('id'):
             video_ids.append(file.get('id'))
+        affected_trapgroups.add(file.get('site_id'))
 
     file_data = db.session.query(Image.id, Camera.id, Trapgroup.id, Video.id)\
                     .join(Camera,Camera.id==Image.camera_id)\
@@ -3190,8 +3193,6 @@ def delete_survey_files(survey_id, files):
             status = delete_survey_data(survey_id=survey_id, camera_ids=batch_cam_ids, image_ids=batch_img_ids, video_ids=batch_vid_ids)
         else:
             break
-
-    affected_trapgroups = set([r[0] for r in db.session.query(Trapgroup.id).filter(Trapgroup.id.in_(affected_trapgroups)).distinct().all()])
     
     if status == 'error': app.logger.info('Failed to delete survey files for survey {}'.format(survey_id))
 
@@ -3205,13 +3206,16 @@ def delete_survey_folders(survey_id, folders):
 
     status = 'success' 
     camera_ids = []
-    folder_trapgroups = []
-    for folder in folders:
+    affected_trapgroups = set()
+    for folder_data in folders:
+        folder = folder_data.get('folder')
+        site_id = folder_data.get('site_id')
+        if site_id: affected_trapgroups.add(site_id)
         if folder:
             camera_data = db.session.query(Camera.id,Camera.trapgroup_id).join(Trapgroup).filter(Trapgroup.survey_id==survey_id).filter(or_(Camera.path==folder, Camera.path.like(folder+'/%'))).distinct().all()
             for camera_id, trapgroup_id in camera_data:
                 camera_ids.append(camera_id)
-                if trapgroup_id not in folder_trapgroups: folder_trapgroups.append(trapgroup_id)
+                affected_trapgroups.add(trapgroup_id)
 
     # Drop labels from folder clusters and labelgroups
     clusterSQ = db.session.query(Cluster.id).join(Image,Cluster.images).filter(Image.camera_id.in_(camera_ids)).subquery()
@@ -3243,8 +3247,6 @@ def delete_survey_folders(survey_id, folders):
     status = delete_survey_data(survey_id=survey_id, camera_ids=camera_ids, image_ids=[], video_ids=[])
 
     if status == 'error': app.logger.info('Failed to delete survey folders for survey {}'.format(survey_id))
-
-    affected_trapgroups = set([r[0] for r in db.session.query(Trapgroup.id).filter(Trapgroup.id.in_(folder_trapgroups)).distinct().all()])
 
     return (status, affected_trapgroups)
 
@@ -3431,7 +3433,7 @@ def delete_survey_data(survey_id, camera_ids, image_ids, video_ids):
             status = 'error'
             app.logger.info('Failed to delete videos for cameras {}'.format(camera_ids))
 
-    if camera_ids and (not image_ids) and (not video_ids):
+    if camera_ids and (not image_ids) and (not video_ids):  #NOTE: CHECK FOR ROBUSTNESS 
         # Delete from s3
         if status != 'error':
             try:
@@ -3602,11 +3604,13 @@ def move_survey_folders(survey_id, folders):
     affected_trapgroups = set()
     status = 'success'
     moved_folders = set()
+    new_trapgroups = set()
 
     for folder in folders:
         cameras = db.session.query(Camera).join(Trapgroup).filter(Trapgroup.survey_id==survey_id).filter(or_(Camera.path==folder['folder'], Camera.path.like(folder['folder']+'/%'))).distinct().all()
         new_site_id = folder.get('new_site_id')
         new_camera_id = folder.get('new_camera_id')
+        affected_trapgroups.add(folder.get('old_site_id'))
 
         if 'n' in str(new_site_id):
             new_site_name = folder.get('new_site_name')
@@ -3628,15 +3632,15 @@ def move_survey_folders(survey_id, folders):
         
         if new_site and new_cameragroup: 
             for camera in cameras:
-                affected_trapgroups.add(camera.trapgroup)
+                affected_trapgroups.add(camera.trapgroup_id)
                 camera.trapgroup = new_site
                 camera.cameragroup = new_cameragroup
                 moved_folders.add(camera.path)
-            affected_trapgroups.add(new_site)
+            new_trapgroups.add(new_site)
 
     db.session.commit()
 
-    affected_trapgroups = set([tg.id for tg in affected_trapgroups])    
+    affected_trapgroups.update([tg.id for tg in new_trapgroups])
 
     # Delete associated cluster and labelgroup labels for clusters containing more than one trapgroup 
     cluster_site_counts_sq = db.session.query(Cluster.id, func.count(distinct(Trapgroup.id)).label('count'))\

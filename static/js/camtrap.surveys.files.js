@@ -714,15 +714,20 @@ function editFiles() {
             for (let cam_id in surveyDeletedFolders[site_id].cameras){
                 for (let i = 0; i < surveyDeletedFolders[site_id].cameras[cam_id].folders.length; i++) {
                     let folder = surveyDeletedFolders[site_id].cameras[cam_id].folders[i];
-                    deleted_folders.push(folder.folder);
+                    deleted_folders.push({'folder': folder.folder, 'site_id': site_id});
                 }
             }
+        }
+
+        let deleted_files = []
+        for (let i = 0; i < surveyDeletedFiles.length; i++) {
+            deleted_files.push({'id': surveyDeletedFiles[i].id, 'type': surveyDeletedFiles[i].type, 'site_id': surveyDeletedFiles[i].site_id});
         }
 
         var formData = new FormData();
         // console.log(surveyDeletedFolders, surveyDeletedFiles, surveyMovedFolders, cleanEditedNames)
         formData.append('delete_folders', JSON.stringify(deleted_folders));
-        formData.append('delete_files', JSON.stringify(surveyDeletedFiles));
+        formData.append('delete_files', JSON.stringify(deleted_files));
         formData.append('move_folders', JSON.stringify(move_folders));
         formData.append('name_changes', JSON.stringify(cleanEditedNames));
 
