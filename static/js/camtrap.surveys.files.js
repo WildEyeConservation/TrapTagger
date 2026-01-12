@@ -504,11 +504,15 @@ function buildSurveyFolders(type='folder'){
                                 optionTextsCam = [camNames[camID]].concat(optionTextsCam)
                                 optionValuesCam = ['n'+camID].concat(optionValuesCam)
                             }
+                            optionTextsCam.push('NEW CAMERA')
+                            optionValuesCam.push('new')
                             fillSelect(cameraSelect, optionTextsCam, optionValuesCam)
 
                             modalAddFiles.modal('hide');
                             document.getElementById('moveFolderSiteName').style.display = 'none';
                             document.getElementById('moveFolderSiteName').value = '';
+                            document.getElementById('moveFolderCameraName').style.display = 'none';
+                            document.getElementById('moveFolderCameraName').value = '';
                             modalMoveFolder.modal({keyboard: true});
                         };
                     }(site_id, camera_id, folder));
@@ -686,7 +690,7 @@ function editFiles() {
                 if (surveyEditedNames['camera'][new_cam_id]){
                     surveyMovedFolders[folder]['new_camera_name'] = surveyEditedNames['camera'][new_cam_id];
                 } else {
-                    surveyMovedFolders[folder]['new_camera_name'] = camNames[new_cam_id.slice(1)];
+                    surveyMovedFolders[folder]['new_camera_name'] = camNames[new_cam_id];
                 }
             }
             move_folders.push(surveyMovedFolders[folder]);
@@ -877,7 +881,22 @@ $('#btnConfirmMoveFolder').on('click', function() {
     } else {
         var new_site_id = select.value;
     }
-    var new_camera_id = camSelect.value;
+    if (camSelect.value == 'new'){
+        var new_cam_name = document.getElementById('moveFolderCameraName').value.trim();
+        if (select.value == 'new'){
+            if (!new_cam_name || new_cam_name.length == 0){
+                return;
+            }
+        } else {
+            if (!validateName(new_cam_name, 'camera', new_site_id)){
+                return;
+            }
+        }
+        var new_camera_id = 'n'+Date.now();
+        camNames[new_camera_id] = new_cam_name;
+    } else {
+        var new_camera_id = camSelect.value;
+    }
     if (new_site_id != selectedFolderToMove.site_id || new_camera_id != selectedFolderToMove.camera_id) {
         let old_site_id = selectedFolderToMove.site_id
         let old_camera_id = selectedFolderToMove.camera_id
@@ -885,7 +904,7 @@ $('#btnConfirmMoveFolder').on('click', function() {
             old_site_id = surveyMovedFolders[selectedFolderToMove.folder]['old_site_id']
             old_camera_id = surveyMovedFolders[selectedFolderToMove.folder]['old_camera_id']
         }
-        if (new_camera_id.startsWith('n')){
+        if (new_camera_id.startsWith('n') && !camNames[new_camera_id]) {
             camNames[new_camera_id] = camNames[new_camera_id.slice(1)];
         }
         surveyMovedFolders[selectedFolderToMove.folder] = {
@@ -981,6 +1000,8 @@ $('#moveFolderSiteSelector').on('change', function() {
         optionTextsCam = [camNames[camID]].concat(optionTextsCam)
         optionValuesCam = ['n'+camID].concat(optionValuesCam)
     }
+    optionTextsCam.push('NEW CAMERA')
+    optionValuesCam.push('new')
     fillSelect(cameraSelect, optionTextsCam, optionValuesCam);
 
     document.getElementById('moveFolderSiteName').value = '';
@@ -989,6 +1010,18 @@ $('#moveFolderSiteSelector').on('change', function() {
         document.getElementById('moveFolderSiteName').focus();
     } else {
         document.getElementById('moveFolderSiteName').style.display = 'none';
+    }
+});
+
+$('#moveFolderCameraSelector').on('change', function() {
+    /** Event listener for when the camera selection is changed in the move folder modal. */
+    var camera_id = this.value;
+    document.getElementById('moveFolderCameraName').value = '';
+    if (camera_id == 'new'){
+        document.getElementById('moveFolderCameraName').style.display = 'block';
+        document.getElementById('moveFolderCameraName').focus();
+    } else {
+        document.getElementById('moveFolderCameraName').style.display = 'none';
     }
 });
 

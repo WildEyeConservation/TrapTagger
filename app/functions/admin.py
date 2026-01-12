@@ -2998,7 +2998,7 @@ def edit_survey_files(self, survey_id, name_changes, move_folders, delete_folder
                 status = 'error'
 
         # 4. Delete empty data 
-        if status != 'error' and (delete_files or delete_folders or move_folders):
+        if status != 'error' and (delete_files.get('image_ids') or delete_files.get('video_ids') or delete_folders or move_folders):
             status = delete_empty_data(survey_id=survey_id)
 
         # 5. Rename sites and cameras
@@ -3015,8 +3015,8 @@ def edit_survey_files(self, survey_id, name_changes, move_folders, delete_folder
         else:
             if not skip_updates:
                 task_ids = [r[0] for r in db.session.query(Task.id).filter(Task.survey_id==survey_id).distinct().all()]
-                if prep_task_trapgroups:
-                    trapgroup_ids = [r[0] for r in db.session.query(Trapgroup.id).filter(Trapgroup.survey_id==survey_id).filter(Trapgroup.id.in_(prep_task_trapgroups)).distinct().all()]
+                trapgroup_ids = [r[0] for r in db.session.query(Trapgroup.id).filter(Trapgroup.survey_id==survey_id).filter(Trapgroup.id.in_(prep_task_trapgroups)).distinct().all()]
+                if trapgroup_ids:
                     app.logger.info('Running prepTask for tasks {} and trapgroups {}'.format(task_ids, trapgroup_ids))
                     for task_id in task_ids:
                         prepTask(task_id=task_id,trapgroup_ids=trapgroup_ids)
