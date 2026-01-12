@@ -2869,21 +2869,21 @@ def check_masked_and_hidden_detections(survey_id):
     return True
 
 @celery.task(bind=True,max_retries=5,ignore_result=True)
-def cancel_upload(self,survey_id):
+def cancel_upload(self,survey_id, remaining=15):
     '''Deletes all newly uploaded images and videos.'''
     try:
         app.logger.info('Cancelling upload for survey {}'.format(survey_id))
         # Wait for lambda tasks to finish
         try:
-            app.logger.info('Waiting for lambda tasks to finish...')
             lambda_completed = int(GLOBALS.redisClient.get('lambda_completed_'+str(survey_id)).decode())
             lambda_invoked = int(GLOBALS.redisClient.get('lambda_invoked_'+str(survey_id)).decode())
-            total_wait = 0
-            while lambda_completed < lambda_invoked and total_wait < 20:
-                time.sleep(60)
-                total_wait += 1
-                lambda_completed = int(GLOBALS.redisClient.get('lambda_completed_'+str(survey_id)).decode())
-                lambda_invoked = int(GLOBALS.redisClient.get('lambda_invoked_'+str(survey_id)).decode())
+            if lambda_completed < lambda_invoked and remaining>0:
+                if remaining<10:
+                    countdown = retryTime(15 - remaining)
+                else: countdown = 120
+                cancel_upload.apply_async(kwargs={'survey_id':survey_id,'remaining':remaining-1}, countdown=countdown)
+                app.logger.info('Lambda tasks still running, retrying cancel upload in {} seconds. Remaining retries: {}'.format(countdown, remaining-1))
+                return True
         except:
             pass
         app.logger.info('Lambda tasks finished')
@@ -2970,7 +2970,7 @@ def edit_survey_files(self, survey_id, name_changes, move_folders, delete_folder
         status = 'success'
 
         # 1. Delete files
-        if delete_files:
+        if delete_files and (delete_files.get('image_ids') or delete_files.get('video_ids')):
             skip_updates = False
             status, trapgroups = delete_survey_files(survey_id=survey_id, files=delete_files)
             if status == 'success':
@@ -3126,28 +3126,35 @@ def edit_site_and_camera_names(survey_id, name_changes):
 def delete_survey_files(survey_id, files):
     ''' Deletes specified survey files. '''
 
-    app.logger.info('Deleting {} files for survey {}'.format(len(files), survey_id))
-    affected_trapgroups = set()
+    affected_trapgroups = set(files.get('site_ids', []))
     status = 'success'
+    query_limit = 1000
 
-    image_ids = []
-    video_ids = []
-    for file in files:
-        if file.get('type') == 'image' and file.get('id'):
-            image_ids.append(file.get('id'))
-        elif file.get('type') == 'video' and file.get('id'):
-            video_ids.append(file.get('id'))
-        affected_trapgroups.add(file.get('site_id'))
+    image_ids = files.get('image_ids', [])
+    video_ids = files.get('video_ids', [])
 
-    file_data = db.session.query(Image.id, Camera.id, Trapgroup.id, Video.id)\
+    app.logger.info('Deleting survey files for survey {}: {} images and {} videos'.format(survey_id, len(image_ids), len(video_ids)))
+
+    file_data = []
+    for i in chunker(image_ids, query_limit):
+        img_data = db.session.query(Image.id, Camera.id, Trapgroup.id, None)\
                     .join(Camera,Camera.id==Image.camera_id)\
                     .join(Trapgroup,Trapgroup.id==Camera.trapgroup_id)\
-                    .outerjoin(Video, Video.camera_id==Camera.id)\
                     .filter(Trapgroup.survey_id==survey_id)\
-                    .filter(or_(Image.id.in_(image_ids), Video.id.in_(video_ids)))\
+                    .filter(Image.id.in_(i))\
                     .distinct().all()
+        file_data.extend(img_data)
+    for i in chunker(video_ids, query_limit):
+        vid_data = db.session.query(Image.id, Camera.id, Trapgroup.id, Video.id)\
+                    .join(Camera,Camera.id==Image.camera_id)\
+                    .join(Trapgroup,Trapgroup.id==Camera.trapgroup_id)\
+                    .join(Video, Video.camera_id==Camera.id)\
+                    .filter(Trapgroup.survey_id==survey_id)\
+                    .filter(Video.id.in_(i))\
+                    .distinct().all()
+        file_data.extend(vid_data)
 
-    for batch in chunker(file_data, 1000):
+    for batch in chunker(file_data, query_limit):
         batch_img_ids = set()
         batch_vid_ids = set()
         batch_cam_ids = set()
@@ -3165,30 +3172,38 @@ def delete_survey_files(survey_id, files):
             # Drop labels from image batch clusters and labelgroups
             clusterSQ = db.session.query(Cluster.id).join(Image,Cluster.images).filter(Image.id.in_(batch_img_ids)).subquery()
 
-            affected_clusters = db.session.query(Cluster)\
-                                .join(clusterSQ, Cluster.id==clusterSQ.c.id)\
-                                .filter(Cluster.labels.any())\
-                                .distinct().all()
+            while True:
+                affected_clusters = db.session.query(Cluster)\
+                                    .join(clusterSQ, Cluster.id==clusterSQ.c.id)\
+                                    .filter(Cluster.labels.any())\
+                                    .distinct().limit(query_limit).all()
+                
+                if not affected_clusters: break
+                
+                for cluster in affected_clusters:
+                    cluster.user_id = None
+                    cluster.timestamp = None
+                    cluster.labels = []
+
+                db.session.commit()
+
+            while True:
+                affected_labelgroups = db.session.query(Labelgroup)\
+                                    .join(Detection)\
+                                    .join(Image)\
+                                    .join(Cluster,Image.clusters)\
+                                    .join(clusterSQ,clusterSQ.c.id==Cluster.id)\
+                                    .filter(clusterSQ.c.id!=None)\
+                                    .filter(Labelgroup.checked==False)\
+                                    .filter(Labelgroup.labels.any())\
+                                    .distinct().limit(query_limit).all()
+                
+                if not affected_labelgroups: break
             
-            for cluster in affected_clusters:
-                cluster.user_id = None
-                cluster.timestamp = None
-                cluster.labels = []
+                for labelgroup in affected_labelgroups:
+                    labelgroup.labels = []
 
-            affected_labelgroups = db.session.query(Labelgroup)\
-                                .join(Detection)\
-                                .join(Image)\
-                                .join(Cluster,Image.clusters)\
-                                .join(clusterSQ,clusterSQ.c.id==Cluster.id)\
-                                .filter(clusterSQ.c.id!=None)\
-                                .filter(Labelgroup.checked==False)\
-                                .filter(Labelgroup.labels.any())\
-                                .distinct().all()
-        
-            for labelgroup in affected_labelgroups:
-                labelgroup.labels = []
-
-            db.session.commit()
+                db.session.commit()
 
             status = delete_survey_data(survey_id=survey_id, camera_ids=batch_cam_ids, image_ids=batch_img_ids, video_ids=batch_vid_ids)
         else:
@@ -3203,7 +3218,7 @@ def delete_survey_folders(survey_id, folders):
 
     affected_trapgroups = set()
     app.logger.info('Deleting survey folders for survey {} and folders {}'.format(survey_id,folders))
-
+    query_limit = 1000
     status = 'success' 
     camera_ids = []
     affected_trapgroups = set()
@@ -3220,37 +3235,46 @@ def delete_survey_folders(survey_id, folders):
     # Drop labels from folder clusters and labelgroups
     clusterSQ = db.session.query(Cluster.id).join(Image,Cluster.images).filter(Image.camera_id.in_(camera_ids)).subquery()
 
-    affected_clusters = db.session.query(Cluster)\
-                                    .join(clusterSQ, Cluster.id==clusterSQ.c.id)\
-                                    .filter(Cluster.labels.any())\
-                                    .distinct().all()
-    for cluster in affected_clusters:
-        cluster.user_id = None
-        cluster.timestamp = None
-        cluster.labels = []
+    while True:
+        affected_clusters = db.session.query(Cluster)\
+                                        .join(clusterSQ, Cluster.id==clusterSQ.c.id)\
+                                        .filter(Cluster.labels.any())\
+                                        .distinct().limit(query_limit).all()
 
-    affected_labelgroups = db.session.query(Labelgroup)\
-                        .join(Detection)\
-                        .join(Image)\
-                        .join(Cluster,Image.clusters)\
-                        .join(clusterSQ,clusterSQ.c.id==Cluster.id)\
-                        .filter(clusterSQ.c.id!=None)\
-                        .filter(Labelgroup.checked==False)\
-                        .filter(Labelgroup.labels.any())\
-                        .distinct().all()
+        if not affected_clusters: break
 
-    for labelgroup in affected_labelgroups:
-        labelgroup.labels = []
+        for cluster in affected_clusters:
+            cluster.user_id = None
+            cluster.timestamp = None
+            cluster.labels = []
 
-    db.session.commit()
+        db.session.commit()
 
-    status = delete_survey_data(survey_id=survey_id, camera_ids=camera_ids, image_ids=[], video_ids=[])
+    while True:
+        affected_labelgroups = db.session.query(Labelgroup)\
+                            .join(Detection)\
+                            .join(Image)\
+                            .join(Cluster,Image.clusters)\
+                            .join(clusterSQ,clusterSQ.c.id==Cluster.id)\
+                            .filter(clusterSQ.c.id!=None)\
+                            .filter(Labelgroup.checked==False)\
+                            .filter(Labelgroup.labels.any())\
+                            .distinct().limit(query_limit).all()
+
+        if not affected_labelgroups: break
+
+        for labelgroup in affected_labelgroups:
+            labelgroup.labels = []
+
+        db.session.commit()
+
+    if camera_ids: status = delete_survey_data(survey_id=survey_id, camera_ids=camera_ids, image_ids=[], video_ids=[], cameras_only=True)
 
     if status == 'error': app.logger.info('Failed to delete survey folders for survey {}'.format(survey_id))
 
     return (status, affected_trapgroups)
 
-def delete_survey_data(survey_id, camera_ids, image_ids, video_ids):
+def delete_survey_data(survey_id, camera_ids, image_ids, video_ids, cameras_only=False):
     ''' Deletes specified survey files. '''
 
     status = 'success'
@@ -3433,7 +3457,7 @@ def delete_survey_data(survey_id, camera_ids, image_ids, video_ids):
             status = 'error'
             app.logger.info('Failed to delete videos for cameras {}'.format(camera_ids))
 
-    if camera_ids and (not image_ids) and (not video_ids):  #NOTE: CHECK FOR ROBUSTNESS 
+    if cameras_only and camera_ids and (not image_ids) and (not video_ids):
         # Delete from s3
         if status != 'error':
             try:
@@ -3605,7 +3629,7 @@ def move_survey_folders(survey_id, folders):
     status = 'success'
     moved_folders = set()
     new_trapgroups = set()
-
+    query_limit = 1000
     for folder in folders:
         cameras = db.session.query(Camera).join(Trapgroup).filter(Trapgroup.survey_id==survey_id).filter(or_(Camera.path==folder['folder'], Camera.path.like(folder['folder']+'/%'))).distinct().all()
         new_site_id = folder.get('new_site_id')
@@ -3658,30 +3682,38 @@ def move_survey_folders(survey_id, folders):
                     .filter(cluster_site_counts_sq.c.count>1)\
                     .subquery()
 
-    affected_clusters = db.session.query(Cluster)\
-                                .join(clusterSQ, Cluster.id==clusterSQ.c.id)\
-                                .filter(Cluster.labels.any())\
-                                .distinct().all()
-    
-    for cluster in affected_clusters:
-        cluster.user_id = None
-        cluster.timestamp = None
-        cluster.labels = []
+    while True:
+        affected_clusters = db.session.query(Cluster)\
+                                    .join(clusterSQ, Cluster.id==clusterSQ.c.id)\
+                                    .filter(Cluster.labels.any())\
+                                    .distinct().limit(query_limit).all()
+        
+        if not affected_clusters: break
 
-    affected_labelgroups = db.session.query(Labelgroup)\
-                        .join(Detection)\
-                        .join(Image)\
-                        .join(Cluster,Image.clusters)\
-                        .join(clusterSQ,clusterSQ.c.id==Cluster.id)\
-                        .filter(clusterSQ.c.id!=None)\
-                        .filter(Labelgroup.checked==False)\
-                        .filter(Labelgroup.labels.any())\
-                        .distinct().all()
-    
-    for labelgroup in affected_labelgroups:
-        labelgroup.labels = []
+        for cluster in affected_clusters:
+            cluster.user_id = None
+            cluster.timestamp = None
+            cluster.labels = []
 
-    db.session.commit()
+        db.session.commit()
+
+    while True:
+        affected_labelgroups = db.session.query(Labelgroup)\
+                            .join(Detection)\
+                            .join(Image)\
+                            .join(Cluster,Image.clusters)\
+                            .join(clusterSQ,clusterSQ.c.id==Cluster.id)\
+                            .filter(clusterSQ.c.id!=None)\
+                            .filter(Labelgroup.checked==False)\
+                            .filter(Labelgroup.labels.any())\
+                            .distinct().limit(query_limit).all()
+
+        if not affected_labelgroups: break
+        
+        for labelgroup in affected_labelgroups:
+            labelgroup.labels = []
+
+        db.session.commit()
 
 
     return (status, affected_trapgroups)

@@ -508,8 +508,8 @@ limitations under the License. -->
             </div>
 
             <div class="tab" id="addFilesTabs">
-                <button id="openAddFilesTab" class="tablinks" onclick="changeFilesTab(event, 'baseAddFilesTab')">Add Files</button>
-                <button id="openEditFilesTab" class="tablinks" onclick="changeFilesTab(event, 'baseEditFilesTab')">Edit Files</button>
+                <button id="openAddFilesTab" class="tablinks">Add Files</button>
+                <button id="openEditFilesTab" class="tablinks">Edit Files</button>
             </div>
 
             <div class="modal-body">
@@ -2496,6 +2496,35 @@ limitations under the License. -->
                 </div>
                 <div class='col-lg-2'>
                     <button id="folderFilesClose" type='button' class='btn btn-info btn-block' data-dismiss='modal'>Close</button>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Confirm manage files close Modal -->
+<div id="modalManageFilesClose" class="modal fade" role="dialog" tabindex="-1">
+    <div class="modal-dialog">
+        <!-- Modal content-->
+        <div class="modal-content">
+            <div class="modal-header">
+                <h4 class="modal-title">Please Confirm</h4>
+                <button id="helpx" type="button" class="close" data-dismiss="modal">&times;</button>
+            </div>
+            <div class="modal-body">
+                <p align="justify" id="manageCloseWarning"></p>
+                <p align="justify">
+                    Do you wish to continue?
+                </p>
+            </div>
+            <div class="modal-footer">
+                <div class="col-lg-3">
+                    <button id="btnCancelCloseMF" type="button" class="btn btn-info btn-block" 
+                    data-dismiss="modal">Cancel</button>
+                </div>
+                <div class="col-lg-3">
+                    <button id="btnConfirmCloseMF" type="button" class="btn btn-danger btn-block" 
+                    data-dismiss="modal">Discard</button>
                 </div>
             </div>
         </div>

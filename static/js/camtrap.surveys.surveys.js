@@ -194,6 +194,7 @@ const modalEditAreaAlert = $('#modalEditAreaAlert');
 const modalConfirmEditFiles = $('#modalConfirmEditFiles');
 const modalMoveFolder = $('#modalMoveFolder');
 const modalFolderFiles = $('#modalFolderFiles');
+const modalManageFilesClose = $('#modalManageFilesClose');
 
 var polarColours = {'rgba(10,120,80,0.2)':false,
                     'rgba(255,255,255,0.2)':false,
@@ -371,6 +372,7 @@ var editFilesActionOpen = false
 var selectedViewFolder = null
 var selectedFolderToMove = null
 var folderFiles = []
+var filesTabChange = false
 
 function buildSurveys(survey,disableSurvey) {
     /**
@@ -4283,6 +4285,9 @@ function clearAddFilesModal(){
     selectedViewFolder = null
     selectedFolderToMove = null
     folderFiles = []
+    filesTabChange = false
+    document.getElementById('editFilesErrors').innerHTML = ''
+    document.getElementById('addFilesErrors').innerHTML = ''
 }
 
 function buildAdvancedOptions() {
@@ -5072,14 +5077,46 @@ $('#btnConfirmCloseES').click( function() {
 
 modalAddFiles.on('hidden.bs.modal', function(){
     /** Clears the add-files modal when closed. */
-    if (!helpReturn && !confirmEditFiles && !editFilesActionOpen) {
-        clearAddFilesModal()
+    if (!helpReturn && !confirmEditFiles && !editFilesActionOpen && !filesTabChange) {
+        let pathDisplay = document.getElementById('pathDisplay')
+        if ((pathDisplay && pathDisplay.children.length > 0 )|| Object.keys(surveyDeletedFolders).length>0 || Object.keys(surveyMovedFolders).length>0 || surveyDeletedFiles.length>0 || Object.keys(surveyEditedNames['site']).length>0 || Object.keys(surveyEditedNames['camera']).length>0) {  
+            document.getElementById('manageCloseWarning').innerHTML = 'Any unsaved changes will be lost if you close this window.';
+            filesTabChange = false
+            modalManageFilesClose.modal({keyboard: true});
+        } else {
+            clearAddFilesModal();
+        }
     } else {
         helpReturn = false
         confirmEditFiles = false
         editFilesActionOpen = false
     }
 });
+
+$('#btnCancelCloseMF').click( function() {
+    /** Event listener for the cancel button on the manage-files modal close confirmation modal. */
+    modalManageFilesClose.modal('hide')
+    filesTabChange = false
+    modalAddFiles.modal({keyboard: true});
+});
+
+$('#btnConfirmCloseMF').click( function() {
+    /** Event listener for the confirm button on the manage-files modal close confirmation modal. */
+    modalManageFilesClose.modal('hide')
+    if (filesTabChange) {
+        if (tabActiveManageFiles=='baseAddFilesTab') {
+            clearAddFilesModal();
+            modalAddFiles.modal({keyboard: true});
+            document.getElementById('openEditFilesTab').click()
+        } else {
+            clearAddFilesModal();
+            modalAddFiles.modal({keyboard: true});
+            document.getElementById('openAddFilesTab').click()
+        }
+    } else {
+        clearAddFilesModal();
+    }
+})
 
 function generate_url() {
     /** Generates the url based on the current order selection and search query */
@@ -5651,34 +5688,39 @@ document.getElementById('btnAddFiles').addEventListener('click', ()=>{
         addFiles()
     } else if (tabActiveManageFiles=='baseEditFilesTab') {
         if (Object.keys(surveyDeletedFolders).length>0 || Object.keys(surveyMovedFolders).length>0 || surveyDeletedFiles.length>0 || Object.keys(surveyEditedNames['site']).length>0 || Object.keys(surveyEditedNames['camera']).length>0) {
-            confirmEditFiles = true
-            modalAddFiles.modal('hide')
-            document.getElementById('btnConfirmEditFiles').disabled = false
-            let confirm_msg = 'The following changes will be made to the survey:<br><ul>'
-            if (Object.keys(surveyDeletedFolders).length>0) {
-                count = 0
-                for (let site_id in surveyDeletedFolders){
-                    for (let cam_id in surveyDeletedFolders[site_id].cameras){
-                        count += surveyDeletedFolders[site_id].cameras[cam_id].folders.length
+            if (surveyDeletedFiles.length>100000) {
+                document.getElementById('editFilesErrors').innerHTML = 'You cannot delete more than 100,000 files at once. Please delete the folders containing these files or reduce the number of files selected.';
+            } else {
+                document.getElementById('editFilesErrors').innerHTML = ''
+                confirmEditFiles = true
+                modalAddFiles.modal('hide')
+                document.getElementById('btnConfirmEditFiles').disabled = false
+                let confirm_msg = 'The following changes will be made to the survey:<br><ul>'
+                if (Object.keys(surveyDeletedFolders).length>0) {
+                    count = 0
+                    for (let site_id in surveyDeletedFolders){
+                        for (let cam_id in surveyDeletedFolders[site_id].cameras){
+                            count += surveyDeletedFolders[site_id].cameras[cam_id].folders.length
+                        }
                     }
+                    confirm_msg += '<li>Delete '+count+' folder(s)</li>'
                 }
-                confirm_msg += '<li>Delete '+count+' folder(s)</li>'
+                if (surveyDeletedFiles.length>0) {
+                    confirm_msg += '<li>Delete '+surveyDeletedFiles.length+' file(s)</li>'
+                }
+                if (Object.keys(surveyMovedFolders).length>0) {
+                    confirm_msg += '<li>Move '+Object.keys(surveyMovedFolders).length+' folder(s)</li>'
+                }
+                if (Object.keys(surveyEditedNames['site']).length>0) {
+                    confirm_msg += '<li>Edit the name(s) of '+Object.keys(surveyEditedNames['site']).length+' site(s)</li>'
+                }
+                if (Object.keys(surveyEditedNames['camera']).length>0) {
+                    confirm_msg += '<li>Edit the name(s) of '+Object.keys(surveyEditedNames['camera']).length+' camera(s)</li>'
+                }
+                confirm_msg += '</ul>'
+                document.getElementById('confirmEditFilesBody').innerHTML = confirm_msg
+                modalConfirmEditFiles.modal({keyboard: true});
             }
-            if (surveyDeletedFiles.length>0) {
-                confirm_msg += '<li>Delete '+surveyDeletedFiles.length+' file(s)</li>'
-            }
-            if (Object.keys(surveyMovedFolders).length>0) {
-                confirm_msg += '<li>Move '+Object.keys(surveyMovedFolders).length+' folder(s)</li>'
-            }
-            if (Object.keys(surveyEditedNames['site']).length>0) {
-                confirm_msg += '<li>Edit the name(s) of '+Object.keys(surveyEditedNames['site']).length+' site(s)</li>'
-            }
-            if (Object.keys(surveyEditedNames['camera']).length>0) {
-                confirm_msg += '<li>Edit the name(s) of '+Object.keys(surveyEditedNames['camera']).length+' camera(s)</li>'
-            }
-            confirm_msg += '</ul>'
-            document.getElementById('confirmEditFilesBody').innerHTML = confirm_msg
-            modalConfirmEditFiles.modal({keyboard: true});
         }
     }
 });

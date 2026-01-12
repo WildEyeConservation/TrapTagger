@@ -17308,7 +17308,7 @@ def editSurveyFiles(survey_id):
     survey = db.session.query(Survey).get(survey_id)
     if survey and checkSurveyPermission(current_user.id,survey_id,'write') and survey.status.lower() in Config.SURVEY_READY_STATUSES:
         del_allowed = False
-        if delete_folders or delete_files:
+        if delete_folders or delete_files.get('image_ids') or delete_files.get('video_ids'):
             userPermissions = db.session.query(UserPermissions).filter(UserPermissions.organisation_id==survey.organisation_id).filter(UserPermissions.user_id==current_user.id).first()
             if userPermissions and userPermissions.delete:
                 del_allowed = True
@@ -17318,7 +17318,7 @@ def editSurveyFiles(survey_id):
         if not del_allowed:
             return json.dumps({'status': 'error', 'message': 'You do not have permission to delete files from this survey.'})
 
-        if delete_folders or delete_files or move_folders or name_changes.get('site') or name_changes.get('camera'):
+        if delete_folders or delete_files.get('image_ids') or delete_files.get('video_ids') or move_folders or name_changes.get('site') or name_changes.get('camera'):
             survey.status = 'Processing'
             db.session.commit()
             edit_files_args = {

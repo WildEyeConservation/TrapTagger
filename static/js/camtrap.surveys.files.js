@@ -719,13 +719,24 @@ function editFiles() {
             }
         }
 
-        let deleted_files = []
+        let deleted_files = {
+            'image_ids': [],
+            'video_ids': [],
+            'site_ids': []
+        }
         for (let i = 0; i < surveyDeletedFiles.length; i++) {
-            deleted_files.push({'id': surveyDeletedFiles[i].id, 'type': surveyDeletedFiles[i].type, 'site_id': surveyDeletedFiles[i].site_id});
+            if (surveyDeletedFiles[i].type == 'image'){
+                deleted_files['image_ids'].push(surveyDeletedFiles[i].id);
+            } else if (surveyDeletedFiles[i].type == 'video'){
+                deleted_files['video_ids'].push(surveyDeletedFiles[i].id);
+            }
+            if (!deleted_files['site_ids'].includes(surveyDeletedFiles[i].site_id)){
+                deleted_files['site_ids'].push(surveyDeletedFiles[i].site_id);
+            }
         }
 
         var formData = new FormData();
-        // console.log(surveyDeletedFolders, surveyDeletedFiles, surveyMovedFolders, cleanEditedNames)
+        // console.log(deleted_folders, deleted_files, move_folders, cleanEditedNames)
         formData.append('delete_folders', JSON.stringify(deleted_folders));
         formData.append('delete_files', JSON.stringify(deleted_files));
         formData.append('move_folders', JSON.stringify(move_folders));
@@ -1621,3 +1632,31 @@ function orderFilesBy(column, direction) {
     currentFileOrder.column = column;
     currentFileOrder.direction = direction;
 }
+
+$('#openAddFilesTab').on('click', function() {
+    /** Event listener for opening the add files tab. */
+    if (Object.keys(surveyDeletedFolders).length>0 || Object.keys(surveyMovedFolders).length>0 || surveyDeletedFiles.length>0 || Object.keys(surveyEditedNames['site']).length>0 || Object.keys(surveyEditedNames['camera']).length>0) {
+        document.getElementById('manageCloseWarning').innerHTML = 'Any unsaved changes will be lost if you change tabs.';
+        filesTabChange = true
+        modalAddFiles.modal('hide');
+        modalManageFilesClose.modal({keyboard: true});
+    } else {
+        filesTabChange = false
+        changeFilesTab(event, 'baseAddFilesTab')
+    }
+});
+
+$('#openEditFilesTab').on('click', function() {
+    /** Event listener for opening the edit files tab. */
+    let pathDisplay = document.getElementById('pathDisplay');
+    if (pathDisplay && pathDisplay.children.length > 0) {
+        document.getElementById('manageCloseWarning').innerHTML = 'Any unsaved changes will be lost if you change tabs.';
+        filesTabChange = true
+        modalAddFiles.modal('hide');
+        modalManageFilesClose.modal({keyboard: true});
+    } else {
+        filesTabChange = false
+        changeFilesTab(event, 'baseEditFilesTab')
+    }
+
+});
