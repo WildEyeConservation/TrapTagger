@@ -2944,6 +2944,9 @@ def cancel_upload(self,survey_id, remaining=15):
         survey.status = 'Ready'
         db.session.commit()
 
+        GLOBALS.redisClient.delete('cancel_upload_{}'.format(survey_id))
+        app.logger.info('Finished cancelling upload for survey {}'.format(survey_id))
+
     except Exception as exc:
         app.logger.info(' ')
         app.logger.info('!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!')

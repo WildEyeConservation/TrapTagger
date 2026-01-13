@@ -17100,6 +17100,7 @@ def cancelUpload(survey_id):
                 db.session.commit()
                 GLOBALS.redisClient.delete('upload_ping_'+str(survey_id))
                 GLOBALS.redisClient.delete('upload_user_'+str(survey_id))
+                GLOBALS.redisClient.set('cancel_upload_'+str(survey_id), 'true')
                 cancel_upload.delay(survey_id=survey_id)
             else:
                 status = 'error'
