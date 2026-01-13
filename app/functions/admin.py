@@ -2869,21 +2869,21 @@ def check_masked_and_hidden_detections(survey_id):
     return True
 
 @celery.task(bind=True,max_retries=5,ignore_result=True)
-def cancel_upload(self,survey_id, remaining=15):
+def cancel_upload(self,survey_id):
     '''Deletes all newly uploaded images and videos.'''
     try:
         app.logger.info('Cancelling upload for survey {}'.format(survey_id))
         # Wait for lambda tasks to finish
         try:
+            app.logger.info('Waiting for lambda tasks to finish...')
             lambda_completed = int(GLOBALS.redisClient.get('lambda_completed_'+str(survey_id)).decode())
             lambda_invoked = int(GLOBALS.redisClient.get('lambda_invoked_'+str(survey_id)).decode())
-            if lambda_completed < lambda_invoked and remaining>0:
-                if remaining<10:
-                    countdown = retryTime(15 - remaining)
-                else: countdown = 120
-                cancel_upload.apply_async(kwargs={'survey_id':survey_id,'remaining':remaining-1}, countdown=countdown)
-                app.logger.info('Lambda tasks still running, retrying cancel upload in {} seconds. Remaining retries: {}'.format(countdown, remaining-1))
-                return True
+            total_wait = 0
+            while lambda_completed < lambda_invoked and total_wait < 60:
+                time.sleep(60)
+                total_wait +=1
+                lambda_completed = int(GLOBALS.redisClient.get('lambda_completed_'+str(survey_id)).decode())
+                lambda_invoked = int(GLOBALS.redisClient.get('lambda_invoked_'+str(survey_id)).decode())
         except:
             pass
         app.logger.info('Lambda tasks finished')
@@ -3230,7 +3230,7 @@ def delete_survey_folders(survey_id, folders):
         site_id = folder_data.get('site_id')
         if site_id: affected_trapgroups.add(site_id)
         if folder:
-            camera_data = db.session.query(Camera.id,Camera.trapgroup_id).join(Trapgroup).filter(Trapgroup.survey_id==survey_id).filter(or_(Camera.path==folder, Camera.path.like(folder+'/%'))).distinct().all()
+            camera_data = db.session.query(Camera.id,Camera.trapgroup_id).join(Trapgroup).filter(Trapgroup.survey_id==survey_id).filter(or_(Camera.path==folder, Camera.path.like(folder+'/_video_images_/%'))).distinct().all()
             for camera_id, trapgroup_id in camera_data:
                 camera_ids.append(camera_id)
                 affected_trapgroups.add(trapgroup_id)
@@ -3472,8 +3472,27 @@ def delete_survey_data(survey_id, camera_ids, image_ids, video_ids, cameras_only
                     splits = camera_path.split('/')
                     splits[0] = splits[0] + '-comp'
                     camera_path_comp = '/'.join(splits)
-                    if camera_path: bucketObject.objects.filter(Prefix=camera_path + '/').delete()
-                    if camera_path_comp: bucketObject.objects.filter(Prefix=camera_path_comp + '/').delete()
+
+                    other_cams = False # Check if other subfolders exist in the same folder
+                    if '/_video_images_/' not in camera_path:
+                        other_cams = db.session.query(Camera).join(Trapgroup).filter(Trapgroup.survey_id==survey_id).filter(Camera.path.like(camera_path+'/%')).filter(~Camera.id.in_(camera_ids)).first()
+                    if other_cams:
+                        app.logger.info('Other cameras exist in the same folder, deleting individual files only for camera path: {}'.format(camera_path))
+                        #  Do not want to delete the other subfolders if other cameras exist in the same folder
+                        objects = list(bucketObject.objects.filter(Prefix=camera_path + '/',Delimiter='/')) if camera_path else []
+                        for chunk in chunker(objects, 1000):
+                            batch=[{'Key': obj.key} for obj in chunk if obj.key and not obj.key.endswith('/')]
+                            if batch:
+                                bucketObject.delete_objects(Delete={'Objects': batch})
+
+                        objects = list(bucketObject.objects.filter(Prefix=camera_path_comp + '/',Delimiter='/')) if camera_path_comp else []
+                        for chunk in chunker(objects, 1000):
+                            batch=[{'Key': obj.key} for obj in chunk if obj.key and not obj.key.endswith('/')]
+                            if batch:
+                                bucketObject.delete_objects(Delete={'Objects': batch})                          
+                    else:
+                        if camera_path: bucketObject.objects.filter(Prefix=camera_path + '/').delete()
+                        if camera_path_comp: bucketObject.objects.filter(Prefix=camera_path_comp + '/').delete()
                 app.logger.info('Deleted from S3 successfully: {}'.format(camera_paths))
             except:
                 status = 'error'
@@ -3634,7 +3653,8 @@ def move_survey_folders(survey_id, folders):
     new_trapgroups = set()
     query_limit = 1000
     for folder in folders:
-        cameras = db.session.query(Camera).join(Trapgroup).filter(Trapgroup.survey_id==survey_id).filter(or_(Camera.path==folder['folder'], Camera.path.like(folder['folder']+'/%'))).distinct().all()
+        cameras = db.session.query(Camera).join(Trapgroup).filter(Trapgroup.survey_id==survey_id).filter(or_(Camera.path==folder['folder'], Camera.path.like(folder['folder']+'/_video_images_/%'))).distinct().all()
+        
         new_site_id = folder.get('new_site_id')
         new_camera_id = folder.get('new_camera_id')
         affected_trapgroups.add(folder.get('old_site_id'))

@@ -17165,13 +17165,27 @@ def getSurveyFolders(survey_id):
                     'camera': camera_name,
                     'folders': []
                 }
-            path = img_path if img_path else vid_path
-            folders[site_id]['cameras'][camera_id]['folders'].append({
-                'folder': path,
-                'image_count': img_count if img_count else 0,
-                'video_count': vid_count if vid_count else 0,
-                'frame_count': frame_count if frame_count else 0
-            })
+            path_entries = {}
+            if img_path:
+                path_entries[img_path] = {
+                    'folder': img_path,
+                    'image_count': img_count if img_count else 0,
+                    'video_count': 0,
+                    'frame_count': 0
+                }
+            if vid_path:
+                if vid_path in path_entries:
+                    path_entries[vid_path]['video_count'] = vid_count if vid_count else 0
+                    path_entries[vid_path]['frame_count'] = frame_count if frame_count else 0
+                else:
+                    path_entries[vid_path] = {
+                        'folder': vid_path,
+                        'image_count': 0,
+                        'video_count': vid_count if vid_count else 0,
+                        'frame_count': frame_count if frame_count else 0
+                    }
+            for entry in path_entries.values():
+                folders[site_id]['cameras'][camera_id]['folders'].append(entry)
 
     return json.dumps({'survey': survey_id, 'folders': folders})
 
@@ -17205,10 +17219,12 @@ def getFolderContents(cameragroup_id):
         include_zip_lm = False
 
     if cameragroup and folder and checkSurveyPermission(current_user.id,cameragroup.cameras[0].trapgroup.survey_id,'read'):
+        img_cam_folder = folder
+        vid_cam_folder = folder + '/_video_images_/%'
         images = db.session.query(Image.id, Image.filename, Camera.path, Image.corrected_timestamp, Image.zip_id)\
                             .join(Camera)\
                             .filter(Camera.cameragroup_id==cameragroup_id)\
-                            .filter(Camera.path.contains(folder))\
+                            .filter(Camera.path==img_cam_folder)\
                             .filter(~Camera.videos.any())
 
         if search:
@@ -17225,7 +17241,7 @@ def getFolderContents(cameragroup_id):
                                         .join(Camera, Camera.id==Video.camera_id)\
                                         .join(Image, Image.camera_id==Camera.id)\
                                         .filter(Camera.cameragroup_id==cameragroup_id)\
-                                        .filter(Camera.path.contains(folder))\
+                                        .filter(Camera.path.like(vid_cam_folder))\
                                         .group_by(Video.id)\
                                         .subquery()
 
@@ -17233,7 +17249,7 @@ def getFolderContents(cameragroup_id):
                             .join(Camera)\
                             .join(video_timestamp_subquery, video_timestamp_subquery.c.video_id == Video.id)\
                             .filter(Camera.cameragroup_id==cameragroup_id)\
-                            .filter(Camera.path.contains(folder))
+                            .filter(Camera.path.like(vid_cam_folder))
 
         if search:
             search_pattern = f"%{search}%"
