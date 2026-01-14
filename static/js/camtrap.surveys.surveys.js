@@ -367,6 +367,7 @@ var surveyDeletedFiles = []
 var surveyEditedNames = {'site': {},'camera': {}}
 var siteNames = {}
 var camNames = {}
+var siteCamStructure = {}
 var confirmEditFiles = false
 var editFilesActionOpen = false
 var selectedViewFolder = null
@@ -4286,6 +4287,7 @@ function clearAddFilesModal(){
     selectedFolderToMove = null
     folderFiles = []
     filesTabChange = false
+    siteCamStructure = {}
     document.getElementById('editFilesErrors').innerHTML = ''
     document.getElementById('addFilesErrors').innerHTML = ''
 }

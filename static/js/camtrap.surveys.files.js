@@ -60,9 +60,11 @@ function getSurveyFolders(){
             surveyEditedNames = {'site': {},'camera': {}}
             siteNames = {}
             camNames = {}
+            siteCamStructure = {}
             //populate site and camera names
             for (let site_id in folders) {
                 siteNames[site_id] = folders[site_id].site
+                siteCamStructure[site_id] = Object.keys(folders[site_id].cameras)
                 for (let cam_id in folders[site_id].cameras) {
                     camNames[cam_id] = folders[site_id].cameras[cam_id].camera
                 }
@@ -252,6 +254,8 @@ function buildSurveyFolders(type='folder'){
                                 this.blur();
                             }
                         });
+
+                        siteCamStructure[site_id] = Object.keys(folders[site_id].cameras)
                     }
 
                     site_added = true;
@@ -495,7 +499,8 @@ function buildSurveyFolders(type='folder'){
                             clearSelect(cameraSelect)
                             let optionTextsCam = []
                             let optionValuesCam = []
-                            let cids = Object.keys(surveyFolders[optionValues[0]].cameras).sort((a, b) => camNames[a].localeCompare(camNames[b]));
+                            // let cids = Object.keys(surveyFolders[optionValues[0]].cameras).sort((a, b) => camNames[a].localeCompare(camNames[b]));
+                            let cids = siteCamStructure[optionValues[0]];
                             for (let cid of cids) {
                                 optionTextsCam.push(camNames[cid])
                                 optionValuesCam.push(cid)
@@ -994,7 +999,8 @@ $('#moveFolderSiteSelector').on('change', function() {
     let optionTextsCam = [];
     let optionValuesCam = [];
     if (site_id != 'new' && surveyFolders[site_id]) {
-        let cids = Object.keys(surveyFolders[site_id].cameras).sort((a, b) => camNames[a].localeCompare(camNames[b]));
+        // let cids = Object.keys(surveyFolders[site_id].cameras).sort((a, b) => camNames[a].localeCompare(camNames[b]));
+        let cids = siteCamStructure[site_id];
         for (let cid of cids) {
             if (cid != camID) {
                 optionTextsCam.push(camNames[cid]);
