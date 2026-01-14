@@ -17152,6 +17152,7 @@ def getSurveyFolders(survey_id):
         data = data.order_by(Trapgroup.tag, Cameragroup.name).distinct().all()
 
         folders = {}
+        handled_paths = set()
         for site_id, site_tag, camera_id, camera_name, img_path, vid_path, img_count, vid_count, frame_count in data:
             if site_id not in folders:
                 folders[site_id] = {
@@ -17166,14 +17167,14 @@ def getSurveyFolders(survey_id):
                     'folders': []
                 }
             path_entries = {}
-            if img_path:
+            if img_path and img_path not in handled_paths:
                 path_entries[img_path] = {
                     'folder': img_path,
                     'image_count': img_count if img_count else 0,
                     'video_count': 0,
                     'frame_count': 0
                 }
-            if vid_path:
+            if vid_path and vid_path not in handled_paths:
                 if vid_path in path_entries:
                     path_entries[vid_path]['video_count'] = vid_count if vid_count else 0
                     path_entries[vid_path]['frame_count'] = frame_count if frame_count else 0
@@ -17186,6 +17187,7 @@ def getSurveyFolders(survey_id):
                     }
             for entry in path_entries.values():
                 folders[site_id]['cameras'][camera_id]['folders'].append(entry)
+                handled_paths.add(entry['folder'])
 
     return json.dumps({'survey': survey_id, 'folders': folders})
 
