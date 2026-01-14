@@ -513,6 +513,7 @@ function buildSurveyFolders(type='folder'){
                             document.getElementById('moveFolderSiteName').value = '';
                             document.getElementById('moveFolderCameraName').style.display = 'none';
                             document.getElementById('moveFolderCameraName').value = '';
+                            document.getElementById('moveFolderPathDisplay').innerHTML = folderObj.folder.split('/').slice(1).join('/');
                             modalMoveFolder.modal({keyboard: true});
                         };
                     }(site_id, camera_id, folder));
@@ -932,6 +933,11 @@ modalMoveFolder.on('hidden.bs.modal', function () {
     editFilesActionOpen = false;
     clearSelect(document.getElementById('moveFolderSiteSelector'));
     clearSelect(document.getElementById('moveFolderCameraSelector'));
+    document.getElementById('moveFolderSiteName').style.display = 'none';
+    document.getElementById('moveFolderSiteName').value = '';
+    document.getElementById('moveFolderCameraName').style.display = 'none';
+    document.getElementById('moveFolderCameraName').value = '';
+    document.getElementById('moveFolderPathDisplay').innerHTML = ''
     modalAddFiles.modal({keyboard: true});
 });
 
