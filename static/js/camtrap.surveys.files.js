@@ -15,6 +15,7 @@
 var deleted_file_ids = new Set();
 var file_last_modified = {};
 var currentFileOrder = {'column': 'filename', 'direction': 'asc'};
+var isTypingDate = false
 
 function changeFilesTab(evt, tabName) {
     /** Opens the files tab */
@@ -1050,14 +1051,28 @@ $('#filterFolderContentsInput').change(function() {
     getFolderContents();
 });
 
-$('#startDateContents').change(function() {
-    /** Event listener for filtering the folder contents table by start date. */
-    getFolderContents();
+$('#startDateContents, #endDateContents, #lastModifiedStartDate, #lastModifiedEndDate').on('keydown', function() {
+    /** Event listener for detecting typing in date input fields. */
+    isTypingDate = true;
 });
 
-$('#endDateContents').change(function() {
-    /** Event listener for filtering the folder contents table by end date. */
-    getFolderContents();
+$('#startDateContents, #endDateContents, #lastModifiedStartDate, #lastModifiedEndDate').on('blur', function() {
+    /** Event listener for filtering the folder contents table by start date. */
+    if (this.checkValidity() && isTypingDate && (this.value=='' || /^\d{4}-\d{2}-\d{2}$/.test(this.value))) {
+        getFolderContents();
+    }
+    isTypingDate = false;
+});
+
+$('#startDateContents, #endDateContents, #lastModifiedStartDate, #lastModifiedEndDate').on('change', function() {
+    /** Event listener for filtering the folder contents table by start date. */
+    let parts = this.value.split('-');
+    if (parts.length>0 && parts[0].length > 4) {
+        this.value = this.value.replace(parts[0], parts[0].slice(0,4));
+    }
+    if (!isTypingDate && this.checkValidity() && (this.value=='' || /^\d{4}-\d{2}-\d{2}$/.test(this.value))) {
+        getFolderContents();
+    }
 });
 
 $('#regExpCbxContents').on('change', function() {
@@ -1622,11 +1637,6 @@ function filterFolderStructure() {
     xhttp.open("GET", '/getSurveyFolders/'+selectedSurvey+'?search='+encodeURIComponent(filter));
     xhttp.send();
 }
-
-$('#lastModifiedStartDate, #lastModifiedEndDate').on('change', function() {
-    /** Event listener for filtering the folder contents table by last modified date. */
-    getFolderContents();
-});
 
 $('#selectAllFiles').on('change', function() {
     /** Event listener for selecting or deselecting all files in the folder contents table. */
