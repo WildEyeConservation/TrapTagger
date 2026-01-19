@@ -2472,6 +2472,10 @@ limitations under the License. -->
                             <input type="date" id="startDateContents" class="form-control">
                             <label for="endDateContents" style="margin-bottom: 2px; display: block;">End:</label>
                             <input type="date" id="endDateContents" class="form-control">
+                            <div class="custom-control custom-checkbox">
+                                <input type="checkbox" class="custom-control-input" id="cbxNoTimestamp" name="cbxNoTimestamp"> 
+                                <label class="custom-control-label" for="cbxNoTimestamp">No Timestamp</label>
+                            </div>
                             <br>
                             <h6 style="margin-bottom: 2px">Import Dates:</h6>
                             <label for="lastModifiedStartDate" style="margin-bottom: 2px; display: block;">Start:</label>
@@ -2482,12 +2486,21 @@ limitations under the License. -->
                         </div>
                     </div>
                     <div class='col-lg-9'>
-                        <div display="flex" align-items="center" style="margin-bottom: 5px;">
-                            <label for="selectAllFiles" style="margin: 0; padding-right: 5px;" class="h6">Select All</label>
-                            <label class="switch">
-                                <input type="checkbox" id="selectAllFiles"><span class="slider round"></span>
-                            </label>
+                        <div class="row">
+                            <div class='col-lg-9'>
+                                <div display="flex" align-items="center" style="margin-bottom: 5px;">
+                                    <label for="selectAllFiles" style="margin: 0; padding-right: 5px;" class="h6">Select All</label>
+                                    <label class="switch">
+                                        <input type="checkbox" id="selectAllFiles"><span class="slider round"></span>
+                                    </label>
+                                </div>
+                            </div>
+                            <div class='col-lg-3 text-right'>
+                                <i class="fas fa-list fa-border" id="btnListView" title="List View" style="cursor: pointer;"></i>
+                                <i class="fas fa-th-large" id="btnGridView" title="Grid View" style="cursor: pointer;"></i>
+                            </div>
                         </div>
+
                         <div id="folderContentsDiv"></div>
                     </div>
                 </div>

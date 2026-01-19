@@ -5970,6 +5970,8 @@ def add_new_task(survey_id, name, includes=None, translation=None, labels=None, 
     if task.name=='default':
         prepTask(task.id)
     else:
+        new_task_args = {'task_id': task.id,'includes': includes,'translation': translation,'labels': labels}
+        GLOBALS.redisClient.set('new_task_{}'.format(task.id), json.dumps(new_task_args))
         prepTask.delay(task_id=task.id, includes=includes, translation=translation, labels=labels, auto_release=True)
 
     return task_id
@@ -6138,6 +6140,7 @@ def prepTask(self, task_id, includes=None, translation=None, labels=None, auto_r
                 setupTranslations(task_id, int(survey_id), translation, includes)
 
             db.session.commit()
+            GLOBALS.redisClient.delete('new_task_{}'.format(task_id))
 
         if Config.DEBUGGING: print('{}: Added labels and translations for task {}'.format(time.time()-starttime,task_id))
 

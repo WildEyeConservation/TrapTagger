@@ -1628,6 +1628,18 @@ def imageViewer():
                 hasPermission = True
                 if not image.zip_id: reqImages = [image]
 
+        elif view_type=='video':
+            video = db.session.query(Video).get(int(id_no))
+            if video and checkSurveyPermission(current_user.id,video.camera.trapgroup.survey_id,'read'):
+                hasPermission = True
+                reqImages = db.session.query(Image)\
+                                .join(Camera, Image.camera_id==Camera.id)\
+                                .join(Video, Video.camera_id==Camera.id)\
+                                .filter(Video.id==video.id)\
+                                .filter(Image.zip_id==None)\
+                                .order_by(Image.corrected_timestamp, Image.id)\
+                                .distinct().all()
+
         elif view_type=='capture':
             image = db.session.query(Image).get(int(id_no))
             # if image and ((image.camera.trapgroup.survey.user==current_user) or (current_user.id==admin.id)):
@@ -17220,6 +17232,15 @@ def getFolderContents(cameragroup_id):
     else:
         include_zip_lm = False
 
+    if 'no_timestamp' in request.form:
+        no_timestamp = ast.literal_eval(request.form['no_timestamp'])
+        if no_timestamp == 'true':
+            no_timestamp = True
+        else:
+            no_timestamp = False
+    else:
+        no_timestamp = False
+
     if cameragroup and folder and checkSurveyPermission(current_user.id,cameragroup.cameras[0].trapgroup.survey_id,'read'):
         img_cam_folder = folder
         vid_cam_folder = folder + '/_video_images_/%'
@@ -17237,29 +17258,49 @@ def getFolderContents(cameragroup_id):
 
         if end_date: images = images.filter(Image.corrected_timestamp<=end_date)
 
+        if no_timestamp: images = images.filter(Image.corrected_timestamp==None)
+
         images = images.order_by(Image.filename).distinct().all()
 
-        video_timestamp_subquery = db.session.query(Video.id.label('video_id'), func.min(Image.corrected_timestamp).label('video_timestamp'), func.min(Image.zip_id).label('video_zip_id'))\
-                                        .join(Camera, Camera.id==Video.camera_id)\
-                                        .join(Image, Image.camera_id==Camera.id)\
-                                        .filter(Camera.cameragroup_id==cameragroup_id)\
-                                        .filter(Camera.path.like(vid_cam_folder))\
-                                        .group_by(Video.id)\
-                                        .subquery()
+        video_image_subquery = db.session.query(
+                        Video.id.label("video_id"),
+                        Image.corrected_timestamp.label("video_timestamp"),
+                        Image.filename.label("image_filename"),
+                        Image.zip_id.label("video_zip_id"),
+                        func.row_number().over(
+                            partition_by=Video.id,
+                            order_by=(Image.corrected_timestamp, Image.filename)
+                        ).label("rn")
+                    )\
+                    .join(Camera, Camera.id == Video.camera_id)\
+                    .join(Image, Image.camera_id == Camera.id)\
+                    .filter(Camera.cameragroup_id == cameragroup_id)\
+                    .filter(Camera.path.like(vid_cam_folder))\
+                    .subquery()
+                
 
-        videos = db.session.query(Video.id, Video.filename, func.SUBSTRING_INDEX(Camera.path, '/_video_images_',1).label('path'), video_timestamp_subquery.c.video_timestamp, video_timestamp_subquery.c.video_zip_id)\
-                            .join(Camera)\
-                            .join(video_timestamp_subquery, video_timestamp_subquery.c.video_id == Video.id)\
-                            .filter(Camera.cameragroup_id==cameragroup_id)\
-                            .filter(Camera.path.like(vid_cam_folder))
+        videos = db.session.query(
+                            Video.id, 
+                            Video.filename, 
+                            Camera.path, 
+                            video_image_subquery.c.video_timestamp, 
+                            video_image_subquery.c.video_zip_id,
+                            video_image_subquery.c.image_filename
+                        )\
+                        .join(Camera)\
+                        .join(video_image_subquery, video_image_subquery.c.video_id == Video.id)\
+                        .filter(Camera.cameragroup_id==cameragroup_id)\
+                        .filter(Camera.path.like(vid_cam_folder))\
+                        .filter(video_image_subquery.c.rn == 1)
 
         if search:
             search_pattern = f"%{search}%"
             videos = videos.filter(Video.filename.like(search_pattern))
 
 
-        if start_date: videos = videos.filter(video_timestamp_subquery.c.video_timestamp>=start_date)
-        if end_date: videos = videos.filter(video_timestamp_subquery.c.video_timestamp<=end_date)
+        if start_date: videos = videos.filter(video_image_subquery.c.video_timestamp>=start_date)
+        if end_date: videos = videos.filter(video_image_subquery.c.video_timestamp<=end_date)
+        if no_timestamp: videos = videos.filter(video_image_subquery.c.video_timestamp==None)
 
         videos = videos.order_by(Video.filename).distinct().all()
 
@@ -17289,19 +17330,24 @@ def getFolderContents(cameragroup_id):
                 'folder': img[2],
                 'timestamp': stringify_timestamp(img[3]),
                 'type': 'image',
-                'site_id': site_id
+                'site_id': site_id,
+                'zip': True if img[4] else False,
+                'url': (img[2] + '/' + img[1]).replace('+','%2B').replace('?','%3F').replace('#','%23').replace('\\','%5C'),
             })
             if img[4] and include_zip_lm: empty_last_modified[img[2]+'/'+img[1]] = zip_last_modified.get(img[4], 'N/A')
         for vid in videos:
+            vid_path = vid[2].split('/_video_images_/')[0]
             filenames.append({
                 'id': vid[0],
                 'name': vid[1],
-                'folder': vid[2],
+                'folder': vid_path,
                 'timestamp': stringify_timestamp(vid[3]),
                 'type': 'video',
-                'site_id': site_id
+                'site_id': site_id,
+                'zip': True if vid[4] else False,
+                'url': (vid[2] + '/' + vid[5]).replace('+','%2B').replace('?','%3F').replace('#','%23').replace('\\','%5C'),
             })
-            if vid[4] and include_zip_lm: empty_last_modified[vid[2]+'/'+vid[1]] = zip_last_modified.get(vid[4], 'N/A')
+            if vid[4] and include_zip_lm: empty_last_modified[vid_path+'/'+vid[1]] = zip_last_modified.get(vid[4], 'N/A')
 
         filenames = sorted(filenames, key=lambda x: x['name'])
 
