@@ -3967,9 +3967,9 @@ document.onkeyup = function(event){
         }
     } else if (isStaticCheck) {
         switch (event.key.toLowerCase()){
-            case ('a'):handleStatic(1)
+            case ('s'):handleStatic(1)
                 break;
-            case ('r'):handleStatic(0)
+            case ('d'):handleStatic(0)
                 break;
             case (' '): hideDetections(false)
                 break;

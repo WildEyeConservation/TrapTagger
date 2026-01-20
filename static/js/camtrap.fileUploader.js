@@ -48,7 +48,12 @@ uploadWorker.onmessage = function(evt){
         largeFiles = evt.data.args[0]
         if (largeFiles>0) {
             document.getElementById('modalAlertHeader').innerHTML = 'Alert'
-            document.getElementById('modalAlertBody').innerHTML = 'You have ' + largeFiles.toString() + ' file(s) that are too large to upload. '
+            msg = 'You have ' + largeFiles.toString() + ' file(s) that exceed the upload limits.'
+            msg+= '<br><br>Upload limits:<br><ul>'
+            msg+= '<li>Image Size: 10 MB</li>'
+            msg+= '<li>Video Size: 500 MB</li>'
+            msg+= '<li>Image Resolution: 65MP</li></ul>'
+            document.getElementById('modalAlertBody').innerHTML = msg
             modalAlert.modal({keyboard: true});
         }
     }
