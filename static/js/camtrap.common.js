@@ -3969,7 +3969,7 @@ document.onkeyup = function(event){
         switch (event.key.toLowerCase()){
             case ('s'):handleStatic(1)
                 break;
-            case ('d'):handleStatic(0)
+            case ('n'):handleStatic(0)
                 break;
             case (' '): hideDetections(false)
                 break;
