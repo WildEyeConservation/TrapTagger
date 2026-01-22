@@ -19,6 +19,7 @@ from celery import Celery
 from celery.signals import celeryd_after_setup
 from gpuworker import detector
 from gpuworker import classifier
+from gpuworker import yolo_classifier
 import sys
 from gpuworker.config import Config
 # from wbia import opendb
@@ -109,7 +110,7 @@ def detectAndClassify(batch,model,threshold):
         return 'Error'
 
 @app.task()
-def classify(batch):
+def classify(batch,model_type='efficientnet'):
     '''
     Celery wrapper for running species classification on the supplied batch of images. Returns a classification and associated confidence score for each detection ID.
     
@@ -119,7 +120,10 @@ def classify(batch):
         Returns:
             result (dict): detection-ID-keyed dictionary containing a classification and associated score.
     '''
-    return classifier.infer(batch)
+    if model_type == 'yolo':
+        return yolo_classifier.infer(batch)
+    else:
+        return classifier.infer(batch)
 
 
 @app.task()
