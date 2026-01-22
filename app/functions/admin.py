@@ -2793,7 +2793,7 @@ def edit_survey(self,survey_id,user_id,classifier_id,sky_masked,ignore_small_det
 
     return True
 
-def check_masked_and_hidden_detections(survey_id):
+def check_masked_and_hidden_detections(survey_id,query_limit=20000):
     ''' Checks for any detections that have been made active that should be hidden/masked.'''
 
     survey = db.session.query(Survey).get(survey_id)
@@ -2806,65 +2806,85 @@ def check_masked_and_hidden_detections(survey_id):
                         Detection.right, ' ', Detection.top, ', ',
                         Detection.left, ' ', Detection.top, '))'), 32734)
 
-    masked_detections = db.session.query(Detection)\
-                            .join(Image)\
-                            .join(Camera)\
-                            .join(Cameragroup)\
-                            .join(Trapgroup)\
-                            .join(Mask)\
-                            .filter(Trapgroup.survey_id==survey_id)\
-                            .filter(or_(and_(Detection.source==model,Detection.score>Config.DETECTOR_THRESHOLDS[model]) for model in Config.DETECTOR_THRESHOLDS))\
-                            .filter(~Detection.status.in_(Config.DET_IGNORE_STATUSES))\
-                            .filter(Detection.source!='user')\
-                            .filter(func.ST_Contains(Mask.shape, polygon))\
-                            .distinct().all()
-    
-    images = []
-    for detection in masked_detections:
-        detection.status = 'masked'
-        images.append(detection.image)
+    while True:
+        masked_detections = db.session.query(Detection)\
+                                .join(Image)\
+                                .join(Camera)\
+                                .join(Cameragroup)\
+                                .join(Trapgroup)\
+                                .join(Mask)\
+                                .filter(Trapgroup.survey_id==survey_id)\
+                                .filter(or_(and_(Detection.source==model,Detection.score>Config.DETECTOR_THRESHOLDS[model]) for model in Config.DETECTOR_THRESHOLDS))\
+                                .filter(~Detection.status.in_(Config.DET_IGNORE_STATUSES))\
+                                .filter(Detection.source!='user')\
+                                .filter(func.ST_Contains(Mask.shape, polygon))\
+                                .distinct().limit(query_limit).all()
+        
+        if not masked_detections: break
+        
+        images = []
+        for detection in masked_detections:
+            detection.status = 'masked'
+            images.append(detection.image)
+        db.session.commit()
+
+        for image in set(images):
+            image.detection_rating = detection_rating(image)
+        db.session.commit()
 
 
     # Sky detections
     if survey.sky_masked:
-        sky_detections = db.session.query(Detection)\
-                            .join(Image)\
-                            .join(Camera)\
-                            .join(Trapgroup)\
-                            .filter(Trapgroup.survey_id==survey_id)\
-                            .filter(or_(and_(Detection.source==model,Detection.score>Config.DETECTOR_THRESHOLDS[model]) for model in Config.DETECTOR_THRESHOLDS))\
-                            .filter(~Detection.status.in_(Config.DET_IGNORE_STATUSES))\
-                            .filter(Detection.static == False) \
-                            .filter(Detection.bottom<Config.SKY_CONST)\
-                            .distinct().all()
+        while True:
+            sky_detections = db.session.query(Detection)\
+                                .join(Image)\
+                                .join(Camera)\
+                                .join(Trapgroup)\
+                                .filter(Trapgroup.survey_id==survey_id)\
+                                .filter(or_(and_(Detection.source==model,Detection.score>Config.DETECTOR_THRESHOLDS[model]) for model in Config.DETECTOR_THRESHOLDS))\
+                                .filter(~Detection.status.in_(Config.DET_IGNORE_STATUSES))\
+                                .filter(Detection.static == False) \
+                                .filter(Detection.bottom<Config.SKY_CONST)\
+                                .distinct().limit(query_limit).all()
 
-        for detection in sky_detections:
-            detection.status = 'hidden'
-            images.append(detection.image)
+            if not sky_detections: break
+
+            images = []
+            for detection in sky_detections:
+                detection.status = 'hidden'
+                images.append(detection.image)
+            db.session.commit()
+
+            for image in set(images):
+                image.detection_rating = detection_rating(image)
+            db.session.commit()
 
 
     # Small detections
     if survey.ignore_small_detections:
-        small_detections = db.session.query(Detection)\
-                            .join(Image)\
-                            .join(Camera)\
-                            .join(Trapgroup)\
-                            .filter(Trapgroup.survey_id==survey_id)\
-                            .filter(or_(and_(Detection.source==model,Detection.score>Config.DETECTOR_THRESHOLDS[model]) for model in Config.DETECTOR_THRESHOLDS))\
-                            .filter(~Detection.status.in_(Config.DET_IGNORE_STATUSES))\
-                            .filter(Detection.static == False) \
-                            .filter(((Detection.right-Detection.left)*(Detection.bottom-Detection.top)) < Config.SMALL_DET_AREA)\
-                            .distinct().all()
+        while True:
+            small_detections = db.session.query(Detection)\
+                                .join(Image)\
+                                .join(Camera)\
+                                .join(Trapgroup)\
+                                .filter(Trapgroup.survey_id==survey_id)\
+                                .filter(or_(and_(Detection.source==model,Detection.score>Config.DETECTOR_THRESHOLDS[model]) for model in Config.DETECTOR_THRESHOLDS))\
+                                .filter(~Detection.status.in_(Config.DET_IGNORE_STATUSES))\
+                                .filter(Detection.static == False) \
+                                .filter(((Detection.right-Detection.left)*(Detection.bottom-Detection.top)) < Config.SMALL_DET_AREA)\
+                                .distinct().limit(query_limit).all()
+            
+            if not small_detections: break
 
-        for detection in small_detections:
-            detection.status = 'hidden'
-            images.append(detection.image)
+            images = []
+            for detection in small_detections:
+                detection.status = 'hidden'
+                images.append(detection.image)
+            db.session.commit()
 
-    db.session.commit()
-
-    for image in set(images):
-        image.detection_rating = detection_rating(image)
-    db.session.commit()
+            for image in set(images):
+                image.detection_rating = detection_rating(image)
+            db.session.commit()
 
     return True
 

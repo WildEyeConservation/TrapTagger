@@ -3952,7 +3952,7 @@ def create_new_er_report(row,er_api_key,er_url):
     return True
 
 @celery.task(bind=True,max_retries=5,ignore_result=True)
-def mask_area(self, image_id, task_id, masks, user_id):
+def mask_area(self, image_id, task_id, masks, user_id,query_limit=20000):
     ''' Create masks and mask detections in a specified area of an image. '''
 
     try:
@@ -3989,28 +3989,31 @@ def mask_area(self, image_id, task_id, masks, user_id):
                                       Detection.right, ' ', Detection.top, ', ',
                                       Detection.left, ' ', Detection.top, '))'), 32734)
 
-            detections = db.session.query(Detection)\
-                                    .join(Image)\
-                                    .join(Camera)\
-                                    .join(Cameragroup)\
-                                    .join(Mask)\
-                                    .filter(Cameragroup.id==cameragroup.id)\
-                                    .filter(or_(and_(Detection.source==model,Detection.score>Config.DETECTOR_THRESHOLDS[model]) for model in Config.DETECTOR_THRESHOLDS))\
-                                    .filter(~Detection.status.in_(Config.DET_IGNORE_STATUSES))\
-                                    .filter(Detection.source!='user')\
-                                    .filter(func.ST_Contains(Mask.shape, polygon))\
-                                    .distinct().all()
+            while True:
+                detections = db.session.query(Detection)\
+                                        .join(Image)\
+                                        .join(Camera)\
+                                        .join(Cameragroup)\
+                                        .join(Mask)\
+                                        .filter(Cameragroup.id==cameragroup.id)\
+                                        .filter(or_(and_(Detection.source==model,Detection.score>Config.DETECTOR_THRESHOLDS[model]) for model in Config.DETECTOR_THRESHOLDS))\
+                                        .filter(~Detection.status.in_(Config.DET_IGNORE_STATUSES))\
+                                        .filter(Detection.source!='user')\
+                                        .filter(func.ST_Contains(Mask.shape, polygon))\
+                                        .distinct().limit(query_limit).all()
+                
+                if not detections: break
 
-            images = []
-            for detection in detections:
-                detection.status = 'masked'
-                images.append(detection.image)
-                if Config.DEBUGGING: app.logger.info('Masking detection {}'.format(detection.id))
-            db.session.commit()
+                images = []
+                for detection in detections:
+                    detection.status = 'masked'
+                    images.append(detection.image)
+                    if Config.DEBUGGING: app.logger.info('Masking detection {}'.format(detection.id))
+                db.session.commit()
 
-            for image in set(images):
-                image.detection_rating = detection_rating(image)
-            db.session.commit()
+                for image in set(images):
+                    image.detection_rating = detection_rating(image)
+                db.session.commit()
             
             re_evaluate_trapgroup_examined(trapgroup.id,task_id)
 
@@ -4035,7 +4038,7 @@ def mask_area(self, image_id, task_id, masks, user_id):
     return True
 
 
-def update_masks(survey_id,removed_masks,added_masks,edited_masks,user_id):
+def update_masks(survey_id,removed_masks,added_masks,edited_masks,user_id,query_limit=20000):
     '''Updates the masks for a survey.'''
 
     survey = db.session.query(Survey).get(survey_id)
@@ -4104,13 +4107,19 @@ def update_masks(survey_id,removed_masks,added_masks,edited_masks,user_id):
                             .filter(Detection.source!='user')\
                             .filter(func.ST_Contains(Mask.shape, polygon))
 
-    detections = mask_query.filter(~Detection.status.in_(Config.DET_IGNORE_STATUSES)).distinct().all()
-    
-    images = []
-    for detection in detections:
-        detection.status = 'masked'
-        images.append(detection.image)
+    while True:
+        detections = mask_query.filter(~Detection.status.in_(Config.DET_IGNORE_STATUSES)).distinct().limit(query_limit).all()
+        if not detections: break
+        
+        images = []
+        for detection in detections:
+            detection.status = 'masked'
+            images.append(detection.image)
+        db.session.commit()
 
+        for image in set(images):
+            image.detection_rating = detection_rating(image)
+        db.session.commit()
 
     # Unmask detections
     masked_detections = mask_query.filter(Detection.status=='masked').subquery()
@@ -4126,15 +4135,19 @@ def update_masks(survey_id,removed_masks,added_masks,edited_masks,user_id):
                             .filter(Detection.status=='masked')\
                             .filter(masked_detections.c.id==None)
 
-    for detection in unmasked_detections:
-        detection.status = 'active'
-        images.append(detection.image)
+    while True:
+        detections = unmasked_detections.distinct().limit(query_limit).all()
+        if not detections: break
 
-    db.session.commit()
+        images = []
+        for detection in detections:
+            detection.status = 'active'
+            images.append(detection.image)
+        db.session.commit()
 
-    for image in set(images):
-        image.detection_rating = detection_rating(image)
-    db.session.commit()
+        for image in set(images):
+            image.detection_rating = detection_rating(image)
+        db.session.commit()
     
     return True
 
@@ -4469,7 +4482,7 @@ def checkUploadUser(user_id,survey_id):
     
     return False
 
-def update_staticgroups(survey_id,staticgroups,user_id):
+def update_staticgroups(survey_id,staticgroups,user_id,query_limit=20000):
     '''Updates the staticgroups and static detections for the specified survey.'''
 
     survey = db.session.query(Survey).get(survey_id)
@@ -4485,41 +4498,51 @@ def update_staticgroups(survey_id,staticgroups,user_id):
 
 
     # Update detections
-    static_detections = db.session.query(Detection)\
-                                .join(Image)\
-                                .join(Camera)\
-                                .join(Trapgroup)\
-                                .join(Staticgroup)\
-                                .filter(Trapgroup.survey_id==survey_id)\
-                                .filter(or_(Staticgroup.status=='accepted',Staticgroup.status=='unknown'))\
-                                .filter(Detection.static!=True)\
-                                .distinct().all()
+    while True:
+        static_detections = db.session.query(Detection)\
+                                    .join(Image)\
+                                    .join(Camera)\
+                                    .join(Trapgroup)\
+                                    .join(Staticgroup)\
+                                    .filter(Trapgroup.survey_id==survey_id)\
+                                    .filter(or_(Staticgroup.status=='accepted',Staticgroup.status=='unknown'))\
+                                    .filter(Detection.static!=True)\
+                                    .distinct().limit(query_limit).all()
+        
+        if not static_detections: break
 
-    images = []
-    for detection in static_detections:
-        images.append(detection.image)
-        detection.static = True
+        images = []
+        for detection in static_detections:
+            images.append(detection.image)
+            detection.static = True
+        db.session.commit()
 
-    rejected_detections = db.session.query(Detection)\
-                                .join(Image)\
-                                .join(Camera)\
-                                .join(Trapgroup)\
-                                .join(Staticgroup)\
-                                .filter(Trapgroup.survey_id==survey_id)\
-                                .filter(Staticgroup.status=='rejected')\
-                                .filter(Detection.static!=False)\
-                                .distinct().all()
+        for image in images:
+            image.detection_rating = detection_rating(image)
+        db.session.commit()
 
-    for detection in rejected_detections:
-        images.append(detection.image)
-        detection.static = False
+    while True:
+        rejected_detections = db.session.query(Detection)\
+                                    .join(Image)\
+                                    .join(Camera)\
+                                    .join(Trapgroup)\
+                                    .join(Staticgroup)\
+                                    .filter(Trapgroup.survey_id==survey_id)\
+                                    .filter(Staticgroup.status=='rejected')\
+                                    .filter(Detection.static!=False)\
+                                    .distinct().limit(query_limit).all()
+        
+        if not rejected_detections: break
 
-    db.session.commit()
+        images = []
+        for detection in rejected_detections:
+            images.append(detection.image)
+            detection.static = False
+        db.session.commit()
 
-
-    for image in images:
-        image.detection_rating = detection_rating(image)
-    db.session.commit()
+        for image in images:
+            image.detection_rating = detection_rating(image)
+        db.session.commit()
 
     return True
 
@@ -4920,7 +4943,7 @@ def update_labelgroup_labels_tags(self,cluster_id):
 
     return True 
 
-def hideSmallDetections(survey_id,ignore_small_detections,edge):
+def hideSmallDetections(survey_id,ignore_small_detections,edge,query_limit=20000):
     ''' Sets all small detections to hidden for a survey.'''
 
     survey = db.session.query(Survey).get(survey_id)
@@ -4928,30 +4951,34 @@ def hideSmallDetections(survey_id,ignore_small_detections,edge):
         survey.status = 'Processing'
         db.session.commit()
 
-    # Don't edit the Detection.status != 'deleted' line
-    detections = db.session.query(Detection)\
-                            .join(Image) \
-                            .join(Camera) \
-                            .join(Trapgroup) \
-                            .filter(Trapgroup.survey_id==survey_id) \
-                            .filter(or_(and_(Detection.source==model,Detection.score>Config.DETECTOR_THRESHOLDS[model]) for model in Config.DETECTOR_THRESHOLDS)) \
-                            .filter(Detection.static == False) \
-                            .filter(~Detection.status.in_(['deleted','masked'])) \
-                            .filter(((Detection.right-Detection.left)*(Detection.bottom-Detection.top)) < Config.SMALL_DET_AREA)
+    while True:
+        # Don't edit the Detection.status != 'deleted' line
+        detections = db.session.query(Detection)\
+                                .join(Image) \
+                                .join(Camera) \
+                                .join(Trapgroup) \
+                                .filter(Trapgroup.survey_id==survey_id) \
+                                .filter(or_(and_(Detection.source==model,Detection.score>Config.DETECTOR_THRESHOLDS[model]) for model in Config.DETECTOR_THRESHOLDS)) \
+                                .filter(Detection.static == False) \
+                                .filter(~Detection.status.in_(['deleted','masked'])) \
+                                .filter(((Detection.right-Detection.left)*(Detection.bottom-Detection.top)) < Config.SMALL_DET_AREA)
 
-    if (not edge) and (ignore_small_detections==False) and (survey.sky_masked==True):
-        detections = detections.filter(Detection.bottom>=Config.SKY_CONST)
-    
-    detections = detections.distinct().all()
+        if (not edge) and (ignore_small_detections==False) and (survey.sky_masked==True):
+            detections = detections.filter(Detection.bottom>=Config.SKY_CONST)
+        
+        if ignore_small_detections==True:
+            status = 'hidden'
+        else:
+            status = 'active'
 
-    if ignore_small_detections==True:
-        status = 'hidden'
-    else:
-        status = 'active'
-                            
-    # for chunk in chunker(detections,1000):
-    for detection in detections:
-        detection.status = status
+        detections = detections.filter(Detection.status!=status).distinct().limit(query_limit).all()
+
+        if not detections: break
+                                
+        # for chunk in chunker(detections,1000):
+        for detection in detections:
+            detection.status = status
+        db.session.commit()
 
     survey = db.session.query(Survey).get(survey_id)
     if ignore_small_detections==True:
@@ -4962,7 +4989,7 @@ def hideSmallDetections(survey_id,ignore_small_detections,edge):
 
     return True
 
-def maskSky(survey_id,sky_masked,edge):
+def maskSky(survey_id,sky_masked,edge,query_limit=20000):
     ''' Masks all detections in the sky for a survey.'''
 
     survey = db.session.query(Survey).get(survey_id)
@@ -4970,31 +4997,35 @@ def maskSky(survey_id,sky_masked,edge):
         survey.status = 'Processing'
         db.session.commit()
 
-    # Don't edit the Detection.status != 'deleted' line
-    detections = db.session.query(Detection)\
-                            .join(Image) \
-                            .join(Camera) \
-                            .join(Trapgroup) \
-                            .filter(Trapgroup.survey_id==survey_id) \
-                            .filter(or_(and_(Detection.source==model,Detection.score>Config.DETECTOR_THRESHOLDS[model]) for model in Config.DETECTOR_THRESHOLDS)) \
-                            .filter(Detection.static == False) \
-                            .filter(~Detection.status.in_(['deleted','masked'])) \
-                            .filter(Detection.bottom<Config.SKY_CONST)
+    while True:
+        # Don't edit the Detection.status != 'deleted' line
+        detections = db.session.query(Detection)\
+                                .join(Image) \
+                                .join(Camera) \
+                                .join(Trapgroup) \
+                                .filter(Trapgroup.survey_id==survey_id) \
+                                .filter(or_(and_(Detection.source==model,Detection.score>Config.DETECTOR_THRESHOLDS[model]) for model in Config.DETECTOR_THRESHOLDS)) \
+                                .filter(Detection.static == False) \
+                                .filter(~Detection.status.in_(['deleted','masked'])) \
+                                .filter(Detection.bottom<Config.SKY_CONST)
 
 
-    if (not edge) and (sky_masked==False) and (survey.ignore_small_detections==True):
-        detections.filter(((Detection.right-Detection.left)*(Detection.bottom-Detection.top)) > Config.SMALL_DET_AREA)
-                            
-    detections = detections.distinct().all()
+        if (not edge) and (sky_masked==False) and (survey.ignore_small_detections==True):
+            detections = detections.filter(((Detection.right-Detection.left)*(Detection.bottom-Detection.top)) > Config.SMALL_DET_AREA)
+                                
+        if sky_masked==True:
+            status = 'hidden'
+        else:
+            status = 'active'
 
-    if sky_masked==True:
-        status = 'hidden'
-    else:
-        status = 'active'
-                            
-    # for chunk in chunker(detections,1000):
-    for detection in detections:
-        detection.status = status
+        detections = detections.filter(Detection.status!=status).distinct().limit(query_limit).all()
+
+        if not detections: break
+                                
+        # for chunk in chunker(detections,1000):
+        for detection in detections:
+            detection.status = status
+        db.session.commit()
 
     survey = db.session.query(Survey).get(survey_id)
     if sky_masked==True:
