@@ -18,9 +18,7 @@ ARG DEBIAN_FRONTEND=noninteractive
 RUN apt-get update && \
     apt-get upgrade -y && \
     apt-get install -y git 
-RUN apt-get install ffmpeg libsm6 libxext6 postgresql -y
-RUN apt-get install wget
-RUN apt-get install unzip
+RUN apt-get install ffmpeg libsm6 libxext6 -y
 RUN pip install --upgrade pip
 RUN pip3 install torch torchvision torchaudio
 RUN pip install ultralytics==8.4.7
