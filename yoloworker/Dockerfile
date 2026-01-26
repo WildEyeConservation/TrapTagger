@@ -20,7 +20,7 @@ RUN apt-get update && \
     apt-get install -y git 
 RUN apt-get install ffmpeg libsm6 libxext6 -y
 RUN pip install --upgrade pip
-RUN pip install torch==2.2.0+cu118 torchvision==0.17.1+cu118 torchaudio==2.2.0+cu118 --index-url https://download.pytorch.org/whl/cu118
+RUN pip install torch==2.2.1+cu118 torchvision==0.17.1+cu118 torchaudio==2.2.0+cu118 --index-url https://download.pytorch.org/whl/cu118
 RUN pip install ultralytics==8.4.7
 WORKDIR /code
 RUN pip install \
