@@ -35,7 +35,7 @@ printf \
 'AWS_SECRET_ACCESS_KEY='$AWS_SECRET_ACCESS_KEY'\n'
 
 for ((i=0;$((i<$NUMGPUS));i++)) do
-  docker run -e AWS_ACCESS_KEY_ID -e AWS_SECRET_ACCESS_KEY -e REDIS_IP --hostname worker$i@$1 -e WORKER_NAME=$1 -e QUEUE -e WORKER_NUMBER=$i -e CUDA_VISIBLE_DEVICES=$i -v /home/ubuntu/TrapTagger/yoloworker:/code/yoloworker --gpus all --ipc=host --name yoloworker$i yoloworker celery -A yoloworker.worker worker -Q $QUEUE -Ofair --concurrency=1 -l info > worker$i.log 2>&1 &
+  docker run -e AWS_ACCESS_KEY_ID -e AWS_SECRET_ACCESS_KEY -e REDIS_IP --hostname worker$i@$1 -e WORKER_NAME=$1 -e QUEUE -e WORKER_NUMBER=$i -e CUDA_VISIBLE_DEVICES=$i -v /home/ubuntu/TrapTagger/yoloworker:/code/yoloworker --gpus all --ipc=host --name yoloworker$i yolo_worker celery -A yoloworker.worker worker -Q $QUEUE -Ofair --concurrency=1 -l info > worker$i.log 2>&1 &
   echo "Docker container launched!"
 done
 
