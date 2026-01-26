@@ -130,7 +130,6 @@ class SimpleYoloDataset(torch.utils.data.Dataset):
         if crop == False:
             return None,detection_id
         
-        crop = self.transform(crop)
         return crop, detection_id
 
     def __len__(self):
