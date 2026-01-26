@@ -168,9 +168,11 @@ def infer(batch):
             continue
 
         # Run YOLOv11 classification (handles preprocessing + GPU batching)
-        results_list = model.predict(crops, device='cuda', batch_size=len(crops), verbose=False)
-
+        results_list = model.predict(crops, device='cuda', verbose=False)
+        
         for i, res in enumerate(results_list):
+            print('Processing detection ID: {}'.format(det_ids[i]))
+            print('Results: {}'.format(res))
             probs = res.probs.cpu().numpy()  # softmax probabilities
             class_idx = int(np.argmax(probs))
             score = float(probs[class_idx])
@@ -181,7 +183,7 @@ def infer(batch):
 
 
 def collate_fn(batch):
-    batch = [x for x in batch if x[0] is not None and x[0] is not None]
+    batch = [x for x in batch if x[0] is not None and x[1] is not None]
     if len(batch) == 0:
         return [], []
     crops, det_ids = zip(*batch)
