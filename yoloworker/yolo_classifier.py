@@ -151,7 +151,7 @@ def infer(batch):
 
     if not classifier_init:
         print('Loading model from {}'.format(model_path))
-        model = YOLO(model_path)
+        model = YOLO('yoloworker/' + model_path)
         classifier_init = True
 
     if len(batch['images']) == 0 or len(batch['detection_ids']) == 0:
