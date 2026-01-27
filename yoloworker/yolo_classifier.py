@@ -176,12 +176,15 @@ def infer(batch):
         for i, res in enumerate(results_list):
             print('Processing detection ID: {}'.format(det_ids[i]))
             print('Results: {}'.format(res))
-            probs = res.probs.cpu().numpy()  # softmax probabilities
-            class_idx = int(np.argmax(probs))
-            score = float(probs[class_idx])
-            detection_id = det_ids[i]
-            result[detection_id] = {'classification': str(class_idx), 'score': str(score)}
-
+            class_idx = int(res.probs.top1)
+            score = float(res.probs.top1conf)
+            class_name = model.names[class_idx]
+            print('Class Idx: {}, Class: {}, Score: {}'.format(class_idx, class_name, score))
+            result[det_ids[i]] = {
+                'classification': class_name,
+                'score': str(score)
+            }
+            
     return result
 
 
