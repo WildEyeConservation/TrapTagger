@@ -11,41 +11,39 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-
-FROM nvidia/cuda:10.2-cudnn8-runtime-ubuntu20.04
+FROM nvidia/cuda:11.8.0-cudnn8-runtime-ubi8
+FROM python:3.8.12
 ARG DEBIAN_FRONTEND=noninteractive
 RUN apt-get update && \
     apt-get upgrade -y && \
-    apt-get install -y \
-        git \
-        python3.8 \
-        python3.8-dev \
-        python3-pip \
-        ffmpeg \
-        libsm6 \
-        libxext6 && \
-    rm -rf /var/lib/apt/lists/*
-RUN update-alternatives --install /usr/bin/python python /usr/bin/python3.8 1 && \
-    update-alternatives --install /usr/bin/pip pip /usr/bin/pip3 1
+    apt-get install -y git 
+RUN apt-get install ffmpeg libsm6 libxext6 -y
 RUN pip install --upgrade pip
-RUN pip install torch==1.8.2+cu102 torchvision==0.9.2+cu102 torchaudio==0.8.2 -f https://download.pytorch.org/whl/torch_stable.html
+RUN pip install torch==2.2.1+cu118 torchvision==0.17.1+cu118 torchaudio==2.2.1+cu118 --index-url https://download.pytorch.org/whl/cu118
+RUN pip install ultralytics==8.4.7
 WORKDIR /code
 RUN pip install \
-    ultralytics==8.0.20 \
-    celery==5.2.7 \
-    redis==4.6.0 \
-    boto3==1.26.165 \
-    requests==2.28.2 \
-    tqdm==4.65.0 \
-    pillow==9.5.0 \
-    opencv-python==4.6.0.66 \
-    numpy==1.21.6 \
-    pandas==1.3.5 \
-    scikit-learn==1.0.2 \
-    scikit-image==0.19.3 \
-    matplotlib==3.5.3 \
-    PyYAML==6.0 \
-    yacs==0.1.8
+    celery==5.4.0\
+    humanfriendly==10.0\
+    jsonpickle==3.0.4\
+    matplotlib==3.3.0\
+    Pillow==10.3.0\
+    requests==2.32.3\
+    redis==5.0.4\
+    tqdm==4.66.4\
+    pandas==1.1.4\
+    progressbar2==4.4.2\
+    pylint==3.2.2\
+    scikit-image==0.18.3\
+    scikit-learn==1.0.1\
+    xlrd==2.0.1\
+    pillow-simd==9.0.0.post1\
+    boto3==1.34.116\
+    opencv-python==4.9.0.80\
+    PyYAML==6.0.1\
+    seaborn==0.9.0\
+    yacs==0.1.8\
+    numpy==1.19.3
 ENV NVIDIA_VISIBLE_DEVICES all
 ENV NVIDIA_DRIVER_CAPABILITIES compute,utility
 ENV PYTHONPATH=/code
