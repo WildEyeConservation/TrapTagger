@@ -17,7 +17,6 @@ limitations under the License.
 
 import torch
 from PIL import Image, ImageOps, ImageFile
-from ultralytics import YOLO
 import boto3
 import tempfile
 import numpy as np
@@ -150,6 +149,7 @@ def infer(batch):
 
     if not classifier_init:
         print('Loading model from {}'.format(model_path))
+        from ultralytics import YOLO
         model = YOLO('yoloworker/' + model_path)
         classifier_init = True
 
@@ -163,12 +163,15 @@ def infer(batch):
 
     result = {}
 
+    DEVICE = 'cuda' if torch.cuda.is_available() else 'cpu'
+    print('Using device: {}'.format(DEVICE))
+
     for crops, det_ids in dataloader:
         if len(crops) == 0:
             continue
 
         # Run YOLOv11 classification (handles preprocessing + GPU batching)
-        results_list = model.predict(crops, device='cuda', verbose=False)
+        results_list = model.predict(crops, device=DEVICE, verbose=False)
         
         for i, res in enumerate(results_list):
             print('Processing detection ID: {}'.format(det_ids[i]))
