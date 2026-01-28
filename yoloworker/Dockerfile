@@ -43,7 +43,7 @@ RUN pip install \
     boto3==1.34.116\
     opencv-python==4.9.0.80\
     PyYAML==6.0.1\
-    numpy
+    numpy==1.26.4
 
 ENV NVIDIA_VISIBLE_DEVICES all
 ENV NVIDIA_DRIVER_CAPABILITIES compute,utility
