@@ -11,7 +11,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-FROM nvidia/cuda:11.8.0-cudnn8-runtime-ubuntu22.04
+FROM nvidia/cuda:10.2-cudnn8-runtime-ubuntu20.04
 
 ARG DEBIAN_FRONTEND=noninteractive
 
@@ -29,11 +29,7 @@ RUN python -m pip install --upgrade pip setuptools wheel
 
 WORKDIR /code
 
-RUN pip install \
-    torch==2.2.1+cu118 \
-    torchvision==0.17.1+cu118 \
-    torchaudio==2.2.1+cu118 \
-    --index-url https://download.pytorch.org/whl/cu118
+RUN pip install torch==2.2.1+cu102 torchvision==0.17.1+cu102 torchaudio==2.2.1+cu102 --index-url https://download.pytorch.org/whl/cu102
 
 RUN pip install \
     ultralytics==8.4.7\
