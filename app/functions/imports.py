@@ -5781,7 +5781,7 @@ def process_folder(s3Folder, survey_id, sourceBucket):
     batch = []
     chunk_size = round(10000/4)
     s3Folder = s3Folder.replace('_','\\_')
-    cameras = localsession.query(Camera).filter(Camera.path.like(s3Folder+'/%')).distinct().all()
+    cameras = localsession.query(Camera).filter(Camera.path.like(s3Folder+'/%')).join(Image).filter(or_(~Image.detections.any(),Camera.trapgroup==None)).distinct().all()
     for camera in cameras:
         trapgroup = camera.trapgroup
         if not trapgroup:

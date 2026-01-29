@@ -440,6 +440,7 @@ def calculate_detection_similarities(self,task_ids,species,algorithm):
             if batch:
                 results.append(calculate_hotspotter_similarity.apply_async(kwargs={'batch': batch}, queue='individual_id'))
 
+            db.session.remove()
             GLOBALS.lock.acquire()
             with allow_join_result():
                 for result in results:
@@ -831,6 +832,7 @@ def calculate_individual_similarities(self,task_id,species):
                     results.append(calculate_individual_similarity.apply_async(kwargs={'individual1':individual1,'individuals2':individuals2,'species':species},queue='parallel'))
             
         #Wait for processing to complete
+        db.session.remove()
         GLOBALS.lock.acquire()
         with allow_join_result():
             for result in results:
