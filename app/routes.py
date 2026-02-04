@@ -9800,6 +9800,8 @@ def getClassifierInfo():
             org_id = survey.organisation_id
         else:
             org_id = request.args.get('org_id', None, type=int)
+        check_org = db.session.query(UserPermissions).filter(UserPermissions.organisation_id==org_id).filter(UserPermissions.user_id==current_user.id).first()
+        if not check_org: org_id = None
 
         classifiers = db.session.query(Classifier).filter(Classifier.active==True)
         
@@ -9811,12 +9813,15 @@ def getClassifierInfo():
                                                 Classifier.description.contains(search)))
 
         # Only show classifiers that are not associated with any organisations or are associated with the specified organisation
-        classifiers = classifiers.filter(
-            or_(
-                ~Classifier.organisations.any(),
-                Classifier.organisations.any(Organisation.id==org_id)
+        if org_id:
+            classifiers = classifiers.filter(
+                or_(
+                    ~Classifier.organisations.any(),
+                    Classifier.organisations.any(Organisation.id==org_id)
+                )
             )
-        )
+        else:
+            classifiers = classifiers.filter(~Classifier.organisations.any())
 
         classifiers = classifiers.order_by(Classifier.name).distinct().paginate(page, 10, False)
 
