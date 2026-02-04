@@ -374,6 +374,7 @@ var selectedViewFolder = null
 var selectedFolderToMove = null
 var folderFiles = []
 var filesTabChange = false
+var cancelCloseES = false
 
 function buildSurveys(survey,disableSurvey) {
     /**
@@ -5072,15 +5073,26 @@ modalEditSurvey.on('hidden.bs.modal', function(){
 
 $('#btnCancelCloseES').click( function() {
     /** Event listener for the cancel button on the edit-survey modal close confirmation modal. */
+    cancelCloseES = true
     modalConfirmEditClose.modal('hide')
     modalEditSurvey.modal({keyboard: true});
 });
 
 $('#btnConfirmCloseES').click( function() {
     /** Event listener for the confirm button on the edit-survey modal close confirmation modal. */
+    cancelCloseES = false
     modalConfirmEditClose.modal('hide')
     resetEditSurveyModal()
     document.getElementById('btnEditSurvey').disabled = false
+});
+
+modalConfirmEditClose.on('hidden.bs.modal', function(){
+    /** Clears the edit-survey modal close confirmation modal when closed. */
+    if (!cancelCloseES) {
+        resetEditSurveyModal()
+        document.getElementById('btnEditSurvey').disabled = false
+    }
+    cancelCloseES = false
 });
 
 modalAddFiles.on('hidden.bs.modal', function(){
