@@ -4793,6 +4793,12 @@ function updateClassifierTable(url=null) {
             url += '?'
         }
         url += '&showCurrent=' + selectedSurvey.toString()
+    } else {
+        org_id = document.getElementById('newSurveyOrg').value
+        if (!url.includes('?')) {
+            url += '?'
+        }
+        url += 'org_id=' + org_id
     }
 
     var xhttp = new XMLHttpRequest();
@@ -6296,6 +6302,7 @@ function getOrganisations(){
 
             org_id = select.value
             getOrgAreas(org_id)
+            updateClassifierTable()
         }
     }
     xhttp.open("GET", '/getOrganisations?create=true');
@@ -6342,6 +6349,8 @@ $('#newSurveyOrg').change( function() {
 
     org_id = this.value
     getOrgAreas(org_id)
+
+    updateClassifierTable()
 
     if (document.getElementById('detailedAccessSurveyCb').checked) {
         org_id = document.getElementById('newSurveyOrg').value

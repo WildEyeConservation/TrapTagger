@@ -42,8 +42,8 @@ def importMonitor():
     
     try:
         startTime = datetime.utcnow()
-        queues = getQueueLengths()
         commit = None
+        queues = getQueueLengths()
 
         if queues:
             ec2 = boto3.resource('ec2', region_name=Config.AWS_REGION)

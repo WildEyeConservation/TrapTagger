@@ -111,6 +111,12 @@ individualPrimaryDetections = db.Table('individualPrimaryDetections',
     db.Index('ix_individualPrimaryDetections_individual_id', 'individual_id', unique=False)
 )
 
+organisationClassifiers = db.Table('organisationClassifiers',
+    db.Column('organisation_id', db.Integer, db.ForeignKey('organisation.id')),
+    db.Column('classifier_id', db.Integer, db.ForeignKey('classifier.id')),
+    db.UniqueConstraint('organisation_id', 'classifier_id')
+)
+
 class Image(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     filename = db.Column(db.String(64), index=False, unique=False)
@@ -622,6 +628,7 @@ class Organisation(db.Model):
     permissions = db.relationship('UserPermissions', backref='organisation', lazy=True)
     shares = db.relationship('SurveyShare', backref='organisation', lazy=True)
     surveys = db.relationship('Survey', backref='organisation', lazy=True)
+    classifiers = db.relationship('Classifier', secondary=organisationClassifiers, lazy=True, backref=db.backref('organisations', lazy=True))
 
     def __repr__(self):
         return '<Organisation {}>'.format(self.name)

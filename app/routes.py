@@ -9795,6 +9795,12 @@ def getClassifierInfo():
         page = request.args.get('page', 1, type=int)
         search = request.args.get('search', '', type=str)
         showCurrent = request.args.get('showCurrent', False, type=str)
+        if showCurrent:
+            survey = db.session.query(Survey).get(showCurrent)
+            org_id = survey.organisation_id
+        else:
+            org_id = request.args.get('org_id', None, type=int)
+
         classifiers = db.session.query(Classifier).filter(Classifier.active==True)
         
         searches = re.split('[ ,]',search)
@@ -9803,6 +9809,14 @@ def getClassifierInfo():
                                                 Classifier.source.contains(search),
                                                 Classifier.region.contains(search),
                                                 Classifier.description.contains(search)))
+
+        # Only show classifiers that are not associated with any organisations or are associated with the specified organisation
+        classifiers = classifiers.filter(
+            or_(
+                ~Classifier.organisations.any(),
+                Classifier.organisations.any(Organisation.id==org_id)
+            )
+        )
 
         classifiers = classifiers.order_by(Classifier.name).distinct().paginate(page, 10, False)
 
