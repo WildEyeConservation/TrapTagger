@@ -19,7 +19,8 @@ from app.models import *
 # from app.functions.admin import setup_new_survey_permissions
 from app.functions.globals import detection_rating, randomString, updateTaskCompletionStatus, updateLabelCompletionStatus, updateIndividualIdStatus, retryTime,\
                                  chunker, save_crops, list_all, classifyTask, all_equal, generate_raw_image_hash, updateAllStatuses, setup_new_survey_permissions, \
-                                 hideSmallDetections, maskSky, rDets, verify_label, checkChildTranslations, createChildTranslations, add_new_task, prepTask, launch_task
+                                 hideSmallDetections, maskSky, rDets, verify_label, checkChildTranslations, createChildTranslations, add_new_task, prepTask, launch_task, \
+                                 delete_clusters, delete_cameras, delete_trapgroups, delete_images, delete_detections, delete_labelgroups
 import GLOBALS
 from sqlalchemy.sql import func, or_, distinct, and_, literal_column
 from sqlalchemy import desc, insert
@@ -2281,25 +2282,17 @@ def remove_duplicate_images(survey_id):
         delete_duplicate_images(images)
 
     # delete any empty clusters
-    clusters = db.session.query(Cluster).join(Task).filter(Task.survey_id==survey_id).filter(~Cluster.images.any()).all()
-    for cluster in clusters:
-        cluster.labels = []
-        cluster.tags = []
-        cluster.required_images = []
-        db.session.delete(cluster)
+    task_ids = [r[0] for r in db.session.query(Task.id).filter(Task.survey_id==survey_id).distinct().all()]
+    for task_id in task_ids:
+        delete_clusters(task_id=task_id, empty=True)
 
     #delete any empty cameras
-    cameras = db.session.query(Camera).join(Trapgroup).filter(~Camera.images.any()).filter(Trapgroup.survey_id==survey_id).all()
-    for camera in cameras:
-        db.session.delete(camera)
-    # db.session.commit()
+    cameraSQ = db.session.query(Camera.id).join(Trapgroup).filter(Trapgroup.survey_id==survey_id).filter(~Camera.images.any()).filter(~Camera.videos.any())
+    delete_cameras(survey_id=survey_id, sq=cameraSQ)
 
     #delete any empty trapgroups
-    trapgroups = db.session.query(Trapgroup).filter(~Trapgroup.cameras.any()).filter(Trapgroup.survey_id==survey_id).all()
-    for trapgroup in trapgroups:
-        trapgroup.sitegroups = []
-        db.session.delete(trapgroup)
-    # db.session.commit()
+    tgSQ = db.session.query(Trapgroup.id).filter(Trapgroup.survey_id==survey_id).filter(~Trapgroup.cameras.any())
+    delete_trapgroups(survey_id=survey_id, sq=tgSQ)
 
     db.session.commit()
     db.session.remove()

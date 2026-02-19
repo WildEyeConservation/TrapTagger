@@ -832,17 +832,8 @@ def deleteIndividual(individual_id):
 
             calculate_individual_similarity.delay(individual1=newIndividual.id,individuals2=individuals,species=individual.species)
 
-        allSimilarities = db.session.query(IndSimilarity).filter(or_(IndSimilarity.individual_1==individual.id,IndSimilarity.individual_2==individual.id)).distinct().all()
-        for similarity in allSimilarities:
-            db.session.delete(similarity)
 
-        individual.detections = []
-        individual.primary_detections = []
-        individual.tags = []
-        individual.children = []
-        individual.parents = []
-        individual.tasks = []
-        db.session.delete(individual)
+        delete_individuals_helper(individual_ids=[individual.id])
         db.session.commit()
 
         return json.dumps('success')
@@ -1500,7 +1491,7 @@ def deleteSurvey(survey_id):
 #     if survey:
 #         survey.status = 'Cancelled'
 #         db.session.commit()
-#         delete_images(surveyName,survey.user.folder)
+#         delete_images_from_s3(surveyName,survey.user.folder)
 #     return json.dumps('')
 
 @app.route('/updateSurveyStatus/<survey_id>/<status>')
@@ -2443,10 +2434,8 @@ def editSurvey():
                                 for s in area_surveys: s.area = area 
                             area_commit = True 
                 if area_commit:
-                    empty_areas = db.session.query(Area).filter(~Area.surveys.any()).all()
-                    for area in empty_areas:
-                        db.session.delete(area)
                     db.session.commit()
+                    delete_empty_areas()
                 else:
                     survey_area = None
                     edit_area_option = None
@@ -14900,16 +14889,22 @@ def submitIndividualFlanks():
                     detection.flank = Config.FLANK_DB[flanks[str(detection.id)].lower()]
                     det_ids.append(detection.id)
 
-            detSims = db.session.query(DetSimilarity).filter(or_(DetSimilarity.detection_1.in_(det_ids), DetSimilarity.detection_2.in_(det_ids))).all()
-            for detSim in detSims:
-                db.session.delete(detSim)
+            # detSims = db.session.query(DetSimilarity).filter(or_(DetSimilarity.detection_1.in_(det_ids), DetSimilarity.detection_2.in_(det_ids))).all()
+            # for detSim in detSims:
+            #     db.session.delete(detSim)
 
-            indSims = db.session.query(IndSimilarity)\
-                                .filter(or_(IndSimilarity.individual_1==individual.id, IndSimilarity.individual_2==individual.id))\
-                                .filter(or_(IndSimilarity.detection_1.in_(det_ids), IndSimilarity.detection_2.in_(det_ids))).all()
+            # indSims = db.session.query(IndSimilarity)\
+            #                     .filter(or_(IndSimilarity.individual_1==individual.id, IndSimilarity.individual_2==individual.id))\
+            #                     .filter(or_(IndSimilarity.detection_1.in_(det_ids), IndSimilarity.detection_2.in_(det_ids))).all()
             
-            for indSim in indSims:
-                db.session.delete(indSim)
+            # for indSim in indSims:
+            #     db.session.delete(indSim)
+
+            db.session.query(DetSimilarity).filter(or_(DetSimilarity.detection_1.in_(det_ids), DetSimilarity.detection_2.in_(det_ids))).delete(synchronize_session=False)
+            db.session.query(IndSimilarity)\
+                        .filter(or_(IndSimilarity.individual_1==individual.id, IndSimilarity.individual_2==individual.id))\
+                        .filter(or_(IndSimilarity.detection_1.in_(det_ids), IndSimilarity.detection_2.in_(det_ids)))\
+                        .delete(synchronize_session=False)
            
             db.session.commit()
             status = 'success'
@@ -16032,16 +16027,7 @@ def mergeIndividuals():
             for tsk in individual1.tasks:
                 if not tsk.areaID_library: tsk.areaID_library=True
 
-        allSimilarities = db.session.query(IndSimilarity).filter(or_(IndSimilarity.individual_1==individual2.id,IndSimilarity.individual_2==individual2.id)).distinct().all()
-        for similarity in allSimilarities:
-            db.session.delete(similarity)
-        individual2.tags = []
-        individual2.detections = []
-        individual2.primary_detections = []
-        individual2.children = []
-        individual2.parents = []
-        individual2.tasks = []
-        db.session.delete(individual2)
+        delete_individuals_helper(individual_ids=[individual2.id])
 
         individual1.name = name if name else individual1.name
         individual1.active = True
@@ -17004,17 +16990,7 @@ def markUnidentifiable(individual_id):
                 if detection not in unidentifiable.detections:
                     unidentifiable.detections.append(detection)
             
-            allSimilarities = db.session.query(IndSimilarity).filter(or_(IndSimilarity.individual_1==individual.id,IndSimilarity.individual_2==individual.id)).distinct().all()
-            for similarity in allSimilarities:
-                db.session.delete(similarity)
-
-            individual.detections = []
-            individual.primary_detections = []
-            individual.tags = []
-            individual.children = []
-            individual.parents = []
-            individual.tasks = []
-            db.session.delete(individual)
+            delete_individuals_helper(individual_ids=[individual.id])
 
         db.session.commit()
 

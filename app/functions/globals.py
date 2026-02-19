@@ -22,7 +22,7 @@ from flask import render_template
 import time
 import threading
 from sqlalchemy.sql import func, or_, alias, distinct, and_, literal_column, case
-from sqlalchemy import desc, insert
+from sqlalchemy import desc, insert, delete, select
 from sqlalchemy.orm import joinedload
 import random
 import string
@@ -1882,7 +1882,7 @@ def checkForIdWork(task_ids,label,theshold):
 
     return num_individuals
 
-def delete_images(surveyName,folder):
+def delete_images_from_s3(surveyName,folder):
     '''Deletes all images from a specified survey in the given AWS S3 folder.'''
 
     prefix = folder + '/' + surveyName + '/'
@@ -5801,42 +5801,22 @@ def delete_old_clusters(task_id,trapgroup_id,query_limit):
                             .filter(Camera.trapgroup_id == trapgroup_id)\
                             .subquery()
     
-    while True:
-        clusters = db.session.query(Cluster)\
-                            .join(clusterSQ,clusterSQ.c.cluster_id==Cluster.id)\
-                            .filter(clusterSQ.c.row_number>1)\
-                            .distinct().limit(query_limit).all()
+    clusters = db.session.query(Cluster.id)\
+                        .join(clusterSQ,clusterSQ.c.cluster_id==Cluster.id)\
+                        .filter(clusterSQ.c.row_number>1).distinct()
         
-        if not clusters: break
-
-        for cluster in clusters:
-            cluster.labels = []
-            cluster.tags = []
-            cluster.images = []
-            cluster.required_images = []
-            db.session.delete(cluster)
-
-        db.session.commit()
+    delete_clusters(task_id=task_id, sq=clusters)
 
     return True
 
 def delete_empty_clusters(task_id,query_limit):
     ''' Deletes any clusters without images. '''
 
-    while True:
-        if Config.DEBUGGING: starttime = time.time()
-        clusters = db.session.query(Cluster).filter(Cluster.task_id==task_id).filter(~Cluster.images.any()).limit(query_limit).all()
-        if Config.DEBUGGING: print('Fetched {} empty clusters in {}'.format(len(clusters),time.time()-starttime))
+    if Config.DEBUGGING: starttime = time.time()
 
-        if not clusters: break
-
-        for cluster in clusters:
-            cluster.labels = []
-            cluster.tags = []
-            cluster.required_images = []
-            db.session.delete(cluster)
-
-        db.session.commit()
+    delete_clusters(task_id=task_id, empty=True)
+    
+    if Config.DEBUGGING: print('Empty clusters deleted in {}'.format(time.time()-starttime))
 
     return True
 
@@ -7610,5 +7590,484 @@ def update_duplicate_individual_names(area_id):
         dup_names.append(individual.name)
     
     db.session.commit()
+
+    return True
+
+def delete_labelgroups(task_id, sq=None):
+    '''Deletes labelgroups for a given task ID and optional subquery.'''
+
+    labelgroupQ = db.session.query(Labelgroup.id).filter(Labelgroup.task_id==task_id)
+    if sq:
+        labelgroupQ = labelgroupQ.filter(Labelgroup.id.in_(sq))
+    labelgroup_subq = labelgroupQ.subquery()
+
+    # Labelgroup labels
+    db.session.query(detectionLabels).filter(detectionLabels.c.labelgroup_id.in_(select(labelgroup_subq.c.id))).delete(synchronize_session=False)
+
+    # Labelgroup tags
+    db.session.query(detectionTags).filter(detectionTags.c.labelgroup_id.in_(select(labelgroup_subq.c.id))).delete(synchronize_session=False)
+
+    # Delete Labelgroups
+    result = db.session.execute(delete(Labelgroup).where(Labelgroup.id.in_(select(labelgroup_subq.c.id))).execution_options(synchronize_session=False))
+
+    db.session.commit()
+    app.logger.info('{} labelgroups and associations deleted successfully.'.format(result.rowcount))
+
+    return True
+
+def delete_detections(survey_id, sq=None):
+    '''Deletes detections for a given survey ID and optional subquery.'''
+
+    detectionQ = db.session.query(Detection.id).join(Image).join(Camera).join(Trapgroup).filter(Trapgroup.survey_id==survey_id)
+    if sq:
+        detectionQ = detectionQ.filter(Detection.id.in_(sq)) 
+    det_subq = detectionQ.subquery()
+
+    #Delete features
+    db.session.query(Feature).filter(Feature.detection_id.in_(select(det_subq.c.id))).delete(synchronize_session=False)
+
+    #Delete DetSimilarities
+    db.session.query(DetSimilarity).filter(or_(DetSimilarity.detection_1.in_(select(det_subq.c.id)),DetSimilarity.detection_2.in_(select(det_subq.c.id)))).delete(synchronize_session=False)
+
+    #Delete detections
+    # aid_list = []
+    # aid_list = [r[0] for r in db.session.query(Detection.aid).filter(Detection.id.in_(select(det_subq.c.id))).filter(Detection.aid!=None).distinct().all()]
+
+    result = db.session.execute(delete(Detection).where(Detection.id.in_(select(det_subq.c.id))).execution_options(synchronize_session=False))
+
+    #Delete WBIA data
+    # keep_aid_list = [r[0] for r in db.session.query(Detection.aid, func.count(Detection.id))\
+    #     .filter(Detection.aid.in_(aid_list))\
+    #     .group_by(Detection.aid)\
+    #     .distinct().all() if r[1]>0]
+    # aid_list = list(set(aid_list) - set(keep_aid_list))
+    # if aid_list:
+    #     if not GLOBALS.ibs:
+    #         from wbia import opendb
+    #         GLOBALS.ibs = opendb(db=Config.WBIA_DB_NAME,dbdir=Config.WBIA_DIR+'_'+Config.WORKER_NAME,allow_newdir=True)
+    #     GLOBALS.ibs.db.delete('featurematches', aid_list, 'annot_rowid1')
+    #     GLOBALS.ibs.db.delete('featurematches', aid_list, 'annot_rowid2')
+    #     gids = [g for g in GLOBALS.ibs.get_annot_gids(aid_list) if g is not None]
+    #     GLOBALS.ibs.delete_images(gids)
+    #     GLOBALS.ibs.delete_annots(aid_list)  
+
+    db.session.commit()
+    app.logger.info('{} detections and associations deleted successfully.'.format(result.rowcount))
+    
+    # Delete empty staticgroups
+    delete_empty_staticgroups()
+
+    return True
+
+def delete_clusters(task_id, sq=None, empty=False):
+    '''Deletes clusters for a given task ID and optional subquery.'''
+
+    clusterQ = db.session.query(Cluster.id).filter(Cluster.task_id==task_id)
+    if sq:
+        clusterQ = clusterQ.filter(Cluster.id.in_(sq))
+
+    if empty:
+        clusterQ = clusterQ.filter(~Cluster.images.any())
+
+    cluster_subq = clusterQ.subquery()
+
+    # Earth Ranger IDs
+    db.session.query(ERangerID).filter(ERangerID.cluster_id.in_(select(cluster_subq.c.id))).delete(synchronize_session=False)
+
+    # Cluster labels table
+    db.session.query(labelstable).filter(labelstable.c.cluster_id.in_(select(cluster_subq.c.id))).delete(synchronize_session=False)
+
+    # Cluster tags table
+    tagstable = alias(tags)
+    db.session.query(tagstable).filter(tagstable.c.cluster_id.in_(select(cluster_subq.c.id))).delete(synchronize_session=False)
+
+    # Cluster - image associations table
+    imagestable = alias(images)
+    db.session.query(imagestable).filter(imagestable.c.cluster_id.in_(select(cluster_subq.c.id))).delete(synchronize_session=False)
+
+    # Cluster - required images associations table
+    db.session.query(requiredimagestable).filter(requiredimagestable.c.cluster_id.in_(select(cluster_subq.c.id))).delete(synchronize_session=False)
+
+    # Delete Clusters
+    result = db.session.execute(delete(Cluster).where(Cluster.id.in_(select(clusterQ.subquery().c.id))).execution_options(synchronize_session=False))
+
+    db.session.commit()
+    app.logger.info('{} clusters and associations deleted successfully.'.format(result.rowcount))
+
+    return True
+
+def delete_images(survey_id, sq=None,delete_from_s3=False, delete_from_clusters=False):
+    '''Deletes images for a given survey ID and optional subquery.'''
+
+    imageQ = db.session.query(Image.id).join(Camera).join(Trapgroup).filter(Trapgroup.survey_id==survey_id)
+    if sq:
+        imageQ = imageQ.filter(Image.id.in_(sq))
+    image_subq = imageQ.subquery()
+
+    if delete_from_s3:
+        imgs = db.session.query(Image).filter(Image.id.in_(select(image_subq.c.id))).distinct().all()
+        for image in imgs:
+            image_path = image.camera.path + '/' + image.filename
+            splits = image_path.split('/')
+            splits[0] = splits[0] + '-comp'
+            image_path_comp = '/'.join(splits)
+            GLOBALS.s3client.delete_object(Bucket=Config.BUCKET, Key=image_path)
+            GLOBALS.s3client.delete_object(Bucket=Config.BUCKET, Key=image_path_comp)
+        app.logger.info('Specific images deleted from S3 successfully.')
+
+    if delete_from_clusters:
+        r1=db.session.query(requiredimagestable).filter(requiredimagestable.c.image_id.in_(select(image_subq.c.id))).delete(synchronize_session=False)
+        imagestable = alias(images)
+        r2=db.session.query(imagestable).filter(imagestable.c.image_id.in_(select(image_subq.c.id))).delete(synchronize_session=False)
+        app.logger.info('{} required image associations and {} image associations deleted successfully.'.format(r1, r2))
+
+    #Delete Images
+    result = db.session.execute(delete(Image).where(Image.id.in_(select(image_subq.c.id))).execution_options(synchronize_session=False))
+    
+    db.session.commit()
+    app.logger.info('{} images deleted successfully.'.format(result.rowcount))
+
+    return True
+
+def delete_videos(survey_id, sq=None,delete_from_s3=False):
+    '''Deletes videos for a given survey ID and optional subquery.'''
+
+    videoQ = db.session.query(Video.id).join(Camera).join(Trapgroup).filter(Trapgroup.survey_id==survey_id)
+    if sq:
+        videoQ = videoQ.filter(Video.id.in_(sq))
+    video_subq = videoQ.subquery()
+
+    if delete_from_s3:
+        videos = db.session.query(Video).filter(Video.id.in_(select(video_subq.c.id))).distinct().all()
+        for video in videos:
+            # Delete from s3 if specific videos
+            cam_path = video.camera.path.split('/_video_images_')[0]
+            video_path = cam_path + '/' + video.filename
+            splits = video_path.split('/')
+            splits[0] = splits[0] + '-comp'
+            video_path_comp = '/'.join(splits)
+            GLOBALS.s3client.delete_object(Bucket=Config.BUCKET, Key=video_path)
+            GLOBALS.s3client.delete_object(Bucket=Config.BUCKET, Key=video_path_comp)
+        app.logger.info('Specific videos deleted from S3 successfully.')
+
+    #Delete Videos
+    result = db.session.execute(delete(Video).where(Video.id.in_(select(video_subq.c.id))).execution_options(synchronize_session=False))
+    
+    db.session.commit()
+    app.logger.info('{} videos deleted successfully.'.format(result.rowcount))
+
+    return True
+
+def delete_cameras(survey_id, sq=None,delete_from_s3=False):
+    '''Deletes cameras for a given survey ID and optional subquery.'''
+
+    cameraQ = db.session.query(Camera.id).join(Trapgroup).filter(Trapgroup.survey_id==survey_id)
+    if sq:
+        cameraQ = cameraQ.filter(Camera.id.in_(sq))
+    camera_subq = cameraQ.subquery()
+    
+    if delete_from_s3:
+        camera_paths = [r[0] for r in db.session.query(Camera.path).filter(Camera.id.in_(select(camera_subq.c.id))).distinct().all()]
+        s3 = boto3.resource('s3')
+        bucketObject = s3.Bucket(Config.BUCKET)
+        if Config.DEBUGGING: app.logger.info('Camera paths to delete from S3: {}'.format(camera_paths))
+        for camera_path in camera_paths:
+            splits = camera_path.split('/')
+            splits[0] = splits[0] + '-comp'
+            camera_path_comp = '/'.join(splits)
+
+            other_cams = False # Check if other subfolders exist in the same folder
+            if '/_video_images_/' not in camera_path:
+                other_cams = db.session.query(Camera).join(Trapgroup).filter(Trapgroup.survey_id==survey_id).filter(Camera.path.like(camera_path+'/%')).filter(~Camera.id.in_(select(camera_subq.c.id))).first()
+            if other_cams:
+                app.logger.info('Other cameras exist in the same folder, deleting individual files only for camera path: {}'.format(camera_path))
+                #  Do not want to delete the other subfolders if other cameras exist in the same folder
+                objects = list(bucketObject.objects.filter(Prefix=camera_path + '/',Delimiter='/')) if camera_path else []
+                for chunk in chunker(objects, 1000):
+                    batch=[{'Key': obj.key} for obj in chunk if obj.key and not obj.key.endswith('/')]
+                    if batch:
+                        bucketObject.delete_objects(Delete={'Objects': batch})
+
+                objects = list(bucketObject.objects.filter(Prefix=camera_path_comp + '/',Delimiter='/')) if camera_path_comp else []
+                for chunk in chunker(objects, 1000):
+                    batch=[{'Key': obj.key} for obj in chunk if obj.key and not obj.key.endswith('/')]
+                    if batch:
+                        bucketObject.delete_objects(Delete={'Objects': batch})                          
+            else:
+                if camera_path: bucketObject.objects.filter(Prefix=camera_path + '/').delete()
+                if camera_path_comp: bucketObject.objects.filter(Prefix=camera_path_comp + '/').delete()
+        app.logger.info('Deleted from S3 successfully: {}'.format(camera_paths))
+
+    # Delete Cameras
+    result = db.session.execute(delete(Camera).where(Camera.id.in_(select(camera_subq.c.id))).execution_options(synchronize_session=False))
+    db.session.commit()
+    app.logger.info('{} cameras deleted successfully.'.format(result.rowcount))
+
+    return True
+
+def delete_trapgroups(survey_id, sq=None):
+    '''Deletes trapgroups for a given survey ID and optional subquery.'''
+
+    trapgroupQ = db.session.query(Trapgroup.id).filter(Trapgroup.survey_id==survey_id)
+    if sq:
+        trapgroupQ = trapgroupQ.filter(Trapgroup.id.in_(sq))
+    trapgroup_subq = trapgroupQ.subquery()
+
+    #Delete siteGroupings 
+    db.session.query(siteGroupings).filter(siteGroupings.c.trapgroup_id.in_(select(trapgroup_subq.c.id))).delete(synchronize_session=False)
+
+    #Delete trapgroups
+    result = db.session.execute(delete(Trapgroup).where(Trapgroup.id.in_(select(trapgroup_subq.c.id))).execution_options(synchronize_session=False))
+    db.session.commit()
+    app.logger.info('{} trapgroups deleted successfully.'.format(result.rowcount))
+
+    #Delete empty sitegroups
+    sitegroup_subq = db.session.query(Sitegroup.id).filter(~Sitegroup.trapgroups.any()).subquery()
+    result = db.session.execute(delete(Sitegroup).where(Sitegroup.id.in_(select(sitegroup_subq.c.id))).execution_options(synchronize_session=False))
+    db.session.commit()
+    app.logger.info('{} empty sitegroups deleted successfully.'.format(result.rowcount))
+
+    return True
+
+def delete_floating_data(survey_id, delete_from_s3=False):
+    '''Deletes floating data for a given survey ID.'''
+
+    survey = db.session.query(Survey).get(survey_id)
+    survey_folder = survey.organisation.folder+'/'+survey.name+'/%'
+    survey_folder = survey_folder.replace('_','\\_')
+
+    if delete_from_s3:
+        images = db.session.query(Image, Camera.path).join(Camera).filter(Camera.path.like(survey_folder)).filter(Camera.trapgroup_id==None).all()
+        for image, path in images:
+            image_key = path + '/' + image.filename
+            splits = image_key.split('/')
+            splits[0] = splits[0] + '-comp'
+            image_comp_key = '/'.join(splits)
+            GLOBALS.s3client.delete_object(Bucket=Config.BUCKET, Key=image_key)
+            GLOBALS.s3client.delete_object(Bucket=Config.BUCKET, Key=image_comp_key)
+        app.logger.info('Floating images deleted from S3 successfully.')
+
+        videos = db.session.query(Video, Camera.path).join(Camera).filter(Camera.path.like(survey_folder)).filter(Camera.trapgroup_id==None).all()
+        for video, path in videos:
+            video_path = path.split('/_video_images_/')[0]
+            video_key = video_path + '/' + video.filename
+            splits = video_path.split('/')
+            splits[0] = splits[0]+'-comp'
+            video_comp_key = '/'.join(splits) + '/' + video.filename.rsplit('.', 1)[0] + '.mp4'
+            GLOBALS.s3client.delete_object(Bucket=Config.BUCKET, Key=video_key)
+            GLOBALS.s3client.delete_object(Bucket=Config.BUCKET, Key=video_comp_key)
+        app.logger.info('Floating videos deleted from S3 successfully.')
+
+    #Delete floating images (from unfinished upload)
+    floatImage_subq = db.session.query(Image.id).join(Camera).filter(Camera.path.like(survey_folder)).filter(Camera.trapgroup_id==None).subquery()
+    result = db.session.execute(delete(Image).where(Image.id.in_(select(floatImage_subq.c.id))).execution_options(synchronize_session=False))
+    db.session.commit()
+    app.logger.info('{} floating images deleted successfully.'.format(result.rowcount))
+
+    #Delete floating videos (from unfinished upload)
+    floatVideo_subq = db.session.query(Video.id).join(Camera).filter(Camera.path.like(survey_folder)).filter(Camera.trapgroup_id==None).subquery()
+    result = db.session.execute(delete(Video).where(Video.id.in_(select(floatVideo_subq.c.id))).execution_options(synchronize_session=False))
+    db.session.commit()
+    app.logger.info('{} floating videos deleted successfully.'.format(result.rowcount))
+
+    #Delete floating cameras (from unfinished upload)
+    floatCamera_subq = db.session.query(Camera.id).filter(Camera.path.like(survey_folder)).filter(Camera.trapgroup_id==None).filter(~Camera.images.any()).filter(~Camera.videos.any()).subquery()
+    result = db.session.execute(delete(Camera).where(Camera.id.in_(select(floatCamera_subq.c.id))).execution_options(synchronize_session=False))
+    db.session.commit()
+    app.logger.info('{} floating cameras deleted successfully.'.format(result.rowcount))
+
+    return True
+
+def delete_task_individuals(task_ids, species=None, camera_ids=None, image_ids=None):
+    '''Deletes individuals for a given task ID , species and optional camera and image IDs.'''
+
+    #Delete Individuals
+    if not species:
+        species = [r[0] for r in db.session.query(Individual.species).join(Task,Individual.tasks).filter(Task.id.in_(task_ids)).distinct().all()]
+    
+    update_tasks = []
+    area_library_tasks = [r[0] for r in db.session.query(Task.id).filter(Task.areaID_library==True).filter(Task.id.in_(task_ids)).distinct().all()]
+    if area_library_tasks:
+        area_ids = [r[0] for r in db.session.query(Survey.area_id).join(Task).filter(Task.id.in_(area_library_tasks)).filter(Survey.area_id!=None).distinct().all()]
+        if area_ids:
+            update_tasks = [r[0] for r in db.session.query(Task.id)\
+                                    .join(Survey)\
+                                    .filter(Survey.area_id.in_(area_ids))\
+                                    .filter(Task.areaID_library==True)\
+                                    .filter(Task.id.notin_(area_library_tasks))\
+                                    .distinct().all()]
+
+    individualQ = db.session.query(Individual.id).join(Task,Individual.tasks).filter(Task.id.in_(task_ids)).filter(Individual.species.in_(species))
+    if camera_ids or image_ids:
+        individualQ = individualQ.join(Detection,Individual.detections).join(Image)
+        if camera_ids:
+            individualQ = individualQ.filter(Image.camera_id.in_(camera_ids))
+        if image_ids:
+            individualQ = individualQ.filter(Image.id.in_(image_ids))
+    survey_ids = [r[0] for r in db.session.query(Task.survey_id).filter(Task.id.in_(task_ids)).distinct().all()]
+    detQ = db.session.query(Detection.id).join(Image).join(Camera).join(Trapgroup).filter(Trapgroup.survey_id.in_(survey_ids))
+    if camera_ids:
+        detQ = detQ.filter(Camera.id.in_(camera_ids))
+    if image_ids:
+        detQ = detQ.filter(Image.id.in_(image_ids))
+    tag_subq = db.session.query(Tag.id).filter(Tag.task_id.in_(task_ids)).subquery()
+    individual_subq = individualQ.subquery()
+    det_subq = detQ.subquery()
+
+    if Config.DEBUGGING: app.logger.info('Total affected individuals: {}'.format(individualQ.distinct().count()))
+
+    # Delete individualTags, individualDetections and individualPrimaryDetections 
+    r1=db.session.query(individualTags).filter(individualTags.c.individual_id.in_(select(individual_subq.c.id))).filter(individualTags.c.tag_id.in_(select(tag_subq.c.id))).delete(synchronize_session=False)
+    r2=db.session.execute(delete(individualDetections).where(individualDetections.c.individual_id.in_(select(individual_subq.c.id))).where(individualDetections.c.detection_id.in_(select(det_subq.c.id))).execution_options(synchronize_session=False))
+    r3=db.session.execute(delete(individualPrimaryDetections).where(individualPrimaryDetections.c.individual_id.in_(select(individual_subq.c.id))).where(individualPrimaryDetections.c.detection_id.in_(select(det_subq.c.id))).execution_options(synchronize_session=False))
+    
+    if Config.DEBUGGING: app.logger.info('Deleted individualTags: {}, individualDetections: {}, individualPrimaryDetections: {}'.format(r1, r2.rowcount, r3.rowcount))
+
+    # Empty individuals
+    emptyIndividualSQ = db.session.query(Individual.id).join(Task,Individual.tasks).filter(Task.id.in_(task_ids)).filter(Individual.species.in_(species)).filter(~Individual.detections.any())
+    emptyIndividual_subq = emptyIndividualSQ.subquery()
+
+    r1=db.session.query(individual_parent_child).filter(individual_parent_child.c.parent_id.in_(select(emptyIndividual_subq.c.id))).delete(synchronize_session=False)
+    r2=db.session.query(individual_parent_child).filter(individual_parent_child.c.child_id.in_(select(emptyIndividual_subq.c.id))).delete(synchronize_session=False)
+
+    if Config.DEBUGGING: app.logger.info('Deleted individual_parent_child: {}, {}'.format(r1, r2))
+    
+    r1=db.session.query(IndSimilarity).filter(IndSimilarity.individual_1.in_(select(emptyIndividual_subq.c.id))).delete(synchronize_session=False)
+    r2=db.session.query(IndSimilarity).filter(IndSimilarity.individual_2.in_(select(emptyIndividual_subq.c.id))).delete(synchronize_session=False)
+
+    if Config.DEBUGGING: app.logger.info('Deleted IndSimilarity: {}, {}'.format(r1, r2))
+
+    r1=db.session.execute(delete(individualTasks).where(individualTasks.c.individual_id.in_(select(emptyIndividual_subq.c.id))).execution_options(synchronize_session=False))
+    r2=db.session.execute(delete(Individual).where(Individual.id.in_(select(emptyIndividual_subq.c.id))).execution_options(synchronize_session=False))
+    db.session.commit()
+
+    if Config.DEBUGGING: app.logger.info('Deleted individualTasks: {}, Individual: {}'.format(r1.rowcount, r2.rowcount))
+
+    # Remaining individuals
+    remainingIndividualSQ = individualQ.filter(Individual.detections.any())
+    remainingIndividual_subq = remainingIndividualSQ.subquery()
+    if Config.DEBUGGING: app.logger.info('Remaining individuals: {}'.format(remainingIndividualSQ.distinct().count()))
+
+    r1=db.session.query(IndSimilarity).filter(IndSimilarity.individual_1.in_(select(remainingIndividual_subq.c.id))).filter(IndSimilarity.score>=0).delete(synchronize_session=False)
+    r2=db.session.query(IndSimilarity).filter(IndSimilarity.individual_2.in_(select(remainingIndividual_subq.c.id))).filter(IndSimilarity.score>=0).delete(synchronize_session=False)
+
+    if Config.DEBUGGING: app.logger.info('Deleted IndSimilarity: {}, {}'.format(r1, r2))
+
+    indSimilarities = db.session.query(IndSimilarity)\
+                                .filter(or_(IndSimilarity.individual_1.in_(select(remainingIndividual_subq.c.id)),IndSimilarity.individual_2.in_(select(remainingIndividual_subq.c.id))))\
+                                .filter(or_(IndSimilarity.detection_1.in_(select(det_subq.c.id)),IndSimilarity.detection_2.in_(select(det_subq.c.id))))\
+                                .filter(IndSimilarity.score < 0)\
+                                .distinct().all()
+
+    for sim in indSimilarities:
+        sim.detection_1 = None
+        sim.detection_2 = None
+    db.session.commit()
+
+    if Config.DEBUGGING: app.logger.info('Other indSimilarities: {}'.format(len(indSimilarities)))
+
+    update_individuals = [r[0] for r in remainingIndividualSQ.distinct().all()]
+    if Config.DEBUGGING: app.logger.info('Update individuals: {}'.format(len(update_individuals)))
+    if update_individuals:
+        update_individuals_primary_dets(individual_ids=update_individuals)
+
+
+    r1=db.session.execute(delete(individualTasks).where(individualTasks.c.individual_id.in_(select(remainingIndividual_subq.c.id))).where(individualTasks.c.task_id.in_(task_ids)).execution_options(synchronize_session=False))
+    db.session.commit()
+
+    if Config.DEBUGGING: 
+        app.logger.info('Deleted individualTasks: {}, remainingIndividual: {}'.format(r1.rowcount, remainingIndividualSQ.distinct().count()))
+        app.logger.info('Update tasks: {}'.format(len(update_tasks)))
+
+    for tid in update_tasks:
+        # Update Area Library Id Status of previous mutual tasks 
+        updateIndividualIdStatus(tid)
+
+    app.logger.info('Individuals deleted successfully.')
+    
+    return True
+
+def delete_individuals_helper(individual_ids):
+    '''Deletes individuals for a given individual IDs.'''
+
+    db.session.query(IndSimilarity).filter(IndSimilarity.individual_1.in_(individual_ids)).delete(synchronize_session=False)
+    db.session.query(IndSimilarity).filter(IndSimilarity.individual_2.in_(individual_ids)).delete(synchronize_session=False)
+
+    db.session.query(individual_parent_child).filter(individual_parent_child.c.parent_id.in_(individual_ids)).delete(synchronize_session=False)
+    db.session.query(individual_parent_child).filter(individual_parent_child.c.child_id.in_(individual_ids)).delete(synchronize_session=False)
+
+    db.session.query(individualTags).filter(individualTags.c.individual_id.in_(individual_ids)).delete(synchronize_session=False)
+
+    db.session.query(individualDetections).filter(individualDetections.c.individual_id.in_(individual_ids)).delete(synchronize_session=False)
+    db.session.query(individualPrimaryDetections).filter(individualPrimaryDetections.c.individual_id.in_(individual_ids)).delete(synchronize_session=False)
+
+    db.session.query(individualTasks).filter(individualTasks.c.individual_id.in_(individual_ids)).delete(synchronize_session=False)
+
+    db.session.query(Individual).filter(Individual.id.in_(individual_ids)).delete(synchronize_session=False)
+
+    db.session.commit()
+
+    app.logger.info('{} individuals deleted successfully.'.format(len(individual_ids)))
+
+    return True
+
+def delete_zips(survey_id, sq=None):
+    '''Deletes zips for a given survey ID and optional subquery.'''
+
+    survey = db.session.query(Survey).get(survey_id)
+    zipQ = db.session.query(Zip.id).filter(Zip.survey_id==survey_id)
+    if sq:
+        zipQ = zipQ.filter(Zip.id.in_(sq))
+
+    #Delete zips 
+    zips = db.session.query(Zip).filter(Zip.id.in_(zipQ)).all()
+    c = len(zips)
+    for zip in zips:
+        zip_key = survey.organisation.folder+'-comp/'+Config.SURVEY_ZIP_FOLDER+'/'+str(zip.id)+'.zip'
+        GLOBALS.s3client.delete_object(Bucket=Config.BUCKET, Key=zip_key)
+        db.session.delete(zip)   
+    db.session.commit()
+    app.logger.info('{} zips deleted successfully.'.format(c))
+
+    return True
+
+def delete_cameragroups(survey_id, empty=False,sq=None):
+    '''Deletes cameragroups for a given survey ID and optional subquery.'''
+
+    if empty:
+        cameragroupQ = db.session.query(Cameragroup.id).filter(~Cameragroup.cameras.any())
+    else:
+        cameragroupQ = db.session.query(Cameragroup.id).join(Camera).join(Trapgroup).filter(Trapgroup.survey_id==survey_id)
+        if sq:
+            cameragroupQ = cameragroupQ.filter(Cameragroup.id.in_(sq))
+    cg_subq = cameragroupQ.subquery()
+    mask_subq = db.session.query(Mask.id).join(Cameragroup).filter(Cameragroup.id.in_(select(cg_subq.c.id))).subquery()
+
+    #Delete masks
+    result1 = db.session.execute(delete(Mask).where(Mask.id.in_(select(mask_subq.c.id))).execution_options(synchronize_session=False))
+
+    #Delete cameragroups
+    result2 = db.session.execute(delete(Cameragroup).where(Cameragroup.id.in_(select(cg_subq.c.id))).execution_options(synchronize_session=False))
+
+    db.session.commit()
+    app.logger.info('{} cameragroups and {} masks deleted successfully.'.format(result2.rowcount, result1.rowcount))
+
+    return True
+
+def delete_empty_areas():
+    '''Deletes empty areas.'''
+    area_subq = db.session.query(Area.id).filter(~Area.surveys.any()).subquery()
+    result = db.session.execute(delete(Area).where(Area.id.in_(select(area_subq.c.id))).execution_options(synchronize_session=False))
+    db.session.commit()
+    app.logger.info('{} empty areas deleted successfully.'.format(result.rowcount))
+
+    return True
+
+def delete_empty_staticgroups():
+    '''Deletes empty staticgroups.'''
+    staticgroup_subq = db.session.query(Staticgroup.id).filter(~Staticgroup.detections.any()).subquery()
+    result = db.session.execute(delete(Staticgroup).where(Staticgroup.id.in_(select(staticgroup_subq.c.id))).execution_options(synchronize_session=False))
+    db.session.commit()
+    app.logger.info('{} empty staticgroups deleted successfully.'.format(result.rowcount))
 
     return True

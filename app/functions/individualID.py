@@ -16,7 +16,8 @@ limitations under the License.
 
 from app import app, db, celery
 from app.models import *
-from app.functions.globals import coordinateDistance, retryTime, rDets, updateIndividualIdStatus, chunker, process_detections_for_individual_id, update_individuals_primary_dets
+from app.functions.globals import coordinateDistance, retryTime, rDets, updateIndividualIdStatus, chunker, process_detections_for_individual_id, update_individuals_primary_dets,\
+    delete_individuals_helper
 import GLOBALS
 import time
 from sqlalchemy.sql import func, or_, and_, alias, distinct
@@ -1133,23 +1134,13 @@ def cleanUpIndividuals(task_id):
     task = db.session.query(Task).get(task_id)
     task_ids = [r.id for r in task.sub_tasks]
     task_ids.append(task.id)
-    individuals = db.session.query(Individual)\
+    individuals = [r[0] for r in db.session.query(Individual.id)\
                         .join(Task,Individual.tasks)\
                         .filter(Task.id.in_(task_ids))\
                         .filter(Individual.active==False)\
-                        .all()
+                        .all()]
 
-    for individual in individuals:
-        allSimilarities = db.session.query(IndSimilarity).filter(or_(IndSimilarity.individual_1==individual.id,IndSimilarity.individual_2==individual.id)).distinct().all()
-        for similarity in allSimilarities:
-            db.session.delete(similarity)
-        individual.tags = []
-        individual.detections = []
-        individual.primary_detections = []
-        individual.children = []
-        individual.parents = []
-        individual.tasks = []
-        db.session.delete(individual)
+    if individuals: delete_individuals_helper(individual_ids=individuals)
     db.session.commit()
 
     return True
@@ -1250,28 +1241,17 @@ def check_individual_detection_mismatch(self,task_id,cluster_id=None):
                     update_individuals.append(individual.id)
 
         # Delete individuals with no detections
-        individuals = db.session.query(Individual)\
+        individuals = [r[0] for r in db.session.query(Individual.id)\
                                 .outerjoin(Detection, Individual.detections)\
                                 .filter(Detection.id==None)\
                                 .filter(Individual.tasks.contains(task))\
                                 .filter(Individual.name!='unidentifiable')\
-                                .all()
-
-        for individual in individuals:
-            allSimilarities = db.session.query(IndSimilarity).filter(or_(IndSimilarity.individual_1==individual.id,IndSimilarity.individual_2==individual.id)).distinct().all()
-            for similarity in allSimilarities:
-                db.session.delete(similarity)
-
-            individual.detections = []
-            individual.primary_detections = []
-            individual.tags = []
-            individual.children = []
-            individual.parents = []
-            individual.tasks = []
-            db.session.delete(individual)
-            del individuals_data[individual.id]
-            if individual.id in update_individuals: update_individuals.remove(individual.id)
-            
+                                .all()]
+                                
+        for individual_id in individuals:
+            del individuals_data[individual_id]
+            if individual_id in update_individuals: update_individuals.remove(individual_id)
+        if individuals: delete_individuals_helper(individual_ids=individuals)
 
         # Clean up WBIA data & Detection similarities if they are not associated with any other individual for other tasks 
         # aid_list = []

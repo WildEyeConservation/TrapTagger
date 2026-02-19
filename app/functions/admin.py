@@ -19,12 +19,14 @@ from app.models import *
 from app.functions.globals import classifyTask, update_masks, retryTime, resolve_abandoned_jobs, addChildLabels, updateAllStatuses, deleteFile,\
                                     stringify_timestamp, rDets, update_staticgroups, detection_rating, chunker, verify_label, cleanup_empty_restored_images, \
                                     reconcile_cluster_labelgroup_labels_and_tags, hideSmallDetections, maskSky, checkChildTranslations, createChildTranslations, \
-                                    prepTask, removeHumans, sync_labels, sync_tags, update_individuals_primary_dets, updateIndividualIdStatus, update_duplicate_individual_names, process_multi_labels
+                                    prepTask, removeHumans, sync_labels, sync_tags, update_individuals_primary_dets, updateIndividualIdStatus, update_duplicate_individual_names, \
+                                    process_multi_labels, delete_labelgroups, delete_clusters, delete_task_individuals, delete_images, delete_detections, delete_videos, \
+                                    delete_floating_data, delete_cameras, delete_trapgroups, delete_zips, delete_cameragroups, delete_empty_areas, delete_empty_staticgroups
 from app.functions.individualID import calculate_detection_similarities, cleanUpIndividuals, check_individual_detection_mismatch
 from app.functions.imports import classifySurvey, s3traverse, classifyCluster, importKML, import_survey
 import GLOBALS
 from sqlalchemy.sql import func, or_, and_, distinct, alias
-from sqlalchemy import desc, extract
+from sqlalchemy import desc, extract, delete, select
 from datetime import datetime, timedelta
 import re
 import ast
@@ -54,49 +56,20 @@ def delete_task(self,task_id):
     try:
         app.logger.info('Deleting task {}'.format(task_id))
 
-        earth_ranger_ids = db.session.query(ERangerID).join(Cluster).filter(Cluster.task_id==task_id).all()
-        try:
-            for earth_ranger_id in earth_ranger_ids:
-                db.session.delete(earth_ranger_id)
-            db.session.commit()
-            app.logger.info('Earth Ranger IDs deleted successfully.')
-        except:
-            status = 'error'
-            message = 'Could not delete Earth Ranger IDs.'
-            app.logger.info('Failed to delete Earth Ranger IDs.')
-
-        clusters = db.session.query(Cluster).filter(Cluster.task_id==task_id).all()
-
-        try:
-            # for chunk in chunker(clusters,1000):
-            for cluster in clusters:
-                #Delete cluster labels
-                cluster.labels = []
-                #Delete cluster tags
-                cluster.tags = []
-                #Delete cluster - image associations
-                cluster.images = []
-                #Delete required images
-                cluster.required_images = []
-                #Delete cluster
-                db.session.delete(cluster)
-            db.session.commit()
-            app.logger.info('Clusters deleted successfully.')
-        except:
-            status = 'error'
-            message = 'Could not delete clusters.'
-            app.logger.info('Failed to delete clusters.')
+        #Delete Clusters & Earth Ranger IDs
+        if status != 'error':
+            try:
+                delete_clusters(task_id=task_id)
+                app.logger.info('Clusters deleted successfully.')
+            except:
+                status = 'error'
+                message = 'Could not delete clusters.'
+                app.logger.info('Failed to delete clusters.')
 
         #Delete Labelgroups
         if status != 'error':
             try:
-                labelgroups = db.session.query(Labelgroup).filter(Labelgroup.task_id==task_id).all()
-                # for chunk in chunker(labelgroups,1000):
-                for labelgroup in labelgroups:
-                    labelgroup.labels = []
-                    labelgroup.tags = []
-                    db.session.delete(labelgroup)
-                db.session.commit()
+                delete_labelgroups(task_id=task_id)
                 app.logger.info('Labelgroups deleted successfully.')
             except:
                 status = 'error'
@@ -106,95 +79,8 @@ def delete_task(self,task_id):
         #Delete Individuals
         if status != 'error':
             try:
-                individuals_to_delete = []
-                task = db.session.query(Task).get(task_id)
-                tags = [r[0] for r in db.session.query(Tag.id).filter(Tag.task_id==task_id).all()]
-                individuals = db.session.query(Individual).filter(Individual.tasks.contains(task)).all()
-                detections = [r[0] for r in db.session.query(Detection.id)\
-                                        .join(Image)\
-                                        .join(Camera)\
-                                        .join(Trapgroup)\
-                                        .filter(Trapgroup.survey_id==task.survey_id)\
-                                        .distinct().all()]
-                
-                update_individuals = []
-                update_tasks = []
-                if task.areaID_library:
-                    IndividualTask = alias(Task)
-                    update_tasks = [r[0] for r in db.session.query(Task.id)\
-                                                    .join(Individual,Task.individuals)\
-                                                    .join(IndividualTask,Individual.tasks)\
-                                                    .filter(IndividualTask.c.id==task_id)\
-                                                    .filter(Task.id!=task_id)\
-                                                    .distinct().all()]
-
-                detections = set(detections)
-                for individual in individuals:
-                    det_count = len(individual.detections)
-                    individual.detections = [detection for detection in individual.detections if detection.id not in detections]
-                    new_det_count = len(individual.detections)
-                    if det_count != new_det_count:
-                        indSimilarities = db.session.query(IndSimilarity).filter(or_(IndSimilarity.individual_1==individual.id,IndSimilarity.individual_2==individual.id)).all()
-                        for indSimilarity in indSimilarities:
-                            if new_det_count == 0 or indSimilarity.detection_1 in detections or indSimilarity.detection_2 in detections:
-                                if indSimilarity.score < 0 and new_det_count > 0:
-                                    indSimilarity.detection_1 = None
-                                    indSimilarity.detection_2 = None
-                                else:
-                                    db.session.delete(indSimilarity)
-
-                    if new_det_count==0:
-                        # individuals_to_delete.append(individual)
-                        individual.detections = []
-                        individual.children = []
-                        individual.tags = []
-                        individual.tasks = []
-                        individual.primary_detections = []
-                        db.session.delete(individual)
-                    else:
-                        # no point doing this if its going to be deleted
-                        individual.tasks.remove(task)
-                        individual.tags = [tag for tag in individual.tags if tag.id not in tags]
-                        prim_count = len(individual.primary_detections)
-                        individual.primary_detections = [det for det in individual.primary_detections if det.id not in detections]
-                        if len(individual.primary_detections)==0 or len(individual.primary_detections) != prim_count:
-                            update_individuals.append(individual.id)                   
-
-                db.session.commit()
-
-                if update_individuals:
-                    update_individuals_primary_dets(individual_ids=update_individuals)
-
-                for tid in update_tasks:
-                    # Update Area Library Id Status of previous mutual tasks 
-                    updateIndividualIdStatus(tid)
-
-                # for individual in individuals:
-                #     if individual not in individuals_to_delete:
-                #         individual.children = [child for child in individual.children if child not in individuals_to_delete]
-
-                # individuals_to_delete = [r.id for r in individuals_to_delete]
-                # db.session.commit()
-
-                # individuals = db.session.query(Individual).filter(Individual.id.in_(individuals_to_delete)).all()
-                # for chunk in chunker(individuals_to_delete,1000):
-                # for individual in individuals:
-                #     individual.detections = []
-                #     individual.children = []
-                #     individual.tags = []
-                #     individual.tasks = []
-                # db.session.commit()
-
-                # individuals = db.session.query(Individual).filter(Individual.id.in_(individuals_to_delete)).all()
-                # for individual in individuals:
-                #     indSimilarities = db.session.query(IndSimilarity).filter(or_(IndSimilarity.individual_1==individual.id,IndSimilarity.individual_2==individual.id)).all()
-                #     for indSimilarity in indSimilarities:
-                #         db.session.delete(indSimilarity)
-                #     db.session.delete(individual)
-                # db.session.commit()
-
+                delete_task_individuals(task_ids=[task_id])
                 app.logger.info('Individuals deleted successfully.')
-
             except:
                 status = 'error'
                 message = 'Could not delete individuals.'
@@ -204,9 +90,6 @@ def delete_task(self,task_id):
         if status != 'error':
             try:
                 db.session.query(Translation).filter(Translation.task_id==task_id).delete(synchronize_session=False)
-                # for chunk in chunker(translations,1000):
-                # for translation in translations:
-                #     db.session.delete(translation)
                 db.session.commit()
                 app.logger.info('Translations deleted successfully.')
             except:
@@ -218,10 +101,7 @@ def delete_task(self,task_id):
         if status != 'error':
             try:
                 db.session.query(Tag).filter(Tag.task_id==task_id).delete(synchronize_session=False)
-                # for chunk in chunker(tags,1000):
-                # for tag in tags:
-                #     db.session.delete(tag)
-                # db.session.commit()
+                db.session.commit()
                 app.logger.info('Tags deleted successfully.')
             except:
                 status = 'error'
@@ -232,8 +112,10 @@ def delete_task(self,task_id):
         if status != 'error':
             try:
                 while db.session.query(Label).filter(Label.task_id==task_id).count() != 0:
-                    for label in db.session.query(Label).filter(Label.task_id==task_id).filter(~Label.children.any()).all():
-                        db.session.delete(label)
+                    # for label in db.session.query(Label).filter(Label.task_id==task_id).filter(~Label.children.any()).all():
+                    #     db.session.delete(label)
+                    labelQ = db.session.query(Label.id).filter(Label.task_id==task_id).filter(~Label.children.any())
+                    db.session.execute(delete(Label).where(Label.id.in_(select(labelQ.subquery().c.id))).execution_options(synchronize_session=False))
                     db.session.commit()
                 app.logger.info('Labels deleted successfully.')
             except:
@@ -270,7 +152,6 @@ def delete_task(self,task_id):
                                     .filter(Turkcode.task_id==task_id) \
                                     .filter(User.email==None) \
                                     .all()
-                # for chunk in chunker(turkcodes,1000):
                 for row in data:
                     db.session.delete(row[1])
                     db.session.delete(row[0])
@@ -502,73 +383,20 @@ def delete_survey(self,survey_id):
                     status = tempStatus
                     message = tempMessage
 
-        #Delete features
+        #Delete floating images, videos & cameras
         if status != 'error':
             try:
-                features = db.session.query(Feature).join(Detection).join(Image).join(Camera).join(Trapgroup).filter(Trapgroup.survey_id==survey_id).all()
-                for feature in features:
-                    db.session.delete(feature)
-                db.session.commit()
-                app.logger.info('Features deleted successfully.')
+                delete_floating_data(survey_id=survey_id)
+                app.logger.info('Floating data deleted successfully.')
             except:
                 status = 'error'
-                message = 'Could not delete features.'
-                app.logger.info('Failed to delete features.')
+                message = 'Could not delete floating data.'
+                app.logger.info('Failed to delete floating data.')
 
-        #Delete detections
+        #Delete detections, detSimilarities, staticgroups & features
         if status != 'error':
             try:
-                detSimilarities = db.session.query(DetSimilarity)\
-                                        .join(Detection,or_(Detection.id==DetSimilarity.detection_1,Detection.id==DetSimilarity.detection_2))\
-                                        .join(Image)\
-                                        .join(Camera)\
-                                        .join(Trapgroup)\
-                                        .filter(Trapgroup.survey_id==survey_id)\
-                                        .all()
-                
-                for detSimilarity in detSimilarities:
-                    db.session.delete(detSimilarity)
-                db.session.commit()
-
-                aid_list = []
-                detections = db.session.query(Detection).join(Image).join(Camera).join(Trapgroup).filter(Trapgroup.survey_id==survey_id).all()
-                for detection in detections:
-                    if detection.aid: aid_list.append(detection.aid)
-                    db.session.delete(detection)
-                db.session.commit()
-
-                staticgroups = db.session.query(Staticgroup).filter(~Staticgroup.detections.any()).all()
-                for staticgroup in staticgroups:
-                    db.session.delete(staticgroup)
-                db.session.commit()
-
-                #Delete WBIA data
-                # keep_aid_list = [r[0] for r in db.session.query(Detection.aid, func.count(Detection.id))\
-                #     .filter(Detection.aid.in_(aid_list))\
-                #     .group_by(Detection.aid)\
-                #     .distinct().all() if r[1]>0]
-                # aid_list = list(set(aid_list) - set(keep_aid_list))
-                # if aid_list:
-                #     if not GLOBALS.ibs:
-                #         from wbia import opendb
-                #         GLOBALS.ibs = opendb(db=Config.WBIA_DB_NAME,dbdir=Config.WBIA_DIR+'_'+Config.WORKER_NAME,allow_newdir=True)
-                #     GLOBALS.ibs.db.delete('featurematches', aid_list, 'annot_rowid1')
-                #     GLOBALS.ibs.db.delete('featurematches', aid_list, 'annot_rowid2')
-                #     gids = [g for g in GLOBALS.ibs.get_annot_gids(aid_list) if g is not None]
-                #     GLOBALS.ibs.delete_images(gids)
-                #     GLOBALS.ibs.delete_annots(aid_list)  
-
-                # detections = db.session.query(Detection).join(Image).join(Camera).join(Trapgroup).filter(Trapgroup.survey_id==survey_id).all()
-                # for chunk in chunker(detections,1000):
-                #     for detection in chunk:
-                #         detection.individuals = []
-                #         detSimilarities = db.session.query(DetSimilarity).filter(or_(DetSimilarity.detection_1==detection.id,DetSimilarity.detection_2==detection.id)).all()
-                #         for detSimilarity in detSimilarities:
-                #             db.session.delete(detSimilarity)
-                #     db.session.commit()
-                #     for detection in chunk:
-                #         db.session.delete(detection)
-                #     db.session.commit()
+                delete_detections(survey_id=survey_id)
                 app.logger.info('Detections deleted successfully.')
             except:
                 status = 'error'
@@ -578,148 +406,57 @@ def delete_survey(self,survey_id):
         #Delete images
         if status != 'error':
             try:
-                images = db.session.query(Image).join(Camera).join(Trapgroup).filter(Trapgroup.survey_id==survey_id).all()
-                # for chunk in chunker(images,1000):
-                for image in images:
-                    db.session.delete(image)
-                db.session.commit()
+                delete_images(survey_id=survey_id)
                 app.logger.info('Images deleted successfully.')
             except:
                 status = 'error'
                 message = 'Could not delete images.'
                 app.logger.info('Failed to delete images.')
 
-        #Delete floating images (from unfinished upload)
-        if status != 'error':
-            try:
-                images = db.session.query(Image).join(Camera).filter(Camera.path.like(survey_folder)).filter(Camera.trapgroup_id==None).all()
-                for image in images:
-                    db.session.delete(image)
-                db.session.commit()
-                app.logger.info('Floating images deleted successfully.')
-            except:
-                status = 'error'
-                message = 'Could not delete floating images.'
-                app.logger.info('Failed to delete floating images.')
-
-
         #Delete Videos
         if status != 'error':
             try:
-                videos = db.session.query(Video).join(Camera).join(Trapgroup).filter(Trapgroup.survey_id==survey_id).all()
-                for video in videos:
-                    db.session.delete(video)
-                db.session.commit()
+                delete_videos(survey_id=survey_id)
                 app.logger.info('Videos deleted successfully.')
             except:
                 status = 'error'
                 message = 'Could not delete videos.'
                 app.logger.info('Failed to delete videos.')
 
-        #Delete floating videos (from unfinished upload)
-        if status != 'error':
-            try:
-                videos = db.session.query(Video).join(Camera).filter(Camera.path.like(survey_folder)).filter(Camera.trapgroup_id==None).all()
-                for video in videos:
-                    db.session.delete(video)
-                db.session.commit()
-                app.logger.info('Floating videos deleted successfully.')
-            except:
-                status = 'error'
-                message = 'Could not delete floating videos.'
-                app.logger.info('Failed to delete floating videos.')
-
-        #Delete masks
-        if status != 'error':
-            try:
-                masks = db.session.query(Mask).join(Cameragroup).join(Camera).join(Trapgroup).filter(Trapgroup.survey_id==survey_id).all()
-                for mask in masks:
-                    db.session.delete(mask)
-                db.session.commit()
-                app.logger.info('Masks deleted successfully.')
-            except:
-                status = 'error'
-                message = 'Could not delete masks.'
-                app.logger.info('Failed to delete masks.')
-
-        #Delete cameragroups
-        if status != 'error':
-            try:
-                cameragroups = db.session.query(Cameragroup).join(Camera).join(Trapgroup).filter(Trapgroup.survey_id==survey_id).all()
-                for cameragroup in cameragroups:
-                    cameragroup.cameras = []
-                    db.session.delete(cameragroup)
-                db.session.commit()
-                app.logger.info('Cameragroups deleted successfully.')
-            except:
-                status = 'error'
-                message = 'Could not delete cameragroups.'
-                app.logger.info('Failed to delete cameragroups.')
-
         #Delete cameras
         if status != 'error':
             try:
-                cameras = db.session.query(Camera).join(Trapgroup).filter(Trapgroup.survey_id==survey_id).all()
-                # for chunk in chunker(cameras,1000):
-                for camera in cameras:
-                    db.session.delete(camera)
-                db.session.commit()
+                delete_cameras(survey_id=survey_id)
                 app.logger.info('Cameras deleted successfully.')
             except:
                 status = 'error'
                 message = 'Could not delete cameras.'
                 app.logger.info('Failed to delete cameras.')
 
-        #Delete floating cameras (from unfinished upload)
+        #Delete cameragroups & masks
         if status != 'error':
             try:
-                cameras = db.session.query(Camera).filter(Camera.path.like(survey_folder)).filter(Camera.trapgroup_id==None).all()
-                for camera in cameras:
-                    db.session.delete(camera)
-                db.session.commit()
-                app.logger.info('Floating cameras deleted successfully.')
+                delete_cameragroups(survey_id=survey_id, empty=True)
+                app.logger.info('Cameragroups & masks deleted successfully.')
             except:
                 status = 'error'
-                message = 'Could not delete floating cameras.'
-                app.logger.info('Failed to delete floating cameras.')
+                message = 'Could not delete cameragroups & masks.'
+                app.logger.info('Failed to delete cameragroups & masks.')
 
-        #Delete trapgroups
+        #Delete trapgroups & sitegroups
         if status != 'error':
             try:
-                # db.session.query(Trapgroup).filter(Trapgroup.survey_id==survey_id).delete(synchronize_session=False)
-                # for chunk in chunker(trapgroups,1000):
-                #     for trapgroup in chunk:
-                #         db.session.delete(trapgroup)
-                trapgroups = db.session.query(Trapgroup).filter(Trapgroup.survey_id==survey_id).all()
-                for trapgroup in trapgroups:
-                    trapgroup.sitegroups = []
-                    db.session.delete(trapgroup)
-                db.session.commit()
-                app.logger.info('Trapgroups deleted successfully.')
+                delete_trapgroups(survey_id=survey_id)
+                app.logger.info('Trapgroups & sitegroups deleted successfully.')
             except:
                 status = 'error'
-                message = 'Could not delete trap groups.'
-                app.logger.info('Failed to delete Trapgroups')
-
-        #Delete empty sitegroups
-        if status != 'error':
-            try:
-                sitegroups = db.session.query(Sitegroup).filter(~Sitegroup.trapgroups.any()).all()
-                for sitegroup in sitegroups:
-                        db.session.delete(sitegroup)
-                db.session.commit()
-                app.logger.info('Sitegroups deleted successfully.')
-            except:
-                status = 'error'
-                message = 'Could not delete sitegroups.'
-                app.logger.info('Failed to delete sitegroups.')
+                message = 'Could not delete trapgroups & sitegroups.'
+                app.logger.info('Failed to delete trapgroups & sitegroups.')
 
         #Delete survey shares
         if status != 'error':
             try:
-                survey_shares = db.session.query(SurveyShare).filter(SurveyShare.survey_id==survey_id).all()
-                for share in survey_shares:
-                    db.session.delete(share)
+                db.session.query(SurveyShare).filter(SurveyShare.survey_id==survey_id).delete(synchronize_session=False)
                 db.session.commit()
                 app.logger.info('Survey shares deleted successfully.')
             except:
@@ -730,9 +467,7 @@ def delete_survey(self,survey_id):
         #Delete Survey Permission Exceptions
         if status != 'error':
             try:
-                survey_permission_exceptions = db.session.query(SurveyPermissionException).filter(SurveyPermissionException.survey_id==survey_id).all()
-                for exception in survey_permission_exceptions:
-                    db.session.delete(exception)
+                db.session.query(SurveyPermissionException).filter(SurveyPermissionException.survey_id==survey_id).delete(synchronize_session=False)
                 db.session.commit()
                 app.logger.info('Survey permission exceptions deleted successfully.')
             except:
@@ -743,9 +478,7 @@ def delete_survey(self,survey_id):
         #Delete Survey API Keys
         if status != 'error':
             try:
-                survey_api_keys = db.session.query(APIKey).filter(APIKey.survey_id==survey_id).all()
-                for api_key in survey_api_keys:
-                    db.session.delete(api_key)
+                db.session.query(APIKey).filter(APIKey.survey_id==survey_id).delete(synchronize_session=False)
                 db.session.commit()
                 app.logger.info('Survey API keys deleted successfully.')
             except:
@@ -779,17 +512,12 @@ def delete_survey(self,survey_id):
         #Delete survey zips 
         if status != 'error':
             try:
-                zips = db.session.query(Zip).filter(Zip.survey_id==survey_id).all()
-                for zip in zips:
-                    zip_key = survey.organisation.folder+'-comp/'+Config.SURVEY_ZIP_FOLDER+'/'+str(zip.id)+'.zip'
-                    GLOBALS.s3client.delete_object(Bucket=Config.BUCKET, Key=zip_key)
-                    db.session.delete(zip)
-                db.session.commit()
+                delete_zips(survey_id=survey_id)
                 app.logger.info('Survey zips deleted successfully.')
             except:
                 status = 'error'
-                message = 'Could not delete survey zip files.'
-                app.logger.info('Could not delete survey zip files.')
+                message = 'Could not delete survey zips.'
+                app.logger.info('Failed to delete survey zips.')
                 
         #Delete survey
         if status != 'error':
@@ -807,17 +535,13 @@ def delete_survey(self,survey_id):
         # Delete empty areas 
         if status != 'error':
             try:
-                areas = db.session.query(Area).filter(~Area.surveys.any()).all()
-                for area in areas:
-                    db.session.delete(area)
-                db.session.commit()
+                delete_empty_areas()
                 app.logger.info('Empty areas deleted successfully.')
             except:
-                app.logger.info('Failed to delete empty areas')
+                app.logger.info('Failed to delete empty areas.')
 
         if status == 'error':
             app.logger.info('Failed to delete survey {}: {}'.format(survey_id,message))
-            # print(message)
             survey = db.session.query(Survey).get(survey_id)
             survey.status = 'Failed'
             db.session.commit()
@@ -2157,117 +1881,120 @@ def delete_individuals(self,task_ids, species, skip_update_status=False):
             species = [r[0] for r in db.session.query(Individual.species).join(Task, Individual.tasks).filter(Task.id.in_(task_ids)).distinct().all()]
             app.logger.info('Species to delete: {}'.format(species))
 
-        # Get detections
-        detections = [r[0] for r in db.session.query(Detection.id)\
-                                        .join(Image)\
-                                        .join(Camera)\
-                                        .join(Trapgroup)\
-                                        .join(Survey)\
-                                        .join(Task)\
-                                        .join(Individual, Detection.individuals)\
-                                        .filter(Task.id.in_(task_ids))\
-                                        .filter(Individual.species.in_(species))\
-                                        .distinct().all()]
+        # # Get detections
+        # detections = [r[0] for r in db.session.query(Detection.id)\
+        #                                 .join(Image)\
+        #                                 .join(Camera)\
+        #                                 .join(Trapgroup)\
+        #                                 .join(Survey)\
+        #                                 .join(Task)\
+        #                                 .join(Individual, Detection.individuals)\
+        #                                 .filter(Task.id.in_(task_ids))\
+        #                                 .filter(Individual.species.in_(species))\
+        #                                 .distinct().all()]
 
 
-        # Delete Individuals
-        individuals = db.session.query(Individual)\
-                                .join(Task,Individual.tasks)\
-                                .filter(Individual.species.in_(species))\
-                                .filter(Task.id.in_(task_ids))\
-                                .all()
+        # # Delete Individuals
+        # individuals = db.session.query(Individual)\
+        #                         .join(Task,Individual.tasks)\
+        #                         .filter(Individual.species.in_(species))\
+        #                         .filter(Task.id.in_(task_ids))\
+        #                         .all()
 
-        update_individuals = []
-        IndividualTask = alias(Task)
-        update_tasks = [r[0] for r in db.session.query(Task.id)\
-                                        .join(Individual,Task.individuals)\
-                                        .join(IndividualTask,Individual.tasks)\
-                                        .filter(IndividualTask.c.id.in_(task_ids))\
-                                        .filter(Individual.species.in_(species))\
-                                        .filter(Task.id.notin_(task_ids))\
-                                        .distinct().all()]
+        # update_individuals = []
+        # IndividualTask = alias(Task)
+        # update_tasks = [r[0] for r in db.session.query(Task.id)\
+        #                                 .join(Individual,Task.individuals)\
+        #                                 .join(IndividualTask,Individual.tasks)\
+        #                                 .filter(IndividualTask.c.id.in_(task_ids))\
+        #                                 .filter(Individual.species.in_(species))\
+        #                                 .filter(Task.id.notin_(task_ids))\
+        #                                 .distinct().all()]
 
-        detections = set(detections)
-        for individual in individuals:
-            det_count = len(individual.detections)
-            individual.detections = [detection for detection in individual.detections if detection.id not in detections]
-            new_det_count = len(individual.detections)
-            if det_count != new_det_count:
-                indSimilarities = db.session.query(IndSimilarity).filter(or_(IndSimilarity.individual_1==individual.id,IndSimilarity.individual_2==individual.id)).all()
-                for indSimilarity in indSimilarities:
-                    if new_det_count == 0 or indSimilarity.detection_1 in detections or indSimilarity.detection_2 in detections:
-                        if indSimilarity.score < 0 and new_det_count > 0:
-                            indSimilarity.detection_1 = None
-                            indSimilarity.detection_2 = None
-                        else:
-                            db.session.delete(indSimilarity)
+        # detections = set(detections)
+        # for individual in individuals:
+        #     det_count = len(individual.detections)
+        #     individual.detections = [detection for detection in individual.detections if detection.id not in detections]
+        #     new_det_count = len(individual.detections)
+        #     if det_count != new_det_count:
+        #         indSimilarities = db.session.query(IndSimilarity).filter(or_(IndSimilarity.individual_1==individual.id,IndSimilarity.individual_2==individual.id)).all()
+        #         for indSimilarity in indSimilarities:
+        #             if new_det_count == 0 or indSimilarity.detection_1 in detections or indSimilarity.detection_2 in detections:
+        #                 if indSimilarity.score < 0 and new_det_count > 0:
+        #                     indSimilarity.detection_1 = None
+        #                     indSimilarity.detection_2 = None
+        #                 else:
+        #                     db.session.delete(indSimilarity)
 
-            if new_det_count==0:
-                individual.detections = []
-                individual.children = []
-                individual.tags = []
-                individual.tasks = []
-                individual.primary_detections = []
-                db.session.delete(individual)
-            else:
-                individual.tasks = [task for task in individual.tasks if task.id not in task_ids]
-                individual.tags = [tag for tag in individual.tags if tag.task_id not in task_ids]
-                prim_count = len(individual.primary_detections)
-                individual.primary_detections = [det for det in individual.primary_detections if det.id not in detections]
-                if len(individual.primary_detections)==0 or len(individual.primary_detections) != prim_count:
-                    update_individuals.append(individual.id)
+        #     if new_det_count==0:
+        #         individual.detections = []
+        #         individual.children = []
+        #         individual.tags = []
+        #         individual.tasks = []
+        #         individual.primary_detections = []
+        #         db.session.delete(individual)
+        #     else:
+        #         individual.tasks = [task for task in individual.tasks if task.id not in task_ids]
+        #         individual.tags = [tag for tag in individual.tags if tag.task_id not in task_ids]
+        #         prim_count = len(individual.primary_detections)
+        #         individual.primary_detections = [det for det in individual.primary_detections if det.id not in detections]
+        #         if len(individual.primary_detections)==0 or len(individual.primary_detections) != prim_count:
+        #             update_individuals.append(individual.id)
 
 
-        # Delete Detection similarities (where detections from sims are no longer associated with individuals)
-        det1 = alias(Detection)
-        det2 = alias(Detection)
-        indDets1 = alias(individualDetections)
-        indDets2 = alias(individualDetections)
+        # # Delete Detection similarities (where detections from sims are no longer associated with individuals)
+        # det1 = alias(Detection)
+        # det2 = alias(Detection)
+        # indDets1 = alias(individualDetections)
+        # indDets2 = alias(individualDetections)
 
-        detSims = db.session.query(DetSimilarity)\
-                            .join(det1,det1.c.id==DetSimilarity.detection_1)\
-                            .join(det2,det2.c.id==DetSimilarity.detection_2)\
-                            .outerjoin(indDets1, indDets1.c.detection_id==det1.c.id)\
-                            .outerjoin(indDets2, indDets2.c.detection_id==det2.c.id)\
-                            .filter(indDets1.c.detection_id==None)\
-                            .filter(indDets2.c.detection_id==None)\
-                            .filter(det1.c.id.in_(detections))\
-                            .filter(det2.c.id.in_(detections))\
-                            .distinct().all()
+        # detSims = db.session.query(DetSimilarity)\
+        #                     .join(det1,det1.c.id==DetSimilarity.detection_1)\
+        #                     .join(det2,det2.c.id==DetSimilarity.detection_2)\
+        #                     .outerjoin(indDets1, indDets1.c.detection_id==det1.c.id)\
+        #                     .outerjoin(indDets2, indDets2.c.detection_id==det2.c.id)\
+        #                     .filter(indDets1.c.detection_id==None)\
+        #                     .filter(indDets2.c.detection_id==None)\
+        #                     .filter(det1.c.id.in_(detections))\
+        #                     .filter(det2.c.id.in_(detections))\
+        #                     .distinct().all()
 
-        for detSim in detSims:
-            db.session.delete(detSim)
+        # for detSim in detSims:
+        #     db.session.delete(detSim)
 
-        # Delete featurematches from WBIA db for detections that are no longer associated with individuals
-        # wbia_detections = db.session.query(Detection).outerjoin(individualDetections).filter(Detection.id.in_(detections)).filter(individualDetections.c.detection_id==None).filter(Detection.aid!=None).distinct().all()
-        # aid_list = []
-        # for detection in wbia_detections:
-        #     if detection.aid: aid_list.append(detection.aid)
-        #     detection.aid = None
+        # # Delete featurematches from WBIA db for detections that are no longer associated with individuals
+        # # wbia_detections = db.session.query(Detection).outerjoin(individualDetections).filter(Detection.id.in_(detections)).filter(individualDetections.c.detection_id==None).filter(Detection.aid!=None).distinct().all()
+        # # aid_list = []
+        # # for detection in wbia_detections:
+        # #     if detection.aid: aid_list.append(detection.aid)
+        # #     detection.aid = None
 
-        # keep_aid_list = [r[0] for r in db.session.query(Detection.aid, func.count(Detection.id))\
-        #             .filter(Detection.aid.in_(aid_list))\
-        #             .group_by(Detection.aid)\
-        #             .distinct().all() if r[1]>0]
-        # aid_list = list(set(aid_list) - set(keep_aid_list))
-        # if aid_list:
-        #     if not GLOBALS.ibs:
-        #         from wbia import opendb
-        #         GLOBALS.ibs = opendb(db=Config.WBIA_DB_NAME,dbdir=Config.WBIA_DIR+'_'+Config.WORKER_NAME,allow_newdir=True)
-        #     GLOBALS.ibs.db.delete('featurematches', aid_list, 'annot_rowid1')
-        #     GLOBALS.ibs.db.delete('featurematches', aid_list, 'annot_rowid2')
-        #     gids = [g for g in GLOBALS.ibs.get_annot_gids(aid_list) if g is not None]
-        #     GLOBALS.ibs.delete_images(gids)
-        #     GLOBALS.ibs.delete_annots(aid_list)  
+        # # keep_aid_list = [r[0] for r in db.session.query(Detection.aid, func.count(Detection.id))\
+        # #             .filter(Detection.aid.in_(aid_list))\
+        # #             .group_by(Detection.aid)\
+        # #             .distinct().all() if r[1]>0]
+        # # aid_list = list(set(aid_list) - set(keep_aid_list))
+        # # if aid_list:
+        # #     if not GLOBALS.ibs:
+        # #         from wbia import opendb
+        # #         GLOBALS.ibs = opendb(db=Config.WBIA_DB_NAME,dbdir=Config.WBIA_DIR+'_'+Config.WORKER_NAME,allow_newdir=True)
+        # #     GLOBALS.ibs.db.delete('featurematches', aid_list, 'annot_rowid1')
+        # #     GLOBALS.ibs.db.delete('featurematches', aid_list, 'annot_rowid2')
+        # #     gids = [g for g in GLOBALS.ibs.get_annot_gids(aid_list) if g is not None]
+        # #     GLOBALS.ibs.delete_images(gids)
+        # #     GLOBALS.ibs.delete_annots(aid_list)  
 
-        db.session.commit()
+        # db.session.commit()
 
-        if update_individuals:
-            update_individuals_primary_dets(individual_ids=update_individuals)
+        # if update_individuals:
+        #     update_individuals_primary_dets(individual_ids=update_individuals)
 
-        for tid in update_tasks:
-            # Update Area Library Id Status of previous mutual tasks 
-            updateIndividualIdStatus(tid)
+        # for tid in update_tasks:
+        #     # Update Area Library Id Status of previous mutual tasks 
+        #     updateIndividualIdStatus(tid)
+
+        delete_task_individuals(task_ids=task_ids, species=species)
+
         
         if not skip_update_status:       
             # Update statuses
@@ -2913,48 +2640,8 @@ def cancel_upload(self,survey_id):
         survey_folder = survey.organisation.folder+'/'+survey.name+'/%'
         survey_folder = survey_folder.replace('_','\\_')
 
-        #Delete floating images (from unfinished upload)
-        try:
-            images = db.session.query(Image, Camera.path).join(Camera).filter(Camera.path.like(survey_folder)).filter(Camera.trapgroup_id==None).all()
-            for image, path in images:
-                image_key = path + '/' + image.filename
-                splits = image_key.split('/')
-                splits[0] = splits[0] + '-comp'
-                image_comp_key = '/'.join(splits)
-                GLOBALS.s3client.delete_object(Bucket=Config.BUCKET, Key=image_key)
-                GLOBALS.s3client.delete_object(Bucket=Config.BUCKET, Key=image_comp_key)
-                db.session.delete(image)
-            db.session.commit()
-            app.logger.info('Floating images deleted successfully.')
-        except:
-            app.logger.info('Failed to delete floating images.')
-
-        #Delete floating videos (from unfinished upload)
-        try:
-            videos = db.session.query(Video, Camera.path).join(Camera).filter(Camera.path.like(survey_folder)).filter(Camera.trapgroup_id==None).all()
-            for video, path in videos:
-                video_path = path.split('/_video_images_/')[0]
-                video_key = video_path + '/' + video.filename
-                splits = video_path.split('/')
-                splits[0] = splits[0]+'-comp'
-                video_comp_key = '/'.join(splits) + '/' + video.filename.rsplit('.', 1)[0] + '.mp4'
-                GLOBALS.s3client.delete_object(Bucket=Config.BUCKET, Key=video_key)
-                GLOBALS.s3client.delete_object(Bucket=Config.BUCKET, Key=video_comp_key)
-                db.session.delete(video)
-            db.session.commit()
-            app.logger.info('Floating videos deleted successfully.')
-        except:
-            app.logger.info('Failed to delete floating videos.')
-
-        #Delete floating cameras (from unfinished upload)
-        try:
-            cameras = db.session.query(Camera).filter(Camera.path.like(survey_folder)).filter(Camera.trapgroup_id==None).filter(~Camera.images.any()).filter(~Camera.videos.any()).all()
-            for camera in cameras:
-                db.session.delete(camera)
-            db.session.commit()
-            app.logger.info('Floating cameras deleted successfully.')
-        except:
-            app.logger.info('Failed to delete floating cameras.')
+        # Delete floating data
+        delete_floating_data(survey_id=survey_id, delete_from_s3=True)
 
 
         GLOBALS.redisClient.delete('lambda_invoked_'+str(survey_id))
@@ -3301,19 +2988,16 @@ def delete_survey_data(survey_id, camera_ids, image_ids, video_ids, cameras_only
     ''' Deletes specified survey files. '''
 
     status = 'success'
-
+    task_ids = [r[0] for r in db.session.query(Task.id).join(Survey).filter(Survey.id==survey_id).distinct().all()]
+    app.logger.info('Deleting survey data for survey {} with {} cameras, {} images and {} videos'.format(survey_id, len(camera_ids), len(image_ids), len(video_ids)))
+    
     # Delete labelgroups
     if status != 'error':
         try:
-            labelgroups = db.session.query(Labelgroup).join(Detection).join(Image).filter(Image.camera_id.in_(camera_ids))
-            if image_ids: labelgroups = labelgroups.filter(Image.id.in_(image_ids))
-            labelgroups = labelgroups.distinct().all()
-            if Config.DEBUGGING: app.logger.info('Labelgroups to delete: {}'.format(len(labelgroups)))
-            for labelgroup in labelgroups:
-                labelgroup.labels = []
-                labelgroup.tags = []
-                db.session.delete(labelgroup)
-            db.session.commit()
+            lgQ = db.session.query(Labelgroup.id).join(Detection).join(Image).filter(Image.camera_id.in_(camera_ids))
+            if image_ids: lgQ = lgQ.filter(Image.id.in_(image_ids))
+            for task_id in task_ids:
+                delete_labelgroups(task_id=task_id, sq=lgQ)
             app.logger.info('Labelgroups deleted successfully')
         except:
             status = 'error'
@@ -3322,110 +3006,18 @@ def delete_survey_data(survey_id, camera_ids, image_ids, video_ids, cameras_only
     # Delete Individuals
     if status != 'error':
         try:
-            update_individuals = []
-            update_tasks = []
-            individuals = db.session.query(Individual).join(Detection, Individual.detections).join(Image).filter(Image.camera_id.in_(camera_ids))
-            if image_ids: individuals = individuals.filter(Image.id.in_(image_ids))
-            individuals = individuals.distinct().all()
-            if Config.DEBUGGING: app.logger.info('Individuals to check for deletion: {}'.format(len(individuals)))
-            det_query = db.session.query(Detection.id).join(Image).filter(Image.camera_id.in_(camera_ids))
-            if image_ids: det_query = det_query.filter(Image.id.in_(image_ids))
-            detections = set([r[0] for r in det_query.distinct().all()])
-            for individual in individuals:
-                det_count = len(individual.detections)
-                individual.detections = [detection for detection in individual.detections if detection.id not in detections]
-                new_det_count = len(individual.detections)
-                if det_count != new_det_count:
-                    indSimilarities = db.session.query(IndSimilarity).filter(or_(IndSimilarity.individual_1==individual.id,IndSimilarity.individual_2==individual.id)).all()
-                    for indSimilarity in indSimilarities:
-                        if new_det_count == 0 or indSimilarity.detection_1 in detections or indSimilarity.detection_2 in detections:
-                            if indSimilarity.score < 0 and new_det_count > 0:
-                                indSimilarity.detection_1 = None
-                                indSimilarity.detection_2 = None
-                            else:
-                                db.session.delete(indSimilarity)
-
-                if len(individual.detections)==0:
-                    individual.detections = []
-                    individual.primary_detections = []
-                    individual.children = []
-                    individual.tags = []
-                    individual.tasks = []
-                else:
-                    if len(individual.tasks)>1:
-                        individual.tasks = db.session.query(Task)\
-                                .join(Survey)\
-                                .join(Trapgroup)\
-                                .join(Camera)\
-                                .join(Image)\
-                                .join(Detection)\
-                                .filter(Detection.individuals.contains(individual))\
-                                .filter(Task.id.in_([t.id for t in individual.tasks]))\
-                                .distinct().all()
-                        individual.tags = [tag for tag in individual.tags if tag.task in individual.tasks]
-                        update_tasks += [t.id for t in individual.tasks if t.id not in update_tasks and t.survey_id!=survey_id]
-                    prim_count = len(individual.primary_detections)
-                    individual.primary_detections = [det for det in individual.primary_detections if det.id not in detections]
-                    if len(individual.primary_detections)==0 or len(individual.primary_detections) != prim_count:
-                        update_individuals.append(individual.id)                
-
-            db.session.commit()
-
-            if update_individuals:
-                update_individuals_primary_dets(individual_ids=update_individuals)
-
-            if update_tasks:
-                for tid in update_tasks:
-                    updateIndividualIdStatus(tid)
-
+            delete_task_individuals(task_ids=task_ids, camera_ids=camera_ids, image_ids=image_ids)
             app.logger.info('Individuals deleted successfully')
         except:
             status = 'error'
             app.logger.info('Failed to delete individuals for cameras {}'.format(camera_ids))
 
-    # Delete detection similarities
+    # Delete detections, features and detection similarities
     if status != 'error':
         try:
-            detSimilarities = db.session.query(DetSimilarity)\
-                                                .join(Detection,or_(Detection.id==DetSimilarity.detection_1,Detection.id==DetSimilarity.detection_2))\
-                                                .join(Image)\
-                                                .filter(Image.camera_id.in_(camera_ids))
-            if image_ids: detSimilarities = detSimilarities.filter(Image.id.in_(image_ids))
-            detSimilarities = detSimilarities.all()
-            if Config.DEBUGGING: app.logger.info('Detection similarities to delete: {}'.format(len(detSimilarities)))
-            for detSimilarity in detSimilarities:
-                db.session.delete(detSimilarity)
-            db.session.commit()
-            app.logger.info('Detection similarities deleted successfully')
-        except:
-            status = 'error'
-            app.logger.info('Failed to delete detection similarities for cameras {}'.format(camera_ids))
-
-    # Delete features 
-    if status != 'error':
-        try:
-            features = db.session.query(Feature).join(Detection).join(Image).filter(Image.camera_id.in_(camera_ids))
-            if image_ids: features = features.filter(Image.id.in_(image_ids))
-            features = features.distinct().all()
-            if Config.DEBUGGING: app.logger.info('Features to delete: {}'.format(len(features)))
-            for feature in features:
-                db.session.delete(feature)
-            db.session.commit()
-            app.logger.info('Features deleted successfully')
-        except:
-            status = 'error'
-            app.logger.info('Failed to delete features for cameras {}'.format(camera_ids))
-
-    # Delete detections
-    if status != 'error':
-        try:
-            detections = db.session.query(Detection).join(Image).filter(Image.camera_id.in_(camera_ids))
-            if image_ids: detections = detections.filter(Image.id.in_(image_ids))
-            detections = detections.distinct().all()  
-            if Config.DEBUGGING: app.logger.info('Detections to delete: {}'.format(len(detections)))
-            for detection in detections:    
-                db.session.delete(detection)
-            db.session.commit()
+            detQ = db.session.query(Detection.id).join(Image).filter(Image.camera_id.in_(camera_ids))
+            if image_ids: detQ = detQ.filter(Image.id.in_(image_ids))
+            delete_detections(survey_id=survey_id, sq=detQ)
             app.logger.info('Detections deleted successfully')
         except:
             status = 'error'
@@ -3434,23 +3026,12 @@ def delete_survey_data(survey_id, camera_ids, image_ids, video_ids, cameras_only
     # Delete images 
     if status != 'error':
         try:
-            images = db.session.query(Image).filter(Image.camera_id.in_(camera_ids))
-            if image_ids: images = images.filter(Image.id.in_(image_ids))
-            images = images.all()
-            if Config.DEBUGGING: app.logger.info('Images to delete: {}'.format(len(images)))
-            for image in images:
-                image.clusters = []
-                image.required_for = []
-                if image_ids:
-                    # Delete from s3 if specific images
-                    image_path = image.camera.path + '/' + image.filename
-                    splits = image_path.split('/')
-                    splits[0] = splits[0] + '-comp'
-                    image_path_comp = '/'.join(splits)
-                    GLOBALS.s3client.delete_object(Bucket=Config.BUCKET, Key=image_path)
-                    GLOBALS.s3client.delete_object(Bucket=Config.BUCKET, Key=image_path_comp)
-                db.session.delete(image)
-            db.session.commit()
+            imageQ = db.session.query(Image.id).join(Camera).filter(Camera.id.in_(camera_ids))
+            if image_ids: 
+                imageQ = imageQ.filter(Image.id.in_(image_ids))
+                delete_images(survey_id=survey_id, sq=imageQ, delete_from_s3=True, delete_from_clusters=True)
+            else:
+                delete_images(survey_id=survey_id, sq=imageQ, delete_from_clusters=True)
             app.logger.info('Images deleted successfully')
         except:
             status = 'error'
@@ -3459,77 +3040,27 @@ def delete_survey_data(survey_id, camera_ids, image_ids, video_ids, cameras_only
     # Delete videos
     if status != 'error':
         try:
-            videos = db.session.query(Video).filter(Video.camera_id.in_(camera_ids))
-            if video_ids: videos = videos.filter(Video.id.in_(video_ids))
-            videos = videos.all()
-            if Config.DEBUGGING: app.logger.info('Videos to delete: {}'.format(len(videos)))
-            for video in videos:
-                if video_ids:
-                    # Delete from s3 if specific videos
-                    cam_path = video.camera.path.split('/_video_images_')[0]
-                    video_path = cam_path + '/' + video.filename
-                    splits = video_path.split('/')
-                    splits[0] = splits[0] + '-comp'
-                    video_path_comp = '/'.join(splits)
-                    GLOBALS.s3client.delete_object(Bucket=Config.BUCKET, Key=video_path)
-                    GLOBALS.s3client.delete_object(Bucket=Config.BUCKET, Key=video_path_comp)
-                db.session.delete(video)
-            db.session.commit()
+            videoQ = db.session.query(Video.id).join(Camera).filter(Camera.id.in_(camera_ids))
+            if video_ids: 
+                videoQ = videoQ.filter(Video.id.in_(video_ids))
+                delete_videos(survey_id=survey_id, sq=videoQ, delete_from_s3=True)
+            else:
+                delete_videos(survey_id=survey_id, sq=videoQ)
             app.logger.info('Videos deleted successfully')
         except:
             status = 'error'
             app.logger.info('Failed to delete videos for cameras {}'.format(camera_ids))
 
     if cameras_only and camera_ids and (not image_ids) and (not video_ids):
-        # Delete from s3
+        # Delete camera and camera data from s3
         if status != 'error':
             try:
-                camera_paths = [r[0] for r in db.session.query(Camera.path).filter(Camera.id.in_(camera_ids)).distinct().all()]
-                s3 = boto3.resource('s3')
-                bucketObject = s3.Bucket(Config.BUCKET)
-                if Config.DEBUGGING: app.logger.info('Camera paths to delete from S3: {}'.format(camera_paths))
-                for camera_path in camera_paths:
-                    splits = camera_path.split('/')
-                    splits[0] = splits[0] + '-comp'
-                    camera_path_comp = '/'.join(splits)
-
-                    other_cams = False # Check if other subfolders exist in the same folder
-                    if '/_video_images_/' not in camera_path:
-                        other_cams = db.session.query(Camera).join(Trapgroup).filter(Trapgroup.survey_id==survey_id).filter(Camera.path.like(camera_path+'/%')).filter(~Camera.id.in_(camera_ids)).first()
-                    if other_cams:
-                        app.logger.info('Other cameras exist in the same folder, deleting individual files only for camera path: {}'.format(camera_path))
-                        #  Do not want to delete the other subfolders if other cameras exist in the same folder
-                        objects = list(bucketObject.objects.filter(Prefix=camera_path + '/',Delimiter='/')) if camera_path else []
-                        for chunk in chunker(objects, 1000):
-                            batch=[{'Key': obj.key} for obj in chunk if obj.key and not obj.key.endswith('/')]
-                            if batch:
-                                bucketObject.delete_objects(Delete={'Objects': batch})
-
-                        objects = list(bucketObject.objects.filter(Prefix=camera_path_comp + '/',Delimiter='/')) if camera_path_comp else []
-                        for chunk in chunker(objects, 1000):
-                            batch=[{'Key': obj.key} for obj in chunk if obj.key and not obj.key.endswith('/')]
-                            if batch:
-                                bucketObject.delete_objects(Delete={'Objects': batch})                          
-                    else:
-                        if camera_path: bucketObject.objects.filter(Prefix=camera_path + '/').delete()
-                        if camera_path_comp: bucketObject.objects.filter(Prefix=camera_path_comp + '/').delete()
-                app.logger.info('Deleted from S3 successfully: {}'.format(camera_paths))
-            except:
-                status = 'error'
-                app.logger.info('Failed to delete from S3: {}'.format(camera_paths))
-
-        # Delete camera
-        if status != 'error':
-            try:
-                cameras = db.session.query(Camera).filter(Camera.id.in_(camera_ids)).all()
-                if Config.DEBUGGING: app.logger.info('Cameras to delete: {}'.format(len(cameras)))
-                for camera in cameras:
-                    db.session.delete(camera)
-                db.session.commit()
+                camQ = db.session.query(Camera.id).filter(Camera.id.in_(camera_ids))
+                delete_cameras(survey_id=survey_id, sq=camQ, delete_from_s3=True)
                 app.logger.info('Cameras deleted successfully')
             except:
                 status = 'error'
-                app.logger.info('Failed to delete cameras: {}'.format(camera_ids))
+                app.logger.info('Failed to delete cameras and camera data from S3: {}'.format(camera_ids))
 
     return status
 
@@ -3539,29 +3070,12 @@ def delete_empty_data(survey_id):
     status = 'success'
     app.logger.info('Deleting empty data for survey {}'.format(survey_id))
 
-    # Delete Earth Ranger IDs from empty clusters
+    # Delete empty clusters & its linked data
     if status != 'error':
         try:
-            earth_ranger_ids = db.session.query(ERangerID).join(Cluster).join(Task).filter(Task.survey_id==survey_id).filter(~Cluster.images.any()).all()
-            if Config.DEBUGGING: app.logger.info('Earth Ranger IDs to delete: {}'.format(len(earth_ranger_ids)))
-            for earth_ranger_id in earth_ranger_ids:
-                db.session.delete(earth_ranger_id)
-            db.session.commit()
-            app.logger.info('Earth Ranger IDs from empty clusters deleted successfully.')
-        except:
-            status = 'error'
-            app.logger.info('Failed to delete Earth Ranger IDs from empty clusters.')
-
-    # Delete empty clusters
-    if status != 'error':
-        try:
-            clusters = db.session.query(Cluster).join(Task).filter(Task.survey_id==survey_id).filter(~Cluster.images.any()).all()
-            if Config.DEBUGGING: app.logger.info('Empty clusters to delete: {}'.format(len(clusters)))
-            for cluster in clusters:
-                cluster.labels = []
-                cluster.tags = []
-                db.session.delete(cluster)
-            db.session.commit()
+            task_ids = [r[0] for r in db.session.query(Task.id).join(Survey).filter(Survey.id==survey_id).distinct().all()]
+            for task_id in task_ids:
+                delete_clusters(task_id=task_id,empty=True)
             app.logger.info('Empty clusters deleted successfully')
         except:
             status = 'error'
@@ -3570,11 +3084,7 @@ def delete_empty_data(survey_id):
     # Delete empty staticgroups 
     if status != 'error':
         try:
-            staticgroups = db.session.query(Staticgroup).filter(~Staticgroup.detections.any()).all()
-            if Config.DEBUGGING: app.logger.info('Empty staticgroups to delete: {}'.format(len(staticgroups)))
-            for staticgroup in staticgroups:
-                db.session.delete(staticgroup)
-            db.session.commit()
+            delete_empty_staticgroups()
             app.logger.info('Empty staticgroups deleted successfully')
         except:
             status = 'error'
@@ -3583,79 +3093,37 @@ def delete_empty_data(survey_id):
     # Delete empty cameras
     if status != 'error':
         try:
-            cameras = db.session.query(Camera).join(Trapgroup).filter(Trapgroup.survey_id==survey_id).filter(~Camera.images.any()).filter(~Camera.videos.any()).all()
-            if Config.DEBUGGING: app.logger.info('Empty cameras to delete: {}'.format(len(cameras)))
-            for camera in cameras:
-                db.session.delete(camera)
-            db.session.commit()
+            cameraSQ = db.session.query(Camera.id).join(Trapgroup).filter(Trapgroup.survey_id==survey_id).filter(~Camera.images.any()).filter(~Camera.videos.any())
+            delete_cameras(survey_id=survey_id, sq=cameraSQ)
             app.logger.info('Empty cameras deleted successfully')
         except:
             status = 'error'
             app.logger.info('Failed to delete empty cameras')
 
-    #Delete masks from empty cameragroups
+    # Delete empty cameragroups & masks
     if status != 'error':
         try:
-            masks = db.session.query(Mask).join(Cameragroup).filter(~Cameragroup.cameras.any()).all()
-            if Config.DEBUGGING: app.logger.info('Masks from empty cameragroups to delete: {}'.format(len(masks)))
-            for mask in masks:
-                db.session.delete(mask)
-            db.session.commit()
-            app.logger.info('Masks from empty cameragroups deleted successfully.')
+            delete_cameragroups(survey_id=survey_id, empty=True)
+            app.logger.info('Empty cameragroups and masks deleted successfully')
         except:
             status = 'error'
-            app.logger.info('Failed to delete masks from empty cameragroups.')
+            app.logger.info('Failed to delete empty cameragroups and masks')
 
-    # Delete empty cameragroups
-    if status != 'error':
-        try: 
-            cameragroups = db.session.query(Cameragroup).filter(~Cameragroup.cameras.any()).all()
-            if Config.DEBUGGING: app.logger.info('Empty cameragroups to delete: {}'.format(len(cameragroups)))
-            for cameragroup in cameragroups:
-                db.session.delete(cameragroup)
-            db.session.commit()
-            app.logger.info('Empty cameragroups deleted successfully')
-        except:
-            status = 'error'
-            app.logger.info('Failed to delete empty cameragroups')
-
-    # Delete empty trapgroups
+    # Delete empty trapgroups and sitegroups
     if status != 'error':
         try:
-            trapgroups = db.session.query(Trapgroup).filter(Trapgroup.survey_id==survey_id).filter(~Trapgroup.cameras.any()).all()
-            if Config.DEBUGGING: app.logger.info('Empty trapgroups to delete: {}'.format(len(trapgroups)))
-            for trapgroup in trapgroups:
-                db.session.delete(trapgroup)
-            db.session.commit()
+            tgSQ = db.session.query(Trapgroup.id).filter(Trapgroup.survey_id==survey_id).filter(~Trapgroup.cameras.any())
+            delete_trapgroups(survey_id=survey_id, sq=tgSQ)
             app.logger.info('Empty trapgroups deleted successfully')
         except:
             status = 'error'
             app.logger.info('Failed to delete empty trapgroups')
 
-    # Delete empty sitegroups
-    if status != 'error':
-        try:
-            sitegroups = db.session.query(Sitegroup).filter(~Sitegroup.trapgroups.any()).all()
-            if Config.DEBUGGING: app.logger.info('Empty sitegroups to delete: {}'.format(len(sitegroups)))
-            for sitegroup in sitegroups:
-                    db.session.delete(sitegroup)
-            db.session.commit()
-            app.logger.info('Sitegroups deleted successfully.')
-        except:
-            status = 'error'
-            app.logger.info('Failed to delete sitegroups.')
-
     # Delete empty zips
     if status != 'error':
-        try:
-            survey = db.session.query(Survey).get(survey_id)    
-            zips = db.session.query(Zip).filter(Zip.survey_id==survey_id).filter(~Zip.images.any()).all()
-            if Config.DEBUGGING: app.logger.info('Empty zips to delete: {}'.format(len(zips)))
-            for zip in zips:
-                zip_key = survey.organisation.folder+'-comp/'+Config.SURVEY_ZIP_FOLDER+'/'+str(zip.id)+'.zip'
-                GLOBALS.s3client.delete_object(Bucket=Config.BUCKET, Key=zip_key)
-                db.session.delete(zip)
-            db.session.commit()
+        try:    
+            zipSQ = db.session.query(Zip.id).filter(Zip.survey_id==survey_id).filter(~Zip.images.any())
+            delete_zips(survey_id=survey_id, sq=zipSQ)
             app.logger.info('Empty zips deleted successfully.')
         except:
             status = 'error'
