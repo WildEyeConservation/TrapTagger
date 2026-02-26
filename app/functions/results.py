@@ -16,8 +16,7 @@ limitations under the License.
 
 from app import app, db, celery
 from app.models import *
-from app.functions.globals import retryTime, list_all, chunker, batch_crops, rDets, randomString, stringify_timestamp, getChildList, \
-    resetImageDownloadStatus, resetVideoDownloadStatus, deleteFile, getChildNameList
+from app.functions.globals import retryTime, list_all, chunker, batch_crops, rDets, randomString, stringify_timestamp, getChildList, deleteFile
 import GLOBALS
 from sqlalchemy.sql import alias, func, or_, and_, distinct, case
 import re

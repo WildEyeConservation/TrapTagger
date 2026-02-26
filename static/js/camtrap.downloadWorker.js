@@ -54,7 +54,8 @@ var include_video_init
 var include_frames
 var downloadSurveyID
 var raw_files
-var downloadingRequest 
+var downloadingRequest
+var downloaded_files = new Set()
 
 onmessage = function (evt) {
     /** Take instructions from main js */
@@ -184,9 +185,10 @@ async function waitUntilDownloadReady(count=0) {
                     await checkLocalFiles(globalTopLevelHandle,globalTopLevelHandle.name)
                     init = false
                 }
+                updateDownloadProgress()
             }
         
-            updateDownloadProgress()
+            // updateDownloadProgress()
         }
     }
 }
@@ -332,6 +334,7 @@ async function getLocalImageInfo(hash,downloadingTask,jpegData,dirHandle,fileNam
     
             for (let i=0;i<data.length;i++) {
                 await writeFile(jpegData,data[i].path,data[i].labels,data[i].fileName,hash)
+                downloaded_files.add(data[i].id)
             }
             
             local_files_processing -= 1
@@ -394,7 +397,7 @@ async function writeBlob(dirHandle,blob,fileName) {
 	await writable.close();
 }
 
-async function fetchRemainingImages() {
+async function fetchRemainingImages(last_image_id=0, last_video_id=0) {
     /** Fetches a batch of images that must be downloaded */
     var data = await limitTT(()=> fetch('/fileHandler/get_required_files', {
         method: 'post',
@@ -411,7 +414,9 @@ async function fetchRemainingImages() {
             include_empties: include_empties,
             include_video: include_video,
             include_frames: include_frames,
-            raw_files: raw_files
+            raw_files: raw_files,
+            image_id: last_image_id,
+            video_id: last_video_id
         }),
     }).then((response) => {
         if (!response.ok) {
@@ -426,10 +431,22 @@ async function fetchRemainingImages() {
     }))
     console.log('fetching data')
     console.log(data)
+    var ready = true
     if (data) {
-        if (data.ids.length>0) {
+        if (data.status=='not ready') {
+            ready = false
+            setTimeout(function() { fetchRemainingImages(last_image_id, last_video_id); }, 2000)
+        } else if (data.ids.length>0) {
+            last_image_id = data.last_image_id
+            last_video_id = data.last_video_id
+            var required_files = []
+            for (let i=0;i<data.requiredFiles.length;i++) {
+                if (!(downloaded_files.has(data.requiredFiles[i].id))) {
+                    required_files.push(data.requiredFiles[i])
+                }
+            }
             await confirmReceipt(data.ids)
-            getRequiredImages(data.requiredFiles)
+            getRequiredImages(required_files)
         } 
         else if(data.ids.length==0 && include_video == true){
             // If done with videos move onto images
@@ -439,46 +456,48 @@ async function fetchRemainingImages() {
             finishedIterating = true
         }
     }
-
-    if (!finishedIterating) {
-        fetchRemainingImages()
-        // if (data&&(data.ids.length==0)) {
-        //     // Probably waitng for download prep to finish - slow down requests
-        //     setTimeout(function() { fetchRemainingImages(); }, 5000)
-        // } else {
-        //     fetchRemainingImages()
-        // }
-    } else {
-        checkDownloadStatus()
+    if (ready) {
+        if (!finishedIterating) {
+            fetchRemainingImages(last_image_id, last_video_id)
+            // if (data&&(data.ids.length==0)) {
+            //     // Probably waitng for download prep to finish - slow down requests
+            //     setTimeout(function() { fetchRemainingImages(); }, 5000)
+            // } else {
+            //     fetchRemainingImages()
+            // }
+        } else {
+            checkDownloadStatus()
+        }
     }
 }
 
 async function confirmReceipt(image_ids,count=0) {
     /** Tells the server to mark the specified set of images as received */
     if (!wrappingUp) {
-        await limitMarkDownloaded(()=> fetch('/fileHandler/mark_images_downloaded', {
-            method: 'post',
-            headers: {
-                accept: 'application/json',
-                'content-type': 'application/json',
-            },
-            body: JSON.stringify({
-                image_ids: image_ids,
-                task_id: downloadingTask,
-                include_video: include_video,
-                include_frames: include_frames
-            }),
-        }).then((response) => {
-            if (!response.ok) {
-                throw new Error(response.statusText)
-            } else if (response.status==278) {
-                postMessage({'func': 'reload', 'args': null})
-            }
-        }).catch( (error) => {
-            if (count<=5) {
-                setTimeout(function() { confirmReceipt(image_ids,count+1); }, 1000*(5**count));
-            }
-        }))
+        image_ids.forEach(id => downloaded_files.add(id))
+        // await limitMarkDownloaded(()=> fetch('/fileHandler/mark_images_downloaded', {
+        //     method: 'post',
+        //     headers: {
+        //         accept: 'application/json',
+        //         'content-type': 'application/json',
+        //     },
+        //     body: JSON.stringify({
+        //         image_ids: image_ids,
+        //         task_id: downloadingTask,
+        //         include_video: include_video,
+        //         include_frames: include_frames
+        //     }),
+        // }).then((response) => {
+        //     if (!response.ok) {
+        //         throw new Error(response.statusText)
+        //     } else if (response.status==278) {
+        //         postMessage({'func': 'reload', 'args': null})
+        //     }
+        // }).catch( (error) => {
+        //     if (count<=5) {
+        //         setTimeout(function() { confirmReceipt(image_ids,count+1); }, 1000*(5**count));
+        //     }
+        // }))
     }
 }
 
@@ -656,5 +675,6 @@ async function cleanEmptyFolders(dirHandle) {
 function resetDownloadState() {
     /** Wrapper function for resetDownloadState so that the main js can update the page. */
     downloadingTask = null
+    downloaded_files = new Set()
     postMessage({'func': 'resetDownloadState', 'args': [downloadingRequest]})
 }

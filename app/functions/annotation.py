@@ -21,7 +21,7 @@ from app.functions.globals import addChildLabels, resolve_abandoned_jobs, create
                                     getClusterClassifications, checkForIdWork, numify_timestamp, rDets, prep_required_images, updateAllStatuses, classifyTask, cleanup_empty_restored_images,\
                                     reconcile_cluster_labelgroup_labels_and_tags, generateUniqueName, update_individuals_primary_dets, process_multi_labels
 from app.functions.individualID import calculate_detection_similarities, cleanUpIndividuals, calculate_individual_similarities, check_individual_detection_mismatch
-# from app.functions.results import resetImageDownloadStatus, resetVideoDownloadStatus
+# from app.functions.results import resetDownloadStatus
 import GLOBALS
 from sqlalchemy.sql import func, distinct, or_, alias, and_, literal_column
 from sqlalchemy import desc
@@ -1737,7 +1737,7 @@ def translate_cluster_for_client(clusterInfo,reqId,limit,isBounding,taggingLevel
 #     try:
 #         startTime = datetime.utcnow()
 
-#         tasks = [r[0] for r in db.session.query(Task.id)\
+#         image_tasks = [r[0] for r in db.session.query(Task.id)\
 #                             .join(Survey)\
 #                             .join(Organisation)\
 #                             .outerjoin(UserPermissions)\
@@ -1750,10 +1750,7 @@ def translate_cluster_for_client(clusterInfo,reqId,limit,isBounding,taggingLevel
 #                             .filter(~Task.status.in_(['Processing','Preparing Download']))\
 #                             .distinct().all()]
         
-#         for task in tasks:
-#             resetImageDownloadStatus.delay(task_id=task,then_set=False,labels=None,include_empties=None, include_frames=True)
-
-#         tasks = [r[0] for r in db.session.query(Task.id)\
+#         video_tasks = [r[0] for r in db.session.query(Task.id)\
 #                             .join(Survey)\
 #                             .join(Organisation)\
 #                             .outerjoin(UserPermissions)\
@@ -1765,9 +1762,10 @@ def translate_cluster_for_client(clusterInfo,reqId,limit,isBounding,taggingLevel
 #                             .filter(User.last_ping>(datetime.utcnow()-timedelta(minutes=15)))\
 #                             .filter(~Task.status.in_(['Processing','Preparing Download']))\
 #                             .distinct().all()]
-        
-#         for task in tasks:
-#             resetVideoDownloadStatus.delay(task_id=task,then_set=False,labels=None,include_empties=None, include_frames=True)
+
+#         tasks = list(set(image_tasks + video_tasks))
+#         for task_id in tasks:
+#             resetDownloadStatus.delay(task_id=task_id)
 
 #     except Exception as exc:
 #         app.logger.info(' ')

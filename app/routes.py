@@ -9975,14 +9975,14 @@ def get_image_info():
                             .first()
             
             if video:
-                video.downloaded = True
+                # video.downloaded = True
                 videoPaths, videoLabels, videoTags = get_video_paths_and_labels(video,task,individual_sorted,species_sorted,flat_structure,labels,include_empties)
                 videoLabels.extend(videoTags)
 
                 for path in videoPaths:
-                    reply.append({'path':'/'.join(path.split('/')[:-1]),'labels':videoLabels,'fileName':path.split('/')[-1]})
+                    reply.append({'path':'/'.join(path.split('/')[:-1]),'labels':videoLabels,'fileName':path.split('/')[-1],'id':video.id})
 
-                db.session.commit()
+                # db.session.commit()
         else:
         
             image = db.session.query(Image)\
@@ -9997,16 +9997,357 @@ def get_image_info():
             image = image.first()
 
             if image:
-                image.downloaded = True
+                # image.downloaded = True
                 imagePaths, imageLabels, imageTags = get_image_paths_and_labels(image,task,individual_sorted,species_sorted,flat_structure,labels,include_empties)
                 imageLabels.extend(imageTags)
 
                 for path in imagePaths:
-                    reply.append({'path':'/'.join(path.split('/')[:-1]),'labels':imageLabels,'fileName':path.split('/')[-1]})
+                    reply.append({'path':'/'.join(path.split('/')[:-1]),'labels':imageLabels,'fileName':path.split('/')[-1],'id':image.id})
 
-                db.session.commit()
+                # db.session.commit()
 
     return json.dumps(reply)
+
+# @app.route('/fileHandler/get_required_files', methods=['POST'])
+# @login_required
+# def get_required_files():
+#     """Return the required files and their labels and paths"""
+
+#     if Config.KILL_FILEHANDLER: return {'redirect': url_for('surveys')}, 278
+
+#     reply = []
+#     file_ids = []
+#     task_id = request.json['task_id']
+#     include_video = request.json['include_video']
+#     include_frames = request.json['include_frames']
+#     task = db.session.query(Task).get(task_id)
+#     # if task and (task.survey.user==current_user):
+#     if task and checkSurveyPermission(current_user.id,task.survey_id,'read'):
+
+#         # If the download is stale - force a restart
+#         if GLOBALS.redisClient.get('download_ping_'+str(task_id)):
+#             GLOBALS.redisClient.set('download_ping_'+str(task_id),datetime.utcnow().timestamp())
+#         else:
+#             return {'redirect': url_for('surveys')}, 278
+
+#         individual_sorted = request.json['individual_sorted']
+#         species_sorted = request.json['species_sorted']
+#         flat_structure = request.json['flat_structure']
+#         include_empties = request.json['include_empties']
+#         labels = request.json['species']
+#         raw_files = request.json['raw_files']
+
+#         if task.status == 'Processing':
+#             # Try speed things up while waiting for download to prep
+#             if '0' in labels:
+#                 localLabels = [r.id for r in task.labels]
+#                 localLabels.append(GLOBALS.vhl_id)
+#                 localLabels.append(GLOBALS.knocked_id)
+#                 localLabels.append(GLOBALS.unknown_id)
+#             else:
+#                 localLabels = [int(r) for r in labels]
+
+#             if include_empties: localLabels.append(GLOBALS.nothing_id)
+            
+#             # images = db.session.query(Image)\
+#             #                     .join(Cluster,Image.clusters)\
+#             #                     .join(Label,Cluster.labels)\
+#             #                     .join(Camera)\
+#             #                     .join(Trapgroup)\
+#             #                     .filter(Trapgroup.survey==task.survey)\
+#             #                     .filter(Cluster.task==task)\
+#             #                     .filter(Label.id.in_(localLabels))\
+#             #                     .filter(Image.downloaded==False)\
+#             #                     .distinct().limit(200).all()
+
+#             if include_video:
+#                 videos = db.session.query(Video)\
+#                                     .join(Camera)\
+#                                     .join(Image)\
+#                                     .join(Detection)\
+#                                     .join(Labelgroup)\
+#                                     .join(Label,Labelgroup.labels)\
+#                                     .filter(Labelgroup.task_id==task_id)\
+#                                     .filter(Label.id.in_(localLabels))\
+#                                     .filter(Video.downloaded==False)\
+#                                     .distinct().limit(50).all()
+                
+#                 # NOTE: WE DO NOT KEEP EMPTY VIDEOS ANYMORE IN S3 (CAN"T BE DOWNLOADED)
+#                 # if videos == [] and include_empties:
+#                 #     sq = rDets(db.session.query(Image.id.label('image_id'))\
+#                 #                         .join(Detection)\
+#                 #                         .join(Camera)\
+#                 #                         .join(Trapgroup)\
+#                 #                         .filter(Trapgroup.survey==task.survey))\
+#                 #                         .subquery()
+
+#                 #     videos = db.session.query(Video)\
+#                 #                         .join(Camera)\
+#                 #                         .join(Image)\
+#                 #                         .join(sq, sq.c.image_id == Image.id)\
+#                 #                         .filter(Video.downloaded==False)\
+#                 #                         .distinct().limit(50).all()
+                                    
+#             else:
+#                 if include_frames:
+#                     images = db.session.query(Image)\
+#                                         .join(Detection)\
+#                                         .join(Labelgroup)\
+#                                         .join(Label,Labelgroup.labels)\
+#                                         .filter(Labelgroup.task_id==task_id)\
+#                                         .filter(Label.id.in_(localLabels))\
+#                                         .filter(Image.downloaded==False)\
+#                                         .distinct().limit(200).all()
+                    
+#                     if (images==[]) and include_empties:
+#                         images = db.session.query(Image)\
+#                                         .join(Cluster,Image.clusters)\
+#                                         .join(Camera)\
+#                                         .join(Trapgroup)\
+#                                         .filter(Trapgroup.survey==task.survey)\
+#                                         .filter(Cluster.task==task)\
+#                                         .filter(~Labelgroup.labels.any())\
+#                                         .filter(Image.downloaded==False)\
+#                                         .distinct().limit(200).all()
+                        
+#                         if images == []:
+#                             sq = rDets(db.session.query(Image.id.label('image_id'))\
+#                                             .join(Detection)\
+#                                             .join(Camera)\
+#                                             .join(Trapgroup)\
+#                                             .filter(Trapgroup.survey==task.survey))\
+#                                             .subquery()
+                            
+#                             images = db.session.query(Image)\
+#                                             .join(Camera)\
+#                                             .join(Trapgroup)\
+#                                             .filter(Trapgroup.survey==task.survey)\
+#                                             .outerjoin(sq,sq.c.image_id==Image.id)\
+#                                             .filter(sq.c.image_id==None)\
+#                                             .filter(Image.downloaded==False)\
+#                                             .distinct().all()
+#                 else:
+#                     images = db.session.query(Image)\
+#                                         .join(Camera)\
+#                                         .outerjoin(Video)\
+#                                         .join(Detection)\
+#                                         .join(Labelgroup)\
+#                                         .join(Label,Labelgroup.labels)\
+#                                         .filter(Labelgroup.task_id==task_id)\
+#                                         .filter(Label.id.in_(localLabels))\
+#                                         .filter(Image.downloaded==False)\
+#                                         .filter(Video.id==None)\
+#                                         .distinct().limit(200).all()
+
+#                     if (images==[]) and include_empties:
+#                         images = db.session.query(Image)\
+#                                         .join(Cluster,Image.clusters)\
+#                                         .join(Camera)\
+#                                         .outerjoin(Video)\
+#                                         .join(Trapgroup)\
+#                                         .filter(Trapgroup.survey==task.survey)\
+#                                         .filter(Cluster.task==task)\
+#                                         .filter(~Labelgroup.labels.any())\
+#                                         .filter(Image.downloaded==False)\
+#                                         .filter(Video.id==None)\
+#                                         .distinct().limit(200).all()
+                        
+#                         if images == []:
+#                             sq = rDets(db.session.query(Image.id.label('image_id'))\
+#                                             .join(Detection)\
+#                                             .join(Camera)\
+#                                             .join(Trapgroup)\
+#                                             .filter(Trapgroup.survey==task.survey))\
+#                                             .subquery()
+                            
+#                             images = db.session.query(Image)\
+#                                             .join(Camera)\
+#                                             .outerjoin(Video)\
+#                                             .join(Trapgroup)\
+#                                             .filter(Trapgroup.survey==task.survey)\
+#                                             .outerjoin(sq,sq.c.image_id==Image.id)\
+#                                             .filter(sq.c.image_id==None)\
+#                                             .filter(Image.downloaded==False)\
+#                                             .filter(Video.id==None)\
+#                                             .distinct().all()
+                
+#         else:    
+#             if include_video:
+#                 videos = db.session.query(Video)\
+#                                     .join(Camera)\
+#                                     .join(Image)\
+#                                     .join(Trapgroup)\
+#                                     .filter(Trapgroup.survey==task.survey)\
+#                                     .filter(Video.downloaded==False)\
+#                                     .filter(Image.zip_id==None)\
+#                                     .distinct().limit(50).all() # NOTE: WE DO NOT KEEP EMPTY VIDEOS ANYMORE IN S3 (CAN"T BE DOWNLOADED)
+#             else:
+#                 if include_frames:
+#                     images = db.session.query(Image)\
+#                                     .join(Camera)\
+#                                     .join(Trapgroup)\
+#                                     .filter(Trapgroup.survey==task.survey)\
+#                                     .filter(Image.downloaded==False)\
+#                                     .distinct().limit(200).all()
+#                 else:
+#                    images = db.session.query(Image)\
+#                                     .join(Camera)\
+#                                     .outerjoin(Video)\
+#                                     .join(Trapgroup)\
+#                                     .filter(Trapgroup.survey==task.survey)\
+#                                     .filter(Image.downloaded==False)\
+#                                     .filter(Video.id==None)\
+#                                     .distinct().limit(200).all() 
+
+#         if include_video:
+#             for video in videos:
+#                 videoPaths, videoLabels, videoTags = get_video_paths_and_labels(video,task,individual_sorted,species_sorted,flat_structure,labels, include_empties)
+#                 videoLabels.extend(videoTags)
+#                 file_ids.append(video.id)
+#                 pathSplit  = video.camera.path.split('/',1)
+#                 path = pathSplit[0] + '-comp/' + pathSplit[1].split('_video_images_')[0] + video.filename.rsplit('.', 1)[0] + '.mp4'
+#                 reply.append({'url':'https://'+Config.BUCKET+'.s3.amazonaws.com/'+ path.replace('+','%2B').replace('?','%3F').replace('#','%23').replace('\\','%5C'),'paths':videoPaths,'labels':videoLabels})
+#             db.session.commit()
+
+#         else:
+#             for image in images:
+#                 imagePaths, imageLabels, imageTags = get_image_paths_and_labels(image,task,individual_sorted,species_sorted,flat_structure,labels,include_empties)
+#                 imageLabels.extend(imageTags)
+#                 file_ids.append(image.id)
+#                 if raw_files and not image.zip_id: # If image is empty (zip_id) it will only be in the comp folder
+#                     reply.append({'url':'https://'+Config.BUCKET+'.s3.amazonaws.com/'+(image.camera.path+'/'+image.filename).replace('+','%2B').replace('?','%3F').replace('#','%23').replace('\\','%5C'),'paths':imagePaths,'labels':imageLabels, 'hash':image.hash})
+#                 else:
+#                     pathSplit  = image.camera.path.split('/',1)
+#                     path = pathSplit[0] + '-comp/' + pathSplit[1] + '/' + image.filename
+#                     reply.append({'url':'https://'+Config.BUCKET+'.s3.amazonaws.com/'+ path.replace('+','%2B').replace('?','%3F').replace('#','%23').replace('\\','%5C'),'paths':imagePaths,'labels':imageLabels, 'hash':image.hash})
+#             db.session.commit()
+
+#     return json.dumps({'ids':file_ids,'requiredFiles':reply})
+
+# @app.route('/fileHandler/get_required_files', methods=['POST'])
+# @login_required
+# def get_required_files():
+#     """Return the required files and their labels and paths"""
+
+#     if Config.KILL_FILEHANDLER: return {'redirect': url_for('surveys')}, 278
+
+#     reply = []
+#     file_ids = []
+#     last_video_id = 0
+#     last_image_id = 0
+#     videos = []
+#     images = []
+#     task_id = request.json['task_id']
+#     include_video = request.json['include_video']
+#     include_frames = request.json['include_frames']
+#     task = db.session.query(Task).get(task_id)
+#     # if task and (task.survey.user==current_user):
+#     if task and checkSurveyPermission(current_user.id,task.survey_id,'read'):
+
+#         # If the download is stale - force a restart
+#         if GLOBALS.redisClient.get('download_ping_'+str(task_id)):
+#             GLOBALS.redisClient.set('download_ping_'+str(task_id),datetime.utcnow().timestamp())
+#         else:
+#             return {'redirect': url_for('surveys')}, 278
+
+#         individual_sorted = request.json['individual_sorted']
+#         species_sorted = request.json['species_sorted']
+#         flat_structure = request.json['flat_structure']
+#         include_empties = request.json['include_empties']
+#         labels = request.json['species']
+#         raw_files = request.json['raw_files']
+#         video_id = request.json['video_id']
+#         image_id = request.json['image_id']
+
+#         start_time = time.time()
+#         if '0' in labels:
+#             localLabels = [r[0] for r in db.session.query(Label.id).filter(Label.task_id==task_id).all()]
+#             localLabels.append(GLOBALS.vhl_id)
+#             localLabels.append(GLOBALS.knocked_id)
+#             localLabels.append(GLOBALS.unknown_id)
+#         else:
+#             localLabels = [int(r) for r in labels]
+
+#         if include_empties: localLabels.append(GLOBALS.nothing_id)
+    
+#         if include_video:
+#             videos = db.session.query(Video)\
+#                                 .join(Camera)\
+#                                 .join(Image)\
+#                                 .join(Detection)\
+#                                 .join(Labelgroup)\
+#                                 .filter(Labelgroup.task_id==task_id)\
+#                                 .filter(Video.id>video_id)
+
+#             if include_empties:
+#                 sq = rDets(db.session.query(Image.id.label('image_id'))\
+#                                 .join(Detection)\
+#                                 .join(Labelgroup)\
+#                                 .filter(Labelgroup.task_id==task_id))\
+#                                 .subquery()
+#                 videos = videos.outerjoin(Label,Labelgroup.labels)\
+#                                 .outerjoin(sq,sq.c.image_id==Image.id)\
+#                                 .filter(or_(Label.id.in_(localLabels),~Labelgroup.labels.any(),sq.c.image_id==None))\
+#                                 .filter(Image.zip_id==None) # NOTE: WE DO NOT KEEP EMPTY VIDEOS ANYMORE IN S3 (CAN"T BE DOWNLOADED)
+#             else:
+#                 videos = videos.join(Label,Labelgroup.labels).filter(Label.id.in_(localLabels))
+            
+#             videos = videos.distinct().order_by(Video.id).limit(50).all()
+                                
+#         else:
+#             images = db.session.query(Image)\
+#                                 .join(Detection)\
+#                                 .join(Labelgroup)\
+#                                 .filter(Labelgroup.task_id==task_id)\
+#                                 .filter(Image.id>image_id)
+
+#             if not include_frames:
+#                 images = images.join(Camera).outerjoin(Video).filter(Video.id==None)
+
+#             if include_empties:
+#                 sq = rDets(db.session.query(Image.id.label('image_id'))\
+#                                 .join(Detection)\
+#                                 .join(Labelgroup)\
+#                                 .filter(Labelgroup.task_id==task_id))\
+#                                 .subquery()
+#                 images = images.outerjoin(Label,Labelgroup.labels)\
+#                                 .outerjoin(sq,sq.c.image_id==Image.id)\
+#                                 .filter(or_(Label.id.in_(localLabels),~Labelgroup.labels.any(),sq.c.image_id==None))
+#             else:
+#                 images = images.join(Label,Labelgroup.labels).filter(Label.id.in_(localLabels))
+
+#             images = images.distinct().order_by(Image.id).limit(200).all()
+
+#         if Config.DEBUGGING: app.logger.info('Time taken to get images/videos: '+str(time.time()-start_time))
+#         start_time = time.time()
+
+#         if include_video:
+#             for video in videos:
+#                 videoPaths, videoLabels, videoTags = get_video_paths_and_labels(video,task,individual_sorted,species_sorted,flat_structure,labels, include_empties)
+#                 videoLabels.extend(videoTags)
+#                 file_ids.append(video.id)
+#                 pathSplit  = video.camera.path.split('/',1)
+#                 path = pathSplit[0] + '-comp/' + pathSplit[1].split('_video_images_')[0] + video.filename.rsplit('.', 1)[0] + '.mp4'
+#                 reply.append({'url':'https://'+Config.BUCKET+'.s3.amazonaws.com/'+ path.replace('+','%2B').replace('?','%3F').replace('#','%23').replace('\\','%5C'),'paths':videoPaths,'labels':videoLabels, 'hash':video.hash, 'id':video.id})
+
+#         else:
+#             for image in images:
+#                 imagePaths, imageLabels, imageTags = get_image_paths_and_labels(image,task,individual_sorted,species_sorted,flat_structure,labels,include_empties)
+#                 imageLabels.extend(imageTags)
+#                 file_ids.append(image.id)
+#                 if raw_files and not image.zip_id: # If image is empty (zip_id) it will only be in the comp folder
+#                     reply.append({'url':'https://'+Config.BUCKET+'.s3.amazonaws.com/'+(image.camera.path+'/'+image.filename).replace('+','%2B').replace('?','%3F').replace('#','%23').replace('\\','%5C'),'paths':imagePaths,'labels':imageLabels, 'hash':image.hash, 'id':image.id})
+#                 else:
+#                     pathSplit  = image.camera.path.split('/',1)
+#                     path = pathSplit[0] + '-comp/' + pathSplit[1] + '/' + image.filename
+#                     reply.append({'url':'https://'+Config.BUCKET+'.s3.amazonaws.com/'+ path.replace('+','%2B').replace('?','%3F').replace('#','%23').replace('\\','%5C'),'paths':imagePaths,'labels':imageLabels, 'hash':image.hash, 'id':image.id})
+        
+#         last_video_id = videos[-1].id if videos else 0
+#         last_image_id = images[-1].id if images else 0
+
+#         if Config.DEBUGGING: app.logger.info('Time taken to get image/video info: '+str(time.time()-start_time))
+
+#     return json.dumps({'ids':file_ids,'requiredFiles':reply,'last_video_id':last_video_id,'last_image_id':last_image_id})
 
 @app.route('/fileHandler/get_required_files', methods=['POST'])
 @login_required
@@ -10017,6 +10358,10 @@ def get_required_files():
 
     reply = []
     file_ids = []
+    last_video_id = 0
+    last_image_id = 0
+    videos = []
+    images = []
     task_id = request.json['task_id']
     include_video = request.json['include_video']
     include_frames = request.json['include_frames']
@@ -10036,168 +10381,32 @@ def get_required_files():
         include_empties = request.json['include_empties']
         labels = request.json['species']
         raw_files = request.json['raw_files']
+        video_id = request.json['video_id']
+        image_id = request.json['image_id']
 
-        if task.status == 'Processing':
-            # Try speed things up while waiting for download to prep
-            if '0' in labels:
-                localLabels = [r.id for r in task.labels]
-                localLabels.append(GLOBALS.vhl_id)
-                localLabels.append(GLOBALS.knocked_id)
-                localLabels.append(GLOBALS.unknown_id)
-            else:
-                localLabels = [int(r) for r in labels]
 
-            if include_empties: localLabels.append(GLOBALS.nothing_id)
-            
-            # images = db.session.query(Image)\
-            #                     .join(Cluster,Image.clusters)\
-            #                     .join(Label,Cluster.labels)\
-            #                     .join(Camera)\
-            #                     .join(Trapgroup)\
-            #                     .filter(Trapgroup.survey==task.survey)\
-            #                     .filter(Cluster.task==task)\
-            #                     .filter(Label.id.in_(localLabels))\
-            #                     .filter(Image.downloaded==False)\
-            #                     .distinct().limit(200).all()
+        if task.status.lower() not in Config.TASK_READY_STATUSES:
+            return json.dumps({'status': 'not ready', 'ids':file_ids,'requiredFiles':reply,'last_video_id':last_video_id,'last_image_id':last_image_id})
+    
+        if include_video:
+            videos = db.session.query(Video)\
+                                .join(Camera)\
+                                .join(Image)\
+                                .join(Detection)\
+                                .join(Labelgroup)\
+                                .filter(Labelgroup.task_id==task_id)\
+                                .filter(Video.downloaded==False)\
+                                .filter(Video.id>video_id)\
+                                .distinct().order_by(Video.id).limit(50).all()   
+        else:
+            images = db.session.query(Image)\
+                                .join(Detection)\
+                                .join(Labelgroup)\
+                                .filter(Labelgroup.task_id==task_id)\
+                                .filter(Image.downloaded==False)\
+                                .filter(Image.id>image_id)\
+                                .distinct().order_by(Image.id).limit(200).all()
 
-            if include_video:
-                videos = db.session.query(Video)\
-                                    .join(Camera)\
-                                    .join(Image)\
-                                    .join(Detection)\
-                                    .join(Labelgroup)\
-                                    .join(Label,Labelgroup.labels)\
-                                    .filter(Labelgroup.task_id==task_id)\
-                                    .filter(Label.id.in_(localLabels))\
-                                    .filter(Video.downloaded==False)\
-                                    .distinct().limit(50).all()
-                
-                # NOTE: WE DO NOT KEEP EMPTY VIDEOS ANYMORE IN S3 (CAN"T BE DOWNLOADED)
-                # if videos == [] and include_empties:
-                #     sq = rDets(db.session.query(Image.id.label('image_id'))\
-                #                         .join(Detection)\
-                #                         .join(Camera)\
-                #                         .join(Trapgroup)\
-                #                         .filter(Trapgroup.survey==task.survey))\
-                #                         .subquery()
-
-                #     videos = db.session.query(Video)\
-                #                         .join(Camera)\
-                #                         .join(Image)\
-                #                         .join(sq, sq.c.image_id == Image.id)\
-                #                         .filter(Video.downloaded==False)\
-                #                         .distinct().limit(50).all()
-                                    
-            else:
-                if include_frames:
-                    images = db.session.query(Image)\
-                                        .join(Detection)\
-                                        .join(Labelgroup)\
-                                        .join(Label,Labelgroup.labels)\
-                                        .filter(Labelgroup.task_id==task_id)\
-                                        .filter(Label.id.in_(localLabels))\
-                                        .filter(Image.downloaded==False)\
-                                        .distinct().limit(200).all()
-                    
-                    if (images==[]) and include_empties:
-                        images = db.session.query(Image)\
-                                        .join(Cluster,Image.clusters)\
-                                        .join(Camera)\
-                                        .join(Trapgroup)\
-                                        .filter(Trapgroup.survey==task.survey)\
-                                        .filter(Cluster.task==task)\
-                                        .filter(~Labelgroup.labels.any())\
-                                        .filter(Image.downloaded==False)\
-                                        .distinct().limit(200).all()
-                        
-                        if images == []:
-                            sq = rDets(db.session.query(Image.id.label('image_id'))\
-                                            .join(Detection)\
-                                            .join(Camera)\
-                                            .join(Trapgroup)\
-                                            .filter(Trapgroup.survey==task.survey))\
-                                            .subquery()
-                            
-                            images = db.session.query(Image)\
-                                            .join(Camera)\
-                                            .join(Trapgroup)\
-                                            .filter(Trapgroup.survey==task.survey)\
-                                            .outerjoin(sq,sq.c.image_id==Image.id)\
-                                            .filter(sq.c.image_id==None)\
-                                            .filter(Image.downloaded==False)\
-                                            .distinct().all()
-                else:
-                    images = db.session.query(Image)\
-                                        .join(Camera)\
-                                        .outerjoin(Video)\
-                                        .join(Detection)\
-                                        .join(Labelgroup)\
-                                        .join(Label,Labelgroup.labels)\
-                                        .filter(Labelgroup.task_id==task_id)\
-                                        .filter(Label.id.in_(localLabels))\
-                                        .filter(Image.downloaded==False)\
-                                        .filter(Video.id==None)\
-                                        .distinct().limit(200).all()
-
-                    if (images==[]) and include_empties:
-                        images = db.session.query(Image)\
-                                        .join(Cluster,Image.clusters)\
-                                        .join(Camera)\
-                                        .outerjoin(Video)\
-                                        .join(Trapgroup)\
-                                        .filter(Trapgroup.survey==task.survey)\
-                                        .filter(Cluster.task==task)\
-                                        .filter(~Labelgroup.labels.any())\
-                                        .filter(Image.downloaded==False)\
-                                        .filter(Video.id==None)\
-                                        .distinct().limit(200).all()
-                        
-                        if images == []:
-                            sq = rDets(db.session.query(Image.id.label('image_id'))\
-                                            .join(Detection)\
-                                            .join(Camera)\
-                                            .join(Trapgroup)\
-                                            .filter(Trapgroup.survey==task.survey))\
-                                            .subquery()
-                            
-                            images = db.session.query(Image)\
-                                            .join(Camera)\
-                                            .outerjoin(Video)\
-                                            .join(Trapgroup)\
-                                            .filter(Trapgroup.survey==task.survey)\
-                                            .outerjoin(sq,sq.c.image_id==Image.id)\
-                                            .filter(sq.c.image_id==None)\
-                                            .filter(Image.downloaded==False)\
-                                            .filter(Video.id==None)\
-                                            .distinct().all()
-                
-        else:    
-            if include_video:
-                videos = db.session.query(Video)\
-                                    .join(Camera)\
-                                    .join(Image)\
-                                    .join(Trapgroup)\
-                                    .filter(Trapgroup.survey==task.survey)\
-                                    .filter(Video.downloaded==False)\
-                                    .filter(Image.zip_id==None)\
-                                    .distinct().limit(50).all() # NOTE: WE DO NOT KEEP EMPTY VIDEOS ANYMORE IN S3 (CAN"T BE DOWNLOADED)
-            else:
-                if include_frames:
-                    images = db.session.query(Image)\
-                                    .join(Camera)\
-                                    .join(Trapgroup)\
-                                    .filter(Trapgroup.survey==task.survey)\
-                                    .filter(Image.downloaded==False)\
-                                    .distinct().limit(200).all()
-                else:
-                   images = db.session.query(Image)\
-                                    .join(Camera)\
-                                    .outerjoin(Video)\
-                                    .join(Trapgroup)\
-                                    .filter(Trapgroup.survey==task.survey)\
-                                    .filter(Image.downloaded==False)\
-                                    .filter(Video.id==None)\
-                                    .distinct().limit(200).all() 
 
         if include_video:
             for video in videos:
@@ -10206,8 +10415,7 @@ def get_required_files():
                 file_ids.append(video.id)
                 pathSplit  = video.camera.path.split('/',1)
                 path = pathSplit[0] + '-comp/' + pathSplit[1].split('_video_images_')[0] + video.filename.rsplit('.', 1)[0] + '.mp4'
-                reply.append({'url':'https://'+Config.BUCKET+'.s3.amazonaws.com/'+ path.replace('+','%2B').replace('?','%3F').replace('#','%23').replace('\\','%5C'),'paths':videoPaths,'labels':videoLabels})
-            db.session.commit()
+                reply.append({'url':'https://'+Config.BUCKET+'.s3.amazonaws.com/'+ path.replace('+','%2B').replace('?','%3F').replace('#','%23').replace('\\','%5C'),'paths':videoPaths,'labels':videoLabels, 'hash':video.hash, 'id':video.id})
 
         else:
             for image in images:
@@ -10215,14 +10423,17 @@ def get_required_files():
                 imageLabels.extend(imageTags)
                 file_ids.append(image.id)
                 if raw_files and not image.zip_id: # If image is empty (zip_id) it will only be in the comp folder
-                    reply.append({'url':'https://'+Config.BUCKET+'.s3.amazonaws.com/'+(image.camera.path+'/'+image.filename).replace('+','%2B').replace('?','%3F').replace('#','%23').replace('\\','%5C'),'paths':imagePaths,'labels':imageLabels, 'hash':image.hash})
+                    reply.append({'url':'https://'+Config.BUCKET+'.s3.amazonaws.com/'+(image.camera.path+'/'+image.filename).replace('+','%2B').replace('?','%3F').replace('#','%23').replace('\\','%5C'),'paths':imagePaths,'labels':imageLabels, 'hash':image.hash, 'id':image.id})
                 else:
                     pathSplit  = image.camera.path.split('/',1)
                     path = pathSplit[0] + '-comp/' + pathSplit[1] + '/' + image.filename
-                    reply.append({'url':'https://'+Config.BUCKET+'.s3.amazonaws.com/'+ path.replace('+','%2B').replace('?','%3F').replace('#','%23').replace('\\','%5C'),'paths':imagePaths,'labels':imageLabels, 'hash':image.hash})
-            db.session.commit()
+                    reply.append({'url':'https://'+Config.BUCKET+'.s3.amazonaws.com/'+ path.replace('+','%2B').replace('?','%3F').replace('#','%23').replace('\\','%5C'),'paths':imagePaths,'labels':imageLabels, 'hash':image.hash, 'id':image.id})
+        
+        last_video_id = videos[-1].id if videos else 0
+        last_image_id = images[-1].id if images else 0
 
-    return json.dumps({'ids':file_ids,'requiredFiles':reply})
+
+    return json.dumps({'status': 'ready', 'ids':file_ids,'requiredFiles':reply,'last_video_id':last_video_id,'last_image_id':last_image_id})
 
 @app.route('/fileHandler/set_download_status', methods=['POST'])
 @login_required
@@ -10261,15 +10472,10 @@ def set_download_status():
                         .first()
 
         if checkImage or checkVideo:
-            if checkImage:
-                resetImageDownloadStatus.delay(task_id=task_id,then_set=True,labels=labels,include_empties=include_empties, include_frames=include_frames)
-
-            if checkVideo:
-                resetVideoDownloadStatus.delay(task_id=task_id,then_set=True,labels=labels,include_empties=include_empties, include_frames=include_frames)
-
+            resetDownloadStatus.delay(task_id=task_id,then_set=True,labels=labels,include_empties=include_empties, include_frames=include_frames, include_video=include_video)
             return json.dumps('resetting')
         else:
-            setImageDownloadStatus.delay(task_id=task_id,labels=labels,include_empties=include_empties, include_video=include_video, include_frames=include_frames)
+            setDownloadStatus.delay(task_id=task_id,labels=labels,include_empties=include_empties, include_video=include_video, include_frames=include_frames)
             return json.dumps('success')
         
     return json.dumps('error')
@@ -10378,7 +10584,8 @@ def check_download_available():
         download_request_id = None
     task = db.session.query(Task).get(task_id)
     if task and checkSurveyPermission(current_user.id,task.survey_id,'read'):
-        check = db.session.query(Trapgroup.id).join(Camera).join(Image).outerjoin(Video).filter(Trapgroup.survey_id==task.survey_id).filter(or_(Image.downloaded==True,Video.downloaded==True)).first()
+        # check = db.session.query(Trapgroup.id).join(Camera).join(Image).outerjoin(Video).filter(Trapgroup.survey_id==task.survey_id).filter(or_(Image.downloaded==True,Video.downloaded==True)).first()
+        check = db.session.query(Task.id).filter(Task.survey_id==task.survey_id).filter(Task.status.notin_(Config.TASK_READY_STATUSES)).first()
         if download_request_id:
             check2 = db.session.query(DownloadRequest).join(Task).filter(Task.survey_id==task.survey_id).filter(DownloadRequest.type=='file').filter(DownloadRequest.id!=download_request_id).first()
         else:
@@ -15508,7 +15715,8 @@ def restore_for_download():
 
         if raw_files or include_video or include_empties:
 
-            check = db.session.query(Trapgroup.id).join(Camera).join(Image).outerjoin(Video).filter(Trapgroup.survey_id==task.survey_id).filter(or_(Image.downloaded==True,Video.downloaded==True)).first()
+            # check = db.session.query(Trapgroup.id).join(Camera).join(Image).outerjoin(Video).filter(Trapgroup.survey_id==task.survey_id).filter(or_(Image.downloaded==True,Video.downloaded==True)).first()
+            check = db.session.query(Task.id).filter(Task.survey_id==task.survey_id).filter(Task.status.notin_(Config.TASK_READY_STATUSES)).first()
             check2 = db.session.query(DownloadRequest).join(Task).filter(Task.survey_id==task.survey_id).filter(DownloadRequest.type=='file').first()
             if check or check2:
                 status = 'error'
@@ -15646,8 +15854,7 @@ def deleteDownloadRequest(download_request_id):
 
             if download_request.status == 'Downloading':
                 GLOBALS.redisClient.delete('download_ping_'+str(task.id))
-                resetImageDownloadStatus.delay(task_id=task.id,then_set=False,labels=None,include_empties=None, include_frames=True)
-                resetVideoDownloadStatus.delay(task_id=task.id,then_set=False,labels=None,include_empties=None, include_frames=True)
+                resetDownloadStatus.delay(task_id=task.id)
             elif download_request.status == 'Restoring Files':
                 survey = task.survey
                 if survey.status == 'Restoring Files':

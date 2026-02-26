@@ -22,7 +22,7 @@ from flask import render_template
 import time
 import threading
 from sqlalchemy.sql import func, or_, alias, distinct, and_, literal_column, case
-from sqlalchemy import desc, insert
+from sqlalchemy import desc, insert, update, select
 from sqlalchemy.orm import joinedload
 import random
 import string
@@ -4209,8 +4209,7 @@ def setup_new_survey_permissions(survey,organisation_id,user_id,permission,annot
 def manageDownload(task_id):
     '''Kicks off the necessary download cleanup for the specified task after the download has been abandoned.'''
 
-    resetImageDownloadStatus.delay(task_id=task_id,then_set=False,labels=None,include_empties=None, include_frames=True)
-    resetVideoDownloadStatus.delay(task_id=task_id,then_set=False,labels=None,include_empties=None, include_frames=True)
+    resetDownloadStatus.delay(task_id=task_id)
     GLOBALS.redisClient.delete('download_ping_'+str(task_id))
 
     download_requests = db.session.query(DownloadRequest).filter(DownloadRequest.task_id==task_id).filter(DownloadRequest.type=='file').filter(DownloadRequest.status=='Downloading').all()
@@ -4246,8 +4245,8 @@ def manageDownload(task_id):
     return True
 
 @celery.task(bind=True,max_retries=5,ignore_result=True)
-def resetImageDownloadStatus(self,task_id,then_set,labels,include_empties, include_frames):
-    '''Resets the image downloaded status to the default not-downloaded state'''
+def resetDownloadStatus(self,task_id,then_set=False,labels=None,include_empties=None, include_frames=None, include_video=None):
+    '''Resets the image and video downloaded status to the default not-downloaded state'''
     
     try:
         task = db.session.query(Task).get(task_id)
@@ -4255,61 +4254,42 @@ def resetImageDownloadStatus(self,task_id,then_set,labels,include_empties, inclu
         task.status = 'Processing'
         db.session.commit()
 
-        images = db.session.query(Image)\
+        image_sq = db.session.query(Image.id)\
                         .join(Camera)\
                         .join(Trapgroup)\
-                        .filter(Trapgroup.survey==task.survey)\
+                        .filter(Trapgroup.survey_id==task.survey_id)\
                         .filter(Image.downloaded!=False)\
-                        .all()
+                        .distinct().subquery()
 
-        # for chunk in chunker(images,10000):
-        for image in images:
-            image.downloaded = False
-        db.session.commit()
+        db.session.execute(
+            update(Image)
+            .where(Image.id.in_(select(image_sq.c.id)))
+            .values({'downloaded': False}),
+            execution_options={
+                'synchronize_session': False
+            }
+        )
 
-        if then_set:
-            setImageDownloadStatus.delay(task_id=task_id,labels=labels,include_empties=include_empties, include_video=False, include_frames=include_frames)
-        else:
-            GLOBALS.redisClient.delete(str(task.id)+'_filesToDownload')
-            task.status = 'Ready'
-            db.session.commit()
-
-    except Exception as exc:
-        app.logger.info(' ')
-        app.logger.info('!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!')
-        app.logger.info(traceback.format_exc())
-        app.logger.info('!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!')
-        app.logger.info(' ')
-        self.retry(exc=exc, countdown= retryTime(self.request.retries))
-
-    finally:
-        db.session.remove()
-
-    return True
-
-@celery.task(bind=True,max_retries=5,ignore_result=True)
-def resetVideoDownloadStatus(self,task_id,then_set,labels,include_empties, include_frames):
-    '''Resets the video downloaded status to the default not-downloaded state'''
-    
-    try:
-        task = db.session.query(Task).get(task_id)
-        if task.status=='Preparing Download': return True
-        task.status = 'Processing'
-        db.session.commit()
-
-        videos = db.session.query(Video)\
+        video_sq = db.session.query(Video.id)\
                         .join(Camera)\
                         .join(Trapgroup)\
-                        .filter(Trapgroup.survey==task.survey)\
+                        .filter(Trapgroup.survey_id==task.survey_id)\
                         .filter(Video.downloaded!=False)\
-                        .all()
-        
-        for video in videos:
-            video.downloaded = False
+                        .distinct().subquery()
+
+        db.session.execute(
+            update(Video)
+            .where(Video.id.in_(select(video_sq.c.id)))
+            .values({'downloaded': False}),
+            execution_options={
+                'synchronize_session': False
+            }
+        )
+
         db.session.commit()
 
         if then_set:
-            setImageDownloadStatus.delay(task_id=task_id,labels=labels,include_empties=include_empties, include_video=True, include_frames=include_frames)
+            setDownloadStatus.delay(task_id=task_id,labels=labels,include_empties=include_empties, include_video=include_video, include_frames=include_frames)
         else:
             GLOBALS.redisClient.delete(str(task.id)+'_filesToDownload')
             task.status = 'Ready'
@@ -4329,7 +4309,7 @@ def resetVideoDownloadStatus(self,task_id,then_set,labels,include_empties, inclu
     return True
 
 @celery.task(bind=True,max_retries=5,ignore_result=True)
-def setImageDownloadStatus(self,task_id,labels,include_empties, include_video, include_frames):
+def setDownloadStatus(self,task_id,labels,include_empties, include_video, include_frames):
     '''Sets the download status of images for a particular task to let the fileHandler know what images to serve the client.'''
 
     try:
@@ -4345,13 +4325,13 @@ def setImageDownloadStatus(self,task_id,labels,include_empties, include_video, i
         labels = [int(r) for r in labels]
 
         if include_frames:
-            wantedImages = db.session.query(Image)\
+            wantedImages = db.session.query(Image.id)\
                             .join(Detection)\
                             .join(Labelgroup)\
                             .outerjoin(Label,Labelgroup.labels)\
                             .filter(Labelgroup.task_id==task_id)    
         else:
-            wantedImages = db.session.query(Image)\
+            wantedImages = db.session.query(Image.id)\
                             .join(Camera)\
                             .outerjoin(Video)\
                             .join(Detection)\
@@ -4362,7 +4342,7 @@ def setImageDownloadStatus(self,task_id,labels,include_empties, include_video, i
                             
 
         if include_video:
-            wantedVideos = db.session.query(Video)\
+            wantedVideos = db.session.query(Video.id)\
                             .join(Camera)\
                             .join(Image)\
                             .join(Detection)\
@@ -4401,57 +4381,67 @@ def setImageDownloadStatus(self,task_id,labels,include_empties, include_video, i
             if include_video:
                 wantedVideos = rDets(wantedVideos.filter(Label.id.in_(labels)))
 
-        wantedImages = wantedImages.distinct().all()
+        wantedImages = wantedImages.distinct().subquery()
 
-        allImages = db.session.query(Image)\
+        unwantedImages = db.session.query(Image.id)\
                             .join(Camera)\
                             .join(Trapgroup)\
-                            .filter(Trapgroup.survey==task.survey)\
-                            .distinct().all()
-
-        if include_video:
-            wantedVideos = wantedVideos.distinct().all()
-
-            allVideos = db.session.query(Video)\
+                            .filter(Trapgroup.survey_id==task.survey_id)\
+                            .filter(Image.id.notin_(select(wantedImages.c.id)))\
+                            .distinct().subquery()
+        image_count = db.session.query(func.count(wantedImages.c.id)).scalar()  
+        if not image_count: image_count = 0
+        
+        unwantedVideos = db.session.query(Video.id)\
                             .join(Camera)\
                             .join(Image)\
                             .join(Trapgroup)\
-                            .filter(Trapgroup.survey==task.survey)\
-                            .distinct().all()
+                            .filter(Trapgroup.survey_id==task.survey_id)
+        if include_video:
+            wantedVideos = wantedVideos.distinct().subquery()
+            video_count = db.session.query(func.count(wantedVideos.c.id)).scalar()
+            if not video_count: video_count = 0
+            unwantedVideos = unwantedVideos.filter(Video.id.notin_(select(wantedVideos.c.id))).distinct().subquery()
         else:
-            wantedVideos = []
-            allVideos = []
+            wantedVideos = None
+            unwantedVideos = unwantedVideos.distinct().subquery()
+            video_count = 0
 
-        # Get total count
-        filesToDownload = len(wantedImages) + len(wantedVideos)	
-        if Config.DEBUGGING: app.logger.info('Files to download: '+str(filesToDownload))
+        # Update download status
+        db.session.execute(
+            update(Image)
+            .where(Image.id.in_(select(unwantedImages.c.id)))
+            .values({'downloaded': True}),
+            execution_options={
+                'synchronize_session': False
+            }
+        )
 
-        GLOBALS.redisClient.set(str(task.id)+'_filesToDownload',filesToDownload)
-
-        unwantedImages = list(set(allImages) - set(wantedImages))
-
-        # for chunk in chunker(unwantedImages,10000):
-        for image in unwantedImages:
-            image.downloaded = True
+        db.session.execute(
+            update(Video)
+            .where(Video.id.in_(select(unwantedVideos.c.id)))
+            .values({'downloaded': True}),
+            execution_options={
+                'synchronize_session': False
+            }
+        )
+        
         db.session.commit()
 
-        unwantedVideos = list(set(allVideos) - set(wantedVideos))
+        # Get total count
+        filesToDownload = image_count + video_count
+        if Config.DEBUGGING: app.logger.info('Files to download: '+str(filesToDownload))
+        GLOBALS.redisClient.set(str(task.id)+'_filesToDownload',filesToDownload)
 
-        for chunk in chunker(unwantedVideos,10000):
-            for video in chunk:
-                video.downloaded = True
-            db.session.commit()
-
+        task = db.session.query(Task).get(task_id)
         task.status = 'Ready'
         db.session.commit()
 
         test=db.session.query(Image).join(Camera).join(Trapgroup).filter(Trapgroup.survey==task.survey).filter(Image.downloaded==False).distinct().count()
         testVideo=db.session.query(Video).join(Camera).join(Image).join(Trapgroup).filter(Trapgroup.survey==task.survey).filter(Video.downloaded==False).distinct().count()
-        if test==0:
-            resetImageDownloadStatus(task_id,False,None,None,True)
-
-        if testVideo==0:
-            resetVideoDownloadStatus(task_id,False,None,None,True)
+        
+        if test==0 and testVideo==0:
+            resetDownloadStatus(task_id)
 
     except Exception as exc:
         app.logger.info(' ')
