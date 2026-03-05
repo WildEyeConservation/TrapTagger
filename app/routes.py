@@ -10385,7 +10385,7 @@ def get_required_files():
         image_id = request.json['image_id']
 
 
-        if task.status.lower() not in Config.TASK_READY_STATUSES:
+        if task.status.lower() == 'preparing download':
             return json.dumps({'status': 'not ready', 'ids':file_ids,'requiredFiles':reply,'last_video_id':last_video_id,'last_image_id':last_image_id})
     
         if include_video:
@@ -10471,6 +10471,8 @@ def set_download_status():
                         .filter(Video.downloaded==True)\
                         .first()
 
+        task.status = 'Preparing Download'
+        db.session.commit()
         if checkImage or checkVideo:
             resetDownloadStatus.delay(task_id=task_id,then_set=True,labels=labels,include_empties=include_empties, include_frames=include_frames, include_video=include_video)
             return json.dumps('resetting')
@@ -10585,7 +10587,7 @@ def check_download_available():
     task = db.session.query(Task).get(task_id)
     if task and checkSurveyPermission(current_user.id,task.survey_id,'read'):
         # check = db.session.query(Trapgroup.id).join(Camera).join(Image).outerjoin(Video).filter(Trapgroup.survey_id==task.survey_id).filter(or_(Image.downloaded==True,Video.downloaded==True)).first()
-        check = db.session.query(Task.id).filter(Task.survey_id==task.survey_id).filter(Task.status.notin_(Config.TASK_READY_STATUSES)).first()
+        check = db.session.query(Task.id).join(Survey).filter(Task.survey_id==task.survey_id).filter(or_(Task.status.notin_(Config.TASK_READY_STATUSES),Survey.status.notin_(Config.SURVEY_READY_STATUSES))).first()
         if download_request_id:
             check2 = db.session.query(DownloadRequest).join(Task).filter(Task.survey_id==task.survey_id).filter(DownloadRequest.type=='file').filter(DownloadRequest.id!=download_request_id).first()
         else:
@@ -15716,7 +15718,7 @@ def restore_for_download():
         if raw_files or include_video or include_empties:
 
             # check = db.session.query(Trapgroup.id).join(Camera).join(Image).outerjoin(Video).filter(Trapgroup.survey_id==task.survey_id).filter(or_(Image.downloaded==True,Video.downloaded==True)).first()
-            check = db.session.query(Task.id).filter(Task.survey_id==task.survey_id).filter(Task.status.notin_(Config.TASK_READY_STATUSES)).first()
+            check = None
             check2 = db.session.query(DownloadRequest).join(Task).filter(Task.survey_id==task.survey_id).filter(DownloadRequest.type=='file').first()
             if check or check2:
                 status = 'error'

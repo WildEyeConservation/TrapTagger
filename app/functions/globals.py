@@ -4250,9 +4250,11 @@ def resetDownloadStatus(self,task_id,then_set=False,labels=None,include_empties=
     
     try:
         task = db.session.query(Task).get(task_id)
-        if task.status=='Preparing Download': return True
-        task.status = 'Processing'
-        db.session.commit()
+        # if task.status=='Preparing Download': return True
+        if not(then_set and task.status.lower()=='preparing download'):
+            if task.status.lower() not in Config.TASK_READY_STATUSES or task.survey.status.lower() not in Config.SURVEY_READY_STATUSES: return True
+            task.status = 'Processing'
+            db.session.commit()
 
         image_sq = db.session.query(Image.id)\
                         .join(Camera)\
