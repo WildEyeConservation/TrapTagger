@@ -1,6 +1,7 @@
 from app import app, db, celery
 from app.models import *
 from app.functions.globals import *
+from app.functions.delete import delete_notifications
 import GLOBALS
 from sqlalchemy.sql import func, or_, and_, alias
 from sqlalchemy import desc
@@ -126,10 +127,7 @@ def removeAdminNotifications(user_id, organisation_id):
             ' has been invited to join '+organisation_name+'.']             # Pending worker invite (sender)
 
         for notif_content in notif_contents:
-            notifications = db.session.query(Notification).filter(Notification.user_id==user_id).filter(Notification.contents.contains(notif_content)).all()
-
-            for notification in notifications:
-                db.session.delete(notification)
+            delete_notifications(user_ids=[user_id], contents=notif_content)
 
         db.session.commit()
 

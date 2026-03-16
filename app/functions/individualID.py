@@ -16,8 +16,8 @@ limitations under the License.
 
 from app import app, db, celery
 from app.models import *
-from app.functions.globals import coordinateDistance, retryTime, rDets, updateIndividualIdStatus, chunker, process_detections_for_individual_id, update_individuals_primary_dets,\
-    delete_individuals_helper
+from app.functions.globals import coordinateDistance, retryTime, rDets, updateIndividualIdStatus, chunker, process_detections_for_individual_id, update_individuals_primary_dets
+from app.functions.delete import delete_individuals_helper
 import GLOBALS
 import time
 from sqlalchemy.sql import func, or_, and_, alias, distinct

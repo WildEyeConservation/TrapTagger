@@ -20,6 +20,7 @@ from app.functions.globals import addChildLabels, resolve_abandoned_jobs, create
                                     updateTaskCompletionStatus, updateLabelCompletionStatus, updateIndividualIdStatus, retryTime, chunker, \
                                     getClusterClassifications, checkForIdWork, numify_timestamp, rDets, prep_required_images, updateAllStatuses, classifyTask, cleanup_empty_restored_images,\
                                     reconcile_cluster_labelgroup_labels_and_tags, generateUniqueName, update_individuals_primary_dets, process_multi_labels
+from app.functions.delete import delete_turkcodes
 from app.functions.individualID import calculate_detection_similarities, cleanUpIndividuals, calculate_individual_similarities, check_individual_detection_mismatch
 # from app.functions.results import resetImageDownloadStatus, resetVideoDownloadStatus
 import GLOBALS
@@ -90,9 +91,7 @@ def wrapUpTask(self,task_id):
         GLOBALS.redisClient.delete('active_jobs_'+str(task.id))
         GLOBALS.redisClient.delete('job_pool_'+str(task.id))
 
-        turkcodes = db.session.query(Turkcode).filter(Turkcode.task_id==task_id).filter(Turkcode.user_id==None).filter(Turkcode.active==True).all()
-        for turkcode in turkcodes:
-            db.session.delete(turkcode)
+        delete_turkcodes(task_id=task_id, extra_params={'active': True, 'user_id': None})
 
         if '-5' in task.tagging_level:
             cleanUpIndividuals(task_id)
