@@ -2165,28 +2165,29 @@ def delete_duplicate_videos(videos,skip):
     db.session.query(imagestable).filter(imagestable.c.image_id.in_(select(imageSQ.c.id))).delete(synchronize_session=False)
     db.session.query(Image).filter(Image.id.in_(select(imageSQ.c.id))).delete(synchronize_session=False)
 
-    db.session.query(Camera).filter(Camera.id.in_(canidateVideoCamIDs)).delete(synchronize_session=False)
     db.session.query(Video).filter(Video.id.in_(candidateVideoIDs)).delete(synchronize_session=False)
+    db.session.query(Camera).filter(Camera.id.in_(canidateVideoCamIDs)).delete(synchronize_session=False)
     
+    if Config.DEBUGGING: app.logger.info(f'{len(candidateVideos)} duplicate videos deleted')
     return True
 
 
-def delete_duplicate_images(images):
+def delete_duplicate_images(imgs):
     '''Helper function for remove_duplicate_images that deletes the specified image objects and their detections from the database.'''
 
     # If adding images - delete the new imports rather than the old ones
-    candidateImages = db.session.query(Image).filter(~Image.clusters.any()).filter(Image.id.in_([r.id for r in images])).order_by(Image.id).distinct().all()
+    candidateImages = db.session.query(Image).filter(~Image.clusters.any()).filter(Image.id.in_([r.id for r in imgs])).order_by(Image.id).distinct().all()
     
-    if len(candidateImages) == len(images):
+    if len(candidateImages) == len(imgs):
         # all are unclustered - delete all but one
         candidateImages = candidateImages[1:]
 
-    elif len(candidateImages) < (len(images)-1):
+    elif len(candidateImages) < (len(imgs)-1):
         # some are clustered
-        clusteredImages = db.session.query(Image).filter(Image.clusters.any()).filter(Image.id.in_([r.id for r in images])).order_by(Image.id).distinct().all()
+        clusteredImages = db.session.query(Image).filter(Image.clusters.any()).filter(Image.id.in_([r.id for r in imgs])).order_by(Image.id).distinct().all()
         candidateImages.extend(clusteredImages[1:])
 
-    kept_image = list(set(images) - set(candidateImages))
+    kept_image = list(set(imgs) - set(candidateImages))
     image_key = kept_image[0].camera.path + '/' + kept_image[0].filename
     
     canditateImageIDs =[]
@@ -2236,7 +2237,7 @@ def delete_duplicate_images(images):
 
     db.session.query(Image).filter(Image.id.in_(canditateImageIDs)).delete(synchronize_session=False)
     
-    db.session.commit()
+    if Config.DEBUGGING: app.logger.info(f'{len(candidateImages)} duplicate images deleted')
     
     return True
 
@@ -2261,6 +2262,8 @@ def remove_duplicate_videos(survey_id):
                         .join(sq,sq.c.path==Camera.path)\
                         .filter(sq.c.count>1)\
                         .all()
+
+    if Config.DEBUGGING: app.logger.info(f'{len(duplicates)} duplicate videos found with duplicate paths')
 
     for path in duplicates:
         videos = [r[0] for r in db.session.query(Video.id)\
@@ -2287,6 +2290,8 @@ def remove_duplicate_videos(survey_id):
                     .filter(sq.c.count>1)\
                     .filter(Video.hash!=None)\
                     .distinct().all()
+
+    if Config.DEBUGGING: app.logger.info(f'{len(duplicates)} duplicate videos found with duplicate hashes')
 
     for hash in duplicates:
         videos = [r[0] for r in db.session.query(Video.id)\
@@ -2315,6 +2320,7 @@ def remove_duplicate_images(survey_id):
                     .subquery()
             
     duplicates = db.session.query(Image.hash).join(sq,sq.c.hash==Image.hash).filter(sq.c.count>1).filter(Image.hash!=None).distinct().all()
+    if Config.DEBUGGING: app.logger.info(f'{len(duplicates)} duplicate images found')
 
     for hash in duplicates:
         images = db.session.query(Image)\
@@ -2325,6 +2331,7 @@ def remove_duplicate_images(survey_id):
                     .distinct().all()
         delete_duplicate_images(images)
 
+    db.session.commit()
     # delete any empty clusters
     task_ids = [r[0] for r in db.session.query(Task.id).filter(Task.survey_id==survey_id).distinct().all()]
     for task_id in task_ids:
@@ -5925,6 +5932,7 @@ def handle_duplicate_cameras(survey_id):
                         .join(sq,sq.c.path==Camera.path)\
                         .filter(sq.c.count>1)\
                         .all()]
+    if Config.DEBUGGING: app.logger.info(f'{len(duplicates)} duplicate cameras found')
 
     for path in duplicates:
         cameras = db.session.query(Camera).join(Trapgroup).filter(Trapgroup.survey_id==survey_id).filter(Camera.path==path).distinct().all()

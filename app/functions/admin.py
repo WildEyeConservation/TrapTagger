@@ -2899,18 +2899,18 @@ def delete_survey_folders(survey_id, folders):
 
     db.session.commit()
 
-    if camera_ids: status = delete_survey_data(survey_id=survey_id, camera_ids=camera_ids, image_ids=[], video_ids=[], cameras_only=True)
+    if camera_ids: status = delete_survey_data(survey_id=survey_id, camera_ids=camera_ids, cameras_only=True)
 
     if status == 'error': app.logger.info('Failed to delete survey folders for survey {}'.format(survey_id))
 
     return (status, affected_trapgroups)
 
-def delete_survey_data(survey_id, camera_ids, image_ids, video_ids, cameras_only=False):
+def delete_survey_data(survey_id, camera_ids, image_ids=None, video_ids=None, cameras_only=False):
     ''' Deletes specified survey files. '''
 
     status = 'success'
     task_ids = [r[0] for r in db.session.query(Task.id).join(Survey).filter(Survey.id==survey_id).distinct().all()]
-    app.logger.info('Deleting survey data for survey {} with {} cameras, {} images and {} videos'.format(survey_id, len(camera_ids), len(image_ids), len(video_ids)))
+    app.logger.info('Deleting survey data for survey {} with {} cameras'.format(survey_id, len(camera_ids), len(image_ids) if image_ids else 0, len(video_ids) if video_ids else 0))
     
     # Delete labelgroups
     if status != 'error':
