@@ -1043,7 +1043,7 @@ def reclusterAfterTimestampChange(survey_id,trapgroup_ids,cameragroup_ids):
                         .filter(Cluster.task_id==task_id)\
                         .filter(Cluster.labels.any())\
                         .filter(sq.c.count>1)\
-                        .subquery()
+                        .distinct().subquery()
         
         lgl=db.session.query(detectionLabels).filter(detectionLabels.c.labelgroup_id.in_(select(labelgroupSQ.c.id))).delete(synchronize_session=False)
         if Config.DEBUGGING: app.logger.info('Deleted detectionLabels: {} from labelgroups in reclusterAfterTimestampChange'.format(lgl))
@@ -2031,7 +2031,7 @@ def recluster_after_image_timestamp_change(survey_id,image_timestamps):
     # cluster labels don't get copied so we don't need to worry about those
     # we don't know which image the human looked at, so we need to just drop everything
     query_limit = 20000
-    clusterSQ = db.session.query(Cluster).join(Image,Cluster.images).filter(Image.id.in_(list(image_timestamps.keys()))).subquery()
+    clusterSQ = db.session.query(Cluster).join(Image,Cluster.images).filter(Image.id.in_(list(image_timestamps.keys()))).distinct().subquery()
 
     c=db.session.query(Cluster).filter(Cluster.id.in_(select(clusterSQ.c.id))).update({Cluster.user_id: None, Cluster.timestamp: None}, synchronize_session=False)
     if Config.DEBUGGING: app.logger.info('Updated {} clusters with user_id and timestamp set to None after timestamp change'.format(c))
@@ -2043,7 +2043,7 @@ def recluster_after_image_timestamp_change(survey_id,image_timestamps):
                             .join(clusterSQ,clusterSQ.c.id==Cluster.id)\
                             .filter(Labelgroup.checked==False)\
                             .filter(Labelgroup.labels.any())\
-                            .subquery()
+                            .distinct().subquery()
     lgl=db.session.query(detectionLabels).filter(detectionLabels.c.labelgroup_id.in_(select(labelgroupsSQ.c.id))).delete(synchronize_session=False)
     if Config.DEBUGGING: app.logger.info('Deleted {} detection labels from labelgroups after timestamp change'.format(lgl))
 
@@ -2837,7 +2837,7 @@ def delete_survey_files(survey_id, files):
         batch_cam_ids = list(batch_cam_ids)
         if status != 'error':
             # Drop labels from image batch clusters and labelgroups
-            clusterSQ = db.session.query(Cluster.id).join(Image,Cluster.images).filter(Image.id.in_(batch_img_ids)).subquery()
+            clusterSQ = db.session.query(Cluster.id).join(Image,Cluster.images).filter(Image.id.in_(batch_img_ids)).distinct().subquery()
             uc = db.session.query(Cluster).filter(Cluster.id.in_(select(clusterSQ.c.id))).filter(Cluster.user_id!=None).update({Cluster.user_id: None, Cluster.timestamp: None}, synchronize_session=False)
 
             labelgroupsSQ = db.session.query(Labelgroup.id)\
@@ -2848,13 +2848,13 @@ def delete_survey_files(survey_id, files):
                             .filter(clusterSQ.c.id!=None)\
                             .filter(Labelgroup.checked==False)\
                             .filter(Labelgroup.labels.any())\
-                            .subquery()
+                            .distinct().subquery()
             l = db.session.query(detectionLabels).filter(detectionLabels.c.labelgroup_id.in_(select(labelgroupsSQ.c.id))).delete(synchronize_session=False)
 
             db.session.commit()
             app.logger.info(f'Deleted labelgroup labels: {l}, updated clusters: {uc}')
 
-            status = delete_survey_data(survey_id=survey_id, camera_ids=batch_cam_ids, image_ids=batch_img_ids, video_ids=batch_vid_ids)
+            if batch_cam_ids and (batch_img_ids or batch_vid_ids): status = delete_survey_data(survey_id=survey_id, camera_ids=batch_cam_ids, image_ids=batch_img_ids, video_ids=batch_vid_ids)
         else:
             break
     
@@ -2882,7 +2882,7 @@ def delete_survey_folders(survey_id, folders):
                 affected_trapgroups.add(trapgroup_id)
 
     # Drop labels from folder clusters and labelgroups
-    clusterSQ = db.session.query(Cluster.id).join(Image,Cluster.images).filter(Image.camera_id.in_(camera_ids)).subquery()
+    clusterSQ = db.session.query(Cluster.id).join(Image,Cluster.images).filter(Image.camera_id.in_(camera_ids)).distinct().subquery()
     uc = db.session.query(Cluster).filter(Cluster.id.in_(select(clusterSQ.c.id))).filter(Cluster.user_id!=None).update({Cluster.user_id: None, Cluster.timestamp: None}, synchronize_session=False)
 
     labelgroupsSQ = db.session.query(Labelgroup.id)\
@@ -2893,7 +2893,7 @@ def delete_survey_folders(survey_id, folders):
                             .filter(clusterSQ.c.id!=None)\
                             .filter(Labelgroup.checked==False)\
                             .filter(Labelgroup.labels.any())\
-                            .subquery()
+                            .distinct().subquery()
     l = db.session.query(detectionLabels).filter(detectionLabels.c.labelgroup_id.in_(select(labelgroupsSQ.c.id))).delete(synchronize_session=False)
     app.logger.info(f'Deleted folder labelgroup labels: {l}, updated clusters: {uc}')
 
@@ -2912,6 +2912,8 @@ def delete_survey_data(survey_id, camera_ids, image_ids=None, video_ids=None, ca
     task_ids = [r[0] for r in db.session.query(Task.id).join(Survey).filter(Survey.id==survey_id).distinct().all()]
     app.logger.info('Deleting survey data for survey {} with {} cameras'.format(survey_id, len(camera_ids), len(image_ids) if image_ids else 0, len(video_ids) if video_ids else 0))
     
+    if not camera_ids: return status
+
     # Delete labelgroups
     if status != 'error':
         try:
@@ -2943,7 +2945,7 @@ def delete_survey_data(survey_id, camera_ids, image_ids=None, video_ids=None, ca
     # Delete images 
     if status != 'error':
         try:
-            if image_ids: 
+            if image_ids is not None:
                 delete_images(survey_id=survey_id, camera_ids=camera_ids, ids=image_ids, delete_from_s3=True)
             else:
                 delete_images(survey_id=survey_id, camera_ids=camera_ids)
@@ -2955,7 +2957,7 @@ def delete_survey_data(survey_id, camera_ids, image_ids=None, video_ids=None, ca
     # Delete videos
     if status != 'error':
         try:
-            if video_ids: 
+            if video_ids is not None:
                 delete_videos(survey_id=survey_id, camera_ids=camera_ids, ids=video_ids, delete_from_s3=True)
             else:
                 delete_videos(survey_id=survey_id, camera_ids=camera_ids)
@@ -2964,7 +2966,7 @@ def delete_survey_data(survey_id, camera_ids, image_ids=None, video_ids=None, ca
             status = 'error'
             app.logger.info('Failed to delete videos for cameras {}'.format(camera_ids))
 
-    if cameras_only and camera_ids and (not image_ids) and (not video_ids):
+    if cameras_only and camera_ids and (image_ids is None) and (video_ids is None):
         # Delete camera and camera data from s3
         if status != 'error':
             try:
@@ -3100,7 +3102,7 @@ def move_survey_folders(survey_id, folders):
                     .join(cluster_site_counts_sq, Cluster.id==cluster_site_counts_sq.c.id)\
                     .filter(Camera.path.in_(list(moved_folders)))\
                     .filter(cluster_site_counts_sq.c.count>1)\
-                    .subquery()
+                    .distinct().subquery()
 
     c = db.session.query(labelstable).filter(labelstable.c.cluster_id.in_(select(clusterSQ.c.id))).delete(synchronize_session=False)
     uc = db.session.query(Cluster).filter(Cluster.id.in_(select(clusterSQ.c.id))).filter(~Cluster.labels.any()).update({Cluster.user_id: None, Cluster.timestamp: None}, synchronize_session=False)
@@ -3113,7 +3115,7 @@ def move_survey_folders(survey_id, folders):
                             .filter(clusterSQ.c.id!=None)\
                             .filter(Labelgroup.checked==False)\
                             .filter(Labelgroup.labels.any())\
-                            .subquery()
+                            .distinct().subquery()
     l = db.session.query(detectionLabels).filter(detectionLabels.c.labelgroup_id.in_(select(labelgroupsSQ.c.id))).delete(synchronize_session=False)
 
     db.session.commit()
