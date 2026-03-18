@@ -430,15 +430,19 @@ function BuildLabelRow(IDNum, isLoad, div, includeParent) {
 
     col1 = document.createElement('div')
     col1.classList.add('col-lg-4')
+    col1.classList.add('notranslate')   // block google translate
 
     col2 = document.createElement('div')
     col2.classList.add('col-lg-1')
+    col2.classList.add('notranslate')   // block google translate
 
     col3 = document.createElement('div')
     col3.classList.add('col-lg-4')
+    col3.classList.add('notranslate')   // block google translate
 
     col4 = document.createElement('div')
     col4.classList.add('col-lg-3')
+    col4.classList.add('notranslate')   // block google translate
   
     btnRemove = document.createElement('button');
     btnRemove.classList.add('btn');
@@ -1758,6 +1762,8 @@ function buildTranslationRow(IDNum,classification,translationDiv,taskLabels,edit
     col1.style.display = 'flex';
     col1.style.flexDirection = 'column';
     col1.style.justifyContent = 'center';
+    col1.classList.add('notranslate')   // block google translate
+
     div.appendChild(col1)
 
     col2 = document.createElement('div')
@@ -1787,6 +1793,7 @@ function buildTranslationRow(IDNum,classification,translationDiv,taskLabels,edit
         select.id = 'classTranslationSelect-'+IDNum
     }
     select.name = select.id
+    select.classList.add('notranslate')   // block google translate
     col3.appendChild(select)
 
     if (edit) {

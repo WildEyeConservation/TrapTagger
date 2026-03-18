@@ -5529,7 +5529,7 @@ document.getElementById('btnSaveSurvey').addEventListener('click', ()=>{
             });
             reader.readAsText(kmlFileUpload.files[0])
         } else {
-            if ((siteFolderN)&&(pathDisplay.options.length>0)) {
+            if ((siteFolderN)&&((pathDisplay.options.length>0&&document.getElementById('BrowserUpload').checked==true)||(document.getElementById('S3BucketUpload').checked==true))) {
                 selectedFolder = document.querySelector(".site-folder.selected");
                 index = selectedFolder.dataset.index;
                 newSurveyTGCode = "(?:[^/]*/){"+index+"}([^/]*)"
