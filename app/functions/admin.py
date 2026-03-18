@@ -1032,6 +1032,29 @@ def reclusterAfterTimestampChange(survey_id,trapgroup_ids,cameragroup_ids):
         sq = db.session.query(Cluster.id,func.count(distinct(Camera.cameragroup_id)).label('count')).join(Image,Cluster.images).join(Camera).filter(Cluster.task_id==task_id).filter(Cluster.labels.any()).group_by(Cluster.id).subquery()
         sq2 = db.session.query(Cluster.id).join(Image,Cluster.images).join(Camera).filter(Camera.cameragroup_id.in_(cameragroup_ids)).filter(Cluster.labels.any()).filter(Cluster.task_id==task_id).subquery()
 
+        # Remove cluster user and timestamp info for clusters that are not checked
+        checked_lg_clusters_sq = db.session.query(Cluster.id)\
+                        .join(Image,Cluster.images)\
+                        .join(Detection)\
+                        .join(Labelgroup)\
+                        .filter(Cluster.task_id==task_id)\
+                        .filter(Labelgroup.task_id==task_id)\
+                        .filter(Labelgroup.checked==True)\
+                        .filter(Labelgroup.labels.any())\
+                        .distinct().subquery()
+
+        clusterQ = db.session.query(Cluster.id)\
+                        .join(sq,sq.c.id==Cluster.id)\
+                        .join(sq2,sq2.c.id==Cluster.id)\
+                        .filter(sq.c.count>1)\
+                        .outerjoin(checked_lg_clusters_sq,checked_lg_clusters_sq.c.id==Cluster.id)\
+                        .filter(checked_lg_clusters_sq.c.id==None)\
+                        .distinct().subquery()
+
+        uc = db.session.query(Cluster).filter(Cluster.id.in_(select(clusterQ.c.id))).filter(Cluster.user_id!=None)\
+                        .update({Cluster.user_id: None, Cluster.timestamp: None}, synchronize_session=False)
+        if Config.DEBUGGING: app.logger.info('Updated {} clusters with user_id and timestamp set to None in reclusterAfterTimestampChange'.format(uc))
+
         labelgroupSQ = db.session.query(Labelgroup.id)\
                         .join(Detection)\
                         .join(Image)\
@@ -2031,9 +2054,19 @@ def recluster_after_image_timestamp_change(survey_id,image_timestamps):
     # cluster labels don't get copied so we don't need to worry about those
     # we don't know which image the human looked at, so we need to just drop everything
     query_limit = 20000
-    clusterSQ = db.session.query(Cluster).join(Image,Cluster.images).filter(Image.id.in_(list(image_timestamps.keys()))).distinct().subquery()
+    clusterSQ = db.session.query(Cluster.id).join(Image,Cluster.images).filter(Image.id.in_(list(image_timestamps.keys()))).distinct().subquery()
 
-    c=db.session.query(Cluster).filter(Cluster.id.in_(select(clusterSQ.c.id))).update({Cluster.user_id: None, Cluster.timestamp: None}, synchronize_session=False)
+    checked_lg_clusters = db.session.query(Cluster.id)\
+                    .join(clusterSQ,clusterSQ.c.id==Cluster.id)\
+                    .join(Image,Cluster.images)\
+                    .join(Detection)\
+                    .join(Labelgroup,and_(Labelgroup.detection_id==Detection.id,Labelgroup.task_id==Cluster.task_id))\
+                    .filter(Labelgroup.checked==True)\
+                    .filter(Labelgroup.labels.any())\
+                    .distinct().subquery()
+
+    c = db.session.query(Cluster).filter(Cluster.id.in_(select(clusterSQ.c.id))).filter(~Cluster.id.in_(select(checked_lg_clusters.c.id))).filter(Cluster.user_id!=None)\
+                    .update({Cluster.user_id: None, Cluster.timestamp: None}, synchronize_session=False)
     if Config.DEBUGGING: app.logger.info('Updated {} clusters with user_id and timestamp set to None after timestamp change'.format(c))
 
     labelgroupsSQ = db.session.query(Labelgroup.id)\
@@ -2838,7 +2871,18 @@ def delete_survey_files(survey_id, files):
         if status != 'error':
             # Drop labels from image batch clusters and labelgroups
             clusterSQ = db.session.query(Cluster.id).join(Image,Cluster.images).filter(Image.id.in_(batch_img_ids)).distinct().subquery()
-            uc = db.session.query(Cluster).filter(Cluster.id.in_(select(clusterSQ.c.id))).filter(Cluster.user_id!=None).update({Cluster.user_id: None, Cluster.timestamp: None}, synchronize_session=False)
+
+            checked_lg_clusters = db.session.query(Cluster.id)\
+                            .join(clusterSQ,clusterSQ.c.id==Cluster.id)\
+                            .join(Image,Cluster.images)\
+                            .join(Detection)\
+                            .join(Labelgroup,and_(Labelgroup.detection_id==Detection.id,Labelgroup.task_id==Cluster.task_id))\
+                            .filter(Labelgroup.checked==True)\
+                            .filter(Labelgroup.labels.any())\
+                            .distinct().subquery()
+
+            uc = db.session.query(Cluster).filter(Cluster.id.in_(select(clusterSQ.c.id))).filter(~Cluster.id.in_(select(checked_lg_clusters.c.id))).filter(Cluster.user_id!=None)\
+                            .update({Cluster.user_id: None, Cluster.timestamp: None}, synchronize_session=False)
 
             labelgroupsSQ = db.session.query(Labelgroup.id)\
                             .join(Detection)\
@@ -2883,7 +2927,18 @@ def delete_survey_folders(survey_id, folders):
 
     # Drop labels from folder clusters and labelgroups
     clusterSQ = db.session.query(Cluster.id).join(Image,Cluster.images).filter(Image.camera_id.in_(camera_ids)).distinct().subquery()
-    uc = db.session.query(Cluster).filter(Cluster.id.in_(select(clusterSQ.c.id))).filter(Cluster.user_id!=None).update({Cluster.user_id: None, Cluster.timestamp: None}, synchronize_session=False)
+
+    checked_lg_clusters = db.session.query(Cluster.id)\
+                            .join(clusterSQ,clusterSQ.c.id==Cluster.id)\
+                            .join(Image,Cluster.images)\
+                            .join(Detection)\
+                            .join(Labelgroup,and_(Labelgroup.detection_id==Detection.id,Labelgroup.task_id==Cluster.task_id))\
+                            .filter(Labelgroup.checked==True)\
+                            .filter(Labelgroup.labels.any())\
+                            .distinct().subquery()
+
+    uc = db.session.query(Cluster).filter(Cluster.id.in_(select(clusterSQ.c.id))).filter(~Cluster.id.in_(select(checked_lg_clusters.c.id))).filter(Cluster.user_id!=None)\
+                    .update({Cluster.user_id: None, Cluster.timestamp: None}, synchronize_session=False)
 
     labelgroupsSQ = db.session.query(Labelgroup.id)\
                             .join(Detection)\
@@ -3088,7 +3143,7 @@ def move_survey_folders(survey_id, folders):
 
     affected_trapgroups.update([tg.id for tg in new_trapgroups])
 
-    # Delete associated cluster and labelgroup labels for clusters containing more than one trapgroup 
+    # Delete associated cluster info (cluster labels gets deleted in prepTask) and labelgroup labels for clusters containing more than one trapgroup 
     cluster_site_counts_sq = db.session.query(Cluster.id, func.count(distinct(Trapgroup.id)).label('count'))\
                             .join(Image,Cluster.images)\
                             .join(Camera, Image.camera_id==Camera.id)\
@@ -3104,8 +3159,17 @@ def move_survey_folders(survey_id, folders):
                     .filter(cluster_site_counts_sq.c.count>1)\
                     .distinct().subquery()
 
-    c = db.session.query(labelstable).filter(labelstable.c.cluster_id.in_(select(clusterSQ.c.id))).delete(synchronize_session=False)
-    uc = db.session.query(Cluster).filter(Cluster.id.in_(select(clusterSQ.c.id))).filter(~Cluster.labels.any()).update({Cluster.user_id: None, Cluster.timestamp: None}, synchronize_session=False)
+    checked_lg_clusters = db.session.query(Cluster.id)\
+                    .join(clusterSQ,clusterSQ.c.id==Cluster.id)\
+                    .join(Image,Cluster.images)\
+                    .join(Detection)\
+                    .join(Labelgroup,and_(Labelgroup.detection_id==Detection.id,Labelgroup.task_id==Cluster.task_id))\
+                    .filter(Labelgroup.checked==True)\
+                    .filter(Labelgroup.labels.any())\
+                    .distinct().subquery()
+
+    uc = db.session.query(Cluster).filter(Cluster.id.in_(select(clusterSQ.c.id))).filter(~Cluster.id.in_(select(checked_lg_clusters.c.id))).filter(Cluster.user_id!=None)\
+                    .update({Cluster.user_id: None, Cluster.timestamp: None}, synchronize_session=False)
 
     labelgroupsSQ = db.session.query(Labelgroup.id)\
                             .join(Detection)\
@@ -3120,6 +3184,6 @@ def move_survey_folders(survey_id, folders):
 
     db.session.commit()
 
-    app.logger.info(f'Deleted labelgroup labels: {l}, deleted cluster labels: {c}, updated clusters: {uc}')
+    app.logger.info(f'Deleted labelgroup labels: {l}, updated clusters: {uc}')
 
     return (status, affected_trapgroups)

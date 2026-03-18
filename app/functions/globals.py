@@ -6150,6 +6150,13 @@ def prepTask(self, task_id, includes=None, translation=None, labels=None, auto_r
 
         if Config.DEBUGGING: print('{}: Finished clustering task {}'.format(time.time()-starttime,task_id))
 
+        # Finally, cleanup all the old clusters
+        # We don't necessarily know the number of clusters. So just keep the latest and delete everything else
+        # We want to only delete the old clusters after all the new clusters have been added to avoid dropping info from clusters that exists across multiple trapgroups from
+        # moving folders around.
+        for trapgroup_id in trapgroup_ids:
+            delete_old_clusters(task_id,trapgroup_id,query_limit)
+
         # Just check for and delete any imageless clusters for safety
         delete_clusters(task_id=task_id, empty=True)
 
@@ -6268,7 +6275,7 @@ def cluster_trapgroup(self,task_id,trapgroup_id,query_limit,timestamp,starting_l
 
         # Finally, cleanup all the old clusters
         # We don't necessarily know the number of clusters. So just keep the latest and delete everything else
-        delete_old_clusters(task_id,trapgroup_id,query_limit)
+        # delete_old_clusters(task_id,trapgroup_id,query_limit)
 
         if Config.DEBUGGING: print('Finished clustering trapgroup {} for task {}'.format(trapgroup_id,task_id))
 
