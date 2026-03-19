@@ -20,9 +20,10 @@ from app.models import *
 from app.functions.globals import detection_rating, randomString, updateTaskCompletionStatus, updateLabelCompletionStatus, updateIndividualIdStatus, retryTime,\
                                  chunker, save_crops, list_all, classifyTask, all_equal, generate_raw_image_hash, updateAllStatuses, setup_new_survey_permissions, \
                                  hideSmallDetections, maskSky, rDets, verify_label, checkChildTranslations, createChildTranslations, add_new_task, prepTask, launch_task
+from app.functions.delete import delete_clusters, delete_cameras, delete_trapgroups, delete_cameragroups
 import GLOBALS
-from sqlalchemy.sql import func, or_, distinct, and_, literal_column
-from sqlalchemy import desc, insert
+from sqlalchemy.sql import func, or_, distinct, and_, literal_column, alias
+from sqlalchemy import desc, insert, select
 from sqlalchemy import exc as sa_exc
 from datetime import datetime, timedelta
 import re
@@ -2097,7 +2098,11 @@ def delete_duplicate_videos(videos,skip):
         importedVideos = db.session.query(Video).join(Camera).outerjoin(Image).filter(or_(Image.clusters.any(),Image.id!=None)).filter(Video.id.in_(videos)).order_by(Video.id).distinct().all()
         candidateVideos.extend(importedVideos[1:])
 
+    candidateVideoIDs = []
+    canidateVideoCamIDs = []
     for video in candidateVideos:
+        candidateVideoIDs.append(video.id)
+        canidateVideoCamIDs.append(video.camera_id)
         if not skip:
             # delete frames
             s3 = boto3.resource('s3')
@@ -2123,66 +2128,88 @@ def delete_duplicate_videos(videos,skip):
             GLOBALS.s3client.delete_object(Bucket=Config.BUCKET,Key=vid_key)
 
         # delete from db (frames shoudln't be imported yet, but just in case)
-        for image in video.camera.images:
-            for detection in image.detections:
+        # for image in video.camera.images:
+        #     for detection in image.detections:
 
-                for labelgroup in detection.labelgroups:
-                    labelgroup.labels = []
-                    labelgroup.tags = []
-                    db.session.delete(labelgroup)
+        #         for labelgroup in detection.labelgroups:
+        #             labelgroup.labels = []
+        #             labelgroup.tags = []
+        #             db.session.delete(labelgroup)
                 
-                detSimilarities = db.session.query(DetSimilarity).filter(or_(DetSimilarity.detection_1==detection.id,DetSimilarity.detection_2==detection.id)).all()
-                for detSimilarity in detSimilarities:
-                    db.session.delete(detSimilarity)
+        #         detSimilarities = db.session.query(DetSimilarity).filter(or_(DetSimilarity.detection_1==detection.id,DetSimilarity.detection_2==detection.id)).all()
+        #         for detSimilarity in detSimilarities:
+        #             db.session.delete(detSimilarity)
                 
-                detection.individuals = []
-                db.session.delete(detection)
+        #         detection.individuals = []
+        #         db.session.delete(detection)
             
-            image.clusters = []
-            db.session.delete(image)
+        #     image.clusters = []
+        #     db.session.delete(image)
 
-        db.session.delete(video.camera)
-        db.session.delete(video)
+    detSQ = db.session.query(Detection.id).join(Image).filter(Image.camera_id.in_(canidateVideoCamIDs)).subquery()
+    labelgroupSQ = db.session.query(Labelgroup.id).join(Detection).join(Image).filter(Image.camera_id.in_(canidateVideoCamIDs)).subquery()
+    imageSQ = db.session.query(Image.id).filter(Image.camera_id.in_(canidateVideoCamIDs)).subquery()
+
+    db.session.query(detectionLabels).filter(detectionLabels.c.labelgroup_id.in_(select(labelgroupSQ.c.id))).delete(synchronize_session=False)
+    db.session.query(detectionTags).filter(detectionTags.c.labelgroup_id.in_(select(labelgroupSQ.c.id))).delete(synchronize_session=False)
+    db.session.query(Labelgroup).filter(Labelgroup.id.in_(select(labelgroupSQ.c.id))).delete(synchronize_session=False)
+
+    db.session.query(DetSimilarity).filter(or_(DetSimilarity.detection_1.in_(select(detSQ.c.id)),DetSimilarity.detection_2.in_(select(detSQ.c.id)))).delete(synchronize_session=False)
+    db.session.query(individualDetections).filter(individualDetections.c.detection_id.in_(select(detSQ.c.id))).delete(synchronize_session=False)
+    db.session.query(individualPrimaryDetections).filter(individualPrimaryDetections.c.detection_id.in_(select(detSQ.c.id))).delete(synchronize_session=False)
+    db.session.query(Feature).filter(Feature.detection_id.in_(select(detSQ.c.id))).delete(synchronize_session=False)
+    db.session.query(Detection).filter(Detection.id.in_(select(detSQ.c.id))).delete(synchronize_session=False)
     
+    db.session.query(requiredimagestable).filter(requiredimagestable.c.image_id.in_(select(imageSQ.c.id))).delete(synchronize_session=False)
+    imagestable = alias(images)
+    db.session.query(imagestable).filter(imagestable.c.image_id.in_(select(imageSQ.c.id))).delete(synchronize_session=False)
+    db.session.query(Image).filter(Image.id.in_(select(imageSQ.c.id))).delete(synchronize_session=False)
+
+    db.session.query(Video).filter(Video.id.in_(candidateVideoIDs)).delete(synchronize_session=False)
+    db.session.query(Camera).filter(Camera.id.in_(canidateVideoCamIDs)).delete(synchronize_session=False)
+    
+    if Config.DEBUGGING: app.logger.info(f'{len(candidateVideos)} duplicate videos deleted')
     return True
 
 
-def delete_duplicate_images(images):
+def delete_duplicate_images(imgs):
     '''Helper function for remove_duplicate_images that deletes the specified image objects and their detections from the database.'''
 
     # If adding images - delete the new imports rather than the old ones
-    candidateImages = db.session.query(Image).filter(~Image.clusters.any()).filter(Image.id.in_([r.id for r in images])).order_by(Image.id).distinct().all()
+    candidateImages = db.session.query(Image).filter(~Image.clusters.any()).filter(Image.id.in_([r.id for r in imgs])).order_by(Image.id).distinct().all()
     
-    if len(candidateImages) == len(images):
+    if len(candidateImages) == len(imgs):
         # all are unclustered - delete all but one
         candidateImages = candidateImages[1:]
 
-    elif len(candidateImages) < (len(images)-1):
+    elif len(candidateImages) < (len(imgs)-1):
         # some are clustered
-        clusteredImages = db.session.query(Image).filter(Image.clusters.any()).filter(Image.id.in_([r.id for r in images])).order_by(Image.id).distinct().all()
+        clusteredImages = db.session.query(Image).filter(Image.clusters.any()).filter(Image.id.in_([r.id for r in imgs])).order_by(Image.id).distinct().all()
         candidateImages.extend(clusteredImages[1:])
 
-    kept_image = list(set(images) - set(candidateImages))
+    kept_image = list(set(imgs) - set(candidateImages))
     image_key = kept_image[0].camera.path + '/' + kept_image[0].filename
     
+    canditateImageIDs =[]
     for image in candidateImages:
+        canditateImageIDs.append(image.id)
         dup_image_key = image.camera.path + '/' + image.filename
-        for detection in image.detections:
+        # for detection in image.detections:
 
-            for labelgroup in detection.labelgroups:
-                labelgroup.labels = []
-                labelgroup.tags = []
-                db.session.delete(labelgroup)
+        #     for labelgroup in detection.labelgroups:
+        #         labelgroup.labels = []
+        #         labelgroup.tags = []
+        #         db.session.delete(labelgroup)
             
-            detSimilarities = db.session.query(DetSimilarity).filter(or_(DetSimilarity.detection_1==detection.id,DetSimilarity.detection_2==detection.id)).all()
-            for detSimilarity in detSimilarities:
-                db.session.delete(detSimilarity)
+        #     detSimilarities = db.session.query(DetSimilarity).filter(or_(DetSimilarity.detection_1==detection.id,DetSimilarity.detection_2==detection.id)).all()
+        #     for detSimilarity in detSimilarities:
+        #         db.session.delete(detSimilarity)
             
-            detection.individuals = []
-            db.session.delete(detection)
+        #     detection.individuals = []
+        #     db.session.delete(detection)
         
-        image.clusters = []
-        db.session.delete(image)
+        # image.clusters = []
+        # db.session.delete(image)
 
         if dup_image_key != image_key:
             splits = dup_image_key.split('/')
@@ -2190,8 +2217,27 @@ def delete_duplicate_images(images):
             dup_comp_image_key = '/'.join(splits)
             GLOBALS.s3client.delete_object(Bucket=Config.BUCKET,Key=dup_image_key)
             GLOBALS.s3client.delete_object(Bucket=Config.BUCKET,Key=dup_comp_image_key)
+
+    detSQ = db.session.query(Detection.id).join(Image).filter(Image.id.in_(canditateImageIDs)).subquery()
+    labelgroupSQ = db.session.query(Labelgroup.id).join(Detection).join(Image).filter(Image.id.in_(canditateImageIDs)).subquery()
     
-    db.session.commit()
+    db.session.query(detectionLabels).filter(detectionLabels.c.labelgroup_id.in_(select(labelgroupSQ.c.id))).delete(synchronize_session=False)
+    db.session.query(detectionTags).filter(detectionTags.c.labelgroup_id.in_(select(labelgroupSQ.c.id))).delete(synchronize_session=False)
+    db.session.query(Labelgroup).filter(Labelgroup.id.in_(select(labelgroupSQ.c.id))).delete(synchronize_session=False)
+
+    db.session.query(DetSimilarity).filter(or_(DetSimilarity.detection_1.in_(select(detSQ.c.id)),DetSimilarity.detection_2.in_(select(detSQ.c.id)))).delete(synchronize_session=False)
+    db.session.query(individualDetections).filter(individualDetections.c.detection_id.in_(select(detSQ.c.id))).delete(synchronize_session=False)
+    db.session.query(individualPrimaryDetections).filter(individualPrimaryDetections.c.detection_id.in_(select(detSQ.c.id))).delete(synchronize_session=False)
+    db.session.query(Feature).filter(Feature.detection_id.in_(select(detSQ.c.id))).delete(synchronize_session=False)
+    db.session.query(Detection).filter(Detection.id.in_(select(detSQ.c.id))).delete(synchronize_session=False)
+    
+    db.session.query(requiredimagestable).filter(requiredimagestable.c.image_id.in_(canditateImageIDs)).delete(synchronize_session=False)
+    imagestable = alias(images)
+    db.session.query(imagestable).filter(imagestable.c.image_id.in_(canditateImageIDs)).delete(synchronize_session=False)
+
+    db.session.query(Image).filter(Image.id.in_(canditateImageIDs)).delete(synchronize_session=False)
+    
+    if Config.DEBUGGING: app.logger.info(f'{len(candidateImages)} duplicate images deleted')
     
     return True
 
@@ -2216,6 +2262,8 @@ def remove_duplicate_videos(survey_id):
                         .join(sq,sq.c.path==Camera.path)\
                         .filter(sq.c.count>1)\
                         .all()
+
+    if Config.DEBUGGING: app.logger.info(f'{len(duplicates)} duplicate videos found with duplicate paths')
 
     for path in duplicates:
         videos = [r[0] for r in db.session.query(Video.id)\
@@ -2242,6 +2290,8 @@ def remove_duplicate_videos(survey_id):
                     .filter(sq.c.count>1)\
                     .filter(Video.hash!=None)\
                     .distinct().all()
+
+    if Config.DEBUGGING: app.logger.info(f'{len(duplicates)} duplicate videos found with duplicate hashes')
 
     for hash in duplicates:
         videos = [r[0] for r in db.session.query(Video.id)\
@@ -2270,6 +2320,7 @@ def remove_duplicate_images(survey_id):
                     .subquery()
             
     duplicates = db.session.query(Image.hash).join(sq,sq.c.hash==Image.hash).filter(sq.c.count>1).filter(Image.hash!=None).distinct().all()
+    if Config.DEBUGGING: app.logger.info(f'{len(duplicates)} duplicate images found')
 
     for hash in duplicates:
         images = db.session.query(Image)\
@@ -2280,26 +2331,17 @@ def remove_duplicate_images(survey_id):
                     .distinct().all()
         delete_duplicate_images(images)
 
+    db.session.commit()
     # delete any empty clusters
-    clusters = db.session.query(Cluster).join(Task).filter(Task.survey_id==survey_id).filter(~Cluster.images.any()).all()
-    for cluster in clusters:
-        cluster.labels = []
-        cluster.tags = []
-        cluster.required_images = []
-        db.session.delete(cluster)
+    task_ids = [r[0] for r in db.session.query(Task.id).filter(Task.survey_id==survey_id).distinct().all()]
+    for task_id in task_ids:
+        delete_clusters(task_id=task_id, empty=True)
 
     #delete any empty cameras
-    cameras = db.session.query(Camera).join(Trapgroup).filter(~Camera.images.any()).filter(Trapgroup.survey_id==survey_id).all()
-    for camera in cameras:
-        db.session.delete(camera)
-    # db.session.commit()
+    delete_cameras(survey_id=survey_id, empty=True)
 
     #delete any empty trapgroups
-    trapgroups = db.session.query(Trapgroup).filter(~Trapgroup.cameras.any()).filter(Trapgroup.survey_id==survey_id).all()
-    for trapgroup in trapgroups:
-        trapgroup.sitegroups = []
-        db.session.delete(trapgroup)
-    # db.session.commit()
+    delete_trapgroups(survey_id=survey_id, empty=True)
 
     db.session.commit()
     db.session.remove()
@@ -4572,17 +4614,8 @@ def processCameras(survey_id, trapgroup_code, camera_code, queue='parallel'):
     GLOBALS.lock.release()
 
     # Find empty cameragroups
-    empty_cameragroups = db.session.query(Cameragroup).filter(~Cameragroup.cameras.any()).all()
-    for empty_cameragroup in empty_cameragroups:
-        empty_cameragroup.masks = []
-        db.session.delete(empty_cameragroup)
+    delete_cameragroups(survey_id=survey_id, empty=True)
 
-    # Find masks without a cameragroup
-    masks = db.session.query(Mask).filter(Mask.cameragroup_id==None).all()
-    for mask in masks:
-        db.session.delete(mask)
-
-    db.session.commit()
     db.session.remove()
 
     return True
@@ -5899,6 +5932,7 @@ def handle_duplicate_cameras(survey_id):
                         .join(sq,sq.c.path==Camera.path)\
                         .filter(sq.c.count>1)\
                         .all()]
+    if Config.DEBUGGING: app.logger.info(f'{len(duplicates)} duplicate cameras found')
 
     for path in duplicates:
         cameras = db.session.query(Camera).join(Trapgroup).filter(Trapgroup.survey_id==survey_id).filter(Camera.path==path).distinct().all()

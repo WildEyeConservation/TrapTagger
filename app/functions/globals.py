@@ -22,7 +22,7 @@ from flask import render_template
 import time
 import threading
 from sqlalchemy.sql import func, or_, alias, distinct, and_, literal_column, case
-from sqlalchemy import desc, insert, update, select
+from sqlalchemy import desc, insert, delete, select, update, select
 from sqlalchemy.orm import joinedload
 import random
 import string
@@ -60,6 +60,7 @@ from gpuworker.worker import segment_and_pose
 import numpy 
 from sqlalchemy.sql.expression import cast
 import sqlalchemy as sa
+from app.functions.delete import delete_clusters
 
 # def cleanupWorkers(one, two):
 #     '''
@@ -960,22 +961,24 @@ def finish_knockdown(self,rootImageID, task, current_user_id, reclusteringTimest
         from app.functions.imports import classifyCluster
         cluster.classification = classifyCluster(cluster)
 
-        labelgroups = db.session.query(Labelgroup)\
+        labelgroups = db.session.query(Labelgroup.id)\
                                 .join(Detection)\
                                 .join(Image)\
                                 .join(Camera)\
                                 .filter(Camera.cameragroup_id==rootImage.camera.cameragroup_id) \
                                 .filter(Image.corrected_timestamp >= rootImage.corrected_timestamp) \
-                                .filter(Labelgroup.task==task)
+                                .filter(Labelgroup.task_id==task_id)
                                 
         if lastImageID: labelgroups = labelgroups.filter(Image.corrected_timestamp <= lastImage.corrected_timestamp)
 
-        labelgroups = labelgroups.distinct().all()
+        labelgroups = [r[0] for r in labelgroups.distinct().all()]
 
         if Config.DEBUGGING: app.logger.info('{} labelgroups knocked down'.format(len(labelgroups)))
 
-        for labelgroup in labelgroups:
-            labelgroup.labels = [downLabel]
+        for chunk in chunker(labelgroups,1000):
+            db.session.query(detectionLabels).filter(detectionLabels.c.labelgroup_id.in_(chunk)).delete(synchronize_session=False)
+            insert_values = [{'labelgroup_id': labelgroup_id, 'label_id': downLabel.id} for labelgroup_id in chunk]
+            db.session.execute(insert(detectionLabels), insert_values)
 
         db.session.commit()
 
@@ -1032,7 +1035,7 @@ def unknock_cluster(self,image_id, label_id, user_id, task_id):
 
         image = db.session.query(Image).get(image_id)
         downLabel = db.session.query(Label).get(GLOBALS.knocked_id)
-        cluster = db.session.query(Cluster).filter(Cluster.task_id == task_id).filter(Cluster.images.contains(image)).filter(Cluster.labels.contains(downLabel)).first()
+        cluster = db.session.query(Cluster).join(Image,Cluster.images).filter(Cluster.task_id==task_id).filter(Image.id==image_id).filter(Cluster.labels.contains(downLabel)).first()
         trapgroup = image.camera.trapgroup
         trapgroup_id = trapgroup.id
 
@@ -1048,16 +1051,15 @@ def unknock_cluster(self,image_id, label_id, user_id, task_id):
             cluster.user_id = None
             cluster.timestamp = None
 
-            labelgroups = db.session.query(Labelgroup)\
+            labelgroupsSQ = db.session.query(Labelgroup.id)\
                                         .join(Detection)\
                                         .join(Image)\
-                                        .filter(Image.clusters.contains(cluster))\
+                                        .join(Cluster,Image.clusters)\
+                                        .filter(Cluster.id==cluster.id)\
                                         .filter(Labelgroup.task_id==task_id)\
-                                        .distinct().all()
-            
-            for labelgroup in labelgroups:
-                labelgroup.labels = []
+                                        .subquery()
 
+            db.session.query(detectionLabels).filter(detectionLabels.c.labelgroup_id.in_(select(labelgroupsSQ.c.id))).delete(synchronize_session=False)
             db.session.commit()
 
         # kick off reclustering
@@ -1068,28 +1070,37 @@ def unknock_cluster(self,image_id, label_id, user_id, task_id):
             rootImage = db.session.query(Image).get(image_id)
             cluster = db.session.query(Cluster).filter(Cluster.task_id == task_id).filter(Cluster.images.contains(rootImage)).first()
 
-            labelgroups = db.session.query(Labelgroup)\
-                                    .join(Detection)\
-                                    .join(Image)\
-                                    .filter(Image.clusters.contains(cluster))\
-                                    .filter(Labelgroup.task_id==task_id)\
-                                    .all()
-
             if int(label_id) != GLOBALS.wrong_id:
                 label = db.session.query(Label).get(int(label_id))
                 cluster.labels = [label]
 
-                for labelgroup in labelgroups:
-                    labelgroup.labels = [label]
+                labelgroup_ids = [r[0] for r in db.session.query(Labelgroup.id)\
+                                .join(Detection)\
+                                .join(Image)\
+                                .join(Cluster,Image.clusters)\
+                                .filter(Cluster.id==cluster.id)\
+                                .filter(Labelgroup.task_id==task_id)\
+                                .distinct().all()]
+                for chunk in chunker(labelgroup_ids,1000):
+                    db.session.query(detectionLabels).filter(detectionLabels.c.labelgroup_id.in_(chunk)).delete(synchronize_session=False)
+                    insert_values = [{'labelgroup_id': labelgroup_id, 'label_id': label_id} for labelgroup_id in chunk]
+                    db.session.execute(insert(detectionLabels), insert_values)
             else: 
                 cluster.labels = []
 
-                for labelgroup in labelgroups:
-                    labelgroup.labels = []
+                labelgroupsSQ = db.session.query(Labelgroup.id)\
+                                .join(Detection)\
+                                .join(Image)\
+                                .join(Cluster,Image.clusters)\
+                                .filter(Cluster.id==cluster.id)\
+                                .filter(Labelgroup.task_id==task_id)\
+                                .subquery()
+
+                db.session.query(detectionLabels).filter(detectionLabels.c.labelgroup_id.in_(select(labelgroupsSQ.c.id))).delete(synchronize_session=False)
 
             cluster.user_id = int(user_id)
             cluster.timestamp = datetime.utcnow()
-            # db.session.commit()
+            db.session.commit()
 
         #reactivate trapgroup
         trapgroup = db.session.query(Trapgroup).get(trapgroup_id)
@@ -1882,7 +1893,7 @@ def checkForIdWork(task_ids,label,theshold):
 
     return num_individuals
 
-def delete_images(surveyName,folder):
+def delete_images_from_s3(surveyName,folder):
     '''Deletes all images from a specified survey in the given AWS S3 folder.'''
 
     prefix = folder + '/' + surveyName + '/'
@@ -4046,10 +4057,7 @@ def update_masks(survey_id,removed_masks,added_masks,edited_masks,user_id,query_
     db.session.commit()
 
     # Remove masks
-    for mask_id in removed_masks:
-        mask = db.session.query(Mask).get(mask_id)
-        if mask:
-            db.session.delete(mask)
+    db.session.query(Mask).filter(Mask.id.in_(removed_masks)).delete(synchronize_session=False)
 
     # Add masks
     for mask in added_masks:
@@ -5794,39 +5802,15 @@ def delete_old_clusters(task_id,trapgroup_id,query_limit):
                             .subquery()
     
     while True:
-        clusters = db.session.query(Cluster)\
+        clusters = [r[0] for r in db.session.query(Cluster.id)\
                             .join(clusterSQ,clusterSQ.c.cluster_id==Cluster.id)\
                             .filter(clusterSQ.c.row_number>1)\
-                            .distinct().limit(query_limit).all()
+                            .distinct().limit(query_limit).all()]
         
         if not clusters: break
 
-        for cluster in clusters:
-            cluster.labels = []
-            cluster.tags = []
-            cluster.images = []
-            cluster.required_images = []
-            db.session.delete(cluster)
-
-        db.session.commit()
-
-    return True
-
-def delete_empty_clusters(task_id,query_limit):
-    ''' Deletes any clusters without images. '''
-
-    while True:
-        if Config.DEBUGGING: starttime = time.time()
-        clusters = db.session.query(Cluster).filter(Cluster.task_id==task_id).filter(~Cluster.images.any()).limit(query_limit).all()
-        if Config.DEBUGGING: print('Fetched {} empty clusters in {}'.format(len(clusters),time.time()-starttime))
-
-        if not clusters: break
-
-        for cluster in clusters:
-            cluster.labels = []
-            cluster.tags = []
-            cluster.required_images = []
-            db.session.delete(cluster)
+        for cid_chunk in chunker(clusters, 1000):
+            delete_clusters(task_id=task_id, ids=cid_chunk)
 
         db.session.commit()
 
@@ -6007,27 +5991,24 @@ def prepare_labelgroup_cluster_labels(task_id,trapgroup_id,query_limit,timestamp
     # downLabel needs to be excluded otherwise the knockdown is overwritten for admin-labelled clusters
     admin = db.session.query(User).filter(User.username=='Admin').first()
     downLabel = db.session.query(Label).get(GLOBALS.knocked_id)
-    while True:
-        labelgroups = db.session.query(Labelgroup)\
+
+    adminLabelgroupsSQ = db.session.query(Labelgroup.id)\
                                 .join(Detection)\
                                 .join(Image)\
                                 .join(Camera)\
                                 .join(Cluster,Image.clusters)\
-                                .filter(Labelgroup.labels.any())\
+                                .join(Label,Labelgroup.labels)\
                                 .filter(Labelgroup.task_id==task_id)\
                                 .filter(Cluster.task_id==task_id)\
                                 .filter(Cluster.user_id==admin.id)\
                                 .filter(Camera.trapgroup_id==trapgroup_id)\
-                                .filter(~Labelgroup.labels.contains(downLabel))
-        
-        if timestamp: labelgroups = labelgroups.filter(Image.corrected_timestamp>=timestamp)
+                                .filter(Label.id!=downLabel.id)
 
-        labelgroups = labelgroups.distinct().limit(query_limit).all()
+    if timestamp: adminLabelgroupsSQ = adminLabelgroupsSQ.filter(Image.corrected_timestamp>=timestamp)
 
-        for labelgroup in labelgroups:
-            labelgroup.labels = []
-
-        if len(labelgroups)<query_limit: break
+    adminLabelgroupsSQ = adminLabelgroupsSQ.distinct().subquery()
+    alg=db.session.query(detectionLabels).filter(detectionLabels.c.labelgroup_id.in_(select(adminLabelgroupsSQ.c.id))).delete(synchronize_session=False)
+    if Config.DEBUGGING: print('{} detection labels deleted from admin labelgroups'.format(alg))
 
     # Drop unknown and nothing labels to be conservative - there could now be more info after a re-cluster
     nothingLabel = db.session.query(Label).get(GLOBALS.nothing_id)
@@ -6058,80 +6039,54 @@ def prepare_labelgroup_cluster_labels(task_id,trapgroup_id,query_limit,timestamp
                 skip_nothing_and_unknown = False
         
     if not skip_nothing_and_unknown:
-        while True:
-            labelgroups = db.session.query(Labelgroup)\
-                                    .join(Detection)\
-                                    .join(Image)\
-                                    .join(Camera)\
-                                    .filter(Labelgroup.labels.contains(nothingLabel))\
-                                    .filter(Labelgroup.task_id==task_id)\
-                                    .filter(Camera.trapgroup_id==trapgroup_id)
+        labelgroupsSQ = db.session.query(Labelgroup.id)\
+                        .join(Detection)\
+                        .join(Image)\
+                        .join(Camera)\
+                        .filter(Labelgroup.task_id==task_id)\
+                        .filter(Camera.trapgroup_id==trapgroup_id)
 
-            if timestamp: labelgroups = labelgroups.filter(Image.corrected_timestamp>=timestamp)
+        if timestamp: labelgroupsSQ = labelgroupsSQ.filter(Image.corrected_timestamp>=timestamp)
 
-            labelgroups = labelgroups.distinct().limit(query_limit).all()
+        labelgroupsSQ = labelgroupsSQ.distinct().subquery()
 
-            for labelgroup in labelgroups:
-                labelgroup.labels = []
-
-            if len(labelgroups)<query_limit: break
-        while True:
-            labelgroups = db.session.query(Labelgroup)\
-                                    .join(Detection)\
-                                    .join(Image)\
-                                    .join(Camera)\
-                                    .filter(Labelgroup.labels.contains(unknownLabel))\
-                                    .filter(Labelgroup.task_id==task_id)\
-                                    .filter(Camera.trapgroup_id==trapgroup_id)
-
-            if timestamp: labelgroups = labelgroups.filter(Image.corrected_timestamp>=timestamp)
-
-            labelgroups = labelgroups.distinct().limit(query_limit).all()
-
-            for labelgroup in labelgroups:
-                labelgroup.labels = []
-
-            if len(labelgroups)<query_limit: break
+        # Delete nothing and unknown labels from labelgroups
+        un_lg=db.session.query(detectionLabels)\
+                .filter(detectionLabels.c.label_id.in_([nothingLabel.id, unknownLabel.id]))\
+                .filter(detectionLabels.c.labelgroup_id.in_(select(labelgroupsSQ.c.id)))\
+                .delete(synchronize_session=False)
+        if Config.DEBUGGING: print('{} unknown and nothing labels deleted from labelgroups'.format(un_lg))
 
         # we need to do this for all clusters too - otherwise their username will be copied across and not be auto-classified
-        while True:
-            clusters = db.session.query(Cluster)\
-                                    .join(Image.clusters)\
-                                    .join(Camera)\
-                                    .filter(Cluster.labels.contains(nothingLabel))\
-                                    .filter(Cluster.task_id==task_id)\
-                                    .filter(Camera.trapgroup_id==trapgroup_id)
-            
-            if timestamp: clusters = clusters.filter(Image.corrected_timestamp>=timestamp)
+        clustersSQ = db.session.query(Cluster.id)\
+                                .join(Image,Cluster.images)\
+                                .join(Camera)\
+                                .filter(Cluster.task_id==task_id)\
+                                .filter(Camera.trapgroup_id==trapgroup_id)\
+                                .join(Label,Cluster.labels)\
+                                .filter(Label.id==nothingLabel.id)
 
-            clusters = clusters.distinct().limit(query_limit).all()
+        if timestamp: clustersSQ = clustersSQ.filter(Image.corrected_timestamp>=timestamp)
 
-            for cluster in clusters:
-                cluster.user_id = None
-                cluster.timestamp = None
-                # cluster.labels = []
+        clustersSQ = clustersSQ.distinct().subquery()
+        cq=db.session.query(Cluster).filter(Cluster.id.in_(select(clustersSQ.c.id))).update({Cluster.user_id: None, Cluster.timestamp: None}, synchronize_session=False)
+        if Config.DEBUGGING: print('{} nothing clusters updated with user_id and timestamp set to None'.format(cq))
 
-            if len(clusters)<query_limit: break
+        clustersSQ = db.session.query(Cluster.id)\
+                        .join(Image,Cluster.images)\
+                        .join(Camera)\
+                        .filter(Cluster.task_id==task_id)\
+                        .filter(Camera.trapgroup_id==trapgroup_id)\
+                        .join(Label,Cluster.labels)\
+                        .filter(Label.id==unknownLabel.id)
 
-        while True:
-            clusters = db.session.query(Cluster)\
-                                    .join(Image.clusters)\
-                                    .join(Camera)\
-                                    .filter(Cluster.labels.contains(unknownLabel))\
-                                    .filter(Cluster.task_id==task_id)\
-                                    .filter(Camera.trapgroup_id==trapgroup_id)
-            
-            if timestamp: clusters = clusters.filter(Image.corrected_timestamp>=timestamp)
+        if timestamp: clustersSQ = clustersSQ.filter(Image.corrected_timestamp>=timestamp)
 
-            clusters = clusters.distinct().limit(query_limit).all()
+        clustersSQ = clustersSQ.distinct().subquery()
+        cq=db.session.query(Cluster).filter(Cluster.id.in_(select(clustersSQ.c.id))).update({Cluster.user_id: None, Cluster.timestamp: None}, synchronize_session=False)
+        if Config.DEBUGGING: print('{} unknown clusters updated with user_id and timestamp set to None'.format(cq))
 
-            for cluster in clusters:
-                cluster.user_id = None
-                cluster.timestamp = None
-                # cluster.labels = []
-
-            if len(clusters)<query_limit: break
-
+        db.session.commit()
     return True
 
 @celery.task(bind=True,max_retries=2,ignore_result=True)
@@ -6201,8 +6156,15 @@ def prepTask(self, task_id, includes=None, translation=None, labels=None, auto_r
 
         if Config.DEBUGGING: print('{}: Finished clustering task {}'.format(time.time()-starttime,task_id))
 
+        # Finally, cleanup all the old clusters
+        # We don't necessarily know the number of clusters. So just keep the latest and delete everything else
+        # We want to only delete the old clusters after all the new clusters have been added to avoid dropping info from clusters that exists across multiple trapgroups from
+        # moving folders around.
+        for trapgroup_id in trapgroup_ids:
+            delete_old_clusters(task_id,trapgroup_id,query_limit)
+
         # Just check for and delete any imageless clusters for safety
-        delete_empty_clusters(task_id,query_limit)
+        delete_clusters(task_id=task_id, empty=True)
 
         if Config.DEBUGGING: print('{}: finsihed deleting empty clusters for task {}'.format(time.time()-starttime,task_id))
         
@@ -6319,7 +6281,7 @@ def cluster_trapgroup(self,task_id,trapgroup_id,query_limit,timestamp,starting_l
 
         # Finally, cleanup all the old clusters
         # We don't necessarily know the number of clusters. So just keep the latest and delete everything else
-        delete_old_clusters(task_id,trapgroup_id,query_limit)
+        # delete_old_clusters(task_id,trapgroup_id,query_limit)
 
         if Config.DEBUGGING: print('Finished clustering trapgroup {} for task {}'.format(trapgroup_id,task_id))
 

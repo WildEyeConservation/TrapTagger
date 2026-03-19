@@ -28,6 +28,7 @@ from app.functions.permissions import *
 from app.functions.utilities import *
 from app.functions.archive import *
 from app.functions.periodic import *
+from app.functions.delete import *
 import GLOBALS
 import json
 from flask import render_template, redirect, url_for, flash, request, send_from_directory, send_file
@@ -832,17 +833,8 @@ def deleteIndividual(individual_id):
 
             calculate_individual_similarity.delay(individual1=newIndividual.id,individuals2=individuals,species=individual.species)
 
-        allSimilarities = db.session.query(IndSimilarity).filter(or_(IndSimilarity.individual_1==individual.id,IndSimilarity.individual_2==individual.id)).distinct().all()
-        for similarity in allSimilarities:
-            db.session.delete(similarity)
 
-        individual.detections = []
-        individual.primary_detections = []
-        individual.tags = []
-        individual.children = []
-        individual.parents = []
-        individual.tasks = []
-        db.session.delete(individual)
+        delete_individuals_helper(individual_ids=[individual.id])
         db.session.commit()
 
         return json.dumps('success')
@@ -1500,7 +1492,7 @@ def deleteSurvey(survey_id):
 #     if survey:
 #         survey.status = 'Cancelled'
 #         db.session.commit()
-#         delete_images(surveyName,survey.user.folder)
+#         delete_images_from_s3(surveyName,survey.user.folder)
 #     return json.dumps('')
 
 @app.route('/updateSurveyStatus/<survey_id>/<status>')
@@ -2443,10 +2435,8 @@ def editSurvey():
                                 for s in area_surveys: s.area = area 
                             area_commit = True 
                 if area_commit:
-                    empty_areas = db.session.query(Area).filter(~Area.surveys.any()).all()
-                    for area in empty_areas:
-                        db.session.delete(area)
                     db.session.commit()
+                    delete_empty_areas()
                 else:
                     survey_area = None
                     edit_area_option = None
@@ -4812,9 +4802,8 @@ def inviteWorker():
 
                             organisation_admins = [r[0] for r in db.session.query(User.id).join(UserPermissions).filter(UserPermissions.organisation_id==organisation.id).filter(UserPermissions.default=='admin').all()]
 
-                            prev_pending_notif = db.session.query(Notification).filter(Notification.user_id.in_(organisation_admins)).filter(Notification.contents.contains(worker.username+' has been invited to join '+organisation.name+'.')).all()
-                            for notification in prev_pending_notif:
-                                db.session.delete(notification)
+                            del_contents = worker.username+' has been invited to join '+organisation.name+'.'
+                            delete_notifications(user_ids=organisation_admins, contents=del_contents)
 
                             for admin_id in organisation_admins:
                                 notification_message = '<p>'+worker.username+' has been invited to join '+organisation.name+'. You can <a href="'+url_pending+'">Cancel</a> this invitation.</p>'
@@ -4844,15 +4833,13 @@ def acceptInvitation(token,action):
             organisation = db.session.query(Organisation).get(organisation_id)
             worker = db.session.query(User).get(worker_id)
 
-            notification = db.session.query(Notification).filter(Notification.user_id==current_user.id).filter(Notification.contents.contains(organisation.name+' has invited you to join their organisation.')).first()
-            if notification:
-                db.session.delete(notification)
+            del_contents = organisation.name+' has invited you to join their organisation.'
+            delete_notifications(user_ids=[current_user.id], contents=del_contents)
 
             organisation_admins = [r[0] for r in db.session.query(User.id).join(UserPermissions).filter(UserPermissions.organisation_id==organisation.id).filter(UserPermissions.default=='admin').all()]
 
-            pending_notifications = db.session.query(Notification).filter(Notification.user_id.in_(organisation_admins)).filter(Notification.contents.contains(worker.username+' has been invited to join '+organisation.name+'.')).all()
-            for pending_notification in pending_notifications:
-                db.session.delete(pending_notification)
+            del_contents = worker.username+' has been invited to join '+organisation.name+'.'
+            delete_notifications(user_ids=organisation_admins, contents=del_contents)
 
             if action=='accept':
                 user_permission = UserPermissions(user_id=worker_id, organisation_id=organisation_id, default='worker', annotation=False, delete=False)
@@ -4904,13 +4891,11 @@ def cancelInvitation(token):
                 worker = db.session.query(User).get(worker_id)
                 organisation_admins = [r[0] for r in db.session.query(User.id).join(UserPermissions).filter(UserPermissions.organisation_id==organisation.id).filter(UserPermissions.default=='admin').all()]   
 
-                invite_notification = db.session.query(Notification).filter(Notification.user_id==worker_id).filter(Notification.contents.contains(organisation.name+' has invited you to join their organisation.')).first()
-                if invite_notification:
-                    db.session.delete(invite_notification)
+                del_contents = organisation.name+' has invited you to join their organisation.'
+                delete_notifications(user_ids=[worker_id], contents=del_contents)
 
-                notifications = db.session.query(Notification).filter(Notification.user_id.in_(organisation_admins)).filter(Notification.contents.contains(worker.username+' has been invited to join '+organisation.name+'.')).all()
-                for notification in notifications:
-                    db.session.delete(notification)
+                del_contents = worker.username+' has been invited to join '+organisation.name+'.'
+                delete_notifications(user_ids=organisation_admins, contents=del_contents)
 
                 notif_msg_org = '<p> The invitation for '+worker.username+' to join '+organisation.name+' has been cancelled.</p>'
                 for admin_id in organisation_admins:
@@ -8637,12 +8622,7 @@ def submitTags(task_id):
             editedTags = ast.literal_eval(request.form['editedTags'])
             newTags = ast.literal_eval(request.form['newTags'])
 
-            for deleted in deletedTags:
-                tag = db.session.query(Tag).get(deleted)
-                if tag and (tag.task_id==task_id):
-                    tag.individuals = []
-                    tag.clusters = []
-                    db.session.delete(tag)
+            if deletedTags: delete_tags(task_id=task_id, ids=deletedTags)
 
             for edited in editedTags:
                 tag = db.session.query(Tag).get(edited[0])
@@ -12482,10 +12462,7 @@ def saveIntegrations():
 
             if Config.DEBUGGING: app.logger.info('Earth ranger integrations {}'.format(earth_ranger_integrations))
 
-            for er in er_deleted:
-                er_integration = db.session.query(EarthRanger).filter(EarthRanger.id==er).first()
-                if er_integration and er_integration.organisation_id in admin_orgs:
-                    db.session.delete(er_integration)
+            db.session.query(EarthRanger).filter(EarthRanger.id.in_(er_deleted)).filter(EarthRanger.organisation_id.in_(admin_orgs)).delete(synchronize_session=False)
 
             for er in er_edited:
                 if int(er['org_id']) in admin_orgs:
@@ -12510,10 +12487,7 @@ def saveIntegrations():
 
             if Config.DEBUGGING: app.logger.info('Live integrations {}'.format(live_integrations))
 
-            for live in live_deleted:
-                live_integration = db.session.query(APIKey).filter(APIKey.id==live).first()
-                if live_integration and live_integration.survey_id in admin_surveys:
-                    db.session.delete(live_integration)
+            db.session.query(APIKey).filter(APIKey.id.in_(live_deleted)).filter(APIKey.survey_id.in_(admin_surveys)).delete(synchronize_session=False)
 
             for live in live_new:
                 if int(live['survey_id']) in admin_surveys:
@@ -13215,13 +13189,11 @@ def acceptSurveyShare(token, action):
                 admins = share_org_admins + organisation_admins
                 admins = list(set(admins))
 
-                notifications = db.session.query(Notification).filter(Notification.user_id.in_(organisation_admins)).filter(Notification.contents.contains('Organisation '+share_organisation.name+' wants to share survey '+survey.name+' with '+organisation.name+'.')).all()
-                for notification in notifications:
-                    db.session.delete(notification)
+                del_contents = 'Organisation '+share_organisation.name+' wants to share survey '+survey.name+' with '+organisation.name+'.'
+                delete_notifications(user_ids=organisation_admins, contents=del_contents)
 
-                pending_notifications = db.session.query(Notification).filter(Notification.user_id.in_(share_org_admins)).filter(Notification.contents.contains(share_organisation.name+' has a pending survey share request to '+organisation.name+' for '+survey.name+'.')).all()
-                for pending_notification in pending_notifications:
-                    db.session.delete(pending_notification)
+                del_contents = share_organisation.name+' has a pending survey share request to '+organisation.name+' for '+survey.name+'.'
+                delete_notifications(user_ids=share_org_admins, contents=del_contents)
 
                 if action == 'accept':
                     check = db.session.query(SurveyShare).filter(SurveyShare.organisation_id==organisation.id).filter(SurveyShare.survey_id==survey_id).first()
@@ -13267,13 +13239,11 @@ def cancelSurveyShare(token):
                 organisation_admins = [r[0] for r in db.session.query(User.id).join(UserPermissions).filter(UserPermissions.organisation_id==organisation.id).filter(UserPermissions.default=='admin').all()]
                 share_org_admins = [r[0] for r in db.session.query(User.id).join(UserPermissions).filter(UserPermissions.organisation_id==share_organisation.id).filter(UserPermissions.default=='admin').all()]
 
-                notifications = db.session.query(Notification).filter(Notification.user_id.in_(organisation_admins)).filter(Notification.contents.contains('Organisation '+share_organisation.name+' wants to share survey '+survey.name+' with '+organisation.name+'.')).all()
-                for notification in notifications:
-                    db.session.delete(notification)
+                del_contents = 'Organisation '+share_organisation.name+' wants to share survey '+survey.name+' with '+organisation.name+'.'
+                delete_notifications(user_ids=organisation_admins, contents=del_contents)
 
-                pending_notifications = db.session.query(Notification).filter(Notification.user_id.in_(share_org_admins)).filter(Notification.contents.contains(share_organisation.name+' has a pending survey share request to '+organisation.name+' for '+survey.name+'.')).all()
-                for pending_notification in pending_notifications:
-                    db.session.delete(pending_notification)
+                del_contents = share_organisation.name+' has a pending survey share request to '+organisation.name+' for '+survey.name+'.'
+                delete_notifications(user_ids=share_org_admins, contents=del_contents)
 
                 cancel_notif = '<p> '+share_organisation.name+' has cancelled the survey share request to '+organisation.name+' for '+survey.name+'.</p>'
                 for share_org_admin in share_org_admins:
@@ -13367,16 +13337,15 @@ def removeUserFromOrganisation():
                                 .filter(SurveyShare.organisation_id==org_id)\
                                 .distinct().subquery()
     
-        user_exceptions = db.session.query(SurveyPermissionException)\
+        user_exceptions = [r[0] for r in db.session.query(SurveyPermissionException.id)\
                                         .join(Survey)\
                                         .outerjoin(SurveyShare)\
                                         .outerjoin(ss_subquery, Survey.id==ss_subquery.c.survey_id)\
                                         .filter(SurveyPermissionException.user_id==user_id)\
                                         .filter(or_(Survey.organisation_id==org_id,and_(ss_subquery.c.survey_id==None, SurveyShare.organisation_id==org_id)))\
-                                        .distinct().all()
+                                        .distinct().all()]
 
-        for user_exception in user_exceptions:
-            db.session.delete(user_exception)
+        delete_survey_permission_exceptions(params={'ids': user_exceptions})
 
         org_name = db.session.query(Organisation.name).filter(Organisation.id==org_id).first()[0]
         org_admins = [r[0] for r in db.session.query(User.id).join(UserPermissions).filter(UserPermissions.organisation_id==org_id).filter(UserPermissions.default=='admin').all()]
@@ -13416,9 +13385,14 @@ def removeSharedSurvey():
             share_org = survey_share.survey.organisation
             admins = [r[0] for r in db.session.query(User.id).join(UserPermissions).filter(UserPermissions.organisation_id.in_([received_org.id, share_org.id])).filter(UserPermissions.default=='admin').distinct().all()]
             if current_user.id in admins:
+                notif_msg = '<p> Survey share for '+survey_share.survey.name+' from '+share_org.name+' to '+received_org.name+' has been removed.</p>'
+                for admin in admins:
+                    notification = Notification(user_id=admin, contents=notif_msg, seen=False)
+                    db.session.add(notification)
+                
                 # Remove all survey permission exceptions 
                 ss_subquery = db.session.query(UserPermissions.user_id).filter(UserPermissions.organisation_id == share_org.id).subquery()
-                survey_permission_exceptions = db.session.query(SurveyPermissionException)\
+                survey_permission_exceptions = [r[0] for r in db.session.query(SurveyPermissionException.id)\
                                 .join(SurveyShare, SurveyShare.survey_id==SurveyPermissionException.survey_id)\
                                 .join(UserPermissions,UserPermissions.organisation_id==SurveyShare.organisation_id)\
                                 .outerjoin(ss_subquery, ss_subquery.c.user_id==UserPermissions.user_id)\
@@ -13426,18 +13400,12 @@ def removeSharedSurvey():
                                 .filter(UserPermissions.organisation_id==received_org.id)\
                                 .filter(SurveyPermissionException.user_id==UserPermissions.user_id)\
                                 .filter(ss_subquery.c.user_id==None)\
-                                .distinct().all()
-
-                for survey_permission_exception in survey_permission_exceptions:
-                    db.session.delete(survey_permission_exception)
+                                .distinct().all()]
+                                
+                delete_survey_permission_exceptions(params={'ids': survey_permission_exceptions})
 
                 # Remove survey share
                 db.session.delete(survey_share)
-                
-                notif_msg = '<p> Survey share for '+survey_share.survey.name+' from '+share_org.name+' to '+received_org.name+' has been removed.</p>'
-                for admin in admins:
-                    notification = Notification(user_id=admin, contents=notif_msg, seen=False)
-                    db.session.add(notification)
 
                 db.session.commit()
 
@@ -15109,16 +15077,11 @@ def submitIndividualFlanks():
                     detection.flank = Config.FLANK_DB[flanks[str(detection.id)].lower()]
                     det_ids.append(detection.id)
 
-            detSims = db.session.query(DetSimilarity).filter(or_(DetSimilarity.detection_1.in_(det_ids), DetSimilarity.detection_2.in_(det_ids))).all()
-            for detSim in detSims:
-                db.session.delete(detSim)
-
-            indSims = db.session.query(IndSimilarity)\
-                                .filter(or_(IndSimilarity.individual_1==individual.id, IndSimilarity.individual_2==individual.id))\
-                                .filter(or_(IndSimilarity.detection_1.in_(det_ids), IndSimilarity.detection_2.in_(det_ids))).all()
-            
-            for indSim in indSims:
-                db.session.delete(indSim)
+            db.session.query(DetSimilarity).filter(or_(DetSimilarity.detection_1.in_(det_ids), DetSimilarity.detection_2.in_(det_ids))).delete(synchronize_session=False)
+            db.session.query(IndSimilarity)\
+                        .filter(or_(IndSimilarity.individual_1==individual.id, IndSimilarity.individual_2==individual.id))\
+                        .filter(or_(IndSimilarity.detection_1.in_(det_ids), IndSimilarity.detection_2.in_(det_ids)))\
+                        .delete(synchronize_session=False)
            
             db.session.commit()
             status = 'success'
@@ -16241,16 +16204,7 @@ def mergeIndividuals():
             for tsk in individual1.tasks:
                 if not tsk.areaID_library: tsk.areaID_library=True
 
-        allSimilarities = db.session.query(IndSimilarity).filter(or_(IndSimilarity.individual_1==individual2.id,IndSimilarity.individual_2==individual2.id)).distinct().all()
-        for similarity in allSimilarities:
-            db.session.delete(similarity)
-        individual2.tags = []
-        individual2.detections = []
-        individual2.primary_detections = []
-        individual2.children = []
-        individual2.parents = []
-        individual2.tasks = []
-        db.session.delete(individual2)
+        delete_individuals_helper(individual_ids=[individual2.id])
 
         individual1.name = name if name else individual1.name
         individual1.active = True
@@ -16741,9 +16695,7 @@ def submitFeatures():
             det_area = (detection.right - detection.left) * (detection.bottom - detection.top)
 
             if features[detection_id]['removed']:
-                del_features = db.session.query(Feature).filter(Feature.detection_id==detection_id).filter(Feature.id.in_(features[detection_id]['removed'])).distinct().all()
-                for feature in del_features:
-                    db.session.delete(feature)
+                db.session.query(Feature).filter(Feature.detection_id==detection_id).filter(Feature.id.in_(features[detection_id]['removed'])).delete(synchronize_session=False)
 
             if features[detection_id]['edited']:
                 for feature_id in features[detection_id]['edited']:
@@ -17213,17 +17165,7 @@ def markUnidentifiable(individual_id):
                 if detection not in unidentifiable.detections:
                     unidentifiable.detections.append(detection)
             
-            allSimilarities = db.session.query(IndSimilarity).filter(or_(IndSimilarity.individual_1==individual.id,IndSimilarity.individual_2==individual.id)).distinct().all()
-            for similarity in allSimilarities:
-                db.session.delete(similarity)
-
-            individual.detections = []
-            individual.primary_detections = []
-            individual.tags = []
-            individual.children = []
-            individual.parents = []
-            individual.tasks = []
-            db.session.delete(individual)
+            delete_individuals_helper(individual_ids=[individual.id])
 
         db.session.commit()
 
