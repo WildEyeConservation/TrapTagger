@@ -6014,7 +6014,7 @@ def prepare_labelgroup_cluster_labels(task_id,trapgroup_id,query_limit,timestamp
 
     if timestamp: adminLabelgroupsSQ = adminLabelgroupsSQ.filter(Image.corrected_timestamp>=timestamp)
 
-    adminLabelgroupsSQ = adminLabelgroupsSQ.subquery()
+    adminLabelgroupsSQ = adminLabelgroupsSQ.distinct().subquery()
     alg=db.session.query(detectionLabels).filter(detectionLabels.c.labelgroup_id.in_(select(adminLabelgroupsSQ.c.id))).delete(synchronize_session=False)
     if Config.DEBUGGING: print('{} detection labels deleted from admin labelgroups'.format(alg))
 
@@ -6056,7 +6056,7 @@ def prepare_labelgroup_cluster_labels(task_id,trapgroup_id,query_limit,timestamp
 
         if timestamp: labelgroupsSQ = labelgroupsSQ.filter(Image.corrected_timestamp>=timestamp)
 
-        labelgroupsSQ = labelgroupsSQ.subquery()
+        labelgroupsSQ = labelgroupsSQ.distinct().subquery()
 
         # Delete nothing and unknown labels from labelgroups
         un_lg=db.session.query(detectionLabels)\
@@ -6067,18 +6067,32 @@ def prepare_labelgroup_cluster_labels(task_id,trapgroup_id,query_limit,timestamp
 
         # we need to do this for all clusters too - otherwise their username will be copied across and not be auto-classified
         clustersSQ = db.session.query(Cluster.id)\
-                                .join(Image.clusters)\
+                                .join(Image,Cluster.images)\
                                 .join(Camera)\
                                 .filter(Cluster.task_id==task_id)\
                                 .filter(Camera.trapgroup_id==trapgroup_id)\
                                 .join(Label,Cluster.labels)\
-                                .filter(Label.id.in_([nothingLabel.id, unknownLabel.id]))
+                                .filter(Label.id==nothingLabel.id)
 
         if timestamp: clustersSQ = clustersSQ.filter(Image.corrected_timestamp>=timestamp)
 
-        clustersSQ = clustersSQ.subquery()
+        clustersSQ = clustersSQ.distinct().subquery()
         cq=db.session.query(Cluster).filter(Cluster.id.in_(select(clustersSQ.c.id))).update({Cluster.user_id: None, Cluster.timestamp: None}, synchronize_session=False)
-        if Config.DEBUGGING: print('{} clusters updated with user_id and timestamp set to None'.format(cq))
+        if Config.DEBUGGING: print('{} nothing clusters updated with user_id and timestamp set to None'.format(cq))
+
+        clustersSQ = db.session.query(Cluster.id)\
+                        .join(Image,Cluster.images)\
+                        .join(Camera)\
+                        .filter(Cluster.task_id==task_id)\
+                        .filter(Camera.trapgroup_id==trapgroup_id)\
+                        .join(Label,Cluster.labels)\
+                        .filter(Label.id==unknownLabel.id)
+
+        if timestamp: clustersSQ = clustersSQ.filter(Image.corrected_timestamp>=timestamp)
+
+        clustersSQ = clustersSQ.distinct().subquery()
+        cq=db.session.query(Cluster).filter(Cluster.id.in_(select(clustersSQ.c.id))).update({Cluster.user_id: None, Cluster.timestamp: None}, synchronize_session=False)
+        if Config.DEBUGGING: print('{} unknown clusters updated with user_id and timestamp set to None'.format(cq))
 
         db.session.commit()
     return True

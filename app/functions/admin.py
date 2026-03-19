@@ -779,7 +779,7 @@ def handleTaskEdit(self,task_id,labelChanges,tagChanges,translationChanges,delet
                                             .filter(Cluster.user_id==admin.id)\
                                             .filter(Label.id.in_(prev_labels))\
                                             .filter(indiv_sq.c.id==None)\
-                                            .subquery()
+                                            .distinct().subquery()
 
                     labelgroupSQ = db.session.query(Labelgroup.id)\
                                             .join(Detection)\
@@ -792,7 +792,7 @@ def handleTaskEdit(self,task_id,labelChanges,tagChanges,translationChanges,delet
                                             .filter(Cluster.user_id==admin.id)\
                                             .filter(Label.id.in_(prev_labels))\
                                             .filter(indiv_sq.c.id==None)\
-                                            .subquery()
+                                            .distinct().subquery()
 
                     # Delete labelgroup labels (needs to be first because of sq looking for clusters without labels)
                     db.session.query(detectionLabels).filter(detectionLabels.c.labelgroup_id.in_(select(labelgroupSQ.c.id))).delete(synchronize_session=False)
@@ -800,7 +800,7 @@ def handleTaskEdit(self,task_id,labelChanges,tagChanges,translationChanges,delet
                     # Delete cluster labels and update clusters user_id to None
                     db.session.query(labelstable).filter(labelstable.c.cluster_id.in_(select(clusterSQ.c.id))).delete(synchronize_session=False)
                     # reset clusters user_id to None
-                    resetUserSQ = db.session.query(Cluster.id).filter(Cluster.task_id==task_id).filter(Cluster.user_id==admin.id).filter(~Cluster.labels.any()).subquery()
+                    resetUserSQ = db.session.query(Cluster.id).filter(Cluster.task_id==task_id).filter(Cluster.user_id==admin.id).filter(~Cluster.labels.any()).distinct().subquery()
                     db.session.query(Cluster).filter(Cluster.id.in_(select(resetUserSQ.c.id))).update({Cluster.user_id: None}, synchronize_session=False)
 
                 db.session.commit()
