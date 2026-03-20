@@ -1000,7 +1000,7 @@ def getCameraStamps():
                             .filter(Trapgroup.survey_id==survey_id)\
                             .filter(Image.corrected_timestamp!=None)\
                             .group_by(Trapgroup.id, Cameragroup.id)\
-                            .order_by(Trapgroup.tag)\
+                            .order_by(Trapgroup.tag,Cameragroup.name)\
                             .paginate(page, 10, False)
 
         temp_results = {}
@@ -5926,12 +5926,21 @@ def acceptSuggestion(individual_1,individual_2):
                                                 IndSimilarity.individual_2==other_id)\
                                         )).first()
                 if altSimilarity:
-                    if (altSimilarity.score==-1000) or (similarity.score==-1000):
-                        similarity.score = -1000
-                    elif (altSimilarity.score==-1500) or (similarity.score==-1500):
-                        similarity.score = -1500
-                    elif (altSimilarity.score==-2000) or (similarity.score==-2000):
-                        similarity.score = -2000
+                    # if (altSimilarity.score==-1000) or (similarity.score==-1000):
+                    #     similarity.score = -1000
+                    # elif (altSimilarity.score==-1500) or (similarity.score==-1500):
+                    #     similarity.score = -1500
+                    # elif (altSimilarity.score==-2000) or (similarity.score==-2000):
+                    #     similarity.score = -2000
+                    # elif altSimilarity.score > similarity.score:
+                    #     similarity.score = altSimilarity.score
+                    #     similarity.detection_1 = altSimilarity.detection_1
+                    #     similarity.detection_2 = altSimilarity.detection_2
+                    if (altSimilarity.score<0) or (similarity.score<0):
+                        if (altSimilarity.score<0) and (similarity.score<0):
+                            similarity.score = -min(abs(altSimilarity.score),abs(similarity.score))
+                        else:
+                            similarity.score = min(altSimilarity.score,similarity.score)
                     elif altSimilarity.score > similarity.score:
                         similarity.score = altSimilarity.score
                         similarity.detection_1 = altSimilarity.detection_1
