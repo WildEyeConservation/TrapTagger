@@ -9928,6 +9928,15 @@ def get_image_info():
     task_id = request.json['task_id']
     hash = request.json['hash']
     task = db.session.query(Task).get(task_id)
+
+    download_id = request.json['download_id']
+    download_request = db.session.query(DownloadRequest).filter(DownloadRequest.id==download_id).filter(DownloadRequest.user_id==current_user.id).filter(DownloadRequest.task_id==task_id).first()
+    if not download_request:
+        return {'redirect': url_for('surveys')}, 278
+    else: 
+        if download_request.name=='restore' and download_request.status=='Available':
+            return {'redirect': url_for('surveys')}, 278
+
     # if task and (task.survey.user==current_user):
     if task and checkSurveyPermission(current_user.id,task.survey_id,'read'):
 
@@ -10346,6 +10355,15 @@ def get_required_files():
     include_video = request.json['include_video']
     include_frames = request.json['include_frames']
     task = db.session.query(Task).get(task_id)
+
+    download_id = request.json['download_id']
+    download_request = db.session.query(DownloadRequest).filter(DownloadRequest.id==download_id).filter(DownloadRequest.user_id==current_user.id).filter(DownloadRequest.task_id==task_id).first()
+    if not download_request:
+        return {'redirect': url_for('surveys')}, 278
+    else:
+        if download_request.name=='restore' and download_request.status=='Available':
+            return {'redirect': url_for('surveys')}, 278
+
     # if task and (task.survey.user==current_user):
     if task and checkSurveyPermission(current_user.id,task.survey_id,'read'):
 
@@ -10424,6 +10442,13 @@ def set_download_status():
 
     task_id = request.json['selectedTask']
     task = db.session.query(Task).get(task_id)
+    download_id = request.json['download_id']
+    download_request = db.session.query(DownloadRequest).filter(DownloadRequest.id==download_id).filter(DownloadRequest.user_id==current_user.id).filter(DownloadRequest.task_id==task_id).first()
+    if not download_request:
+        return {'redirect': url_for('surveys')}, 278
+    else:
+        if download_request.name=='restore' and download_request.status=='Available':
+            return {'redirect': url_for('surveys')}, 278
     # if task and (task.survey.user==current_user):
     if task and checkSurveyPermission(current_user.id,task.survey_id,'read'):
         GLOBALS.redisClient.set('download_ping_'+str(task_id),datetime.utcnow().timestamp())
@@ -10471,6 +10496,15 @@ def check_download_initialised():
 
     task_id = request.json['selectedTask']
     task = db.session.query(Task).get(task_id)
+
+    download_id = request.json['download_id']
+    download_request = db.session.query(DownloadRequest).filter(DownloadRequest.id==download_id).filter(DownloadRequest.user_id==current_user.id).filter(DownloadRequest.task_id==task_id).first()
+    if not download_request:
+        return {'redirect': url_for('surveys')}, 278
+    else:
+        if download_request.name=='restore' and download_request.status=='Available':
+            return {'redirect': url_for('surveys')}, 278
+
     reply = {'status': 'ready'}
     # if task and (task.survey.user==current_user):
     if task and checkSurveyPermission(current_user.id,task.survey_id,'read'):
@@ -10545,6 +10579,15 @@ def download_complete():
 
     task_id = request.json['task_id']
     task = db.session.query(Task).get(task_id)
+
+    download_id = request.json['download_id']
+    download_request = db.session.query(DownloadRequest).filter(DownloadRequest.id==download_id).filter(DownloadRequest.user_id==current_user.id).filter(DownloadRequest.task_id==task_id).first()
+    if not download_request:
+        return {'redirect': url_for('surveys')}, 278
+    else:
+        if download_request.name=='restore' and download_request.status=='Available':
+            return {'redirect': url_for('surveys')}, 278
+
     # if task and (task.survey.user==current_user):
     if task and checkSurveyPermission(current_user.id,task.survey_id,'read'):
         manageDownload(task_id)

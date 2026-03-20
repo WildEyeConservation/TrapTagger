@@ -119,6 +119,7 @@ async function startDownload(selectedTask,taskName, downloadID, count=0) {
         body: JSON.stringify({
             species: species,
             selectedTask: downloadingTask,
+            download_id: downloadingRequest,
             include_empties: include_empties,
             include_video: include_video_init,
             include_frames: include_frames
@@ -156,7 +157,8 @@ async function waitUntilDownloadReady(count=0) {
                 'content-type': 'application/json',
             },
             body: JSON.stringify({
-                selectedTask: downloadingTask
+                selectedTask: downloadingTask,
+                download_id: downloadingRequest
             }),
         })).then((response) => {
             if (!response.ok) {
@@ -302,7 +304,8 @@ async function getLocalImageInfo(hash,downloadingTask,jpegData,dirHandle,fileNam
                 include_empties: include_empties,
                 include_video: include_video,
                 include_frames: include_frames,
-                fileName: fileName
+                fileName: fileName,
+                download_id: downloadingRequest
             }),
         }).then((response) => {
             if (!response.ok) {
@@ -416,7 +419,8 @@ async function fetchRemainingImages(last_image_id=0, last_video_id=0) {
             include_frames: include_frames,
             raw_files: raw_files,
             image_id: last_image_id,
-            video_id: last_video_id
+            video_id: last_video_id,
+            download_id: downloadingRequest
         }),
     }).then((response) => {
         if (!response.ok) {
@@ -628,7 +632,8 @@ async function wrapUpDownload(reload,count=0) {
                 'content-type': 'application/json',
             },
             body: JSON.stringify({
-                task_id: downloadingTask
+                task_id: downloadingTask,
+                download_id: downloadingRequest
             }),
         }).then((response) => {
             if (!response.ok) {
