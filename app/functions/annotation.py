@@ -609,6 +609,7 @@ def fetch_clusters(taggingLevel,task_id,isBounding,trapgroup_id,limit=None,id=No
                             .outerjoin(requiredimagestable,requiredimagestable.c.cluster_id==Cluster.id)\
                             .join(Camera) \
                             .outerjoin(detectionSQ,detectionSQ.c.image_id==Image.id)\
+                            .filter(Image.zip_id==None)\
                             .filter(or_(
                                 detectionSQ.c.row_num<Config.MAX_DETS_PER_CLUSTER,
                                 detectionSQ.c.row_num==None,
@@ -653,6 +654,7 @@ def fetch_clusters(taggingLevel,task_id,isBounding,trapgroup_id,limit=None,id=No
                             .outerjoin(Labelgroup,Labelgroup.detection_id==detectionSQ.c.id)\
                             .outerjoin(Tag,Labelgroup.tags)\
                             .filter(or_(Labelgroup.task_id==task_id,Labelgroup.id==None))\
+                            .filter(Image.zip_id==None)\
                             .filter(or_(
                                 detectionSQ.c.row_num<Config.MAX_DETS_PER_CLUSTER,
                                 detectionSQ.c.row_num==None,
@@ -697,6 +699,7 @@ def fetch_clusters(taggingLevel,task_id,isBounding,trapgroup_id,limit=None,id=No
                             .outerjoin(Labelgroup,Labelgroup.detection_id==detectionSQ.c.id)\
                             .outerjoin(Label,Labelgroup.labels)\
                             .filter(or_(Labelgroup.task_id==task_id,Labelgroup.id==None))\
+                            .filter(Image.zip_id==None)\
                             .filter(or_(
                                 detectionSQ.c.row_num<Config.MAX_DETS_PER_CLUSTER,
                                 detectionSQ.c.row_num==None,
@@ -704,6 +707,7 @@ def fetch_clusters(taggingLevel,task_id,isBounding,trapgroup_id,limit=None,id=No
                             ))
 
             elif '-7' in taggingLevel:
+                # Empty image check
                 clusters = db.session.query(
                                 Cluster.id,
                                 Cluster.notes,
@@ -777,6 +781,7 @@ def fetch_clusters(taggingLevel,task_id,isBounding,trapgroup_id,limit=None,id=No
                             .outerjoin(rDetsSQ,rDetsSQ.c.image_id==Image.id) \
                             .outerjoin(Labelgroup)\
                             .outerjoin(Label,Labelgroup.labels)\
+                            .filter(Image.zip_id==None)\
                             .filter(or_(Labelgroup.task_id==task_id,Labelgroup.id==None))
                 
             elif '-4' in taggingLevel:
@@ -834,6 +839,7 @@ def fetch_clusters(taggingLevel,task_id,isBounding,trapgroup_id,limit=None,id=No
                                 .join(Image, Cluster.images) \
                                 .outerjoin(requiredimagestable,requiredimagestable.c.cluster_id==Cluster.id)\
                                 .join(Camera) \
+                                .filter(Image.zip_id==None)\
                                 .outerjoin(detectionSQ,detectionSQ.c.image_id==Image.id)
             
             clusters = clusters.filter(Camera.trapgroup_id==trapgroup_id)\
