@@ -211,7 +211,7 @@ async function initiateDownload() {
 
         }  else {
             document.getElementById('modalAlertHeader').innerHTML = 'Alert'
-            document.getElementById('modalAlertBody').innerHTML = 'This survey is currently being downloaded. Please try again later.'
+            document.getElementById('modalAlertBody').innerHTML = 'This survey is currently being downloaded or unavailable. Please try again later.'
             modalDownload.modal('hide')
             modalAlert.modal({keyboard: true});
         }
@@ -392,7 +392,7 @@ async function initiateDownloadAfterRestore(request_id,task_id) {
 
         } else {
             document.getElementById('modalAlertHeader').innerHTML = 'Alert'
-            document.getElementById('modalAlertBody').innerHTML = 'This survey is currently being downloaded. Please try again later.'
+            document.getElementById('modalAlertBody').innerHTML = 'This survey is currently being downloaded or unavailable. Please try again later.'
             document.getElementById('downloadsBtn').click()
             modalAlert.modal({keyboard: true});
 

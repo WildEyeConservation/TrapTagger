@@ -15779,7 +15779,16 @@ def init_download_after_restore():
     if download_request:
         task_id = download_request.task_id
         task = db.session.query(Task).get(task_id)
-        if task and checkSurveyPermission(current_user.id,task.survey_id,'read') and task.status.lower() in Config.TASK_READY_STATUSES:
+        if task and checkSurveyPermission(current_user.id,task.survey_id,'read') and task.status.lower() in Config.TASK_READY_STATUSES and task.survey.status.lower() in Config.SURVEY_READY_STATUSES:
+            check2 = db.session.query(DownloadRequest)\
+                            .join(Task)\
+                            .filter(Task.survey_id==task.survey_id)\
+                            .filter(DownloadRequest.type=='file')\
+                            .filter(DownloadRequest.status.in_(['Downloading','Initialising']))\
+                            .first()
+            if check2:
+                return json.dumps({'status': 'error', 'message': 'A download is already in progress for this survey. Please try again later.'})
+
             try:
                 download_dict = GLOBALS.redisClient.get('fileDownloadParams_'+str(task_id)+'_'+str(current_user.id))
                 if download_dict:
@@ -15812,7 +15821,16 @@ def init_download_request():
     task_id = request.json['task_id']
     task = db.session.query(Task).get(task_id)
     status = 'error'
-    if task and checkSurveyPermission(current_user.id,task.survey_id,'read') and task.status.lower() in Config.TASK_READY_STATUSES:
+    if task and checkSurveyPermission(current_user.id,task.survey_id,'read') and task.status.lower() in Config.TASK_READY_STATUSES and task.survey.status.lower() in Config.SURVEY_READY_STATUSES:
+        check2 = db.session.query(DownloadRequest)\
+                            .join(Task)\
+                            .filter(Task.survey_id==task.survey_id)\
+                            .filter(DownloadRequest.type=='file')\
+                            .filter(DownloadRequest.status.in_(['Downloading','Initialising']))\
+                            .first()
+        if check2:
+            return json.dumps({'status': status})
+
         try:
 
             # # If the download is stale - force a restart
