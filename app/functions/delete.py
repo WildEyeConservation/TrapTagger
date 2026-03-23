@@ -75,10 +75,13 @@ def delete_detections(survey_id, camera_ids=None, image_ids=None, ids=None):
     db.session.query(Feature).filter(Feature.detection_id.in_(select(det_subq.c.id))).delete(synchronize_session=False)
 
     # Handle IndSimilarities (if they were not handled elsewhere)
-    inds =db.session.query(IndSimilarity)\
-        .filter(or_(IndSimilarity.detection_1.in_(select(det_subq.c.id)),IndSimilarity.detection_2.in_(select(det_subq.c.id))))\
-        .filter(IndSimilarity.score>=0)\
-        .delete(synchronize_session=False)
+    # inds =db.session.query(IndSimilarity)\
+    #     .filter(or_(IndSimilarity.detection_1.in_(select(det_subq.c.id)),IndSimilarity.detection_2.in_(select(det_subq.c.id))))\
+    #     .filter(IndSimilarity.score>=0)\
+    #     .delete(synchronize_session=False)
+    inds1 = db.session.query(IndSimilarity).filter(IndSimilarity.detection_1.in_(select(det_subq.c.id))).filter(IndSimilarity.score>=0).delete(synchronize_session=False)
+    inds2 = db.session.query(IndSimilarity).filter(IndSimilarity.detection_2.in_(select(det_subq.c.id))).filter(IndSimilarity.score>=0).delete(synchronize_session=False)
+    inds = inds1 + inds2
 
     indSimilarities = db.session.query(IndSimilarity)\
         .filter(or_(IndSimilarity.detection_1.in_(select(det_subq.c.id)),IndSimilarity.detection_2.in_(select(det_subq.c.id))))\
@@ -90,7 +93,10 @@ def delete_detections(survey_id, camera_ids=None, image_ids=None, ids=None):
         indSimilarity.detection_2 = None
 
     #Delete DetSimilarities
-    ds = db.session.query(DetSimilarity).filter(or_(DetSimilarity.detection_1.in_(select(det_subq.c.id)),DetSimilarity.detection_2.in_(select(det_subq.c.id)))).delete(synchronize_session=False)
+    # ds = db.session.query(DetSimilarity).filter(or_(DetSimilarity.detection_1.in_(select(det_subq.c.id)),DetSimilarity.detection_2.in_(select(det_subq.c.id)))).delete(synchronize_session=False)
+    ds1 = db.session.query(DetSimilarity).filter(DetSimilarity.detection_1.in_(select(det_subq.c.id))).delete(synchronize_session=False)
+    ds2 = db.session.query(DetSimilarity).filter(DetSimilarity.detection_2.in_(select(det_subq.c.id))).delete(synchronize_session=False)
+    ds = ds1 + ds2
 
     #Delete detections
     # aid_list = []
@@ -407,10 +413,13 @@ def delete_task_individuals(task_ids, species=None, camera_ids=None, image_ids=N
     if Config.DEBUGGING: app.logger.info('Total affected individuals: {}'.format(individualQ.distinct().count()))
 
     # Handle indSimilarities
-    rS=db.session.query(IndSimilarity)\
-        .filter(or_(IndSimilarity.individual_1.in_(select(individual_subq.c.id)),IndSimilarity.individual_2.in_(select(individual_subq.c.id))))\
-        .filter(IndSimilarity.score>=0)\
-        .delete(synchronize_session=False)
+    # rS=db.session.query(IndSimilarity)\
+    #     .filter(or_(IndSimilarity.individual_1.in_(select(individual_subq.c.id)),IndSimilarity.individual_2.in_(select(individual_subq.c.id))))\
+    #     .filter(IndSimilarity.score>=0)\
+    #     .delete(synchronize_session=False)
+    rS1 = db.session.query(IndSimilarity).filter(IndSimilarity.individual_1.in_(select(individual_subq.c.id))).filter(IndSimilarity.score>=0).delete(synchronize_session=False)
+    rS2 = db.session.query(IndSimilarity).filter(IndSimilarity.individual_2.in_(select(individual_subq.c.id))).filter(IndSimilarity.score>=0).delete(synchronize_session=False)
+    rS = rS1 + rS2
 
     if Config.DEBUGGING: app.logger.info('Deleted IndSimilarity: {}'.format(rS))
 
@@ -441,7 +450,10 @@ def delete_task_individuals(task_ids, species=None, camera_ids=None, image_ids=N
                 .delete(synchronize_session=False)
         if Config.DEBUGGING: app.logger.info('Deleted individual_parent_child: {}'.format(rPC))          
 
-        rS=db.session.query(IndSimilarity).filter(or_(IndSimilarity.individual_1.in_(ids_chunk),IndSimilarity.individual_2.in_(ids_chunk))).delete(synchronize_session=False)
+        # rS=db.session.query(IndSimilarity).filter(or_(IndSimilarity.individual_1.in_(ids_chunk),IndSimilarity.individual_2.in_(ids_chunk))).delete(synchronize_session=False)
+        rS1 = db.session.query(IndSimilarity).filter(IndSimilarity.individual_1.in_(ids_chunk)).delete(synchronize_session=False)
+        rS2 = db.session.query(IndSimilarity).filter(IndSimilarity.individual_2.in_(ids_chunk)).delete(synchronize_session=False)
+        rS = rS1 + rS2
         if Config.DEBUGGING: app.logger.info('Deleted IndSimilarity: {}'.format(rS))
 
         rIT=db.session.query(individualTasks).filter(individualTasks.c.individual_id.in_(ids_chunk)).delete(synchronize_session=False)
@@ -491,7 +503,9 @@ def delete_task_individuals(task_ids, species=None, camera_ids=None, image_ids=N
 def delete_individuals_helper(individual_ids):
     '''Deletes individuals for a given individual IDs.'''
 
-    db.session.query(IndSimilarity).filter(or_(IndSimilarity.individual_1.in_(individual_ids),IndSimilarity.individual_2.in_(individual_ids))).delete(synchronize_session=False)
+    # db.session.query(IndSimilarity).filter(or_(IndSimilarity.individual_1.in_(individual_ids),IndSimilarity.individual_2.in_(individual_ids))).delete(synchronize_session=False)
+    db.session.query(IndSimilarity).filter(IndSimilarity.individual_1.in_(individual_ids)).delete(synchronize_session=False)
+    db.session.query(IndSimilarity).filter(IndSimilarity.individual_2.in_(individual_ids)).delete(synchronize_session=False)
 
     db.session.query(individual_parent_child)\
             .filter(or_(individual_parent_child.c.parent_id.in_(individual_ids),individual_parent_child.c.child_id.in_(individual_ids)))\
