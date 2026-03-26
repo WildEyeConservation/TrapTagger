@@ -2249,6 +2249,7 @@ def calculate_results_summary(self, task_ids, baseUnit, sites, groups, startDate
     ''' Calculates the results summary '''
     try:
         summary = {}
+        app.logger.info('Calculating results summary for tasks:{}, baseUnit:{}, sites:{}, groups:{}, startDate:{}, endDate:{}, user_id:{}, trapUnit:{}, timeToIndependence:{}, timeToIndependenceUnit:{}, normaliseBySite:{}'.format(task_ids, baseUnit, sites, groups, startDate, endDate, user_id, trapUnit, timeToIndependence, timeToIndependenceUnit, normaliseBySite))
 
         if task_ids:
             if task_ids[0] == '0':
@@ -2297,7 +2298,7 @@ def calculate_results_summary(self, task_ids, baseUnit, sites, groups, startDate
             label_list = [GLOBALS.vhl_id,GLOBALS.nothing_id,GLOBALS.knocked_id]
             for task_id in task_ids:
                 label_list.extend(getChildList(vhl,int(task_id)))
-            summaryQuery = summaryQuery.filter(~Labelgroup.labels.any(Label.id.in_(label_list))).filter(Labelgroup.labels.any())
+            summaryQuery = summaryQuery.join(Label,Labelgroup.labels).filter(~Label.id.in_(label_list))
 
             summaryAnimalTotals = summaryQuery.all()   
 

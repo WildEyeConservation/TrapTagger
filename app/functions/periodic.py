@@ -200,7 +200,7 @@ def clean_up_redis():
                         app.logger.info('Deleting analysis key {}'.format(key))
                         try:
                             result_id = GLOBALS.redisClient.get(key).decode()
-                            celery.control.revoke(result_id, terminate=True)
+                            celery.control.revoke(result_id)
                         except:
                             pass
                         GLOBALS.redisClient.delete(key)

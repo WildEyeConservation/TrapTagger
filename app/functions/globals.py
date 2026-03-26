@@ -6164,7 +6164,8 @@ def prepTask(self, task_id, includes=None, translation=None, labels=None, auto_r
             delete_old_clusters(task_id,trapgroup_id,query_limit)
 
         # Just check for and delete any imageless clusters for safety
-        delete_clusters(task_id=task_id, empty=True)
+        if db.session.query(Cluster.id).filter(Cluster.task_id==task_id).filter(~Cluster.images.any()).first():
+            delete_clusters(task_id=task_id, empty=True)
 
         if Config.DEBUGGING: print('{}: finsihed deleting empty clusters for task {}'.format(time.time()-starttime,task_id))
         

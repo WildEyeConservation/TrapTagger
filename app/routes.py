@@ -11853,7 +11853,7 @@ def getActivityPattern():
                     result_id = GLOBALS.redisClient.get('analysis_' + str(current_user.id))
                     try:
                         result_id = result_id.decode()
-                        celery.control.revoke(result_id, terminate=True)
+                        celery.control.revoke(result_id)
                     except:
                         pass
                 
@@ -11966,7 +11966,7 @@ def getResultsSummary():
                 result_id = GLOBALS.redisClient.get('analysis_' + str(current_user.id))
                 try:
                     result_id = result_id.decode()
-                    celery.control.revoke(result_id, terminate=True)
+                    celery.control.revoke(result_id)
                 except:
                     pass
 
@@ -12076,7 +12076,7 @@ def getOccupancy():
                     result_id = GLOBALS.redisClient.get('analysis_' + str(current_user.id))
                     try:
                         result_id = result_id.decode()
-                        celery.control.revoke(result_id, terminate=True)
+                        celery.control.revoke(result_id)
                     except:
                         pass
 
@@ -12270,7 +12270,7 @@ def getSpatialCaptureRecapture():
                     result_id = GLOBALS.redisClient.get('analysis_' + str(current_user.id))
                     try:
                         result_id = result_id.decode()
-                        celery.control.revoke(result_id, terminate=True)
+                        celery.control.revoke(result_id)
                     except:
                         pass
 
@@ -12409,9 +12409,9 @@ def cancelResults():
                     try:
                         result_id = result_id.decode()
                         if result_type == 'summary':
-                            celery.control.revoke(result_id, terminate=True)
+                            celery.control.revoke(result_id)
                         else:
-                            celery.control.revoke(result_id, terminate=True)
+                            celery.control.revoke(result_id)
                             clean_up_R_results.apply_async(kwargs={'R_type': result_type, 'folder': folder, 'user_name': current_user.username})
                         if Config.DEBUGGING: app.logger.info('Revoked task {}'.format(result_id))
                         GLOBALS.redisClient.delete('analysis_' + str(current_user.id))
