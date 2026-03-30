@@ -1575,9 +1575,9 @@ def splitClusterAndUnknock(self,oldClusterID, SplitPoint):
         newCluster.images = images[SplitPoint:]
         oldCluster.images = images[:SplitPoint]
 
-        from app.functions.imports import classifyCluster
-        newCluster.classification = classifyCluster(newCluster)
-        oldCluster.classification = classifyCluster(oldCluster)
+        # from app.functions.imports import classifyCluster
+        # newCluster.classification = classifyCluster(newCluster)
+        # oldCluster.classification = classifyCluster(oldCluster)
         db.session.commit()
 
         unknock_cluster.apply_async(kwargs={'image_id':images[SplitPoint].id, 'label_id':None, 'user_id':None, 'task_id':task_id})
