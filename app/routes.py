@@ -6548,6 +6548,11 @@ def submitIndividuals():
                         if int(translations[childID]) != unidentifiable.id:
                             individual.children.append(db.session.query(Individual).get(int(translations[childID])))
 
+            labelgroups = db.session.query(Labelgroup).join(Detection).filter(Detection.id.in_(all_detections)).filter(Labelgroup.task_id==task_id).filter(Labelgroup.checked!=True).distinct().all()
+            # Mark labelgroup as checked to prevent dropping labels from labelgroups that are associated with individuals
+            for labelgroup in labelgroups:
+                labelgroup.checked = True
+
             clusters = db.session.query(Cluster).join(Image,Cluster.images).join(Detection).filter(Cluster.task_id==task_id).filter(Detection.id.in_(all_detections)).distinct().all()
             for cluster in clusters:
                 cluster.user_id = current_user.id
