@@ -118,6 +118,38 @@ limitations under the License. -->
             <div class="col-lg-2" style="padding: 0px"></div>
         </div>
         <br>
+        <div class="row" id="detInfoDiv" hidden="true">
+            <div class="col-lg-2" style="padding: 0px"></div>
+            <div class="col-lg-8" style="padding: 0px">
+                <div class='card' style="font-size:80%">
+                    <div class="card-header" style="padding-top: 4px; padding-bottom: 4px;">
+                        <h4 style="margin-bottom: 0px; padding-top: 0px; padding-bottom: 0px;">Sighting Information</h4>
+                    </div>
+
+                    <div class='card-body' style="margin-top: 0px; margin-bottom: 0px; padding-top: 8px;">
+                        <div class="row" style="margin-left: 4px; margin-right: 4px;">
+                            <div class="col-lg-4" style="padding: 0px">
+                                <div style="margin-top: 0px;">Label: </div>
+                            </div>
+                            <div class="col-lg-8" style="padding: 0px">
+                                <div id="detLabel" style="margin-top: 0px;text-align: right;"></div>
+                            </div>
+                        </div>
+
+                        <div class="row" style="margin-left: 4px; margin-right: 4px;">
+                            <div class="col-lg-4" style="padding: 0px">
+                                <div style="margin-top: 0px;">Individual: </div>
+                            </div>
+                            <div class="col-lg-8" style="padding: 0px">
+                                <div id="detIndividual" style="margin-top: 0px;text-align: right;"></div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="col-lg-2" style="padding: 0px"></div>
+        </div>
+        <br>
         <div class="row">
             <div class="col-lg-2" style="padding: 0px"></div>
             <div class="col-lg-8" style="padding: 0px">
@@ -311,10 +343,13 @@ limitations under the License. -->
 <script src="js/camtrap.common.v{{ version }}.js"></script>
 <script src="js/camtrap.explore.v{{ version }}.js"></script>
 <script src="js/camtrap.admin.commons.v{{ version }}.js"></script>
+<script src="js/camtrap.bounding.common.v{{ version }}.js"></script>
 <link rel="stylesheet" href="https://unpkg.com/leaflet@1.6.0/dist/leaflet.css"
 integrity="sha512-xwE/Az9zrjBIphAcBb3F6JVqxf46+CDLwfLMHloNu6KEQCAWi6HcDUbeOfBIptF7tcCzusKFjFw2yuvEpDL9wQ=="
 crossorigin=""/>
 <script src="js/leaflet.js"></script>
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet.draw/1.0.4/leaflet.draw.css"/>
 <script src="js/leaflet.draw.js"></script>
+<link rel="stylesheet" href="js/leaflet.contextmenu.css"/>
+<script src="js/leaflet.contextmenu.js"></script>
 {% endblock %}

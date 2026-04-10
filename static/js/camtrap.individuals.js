@@ -5721,6 +5721,20 @@ function onload(){
     populateSelectors()
     // getTasks()
 
+    const params = new URLSearchParams(window.location.search);
+    const paramIndividualID = params.get('individual_id');
+    const paramIndividualName = params.get('individual_name');
+    if (paramIndividualID && paramIndividualName) {
+        // open individual modal
+        cleanModalIndividual()
+        selectedIndividual = paramIndividualID
+        selectedIndividualName = paramIndividualName
+        console.log(selectedIndividual, selectedIndividualName)
+        document.getElementById('openIndivSummary').click()
+        //clean up url
+        window.history.replaceState({}, document.title, '/individuals');
+    }
+
 }
 
 document.onclick = function () {

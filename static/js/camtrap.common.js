@@ -311,8 +311,14 @@ function buildDetection(image,detection,mapID = 'map1',colour=null) {
 
         rect = L.rectangle([[detection.top*mapHeight[mapID],detection.left*mapWidth[mapID]],[detection.bottom*mapHeight[mapID],detection.right*mapWidth[mapID]]], rectOptions)
 
-        if (isBounding) {
-            rect.bindTooltip(detection.label,{permanent: true, direction:"center"})
+        if (isBounding||isReviewing) {
+            let displayLabel = 'None'
+            if (isReviewing) {
+                displayLabel = detection.labels.join(', ')
+            } else {
+                displayLabel = detection.label
+            }
+            rect.bindTooltip(displayLabel,{permanent: true, direction:"center"})
 
             var center = L.latLng([(rect._bounds._northEast.lat+rect._bounds._southWest.lat)/2,(rect._bounds._northEast.lng+rect._bounds._southWest.lng)/2])
             var bottom = L.latLng([rect._bounds._southWest.lat,(rect._bounds._northEast.lng+rect._bounds._southWest.lng)/2])
@@ -393,7 +399,7 @@ function buildDetection(image,detection,mapID = 'map1',colour=null) {
         }
 
         drawnItems[mapID].addLayer(rect)
-        if (isBounding) {
+        if (isBounding||isReviewing) {
             if (!toolTipsOpen) {
                 rect.closeTooltip()
             }
@@ -410,9 +416,9 @@ function buildDetection(image,detection,mapID = 'map1',colour=null) {
             dbDetIds[mapID][rect._leaflet_id.toString()] = detection.id.toString()
         }
 
-        if (document.getElementById('btnSendBoundingBack')!=null&&(mapID!='known')){
+        if (isReviewing||document.getElementById('btnSendBoundingBack')!=null&&(mapID!='known')){
             // Highlights and un-highlight when click on bounding box
-            rect.addEventListener('click', function(wrapRect){
+            rect.addEventListener('click', function(wrapRect, wrapDet){
                 return function() {
                     // Send to bounding boxes back when editing sightings (bounding-box correction)
                     if (sendBackBoundingMode) {
@@ -430,12 +436,43 @@ function buildDetection(image,detection,mapID = 'map1',colour=null) {
                     
                         wrapRect.setStyle({color: "rgba(225,225,225,1)"}); //highlight new selection
                         prevClickBounding = {'rect': wrapRect}
+
+                        if (isReviewing) {
+                            document.getElementById('detInfoDiv').hidden = false
+                            let tempLab = ''
+                            for (let i=0;i<wrapDet.labels.length;i++) {
+                                tempLab += wrapDet.labels[i]
+                                if (i != wrapDet.labels.length-1) {
+                                    tempLab += ', '
+                                }
+                            }
+                            document.getElementById('detLabel').innerHTML = tempLab
+                            // document.getElementById('detIndividual').innerHTML = wrapDet.individual != '-1' ? wrapDet.individual_names[0] : 'None'
+                            if (wrapDet.individual != '-1') {
+                                let detIndiv = document.getElementById('detIndividual');
+                                detIndiv.innerHTML = wrapDet.individual_names[0]
+                                detIndiv.style.cursor = 'pointer';
+                                detIndiv.style.color = '#DF691A';
+                                detIndiv.style.textDecoration = 'underline';
+                                
+                                detIndiv.onclick = function() {
+                                    openIndividual(wrapDet.individual, wrapDet.individual_names[0])
+                                };
+                            } else {
+                                let detIndiv = document.getElementById('detIndividual');
+                                detIndiv.style.cursor = 'default';
+                                detIndiv.style.color = 'inherit';
+                                detIndiv.style.textDecoration = 'none';
+                                detIndiv.innerHTML = 'None'
+                                detIndiv.onclick = null;
+                            }
+                        }
                     }
                     
                 }
-            }(rect));      
+            }(rect, detection));      
             // Highlights and un-highlight when right click on bounding box
-            rect.addEventListener('contextmenu', function(wrapRect){
+            rect.addEventListener('contextmenu', function(wrapRect, wrapDet){
                 return function() {
                     if(!drawControl._toolbars.edit._activeMode && !drawControl._toolbars.draw._activeMode){
                          if (!(isBounding && event.ctrlKey)) {
@@ -448,9 +485,39 @@ function buildDetection(image,detection,mapID = 'map1',colour=null) {
                     
                         wrapRect.setStyle({color: "rgba(225,225,225,1)"}); //highlight new selection
                         prevClickBounding = {'rect': wrapRect}
+
+                        if (isReviewing) {
+                            document.getElementById('detInfoDiv').hidden = false
+                            let tempLab = ''
+                            for (let i=0;i<wrapDet.labels.length;i++) {
+                                tempLab += wrapDet.labels[i]
+                                if (i != wrapDet.labels.length-1) {
+                                    tempLab += ', '
+                                }
+                            }
+                            document.getElementById('detLabel').innerHTML = tempLab
+                            // document.getElementById('detIndividual').innerHTML = wrapDet.individual != '-1' ? wrapDet.individual_names[0] : 'None'
+                            if (wrapDet.individual != '-1') {
+                                let detIndiv = document.getElementById('detIndividual');
+                                detIndiv.innerHTML = wrapDet.individual_names[0]
+                                detIndiv.style.cursor = 'pointer';
+                                detIndiv.style.color = '#DF691A';
+                                detIndiv.style.textDecoration = 'underline';
+                                detIndiv.onclick = function() {
+                                    openIndividual(wrapDet.individual, wrapDet.individual_names[0])
+                                };
+                            } else {
+                                let detIndiv = document.getElementById('detIndividual');
+                                detIndiv.style.cursor = 'default';
+                                detIndiv.style.color = 'inherit';
+                                detIndiv.style.textDecoration = 'none';
+                                detIndiv.innerHTML = 'None'
+                                detIndiv.onclick = null;
+                            }
+                        }
                     }
                 }
-            }(rect));
+            }(rect, detection));
         }
 
         if (document.getElementById('btnSendToBack')!=null&&(mapID!='known')) {
@@ -752,7 +819,7 @@ function buildDetection(image,detection,mapID = 'map1',colour=null) {
 function addDetections(mapID = 'map1') {
     /** Adds the bounding boxes to the active image. */
     if (!addedDetections[mapID]) {
-        if (isBounding||isIDing) {
+        if (isBounding||isReviewing||isIDing) {
             dbDetIds[mapID] = {}
             addDetCnt = 1
         }
@@ -773,6 +840,10 @@ function addDetections(mapID = 'map1') {
         if (isBounding) {
             drawControl._toolbars.edit._toolbarContainer.firstElementChild.title = '(E)dit sightings'
             drawControl._toolbars.edit._toolbarContainer.lastElementChild.title = '(D)elete sightings'
+        }
+        if (isReviewing) {
+            drawControl._toolbars.edit._toolbarContainer.firstElementChild.title = 'Edit sightings'
+            drawControl._toolbars.edit._toolbarContainer.lastElementChild.title = 'Delete sightings' 
         }
         if(isStaticCheck && detectionGroups){
             sg_detections = detectionGroups[clusters[mapID][clusterIndex[mapID]].id]
@@ -828,7 +899,7 @@ function updateCanvas(mapID = 'map1') {
             }
     
             if ((bucketName!=null) && (Object.keys(activeImage).includes(mapID)) && (imageIndex[mapID]<clusters[mapID][clusterIndex[mapID]].images.length)) {
-                if ((isBounding)||(isIDing && (document.getElementById('btnSendToBack')==null))) {
+                if ((isBounding)||(isReviewing)||(isIDing && (document.getElementById('btnSendToBack')==null))) {
                     setRectOptions()
                     if (isBounding){
                         buildBoundingKeys()
@@ -1530,6 +1601,39 @@ function updateDebugInfo(mapID = 'map1',updateLabels = true) {
                     document.getElementById('imageTimestamp').innerHTML = formattedDate
                 }
             }
+
+            if (isReviewing && document.getElementById('detInfoDiv').hidden == false) {
+                let detID = null;
+                for (let leafletID in drawnItems[mapID]._layers) {
+                    if (drawnItems[mapID]._layers[leafletID].options.color == "rgba(225,225,225,1)") {
+                        detID = dbDetIds[mapID][leafletID];
+                        break;
+                    }
+                }
+                if (detID != null) {
+                    let det = clusters[mapID][clusterIndex[mapID]].images[imageIndex[mapID]].detections.find(det => det.id == detID);
+                    if (det != undefined) {
+                        document.getElementById('detLabel').innerHTML = det.labels.join(', ');
+                        if (document.getElementById('detIndividual').innerHTML != det.individual_names[0]) {
+                            if (det.individual != '-1') {
+                                document.getElementById('detIndividual').innerHTML = det.individual_names[0];
+                                document.getElementById('detIndividual').style.cursor = 'pointer';
+                                document.getElementById('detIndividual').style.color = '#DF691A';
+                                document.getElementById('detIndividual').style.textDecoration = 'underline';
+                                document.getElementById('detIndividual').onclick = function() {
+                                    openIndividual(det.individual, det.individual_names[0]);
+                                };
+                            } else {
+                                document.getElementById('detIndividual').innerHTML = 'None';
+                                document.getElementById('detIndividual').style.cursor = 'default';
+                                document.getElementById('detIndividual').style.color = 'inherit';
+                                document.getElementById('detIndividual').style.textDecoration = 'none';
+                                document.getElementById('detIndividual').onclick = null;
+                            }   
+                        }
+                    }
+                }
+            }
         } 
     }
 
@@ -2007,6 +2111,8 @@ function switchTaggingLevel(level) {
 function assignLabel(label,mapID = 'map1'){
     /** Assigns the specified label to the current cluster. */
     var hasIndividuals = false
+    var hasHighlightedBounding = false
+    let selectedColour = 'rgba(225,225,225,1)'
     
     if (isTutorial) {
         if (finishedDisplaying[mapID] && !modalActive && !modalActive2) {
@@ -2024,6 +2130,7 @@ function assignLabel(label,mapID = 'map1'){
                 }
             }
         }
+        hasHighlightedBounding = Object.values(drawnItems[mapID]._layers).some(layer => layer.options.color == selectedColour)
     }
 
     if ((label==taggingLevel)&&(label==tempTaggingLevel)) {
@@ -2268,7 +2375,27 @@ function assignLabel(label,mapID = 'map1'){
 
             //     }
 
-                    
+            } else if (isReviewing && hasHighlightedBounding && !multipleStatus && taggingLevel == '-1') {
+                let action = 'label'
+                let labelText = labelsDict[label]
+                
+                let detection_edits = {
+                    'ids': [],
+                    'label': labelText
+                }
+                for (let leafletID in drawnItems[mapID]._layers) {
+                    if (drawnItems[mapID]._layers[leafletID].options.color==selectedColour) {
+                        drawnItems[mapID]._layers[leafletID]._tooltip._content = labelText;
+                        if (toolTipsOpen) {
+                            drawnItems[mapID]._layers[leafletID].openTooltip()
+                        }
+                        detection_edits['ids'].push(Number(dbDetIds[mapID][leafletID]))
+                    }
+                }
+                tempTaggingLevel = taggingLevel
+                initKeys(globalKeys[taggingLevel])
+                submitSightingChanges(detection_edits, action)
+                clearBoundingSelect(mapID)
             } else {
     
                 if (modalNothingKnock.is(':visible')) {
@@ -2909,7 +3036,7 @@ function prepMap(mapID = 'map1') {
                             }
                         }(wrapMapID));
                 
-                        if (isBounding) {
+                        if (isBounding||isReviewing) {
                             fetchLabelHierarchy()
                             setRectOptions()
                             sightingAnalysisMapPrep()
@@ -3391,6 +3518,18 @@ function submitLabels(mapID = 'map1') {
                         if (reply!='error') {
                             if (wrapIndex>-1) {
                                 clusters[wrapMapID][wrapIndex].annotator = reply.username
+                                //update detection labels
+                                for (let i=0;i<clusters[wrapMapID][wrapIndex].images.length;i++) {
+                                    for (let j=0;j<clusters[wrapMapID][wrapIndex].images[i].detections.length;j++) {
+                                        if (clusters[wrapMapID][wrapIndex].label.length > 0) {
+                                            clusters[wrapMapID][wrapIndex].images[i].detections[j].labels = clusters[wrapMapID][wrapIndex].label
+                                            clusters[wrapMapID][wrapIndex].images[i].detections[j].label = clusters[wrapMapID][wrapIndex].label[0]
+                                        } else {
+                                            clusters[wrapMapID][wrapIndex].images[i].detections[j].labels = ['None']
+                                            clusters[wrapMapID][wrapIndex].images[i].detections[j].label = 'None'
+                                        }
+                                    }
+                                }
                                 if (reply.individual_check) {
                                     clusters[wrapMapID].splice(wrapIndex,1)
                                     clusterIndex[wrapMapID] -= 1
@@ -3568,6 +3707,7 @@ function initKeys(res){
         newbtn.setAttribute("id", 'multipleBtn');
         newbtn.setAttribute("class", "btn btn-danger btn-block btn-sm");
         newbtn.setAttribute("style", "margin-top: 3px; margin-bottom: 3px");
+        newbtn.classList.add('label-btn');
         newbtn.addEventListener('click', (evt)=>{
             activateMultiple();
         });
@@ -3623,6 +3763,7 @@ function initKeys(res){
                 newbtn.classList.add('btn-block');
                 newbtn.classList.add('btn-sm');
                 newbtn.setAttribute("style", "margin-top: 3px; margin-bottom: 3px");
+                newbtn.classList.add('label-btn');
                 newbtn.addEventListener('click', (evt)=>{
                     assignLabel(evt.target.id);
                 });
@@ -3673,6 +3814,7 @@ function initKeys(res){
                     newbtn.classList.add('btn-block');
                     newbtn.classList.add('btn-sm');
                     newbtn.setAttribute("style", "margin-top: 3px; margin-bottom: 3px");
+                    newbtn.classList.add('label-btn');
                     newbtn.addEventListener('click', (evt)=>{
                         assignLabel(evt.target.id);
                     });
@@ -4041,7 +4183,7 @@ document.onkeydown = function(event){
 document.onclick = function (event){
     /** Closes the context menu on click when editing the bounding boxes, or whilst doing individual ID. */
     activity = true
-    if (isBounding) {
+    if (isBounding||isReviewing) {
         for (let mapID in map) {
             if (map[mapID].contextmenu.isVisible()) {
                 map[mapID].contextmenu.hide()

@@ -8955,7 +8955,7 @@ def getLabelHierarchy(task_id):
     task_id = int(task_id)
     task = db.session.query(Task).get(task_id)
     # if task and ((current_user.parent in task.survey.user.workers) or (current_user.parent == task.survey.user)):
-    if task and (checkAnnotationPermission(current_user.parent_id,task.id)):
+    if task and (checkAnnotationPermission(current_user.parent_id,task.id) or checkSurveyPermission(current_user.id,task.survey_id,'write')):
         parentLabels = db.session.query(Label).filter(Label.task_id==task_id).filter(Label.parent_id==None).all()
         parentLabels.append(db.session.query(Label).get(GLOBALS.vhl_id))
         parentLabels.append(db.session.query(Label).get(GLOBALS.unknown_id))
@@ -17694,3 +17694,179 @@ def getFolderLastModified():
         contents['token'] = token
 
     return json.dumps({'contents': contents})
+
+@app.route('/editSightingsGeneral/<task_id>', methods=['POST'])
+@login_required
+def editSightingsGeneral(task_id):
+    '''Handles the editing of bounding boxes on the specified detection, and labels for the associated labelgroup for the given task.'''
+
+    detDbIDs = {}
+    cluster_labels = {}
+    annotator=''
+    action = ast.literal_eval(request.form['action'])
+    detection_edits = ast.literal_eval(request.form['detection_edits'])
+    image_id = ast.literal_eval(request.form['image_id'])
+    if current_user.admin == False:    
+        task_id = current_user.turkcode[0].task_id
+
+    task = db.session.query(Task).get(task_id)
+    app.logger.info(f'Editing Sigthings for task {task_id}, image {image_id}, action {action}, detection_edits {detection_edits}')
+
+    if task and (checkAnnotationPermission(current_user.parent_id,task.id) or checkSurveyPermission(current_user.id,task.survey_id,'write')):
+        
+        if action == 'delete':
+            detections = db.session.query(Detection).filter(Detection.id.in_(detection_edits)).all()
+            for detection in detections:
+                detection.status = 'deleted'
+            
+            labelgroups = db.session.query(Labelgroup).filter(Labelgroup.detection_id.in_(detection_edits)).filter(Labelgroup.checked!=True).all()
+            for labelgroup in labelgroups:
+                labelgroup.checked = True
+        
+        elif action == 'edit':
+            detections = db.session.query(Detection).filter(Detection.id.in_(detection_edits.keys())).all()
+            for detection in detections:
+                det_id = str(detection.id)
+                if 'bounding_box' in detection_edits[det_id]:
+                    detection.status = 'edited'
+                    detection.source = 'user'
+                    bounding_box = detection_edits[det_id]['bounding_box']
+                    detection.top = max(0.0, min(1.0, float(bounding_box['top'])))
+                    detection.left = max(0.0, min(1.0, float(bounding_box['left'])))
+                    detection.right = max(0.0, min(1.0, float(bounding_box['right'])))
+                    detection.bottom = max(0.0, min(1.0, float(bounding_box['bottom'])))
+
+                if 'label' in detection_edits[det_id]:
+                    label = detection_edits[det_id]['label']
+                    if label in ['Vehicles/Humans/Livestock','Unknown','Nothing']:
+                        db_label = db.session.query(Label).filter(Label.description==label).filter(Label.task_id==None).first()
+                    else:
+                        db_label = db.session.query(Label).filter(Label.description==label).filter(Label.task_id==task.id).first()
+                    if db_label:
+                        labelgroup = db.session.query(Labelgroup).filter(Labelgroup.detection_id==detection.id).filter(Labelgroup.task_id==task.id).first()
+                        labelgroup.labels = [db_label]
+                        labelgroup.checked = True
+
+        elif action == 'add':
+            for detID in detection_edits:
+                label = detection_edits[detID]['label']
+                if label == None or label == 'None':
+                    db_label = None
+                elif label in ['Vehicles/Humans/Livestock','Unknown','Nothing']:
+                    db_label = db.session.query(Label).filter(Label.description==label).filter(Label.task_id==None).first()
+                else:
+                    db_label = db.session.query(Label).filter(Label.description==label).filter(Label.task_id==task.id).first()
+                # Add new detection
+                detection = Detection(
+                    top=max(0.0, min(1.0, float(detection_edits[detID]['top']))),
+                    bottom=max(0.0, min(1.0, float(detection_edits[detID]['bottom']))),
+                    left=max(0.0, min(1.0, float(detection_edits[detID]['left']))),
+                    right=max(0.0, min(1.0, float(detection_edits[detID]['right']))),
+                    score=1,
+                    static=False,
+                    image_id=int(image_id),
+                    category=1,
+                    source='user',
+                    status='added',
+                    classification='nothing'
+                )
+                db.session.add(detection)
+
+                for tempTask in task.survey.tasks:
+                    labelgroup = Labelgroup(task_id=tempTask.id, detection=detection, checked=True)
+                    db.session.add(labelgroup)
+                    tempCluster = db.session.query(Cluster).join(Image,Cluster.images).filter(Image.id==image_id).filter(Cluster.task==tempTask).first()
+                    labelgroup.tags = tempCluster.tags
+                    if tempTask.id == task.id:
+                        labelgroup.labels = [db_label] if db_label else []
+                    else:
+                        labelgroup.labels = tempCluster.labels
+
+                #new detection needs a new classification - user generated is probably correct. Will use that.
+                if db_label:
+                    translation = db.session.query(Translation)\
+                                            .filter(Translation.task_id==int(task_id))\
+                                            .filter(Translation.label_id==db_label.id)\
+                                            .first()
+                    if translation:
+                        detection.classification = translation.classification
+                    else:
+                        detection.classification = 'nothing'
+
+                detDbIDs[detID] = detection.id
+
+        elif action == 'label':
+            label = detection_edits['label']
+            if label in ['Vehicles/Humans/Livestock','Unknown','Nothing']:
+                db_label = db.session.query(Label).filter(Label.description==label).filter(Label.task_id==None).first()
+            else:
+                db_label = db.session.query(Label).filter(Label.description==label).filter(Label.task_id==task.id).first()
+            if db_label:
+                labelgroups = db.session.query(Labelgroup).filter(Labelgroup.detection_id.in_(detection_edits['ids'])).filter(Labelgroup.task_id==task.id).all()
+                for labelgroup in labelgroups:
+                    labelgroup.labels = [db_label]
+                    labelgroup.checked = True
+        
+        image = db.session.query(Image).get(image_id)
+        if image:
+            image.detection_rating = detection_rating(image)
+
+            cluster = db.session.query(Cluster).join(Image,Cluster.images).filter(Image.id==image_id).filter(Cluster.task_id==task.id).first()
+            detectionLabels = rDets(db.session.query(Label)\
+                            .join(Labelgroup, Label.labelgroups)\
+                            .join(Detection)\
+                            .join(Image)\
+                            .join(Cluster,Image.clusters)\
+                            .filter(Cluster.id==cluster.id)\
+                            .filter(Labelgroup.task_id==task.id))\
+                            .distinct(Label.id).all()
+            cluster.labels = detectionLabels
+            cluster.user_id = current_user.id
+            cluster.timestamp = datetime.utcnow()
+            cluster_labels[cluster.id]= {
+                'label': [l.description for l in detectionLabels],
+                'label_ids': [l.id for l in detectionLabels]
+            }
+            annotator = current_user.username
+        db.session.commit()
+
+    return json.dumps({'status':'success','detDbIDs':detDbIDs, 'cluster_labels':cluster_labels, 'annotator':annotator}) 
+
+@app.route('/checkIndividualInfo/<cluster_id>')
+@login_required
+def checkIndividualInfo(cluster_id):
+    '''Checks the individual information for a given cluster.'''
+
+    individual_info = {}
+    cluster = db.session.query(Cluster).get(cluster_id)
+    if cluster and checkSurveyPermission(current_user.id,cluster.task.survey_id,'read'):
+        task_id = cluster.task.id
+        info = db.session.query(Detection.id, Individual.id, Individual.name)\
+            .join(Image,Detection.image_id==Image.id)\
+            .join(Cluster,Image.clusters)\
+            .filter(Cluster.id==cluster_id)\
+            .outerjoin(Individual,Detection.individuals)\
+            .outerjoin(Task,Individual.tasks)\
+            .filter(Task.id==task_id)\
+            .distinct().all()
+
+        for row in info:
+            if row[0] not in individual_info:
+                if row[1]:
+                    individual_info[row[0]] = {
+                        'individual': row[1],
+                        'individual_names': [row[2]],
+                        'individuals': [row[1]]
+                    }
+                else:
+                    individual_info[row[0]] = {
+                        'individual': '-1',
+                        'individual_names': [],
+                        'individuals': ['-1']
+                    }
+            else:
+                if row[1]:
+                    individual_info[row[0]]['individual_names'].append(row[2])
+                    individual_info[row[0]]['individuals'].append(row[1])
+    
+    return json.dumps({'individual_info':individual_info})

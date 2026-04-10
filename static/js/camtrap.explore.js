@@ -28,6 +28,8 @@ var prevStartDate = null
 var prevEndDate = null
 var editingEnabled = false
 var getClusterAttempts = 0
+var labelsDict = {}
+var checkIndividualsTimer = null
 isTagging = false
 isReviewing = true
 isKnockdown = false
@@ -50,6 +52,25 @@ const divSiteSelector = document.querySelector('#divSiteSelector');
 const divAnnotatorSelector = document.querySelector('#divAnnotatorSelector');
 const annotationLevel = document.querySelector('#annotationLevel');
 
+var boundingClusterLabels = {}
+var dbDetIds = {}
+var addDetCnt
+var drawControl = null
+var toolTipsOpen = true
+var labelHierarchy
+var currentHierarchicalLevel = []
+var plusInProgress = false
+var contextLocation
+var clusterIdList = []
+var editingEnabled = false
+var multiContextVal = 0
+var subDividedContList
+var prevClickBounding = null
+var boundingClusterLabels = {}
+var bounding_actions = []
+var selectAllControl = null
+
+
 function loadNewCluster(mapID = 'map1') {
     /** loads the next cluster based on the IDs contained in the clusterIDs array. */
     if (clusterReadAheadIndex<clusterIDs.length) {
@@ -69,7 +90,17 @@ function loadNewCluster(mapID = 'map1') {
                     if (clusterRequests[mapID].includes(parseInt(info.id))) {
                         clusterRequests[mapID].splice(clusterRequests[mapID].indexOf(parseInt(info.id)), 1)
                         newcluster = info.info[0];
+                        // Sort image detections by area (so that larger detections are drawn first - avoid having to use send to back)
+                        newcluster.images.forEach(img => {
+                            img.detections.sort((a, b) => 
+                                ((b.right - b.left) * (b.bottom - b.top)) -
+                                ((a.right - a.left) * (a.bottom - a.top))
+                            );
+                        });
+
                         clusters[mapID].push(newcluster)
+
+                        boundingClusterLabels[newcluster.id] = newcluster.label
 
                         // Access control
                         if (info.access == true) {
@@ -121,12 +152,17 @@ function getKeys() {
                         }
                         else{
                             globalKeys = reply
+                            labelsDict = {}
                             for (let key in globalKeys) {
                                 if (globalKeys[key].length!=0) {
                                     for (let i=0;i<globalKeys[key][1].length;i++) {
                                         if (blockedExploreLabels.includes(globalKeys[key][1][i])) {
                                             globalKeys[key][1][i] = 'N'
                                             globalKeys[key][0][i] = -967
+                                        }
+
+                                        if (globalKeys[key][0][i] > 0) {
+                                            labelsDict[globalKeys[key][0][i]] = globalKeys[key][1][i]
                                         }
                                     }
                                 }
@@ -622,6 +658,62 @@ function validateDates(){
     }
 
     return true
+}
+
+function openIndividual(individual_id, individual_name, mapID = 'map1') {
+    /** Opens the individual page for the given individual ID. */
+    let encodedName = encodeURIComponent(individual_name);
+    let encodedID = encodeURIComponent(individual_id);
+    let url = '/individuals?individual_id=' + encodedID + '&individual_name=' + encodedName;
+    window.open(url, '_blank');
+    checkIndividualInfo(clusters[mapID][clusterIndex[mapID]].id, clusterIndex[mapID]);
+}
+
+function checkIndividualInfo(cluster_id, cluster_index, mapID = 'map1') {
+    /** Checks the individual information for the given cluster ID. */
+    console.log(cluster_id, cluster_index);
+    if (checkIndividualsTimer) {
+        clearTimeout(checkIndividualsTimer);
+        checkIndividualsTimer = null;
+    }
+
+    if (clusters[mapID][clusterIndex[mapID]].id == cluster_id) {
+        var xhttp = new XMLHttpRequest();
+        xhttp.onreadystatechange =
+        function(){
+            if (this.readyState == 4 && this.status == 200) {
+                response = JSON.parse(this.responseText);
+                individual_info = response.individual_info;
+                console.log(individual_info);
+
+                for (let i=0;i<clusters[mapID][cluster_index].images.length;i++) {
+                    for (let j=0;j<clusters[mapID][cluster_index].images[i].detections.length;j++) {
+                        let det_id = clusters[mapID][cluster_index].images[i].detections[j].id;
+                        if (individual_info.hasOwnProperty(det_id)) {
+                            clusters[mapID][cluster_index].images[i].detections[j].individual = individual_info[det_id].individual;
+                            clusters[mapID][cluster_index].images[i].detections[j].individual_names = individual_info[det_id].individual_names;
+                            clusters[mapID][cluster_index].images[i].detections[j].individuals = individual_info[det_id].individuals;
+                        } 
+                    }
+                }
+
+                updateDebugInfo()
+
+                if (clusters[mapID][clusterIndex[mapID]].id == cluster_id) {
+                    // Check indiv info every 15 seconds
+                    if (checkIndividualsTimer) {
+                        clearTimeout(checkIndividualsTimer);
+                        checkIndividualsTimer = null;
+                    }
+                    checkIndividualsTimer = setTimeout(function() {
+                        checkIndividualInfo(cluster_id, cluster_index, mapID);
+                    }, 15000);
+                }
+            }
+        }
+        xhttp.open("GET", '/checkIndividualInfo/' + cluster_id);
+        xhttp.send();
+    }
 }
 
 window.addEventListener('load', onload, false);
