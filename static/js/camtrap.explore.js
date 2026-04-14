@@ -716,4 +716,51 @@ function checkIndividualInfo(cluster_id, cluster_index, mapID = 'map1') {
     }
 }
 
+function updateDetInfo(det=null, mapID = 'map1') {
+    /** Updates the detection information. */
+    let multiple_selected = checkMultipleSightingsSelected(mapID)
+    if (det != null && !multiple_selected) {
+        document.getElementById('detInfoDiv').hidden = false
+        let tempLab = ''
+        for (let i=0;i<det.labels.length;i++) {
+            tempLab += det.labels[i]
+            if (i != det.labels.length-1) {
+                tempLab += ', '
+            }
+        }
+        document.getElementById('detLabel').innerHTML = tempLab
+        if (det.individual != '-1') {
+            let detIndiv = document.getElementById('detIndividual');
+            detIndiv.innerHTML = det.individual_names[0]
+            detIndiv.style.cursor = 'pointer';
+            detIndiv.style.color = '#DF691A';
+            detIndiv.style.textDecoration = 'underline';
+            
+            detIndiv.onclick = function() {
+                openIndividual(det.individual, det.individual_names[0])
+            };
+
+            document.getElementById('detFlankDiv').hidden = false
+            document.getElementById('detFlank').innerHTML = det.flank
+        } else {
+            let detIndiv = document.getElementById('detIndividual');
+            detIndiv.style.cursor = 'default';
+            detIndiv.style.color = 'inherit';
+            detIndiv.style.textDecoration = 'none';
+            detIndiv.innerHTML = 'None'
+            detIndiv.onclick = null;
+
+            document.getElementById('detFlankDiv').hidden = true
+            document.getElementById('detFlank').innerHTML = ''
+        }
+    } else {
+        document.getElementById('detInfoDiv').hidden = true
+        document.getElementById('detLabel').innerHTML = ''
+        document.getElementById('detIndividual').innerHTML = ''
+        document.getElementById('detIndividual').onclick = null;
+        document.getElementById('detFlankDiv').hidden = true
+        document.getElementById('detFlank').innerHTML = ''
+    }
+}
+
 window.addEventListener('load', onload, false);

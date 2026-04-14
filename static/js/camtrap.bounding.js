@@ -363,11 +363,10 @@ function buildOtherKeys(level=null, mapID='map1'){
 function assignBoundingLabel(label,mapID='map1') {
     /** Assigns the selected label to the currently selected bounding boxes - if nothing selected apply to all */
     if (!editingEnabled && label!=EMPTY_HOTKEY_ID){
-        selected_colour = "rgba(225,225,225,1)";
         none_selected = true 
 
         for (let leafletID in drawnItems[mapID]._layers) {
-            if (drawnItems[mapID]._layers[leafletID].options.color==selected_colour) {
+            if (drawnItems[mapID]._layers[leafletID].options.color==colourSelected) {
                 drawnItems[mapID]._layers[leafletID]._tooltip._content = label;
                 if (toolTipsOpen) {
                     drawnItems[mapID]._layers[leafletID].openTooltip()

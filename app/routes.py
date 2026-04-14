@@ -8015,7 +8015,7 @@ def assignLabel(clusterID):
 
                     if use_celery_to_update_labelgroups: update_labelgroup_labels_tags.apply_async(kwargs={'cluster_id':cluster.id})
 
-                    if explore:
+                    if explore and taggingLevel!='-2':
                         individual_check = session.query(Individual.id).join(Detection, Individual.detections).join(Image).join(Cluster, Image.clusters).filter(Cluster.id==cluster.id).filter(Individual.tasks.contains(task)).first()
                         if individual_check:
                             individual_check = individual_check[0]
@@ -17703,6 +17703,7 @@ def editSightingsGeneral(task_id):
     detDbIDs = {}
     cluster_labels = {}
     annotator=''
+    update_labels = False
     action = ast.literal_eval(request.form['action'])
     detection_edits = ast.literal_eval(request.form['detection_edits'])
     image_id = ast.literal_eval(request.form['image_id'])
@@ -17820,17 +17821,22 @@ def editSightingsGeneral(task_id):
                             .filter(Cluster.id==cluster.id)\
                             .filter(Labelgroup.task_id==task.id))\
                             .distinct(Label.id).all()
+            if len(cluster.labels) == 0:
+                update_labels = True
             cluster.labels = detectionLabels
             cluster.user_id = current_user.id
             cluster.timestamp = datetime.utcnow()
             cluster_labels[cluster.id]= {
-                'label': [l.description for l in detectionLabels],
-                'label_ids': [l.id for l in detectionLabels]
+                'label': [l.description for l in detectionLabels] if detectionLabels else ['None'], 
+                'label_ids': [l.id for l in detectionLabels] if detectionLabels else ['0']
             }
             annotator = current_user.username
         db.session.commit()
 
-    return json.dumps({'status':'success','detDbIDs':detDbIDs, 'cluster_labels':cluster_labels, 'annotator':annotator}) 
+        if update_labels:
+            update_labelgroup_labels_tags.apply_async(kwargs={'cluster_id': cluster.id})
+
+    return json.dumps({'status':'success','detDbIDs':detDbIDs, 'cluster_labels':cluster_labels, 'annotator':annotator, 'update_labels':update_labels}) 
 
 @app.route('/checkIndividualInfo/<cluster_id>')
 @login_required

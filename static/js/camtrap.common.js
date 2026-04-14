@@ -146,6 +146,8 @@ var detectionGroups = {}
 var editedFlanks = {}
 var preloadImageIndex = {"map1": 0}
 var sliderImageIndexMap = {"map1": [], "map2": []}
+var colourBase = "rgba(223,105,26,1)"
+var colourSelected = "rgba(225,225,225,1)"
 
 // var colours = {
 //     'rgba(67,115,98,1)': false,
@@ -305,7 +307,7 @@ function buildDetection(image,detection,mapID = 'map1',colour=null) {
             if (colour) {
                 rectOptions.color = colour
             } else {
-                rectOptions.color = "rgba(223,105,26,1)"
+                rectOptions.color = colourBase
             }
         }
 
@@ -426,46 +428,19 @@ function buildDetection(image,detection,mapID = 'map1',colour=null) {
                         sendBoundingBack()
                     }
                     else if(!drawControl._toolbars.edit._activeMode && !drawControl._toolbars.draw._activeMode){
-                        if (!(isBounding && event.ctrlKey)) {
-                            colour = "rgba(223,105,26,1)"
+                        if (!((isBounding||isReviewing) && event.ctrlKey)) {
+                            colour = colourBase
                             // prevClickBounding.rect.setStyle({color: colour}); //un-highlight old selection
                             for (let leafletID in drawnItems[mapID]._layers) {
                                 drawnItems[mapID]._layers[leafletID].setStyle({color: colour}); //un-highlight all selections
                             }
                         }
                     
-                        wrapRect.setStyle({color: "rgba(225,225,225,1)"}); //highlight new selection
+                        wrapRect.setStyle({color: colourSelected}); //highlight new selection
                         prevClickBounding = {'rect': wrapRect}
 
                         if (isReviewing) {
-                            document.getElementById('detInfoDiv').hidden = false
-                            let tempLab = ''
-                            for (let i=0;i<wrapDet.labels.length;i++) {
-                                tempLab += wrapDet.labels[i]
-                                if (i != wrapDet.labels.length-1) {
-                                    tempLab += ', '
-                                }
-                            }
-                            document.getElementById('detLabel').innerHTML = tempLab
-                            // document.getElementById('detIndividual').innerHTML = wrapDet.individual != '-1' ? wrapDet.individual_names[0] : 'None'
-                            if (wrapDet.individual != '-1') {
-                                let detIndiv = document.getElementById('detIndividual');
-                                detIndiv.innerHTML = wrapDet.individual_names[0]
-                                detIndiv.style.cursor = 'pointer';
-                                detIndiv.style.color = '#DF691A';
-                                detIndiv.style.textDecoration = 'underline';
-                                
-                                detIndiv.onclick = function() {
-                                    openIndividual(wrapDet.individual, wrapDet.individual_names[0])
-                                };
-                            } else {
-                                let detIndiv = document.getElementById('detIndividual');
-                                detIndiv.style.cursor = 'default';
-                                detIndiv.style.color = 'inherit';
-                                detIndiv.style.textDecoration = 'none';
-                                detIndiv.innerHTML = 'None'
-                                detIndiv.onclick = null;
-                            }
+                            updateDetInfo(wrapDet, mapID)
                         }
                     }
                     
@@ -475,45 +450,19 @@ function buildDetection(image,detection,mapID = 'map1',colour=null) {
             rect.addEventListener('contextmenu', function(wrapRect, wrapDet){
                 return function() {
                     if(!drawControl._toolbars.edit._activeMode && !drawControl._toolbars.draw._activeMode){
-                         if (!(isBounding && event.ctrlKey)) {
-                            colour = "rgba(223,105,26,1)"
+                         if (!((isBounding||isReviewing) && event.ctrlKey)) {
+                            colour = colourBase
                             // prevClickBounding.rect.setStyle({color: colour}); //un-highlight old selection
                             for (let leafletID in drawnItems[mapID]._layers) {
                                 drawnItems[mapID]._layers[leafletID].setStyle({color: colour}); //un-highlight all selections
                             }
                         }
                     
-                        wrapRect.setStyle({color: "rgba(225,225,225,1)"}); //highlight new selection
+                        wrapRect.setStyle({color: colourSelected}); //highlight new selection
                         prevClickBounding = {'rect': wrapRect}
 
                         if (isReviewing) {
-                            document.getElementById('detInfoDiv').hidden = false
-                            let tempLab = ''
-                            for (let i=0;i<wrapDet.labels.length;i++) {
-                                tempLab += wrapDet.labels[i]
-                                if (i != wrapDet.labels.length-1) {
-                                    tempLab += ', '
-                                }
-                            }
-                            document.getElementById('detLabel').innerHTML = tempLab
-                            // document.getElementById('detIndividual').innerHTML = wrapDet.individual != '-1' ? wrapDet.individual_names[0] : 'None'
-                            if (wrapDet.individual != '-1') {
-                                let detIndiv = document.getElementById('detIndividual');
-                                detIndiv.innerHTML = wrapDet.individual_names[0]
-                                detIndiv.style.cursor = 'pointer';
-                                detIndiv.style.color = '#DF691A';
-                                detIndiv.style.textDecoration = 'underline';
-                                detIndiv.onclick = function() {
-                                    openIndividual(wrapDet.individual, wrapDet.individual_names[0])
-                                };
-                            } else {
-                                let detIndiv = document.getElementById('detIndividual');
-                                detIndiv.style.cursor = 'default';
-                                detIndiv.style.color = 'inherit';
-                                detIndiv.style.textDecoration = 'none';
-                                detIndiv.innerHTML = 'None'
-                                detIndiv.onclick = null;
-                            }
+                            updateDetInfo(wrapDet, mapID)
                         }
                     }
                 }
@@ -615,11 +564,11 @@ function buildDetection(image,detection,mapID = 'map1',colour=null) {
                                     if (previousClick.individual != '-1') {
                                         colour = individuals[individualIndex][previousClick.individual].colour
                                     } else {
-                                        colour = "rgba(223,105,26,1)"
+                                        colour = colourBase
                                     }
                                     previousClick.rect.setStyle({color: colour}); //un-highlight old selection
                                 }
-                                wrapRect.setStyle({color: "rgba(225,225,225,1)"}); //highlight new selection
+                                wrapRect.setStyle({color: colourSelected}); //highlight new selection
                                 previousClick = {'detID': wrapDetectionID, 'map': wrapMapID, 'image': wrapImageID, 'rect': wrapRect, "individual": wrapIndividual}
                             } else {
                                 //match created
@@ -1605,7 +1554,7 @@ function updateDebugInfo(mapID = 'map1',updateLabels = true) {
             if (isReviewing && document.getElementById('detInfoDiv').hidden == false) {
                 let detID = null;
                 for (let leafletID in drawnItems[mapID]._layers) {
-                    if (drawnItems[mapID]._layers[leafletID].options.color == "rgba(225,225,225,1)") {
+                    if (drawnItems[mapID]._layers[leafletID].options.color == colourSelected) {
                         detID = dbDetIds[mapID][leafletID];
                         break;
                     }
@@ -1613,25 +1562,12 @@ function updateDebugInfo(mapID = 'map1',updateLabels = true) {
                 if (detID != null) {
                     let det = clusters[mapID][clusterIndex[mapID]].images[imageIndex[mapID]].detections.find(det => det.id == detID);
                     if (det != undefined) {
-                        document.getElementById('detLabel').innerHTML = det.labels.join(', ');
-                        if (document.getElementById('detIndividual').innerHTML != det.individual_names[0]) {
-                            if (det.individual != '-1') {
-                                document.getElementById('detIndividual').innerHTML = det.individual_names[0];
-                                document.getElementById('detIndividual').style.cursor = 'pointer';
-                                document.getElementById('detIndividual').style.color = '#DF691A';
-                                document.getElementById('detIndividual').style.textDecoration = 'underline';
-                                document.getElementById('detIndividual').onclick = function() {
-                                    openIndividual(det.individual, det.individual_names[0]);
-                                };
-                            } else {
-                                document.getElementById('detIndividual').innerHTML = 'None';
-                                document.getElementById('detIndividual').style.cursor = 'default';
-                                document.getElementById('detIndividual').style.color = 'inherit';
-                                document.getElementById('detIndividual').style.textDecoration = 'none';
-                                document.getElementById('detIndividual').onclick = null;
-                            }   
-                        }
+                        updateDetInfo(det, mapID)
+                    } else {
+                        updateDetInfo(null, mapID)
                     }
+                } else{
+                    updateDetInfo(null, mapID)
                 }
             }
         } 
@@ -2112,7 +2048,6 @@ function assignLabel(label,mapID = 'map1'){
     /** Assigns the specified label to the current cluster. */
     var hasIndividuals = false
     var hasHighlightedBounding = false
-    let selectedColour = 'rgba(225,225,225,1)'
     
     if (isTutorial) {
         if (finishedDisplaying[mapID] && !modalActive && !modalActive2) {
@@ -2130,7 +2065,7 @@ function assignLabel(label,mapID = 'map1'){
                 }
             }
         }
-        hasHighlightedBounding = Object.values(drawnItems[mapID]._layers).some(layer => layer.options.color == selectedColour)
+        hasHighlightedBounding = Object.values(drawnItems[mapID]._layers).some(layer => layer.options.color == colourSelected)
     }
 
     if ((label==taggingLevel)&&(label==tempTaggingLevel)) {
@@ -2384,7 +2319,7 @@ function assignLabel(label,mapID = 'map1'){
                     'label': labelText
                 }
                 for (let leafletID in drawnItems[mapID]._layers) {
-                    if (drawnItems[mapID]._layers[leafletID].options.color==selectedColour) {
+                    if (drawnItems[mapID]._layers[leafletID].options.color==colourSelected) {
                         drawnItems[mapID]._layers[leafletID]._tooltip._content = labelText;
                         if (toolTipsOpen) {
                             drawnItems[mapID]._layers[leafletID].openTooltip()
@@ -3048,7 +2983,7 @@ function prepMap(mapID = 'map1') {
                             clusterIDMapPrep(wrapMapID)
                         } else {
                             rectOptions = {
-                                color: "rgba(223,105,26,1)",
+                                color: colourBase,
                                 fill: true,
                                 fillOpacity: 0.0,
                                 opacity: 0.8,
@@ -3128,7 +3063,7 @@ function updateMap(mapID = 'map1', url){
                     map[wrapMapID].addLayer(drawnItems[wrapMapID]);
                     
                     rectOptions = {
-                        color: "rgba(223,105,26,1)",
+                        color: colourBase,
                         fill: true,
                         fillOpacity: 0.0,
                         opacity: 0.8,
@@ -3699,9 +3634,15 @@ function initKeys(res){
         var newbtn = document.createElement('button');
 
         if (taggingLevel.includes('-2')) {
-            newbtn.innerHTML = 'Multiple Tags (Ctrl)';
+            newbtn.innerHTML = 'Multiple Tags';
+            if (!isReviewing){
+                newbtn.innerHTML += ' (Ctrl)';
+            }
         } else {
-            newbtn.innerHTML = 'Multiple Species (Ctrl)';
+            newbtn.innerHTML = 'Multiple Species';
+            if (!isReviewing){
+                newbtn.innerHTML += ' (Ctrl)';
+            }
         }
 
         newbtn.setAttribute("id", 'multipleBtn');
@@ -4000,8 +3941,10 @@ document.onkeyup = function(event){
                     break;
 
                 case 'control': 
-                    if (!ctrlHeld){
-                        activateMultiple()
+                    if (!isReviewing){
+                        if (!ctrlHeld){
+                            activateMultiple()
+                        }
                     }
                     break;
     

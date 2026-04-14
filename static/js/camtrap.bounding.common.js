@@ -37,9 +37,14 @@ function sightingAnalysisMapPrep(mapID = 'map1') {
     /** Preps the map for sighting analysis by editing the draw controls, and adding the species context menu. */
 
     map[mapID].on("draw:deletestart", function(e) {
-        drawControl._toolbars.edit._actionsContainer.children[0].firstElementChild.innerHTML = '(F)inish'
+        if (isReviewing) {
+            drawControl._toolbars.edit._actionsContainer.children[0].firstElementChild.innerHTML = 'Finish'
+            drawControl._toolbars.edit._actionsContainer.children[2].firstElementChild.innerHTML = 'Clear all'
+        } else {
+            drawControl._toolbars.edit._actionsContainer.children[0].firstElementChild.innerHTML = '(F)inish'
+            drawControl._toolbars.edit._actionsContainer.children[2].firstElementChild.innerHTML = '(C)lear all'
+        }
         drawControl._toolbars.edit._actionsContainer.children[0].firstElementChild.title = 'Accept changes'
-        drawControl._toolbars.edit._actionsContainer.children[2].firstElementChild.innerHTML = '(C)lear all'
         drawControl._toolbars.edit._actionsContainer.children[2].firstElementChild.title = 'Remove all sightings'
         editingEnabled = true
 
@@ -56,7 +61,11 @@ function sightingAnalysisMapPrep(mapID = 'map1') {
                 drawnItems[mapID]._layers[layer].closeTooltip()
             }
         }
-        drawControl._toolbars.edit._actionsContainer.children[0].firstElementChild.innerHTML = '(F)inish'
+        if (isReviewing) {
+            drawControl._toolbars.edit._actionsContainer.children[0].firstElementChild.innerHTML = 'Finish'
+        } else {
+            drawControl._toolbars.edit._actionsContainer.children[0].firstElementChild.innerHTML = '(F)inish'
+        }
         drawControl._toolbars.edit._actionsContainer.children[0].firstElementChild.title = 'Accept changes'
         editingEnabled = true
 
@@ -96,18 +105,16 @@ function sightingAnalysisMapPrep(mapID = 'map1') {
 
         // add eventlistener to highligh bounding box when selected
         layer.on('click', function() {
-            var colour = "rgba(223,105,26,1)"
+            var colour = colourBase
             if (!event.ctrlKey){
                 for (let leafletID in drawnItems[mapID]._layers) {
                     drawnItems[mapID]._layers[leafletID].setStyle({color: colour}); //un-highlight all selections
                 }
             }
-            this.setStyle({color: "rgba(225,225,225,1)"}); //highlight selected
+            this.setStyle({color: colourSelected}); //highlight selected
             prevClickBounding = {'rect': this};
             if (isReviewing) {
-                document.getElementById('detInfoDiv').hidden = false
-                document.getElementById('detLabel').innerHTML = ''
-                document.getElementById('detIndividual').innerHTML = 'None'
+                updateDetInfo(null, mapID)
             }
         });
 
@@ -150,7 +157,8 @@ function sightingAnalysisMapPrep(mapID = 'map1') {
             }
         }
         if(!drawControl._toolbars.edit._activeMode && !drawControl._toolbars.draw._activeMode){
-            nr_items = 2*clusters[mapID][clusterIndex[mapID]].label.length + 1
+            // nr_items = 2*clusters[mapID][clusterIndex[mapID]].label.length + 1
+            nr_items = 5
 
             if(map[mapID].contextmenu._items.length > nr_items){
                 for (let i=map[mapID].contextmenu._items.length-1;i>nr_items-1;i--) 
@@ -185,6 +193,44 @@ function sightingAnalysisMapPrep(mapID = 'map1') {
                 multiContextVal -= 1
                 map[mapID].contextmenu.removeAllItems()
                 buildContextMenu()  
+            } 
+            else if (e.el.textContent=='EDIT') {
+                editBounding()
+            } else if (e.el.textContent=='DELETE') {
+                // immediately delete the bounding box
+                drawnItems[mapID].removeLayer(drawnItems[mapID]._layers[targetRect])
+                if (!isBounding) {
+                    let action = 'delete'
+                    let detection_ids = [Number(dbDetIds[mapID][targetRect])]
+                    submitSightingChanges(detection_ids, action)
+                }
+            } else if (e.el.textContent=='LABEL') {
+                map[mapID].contextmenu.removeAllItems()
+                indexNum = 0
+                for (let i=0;i<boundingClusterLabels[clusters[mapID][clusterIndex[mapID]].id].length;i++) {
+                    item = {
+                        text: boundingClusterLabels[clusters[mapID][clusterIndex[mapID]].id][i],
+                        index: indexNum,
+                        callback: updateTargetRect
+                    }
+                    indexNum += 1
+                    map[mapID].contextmenu.addItem(item)
+                    item = {
+                        separator: true,
+                        index: indexNum,
+                    }
+                    indexNum += 1
+                    map[mapID].contextmenu.addItem(item)
+                }
+                // Add other label
+                item = {
+                    text: '+',
+                    index: indexNum,
+                    callback: updateTargetRect
+                }
+                map[mapID].contextmenu.addItem(item)
+                map[mapID].contextmenu.showAt(contextLocation)
+
             } else {
                 if (e.el.textContent=='+') {
                     plusInProgress = true
@@ -242,10 +288,8 @@ function sightingAnalysisMapPrep(mapID = 'map1') {
             let action = 'delete'
             let detection_ids = []
             // traverse the event layers and get the detection ids
-            console.log(e)
             var layers = e.layers
             layers.eachLayer(function(layer) {
-                console.log(layer)
                 detection_ids.push(Number(dbDetIds[mapID][layer._leaflet_id]))
             });
 
@@ -375,33 +419,29 @@ function setRectOptions(mapID = 'map1') {
 
     menuItems = []
     indexNum = 0
-    for (let i=0;i<boundingClusterLabels[clusters[mapID][clusterIndex[mapID]].id].length;i++) {
-        item = {
-            text: boundingClusterLabels[clusters[mapID][clusterIndex[mapID]].id][i],
+    let menuActions = ['EDIT', 'DELETE', 'LABEL']
+
+    for (let action of menuActions) {
+        let item = {
+            text: action,
             index: indexNum,
             callback: updateTargetRect
         }
         indexNum += 1
         menuItems.push(item)
 
-        item = {
-            separator: true,
-            index: indexNum,
+        if (action != 'LABEL') {
+            item = {
+                separator: true,
+                index: indexNum,
+            }
+            indexNum += 1
+            menuItems.push(item)
         }
-        indexNum += 1
-        menuItems.push(item)
     }
-
-    // Add other label
-    item = {
-        text: '+',
-        index: indexNum,
-        callback: updateTargetRect
-    }
-    menuItems.push(item)
 
     rectOptions = {
-        color: "rgba(223,105,26,1)",
+        color: colourBase,
         fill: true,
         fillOpacity: 0.0,
         opacity: 0.8,
@@ -605,30 +645,24 @@ function sendBoundingBack() {
 
 function clearBoundingSelect(mapID = 'map1') {
     /** Clears(Un-highlight) the selected bounding box */
-    colour = "rgba(223,105,26,1)"
     for (let leafletID in drawnItems[mapID]._layers) {
-        drawnItems[mapID]._layers[leafletID].setStyle({color: colour}); //un-highlight all selections
+        drawnItems[mapID]._layers[leafletID].setStyle({color: colourBase}); //un-highlight all selections
     }
     prevClickBounding = null
     if (isReviewing) {
-        document.getElementById('detInfoDiv').hidden = true
-        document.getElementById('detLabel').innerHTML = ''
-        document.getElementById('detIndividual').innerHTML = ''
+        updateDetInfo(null, mapID)
     }
 }
 
 function selectAllBounding(mapID = 'map1') {
     /** Selects all bounding boxes. */
 
-    let colour = "rgba(225,225,225,1)"
     for (let leafletID in drawnItems[mapID]._layers) {
-        drawnItems[mapID]._layers[leafletID].setStyle({color: colour}); //highlight all selections
+        drawnItems[mapID]._layers[leafletID].setStyle({color: colourSelected}); //highlight all selections
     }
     prevClickBounding = null
     if (isReviewing) {
-        document.getElementById('detInfoDiv').hidden = true
-        document.getElementById('detLabel').innerHTML = ''
-        document.getElementById('detIndividual').innerHTML = ''
+        updateDetInfo(null, mapID)
     }
 }
 
@@ -724,8 +758,19 @@ function submitSightingChanges(detection_edits, action, mapID = 'map1') {
                     if (clusterID==clusters[wrapMapID][wrapClusterIndex].id) {
                         clusters[wrapMapID][wrapClusterIndex].label = cluster_labels[clusterID].label
                         clusters[wrapMapID][wrapClusterIndex].label_ids = cluster_labels[clusterID].label_ids
+                        boundingClusterLabels[clusterID] = cluster_labels[clusterID].label
                         if (reply.annotator != '') {
                             clusters[wrapMapID][wrapClusterIndex].annotator = reply.annotator
+                        }
+                        if (reply.update_labels) {
+                            for (let i=0;i<clusters[wrapMapID][wrapClusterIndex].images.length;i++) {
+                                for (let j=0;j<clusters[wrapMapID][wrapClusterIndex].images[i].detections.length;j++) {
+                                    if (clusters[wrapMapID][wrapClusterIndex].images[i].detections[j].label == 'None') {
+                                        clusters[wrapMapID][wrapClusterIndex].images[i].detections[j].labels = cluster_labels[clusterID].label
+                                        clusters[wrapMapID][wrapClusterIndex].images[i].detections[j].label = cluster_labels[clusterID].label[0]
+                                    }
+                                }
+                            }
                         }
                     }
                 }
@@ -735,4 +780,18 @@ function submitSightingChanges(detection_edits, action, mapID = 'map1') {
         }
     }(clusterIndex[mapID],imageIndex[mapID],mapID);
     xhttp.send(formData);
+}
+
+function checkMultipleSightingsSelected(mapID = 'map1') {
+    /** Checks if multiple sightings are selected. */
+    let selected_count = 0
+    for (let leafletID in drawnItems[mapID]._layers) {
+        if (drawnItems[mapID]._layers[leafletID].options.color == colourSelected) {
+            selected_count++
+            if (selected_count > 1) {
+                return true
+            }
+        }
+    }
+    return false
 }
