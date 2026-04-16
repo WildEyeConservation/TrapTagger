@@ -462,6 +462,7 @@ class Task(db.Model):
     clusters_remaining = db.Column(db.Integer, index=False)
     empty_count = db.Column(db.Integer, index=False)
     areaID_library = db.Column(db.Boolean, default=False, index=True) # Has Area Library for Individuals 
+    include_child_labels = db.Column(db.Boolean, default=False, index=False) # Include child labels in the top-level annotation
     clusters = db.relationship('Cluster', backref='task', lazy=True)
     turkcodes = db.relationship('Turkcode', backref='task', lazy=True)
     labels = db.relationship('Label', backref='task', lazy=True)

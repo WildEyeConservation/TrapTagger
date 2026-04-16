@@ -2142,6 +2142,21 @@ limitations under the License. -->
                 </div>
                 <br>
 
+                <div id="labelLevel">
+                    <h5 style="margin-bottom: 2px">Label Level</h5>
+                    <div style="font-size: 80%; margin-bottom: 2px"><i>Choose whether to include only parent labels or both parent and child labels in the top-level annotation.</i></div>
+                    <div style="margin-bottom: 5px">
+                        <div class="custom-control custom-radio custom-control-inline">
+                            <input type="radio" class="custom-control-input" id="labelLevelParent" name="labelLevelSelection" value='0' checked="true">
+                            <label class="custom-control-label" for="labelLevelParent">Parent Labels Only</label>
+                        </div> 
+                        <div class="custom-control custom-radio custom-control-inline">
+                            <input type="radio" class="custom-control-input" id="labelLevelChild" name="labelLevelSelection" value='1'>
+                            <label class="custom-control-label" for="labelLevelChild">Include Child Labels</label>
+                        </div> 
+                    </div>
+                </div>
+
                 <div id="individualLevel"></div>
           
             </div>

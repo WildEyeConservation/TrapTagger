@@ -173,6 +173,7 @@ def launchTask():
     taskSize = request.form['taskSize']
     taggingLevel = request.form['taskTaggingLevel']
     isBounding = request.form['isBounding']
+    include_child_labels = request.form['includeChildLabels']
 
     if Config.DEBUGGING: app.logger.info('Task launched: {}, {}, {}, {}'.format(task_ids,taskSize,taggingLevel,isBounding))
 
@@ -389,6 +390,13 @@ def launchTask():
         task.size = taskSize
         task.tagging_level = taggingLevel
         task.is_bounding = isBounding
+
+        if taggingLevel == '-1':
+            if include_child_labels == 'true':
+                task.include_child_labels = True
+            else:
+                task.include_child_labels = False
+
         db.session.commit()
 
         if any(level in taggingLevel for level in ['-4','-2']):
@@ -8081,6 +8089,10 @@ def getTaggingLevel():
             taggingLabel = 'None'
             taggingLevel = '-1'
             wrongStatus = 'true'
+    elif taggingLevel == '-1':
+        taggingLabel = 'None'
+        if task.include_child_labels:
+            wrongStatus = 'true'
     else:
         taggingLabel = 'None'
         if ',' in taggingLevel and ('-4' in taggingLevel or '-5' in taggingLevel):
@@ -8123,7 +8135,8 @@ def initKeys():
 
         reply = {}
         labels = db.session.query(Label).filter(Label.task_id==task.id).filter(Label.children.any()).distinct().all()
-        labels.append(db.session.query(Label).get(GLOBALS.vhl_id))
+        if db.session.query(Label).filter(Label.task_id==task.id).filter(Label.parent_id==GLOBALS.vhl_id).first():
+            labels.append(db.session.query(Label).get(GLOBALS.vhl_id))
         for label in labels:
             reply[str(label.id)] = genInitKeys(str(label.id),task.id,False,addRemoveFalseDetections,addMaskArea)
         reply['-1'] = genInitKeys('-1',task.id,addSkip,addRemoveFalseDetections,addMaskArea)

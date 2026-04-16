@@ -96,6 +96,10 @@ function launchTask(){
     } else {
         isBounding = false
     }
+    let includeChildLabels = false
+    if (taskTaggingLevel == '-1' && document.getElementById('labelLevelChild').checked) {
+        includeChildLabels = true
+    }
 
     allow = true
     var selectedTasks = [selectedTask]
@@ -183,6 +187,7 @@ function launchTask(){
         formData.append("taskSize", taskSize)
         formData.append("taskTaggingLevel", taskTaggingLevel)
         formData.append("isBounding", isBounding)
+        formData.append("includeChildLabels", includeChildLabels)
 
         var xhttp = new XMLHttpRequest();
         xhttp.onreadystatechange =
@@ -613,6 +618,9 @@ function openClusterTag() {
             individualLevel.removeChild(individualLevel.firstChild);
         }
 
+        document.getElementById('labelLevel').style.display = 'block'
+        document.getElementById('labelLevelParent').checked = true
+
         document.getElementById('openSightingTab').disabled = true
         document.getElementById('openMultiSpeciesTab').disabled = true
         document.getElementById('openIndividualTab').disabled = true
@@ -664,6 +672,8 @@ function openInfoTag() {
         while(individualLevel.firstChild){
             individualLevel.removeChild(individualLevel.firstChild);
         }
+
+        document.getElementById('labelLevel').style.display = 'none'
 
         document.getElementById('openSightingTab').disabled = true
         document.getElementById('openMultiSpeciesTab').disabled = true
@@ -720,6 +730,13 @@ $("#taskTaggingLevel").change( function() {
             document.getElementById('independentID').disabled = true
         } else {
             document.getElementById('independentID').disabled = false
+        }
+    } else if (tabActiveLaunch=='baseSpeciesLabellingTab') {
+        if (this.value == '-1') {
+            document.getElementById('labelLevel').style.display = 'block'
+            document.getElementById('labelLevelParent').checked = true
+        } else {
+            document.getElementById('labelLevel').style.display = 'none'
         }
     }
 })
@@ -889,7 +906,8 @@ function openIndividualID() {
     /** Listens for individual ID being selected, and populates the form accordingly. */
     
     if (tabActiveLaunch == 'baseIndividualTab') {
-        
+        document.getElementById('labelLevel').style.display = 'none'
+
         document.getElementById('openSightingTab').disabled = true
         document.getElementById('openMultiSpeciesTab').disabled = true
         document.getElementById('openSpeciesLabellingTab').disabled = true
@@ -1085,6 +1103,8 @@ function openClassTag() {
             individualLevel.removeChild(individualLevel.firstChild);
         }
 
+        document.getElementById('labelLevel').style.display = 'none'
+
         document.getElementById('openSightingTab').disabled = true
         document.getElementById('openMultiSpeciesTab').disabled = true
         document.getElementById('openIndividualTab').disabled = true
@@ -1134,6 +1154,8 @@ function openSightingTag() {
         while(individualLevel.firstChild){
             individualLevel.removeChild(individualLevel.firstChild);
         }
+
+        document.getElementById('labelLevel').style.display = 'none'
 
         document.getElementById('openMultiSpeciesTab').disabled = true
         document.getElementById('openIndividualTab').disabled = true
@@ -1185,6 +1207,8 @@ function openMultiSpeciesTag() {
         while(individualLevel.firstChild){
             individualLevel.removeChild(individualLevel.firstChild);
         }
+
+        document.getElementById('labelLevel').style.display = 'none'
 
         document.getElementById('openSightingTab').disabled = true
         document.getElementById('openIndividualTab').disabled = true
@@ -1438,6 +1462,8 @@ function openEmptyTag() {
             individualLevel.removeChild(individualLevel.firstChild);
         }
 
+        document.getElementById('labelLevel').style.display = 'none'
+
         document.getElementById('openSightingTab').disabled = true
         document.getElementById('openIndividualTab').disabled = true
         document.getElementById('openAISpeciesTab').disabled = true
@@ -1486,6 +1512,8 @@ function openRelatedTag() {
         while(individualLevel.firstChild){
             individualLevel.removeChild(individualLevel.firstChild);
         }
+
+        document.getElementById('labelLevel').style.display = 'none'
 
         document.getElementById('openSightingTab').disabled = true
         document.getElementById('openMultiSpeciesTab').disabled = true
