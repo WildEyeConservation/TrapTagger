@@ -20,6 +20,7 @@ var currentCluster = 0;
 var T_index = 0
 var F_index = 0
 var waiting = false
+var editingEnabled = false
 isTagging = false
 isReviewing = false
 isKnockdown = true

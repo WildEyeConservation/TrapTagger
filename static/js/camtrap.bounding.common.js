@@ -574,19 +574,6 @@ function addBounding() {
     }
 }
 
-function editBounding() {
-    /** Enters/exits the edit bounding box mode. */
-    handled = false
-    if (drawControl._toolbars.edit._activeMode) {
-        if (drawControl._toolbars.edit._activeMode.buttonIndex==0) {//edit active
-            drawControl._toolbars.edit._actionsContainer.lastElementChild.firstElementChild.click()
-            handled = true
-        }
-    }
-    if (!handled) {
-        drawControl._toolbars.edit._modes.edit.handler.enable()
-    }
-}
 
 function clearBounding() {
     /** Clear all bounding boxes. */
@@ -728,6 +715,7 @@ function submitSightingChanges(detection_edits, action, mapID = 'map1') {
     formData.append('detection_edits', JSON.stringify(detection_edits));
     formData.append('action', JSON.stringify(action));
     formData.append('image_id', JSON.stringify(clusters[mapID][clusterIndex[mapID]].images[imageIndex[mapID]].id));
+    formData.append('explore', JSON.stringify('true'));
 
     var xhttp = new XMLHttpRequest();
     xhttp.open("POST", '/editSightingsGeneral/'+selectedTask);

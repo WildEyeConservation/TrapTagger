@@ -27,6 +27,7 @@ var staticgroupReadAheadIndex = 0
 var total_staticgroups = 0
 var completed_staticgroups = 0
 var staticCheckPage = {}
+var editingEnabled = false
 
 const divSelector = document.querySelector('#divSelector');
 

@@ -17707,6 +17707,12 @@ def editSightingsGeneral(task_id):
     action = ast.literal_eval(request.form['action'])
     detection_edits = ast.literal_eval(request.form['detection_edits'])
     image_id = ast.literal_eval(request.form['image_id'])
+
+    explore = False
+    if 'explore' in request.form:
+        explore = ast.literal_eval(request.form['explore'])
+        if explore == 'true': explore = True
+
     if current_user.admin == False:    
         task_id = current_user.turkcode[0].task_id
 
@@ -17750,7 +17756,7 @@ def editSightingsGeneral(task_id):
 
         elif action == 'add':
             for detID in detection_edits:
-                label = detection_edits[detID]['label']
+                label = detection_edits[detID]['label'] if 'label' in detection_edits[detID] else None
                 if label == None or label == 'None':
                     db_label = None
                 elif label in ['Vehicles/Humans/Livestock','Unknown','Nothing']:
@@ -17774,14 +17780,20 @@ def editSightingsGeneral(task_id):
                 db.session.add(detection)
 
                 for tempTask in task.survey.tasks:
-                    labelgroup = Labelgroup(task_id=tempTask.id, detection=detection, checked=True)
+                    labelgroup = Labelgroup(task_id=tempTask.id, detection=detection)
                     db.session.add(labelgroup)
                     tempCluster = db.session.query(Cluster).join(Image,Cluster.images).filter(Image.id==image_id).filter(Cluster.task==tempTask).first()
                     labelgroup.tags = tempCluster.tags
                     if tempTask.id == task.id:
-                        labelgroup.labels = [db_label] if db_label else []
+                        if db_label:
+                            labelgroup.labels = [db_label]
+                            labelgroup.checked = True
+                        else:
+                            labelgroup.labels = tempCluster.labels
+                            labelgroup.checked = False
                     else:
                         labelgroup.labels = tempCluster.labels
+                        labelgroup.checked = False
 
                 #new detection needs a new classification - user generated is probably correct. Will use that.
                 if db_label:
@@ -17811,26 +17823,29 @@ def editSightingsGeneral(task_id):
         image = db.session.query(Image).get(image_id)
         if image:
             image.detection_rating = detection_rating(image)
+            if explore:
+                cluster = db.session.query(Cluster).join(Image,Cluster.images).filter(Image.id==image_id).filter(Cluster.task_id==task.id).first()
+                detectionLabels = rDets(db.session.query(Label)\
+                                .join(Labelgroup, Label.labelgroups)\
+                                .join(Detection)\
+                                .join(Image)\
+                                .join(Cluster,Image.clusters)\
+                                .filter(Cluster.id==cluster.id)\
+                                .filter(Labelgroup.task_id==task.id))\
+                                .distinct(Label.id).all()
+                if len(cluster.labels) == 0:
+                    update_labels = True
+                cluster.labels = detectionLabels
+                cluster.user_id = current_user.id
+                cluster.timestamp = datetime.utcnow()
+                cluster_labels[cluster.id]= {
+                    'label': [l.description for l in detectionLabels] if detectionLabels else ['None'], 
+                    'label_ids': [l.id for l in detectionLabels] if detectionLabels else ['0']
+                }
+                annotator = current_user.username
 
-            cluster = db.session.query(Cluster).join(Image,Cluster.images).filter(Image.id==image_id).filter(Cluster.task_id==task.id).first()
-            detectionLabels = rDets(db.session.query(Label)\
-                            .join(Labelgroup, Label.labelgroups)\
-                            .join(Detection)\
-                            .join(Image)\
-                            .join(Cluster,Image.clusters)\
-                            .filter(Cluster.id==cluster.id)\
-                            .filter(Labelgroup.task_id==task.id))\
-                            .distinct(Label.id).all()
-            if len(cluster.labels) == 0:
-                update_labels = True
-            cluster.labels = detectionLabels
-            cluster.user_id = current_user.id
-            cluster.timestamp = datetime.utcnow()
-            cluster_labels[cluster.id]= {
-                'label': [l.description for l in detectionLabels] if detectionLabels else ['None'], 
-                'label_ids': [l.id for l in detectionLabels] if detectionLabels else ['0']
-            }
-            annotator = current_user.username
+                GLOBALS.redisClient.sadd('tasks_to_update_status',cluster.task_id)
+                
         db.session.commit()
 
         if update_labels:

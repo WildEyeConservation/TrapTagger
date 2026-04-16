@@ -406,6 +406,8 @@ function buildDetection(image,detection,mapID = 'map1',colour=null) {
                 rect.closeTooltip()
             }
             dbDetIds[mapID][rect._leaflet_id.toString()] = detection.id.toString()
+        } else if (isTagging && !isTutorial) {
+            dbDetIds[mapID][rect._leaflet_id.toString()] = detection.id.toString()
         }
 
         if (isIDing&&(mapID!='known')) {
@@ -467,6 +469,17 @@ function buildDetection(image,detection,mapID = 'map1',colour=null) {
                     }
                 }
             }(rect, detection));
+        }
+
+        if (isTagging && !isTutorial && document.getElementById('ctrlBtnSendBoundingBack')!=null) {
+            rect.addEventListener('click', function(wrapRect){
+                return function() {
+                    if (sendBackBoundingMode) {
+                        wrapRect.bringToBack()
+                        sendBoundingBack()
+                    }
+                }
+            }(rect));
         }
 
         if (document.getElementById('btnSendToBack')!=null&&(mapID!='known')) {
@@ -790,7 +803,7 @@ function addDetections(mapID = 'map1') {
             drawControl._toolbars.edit._toolbarContainer.firstElementChild.title = '(E)dit sightings'
             drawControl._toolbars.edit._toolbarContainer.lastElementChild.title = '(D)elete sightings'
         }
-        if (isReviewing) {
+        if (isReviewing||(isTagging&&!isTutorial&&!maskMode)) {
             drawControl._toolbars.edit._toolbarContainer.firstElementChild.title = 'Edit sightings'
             drawControl._toolbars.edit._toolbarContainer.lastElementChild.title = 'Delete sightings' 
         }
@@ -1369,7 +1382,7 @@ function prevCluster(mapID = 'map1'){
             return;
         }
     }
-    if ((finishedDisplaying[mapID] == true) && ((taggingLevel.includes('-2')) || (multipleStatus==false))) {
+    if ((finishedDisplaying[mapID] == true) && ((taggingLevel.includes('-2')) || (multipleStatus==false)) && !editingEnabled) {
         if (modalActive == false) {
             if (isClassCheck && (baseClassifications.length!=clusters[mapID][clusterIndex[mapID]].classification.length)) {
                 clusters[mapID][clusterIndex[mapID]].classification = tempClassifications[mapID][clusterIndex[mapID]].slice()
@@ -1648,7 +1661,7 @@ function nextImage(mapID = 'map1'){
         }
     }
     
-    if (finishedDisplaying[mapID] == true) {
+    if (finishedDisplaying[mapID] == true&&!editingEnabled) {
 
         // Make an exception for finish looking at cluster modal
         allowBypass=false
@@ -1718,7 +1731,7 @@ function prevImage(mapID = 'map1'){
         }
     }
 
-    if (finishedDisplaying[mapID] == true) {
+    if (finishedDisplaying[mapID] == true&&!editingEnabled) {
 
         // Make an exception for finish looking at cluster modal
         allowBypass=false
@@ -1915,7 +1928,7 @@ function nextCluster(mapID = 'map1') {
         } 
     }
 
-    if (allow && (finishedDisplaying[mapID] == true) && (multipleStatus==false)) {
+    if (allow && (finishedDisplaying[mapID] == true) && (multipleStatus==false) && !editingEnabled) {
         if (modalActive == false) {
             if (clusterIndex[mapID] >= clusters[mapID].length-1) {
                 if ((!modalWait2.is(':visible'))&&(!modalWait.is(':visible'))) {
@@ -2981,7 +2994,10 @@ function prepMap(mapID = 'map1') {
                         } else if (isIDing && (document.getElementById('btnSendToBack')!=null) && mapID != 'known') {
                             setClusterIDRectOptions()
                             clusterIDMapPrep(wrapMapID)
-                        } else {
+                        } else if (isTagging && !isTutorial) {
+                            setRectOptions(wrapMapID)
+                            taggingMapPrep(wrapMapID)
+                        } else{
                             rectOptions = {
                                 color: colourBase,
                                 fill: true,
@@ -2990,20 +3006,6 @@ function prepMap(mapID = 'map1') {
                                 weight:3,
                                 contextmenu: false,
                             }      
-                            
-                            if (isTagging && !isTutorial && (taggingLevel == '-1' || parseInt(taggingLevel) > 0)) {
-                                maskRectOptions = {
-                                    color: "rgba(91,192,222,1)",
-                                    fill: true,
-                                    fillOpacity: 0.0,
-                                    opacity: 0.8,
-                                    weight:3,
-                                    contextmenu: false,
-                                }
-
-                                taggingMapPrep(wrapMapID)
-
-                            }
                         }
                         mapReady[wrapMapID] = true
                         updateCanvas(wrapMapID)
@@ -4126,7 +4128,7 @@ document.onkeydown = function(event){
 document.onclick = function (event){
     /** Closes the context menu on click when editing the bounding boxes, or whilst doing individual ID. */
     activity = true
-    if (isBounding||isReviewing) {
+    if (isBounding||isReviewing||(isTagging&&!isTutorial)) {
         for (let mapID in map) {
             if (map[mapID].contextmenu.isVisible()) {
                 map[mapID].contextmenu.hide()
@@ -4222,7 +4224,7 @@ function checkWaitModal(mapID = 'map1') {
 
 function updateImageIndex(newIndex, mapID = 'map1') {
     /** Updates the image index and loads the new image. */
-    if (finishedDisplaying[mapID] == true) {
+    if (finishedDisplaying[mapID] == true && !editingEnabled) {
         // Make an exception for finish looking at cluster modal
         allowBypass=false
         if (modalAlert.is(':visible')) {
@@ -4243,6 +4245,20 @@ function updateImageIndex(newIndex, mapID = 'map1') {
                 update(mapID)
             }
         }
+    }
+}
+
+function editBounding() {
+    /** Enters/exits the edit bounding box mode. */
+    handled = false
+    if (drawControl._toolbars.edit._activeMode) {
+        if (drawControl._toolbars.edit._activeMode.buttonIndex==0) {//edit active
+            drawControl._toolbars.edit._actionsContainer.lastElementChild.firstElementChild.click()
+            handled = true
+        }
+    }
+    if (!handled) {
+        drawControl._toolbars.edit._modes.edit.handler.enable()
     }
 }
 

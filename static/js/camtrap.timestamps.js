@@ -26,6 +26,7 @@ var image_counts = {}
 var clusterIdList = [];
 var currentYear = new Date().getFullYear();
 var timestampCheckPage = {}
+var editingEnabled = false
 
 const yearInput = document.getElementById('year');
 const monthInput = document.getElementById('month');

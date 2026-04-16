@@ -26,8 +26,10 @@ var editingEnabled = false
 var maskId = {'map1': null}
 var maskLayer = {'map1': null}
 var classCheckOriginalLevel = null
-
+var boundingBackControl = null
 var clusterIdList = []
+var dbDetIds = {'map1': {}}
+var addDetCnt = 0
 // const modalNote = $('#modalNote');
 
 function loadNewCluster(mapID = 'map1') {
@@ -512,6 +514,10 @@ function taggingMapPrep(mapID = 'map1') {
 
     map[mapID].on("draw:editstart", function(e) {
         editingEnabled = true
+        if (!maskMode) {
+            drawControl._toolbars.edit._actionsContainer.children[0].firstElementChild.innerHTML = 'Finish'
+            drawControl._toolbars.edit._actionsContainer.children[0].firstElementChild.title = 'Accept changes'
+        }
     })
 
     map[mapID].on("draw:editstop", function(e) {
@@ -520,6 +526,12 @@ function taggingMapPrep(mapID = 'map1') {
 
     map[mapID].on("draw:deletestart", function(e) {
         editingEnabled = true
+        if (!maskMode) {
+            drawControl._toolbars.edit._actionsContainer.children[0].firstElementChild.innerHTML = 'Finish'
+            drawControl._toolbars.edit._actionsContainer.children[2].firstElementChild.innerHTML = 'Clear all'
+            drawControl._toolbars.edit._actionsContainer.children[0].firstElementChild.title = 'Accept changes'
+            drawControl._toolbars.edit._actionsContainer.children[2].firstElementChild.title = 'Remove all sightings'
+        }
     })
 
     map[mapID].on("draw:deletestop", function(e) {
@@ -527,24 +539,114 @@ function taggingMapPrep(mapID = 'map1') {
     })
 
     map[mapID].on('draw:created', function (e) {
-        var newLayer = e.layer;
-        var newBounds = newLayer.getBounds();
-        var isOverlapping = false;
+        if (maskMode) {
+            var newLayer = e.layer;
+            var newBounds = newLayer.getBounds();
+            var isOverlapping = false;
 
-        drawnMaskItems[mapID].eachLayer(function (layer) {
-            if (newBounds.intersects(layer.getBounds())) {
-                isOverlapping = true;
+            drawnMaskItems[mapID].eachLayer(function (layer) {
+                if (newBounds.intersects(layer.getBounds())) {
+                    isOverlapping = true;
+                }
+            });
+
+            if (isOverlapping) {
+                document.getElementById('modalAlertText').innerHTML = "The masked area you've outlined overlaps with another masked area. A detection will only be considered masked if it is fully within the boundaries of a single mask. It is recommended that you either adjust the existing mask to cover the entire detection area or delete it and create a new one."
+                modalAlert.modal({keyboard: true});
+                drawnMaskItems[mapID].removeLayer(newLayer);
+            } else {
+                drawnMaskItems[mapID].addLayer(newLayer);  
             }
-        });
-
-        if (isOverlapping) {
-            document.getElementById('modalAlertText').innerHTML = "The masked area you've outlined overlaps with another masked area. A detection will only be considered masked if it is fully within the boundaries of a single mask. It is recommended that you either adjust the existing mask to cover the entire detection area or delete it and create a new one."
-            modalAlert.modal({keyboard: true});
-            drawnMaskItems[mapID].removeLayer(newLayer);
         } else {
-            drawnMaskItems[mapID].addLayer(newLayer);  
+            var newLayer = e.layer;
+            drawnItems[mapID].addLayer(newLayer);  
+            dbDetIds[mapID][newLayer._leaflet_id] = 'n'+addDetCnt.toString()
+            addDetCnt+=1
+            let action = 'add'
+            let detection_edits = {}
+            detection_edits[dbDetIds[mapID][newLayer._leaflet_id]] = {
+                'top': newLayer.getBounds().getNorthEast().lat/mapHeight[mapID],
+                'bottom': newLayer.getBounds().getSouthWest().lat/mapHeight[mapID],
+                'left': newLayer.getBounds().getSouthWest().lng/mapWidth[mapID],
+                'right': newLayer.getBounds().getNorthEast().lng/mapWidth[mapID]
+            }
+            submitSightingChanges(detection_edits, action) 
         }
 
+    });
+
+    map[mapID].on('draw:edited', function(e) {
+        if (!maskMode) {
+            let action = 'edit'
+            let detection_edits = {}
+            var layers = e.layers
+            // traverse the event layers and get the detection ids
+            layers.eachLayer(function(layer) {
+                detection_edits[Number(dbDetIds[mapID][layer._leaflet_id])] = {
+                    'bounding_box': {
+                        'top': layer.getBounds().getNorthEast().lat/mapHeight[mapID],
+                        'bottom': layer.getBounds().getSouthWest().lat/mapHeight[mapID],
+                        'left': layer.getBounds().getSouthWest().lng/mapWidth[mapID],
+                        'right': layer.getBounds().getNorthEast().lng/mapWidth[mapID]
+                    }
+                }
+            });
+            submitSightingChanges(detection_edits, action)
+        }
+    });
+
+    map[mapID].on('draw:deleted', function(e) {
+        if (!maskMode) {
+            let action = 'delete'
+            let detection_ids = []
+            // traverse the event layers and get the detection ids
+            var layers = e.layers
+            layers.eachLayer(function(layer) {
+                detection_ids.push(Number(dbDetIds[mapID][layer._leaflet_id]))
+            });
+
+            submitSightingChanges(detection_ids, action)
+        }
+    });
+
+    map[mapID].on('contextmenu', function (e) {
+        /** remove duplicate items on more than one right click */
+        if(!drawControl._toolbars.edit._activeMode && !drawControl._toolbars.draw._activeMode){
+            nr_items = 3
+            if(map[mapID].contextmenu._items.length > nr_items){
+                for (let i=map[mapID].contextmenu._items.length-1;i>nr_items-1;i--) 
+                {
+                    map[mapID].contextmenu.removeItem(i)
+                }
+            } 
+        } else {
+            map[mapID].contextmenu.hide()
+        }
+    });
+
+    map[mapID].on('contextmenu.select', function (e) {
+        if (!maskMode) {
+            if (targetUpdated) {
+                if (e.el.textContent == 'EDIT') {
+                    editBounding()
+                }
+                else if (e.el.textContent == 'DELETE') {
+                    // immediately delete the bounding box
+                    drawnItems[mapID].removeLayer(drawnItems[mapID]._layers[targetRect])
+                    if (!isBounding) {
+                        let action = 'delete'
+                        let detection_ids = [Number(dbDetIds[mapID][targetRect])]
+                        submitSightingChanges(detection_ids, action)
+                    }
+                }
+                targetUpdated = false
+            }
+            else {
+                alert('Error! Select is being handled before target updated.')
+            }
+        } else {
+            map[mapID].contextmenu.hide()
+        }
     });
 
 }
@@ -593,6 +695,10 @@ function maskArea(mapID = 'map1') {
             
             if (drawControl != null) {
                 drawControl.remove()
+            }
+
+            if (boundingBackControl != null) {
+                boundingBackControl.remove()
             }
         
             updateMasks(mapID)
@@ -656,6 +762,10 @@ function initMaskMode(mapID='map1'){
             drawControl.remove()
         }
 
+        if (boundingBackControl != null) {
+            boundingBackControl.remove()
+        }
+
         drawControl = new L.Control.Draw({
             draw: {
                 polygon: {
@@ -694,11 +804,16 @@ function cancelMask(mapID = 'map1') {
         drawControl.remove()
     }
 
+    if (boundingBackControl != null) {
+        boundingBackControl.remove()
+    }
+
     updateMasks(mapID)
 
     maskMode = false
     multipleStatus = false
     getKeys()
+    addTaggingControl(mapID)
 }
 
 function submitMasks(mapID = 'map1') {
@@ -706,4 +821,211 @@ function submitMasks(mapID = 'map1') {
     updateMasks(mapID)
     assignLabel(maskLabel)
     modalMaskArea.modal('hide')
+    addTaggingControl(mapID)
+}
+
+function setRectOptions(mapID = 'map1') {
+    /** Sets the rectangle options for the draw control. */
+
+    menuItems = []
+    indexNum = 0
+
+    let item = {
+        text: 'EDIT',
+        index: indexNum,
+        callback: updateTargetRect
+    }
+    indexNum += 1
+    menuItems.push(item)
+
+    item = {
+        separator: true,
+        index: indexNum,
+    }
+    indexNum += 1
+    menuItems.push(item)
+    
+    item = {
+        text: 'DELETE',
+        index: indexNum,
+        callback: updateTargetRect
+    }
+    indexNum += 1
+    menuItems.push(item)
+
+
+    rectOptions = {
+        color: colourBase,
+        fill: true,
+        fillOpacity: 0.0,
+        opacity: 0.8,
+        weight:3,
+        contextmenu: true,
+        contextmenuWidth: 140,
+        contextmenuItems: menuItems
+    }
+
+    maskRectOptions = {
+        color: "rgba(91,192,222,1)",
+        fill: true,
+        fillOpacity: 0.0,
+        opacity: 0.8,
+        weight:3,
+        contextmenu: false,
+    }
+
+    addTaggingControl(mapID)
+}
+
+function addTaggingControl(mapID = 'map1') {
+    /** Adds the tagging control to the map. */
+
+    if (drawControl != null) {
+        drawControl.remove()
+    }
+
+    drawControl = new L.Control.Draw({
+        draw: {
+            polygon: false,
+            polyline: false,
+            circle: false,
+            circlemarker: false,
+            marker: false,
+            rectangle: {
+                shapeOptions: rectOptions,
+                showArea: false
+            }
+        },
+        edit: {
+            featureGroup: drawnItems[mapID]
+        }
+    });
+    map[mapID].addControl(drawControl);
+
+    drawControl._toolbars.draw._toolbarContainer.firstElementChild.title = 'Add a sighting'
+
+    if (boundingBackControl != null) {
+        boundingBackControl.remove()
+    }
+
+    const BoundingBackControl = L.Control.extend({
+        options: {
+            position: 'topleft' 
+        },
+    
+        onAdd: function (map) {
+            const container = L.DomUtil.create('div', 'leaflet-bar');
+
+            const buttonSendBoundingBack = L.DomUtil.create('a', '', container);
+            buttonSendBoundingBack.innerHTML = '⧉'
+            buttonSendBoundingBack.href = '#';
+            buttonSendBoundingBack.style.color = '#333';
+            buttonSendBoundingBack.title = 'Send to Back';
+            buttonSendBoundingBack.classList.add('send-bounding-back-btn')
+            buttonSendBoundingBack.id = 'ctrlBtnSendBoundingBack'
+
+            L.DomEvent.on(buttonSendBoundingBack, 'click', function (e) {
+                L.DomEvent.preventDefault(e);
+                sendBoundingBack()
+            });
+
+            return container;
+        }
+    });
+
+    boundingBackControl = new BoundingBackControl();
+    map[mapID].addControl(boundingBackControl);
+}
+
+
+function sendBoundingBack() {
+    /** Activates 'send to back' mode. */
+    if (document.getElementById('ctrlBtnSendBoundingBack')!=null) {
+        if (sendBackBoundingMode) {
+            sendBackBoundingMode = false
+            document.getElementById('ctrlBtnSendBoundingBack').innerHTML = '⧉'
+        } else {
+            sendBackBoundingMode = true
+            document.getElementById('ctrlBtnSendBoundingBack').innerHTML = '✕'
+        }
+    }
+}
+
+function submitSightingChanges(detection_edits, action, mapID = 'map1') {
+    /** Submits the changes to the server. */
+    console.log(detection_edits, action)
+    if (action == 'delete') {
+        clusters[mapID][clusterIndex[mapID]].images[imageIndex[mapID]].detections = clusters[mapID][clusterIndex[mapID]].images[imageIndex[mapID]].detections.filter(det => !detection_edits.includes(det.id))
+    } else if (action == 'edit') {
+        for (let i=0;i<clusters[mapID][clusterIndex[mapID]].images[imageIndex[mapID]].detections.length;i++) {
+            let det_id = clusters[mapID][clusterIndex[mapID]].images[imageIndex[mapID]].detections[i].id
+            if (detection_edits.hasOwnProperty(det_id)) {
+                clusters[mapID][clusterIndex[mapID]].images[imageIndex[mapID]].detections[i].top = detection_edits[det_id].bounding_box.top
+                clusters[mapID][clusterIndex[mapID]].images[imageIndex[mapID]].detections[i].bottom = detection_edits[det_id].bounding_box.bottom
+                clusters[mapID][clusterIndex[mapID]].images[imageIndex[mapID]].detections[i].left = detection_edits[det_id].bounding_box.left
+                clusters[mapID][clusterIndex[mapID]].images[imageIndex[mapID]].detections[i].right = detection_edits[det_id].bounding_box.right
+            }
+        }
+    } else if (action == 'add') {
+        for (let detID in detection_edits) {
+            clusters[mapID][clusterIndex[mapID]].images[imageIndex[mapID]].detections.push({
+                id: detID,
+                label: 'None',
+                labels: ['None'],
+                top: detection_edits[detID].top,
+                bottom: detection_edits[detID].bottom,
+                left: detection_edits[detID].left,
+                right: detection_edits[detID].right,
+                category: 1,
+                individual: '-1',
+                individuals: ['-1'],
+                individual_names: [],
+                static: false,
+                flank: 'None'
+            })
+        }
+    }
+
+    var formData = new FormData();
+    formData.append('detection_edits', JSON.stringify(detection_edits));
+    formData.append('action', JSON.stringify(action));
+    formData.append('image_id', JSON.stringify(clusters[mapID][clusterIndex[mapID]].images[imageIndex[mapID]].id));
+
+    var xhttp = new XMLHttpRequest();
+    xhttp.open("POST", '/editSightingsGeneral/'+selectedTask);
+    xhttp.onreadystatechange =
+    function(wrapClusterIndex,wrapImageIndex,wrapMapID){
+        return function() {
+            if (this.readyState == 4 && this.status == 200) {
+                reply = JSON.parse(this.responseText)
+                detDbIDs = reply.detDbIDs
+                cluster_labels = reply.cluster_labels
+
+                for (let detID in detDbIDs) {
+                    for (let i=0;i<clusters[wrapMapID][wrapClusterIndex].images[wrapImageIndex].detections.length;i++) {
+                        if (clusters[wrapMapID][wrapClusterIndex].images[wrapImageIndex].detections[i].id==detID) {
+                            clusters[wrapMapID][wrapClusterIndex].images[wrapImageIndex].detections[i].id = detDbIDs[detID]
+                            for (let leafID in dbDetIds[wrapMapID]) {
+                                if (dbDetIds[wrapMapID][leafID]==detID) {
+                                    dbDetIds[wrapMapID][leafID] = detDbIDs[detID].toString()
+                                    break
+                                }
+                            }
+                            break
+                        }
+                    }
+                }
+            }
+        }
+    }(clusterIndex[mapID],imageIndex[mapID],mapID);
+    xhttp.send(formData);
+}
+
+function updateTargetRect (e) {
+    /** Updates the targetRect global to the Leaflet ID of the recangle clicked on by the user. */
+    if (e.relatedTarget) {
+        targetRect = e.relatedTarget._leaflet_id
+    }
+    contextLocation = e.latlng
+    targetUpdated = true
 }
