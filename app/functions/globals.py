@@ -6234,7 +6234,8 @@ def prepTask(self, task_id, includes=None, translation=None, labels=None, auto_r
 
             if Config.DEBUGGING: print('{}: classified task {}'.format(time.time()-starttime,task_id))
 
-            process_multi_labels(task_id,trapgroup_ids)
+            for trapgroup_id in trapgroup_ids:
+                process_multi_labels(task_id=task_id,trapgroup_ids=[trapgroup_id])
 
             # We don't want to update the statuses in a knockdown scenario
             if not timestamp and not bypass_update_statuses: updateAllStatuses(task_id=task_id)
@@ -6792,7 +6793,9 @@ def launch_task(self,task_id,classify=False):
         
         # Process multi labels for  Multi-Species Differentiation
         if '-1' in taggingLevel and isBounding:
-            process_multi_labels(task_id)
+            trapgroup_ids = [r[0] for r in db.session.query(Trapgroup.id).join(Survey).join(Task).filter(Task.id==task_id).distinct().all()]
+            for trapgroup_id in trapgroup_ids:
+                process_multi_labels(task_id=task_id,trapgroup_ids=[trapgroup_id])
 
         # Mark clusters that need to be examined
         if '-5' in taggingLevel:

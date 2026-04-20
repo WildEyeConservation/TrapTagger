@@ -236,7 +236,9 @@ def stop_task(self,task_id,live=False):
             db.session.commit()
 
             reconcile_cluster_labelgroup_labels_and_tags(task_id)
-            process_multi_labels(task_id)
+            trapgroup_ids = [r[0] for r in db.session.query(Trapgroup.id).join(Survey).join(Task).filter(Task.id==task_id).distinct().all()]
+            for trapgroup_id in trapgroup_ids:
+                process_multi_labels(task_id=task_id,trapgroup_ids=[trapgroup_id])
 
             if ',' not in task.tagging_level and task.init_complete and '-2' not in task.tagging_level:
                 check_individual_detection_mismatch(task_id=task_id)
@@ -809,7 +811,9 @@ def handleTaskEdit(self,task_id,labelChanges,tagChanges,translationChanges,delet
                     classifyTask(task_id)
                     if GLOBALS.vhl_id in prev_labels:
                         removeHumans(task_id)
-                    process_multi_labels(task_id)
+                    trapgroup_ids = [r[0] for r in db.session.query(Trapgroup.id).join(Survey).join(Task).filter(Task.id==task_id).distinct().all()]
+                    for trapgroup_id in trapgroup_ids:
+                        process_multi_labels(task_id=task_id,trapgroup_ids=[trapgroup_id])
             
             db.session.commit()
 
@@ -2479,8 +2483,10 @@ def edit_survey(self,survey_id,user_id,classifier_id,sky_masked,ignore_small_det
         # Update All statuses
         if not skipUpdateStatuses:
             task_ids = [r[0] for r in db.session.query(Task.id).filter(Task.survey_id==survey_id).filter(Task.name!='default').distinct().all()]
+            trapgroup_ids = [r[0] for r in db.session.query(Trapgroup.id).filter(Trapgroup.survey_id==survey_id).distinct().all()]
             for task_id in task_ids:
-                process_multi_labels(task_id=task_id)
+                for trapgroup_id in trapgroup_ids:
+                    process_multi_labels(task_id=task_id,trapgroup_ids=[trapgroup_id])
                 updateAllStatuses(task_id=task_id)
 
         survey = db.session.query(Survey).get(survey_id)
