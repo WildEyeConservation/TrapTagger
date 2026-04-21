@@ -15551,7 +15551,7 @@ def invoke_lambda():
                     }
 
                     invoked_lambdas = 0
-                    for batch in chunker(image_keys, 350):
+                    for batch in chunker(image_keys, 250):
                         payload['keys'] = batch
                         GLOBALS.lambdaClient.invoke(FunctionName=Config.IMAGE_IMPORT_LAMBDA, InvocationType='Event', Payload=json.dumps(payload))
                         invoked_lambdas += 1
