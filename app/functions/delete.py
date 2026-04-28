@@ -659,8 +659,12 @@ def delete_turkcodes(task_id, include_users=False, extra_params=None):
 
     if include_users:
         user_ids = [r[0] for r in db.session.query(User.id).join(Turkcode).filter(User.email==None).filter(Turkcode.id.in_(select(turkcodeQ.c.id))).distinct().all()]
-
-    tc = db.session.query(Turkcode).filter(Turkcode.id.in_(select(turkcodeQ.c.id))).delete(synchronize_session=False)
+        tc = 0
+        for chunk in chunker1000(user_ids):
+            tc += db.session.query(Turkcode).filter(Turkcode.id.in_(select(turkcodeQ.c.id))).filter(Turkcode.user_id.in_(chunk)).delete(synchronize_session=False)
+        tc += db.session.query(Turkcode).filter(Turkcode.id.in_(select(turkcodeQ.c.id))).filter(Turkcode.user_id==None).delete(synchronize_session=False)
+    else:
+        tc = db.session.query(Turkcode).filter(Turkcode.id.in_(select(turkcodeQ.c.id))).delete(synchronize_session=False)
     app.logger.info(f'{tc} turkcodes deleted successfully.')
 
     if include_users and user_ids:
