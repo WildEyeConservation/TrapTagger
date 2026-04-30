@@ -70,39 +70,38 @@ def delete_detections(survey_id, camera_ids=None, image_ids=None, ids=None):
         detectionQ = detectionQ.filter(Image.id.in_(image_ids))
 
     det_subq = detectionQ.subquery()
+    det_select = select(det_subq.c.id)
 
     #Delete features
-    db.session.query(Feature).filter(Feature.detection_id.in_(select(det_subq.c.id))).delete(synchronize_session=False)
+    db.session.query(Feature).filter(Feature.detection_id.in_(det_select)).delete(synchronize_session=False)
+    db.session.commit()
 
     # Handle IndSimilarities (if they were not handled elsewhere)
-    # inds =db.session.query(IndSimilarity)\
-    #     .filter(or_(IndSimilarity.detection_1.in_(select(det_subq.c.id)),IndSimilarity.detection_2.in_(select(det_subq.c.id))))\
-    #     .filter(IndSimilarity.score>=0)\
-    #     .delete(synchronize_session=False)
-    inds1 = db.session.query(IndSimilarity).filter(IndSimilarity.detection_1.in_(select(det_subq.c.id))).filter(IndSimilarity.score>=0).delete(synchronize_session=False)
-    inds2 = db.session.query(IndSimilarity).filter(IndSimilarity.detection_2.in_(select(det_subq.c.id))).filter(IndSimilarity.score>=0).delete(synchronize_session=False)
+    inds1 = db.session.query(IndSimilarity).filter(IndSimilarity.detection_1.in_(det_select)).filter(IndSimilarity.score>=0).delete(synchronize_session=False)
+    inds2 = db.session.query(IndSimilarity).filter(IndSimilarity.detection_2.in_(det_select)).filter(IndSimilarity.score>=0).delete(synchronize_session=False)
     inds = inds1 + inds2
 
-    indSimilarities = db.session.query(IndSimilarity)\
-        .filter(or_(IndSimilarity.detection_1.in_(select(det_subq.c.id)),IndSimilarity.detection_2.in_(select(det_subq.c.id))))\
-        .filter(IndSimilarity.score<0)\
-        .distinct().all()
+    indSims1 = db.session.query(IndSimilarity).filter(IndSimilarity.detection_1.in_(det_select)).filter(IndSimilarity.score<0)\
+                .update({'detection_1': None, 'detection_2': None}, synchronize_session=False)
+    indSims2 = db.session.query(IndSimilarity).filter(IndSimilarity.detection_2.in_(det_select)).filter(IndSimilarity.score<0)\
+                .update({'detection_1': None, 'detection_2': None}, synchronize_session=False)
+    indSimilarities = indSims1 + indSims2
 
-    for indSimilarity in indSimilarities:
-        indSimilarity.detection_1 = None
-        indSimilarity.detection_2 = None
+    db.session.commit()
+    app.logger.info(f'IndSimilarities: {inds} deleted, Other IndSimilarities: {indSimilarities} updated successfully')
 
     #Delete DetSimilarities
-    # ds = db.session.query(DetSimilarity).filter(or_(DetSimilarity.detection_1.in_(select(det_subq.c.id)),DetSimilarity.detection_2.in_(select(det_subq.c.id)))).delete(synchronize_session=False)
-    ds1 = db.session.query(DetSimilarity).filter(DetSimilarity.detection_1.in_(select(det_subq.c.id))).delete(synchronize_session=False)
-    ds2 = db.session.query(DetSimilarity).filter(DetSimilarity.detection_2.in_(select(det_subq.c.id))).delete(synchronize_session=False)
+    ds1 = db.session.query(DetSimilarity).filter(DetSimilarity.detection_1.in_(det_select)).delete(synchronize_session=False)
+    ds2 = db.session.query(DetSimilarity).filter(DetSimilarity.detection_2.in_(det_select)).delete(synchronize_session=False)
     ds = ds1 + ds2
+    db.session.commit()
+    app.logger.info(f'DetSimilarities: {ds} deleted successfully')
 
     #Delete detections
     # aid_list = []
     # aid_list = [r[0] for r in db.session.query(Detection.aid).filter(Detection.id.in_(select(det_subq.c.id))).filter(Detection.aid!=None).distinct().all()]
 
-    result = db.session.execute(delete(Detection).where(Detection.id.in_(select(det_subq.c.id))).execution_options(synchronize_session=False))
+    result = db.session.execute(delete(Detection).where(Detection.id.in_(det_select)).execution_options(synchronize_session=False))
 
     #Delete WBIA data
     # keep_aid_list = [r[0] for r in db.session.query(Detection.aid, func.count(Detection.id))\
@@ -121,7 +120,7 @@ def delete_detections(survey_id, camera_ids=None, image_ids=None, ids=None):
     #     GLOBALS.ibs.delete_annots(aid_list)  
 
     db.session.commit()
-    app.logger.info(f'IndSimilarities: {inds}, Other IndSimilarities: {len(indSimilarities)}, DetSimilarities: {ds}, detections: {result.rowcount} deleted successfully')
+    app.logger.info(f'Detections: {result.rowcount} deleted successfully')
     
     # Delete empty staticgroups
     delete_empty_staticgroups()
@@ -420,20 +419,30 @@ def delete_task_individuals(task_ids, species=None, camera_ids=None, image_ids=N
     rS1 = db.session.query(IndSimilarity).filter(IndSimilarity.individual_1.in_(select(individual_subq.c.id))).filter(IndSimilarity.score>=0).delete(synchronize_session=False)
     rS2 = db.session.query(IndSimilarity).filter(IndSimilarity.individual_2.in_(select(individual_subq.c.id))).filter(IndSimilarity.score>=0).delete(synchronize_session=False)
     rS = rS1 + rS2
-
+    db.session.commit()
     if Config.DEBUGGING: app.logger.info('Deleted IndSimilarity: {}'.format(rS))
 
-    indSimilarities = db.session.query(IndSimilarity)\
-                                .filter(or_(IndSimilarity.individual_1.in_(select(individual_subq.c.id)),IndSimilarity.individual_2.in_(select(individual_subq.c.id))))\
-                                .filter(or_(IndSimilarity.detection_1.in_(select(det_subq.c.id)),IndSimilarity.detection_2.in_(select(det_subq.c.id))))\
-                                .filter(IndSimilarity.score < 0)\
-                                .distinct().all()
+    # indSimilarities = db.session.query(IndSimilarity)\
+    #                             .filter(or_(IndSimilarity.individual_1.in_(select(individual_subq.c.id)),IndSimilarity.individual_2.in_(select(individual_subq.c.id))))\
+    #                             .filter(or_(IndSimilarity.detection_1.in_(select(det_subq.c.id)),IndSimilarity.detection_2.in_(select(det_subq.c.id))))\
+    #                             .filter(IndSimilarity.score < 0)\
+    #                             .distinct().all()
 
-    for sim in indSimilarities:
-        sim.detection_1 = None
-        sim.detection_2 = None
+    # for sim in indSimilarities:
+    #     sim.detection_1 = None
+    #     sim.detection_2 = None
+    indSims1 = db.session.query(IndSimilarity).filter(IndSimilarity.individual_1.in_(select(individual_subq.c.id))).filter(IndSimilarity.detection_1.in_(select(det_subq.c.id)))\
+                    .filter(IndSimilarity.score<0).update({'detection_1': None, 'detection_2': None}, synchronize_session=False)
+    indSims2 = db.session.query(IndSimilarity).filter(IndSimilarity.individual_1.in_(select(individual_subq.c.id))).filter(IndSimilarity.detection_2.in_(select(det_subq.c.id)))\
+                    .filter(IndSimilarity.score<0).update({'detection_1': None, 'detection_2': None}, synchronize_session=False)
+    indSims3 = db.session.query(IndSimilarity).filter(IndSimilarity.individual_2.in_(select(individual_subq.c.id))).filter(IndSimilarity.detection_1.in_(select(det_subq.c.id)))\
+                    .filter(IndSimilarity.score<0).update({'detection_1': None, 'detection_2': None}, synchronize_session=False)
+    indSims4 = db.session.query(IndSimilarity).filter(IndSimilarity.individual_2.in_(select(individual_subq.c.id))).filter(IndSimilarity.detection_2.in_(select(det_subq.c.id)))\
+                    .filter(IndSimilarity.score<0).update({'detection_1': None, 'detection_2': None}, synchronize_session=False)
+    indSimilarities = indSims1 + indSims2 + indSims3 + indSims4
 
-    if Config.DEBUGGING: app.logger.info('Other indSimilarities: {}'.format(len(indSimilarities)))
+    db.session.commit()
+    if Config.DEBUGGING: app.logger.info('Other indSimilarities: {}'.format(indSimilarities))
 
     # Delete individualTags, individualPrimaryDetections, individualDetections (order is important if joined to detections)
     rT=db.session.query(individualTags).filter(individualTags.c.individual_id.in_(select(individual_subq.c.id))).filter(individualTags.c.tag_id.in_(select(tag_subq.c.id))).delete(synchronize_session=False)

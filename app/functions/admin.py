@@ -377,7 +377,8 @@ def delete_survey(self,survey_id):
             try:
                 delete_detections(survey_id=survey_id)
                 app.logger.info('Detections deleted successfully.')
-            except:
+            except Exception as e:
+                app.logger.info(e)
                 status = 'error'
                 message = 'Could not delete detections.'
                 app.logger.info('Failed to delete detections.')
@@ -2999,7 +3000,8 @@ def delete_survey_data(survey_id, camera_ids, image_ids=None, video_ids=None, ca
         try:
             delete_detections(survey_id=survey_id, camera_ids=camera_ids, image_ids=image_ids)
             app.logger.info('Detections deleted successfully')
-        except:
+        except Exception as e:
+            app.logger.info(e)
             status = 'error'
             app.logger.info('Failed to delete detections for cameras {}'.format(camera_ids))
 
