@@ -91,10 +91,24 @@ def delete_detections(survey_id, camera_ids=None, image_ids=None, ids=None):
     app.logger.info(f'IndSimilarities: {inds} deleted, Other IndSimilarities: {indSimilarities} updated successfully')
 
     #Delete DetSimilarities
-    ds1 = db.session.query(DetSimilarity).filter(DetSimilarity.detection_1.in_(det_select)).delete(synchronize_session=False)
-    ds2 = db.session.query(DetSimilarity).filter(DetSimilarity.detection_2.in_(det_select)).delete(synchronize_session=False)
-    ds = ds1 + ds2
-    db.session.commit()
+    # ds1 = db.session.query(DetSimilarity).filter(DetSimilarity.detection_1.in_(det_select)).delete(synchronize_session=False)
+    # ds2 = db.session.query(DetSimilarity).filter(DetSimilarity.detection_2.in_(det_select)).delete(synchronize_session=False)
+    # ds = ds1 + ds2
+    ds = 0
+    while True:
+        sim_det_ids = [r[0] for r in db.session.query(DetSimilarity.detection_1).filter(DetSimilarity.detection_1.in_(det_select)).limit(1000).all()]
+        if len(sim_det_ids) == 0:
+            break
+        ds += db.session.query(DetSimilarity).filter(DetSimilarity.detection_1.in_(sim_det_ids)).delete(synchronize_session=False)
+        db.session.commit()
+    
+    while True:
+        sim_det_ids = [r[0] for r in db.session.query(DetSimilarity.detection_2).filter(DetSimilarity.detection_2.in_(det_select)).limit(1000).all()]
+        if len(sim_det_ids) == 0:
+            break
+        ds += db.session.query(DetSimilarity).filter(DetSimilarity.detection_2.in_(sim_det_ids)).delete(synchronize_session=False)
+        db.session.commit()
+
     app.logger.info(f'DetSimilarities: {ds} deleted successfully')
 
     #Delete detections
@@ -678,6 +692,7 @@ def delete_turkcodes(task_id, include_users=False, extra_params=None):
 
     if include_users and user_ids:
         for chunk in chunker1000(user_ids):
+            db.session.query(Individual).filter(Individual.user_id.in_(chunk)).update({'user_id': None}, synchronize_session=False)
             db.session.query(User).filter(User.id.in_(chunk)).delete(synchronize_session=False)
         app.logger.info(f'{len(user_ids)} users deleted successfully.')
 
