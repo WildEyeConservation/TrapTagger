@@ -80,6 +80,7 @@ var isMaskCheck = false
 var isTimestampCheck
 var ctrlHeld = false
 var shiftHeld = false
+var switchToLabel = false
 
 const divBtns = document.querySelector('#divBtns');
 const catcounts = document.querySelector('#categorycounts');
@@ -313,12 +314,12 @@ function buildDetection(image,detection,mapID = 'map1',colour=null) {
 
         rect = L.rectangle([[detection.top*mapHeight[mapID],detection.left*mapWidth[mapID]],[detection.bottom*mapHeight[mapID],detection.right*mapWidth[mapID]]], rectOptions)
 
-        if (isBounding||isReviewing) {
+        if (isBounding||isReviewing||(isTagging&&switchToLabel)) {
             let displayLabel = 'None'
-            if (isReviewing) {
-                displayLabel = detection.labels.join(', ')
-            } else {
+            if (isBounding){
                 displayLabel = detection.label
+            } else {
+                displayLabel = detection.labels.join(', ')
             }
             rect.bindTooltip(displayLabel,{permanent: true, direction:"center"})
 
@@ -420,7 +421,7 @@ function buildDetection(image,detection,mapID = 'map1',colour=null) {
             dbDetIds[mapID][rect._leaflet_id.toString()] = detection.id.toString()
         }
 
-        if (isReviewing||document.getElementById('btnSendBoundingBack')!=null&&(mapID!='known')){
+        if (isReviewing||(isTagging&&!isTutorial)||document.getElementById('btnSendBoundingBack')!=null&&(mapID!='known')){
             // Highlights and un-highlight when click on bounding box
             rect.addEventListener('click', function(wrapRect, wrapDet){
                 return function() {
@@ -471,16 +472,16 @@ function buildDetection(image,detection,mapID = 'map1',colour=null) {
             }(rect, detection));
         }
 
-        if (isTagging && !isTutorial && document.getElementById('ctrlBtnSendBoundingBack')!=null) {
-            rect.addEventListener('click', function(wrapRect){
-                return function() {
-                    if (sendBackBoundingMode) {
-                        wrapRect.bringToBack()
-                        sendBoundingBack()
-                    }
-                }
-            }(rect));
-        }
+        // if (isTagging && !isTutorial && document.getElementById('ctrlBtnSendBoundingBack')!=null) {
+        //     rect.addEventListener('click', function(wrapRect){
+        //         return function() {
+        //             if (sendBackBoundingMode) {
+        //                 wrapRect.bringToBack()
+        //                 sendBoundingBack()
+        //             }
+        //         }
+        //     }(rect));
+        // }
 
         if (document.getElementById('btnSendToBack')!=null&&(mapID!='known')) {
             rect.addEventListener('click', function(wrapMapID,wrapDetectionID,wrapImageID,wrapRect) {
@@ -2078,6 +2079,9 @@ function assignLabel(label,mapID = 'map1'){
                 }
             }
         }
+    }
+
+    if (isReviewing||(isTagging&&switchToLabel)){
         hasHighlightedBounding = Object.values(drawnItems[mapID]._layers).some(layer => layer.options.color == colourSelected)
     }
 
@@ -2344,6 +2348,26 @@ function assignLabel(label,mapID = 'map1'){
                 initKeys(globalKeys[taggingLevel])
                 submitSightingChanges(detection_edits, action)
                 clearBoundingSelect(mapID)
+            } else if (isTagging&&switchToLabel&&hasHighlightedBounding&&!multipleStatus){
+                let action = 'label'
+                let labelText = labelsDict[label]
+                let detection_edits = {
+                    'ids': [],
+                    'label': labelText
+                }
+                for (let leafletID in drawnItems[mapID]._layers) {
+                    if (drawnItems[mapID]._layers[leafletID].options.color==colourSelected) {
+                        drawnItems[mapID]._layers[leafletID]._tooltip._content = labelText;
+                        if (toolTipsOpen) {
+                            drawnItems[mapID]._layers[leafletID].openTooltip()
+                        }
+                        detection_edits['ids'].push(Number(dbDetIds[mapID][leafletID]))
+                    }
+                }
+                tempTaggingLevel = taggingLevel
+                initKeys(globalKeys[taggingLevel])
+                submitSightingChanges(detection_edits, action)
+                clearBoundingSelect(mapID)
             } else {
     
                 if (modalNothingKnock.is(':visible')) {
@@ -2410,7 +2434,7 @@ function assignLabel(label,mapID = 'map1'){
                                         clusters[mapID][clusterIndex[mapID]][ITEMS].splice(index, 1);
                                     }
                                     
-                                    index=clusters[mapID][clusterIndex[mapID]][ITEM_IDS].indexOf(label)
+                                    index=clusters[mapID][clusterIndex[mapID]][ITEM_IDS].findIndex(item => item.toString() === label.toString())
                                     if (index>-1) {
                                         clusters[mapID][clusterIndex[mapID]][ITEM_IDS].splice(index, 1);
                                     }
@@ -2448,7 +2472,7 @@ function assignLabel(label,mapID = 'map1'){
                                                 clusters[mapID][clusterIndex[mapID]][ITEMS].splice(index, 1);
                                             }
                                             
-                                            index = clusters[mapID][clusterIndex[mapID]][ITEM_IDS].indexOf(taggingLevel)
+                                            index = clusters[mapID][clusterIndex[mapID]][ITEM_IDS].findIndex(item => item.toString() === taggingLevel.toString())
                                             if (index>-1) {
                                                 clusters[mapID][clusterIndex[mapID]][ITEM_IDS].splice(index, 1);
                                             }
@@ -2468,7 +2492,8 @@ function assignLabel(label,mapID = 'map1'){
                                             // Clear other current-level labels
                                             for (let i=0;i<globalKeys[taggingLevel][0].length;i++) {
                                                 label_id = globalKeys[taggingLevel][0][i].toString()
-                                                if (clusters[mapID][clusterIndex[mapID]][ITEM_IDS].includes(label_id)) {
+                                                // if (clusters[mapID][clusterIndex[mapID]][ITEM_IDS].includes(label_id)) {
+                                                if (clusters[mapID][clusterIndex[mapID]][ITEM_IDS].findIndex(item => item.toString() === label_id.toString())>-1) {
                                                     label_name = globalKeys[taggingLevel][1][i]
 
                                                     index = clusters[mapID][clusterIndex[mapID]][ITEMS].indexOf(label_name)
@@ -2476,8 +2501,8 @@ function assignLabel(label,mapID = 'map1'){
                                                         clusters[mapID][clusterIndex[mapID]][ITEMS].splice(index, 1);
                                                     }
                                                     
-                                                    index = clusters[mapID][clusterIndex[mapID]][ITEM_IDS].indexOf(label_id)
-                                                    if (index>1) {
+                                                    index = clusters[mapID][clusterIndex[mapID]][ITEM_IDS].findIndex(item => item.toString() === label_id.toString())
+                                                    if (index>-1) {
                                                         clusters[mapID][clusterIndex[mapID]][ITEM_IDS].splice(index, 1);
                                                     }
                                                     
@@ -2492,7 +2517,8 @@ function assignLabel(label,mapID = 'map1'){
                                             if (wrongStatus) {
                                                 for (let i=0;i<globalKeys[tempTaggingLevel][0].length;i++) {
                                                     label_id = globalKeys[tempTaggingLevel][0][i].toString()
-                                                    if (clusters[mapID][clusterIndex[mapID]][ITEM_IDS].includes(label_id)) {
+                                                    // if (clusters[mapID][clusterIndex[mapID]][ITEM_IDS].includes(label_id)) {
+                                                    if (clusters[mapID][clusterIndex[mapID]][ITEM_IDS].findIndex(item => item.toString() === label_id.toString())>-1) {
                                                         label_name = globalKeys[tempTaggingLevel][1][i]
 
                                                         index = clusters[mapID][clusterIndex[mapID]][ITEMS].indexOf(label_name)
@@ -2500,7 +2526,7 @@ function assignLabel(label,mapID = 'map1'){
                                                             clusters[mapID][clusterIndex[mapID]][ITEMS].splice(index, 1);
                                                         }
                                                         
-                                                        index = clusters[mapID][clusterIndex[mapID]][ITEM_IDS].indexOf(label_id)
+                                                        index = clusters[mapID][clusterIndex[mapID]][ITEM_IDS].findIndex(item => item.toString() === label_id.toString())
                                                         if (index>-1) {
                                                             clusters[mapID][clusterIndex[mapID]][ITEM_IDS].splice(index, 1);
                                                         }
@@ -2563,7 +2589,11 @@ function assignLabel(label,mapID = 'map1'){
                                             wrongStatus = false
                                             suggestionBack(false)
                                         }
-                                        if (!clusters[mapID][clusterIndex[mapID]][ITEM_IDS].includes(RFDLabel.toString()) || isTutorial) {
+                                        if (isTagging&&switchToLabel) {
+                                            document.getElementById('annotationLevelSelector').value = '-2'
+                                            switchInfoTaggingLevel('-2')
+                                        }
+                                        if (!clusters[mapID][clusterIndex[mapID]][ITEM_IDS].includes(RFDLabel.toString()) || isTutorial || (isTagging&&!switchToLabel)) {
                                             // nothings need to wait to see if they are edited first
                                             nextCluster(mapID)
                                         }
@@ -2995,6 +3025,9 @@ function prepMap(mapID = 'map1') {
                             setClusterIDRectOptions()
                             clusterIDMapPrep(wrapMapID)
                         } else if (isTagging && !isTutorial) {
+                            if (taggingLevel.includes('-2')) {
+                                fetchLabelHierarchy()
+                            }
                             setRectOptions(wrapMapID)
                             taggingMapPrep(wrapMapID)
                         } else{
@@ -3360,6 +3393,12 @@ function activateMultiple(mapID = 'map1') {
                     // }
         
                     if (taggingLevel.includes('-2')) {
+                        var btnsSuccess = divBtns.getElementsByClassName('btn-success');
+                        for (let i=0;i<btnsSuccess.length;i++){
+                            if (btnsSuccess[i].id != 'multipleBtn') {
+                                btnsSuccess[i].setAttribute("class", "btn btn-info btn-block btn-sm");
+                            }
+                        }
                         for (let i=0;i<clusters[mapID][clusterIndex[mapID]].tags.length;i++){
                             idx = names.indexOf(clusters[mapID][clusterIndex[mapID]].tags[i])
                             if (idx > -1) {
@@ -3411,6 +3450,12 @@ function activateMultiple(mapID = 'map1') {
                         wrongStatus = false
                         suggestionBack(false)
                     }
+
+                    if (isTagging&&switchToLabel) {
+                        document.getElementById('annotationLevelSelector').value = '-2'
+                        switchInfoTaggingLevel('-2')
+                    }
+
                     if (!clusters[mapID][clusterIndex[mapID]][ITEM_IDS].includes(RFDLabel.toString())) {
                         // nothings need to wait to see if they ae ediected first
                         nextCluster(mapID)
@@ -3428,6 +3473,8 @@ function submitLabels(mapID = 'map1') {
         formData.append("labels", JSON.stringify(clusterLabels[mapID]))
         if (taggingLevel.includes('-2') && isReviewing) {
             formData.append("taggingLevel", '-2')
+        } else if (isTagging&&switchToLabel) {
+            formData.append("taggingLevel", '-1')
         }
         console.log(clusterLabels[mapID])
         nothingStatus = false
@@ -3478,17 +3525,14 @@ function submitLabels(mapID = 'map1') {
                 }
             }(mapID,clusterIndex[mapID])
         } else if (isTagging) { 
-            xhttp.onreadystatechange = function(wrapNothingStatus,wrapMapID,wrapIndex) {
+            xhttp.onreadystatechange = function(wrapNothingStatus,wrapMapID,wrapIndex,wrapSwitchToLabel) {
                 return function() {
                     if (this.readyState == 4 && this.status == 278) {
                         window.location.replace(JSON.parse(this.responseText)['redirect'])
                     } else if (this.readyState == 4 && this.status == 200) {
                         reply = JSON.parse(this.responseText);
                         if (reply!='error') {
-                            if (isReviewing) {
-                                clusters[wrapMapID][wrapIndex].annotator = reply.username
-                                updateDebugInfo()
-                            }
+                            
                             if (wrapNothingStatus) {
                                 if (reply.reAllocated==true) {
                                     clusterRequests[wrapMapID] = [];
@@ -3509,12 +3553,25 @@ function submitLabels(mapID = 'map1') {
                             // if (isMaskCheck) {
                             //     clusters[wrapMapID][wrapIndex].ready = true
                             // }
+                            if (wrapSwitchToLabel) {
+                                for (let i=0;i<clusters[wrapMapID][wrapIndex].images.length;i++) {
+                                    for (let j=0;j<clusters[wrapMapID][wrapIndex].images[i].detections.length;j++) {
+                                        if (clusters[wrapMapID][wrapIndex].label.length > 0) {
+                                            clusters[wrapMapID][wrapIndex].images[i].detections[j].labels = clusters[wrapMapID][wrapIndex].label
+                                            clusters[wrapMapID][wrapIndex].images[i].detections[j].label = clusters[wrapMapID][wrapIndex].label[0]
+                                        } else {
+                                            clusters[wrapMapID][wrapIndex].images[i].detections[j].labels = ['None']
+                                            clusters[wrapMapID][wrapIndex].images[i].detections[j].label = 'None'
+                                        }
+                                    }
+                                }
+                            }
                             Progress = reply.progress
                             updateProgBar(Progress)
                         }
                     }
                 }
-            }(nothingStatus,mapID,clusterIndex[mapID])
+            }(nothingStatus,mapID,clusterIndex[mapID],switchToLabel)
         }
         xhttp.open("POST", url, true);
         if (isClassCheck) {
@@ -3630,6 +3687,22 @@ function initKeys(res){
 
         while(divBtns.firstChild){
             divBtns.removeChild(divBtns.firstChild);
+        }
+
+        if (taggingLevel.includes('-2')||switchToLabel) {
+            let annotationLevelSelector = document.createElement('select');
+            annotationLevelSelector.setAttribute("id", 'annotationLevelSelector');
+            annotationLevelSelector.setAttribute("class", "form-control");
+            annotationLevelSelector.setAttribute("style", "margin-top: 3px; margin-bottom: 3px");            
+            divBtns.appendChild(annotationLevelSelector);
+            let options = ['-2', '-1']
+            let texts = ['Informational Tagging', 'Species Labelling']
+            fillSelect(annotationLevelSelector, texts, options);
+            annotationLevelSelector.value = taggingLevel
+
+            annotationLevelSelector.addEventListener('change', function() {
+                switchInfoTaggingLevel(this.value)
+            });
         }
 
         // Add multiple species button
@@ -4260,6 +4333,271 @@ function editBounding() {
     if (!handled) {
         drawControl._toolbars.edit._modes.edit.handler.enable()
     }
+}
+
+function clearBoundingSelect(mapID = 'map1') {
+    /** Clears(Un-highlight) the selected bounding box */
+    for (let leafletID in drawnItems[mapID]._layers) {
+        drawnItems[mapID]._layers[leafletID].setStyle({color: colourBase}); //un-highlight all selections
+    }
+    prevClickBounding = null
+    if (isReviewing) {
+        updateDetInfo(null, mapID)
+    }
+}
+
+function fetchLabelHierarchy() {
+    /** Fetches the label hierarchy, and saves it in the labelHierarchy global. */
+    var xhttp = new XMLHttpRequest();
+    xhttp.onreadystatechange =
+    function(){
+        if (this.readyState == 4 && this.status == 200) {
+            labelHierarchy = JSON.parse(this.responseText);
+        }
+    }
+    xhttp.open("GET", '/getLabelHierarchy/'+selectedTask);
+    xhttp.send();
+}
+
+function buildContextMenu(mapID = 'map1') {
+    /** Builds a new context menu with the updated list of global options. */
+
+    indexNum = 0
+    if (multiContextVal > 0) {
+        item = {
+            text: '▲',
+            index: indexNum,
+            callback: updateTargetRect
+        }
+        indexNum += 1
+        map[mapID].contextmenu.addItem(item)
+
+        item = {
+            separator: true,
+            index: indexNum,
+        }
+        indexNum += 1
+        map[mapID].contextmenu.addItem(item)
+    }
+
+    for (let i=0;i<subDividedContList[multiContextVal].length;i++) {
+        item = {
+            text: subDividedContList[multiContextVal][i],
+            index: indexNum,
+            callback: updateTargetRect
+        }
+        indexNum += 1
+        map[mapID].contextmenu.addItem(item)
+
+        if (i < subDividedContList[multiContextVal].length-1) {
+            item = {
+                separator: true,
+                index: indexNum,
+            }
+            indexNum += 1
+            map[mapID].contextmenu.addItem(item)
+        }
+    }
+
+    if (multiContextVal < subDividedContList.length-1) {
+        item = {
+            separator: true,
+            index: indexNum,
+        }
+        indexNum += 1
+        map[mapID].contextmenu.addItem(item)
+        
+        item = {
+            text: '▼',
+            index: indexNum,
+            callback: updateTargetRect
+        }
+        indexNum += 1
+        map[mapID].contextmenu.addItem(item)
+    }
+
+    map[mapID].contextmenu.showAt(contextLocation)
+}
+
+function plusFunc(labelText,mapID = 'map1') {
+    /** 
+     * Function for handling user input from the species context menu, navigating the user through the hierarchical levels. 
+     * @param {str} labelText The name of the selected label
+    */
+   
+    currentLevel = JSON.parse(JSON.stringify(labelHierarchy))
+    for (let i=0;i<currentHierarchicalLevel.length;i++) {
+        currentLevel = JSON.parse(JSON.stringify(currentLevel[currentHierarchicalLevel[i]]))
+    }
+
+    if (labelText != '+') {
+        currentLevel = JSON.parse(JSON.stringify(currentLevel[labelText]))
+        currentHierarchicalLevel.push(labelText)
+    }
+
+    if (Object.keys(currentLevel).length==0) {
+        drawnItems[mapID]._layers[targetRect].closeTooltip()
+        drawnItems[mapID]._layers[targetRect]._tooltip._content=labelText
+        if (toolTipsOpen) {
+            drawnItems[mapID]._layers[targetRect].openTooltip()
+        }
+        plusInProgress = false
+        currentHierarchicalLevel = []
+        map[mapID].contextmenu.removeAllItems()
+
+        if (!isBounding) {
+            let action = 'label'
+            let detection_edits = {
+                'ids': [Number(dbDetIds[mapID][targetRect])],
+                'label': labelText
+            }
+            submitSightingChanges(detection_edits, action)
+            if (isReviewing) {
+                document.getElementById('detLabel').innerHTML = labelText
+            }
+        }
+
+    } else {
+        map[mapID].contextmenu.removeAllItems()
+        subDividedContList = []
+        tempList = []
+        counter = 0
+        for (let label in currentLevel) {
+            tempList.push(label)
+            counter += 1
+            if (counter==10) {
+                subDividedContList.push(tempList)
+                tempList = []
+                counter = 0
+            }
+        }
+        subDividedContList.push(tempList)
+        multiContextVal = 0
+        buildContextMenu()        
+    }
+}
+
+
+function submitSightingChanges(detection_edits, action, mapID = 'map1') {
+    /** Submits the changes to the server. */
+    console.log(detection_edits, action)
+    if (action == 'delete') {
+        clusters[mapID][clusterIndex[mapID]].images[imageIndex[mapID]].detections = clusters[mapID][clusterIndex[mapID]].images[imageIndex[mapID]].detections.filter(det => !detection_edits.includes(det.id))
+    } else if (action == 'edit') {
+        for (let i=0;i<clusters[mapID][clusterIndex[mapID]].images[imageIndex[mapID]].detections.length;i++) {
+            let det_id = clusters[mapID][clusterIndex[mapID]].images[imageIndex[mapID]].detections[i].id
+            if (detection_edits.hasOwnProperty(det_id)) {
+                if (detection_edits[det_id].hasOwnProperty('label')) {
+                    clusters[mapID][clusterIndex[mapID]].images[imageIndex[mapID]].detections[i].label = detection_edits[det_id].label
+                    clusters[mapID][clusterIndex[mapID]].images[imageIndex[mapID]].detections[i].labels = [detection_edits[det_id].label]
+                }
+                clusters[mapID][clusterIndex[mapID]].images[imageIndex[mapID]].detections[i].top = detection_edits[det_id].bounding_box.top
+                clusters[mapID][clusterIndex[mapID]].images[imageIndex[mapID]].detections[i].bottom = detection_edits[det_id].bounding_box.bottom
+                clusters[mapID][clusterIndex[mapID]].images[imageIndex[mapID]].detections[i].left = detection_edits[det_id].bounding_box.left
+                clusters[mapID][clusterIndex[mapID]].images[imageIndex[mapID]].detections[i].right = detection_edits[det_id].bounding_box.right
+            }
+        }
+    } else if (action == 'add') {
+        for (let detID in detection_edits) {
+            let add_dict = {
+                id: detID,
+                top: detection_edits[detID].top,
+                bottom: detection_edits[detID].bottom,
+                left: detection_edits[detID].left,
+                right: detection_edits[detID].right,
+                category: 1,
+                individual: '-1',
+                individuals: ['-1'],
+                individual_names: [],
+                static: false,
+                flank: 'None'
+            }
+            if (detection_edits[detID].hasOwnProperty('label')) {
+                add_dict.label = detection_edits[detID].label
+                add_dict.labels = [detection_edits[detID].label]
+            } else{
+                add_dict.label = 'None'
+                add_dict.labels = ['None']
+            }
+            clusters[mapID][clusterIndex[mapID]].images[imageIndex[mapID]].detections.push(add_dict)
+        }
+    } else if (action == 'label') {
+        for (let i=0;i<clusters[mapID][clusterIndex[mapID]].images[imageIndex[mapID]].detections.length;i++) {
+            let det_id = clusters[mapID][clusterIndex[mapID]].images[imageIndex[mapID]].detections[i].id
+            if (detection_edits.ids.includes(det_id)) {
+                clusters[mapID][clusterIndex[mapID]].images[imageIndex[mapID]].detections[i].label = detection_edits.label
+                clusters[mapID][clusterIndex[mapID]].images[imageIndex[mapID]].detections[i].labels = [detection_edits.label]
+            }
+        }
+    }
+
+    var formData = new FormData();
+    formData.append('detection_edits', JSON.stringify(detection_edits));
+    formData.append('action', JSON.stringify(action));
+    formData.append('image_id', JSON.stringify(clusters[mapID][clusterIndex[mapID]].images[imageIndex[mapID]].id));
+    if (isReviewing) {
+        formData.append('explore', JSON.stringify('true'));
+    }
+
+    var xhttp = new XMLHttpRequest();
+    xhttp.open("POST", '/editSightingsGeneral/'+selectedTask);
+    xhttp.onreadystatechange =
+    function(wrapClusterIndex,wrapImageIndex,wrapMapID){
+        return function() {
+            if (this.readyState == 4 && this.status == 278) {
+                window.location.replace(JSON.parse(this.responseText)['redirect'])
+            } else if (this.readyState == 4 && this.status == 200) {
+                let reply = JSON.parse(this.responseText)
+                let detDbIDs = reply.detDbIDs
+                let cluster_labels = reply.cluster_labels
+
+                for (let detID in detDbIDs) {
+                    for (let i=0;i<clusters[wrapMapID][wrapClusterIndex].images[wrapImageIndex].detections.length;i++) {
+                        if (clusters[wrapMapID][wrapClusterIndex].images[wrapImageIndex].detections[i].id==detID) {
+                            clusters[wrapMapID][wrapClusterIndex].images[wrapImageIndex].detections[i].id = detDbIDs[detID]
+                            for (let leafID in dbDetIds[wrapMapID]) {
+                                if (dbDetIds[wrapMapID][leafID]==detID) {
+                                    dbDetIds[wrapMapID][leafID] = detDbIDs[detID].toString()
+                                    break
+                                }
+                            }
+                            break
+                        }
+                    }
+                }
+
+                for (let clusterID in cluster_labels) {
+                    if (clusterID==clusters[wrapMapID][wrapClusterIndex].id) {
+                        clusters[wrapMapID][wrapClusterIndex].label = cluster_labels[clusterID].label
+                        clusters[wrapMapID][wrapClusterIndex].label_ids = cluster_labels[clusterID].label_ids
+                        if (isReviewing) {
+                            boundingClusterLabels[clusterID] = cluster_labels[clusterID].label
+                            if (reply.annotator != '') {
+                                clusters[wrapMapID][wrapClusterIndex].annotator = reply.annotator
+                            }
+                        } else if (isTagging) {
+                            clusterLabels[wrapMapID] = cluster_labels[clusterID].label_ids.map(Number)
+                        }
+                        if (reply.update_labels) {
+                            for (let i=0;i<clusters[wrapMapID][wrapClusterIndex].images.length;i++) {
+                                for (let j=0;j<clusters[wrapMapID][wrapClusterIndex].images[i].detections.length;j++) {
+                                    if (clusters[wrapMapID][wrapClusterIndex].images[i].detections[j].label == 'None') {
+                                        clusters[wrapMapID][wrapClusterIndex].images[i].detections[j].labels = cluster_labels[clusterID].label
+                                        clusters[wrapMapID][wrapClusterIndex].images[i].detections[j].label = cluster_labels[clusterID].label[0]
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+
+                if (isReviewing) {
+                    updateDebugInfo()
+                }
+            }
+        }
+    }(clusterIndex[mapID],imageIndex[mapID],mapID);
+    xhttp.send(formData);
 }
 
 //This snippet just serves to deselect a button after being clicked. Otherwise spacebar just serves to repeat whichever

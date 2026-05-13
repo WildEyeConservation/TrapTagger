@@ -20,6 +20,7 @@ isViewing = true
 isIDing = false
 isStaticCheck = false
 isTimestampCheck = false
+var editingEnabled = false
 
 window.addEventListener('load', onload, false);
 

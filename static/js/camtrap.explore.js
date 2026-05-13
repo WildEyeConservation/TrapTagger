@@ -161,7 +161,7 @@ function getKeys() {
                                             globalKeys[key][0][i] = -967
                                         }
 
-                                        if (globalKeys[key][0][i] > 0) {
+                                        if (globalKeys[key][0][i] > 0 && key!='-2') {
                                             labelsDict[globalKeys[key][0][i]] = globalKeys[key][1][i]
                                         }
                                     }

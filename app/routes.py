@@ -1319,7 +1319,8 @@ def getTaggingLevelsbyTask(task_id,task_type):
         
         count = task.infoless_vhl_count
         texts.append('Vehicles/Humans/Livestock ('+str(count)+')')
-        values.append('-2,'+str(label.id))
+        # values.append('-2,'+str(label.id))
+        values.append('-2,'+str(GLOBALS.vhl_id))
 
     
     elif task_type=='empty':
@@ -1669,7 +1670,7 @@ def imageViewer():
                                 .order_by(Image.corrected_timestamp)\
                                 .distinct().all()
 
-        elif view_type=='trapgroup':
+        elif view_type=='trapgroup' or view_type=='site':
             trapgroup = db.session.query(Trapgroup).get(int(id_no))
             # if trapgroup and ((trapgroup.survey.user==current_user) or (current_user.id==admin.id)):
             if trapgroup and checkSurveyPermission(current_user.id,trapgroup.survey_id,'read'):
@@ -14623,7 +14624,10 @@ def getTimestampCameraIDs(survey_id):
                             .join(Image)\
                             .join(Trapgroup)\
                             .filter(Trapgroup.survey_id==survey_id)\
-                            .filter(or_(Image.filename=='frame0.jpg', ~Image.filename.like('frame%')))
+                            .filter(or_(
+                                and_(Image.filename=='frame0.jpg', Camera.videos.any()),
+                                ~Camera.videos.any()
+                            ))
 
         if check_type:
             if check_type == 'missing':
@@ -14644,7 +14648,10 @@ def getTimestampCameraIDs(survey_id):
                                                 .join(Trapgroup)\
                                                 .join(Image)\
                                                 .filter(Trapgroup.survey_id==survey_id)\
-                                                .filter(or_(Image.filename=='frame0.jpg', ~Image.filename.like('frame%')))\
+                                                .filter(or_(
+                                                    and_(Image.filename=='frame0.jpg', Camera.videos.any()),
+                                                    ~Camera.videos.any()
+                                                ))\
                                                 .filter(Image.corrected_timestamp==None)\
                                                 .filter(Image.skipped!=True)\
                                                 .group_by(Cameragroup.id).distinct().all()}
@@ -14700,7 +14707,10 @@ def getTimestampImages(survey_id, reqID):
                                 .join(Trapgroup)\
                                 .outerjoin(Video, Video.camera_id==Camera.id)\
                                 .filter(Trapgroup.survey_id==survey_id)\
-                                .filter(or_(Image.filename=='frame0.jpg', ~Image.filename.like('frame%')))
+                                .filter(or_(
+                                    and_(Image.filename=='frame0.jpg', Camera.videos.any()),
+                                    ~Camera.videos.any()
+                                ))
         if check_type:
             if check_type == 'missing':
                 image_data = image_data.filter(Image.corrected_timestamp==None)
@@ -17717,6 +17727,7 @@ def editSightingsGeneral(task_id):
     cluster_labels = {}
     annotator=''
     update_labels = False
+    changed_labels = False
     action = ast.literal_eval(request.form['action'])
     detection_edits = ast.literal_eval(request.form['detection_edits'])
     image_id = ast.literal_eval(request.form['image_id'])
@@ -17728,6 +17739,9 @@ def editSightingsGeneral(task_id):
 
     if current_user.admin == False:    
         task_id = current_user.turkcode[0].task_id
+
+    if (not current_user.admin) and (not GLOBALS.redisClient.sismember('active_jobs_'+str(current_user.turkcode[0].task_id),current_user.username)):
+        return {'redirect': url_for('done')}, 278
 
     task = db.session.query(Task).get(task_id)
     app.logger.info(f'Editing Sigthings for task {task_id}, image {image_id}, action {action}, detection_edits {detection_edits}')
@@ -17766,7 +17780,7 @@ def editSightingsGeneral(task_id):
                         labelgroup = db.session.query(Labelgroup).filter(Labelgroup.detection_id==detection.id).filter(Labelgroup.task_id==task.id).first()
                         labelgroup.labels = [db_label]
                         labelgroup.checked = True
-
+                        changed_labels = True
         elif action == 'add':
             for detID in detection_edits:
                 label = detection_edits[detID]['label'] if 'label' in detection_edits[detID] else None
@@ -17798,14 +17812,17 @@ def editSightingsGeneral(task_id):
                     tempCluster = db.session.query(Cluster).join(Image,Cluster.images).filter(Image.id==image_id).filter(Cluster.task==tempTask).first()
                     labelgroup.tags = tempCluster.tags
                     if tempTask.id == task.id:
+                        labelgroup.tags = tempCluster.tags
                         if db_label:
                             labelgroup.labels = [db_label]
                             labelgroup.checked = True
+                            changed_labels = True
                         else:
                             labelgroup.labels = tempCluster.labels
                             labelgroup.checked = False
                     else:
                         labelgroup.labels = tempCluster.labels
+                        labelgroup.tags = tempCluster.tags
                         labelgroup.checked = False
 
                 #new detection needs a new classification - user generated is probably correct. Will use that.
@@ -17832,11 +17849,12 @@ def editSightingsGeneral(task_id):
                 for labelgroup in labelgroups:
                     labelgroup.labels = [db_label]
                     labelgroup.checked = True
+                changed_labels = True
         
         image = db.session.query(Image).get(image_id)
         if image:
             image.detection_rating = detection_rating(image)
-            if explore:
+            if explore or changed_labels:
                 cluster = db.session.query(Cluster).join(Image,Cluster.images).filter(Image.id==image_id).filter(Cluster.task_id==task.id).first()
                 detectionLabels = rDets(db.session.query(Label)\
                                 .join(Labelgroup, Label.labelgroups)\
@@ -17855,9 +17873,9 @@ def editSightingsGeneral(task_id):
                     'label': [l.description for l in detectionLabels] if detectionLabels else ['None'], 
                     'label_ids': [l.id for l in detectionLabels] if detectionLabels else ['0']
                 }
-                annotator = current_user.username
-
-                GLOBALS.redisClient.sadd('tasks_to_update_status',cluster.task_id)
+                if explore: 
+                    annotator = current_user.username
+                    GLOBALS.redisClient.sadd('tasks_to_update_status',cluster.task_id)
                 
         db.session.commit()
 

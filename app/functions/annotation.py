@@ -635,8 +635,8 @@ def fetch_clusters(taggingLevel,task_id,isBounding,trapgroup_id,limit=None,id=No
                                 detectionSQ.c.right,
                                 detectionSQ.c.category,
                                 detectionSQ.c.static,
-                                None,
-                                None,
+                                Label.id,
+                                Label.description,
                                 requiredimagestable.c.image_id,
                                 Tag.id,
                                 Tag.description,
@@ -652,6 +652,7 @@ def fetch_clusters(taggingLevel,task_id,isBounding,trapgroup_id,limit=None,id=No
                             .join(Camera) \
                             .outerjoin(detectionSQ,detectionSQ.c.image_id==Image.id)\
                             .outerjoin(Labelgroup,Labelgroup.detection_id==detectionSQ.c.id)\
+                            .outerjoin(Label,Labelgroup.labels)\
                             .outerjoin(Tag,Labelgroup.tags)\
                             .filter(or_(Labelgroup.task_id==task_id,Labelgroup.id==None))\
                             .filter(Image.zip_id==None)\
