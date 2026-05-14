@@ -2146,24 +2146,25 @@ def delete_duplicate_videos(videos,skip):
         #     image.clusters = []
         #     db.session.delete(image)
 
-    detSQ = db.session.query(Detection.id).join(Image).filter(Image.camera_id.in_(canidateVideoCamIDs)).subquery()
-    labelgroupSQ = db.session.query(Labelgroup.id).join(Detection).join(Image).filter(Image.camera_id.in_(canidateVideoCamIDs)).subquery()
-    imageSQ = db.session.query(Image.id).filter(Image.camera_id.in_(canidateVideoCamIDs)).subquery()
+    detIDs = [r[0] for r in db.session.query(Detection.id).join(Image).filter(Image.camera_id.in_(canidateVideoCamIDs)).distinct().all()]
+    labelgroupIDs = [r[0] for r in db.session.query(Labelgroup.id).join(Detection).join(Image).filter(Image.camera_id.in_(canidateVideoCamIDs)).distinct().all()]
+    imageIDs = [r[0] for r in db.session.query(Image.id).filter(Image.camera_id.in_(canidateVideoCamIDs)).distinct().all()]
 
-    db.session.query(detectionLabels).filter(detectionLabels.c.labelgroup_id.in_(select(labelgroupSQ.c.id))).delete(synchronize_session=False)
-    db.session.query(detectionTags).filter(detectionTags.c.labelgroup_id.in_(select(labelgroupSQ.c.id))).delete(synchronize_session=False)
-    db.session.query(Labelgroup).filter(Labelgroup.id.in_(select(labelgroupSQ.c.id))).delete(synchronize_session=False)
+    db.session.query(detectionLabels).filter(detectionLabels.c.labelgroup_id.in_(labelgroupIDs)).delete(synchronize_session=False)
+    db.session.query(detectionTags).filter(detectionTags.c.labelgroup_id.in_(labelgroupIDs)).delete(synchronize_session=False)
+    db.session.query(Labelgroup).filter(Labelgroup.id.in_(labelgroupIDs)).delete(synchronize_session=False)
 
-    db.session.query(DetSimilarity).filter(or_(DetSimilarity.detection_1.in_(select(detSQ.c.id)),DetSimilarity.detection_2.in_(select(detSQ.c.id)))).delete(synchronize_session=False)
-    db.session.query(individualDetections).filter(individualDetections.c.detection_id.in_(select(detSQ.c.id))).delete(synchronize_session=False)
-    db.session.query(individualPrimaryDetections).filter(individualPrimaryDetections.c.detection_id.in_(select(detSQ.c.id))).delete(synchronize_session=False)
-    db.session.query(Feature).filter(Feature.detection_id.in_(select(detSQ.c.id))).delete(synchronize_session=False)
-    db.session.query(Detection).filter(Detection.id.in_(select(detSQ.c.id))).delete(synchronize_session=False)
+    db.session.query(DetSimilarity).filter(DetSimilarity.detection_1.in_(detIDs)).delete(synchronize_session=False)
+    db.session.query(DetSimilarity).filter(DetSimilarity.detection_2.in_(detIDs)).delete(synchronize_session=False)
+    db.session.query(individualDetections).filter(individualDetections.c.detection_id.in_(detIDs)).delete(synchronize_session=False)
+    db.session.query(individualPrimaryDetections).filter(individualPrimaryDetections.c.detection_id.in_(detIDs)).delete(synchronize_session=False)
+    db.session.query(Feature).filter(Feature.detection_id.in_(detIDs)).delete(synchronize_session=False)
+    db.session.query(Detection).filter(Detection.id.in_(detIDs)).delete(synchronize_session=False)
     
-    db.session.query(requiredimagestable).filter(requiredimagestable.c.image_id.in_(select(imageSQ.c.id))).delete(synchronize_session=False)
+    db.session.query(requiredimagestable).filter(requiredimagestable.c.image_id.in_(imageIDs)).delete(synchronize_session=False)
     imagestable = alias(images)
-    db.session.query(imagestable).filter(imagestable.c.image_id.in_(select(imageSQ.c.id))).delete(synchronize_session=False)
-    db.session.query(Image).filter(Image.id.in_(select(imageSQ.c.id))).delete(synchronize_session=False)
+    db.session.query(imagestable).filter(imagestable.c.image_id.in_(imageIDs)).delete(synchronize_session=False)
+    db.session.query(Image).filter(Image.id.in_(imageIDs)).delete(synchronize_session=False)
 
     db.session.query(Video).filter(Video.id.in_(candidateVideoIDs)).delete(synchronize_session=False)
     db.session.query(Camera).filter(Camera.id.in_(canidateVideoCamIDs)).delete(synchronize_session=False)
@@ -2218,18 +2219,19 @@ def delete_duplicate_images(imgs):
             GLOBALS.s3client.delete_object(Bucket=Config.BUCKET,Key=dup_image_key)
             GLOBALS.s3client.delete_object(Bucket=Config.BUCKET,Key=dup_comp_image_key)
 
-    detSQ = db.session.query(Detection.id).join(Image).filter(Image.id.in_(canditateImageIDs)).subquery()
-    labelgroupSQ = db.session.query(Labelgroup.id).join(Detection).join(Image).filter(Image.id.in_(canditateImageIDs)).subquery()
+    detIDs = [r[0] for r in db.session.query(Detection.id).join(Image).filter(Image.id.in_(canditateImageIDs)).distinct().all()]
+    labelgroupIDs = [r[0] for r in db.session.query(Labelgroup.id).join(Detection).join(Image).filter(Image.id.in_(canditateImageIDs)).distinct().all()]
     
-    db.session.query(detectionLabels).filter(detectionLabels.c.labelgroup_id.in_(select(labelgroupSQ.c.id))).delete(synchronize_session=False)
-    db.session.query(detectionTags).filter(detectionTags.c.labelgroup_id.in_(select(labelgroupSQ.c.id))).delete(synchronize_session=False)
-    db.session.query(Labelgroup).filter(Labelgroup.id.in_(select(labelgroupSQ.c.id))).delete(synchronize_session=False)
+    db.session.query(detectionLabels).filter(detectionLabels.c.labelgroup_id.in_(labelgroupIDs)).delete(synchronize_session=False)
+    db.session.query(detectionTags).filter(detectionTags.c.labelgroup_id.in_(labelgroupIDs)).delete(synchronize_session=False)
+    db.session.query(Labelgroup).filter(Labelgroup.id.in_(labelgroupIDs)).delete(synchronize_session=False)
 
-    db.session.query(DetSimilarity).filter(or_(DetSimilarity.detection_1.in_(select(detSQ.c.id)),DetSimilarity.detection_2.in_(select(detSQ.c.id)))).delete(synchronize_session=False)
-    db.session.query(individualDetections).filter(individualDetections.c.detection_id.in_(select(detSQ.c.id))).delete(synchronize_session=False)
-    db.session.query(individualPrimaryDetections).filter(individualPrimaryDetections.c.detection_id.in_(select(detSQ.c.id))).delete(synchronize_session=False)
-    db.session.query(Feature).filter(Feature.detection_id.in_(select(detSQ.c.id))).delete(synchronize_session=False)
-    db.session.query(Detection).filter(Detection.id.in_(select(detSQ.c.id))).delete(synchronize_session=False)
+    db.session.query(DetSimilarity).filter(DetSimilarity.detection_1.in_(detIDs)).delete(synchronize_session=False)
+    db.session.query(DetSimilarity).filter(DetSimilarity.detection_2.in_(detIDs)).delete(synchronize_session=False)
+    db.session.query(individualDetections).filter(individualDetections.c.detection_id.in_(detIDs)).delete(synchronize_session=False)
+    db.session.query(individualPrimaryDetections).filter(individualPrimaryDetections.c.detection_id.in_(detIDs)).delete(synchronize_session=False)
+    db.session.query(Feature).filter(Feature.detection_id.in_(detIDs)).delete(synchronize_session=False)
+    db.session.query(Detection).filter(Detection.id.in_(detIDs)).delete(synchronize_session=False)
     
     db.session.query(requiredimagestable).filter(requiredimagestable.c.image_id.in_(canditateImageIDs)).delete(synchronize_session=False)
     imagestable = alias(images)

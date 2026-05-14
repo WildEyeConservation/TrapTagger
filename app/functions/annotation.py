@@ -103,7 +103,9 @@ def wrapUpTask(self,task_id):
         db.session.commit()
 
         reconcile_cluster_labelgroup_labels_and_tags(task_id)
-        process_multi_labels(task_id)
+        trapgroup_ids = [r[0] for r in db.session.query(Trapgroup.id).join(Survey).join(Task).filter(Task.id==task_id).distinct().all()]
+        for trapgroup_id in trapgroup_ids:
+            process_multi_labels(task_id=task_id,trapgroup_ids=[trapgroup_id])
         
         if ',' not in task.tagging_level and task.init_complete and '-2' not in task.tagging_level:
             check_individual_detection_mismatch(task_id=task_id)
