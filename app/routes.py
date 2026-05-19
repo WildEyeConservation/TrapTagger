@@ -17409,6 +17409,34 @@ def getSurveyFolders(survey_id):
         
         data = data.order_by(Trapgroup.tag, Cameragroup.name).distinct().all()
 
+        path_entries = {}
+        img_handled_paths = set()
+        vid_handled_paths = set()
+        for site_id, site_tag, camera_id, camera_name, img_path, vid_path, img_count, vid_count, frame_count in data:
+            if img_path and img_path not in img_handled_paths:
+                if img_path in path_entries:
+                    path_entries[img_path]['image_count'] = img_count if img_count else 0
+                else:
+                    path_entries[img_path] = {
+                        'folder': img_path,
+                        'image_count': img_count if img_count else 0,
+                        'video_count': 0,
+                        'frame_count': 0
+                    }
+                img_handled_paths.add(img_path)
+            if vid_path and vid_path not in vid_handled_paths:
+                if vid_path in path_entries:
+                    path_entries[vid_path]['video_count'] = vid_count if vid_count else 0
+                    path_entries[vid_path]['frame_count'] = frame_count if frame_count else 0
+                else:
+                    path_entries[vid_path] = {
+                        'folder': vid_path,
+                        'image_count': 0,
+                        'video_count': vid_count if vid_count else 0,
+                        'frame_count': frame_count if frame_count else 0
+                    }
+                vid_handled_paths.add(vid_path)
+
         folders = {}
         handled_paths = set()
         for site_id, site_tag, camera_id, camera_name, img_path, vid_path, img_count, vid_count, frame_count in data:
@@ -17424,28 +17452,12 @@ def getSurveyFolders(survey_id):
                     'camera': camera_name,
                     'folders': []
                 }
-            path_entries = {}
             if img_path and img_path not in handled_paths:
-                path_entries[img_path] = {
-                    'folder': img_path,
-                    'image_count': img_count if img_count else 0,
-                    'video_count': 0,
-                    'frame_count': 0
-                }
+                folders[site_id]['cameras'][camera_id]['folders'].append(path_entries[img_path])
+                handled_paths.add(img_path)
             if vid_path and vid_path not in handled_paths:
-                if vid_path in path_entries:
-                    path_entries[vid_path]['video_count'] = vid_count if vid_count else 0
-                    path_entries[vid_path]['frame_count'] = frame_count if frame_count else 0
-                else:
-                    path_entries[vid_path] = {
-                        'folder': vid_path,
-                        'image_count': 0,
-                        'video_count': vid_count if vid_count else 0,
-                        'frame_count': frame_count if frame_count else 0
-                    }
-            for entry in path_entries.values():
-                folders[site_id]['cameras'][camera_id]['folders'].append(entry)
-                handled_paths.add(entry['folder'])
+                folders[site_id]['cameras'][camera_id]['folders'].append(path_entries[vid_path])
+                handled_paths.add(vid_path)
 
     return json.dumps({'survey': survey_id, 'folders': folders})
 
