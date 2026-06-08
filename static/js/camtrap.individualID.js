@@ -85,6 +85,13 @@ var individualFlankImages = []
 var flankImageIndex = 0
 var currentBestDetection = null
 var imgMapsFullRes = {}
+var drawControl = {}
+var dbDetIds = {'map1': {}}
+var addDetCnt = 0
+var speciesMode = false
+var labelHierarchy = {}
+var speciesRect = null
+var speciesBtnClicked = false
 
 function radians(degrees) {
     /** Converts desgres into radians. */
@@ -99,7 +106,7 @@ function coordinateDistance(lat1,lon1,lat2,lon2) {
 
 function idNextCluster() {
     /** Allocates a new individual to the individual for ID. */
-    if ((!submittedResponse) && (finishedDisplaying['map1']) && (finishedDisplaying['map2']) && (modalActive == false) && (modalActive2 == false)) {
+    if ((!submittedResponse) && (finishedDisplaying['map1']) && (finishedDisplaying['map2']) && (modalActive == false) && (modalActive2 == false) && !editingEnabled && !speciesMode) {
         // actions.push('n')
         // We don't want users to go back after beig allocated a new individual
         actions = []
@@ -109,7 +116,10 @@ function idNextCluster() {
 
 function acceptSuggestion() {
     /** Accepts the suggested individual, combining its images with the those of the user's allocated individual. */
-    if ((!submittedResponse) && (finishedDisplaying['map1']) && (finishedDisplaying['map2']) && (modalActive == false) && (modalActive2 == false)) {
+    if ((!submittedResponse) && (finishedDisplaying['map1']) && (finishedDisplaying['map2']) && (modalActive == false) && (modalActive2 == false) && !editingEnabled && !speciesMode) {
+        if (checkNoActiveDetections()) {
+            return
+        }
         submittedResponse = true
         var xhttp = new XMLHttpRequest();
         xhttp.onreadystatechange =
@@ -146,7 +156,10 @@ function acceptSuggestion() {
 
 function suggestionUnidentifiable() {
     /** Marks the suggested individual as unidentifiable. */
-    if ((!submittedResponse) && (finishedDisplaying['map1']) && (finishedDisplaying['map2']) && (modalActive == false) && (modalActive2 == false)) {
+    if ((!submittedResponse) && (finishedDisplaying['map1']) && (finishedDisplaying['map2']) && (modalActive == false) && (modalActive2 == false) && !editingEnabled && !speciesMode) {
+        if (checkNoActiveDetections()) {
+            return
+        }
         submittedResponse = true
         var xhttp = new XMLHttpRequest();
         xhttp.onreadystatechange =
@@ -178,7 +191,10 @@ function suggestionUnidentifiable() {
 
 function rejectSuggestion() {
     /** Marks the suggested individual as being different to the one currently allocated to the user. */
-    if ((!submittedResponse) && (finishedDisplaying['map1']) && (finishedDisplaying['map2']) && (modalActive == false) && (modalActive2 == false)) {
+    if ((!submittedResponse) && (finishedDisplaying['map1']) && (finishedDisplaying['map2']) && (modalActive == false) && (modalActive2 == false) && !editingEnabled && !speciesMode) {
+        if (checkNoActiveDetections()) {
+            return
+        }
         submittedResponse = true
         var xhttp = new XMLHttpRequest();
         xhttp.onreadystatechange =
@@ -209,7 +225,7 @@ function rejectSuggestion() {
 
 function skipSuggestion() {
     /** Skips the current suggestion, leaving it to be examined at a later stage with hopefully more context. */
-    if ((!submittedResponse) && (finishedDisplaying['map1']) && (finishedDisplaying['map2']) && (modalActive == false) && (modalActive2 == false)) {
+    if ((!submittedResponse) && (finishedDisplaying['map1']) && (finishedDisplaying['map2']) && (modalActive == false) && (modalActive2 == false) && !editingEnabled && !speciesMode) {
         submittedResponse = true
         var xhttp = new XMLHttpRequest();
         xhttp.onreadystatechange =
@@ -240,7 +256,7 @@ function skipSuggestion() {
 
 function undoPreviousSuggestion() {
     /** Undoes the previous individual ID action - accept/reject/skip/dissociate. */
-    if ((actions.length > 0) && (!submittedResponse) && (finishedDisplaying['map1']) && (finishedDisplaying['map2']) && (modalActive == false) && (modalActive2 == false)) {
+    if ((actions.length > 0) && (!submittedResponse) && (finishedDisplaying['map1']) && (finishedDisplaying['map2']) && (modalActive == false) && (modalActive2 == false) && !editingEnabled && !speciesMode) {
         submittedResponse = true
         previous = actions.pop()
 
@@ -367,6 +383,7 @@ function getSuggestions(prevID = null) {
             index = clusters['map1'].length - 1
             clusters['map2'] = [clusters['map1'][index]]
         }
+        clusters['map2'][0].ready = true
         if (!('map2' in clusterPosition)) {
             clusterPosition["map2"] = document.getElementById('clusterPositionSplide2')
         }
@@ -673,6 +690,8 @@ function idKeys(key, location=null) {
                     break;
                 case 'i': activateUnidentifiable()
                     break;
+                case 'c': activateSpecies()
+                    break;
                 case 'h': hideBoundingLabels()
                     break;
                 case 'n': createSingleIndividual()
@@ -745,6 +764,8 @@ function idKeys(key, location=null) {
                     if (modalNextIndividual.is(':visible') && modalActive == true) {
                         nextIndividual()
                     }
+                    break;
+                case 'c': activateSpecies()
                     break;
             }
         }
@@ -931,8 +952,10 @@ function buildIndividuals() {
             }
             for (let i=0;i<clusters[tempMapID][clusterIndex[tempMapID]].images.length;i++) {
                 for (let n=0;n<clusters[tempMapID][clusterIndex[tempMapID]].images[i].detections.length;n++) {
-                    if (clusters[tempMapID][clusterIndex[tempMapID]].images[i].detections[n].individual=='-1') {
-                        allow = false
+                    if (clusters[tempMapID][clusterIndex[tempMapID]].images[i].detections[n].active==true) {
+                        if (clusters[tempMapID][clusterIndex[tempMapID]].images[i].detections[n].individual=='-1') {
+                            allow = false
+                        }
                     }
                 }
             }   
@@ -1021,13 +1044,27 @@ function createSingleIndividual() {
     /** Creates a new single individual for all of the detections in the cluster. */
 
     // Only if there is a single detection in the cluster
-    if ((finishedDisplaying['map1']) && (finishedDisplaying['map2']) && (modalActive == false) && (modalActive2 == false) && (!['-101','-99','-782'].includes(clusters['map1'][clusterIndex['map1']].id))) {
+    if ((finishedDisplaying['map1']) && (finishedDisplaying['map2']) && (modalActive == false) && (modalActive2 == false) && (!['-101','-99','-782'].includes(clusters['map1'][clusterIndex['map1']].id))&&(!editingEnabled)) {
         
         allow = true
         for (let i=0;i<clusters['map1'][clusterIndex['map1']].images.length;i++) {
             if (clusters['map1'][clusterIndex['map1']].images[i].detections.length > 1) {
                 allow = false
             }
+        }
+
+        no_active_detections = true
+        for (let i=0;i<clusters['map1'][clusterIndex['map1']].images.length;i++) {
+            for (let n=0;n<clusters['map1'][clusterIndex['map1']].images[i].detections.length;n++) {
+                if (clusters['map1'][clusterIndex['map1']].images[i].detections[n].active==true) {
+                    no_active_detections = false
+                    break
+                }
+            }
+        }
+
+        if (no_active_detections) {
+            allow = false
         }
 
         if (allow) {
@@ -1049,13 +1086,16 @@ function createSingleIndividual() {
                 }
 
                 detIdList=[]
-                imIdList=[]
+                imIdList=new Set()
                 for (let i=0;i<clusters['map1'][clusterIndex['map1']].images.length;i++) {
-                    imIdList.push(clusters['map1'][clusterIndex['map1']].images[i].id)
                     for (let n=0;n<clusters['map1'][clusterIndex['map1']].images[i].detections.length;n++) {
-                        detIdList.push(clusters['map1'][clusterIndex['map1']].images[i].detections[n].id)
+                        if (clusters['map1'][clusterIndex['map1']].images[i].detections[n].active==true) {
+                            detIdList.push(clusters['map1'][clusterIndex['map1']].images[i].detections[n].id)
+                            imIdList.add(clusters['map1'][clusterIndex['map1']].images[i].id)
+                        }
                     }
-                }
+                }  
+                imIdList = Array.from(imIdList)
     
                 newSet[newID] = {"colour": colour, "detections": detIdList, "images": imIdList, "children": [], "family": []}
                 globalIndividual = newID
@@ -1085,6 +1125,9 @@ function createSingleIndividual() {
 
 function undo() {
     /** Undoes the previous cluster-ID action. */
+    if (editingEnabled) {
+        return
+    }
     if (individualIndex >= 1) {
         individuals.pop()
         individualIndex -= 1
@@ -1103,7 +1146,7 @@ function undo() {
 
 function sendToBack() {
     /** Activates 'send to back' mode. */
-    if ((parentMode==false)&&(unidentifiableMode==false)&&(deleteMode==false)) {
+    if ((parentMode==false)&&(unidentifiableMode==false)&&(deleteMode==false)&&(!editingEnabled)) {
         if (previousClick != null) {
             if (previousClick.individual != '-1') {
                 colour = individuals[individualIndex][previousClick.individual].colour
@@ -1115,10 +1158,12 @@ function sendToBack() {
         previousClick = null
         if (sendBackMode) {
             sendBackMode = false
+            setEditingState('none', false)
             document.getElementById('btnSendToBack').setAttribute('class','btn btn-primary btn-block')
             document.getElementById('btnSendToBack').innerHTML = 'Send to (B)ack'  
         } else {
             sendBackMode = true
+            setEditingState('none', true)
             document.getElementById('btnSendToBack').setAttribute('class','btn btn-danger btn-block')
             document.getElementById('btnSendToBack').innerHTML = 'Cancel'
         }   
@@ -1127,22 +1172,45 @@ function sendToBack() {
 
 function activateParent() {
     /** Activates parent mode. */
-    if ((sendBackMode==false)&&(unidentifiableMode==false)&&(deleteMode==false)) {
+    if ((sendBackMode==false)&&(unidentifiableMode==false)&&(deleteMode==false)&&(!editingEnabled)) {
         if (parentMode) {
             parentMode = false
+            setEditingState('none', false)
             document.getElementById('btnParent').setAttribute('class','btn btn-primary btn-block')
             document.getElementById('btnParent').innerHTML = '(P)arent'
         } else {
             parentMode = true
+            setEditingState('none', true)
             document.getElementById('btnParent').setAttribute('class','btn btn-danger btn-block')
             document.getElementById('btnParent').innerHTML = 'Cancel'
         }   
     }
 }
 
+function activateSpecies() {
+    /** Activates species mode. */
+    if ((sendBackMode==false)&&(unidentifiableMode==false)&&(deleteMode==false)&&(parentMode==false)&&(!editingEnabled)&&(!submittedResponse)) {
+        if (speciesMode) {
+            speciesMode = false
+            closeRightSidePanel()
+            closeLeftSidePanel()
+            setEditingState('none', false)
+            document.getElementById('btnSpecies').setAttribute('class','btn btn-primary btn-block')
+            document.getElementById('btnSpecies').innerHTML = '(C)hange Species'
+        } else {
+            speciesMode = true
+            setEditingState('none', true)
+            document.getElementById('btnSpecies').setAttribute('class','btn btn-danger btn-block')
+            document.getElementById('btnSpecies').innerHTML = 'Cancel'
+        }  
+        speciesRect = null
+        speciesBtnClicked = false 
+    }
+}
+
 function activateUnidentifiable() {
     /** Activates unidentifiable mode. */
-    if ((finishedDisplaying['map1']) && (finishedDisplaying['map2']) && (modalActive == false) && (modalActive2 == false) && (!['-101','-99','-782'].includes(clusters['map1'][clusterIndex['map1']].id))) {
+    if ((finishedDisplaying['map1']) && (finishedDisplaying['map2']) && (modalActive == false) && (modalActive2 == false) && (!['-101','-99','-782'].includes(clusters['map1'][clusterIndex['map1']].id))&&(!editingEnabled)) {
         if ((sendBackMode==false)&&(parentMode==false)&&(deleteMode==false)) {
             if (previousClick != null) {
                 if (previousClick.individual != '-1') {
@@ -1155,6 +1223,7 @@ function activateUnidentifiable() {
             previousClick = null
             if (unidentifiableMode) {
                 unidentifiableMode = false
+                setEditingState('none', false)
                 document.getElementById('btnUnidentifiable').setAttribute('class','btn btn-primary btn-block')
                 document.getElementById('btnUnidentifiable').innerHTML = 'Un(i)dentifiable'
             } else {
@@ -1186,6 +1255,7 @@ function activateUnidentifiable() {
                     buildIndividuals()
                 } else {
                     unidentifiableMode = true
+                    setEditingState('none', true)
                     document.getElementById('btnUnidentifiable').setAttribute('class','btn btn-danger btn-block')
                     document.getElementById('btnUnidentifiable').innerHTML = 'Cancel'
                 }
@@ -1196,7 +1266,7 @@ function activateUnidentifiable() {
 
 function deleteIndividualPress() {
     /** Activates delete-individual mode. */
-    if ((sendBackMode==false)&&(parentMode==false)&&(unidentifiableMode==false)) {
+    if ((sendBackMode==false)&&(parentMode==false)&&(unidentifiableMode==false)&&(!editingEnabled)) {
         if (previousClick != null) {
             if (previousClick.individual != '-1') {
                 colour = individuals[individualIndex][previousClick.individual].colour
@@ -1208,10 +1278,12 @@ function deleteIndividualPress() {
         previousClick = null
         if (deleteMode) {
             deleteMode = false
+            setEditingState('none', false)
             document.getElementById('btnDeleteIndividual').setAttribute('class','btn btn-primary btn-block')
             document.getElementById('btnDeleteIndividual').innerHTML = 'D(e)lete'
         } else {
             deleteMode = true
+            setEditingState('none', true)
             document.getElementById('btnDeleteIndividual').setAttribute('class','btn btn-danger btn-block')
             document.getElementById('btnDeleteIndividual').innerHTML = 'Cancel'
         }   
@@ -1220,19 +1292,35 @@ function deleteIndividualPress() {
 
 function submitIndividuals() {
     /** Submits all current individuals in the cluster for cluster ID. */
-    if ((finishedDisplaying['map1']) && (finishedDisplaying['map2']) && (modalActive == false) && (modalActive2 == false)) {
+    if ((finishedDisplaying['map1']) && (finishedDisplaying['map2']) && (modalActive == false) && (modalActive2 == false) && (!editingEnabled)) {
         allow = true
+        no_active_detections = true
         for (let tempMapID in clusters) {
             if (tempMapID == 'known'){
                 continue
             }
             for (let i=0;i<clusters[tempMapID][clusterIndex[tempMapID]].images.length;i++) {
                 for (let n=0;n<clusters[tempMapID][clusterIndex[tempMapID]].images[i].detections.length;n++) {
-                    if (clusters[tempMapID][clusterIndex[tempMapID]].images[i].detections[n].individual=='-1') {
-                        allow = false
+                    if (clusters[tempMapID][clusterIndex[tempMapID]].images[i].detections[n].active==true) {
+                        if (clusters[tempMapID][clusterIndex[tempMapID]].images[i].detections[n].individual=='-1') {
+                            allow = false
+                        }
+                        no_active_detections = false
                     }
                 }
             }   
+        }
+
+        if (no_active_detections) {
+            if (backIndex>0) {
+                backIndex -= 1
+            }
+
+            if (backIndex==0) {
+                document.getElementById('btnNextCluster').hidden = true
+            }
+            nextCluster();
+            return
         }
     
         if (!allow) {
@@ -1520,7 +1608,7 @@ function updateTargetRect (e) {
     targetUpdated = true
 }
 
-function setRectOptions() {
+function setRectOptions(mapID = 'map1') {
     /** Sets the bounding box options. */
 
     menuItems = [{
@@ -1539,6 +1627,29 @@ function setRectOptions() {
         contextmenuWidth: 140,
         contextmenuItems: menuItems
     }
+
+    if (drawControl[mapID] != null) {
+        drawControl[mapID].remove()
+    }
+
+    drawControl[mapID] = new L.Control.Draw({
+        draw: {
+            polygon: false,
+            polyline: false,
+            circle: false,
+            circlemarker: false,
+            marker: false,
+            rectangle: {
+                shapeOptions: rectOptions,
+                showArea: false
+            }
+        },
+        edit: {
+            featureGroup: drawnItems[mapID]
+        }
+    });
+    map[mapID].addControl(drawControl[mapID]);
+    drawControl[mapID]._toolbars.draw._toolbarContainer.firstElementChild.title = 'Add a sighting'
 }
 
 function IDMapPrep(mapID = 'map1') {
@@ -1546,6 +1657,10 @@ function IDMapPrep(mapID = 'map1') {
 
     map[mapID].on('contextmenu.select', function (wrapMapID) {
         return function(e) {
+            if (editingEnabled) {
+                closeContextMenuAndPopup()
+                return
+            }
             if (targetUpdated) {  
                 if (e.el.textContent=='Dissociate') {
                     dissociateDetection(dbDetIds[wrapMapID][targetRect.toString()],wrapMapID)
@@ -1559,6 +1674,10 @@ function IDMapPrep(mapID = 'map1') {
 
     map[mapID].on('contextmenu', function (e) {
         /** remove duplicate items on more than one right click of contextmenu*/
+        if (editingEnabled) {
+            closeContextMenuAndPopup()
+            return
+        }
         nr_items = 1
 
         if(map[mapID].contextmenu._items.length > nr_items){
@@ -1580,9 +1699,29 @@ function IDMapPrep(mapID = 'map1') {
             updateKpts()
         }
     }(mapID));
+
+    map[mapID].on('zoom', function(e){
+        /** update position of bounding box labels on zoom */
+        if (toolTipsOpen) {
+            for (let layer in drawnItems[mapID]._layers) {
+                if (drawnItems[mapID]._layers[layer]._tooltip != null) {
+                    var drawn_layer = drawnItems[mapID]._layers[layer]
+                    var center = L.latLng([(drawn_layer._bounds._northEast.lat+drawn_layer._bounds._southWest.lat)/2,(drawn_layer._bounds._northEast.lng+drawn_layer._bounds._southWest.lng)/2])
+                    var bottom = L.latLng([drawn_layer._bounds._southWest.lat,(drawn_layer._bounds._northEast.lng+drawn_layer._bounds._southWest.lng)/2])
+                    var centerPoint = map[mapID].latLngToContainerPoint(center)
+                    var bottomPoint = map[mapID].latLngToContainerPoint(bottom)
+                    var offset = [0,centerPoint.y-bottomPoint.y]
+                    drawn_layer._tooltip.options.offset = offset
+                    drawn_layer._tooltip.options.opacity = 0.8
+                }
+            }
+        }
+    });
+
+    drawControlPrep(mapID)
 }
 
-function setClusterIDRectOptions() {
+function setClusterIDRectOptions(mapID = 'map1') {
     /** Sets the bounding box options. */
 
     menuItems = []
@@ -1612,6 +1751,29 @@ function setClusterIDRectOptions() {
         contextmenuWidth: 140,
         contextmenuItems: menuItems
     }
+
+    if (drawControl[mapID] != null) {
+        drawControl[mapID].remove()
+    }
+
+    drawControl[mapID] = new L.Control.Draw({
+        draw: {
+            polygon: false,
+            polyline: false,
+            circle: false,
+            circlemarker: false,
+            marker: false,
+            rectangle: {
+                shapeOptions: rectOptions,
+                showArea: false
+            }
+        },
+        edit: {
+            featureGroup: drawnItems[mapID]
+        }
+    });
+    map[mapID].addControl(drawControl[mapID]);
+    drawControl[mapID]._toolbars.draw._toolbarContainer.firstElementChild.title = 'Add a sighting'
 }
 
 
@@ -1620,6 +1782,9 @@ function clusterIDMapPrep(mapID = 'map1') {
 
     map[mapID].on('contextmenu.select', function (wrapMapID) {
         return function(e) {
+            if (editingEnabled) {
+                return
+            }
             if (targetUpdated && !updatingFlank) {
                 updatingFlank = true
                 detection_id = dbDetIds[wrapMapID][targetRect.toString()]
@@ -1633,6 +1798,10 @@ function clusterIDMapPrep(mapID = 'map1') {
 
     map[mapID].on('contextmenu', function (e) {
         /** remove duplicate items on more than one right click of contextmenu*/
+        if (editingEnabled) {
+            closeContextMenuAndPopup()
+            return
+        }
         nr_items = 2*detection_flanks.length - 1
 
         if(map[mapID].contextmenu._items.length > nr_items){
@@ -1654,8 +1823,127 @@ function clusterIDMapPrep(mapID = 'map1') {
                 var bottomPoint = map[mapID].latLngToContainerPoint(bottom)
                 var offset = [0,centerPoint.y-bottomPoint.y]
                 drawn_layer._tooltip.options.offset = offset
+                drawn_layer._tooltip.options.opacity = 0.8
             }
         }
+    });
+
+    drawControlPrep(mapID)
+
+}
+
+function drawControlPrep(mapID = 'map1') {
+    /** Event listeners for the draw control. */
+
+    map[mapID].on("draw:drawstart", function(e) {
+        setEditingState(mapID, true)
+        closeContextMenuAndPopup()
+        editingEnabled = true
+    })
+
+    map[mapID].on("draw:drawstop", function(e) {
+        setEditingState(mapID, false)
+        editingEnabled = false
+    })
+
+    map[mapID].on("draw:editstart", function(e) {
+        setEditingState(mapID, true)
+        closeContextMenuAndPopup()
+        editingEnabled = true
+
+        drawControl[mapID]._toolbars.edit._actionsContainer.children[0].firstElementChild.innerHTML = 'Finish'
+        drawControl[mapID]._toolbars.edit._actionsContainer.children[0].firstElementChild.title = 'Accept changes'
+        
+        if (toolTipsOpen) {
+            for (let layer in drawnItems[mapID]._layers) {
+                drawnItems[mapID]._layers[layer].closeTooltip()
+            }
+        }
+    })
+
+    map[mapID].on("draw:editstop", function(e) {
+        setEditingState(mapID, false)
+        editingEnabled = false
+        if (toolTipsOpen && document.getElementById('btnSendToBack')!=null) {
+            for (let layer in drawnItems[mapID]._layers) {
+                // update the tooltip position
+                var center = L.latLng([(drawnItems[mapID]._layers[layer]._bounds._northEast.lat+drawnItems[mapID]._layers[layer]._bounds._southWest.lat)/2,(drawnItems[mapID]._layers[layer]._bounds._northEast.lng+drawnItems[mapID]._layers[layer]._bounds._southWest.lng)/2])
+                var bottom = L.latLng([drawnItems[mapID]._layers[layer]._bounds._southWest.lat,(drawnItems[mapID]._layers[layer]._bounds._northEast.lng+drawnItems[mapID]._layers[layer]._bounds._southWest.lng)/2])
+                var centerPoint = map[mapID].latLngToContainerPoint(center)
+                var bottomPoint = map[mapID].latLngToContainerPoint(bottom)
+                var offset = [0,centerPoint.y-bottomPoint.y]
+                drawnItems[mapID]._layers[layer]._tooltip.options.offset = offset
+                drawnItems[mapID]._layers[layer]._tooltip.options.opacity = 0.8
+                drawnItems[mapID]._layers[layer].openTooltip()
+            }
+        }
+    })
+
+    map[mapID].on("draw:deletestart", function(e) {
+        setEditingState(mapID, true)
+        closeContextMenuAndPopup()
+        editingEnabled = true
+        drawControl[mapID]._toolbars.edit._actionsContainer.children[0].firstElementChild.innerHTML = 'Finish'
+        drawControl[mapID]._toolbars.edit._actionsContainer.children[2].firstElementChild.innerHTML = 'Clear all'
+        drawControl[mapID]._toolbars.edit._actionsContainer.children[0].firstElementChild.title = 'Accept changes'
+        drawControl[mapID]._toolbars.edit._actionsContainer.children[2].firstElementChild.title = 'Remove all sightings'
+    })
+
+    map[mapID].on("draw:deletestop", function(e) {
+        setEditingState(mapID, false)
+        editingEnabled = false
+    })
+
+    map[mapID].on('draw:created', function (e) {
+        var newLayer = e.layer;
+
+        drawnItems[mapID].addLayer(newLayer);  
+        dbDetIds[mapID][newLayer._leaflet_id] = 'n'+addDetCnt.toString()
+        addDetCnt+=1
+        let action = 'add'
+        let detection_edits = {}
+        detection_edits[dbDetIds[mapID][newLayer._leaflet_id]] = {
+            'top': newLayer.getBounds().getNorthEast().lat/mapHeight[mapID],
+            'bottom': newLayer.getBounds().getSouthWest().lat/mapHeight[mapID],
+            'left': newLayer.getBounds().getSouthWest().lng/mapWidth[mapID],
+            'right': newLayer.getBounds().getNorthEast().lng/mapWidth[mapID]
+        }
+        submitSightingChanges(detection_edits, action, mapID) 
+
+    });
+
+    map[mapID].on('draw:edited', function(e) {
+
+        let action = 'edit'
+        let detection_edits = {}
+        var layers = e.layers
+        // traverse the event layers and get the detection ids
+        layers.eachLayer(function(layer) {
+            detection_edits[Number(dbDetIds[mapID][layer._leaflet_id])] = {
+                'bounding_box': {
+                    'top': layer.getBounds().getNorthEast().lat/mapHeight[mapID],
+                    'bottom': layer.getBounds().getSouthWest().lat/mapHeight[mapID],
+                    'left': layer.getBounds().getSouthWest().lng/mapWidth[mapID],
+                    'right': layer.getBounds().getNorthEast().lng/mapWidth[mapID]
+                }
+            }
+        });
+        submitSightingChanges(detection_edits, action, mapID)
+
+    });
+
+    map[mapID].on('draw:deleted', function(e) {
+
+        let action = 'delete'
+        let detection_ids = []
+        // traverse the event layers and get the detection ids
+        var layers = e.layers
+        layers.eachLayer(function(layer) {
+            detection_ids.push(Number(dbDetIds[mapID][layer._leaflet_id]))
+        });
+
+        submitSightingChanges(detection_ids, action, mapID)
+
     });
 }
 
@@ -1875,6 +2163,16 @@ function updateKpts() {
     if (isIDing && (document.getElementById('btnSendToBack')==null)) {
         if (document.getElementById('cxFeaturesHeatmap').checked){
             document.getElementById('heatmapOptionsDiv').hidden = false
+            if (clusters['map1'][clusterIndex['map1']].images[imageIndex['map1']].detections.length == 0 || clusters['map2'][clusterIndex['map2']].images[imageIndex['map2']].detections.length == 0) {
+                document.getElementById('heatmapOptionsDiv').hidden = true
+                if (kpts_layer['map1'] != null){
+                    map['map1'].removeLayer(kpts_layer['map1'])
+                }
+                if (kpts_layer['map2'] != null){
+                    map['map2'].removeLayer(kpts_layer['map2'])
+                }
+                return
+            }
             detID1 = clusters['map1'][clusterIndex['map1']].images[imageIndex['map1']].detections[0].id
             detID2 = clusters['map2'][clusterIndex['map2']].images[imageIndex['map2']].detections[0].id
             getMatchingKpts(detID1,detID2)
@@ -2957,13 +3255,23 @@ function openLeftSidePanel() {
     const navbarHeight = navbar.offsetHeight;
     const fullPageHeight = Math.max(document.documentElement.scrollHeight, window.innerHeight) - navbarHeight;
     leftPanel.style.height = fullPageHeight +'px';
+    if (speciesMode) {
+        leftPanel.style.width = '16vw';
+    }
     leftPanel.style.display = 'block';
-    populatePanel('left', clusters['map1'][clusterIndex['map1']].id);  
+    if (speciesMode) {
+        populatePanelSpecies('left')
+    } else {
+        populatePanel('left', clusters['map1'][clusterIndex['map1']].id);  
+    }
 }
 
 function closeLeftSidePanel() {
     leftPanel.style.display = 'none';
     cleanPanel('left');
+    if (speciesMode) {
+        activateSpecies()
+    }
 }
 
 function openRightSidePanel() {
@@ -2972,8 +3280,15 @@ function openRightSidePanel() {
     const navbarHeight = navbar.offsetHeight;
     const fullPageHeight = Math.max(document.documentElement.scrollHeight, window.innerHeight) - navbarHeight;
     rightPanel.style.height = fullPageHeight + 'px';
+    if (speciesMode) {
+        rightPanel.style.width = '16vw';
+    }
     rightPanel.style.display = 'block';
-    populatePanel('right', clusters['map2'][clusterIndex['map2']].id);  
+    if (speciesMode) {
+        populatePanelSpecies('right')
+    } else {
+        populatePanel('right', clusters['map2'][clusterIndex['map2']].id);  
+    }
 }
 
 function updatePanelHeights() {
@@ -2993,6 +3308,9 @@ function updatePanelHeights() {
 function closeRightSidePanel() {
     rightPanel.style.display = 'none';
     cleanPanel('right');
+    if (speciesMode) {
+        activateSpecies()
+    }
 }
 
 function updateBlockHotkeys(val){
@@ -3025,6 +3343,8 @@ function populatePanel(panel,individual_id){
             while(panelInfo.firstChild){
                 panelInfo.removeChild(panelInfo.firstChild);
             }
+
+            document.getElementById(panel + 'PanelHeaderTitle').innerHTML = 'Individual Information'
 
             var panelContent = document.getElementById(panel + 'SidePanelContent')
             panelContent.style.display = 'block'
@@ -3579,6 +3899,24 @@ function cleanPanel(panel) {
 document.addEventListener('click', function(event) {
     /** Closes the side panels if clicked outside of them. */
     if (document.getElementById('leftSidePanel') == null || document.getElementById('rightSidePanel') == null || editingEnabled) {
+        return
+    }
+    if (speciesMode) {
+        if (rightPanel.style.display == 'block' && document.getElementById('applyToSighting') != null && speciesBtnClicked == false) {
+            var isRightPanel = rightPanel.contains(event.target);
+            if (!isRightPanel) {
+                closeRightSidePanel()
+                closeLeftSidePanel()
+            }
+        }
+        else if (leftPanel.style.display == 'block' && document.getElementById('applyToSighting') != null && speciesBtnClicked == false) {
+            var isLeftPanel = leftPanel.contains(event.target);
+            if (!isLeftPanel) {
+                closeLeftSidePanel()
+                closeRightSidePanel()
+            }
+        }
+        speciesBtnClicked = false
         return
     }
     if (leftPanel.style.display == 'block' || rightPanel.style.display == 'block') {
@@ -4383,4 +4721,381 @@ function updateFlankButtons(){
             document.getElementById(flank+'Flank').disabled = false
         }
     }
+}
+
+function setEditingState(mapID, enabled) {
+    // Disable all other map editing controls for the other maps
+    Object.keys(drawControl).forEach(id => {
+        if (id !== mapID.toString()) {
+            let container = drawControl[id].getContainer()
+            if (enabled) {
+                container.style.pointerEvents = 'none';
+            } else {
+                container.style.pointerEvents = '';
+            }
+        }
+    });
+}
+
+function closeContextMenuAndPopup() {        
+    for (let mapID in map) {
+        if (mapID == 'known'){
+            continue
+        }
+        if (map[mapID].contextmenu.isVisible()) {
+            map[mapID].contextmenu.hide()
+        }
+
+        if (map[mapID]._popup!=undefined) {
+            map[mapID].closePopup()
+        }
+    }
+}
+
+function populatePanelSpecies(panel) {
+    // Populates the panel with a selector for the species.
+
+    var panelInfo = document.getElementById(panel + 'PanelInfoDiv')
+    while(panelInfo.firstChild){
+        panelInfo.removeChild(panelInfo.firstChild);
+    }
+
+    document.getElementById(panel + 'PanelHeaderTitle').innerHTML = 'Species Labeling'
+
+    var panelContent = document.getElementById(panel + 'SidePanelContent')
+    panelContent.style.display = 'block'
+
+    var divApply = document.createElement('div')
+    divApply.innerHTML = 'Apply Label To: '
+    panelInfo.appendChild(divApply)
+
+    // add radio buttons for the different options
+    var divRadio = document.createElement('div')
+    divRadio.setAttribute('class', 'custom-control custom-radio custom-control-inline');
+    panelInfo.appendChild(divRadio)
+
+    var radio = document.createElement('input')
+    radio.setAttribute('type', 'radio')
+    radio.setAttribute('id', 'applyToSighting')
+    radio.setAttribute('name', 'applyTo')
+    radio.setAttribute('class', 'custom-control-input')
+    radio.setAttribute('value', 'sighting')
+    radio.checked = true
+    divRadio.appendChild(radio)
+
+    var label = document.createElement('label')
+    label.setAttribute('class', 'custom-control-label')
+    label.setAttribute('for', 'applyToSighting')
+    label.innerHTML = 'Sighting'
+    divRadio.appendChild(label)
+
+    divRadio = document.createElement('div')
+    divRadio.setAttribute('class', 'custom-control custom-radio custom-control-inline');
+    panelInfo.appendChild(divRadio)
+
+    if (isIDing && document.getElementById('btnSendToBack')!=null) {
+        radio = document.createElement('input')
+        radio.setAttribute('type', 'radio')
+        radio.setAttribute('id', 'applyToCluster')
+        radio.setAttribute('name', 'applyTo')
+        radio.setAttribute('class', 'custom-control-input')
+        radio.setAttribute('value', 'cluster')
+        radio.checked = false
+        divRadio.appendChild(radio)
+
+        label = document.createElement('label')
+        label.setAttribute('class', 'custom-control-label')
+        label.setAttribute('for', 'applyToCluster')
+        label.innerHTML = 'Cluster'
+        divRadio.appendChild(label)
+    } else {
+        radio = document.createElement('input')
+        radio.setAttribute('type', 'radio')
+        radio.setAttribute('id', 'applyToIndividual')
+        radio.setAttribute('name', 'applyTo')
+        radio.setAttribute('class', 'custom-control-input')
+        radio.setAttribute('value', 'individual')
+        radio.checked = false
+        divRadio.appendChild(radio)
+
+        label = document.createElement('label')
+        label.setAttribute('class', 'custom-control-label')
+        label.setAttribute('for', 'applyToIndividual')
+        label.innerHTML = 'Individual'
+        divRadio.appendChild(label)  
+    }
+
+    var controlGroup = document.createElement('div')
+    controlGroup.classList.add('control-group')
+    controlGroup.setAttribute('style', 'font-size: 80%')
+    panelInfo.appendChild(controlGroup)
+
+    var divBtnsSpecies = document.createElement('div')
+    divBtnsSpecies.setAttribute('id', 'divBtnsSpecies')
+    controlGroup.appendChild(divBtnsSpecies)
+
+    buildSpeciesKeys(null);
+}
+
+function buildSpeciesKeys(level=null){
+    /** Builds the buttons for the other keys in the hierarchy */
+
+    if (editingEnabled){
+        return
+    }
+    var divBtnsSpecies = document.getElementById('divBtnsSpecies')
+    while(divBtnsSpecies.firstChild){
+        divBtnsSpecies.removeChild(divBtnsSpecies.firstChild);
+    }
+
+    var backBtn = document.createElement('button');
+    backBtn.classList.add('btn');
+    backBtn.classList.add('btn-danger');
+    backBtn.innerHTML = 'Back';
+    backBtn.setAttribute("id", 1);
+    backBtn.classList.add('btn-block');
+    backBtn.classList.add('btn-sm');
+    backBtn.classList.add('bounding-btn');
+    backBtn.setAttribute("style", "margin-top: 3px; margin-bottom: 3px");
+    backBtn.addEventListener('click', ()=>{
+        speciesBtnClicked = true
+        if (level!=null){
+            buildSpeciesKeys(null);
+        }
+    });
+    divBtnsSpecies.appendChild(backBtn);
+
+    if (level == null){
+        var current_labels = Object.keys(labelHierarchy);
+    } else {
+        var current_labels = Object.keys(labelHierarchy[level]);
+    }
+
+    for (let i=0;i<current_labels.length;i++) {
+        var newbtn = document.createElement('button');
+        newbtn.classList.add('btn');
+        newbtn.classList.add('btn-primary');
+        newbtn.innerHTML = current_labels[i];
+        newbtn.setAttribute("id", 1);
+        newbtn.classList.add('btn-block');
+        newbtn.classList.add('btn-sm');
+        newbtn.classList.add('bounding-btn');
+        newbtn.setAttribute("style", "margin-top: 3px; margin-bottom: 3px");
+        newbtn.addEventListener('click', ()=>{
+            speciesBtnClicked = true
+            // check whether there is another level
+            if (level == null) {
+                check = Object.keys(labelHierarchy[current_labels[i]]).length > 0;
+            } else {
+                check = Object.keys(labelHierarchy[level][current_labels[i]]).length > 0;
+            }
+            if (check) {
+                // If there is another level, build the keys for that level
+                buildSpeciesKeys(current_labels[i]);
+            } else {
+                if (document.getElementById('applyToSighting').checked) {
+                    applyLabelToSighting(current_labels[i]);
+                } else if (document.getElementById('applyToCluster')!=null && document.getElementById('applyToCluster').checked) {
+                    applyLabelToCluster(current_labels[i]);
+                } else if (document.getElementById('applyToIndividual')!=null && document.getElementById('applyToIndividual').checked) {
+                    applyLabelToIndividual(current_labels[i]);
+                }
+            }
+        });
+        divBtnsSpecies.appendChild(newbtn);
+    }
+
+    updatePanelHeights()
+}
+
+function applyLabelToSighting(label) {
+    /** Applies the label to the selected sighting. */
+    console.log('applyLabelToSighting', label)
+    if (speciesRect){
+        let leafletID = speciesRect._leaflet_id
+        console.log('leafletID', leafletID)
+        let detectionID = null
+        let mapID = null
+        for (let map_id in map) {
+            if (Object.keys(dbDetIds[map_id]).includes(leafletID.toString())) {
+                detectionID = dbDetIds[map_id][leafletID]
+                mapID = map_id
+                console.log('detectionID', detectionID)
+                break
+            }
+        }
+        if (detectionID != null && mapID != null){
+            let detection_edits = {
+                'ids': [Number(detectionID)],
+                'label': label
+            }
+            submitSightingChanges(detection_edits, 'label', mapID)
+        }
+        
+    }
+    activateSpecies()
+}
+
+function applyLabelToCluster(label) {
+    /** Applies the label to the selected cluster. */
+    console.log('applyLabelToCluster', label)
+    if (speciesMode && speciesRect){
+        clusters['map1'][clusterIndex['map1']].ready = false
+        // There may be multiple clusters within the same clusters object (merged if timestamp difference within 30mins)
+        let cluster_ids = [...new Set(clusters['map1'][clusterIndex['map1']].images.map(image => image.cluster_id))];
+        var formData = new FormData();
+        formData.append('species', JSON.stringify(label));
+        formData.append('cluster_ids', JSON.stringify(cluster_ids));
+        var xhttp = new XMLHttpRequest();
+        xhttp.onreadystatechange = function(wrapClusterIndex) {
+            return function() {
+                if (this.readyState == 4 && this.status == 278) {
+                    window.location.replace(JSON.parse(this.responseText)['redirect'])
+                } else if (this.readyState == 4 && this.status == 200) {
+                    let reply = JSON.parse(this.responseText);  
+                    console.log(reply)
+                    if (reply.status=='success') {
+                        let cluster_labels = reply.cluster_labels;
+                        let species = taggingLevel.split(',')[1];
+                        let isActive = cluster_labels[clusters['map1'][wrapClusterIndex].id].label.includes(species);
+                        clusters['map1'][wrapClusterIndex].label = cluster_labels[clusters['map1'][wrapClusterIndex].id].label;
+                        clusters['map1'][wrapClusterIndex].label_ids = cluster_labels[clusters['map1'][wrapClusterIndex].id].label_ids;
+                        for (let i=0;i<clusters['map1'][wrapClusterIndex].images.length;i++) {
+                            let c_label = cluster_labels[clusters['map1'][wrapClusterIndex].images[i].cluster_id].label;
+                            for (let j=0;j<clusters['map1'][wrapClusterIndex].images[i].detections.length;j++) {
+                                clusters['map1'][wrapClusterIndex].images[i].detections[j].label = c_label[0]
+                                clusters['map1'][wrapClusterIndex].images[i].detections[j].labels = c_label
+                                clusters['map1'][wrapClusterIndex].images[i].detections[j].individual = '-1'
+                                clusters['map1'][wrapClusterIndex].images[i].detections[j].individual_names = []
+                                clusters['map1'][wrapClusterIndex].images[i].detections[j].active = isActive
+                            }
+                        }
+                        
+                        clusters['map1'][wrapClusterIndex].ready = true;
+                        
+                        if (!isActive) {
+                            nextCluster();
+                            updateProgBar(reply.progress);
+                        } else{
+                            clusters['map2'][0] = clusters['map1'][wrapClusterIndex];
+                            addedDetections['map1'] = false;
+                            addDetections('map1');
+                            addedDetections['map2'] = false;
+                            addDetections('map2');
+                            checkNoActiveDetections();
+                        }
+                        
+
+                    }
+                }
+            }
+        }(clusterIndex['map1']);
+        xhttp.open("POST", '/assignSpeciesToClusterInID');
+        xhttp.send(formData);
+
+        activateSpecies()
+    }
+}
+
+function applyLabelToIndividual(label) {
+    /** Applies the label to the selected individual. */
+    console.log('applyLabelToIndividual', label)
+    if (speciesMode && speciesRect){
+        let leafletID = speciesRect._leaflet_id
+        let mapID = null
+        for (let map_id in map) {
+            if (Object.keys(dbDetIds[map_id]).includes(leafletID.toString())) {
+                mapID = map_id
+                break
+            }
+        }
+        if (mapID != null) {
+            let individual_id = clusters[mapID][clusterIndex[mapID]].id
+            let formData = new FormData();
+            formData.append('species', JSON.stringify(label));
+
+            //remove cluster object from clusters
+            clusters[mapID].splice(clusterIndex[mapID], 1);
+            clusterIndex[mapID]--;
+            activateSpecies();
+            if (mapID == 'map1') {
+                idNextCluster();
+            } else {
+                getSuggestions();
+            }
+
+            var xhttp = new XMLHttpRequest();
+            xhttp.onreadystatechange = function() {
+                if (this.readyState == 4 && this.status == 200) {
+                    let reply = JSON.parse(this.responseText);
+                }
+            }
+            xhttp.open("POST", '/changeIndividualSpecies/'+individual_id);
+            xhttp.send(formData);
+            if ((!modalWait2.is(':visible'))&&(!modalWait.is(':visible'))) {
+                waitModalID = clusters['map2'][clusterIndex['map2']]
+                waitModalMap = 'map2'
+                modalWait2Hide = false
+                modalWait2.modal({backdrop: 'static', keyboard: false});
+            }
+
+
+        }
+    }
+}
+
+function checkNoActiveDetections() {
+    /** Checks if there are any active detections in the cluster and updates the next cluster button accordingly. */
+    let noactive = false
+    if (document.getElementById('btnSendToBack')!=null) {
+        let no_active_detections = true
+        for (let i=0;i<clusters['map1'][clusterIndex['map1']].images.length;i++) {
+            for (let n=0;n<clusters['map1'][clusterIndex['map1']].images[i].detections.length;n++) {
+                if (clusters['map1'][clusterIndex['map1']].images[i].detections[n].active==true) {
+                    no_active_detections = false
+                    break
+                }
+            }
+        }
+        noactive = !no_active_detections
+
+        if (backIndex == 0) {
+            if (no_active_detections) {
+                document.getElementById('btnNextCluster').hidden = false
+            } else {
+                document.getElementById('btnNextCluster').hidden = true
+            }
+        }
+    } else {
+        let no_active_detections = true
+        for (let i=0;i<clusters['map1'][clusterIndex['map1']].images.length;i++) {
+            for (let n=0;n<clusters['map1'][clusterIndex['map1']].images[i].detections.length;n++) {
+                if (clusters['map1'][clusterIndex['map1']].images[i].detections[n].active==true) {
+                    no_active_detections = false
+                    break
+                }
+            }
+        }
+        if (no_active_detections) {
+            idNextCluster();
+            noactive = true
+        } else {
+            no_active_detections = true
+            for (let i=0;i<clusters['map2'][clusterIndex['map2']].images.length;i++) {
+                for (let n=0;n<clusters['map2'][clusterIndex['map2']].images[i].detections.length;n++) {
+                    if (clusters['map2'][clusterIndex['map2']].images[i].detections[n].active==true) {
+                        no_active_detections = false
+                        break
+                    }
+                }
+            }
+            if (no_active_detections) {
+                getSuggestions()
+                noactive = true
+            }
+        }
+        
+    }
+
+    return noactive
 }

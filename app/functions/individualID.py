@@ -16,7 +16,8 @@ limitations under the License.
 
 from app import app, db, celery
 from app.models import *
-from app.functions.globals import coordinateDistance, retryTime, rDets, updateIndividualIdStatus, chunker, process_detections_for_individual_id, update_individuals_primary_dets
+from app.functions.globals import coordinateDistance, retryTime, rDets, updateIndividualIdStatus, chunker, process_detections_for_individual_id, update_individuals_primary_dets,\
+    crop_image_to_individual
 from app.functions.delete import delete_individuals_helper
 import GLOBALS
 import time
@@ -484,13 +485,14 @@ def calculate_detection_similarities(self,task_ids,species,algorithm):
     return True
 
 @celery.task(bind=True,max_retries=5)
-def calculate_individual_similarity(self,individual1,individuals2,species,parameters=None):
+def calculate_individual_similarity(self,individual1,individuals2,species,algorithm=None,parameters=None):
     '''
     Calculates the similarity between a single individual, and a list of individuals.
 
         Parameters:
             individual1 (int): Single individual
             individuals2 (list): IDs of multiple individuals
+            algorithm (str): The algorithm to use for the similarity calculation
             parameters (dict): Optional list of weights
     '''
     
@@ -525,7 +527,8 @@ def calculate_individual_similarity(self,individual1,individuals2,species,parame
         individuals2 = db.session.query(Individual).filter(Individual.id.in_(individuals2)).all()
 
         task_ids = [t.id for t in individual1.tasks] if individual1 else []
-        algorithm = db.session.query(Label.algorithm).filter(Label.description==species).filter(Label.task_id.in_(task_ids)).first()[0]
+        if algorithm == None:
+            algorithm = db.session.query(Label.algorithm).filter(Label.description==species).filter(Label.task_id.in_(task_ids)).first()[0]
 
         # # Find all family
         # family = []
@@ -1252,7 +1255,7 @@ def check_individual_detection_mismatch(self,task_id,cluster_id=None):
                                 .all()]
                                 
         for individual_id in individuals:
-            del individuals_data[individual_id]
+            individuals_data.pop(individual_id, None)
             if individual_id in update_individuals: update_individuals.remove(individual_id)
         if individuals: delete_individuals_helper(individual_ids=individuals)
 
@@ -1483,3 +1486,96 @@ def check_label_and_species_match(task_ids,species):
         db.session.commit()
 
     return True 
+
+@celery.task(bind=True,max_retries=5,ignore_result=True)
+def handle_individual_sighting(self, detection_ids, state):
+    ''' Handles a sighting that belonged/belongs to an individual that has been deleted, edited or added.
+    
+        # NOTE: In this function, we delete the crop, similarities, and remove the detection from the WBIA database if no other detection shares the same aid.
+        # When a sighting is added or edited, we regenerate the crop, but do not add it back to the WBIA DB or recalculate similarities here.
+        # This is intentional, as such processing is automatically handled during the launch of an Individual ID task.
+        # Performing these steps for single detections here would be inefficient, since adding to the WBIA DB requires a GPU worker for segmentation,
+        # and initializing segmentation, establishing a WBIA DB connection, and running the similarity calculations are all resource- and time-intensive.
+        # The data from the WBIA DB and individual similarities are only truly necessary during Individual ID tasks.
+    '''
+    
+    try:
+        app.logger.info('Handling individual sighting...')
+        app.logger.info('State: {}, Detection IDs: {}'.format(state, detection_ids))
+
+        if state == 'deleted' or state == 'edited':
+            for detection_id in detection_ids:
+                detection = db.session.query(Detection).get(detection_id)
+                if not detection: continue
+
+                app.logger.info('Deleting crop and similarities for detection: {}'.format(detection_id))
+                # Delete crop 
+                splits = detection.image.camera.path.split('/')
+                crop_path = splits[0] + '-comp' + '/' + splits[1] +'/_crops_/' + str(detection_id) + '.JPG'
+                GLOBALS.s3client.delete_object(Bucket=Config.BUCKET, Key=crop_path)
+
+                # delete detection similarities
+                db.session.query(DetSimilarity).filter(DetSimilarity.detection_1==detection_id).delete()
+                db.session.query(DetSimilarity).filter(DetSimilarity.detection_2==detection_id).delete()
+                db.session.commit()
+
+                # update indSimilarities
+                db.session.query(IndSimilarity).filter(IndSimilarity.detection_1==detection_id).update({'detection_1': None, 'detection_2': None}, synchronize_session=False)
+                db.session.query(IndSimilarity).filter(IndSimilarity.detection_2==detection_id).update({'detection_1': None, 'detection_2': None}, synchronize_session=False)
+                db.session.commit()
+
+                # Delete from wbia is no other detection has aid. 
+                if detection.aid:
+                    starttime = time.time()
+                    count = db.session.query(Detection).filter(Detection.aid==detection.aid).count()
+                    if count < 2:
+                        app.logger.info('Deleting detection from wbia: {}'.format(detection.aid))
+                        aid_list = [detection.aid]
+                        # Delete from wbia
+                        if not GLOBALS.ibs:
+                            from wbia import opendb
+                            GLOBALS.ibs = opendb(db=Config.WBIA_DB_NAME,dbdir=Config.WBIA_DIR+'_'+Config.WORKER_NAME,allow_newdir=True)
+                            app.logger.info('IBS initialized')
+                        GLOBALS.ibs.db.delete('featurematches', aid_list, 'annot_rowid1')
+                        GLOBALS.ibs.db.delete('featurematches', aid_list, 'annot_rowid2')
+                        gids = [g for g in GLOBALS.ibs.get_annot_gids(aid_list) if g is not None]
+                        GLOBALS.ibs.delete_images(gids)
+                        GLOBALS.ibs.delete_annots(aid_list)  
+                        app.logger.info('Deleted detection from wbia in {}s'.format(time.time()-starttime))
+                    detection.aid = None
+                    db.session.commit()
+
+        if state == 'added' or state == 'edited':
+            app.logger.info('Generating crops for detections: {}'.format(detection_ids))
+            for detection_id in detection_ids:
+                detection = db.session.query(Detection).get(detection_id)
+                if not detection: continue
+
+                # Generate crop
+                bbox_dict = {
+                    'left': detection.left,
+                    'right': detection.right,
+                    'top': detection.top,
+                    'bottom': detection.bottom
+                }
+                image_path = detection.image.camera.path + '/' + detection.image.filename
+                # Make comp path 
+                splits = image_path.split('/')
+                splits[0] = splits[0] + '-comp'
+                image_path = '/'.join(splits)
+                crop_image_to_individual(detection.id,image_path,bbox_dict)
+
+        app.logger.info('Finished handling individual sighting')
+
+    except Exception as exc:
+        app.logger.info(' ')
+        app.logger.info('!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!')
+        app.logger.info(traceback.format_exc())
+        app.logger.info('!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!')
+        app.logger.info(' ')
+        self.retry(exc=exc, countdown= retryTime(self.request.retries))
+
+    finally:
+        db.session.remove()
+
+    return True

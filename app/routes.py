@@ -965,7 +965,8 @@ def getIndividual(individual_id):
                     'left': left,
                     'right': right,
                     'bottom': bottom,
-                    'flank': flank
+                    'flank': flank,
+                    'active': True
                 }]
             })
 
@@ -1714,7 +1715,8 @@ def imageViewer():
                                         'right': detection.right,
                                         'category': detection.category,
                                         'individual': '-1',
-                                        'static': detection.static}
+                                        'static': detection.static,
+                                        'active': True}
                                         for detection in image.detections
                                         if ((detection.score>Config.DETECTOR_THRESHOLDS[detection.source]) and 
                                         (detection.status not in Config.DET_IGNORE_STATUSES) and 
@@ -1727,7 +1729,8 @@ def imageViewer():
                                         'right': detection.right,
                                         'category': detection.category,
                                         'individual': '-1',
-                                        'static': detection.static}
+                                        'static': detection.static,
+                                        'active': True}
                                         for detection in db.session.query(Detection).join(Image).join(Camera).join(Trapgroup).filter(Trapgroup.survey_id==comparisonsurvey).filter(Camera.path==image.camera.path).filter(Image.filename==image.filename).distinct().all()
                                         if (comparisonsurvey) and 
                                         ((detection.score>Config.DETECTOR_THRESHOLDS[detection.source]) and 
@@ -5524,7 +5527,8 @@ def undoPreviousSuggestion(individual_1,individual_2,individual_3):
                                             'category': detection.category,
                                             'individual': '-1',
                                             'static': detection.static,
-                                            'flank': Config.FLANK_TEXT[detection.flank].capitalize()
+                                            'flank': Config.FLANK_TEXT[detection.flank].capitalize(),
+                                            'active': True
                                             })
 
                 images.append(output)
@@ -5764,7 +5768,7 @@ def acceptSuggestion(individual_1,individual_2):
     individual1 = db.session.query(Individual).get(int(individual_1))
     individual2 = db.session.query(Individual).get(int(individual_2))
 
-    if individual1.active != True:
+    if individual1 and individual1.active != True:
         individual1 = db.session.query(Individual)\
                                 .join(Task,Individual.tasks)\
                                 .filter(Individual.detections.contains(individual1.detections[0]))\
@@ -5773,7 +5777,7 @@ def acceptSuggestion(individual_1,individual_2):
                                 .filter(Individual.active==True)\
                                 .first()
 
-    if individual2.active != True:
+    if individual2 and individual2.active != True:
         individual2 = db.session.query(Individual)\
                                 .join(Task,Individual.tasks)\
                                 .filter(Individual.detections.contains(individual2.detections[0]))\
@@ -5972,7 +5976,7 @@ def rejectSuggestion(individual_1,individual_2):
     individual1 = db.session.query(Individual).get(int(individual_1))
     individual2 = db.session.query(Individual).get(int(individual_2))
 
-    if individual1.active != True:
+    if individual1 and individual1.active != True:
         individual1 = db.session.query(Individual)\
                                 .join(Task,Individual.tasks)\
                                 .filter(Individual.detections.contains(individual1.detections[0]))\
@@ -5981,7 +5985,7 @@ def rejectSuggestion(individual_1,individual_2):
                                 .filter(Individual.active==True)\
                                 .first()
 
-    if individual2.active != True:
+    if individual2 and individual2.active != True:
         individual2 = db.session.query(Individual)\
                                 .join(Task,Individual.tasks)\
                                 .filter(Individual.detections.contains(individual2.detections[0]))\
@@ -6107,31 +6111,114 @@ def getSuggestion(individual_id):
                 indSimID = GLOBALS.redisClient.lpop('user_indsims_'+str(current_user.id))
                 if indSimID: GLOBALS.redisClient.srem('active_indsims_'+str(current_user.turkcode[0].task_id),int(indSimID.decode()))
 
-            sortedImages = db.session.query(Image).join(Detection).filter(Detection.individuals.contains(individual)).all()
+            # sortedImages = db.session.query(Image).join(Detection).filter(Detection.individuals.contains(individual)).all()
 
-            images = [{'id': image.id,
-                    'url': (image.camera.path + '/' + image.filename).replace('+','%2B').replace('?','%3F').replace('#','%23').replace('\\','%5C'),
-                    'timestamp': numify_timestamp(image.corrected_timestamp),
-                    'camera': image.camera_id,
-                    'rating': image.detection_rating,
-                    'latitude': image.camera.trapgroup.latitude,
-                    'longitude': image.camera.trapgroup.longitude,
-                    'detections': [{'id': detection.id,
-                                    'top': detection.top,
-                                    'bottom': detection.bottom,
-                                    'left': detection.left,
-                                    'right': detection.right,
-                                    'category': detection.category,
-                                    'individual': '-1',
-                                    'static': detection.static,
-                                    'flank': Config.FLANK_TEXT[detection.flank].capitalize()}
-                                    for detection in image.detections if (
-                                            (detection.score>Config.DETECTOR_THRESHOLDS[detection.source]) and 
-                                            (detection.status not in Config.DET_IGNORE_STATUSES) and 
-                                            (detection.static == False) and 
-                                            (individual in detection.individuals[:])
-                                    )]}
-                    for image in sortedImages]
+            # images = [{'id': image.id,
+            #         'url': (image.camera.path + '/' + image.filename).replace('+','%2B').replace('?','%3F').replace('#','%23').replace('\\','%5C'),
+            #         'timestamp': numify_timestamp(image.corrected_timestamp),
+            #         'camera': image.camera_id,
+            #         'rating': image.detection_rating,
+            #         'latitude': image.camera.trapgroup.latitude,
+            #         'longitude': image.camera.trapgroup.longitude,
+            #         'detections': [{'id': detection.id,
+            #                         'top': detection.top,
+            #                         'bottom': detection.bottom,
+            #                         'left': detection.left,
+            #                         'right': detection.right,
+            #                         'category': detection.category,
+            #                         'individual': '-1',
+            #                         'static': detection.static,
+            #                         'flank': Config.FLANK_TEXT[detection.flank].capitalize()}
+            #                         for detection in image.detections if (
+            #                                 (detection.score>Config.DETECTOR_THRESHOLDS[detection.source]) and 
+            #                                 (detection.status not in Config.DET_IGNORE_STATUSES) and 
+            #                                 (detection.static == False) and 
+            #                                 (individual in detection.individuals[:])
+            #                         )]}
+            #         for image in sortedImages]
+
+            sortedImagesSQ = db.session.query(Image.id).join(Detection).join(Individual,Detection.individuals).filter(Individual.id==individual.id).subquery()
+            info = rDets(db.session.query(Detection.id,
+                                    Detection.top,
+                                    Detection.bottom,
+                                    Detection.left,
+                                    Detection.right,
+                                    Detection.category,
+                                    Detection.static,
+                                    Detection.flank,
+                                    Image.id, 
+                                    Image.filename,
+                                    Image.corrected_timestamp,
+                                    Image.detection_rating,
+                                    Camera.id,
+                                    Camera.path,
+                                    Trapgroup.id,
+                                    Trapgroup.tag,
+                                    Trapgroup.latitude,
+                                    Trapgroup.longitude,
+                                    Trapgroup.altitude,
+                                    Label.description,
+                                    Individual.id,
+                                    Individual.name,
+                                )\
+                                .join(Image,Image.id==Detection.image_id)\
+                                .join(sortedImagesSQ,sortedImagesSQ.c.id==Image.id)\
+                                .join(Camera,Camera.id==Image.camera_id)\
+                                .join(Trapgroup,Trapgroup.id==Camera.trapgroup_id)\
+                                .join(Labelgroup,Labelgroup.detection_id==Detection.id)\
+                                .join(Label,Labelgroup.labels)\
+                                .outerjoin(Individual, Detection.individuals)\
+                                .outerjoin(Task, Individual.tasks)\
+                                .filter(Labelgroup.task_id.in_(task_ids))\
+                                .filter(or_(Task.id.in_(task_ids),Task.id==None))\
+                                .filter(or_(Individual.id==None,Individual.active==True))\
+                                .filter(sortedImagesSQ.c.id!=None)\
+                                ).distinct().all()
+
+            images = {}
+            for det_id, top, bottom, left, right, category, static, flank, image_id, filename, timestamp, rating,camera_id, path, trapgroup_id, tag, latitude, longitude, altitude, label, indiv_id, indiv_name in info:
+                if image_id not in images:
+                    images[image_id] = {
+                        'id': image_id,
+                        'url': (path + '/' + filename).replace('+','%2B').replace('?','%3F').replace('#','%23').replace('\\','%5C'),
+                        'timestamp': numify_timestamp(timestamp),
+                        'camera': camera_id,
+                        'rating': rating,
+                        'latitude': latitude,
+                        'longitude': longitude,
+                        'detections': {}
+                    }
+                if det_id not in images[image_id]['detections']:
+                    images[image_id]['detections'][det_id] = {
+                        'id': det_id,
+                        'top': top,
+                        'bottom': bottom,
+                        'left': left,
+                        'right': right,
+                        'category': category,
+                        'static': static,
+                        'flank': Config.FLANK_TEXT[flank].capitalize(),
+                        'label': label if label != None else 'None',
+                        'labels': [label] if label != None else [],
+                        'individual': indiv_id if indiv_id != None else '-1',
+                        'individual_names': [indiv_name] if indiv_name != None else [],
+                        'active': True if indiv_id == individual.id else False
+                    }
+                if label and label not in images[image_id]['detections'][det_id]['labels']:
+                    images[image_id]['detections'][det_id]['labels'].append(label)
+
+
+            # make detections for each image a list with active detections first
+            for image_id in images:
+                active_dets = []
+                inactive_dets = []
+                for det in images[image_id]['detections'].values():
+                    if det['active']:
+                        active_dets.append(det)
+                    else:
+                        inactive_dets.append(det)
+                images[image_id]['detections'] = active_dets + inactive_dets
+            images = list(images.values())
 
             reply = {'id': individual.id, 'name': individual.name, 'max_pair': [suggestion.detection_1,suggestion.detection_2], 'classification': [],'required': [], 'images': images, 'label': [], 'tags': [], 'groundTruth': [], 'trapGroup': 'None'}
 
@@ -6791,7 +6878,8 @@ def getImage():
                                 'right': detection.right,
                                 'category': detection.category,
                                 'individual': '-1',
-                                'static': detection.static}
+                                'static': detection.static,
+                                'active': True}
                                 for detection in image.detections
                                 if ((detection.score>Config.DETECTOR_THRESHOLDS[detection.source]) and (detection.status not in Config.DET_IGNORE_STATUSES)) ]}] #and (detection.static == False)
 
@@ -6968,7 +7056,8 @@ def getKnockCluster(task_id, knockedstatus, clusterID, index, imageIndex, T_inde
                                     'right': detection.right,
                                     'category': detection.category,
                                     'individual': '-1',
-                                    'static': detection.static}
+                                    'static': detection.static,
+                                    'active': True}
                                     for detection in image.detections
                                     if ((detection.score>Config.DETECTOR_THRESHOLDS[detection.source]) and (detection.status not in Config.DET_IGNORE_STATUSES)) ]}
                     for image in sortedImages]
@@ -7052,7 +7141,8 @@ def getKnockCluster(task_id, knockedstatus, clusterID, index, imageIndex, T_inde
                                 'right': code,
                                 'category': code,
                                 'individual': '-1',
-                                'static': code}]
+                                'static': code,
+                                'active': True}]
                 }]      
 
             result = json.dumps({'T_index': T_index, 'F_index': F_index, 'info': {'id': code,'classification': [],'required': [], 'images': images, 'label': code, 'tags': code, 'groundTruth': code, 'trapGroup': code}})
@@ -8686,6 +8776,7 @@ def editSightings(image_id,task_id):
     '''Handles the editing of bounding boxes on the specified image, and labels for the associated labelgroup for the given task.'''
 
     detDbIDs = {}
+    handle_indiv_dets = {'deleted': [], 'edited': []}
     if current_user.admin == False:    
         task_id = current_user.turkcode[0].task_id
 
@@ -8725,6 +8816,10 @@ def editSightings(image_id,task_id):
                         labelgroups = db.session.query(Labelgroup).filter(Labelgroup.detection_id==detection.id).all()
                         for labelgroup in labelgroups:
                             labelgroup.checked = True
+                        if detection.individuals:
+                            detection.individuals = []
+                            detection.primary_individuals = []
+                            handle_indiv_dets['deleted'].append(detection.id)
 
                     for detID in detectionsDict:
 
@@ -8796,6 +8891,8 @@ def editSightings(image_id,task_id):
                                 labelgroup = db.session.query(Labelgroup).filter(Labelgroup.detection_id==int(detID)).filter(Labelgroup.task_id==int(task_id)).first()
                                 labelgroup.labels = [label]
                                 labelgroup.checked = True
+                                if detection.individuals:
+                                    handle_indiv_dets['edited'].append(detection.id)
 
                     image.detection_rating = detection_rating(image)
                     db.session.commit()
@@ -8831,6 +8928,11 @@ def editSightings(image_id,task_id):
                     cluster.examined = True
                     cluster.timestamp = datetime.utcnow()
                     db.session.commit()
+
+            if handle_indiv_dets['deleted']:
+                handle_individual_sighting.apply_async(kwargs={'detection_ids':handle_indiv_dets['deleted'], 'state': 'deleted'})
+            if handle_indiv_dets['edited']:
+                handle_individual_sighting.apply_async(kwargs={'detection_ids':handle_indiv_dets['edited'], 'state': 'edited'})
         else:
             return {'redirect': url_for('done')}, 278
 
@@ -14113,7 +14215,8 @@ def getStaticDetections(survey_id, reqID):
                     'bottom': data[2],
                     'left': data[3],
                     'right': data[4],
-                    'static': data[12]
+                    'static': data[12],
+                    'active': True
                 })
             else:
                 staticgroup_detections[data[10]] = [{
@@ -14122,7 +14225,8 @@ def getStaticDetections(survey_id, reqID):
                     'bottom': data[2],
                     'left': data[3],
                     'right': data[4],
-                    'static': data[12]
+                    'static': data[12],
+                    'active': True
                 }]
 
             if data[10] not in staticgroup_keys:
@@ -17185,6 +17289,7 @@ def getUnidentifiable():
                     'flank': flank,
                     'species': species,
                     'static': False,
+                    'active': True,
                     'task': '{} {}'.format(survey,task),
                     'individual_id': individual_id
                 }],
@@ -17728,6 +17833,7 @@ def editSightingsGeneral(task_id):
     annotator=''
     update_labels = False
     changed_labels = False
+    detIndivs = {}
     action = ast.literal_eval(request.form['action'])
     detection_edits = ast.literal_eval(request.form['detection_edits'])
     image_id = ast.literal_eval(request.form['image_id'])
@@ -17747,15 +17853,27 @@ def editSightingsGeneral(task_id):
     app.logger.info(f'Editing Sigthings for task {task_id}, image {image_id}, action {action}, detection_edits {detection_edits}')
 
     if task and (checkAnnotationPermission(current_user.parent_id,task.id) or checkSurveyPermission(current_user.id,task.survey_id,'write')):
-        
+        handle_indiv_dets = {'deleted': [], 'edited': [], 'added': []}
+        individual_mismatch_checks = []
         if action == 'delete':
             detections = db.session.query(Detection).filter(Detection.id.in_(detection_edits)).all()
             for detection in detections:
                 detection.status = 'deleted'
+                if detection.individuals:
+                    detection.individuals = []
+                    detection.primary_individuals = []
+                    handle_indiv_dets['deleted'].append(detection.id)
+                elif (not current_user.admin and ('-4' in task.tagging_level)) or detection.aid:
+                    handle_indiv_dets['deleted'].append(detection.id)
             
             labelgroups = db.session.query(Labelgroup).filter(Labelgroup.detection_id.in_(detection_edits)).filter(Labelgroup.checked!=True).all()
             for labelgroup in labelgroups:
                 labelgroup.checked = True
+
+            if '-5' in task.tagging_level and not current_user.admin:
+                empty_individuals = db.session.query(Individual).filter(Individual.tasks.contains(task)).filter(Individual.active==True).filter(Individual.name!='unidentifiable').filter(~Individual.detections.any()).all()
+                for individual in empty_individuals:
+                    individual.active = False
         
         elif action == 'edit':
             detections = db.session.query(Detection).filter(Detection.id.in_(detection_edits.keys())).all()
@@ -17781,6 +17899,12 @@ def editSightingsGeneral(task_id):
                         labelgroup.labels = [db_label]
                         labelgroup.checked = True
                         changed_labels = True
+
+                if detection.individuals:
+                    handle_indiv_dets['edited'].append(detection.id)
+                elif (not current_user.admin and ('-4' in task.tagging_level)) or detection.aid:
+                    handle_indiv_dets['edited'].append(detection.id)
+
         elif action == 'add':
             for detID in detection_edits:
                 label = detection_edits[detID]['label'] if 'label' in detection_edits[detID] else None
@@ -17838,6 +17962,32 @@ def editSightingsGeneral(task_id):
 
                 detDbIDs[detID] = detection.id
 
+                if not current_user.admin and ('-4' in task.tagging_level or '-5' in task.tagging_level):
+                    handle_indiv_dets['added'].append(detection.id)
+
+                    if '-5' in task.tagging_level:
+                        # Create newIndividual 
+                        species = task.tagging_level.split(',')[1]
+                        newIndividual = Individual(species=species,user_id=current_user.id,timestamp=datetime.utcnow(),active=True)
+                        db.session.add(newIndividual)
+                        db.session.flush()
+                        newIndividual.name = str(newIndividual.id)
+                        newIndividual.detections.append(detection)
+                        newIndividual.primary_detections = [detection]
+                        newIndividual.tasks = [task]
+                        db.session.commit()
+                        task_ids = [t.id for t in task.sub_tasks]
+                        task_ids.append(task.id)
+                        individuals2 = [r[0] for r in db.session.query(Individual.id)\
+                                                                    .join(Task,Individual.tasks)\
+                                                                    .filter(Task.id.in_(task_ids))\
+                                                                    .filter(Individual.species==species)\
+                                                                    .filter(Individual.name!='unidentifiable')\
+                                                                    .filter(Individual.id != newIndividual.id)\
+                                                                    .all()]
+                        # Calculate similarity between new individual and existing individuals (use heuristic algorithm because no detection similarity has been calculated)
+                        calculate_individual_similarity.delay(individual1=newIndividual.id,individuals2=individuals2,species=species,algorithm='heuristic')
+                        detIndivs[detID] = newIndividual.id
         elif action == 'label':
             label = detection_edits['label']
             if label in ['Vehicles/Humans/Livestock','Unknown','Nothing']:
@@ -17850,11 +18000,20 @@ def editSightingsGeneral(task_id):
                     labelgroup.labels = [db_label]
                     labelgroup.checked = True
                 changed_labels = True
+
+                individual_mismatch_checks = [r[0] for r in db.session.query(Cluster.id)\
+                                                        .join(Image,Cluster.images)\
+                                                        .join(Detection,Image.detections)\
+                                                        .join(Individual,Detection.individuals)\
+                                                        .filter(Detection.id.in_(detection_edits['ids']))\
+                                                        .filter(Cluster.task_id==task.id)\
+                                                        .filter(Individual.species!=db_label.description)\
+                                                        .distinct().all()]
         
         image = db.session.query(Image).get(image_id)
         if image:
             image.detection_rating = detection_rating(image)
-            if explore or changed_labels:
+            if explore or changed_labels or action == 'delete':
                 cluster = db.session.query(Cluster).join(Image,Cluster.images).filter(Image.id==image_id).filter(Cluster.task_id==task.id).first()
                 detectionLabels = rDets(db.session.query(Label)\
                                 .join(Labelgroup, Label.labelgroups)\
@@ -17876,13 +18035,27 @@ def editSightingsGeneral(task_id):
                 if explore: 
                     annotator = current_user.username
                     GLOBALS.redisClient.sadd('tasks_to_update_status',cluster.task_id)
+
+                if not current_user.admin and ('-4' in task.tagging_level):
+                    species = task.tagging_level.split(',')[1]
+                    check = any(l.description == species for l in detectionLabels)
+                    if not check:
+                        # No species label found to submit individuals for - mark as examined
+                        cluster.examined = True
                 
         db.session.commit()
 
         if update_labels:
             update_labelgroup_labels_tags.apply_async(kwargs={'cluster_id': cluster.id})
 
-    return json.dumps({'status':'success','detDbIDs':detDbIDs, 'cluster_labels':cluster_labels, 'annotator':annotator, 'update_labels':update_labels}) 
+        for cluster_id in individual_mismatch_checks:
+            check_individual_detection_mismatch.apply_async(kwargs={'task_id':task_id,'cluster_id':cluster_id})
+
+        for state in handle_indiv_dets:
+            if handle_indiv_dets[state]:
+                handle_individual_sighting.apply_async(kwargs={'detection_ids': handle_indiv_dets[state], 'state': state})
+
+    return json.dumps({'status':'success','detDbIDs':detDbIDs, 'detIndivs':detIndivs, 'cluster_labels':cluster_labels, 'annotator':annotator, 'update_labels':update_labels}) 
 
 @app.route('/checkIndividualInfo/<cluster_id>')
 @login_required
@@ -17922,3 +18095,123 @@ def checkIndividualInfo(cluster_id):
                     individual_info[row[0]]['individuals'].append(row[1])
     
     return json.dumps({'individual_info':individual_info})
+
+@app.route('/assignSpeciesToClusterInID', methods=['POST'])
+@login_required
+def assignSpeciesToClusterInID():
+    '''Assigns a species to a list of clusters in ID.'''
+
+    cluster_labels = {}
+    species = ast.literal_eval(request.form['species'])
+    cluster_ids = ast.literal_eval(request.form['cluster_ids'])
+    clusters = db.session.query(Cluster).filter(Cluster.id.in_(cluster_ids)).all()
+    status = 'error'
+    num = 0
+    num2 = 0
+
+    if (not current_user.admin) and (not GLOBALS.redisClient.sismember('active_jobs_'+str(current_user.turkcode[0].task_id),current_user.username)):
+        return {'redirect': url_for('done')}, 278
+
+    app.logger.info(f'Clusters: {cluster_ids}, Species: {species}')
+
+    if clusters and (checkAnnotationPermission(current_user.parent_id,clusters[0].task_id) or checkSurveyPermission(current_user.id,clusters[0].task.survey_id,'write')):
+        if species in ['Vehicles/Humans/Livestock','Unknown','Nothing']:
+            species_label = db.session.query(Label).filter(Label.description==species).filter(Label.task_id==None).first()
+        else:
+            species_label = db.session.query(Label).filter(Label.description==species).filter(Label.task_id==clusters[0].task_id).first()
+        if species_label:
+            for cluster in clusters:
+                cluster.labels = [species_label]
+
+                labelgroups = db.session.query(Labelgroup) \
+                                            .join(Detection) \
+                                            .join(Image) \
+                                            .filter(Image.clusters.contains(cluster)) \
+                                            .filter(Labelgroup.task_id==cluster.task_id) \
+                                            .distinct().limit(400).all()
+
+                for labelgroup in labelgroups:
+                    labelgroup.labels = cluster.labels
+                    labelgroup.checked = False
+
+                if len(labelgroups)==400:
+                    use_celery_to_update_labelgroups = True
+                else:
+                    use_celery_to_update_labelgroups = False
+
+                if not current_user.admin and ('-4' in cluster.task.tagging_level):
+                    species = cluster.task.tagging_level.split(',')[1]
+                    if species_label.description != species:
+                        # No species label found to submit individuals for - mark as examined
+                        cluster.examined = True
+                cluster.user_id = current_user.id
+                cluster.timestamp = datetime.utcnow()
+                db.session.commit()
+
+                if use_celery_to_update_labelgroups: update_labelgroup_labels_tags.apply_async(kwargs={'cluster_id':cluster.id})
+
+                individual_check = db.session.query(Individual.id).join(Detection, Individual.detections).join(Image).join(Cluster, Image.clusters).filter(Cluster.id==cluster.id).filter(Individual.tasks.contains(cluster.task)).first()
+                if individual_check:
+                    check_individual_detection_mismatch.apply_async(kwargs={'task_id':cluster.task_id,'cluster_id':cluster.id})
+
+                cluster_labels[cluster.id] = {
+                    'label': [l.description for l in cluster.labels],
+                    'ids': [l.id for l in cluster.labels]
+                }
+
+            status = 'success' 
+
+        num2 = clusters[0].task.size
+        num = db.session.query(Cluster).filter(Cluster.task_id==clusters[0].task_id).filter(Cluster.user_id==current_user.id).count()
+
+    return json.dumps({'status': status, 'cluster_labels':cluster_labels, 'progress': [num, num2]})
+
+
+@app.route('/changeIndividualSpecies/<individual_id>', methods=['POST'])
+@login_required
+def changeIndividualSpecies(individual_id):
+    '''Changes the species of an individual.'''
+
+    individual = db.session.query(Individual).get(individual_id)
+    species = ast.literal_eval(request.form['species'])
+    if individual and individual.active and (all(checkSurveyPermission(current_user.id,task.survey_id,'write') for task in individual.tasks) or all(checkAnnotationPermission(current_user.parent_id,task.id) for task in individual.tasks)):
+        st = time.time()
+        status = 'success'
+        task_ids = [r.id for r in individual.tasks]
+        for task_id in task_ids:
+            label = db.session.query(Label).filter(Label.description==species).filter(Label.task_id==task_id).first()
+            if label:
+                # Update labelgroup labels
+                labelgroups = db.session.query(Labelgroup).join(Detection).join(Individual,Detection.individuals).filter(Individual.id==individual_id).filter(Labelgroup.task_id==task_id).all()
+                for labelgroup in labelgroups:
+                    labelgroup.labels = [label]
+
+                # Update cluster labels
+                clusters = db.session.query(Cluster).join(Image,Cluster.images).join(Detection).join(Individual,Detection.individuals).filter(Individual.id==individual_id).filter(Cluster.task_id==task_id).all()
+                for cluster in clusters:
+                    cluster.labels = rDets(db.session.query(Label)\
+                            .join(Labelgroup, Label.labelgroups)\
+                            .join(Detection)\
+                            .join(Image)\
+                            .join(Cluster,Image.clusters)\
+                            .filter(Cluster.id==cluster.id)\
+                            .filter(Labelgroup.task_id==task_id))\
+                            .distinct(Label.id).all()
+            else:
+                status = 'error'
+                break
+                
+            if status != 'error':
+                individual.species = species
+                individual.active = True
+                db.session.commit()
+                        
+                # Delete indSimilarities
+                db.session.query(IndSimilarity).filter(IndSimilarity.individual_1==individual_id).delete()
+                db.session.query(IndSimilarity).filter(IndSimilarity.individual_2==individual_id).delete()
+                db.session.commit()
+
+        app.logger.info(f'Change individual species time: {time.time() - st}')
+
+        return json.dumps({'status':status})
+    return json.dumps({'status':'error'})

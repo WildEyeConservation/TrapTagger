@@ -300,9 +300,9 @@ function imageHighlight(switchOn,mapID = 'map1') {
 }
 
 function buildDetection(image,detection,mapID = 'map1',colour=null) {
-    if (detection.static == false || (detection.static == true && isStaticCheck == true)) {
+    if (detection.active == true && (detection.static == false || (detection.static == true && isStaticCheck == true))) {
                  
-        if (isIDing && (detection.individual!='-1') && mapID!='known') {
+        if (isIDing && (detection.individual!='-1') && mapID!='known' && document.getElementById('btnSendToBack')!=null) {
             rectOptions.color = individuals[individualIndex][detection.individual].colour
         } else {
             if (colour) {
@@ -421,7 +421,7 @@ function buildDetection(image,detection,mapID = 'map1',colour=null) {
             dbDetIds[mapID][rect._leaflet_id.toString()] = detection.id.toString()
         }
 
-        if (isReviewing||(isTagging&&!isTutorial)||document.getElementById('btnSendBoundingBack')!=null&&(mapID!='known')){
+        if (isReviewing||(isTagging&&!isTutorial&&!isIDing)||document.getElementById('btnSendBoundingBack')!=null&&(mapID!='known')){
             // Highlights and un-highlight when click on bounding box
             rect.addEventListener('click', function(wrapRect, wrapDet){
                 return function() {
@@ -486,7 +486,7 @@ function buildDetection(image,detection,mapID = 'map1',colour=null) {
         if (document.getElementById('btnSendToBack')!=null&&(mapID!='known')) {
             rect.addEventListener('click', function(wrapMapID,wrapDetectionID,wrapImageID,wrapRect) {
                 return function() {
-                    if (individualsReady) {
+                    if (individualsReady && !editingEnabled) {
                         wrapIndividual = '-1'
                         for (let individualID in individuals[individualIndex]) {
                             if (individuals[individualIndex][individualID].detections.includes(wrapDetectionID)) {
@@ -549,6 +549,11 @@ function buildDetection(image,detection,mapID = 'map1',colour=null) {
                                 buildIndividuals()
                             }
                             activateUnidentifiable()
+                        } else if (speciesMode && speciesRect == null) {
+                            speciesRect = wrapRect
+                            setTimeout(function() {
+                                openRightSidePanel()
+                            }, 100)
                         } else {   
                             disallow = false
                             if (previousClick != null) {
@@ -776,6 +781,91 @@ function buildDetection(image,detection,mapID = 'map1',colour=null) {
             }(mapID,detection.id,image.id,rect));
 
         }
+
+        if (isIDing && document.getElementById('btnSendToBack')==null) {
+            rect.addEventListener('click', function(wrapRect,wrapMapID){
+                return function() {
+                    if (speciesMode && speciesRect == null) {
+                        speciesRect = wrapRect
+                        speciesMapID = wrapMapID
+                        if (speciesMapID == 'map1') {
+                            setTimeout(function() {
+                                openLeftSidePanel()
+                            }, 100)
+                        } else {
+                            setTimeout(function() {
+                                openRightSidePanel()
+                            }, 100)
+                        }
+                    }
+                }
+            }(rect,mapID));
+        }
+
+    } else if (detection.active==false){
+        let inactiveRectOptions = {
+            color: 'rgba(128,128,128,1)',
+            fill: true,
+            fillOpacity: 0.0,
+            opacity: 0.8,
+            weight:3,
+            contextmenu: false,
+        }  
+        rect = L.rectangle([[detection.top*mapHeight[mapID],detection.left*mapWidth[mapID]],[detection.bottom*mapHeight[mapID],detection.right*mapWidth[mapID]]], inactiveRectOptions)
+        
+        if (isIDing) {
+            // bind tooltip with species name
+            if (document.getElementById('btnSendToBack')!=null) {
+                rect.bindTooltip(detection.labels.join(', '),{permanent: true, direction:"center"})
+            } else {
+                let tooltipContent = detection.labels.join(', ')
+                if (detection.individual!='-1') {
+                    // include individual name in tooltip
+                    tooltipContent += ' ' + detection.individual_names[0]
+                }
+                console.log(tooltipContent)
+                rect.bindTooltip(tooltipContent,{permanent: true, direction:"center"})
+            }
+            var center = L.latLng([(rect._bounds._northEast.lat+rect._bounds._southWest.lat)/2,(rect._bounds._northEast.lng+rect._bounds._southWest.lng)/2])
+            var bottom = L.latLng([rect._bounds._southWest.lat,(rect._bounds._northEast.lng+rect._bounds._southWest.lng)/2])
+            var centerPoint = map[mapID].latLngToContainerPoint(center)
+            var bottomPoint = map[mapID].latLngToContainerPoint(bottom)
+            var offset = [0,centerPoint.y-bottomPoint.y]
+            rect._tooltip.options.offset = offset
+            rect._tooltip.options.opacity = 0.8
+            rect.openTooltip()
+
+
+            rect.addEventListener('click', function(wrapRect){
+                return function() {
+                    if (sendBackMode) {
+                        wrapRect.bringToBack()
+                        sendToBack();
+                    } else if (speciesMode && speciesRect == null) {
+                        speciesRect = wrapRect
+                        speciesMapID = mapID
+                        if (document.getElementById('btnSendToBack')!=null) {
+                            if (speciesMapID == 'map1') {
+                                setTimeout(function() {
+                                    openLeftSidePanel()
+                                }, 100)
+                            } else {
+                                setTimeout(function() {
+                                    openRightSidePanel()
+                                }, 100)
+                            }
+                        } else {
+                            setTimeout(function() {
+                                openRightSidePanel()
+                            }, 100)
+                        }
+                    }
+                }
+            }(rect));
+            
+        }
+        drawnItems[mapID].addLayer(rect)
+        dbDetIds[mapID][rect._leaflet_id.toString()] = detection.id.toString()
     }
 }
 
@@ -787,7 +877,7 @@ function addDetections(mapID = 'map1') {
             addDetCnt = 1
         }
         image = currentImage[mapID]
-        if(!isIDing || document.getElementById('btnSendToBack')!=null){
+        if(!isIDing || document.getElementById('btnSendToBack')!=null||image.detections.length == 0||(image.detections.length >0 && image.detections[0].individual.active == false)){
             map[mapID].setZoom(map[mapID].getMinZoom())
         }
         fullRes[mapID] = false
@@ -803,8 +893,10 @@ function addDetections(mapID = 'map1') {
         if (isBounding) {
             drawControl._toolbars.edit._toolbarContainer.firstElementChild.title = '(E)dit sightings'
             drawControl._toolbars.edit._toolbarContainer.lastElementChild.title = '(D)elete sightings'
-        }
-        if (isReviewing||(isTagging&&!isTutorial&&!maskMode)) {
+        } else if (isIDing) {
+            drawControl[mapID]._toolbars.edit._toolbarContainer.firstElementChild.title = 'Edit sightings'
+            drawControl[mapID]._toolbars.edit._toolbarContainer.lastElementChild.title = 'Delete sightings'
+        } else if (isReviewing||(isTagging&&!isTutorial&&!maskMode&&!isIDing)) {
             drawControl._toolbars.edit._toolbarContainer.firstElementChild.title = 'Edit sightings'
             drawControl._toolbars.edit._toolbarContainer.lastElementChild.title = 'Delete sightings' 
         }
@@ -3019,12 +3111,14 @@ function prepMap(mapID = 'map1') {
                             setRectOptions()
                             sightingAnalysisMapPrep()
                         } else if (isIDing && (document.getElementById('btnSendToBack')==null) && mapID != 'known') {
-                            setRectOptions()
+                            fetchLabelHierarchy()
+                            setRectOptions(wrapMapID)
                             IDMapPrep(wrapMapID)
                         } else if (isIDing && (document.getElementById('btnSendToBack')!=null) && mapID != 'known') {
-                            setClusterIDRectOptions()
+                            fetchLabelHierarchy()
+                            setClusterIDRectOptions(wrapMapID)
                             clusterIDMapPrep(wrapMapID)
-                        } else if (isTagging && !isTutorial) {
+                        } else if (isTagging && !isTutorial && !isIDing) {
                             if (taggingLevel.includes('-2')) {
                                 fetchLabelHierarchy()
                             }
@@ -4201,7 +4295,7 @@ document.onkeydown = function(event){
 document.onclick = function (event){
     /** Closes the context menu on click when editing the bounding boxes, or whilst doing individual ID. */
     activity = true
-    if (isBounding||isReviewing||(isTagging&&!isTutorial)) {
+    if (isBounding||isReviewing||(isTagging&&!isTutorial&&!isIDing)) {
         for (let mapID in map) {
             if (map[mapID].contextmenu.isVisible()) {
                 map[mapID].contextmenu.hide()
@@ -4477,12 +4571,15 @@ function plusFunc(labelText,mapID = 'map1') {
     }
 }
 
-
 function submitSightingChanges(detection_edits, action, mapID = 'map1') {
     /** Submits the changes to the server. */
     console.log(detection_edits, action)
     if (action == 'delete') {
         clusters[mapID][clusterIndex[mapID]].images[imageIndex[mapID]].detections = clusters[mapID][clusterIndex[mapID]].images[imageIndex[mapID]].detections.filter(det => !detection_edits.includes(det.id))
+        if (isIDing && document.getElementById('btnSendToBack')!=null) {
+            let mapID2 = mapID == 'map1' ? 'map2' : 'map1'
+            clusters[mapID2][clusterIndex[mapID2]] = clusters[mapID][clusterIndex[mapID]]
+        }
     } else if (action == 'edit') {
         for (let i=0;i<clusters[mapID][clusterIndex[mapID]].images[imageIndex[mapID]].detections.length;i++) {
             let det_id = clusters[mapID][clusterIndex[mapID]].images[imageIndex[mapID]].detections[i].id
@@ -4497,6 +4594,10 @@ function submitSightingChanges(detection_edits, action, mapID = 'map1') {
                 clusters[mapID][clusterIndex[mapID]].images[imageIndex[mapID]].detections[i].right = detection_edits[det_id].bounding_box.right
             }
         }
+        if (isIDing && document.getElementById('btnSendToBack')!=null) {
+            let mapID2 = mapID == 'map1' ? 'map2' : 'map1';
+            clusters[mapID2][clusterIndex[mapID2]] = clusters[mapID][clusterIndex[mapID]]
+        }
     } else if (action == 'add') {
         for (let detID in detection_edits) {
             let add_dict = {
@@ -4510,7 +4611,8 @@ function submitSightingChanges(detection_edits, action, mapID = 'map1') {
                 individuals: ['-1'],
                 individual_names: [],
                 static: false,
-                flank: 'None'
+                flank: 'None',
+                active: true
             }
             if (detection_edits[detID].hasOwnProperty('label')) {
                 add_dict.label = detection_edits[detID].label
@@ -4521,14 +4623,70 @@ function submitSightingChanges(detection_edits, action, mapID = 'map1') {
             }
             clusters[mapID][clusterIndex[mapID]].images[imageIndex[mapID]].detections.push(add_dict)
         }
+        if (isIDing && document.getElementById('btnSendToBack')!=null) {
+            let mapID2 = mapID == 'map1' ? 'map2' : 'map1'
+            clusters[mapID2][clusterIndex[mapID2]] = clusters[mapID][clusterIndex[mapID]]
+        }
     } else if (action == 'label') {
         for (let i=0;i<clusters[mapID][clusterIndex[mapID]].images[imageIndex[mapID]].detections.length;i++) {
             let det_id = clusters[mapID][clusterIndex[mapID]].images[imageIndex[mapID]].detections[i].id
             if (detection_edits.ids.includes(det_id)) {
+                if (clusters[mapID][clusterIndex[mapID]].images[imageIndex[mapID]].detections[i].labels == [detection_edits.label]){
+                    detection_edits.ids.splice(detection_edits.ids.indexOf(det_id), 1)
+                    continue
+                }
                 clusters[mapID][clusterIndex[mapID]].images[imageIndex[mapID]].detections[i].label = detection_edits.label
                 clusters[mapID][clusterIndex[mapID]].images[imageIndex[mapID]].detections[i].labels = [detection_edits.label]
+                if (isReviewing) {
+                    clusters[mapID][clusterIndex[mapID]].images[imageIndex[mapID]].detections[i].individual = '-1'
+                    clusters[mapID][clusterIndex[mapID]].images[imageIndex[mapID]].detections[i].individuals = ['-1']
+                    clusters[mapID][clusterIndex[mapID]].images[imageIndex[mapID]].detections[i].individual_names = []
+                }
+                else if (isIDing) {
+                    species = taggingLevel.split(',')[1]
+                    if (species == detection_edits.label) {
+                        if (document.getElementById('btnSendToBack')!=null) {
+                            clusters[mapID][clusterIndex[mapID]].images[imageIndex[mapID]].detections[i].active = true
+                        } else {
+                            if (clusters[mapID][clusterIndex[mapID]].images[imageIndex[mapID]].detections[i].individual == '-1') {
+                                clusters[mapID][clusterIndex[mapID]].images[imageIndex[mapID]].detections[i].active = false
+                            }
+                        }
+                    } else {
+                        clusters[mapID][clusterIndex[mapID]].images[imageIndex[mapID]].detections[i].active = false
+                        clusters[mapID][clusterIndex[mapID]].images[imageIndex[mapID]].detections[i].individuals = ['-1']
+                        clusters[mapID][clusterIndex[mapID]].images[imageIndex[mapID]].detections[i].individual_names = []
+                        clusters[mapID][clusterIndex[mapID]].images[imageIndex[mapID]].detections[i].individual = '-1'
+                    }
+                }
             }
         }
+        if (isIDing && document.getElementById('btnSendToBack')!=null) {
+            let mapID2 = mapID == 'map1' ? 'map2' : 'map1'
+            clusters[mapID2][clusterIndex[mapID2]] = clusters[mapID][clusterIndex[mapID]]
+        }
+    }
+
+    // check if detection_edits is empty
+    switch (action) {
+        case 'label':
+            if (!detection_edits?.ids || detection_edits.ids.length == 0) {
+                return;
+            }
+            break;
+    
+        case 'edit':
+        case 'add':
+            if (!detection_edits || Object.keys(detection_edits).length == 0) {
+                return;
+            }
+            break;
+    
+        case 'delete':
+            if (!detection_edits || detection_edits.length == 0) {
+                return;
+            }
+            break;
     }
 
     var formData = new FormData();
@@ -4538,18 +4696,20 @@ function submitSightingChanges(detection_edits, action, mapID = 'map1') {
     if (isReviewing) {
         formData.append('explore', JSON.stringify('true'));
     }
-
+    console.log(detection_edits, action)
     var xhttp = new XMLHttpRequest();
     xhttp.open("POST", '/editSightingsGeneral/'+selectedTask);
     xhttp.onreadystatechange =
-    function(wrapClusterIndex,wrapImageIndex,wrapMapID){
+    function(wrapClusterIndex,wrapImageIndex,wrapMapID,wrapAction){
         return function() {
             if (this.readyState == 4 && this.status == 278) {
                 window.location.replace(JSON.parse(this.responseText)['redirect'])
             } else if (this.readyState == 4 && this.status == 200) {
                 let reply = JSON.parse(this.responseText)
+                console.log(reply)  
                 let detDbIDs = reply.detDbIDs
                 let cluster_labels = reply.cluster_labels
+                let detIndivs = reply.detIndivs
 
                 for (let detID in detDbIDs) {
                     for (let i=0;i<clusters[wrapMapID][wrapClusterIndex].images[wrapImageIndex].detections.length;i++) {
@@ -4561,9 +4721,41 @@ function submitSightingChanges(detection_edits, action, mapID = 'map1') {
                                     break
                                 }
                             }
+                            if (isIDing && document.getElementById('btnSendToBack')!=null) {
+                                let mapID2 = wrapMapID == 'map1' ? 'map2' : 'map1'
+                                for (let leafID in dbDetIds[mapID2]) {
+                                    if (dbDetIds[mapID2][leafID]==detID) {
+                                        dbDetIds[mapID2][leafID] = detDbIDs[detID].toString()
+                                        break
+                                    }
+                                }
+                            }
+                            if (isIDing && document.getElementById('btnSendToBack')==null) {
+                                if (detIndivs.hasOwnProperty(detID)) {
+                                    let species= taggingLevel.split(',')[1]
+                                    clusters[wrapMapID][wrapClusterIndex].images[wrapImageIndex].detections[i].label = species
+                                    clusters[wrapMapID][wrapClusterIndex].images[wrapImageIndex].detections[i].labels = [species]
+                                    clusters[wrapMapID][wrapClusterIndex].images[wrapImageIndex].detections[i].individual = detIndivs[detID]
+                                    clusters[wrapMapID][wrapClusterIndex].images[wrapImageIndex].detections[i].individual_names = [detIndivs[detID]]
+                                    clusters[wrapMapID][wrapClusterIndex].images[wrapImageIndex].detections[i].active = false  // not active if new individual
+                                }
+                            }
                             break
                         }
                     }
+                }
+
+                if (isIDing && document.getElementById('btnSendToBack')==null && (Object.keys(detIndivs).length > 0 || wrapAction == 'label')) {
+                    addedDetections[wrapMapID] = false
+                    addDetections(wrapMapID)
+                }
+
+                if (isIDing && document.getElementById('btnSendToBack')!=null) {
+                    addedDetections['map1'] = false
+                    addDetections('map1')
+                    addedDetections['map2'] = false
+                    addDetections('map2')
+                    checkNoActiveDetections();
                 }
 
                 for (let clusterID in cluster_labels) {
@@ -4592,11 +4784,16 @@ function submitSightingChanges(detection_edits, action, mapID = 'map1') {
                 }
 
                 if (isReviewing) {
+                    addedDetections['map1'] = false
+                    addDetections()
                     updateDebugInfo()
+                }
+                else if (isIDing && document.getElementById('btnSendToBack')==null) {
+                    updateKpts()
                 }
             }
         }
-    }(clusterIndex[mapID],imageIndex[mapID],mapID);
+    }(clusterIndex[mapID],imageIndex[mapID],mapID,action);
     xhttp.send(formData);
 }
 

@@ -107,7 +107,8 @@ def wrapUpTask(self,task_id):
         for trapgroup_id in trapgroup_ids:
             process_multi_labels(task_id=task_id,trapgroup_ids=[trapgroup_id])
         
-        if ',' not in task.tagging_level and task.init_complete and '-2' not in task.tagging_level:
+        # if ',' not in task.tagging_level and task.init_complete and '-2' not in task.tagging_level:
+        if task.init_complete:
             check_individual_detection_mismatch(task_id=task_id)
 
         # Update Individual Primary Images
@@ -311,6 +312,7 @@ def fetch_clusters(taggingLevel,task_id,isBounding,trapgroup_id,limit=None,id=No
         species = tL[1]
         OtherIndividual = alias(Individual)
         OtherIndividualTasks = alias(individualTasks)
+        IndividualTask = alias(Task)
         individuals = []
 
         allocatedIndSims = [int(r.decode()) for r in GLOBALS.redisClient.smembers('active_indsims_'+str(task_id))]
@@ -365,6 +367,29 @@ def fetch_clusters(taggingLevel,task_id,isBounding,trapgroup_id,limit=None,id=No
                         .filter(Individual.name!='unidentifiable')\
                         .group_by(Individual.id)\
                         .subquery()
+
+        det_sq = rDets(db.session.query(
+                                    Detection.id.label('id'),
+                                    Detection.top.label('top'),
+                                    Detection.bottom.label('bottom'),
+                                    Detection.left.label('left'),
+                                    Detection.right.label('right'),
+                                    Detection.category.label('category'),
+                                    Detection.static.label('static'),
+                                    Detection.flank.label('flank'),
+                                    Image.id.label('image_id'),
+                                    Label.description.label('label_description'),
+                                    Individual.id.label('individual_id'),
+                                    Individual.name.label('individual_name')
+                                )\
+                                .join(Image)\
+                                .join(Labelgroup)\
+                                .filter(Labelgroup.task_id.in_(task_ids))\
+                                .outerjoin(Label,Labelgroup.labels)\
+                                .outerjoin(Individual,Detection.individuals)\
+                                .outerjoin(IndividualTask,Individual.tasks)\
+                                .filter(or_(IndividualTask.c.id==None,IndividualTask.c.id.in_(task_ids))))\
+                                .subquery()
         
         # Find the available individual with the most detections
         clusters = db.session.query(
@@ -386,7 +411,18 @@ def fetch_clusters(taggingLevel,task_id,isBounding,trapgroup_id,limit=None,id=No
                             Camera.id,
                             Trapgroup.latitude,
                             Trapgroup.longitude,
-                            Detection.flank
+                            Detection.flank,
+                            det_sq.c.id,
+                            det_sq.c.top,
+                            det_sq.c.bottom,
+                            det_sq.c.left,
+                            det_sq.c.right,
+                            det_sq.c.category,
+                            det_sq.c.static,
+                            det_sq.c.flank,
+                            det_sq.c.label_description,
+                            det_sq.c.individual_id,
+                            det_sq.c.individual_name
                         )\
                         .join(Task,Individual.tasks)\
                         .outerjoin(sq1,sq1.c.indID1==Individual.id)\
@@ -396,6 +432,7 @@ def fetch_clusters(taggingLevel,task_id,isBounding,trapgroup_id,limit=None,id=No
                         .join(Image)\
                         .join(Camera)\
                         .join(Trapgroup)\
+                        .outerjoin(det_sq,and_(det_sq.c.image_id==Image.id,det_sq.c.id!=Detection.id))\
                         .filter(Task.id.in_(task_ids))\
                         .filter(or_(sq1.c.indID1!=None, sq2.c.indID2!=None))\
                         .filter(or_(and_(Detection.source==model,Detection.score>Config.DETECTOR_THRESHOLDS[model]) for model in Config.DETECTOR_THRESHOLDS))\
@@ -452,12 +489,35 @@ def fetch_clusters(taggingLevel,task_id,isBounding,trapgroup_id,limit=None,id=No
                             'left': row[10],
                             'right': row[11],
                             'category': row[12],
+                            'individuals': [row[1]],
+                            'individual_names': [row[0].name],
+                            'static': row[13],
+                            'labels': [species],
+                            'flank': Config.FLANK_TEXT[row[18]] if row[18] else 'None',
+                            'active': True
+                        }
+
+                    # Handle inactive detections
+                    if row[19] and (row[19] not in clusterInfo[row[1]]['images'][row[3]]['detections'].keys()):
+                        clusterInfo[row[1]]['images'][row[3]]['detections'][row[19]] = {
+                            'id': row[19],
+                            'top': row[20],
+                            'bottom': row[21],
+                            'left': row[22],
+                            'right': row[23],
+                            'category': row[24],
+                            'static': row[25],
                             'individuals': [],
                             'individual_names': [],
-                            'static': row[13],
                             'labels': [],
-                            'flank': Config.FLANK_TEXT[row[18]] if row[18] else 'None'
+                            'flank': Config.FLANK_TEXT[row[26]] if row[26] else 'None',
+                            'active': False
                         }
+
+                    # Handle info of inactive detections
+                    if row[27] and row[27] not in clusterInfo[row[1]]['images'][row[3]]['detections'][row[19]]['labels']: clusterInfo[row[1]]['images'][row[3]]['detections'][row[19]]['labels'].append(row[27])
+                    if row[28] and row[28] not in clusterInfo[row[1]]['images'][row[3]]['detections'][row[19]]['individuals']: clusterInfo[row[1]]['images'][row[3]]['detections'][row[19]]['individuals'].append(row[28])
+                    if row[29] and row[29] not in clusterInfo[row[1]]['images'][row[3]]['detections'][row[19]]['individual_names']: clusterInfo[row[1]]['images'][row[3]]['detections'][row[19]]['individual_names'].append(row[29])
 
         return clusterInfo, individuals
 
@@ -792,6 +852,36 @@ def fetch_clusters(taggingLevel,task_id,isBounding,trapgroup_id,limit=None,id=No
                 tL = re.split(',',taggingLevel)
                 species = tL[1]
 
+                # detectionSQ = rDets(db.session.query(
+                #                             Detection,
+                #                             Label.id.label('label_id'),
+                #                             Label.description.label('label_description'),
+                #                             Individual.id.label('individual_id'),
+                #                             IndividualTask.c.id.label('individual_task_id')
+                #                         )\
+                #                         .join(Image)\
+                #                         .join(Labelgroup)\
+                #                         .join(Label,Labelgroup.labels)\
+                #                         .outerjoin(Individual,Detection.individuals)\
+                #                         .outerjoin(IndividualTask,Individual.tasks)\
+                #                         .join(Cluster,Image.clusters)\
+                #                         .filter(Cluster.task_id==task_id)\
+                #                         .filter(Labelgroup.task_id==task_id)\
+                #                         .filter(Label.description==species))\
+                #                         .subquery()
+
+                # Get all clusters that has a label that matches the species
+                clusterSQ = db.session.query(Cluster.id)\
+                                        .join(Image,Cluster.images)\
+                                        .join(Detection,Image.detections)\
+                                        .join(Labelgroup)\
+                                        .join(Label,Labelgroup.labels)\
+                                        .filter(Cluster.task_id==task_id)\
+                                        .filter(Labelgroup.task_id==task_id)\
+                                        .filter(Label.description==species)\
+                                        .subquery()
+
+                # We are including all species, will mark dets as inactive if they don't match the species
                 detectionSQ = rDets(db.session.query(
                                             Detection,
                                             Label.id.label('label_id'),
@@ -805,9 +895,9 @@ def fetch_clusters(taggingLevel,task_id,isBounding,trapgroup_id,limit=None,id=No
                                         .outerjoin(Individual,Detection.individuals)\
                                         .outerjoin(IndividualTask,Individual.tasks)\
                                         .join(Cluster,Image.clusters)\
+                                        .join(clusterSQ,clusterSQ.c.id==Cluster.id)\
                                         .filter(Cluster.task_id==task_id)\
-                                        .filter(Labelgroup.task_id==task_id)\
-                                        .filter(Label.description==species))\
+                                        .filter(Labelgroup.task_id==task_id))\
                                         .subquery()
                 
                 clusters = db.session.query(
@@ -843,6 +933,7 @@ def fetch_clusters(taggingLevel,task_id,isBounding,trapgroup_id,limit=None,id=No
                                 .outerjoin(requiredimagestable,requiredimagestable.c.cluster_id==Cluster.id)\
                                 .join(Camera) \
                                 .filter(Image.zip_id==None)\
+                                .join(clusterSQ,clusterSQ.c.id==Cluster.id)\
                                 .outerjoin(detectionSQ,detectionSQ.c.image_id==Image.id)
             
             clusters = clusters.filter(Camera.trapgroup_id==trapgroup_id)\
@@ -947,7 +1038,8 @@ def fetch_clusters(taggingLevel,task_id,isBounding,trapgroup_id,limit=None,id=No
                     'individual_names': [],
                     'static': row[15],
                     'labels': [],
-                    'flank': Config.FLANK_TEXT[row[25]] if row[25] else 'None'
+                    'flank': Config.FLANK_TEXT[row[25]] if row[25] else 'None',
+                    'active': True
                 }
 
             # Handle video
@@ -979,6 +1071,16 @@ def fetch_clusters(taggingLevel,task_id,isBounding,trapgroup_id,limit=None,id=No
                 if row[26] and row[21] and (row[21] not in clusterInfo[row[0]]['images'][row[2]]['detections'][row[9]]['individuals']) and (row[26]==task_id):
                     clusterInfo[row[0]]['images'][row[2]]['detections'][row[9]]['individuals'].append(row[21])
                     if id: clusterInfo[row[0]]['images'][row[2]]['detections'][row[9]]['individual_names'].append(row[33])
+
+                if '-4' in taggingLevel:
+                    species = re.split(',',taggingLevel)[1]
+                    if species in clusterInfo[row[0]]['images'][row[2]]['detections'][row[9]]['labels']:
+                        clusterInfo[row[0]]['images'][row[2]]['detections'][row[9]]['active'] = True
+                        if len(clusterInfo[row[0]]['images'][row[2]]['detections'][row[9]]['individuals']) > 0:
+                            # make inactive if already existing individual for det
+                            clusterInfo[row[0]]['images'][row[2]]['detections'][row[9]]['active'] = False
+                    else:
+                        clusterInfo[row[0]]['images'][row[2]]['detections'][row[9]]['active'] = False
 
         if '-3' in taggingLevel:
             task = db.session.query(Task).get(task_id)
@@ -1402,13 +1504,15 @@ def translate_cluster_for_client(clusterInfo,reqId,limit,isBounding,taggingLevel
                                 'static': clusterInfo[cluster_id]['images'][image_id]['detections'][detection_id]['static'],
                                 'labels': clusterInfo[cluster_id]['images'][image_id]['detections'][detection_id]['labels'],
                                 'label': clusterInfo[cluster_id]['images'][image_id]['detections'][detection_id]['labels'][0],
-                                'flank': clusterInfo[cluster_id]['images'][image_id]['detections'][detection_id]['flank'].capitalize()}
-                            for detection_id in clusterInfo[cluster_id]['images'][image_id]['detections'] if ((
-                                                                    '-4' not in taggingLevel) 
-                                                                or (
-                                                                    (clusterInfo[cluster_id]['images'][image_id]['detections'][detection_id]['individuals']==['-1']) 
-                                                                    # and (species in clusterInfo[cluster_id]['images'][image_id]['detections'][detection_id]['labels'])
-                                                                ))]
+                                'flank': clusterInfo[cluster_id]['images'][image_id]['detections'][detection_id]['flank'].capitalize(),
+                                'active': clusterInfo[cluster_id]['images'][image_id]['detections'][detection_id]['active']}
+                            # for detection_id in clusterInfo[cluster_id]['images'][image_id]['detections'] if ((
+                            #                                         '-4' not in taggingLevel) 
+                            #                                     or (
+                            #                                         (clusterInfo[cluster_id]['images'][image_id]['detections'][detection_id]['individuals']==['-1']) 
+                            #                                         # and (species in clusterInfo[cluster_id]['images'][image_id]['detections'][detection_id]['labels'])
+                            #                                     ))]
+                            for detection_id in clusterInfo[cluster_id]['images'][image_id]['detections']]
                         })
             
             required = [n for n in range(len(images))]
@@ -1476,13 +1580,15 @@ def translate_cluster_for_client(clusterInfo,reqId,limit,isBounding,taggingLevel
                                 'static': clusterInfo[cluster_id]['images'][image_id]['detections'][detection_id]['static'],
                                 'labels': clusterInfo[cluster_id]['images'][image_id]['detections'][detection_id]['labels'],
                                 'label': clusterInfo[cluster_id]['images'][image_id]['detections'][detection_id]['labels'][0],
-                                'flank': clusterInfo[cluster_id]['images'][image_id]['detections'][detection_id]['flank'].capitalize()}
-                            for detection_id in clusterInfo[cluster_id]['images'][image_id]['detections'] if ((
-                                                                '-4' not in taggingLevel) 
-                                                            or (
-                                                                (clusterInfo[cluster_id]['images'][image_id]['detections'][detection_id]['individuals']==['-1']) 
-                                                                # and (species in clusterInfo[cluster_id]['images'][image_id]['detections'][detection_id]['labels'])
-                                                            ))]
+                                'flank': clusterInfo[cluster_id]['images'][image_id]['detections'][detection_id]['flank'].capitalize(),
+                                'active': clusterInfo[cluster_id]['images'][image_id]['detections'][detection_id]['active']}
+                            # for detection_id in clusterInfo[cluster_id]['images'][image_id]['detections'] if ((
+                            #                                     '-4' not in taggingLevel) 
+                            #                                 or (
+                            #                                     (clusterInfo[cluster_id]['images'][image_id]['detections'][detection_id]['individuals']==['-1']) 
+                            #                                     # and (species in clusterInfo[cluster_id]['images'][image_id]['detections'][detection_id]['labels'])
+                            #                                 ))]
+                            for detection_id in clusterInfo[cluster_id]['images'][image_id]['detections']]
                         })
                     
                     # dont break if certain annotation types

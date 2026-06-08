@@ -7570,3 +7570,88 @@ def update_duplicate_individual_names(area_id):
     db.session.commit()
 
     return True
+
+def crop_image_to_individual(detection_id,image_path,bbox_dict,min_size=200):
+    '''Crops an image based on the bounding box provided.'''
+    try:
+        with tempfile.NamedTemporaryFile(delete=True, suffix='.JPG') as temp_file:
+            print(f'Downloading {image_path} from S3')
+            try:
+                GLOBALS.s3client.download_file(Bucket=Config.BUCKET, Key=image_path, Filename=temp_file.name)
+            except Exception as e:
+                print(f'Error downloading {image_path} from S3: {e}')
+                return
+
+            image = pilImage.open(temp_file.name)
+            image_data = numpy.array(image)
+            h, w = image_data.shape[:2]
+
+            x1 = max(0, min(1, bbox_dict['left']))
+            x2 = max(0, min(1, bbox_dict['right']))
+            y1 = max(0, min(1, bbox_dict['top']))
+            y2 = max(0, min(1, bbox_dict['bottom']))
+
+            box_x1 = int(x1 * w)
+            box_x2 = int(x2 * w)
+            box_y1 = int(y1 * h)
+            box_y2 = int(y2 * h)
+
+            aspect_ratio = w / h
+
+            box_width = box_x2 - box_x1
+            box_height = box_y2 - box_y1
+            box_center_x = (box_x1 + box_x2) // 2
+            box_center_y = (box_y1 + box_y2) // 2
+
+            box_width = max(box_width, min_size)
+            box_height = max(box_height, min_size)
+
+            if box_width / box_height > aspect_ratio:
+                new_height = int(box_width / aspect_ratio)
+                new_width = box_width
+            else:
+                new_width = int(box_height * aspect_ratio)
+                new_height = box_height
+
+            new_x1 = box_center_x - new_width // 2
+            new_x2 = box_center_x + new_width // 2
+            new_y1 = box_center_y - new_height // 2
+            new_y2 = box_center_y + new_height // 2
+
+            if new_x1 < 0:
+                new_x2 += -new_x1
+                new_x1 = 0
+            if new_x2 > w:
+                new_x1 -= (new_x2 - w)
+                new_x2 = w
+            if new_y1 < 0:
+                new_y2 += -new_y1
+                new_y1 = 0
+            if new_y2 > h:
+                new_y1 -= (new_y2 - h)
+                new_y2 = h
+
+            new_x1 = max(0, new_x1)
+            new_x2 = min(w, new_x2)
+            new_y1 = max(0, new_y1)
+            new_y2 = min(h, new_y2)
+
+            cropped_image = image.crop((new_x1, new_y1, new_x2, new_y2))
+
+            with tempfile.NamedTemporaryFile(delete=False, suffix='.JPG') as cropped_temp_file:
+                cropped_image.save(cropped_temp_file.name)
+                cropped_temp_file.flush()
+                splits = image_path.split('/')
+                if splits[0][-5:] == '-comp':
+                    crop_image_path = splits[0] + '/' + splits[1] + '/_crops_/' + str(detection_id) + '.JPG'
+                else:
+                    crop_image_path = splits[0] + '-comp' + '/' + splits[1] +'/_crops_/' + str(detection_id) + '.JPG'
+                print(f'Uploading cropped image to S3: {crop_image_path}')
+                try:
+                    GLOBALS.s3client.upload_file(Bucket=Config.BUCKET, Key=crop_image_path, Filename=cropped_temp_file.name)
+                except Exception as e:
+                    print(f'Error uploading cropped image to S3: {e}')
+    except Exception as e:
+        app.logger.info(f'Error cropping image for detection {detection_id}: {e}')
+
+    return True

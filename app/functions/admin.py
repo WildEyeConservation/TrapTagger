@@ -240,7 +240,8 @@ def stop_task(self,task_id,live=False):
             for trapgroup_id in trapgroup_ids:
                 process_multi_labels(task_id=task_id,trapgroup_ids=[trapgroup_id])
 
-            if ',' not in task.tagging_level and task.init_complete and '-2' not in task.tagging_level:
+            # if ',' not in task.tagging_level and task.init_complete and '-2' not in task.tagging_level:
+            if task.init_complete:
                 check_individual_detection_mismatch(task_id=task_id)
 
             # Update Individual Primary Images

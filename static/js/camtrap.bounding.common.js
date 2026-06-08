@@ -165,12 +165,12 @@ function sightingAnalysisMapPrep(mapID = 'map1') {
 
     map[mapID].on('contextmenu', function (e) {
         /** remove duplicate items on more than one right click */
-        if (isReviewing){
-            if (document.getElementById('detIndividual').innerHTML != 'None') {
-                map[mapID].contextmenu.hide()
-                return
-            }
-        }
+        // if (isReviewing){
+        //     if (document.getElementById('detIndividual').innerHTML != 'None') {
+        //         map[mapID].contextmenu.hide()
+        //         return
+        //     }
+        // }
         if(!drawControl._toolbars.edit._activeMode && !drawControl._toolbars.draw._activeMode){
             // nr_items = 2*clusters[mapID][clusterIndex[mapID]].label.length + 1
             nr_items = 5
@@ -187,18 +187,18 @@ function sightingAnalysisMapPrep(mapID = 'map1') {
     });
 
     map[mapID].on('contextmenu.select', function (e) {
-        if (!isBounding) {
-            let has_indiv = false
-            let det_id = dbDetIds[mapID][targetRect]
-            for (let i=0;i<clusters[mapID][clusterIndex[mapID]].images[imageIndex[mapID]].detections.length;i++) {
-                if (clusters[mapID][clusterIndex[mapID]].images[imageIndex[mapID]].detections[i].id==det_id) {
-                    if (clusters[mapID][clusterIndex[mapID]].images[imageIndex[mapID]].detections[i].individual != '-1') {
-                        has_indiv = true
-                        return
-                    }
-                }
-            }
-        }
+        // if (!isBounding) {
+        //     let has_indiv = false
+        //     let det_id = dbDetIds[mapID][targetRect]
+        //     for (let i=0;i<clusters[mapID][clusterIndex[mapID]].images[imageIndex[mapID]].detections.length;i++) {
+        //         if (clusters[mapID][clusterIndex[mapID]].images[imageIndex[mapID]].detections[i].id==det_id) {
+        //             if (clusters[mapID][clusterIndex[mapID]].images[imageIndex[mapID]].detections[i].individual != '-1') {
+        //                 has_indiv = true
+        //                 return
+        //             }
+        //         }
+        //     }
+        // }
         if (targetUpdated) {  
             if (e.el.textContent=='▼') {
                 multiContextVal += 1
