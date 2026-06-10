@@ -332,22 +332,9 @@ function getIndividualInfo(individualID){
                 if (individualAccess == 'write'){
                     // create a select element with the options of the labels
                     individualSpecies = info.label
-                    let labelsDiv = document.getElementById('labelsDiv')
-                    while(labelsDiv.firstChild){
-                        labelsDiv.removeChild(labelsDiv.firstChild);
+                    if (document.getElementById('speciesSelectIndividual') != null) {
+                        document.getElementById('speciesSelectIndividual').value = info.label
                     }
-                    let labelsSelect = document.createElement('select')
-                    labelsSelect.classList.add('form-control')
-                    labelsSelect.setAttribute('id','speciesSelectIndividual')
-                    labelsDiv.appendChild(labelsSelect)
-                    fillSelect(labelsSelect,overlapLabels,overlapLabels)
-                    labelsSelect.value = info.label
-                    labelsSelect.addEventListener('change', function () {
-                        if (this.value != individualSpecies) {
-                            unsavedChanges = true
-                        }
-                    });
-
                 } else {
                     individualSpecies = info.label
                     let labelsDiv = document.getElementById('labelsDiv')
@@ -5849,10 +5836,10 @@ function drawControlPrep() {
         if (label != '' || label != null) {
             detection_edits[dbDetIds[newLayer._leaflet_id]] = {
                 'label': label,
-                'top': newLayer.getBounds().getNorthEast().lat/mapHeight,
-                'bottom': newLayer.getBounds().getSouthWest().lat/mapHeight,
-                'left': newLayer.getBounds().getSouthWest().lng/mapWidth,
-                'right': newLayer.getBounds().getNorthEast().lng/mapWidth
+                'top': Math.max(0.0,Math.min(1.0,newLayer.getBounds().getNorthEast().lat/mapHeight)),
+                'bottom': Math.max(0.0,Math.min(1.0,newLayer.getBounds().getSouthWest().lat/mapHeight)),
+                'left': Math.max(0.0,Math.min(1.0,newLayer.getBounds().getSouthWest().lng/mapWidth)),
+                'right': Math.max(0.0,Math.min(1.0,newLayer.getBounds().getNorthEast().lng/mapWidth))
             }
             submitSightingChangesIndividual(detection_edits, action)
         } else {
@@ -5873,10 +5860,10 @@ function drawControlPrep() {
         layers.eachLayer(function(layer) {
             detection_edits[Number(dbDetIds[layer._leaflet_id])] = {
                 'bounding_box': {
-                    'top': layer.getBounds().getNorthEast().lat/mapHeight,
-                    'bottom': layer.getBounds().getSouthWest().lat/mapHeight,
-                    'left': layer.getBounds().getSouthWest().lng/mapWidth,
-                    'right': layer.getBounds().getNorthEast().lng/mapWidth
+                    'top': Math.max(0.0,Math.min(1.0,layer.getBounds().getNorthEast().lat/mapHeight)),
+                    'bottom': Math.max(0.0,Math.min(1.0,layer.getBounds().getSouthWest().lat/mapHeight)),
+                    'left': Math.max(0.0,Math.min(1.0,layer.getBounds().getSouthWest().lng/mapWidth)),
+                    'right': Math.max(0.0,Math.min(1.0,layer.getBounds().getNorthEast().lng/mapWidth))
                 }
             }
         });
@@ -6029,6 +6016,25 @@ function fetchLabelHierarchyIndividual() {
             let reply = JSON.parse(this.responseText);
             labelHierarchy = reply.label_hierarchy;
             overlapLabels = reply.overlap_labels;
+
+            if (reply.species != null && overlapLabels.includes(reply.species)) {
+                let labelsDiv = document.getElementById('labelsDiv')
+                while(labelsDiv.firstChild){
+                    labelsDiv.removeChild(labelsDiv.firstChild);
+                }
+                let labelsSelect = document.createElement('select')
+                labelsSelect.classList.add('form-control')
+                labelsSelect.setAttribute('id','speciesSelectIndividual')
+                labelsDiv.appendChild(labelsSelect)
+                fillSelect(labelsSelect,overlapLabels,overlapLabels)
+                labelsSelect.value = reply.species
+                labelsSelect.addEventListener('change', function () {
+                    if (this.value != reply.species) {
+                        unsavedChanges = true
+                    }
+                });
+                individualSpecies = reply.species
+            }
         }
     }
     xhttp.open("GET", '/getLabelHierarchyIndividual/'+selectedIndividual);

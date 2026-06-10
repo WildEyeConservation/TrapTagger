@@ -18358,8 +18358,9 @@ def getLabelHierarchyIndividual(individual_id):
     reply = {}
     overlap_labels = []
     individual = db.session.query(Individual).get(individual_id)
-
+    species = None
     if individual and all(checkSurveyPermission(current_user.id,task.survey_id,'read') for task in individual.tasks):
+        species = individual.species
         vhl_label = db.session.query(Label).get(GLOBALS.vhl_id)
         unknown_label = db.session.query(Label).get(GLOBALS.unknown_id)
         for task in individual.tasks:
@@ -18377,4 +18378,4 @@ def getLabelHierarchyIndividual(individual_id):
 
         if overlap_labels: overlap_labels.sort()
 
-    return json.dumps({'label_hierarchy': reply, 'overlap_labels': overlap_labels})
+    return json.dumps({'label_hierarchy': reply, 'overlap_labels': overlap_labels, 'species': species})

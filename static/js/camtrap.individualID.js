@@ -860,7 +860,9 @@ function buildIndividuals() {
         for (let leafletID in dbDetIds[mapID]) {
             // drawnItems[mapID]._layers[leafletID].unbindTooltip()
             drawnItems[mapID]._layers[leafletID].unbindPopup()
-            drawnItems[mapID]._layers[leafletID].setStyle({color: "rgba(223,105,26,1)"})
+            if (drawnItems[mapID]._layers[leafletID].options.color != colourInactive) {
+                drawnItems[mapID]._layers[leafletID].setStyle({color: colourBase})
+            }
         }
 
         for (let i=0;i<clusters[mapID][clusterIndex[mapID]].images.length;i++) {
@@ -1903,10 +1905,10 @@ function drawControlPrep(mapID = 'map1') {
         let action = 'add'
         let detection_edits = {}
         detection_edits[dbDetIds[mapID][newLayer._leaflet_id]] = {
-            'top': newLayer.getBounds().getNorthEast().lat/mapHeight[mapID],
-            'bottom': newLayer.getBounds().getSouthWest().lat/mapHeight[mapID],
-            'left': newLayer.getBounds().getSouthWest().lng/mapWidth[mapID],
-            'right': newLayer.getBounds().getNorthEast().lng/mapWidth[mapID]
+            'top': Math.max(0.0,Math.min(1.0,newLayer.getBounds().getNorthEast().lat/mapHeight[mapID])),
+            'bottom': Math.max(0.0,Math.min(1.0,newLayer.getBounds().getSouthWest().lat/mapHeight[mapID])),
+            'left': Math.max(0.0,Math.min(1.0,newLayer.getBounds().getSouthWest().lng/mapWidth[mapID])),
+            'right': Math.max(0.0,Math.min(1.0,newLayer.getBounds().getNorthEast().lng/mapWidth[mapID]))
         }
         submitSightingChanges(detection_edits, action, mapID) 
 
@@ -1921,10 +1923,10 @@ function drawControlPrep(mapID = 'map1') {
         layers.eachLayer(function(layer) {
             detection_edits[Number(dbDetIds[mapID][layer._leaflet_id])] = {
                 'bounding_box': {
-                    'top': layer.getBounds().getNorthEast().lat/mapHeight[mapID],
-                    'bottom': layer.getBounds().getSouthWest().lat/mapHeight[mapID],
-                    'left': layer.getBounds().getSouthWest().lng/mapWidth[mapID],
-                    'right': layer.getBounds().getNorthEast().lng/mapWidth[mapID]
+                    'top': Math.max(0.0,Math.min(1.0,layer.getBounds().getNorthEast().lat/mapHeight[mapID])),
+                    'bottom': Math.max(0.0,Math.min(1.0,layer.getBounds().getSouthWest().lat/mapHeight[mapID])),
+                    'left': Math.max(0.0,Math.min(1.0,layer.getBounds().getSouthWest().lng/mapWidth[mapID])),
+                    'right': Math.max(0.0,Math.min(1.0,layer.getBounds().getNorthEast().lng/mapWidth[mapID]))
                 }
             }
         });

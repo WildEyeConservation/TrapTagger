@@ -149,6 +149,7 @@ var preloadImageIndex = {"map1": 0}
 var sliderImageIndexMap = {"map1": [], "map2": []}
 var colourBase = "rgba(223,105,26,1)"
 var colourSelected = "rgba(225,225,225,1)"
+var colourInactive = "rgba(128,128,128,1)"
 
 // var colours = {
 //     'rgba(67,115,98,1)': false,
@@ -804,7 +805,7 @@ function buildDetection(image,detection,mapID = 'map1',colour=null) {
 
     } else if (detection.active==false){
         let inactiveRectOptions = {
-            color: 'rgba(128,128,128,1)',
+            color: colourInactive,
             fill: true,
             fillOpacity: 0.0,
             opacity: 0.8,
@@ -4579,6 +4580,19 @@ function submitSightingChanges(detection_edits, action, mapID = 'map1') {
         if (isIDing && document.getElementById('btnSendToBack')!=null) {
             let mapID2 = mapID == 'map1' ? 'map2' : 'map1'
             clusters[mapID2][clusterIndex[mapID2]] = clusters[mapID][clusterIndex[mapID]]
+            for (let i=0;i<detection_edits.length;i++) {
+                let det_id = detection_edits[i]
+                for (let individualID in individuals[individualIndex]) {
+                    if (individuals[individualIndex][individualID].detections.includes(det_id)) {
+                        individuals[individualIndex][individualID].detections.splice(individuals[individualIndex][individualID].detections.indexOf(det_id), 1)
+                        individuals[individualIndex][individualID].images.splice(individuals[individualIndex][individualID].images.indexOf(clusters[mapID][clusterIndex[mapID]].images[imageIndex[mapID]].id), 1)
+                        if (individuals[individualIndex][individualID].images.length == 0) {
+                            delete individuals[individualIndex][individualID]
+                        }
+                        break
+                    }
+                }
+            }
         }
     } else if (action == 'edit') {
         for (let i=0;i<clusters[mapID][clusterIndex[mapID]].images[imageIndex[mapID]].detections.length;i++) {
@@ -4653,6 +4667,14 @@ function submitSightingChanges(detection_edits, action, mapID = 'map1') {
                             }
                         }
                     } else {
+                        if (clusters[mapID][clusterIndex[mapID]].images[imageIndex[mapID]].detections[i].individual != '-1') {
+                            let individualID = clusters[mapID][clusterIndex[mapID]].images[imageIndex[mapID]].detections[i].individual
+                            individuals[individualIndex][individualID].detections.splice(individuals[individualIndex][individualID].detections.indexOf(det_id), 1)
+                            individuals[individualIndex][individualID].images.splice(individuals[individualIndex][individualID].images.indexOf(clusters[mapID][clusterIndex[mapID]].images[imageIndex[mapID]].id), 1)
+                            if (individuals[individualIndex][individualID].images.length == 0) {
+                                delete individuals[individualIndex][individualID]
+                            }
+                        }
                         clusters[mapID][clusterIndex[mapID]].images[imageIndex[mapID]].detections[i].active = false
                         clusters[mapID][clusterIndex[mapID]].images[imageIndex[mapID]].detections[i].individuals = ['-1']
                         clusters[mapID][clusterIndex[mapID]].images[imageIndex[mapID]].detections[i].individual_names = []
@@ -4756,6 +4778,7 @@ function submitSightingChanges(detection_edits, action, mapID = 'map1') {
                     addedDetections['map2'] = false
                     addDetections('map2')
                     checkNoActiveDetections();
+                    buildIndividuals()
                 }
 
                 for (let clusterID in cluster_labels) {

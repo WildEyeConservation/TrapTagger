@@ -138,10 +138,10 @@ function sightingAnalysisMapPrep(mapID = 'map1') {
             let detection_edits = {}
             detection_edits[dbDetIds[mapID][layer._leaflet_id]] = {
                 'label': layer._tooltip._content,
-                'top': layer.getBounds().getNorthEast().lat/mapHeight[mapID],
-                'bottom': layer.getBounds().getSouthWest().lat/mapHeight[mapID],
-                'left': layer.getBounds().getSouthWest().lng/mapWidth[mapID],
-                'right': layer.getBounds().getNorthEast().lng/mapWidth[mapID]
+                'top': Math.max(0.0,Math.min(1.0,layer.getBounds().getNorthEast().lat/mapHeight[mapID])),
+                'bottom': Math.max(0.0,Math.min(1.0,layer.getBounds().getSouthWest().lat/mapHeight[mapID])),
+                'left': Math.max(0.0,Math.min(1.0,layer.getBounds().getSouthWest().lng/mapWidth[mapID])),
+                'right': Math.max(0.0,Math.min(1.0,layer.getBounds().getNorthEast().lng/mapWidth[mapID]))
             }
             submitSightingChanges(detection_edits, action)
 
@@ -288,10 +288,10 @@ function sightingAnalysisMapPrep(mapID = 'map1') {
             layers.eachLayer(function(layer) {
                 detection_edits[Number(dbDetIds[mapID][layer._leaflet_id])] = {
                     'bounding_box': {
-                        'top': layer.getBounds().getNorthEast().lat/mapHeight[mapID],
-                        'bottom': layer.getBounds().getSouthWest().lat/mapHeight[mapID],
-                        'left': layer.getBounds().getSouthWest().lng/mapWidth[mapID],
-                        'right': layer.getBounds().getNorthEast().lng/mapWidth[mapID]
+                        'top': Math.max(0.0,Math.min(1.0,layer.getBounds().getNorthEast().lat/mapHeight[mapID])),
+                        'bottom': Math.max(0.0,Math.min(1.0,layer.getBounds().getSouthWest().lat/mapHeight[mapID])),
+                        'left': Math.max(0.0,Math.min(1.0,layer.getBounds().getSouthWest().lng/mapWidth[mapID])),
+                        'right': Math.max(0.0,Math.min(1.0,layer.getBounds().getNorthEast().lng/mapWidth[mapID]))
                     },
                     'label': layer._tooltip._content
                 }
