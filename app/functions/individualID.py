@@ -1565,6 +1565,18 @@ def handle_individual_sighting(self, detection_ids, state):
                 image_path = '/'.join(splits)
                 crop_image_to_individual(detection.id,image_path,bbox_dict)
 
+        if state == 'deleted':
+            # check for any empty active individuals and delete them
+            task_ids = [r[0] for r in db.session.query(Task.id).join(Labelgroup).filter(Labelgroup.detection_id.in_(detection_ids)).filter(Task.name!='default').distinct().all()]
+            empty_individuals = [r[0] for r in db.session.query(Individual.id)\
+                                                .join(Task,Individual.tasks)\
+                                                .filter(Task.id.in_(task_ids))\
+                                                .filter(Individual.active==True)\
+                                                .filter(Individual.name!='unidentifiable')\
+                                                .filter(~Individual.detections.any())\
+                                                .distinct().all()]
+            if empty_individuals: delete_individuals_helper(individual_ids=empty_individuals)
+
         app.logger.info('Finished handling individual sighting')
 
     except Exception as exc:

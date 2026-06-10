@@ -4631,7 +4631,7 @@ function submitSightingChanges(detection_edits, action, mapID = 'map1') {
         for (let i=0;i<clusters[mapID][clusterIndex[mapID]].images[imageIndex[mapID]].detections.length;i++) {
             let det_id = clusters[mapID][clusterIndex[mapID]].images[imageIndex[mapID]].detections[i].id
             if (detection_edits.ids.includes(det_id)) {
-                if (clusters[mapID][clusterIndex[mapID]].images[imageIndex[mapID]].detections[i].labels == [detection_edits.label]){
+                if (clusters[mapID][clusterIndex[mapID]].images[imageIndex[mapID]].detections[i].labels.length == 1 && clusters[mapID][clusterIndex[mapID]].images[imageIndex[mapID]].detections[i].labels[0] == detection_edits.label){
                     detection_edits.ids.splice(detection_edits.ids.indexOf(det_id), 1)
                     continue
                 }

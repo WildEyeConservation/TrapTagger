@@ -108,6 +108,20 @@ var unsavedChanges = false
 var convexHullPolygon = null
 var unidentifiableOpen = false
 var individualTasks = []
+var drawControl = null
+var addDetCnt = 0
+var individualAccess = null
+var labelHierarchy = null
+var overlapLabels = []
+var individualSpecies = null
+var contextLocation
+var multiContextVal = 0
+var subDividedContList
+var currentHierarchicalLevel = []
+var plusInProgress = false
+var targetRect = null
+var targetUpdated = false
+var isActiveContextMenu = true
 
 function getIndividuals(page = null) {
     /** Gets a page of individuals. Gets the first page if none is specified. */
@@ -315,7 +329,33 @@ function getIndividualInfo(individualID){
             info = JSON.parse(this.responseText);
             // console.log(info)
             if (info != "error"){
-                document.getElementById('labelsDiv').innerHTML = info.label
+                if (individualAccess == 'write'){
+                    // create a select element with the options of the labels
+                    individualSpecies = info.label
+                    let labelsDiv = document.getElementById('labelsDiv')
+                    while(labelsDiv.firstChild){
+                        labelsDiv.removeChild(labelsDiv.firstChild);
+                    }
+                    let labelsSelect = document.createElement('select')
+                    labelsSelect.classList.add('form-control')
+                    labelsSelect.setAttribute('id','speciesSelectIndividual')
+                    labelsDiv.appendChild(labelsSelect)
+                    fillSelect(labelsSelect,overlapLabels,overlapLabels)
+                    labelsSelect.value = info.label
+                    labelsSelect.addEventListener('change', function () {
+                        if (this.value != individualSpecies) {
+                            unsavedChanges = true
+                        }
+                    });
+
+                } else {
+                    individualSpecies = info.label
+                    let labelsDiv = document.getElementById('labelsDiv')
+                    while(labelsDiv.firstChild){
+                        labelsDiv.removeChild(labelsDiv.firstChild);
+                    }
+                    labelsDiv.innerHTML = info.label
+                }
 
                 document.getElementById('idNotes').value= info.notes
                 currentNote = info.notes
@@ -425,6 +465,8 @@ function getIndividual(individualID, individualName, association=false, order_va
    
     selectedIndividual = individualID
     selectedIndividualName = individualName
+
+    fetchLabelHierarchyIndividual()
 
     var formData = new FormData()
     formData.append("order", JSON.stringify(order_value))
@@ -1087,6 +1129,11 @@ function cleanModalIndividual() {
     maxDate = null
     addedDetections = false
     changed_flanks = {}
+    drawControl = null
+    addDetCnt = 0
+    labelHierarchy = null
+    overlapLabels = []
+    individualSpecies = null
 
     document.getElementById('tgInfo').innerHTML = 'Site: '
     document.getElementById('timeInfo').innerHTML = ''
@@ -1922,6 +1969,10 @@ document.getElementById('btnSubmitInfoChange').addEventListener('click', functio
 
     if(Object.keys(changed_flanks).length > 0){
         submitFlanks()
+    }
+
+    if(document.getElementById('speciesSelectIndividual') != null && document.getElementById('speciesSelectIndividual').value != individualSpecies){
+        submitindividualSpecies()
     }
 
     submitFeatures()
@@ -3552,11 +3603,22 @@ function addDetectionsMergeIndividual(mapID,image) {
         mergeDrawnItems[mapID].clearLayers()
         for (let i=0;i<image.detections.length;i++) {
             detection = image.detections[i]
-            if (detection.static == false) {
+            if (detection.static == false && detection.active == true) {
                 rectOptions.color = "rgba(223,105,26,1)"
                 rect = L.rectangle([[detection.top*mergeMapHeight[mapID],detection.left*mergeMapWidth[mapID]],[detection.bottom*mergeMapHeight[mapID],detection.right*mergeMapWidth[mapID]]], rectOptions)
                 mergeDrawnItems[mapID].addLayer(rect)
                 
+            } else if (detection.active == false) {
+                let inactiveRectOptions = {
+                    color: 'rgba(128,128,128,1)',
+                    fill: true,
+                    fillOpacity: 0.0,
+                    opacity: 0.8,
+                    weight:3,
+                    contextmenu: false,
+                }
+                rect = L.rectangle([[detection.top*mergeMapHeight[mapID],detection.left*mergeMapWidth[mapID]],[detection.bottom*mergeMapHeight[mapID],detection.right*mergeMapWidth[mapID]]], inactiveRectOptions)
+                mergeDrawnItems[mapID].addLayer(rect)
             }
         }
         finishedDisplaying[mapID] = true
@@ -5713,6 +5775,408 @@ $('#btnRestoreDetUnid').on('click', function() {
     }
 });
 
+function drawControlPrep() {
+    /** Event listeners for the draw control. */
+
+    map.on("draw:drawstart", function(e) {
+        if (map.contextmenu.isVisible()) {
+            map.contextmenu.hide()
+        }
+        editingEnabled = true
+    })
+
+    map.on("draw:drawstop", function(e) {
+        editingEnabled = false
+    })
+
+    map.on("draw:editstart", function(e) {
+        if (map.contextmenu.isVisible()) {
+            map.contextmenu.hide()
+        }
+        editingEnabled = true
+
+        drawControl._toolbars.edit._actionsContainer.children[0].firstElementChild.innerHTML = 'Finish'
+        drawControl._toolbars.edit._actionsContainer.children[0].firstElementChild.title = 'Accept changes'
+        
+        if (toolTipsOpen) {
+            for (let layer in drawnItems._layers) {
+                drawnItems._layers[layer].closeTooltip()
+            }
+        }
+    })
+
+    map.on("draw:editstop", function(e) {
+        editingEnabled = false
+        if (toolTipsOpen) {
+            for (let layer in drawnItems._layers) {
+                // update the tooltip position
+                var center = L.latLng([(drawnItems._layers[layer]._bounds._northEast.lat+drawnItems._layers[layer]._bounds._southWest.lat)/2,(drawnItems._layers[layer]._bounds._northEast.lng+drawnItems._layers[layer]._bounds._southWest.lng)/2])
+                var bottom = L.latLng([drawnItems._layers[layer]._bounds._southWest.lat,(drawnItems._layers[layer]._bounds._northEast.lng+drawnItems._layers[layer]._bounds._southWest.lng)/2])
+                var centerPoint = map.latLngToContainerPoint(center)
+                var bottomPoint = map.latLngToContainerPoint(bottom)
+                var offset = [0,centerPoint.y-bottomPoint.y]
+                drawnItems._layers[layer]._tooltip.options.offset = offset
+                drawnItems._layers[layer]._tooltip.options.opacity = 0.8
+                drawnItems._layers[layer].openTooltip()
+            }
+        }
+    })
+
+    map.on("draw:deletestart", function(e) {
+        if (map.contextmenu.isVisible()) {
+            map.contextmenu.hide()
+        }
+        editingEnabled = true
+        drawControl._toolbars.edit._actionsContainer.children[0].firstElementChild.innerHTML = 'Finish'
+        drawControl._toolbars.edit._actionsContainer.children[2].firstElementChild.innerHTML = 'Clear all'
+        drawControl._toolbars.edit._actionsContainer.children[0].firstElementChild.title = 'Accept changes'
+        drawControl._toolbars.edit._actionsContainer.children[2].firstElementChild.title = 'Remove all sightings'
+    })
+
+    map.on("draw:deletestop", function(e) {
+        editingEnabled = false
+    })
+
+    map.on('draw:created', function (e) {
+        var newLayer = e.layer;
+
+        drawnItems.addLayer(newLayer);  
+        dbDetIds[newLayer._leaflet_id] = 'n'+addDetCnt.toString()
+        addDetCnt+=1
+        let action = 'add'
+        let detection_edits = {}
+        let label = document.getElementById('speciesSelectIndividual').value
+        if (label != '' || label != null) {
+            detection_edits[dbDetIds[newLayer._leaflet_id]] = {
+                'label': label,
+                'top': newLayer.getBounds().getNorthEast().lat/mapHeight,
+                'bottom': newLayer.getBounds().getSouthWest().lat/mapHeight,
+                'left': newLayer.getBounds().getSouthWest().lng/mapWidth,
+                'right': newLayer.getBounds().getNorthEast().lng/mapWidth
+            }
+            submitSightingChangesIndividual(detection_edits, action)
+        } else {
+            //remove the layer
+            drawnItems.removeLayer(newLayer)
+            addDetCnt-=1
+            return
+        }
+
+    });
+
+    map.on('draw:edited', function(e) {
+
+        let action = 'edit'
+        let detection_edits = {}
+        var layers = e.layers
+        // traverse the event layers and get the detection ids
+        layers.eachLayer(function(layer) {
+            detection_edits[Number(dbDetIds[layer._leaflet_id])] = {
+                'bounding_box': {
+                    'top': layer.getBounds().getNorthEast().lat/mapHeight,
+                    'bottom': layer.getBounds().getSouthWest().lat/mapHeight,
+                    'left': layer.getBounds().getSouthWest().lng/mapWidth,
+                    'right': layer.getBounds().getNorthEast().lng/mapWidth
+                }
+            }
+        });
+        submitSightingChangesIndividual(detection_edits, action)
+
+    });
+
+    map.on('draw:deleted', function(e) {
+
+        let action = 'delete'
+        let detection_ids = []
+        // traverse the event layers and get the detection ids
+        var layers = e.layers
+        layers.eachLayer(function(layer) {
+                detection_ids.push(Number(dbDetIds[layer._leaflet_id]))
+        });
+
+        submitSightingChangesIndividual(detection_ids, action)
+
+    });
+}
+
+function submitSightingChangesIndividual(detection_edits, action) {
+    /** Submits the changes to the server. */
+    if (individualAccess != 'write') {
+        return;
+    }
+    console.log(detection_edits, action)
+    if (action == 'delete') {
+        individualImages[individualSplide.index].detections = individualImages[individualSplide.index].detections.filter(det => !detection_edits.includes(det.id))
+    } else if (action == 'edit') {
+        for (let i=0;i<individualImages[individualSplide.index].detections.length;i++) {
+            let det_id = individualImages[individualSplide.index].detections[i].id
+            if (detection_edits.hasOwnProperty(det_id)) {
+                if (detection_edits[det_id].hasOwnProperty('label')) {
+                    individualImages[individualSplide.index].detections[i].label = detection_edits[det_id].label
+                    individualImages[individualSplide.index].detections[i].labels = [detection_edits[det_id].label]
+                }
+                individualImages[individualSplide.index].detections[i].top = detection_edits[det_id].bounding_box.top
+                individualImages[individualSplide.index].detections[i].bottom = detection_edits[det_id].bounding_box.bottom
+                individualImages[individualSplide.index].detections[i].left = detection_edits[det_id].bounding_box.left
+                individualImages[individualSplide.index].detections[i].right = detection_edits[det_id].bounding_box.right
+            }
+        }
+    } else if (action == 'add') {
+        for (let detID in detection_edits) {
+            let add_dict = {
+                id: detID,
+                top: detection_edits[detID].top,
+                bottom: detection_edits[detID].bottom,
+                left: detection_edits[detID].left,
+                right: detection_edits[detID].right,
+                static: false,
+                flank: 'None',
+                active: false,
+                individual: '-1',
+                individual_name: '',
+            }
+            if (detection_edits[detID].hasOwnProperty('label')) {
+                add_dict.labels = [detection_edits[detID].label]
+            } else{
+                add_dict.labels = ['None']
+            }
+            individualImages[individualSplide.index].detections.push(add_dict)
+        }
+    } else if (action == 'label') {
+        for (let i=0;i<individualImages[individualSplide.index].detections.length;i++) {
+            let det_id = individualImages[individualSplide.index].detections[i].id
+            if (detection_edits.ids.includes(det_id)) {
+                if (individualImages[individualSplide.index].detections[i].labels.length == 1 && individualImages[individualSplide.index].detections[i].labels[0] == detection_edits.label){
+                    detection_edits.ids.splice(detection_edits.ids.indexOf(det_id), 1)
+                    continue
+                }
+                individualImages[individualSplide.index].detections[i].labels = [detection_edits.label]
+            }
+        }
+    }
+
+    // check if detection_edits is empty
+    switch (action) {
+        case 'label':
+            if (!detection_edits?.ids || detection_edits.ids.length == 0) {
+                return;
+            }
+            break;
+    
+        case 'edit':
+        case 'add':
+            if (!detection_edits || Object.keys(detection_edits).length == 0) {
+                return;
+            }
+            break;
+    
+        case 'delete':
+            if (!detection_edits || detection_edits.length == 0) {
+                return;
+            }
+            break;
+    }
+
+    var formData = new FormData();
+    formData.append('detection_edits', JSON.stringify(detection_edits));
+    formData.append('action', JSON.stringify(action));
+    formData.append('image_id', JSON.stringify(individualImages[individualSplide.index].id));
+    formData.append('individual_id', JSON.stringify(selectedIndividual));
+    console.log(detection_edits, action)
+    var xhttp = new XMLHttpRequest();
+    xhttp.open("POST", '/editSightingsGeneral/'+0);
+    xhttp.onreadystatechange =
+    function(wrapImageIndex,wrapAction){
+        return function() {
+            if (this.readyState == 4 && this.status == 200) {
+                let reply = JSON.parse(this.responseText)
+                console.log(reply)  
+                if (reply.status == 'success') {
+                    let detDbIDs = reply.detDbIDs
+
+                    for (let detID in detDbIDs) {
+                        for (let i=0;i<individualImages[wrapImageIndex].detections.length;i++) {
+                            if (individualImages[wrapImageIndex].detections[i].id==detID) {
+                                individualImages[wrapImageIndex].detections[i].id = detDbIDs[detID]
+                                for (let leafID in dbDetIds) {
+                                    if (dbDetIds[leafID]==detID) {
+                                        dbDetIds[leafID] = detDbIDs[detID].toString()
+                                        break
+                                    }
+                                }
+                                break
+                            }
+                        }
+                    }
+
+                    if (wrapAction == 'add' && wrapImageIndex == individualSplide.index) {
+                        addedDetections = false
+                        addDetectionsIndividual(individualImages[individualSplide.index])
+                    }
+                }
+            }
+        };
+    }(individualSplide.index, action);
+    xhttp.send(formData);
+}
+
+function fetchLabelHierarchyIndividual() {
+    /** Fetches the label hierarchy, and saves it in the labelHierarchy global. */
+    var xhttp = new XMLHttpRequest();
+    xhttp.onreadystatechange =
+    function(){
+        if (this.readyState == 4 && this.status == 200) {
+            let reply = JSON.parse(this.responseText);
+            labelHierarchy = reply.label_hierarchy;
+            overlapLabels = reply.overlap_labels;
+        }
+    }
+    xhttp.open("GET", '/getLabelHierarchyIndividual/'+selectedIndividual);
+    xhttp.send();
+}
+
+function submitindividualSpecies() {
+    /** Submits the changes to the individual's label. */
+    let newLabel = document.getElementById('speciesSelectIndividual').value
+    if (individualAccess != 'write' || newLabel == null || newLabel == '' || individualSpecies == newLabel) {
+        return;
+    }
+
+    let formData = new FormData();
+    formData.append('species', JSON.stringify(newLabel));
+
+    var xhttp = new XMLHttpRequest();
+    xhttp.open("POST", '/changeIndividualSpecies/'+selectedIndividual);
+    xhttp.onreadystatechange =
+    function(wrapNewLabel, wrapIndividualID){
+        return function() {
+            if (this.readyState == 4 && this.status == 200) {
+                let reply = JSON.parse(this.responseText);
+                if (reply.status == 'success') {
+                    if (wrapIndividualID == selectedIndividual) {
+                        individualSpecies = wrapNewLabel;
+                    }
+                }
+            }
+        }
+    }(newLabel, selectedIndividual);
+    xhttp.send(formData);
+}
+
+function buildContextMenu() {
+    /** Builds a new context menu with the updated list of global options. */
+
+    indexNum = 0
+    if (multiContextVal > 0) {
+        item = {
+            text: '▲',
+            index: indexNum,
+            callback: updateTargetRect
+        }
+        indexNum += 1
+        map.contextmenu.addItem(item)
+
+        item = {
+            separator: true,
+            index: indexNum,
+        }
+        indexNum += 1
+        map.contextmenu.addItem(item)
+    }
+
+    for (let i=0;i<subDividedContList[multiContextVal].length;i++) {
+        item = {
+            text: subDividedContList[multiContextVal][i],
+            index: indexNum,
+            callback: updateTargetRect
+        }
+        indexNum += 1
+        map.contextmenu.addItem(item)
+
+        if (i < subDividedContList[multiContextVal].length-1) {
+            item = {
+                separator: true,
+                index: indexNum,
+            }
+            indexNum += 1
+            map.contextmenu.addItem(item)
+        }
+    }
+
+    if (multiContextVal < subDividedContList.length-1) {
+        item = {
+            separator: true,
+            index: indexNum,
+        }
+        indexNum += 1
+        map.contextmenu.addItem(item)
+        
+        item = {
+            text: '▼',
+            index: indexNum,
+            callback: updateTargetRect
+        }
+        indexNum += 1
+        map.contextmenu.addItem(item)
+    }
+
+    map.contextmenu.showAt(contextLocation)
+}
+
+function plusFunc(labelText) {
+    /** 
+     * Function for handling user input from the species context menu, navigating the user through the hierarchical levels. 
+     * @param {str} labelText The name of the selected label
+    */
+    let imageTaskID = individualImages[individualSplide.index].task_id
+    currentLevel = JSON.parse(JSON.stringify(labelHierarchy[imageTaskID]))
+    for (let i=0;i<currentHierarchicalLevel.length;i++) {
+        currentLevel = JSON.parse(JSON.stringify(currentLevel[currentHierarchicalLevel[i]]))
+    }
+
+    if (labelText != '+') {
+        currentLevel = JSON.parse(JSON.stringify(currentLevel[labelText]))
+        currentHierarchicalLevel.push(labelText)
+    }
+
+    if (Object.keys(currentLevel).length==0) {
+        drawnItems._layers[targetRect].closeTooltip()
+        drawnItems._layers[targetRect]._tooltip._content=labelText
+        if (toolTipsOpen) {
+            drawnItems._layers[targetRect].openTooltip()
+        }
+        plusInProgress = false
+        currentHierarchicalLevel = []
+        map.contextmenu.removeAllItems()
+
+
+        let action = 'label'
+        let detection_edits = {
+            'ids': [Number(dbDetIds[targetRect])],
+            'label': labelText
+        }
+        submitSightingChangesIndividual(detection_edits, action)
+        
+    } else {
+        map.contextmenu.removeAllItems()
+        subDividedContList = []
+        tempList = []
+        counter = 0
+        for (let label in currentLevel) {
+            tempList.push(label)
+            counter += 1
+            if (counter==10) {
+                subDividedContList.push(tempList)
+                tempList = []
+                counter = 0
+            }
+        }
+        subDividedContList.push(tempList)
+        multiContextVal = 0
+        buildContextMenu()        
+    }
+}
+
 function onload(){
     /**Function for initialising the page on load.*/
     getAreas()
@@ -5729,6 +6193,7 @@ function onload(){
         cleanModalIndividual()
         selectedIndividual = paramIndividualID
         selectedIndividualName = paramIndividualName
+        fetchLabelHierarchyIndividual()
         console.log(selectedIndividual, selectedIndividualName)
         document.getElementById('openIndivSummary').click()
         //clean up url

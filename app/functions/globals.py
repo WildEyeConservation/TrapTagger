@@ -7655,3 +7655,12 @@ def crop_image_to_individual(detection_id,image_path,bbox_dict,min_size=200):
         app.logger.info(f'Error cropping image for detection {detection_id}: {e}')
 
     return True
+
+def get_all_keys(d):
+    '''Returns all the keys in a nested dictionary.'''
+    keys = []
+    for k, v in d.items():
+        keys.append(k)
+        if isinstance(v, dict):
+            keys.extend(get_all_keys(v))
+    return keys

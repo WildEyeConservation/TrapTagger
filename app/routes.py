@@ -872,14 +872,44 @@ def getIndividual(individual_id):
         survey_ids = []
         task_ids = [task.id for task in individual.tasks]
         if current_user.admin:
-            survey_ids = [r[0] for r in surveyPermissionsSQ(db.session.query(Survey.id).join(Task).filter(Task.id.in_(task_ids)),current_user.id, 'read').distinct().all()]
+            data = surveyPermissionsSQ(db.session.query(Survey.id,Task.id).join(Task).filter(Task.id.in_(task_ids)),current_user.id, 'read').distinct().all()
+            survey_ids = [d[0] for d in data]
+            task_ids = list(set([d[1] for d in data]))
         elif current_user.parent_id:
-            survey_ids = [r[0] for r in annotationPermissionSQ(db.session.query(Survey.id).join(Task).filter(Task.id.in_(task_ids)),current_user.parent_id).distinct().all()]  
+            data = annotationPermissionSQ(db.session.query(Survey.id).join(Task).filter(Task.id.in_(task_ids)),current_user.parent_id).distinct().all()
+            survey_ids = [d[0] for d in data]
+            task_ids = list(set([d[1] for d in data]))
 
-        images = db.session.query(
-                        Image.id,
-                        Image.filename,
-                        Image.corrected_timestamp,
+        imageSQ = db.session.query(Image.id).join(Detection).join(Individual,Detection.individuals).filter(Individual.id==individual_id).subquery()
+
+        # images = db.session.query(
+        #                 Image.id,
+        #                 Image.filename,
+        #                 Image.corrected_timestamp,
+        #                 Detection.id,
+        #                 Detection.static,
+        #                 Detection.top,
+        #                 Detection.left,
+        #                 Detection.right,
+        #                 Detection.bottom,
+        #                 Detection.flank,
+        #                 Camera.path,
+        #                 Trapgroup.id,
+        #                 Trapgroup.tag,
+        #                 Trapgroup.latitude,
+        #                 Trapgroup.longitude,
+        #                 Trapgroup.altitude
+        #             )\
+        #             .join(Detection)\
+        #             .join(Camera)\
+        #             .join(Trapgroup)\
+        #             .filter(Detection.individuals.contains(individual))\
+        #             .filter(or_(and_(Detection.source==model,Detection.score>Config.DETECTOR_THRESHOLDS[model]) for model in Config.DETECTOR_THRESHOLDS))\
+        #             .filter(Detection.static==False)\
+        #             .filter(~Detection.status.in_(Config.DET_IGNORE_STATUSES))\
+        #             .filter(Trapgroup.survey_id.in_(survey_ids))
+
+        images = rDets(db.session.query(
                         Detection.id,
                         Detection.static,
                         Detection.top,
@@ -887,21 +917,32 @@ def getIndividual(individual_id):
                         Detection.right,
                         Detection.bottom,
                         Detection.flank,
+                        Image.id,
+                        Image.filename,
+                        Image.corrected_timestamp,
                         Camera.path,
                         Trapgroup.id,
                         Trapgroup.tag,
                         Trapgroup.latitude,
                         Trapgroup.longitude,
-                        Trapgroup.altitude
+                        Trapgroup.altitude,
+                        Label.description,
+                        Individual.id,
+                        Individual.name,
+                        Labelgroup.task_id
                     )\
-                    .join(Detection)\
-                    .join(Camera)\
-                    .join(Trapgroup)\
-                    .filter(Detection.individuals.contains(individual))\
-                    .filter(or_(and_(Detection.source==model,Detection.score>Config.DETECTOR_THRESHOLDS[model]) for model in Config.DETECTOR_THRESHOLDS))\
-                    .filter(Detection.static==False)\
-                    .filter(~Detection.status.in_(Config.DET_IGNORE_STATUSES))\
-                    .filter(Trapgroup.survey_id.in_(survey_ids))
+                    .join(Image,Image.id==Detection.image_id)\
+                    .join(imageSQ,imageSQ.c.id==Image.id)\
+                    .join(Camera,Camera.id==Image.camera_id)\
+                    .join(Trapgroup,Trapgroup.id==Camera.trapgroup_id)\
+                    .join(Labelgroup,Labelgroup.detection_id==Detection.id)\
+                    .join(Label,Labelgroup.labels)\
+                    .outerjoin(Individual,Detection.individuals)\
+                    .outerjoin(Task,Individual.tasks)
+                    .filter(imageSQ.c.id!=None)\
+                    .filter(Labelgroup.task_id.in_(task_ids))\
+                    .filter(Trapgroup.survey_id.in_(survey_ids))\
+                    .filter(or_(Task.id.in_(task_ids),Task.id==None)))\
 
         if site != '0':
             images = images.filter(Trapgroup.tag==site)
@@ -927,38 +968,92 @@ def getIndividual(individual_id):
 
         images = images.distinct().all()
 
+        # for image in images:
+        #     image_id = image[0]
+        #     filename = image[1]
+        #     timestamp = stringify_timestamp(image[2])
+        #     detection_id = image[3]
+        #     static = image[4]
+        #     top = image[5]
+        #     left = image[6]
+        #     right = image[7]
+        #     bottom = image[8]
+        #     flank = Config.FLANK_TEXT[image[9]].capitalize()
+        #     path = image[10]
+        #     trapgroup_id = image[11]
+        #     tag = image[12]
+        #     latitude = image[13]
+        #     longitude = image[14]
+        #     altitude = image[15]
+        #     video_url = None
+
+        #     reply.append({
+        #         'id': image_id,
+        #         'url': (path + '/' + filename).replace('+','%2B').replace('?','%3F').replace('#','%23').replace('\\','%5C'),
+        #         'video_url': video_url,
+        #         'timestamp': timestamp,
+        #         'trapgroup':{
+        #             'id': trapgroup_id,
+        #             'tag': tag,
+        #             'latitude': latitude,
+        #             'longitude': longitude,
+        #             'altitude': altitude
+        #         },
+        #         'detections': [{
+        #             'id': detection_id,
+        #             'static': static,
+        #             'top': top,
+        #             'left': left,
+        #             'right': right,
+        #             'bottom': bottom,
+        #             'flank': flank,
+        #             'active': True
+        #         }]
+        #     })
+
+        image_data = {}
         for image in images:
-            image_id = image[0]
-            filename = image[1]
-            timestamp = stringify_timestamp(image[2])
-            detection_id = image[3]
-            static = image[4]
-            top = image[5]
-            left = image[6]
-            right = image[7]
-            bottom = image[8]
-            flank = Config.FLANK_TEXT[image[9]].capitalize()
+            detection_id = image[0]
+            static = image[1]
+            top = image[2]
+            left = image[3]
+            right = image[4]
+            bottom = image[5]
+            flank = Config.FLANK_TEXT[image[6]].capitalize()
+            image_id = image[7]
+            filename = image[8]
+            timestamp = stringify_timestamp(image[9])
             path = image[10]
             trapgroup_id = image[11]
             tag = image[12]
             latitude = image[13]
             longitude = image[14]
             altitude = image[15]
+            label = image[16]
+            det_indiv = image[17]
+            indiv_name = image[18]
             video_url = None
+            tsk_id = image[19]
 
-            reply.append({
-                'id': image_id,
-                'url': (path + '/' + filename).replace('+','%2B').replace('?','%3F').replace('#','%23').replace('\\','%5C'),
-                'video_url': video_url,
-                'timestamp': timestamp,
-                'trapgroup':{
-                    'id': trapgroup_id,
-                    'tag': tag,
-                    'latitude': latitude,
-                    'longitude': longitude,
-                    'altitude': altitude
-                },
-                'detections': [{
+            if image_id not in image_data:
+                image_data[image_id] = {
+                    'id': image_id,
+                    'url': (path + '/' + filename).replace('+','%2B').replace('?','%3F').replace('#','%23').replace('\\','%5C'),
+                    'video_url': video_url,
+                    'timestamp': timestamp,
+                    'trapgroup':{
+                        'id': trapgroup_id,
+                        'tag': tag,
+                        'latitude': latitude,
+                        'longitude': longitude,
+                        'altitude': altitude
+                    },
+                    'detections': {},
+                    'task_id': tsk_id
+                }
+            
+            if detection_id not in image_data[image_id]['detections']:
+                image_data[image_id]['detections'][detection_id] = {
                     'id': detection_id,
                     'static': static,
                     'top': top,
@@ -966,9 +1061,19 @@ def getIndividual(individual_id):
                     'right': right,
                     'bottom': bottom,
                     'flank': flank,
-                    'active': True
-                }]
-            })
+                    'labels': [label],
+                    'individual': det_indiv if det_indiv else '-1',
+                    'individual_name': indiv_name if indiv_name else '',
+                    'active': True if det_indiv and det_indiv == individual_id else False
+                }
+            else:
+                if label and label not in image_data[image_id]['detections'][detection_id]['labels']:
+                    image_data[image_id]['detections'][detection_id]['labels'].append(label)
+
+        for image_id in image_data:
+            image_data[image_id]['detections'] = list(image_data[image_id]['detections'].values())
+
+        reply = list(image_data.values())
 
         if survey_ids:
             # access = 'write' if all(checkSurveyPermission(current_user.id,task.survey_id,'write') for task in individual.tasks) else 'read'
@@ -2892,6 +2997,7 @@ def getPolarDataIndividual(individual_id, baseUnit):
     end_date = ast.literal_eval(request.form['end_date'])
 
     individual = db.session.query(Individual).get(int(individual_id))
+    if not individual: return json.dumps({'data':reply})
 
     survey_ids = []
     for task in individual.tasks:
@@ -3172,6 +3278,7 @@ def getBarDataIndividual():
     data = []
     labels = []
     individual = db.session.query(Individual).get(int(individual_id))
+    if not individual: return json.dumps({'data':[],'labels':[]})
 
     survey_ids = []
     for task in individual.tasks:
@@ -7443,6 +7550,8 @@ def getCoordsIndividual(individual_id):
     trapgroups = []
     trapgroups_data = []
 
+    if not individual: return json.dumps({'trapgroups':[]})
+
     for task in individual.tasks:
         if checkSurveyPermission(current_user.id,task.survey_id,'read'):
             trapgroups.extend(task.survey.trapgroups)
@@ -10984,13 +11093,13 @@ def getIndividualAssociations(individual_id, order):
     page = request.args.get('page', 1, type=int)
     next_page = None
     prev_page = None 
-
-    individual = db.session.query(Individual).get(individual_id)
-
     reply = []
-
     task_ids = []
     survey_ids = []
+
+    individual = db.session.query(Individual).get(individual_id)
+    if not individual: return json.dumps({'associations': reply, 'next': next_page, 'prev': prev_page})
+
     for task in individual.tasks:
         if checkSurveyPermission(current_user.id,task.survey_id,'read'):
             task_ids.append(task.id)
@@ -11532,6 +11641,7 @@ def getLineDataIndividual():
     data = []
     data_labels = []
     individual = db.session.query(Individual).get(individual_id)
+    if not individual: return json.dumps({'data':[],'labels':[]})
 
     survey_ids = []
     task_ids = []
@@ -16987,7 +17097,7 @@ def getIndividualFlankDets(individual_id, flank):
     reply = []
     individual = db.session.query(Individual).get(individual_id)
     if not (individual and individual.active and (all(checkSurveyPermission(current_user.id,task.survey_id,'read') for task in individual.tasks) or all(checkAnnotationPermission(current_user.parent_id,task.id) for task in individual.tasks))):
-        return json.dumps({'status': 'error', 'message': 'You do not have permission.'})
+        return json.dumps({'status': 'error', 'data': reply})
 
     prim_det_sq = db.session.query(Detection.id)\
                         .join(Individual, Detection.primary_individuals)\
@@ -17843,6 +17953,16 @@ def editSightingsGeneral(task_id):
         explore = ast.literal_eval(request.form['explore'])
         if explore == 'true': explore = True
 
+    if 'individual_id' in request.form:
+        individual_id = ast.literal_eval(request.form['individual_id'])
+        task = db.session.query(Task).join(Individual,Task.individuals).join(Detection,Individual.detections).filter(Individual.id==individual_id).filter(Detection.image_id==image_id).first()
+        if task and task.status.lower() in Config.TASK_READY_STATUSES:
+            task_id = task.id
+        else:
+            return json.dumps({'status':'error'})
+    else:
+        individual_id = None
+
     if current_user.admin == False:    
         task_id = current_user.turkcode[0].task_id
 
@@ -18032,7 +18152,7 @@ def editSightingsGeneral(task_id):
                     'label': [l.description for l in detectionLabels] if detectionLabels else ['None'], 
                     'label_ids': [l.id for l in detectionLabels] if detectionLabels else ['0']
                 }
-                if explore: 
+                if explore or individual_id: 
                     annotator = current_user.username
                     GLOBALS.redisClient.sadd('tasks_to_update_status',cluster.task_id)
 
@@ -18174,7 +18294,9 @@ def changeIndividualSpecies(individual_id):
 
     individual = db.session.query(Individual).get(individual_id)
     species = ast.literal_eval(request.form['species'])
+    app.logger.info(f'Changing individual species: {individual_id} to {species}')
     if individual and individual.active and (all(checkSurveyPermission(current_user.id,task.survey_id,'write') for task in individual.tasks) or all(checkAnnotationPermission(current_user.parent_id,task.id) for task in individual.tasks)):
+        if individual.species == species: return json.dumps({'status':'success'})
         st = time.time()
         status = 'success'
         task_ids = [r.id for r in individual.tasks]
@@ -18215,3 +18337,32 @@ def changeIndividualSpecies(individual_id):
 
         return json.dumps({'status':status})
     return json.dumps({'status':'error'})
+
+@app.route('/getLabelHierarchyIndividual/<individual_id>')
+@login_required
+def getLabelHierarchyIndividual(individual_id):
+    '''Returns the label hierarchy for the given individual.'''
+    
+    reply = {}
+    overlap_labels = []
+    individual = db.session.query(Individual).get(individual_id)
+
+    if individual and all(checkSurveyPermission(current_user.id,task.survey_id,'read') for task in individual.tasks):
+        vhl_label = db.session.query(Label).get(GLOBALS.vhl_id)
+        unknown_label = db.session.query(Label).get(GLOBALS.unknown_id)
+        for task in individual.tasks:
+            parentLabels = db.session.query(Label).filter(Label.task_id==task.id).filter(Label.parent_id==None).all()
+            parentLabels.append(vhl_label)
+            parentLabels.append(unknown_label)
+            reply[task.id] = {}
+            reply[task.id] = addChildToDict(parentLabels,reply[task.id],task.id)
+            if overlap_labels:
+                overlap_labels = list(set(overlap_labels) & set(get_all_keys(reply[task.id])))
+            else:
+                overlap_labels = get_all_keys(reply[task.id])
+            if vhl_label.description in overlap_labels: overlap_labels.remove(vhl_label.description)
+            if unknown_label.description in overlap_labels: overlap_labels.remove(unknown_label.description)
+
+        if overlap_labels: overlap_labels.sort()
+
+    return json.dumps({'label_hierarchy': reply, 'overlap_labels': overlap_labels})

@@ -36,6 +36,7 @@ function cleanModalIndividual() {
     mapWidth = null
     mapHeight = null
     map = null
+    addedDetections = false
 }
 
 modalIndividual.on('hidden.bs.modal', function(){

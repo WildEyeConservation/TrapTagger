@@ -13,6 +13,7 @@
 // limitations under the License.
 
 const detection_flanks = ['Left','Right','Ambiguous']
+const inactiveMenuItems = ['EDIT', 'DELETE', 'LABEL']
 var targetRect = null
 var targetUpdated = false
 var dbDetIds = {}
@@ -165,7 +166,7 @@ function addDetectionsIndividual(image) {
         drawnItems.clearLayers()
         for (let i=0;i<image.detections.length;i++) {
             detection = image.detections[i]
-            if (detection.static == false) {
+            if (detection.static == false && detection.active == true) {
                 rectOptions.color = "rgba(223,105,26,1)"
                 rect = L.rectangle([[detection.top*mapHeight,detection.left*mapWidth],[detection.bottom*mapHeight,detection.right*mapWidth]], rectOptions)
                 drawnItems.addLayer(rect)
@@ -190,11 +191,76 @@ function addDetectionsIndividual(image) {
                     rect.openTooltip()
 
                     dbDetIds[rect._leaflet_id.toString()] = detection.id.toString()
+
+                    rect.on('contextmenu', function(e) {
+                        isActiveContextMenu = true
+                    });
+                }
+            } else if (detection.active == false) {
+                let inactiveRectOptions = {
+                    color: 'rgba(128,128,128,1)',
+                    fill: true,
+                    fillOpacity: 0.0,
+                    opacity: 0.8,
+                    weight:3,
+                    contextmenu: true,
+                    contextmenuItems: inactiveMenuItems
+                } 
+                rect = L.rectangle([[detection.top*mapHeight,detection.left*mapWidth],[detection.bottom*mapHeight,detection.right*mapWidth]], inactiveRectOptions)
+                drawnItems.addLayer(rect)
+
+                if (document.getElementById('btnSubmitInfoChange') != null && !(modalUnidentifiable.is(':visible')||unidentifiableOpen)) {
+                    let tooltipContent = detection.labels.join(', ')
+                    if (detection.individual!='-1') {
+                        tooltipContent += ' ' + detection.individual_name
+                    }
+                    rect.bindTooltip(tooltipContent,{permanent: true, direction:"center"})
+                    var center = L.latLng([(rect._bounds._northEast.lat+rect._bounds._southWest.lat)/2,(rect._bounds._northEast.lng+rect._bounds._southWest.lng)/2])
+                    var bottom = L.latLng([rect._bounds._southWest.lat,(rect._bounds._northEast.lng+rect._bounds._southWest.lng)/2])
+                    var centerPoint = map.latLngToContainerPoint(center)
+                    var bottomPoint = map.latLngToContainerPoint(bottom)
+                    var offset = [0,centerPoint.y-bottomPoint.y]
+                    rect._tooltip.options.offset = offset
+                    rect._tooltip.options.opacity = 0.8
+                    rect.openTooltip()
+
+                    dbDetIds[rect._leaflet_id.toString()] = detection.id.toString()
+
+                    // if the detection is associated with an individual, add a click event listener to the rect to open the individual modal
+                    if (detection.individual!='-1') {
+                        rect.addEventListener('dblclick', function(individualID,individualName){
+                            return function() {
+                                associationClick = true
+                                associationID = individualID
+                                associationName = individualName
+                                if (unsavedChanges) {
+                                    modalIndividual.modal('hide')
+                                } else {
+                                    map.remove()
+                                    cleanModalIndividual()
+                                    // getIndividual(individualID,individualName, true)
+                                    selectedIndividual = individualID
+                                    selectedIndividualName = individualName
+                                    
+                                    document.getElementById('openIndivSummary').click()
+                                    modalIndividual.scrollTop(0)
+                                }
+                            }
+                        }(detection.individual,detection.individual_name));
+                    }
+
+                    rect.on('contextmenu', function(e) {
+                        isActiveContextMenu = false
+                    });
                 }
             }
         }
         finishedDisplaying = true
         addedDetections = true
+        if (drawControl != null) {
+            drawControl._toolbars.edit._toolbarContainer.firstElementChild.title = 'Edit sightings'
+            drawControl._toolbars.edit._toolbarContainer.lastElementChild.title = 'Delete sightings' 
+        }
     }
 }
 
@@ -304,7 +370,7 @@ function prepMapIndividual(image) {
 
             if (document.getElementById('btnSubmitInfoChange') != null && !(modalUnidentifiable.is(':visible')||unidentifiableOpen)){
                 updateIndividualRectOptions()
-                flankMapPrep()
+                individualMapPrep()
             }
             else{
                 rectOptions = {
@@ -423,7 +489,7 @@ function updateMapIndividual( url){
             
             if (document.getElementById('btnSubmitInfoChange') != null && !(modalUnidentifiable.is(':visible')||unidentifiableOpen)) {
                 updateIndividualRectOptions()
-                flankMapPrep()
+                individualMapPrep()
             }
             else{
                 rectOptions = {
@@ -690,32 +756,77 @@ function removeIndividualEventListeners() {
     document.getElementById('btnContinueIndividualAlert').removeEventListener('click', restoreUnidSighting)
 }
 
-// NOTE: We are currenlty not allowing the users to edit a detection flank on the Individuals page and it can only be edited 
-// in a Cluster ID (-4 task). The reason we have disallowed this is because of having to recalculate all detection similarities 
-// and individual similaties associated with the detection whose flank has changed. 
-
-function flankMapPrep() {
+function individualMapPrep() {
     /** Finishes prepping the map for intra-cluster individual ID by adding the dissociate option to the context menu. */
 
     map.on('contextmenu.select', function(e) {
         if (targetUpdated) {  
-            detection_id = dbDetIds[targetRect.toString()]
-            original_flank = individualImages[individualSplide.index].detections[0].flank
-            if (original_flank != e.el.textContent) {
-                changed_flanks[detection_id] = e.el.textContent
-                unsavedChanges = true
-            }
-            else{
-                delete changed_flanks[detection_id]
-            }
-            
-            drawnItems._layers[targetRect].closeTooltip()
-            drawnItems._layers[targetRect]._tooltip._content=e.el.textContent
-            if (toolTipsOpen) {
-                drawnItems._layers[targetRect].openTooltip()
-            }
+            if (isActiveContextMenu) {
+                detection_id = dbDetIds[targetRect.toString()]
+                original_flank = individualImages[individualSplide.index].detections[0].flank
+                if (original_flank != e.el.textContent) {
+                    changed_flanks[detection_id] = e.el.textContent
+                    unsavedChanges = true
+                }
+                else{
+                    delete changed_flanks[detection_id]
+                }
+                
+                drawnItems._layers[targetRect].closeTooltip()
+                drawnItems._layers[targetRect]._tooltip._content=e.el.textContent
+                if (toolTipsOpen) {
+                    drawnItems._layers[targetRect].openTooltip()
+                }
 
-            targetUpdated = false
+                targetUpdated = false
+            } else {
+                if (e.el.textContent=='▼') {
+                    multiContextVal += 1
+                    map.contextmenu.removeAllItems()
+                    buildContextMenu()  
+                } else if (e.el.textContent=='▲') {
+                    multiContextVal -= 1
+                    map.contextmenu.removeAllItems()
+                    buildContextMenu()  
+                } 
+                else if (e.el.textContent=='EDIT') {
+                    let handled = false
+                    if (drawControl._toolbars.edit._activeMode) {
+                        if (drawControl._toolbars.edit._activeMode.buttonIndex==0) {//edit active
+                            drawControl._toolbars.edit._actionsContainer.lastElementChild.firstElementChild.click()
+                            handled = true
+                        }
+                    }
+                    if (!handled) {
+                        drawControl._toolbars.edit._modes.edit.handler.enable()
+                    }
+                } else if (e.el.textContent=='DELETE') {
+                    // immediately delete the bounding box
+                    drawnItems.removeLayer(drawnItems._layers[targetRect])
+                    let action = 'delete'
+                    let detection_ids = [Number(dbDetIds[targetRect])]
+                    submitSightingChangesIndividual(detection_ids, action)
+                } else if (e.el.textContent=='LABEL') {
+                    plusInProgress = true
+                    plusFunc('+')
+                } else {
+                    drawnItems._layers[targetRect].closeTooltip()
+                    drawnItems._layers[targetRect]._tooltip._content=e.el.textContent
+                    if (toolTipsOpen) {
+                        drawnItems._layers[targetRect].openTooltip()
+                    }
+                    plusInProgress = false
+                    currentHierarchicalLevel = []
+
+                    let action = 'label'
+                    let detection_edits = {
+                        'ids': [Number(dbDetIds[targetRect])],
+                        'label': e.el.textContent
+                    }
+                    submitSightingChangesIndividual(detection_edits, action)
+                }
+                targetUpdated = false
+            }
         } else {
             alert('Error! Select is being handled before target updated.')
         }
@@ -723,14 +834,7 @@ function flankMapPrep() {
 
     map.on('contextmenu', function (e) {
         /** remove duplicate items on more than one right click of contextmenu*/
-        nr_items = 2*detection_flanks.length - 1
-
-        if(map.contextmenu._items.length > nr_items){
-            for (let i=map.contextmenu._items.length-1;i>nr_items-1;i--) 
-            {
-                map.contextmenu.removeItem(i)
-            }
-        } 
+        rebuildContextMenu(isActiveContextMenu)
     });
 
     map.on('zoom', function(e){
@@ -747,6 +851,55 @@ function flankMapPrep() {
             }
         }
     });
+}
+
+function rebuildContextMenu(isActiveDet=true){
+    /** Rebuilds the context menu for the individual modal. */
+
+    var menuItems = []
+    var index = 0
+    if (individualAccess == 'write') {
+        if (isActiveDet) {
+            for (let i=0;i<detection_flanks.length;i++) {
+                menuItems.push({
+                    text: detection_flanks[i],
+                    index: index,
+                    callback: updateTargetRect
+                })
+                index += 1
+
+                if (i < detection_flanks.length-1) {
+                    menuItems.push({
+                        separator: true,
+                        index: index
+                    })
+                    index += 1
+                }
+            }
+        } else {
+            for (let i=0;i<inactiveMenuItems.length;i++) {
+                menuItems.push({
+                    text: inactiveMenuItems[i],
+                    index: index,
+                    callback: updateTargetRect
+                })
+                index += 1
+
+                if (i < inactiveMenuItems.length-1) {
+                    menuItems.push({
+                        separator: true,
+                        index: index
+                    })
+                    index += 1
+                }
+            }
+        }
+    }
+
+    map.contextmenu.removeAllItems()
+    for (let item of menuItems) {
+        map.contextmenu.addItem(item)
+    }
 }
 
 function updateIndividualRectOptions() {
@@ -779,6 +932,35 @@ function updateIndividualRectOptions() {
         contextmenu: true,
         contextmenuWidth: 140,
         contextmenuItems: menuItems
+    }
+    
+    if (drawControl != null) {
+        drawControl.remove()
+    }
+
+    if (individualAccess == 'write') {
+        drawControl = new L.Control.Draw({
+            draw: {
+                polygon: false,
+                polyline: false,
+                circle: false,
+                circlemarker: false,
+                marker: false,
+                rectangle: {
+                    shapeOptions: rectOptions,
+                    showArea: false
+                }
+            },
+            edit: {
+                featureGroup: drawnItems
+            }
+        });
+        map.addControl(drawControl);
+        drawControl._toolbars.draw._toolbarContainer.firstElementChild.title = 'Add a sighting'
+
+        drawControlPrep()
+    } else {
+        drawControl = null
     }
 }
 
