@@ -258,6 +258,9 @@ function buildBoundingKeys(mapID='map1'){
 
     current_labels = boundingClusterLabels[clusters[mapID][clusterIndex[mapID]].id]
     current_labels.sort();
+    if (current_labels.includes('None')) {
+        current_labels.splice(current_labels.indexOf('None'), 1)
+    }
     for (let i=0;i<current_labels.length;i++) {
 
         var newbtn = document.createElement('button');

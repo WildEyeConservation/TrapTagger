@@ -878,7 +878,7 @@ function addDetections(mapID = 'map1') {
             addDetCnt = 1
         }
         image = currentImage[mapID]
-        if(!isIDing || document.getElementById('btnSendToBack')!=null||image.detections.length == 0||(image.detections.length >0 && image.detections[0].individual.active == false)){
+        if(!isIDing || document.getElementById('btnSendToBack')!=null||image.detections.length == 0||(image.detections.length == 1 && image.detections[0].active == false)){
             map[mapID].setZoom(map[mapID].getMinZoom())
         }
         fullRes[mapID] = false
@@ -894,7 +894,7 @@ function addDetections(mapID = 'map1') {
         if (isBounding) {
             drawControl._toolbars.edit._toolbarContainer.firstElementChild.title = '(E)dit sightings'
             drawControl._toolbars.edit._toolbarContainer.lastElementChild.title = '(D)elete sightings'
-        } else if (isIDing) {
+        } else if (isIDing && mapID!='known') {
             drawControl[mapID]._toolbars.edit._toolbarContainer.firstElementChild.title = 'Edit sightings'
             drawControl[mapID]._toolbars.edit._toolbarContainer.lastElementChild.title = 'Delete sightings'
         } else if (isReviewing||(isTagging&&!isTutorial&&!maskMode&&!isIDing)) {
@@ -2083,7 +2083,7 @@ function nextCluster(mapID = 'map1') {
                 preLoadCount = 20
             }
         
-            if ((clusterIndex[mapID]>clusters[mapID].length-preLoadCount)&&(clusters[mapID][clusters[mapID].length-1].id != '-101')) {
+            if ((clusterIndex[mapID]>clusters[mapID].length-preLoadCount)&&((clusters[mapID].length > 0)&&(clusters[mapID][clusters[mapID].length-1].id != '-101'))) {
                 if (!waitingForClusters[mapID]) {
                     loadNewCluster(mapID)
                 }
@@ -4632,8 +4632,13 @@ function submitSightingChanges(detection_edits, action, mapID = 'map1') {
                 add_dict.label = detection_edits[detID].label
                 add_dict.labels = [detection_edits[detID].label]
             } else{
-                add_dict.label = 'None'
-                add_dict.labels = ['None']
+                if (clusters[mapID][clusterIndex[mapID]].label.length == 0 || clusters[mapID][clusterIndex[mapID]].label.includes('None')) {
+                    add_dict.label = 'None'
+                    add_dict.labels = ['None']
+                } else {
+                    add_dict.label = clusters[mapID][clusterIndex[mapID]].label[0]
+                    add_dict.labels = clusters[mapID][clusterIndex[mapID]].label
+                }
             }
             clusters[mapID][clusterIndex[mapID]].images[imageIndex[mapID]].detections.push(add_dict)
         }
@@ -4667,7 +4672,7 @@ function submitSightingChanges(detection_edits, action, mapID = 'map1') {
                             }
                         }
                     } else {
-                        if (clusters[mapID][clusterIndex[mapID]].images[imageIndex[mapID]].detections[i].individual != '-1') {
+                        if (clusters[mapID][clusterIndex[mapID]].images[imageIndex[mapID]].detections[i].individual != '-1' && document.getElementById('btnSendToBack')!=null) {
                             let individualID = clusters[mapID][clusterIndex[mapID]].images[imageIndex[mapID]].detections[i].individual
                             individuals[individualIndex][individualID].detections.splice(individuals[individualIndex][individualID].detections.indexOf(det_id), 1)
                             individuals[individualIndex][individualID].images.splice(individuals[individualIndex][individualID].images.indexOf(clusters[mapID][clusterIndex[mapID]].images[imageIndex[mapID]].id), 1)

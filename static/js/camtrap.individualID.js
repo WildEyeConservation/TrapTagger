@@ -4912,17 +4912,14 @@ function buildSpeciesKeys(level=null){
 
 function applyLabelToSighting(label) {
     /** Applies the label to the selected sighting. */
-    console.log('applyLabelToSighting', label)
     if (speciesRect){
         let leafletID = speciesRect._leaflet_id
-        console.log('leafletID', leafletID)
         let detectionID = null
         let mapID = null
         for (let map_id in map) {
             if (Object.keys(dbDetIds[map_id]).includes(leafletID.toString())) {
                 detectionID = dbDetIds[map_id][leafletID]
                 mapID = map_id
-                console.log('detectionID', detectionID)
                 break
             }
         }
@@ -4933,14 +4930,12 @@ function applyLabelToSighting(label) {
             }
             submitSightingChanges(detection_edits, 'label', mapID)
         }
-        
     }
     activateSpecies()
 }
 
 function applyLabelToCluster(label) {
     /** Applies the label to the selected cluster. */
-    console.log('applyLabelToCluster', label)
     if (speciesMode && speciesRect){
         clusters['map1'][clusterIndex['map1']].ready = false
         // There may be multiple clusters within the same clusters object (merged if timestamp difference within 30mins)
@@ -4955,7 +4950,6 @@ function applyLabelToCluster(label) {
                     window.location.replace(JSON.parse(this.responseText)['redirect'])
                 } else if (this.readyState == 4 && this.status == 200) {
                     let reply = JSON.parse(this.responseText);  
-                    console.log(reply)
                     if (reply.status=='success') {
                         let cluster_labels = reply.cluster_labels;
                         let species = taggingLevel.split(',')[1];
@@ -5001,7 +4995,6 @@ function applyLabelToCluster(label) {
 
 function applyLabelToIndividual(label) {
     /** Applies the label to the selected individual. */
-    console.log('applyLabelToIndividual', label)
     if (speciesMode && speciesRect){
         let leafletID = speciesRect._leaflet_id
         let mapID = null
@@ -5019,6 +5012,10 @@ function applyLabelToIndividual(label) {
             //remove cluster object from clusters
             clusters[mapID].splice(clusterIndex[mapID], 1);
             clusterIndex[mapID]--;
+            if (clusterIndex[mapID] < 0) {
+                clusterIndex[mapID] = 0;
+            }
+            sliderIndex[mapID] = '-1';
             activateSpecies();
             if (mapID == 'map1') {
                 idNextCluster();

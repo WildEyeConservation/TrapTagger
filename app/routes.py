@@ -876,7 +876,7 @@ def getIndividual(individual_id):
             survey_ids = [d[0] for d in data]
             task_ids = list(set([d[1] for d in data]))
         elif current_user.parent_id:
-            data = annotationPermissionSQ(db.session.query(Survey.id).join(Task).filter(Task.id.in_(task_ids)),current_user.parent_id).distinct().all()
+            data = annotationPermissionSQ(db.session.query(Survey.id,Task.id).join(Task).filter(Task.id.in_(task_ids)),current_user.parent_id).distinct().all()
             survey_ids = [d[0] for d in data]
             task_ids = list(set([d[1] for d in data]))
 
@@ -18133,14 +18133,24 @@ def editSightingsGeneral(task_id):
                     labelgroup.checked = True
                 changed_labels = True
 
-                individual_mismatch_checks = [r[0] for r in db.session.query(Cluster.id)\
-                                                        .join(Image,Cluster.images)\
-                                                        .join(Detection,Image.detections)\
-                                                        .join(Individual,Detection.individuals)\
-                                                        .filter(Detection.id.in_(detection_edits['ids']))\
-                                                        .filter(Cluster.task_id==task.id)\
-                                                        .filter(Individual.species!=db_label.description)\
-                                                        .distinct().all()]
+                if not current_user.admin and ('-5' in task.tagging_level):
+                    detections = db.session.query(Detection).filter(Detection.id.in_(detection_edits['ids'])).filter(Detection.individuals.any()).all()
+                    for detection in detections:
+                        individuals = db.session.query(Individual).join(Task,Individual.tasks).join(Detection,Individual.detections).filter(Detection.id==detection.id).filter(Task.id==task.id).filter(Individual.species!=db_label.description).all()
+                        for individual in individuals:
+                            individual.detections.remove(detection)
+                            if detection in individual.primary_detections: individual.primary_detections.remove(detection)
+                            if len(individual.detections) == 0:
+                                individual.active = False
+                else:
+                    individual_mismatch_checks = [r[0] for r in db.session.query(Cluster.id)\
+                                                            .join(Image,Cluster.images)\
+                                                            .join(Detection,Image.detections)\
+                                                            .join(Individual,Detection.individuals)\
+                                                            .filter(Detection.id.in_(detection_edits['ids']))\
+                                                            .filter(Cluster.task_id==task.id)\
+                                                            .filter(Individual.species!=db_label.description)\
+                                                            .distinct().all()]
         
         image = db.session.query(Image).get(image_id)
         if image:

@@ -453,8 +453,6 @@ function getIndividual(individualID, individualName, association=false, order_va
     selectedIndividual = individualID
     selectedIndividualName = individualName
 
-    fetchLabelHierarchyIndividual()
-
     var formData = new FormData()
     formData.append("order", JSON.stringify(order_value))
     formData.append("site", JSON.stringify(site))
@@ -468,7 +466,7 @@ function getIndividual(individualID, individualName, association=false, order_va
             reply = JSON.parse(this.responseText);
             individualImages = reply.individual
             individualAccess = reply.access
-
+            fetchLabelHierarchyIndividual()
             if (individualAccess == 'write' || individualAccess == 'read'){
                 initialiseMapAndSlider()
                 var sites = []
@@ -6017,7 +6015,7 @@ function fetchLabelHierarchyIndividual() {
             labelHierarchy = reply.label_hierarchy;
             overlapLabels = reply.overlap_labels;
 
-            if (reply.species != null && overlapLabels.includes(reply.species)) {
+            if (reply.species != null && overlapLabels.includes(reply.species) && individualAccess == 'write') {
                 let labelsDiv = document.getElementById('labelsDiv')
                 while(labelsDiv.firstChild){
                     labelsDiv.removeChild(labelsDiv.firstChild);

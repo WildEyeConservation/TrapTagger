@@ -621,7 +621,7 @@ function taggingMapPrep(mapID = 'map1') {
             });
 
             if (switchToLabel){
-                newLayer.bindTooltip(clusters[mapID][clusterIndex[mapID]].label[0],{permanent: true, direction:"center"})
+                newLayer.bindTooltip(clusters[mapID][clusterIndex[mapID]].label.join(', '),{permanent: true, direction:"center"})
                 var center = L.latLng([(newLayer._bounds._northEast.lat+newLayer._bounds._southWest.lat)/2,(newLayer._bounds._northEast.lng+newLayer._bounds._southWest.lng)/2])
                 var bottom = L.latLng([newLayer._bounds._southWest.lat,(newLayer._bounds._northEast.lng+newLayer._bounds._southWest.lng)/2])
                 var centerPoint = map[mapID].latLngToContainerPoint(center)
