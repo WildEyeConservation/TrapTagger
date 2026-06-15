@@ -5527,7 +5527,8 @@ def skipSuggestion(individual_1,individual_2):
     individual1 = db.session.query(Individual).get(int(individual_1))
     individual2 = db.session.query(Individual).get(int(individual_2))
 
-    if individual1.active != True:
+    if individual1 and individual1.active != True:
+        if len(individual1.detections) == 0: return json.dumps({'status': 'error'})
         individual1 = db.session.query(Individual)\
                                 .join(Task,Individual.tasks)\
                                 .filter(Individual.detections.contains(individual1.detections[0]))\
@@ -5536,7 +5537,8 @@ def skipSuggestion(individual_1,individual_2):
                                 .filter(Individual.active==True)\
                                 .first()
 
-    if individual2.active != True:
+    if individual2 and individual2.active != True:
+        if len(individual2.detections) == 0: return json.dumps({'status': 'error'})
         individual2 = db.session.query(Individual)\
                                 .join(Task,Individual.tasks)\
                                 .filter(Individual.detections.contains(individual2.detections[0]))\
@@ -5876,6 +5878,7 @@ def acceptSuggestion(individual_1,individual_2):
     individual2 = db.session.query(Individual).get(int(individual_2))
 
     if individual1 and individual1.active != True:
+        if len(individual1.detections) == 0: return json.dumps({'status': 'error'})
         individual1 = db.session.query(Individual)\
                                 .join(Task,Individual.tasks)\
                                 .filter(Individual.detections.contains(individual1.detections[0]))\
@@ -5885,6 +5888,7 @@ def acceptSuggestion(individual_1,individual_2):
                                 .first()
 
     if individual2 and individual2.active != True:
+        if len(individual2.detections) == 0: return json.dumps({'status': 'error'})
         individual2 = db.session.query(Individual)\
                                 .join(Task,Individual.tasks)\
                                 .filter(Individual.detections.contains(individual2.detections[0]))\
@@ -6084,6 +6088,7 @@ def rejectSuggestion(individual_1,individual_2):
     individual2 = db.session.query(Individual).get(int(individual_2))
 
     if individual1 and individual1.active != True:
+        if len(individual1.detections) == 0: return json.dumps({'status': 'error'})
         individual1 = db.session.query(Individual)\
                                 .join(Task,Individual.tasks)\
                                 .filter(Individual.detections.contains(individual1.detections[0]))\
@@ -6093,6 +6098,7 @@ def rejectSuggestion(individual_1,individual_2):
                                 .first()
 
     if individual2 and individual2.active != True:
+        if len(individual2.detections) == 0: return json.dumps({'status': 'error'})
         individual2 = db.session.query(Individual)\
                                 .join(Task,Individual.tasks)\
                                 .filter(Individual.detections.contains(individual2.detections[0]))\
@@ -6314,17 +6320,8 @@ def getSuggestion(individual_id):
                 if label and label not in images[image_id]['detections'][det_id]['labels']:
                     images[image_id]['detections'][det_id]['labels'].append(label)
 
-
-            # make detections for each image a list with active detections first
             for image_id in images:
-                active_dets = []
-                inactive_dets = []
-                for det in images[image_id]['detections'].values():
-                    if det['active']:
-                        active_dets.append(det)
-                    else:
-                        inactive_dets.append(det)
-                images[image_id]['detections'] = active_dets + inactive_dets
+                images[image_id]['detections'] = list(images[image_id]['detections'].values())
             images = list(images.values())
 
             reply = {'id': individual.id, 'name': individual.name, 'max_pair': [suggestion.detection_1,suggestion.detection_2], 'classification': [],'required': [], 'images': images, 'label': [], 'tags': [], 'groundTruth': [], 'trapGroup': 'None'}

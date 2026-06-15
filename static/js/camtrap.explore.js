@@ -92,10 +92,12 @@ function loadNewCluster(mapID = 'map1') {
                         newcluster = info.info[0];
                         // Sort image detections by area (so that larger detections are drawn first - avoid having to use send to back)
                         newcluster.images.forEach(img => {
-                            img.detections.sort((a, b) => 
-                                ((b.right - b.left) * (b.bottom - b.top)) -
-                                ((a.right - a.left) * (a.bottom - a.top))
-                            );
+                            if (img.detections.length > 1) {
+                                img.detections.sort((a, b) => 
+                                    ((b.right - b.left) * (b.bottom - b.top)) -
+                                    ((a.right - a.left) * (a.bottom - a.top))
+                                );
+                            }
                         });
 
                         clusters[mapID].push(newcluster)

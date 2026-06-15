@@ -78,6 +78,16 @@ function loadNewCluster(mapID = 'map1') {
                                     if ((!clusterIdList.includes(newcluster.id))||(newcluster.id=='-101')) {
                                         clusterIdList.push(newcluster.id)
 
+                                        // Sort image detections by area (so that larger detections are drawn first - avoid having to use send to back)
+                                        newcluster.images.forEach(img => {
+                                            if (img.detections.length > 1) {
+                                                img.detections.sort((a, b) => 
+                                                ((b.right - b.left) * (b.bottom - b.top)) -
+                                                    ((a.right - a.left) * (a.bottom - a.top))
+                                                );
+                                            }
+                                        });
+
                                         if ((clusters[mapID].length>0)&&(clusters[mapID][clusters[mapID].length-1].id=='-101')&&(clusterIndex[mapID] < clusters[mapID].length-1)) {
                                             clusters[mapID].splice(clusters[mapID].length-1, 0, newcluster)
                                         } else {

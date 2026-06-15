@@ -467,6 +467,17 @@ function getIndividual(individualID, individualName, association=false, order_va
             individualImages = reply.individual
             individualAccess = reply.access
             fetchLabelHierarchyIndividual()
+
+            //sort detections by area
+            individualImages.forEach(img => {
+                if (img.detections.length > 1) {
+                    img.detections.sort((a, b) => 
+                        ((b.right - b.left) * (b.bottom - b.top)) -
+                        ((a.right - a.left) * (a.bottom - a.top))
+                    );
+                }
+            });
+
             if (individualAccess == 'write' || individualAccess == 'read'){
                 initialiseMapAndSlider()
                 var sites = []

@@ -2143,17 +2143,15 @@ limitations under the License. -->
                 <br>
 
                 <div id="labelLevel">
-                    <h5 style="margin-bottom: 2px">Label Level</h5>
-                    <div style="font-size: 80%; margin-bottom: 2px"><i>Choose whether to include only parent labels or both parent and child labels in the top-level annotation.</i></div>
-                    <div style="margin-bottom: 5px">
-                        <div class="custom-control custom-radio custom-control-inline">
-                            <input type="radio" class="custom-control-input" id="labelLevelParent" name="labelLevelSelection" value='0' checked="true">
-                            <label class="custom-control-label" for="labelLevelParent">Parent Labels Only</label>
-                        </div> 
-                        <div class="custom-control custom-radio custom-control-inline">
-                            <input type="radio" class="custom-control-input" id="labelLevelChild" name="labelLevelSelection" value='1'>
-                            <label class="custom-control-label" for="labelLevelChild">Include Child Labels</label>
-                        </div> 
+                    <h5 style="margin-bottom: 2px">Annotation Schema</h5>
+                    <div style="font-size: 80%; margin-bottom: 2px"><i>Choose whether to allow full hierarchical annotation. If disabled, workers will only be able to annotate the top-level species. Enabled will 
+                        allow workers to annotate sub-categories of the top-level species.
+                    </i></div>
+                    <div display="flex" align-items="center">
+                        <label for="labelLevelChild" style="margin: 0; padding-right: 5px;">Allow Hierarchical Annotation</label>
+                        <label class="switch">
+                            <input type="checkbox" id="labelLevelChild"><span class="slider round"></span>
+                        </label>
                     </div>
                 </div>
 

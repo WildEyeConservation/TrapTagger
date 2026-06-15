@@ -392,6 +392,26 @@ function getSuggestions(prevID = null) {
     } else {
         if ((typeof clusters['map1'][clusterIndex['map1']] != 'undefined')&&(!['-101','-99','-782'].includes(clusters['map1'][clusterIndex['map1']].id))) {
 
+            // Check map1 for any images with no active detections and remove them from the cluster (if so,meone had changed species of the detection)
+            let images_to_remove = []
+            for (let i=0;i<clusters['map1'][clusterIndex['map1']].images.length;i++) {
+                no_active_detections = true
+                for (let n=0;n<clusters['map1'][clusterIndex['map1']].images[i].detections.length;n++) {
+                    if (clusters['map1'][clusterIndex['map1']].images[i].detections[n].active==true) {
+                        no_active_detections = false
+                        break
+                    }
+                }
+                if (no_active_detections) {
+                    images_to_remove.push(clusters['map1'][clusterIndex['map1']].images[i].id)
+                }
+            }
+            if (images_to_remove.length > 0) {
+                clusters['map1'][clusterIndex['map1']].images = clusters['map1'][clusterIndex['map1']].images.filter(image => !images_to_remove.includes(image.id))
+                sliderIndex['map1'] = '-1'
+                update('map1')
+            }
+
             if (prevID != null) {
                 request = '/getSuggestion/'+clusters['map1'][clusterIndex['map1']].id+'?suggestion='+prevID
             } else {
@@ -410,6 +430,14 @@ function getSuggestions(prevID = null) {
                             modalWait2.modal('hide');
                             modalNextIndividual.modal({keyboard: true});
                         } else {
+                            info.images.forEach(img => {
+                                if (img.detections.length > 1) {
+                                    img.detections.sort((a, b) => 
+                                        ((b.right - b.left) * (b.bottom - b.top)) -
+                                        ((a.right - a.left) * (a.bottom - a.top))
+                                    );
+                                }
+                            });
                             clusters['map2'] = [info]
                             if ('detsim' in info) {
                                 DEBUGGING = true
@@ -567,6 +595,16 @@ function loadNewCluster(mapID = 'map1') {
                                         if (knockedTG==null && maskedTG==null) {
                                             if (true) { //(!clusterIdList.includes(newcluster.id))||(newcluster.id=='-101')
                                                 clusterIdList.push(...new_cluster_ids[newcluster.id])
+
+                                                // Sort image detections by area (so that larger detections are drawn first - avoid having to use send to back)
+                                                newcluster.images.forEach(img => {
+                                                    if (img.detections.length > 1) {
+                                                        img.detections.sort((a, b) => 
+                                                            ((b.right - b.left) * (b.bottom - b.top)) -
+                                                            ((a.right - a.left) * (a.bottom - a.top))
+                                                        );
+                                                    }
+                                                });
     
                                                 if ((clusters[wrapMapID].length>0)&&(clusters[wrapMapID][clusters[wrapMapID].length-1].id=='-101')&&(clusterIndex[wrapMapID] < clusters[wrapMapID].length-1)) {
                                                     clusters[wrapMapID].splice(clusters[wrapMapID].length-1, 0, newcluster)
@@ -1282,7 +1320,7 @@ function deleteIndividualPress() {
             deleteMode = false
             setEditingState('none', false)
             document.getElementById('btnDeleteIndividual').setAttribute('class','btn btn-primary btn-block')
-            document.getElementById('btnDeleteIndividual').innerHTML = 'D(e)lete'
+            document.getElementById('btnDeleteIndividual').innerHTML = 'D(e)lete Individual'
         } else {
             deleteMode = true
             setEditingState('none', true)
@@ -1908,7 +1946,8 @@ function drawControlPrep(mapID = 'map1') {
             'top': Math.max(0.0,Math.min(1.0,newLayer.getBounds().getNorthEast().lat/mapHeight[mapID])),
             'bottom': Math.max(0.0,Math.min(1.0,newLayer.getBounds().getSouthWest().lat/mapHeight[mapID])),
             'left': Math.max(0.0,Math.min(1.0,newLayer.getBounds().getSouthWest().lng/mapWidth[mapID])),
-            'right': Math.max(0.0,Math.min(1.0,newLayer.getBounds().getNorthEast().lng/mapWidth[mapID]))
+            'right': Math.max(0.0,Math.min(1.0,newLayer.getBounds().getNorthEast().lng/mapWidth[mapID])),
+            'label': taggingLevel.split(',')[1]
         }
         submitSightingChanges(detection_edits, action, mapID) 
 

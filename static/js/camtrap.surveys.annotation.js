@@ -619,7 +619,7 @@ function openClusterTag() {
         }
 
         document.getElementById('labelLevel').style.display = 'block'
-        document.getElementById('labelLevelParent').checked = true
+        document.getElementById('labelLevelChild').checked = false
 
         document.getElementById('openSightingTab').disabled = true
         document.getElementById('openMultiSpeciesTab').disabled = true
@@ -734,7 +734,7 @@ $("#taskTaggingLevel").change( function() {
     } else if (tabActiveLaunch=='baseSpeciesLabellingTab') {
         if (this.value == '-1') {
             document.getElementById('labelLevel').style.display = 'block'
-            document.getElementById('labelLevelParent').checked = true
+            document.getElementById('labelLevelChild').checked = false
         } else {
             document.getElementById('labelLevel').style.display = 'none'
         }

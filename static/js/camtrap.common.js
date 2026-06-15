@@ -552,9 +552,16 @@ function buildDetection(image,detection,mapID = 'map1',colour=null) {
                             activateUnidentifiable()
                         } else if (speciesMode && speciesRect == null) {
                             speciesRect = wrapRect
-                            setTimeout(function() {
-                                openRightSidePanel()
-                            }, 100)
+                            speciesMapID = mapID
+                            if (speciesMapID == 'map1') {
+                                setTimeout(function() {
+                                    openLeftSidePanel()
+                                }, 100)
+                            } else {
+                                setTimeout(function() {
+                                    openRightSidePanel()
+                                }, 100)
+                            }
                         } else {   
                             disallow = false
                             if (previousClick != null) {
@@ -824,7 +831,6 @@ function buildDetection(image,detection,mapID = 'map1',colour=null) {
                     // include individual name in tooltip
                     tooltipContent += ' ' + detection.individual_names[0]
                 }
-                console.log(tooltipContent)
                 rect.bindTooltip(tooltipContent,{permanent: true, direction:"center"})
             }
             var center = L.latLng([(rect._bounds._northEast.lat+rect._bounds._southWest.lat)/2,(rect._bounds._northEast.lng+rect._bounds._southWest.lng)/2])
@@ -845,21 +851,16 @@ function buildDetection(image,detection,mapID = 'map1',colour=null) {
                     } else if (speciesMode && speciesRect == null) {
                         speciesRect = wrapRect
                         speciesMapID = mapID
-                        if (document.getElementById('btnSendToBack')!=null) {
-                            if (speciesMapID == 'map1') {
-                                setTimeout(function() {
-                                    openLeftSidePanel()
-                                }, 100)
-                            } else {
-                                setTimeout(function() {
-                                    openRightSidePanel()
-                                }, 100)
-                            }
+                        if (speciesMapID == 'map1') {
+                            setTimeout(function() {
+                                openLeftSidePanel()
+                            }, 100)
                         } else {
                             setTimeout(function() {
                                 openRightSidePanel()
                             }, 100)
                         }
+                        
                     }
                 }
             }(rect));
@@ -956,7 +957,7 @@ function updateCanvas(mapID = 'map1') {
     
             if ((bucketName!=null) && (Object.keys(activeImage).includes(mapID)) && (imageIndex[mapID]<clusters[mapID][clusterIndex[mapID]].images.length)) {
                 if ((isBounding)||(isReviewing)||(isIDing && (document.getElementById('btnSendToBack')==null))) {
-                    setRectOptions()
+                    setRectOptions(mapID)
                     if (isBounding){
                         buildBoundingKeys()
                     }
@@ -1904,7 +1905,13 @@ function updateSlider(mapID = 'map1', update_flank = false) {
             sliderImageIndexMap[mapID].push(i)
             // imageUrl = "https://"+bucketName+".s3.amazonaws.com/" + modifyToCompURL(clusters[mapID][clusterIndex[mapID]].images[i].url)
             if (clusters[mapID][clusterIndex[mapID]].images[i].detections.length > 0 && !taggingLevel.includes('-4')) {
-                imageUrl = "https://"+bucketName+".s3.amazonaws.com/" + modifyToCropURL(clusters[mapID][clusterIndex[mapID]].images[i].url,clusters[mapID][clusterIndex[mapID]].images[i].detections[0].id)
+                // imageUrl = "https://"+bucketName+".s3.amazonaws.com/" + modifyToCropURL(clusters[mapID][clusterIndex[mapID]].images[i].url,clusters[mapID][clusterIndex[mapID]].images[i].detections[0].id)
+                let activeDetectionId = clusters[mapID][clusterIndex[mapID]].images[i].detections.find(det => det.active==true)?.id ?? null;
+                if (activeDetectionId != null) {
+                    imageUrl = "https://"+bucketName+".s3.amazonaws.com/" + modifyToCropURL(clusters[mapID][clusterIndex[mapID]].images[i].url,activeDetectionId)
+                } else {
+                    imageUrl = "https://"+bucketName+".s3.amazonaws.com/" + modifyToCompURL(clusters[mapID][clusterIndex[mapID]].images[i].url)
+                }
             } else {
                 imageUrl = "https://"+bucketName+".s3.amazonaws.com/" + modifyToCompURL(clusters[mapID][clusterIndex[mapID]].images[i].url)
             }
@@ -3470,7 +3477,11 @@ function activateMultiple(mapID = 'map1') {
                     if (taggingLevel.includes('-2')) {
                         multibtn.innerHTML = 'Submit (Ctrl)'
                     } else {
-                        multibtn.innerHTML = 'Done (Ctrl)'
+                        if (isReviewing) {
+                            multibtn.innerHTML = 'Done'
+                        } else {
+                            multibtn.innerHTML = 'Done (Ctrl)'
+                        }
                     }
         
                     multibtn.setAttribute("class", "btn btn-success btn-block btn-sm");
@@ -4818,6 +4829,10 @@ function submitSightingChanges(detection_edits, action, mapID = 'map1') {
                 }
                 else if (isIDing && document.getElementById('btnSendToBack')==null) {
                     updateKpts()
+                } 
+                else if (wrapAction == 'add' && !isIDing) {
+                    addedDetections[wrapMapID] = false
+                    addDetections(wrapMapID)
                 }
             }
         }
