@@ -1516,6 +1516,9 @@ function updateClusterLabels(mapID = 'map1') {
                 clusterLabels[mapID].push(label_id)
             }
         }
+        if (isReviewing) {
+            boundingClusterLabels[clusters[mapID][clusterIndex[mapID]].id] = clusters[mapID][clusterIndex[mapID]].label
+        }
     }
 }
 
@@ -4585,7 +4588,7 @@ function plusFunc(labelText,mapID = 'map1') {
 
 function submitSightingChanges(detection_edits, action, mapID = 'map1') {
     /** Submits the changes to the server. */
-    console.log(detection_edits, action)
+    // console.log(detection_edits, action)
     if (action == 'delete') {
         clusters[mapID][clusterIndex[mapID]].images[imageIndex[mapID]].detections = clusters[mapID][clusterIndex[mapID]].images[imageIndex[mapID]].detections.filter(det => !detection_edits.includes(det.id))
         if (isIDing && document.getElementById('btnSendToBack')!=null) {
@@ -4734,7 +4737,7 @@ function submitSightingChanges(detection_edits, action, mapID = 'map1') {
     if (isReviewing) {
         formData.append('explore', JSON.stringify('true'));
     }
-    console.log(detection_edits, action)
+    // console.log(detection_edits, action)
     var xhttp = new XMLHttpRequest();
     xhttp.open("POST", '/editSightingsGeneral/'+selectedTask);
     xhttp.onreadystatechange =
@@ -4744,7 +4747,7 @@ function submitSightingChanges(detection_edits, action, mapID = 'map1') {
                 window.location.replace(JSON.parse(this.responseText)['redirect'])
             } else if (this.readyState == 4 && this.status == 200) {
                 let reply = JSON.parse(this.responseText)
-                console.log(reply)  
+                // console.log(reply)  
                 let detDbIDs = reply.detDbIDs
                 let cluster_labels = reply.cluster_labels
                 let detIndivs = reply.detIndivs
