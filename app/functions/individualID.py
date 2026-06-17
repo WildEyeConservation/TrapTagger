@@ -1539,7 +1539,7 @@ def handle_individual_sighting(self, detection_ids, state):
                         GLOBALS.ibs.db.delete('featurematches', aid_list, 'annot_rowid1')
                         GLOBALS.ibs.db.delete('featurematches', aid_list, 'annot_rowid2')
                         gids = [g for g in GLOBALS.ibs.get_annot_gids(aid_list) if g is not None]
-                        GLOBALS.ibs.delete_images(gids)
+                        if gids: GLOBALS.ibs.delete_images(gids)
                         GLOBALS.ibs.delete_annots(aid_list)  
                         app.logger.info('Deleted detection from wbia in {}s'.format(time.time()-starttime))
                     detection.aid = None
