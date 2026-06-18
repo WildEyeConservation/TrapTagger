@@ -1502,12 +1502,22 @@ def handle_individual_sighting(self, detection_ids, state):
     try:
         app.logger.info('Handling individual sighting...')
         app.logger.info('State: {}, Detection IDs: {}'.format(state, detection_ids))
-
+        delete_aid_list = []
         if state == 'deleted' or state == 'edited':
-            for detection_id in detection_ids:
-                detection = db.session.query(Detection).get(detection_id)
-                if not detection: continue
+            detections = db.session.query(Detection).filter(Detection.id.in_(detection_ids)).all()
+            # Handle deletetion from wbia if no other detection has the same aid
+            for detection in detections:
+                if detection.aid:
+                    count = db.session.query(Detection).filter(Detection.aid==detection.aid).count()
+                    if count < 2:
+                        delete_aid_list.append(detection.aid)
+                        detection.aid = None
+            db.session.commit()
 
+            if delete_aid_list: delete_from_wbia.delay(aid_list=delete_aid_list)
+
+            for detection in detections:
+                detection_id = detection.id
                 app.logger.info('Deleting crop and similarities for detection: {}'.format(detection_id))
                 # Delete crop 
                 splits = detection.image.camera.path.split('/')
@@ -1524,33 +1534,10 @@ def handle_individual_sighting(self, detection_ids, state):
                 db.session.query(IndSimilarity).filter(IndSimilarity.detection_2==detection_id).update({'detection_1': None, 'detection_2': None}, synchronize_session=False)
                 db.session.commit()
 
-                # Delete from wbia is no other detection has aid. 
-                if detection.aid:
-                    starttime = time.time()
-                    count = db.session.query(Detection).filter(Detection.aid==detection.aid).count()
-                    if count < 2:
-                        app.logger.info('Deleting detection from wbia: {}'.format(detection.aid))
-                        aid_list = [detection.aid]
-                        # Delete from wbia
-                        if not GLOBALS.ibs:
-                            from wbia import opendb
-                            GLOBALS.ibs = opendb(db=Config.WBIA_DB_NAME,dbdir=Config.WBIA_DIR+'_'+Config.WORKER_NAME,allow_newdir=True)
-                            app.logger.info('IBS initialized')
-                        GLOBALS.ibs.db.delete('featurematches', aid_list, 'annot_rowid1')
-                        GLOBALS.ibs.db.delete('featurematches', aid_list, 'annot_rowid2')
-                        gids = [g for g in GLOBALS.ibs.get_annot_gids(aid_list) if g is not None]
-                        if gids: GLOBALS.ibs.delete_images(gids)
-                        GLOBALS.ibs.delete_annots(aid_list)  
-                        app.logger.info('Deleted detection from wbia in {}s'.format(time.time()-starttime))
-                    detection.aid = None
-                    db.session.commit()
-
         if state == 'added' or state == 'edited':
             app.logger.info('Generating crops for detections: {}'.format(detection_ids))
-            for detection_id in detection_ids:
-                detection = db.session.query(Detection).get(detection_id)
-                if not detection: continue
-
+            detections = db.session.query(Detection).filter(Detection.id.in_(detection_ids)).all()
+            for detection in detections:
                 # Generate crop
                 bbox_dict = {
                     'left': detection.left,
@@ -1578,6 +1565,40 @@ def handle_individual_sighting(self, detection_ids, state):
             if empty_individuals: delete_individuals_helper(individual_ids=empty_individuals)
 
         app.logger.info('Finished handling individual sighting')
+
+    except Exception as exc:
+        app.logger.info(' ')
+        app.logger.info('!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!')
+        app.logger.info(traceback.format_exc())
+        app.logger.info('!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!')
+        app.logger.info(' ')
+        self.retry(exc=exc, countdown= retryTime(self.request.retries))
+
+    finally:
+        db.session.remove()
+
+    return True
+
+@celery.task(bind=True,max_retries=5,ignore_result=True)
+def delete_from_wbia(self, aid_list):
+    ''' Deletes a detection from the WBIA database.'''
+
+    try:
+        starttime = time.time()
+        app.logger.info('Deleting aid list from wbia: {}'.format(aid_list))
+        if not GLOBALS.ibs:
+            from wbia import opendb
+            GLOBALS.ibs = opendb(db=Config.WBIA_DB_NAME,dbdir=Config.WBIA_DIR+'_'+Config.WORKER_NAME,allow_newdir=True)
+            app.logger.info('IBS initialized')
+        GLOBALS.ibs.db.delete('featurematches', aid_list, 'annot_rowid1')
+        GLOBALS.ibs.db.delete('featurematches', aid_list, 'annot_rowid2')
+        gids = [g for g in GLOBALS.ibs.get_annot_gids(aid_list) if g is not None]
+        if gids:
+            app.logger.info('Deleting images and annots for gids from wbia: {}'.format(gids))
+            GLOBALS.ibs.delete_images(gids) # Annots are deleted when images are deleted
+        else:
+            GLOBALS.ibs.delete_annots(aid_list)
+        app.logger.info('Deleted aid: {} from wbia in {}s'.format(len(aid_list), time.time()-starttime))
 
     except Exception as exc:
         app.logger.info(' ')
