@@ -113,7 +113,7 @@ def delete_detections(survey_id, camera_ids=None, image_ids=None, ids=None):
 
 
     # Get WBIA aid list for deletion
-    aid_list = [r[0] for r in db.session.query(Detection.aid).filter(Detection.id.in_(select(det_subq.c.id))).filter(Detection.aid!=None).distinct().all()]
+    aid_list = [r[0] for r in db.session.query(Detection.aid).filter(Detection.id.in_(det_select)).filter(Detection.aid!=None).distinct().all()]
     if aid_list:
         keep_aid_list = [r[0] for r in db.session.query(Detection.aid, func.count(Detection.id))\
             .filter(Detection.aid.in_(aid_list))\
