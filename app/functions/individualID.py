@@ -1502,19 +1502,18 @@ def handle_individual_sighting(self, detection_ids, state):
     try:
         app.logger.info('Handling individual sighting...')
         app.logger.info('State: {}, Detection IDs: {}'.format(state, detection_ids))
-        delete_aid_list = []
         if state == 'deleted' or state == 'edited':
             detections = db.session.query(Detection).filter(Detection.id.in_(detection_ids)).all()
             # Handle deletetion from wbia if no other detection has the same aid
+            del_aid_list = []
             for detection in detections:
                 if detection.aid:
-                    count = db.session.query(Detection).filter(Detection.aid==detection.aid).count()
+                    count = db.session.query(Detection).filter(Detection.aid==detection.aid).distinct().count()
                     if count < 2:
-                        delete_aid_list.append(detection.aid)
+                        del_aid_list.append(detection.aid)
                         detection.aid = None
             db.session.commit()
-
-            if delete_aid_list: delete_from_wbia.delay(aid_list=delete_aid_list)
+            for aid in del_aid_list: GLOBALS.redisClient.lpush('delete_aid_list', aid)
 
             for detection in detections:
                 detection_id = detection.id
@@ -1565,40 +1564,6 @@ def handle_individual_sighting(self, detection_ids, state):
             if empty_individuals: delete_individuals_helper(individual_ids=empty_individuals)
 
         app.logger.info('Finished handling individual sighting')
-
-    except Exception as exc:
-        app.logger.info(' ')
-        app.logger.info('!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!')
-        app.logger.info(traceback.format_exc())
-        app.logger.info('!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!')
-        app.logger.info(' ')
-        self.retry(exc=exc, countdown= retryTime(self.request.retries))
-
-    finally:
-        db.session.remove()
-
-    return True
-
-@celery.task(bind=True,max_retries=5,ignore_result=True)
-def delete_from_wbia(self, aid_list):
-    ''' Deletes a detection from the WBIA database.'''
-
-    try:
-        starttime = time.time()
-        app.logger.info('Deleting aid list from wbia: {}'.format(aid_list))
-        if not GLOBALS.ibs:
-            from wbia import opendb
-            GLOBALS.ibs = opendb(db=Config.WBIA_DB_NAME,dbdir=Config.WBIA_DIR+'_'+Config.WORKER_NAME,allow_newdir=True)
-            app.logger.info('IBS initialized')
-        GLOBALS.ibs.db.delete('featurematches', aid_list, 'annot_rowid1')
-        GLOBALS.ibs.db.delete('featurematches', aid_list, 'annot_rowid2')
-        gids = [g for g in GLOBALS.ibs.get_annot_gids(aid_list) if g is not None]
-        if gids:
-            app.logger.info('Deleting images and annots for gids from wbia: {}'.format(gids))
-            GLOBALS.ibs.delete_images(gids) # Annots are deleted when images are deleted
-        else:
-            GLOBALS.ibs.delete_annots(aid_list)
-        app.logger.info('Deleted aid: {} from wbia in {}s'.format(len(aid_list), time.time()-starttime))
 
     except Exception as exc:
         app.logger.info(' ')

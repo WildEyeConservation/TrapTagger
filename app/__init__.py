@@ -247,6 +247,7 @@ def initialise_periodic_functions(sender, instance, **kwargs):
         # manageDownloadRequests.apply_async(queue='priority', priority=0)
         # monitorFileRestores.apply_async(queue='priority', priority=0)
         # monitorSQS.apply_async(queue='priority', priority=0)
+        # cleanWBIA.apply_async(queue='priority', priority=0)
         # print('Periodic functions initialised.')
 
 

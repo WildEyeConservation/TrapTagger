@@ -7050,8 +7050,8 @@ def process_detections_for_individual_id(task_ids,species,pose_only=False):
         results = []
         for batch in chunker(det_data,500):
             results.append(segment_and_pose.apply_async(kwargs={'batch': batch, 'sourceBucket': Config.BUCKET, 'species': species, 'pose_only':pose_only}, queue='similarity', routing_key='similarity.segment_and_pose'))
-            
-
+        
+        aid_list = []
         GLOBALS.lock.acquire()
         with allow_join_result():
             for result in results:
@@ -7064,6 +7064,7 @@ def process_detections_for_individual_id(task_ids,species,pose_only=False):
                                 detection.flank = response[str(detection.id)]['flank']
                             if not pose_only:
                                 detection.aid = response[str(detection.id)]['aid']
+                                aid_list.append(detection.aid)
                         except Exception:
                             app.logger.info(' ')
                             app.logger.info('!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!')
@@ -7082,6 +7083,10 @@ def process_detections_for_individual_id(task_ids,species,pose_only=False):
         GLOBALS.lock.release()
 
         db.session.commit()
+        
+        if aid_list: 
+            # Remove aids from delete_aid_list (safety check)
+            for aid in aid_list: GLOBALS.redisClient.lrem('delete_aid_list', 0, aid)
 
         app.logger.info('Finished processing detections for individual ID in {}s'.format(time.time()-starttime))
 

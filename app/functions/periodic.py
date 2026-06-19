@@ -1290,3 +1290,42 @@ def monitorSQS():
         monitorSQS.apply_async(queue='priority', priority=0,countdown=300)
 
     return True
+
+@celery.task(ignore_result=True)
+def cleanWBIA():
+    '''Celery task that monitors redis for wbia deletion requests and deletes them from wbia'''
+    try:
+        start_time = datetime.utcnow()
+        if not GLOBALS.ibs:
+            from wbia import opendb
+            GLOBALS.ibs = opendb(db=Config.WBIA_DB_NAME,dbdir=Config.WBIA_DIR+'_'+Config.WORKER_NAME,allow_newdir=True)
+            app.logger.info('IBS initialized in {} seconds'.format((datetime.utcnow()-start_time).total_seconds()))
+        else:
+            aid_list = [int(r.decode()) for r in GLOBALS.redisClient.lrange('delete_aid_list', 0, 99)] # Take first 100 items from list
+            if aid_list:
+                aid_list = list(set(aid_list))
+                app.logger.info('Deleting aid list from wbia: {}'.format(aid_list))
+                GLOBALS.ibs.db.delete('featurematches', aid_list, 'annot_rowid1')
+                GLOBALS.ibs.db.delete('featurematches', aid_list, 'annot_rowid2')
+                gids = [g for g in GLOBALS.ibs.get_annot_gids(aid_list) if g is not None]
+                if gids:
+                    GLOBALS.ibs.delete_images(gids, trash_images=False) # Annots are deleted when images are deleted
+                else:
+                    GLOBALS.ibs.delete_annots(aid_list)
+                # remove values from list in redis
+                for aid in aid_list: GLOBALS.redisClient.lrem('delete_aid_list', 0, aid)
+                if Config.DEBUGGING: app.logger.info('Time taken to delete aid list from wbia: {} seconds'.format((datetime.utcnow()-start_time).total_seconds()))
+
+    except Exception as exc:
+        app.logger.info(' ')
+        app.logger.info('!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!')
+        app.logger.info(traceback.format_exc())
+        app.logger.info('!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!')
+        app.logger.info(' ')
+
+    finally:
+        db.session.remove()
+        #Schedule every 10 minutes
+        cleanWBIA.apply_async(queue='priority', priority=0,countdown=600)
+
+    return True

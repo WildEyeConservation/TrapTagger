@@ -111,30 +111,25 @@ def delete_detections(survey_id, camera_ids=None, image_ids=None, ids=None):
 
     app.logger.info(f'DetSimilarities: {ds} deleted successfully')
 
+
+    # Get WBIA aid list for deletion
+    aid_list = [r[0] for r in db.session.query(Detection.aid).filter(Detection.id.in_(select(det_subq.c.id))).filter(Detection.aid!=None).distinct().all()]
+    if aid_list:
+        keep_aid_list = [r[0] for r in db.session.query(Detection.aid, func.count(Detection.id))\
+            .filter(Detection.aid.in_(aid_list))\
+            .group_by(Detection.aid)\
+            .distinct().all() if r[1]>1] # Keep aids with more than 1 detection
+        aid_list = list(set(aid_list) - set(keep_aid_list))
+    
     #Delete detections
-    # aid_list = []
-    # aid_list = [r[0] for r in db.session.query(Detection.aid).filter(Detection.id.in_(select(det_subq.c.id))).filter(Detection.aid!=None).distinct().all()]
-
     result = db.session.execute(delete(Detection).where(Detection.id.in_(det_select)).execution_options(synchronize_session=False))
-
-    #Delete WBIA data
-    # keep_aid_list = [r[0] for r in db.session.query(Detection.aid, func.count(Detection.id))\
-    #     .filter(Detection.aid.in_(aid_list))\
-    #     .group_by(Detection.aid)\
-    #     .distinct().all() if r[1]>0]
-    # aid_list = list(set(aid_list) - set(keep_aid_list))
-    # if aid_list:
-    #     if not GLOBALS.ibs:
-    #         from wbia import opendb
-    #         GLOBALS.ibs = opendb(db=Config.WBIA_DB_NAME,dbdir=Config.WBIA_DIR+'_'+Config.WORKER_NAME,allow_newdir=True)
-    #     GLOBALS.ibs.db.delete('featurematches', aid_list, 'annot_rowid1')
-    #     GLOBALS.ibs.db.delete('featurematches', aid_list, 'annot_rowid2')
-    #     gids = [g for g in GLOBALS.ibs.get_annot_gids(aid_list) if g is not None]
-    #     GLOBALS.ibs.delete_images(gids)
-    #     GLOBALS.ibs.delete_annots(aid_list)  
 
     db.session.commit()
     app.logger.info(f'Detections: {result.rowcount} deleted successfully')
+
+    if aid_list:
+        for aid in aid_list:
+            GLOBALS.redisClient.lpush('delete_aid_list', aid)
     
     # Delete empty staticgroups
     delete_empty_staticgroups()

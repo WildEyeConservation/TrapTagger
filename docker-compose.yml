@@ -287,7 +287,7 @@ services:
             - WBIA_DB_SERVER=${WBIA_DB_SERVER}
             - WBIA_DB_NAME=${WBIA_DB_NAME}
             - WBIA_DIR=${WBIA_DIR}
-            - INITIALISE_IBS=false
+            - INITIALISE_IBS=true
             - LAMBDA_SUBNET_ID=${LAMBDA_SUBNET_ID}
             - AWS_ACCOUNT_ID=${AWS_ACCOUNT_ID}
             - DEBUGGING=${DEBUGGING}
