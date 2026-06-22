@@ -8288,7 +8288,7 @@ def getTaggingLevel():
             wrongStatus = 'true'
     elif taggingLevel == '-1':
         taggingLabel = 'None'
-        if task.include_child_labels:
+        if task.include_child_labels == True:
             wrongStatus = 'true'
     else:
         taggingLabel = 'None'

@@ -256,7 +256,7 @@ function buildBoundingKeys(mapID='map1'){
     }
     hotkeys = Array(10).fill(EMPTY_HOTKEY_ID)
 
-    current_labels = boundingClusterLabels[clusters[mapID][clusterIndex[mapID]].id]
+    current_labels = boundingClusterLabels[clusters[mapID][clusterIndex[mapID]].id].slice()
     current_labels.sort();
     if (current_labels.includes('None')) {
         current_labels.splice(current_labels.indexOf('None'), 1)
