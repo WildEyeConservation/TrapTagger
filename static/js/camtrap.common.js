@@ -3084,9 +3084,19 @@ function prepMap(mapID = 'map1') {
                                 }
                                 if (isIDing && (document.getElementById('btnSendToBack')==null)) {
                                     if (document.getElementById('cxFeaturesHeatmap').checked){
-                                        var detID1 = clusters['map1'][clusterIndex['map1']].images[imageIndex['map1']].detections[0].id
-                                        var detID2 = clusters['map2'][clusterIndex['map2']].images[imageIndex['map2']].detections[0].id
-                                        getMatchingKpts(detID1,detID2)
+                                        var detID1 = clusters['map1'][clusterIndex['map1']].images[imageIndex['map1']].detections.find(detection => detection.active).id ?? null
+                                        var detID2 = clusters['map2'][clusterIndex['map2']].images[imageIndex['map2']].detections.find(detection => detection.active).id ?? null
+                                        if (detID1 != null && detID2 != null){
+                                            getMatchingKpts(detID1,detID2)
+                                        }
+                                        else{
+                                            if (kpts_layer['map1'] != null){
+                                                map['map1'].removeLayer(kpts_layer['map1'])
+                                            }
+                                            if (kpts_layer['map2'] != null){
+                                                map['map2'].removeLayer(kpts_layer['map2'])
+                                            }
+                                        }
                                     }
                                 }
                             }
