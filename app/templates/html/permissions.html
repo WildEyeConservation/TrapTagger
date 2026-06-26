@@ -265,23 +265,39 @@ limitations under the License. -->
                 </div>
                 <br>
   
-                <h5 style="margin-bottom: 2px">Username</h5>
-                <div style="font-size: 80%; margin-bottom: 2px"><i>Enter the username of the user you would like to invite.</i></div>
+                <h5 style="margin-bottom: 2px">Username/Email</h5>
+                <div style="font-size: 80%; margin-bottom: 2px"><i>Enter the username or email of the user you would like to invite.</i></div>
                 <div class="row">
                     <div class='col-lg-6'>
                         <input type="text" class="form-control" id="inviteUsername">
                     </div>
-                    <div class='col-lg-2'>
-                        <button id="btnsendInvite" type='button' class='btn btn-primary btn-block' onclick="sendInvite()">Send</button>
-                    </div>
                 </div>
                 <br>
+
+                <h5 style="margin-bottom: 2px">Permissions</h5>
+                <div style="font-size: 80%; margin-bottom: 2px"><i>Select the level of access you would like to give the user for the organisation.</i></div>
+                <div id="invitePermissionsDiv"></div>
+                <br>
+
+                <div id="permissionExceptionsInvDiv">
+                    <h5 style="margin-bottom: 2px">Permission Exceptions</h5>
+                    <div style="font-size: 80%; margin-bottom: 2px"><i>If you would like the user to only have access to certain surveys, select the surveys and the level of access you would like to give the user. This will override the default access level for the user for the selected surveys.</i></div>
+                    <div class="row" id="colTitleInvDiv"></div>
+                    <div id="detailedAccessInvDiv"></div>
+                    <button id="btnAddDetailedAccessInv" type='button' class='btn btn-info' onclick="buildDetailedAccessRowInv()">+</button>
+                    <br>
+                    <br>
+                    <div id="detailedAccessErrorsInv" style=" font:80%; color: #DF691A"></div>
+                </div>
     
-                <p id="inviteStatus"></p>
+                <p id="inviteStatus" style="color: #DF691A"></p>
             </div>
             <div class='modal-footer'>
                 <div class='col-lg-3'>
                     <button id="helpclose" type='button' class='btn btn-info btn-block' data-dismiss='modal'>Close</button>
+                </div>
+                <div class='col-lg-3'>
+                    <button id="btnsendInvite" type='button' class='btn btn-primary btn-block' onclick="sendInvite()">Send</button>
                 </div>
             </div>
         </div>

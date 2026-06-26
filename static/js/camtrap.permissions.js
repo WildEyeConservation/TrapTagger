@@ -48,6 +48,7 @@ var prevExceptionsPage = null
 var shareOrganisation = null
 var receiveOrganisation = null
 var sharedSurveysPermissions = {}
+var globalInvSurveys = []
 
 function openPermissionsTab(evt, tabName) {
     /** Opens the permissions tab */
@@ -1313,6 +1314,7 @@ function openInvite() {
         if (this.readyState == 4 && this.status == 200) {
             reply = JSON.parse(this.responseText);  
             organisations = reply.organisations
+            globalInvSurveys = reply.surveys
             var optionTexts = []
             var optionValues = []
             for (let i=0;i<organisations.length;i++) {
@@ -1325,21 +1327,73 @@ function openInvite() {
 
             document.getElementById('inviteStatus').innerHTML = ''
             document.getElementById('inviteUsername').value = ''
+            buildInvitePermissions()
             modalInvite.modal({keyboard: true});
         }
     }
-    xhttp.open("GET", "/getAdminOrganisations");
+    xhttp.open("GET", "/getAdminOrganisations?include_surveys=true");
     xhttp.send();
 
+}
+
+function getInvitePermissionExceptions() {
+    /** Gets the permission exceptions for the invite. */
+    let exceptions = []
+    let surveySelects = document.querySelectorAll('[id^="detailedSurveySelectInv-"]')
+    let userPermission = default_access[document.getElementById('inviteDefaultAccessSlider').value].toLowerCase()
+    if (userPermission == 'admin') {
+        return [true,[]]
+    }
+    let valid = true
+    dup_surveys = []
+    for (let i=0;i<surveySelects.length;i++) {
+        let idNum = surveySelects[i].id.split('-')[1]
+        let permission = default_access[document.getElementById('detailedAccessSliderInv-'+idNum).value].toLowerCase()
+        let annotation = document.getElementById('detailedWorkerAccessInv-'+idNum).checked ? '1' : '0'
+        if (dup_surveys.indexOf(surveySelects[i].value) != -1) {
+            valid = false
+            break
+        }
+        dup_surveys.push(surveySelects[i].value)
+        exceptions.push({
+            'survey_id': surveySelects[i].value,
+            'permission': userPermission=='worker'?'worker':permission,
+            'annotation': annotation
+        })
+    }
+    return [valid,exceptions]
 }
 
 function sendInvite() {
     inviteUsername = document.getElementById('inviteUsername').value
     orgID = document.getElementById('organisationSelect').value
 
+    if (inviteUsername == '') {
+        document.getElementById('inviteStatus').innerHTML = 'Please enter a username or email.'
+        return
+    }
+    else if (orgID == '') {
+        document.getElementById('inviteStatus').innerHTML = 'Please select an organisation.'
+        return
+    }
+
+    permissions = {
+        'default': default_access[document.getElementById('inviteDefaultAccessSlider').value].toLowerCase(),
+        'annotation': document.getElementById('inviteAnnotationAccessCheckbox').checked ? '1' : '0',
+        'create': document.getElementById('inviteSurveyCreationCheckbox').checked ? '1' : '0',
+        'delete': document.getElementById('inviteDeletionCheckbox').checked ? '1' : '0'
+    }
+
+    inv_exceptions = getInvitePermissionExceptions()
+    if (!inv_exceptions[0]) {
+        document.getElementById('inviteStatus').innerHTML = 'Please ensure your permission exceptions are valid.'
+        return
+    }
     var formData = new FormData()
     formData.append("inviteUsername", JSON.stringify(inviteUsername))
     formData.append("orgID", JSON.stringify(orgID))
+    formData.append("permissions", JSON.stringify(permissions))
+    formData.append("exceptions", JSON.stringify(inv_exceptions[1]))
 
     var xhttp = new XMLHttpRequest();
     xhttp.onreadystatechange =
@@ -2194,6 +2248,414 @@ function buildPermissions(user_permissions, user_exceptions){
     }
 }
 
+function buildInvitePermissions(){
+    /** Builds the invite permissions modal. */
+    var invitePermissionsDiv = document.getElementById('invitePermissionsDiv')
+    while (invitePermissionsDiv.firstChild) {
+        invitePermissionsDiv.removeChild(invitePermissionsDiv.firstChild);
+    }
+
+    var row = document.createElement('div')
+    row.classList.add('row')
+    invitePermissionsDiv.appendChild(row)
+
+    var col1 = document.createElement('div')
+    col1.classList.add('col-lg-6')
+    col1.innerText = 'Default Access'
+    row.appendChild(col1)
+
+    var col2 = document.createElement('div')
+    col2.classList.add('col-lg-2')
+    col2.innerText = 'Annotation Access'
+    row.appendChild(col2)
+
+    var col3 = document.createElement('div')
+    col3.classList.add('col-lg-2')
+    col3.innerText = 'Survey Creation'
+    row.appendChild(col3)
+
+    var col4 = document.createElement('div')
+    col4.classList.add('col-lg-2')
+    col4.innerText = 'Deletion'
+    row.appendChild(col4)
+    
+    var row = document.createElement('div')
+    row.classList.add('row')
+    invitePermissionsDiv.appendChild(row)
+
+    var col1 = document.createElement('div')
+    col1.classList.add('col-lg-6')
+    row.appendChild(col1)
+    
+    var col2 = document.createElement('div')
+    col2.classList.add('col-lg-2')
+    col2.style.display = 'flex'
+    col2.style.alignItems = 'center'
+    col2.style.justifyContent = 'center'
+    row.appendChild(col2)
+
+    var col3 = document.createElement('div')
+    col3.classList.add('col-lg-2')
+    col3.style.display = 'flex'
+    col3.style.alignItems = 'center'
+    col3.style.justifyContent = 'center'
+    row.appendChild(col3)
+
+    var col4 = document.createElement('div')
+    col4.classList.add('col-lg-2')
+    col4.style.display = 'flex'
+    col4.style.alignItems = 'center'
+    col4.style.justifyContent = 'center'
+    row.appendChild(col4)   
+
+    // Default Access
+    var defaultDiv = document.createElement('div');
+    defaultDiv.setAttribute('class','text-center')
+    defaultDiv.setAttribute('style','vertical-align: middle;')
+    col1.appendChild(defaultDiv);    
+    
+    var row = document.createElement('div')
+    row.classList.add('row');
+    defaultDiv.appendChild(row)
+    
+    var col1 = document.createElement('div')
+    col1.classList.add('col-lg-12');
+    row.appendChild(col1)
+
+    var slider = document.createElement('input');
+    slider.setAttribute("type", "range");
+    slider.setAttribute("class", "custom-range");
+    slider.setAttribute('style','width: 85%;')
+    slider.setAttribute("min", "0");
+    slider.setAttribute("max", "4");
+    slider.setAttribute("step", "1");
+    slider.setAttribute("id", "inviteDefaultAccessSlider");
+    slider.value = 0;
+    col1.appendChild(slider);
+
+    var row = document.createElement('div')
+    row.classList.add('row');
+    defaultDiv.appendChild(row)
+
+    var col_0 = document.createElement('div')
+    col_0.classList.add('col-lg-3');
+    col_0.setAttribute('style','vertical-align: middle; text-align: center; padding: 0px;')
+    col_0.innerText = default_access[0];
+    row.appendChild(col_0)
+
+    var col_1 = document.createElement('div')
+    col_1.classList.add('col-lg-2');
+    col_1.setAttribute('style','vertical-align: middle; text-align: left; padding: 0px;')
+    col_1.innerText = default_access[1];
+    row.appendChild(col_1)
+
+    var col_2 = document.createElement('div')
+    col_2.classList.add('col-lg-2');
+    col_2.setAttribute('style','vertical-align: middle; text-align: center; padding: 0px;')
+    col_2.innerText = default_access[2];
+    row.appendChild(col_2)
+
+    var col_3 = document.createElement('div')
+    col_3.classList.add('col-lg-2');
+    col_3.setAttribute('style','vertical-align: middle; text-align: right; padding: 0px;')
+    col_3.innerText = default_access[3];
+    row.appendChild(col_3)
+
+    var col_4 = document.createElement('div')
+    col_4.classList.add('col-lg-3');
+    col_4.setAttribute('style','vertical-align: middle; text-align: center; padding: 0px;')
+    col_4.innerText = default_access[4];
+    row.appendChild(col_4)
+
+    $('#inviteDefaultAccessSlider').change(function(){
+        let permission_value = default_access[this.value].toLowerCase()   
+        if (permission_value == 'worker'){
+            document.getElementById('inviteSurveyCreationCheckbox').checked = false;
+            document.getElementById('inviteSurveyCreationCheckbox').disabled = true;
+            document.getElementById('inviteDeletionCheckbox').checked = false;
+            document.getElementById('inviteDeletionCheckbox').disabled = true;
+            buildColTitleInvDiv()
+            document.getElementById('permissionExceptionsInvDiv').hidden = false;
+        }
+        else{
+            document.getElementById('inviteSurveyCreationCheckbox').disabled = false;
+            if (access_slider_values[permission_value] < access_slider_values['write']) {
+                document.getElementById('inviteDeletionCheckbox').checked = false;
+                document.getElementById('inviteDeletionCheckbox').disabled = true;
+            }
+            else {
+                document.getElementById('inviteDeletionCheckbox').disabled = false;
+            }
+            if (document.getElementById('inviteExceptionAccessTitle')==null){
+                buildColTitleInvDiv()
+            }
+            if (permission_value == 'admin'){
+                document.getElementById('permissionExceptionsInvDiv').hidden = true;
+                while (document.getElementById('detailedAccessInvDiv').firstChild) {
+                    document.getElementById('detailedAccessInvDiv').removeChild(document.getElementById('detailedAccessInvDiv').firstChild);
+                }
+            }
+            else{
+                document.getElementById('permissionExceptionsInvDiv').hidden = false;
+            }
+        }
+    });
+    
+    // Annotation Access
+    var toggleDiv = document.createElement('div');
+    toggleDiv.classList.add('text-center');
+    toggleDiv.style.verticalAlign = 'middle';
+    col2.appendChild(toggleDiv);
+
+    var toggle = document.createElement('label');
+    toggle.classList.add('switch');
+    toggleDiv.appendChild(toggle);
+
+    var checkbox = document.createElement('input');
+    checkbox.setAttribute("type", "checkbox");
+    checkbox.id = 'inviteAnnotationAccessCheckbox';
+    checkbox.checked = false;
+    toggle.appendChild(checkbox);
+
+    var slider = document.createElement('span');
+    slider.classList.add('slider');
+    slider.classList.add('round');
+    toggle.appendChild(slider);
+
+    // Survey Creation
+    var toggleDiv = document.createElement('div');
+    toggleDiv.classList.add('text-center');
+    toggleDiv.style.verticalAlign = 'middle';
+    col3.appendChild(toggleDiv);
+
+    var toggle = document.createElement('label');
+    toggle.classList.add('switch');
+    toggleDiv.appendChild(toggle);
+
+    var checkbox = document.createElement('input');
+    checkbox.setAttribute("type", "checkbox");
+    checkbox.id = 'inviteSurveyCreationCheckbox';
+    checkbox.checked = false;
+    checkbox.disabled = true;
+    toggle.appendChild(checkbox);
+
+    var slider = document.createElement('span');
+    slider.classList.add('slider');
+    slider.classList.add('round');
+    toggle.appendChild(slider);
+
+    // Deletion
+    var toggleDiv = document.createElement('div');
+    toggleDiv.classList.add('text-center');
+    toggleDiv.style.verticalAlign = 'middle';
+    col4.appendChild(toggleDiv);
+
+    var toggle = document.createElement('label');
+    toggle.classList.add('switch');
+    toggleDiv.appendChild(toggle);
+
+    var checkbox = document.createElement('input');
+    checkbox.setAttribute("type", "checkbox");
+    checkbox.id = 'inviteDeletionCheckbox';
+    checkbox.checked = false;
+    checkbox.disabled = true;
+    toggle.appendChild(checkbox);
+
+    var slider = document.createElement('span');
+    slider.classList.add('slider');
+    slider.classList.add('round');
+    toggle.appendChild(slider);
+
+    buildColTitleInvDiv()
+}
+
+function buildColTitleInvDiv(){
+    /** Builds the column title for the invite detailed access. */
+    var colTitleInvDiv = document.getElementById('colTitleInvDiv')
+    while (colTitleInvDiv.firstChild) {
+        colTitleInvDiv.removeChild(colTitleInvDiv.firstChild);
+    }
+
+    var detailedAccessInvDiv = document.getElementById('detailedAccessInvDiv')
+    while (detailedAccessInvDiv.firstChild) {
+        detailedAccessInvDiv.removeChild(detailedAccessInvDiv.firstChild);
+    }
+
+    if (document.getElementById('inviteDefaultAccessSlider').value == access_slider_values['worker']) {
+        var colTitle = document.createElement('div')
+        colTitle.classList.add('col-lg-4')
+        colTitle.innerText = 'Survey:'
+        colTitleInvDiv.appendChild(colTitle)
+
+        var colTitle = document.createElement('div')
+        colTitle.classList.add('col-lg-8')
+        colTitle.innerText = 'Annotation Access:'
+        colTitleInvDiv.appendChild(colTitle)
+    }
+    else{
+        var colTitle = document.createElement('div')
+        colTitle.classList.add('col-lg-4')
+        colTitle.innerText = 'Survey:'
+        colTitleInvDiv.appendChild(colTitle)
+
+        var colTitle = document.createElement('div')
+        colTitle.classList.add('col-lg-5')
+        colTitleId = 'inviteExceptionAccessTitle'
+        colTitle.innerText = 'Access:'
+        colTitleInvDiv.appendChild(colTitle)
+
+        var colTitle = document.createElement('div')
+        colTitle.classList.add('col-lg-3')
+        colTitle.innerText = 'Annotation Access:'
+        colTitleInvDiv.appendChild(colTitle)
+    }
+}
+
+function buildDetailedAccessRowInv(){
+    /** Builds a row for the invite detailed access. */
+    var detailedAccessDiv = document.getElementById('detailedAccessInvDiv')
+    var IDNum = getIdNumforNext('detailedSurveySelectInv-')
+
+    var worker = false
+    if (document.getElementById('inviteDefaultAccessSlider').value == access_slider_values['worker']) {
+        worker = true
+    }
+
+    var row = document.createElement('div')
+    row.classList.add('row')
+    detailedAccessDiv.appendChild(row)
+
+    var col1 = document.createElement('div')
+    col1.classList.add('col-lg-4')
+    col1.style.display = 'flex'
+    col1.style.alignItems = 'center'
+    col1.style.justifyContent = 'center'
+    row.appendChild(col1)
+    
+    if (!worker) { 
+        var col2 = document.createElement('div')
+        col2.classList.add('col-lg-5')
+        row.appendChild(col2)
+    }
+
+    var col3 = document.createElement('div')
+    col3.classList.add('col-lg-2')
+    col3.style.display = 'flex'
+    col3.style.alignItems = 'center'
+    col3.style.justifyContent = 'center'
+    row.appendChild(col3)
+
+    var col4 = document.createElement('div')
+    col4.classList.add('col-lg-1')
+    col4.style.display = 'flex'
+    col4.style.alignItems = 'center'
+    col4.style.justifyContent = 'center'
+    row.appendChild(col4)   
+
+    // Survey
+    var survey = document.createElement('select');
+    survey.classList.add('form-control')
+    survey.id = 'detailedSurveySelectInv-' + IDNum;
+    col1.appendChild(survey);
+
+    var optionTexts = ['None']
+    var optionValues = ["-1"]
+    let currentOrgId = document.getElementById('organisationSelect').value
+    for (let i=0;i<globalInvSurveys.length;i++) {
+        if (globalInvSurveys[i].org_id.toString() == currentOrgId.toString()){
+            optionTexts.push(globalInvSurveys[i].name)
+            optionValues.push(globalInvSurveys[i].id)
+        }
+    }
+    fillSelect(survey, optionTexts, optionValues)
+
+    // Default Access
+    if (!worker) {
+        var defaultDiv = document.createElement('div');
+        defaultDiv.setAttribute('class','text-center')
+        defaultDiv.setAttribute('style','vertical-align: middle;')
+        col2.appendChild(defaultDiv);    
+        
+        var row = document.createElement('div')
+        row.classList.add('row');
+        defaultDiv.appendChild(row)
+        
+        var col1 = document.createElement('div')
+        col1.classList.add('col-lg-12');
+        row.appendChild(col1)
+
+        var slider = document.createElement('input');
+        slider.setAttribute("type", "range");
+        slider.setAttribute("class", "custom-range");
+        slider.setAttribute('style','width: 85%;')
+        slider.setAttribute("min", "0");
+        slider.setAttribute("max", "3");
+        slider.setAttribute("step", "1");
+        slider.setAttribute("id", "detailedAccessSliderInv-" + IDNum);
+        col1.appendChild(slider);
+
+        var row = document.createElement('div')
+        row.classList.add('row');
+        defaultDiv.appendChild(row)
+
+        var col_0 = document.createElement('div')
+        col_0.classList.add('col-lg-3');
+        col_0.setAttribute('style','vertical-align: middle; text-align: center;')
+        col_0.innerText = default_access[0];
+        row.appendChild(col_0)
+
+        var col_1 = document.createElement('div')
+        col_1.classList.add('col-lg-3');
+        col_1.setAttribute('style','vertical-align: middle; text-align: center;')
+        col_1.innerText = default_access[1];
+        row.appendChild(col_1)
+
+        var col_2 = document.createElement('div')
+        col_2.classList.add('col-lg-3');
+        col_2.setAttribute('style','vertical-align: middle; text-align: center;')
+        col_2.innerText = default_access[2];
+        row.appendChild(col_2)
+
+        var col_3 = document.createElement('div')
+        col_3.classList.add('col-lg-3');
+        col_3.setAttribute('style','vertical-align: middle; text-align: center;')
+        col_3.innerText = default_access[3];
+        row.appendChild(col_3)
+    }
+    
+    // Annotation Access
+    var toggleDiv = document.createElement('div');
+    toggleDiv.classList.add('text-center');
+    toggleDiv.style.verticalAlign = 'middle';
+    col3.appendChild(toggleDiv);
+
+    var toggle = document.createElement('label');
+    toggle.classList.add('switch');
+    toggleDiv.appendChild(toggle);
+
+    var checkbox = document.createElement('input');
+    checkbox.setAttribute("type", "checkbox");
+    checkbox.id = 'detailedWorkerAccessInv-' + IDNum;
+    toggle.appendChild(checkbox);
+
+    var slider = document.createElement('span');
+    slider.classList.add('slider');
+    slider.classList.add('round');
+    toggle.appendChild(slider);
+
+    // Remove
+    var button = document.createElement('button');
+    button.setAttribute("class",'btn btn-info')
+    button.innerHTML = '&times;';
+    button.id = 'btnRemoveDetailedAccessInv-' + IDNum;
+    col4.appendChild(button);
+
+    button.addEventListener('click', function () {
+        this.parentNode.parentNode.remove()
+    });
+
+}
+
 modalShareData.on('hidden.bs.modal', function () {
     /** Function for when the share data modal is closed. */
     document.getElementById('shareDataErrors').innerHTML = ''
@@ -2212,6 +2674,20 @@ modalInvite.on('hidden.bs.modal', function () {
     /** Function for when the invite modal is closed. */
     document.getElementById('inviteStatus').innerHTML = ''
     document.getElementById('inviteUsername').value = ''
+    var invitePermissionsDiv = document.getElementById('invitePermissionsDiv')
+    while (invitePermissionsDiv.firstChild) {
+        invitePermissionsDiv.removeChild(invitePermissionsDiv.firstChild);
+    }
+    var colTitleInvDiv = document.getElementById('colTitleInvDiv')
+    while (colTitleInvDiv.firstChild) {
+        colTitleInvDiv.removeChild(colTitleInvDiv.firstChild);
+    }
+    var detailedAccessInvDiv = document.getElementById('detailedAccessInvDiv')
+    while (detailedAccessInvDiv.firstChild) {
+        detailedAccessInvDiv.removeChild(detailedAccessInvDiv.firstChild);
+    }
+    document.getElementById('permissionExceptionsInvDiv').hidden = false;
+    globalInvSurveys = []
     getUsers()
 });
 
@@ -2314,6 +2790,11 @@ $('#btnNextExceptions').click(function(){
         currentExceptionsPage = nextExceptionsPage
         getPermissions()
     }
+});
+
+$('#organisationSelect').change(function(){
+    /**Function for the organisation select. */
+    buildColTitleInvDiv()
 });
 
 function onload(){

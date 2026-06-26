@@ -1,0 +1,10 @@
+Hi {{ username }},
+
+{{ organisation }} has invited you to join their organisation. 
+
+To accept this invitation and join the organisation, please click here: {{ urlAccept }}.
+
+If you would like to decline the invitation, please click here: {{ urlDecline }}.
+
+Regards,
+The TrapTagger team

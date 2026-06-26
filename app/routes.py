@@ -4887,16 +4887,20 @@ def inviteWorker():
     '''Invites a user to work for the current user.'''
 
     status = 'Error'
-    message = 'Could not find user with that username. Please check the username, or ask them to sign up for a user account.'
+    message = 'Could not find user with that username or email. Please check the username or email, or ask them to sign up for a user account.'
 
     try:
         inviteUsername = ast.literal_eval(request.form['inviteUsername'])
         orgID = ast.literal_eval(request.form['orgID'])
+        permissions = ast.literal_eval(request.form['permissions'])
+        exceptions = ast.literal_eval(request.form['exceptions'])
 
         if inviteUsername:
             organisation = db.session.query(Organisation).join(UserPermissions).filter(UserPermissions.user_id==current_user.id).filter(UserPermissions.organisation_id==orgID).filter(UserPermissions.default=='admin').first()
             if organisation:
                 worker = db.session.query(User).filter(User.username==inviteUsername).first()
+                if not worker:
+                    worker = db.session.query(User).filter(User.email==inviteUsername).first()
                 if worker:
                     check = db.session.query(UserPermissions).filter(UserPermissions.user_id==worker.id).filter(UserPermissions.organisation_id==organisation.id).first()
                     if check:
@@ -4906,8 +4910,10 @@ def inviteWorker():
                         if check_notif:
                             message = 'That user has already been invited to join your organisation.'
                         else:
+                            ts = datetime.utcnow()
+                            ts = ts.strftime('%Y-%m-%d %H:%M:%S.%f')
                             token = jwt.encode(
-                            {'organisation_id': organisation.id, 'worker_id': worker.id, 'user_id': current_user.id},
+                            {'organisation_id': organisation.id, 'worker_id': worker.id, 'user_id': current_user.id, 'permissions': permissions, 'exceptions': exceptions, 'ts': ts},
                             app.config['SECRET_KEY'], algorithm='HS256')
 
                             url = 'https://'+Config.DNS+'/acceptInvitation/'+token + '/'
@@ -4930,10 +4936,22 @@ def inviteWorker():
                                 db.session.add(notification)
 
                             db.session.commit()
-                            
+
+                            GLOBALS.redisClient.set('invitation_'+str(organisation.id)+'_'+str(worker.id), ts)
+
                             status = 'Success'
-                            message = 'Invitation sent.'
-    except:
+                            message = 'Invitation sent. Please check your notifications for updates.'
+
+                            urlAccept = url + 'accept'
+                            urlDecline = url + 'decline'
+
+                            send_email('[TrapTagger] Invitation to Join Organisation',
+                            recipients=[worker.email],
+                            text_body=render_template('email/inviteFromOrg.txt',username=worker.username, organisation=organisation.name, urlAccept=urlAccept, urlDecline=urlDecline),
+                            html_body=render_template('email/inviteFromOrg.html',username=worker.username, organisation=organisation.name, urlAccept=urlAccept, urlDecline=urlDecline))
+                            app.logger.info('Email sent to worker: {}'.format(worker.email))
+    except Exception as e:
+        app.logger.error('Error inviting worker: {}'.format(e))
         pass
 
     return json.dumps({'status': status, 'message':message})
@@ -4948,9 +4966,21 @@ def acceptInvitation(token,action):
             info = jwt.decode(token, app.config['SECRET_KEY'], algorithms=['HS256'])
             organisation_id = info['organisation_id']
             worker_id = info['worker_id']
+            permissions = info['permissions']
+            exceptions = info['exceptions']
 
             organisation = db.session.query(Organisation).get(organisation_id)
             worker = db.session.query(User).get(worker_id)
+
+            if not organisation or not worker: return redirect(url_for('index'))
+
+            # check redis
+            ts = GLOBALS.redisClient.get('invitation_'+str(organisation.id)+'_'+str(worker.id))
+            if not ts:
+                return redirect(url_for('index'))
+            else:
+                if 'ts' in info and info['ts'] != ts.decode():
+                    return redirect(url_for('index'))
 
             del_contents = organisation.name+' has invited you to join their organisation.'
             delete_notifications(user_ids=[current_user.id], contents=del_contents)
@@ -4960,9 +4990,36 @@ def acceptInvitation(token,action):
             del_contents = worker.username+' has been invited to join '+organisation.name+'.'
             delete_notifications(user_ids=organisation_admins, contents=del_contents)
 
+            check_permission = db.session.query(UserPermissions).filter(UserPermissions.user_id==worker_id).filter(UserPermissions.organisation_id==organisation_id).first()
+            if check_permission:
+                return redirect(url_for('index'))
+
             if action=='accept':
-                user_permission = UserPermissions(user_id=worker_id, organisation_id=organisation_id, default='worker', annotation=False, delete=False)
+                default = 'worker'
+                if 'default' in permissions and permissions['default'] in ['admin', 'write', 'read', 'hidden']:
+                    default = permissions['default']
+                annotation = False
+                if 'annotation' in permissions and permissions['annotation'] == '1':
+                    annotation = True
+                create = False
+                delete = False
+                if default != 'worker':
+                    if 'create' in permissions and permissions['create'] == '1':
+                        create = True
+                if default in ['admin', 'write']:
+                    if 'delete' in permissions and permissions['delete'] == '1':
+                        delete = True
+                user_permission = UserPermissions(user_id=worker_id, organisation_id=organisation_id, default=default, annotation=annotation, delete=delete, create=create)
                 db.session.add(user_permission)
+
+                if default != 'admin':
+                    for exception in exceptions:
+                        annotation_exception = True if exception['annotation'] == '1' else False
+                        if exception['permission'] in ['worker', 'hidden', 'read', 'write']:
+                            check_exception = db.session.query(SurveyPermissionException).filter(SurveyPermissionException.user_id==worker_id).filter(SurveyPermissionException.survey_id==exception['survey_id']).first()
+                            if not check_exception:
+                                newException = SurveyPermissionException(user_id=worker_id, survey_id=exception['survey_id'], permission=exception['permission'], annotation=annotation_exception)
+                                db.session.add(newException)
 
                 notif_msg_org = '<p>'+worker.username+' has accepted the invitation to join '+organisation.name+'. Please modify their permissions as required <a href="/permissions">here</a>.</p>'
                 for admin_id in organisation_admins:
@@ -4984,6 +5041,8 @@ def acceptInvitation(token,action):
                 db.session.add(notif_worker)
 
             db.session.commit()
+
+            GLOBALS.redisClient.delete('invitation_'+str(organisation_id)+'_'+str(worker_id))
 
             updateUserAdminStatus(worker_id)
         
@@ -5022,6 +5081,8 @@ def cancelInvitation(token):
                     db.session.add(notif_org)
 
                 db.session.commit()
+
+                GLOBALS.redisClient.delete('invitation_'+str(organisation_id)+'_'+str(worker_id))
 
                 updateUserAdminStatus(worker_id)
             else:
@@ -13575,6 +13636,7 @@ def getAdminOrganisations():
                 surveys.append({
                     'id': data[0],
                     'name': data[1],
+                    'org_id': data[2],
                 })
                 if data[2] not in org_added:
                     organisations.append({
@@ -13606,6 +13668,9 @@ def removeUserFromOrganisation():
     message = 'Unable to remove user from organisation.'
 
     if current_user and current_user.is_authenticated and checkDefaultAdminPermission(current_user.id,org_id):
+        org = db.session.query(Organisation).get(org_id)
+        if org.root_user_id == user_id:
+            return json.dumps({'status': 'FAILURE', 'message': 'You cannot remove the root user from an organisation.'})
         user_permission = db.session.query(UserPermissions).filter(UserPermissions.organisation_id==org_id).filter(UserPermissions.user_id==user_id).first()
         db.session.delete(user_permission)
 
@@ -13634,7 +13699,8 @@ def removeUserFromOrganisation():
         notification = Notification(user_id=user_id, contents=user_notif, seen=False)
         db.session.add(notification)
 
-        admin_notif = '<p> User '+current_user.username+' has been removed from organisation '+org_name+'.</p>'
+        user = db.session.query(User).get(user_id)
+        admin_notif = '<p> User '+user.username+' has been removed from organisation '+org_name+'.</p>'
         for org_admin in org_admins:
             notification = Notification(user_id=org_admin, contents=admin_notif, seen=False)
             db.session.add(notification)
