@@ -469,7 +469,7 @@ def takeJob(task_id):
     # if task and (task.status=='PROGRESS') and ((current_user in task.survey.user.workers) or (current_user == task.survey.user)):
     if task and (task.status=='PROGRESS') and (checkAnnotationPermission(current_user.id,task.id)):
 
-        if (len(current_user.children[:]) == 0) and (not task.is_bounding) and (',' not in task.tagging_level) and (not Config.LOAD_TESTING):
+        if (len(current_user.children[:]) == 0) and (not task.is_bounding) and (',' not in task.tagging_level) and (not Config.LOAD_TESTING) and (not current_user.admin):
             endpoint = '/tutorial/'
         else:
             endpoint = '/dotask/'

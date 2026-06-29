@@ -162,7 +162,7 @@ class Camera(db.Model):
     trapgroup_id = db.Column(db.Integer, db.ForeignKey('trapgroup.id'))
     videos = db.relationship('Video', backref='camera', lazy=True)
     cameragroup_id = db.Column(db.Integer, db.ForeignKey('cameragroup.id'), index=True)
-
+    
     def __repr__(self):
         return '<Camera {}>'.format(self.path)
 
@@ -174,6 +174,19 @@ class Camera(db.Model):
             session.add(camera)
         return camera
 
+class CalibrationImage(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    cameragroup_id = db.Column(db.Integer, db.ForeignKey('cameragroup.id'), index=True)
+    filename = db.Column(db.String(128), index=False) # refers to entire path + filename
+    distance = db.Column(db.Float, index=False)
+    top = db.Column(db.Float, index=False)
+    left = db.Column(db.Float, index=False)
+    bottom = db.Column(db.Float, index=False)
+    right = db.Column(db.Float, index=False)
+    hash = db.Column(db.String(64), index=False)
+
+    def __repr__(self):
+        return '<CalibrationImage {} for cameragroup {}>'.format(self.filename, self.cameragroup_id)
 
 class Survey(db.Model):
     id = db.Column(db.Integer, primary_key=True)
@@ -280,6 +293,7 @@ class Detection(db.Model):
     flank = db.Column(db.String(1), index=True) #left/right
     aid = db.Column(db.Integer, index=True) # annotation id for wbia db 
     features = db.relationship('Feature', backref='detection', lazy=True)
+    distance = db.Column(db.Float, index=False)
 
     def __repr__(self):
         return '<Detection of class {} on image {}>'.format(self.category, self.image_id)
@@ -679,6 +693,7 @@ class Cameragroup(db.Model):
     name = db.Column(db.String(64), index=False)
     cameras = db.relationship('Camera', backref='cameragroup', lazy=True)
     masks = db.relationship('Mask', backref='cameragroup', lazy=True)
+    calibration_images = db.relationship('CalibrationImage', backref='cameragroup', lazy=True)
 
     def __repr__(self):
         return '<Cameragroup {}>'.format(self.name)

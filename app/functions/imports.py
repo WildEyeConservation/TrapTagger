@@ -2389,7 +2389,7 @@ def import_folder(s3Folder, survey_id, sourceBucket,destinationBucket,pipeline,m
     for dirpath, folders, filenames in s3traverse(sourceBucket, s3Folder):
         videos = list(filter(isVideo.search, filenames))
         jpegs = list(filter(isjpeg.search, filenames))
-        if (len(jpegs) or len(videos)) and not any(exclusion in dirpath for exclusion in exclusions):
+        if (len(jpegs) or len(videos)) and not any(exclusion in dirpath for exclusion in exclusions) and not dirpath.endswith('/calibration'):
             if dirpath in cameras_with_trapgroups.keys():
                 trapgroup = cameras_with_trapgroups[dirpath].trapgroup
             else:
@@ -2459,7 +2459,7 @@ def import_folder(s3Folder, survey_id, sourceBucket,destinationBucket,pipeline,m
     for dirpath, folders, filenames in s3traverse(sourceBucket, s3Folder):
         jpegs = list(filter(isjpeg.search, filenames))
         
-        if len(jpegs) and not any(exclusion in dirpath for exclusion in exclusions):
+        if len(jpegs) and not any(exclusion in dirpath for exclusion in exclusions) and not dirpath.endswith('/calibration'):
             if dirpath in cameras_with_trapgroups.keys():
                 camera = cameras_with_trapgroups[dirpath]
                 trapgroup = camera.trapgroup
@@ -2589,6 +2589,74 @@ def import_folder(s3Folder, survey_id, sourceBucket,destinationBucket,pipeline,m
 
     # Remove any duplicate images that made their way into the database due to the parallel import process.
     if not pipeline: remove_duplicate_images(sid)
+
+def process_calibration_images(survey_id, s3_folder, source_bucket, dest_bucket):
+    '''
+    Finds and processes calibration images for a survey after cameras have been grouped.
+    Updates survey status to "Processing Calibration Data" only if calibration images are found.
+    Must be called AFTER processCameras so that camera.cameragroup_id is populated.
+    '''
+    cameras_with_trapgroups = {
+        r[0]: r[1]
+        for r in db.session.query(Camera.path, Camera)
+            .join(Trapgroup)
+            .filter(Trapgroup.survey_id==survey_id)
+            .distinct().all()
+    }
+    isjpeg = re.compile('(\.jpe?g$)|(_jpe?g$)', re.I)
+
+    calibration_results = []
+    for dirpath, folders, filenames in s3traverse(source_bucket, s3_folder):
+        if dirpath.endswith('/calibration'):
+            jpegs = list(filter(isjpeg.search, filenames))
+            if jpegs:
+                parent_dirpath = dirpath.rsplit('/calibration', 1)[0]
+                camera = cameras_with_trapgroups.get(parent_dirpath)
+                if camera and camera.cameragroup_id:
+                    if not calibration_results:
+                        survey = db.session.query(Survey).get(survey_id)
+                        survey.status = 'Processing Calibration Data'
+                        db.session.commit()
+                    for filename in jpegs:
+                        try:
+                            distance = float(os.path.splitext(filename)[0])
+                        except ValueError:
+                            continue
+                        existing = db.session.query(CalibrationImage).filter_by(
+                            cameragroup_id=camera.cameragroup_id,
+                            filename=filename
+                        ).first()
+                        if existing:
+                            continue
+                        calibration_results.append(
+                            import_calibration_image.apply_async(
+                                kwargs={
+                                    'source_key': dirpath + '/' + filename,
+                                    'filename': filename,
+                                    'distance': distance,
+                                    'cameragroup_id': camera.cameragroup_id,
+                                    'camera_path': parent_dirpath,
+                                    'sourceBucket': source_bucket,
+                                    'destBucket': dest_bucket,
+                                    'survey_id': survey_id
+                                },
+                                queue='parallel'
+                            )
+                        )
+
+    if calibration_results:
+        db.session.remove()
+        GLOBALS.lock.acquire()
+        with allow_join_result():
+            for result in calibration_results:
+                try:
+                    result.get()
+                except Exception:
+                    app.logger.info(traceback.format_exc())
+                result.forget()
+        GLOBALS.lock.release()
+
+    return True
 
 # def pipeline_csv(df,surveyName,tgcode,source,external,min_area,destBucket,exclusions,label_source):
 #     '''
@@ -3722,12 +3790,17 @@ def import_survey(self,survey_id,preprocess_done=False,live=False,launch_id=None
             survey.end_date = date_query[1] if date_query else None
 
             survey = db.session.query(Survey).get(survey_id)
+            s3_folder = survey.organisation.folder + '/' + survey.folder
             survey.status='Processing Cameras'
             db.session.commit()
             if live:
                 processCameras(survey_id, survey.trapgroup_code, None)
             else:
                 processCameras(survey_id, survey.trapgroup_code, survey.camera_code)
+
+            # process calibration images
+            process_calibration_images(survey_id, s3_folder, Config.BUCKET, Config.BUCKET)
+            
             survey = db.session.query(Survey).get(survey_id)
 
             static_check = None
@@ -6059,3 +6132,78 @@ def batch_images_for_detection_only(image_data,sourceBucket,dirpath,external=Fal
         app.logger.info(' ')
 
     return True
+
+@celery.task(bind=True, max_retries=5)
+def import_calibration_image(self, source_key, filename, distance, cameragroup_id, camera_path, sourceBucket, destBucket, survey_id):
+    '''Imports a single calibration image: compresses it, uploads to S3, runs MegaDetector, and creates a CalibrationImage record.'''
+    try:
+        # Build the destination key
+        comp_splits = camera_path.split('/')
+        comp_splits[0] = comp_splits[0] + '-comp'
+        comp_camera_path = '/'.join(comp_splits)
+        # calibration path is at survey level:
+        # org-comp / survey / _calibration_ / trapgroup/.../camera / filename
+        path_parts = comp_camera_path.split('/')
+        dest_key = path_parts[0] + '/' + path_parts[1] + '/_calibration_/' + '/'.join(path_parts[2:]) + '/' + filename
+
+        # Download raw image, get hash, compress, upload
+        with tempfile.NamedTemporaryFile(delete=True, suffix='.JPG') as temp_file:
+            GLOBALS.s3client.download_file(Bucket=sourceBucket, Key=source_key, Filename=temp_file.name)
+
+            with open(temp_file.name, 'rb') as f:
+                file_hash = hashlib.md5(f.read()).hexdigest()
+            
+            try:
+                with wandImage(filename=temp_file.name).convert('jpeg') as img:
+                    img.metadata['colorspace:auto-grayscale'] = 'false'
+                    img.transform(resize='800')
+                    GLOBALS.s3client.upload_fileobj(BytesIO(img.make_blob()), destBucket, dest_key)
+            except:
+                app.logger.info('Failed to compress calibration image {}'.format(source_key))
+                return False
+            
+            # Delete the raw uploaded file from sourceBucket
+            GLOBALS.s3client.delete_object(Bucket=sourceBucket, Key=source_key)
+
+        # Create CalibrationImage record
+        cal_image = CalibrationImage(
+            cameragroup_id=cameragroup_id,
+            filename=filename,
+            distance=distance,
+            hash=file_hash
+        )
+        db.session.add(cal_image)
+
+         # Send to MegaDetector and wait
+        detection_task = detection.apply_async(
+            kwargs={
+                'batch': [dest_key],
+                'sourceBucket': destBucket,
+                'external': False,
+                'model': Config.DETECTOR
+            },
+            queue='celery'
+        )
+        
+        with allow_join_result():
+            result = detection_task.get(timeout=300)
+        detection_task.forget()
+
+        # Find best human detection (category == 2)
+        if result and len(result) > 0:
+            detections = result[0]  # result is list of lists, one per image
+            human_detections = [d for d in detections if d.get('category') == 2]
+            if human_detections:
+                best = max(human_detections, key=lambda d: d['score'])
+                cal_image.top = best['top']
+                cal_image.left = best['left']
+                cal_image.bottom = best['bottom']
+                cal_image.right = best['right']
+                db.session.commit()
+
+        db.session.commit()
+        return True
+
+    except Exception as exc:
+        app.logger.info(traceback.format_exc())
+        raise self.retry(exc=exc, countdown=10)

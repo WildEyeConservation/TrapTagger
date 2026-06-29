@@ -122,6 +122,7 @@ var cameragroup_corrected_timestamps = {}
 var cameragroup_original_timestamps = {}
 var globalSurveyStructure = {}
 var globalStructureCounts = {'sites':0,'cameras':0}
+var globalCalibrationFolderCount = 0
 var structure_page = 1
 var tags_per_page = 10
 var speciesAndTasks = {}
@@ -9072,7 +9073,8 @@ function updateSurveyStructure(){
 
     if (structurePages.length > 0) {
         infoDiv.innerHTML = ''
-        infoDiv.innerHTML = 'Structure found: ' + globalStructureCounts['sites'] + ' sites, ' + globalStructureCounts['cameras'] + ' cameras. <br>'
+        let calText = globalCalibrationFolderCount > 0 ? ', ' + globalCalibrationFolderCount + ' calibration folders.' : '.'
+        infoDiv.innerHTML = 'Structure found: ' + globalStructureCounts['sites'] + ' sites, ' + globalStructureCounts['cameras'] + ' cameras' + calText + '<br>'
 
         if (camSameAsSite) {
             for (let i = 0; i < structurePages.length; i++) {

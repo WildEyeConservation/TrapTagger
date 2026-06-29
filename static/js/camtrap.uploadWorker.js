@@ -33,6 +33,7 @@ filecount=0
 addingBatch = false
 checkingFiles = false
 folders = []
+calibrationFolders = []
 lambdaQueue = []
 checkingLambda = false
 largeFiles = 0
@@ -204,8 +205,12 @@ async function listFolder(dirHandle,path){
     /** Iterates through a folder, adding the files to the upload queue */
     for await (const entry of dirHandle.values()) {
         if (entry.kind=='directory'){
-            await listFolder(entry,path+'/'+entry.name)
-            updatePathDisplay()
+            if (entry.name.toLowerCase() === 'calibration') {
+                await listCalibrationFolder(entry, path + '/' + entry.name, path)
+            } else {
+                await listFolder(entry,path+'/'+entry.name)
+                updatePathDisplay()
+            }
         } else {
             // only accept desired video and image file types and ignore hidden files
             if (/^[^.].*\.(jpe?g|avi|mp4|mov)$/.test(entry.name.toLowerCase())) {
@@ -223,6 +228,20 @@ async function listFolder(dirHandle,path){
     return filecount
 }
 
+async function listCalibrationFolder(dirHandle, path, cameraPath) {
+    for await (const entry of dirHandle.values()) {
+        if (entry.kind == 'file') {
+            if (/^[^.].*\.(jpe?g)$/.test(entry.name.toLowerCase())) {
+                filecount += 1
+                proposedQueue.push([path, entry])
+                if (!calibrationFolders.includes(cameraPath)) {
+                    calibrationFolders.push(cameraPath)
+                }
+            }
+        }
+    }
+}
+
 function buildUploadProgress() {
     /** Wrapper function for buildUploadProgress so that the main js can update the page. */
     postMessage({'func': 'buildUploadProgress', 'args': [filesUploaded,filecount]})
@@ -230,7 +249,7 @@ function buildUploadProgress() {
 
 function updatePathDisplay() {
     /** Wrapper function for updatePathDisplay so that the main js can update the page. */
-    postMessage({'func': 'updatePathDisplay', 'args': [folders,filecount]})
+    postMessage({'func': 'updatePathDisplay', 'args': [folders,filecount, calibrationFolders]})
 }
 
 function updateUploadProgress(value,total) {
@@ -321,6 +340,7 @@ function resetUploadStatusVariables() {
     addingBatch = false
     checkingFiles = false
     folders = []
+    calibrationFolders = []    
     lambdaQueue = []
     checkingLambda = false
     largeFiles = 0

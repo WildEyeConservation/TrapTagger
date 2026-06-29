@@ -27,6 +27,7 @@ uploadWorker.onmessage = function(evt){
         uppy.addFiles(evt.data.args)
     } else if (evt.data.func=='updatePathDisplay') {
         updatePathDisplay(evt.data.args[0],evt.data.args[1])
+        updateCalibrationNotice(evt.data.args[2])
         updateSiteFolderSelect()
         updateCamFolderSelect()
     } else if (evt.data.func=='checkTrapgroupCode') {
@@ -58,6 +59,10 @@ uploadWorker.onmessage = function(evt){
         }
     }
 };
+
+function updateCalibrationNotice(calibrationFolders) {
+    globalCalibrationFolderCount = (calibrationFolders && calibrationFolders.length > 0) ? calibrationFolders.length : 0
+}
 
 function buildUploadProgress(filesUploaded,filecount) {
     /** Builds the upload progress bar */
@@ -264,6 +269,7 @@ function resetUploadStatusVariables() {
     uploading = false
     uploadStart = null
     retrying = false
+    globalCalibrationFolderCount = 0
 }
 
 function pauseUpload() {
