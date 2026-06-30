@@ -2389,6 +2389,27 @@ def import_folder(s3Folder, survey_id, sourceBucket,destinationBucket,pipeline,m
     for dirpath, folders, filenames in s3traverse(sourceBucket, s3Folder):
         videos = list(filter(isVideo.search, filenames))
         jpegs = list(filter(isjpeg.search, filenames))
+        # handle calibration images
+        if dirpath.endswith('/calibration') and jpegs:
+            # Build the _calibration_/ destination key for each jpeg
+            parent_camera_path = dirpath.rsplit('/calibration', 1)[0]
+            comp_splits = parent_camera_path.split('/')
+            comp_splits[0] = comp_splits[0] + '-comp'
+            cal_prefix = comp_splits[0] + '/' + comp_splits[1] + '/_calibration_/' + '/'.join(comp_splits[2:])
+            for filename in jpegs:
+                source_key = dirpath + '/' + filename
+                dest_key = cal_prefix + '/' + filename
+                with tempfile.NamedTemporaryFile(delete=True, suffix='.JPG') as tmp:
+                    GLOBALS.s3client.download_file(Bucket=sourceBucket, Key=source_key, Filename=tmp.name)
+                    try:
+                        with wandImage(filename=tmp.name).convert('jpeg') as img:
+                            img.metadata['colorspace:auto-grayscale'] = 'false'
+                            img.transform(resize='800')
+                            GLOBALS.s3client.upload_fileobj(BytesIO(img.make_blob()), destinationBucket, dest_key)
+                        GLOBALS.s3client.delete_object(Bucket=sourceBucket, Key=source_key)
+                    except Exception:
+                        app.logger.info('Failed to compress calibration image {}'.format(source_key))
+            continue  # don't process as a regular camera folder
         if (len(jpegs) or len(videos)) and not any(exclusion in dirpath for exclusion in exclusions) and not dirpath.endswith('/calibration'):
             if dirpath in cameras_with_trapgroups.keys():
                 trapgroup = cameras_with_trapgroups[dirpath].trapgroup
@@ -2596,7 +2617,12 @@ def process_calibration_images(survey_id, s3_folder, source_bucket, dest_bucket)
     Updates survey status to "Processing Calibration Data" only if calibration images are found.
     Must be called AFTER processCameras so that camera.cameragroup_id is populated.
     '''
-    cameras_with_trapgroups = {
+    parts = s3_folder.split('/')
+    org = parts[0]
+    survey = parts[1]
+    cal_prefix = org + '-comp/' + survey + '/_calibration_'
+    # Build camera lookup: original_camera_path -> Camera object
+    cameras_by_path = {
         r[0]: r[1]
         for r in db.session.query(Camera.path, Camera)
             .join(Trapgroup)
@@ -2604,58 +2630,67 @@ def process_calibration_images(survey_id, s3_folder, source_bucket, dest_bucket)
             .distinct().all()
     }
     isjpeg = re.compile('(\.jpe?g$)|(_jpe?g$)', re.I)
-
-    calibration_results = []
-    for dirpath, folders, filenames in s3traverse(source_bucket, s3_folder):
-        if dirpath.endswith('/calibration'):
-            jpegs = list(filter(isjpeg.search, filenames))
-            if jpegs:
-                parent_dirpath = dirpath.rsplit('/calibration', 1)[0]
-                camera = cameras_with_trapgroups.get(parent_dirpath)
-                if camera and camera.cameragroup_id:
-                    if not calibration_results:
-                        survey = db.session.query(Survey).get(survey_id)
-                        survey.status = 'Processing Calibration Data'
-                        db.session.commit()
-                    for filename in jpegs:
-                        try:
-                            distance = float(os.path.splitext(filename)[0])
-                        except ValueError:
-                            continue
-                        existing = db.session.query(CalibrationImage).filter_by(
-                            cameragroup_id=camera.cameragroup_id,
-                            filename=filename
-                        ).first()
-                        if existing:
-                            continue
-                        calibration_results.append(
-                            import_calibration_image.apply_async(
-                                kwargs={
-                                    'source_key': dirpath + '/' + filename,
-                                    'filename': filename,
-                                    'distance': distance,
-                                    'cameragroup_id': camera.cameragroup_id,
-                                    'camera_path': parent_dirpath,
-                                    'sourceBucket': source_bucket,
-                                    'destBucket': dest_bucket,
-                                    'survey_id': survey_id
-                                },
-                                queue='parallel'
-                            )
-                        )
-
-    if calibration_results:
-        db.session.remove()
+    cal_images_to_detect = []  # list of (dest_key, filename, cameragroup_id)
+    for dirpath, folders, filenames in s3traverse(dest_bucket, cal_prefix):
+        jpegs = list(filter(isjpeg.search, filenames))
+        if not jpegs:
+            continue
+        # dirpath = org-comp/survey/_calibration_/trapgroup/.../camera
+        # reconstruct original camera path
+        after_cal = dirpath.split('/_calibration_/', 1)[1]  # trapgroup/.../camera
+        original_camera_path = org + '/' + survey + '/' + after_cal
+        camera = cameras_by_path.get(original_camera_path)
+        if not camera or not camera.cameragroup_id:
+            continue
+        if not cal_images_to_detect:
+            survey_obj = db.session.query(Survey).get(survey_id)
+            survey_obj.status = 'Processing Calibration Data'
+            db.session.commit()
+        for filename in jpegs:
+            try:
+                distance = float(os.path.splitext(filename)[0])
+            except ValueError:
+                continue
+            existing = db.session.query(CalibrationImage).filter_by(
+                cameragroup_id=camera.cameragroup_id,
+                filename=filename
+            ).first()
+            if existing:
+                continue
+            # Create the DB record now (without bbox — MegaDetector fills it in)
+            cal_image = CalibrationImage(
+                cameragroup_id=camera.cameragroup_id,
+                filename=filename,
+                distance=distance,
+            )
+            db.session.add(cal_image)
+            db.session.flush()  # get the ID
+            dest_key = dirpath + '/' + filename
+            cal_images_to_detect.append((dest_key, cal_image.id))
+    db.session.commit()
+    # Dispatch all calibration images to MegaDetector as one batch
+    if cal_images_to_detect:
+        batch_keys = [item[0] for item in cal_images_to_detect]
         GLOBALS.lock.acquire()
         with allow_join_result():
-            for result in calibration_results:
-                try:
-                    result.get()
-                except Exception:
-                    app.logger.info(traceback.format_exc())
-                result.forget()
+            result = detection.apply_async(
+                kwargs={'batch': batch_keys, 'sourceBucket': dest_bucket, 'external': False, 'model': Config.DETECTOR},
+                queue='celery', routing_key='celery.detection'
+            ).get(timeout=600)
         GLOBALS.lock.release()
-
+        # Update CalibrationImage records with bbox data
+        for i, (dest_key, cal_id) in enumerate(cal_images_to_detect):
+            if result and i < len(result):
+                detections = result[i]
+                human_detections = [d for d in detections if d.get('category') == 2]
+                if human_detections:
+                    best = max(human_detections, key=lambda d: d['score'])
+                    cal_image = db.session.query(CalibrationImage).get(cal_id)
+                    cal_image.top = best['top']
+                    cal_image.left = best['left']
+                    cal_image.bottom = best['bottom']
+                    cal_image.right = best['right']
+        db.session.commit()
     return True
 
 # def pipeline_csv(df,surveyName,tgcode,source,external,min_area,destBucket,exclusions,label_source):
@@ -5889,7 +5924,7 @@ def process_folder(s3Folder, survey_id, sourceBucket):
     batch = []
     chunk_size = round(10000/4)
     s3Folder = s3Folder.replace('_','\\_')
-    cameras = localsession.query(Camera).filter(Camera.path.like(s3Folder+'/%')).join(Image).filter(or_(~Image.detections.any(),Camera.trapgroup==None)).distinct().all()
+    cameras = localsession.query(Camera).filter(Camera.path.like(s3Folder+'/%')).filter(~Camera.path.contains('/calibration')).join(Image).filter(or_(~Image.detections.any(),Camera.trapgroup==None)).distinct().all()
     for camera in cameras:
         trapgroup = camera.trapgroup
         if not trapgroup:
@@ -6132,78 +6167,3 @@ def batch_images_for_detection_only(image_data,sourceBucket,dirpath,external=Fal
         app.logger.info(' ')
 
     return True
-
-@celery.task(bind=True, max_retries=5)
-def import_calibration_image(self, source_key, filename, distance, cameragroup_id, camera_path, sourceBucket, destBucket, survey_id):
-    '''Imports a single calibration image: compresses it, uploads to S3, runs MegaDetector, and creates a CalibrationImage record.'''
-    try:
-        # Build the destination key
-        comp_splits = camera_path.split('/')
-        comp_splits[0] = comp_splits[0] + '-comp'
-        comp_camera_path = '/'.join(comp_splits)
-        # calibration path is at survey level:
-        # org-comp / survey / _calibration_ / trapgroup/.../camera / filename
-        path_parts = comp_camera_path.split('/')
-        dest_key = path_parts[0] + '/' + path_parts[1] + '/_calibration_/' + '/'.join(path_parts[2:]) + '/' + filename
-
-        # Download raw image, get hash, compress, upload
-        with tempfile.NamedTemporaryFile(delete=True, suffix='.JPG') as temp_file:
-            GLOBALS.s3client.download_file(Bucket=sourceBucket, Key=source_key, Filename=temp_file.name)
-
-            with open(temp_file.name, 'rb') as f:
-                file_hash = hashlib.md5(f.read()).hexdigest()
-            
-            try:
-                with wandImage(filename=temp_file.name).convert('jpeg') as img:
-                    img.metadata['colorspace:auto-grayscale'] = 'false'
-                    img.transform(resize='800')
-                    GLOBALS.s3client.upload_fileobj(BytesIO(img.make_blob()), destBucket, dest_key)
-            except:
-                app.logger.info('Failed to compress calibration image {}'.format(source_key))
-                return False
-            
-            # Delete the raw uploaded file from sourceBucket
-            GLOBALS.s3client.delete_object(Bucket=sourceBucket, Key=source_key)
-
-        # Create CalibrationImage record
-        cal_image = CalibrationImage(
-            cameragroup_id=cameragroup_id,
-            filename=filename,
-            distance=distance,
-            hash=file_hash
-        )
-        db.session.add(cal_image)
-
-         # Send to MegaDetector and wait
-        detection_task = detection.apply_async(
-            kwargs={
-                'batch': [dest_key],
-                'sourceBucket': destBucket,
-                'external': False,
-                'model': Config.DETECTOR
-            },
-            queue='celery'
-        )
-        
-        with allow_join_result():
-            result = detection_task.get(timeout=300)
-        detection_task.forget()
-
-        # Find best human detection (category == 2)
-        if result and len(result) > 0:
-            detections = result[0]  # result is list of lists, one per image
-            human_detections = [d for d in detections if d.get('category') == 2]
-            if human_detections:
-                best = max(human_detections, key=lambda d: d['score'])
-                cal_image.top = best['top']
-                cal_image.left = best['left']
-                cal_image.bottom = best['bottom']
-                cal_image.right = best['right']
-                db.session.commit()
-
-        db.session.commit()
-        return True
-
-    except Exception as exc:
-        app.logger.info(traceback.format_exc())
-        raise self.retry(exc=exc, countdown=10)

@@ -130,6 +130,28 @@ def lambda_handler(event, context):
                     continue
                 
                 else:
+                    if '/calibration/' in key:
+                        # Compress and upload to _calibration_/ path
+                        splits = key.split('/')
+                        # splits[0] = org, splits[1] = survey, then trapgroup/.../camera/calibration/filename
+                        cal_idx = splits.index('calibration')
+                        filename = splits[-1]
+                        camera_relative = '/'.join(splits[2:cal_idx])  # trapgroup/.../camera
+                        dest_key = splits[0] + '-comp/' + splits[1] + '/_calibration_/' + camera_relative + '/' + filename
+                        compressed_path = '/tmp/compressed_' + key.replace('/', '_')
+                        img = PilImage.open(download_path)
+                        img = img.resize((800, 800*img.height//img.width))
+                        try:
+                            exif = img.info.get('exif')
+                            img.save(compressed_path, exif=exif, quality=80)
+                        except:
+                            img.save(compressed_path, quality=80)
+                        s3.upload_file(Filename=compressed_path, Bucket=bucket, Key=dest_key)
+                        os.remove(compressed_path)
+                        os.remove(download_path)
+                        s3.delete_object(Bucket=bucket, Key=key)  # delete raw
+                        processed += 1
+                        continue  # skip Camera/Image DB insertion
                     # Get Timestamp with pyexif 
                     try:
                         exif_data = piexif.load(download_path)
