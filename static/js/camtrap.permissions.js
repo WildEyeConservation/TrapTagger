@@ -1389,18 +1389,40 @@ function sendInvite() {
         document.getElementById('inviteStatus').innerHTML = 'Please ensure your permission exceptions are valid.'
         return
     }
+    if (document.getElementById('newAccountConfirmationDiv').hidden) {
+        new_account = false
+    }
+    else{
+        new_account = document.getElementById('newAccountConfirmationCheckbox').checked
+        if (new_account) {
+            // check that inviteUsername is a valid email address
+            var emailRegex = /\S+@\S+\.\S+/;
+            if (!emailRegex.test(inviteUsername)) {
+                document.getElementById('inviteStatus').innerHTML = 'Please enter a valid email address for the new account.'
+                return
+            }
+        }
+    }
     var formData = new FormData()
     formData.append("inviteUsername", JSON.stringify(inviteUsername))
     formData.append("orgID", JSON.stringify(orgID))
     formData.append("permissions", JSON.stringify(permissions))
     formData.append("exceptions", JSON.stringify(inv_exceptions[1]))
-
+    formData.append("new_account", JSON.stringify(new_account ? '1' : '0'))
     var xhttp = new XMLHttpRequest();
     xhttp.onreadystatechange =
     function(){
         if (this.readyState == 4 && this.status == 200) {
             reply = JSON.parse(this.responseText);
             document.getElementById('inviteStatus').innerHTML = reply.message
+
+            if (reply.create_new_account) {
+                document.getElementById('newAccountConfirmationDiv').hidden = false
+                document.getElementById('newAccountConfirmationCheckbox').checked = false
+            } else {
+                document.getElementById('newAccountConfirmationDiv').hidden = true
+                document.getElementById('newAccountConfirmationCheckbox').checked = false
+            }
         }
     }
     xhttp.open("POST", "/inviteWorker");

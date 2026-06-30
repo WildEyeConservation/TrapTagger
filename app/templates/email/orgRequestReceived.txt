@@ -1,0 +1,8 @@
+Hi {{ name }},
+
+Thank you for your interest in TrapTagger.
+
+We have received your organisation account request. Please note that your request requires manual approval and may take some time to process. You will receive an email once your request has been approved.
+
+Regards,
+The TrapTagger team

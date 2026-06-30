@@ -1,0 +1,12 @@
+Hi,
+
+Here are your account credentials for TrapTagger:
+Username: {{ username }}
+Password: {{ password }}
+
+You can find a full set of video tutorials here: {{ tutorials_url }}
+You can find the login page here: {{ login_url }}
+If you would like to change your password, please go here: {{ reset_url }}. If you would like to change your username, please go to settings.
+
+Regards,
+The TrapTagger team
