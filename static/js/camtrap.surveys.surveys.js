@@ -389,6 +389,10 @@ var drawnItemsCal = null
 var mapWidthCal = 0
 var mapHeightCal = 0
 var mapReadyCal = false
+var selectedCalMode = null
+var editedCalBoxes = {}
+var editedCalDistances = {}
+var deletedCalImages = []
 
 function buildSurveys(survey,disableSurvey) {
     /**
@@ -5931,7 +5935,6 @@ function addFiles(){
 
 }
 
-
 document.getElementById('btnEditSurvey').addEventListener('click', ()=>{
     /** Handles the submission of the edit survey modal. */
 
@@ -6117,6 +6120,9 @@ document.getElementById('btnEditSurvey').addEventListener('click', ()=>{
         formData.append("staticgroups", JSON.stringify(staticgroup_data))
         formData.append("ignore_small_detections", ignore_small_detections)
         formData.append("sky_masked", sky_masked)
+        formData.append("cal_bboxes", JSON.stringify(editedCalBboxes))
+        formData.append("cal_distances", JSON.stringify(editedCalDistances))
+        formData.append("cal_deletions", JSON.stringify(deletedCalImages))
         if (document.getElementById('addCoordinatesManualMethod').checked) {
             formData.append("coordData", JSON.stringify(coordData))
         }
@@ -7145,8 +7151,302 @@ function openCalibrationImages() {
 }
 
 function buildCalibrationImages() {
-    /** Builds the calibration images tab — matches Masks layout exactly. */
+    /** Builds the calibration images tab — radio sub-options header only. */
     var div = document.getElementById('editCalibrationDiv')
+    while (div.firstChild) div.removeChild(div.firstChild)
+
+    var h5 = document.createElement('h5')
+    h5.setAttribute('style', 'margin-bottom: 2px')
+    h5.innerHTML = 'Calibration Images'
+    div.appendChild(h5)
+
+    var row = document.createElement('div')
+    div.appendChild(row)
+
+    // Edit radio
+    var radio = document.createElement('div')
+    radio.setAttribute('class', 'custom-control custom-radio custom-control-inline')
+    row.appendChild(radio)
+    var input = document.createElement('input')
+    input.setAttribute('type', 'radio')
+    input.setAttribute('class', 'custom-control-input')
+    input.setAttribute('id', 'editCalImages')
+    input.setAttribute('name', 'calibrationImageMode')
+    radio.appendChild(input)
+    var label = document.createElement('label')
+    label.setAttribute('class', 'custom-control-label')
+    label.setAttribute('for', 'editCalImages')
+    label.innerHTML = 'Edit Calibration Images'
+    radio.appendChild(label)
+    document.getElementById('editCalImages').addEventListener('click', () => {
+        document.getElementById('calModeDescription').innerHTML = '<i>View and edit bounding boxes and distances for your calibration images.</i>'
+        selectedCalMode = 'edit'
+        resetCalibrationState()
+        buildCalEditMode()
+    })
+
+    // Upload radio
+    radio = document.createElement('div')
+    radio.setAttribute('class', 'custom-control custom-radio custom-control-inline')
+    row.appendChild(radio)
+    input = document.createElement('input')
+    input.setAttribute('type', 'radio')
+    input.setAttribute('class', 'custom-control-input')
+    input.setAttribute('id', 'uploadCalImages')
+    input.setAttribute('name', 'calibrationImageMode')
+    radio.appendChild(input)
+    label = document.createElement('label')
+    label.setAttribute('class', 'custom-control-label')
+    label.setAttribute('for', 'uploadCalImages')
+    label.innerHTML = 'Upload Calibration Images'
+    radio.appendChild(label)
+    document.getElementById('uploadCalImages').addEventListener('click', () => {
+        document.getElementById('calModeDescription').innerHTML = '<i>Upload new calibration images for your cameras.</i>'
+        selectedCalMode = 'upload'
+        resetCalibrationState()
+        buildCalUploadMode()
+    })
+
+    // Delete radio
+    radio = document.createElement('div')
+    radio.setAttribute('class', 'custom-control custom-radio custom-control-inline')
+    row.appendChild(radio)
+    input = document.createElement('input')
+    input.setAttribute('type', 'radio')
+    input.setAttribute('class', 'custom-control-input')
+    input.setAttribute('id', 'deleteCalImages')
+    input.setAttribute('name', 'calibrationImageMode')
+    radio.appendChild(input)
+    label = document.createElement('label')
+    label.setAttribute('class', 'custom-control-label')
+    label.setAttribute('for', 'deleteCalImages')
+    label.innerHTML = 'Delete Calibration Images'
+    radio.appendChild(label)
+    document.getElementById('deleteCalImages').addEventListener('click', () => {
+        document.getElementById('calModeDescription').innerHTML = '<i>Select calibration images to remove from the survey.</i>'
+        selectedCalMode = 'delete'
+        resetCalibrationState()
+        buildCalDeleteMode()
+    })
+
+    // Description line
+    var descDiv = document.createElement('div')
+    descDiv.id = 'calModeDescription'
+    descDiv.setAttribute('style', 'font-size: 80%; margin-bottom: 2px')
+    descDiv.innerHTML = '<i>Select an option above.</i>'
+    div.appendChild(descDiv)
+
+    // Content container
+    var contentDiv = document.createElement('div')
+    contentDiv.id = 'calModeContent'
+    div.appendChild(contentDiv)
+}
+
+function resetCalibrationState() {
+    /** Resets calibration state when switching between sub-modes. */
+    calImages = []
+    calImgIndex = 0
+    editedCalBboxes = {}
+    editedCalDistances = {}
+    calCurrentBox = null
+    deletedCalImages = []
+    if (mapCal != null) {
+        mapCal.remove()
+        mapCal = null
+        drawControlCal = null
+        drawnItemsCal = null
+    }
+    var content = document.getElementById('calModeContent')
+    while (content.firstChild) content.removeChild(content.firstChild)
+}
+
+function buildCalUploadMode() {
+    var content = document.getElementById('calModeContent')
+    var p = document.createElement('p')
+    p.setAttribute('style', 'margin-top: 10px')
+    p.innerHTML = 'Upload functionality coming soon.'
+    content.appendChild(p)
+}
+
+function buildCalDeleteMode() {
+    /** Builds the Delete Calibration Images sub-tab — read-only view with staging. */
+    var div = document.getElementById('calModeContent')
+    while (div.firstChild) div.removeChild(div.firstChild)
+    // ── Rows 1–4: identical grid structure to buildCalEditMode ───────
+    // Row 1: title
+    var row1 = document.createElement('div')
+    row1.classList.add('row')
+    div.appendChild(row1)
+    row1.appendChild(document.createElement('div')).classList.add('col-lg-2')
+    var r1col2 = document.createElement('div')
+    r1col2.classList.add('col-lg-8')
+    r1col2.setAttribute('style', 'text-align: center;')
+    row1.appendChild(r1col2)
+    row1.appendChild(document.createElement('div')).classList.add('col-lg-2')
+    var h6 = document.createElement('h6')
+    h6.id = 'mapTitle_cal'
+    h6.innerHTML = 'Loading...'
+    r1col2.appendChild(h6)
+    // Row 2: empty | map | right panel
+    var row2 = document.createElement('div')
+    row2.classList.add('row')
+    div.appendChild(row2)
+    row2.appendChild(document.createElement('div')).classList.add('col-lg-2')
+    var col2 = document.createElement('div')
+    col2.classList.add('col-lg-8')
+    col2.setAttribute('style', 'text-align: center;')
+    row2.appendChild(col2)
+    var col3 = document.createElement('div')
+    col3.classList.add('col-lg-2')
+    row2.appendChild(col3)
+    var center = document.createElement('center')
+    col2.appendChild(center)
+    var mapDiv = document.createElement('div')
+    mapDiv.id = 'mapDiv_cal'
+    mapDiv.style.height = '700px'
+    center.appendChild(mapDiv)
+    // Row 3: pagination circles
+    var row3 = document.createElement('div')
+    row3.classList.add('row')
+    div.appendChild(row3)
+    row3.appendChild(document.createElement('div')).classList.add('col-lg-1')
+    var r3col2 = document.createElement('div')
+    r3col2.classList.add('col-lg-10')
+    r3col2.setAttribute('style', 'text-align: center;')
+    row3.appendChild(r3col2)
+    row3.appendChild(document.createElement('div')).classList.add('col-lg-1')
+    var rowDiv = document.createElement('div')
+    rowDiv.classList.add('row')
+    r3col2.appendChild(rowDiv)
+    var colDiv = document.createElement('div')
+    colDiv.classList.add('col-lg-12', 'd-flex', 'align-items-center', 'justify-content-center')
+    rowDiv.appendChild(colDiv)
+    var clusterDiv = document.createElement('div')
+    clusterDiv.id = 'clusterPosition_cal'
+    colDiv.appendChild(clusterDiv)
+    var paginationUl = document.createElement('ul')
+    paginationUl.classList.add('pagination')
+    paginationUl.id = 'paginationCircles_cal'
+    paginationUl.style.margin = '10px'
+    clusterDiv.appendChild(paginationUl)
+    // Row 4: navigation buttons
+    var row4 = document.createElement('div')
+    row4.classList.add('row')
+    div.appendChild(row4)
+    row4.appendChild(document.createElement('div')).classList.add('col-lg-1')
+    var r4nav = document.createElement('div')
+    r4nav.classList.add('col-lg-10')
+    r4nav.setAttribute('style', 'text-align: center;')
+    row4.appendChild(r4nav)
+    row4.appendChild(document.createElement('div')).classList.add('col-lg-1')
+    var navRow = document.createElement('div')
+    navRow.classList.add('row')
+    r4nav.appendChild(navRow)
+    var nc1 = document.createElement('div'); nc1.classList.add('col-lg-3'); navRow.appendChild(nc1)
+    var nc2 = document.createElement('div'); nc2.classList.add('col-lg-3'); navRow.appendChild(nc2)
+    var nc3 = document.createElement('div'); nc3.classList.add('col-lg-3'); navRow.appendChild(nc3)
+    var nc4 = document.createElement('div'); nc4.classList.add('col-lg-3'); navRow.appendChild(nc4)
+    var btnPrevCam = document.createElement('button')
+    btnPrevCam.id = 'calBtnPrevCam'
+    btnPrevCam.innerHTML = '<span style="font-size:100%">&#x276e;&#x276e;</span> Previous Camera'
+    btnPrevCam.classList.add('btn', 'btn-primary', 'btn-block')
+    btnPrevCam.disabled = true
+    nc1.appendChild(btnPrevCam)
+    var btnPrevImg = document.createElement('button')
+    btnPrevImg.id = 'calBtnPrevImg'
+    btnPrevImg.innerHTML = '<span style="font-size:100%">&#x276e;</span> Previous Image'
+    btnPrevImg.classList.add('btn', 'btn-primary', 'btn-block')
+    btnPrevImg.disabled = true
+    nc2.appendChild(btnPrevImg)
+    var btnNextImg = document.createElement('button')
+    btnNextImg.id = 'calBtnNextImg'
+    btnNextImg.innerHTML = 'Next Image <span style="font-size:100%">&#x276f;</span>'
+    btnNextImg.classList.add('btn', 'btn-primary', 'btn-block')
+    btnNextImg.disabled = true
+    nc3.appendChild(btnNextImg)
+    var btnNextCam = document.createElement('button')
+    btnNextCam.id = 'calBtnNextCam'
+    btnNextCam.innerHTML = 'Next Camera <span style="font-size:100%">&#x276f;&#x276f;</span>'
+    btnNextCam.classList.add('btn', 'btn-primary', 'btn-block')
+    btnNextCam.disabled = true
+    nc4.appendChild(btnNextCam)
+    btnPrevCam.addEventListener('click', function() {
+        var select = document.getElementById('calCameraSelect')
+        if (select.selectedIndex > 0) { select.selectedIndex--; getCalibrationImagesForCamera(parseInt(select.value)) }
+    })
+    btnPrevImg.addEventListener('click', function() {
+        if (calImgIndex > 0) { calImgIndex--; updateCalMap() }
+    })
+    btnNextImg.addEventListener('click', function() {
+        if (calImgIndex < calImages.length - 1) { calImgIndex++; updateCalMap() }
+    })
+    btnNextCam.addEventListener('click', function() {
+        var select = document.getElementById('calCameraSelect')
+        if (select.selectedIndex < select.options.length - 1) { select.selectedIndex++; getCalibrationImagesForCamera(parseInt(select.value)) }
+    })
+    // ── Right panel (delete-specific) ────────────────────────────────
+    var h5cam = document.createElement('h5')
+    h5cam.setAttribute('style', 'margin-bottom: 2px')
+    h5cam.innerHTML = 'Camera'
+    col3.appendChild(h5cam)
+    var descCam = document.createElement('div')
+    descCam.setAttribute('style', 'font-size: 80%; margin-bottom: 6px')
+    descCam.innerHTML = '<i>Select a camera to review.</i>'
+    col3.appendChild(descCam)
+    var camSelect = document.createElement('select')
+    camSelect.id = 'calCameraSelect'
+    camSelect.classList.add('form-control')
+    camSelect.style.marginBottom = '16px'
+    camSelect.addEventListener('change', function() {
+        getCalibrationImagesForCamera(parseInt(this.value))
+    })
+    col3.appendChild(camSelect)
+    var h5del = document.createElement('h5')
+    h5del.setAttribute('style', 'margin-bottom: 2px')
+    h5del.innerHTML = 'Delete'
+    col3.appendChild(h5del)
+    var descDel = document.createElement('div')
+    descDel.setAttribute('style', 'font-size: 80%; margin-bottom: 6px')
+    descDel.innerHTML = '<i>Stage this image for deletion. Changes apply when you click Save Changes.</i>'
+    col3.appendChild(descDel)
+    var stageBtn = document.createElement('button')
+    stageBtn.id = 'calStageDeleteBtn'
+    stageBtn.innerHTML = 'Stage for Deletion'
+    stageBtn.classList.add('btn', 'btn-primary', 'btn-block')
+    stageBtn.style.marginBottom = '6px'
+    stageBtn.onclick = function() { stageCalibrationDeletion() }
+    col3.appendChild(stageBtn)
+    var calStatusMsg = document.createElement('div')
+    calStatusMsg.id = 'calStatusMsg'
+    calStatusMsg.setAttribute('style', 'font-size: 80%; color: grey; margin-top: 6px')
+    calStatusMsg.innerHTML = '<i>Changes are saved when you click Save Changes.</i>'
+    col3.appendChild(calStatusMsg)
+    getCalibrationCameras()
+}
+
+function stageCalibrationDeletion() {
+    /** Stages or un-stages the current image for deletion. */
+    var cal_id = calImages[calImgIndex].id
+    var idx = deletedCalImages.indexOf(cal_id)
+    if (idx === -1) {
+        deletedCalImages.push(cal_id)
+        document.getElementById('calStageDeleteBtn').innerHTML = 'Unstage Deletion'
+        document.getElementById('calStageDeleteBtn').classList.remove('btn-primary')
+        document.getElementById('calStageDeleteBtn').classList.add('btn-warning')
+        document.getElementById('calStatusMsg').innerHTML = '<i>Staged for deletion. Click Save Changes to apply.</i>'
+    } else {
+        deletedCalImages.splice(idx, 1)
+        document.getElementById('calStageDeleteBtn').innerHTML = 'Stage for Deletion'
+        document.getElementById('calStageDeleteBtn').classList.remove('btn-warning')
+        document.getElementById('calStageDeleteBtn').classList.add('btn-primary')
+        document.getElementById('calStatusMsg').innerHTML = '<i>Unstaged.</i>'
+    }
+}
+
+
+function buildCalEditMode() {
+    /** Builds the calibration images tab — matches Masks layout exactly. */
+    var div = document.getElementById('calModeContent')
     while (div.firstChild) div.removeChild(div.firstChild)
 
     // ── Row 1: title ────────────────────────────────────────────────
@@ -7345,33 +7645,14 @@ function buildCalibrationImages() {
     distInput.style.marginBottom = '6px'
     col3.appendChild(distInput)
 
-    var saveDistBtn = document.createElement('button')
-    saveDistBtn.innerHTML = 'Save Distance'
-    saveDistBtn.classList.add('btn', 'btn-warning', 'btn-block')
-    saveDistBtn.style.marginBottom = '16px'
-    saveDistBtn.onclick = function() { saveCalibrationDistance() }
-    col3.appendChild(saveDistBtn)
-
-    var h5del = document.createElement('h5')
-    h5del.setAttribute('style', 'margin-bottom: 2px')
-    h5del.innerHTML = 'Delete'
-    col3.appendChild(h5del)
-
-    var descDel = document.createElement('div')
-    descDel.setAttribute('style', 'font-size: 80%; margin-bottom: 6px')
-    descDel.innerHTML = '<i>Remove this calibration image from the survey.</i>'
-    col3.appendChild(descDel)
-
-    var deleteBtn = document.createElement('button')
-    deleteBtn.innerHTML = 'Delete Image'
-    deleteBtn.classList.add('btn', 'btn-danger', 'btn-block')
-    deleteBtn.style.marginBottom = '16px'
-    deleteBtn.onclick = function() { deleteCalibrationImageRecord() }
-    col3.appendChild(deleteBtn)
+    distInput.addEventListener('change', function() {
+        saveCalibrationDistance()
+    })
 
     var calStatusMsg = document.createElement('div')
     calStatusMsg.id = 'calStatusMsg'
-    calStatusMsg.setAttribute('style', 'font-size: 80%; color: #DF691A;')
+    calStatusMsg.setAttribute('style', 'font-size: 80%; color: grey; margin-top: 6px')
+    calStatusMsg.innerHTML = '<i>Changes are saved when you click Save Changes.</i>'
     col3.appendChild(calStatusMsg)
 
     getCalibrationCameras()
@@ -7438,44 +7719,32 @@ function prepMapCal(image) {
 
             if (drawControlCal != null) {
                 drawControlCal.remove()
+                drawControlCal = null
             }
-
-            drawControlCal = new L.Control.Draw({
-                draw: {
-                    polygon: false,
-                    polyline: false,
-                    circle: false,
-                    circlemarker: false,
-                    marker: false,
-                    rectangle: {
-                        shapeOptions: calRectOptions,
-                        showArea: false
+            if (selectedCalMode === 'edit') {
+                drawControlCal = new L.Control.Draw({
+                    draw: {
+                        polygon: false,
+                        polyline: false,
+                        circle: false,
+                        circlemarker: false,
+                        marker: false,
+                        rectangle: {
+                            shapeOptions: calRectOptions,
+                            showArea: false
+                        }
+                    },
+                    edit: {
+                        featureGroup: drawnItemsCal
                     }
-                },
-                edit: {
-                    featureGroup: drawnItemsCal
-                }
-            })
-            mapCal.addControl(drawControlCal)
+                })
+                mapCal.addControl(drawControlCal)
 
-            // Auto-save when a rectangle is drawn
-            mapCal.on('draw:created', function(e) {
-                drawnItemsCal.clearLayers()
-                drawnItemsCal.addLayer(e.layer)
-                var bounds = e.layer.getBounds()
-                calCurrentBox = {
-                    top:    bounds.getNorth() / mapHeightCal,
-                    bottom: bounds.getSouth() / mapHeightCal,
-                    left:   bounds.getWest()  / mapWidthCal,
-                    right:  bounds.getEast()  / mapWidthCal
-                }
-                saveCalibrationBbox()
-            })
-
-            // Update coords after edit
-            mapCal.on('draw:edited', function(e) {
-                e.layers.eachLayer(function(layer) {
-                    var bounds = layer.getBounds()
+                // Auto-save when a rectangle is drawn
+                mapCal.on('draw:created', function(e) {
+                    drawnItemsCal.clearLayers()
+                    drawnItemsCal.addLayer(e.layer)
+                    var bounds = e.layer.getBounds()
                     calCurrentBox = {
                         top:    bounds.getNorth() / mapHeightCal,
                         bottom: bounds.getSouth() / mapHeightCal,
@@ -7483,13 +7752,27 @@ function prepMapCal(image) {
                         right:  bounds.getEast()  / mapWidthCal
                     }
                     saveCalibrationBbox()
-                })
-            })
+                })                              
 
-            mapCal.on('draw:deleted', function() {
-                calCurrentBox = null
-                saveCalibrationBbox()
-            })
+                // Update coords after edit
+                mapCal.on('draw:edited', function(e) {
+                    e.layers.eachLayer(function(layer) {
+                        var bounds = layer.getBounds()
+                        calCurrentBox = {
+                            top:    bounds.getNorth() / mapHeightCal,
+                            bottom: bounds.getSouth() / mapHeightCal,
+                            left:   bounds.getWest()  / mapWidthCal,
+                            right:  bounds.getEast()  / mapWidthCal
+                        }
+                        saveCalibrationBbox()
+                    })
+                })
+
+                mapCal.on('draw:deleted', function() {
+                    calCurrentBox = null
+                    saveCalibrationBbox()
+                })
+            }
         }
         img.src = imageUrl
     }
@@ -7500,7 +7783,21 @@ function updateCalMap() {
     var img = calImages[calImgIndex]
 
     document.getElementById('mapTitle_cal').innerHTML = img.url.split('/').slice(2).join('/')
-    document.getElementById('calDistInput').value = img.distance
+    var distInput = document.getElementById('calDistInput')
+    if (distInput) distInput.value = img.distance
+    if (selectedCalMode === 'delete' && document.getElementById('calStageDeleteBtn')) {
+        var isStaged = deletedCalImages.indexOf(calImages[calImgIndex].id) !== -1
+        var btn = document.getElementById('calStageDeleteBtn')
+        if (isStaged) {
+            btn.innerHTML = 'Unstage Deletion'
+            btn.classList.remove('btn-primary')
+            btn.classList.add('btn-warning')
+        } else {
+            btn.innerHTML = 'Stage for Deletion'
+            btn.classList.remove('btn-warning')
+            btn.classList.add('btn-primary')
+        }
+    }
     calCurrentBox = (img.top != null) ? {top: img.top, left: img.left, bottom: img.bottom, right: img.right} : null
     document.getElementById('calStatusMsg').innerHTML = ''
 
@@ -7593,90 +7890,28 @@ function getCalibrationImagesForCamera(cameragroup_id) {
 }
 
 function saveCalibrationBbox() {
-    /** Saves the Bbox for a calibration by updating database and s3 */
     var cal_id = calImages[calImgIndex].id
     var payload = calCurrentBox ? calCurrentBox : {top: null, left: null, bottom: null, right: null}
-    var xhttp = new XMLHttpRequest()
-    xhttp.onreadystatechange = function() {
-        if (this.readyState == 4 && this.status == 200) {
-            if (JSON.parse(this.responseText) == 'success') {
-                calImages[calImgIndex].top    = payload.top
-                calImages[calImgIndex].left   = payload.left
-                calImages[calImgIndex].bottom = payload.bottom
-                calImages[calImgIndex].right  = payload.right
-                document.getElementById('calStatusMsg').innerHTML = 'Bounding box saved.'
-            } else {
-                document.getElementById('calStatusMsg').innerHTML = 'Save failed.'
-            }
-        }
-    }
-    xhttp.open('POST', '/updateCalibrationBbox/' + cal_id)
-    xhttp.setRequestHeader('Content-Type', 'application/json')
-    xhttp.send(JSON.stringify(payload))
+    editedCalBboxes[cal_id] = payload
+    calImages[calImgIndex].top    = payload.top
+    calImages[calImgIndex].left   = payload.left
+    calImages[calImgIndex].bottom = payload.bottom
+    calImages[calImgIndex].right  = payload.right
+    document.getElementById('calStatusMsg').innerHTML = '<i>Bbox staged. Click Save Changes to apply.</i>'
 }
 
 function saveCalibrationDistance() {
-    /** Saves the edited distance (renames S3 file). */
     var newDist = parseFloat(document.getElementById('calDistInput').value)
     if (isNaN(newDist) || newDist <= 0) {
-        document.getElementById('calStatusMsg').innerHTML = 'Enter a valid distance.'
+        document.getElementById('calStatusMsg').innerHTML = '<i>Enter a valid distance.</i>'
         return
     }
     var cal_id = calImages[calImgIndex].id
-    var xhttp = new XMLHttpRequest()
-    xhttp.onreadystatechange = function() {
-        if (this.readyState == 4) {
-            var resp = JSON.parse(this.responseText)
-            if (resp.status == 'success') {
-                var parts = calImages[calImgIndex].url.split('/')
-                parts[parts.length - 1] = resp.new_filename
-                calImages[calImgIndex].url = parts.join('/')
-                calImages[calImgIndex].filename = resp.new_filename
-                calImages[calImgIndex].distance = newDist
-                updateCalMap()
-                document.getElementById('calStatusMsg').innerHTML = 'Distance updated.'
-            } else if (resp.status == 'conflict') {
-                document.getElementById('calStatusMsg').innerHTML = 'A calibration image at that distance already exists for this camera.'
-            } else {
-                document.getElementById('calStatusMsg').innerHTML = 'Update failed.'
-            }
-        }
-    }
-    xhttp.open('POST', '/updateCalibrationDistance/' + cal_id)
-    xhttp.setRequestHeader('Content-Type', 'application/json')
-    xhttp.send(JSON.stringify({distance: newDist}))
-}
-
-function deleteCalibrationImageRecord() {
-    /** Deletes the current calibration image from S3 and DB. */
-    if (!confirm('Delete this calibration image? This cannot be undone.')) return
-    var cal_id = calImages[calImgIndex].id
-    var xhttp = new XMLHttpRequest()
-    xhttp.onreadystatechange = function() {
-        if (this.readyState == 4) {
-            if (this.status == 200 && JSON.parse(this.responseText) == 'success') {
-                calImages.splice(calImgIndex, 1)
-                if (calImages.length == 0) {
-                    if (mapCal != null) {
-                        mapCal.remove()
-                        mapCal = null
-                        drawControlCal = null
-                        drawnItemsCal = null
-                    }
-                    document.getElementById('mapTitle_cal').innerHTML = 'No calibration images for this camera.'
-                    document.getElementById('calDistInput').value = ''
-                    updateButtons()
-                } else {
-                    calImgIndex = Math.min(calImgIndex, calImages.length - 1)
-                    updateCalMap()
-                }
-            } else {
-                document.getElementById('calStatusMsg').innerHTML = 'Delete failed.'
-            }
-        }
-    }
-    xhttp.open('DELETE', '/deleteCalibrationImage/' + cal_id)
-    xhttp.send()
+    // Skip if value hasn't actually changed
+    if (newDist === calImages[calImgIndex].distance) return
+    editedCalDistances[cal_id] = newDist
+    calImages[calImgIndex].distance = newDist
+    document.getElementById('calStatusMsg').innerHTML = '<i>Distance staged. Click Save Changes to apply.</i>'
 }
 
 function prepMapStatic(image) {

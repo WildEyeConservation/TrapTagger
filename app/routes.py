@@ -2445,6 +2445,21 @@ def editSurvey():
             staticgroups = ast.literal_eval(request.form['staticgroups'])
             if len(staticgroups)==0: staticgroups = None
 
+        cal_bboxes = None
+        if 'cal_bboxes' in request.form:
+            cal_bboxes = json.loads(request.form['cal_bboxes'])
+            if len(cal_bboxes) == 0: cal_bboxes = None
+
+        cal_distances = None
+        if 'cal_distances' in request.form:
+            cal_distances = json.loads(request.form['cal_distances'])
+            if len(cal_distances) == 0: cal_distances = None
+
+        cal_deletions = None
+        if 'cal_deletions' in request.form:
+            cal_deletions = json.loads(request.form['cal_deletions'])
+            if len(cal_deletions) == 0: cal_deletions = None
+
         imageTimestamps = None
         if 'imageTimestamps' in request.form:
             imageTimestamps = ast.literal_eval(request.form['imageTimestamps'])
@@ -2559,6 +2574,98 @@ def editSurvey():
                     edit_area_option = None
 
         if status == 'success':
+            # Handle calibration changes synchronously
+            if cal_bboxes or cal_distances or cal_deletions:
+
+                # Build a set of IDs being deleted to skip distance renames for those
+                deletion_ids = set(int(i) for i in cal_deletions) if cal_deletions else set()
+                affected_cameragroups = set()
+                # Bounding box updates
+                if cal_bboxes:
+                    for cal_id_str, bbox in cal_bboxes.items():
+                        if int(cal_id_str) in deletion_ids:
+                            continue
+                        cal_image = db.session.query(CalibrationImage).get(int(cal_id_str))
+                        if cal_image:
+                            affected_cameragroups.add(cal_image.cameragroup_id)
+                            cal_image.top    = bbox.get('top')
+                            cal_image.left   = bbox.get('left')
+                            cal_image.bottom = bbox.get('bottom')
+                            cal_image.right  = bbox.get('right')
+
+                # Distance renames (reuses exact S3 logic from updateCalibrationDistance)
+                if cal_distances:
+                    for cal_id_str, new_distance in cal_distances.items():
+                        if int(cal_id_str) in deletion_ids:
+                            continue
+                        cal_image = db.session.query(CalibrationImage).get(int(cal_id_str))
+                        if not cal_image:
+                            continue
+                        try:
+                            new_distance = float(new_distance)
+                        except (TypeError, ValueError):
+                            continue
+                        ext = os.path.splitext(cal_image.filename)[1]
+                        new_filename = str(new_distance) + ext
+                        if new_filename == cal_image.filename:
+                            continue
+                        conflict = db.session.query(CalibrationImage).filter_by(
+                            cameragroup_id=cal_image.cameragroup_id,
+                            filename=new_filename
+                        ).first()
+                        if conflict and conflict.id != cal_image.id:
+                            continue  # skip conflicting rename silently
+                        camera = db.session.query(Camera)\
+                            .filter(Camera.cameragroup_id == cal_image.cameragroup_id)\
+                            .join(Trapgroup).first()
+                        if camera:
+                            path_parts = camera.path.split('/')
+                            path_parts[0] = path_parts[0] + '-comp'
+                            cal_prefix = path_parts[0] + '/' + path_parts[1] + '/_calibration_/' + '/'.join(path_parts[2:])
+                            old_key = cal_prefix + '/' + cal_image.filename
+                            new_key = cal_prefix + '/' + new_filename
+                            try:
+                                GLOBALS.s3client.copy_object(
+                                    Bucket=Config.BUCKET,
+                                    CopySource={'Bucket': Config.BUCKET, 'Key': old_key},
+                                    Key=new_key
+                                )
+                                GLOBALS.s3client.delete_object(Bucket=Config.BUCKET, Key=old_key)
+                            except Exception:
+                                app.logger.info('Failed to rename calibration image in S3: {}'.format(old_key))
+                                continue
+                            cal_image.filename = new_filename
+                            cal_image.distance = new_distance
+                            affected_cameragroups.add(cal_image.cameragroup_id) 
+
+                # Deletions (reuses exact S3 logic from deleteCalibrationImage)
+                if cal_deletions:
+                    for cal_id in cal_deletions:
+                        cal_image = db.session.query(CalibrationImage).get(int(cal_id))
+                        if not cal_image:
+                            continue
+                        affected_cameragroups.add(cal_image.cameragroup_id) 
+                        camera = db.session.query(Camera)\
+                            .filter(Camera.cameragroup_id == cal_image.cameragroup_id)\
+                            .join(Trapgroup).first()
+                        if camera:
+                            path_parts = camera.path.split('/')
+                            path_parts[0] = path_parts[0] + '-comp'
+                            s3_key = path_parts[0] + '/' + path_parts[1] + '/_calibration_/' + '/'.join(path_parts[2:]) + '/' + cal_image.filename
+                            try:
+                                GLOBALS.s3client.delete_object(Bucket=Config.BUCKET, Key=s3_key)
+                            except Exception:
+                                app.logger.info('Failed to delete calibration image from S3: {}'.format(s3_key))
+                        db.session.delete(cal_image)
+
+                for cg_id in affected_cameragroups:
+                    db.session.query(Detection)\
+                        .join(Image)\
+                        .join(Camera)\
+                        .filter(Camera.cameragroup_id == cg_id)\
+                        .update({Detection.distance: None}, synchronize_session=False)
+
+                db.session.commit()
             if classifier_id or ignore_small_detections!=None or sky_masked!=None or timestamps or coordData or masks or staticgroups or kml or imageTimestamps or edit_area_option:
                 app.logger.info('Edit survey requested for {} with classifier: {}, ignore_small_detections: {}, sky_masked: {}, timestamps: {}, coordData: {}, masks: {}, staticgroups: {}, kml: {}, imageTimestamps: {}, edit_area_option: {}'.format(survey.name,classifier_id,ignore_small_detections,sky_masked,timestamps,coordData,masks,staticgroups,kml,imageTimestamps,edit_area_option))
                 if classifier_id and survey.classifier_id != classifier_id:
@@ -18442,109 +18549,3 @@ def getCalibrationImages(survey_id, cameragroup_id):
                 })
 
     return json.dumps(images)
-
-@app.route('/updateCalibrationBbox/<int:cal_image_id>', methods=['POST'])
-@login_required
-def updateCalibrationBbox(cal_image_id):
-    '''Updates the bounding box for a calibration image.'''
-    cal_image = db.session.query(CalibrationImage).get(cal_image_id)
-    if cal_image:
-        survey = db.session.query(Survey)\
-            .join(Trapgroup)\
-            .join(Camera)\
-            .filter(Camera.cameragroup_id == cal_image.cameragroup_id)\
-            .first()
-        if survey and checkSurveyPermission(current_user.id, survey.id, 'write'):
-            cal_image.top = request.json.get('top')
-            cal_image.left = request.json.get('left')
-            cal_image.bottom = request.json.get('bottom')
-            cal_image.right = request.json.get('right')
-            db.session.commit()
-            return json.dumps('success')
-    return json.dumps('error')
-
-@app.route('/deleteCalibrationImage/<int:cal_image_id>', methods=['DELETE'])
-@login_required
-def deleteCalibrationImage(cal_image_id):
-    '''Deletes a calibration image from S3 and the database.'''
-    cal_image = db.session.query(CalibrationImage).get(cal_image_id)
-    if cal_image:
-        # Get camera path to reconstruct the S3 key
-        camera = db.session.query(Camera)\
-            .filter(Camera.cameragroup_id == cal_image.cameragroup_id)\
-            .join(Trapgroup)\
-            .first()
-        survey = db.session.query(Survey)\
-            .join(Trapgroup)\
-            .join(Camera)\
-            .filter(Camera.cameragroup_id == cal_image.cameragroup_id)\
-            .first()
-        if survey and checkSurveyPermission(current_user.id, survey.id, 'write') and camera:
-            path_parts = camera.path.split('/')
-            path_parts[0] = path_parts[0] + '-comp'
-            s3_key = path_parts[0] + '/' + path_parts[1] + '/_calibration_/' + '/'.join(path_parts[2:]) + '/' + cal_image.filename
-            try:
-                GLOBALS.s3client.delete_object(Bucket=Config.BUCKET, Key=s3_key)
-            except Exception:
-                app.logger.info('Failed to delete calibration image from S3: {}'.format(s3_key))
-            db.session.delete(cal_image)
-            db.session.commit()
-            return json.dumps('success')
-    return json.dumps('error')
-
-@app.route('/updateCalibrationDistance/<int:cal_image_id>', methods=['POST'])
-@login_required
-def updateCalibrationDistance(cal_image_id):
-    '''Updates the distance for a calibration image, renaming the S3 file accordingly.'''
-    cal_image = db.session.query(CalibrationImage).get(cal_image_id)
-    if cal_image:
-        camera = db.session.query(Camera)\
-            .filter(Camera.cameragroup_id == cal_image.cameragroup_id)\
-            .join(Trapgroup)\
-            .first()
-        survey = db.session.query(Survey)\
-            .join(Trapgroup)\
-            .join(Camera)\
-            .filter(Camera.cameragroup_id == cal_image.cameragroup_id)\
-            .first()
-        if survey and checkSurveyPermission(current_user.id, survey.id, 'write') and camera:
-            new_distance = request.json.get('distance')
-            try:
-                new_distance = float(new_distance)
-            except (TypeError, ValueError):
-                return json.dumps('error: invalid distance')
-
-            # Build the extension from the existing filename
-            ext = os.path.splitext(cal_image.filename)[1]
-            new_filename = str(new_distance) + ext
-
-            # Check for conflict
-            conflict = db.session.query(CalibrationImage).filter_by(
-                cameragroup_id=cal_image.cameragroup_id,
-                filename=new_filename
-            ).first()
-            if conflict:
-                return json.dumps('conflict')
-
-            path_parts = camera.path.split('/')
-            path_parts[0] = path_parts[0] + '-comp'
-            cal_prefix = path_parts[0] + '/' + path_parts[1] + '/_calibration_/' + '/'.join(path_parts[2:])
-            old_key = cal_prefix + '/' + cal_image.filename
-            new_key = cal_prefix + '/' + new_filename
-
-            try:
-                GLOBALS.s3client.copy_object(
-                    Bucket=Config.BUCKET,
-                    CopySource={'Bucket': Config.BUCKET, 'Key': old_key},
-                    Key=new_key
-                )
-                GLOBALS.s3client.delete_object(Bucket=Config.BUCKET, Key=old_key)
-            except Exception:
-                app.logger.info('Failed to rename calibration image in S3')
-                return json.dumps('error')
-
-            cal_image.filename = new_filename
-            cal_image.distance = new_distance
-            db.session.commit()
-            return json.dumps({'status': 'success', 'new_filename': new_filename})
-    return json.dumps('error')
