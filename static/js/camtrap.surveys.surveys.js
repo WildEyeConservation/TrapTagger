@@ -376,6 +376,19 @@ var selectedFolderToMove = null
 var folderFiles = []
 var filesTabChange = false
 var cancelCloseES = false
+var calCameras = []
+var calImages = []
+var calImgIndex = 0
+var calIsDrawing = false
+var calStartX = 0
+var calStartY = 0
+var calCurrentBox = null
+var mapCal = null
+var drawControlCal = null
+var drawnItemsCal = null
+var mapWidthCal = 0
+var mapHeightCal = 0
+var mapReadyCal = false
 
 function buildSurveys(survey,disableSurvey) {
     /**
@@ -6624,6 +6637,9 @@ function changeEditSurveyTab(evt, tabName) {
     else if (tabName == 'baseAreaTab') {
         openArea()
     }
+    else if (tabName == 'baseCalibrationTab') {
+        openCalibrationImages()
+    }
 
     document.getElementById('editSurveyErrors').innerHTML = ''
 }
@@ -7112,6 +7128,557 @@ function prepMapMask(image) {
     }
 }
 
+
+function openCalibrationImages() {
+    /** Initialises the calibration images tab on first open. */
+    if (tabActiveEditSurvey == 'baseCalibrationTab') {
+        var div = document.getElementById('editCalibrationDiv')
+        if (div.firstChild == null) {
+            calCameras = []
+            calImages = []
+            calImgIndex = 0
+            calIsDrawing = false
+            calCurrentBox = null
+            buildCalibrationImages()
+        }
+    }
+}
+
+function buildCalibrationImages() {
+    /** Builds the calibration images tab — matches Masks layout exactly. */
+    var div = document.getElementById('editCalibrationDiv')
+    while (div.firstChild) div.removeChild(div.firstChild)
+
+    // ── Row 1: title ────────────────────────────────────────────────
+    var row1 = document.createElement('div')
+    row1.classList.add('row')
+    div.appendChild(row1)
+
+    var r1col1 = document.createElement('div')
+    r1col1.classList.add('col-lg-2')
+    row1.appendChild(r1col1)
+
+    var r1col2 = document.createElement('div')
+    r1col2.classList.add('col-lg-8')
+    r1col2.setAttribute('style', 'text-align: center;')
+    row1.appendChild(r1col2)
+
+    var r1col3 = document.createElement('div')
+    r1col3.classList.add('col-lg-2')
+    row1.appendChild(r1col3)
+
+    var h6 = document.createElement('h6')
+    h6.id = 'mapTitle_cal'
+    h6.innerHTML = 'Loading...'
+    r1col2.appendChild(h6)
+
+    // ── Row 2: empty | map | right panel ────────────────────────────
+    var row2 = document.createElement('div')
+    row2.classList.add('row')
+    div.appendChild(row2)
+
+    var col1 = document.createElement('div')
+    col1.classList.add('col-lg-2')
+    row2.appendChild(col1)
+
+    var col2 = document.createElement('div')
+    col2.classList.add('col-lg-8')
+    col2.setAttribute('style', 'text-align: center;')
+    row2.appendChild(col2)
+
+    var col3 = document.createElement('div')
+    col3.classList.add('col-lg-2')
+    row2.appendChild(col3)
+
+    // Map div (Leaflet target)
+    var center = document.createElement('center')
+    col2.appendChild(center)
+
+    var mapDiv = document.createElement('div')
+    mapDiv.id = 'mapDiv_cal'
+    mapDiv.style.height = '700px'
+    center.appendChild(mapDiv)
+
+    // ── Row 3: pagination circles ────────────────────────────────────
+    var row3 = document.createElement('div')
+    row3.classList.add('row')
+    div.appendChild(row3)
+
+    var r3col1 = document.createElement('div')
+    r3col1.classList.add('col-lg-1')
+    row3.appendChild(r3col1)
+
+    var r3col2 = document.createElement('div')
+    r3col2.classList.add('col-lg-10')
+    r3col2.setAttribute('style', 'text-align: center;')
+    row3.appendChild(r3col2)
+
+    row3.appendChild(document.createElement('div')).classList.add('col-lg-1')
+
+    var rowDiv = document.createElement('div')
+    rowDiv.classList.add('row')
+    r3col2.appendChild(rowDiv)
+
+    var colDiv = document.createElement('div')
+    colDiv.classList.add('col-lg-12', 'd-flex', 'align-items-center', 'justify-content-center')
+    rowDiv.appendChild(colDiv)
+
+    var clusterDiv = document.createElement('div')
+    clusterDiv.id = 'clusterPosition_cal'
+    colDiv.appendChild(clusterDiv)
+
+    var paginationUl = document.createElement('ul')
+    paginationUl.classList.add('pagination')
+    paginationUl.id = 'paginationCircles_cal'
+    paginationUl.style.margin = '10px'
+    clusterDiv.appendChild(paginationUl)
+
+    // ── Row 4: navigation buttons ────────────────────────────────────
+    var row4 = document.createElement('div')
+    row4.classList.add('row')
+    div.appendChild(row4)
+
+    var r4col1 = document.createElement('div')
+    r4col1.classList.add('col-lg-1')
+    row4.appendChild(r4col1)
+
+    var r4nav = document.createElement('div')
+    r4nav.classList.add('col-lg-10')
+    r4nav.setAttribute('style', 'text-align: center;')
+    row4.appendChild(r4nav)
+
+    row4.appendChild(document.createElement('div')).classList.add('col-lg-1')
+
+    var navRow = document.createElement('div')
+    navRow.classList.add('row')
+    r4nav.appendChild(navRow)
+
+    var nc1 = document.createElement('div'); nc1.classList.add('col-lg-3'); navRow.appendChild(nc1)
+    var nc2 = document.createElement('div'); nc2.classList.add('col-lg-3'); navRow.appendChild(nc2)
+    var nc3 = document.createElement('div'); nc3.classList.add('col-lg-3'); navRow.appendChild(nc3)
+    var nc4 = document.createElement('div'); nc4.classList.add('col-lg-3'); navRow.appendChild(nc4)
+
+    var btnPrevCam = document.createElement('button')
+    btnPrevCam.id = 'calBtnPrevCam'
+    btnPrevCam.innerHTML = '<span style="font-size:100%">&#x276e;&#x276e;</span> Previous Camera'
+    btnPrevCam.classList.add('btn', 'btn-primary', 'btn-block')
+    btnPrevCam.disabled = true
+    nc1.appendChild(btnPrevCam)
+
+    var btnPrevImg = document.createElement('button')
+    btnPrevImg.id = 'calBtnPrevImg'
+    btnPrevImg.innerHTML = '<span style="font-size:100%">&#x276e;</span> Previous Image'
+    btnPrevImg.classList.add('btn', 'btn-primary', 'btn-block')
+    btnPrevImg.disabled = true
+    nc2.appendChild(btnPrevImg)
+
+    var btnNextImg = document.createElement('button')
+    btnNextImg.id = 'calBtnNextImg'
+    btnNextImg.innerHTML = 'Next Image <span style="font-size:100%">&#x276f;</span>'
+    btnNextImg.classList.add('btn', 'btn-primary', 'btn-block')
+    btnNextImg.disabled = true
+    nc3.appendChild(btnNextImg)
+
+    var btnNextCam = document.createElement('button')
+    btnNextCam.id = 'calBtnNextCam'
+    btnNextCam.innerHTML = 'Next Camera <span style="font-size:100%">&#x276f;&#x276f;</span>'
+    btnNextCam.classList.add('btn', 'btn-primary', 'btn-block')
+    btnNextCam.disabled = true
+    nc4.appendChild(btnNextCam)
+
+    btnPrevCam.addEventListener('click', function() {
+        var select = document.getElementById('calCameraSelect')
+        if (select.selectedIndex > 0) {
+            select.selectedIndex--
+            getCalibrationImagesForCamera(parseInt(select.value))
+        }
+    })
+    btnPrevImg.addEventListener('click', function() {
+        if (calImgIndex > 0) { calImgIndex--; updateCalMap() }
+    })
+    btnNextImg.addEventListener('click', function() {
+        if (calImgIndex < calImages.length - 1) { calImgIndex++; updateCalMap() }
+    })
+    btnNextCam.addEventListener('click', function() {
+        var select = document.getElementById('calCameraSelect')
+        if (select.selectedIndex < select.options.length - 1) {
+            select.selectedIndex++
+            getCalibrationImagesForCamera(parseInt(select.value))
+        }
+    })
+
+    // ── Right panel ──────────────────────────────────────────────────
+    var h5cam = document.createElement('h5')
+    h5cam.setAttribute('style', 'margin-bottom: 2px')
+    h5cam.innerHTML = 'Camera'
+    col3.appendChild(h5cam)
+
+    var descCam = document.createElement('div')
+    descCam.setAttribute('style', 'font-size: 80%; margin-bottom: 6px')
+    descCam.innerHTML = '<i>Select a camera to review.</i>'
+    col3.appendChild(descCam)
+
+    var camSelect = document.createElement('select')
+    camSelect.id = 'calCameraSelect'
+    camSelect.classList.add('form-control')
+    camSelect.style.marginBottom = '16px'
+    camSelect.addEventListener('change', function() {
+        getCalibrationImagesForCamera(parseInt(this.value))
+    })
+    col3.appendChild(camSelect)
+
+    var h5dist = document.createElement('h5')
+    h5dist.setAttribute('style', 'margin-bottom: 2px')
+    h5dist.innerHTML = 'Distance'
+    col3.appendChild(h5dist)
+
+    var descDist = document.createElement('div')
+    descDist.setAttribute('style', 'font-size: 80%; margin-bottom: 6px')
+    descDist.innerHTML = '<i>Distance (m) at which this image was taken.</i>'
+    col3.appendChild(descDist)
+
+    var distInput = document.createElement('input')
+    distInput.id = 'calDistInput'
+    distInput.type = 'number'
+    distInput.step = '0.1'
+    distInput.classList.add('form-control')
+    distInput.style.marginBottom = '6px'
+    col3.appendChild(distInput)
+
+    var saveDistBtn = document.createElement('button')
+    saveDistBtn.innerHTML = 'Save Distance'
+    saveDistBtn.classList.add('btn', 'btn-warning', 'btn-block')
+    saveDistBtn.style.marginBottom = '16px'
+    saveDistBtn.onclick = function() { saveCalibrationDistance() }
+    col3.appendChild(saveDistBtn)
+
+    var h5del = document.createElement('h5')
+    h5del.setAttribute('style', 'margin-bottom: 2px')
+    h5del.innerHTML = 'Delete'
+    col3.appendChild(h5del)
+
+    var descDel = document.createElement('div')
+    descDel.setAttribute('style', 'font-size: 80%; margin-bottom: 6px')
+    descDel.innerHTML = '<i>Remove this calibration image from the survey.</i>'
+    col3.appendChild(descDel)
+
+    var deleteBtn = document.createElement('button')
+    deleteBtn.innerHTML = 'Delete Image'
+    deleteBtn.classList.add('btn', 'btn-danger', 'btn-block')
+    deleteBtn.style.marginBottom = '16px'
+    deleteBtn.onclick = function() { deleteCalibrationImageRecord() }
+    col3.appendChild(deleteBtn)
+
+    var calStatusMsg = document.createElement('div')
+    calStatusMsg.id = 'calStatusMsg'
+    calStatusMsg.setAttribute('style', 'font-size: 80%; color: #DF691A;')
+    col3.appendChild(calStatusMsg)
+
+    getCalibrationCameras()
+}
+
+function prepMapCal(image) {
+    /** Initialises the Leaflet map for the calibration images tab. */
+    if (bucketName != null) {
+        mapReadyCal = false
+        var imageUrl = 'https://' + bucketName + '.s3.amazonaws.com/' + image.url
+        var img = new Image()
+        img.onload = function() {
+            var w = this.width
+            var h = this.height
+
+            if (w > h) {
+                document.getElementById('mapDiv_cal').setAttribute('style', 'height: calc(38vw *' + (h/w) + ');  width:38vw')
+            } else {
+                document.getElementById('mapDiv_cal').setAttribute('style', 'height: calc(38vw *' + (w/h) + ');  width:38vw')
+            }
+
+            L.Browser.touch = true
+            mapCal = new L.map('mapDiv_cal', {
+                crs: L.CRS.Simple,
+                maxZoom: 10,
+                center: [0, 0],
+                zoomSnap: 0
+            })
+
+            var h1 = document.getElementById('mapDiv_cal').clientHeight
+            var w1 = document.getElementById('mapDiv_cal').clientWidth
+
+            var southWest = mapCal.unproject([0, h1], 2)
+            var northEast = mapCal.unproject([w1, 0], 2)
+            var bounds = new L.LatLngBounds(southWest, northEast)
+
+            mapWidthCal = northEast.lng
+            mapHeightCal = southWest.lat
+
+            var activeImage = L.imageOverlay(imageUrl, bounds).addTo(mapCal)
+            activeImage.on('load', function() {
+                drawCalBboxOnMap()
+                mapReadyCal = true
+            })
+
+            mapCal.setMaxBounds(bounds)
+            mapCal.fitBounds(bounds)
+            mapCal.setMinZoom(mapCal.getZoom())
+
+            mapCal.on('drag', function() {
+                mapCal.panInsideBounds(bounds, { animate: false })
+            })
+
+            drawnItemsCal = new L.FeatureGroup()
+            mapCal.addLayer(drawnItemsCal)
+
+            var calRectOptions = {
+                color: 'rgba(223,105,26,1)',
+                fill: true,
+                fillOpacity: 0.1,
+                opacity: 0.8,
+                weight: 3
+            }
+
+            if (drawControlCal != null) {
+                drawControlCal.remove()
+            }
+
+            drawControlCal = new L.Control.Draw({
+                draw: {
+                    polygon: false,
+                    polyline: false,
+                    circle: false,
+                    circlemarker: false,
+                    marker: false,
+                    rectangle: {
+                        shapeOptions: calRectOptions,
+                        showArea: false
+                    }
+                },
+                edit: {
+                    featureGroup: drawnItemsCal
+                }
+            })
+            mapCal.addControl(drawControlCal)
+
+            // Auto-save when a rectangle is drawn
+            mapCal.on('draw:created', function(e) {
+                drawnItemsCal.clearLayers()
+                drawnItemsCal.addLayer(e.layer)
+                var bounds = e.layer.getBounds()
+                calCurrentBox = {
+                    top:    bounds.getNorth() / mapHeightCal,
+                    bottom: bounds.getSouth() / mapHeightCal,
+                    left:   bounds.getWest()  / mapWidthCal,
+                    right:  bounds.getEast()  / mapWidthCal
+                }
+                saveCalibrationBbox()
+            })
+
+            // Update coords after edit
+            mapCal.on('draw:edited', function(e) {
+                e.layers.eachLayer(function(layer) {
+                    var bounds = layer.getBounds()
+                    calCurrentBox = {
+                        top:    bounds.getNorth() / mapHeightCal,
+                        bottom: bounds.getSouth() / mapHeightCal,
+                        left:   bounds.getWest()  / mapWidthCal,
+                        right:  bounds.getEast()  / mapWidthCal
+                    }
+                    saveCalibrationBbox()
+                })
+            })
+
+            mapCal.on('draw:deleted', function() {
+                calCurrentBox = null
+                saveCalibrationBbox()
+            })
+        }
+        img.src = imageUrl
+    }
+}
+
+function updateCalMap() {
+    /** Updates the calibration map when navigating to a new image. */
+    var img = calImages[calImgIndex]
+
+    document.getElementById('mapTitle_cal').innerHTML = img.url.split('/').slice(2).join('/')
+    document.getElementById('calDistInput').value = img.distance
+    calCurrentBox = (img.top != null) ? {top: img.top, left: img.left, bottom: img.bottom, right: img.right} : null
+    document.getElementById('calStatusMsg').innerHTML = ''
+
+    if (mapCal != null) {
+        var imageUrl = 'https://' + bucketName + '.s3.amazonaws.com/' + img.url
+        // Find and update the image overlay
+        mapCal.eachLayer(function(layer) {
+            if (layer instanceof L.ImageOverlay) {
+                layer.setUrl(imageUrl)
+            }
+        })
+        drawCalBboxOnMap()
+    } else {
+        prepMapCal(img)
+    }
+
+    updateButtons()
+}
+
+function drawCalBboxOnMap() {
+    /** Draws the existing bbox for the current calibration image onto the Leaflet map. */
+    if (drawnItemsCal) drawnItemsCal.clearLayers()
+    if (calCurrentBox && mapWidthCal && mapHeightCal) {
+        var rect = L.rectangle([
+            [calCurrentBox.top * mapHeightCal,    calCurrentBox.left  * mapWidthCal],
+            [calCurrentBox.bottom * mapHeightCal, calCurrentBox.right * mapWidthCal]
+        ], {
+            color: 'rgba(223,105,26,1)',
+            fill: true,
+            fillOpacity: 0.1,
+            opacity: 0.8,
+            weight: 3
+        })
+        drawnItemsCal.addLayer(rect)
+    }
+}
+
+function getCalibrationCameras() {
+    /** Fetches the list of cameras with calibration images for the selected survey. */
+    var xhttp = new XMLHttpRequest()
+    xhttp.onreadystatechange = function() {
+        if (this.readyState == 4 && this.status == 200) {
+            calCameras = JSON.parse(this.responseText)
+            var select = document.getElementById('calCameraSelect')
+            while (select.firstChild) select.removeChild(select.firstChild)
+            if (calCameras.length == 0) {
+                var opt = document.createElement('option')
+                opt.text = 'No calibration images found'
+                select.appendChild(opt)
+            } else {
+                for (var i = 0; i < calCameras.length; i++) {
+                    var opt = document.createElement('option')
+                    opt.value = calCameras[i].id
+                    opt.text = calCameras[i].name
+                    select.appendChild(opt)
+                }
+                getCalibrationImagesForCamera(calCameras[0].id)
+            }
+        }
+    }
+    xhttp.open('GET', '/getCalibrationCameras/' + selectedSurvey)
+    xhttp.send()
+}
+
+function getCalibrationImagesForCamera(cameragroup_id) {
+    /** Fetches the calibration images associated with a given cameragroup */
+    var xhttp = new XMLHttpRequest()
+    xhttp.onreadystatechange = function() {
+        if (this.readyState == 4 && this.status == 200) {
+            calImages = JSON.parse(this.responseText)
+            calImgIndex = 0
+            if (mapCal != null) {
+                mapCal.remove()
+                mapCal = null
+                drawControlCal = null
+                drawnItemsCal = null
+            }
+            if (calImages.length > 0) {
+                updateCalMap()
+            } else {
+                document.getElementById('mapTitle_cal').innerHTML = 'No calibration images for this camera.'
+                document.getElementById('calDistInput').value = ''
+                document.getElementById('calBtnPrevImg').disabled = true
+                document.getElementById('calBtnNextImg').disabled = true
+            }
+        }
+    }
+    xhttp.open('GET', '/getCalibrationImages/' + selectedSurvey + '/' + cameragroup_id)
+    xhttp.send()
+}
+
+function saveCalibrationBbox() {
+    /** Saves the Bbox for a calibration by updating database and s3 */
+    var cal_id = calImages[calImgIndex].id
+    var payload = calCurrentBox ? calCurrentBox : {top: null, left: null, bottom: null, right: null}
+    var xhttp = new XMLHttpRequest()
+    xhttp.onreadystatechange = function() {
+        if (this.readyState == 4 && this.status == 200) {
+            if (JSON.parse(this.responseText) == 'success') {
+                calImages[calImgIndex].top    = payload.top
+                calImages[calImgIndex].left   = payload.left
+                calImages[calImgIndex].bottom = payload.bottom
+                calImages[calImgIndex].right  = payload.right
+                document.getElementById('calStatusMsg').innerHTML = 'Bounding box saved.'
+            } else {
+                document.getElementById('calStatusMsg').innerHTML = 'Save failed.'
+            }
+        }
+    }
+    xhttp.open('POST', '/updateCalibrationBbox/' + cal_id)
+    xhttp.setRequestHeader('Content-Type', 'application/json')
+    xhttp.send(JSON.stringify(payload))
+}
+
+function saveCalibrationDistance() {
+    /** Saves the edited distance (renames S3 file). */
+    var newDist = parseFloat(document.getElementById('calDistInput').value)
+    if (isNaN(newDist) || newDist <= 0) {
+        document.getElementById('calStatusMsg').innerHTML = 'Enter a valid distance.'
+        return
+    }
+    var cal_id = calImages[calImgIndex].id
+    var xhttp = new XMLHttpRequest()
+    xhttp.onreadystatechange = function() {
+        if (this.readyState == 4) {
+            var resp = JSON.parse(this.responseText)
+            if (resp.status == 'success') {
+                var parts = calImages[calImgIndex].url.split('/')
+                parts[parts.length - 1] = resp.new_filename
+                calImages[calImgIndex].url = parts.join('/')
+                calImages[calImgIndex].filename = resp.new_filename
+                calImages[calImgIndex].distance = newDist
+                updateCalMap()
+                document.getElementById('calStatusMsg').innerHTML = 'Distance updated.'
+            } else if (resp.status == 'conflict') {
+                document.getElementById('calStatusMsg').innerHTML = 'A calibration image at that distance already exists for this camera.'
+            } else {
+                document.getElementById('calStatusMsg').innerHTML = 'Update failed.'
+            }
+        }
+    }
+    xhttp.open('POST', '/updateCalibrationDistance/' + cal_id)
+    xhttp.setRequestHeader('Content-Type', 'application/json')
+    xhttp.send(JSON.stringify({distance: newDist}))
+}
+
+function deleteCalibrationImageRecord() {
+    /** Deletes the current calibration image from S3 and DB. */
+    if (!confirm('Delete this calibration image? This cannot be undone.')) return
+    var cal_id = calImages[calImgIndex].id
+    var xhttp = new XMLHttpRequest()
+    xhttp.onreadystatechange = function() {
+        if (this.readyState == 4) {
+            if (this.status == 200 && JSON.parse(this.responseText) == 'success') {
+                calImages.splice(calImgIndex, 1)
+                if (calImages.length == 0) {
+                    if (mapCal != null) {
+                        mapCal.remove()
+                        mapCal = null
+                        drawControlCal = null
+                        drawnItemsCal = null
+                    }
+                    document.getElementById('mapTitle_cal').innerHTML = 'No calibration images for this camera.'
+                    document.getElementById('calDistInput').value = ''
+                    updateButtons()
+                } else {
+                    calImgIndex = Math.min(calImgIndex, calImages.length - 1)
+                    updateCalMap()
+                }
+            } else {
+                document.getElementById('calStatusMsg').innerHTML = 'Delete failed.'
+            }
+        }
+    }
+    xhttp.open('DELETE', '/deleteCalibrationImage/' + cal_id)
+    xhttp.send()
+}
+
 function prepMapStatic(image) {
     /** Initialises the Leaflet image map for the edit survey modal. */
 
@@ -7444,6 +8011,11 @@ function updateImageIndex(index) {
             imageIndex = index
             updateImageMap()
         }
+    } else if (tabActiveEditSurvey == 'baseCalibrationTab') {
+        if (index >= 0 && index < calImages.length) {
+            calImgIndex = index
+            updateCalMap()
+        }
     }
 }
 
@@ -7642,6 +8214,14 @@ function updateButtons() {
         btnNextImage.disabled = imageIndex === images[cameraIndex].images.length - 1 && !timestamp_page[images[cameraIndex].id].next_page;
         btnPrevCamera.disabled = cameraIndex === 0;
         btnNextCamera.disabled = cameraIndex === images.length - 1;
+    } else if (tabActiveEditSurvey === 'baseCalibrationTab') {
+        document.getElementById('calBtnPrevImg').disabled = (calImgIndex === 0)
+        document.getElementById('calBtnNextImg').disabled = (calImgIndex === calImages.length - 1)
+        var select = document.getElementById('calCameraSelect')
+        if (select) {
+            document.getElementById('calBtnPrevCam').disabled = (select.selectedIndex === 0)
+            document.getElementById('calBtnNextCam').disabled = (select.selectedIndex === select.options.length - 1)
+        }
     }
 
     updatePaginationCircles();
@@ -7675,6 +8255,13 @@ function updatePaginationCircles(){
         paginationCircles = document.getElementById('paginationCircles_time')
         addNext = timestamp_page[images[cameraIndex].id].next_page
         next_function = 'getNextTimestampImages('+addNext+')'
+    } else if (tabActiveEditSurvey == 'baseCalibrationTab') {
+        cirNum = calImages.length
+        circlesIndex = calImgIndex
+        clusterPosition = document.getElementById('clusterPosition_cal')
+        paginationCircles = document.getElementById('paginationCircles_cal')
+        addNext = null
+        next_function = ''
     }
 
     if (clusterPosition != null) {
