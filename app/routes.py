@@ -1891,6 +1891,8 @@ def createNewSurvey():
         annotation = request.form['annotation']
         newSurveyCamCode = request.form['newSurveyCamCode']
         camCheckbox = request.form['camCheckbox']
+        newSurveyCalCode = request.form['newSurveyCalCode']
+        calCheckbox = request.form.get['calCheckbox']
         dataSource = request.form['dataSource']
         triggerSource = request.form['triggerSource']
         ignoreSmallDets = request.form['ignoreSmallDets']
@@ -1932,8 +1934,14 @@ def createNewSurvey():
         if camCheckbox=='false' and newSurveyCamCode != 'None':
             newSurveyCamCode = newSurveyCamCode+'[0-9]+'
 
+        if calCheckbox == 'false' and newSurveyCalCode != 'None':
+            newSurveyCalCode = newSurveyCalCode + '[0-9]+'
+
         if newSurveyCamCode == 'None':
             newSurveyCamCode = None
+
+        if newSurveyCalCode == 'None':
+            newSurveyCalCode = None
 
         if correctTimestamps=='true':
             correctTimestamps=True
@@ -2034,7 +2042,7 @@ def createNewSurvey():
                 defaultTask = Task(name='default', survey=newSurvey, tagging_level='-1', test_size=0, status='Ready')
                 db.session.add(defaultTask)
             else:
-                newSurvey = Survey(name=surveyName, description=newSurveyDescription, trapgroup_code=newSurveyTGCode, organisation_id=organisation_id, status='Uploading', correct_timestamps=correctTimestamps, classifier_id=int(classifier_id), camera_code=newSurveyCamCode, folder=newSurveyS3Folder, type=dataSource, trigger_source=triggerSource, ignore_small_detections=ignoreSmallDets, sky_masked=ignoreSkyDets, area=newArea)
+                newSurvey = Survey(name=surveyName, description=newSurveyDescription, trapgroup_code=newSurveyTGCode, organisation_id=organisation_id, status='Uploading', correct_timestamps=correctTimestamps, classifier_id=int(classifier_id), camera_code=newSurveyCamCode, calibration_code=newSurveyCalCode, folder=newSurveyS3Folder, type=dataSource, trigger_source=triggerSource, ignore_small_detections=ignoreSmallDets, sky_masked=ignoreSkyDets, area=newArea)
                 db.session.add(newSurvey)
 
             # Add permissions

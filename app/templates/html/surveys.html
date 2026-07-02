@@ -452,7 +452,53 @@ limitations under the License. -->
                         <div id="newSurveyCamBuilder"></div>
                     </div>      
                     <div id="newSurveyCamErrors" style="font-size: 80%; color: #DF691A"></div>
-                    
+
+                    <br>
+                    <h5 style="margin-bottom: 2px">Calibration</h5>
+                    <div style="font-size: 80%; margin-bottom: 2px"><i>Do you have calibration images in this survey?</i></div>
+                    <div style="margin-bottom: 5px">
+                        <div class="custom-control custom-radio custom-control-inline">
+                            <input type="radio" class="custom-control-input" id="noCalImages" name="calSelection" value='0' checked="true" onchange="updateCalDiv()">
+                            <label class="custom-control-label" for="noCalImages">No</label>
+                        </div> 
+                        <div class="custom-control custom-radio custom-control-inline">
+                            <input type="radio" class="custom-control-input" id="yesCalImages" name="calSelection" value='1' onchange="updateCalDiv()">
+                            <label class="custom-control-label" for="yesCalImages">Yes</label>
+                        </div>
+                    </div>
+                    <div id="calDetailsDiv" hidden>
+                        <br>
+                        <div style="font-size: 80%; margin-bottom: 2px"><i>Select how you would like to identify your calibration images in your folder structure:</i></div>
+                        <div style="margin-bottom: 5px">
+                            <div class="custom-control custom-radio custom-control-inline">
+                                <input type="radio" class="custom-control-input" id="calLvlFolder" name="calCodeSelection" value='0' checked="true" onchange="updateCalDiv()">
+                                <label class="custom-control-label" for="calLvlFolder">Select Folder</label>
+                            </div> 
+                            <div class="custom-control custom-radio custom-control-inline">
+                                <input type="radio" class="custom-control-input" id="calRegExp" name="calCodeSelection" value='2' onchange="updateCalDiv()">
+                                <label class="custom-control-label" for="calRegExp">Calibration Identifier</label>
+                            </div>
+                        </div>
+                        <br>
+                        <div style="font-size: 80%; margin-bottom: 2px" id="calOptionDesc"><i>Select the folder level from the path below that corresponds to the calibration images in your folder structure. For example, in "Survey/Site1/Cal", you should select the "Cal" folder.</i></div>
+                    </div>
+                    <div id="calFolderDiv" hidden>No files selected.</div>
+                    <div id="calIdDiv" hidden>
+                        <div class="row">
+                            <div class='col-lg-4'>
+                                <input type="text" class="form-control" required id="newSurveyCalCodeInput"></input>
+                            </div>
+                            <div class="col-lg-4">
+                                <div class="custom-control custom-checkbox">
+                                    <input type="checkbox" class="custom-control-input" id="calAdvancedCheckbox" name="calAdvancedCheckbox">
+                                    <label class="custom-control-label" for="calAdvancedCheckbox">Advanced</label>
+                                </div>
+                            </div>
+                        </div>
+                        <div id="newSurveyCalBuilder"></div>
+                    </div>      
+                    <div id="newSurveyCalErrors" style="font-size: 80%; color: #DF691A"></div>
+
                     <br>
                     <h5 style="margin-bottom: 2px">Structure</h5>
                     <div style="font-size: 80%; margin-bottom: 2px"><i>Check the detected structure of your survey. Eg. "Site1 : Camera1, Camera2", "Site2 : Camera3", etc.</i></div>

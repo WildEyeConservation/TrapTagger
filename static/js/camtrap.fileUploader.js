@@ -16,6 +16,7 @@ const limitTT=pLimit(6)
 
 uploadSurveyName = null
 uploadID = null
+uploadDirHandle = null
 uploadStart = null
 retrying = false
 
@@ -30,6 +31,10 @@ uploadWorker.onmessage = function(evt){
         updateCalibrationNotice(evt.data.args[2])
         updateSiteFolderSelect()
         updateCamFolderSelect()
+        updateCalFolderSelect()
+        if (typeof updateSurveyStructure === 'function') {
+            updateSurveyStructure()
+        }
     } else if (evt.data.func=='checkTrapgroupCode') {
         checkTrapgroupCode()
     } else if (evt.data.func=='buildUploadProgress') {
@@ -185,7 +190,14 @@ async function selectFiles(resuming=false,survey_id=null,survey_name=null) {
     resetUploadStatusVariables()
     if (window.showDirectoryPicker) {
         dirHandle = await window.showDirectoryPicker();
-        uploadWorker.postMessage({'func': 'selectFiles', 'args': [dirHandle,resuming,uploadSurveyName,uploadID]});
+        uploadDirHandle = dirHandle;
+
+        var calibrationCode = null;
+        if (typeof getSurveyCalibrationCode === 'function') {
+            calibrationCode = getSurveyCalibrationCode()
+        }
+
+        uploadWorker.postMessage({'func': 'selectFiles', 'args': [dirHandle,resuming,uploadSurveyName,uploadID, calibrationCode]});
     } else {
         document.getElementById('modalAlertHeader').innerHTML = 'Alert'
         document.getElementById('modalAlertBody').innerHTML = 'Unfortunately this feature is not yet available in your chosen internet browser - please try again with Google Chrome instead. If you are using Chrome, please ensure that it is up to date.'
@@ -201,7 +213,11 @@ async function uploadFiles() {
     } else {
         modalAddFiles.modal('hide')
     }
-    uploadWorker.postMessage({'func': 'uploadFiles', 'args': [uploadSurveyName,uploadID]});
+    var calibrationCode = null;
+    if (typeof getSurveyCalibrationCode === 'function'){
+        calibrationCode = getSurveyCalibrationCode()
+    }
+    uploadWorker.postMessage({'func': 'uploadFiles', 'args': [uploadSurveyName,uploadID, calibrationCode]});
 }
 
 var uppy = new Uppy.Uppy({
@@ -268,6 +284,7 @@ function resetUploadStatusVariables() {
     /** Resets all the status variables */
     uploading = false
     uploadStart = null
+    uploadDirHandle = null
     retrying = false
     globalCalibrationFolderCount = 0
 }

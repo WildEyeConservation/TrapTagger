@@ -213,6 +213,7 @@ class Survey(db.Model):
     exceptions = db.relationship('SurveyPermissionException', backref='survey', lazy=True)
     shares = db.relationship('SurveyShare', backref='survey', lazy=True)
     camera_code = db.Column(db.String(256), index=False)
+    calibration_code = db.Column(db.String(256), index=False)
     api_keys = db.relationship('APIKey', backref='survey', lazy=True)
     zips = db.relationship('Zip', backref='survey', lazy=True)
     require_launch = db.Column(db.DateTime, index=True)

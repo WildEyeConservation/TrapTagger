@@ -38,16 +38,20 @@ lambdaQueue = []
 checkingLambda = false
 largeFiles = 0
 fileRenames = {}
+calibrationCode = null
+var rootDirHandle = null
 
 onmessage = function (evt) {
     /** Take instructions from main js */
     if (evt.data.func=='selectFiles') {
         uploadSurveyName = evt.data.args[2]
         uploadID = evt.data.args[3]
+        calibrationCode = evt.data.args[4] || null
         selectFiles(evt.data.args[0],evt.data.args[1])
     } else if (evt.data.func=='uploadFiles') {
         uploadSurveyName = evt.data.args[0]
         uploadID = evt.data.args[1]
+        calibrationCode = evt.data.args[2]
         uploadFiles()
     } else if (evt.data.func=='checkFinishedUpload') {
         checkFinishedUpload()
@@ -201,14 +205,42 @@ async function addBatch() {
     return true
 }
 
+function isCalibrationFolder(dirName, dirPath) {
+    /** Returns true if dirName at dirPath matches calibrationCode. */
+
+    if (!calibrationCode) {
+        return false;
+    }
+
+    // Folder-level pattern: (?:[^/]*/){n}([^/]*)
+    var nthFolderPattern = /^\(\?:\[\^\/]\*\/\)\{(\d+)\}\(\[\^\/]\*\)$/;
+    var nthMatch = calibrationCode.match(nthFolderPattern);
+
+    if (nthMatch) {
+        var re = new RegExp(calibrationCode);
+        var m = re.exec(dirPath);
+        return m && m[1] === dirName;
+    }
+
+    // Identifier pattern (e.g. extra, extra[0-9]+, or advanced regex)
+
+    try {
+        var nameRe = new RegExp('^' + calibrationCode + '$');
+        return nameRe.test(dirName);
+    } catch (e) {
+        return false;
+    }
+}
+
 async function listFolder(dirHandle,path){
     /** Iterates through a folder, adding the files to the upload queue */
     for await (const entry of dirHandle.values()) {
         if (entry.kind=='directory'){
-            if (entry.name.toLowerCase() === 'calibration') {
-                await listCalibrationFolder(entry, path + '/' + entry.name, path)
+            var nextPath = path + '/' + entry.name
+            if (isCalibrationFolder(entry.name, nextPath)) {
+                await listCalibrationFolder(entry, nextPath, path)
             } else {
-                await listFolder(entry,path+'/'+entry.name)
+                await listFolder(entry, nextPath)
                 updatePathDisplay()
             }
         } else {
@@ -268,7 +300,9 @@ function fileUploadedSuccessfully(filename) {
 
 async function selectFiles(dirHandle,resuming=false) {
     /** Takes the users selected folder and iterates through it. */
-    resetUploadStatusVariables()
+    rootDirHandle = dirHandle
+    resetScanResults()
+    calibrationCode = calibrationCode || null
     await listFolder(dirHandle,dirHandle.name)
     if (resuming) {
         uploadFiles()
@@ -279,7 +313,14 @@ async function selectFiles(dirHandle,resuming=false) {
 }
 
 async function uploadFiles() {
-    /** Kicks off the uplod process. */
+    /** Kicks off the uplod process. Rescans with final calibrationCode if needed. */
+    if (rootDirHandle) {
+        resetScanResults()
+        calibrationCode = calibrationCode || null
+        await listFolder(rootDirHandle, rootDirHandle.name)
+        updatePathDisplay()
+    }
+
     if (!checkingFiles) {
         checkFileBatch()
     }
@@ -328,23 +369,28 @@ async function checkFinishedUpload() {
     }
 }
 
-function resetUploadStatusVariables() {
-    /** Resets all the status variables */
+function resetScanResults() {
     uploading = false
     filesUploaded = 0
     filesActuallyUploaded = 0
     filesQueued = 0
     proposedQueue = []
     uploadQueue = []
-    filecount=0
+    filecount = 0
     addingBatch = false
     checkingFiles = false
     folders = []
-    calibrationFolders = []    
+    calibrationFolders = []
     lambdaQueue = []
     checkingLambda = false
     largeFiles = 0
     fileRenames = {}
+}
+
+function resetUploadStatusVariables() {
+    resetScanResults()
+    calibrationCode = null
+    rootDirHandle = null
 }
 
 function getHash(jpegData, filename) {
