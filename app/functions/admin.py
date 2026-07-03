@@ -404,6 +404,16 @@ def delete_survey(self,survey_id):
                 message = 'Could not delete videos.'
                 app.logger.info('Failed to delete videos.')
 
+        # Delete calibration images
+        if status != 'error':
+            try:
+                delete_calibration_images(survey_id=survey_id)
+                app.logger.info('Calibration images deleted successfully.')
+            except:
+                status = 'error'
+                message = 'Could not delete calibration images.'
+                app.logger.info('Failed to delete calibration images.')
+
         #Delete cameras
         if status != 'error':
             try:

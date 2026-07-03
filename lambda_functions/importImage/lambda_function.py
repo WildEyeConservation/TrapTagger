@@ -23,8 +23,43 @@ import hashlib
 import piexif
 from datetime import datetime
 import io
+import re
 
 s3 = boto3.client('s3')
+
+def is_calibration_dirpath(dirpath, calibration_code):
+    if not calibration_code or not dirpath:
+        return False
+    parts = dirpath.split('/')
+    if len(parts) < 3:
+        return False
+    dir_name = parts[-1]
+    rel_from_survey = '/'.join(parts[2:])
+    is_nth_folder_pattern = re.match(r'^\(\?:\[\^/]\*/\)\{\d+\}\([^)]*\)$', calibration_code)
+    if is_nth_folder_pattern:
+        match = re.compile(calibration_code).search(rel_from_survey)
+        return bool(match and match.lastindex >= 1 and match.group(1) == dir_name)
+    try:
+        return re.compile('^' + calibration_code + '$').match(dir_name) is not None
+    except re.error:
+        return False
+
+def calibration_camera_relative_path(path, calibration_code):
+    if not calibration_code:
+        return None
+    splits = path.split('/')
+    if len(splits) < 4:
+        return None
+    if splits[-1].lower().endswith(('.jpg', '.jpeg')):
+        dirparts = splits[:-1]
+    else:
+        dirparts = splits
+    dirpath = '/'.join(dirparts)
+    if not is_calibration_dirpath(dirpath, calibration_code):
+        return None
+    cal_folder_name = dirparts[-1]
+    cal_idx = dirparts.index(cal_folder_name)
+    return '/'.join(dirparts[2:cal_idx])
 
 def lambda_handler(event, context):
     '''Updates the image in the database with metadata & compresses the image.'''
@@ -34,6 +69,15 @@ def lambda_handler(event, context):
     keys = event['keys']
     conn = pymysql.connect(host=event['RDS_HOST'], user=event['RDS_USER'], password=event['RDS_PASSWORD'], db=event['RDS_DB_NAME'], port=3306, connect_timeout=5)
     cursor = conn.cursor()
+    calibration_code = None
+    if event.get('survey_id'):
+        cursor.execute(
+            'SELECT calibration_code FROM survey WHERE id = %s',
+            (event['survey_id'],)
+        )
+        row = cursor.fetchone()
+        if row and row[0]:
+            calibration_code = row[0]
     processed=0
     imported=0
     cameras = {}
@@ -130,17 +174,17 @@ def lambda_handler(event, context):
                     continue
                 
                 else:
-                    if '/calibration/' in key:
-                        # Compress and upload to _calibration_/ path
+                    camera_relative = calibration_camera_relative_path(key, calibration_code)
+                    if camera_relative is not None:
                         splits = key.split('/')
-                        # splits[0] = org, splits[1] = survey, then trapgroup/.../camera/calibration/filename
-                        cal_idx = splits.index('calibration')
                         filename = splits[-1]
-                        camera_relative = '/'.join(splits[2:cal_idx])  # trapgroup/.../camera
-                        dest_key = splits[0] + '-comp/' + splits[1] + '/_calibration_/' + camera_relative + '/' + filename
+                        dest_key = (
+                            splits[0] + '-comp/' + splits[1]
+                            + '/_calibration_/' + camera_relative + '/' + filename
+                        )
                         compressed_path = '/tmp/compressed_' + key.replace('/', '_')
                         img = PilImage.open(download_path)
-                        img = img.resize((800, 800*img.height//img.width))
+                        img = img.resize((800, 800 * img.height // img.width))
                         try:
                             exif = img.info.get('exif')
                             img.save(compressed_path, exif=exif, quality=80)
@@ -149,7 +193,7 @@ def lambda_handler(event, context):
                         s3.upload_file(Filename=compressed_path, Bucket=bucket, Key=dest_key)
                         os.remove(compressed_path)
                         os.remove(download_path)
-                        s3.delete_object(Bucket=bucket, Key=key)  # delete raw
+                        s3.delete_object(Bucket=bucket, Key=key)
                         processed += 1
                         continue  # skip Camera/Image DB insertion
                     # Get Timestamp with pyexif 

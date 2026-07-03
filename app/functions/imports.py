@@ -2390,9 +2390,9 @@ def import_folder(s3Folder, survey_id, sourceBucket,destinationBucket,pipeline,m
         videos = list(filter(isVideo.search, filenames))
         jpegs = list(filter(isjpeg.search, filenames))
         # handle calibration images
-        if dirpath.endswith('/calibration') and jpegs:
+        if is_calibration_dirpath(dirpath, survey.calibration_code) and jpegs:
             # Build the _calibration_/ destination key for each jpeg
-            parent_camera_path = dirpath.rsplit('/calibration', 1)[0]
+            parent_camera_path = '/'.join(dirpath.split('/')[:-1])
             comp_splits = parent_camera_path.split('/')
             comp_splits[0] = comp_splits[0] + '-comp'
             cal_prefix = comp_splits[0] + '/' + comp_splits[1] + '/_calibration_/' + '/'.join(comp_splits[2:])
@@ -2410,7 +2410,7 @@ def import_folder(s3Folder, survey_id, sourceBucket,destinationBucket,pipeline,m
                     except Exception:
                         app.logger.info('Failed to compress calibration image {}'.format(source_key))
             continue  # don't process as a regular camera folder
-        if (len(jpegs) or len(videos)) and not any(exclusion in dirpath for exclusion in exclusions) and not dirpath.endswith('/calibration'):
+        if (len(jpegs) or len(videos)) and not any(exclusion in dirpath for exclusion in exclusions) and not is_calibration_dirpath(dirpath, survey.calibration_code):
             if dirpath in cameras_with_trapgroups.keys():
                 trapgroup = cameras_with_trapgroups[dirpath].trapgroup
             else:
@@ -2480,7 +2480,7 @@ def import_folder(s3Folder, survey_id, sourceBucket,destinationBucket,pipeline,m
     for dirpath, folders, filenames in s3traverse(sourceBucket, s3Folder):
         jpegs = list(filter(isjpeg.search, filenames))
         
-        if len(jpegs) and not any(exclusion in dirpath for exclusion in exclusions) and not dirpath.endswith('/calibration'):
+        if len(jpegs) and not any(exclusion in dirpath for exclusion in exclusions) and not is_calibration_dirpath(dirpath, survey.calibration_code):
             if dirpath in cameras_with_trapgroups.keys():
                 camera = cameras_with_trapgroups[dirpath]
                 trapgroup = camera.trapgroup
@@ -4824,6 +4824,53 @@ def extract_camera_name(camera_code,trapgroup_code,survey_name,trapgroup_tag,pat
 
     return camera_name
 
+def is_calibration_dirpath(dirpath, calibration_code):
+    '''
+    Returns True if dirpath points at a calibration folder.
+    dirpath example: org/survey/site/cam/extra
+    calibration_code from survey.calibration_code (same strings as trapgroup/camera codes).
+    '''
+    if not calibration_code or not dirpath:
+        return False
+    parts = dirpath.split('/')
+    if len(parts) < 3:
+        return False
+    dir_name = parts[-1]
+    rel_from_survey = '/'.join(parts[2:])  # under org/survey/
+    is_nth_folder_pattern = re.match(r'^\(\?:\[\^/]\*/\)\{\d+\}\([^)]*\)$', calibration_code)
+    if is_nth_folder_pattern:
+        match = re.compile(calibration_code).search(rel_from_survey)
+        return bool(match and match.lastindex >= 1 and match.group(1) == dir_name)
+    try:
+        return re.compile('^' + calibration_code + '$').match(dir_name) is not None
+    except re.error:
+        return False
+
+def calibration_camera_relative_path(path, calibration_code):
+    '''
+    For a calibration folder path or S3 key, return trapgroup/.../camera relative path
+    (parent of the calibration folder), or None if not calibration.
+    key example:    org/survey/site/cam/extra/image.jpg
+    dirpath example: org/survey/site/cam/extra
+    returns:        site/cam   (used under _calibration_/)
+    '''
+    if not calibration_code:
+        return None
+    splits = path.split('/')
+    if len(splits) < 4:
+        return None
+    # Directory containing the file, or dirpath itself
+    if splits[-1].lower().endswith(('.jpg', '.jpeg')):
+        dirparts = splits[:-1]
+    else:
+        dirparts = splits
+    dirpath = '/'.join(dirparts)
+    if not is_calibration_dirpath(dirpath, calibration_code):
+        return None
+    cal_folder_name = dirparts[-1]
+    cal_idx = dirparts.index(cal_folder_name)  # last segment
+    return '/'.join(dirparts[2:cal_idx])  # between survey and cal folder
+
 @celery.task(bind=True,max_retries=5)
 def run_llava(self,image_ids,prompt):
     '''Processes the specified images with LLaVA using the given prompt and saves the result in the images table.'''
@@ -5924,7 +5971,7 @@ def process_folder(s3Folder, survey_id, sourceBucket):
     batch = []
     chunk_size = round(10000/4)
     s3Folder = s3Folder.replace('_','\\_')
-    cameras = localsession.query(Camera).filter(Camera.path.like(s3Folder+'/%')).filter(~Camera.path.contains('/calibration')).join(Image).filter(or_(~Image.detections.any(),Camera.trapgroup==None)).distinct().all()
+    cameras = localsession.query(Camera).filter(Camera.path.like(s3Folder+'/%')).join(Image).filter(or_(~Image.detections.any(),Camera.trapgroup==None)).distinct().all()
     for camera in cameras:
         trapgroup = camera.trapgroup
         if not trapgroup:

@@ -303,6 +303,26 @@ def delete_cameras(survey_id, ids=None, empty=False, delete_from_s3=False):
 
     return True
 
+def delete_calibration_images(survey_id):
+    '''Deletes calibration images for a given survey ID.'''
+
+    cal_subq = db.session.query(CalibrationImage.id)\
+        .join(Cameragroup, CalibrationImage.cameragroup_id == Cameragroup.id)\
+        .join(Camera, Camera.cameragroup_id == Cameragroup.id)\
+        .join(Trapgroup, Camera.trapgroup_id == Trapgroup.id)\
+        .filter(Trapgroup.survey_id == survey_id)\
+        .subquery()
+
+    result = db.session.execute(
+        delete(CalibrationImage)
+        .where(CalibrationImage.id.in_(select(cal_subq.c.id)))
+        .execution_options(synchronize_session=False)
+    )
+    db.session.commit()
+    app.logger.info('{} calibration images deleted successfully.'.format(result.rowcount))
+
+    return True
+
 def delete_trapgroups(survey_id, ids=None, empty=False):
     '''Deletes trapgroups for a given survey ID and optional extra parameters.'''
 
