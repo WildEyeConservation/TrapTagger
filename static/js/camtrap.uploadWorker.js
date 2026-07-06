@@ -33,7 +33,7 @@ filecount=0
 addingBatch = false
 checkingFiles = false
 folders = []
-calibrationFolders = []
+calibrationFolderPaths = []
 lambdaQueue = []
 checkingLambda = false
 largeFiles = 0
@@ -65,6 +65,9 @@ onmessage = function (evt) {
     } else if (evt.data.func=='pauseUpload') {
         checkLambdaQueue(true)
         resetUploadStatusVariables()
+    } else if (evt.data.func=='rescanCalibrationFolders') {
+        calibrationCode = evt.data.args[1] || null
+        rescanCalibrationFolders(evt.data.args[0])
     }
 };
 
@@ -212,18 +215,6 @@ function isCalibrationFolder(dirName, dirPath) {
         return false;
     }
 
-    // Folder-level pattern: (?:[^/]*/){n}([^/]*)
-    var nthFolderPattern = /^\(\?:\[\^\/]\*\/\)\{(\d+)\}\(\[\^\/]\*\)$/;
-    var nthMatch = calibrationCode.match(nthFolderPattern);
-
-    if (nthMatch) {
-        var re = new RegExp(calibrationCode);
-        var m = re.exec(dirPath);
-        return m && m[1] === dirName;
-    }
-
-    // Identifier pattern (e.g. extra, extra[0-9]+, or advanced regex)
-
     try {
         var nameRe = new RegExp('^' + calibrationCode + '$');
         return nameRe.test(dirName);
@@ -261,17 +252,50 @@ async function listFolder(dirHandle,path){
 }
 
 async function listCalibrationFolder(dirHandle, path, cameraPath) {
+    // path = full path TO the cal folder, e.g. MySurvey/Site1/Cam1/extra
+    if (!calibrationFolderPaths.includes(path)) {
+        calibrationFolderPaths.push(path)
+    }
+
     for await (const entry of dirHandle.values()) {
         if (entry.kind == 'file') {
             if (/^[^.].*\.(jpe?g)$/.test(entry.name.toLowerCase())) {
                 filecount += 1
                 proposedQueue.push([path, entry])
-                if (!calibrationFolders.includes(cameraPath)) {
-                    calibrationFolders.push(cameraPath)
-                }
             }
         }
     }
+}
+
+async function walkForCalibrationFolders(dirHandle, path) {
+    /** Finds cal folder paths only — does not alter trap scan state or upload queue. */
+    for await (const entry of dirHandle.values()) {
+        if (entry.kind == 'directory') {
+            var nextPath = path + '/' + entry.name
+            if (isCalibrationFolder(entry.name, nextPath)) {
+                if (!calibrationFolderPaths.includes(nextPath)) {
+                    calibrationFolderPaths.push(nextPath)
+                }
+            } else {
+                await walkForCalibrationFolders(entry, nextPath)
+            }
+        }
+    }
+}
+
+async function rescanCalibrationFolders(dirHandle) {
+    calibrationFolderPaths = []
+    if (dirHandle && calibrationCode) {
+        await walkForCalibrationFolders(dirHandle, dirHandle.name)
+    }
+    updateCalibrationFolders()
+}
+
+function updateCalibrationFolders() {
+    postMessage({
+        'func': 'updateCalibrationFolders',
+        'args': [calibrationFolderPaths]
+    })
 }
 
 function buildUploadProgress() {
@@ -281,7 +305,10 @@ function buildUploadProgress() {
 
 function updatePathDisplay() {
     /** Wrapper function for updatePathDisplay so that the main js can update the page. */
-    postMessage({'func': 'updatePathDisplay', 'args': [folders,filecount, calibrationFolders]})
+    postMessage({
+        'func': 'updatePathDisplay',
+        'args': [folders, filecount, calibrationFolderPaths]
+    })
 }
 
 function updateUploadProgress(value,total) {
@@ -380,7 +407,7 @@ function resetScanResults() {
     addingBatch = false
     checkingFiles = false
     folders = []
-    calibrationFolders = []
+    calibrationFolderPaths = []
     lambdaQueue = []
     checkingLambda = false
     largeFiles = 0

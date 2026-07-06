@@ -467,22 +467,9 @@ limitations under the License. -->
                         </div>
                     </div>
                     <div id="calDetailsDiv" hidden>
-                        <br>
-                        <div style="font-size: 80%; margin-bottom: 2px"><i>Select how you would like to identify your calibration images in your folder structure:</i></div>
-                        <div style="margin-bottom: 5px">
-                            <div class="custom-control custom-radio custom-control-inline">
-                                <input type="radio" class="custom-control-input" id="calLvlFolder" name="calCodeSelection" value='0' checked="true" onchange="updateCalDiv()">
-                                <label class="custom-control-label" for="calLvlFolder">Select Folder</label>
-                            </div> 
-                            <div class="custom-control custom-radio custom-control-inline">
-                                <input type="radio" class="custom-control-input" id="calRegExp" name="calCodeSelection" value='2' onchange="updateCalDiv()">
-                                <label class="custom-control-label" for="calRegExp">Calibration Identifier</label>
-                            </div>
-                        </div>
-                        <br>
-                        <div style="font-size: 80%; margin-bottom: 2px" id="calOptionDesc"><i>Select the folder level from the path below that corresponds to the calibration images in your folder structure. For example, in "Survey/Site1/Cal", you should select the "Cal" folder.</i></div>
-                    </div>
-                    <div id="calFolderDiv" hidden>No files selected.</div>
+                        <div style="font-size: 80%; margin-bottom: 2px" id="calOptionDesc">
+                            <i>The identifier used to designate a calibration folder in your folder structure. Eg. "extra" matches a folder named "extra", or "Cal" matches "Cal", "Cal1", "Cal2", etc. Becomes a regular expression search query if the advanced option is selected.</i>
+                        </div></div>
                     <div id="calIdDiv" hidden>
                         <div class="row">
                             <div class='col-lg-4'>

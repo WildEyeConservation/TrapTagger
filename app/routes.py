@@ -1892,7 +1892,7 @@ def createNewSurvey():
         newSurveyCamCode = request.form['newSurveyCamCode']
         camCheckbox = request.form['camCheckbox']
         newSurveyCalCode = request.form['newSurveyCalCode']
-        calCheckbox = request.form.get['calCheckbox']
+        calCheckbox = request.form['calCheckbox']
         dataSource = request.form['dataSource']
         triggerSource = request.form['triggerSource']
         ignoreSmallDets = request.form['ignoreSmallDets']
@@ -1935,7 +1935,7 @@ def createNewSurvey():
             newSurveyCamCode = newSurveyCamCode+'[0-9]+'
 
         if calCheckbox == 'false' and newSurveyCalCode != 'None':
-            newSurveyCalCode = newSurveyCalCode + '[0-9]+'
+            newSurveyCalCode = newSurveyCalCode + '[0-9]*'
 
         if newSurveyCamCode == 'None':
             newSurveyCamCode = None
@@ -2601,7 +2601,7 @@ def editSurvey():
                             cal_image.bottom = bbox.get('bottom')
                             cal_image.right  = bbox.get('right')
 
-                # Distance renames (reuses exact S3 logic from updateCalibrationDistance)
+                # Distance renames
                 if cal_distances:
                     for cal_id_str, new_distance in cal_distances.items():
                         if int(cal_id_str) in deletion_ids:
@@ -2613,38 +2613,37 @@ def editSurvey():
                             new_distance = float(new_distance)
                         except (TypeError, ValueError):
                             continue
-                        ext = os.path.splitext(cal_image.filename)[1]
-                        new_filename = str(new_distance) + ext
-                        if new_filename == cal_image.filename:
+
+                        old_key = cal_image.filename
+                        basename = os.path.basename(old_key)
+                        ext = os.path.splitext(basename)[1]
+                        new_basename = str(new_distance) + ext
+                        new_key = old_key.rsplit('/', 1)[0] + '/' + new_basename
+
+                        if new_key == old_key:
                             continue
+
                         conflict = db.session.query(CalibrationImage).filter_by(
                             cameragroup_id=cal_image.cameragroup_id,
-                            filename=new_filename
+                            filename=new_key,
                         ).first()
                         if conflict and conflict.id != cal_image.id:
-                            continue  # skip conflicting rename silently
-                        camera = db.session.query(Camera)\
-                            .filter(Camera.cameragroup_id == cal_image.cameragroup_id)\
-                            .join(Trapgroup).first()
-                        if camera:
-                            path_parts = camera.path.split('/')
-                            path_parts[0] = path_parts[0] + '-comp'
-                            cal_prefix = path_parts[0] + '/' + path_parts[1] + '/_calibration_/' + '/'.join(path_parts[2:])
-                            old_key = cal_prefix + '/' + cal_image.filename
-                            new_key = cal_prefix + '/' + new_filename
-                            try:
-                                GLOBALS.s3client.copy_object(
-                                    Bucket=Config.BUCKET,
-                                    CopySource={'Bucket': Config.BUCKET, 'Key': old_key},
-                                    Key=new_key
-                                )
-                                GLOBALS.s3client.delete_object(Bucket=Config.BUCKET, Key=old_key)
-                            except Exception:
-                                app.logger.info('Failed to rename calibration image in S3: {}'.format(old_key))
-                                continue
-                            cal_image.filename = new_filename
-                            cal_image.distance = new_distance
-                            affected_cameragroups.add(cal_image.cameragroup_id) 
+                            continue
+
+                        try:
+                            GLOBALS.s3client.copy_object(
+                                Bucket=Config.BUCKET,
+                                CopySource={'Bucket': Config.BUCKET, 'Key': old_key},
+                                Key=new_key,
+                            )
+                            GLOBALS.s3client.delete_object(Bucket=Config.BUCKET, Key=old_key)
+                        except Exception:
+                            app.logger.info('Failed to rename calibration image in S3: {}'.format(old_key))
+                            continue
+
+                        cal_image.filename = new_key
+                        cal_image.distance = new_distance
+                        affected_cameragroups.add(cal_image.cameragroup_id)
 
                 # Deletions (reuses exact S3 logic from deleteCalibrationImage)
                 if cal_deletions:
@@ -2652,18 +2651,11 @@ def editSurvey():
                         cal_image = db.session.query(CalibrationImage).get(int(cal_id))
                         if not cal_image:
                             continue
-                        affected_cameragroups.add(cal_image.cameragroup_id) 
-                        camera = db.session.query(Camera)\
-                            .filter(Camera.cameragroup_id == cal_image.cameragroup_id)\
-                            .join(Trapgroup).first()
-                        if camera:
-                            path_parts = camera.path.split('/')
-                            path_parts[0] = path_parts[0] + '-comp'
-                            s3_key = path_parts[0] + '/' + path_parts[1] + '/_calibration_/' + '/'.join(path_parts[2:]) + '/' + cal_image.filename
-                            try:
-                                GLOBALS.s3client.delete_object(Bucket=Config.BUCKET, Key=s3_key)
-                            except Exception:
-                                app.logger.info('Failed to delete calibration image from S3: {}'.format(s3_key))
+                        affected_cameragroups.add(cal_image.cameragroup_id)
+                        try:
+                            GLOBALS.s3client.delete_object(Bucket=Config.BUCKET, Key=cal_image.filename)
+                        except Exception:
+                            app.logger.info('Failed to delete calibration image from S3: {}'.format(cal_image.filename))
                         db.session.delete(cal_image)
 
                 for cg_id in affected_cameragroups:
@@ -18526,34 +18518,21 @@ def getCalibrationImages(survey_id, cameragroup_id):
     images = []
     survey = db.session.query(Survey).get(survey_id)
     if survey and checkSurveyPermission(current_user.id, survey.id, 'write'):
-        # Get one camera from this cameragroup to reconstruct the S3 path
-        camera = db.session.query(Camera)\
-            .filter(Camera.cameragroup_id == cameragroup_id)\
-            .join(Trapgroup)\
-            .filter(Trapgroup.survey_id == survey_id)\
-            .first()
-        
-        if camera:
-            # Build the _calibration_/ prefix in the compressed bucket
-            path_parts = camera.path.split('/')
-            path_parts[0] = path_parts[0] + '-comp'
-            cal_prefix = path_parts[0] + '/' + path_parts[1] + '/_calibration_/' + '/'.join(path_parts[2:])
+        cal_images = db.session.query(CalibrationImage)\
+            .filter(CalibrationImage.cameragroup_id == cameragroup_id)\
+            .order_by(CalibrationImage.distance)\
+            .all()
 
-            cal_images = db.session.query(CalibrationImage)\
-                .filter(CalibrationImage.cameragroup_id == cameragroup_id)\
-                .order_by(CalibrationImage.distance)\
-                .all()
-
-            for cal in cal_images:
-                images.append({
-                    'id': cal.id,
-                    'filename': cal.filename,
-                    'distance': cal.distance,
-                    'top': cal.top,
-                    'left': cal.left,
-                    'bottom': cal.bottom,
-                    'right': cal.right,
-                    'url': cal_prefix + '/' + cal.filename  # full S3 key, already in comp bucket
-                })
+        for cal in cal_images:
+            images.append({
+                'id': cal.id,
+                'filename': cal.filename,
+                'distance': cal.distance,
+                'top': cal.top,
+                'left': cal.left,
+                'bottom': cal.bottom,
+                'right': cal.right,
+                'url': cal.filename,
+            })
 
     return json.dumps(images)

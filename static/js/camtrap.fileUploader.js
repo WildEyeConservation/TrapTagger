@@ -27,13 +27,18 @@ uploadWorker.onmessage = function(evt){
     } else if (evt.data.func=='uppyAddFiles') {
         uppy.addFiles(evt.data.args)
     } else if (evt.data.func=='updatePathDisplay') {
-        updatePathDisplay(evt.data.args[0],evt.data.args[1])
+        updatePathDisplay(evt.data.args[0], evt.data.args[1])
         updateCalibrationNotice(evt.data.args[2])
         updateSiteFolderSelect()
         updateCamFolderSelect()
-        updateCalFolderSelect()
         if (typeof updateSurveyStructure === 'function') {
             updateSurveyStructure()
+        }
+    } else if (evt.data.func=='updateCalibrationFolders') {
+        updateCalibrationNotice(evt.data.args[0])
+        checkTrapgroupCode()
+        if (typeof refreshCalibrationUI === 'function') {
+            refreshCalibrationUI()
         }
     } else if (evt.data.func=='checkTrapgroupCode') {
         checkTrapgroupCode()
@@ -65,8 +70,9 @@ uploadWorker.onmessage = function(evt){
     }
 };
 
-function updateCalibrationNotice(calibrationFolders) {
-    globalCalibrationFolderCount = (calibrationFolders && calibrationFolders.length > 0) ? calibrationFolders.length : 0
+function updateCalibrationNotice(calibrationFolderPaths) {
+    globalCalibrationFolderPaths = calibrationFolderPaths || []
+    globalCalibrationFolderCount = globalCalibrationFolderPaths.length
 }
 
 function buildUploadProgress(filesUploaded,filecount) {
@@ -287,6 +293,29 @@ function resetUploadStatusVariables() {
     uploadDirHandle = null
     retrying = false
     globalCalibrationFolderCount = 0
+    globalCalibrationFolderPaths = []
+}
+
+function rescanSelectedFolder() {
+    if (!uploadDirHandle) {
+        return
+    }
+    if (!document.getElementById('yesCalImages')?.checked) {
+        globalCalibrationFolderPaths = []
+        globalCalibrationFolderCount = 0
+        if (typeof refreshCalibrationUI === 'function') {
+            refreshCalibrationUI()
+        }
+        return
+    }
+    var calibrationCode = null
+    if (typeof getSurveyCalibrationCode === 'function') {
+        calibrationCode = getSurveyCalibrationCode()
+    }
+    uploadWorker.postMessage({
+        'func': 'rescanCalibrationFolders',
+        'args': [uploadDirHandle, calibrationCode]
+    })
 }
 
 function pauseUpload() {

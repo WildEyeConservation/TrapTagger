@@ -2611,6 +2611,49 @@ def import_folder(s3Folder, survey_id, sourceBucket,destinationBucket,pipeline,m
     # Remove any duplicate images that made their way into the database due to the parallel import process.
     if not pipeline: remove_duplicate_images(sid)
 
+def resolve_cameragroup_for_calibration(survey_id, org, survey_folder, after_cal):
+    '''
+    after_cal: path under survey to parent of cal folder, e.g. Site1 or Site1/Cam1
+    Returns cameragroup_id or None.
+    '''
+    survey = db.session.query(Survey).get(survey_id)
+    if not survey or not after_cal:
+        return None
+
+    trapgroup_tag = after_cal.split('/')[0]
+    trapgroup = db.session.query(Trapgroup).filter(
+        Trapgroup.survey_id == survey_id,
+        Trapgroup.tag == trapgroup_tag,
+    ).first()
+    if not trapgroup:
+        return None
+
+    same_as_site = (
+        survey.camera_code
+        and survey.trapgroup_code
+        and survey.camera_code == survey.trapgroup_code
+    )
+
+    if same_as_site:
+        # One cameragroup per trapgroup — any camera in group will do
+        row = db.session.query(Camera.cameragroup_id).filter(
+            Camera.trapgroup_id == trapgroup.id,
+            Camera.cameragroup_id.isnot(None),
+        ).distinct().first()
+        return row[0] if row else None
+
+    # camLvlFolder or camera identifier: prefix match on camera.path
+    camera_path_prefix = org + '/' + survey_folder + '/' + after_cal
+    camera = db.session.query(Camera).filter(
+        Camera.trapgroup_id == trapgroup.id,
+        Camera.cameragroup_id.isnot(None),
+        or_(
+            Camera.path == camera_path_prefix,
+            Camera.path.startswith(camera_path_prefix + '/'),
+        ),
+    ).first()
+    return camera.cameragroup_id if camera else None
+
 def process_calibration_images(survey_id, s3_folder, source_bucket, dest_bucket):
     '''
     Finds and processes calibration images for a survey after cameras have been grouped.
@@ -2619,53 +2662,43 @@ def process_calibration_images(survey_id, s3_folder, source_bucket, dest_bucket)
     '''
     parts = s3_folder.split('/')
     org = parts[0]
-    survey = parts[1]
-    cal_prefix = org + '-comp/' + survey + '/_calibration_'
-    # Build camera lookup: original_camera_path -> Camera object
-    cameras_by_path = {
-        r[0]: r[1]
-        for r in db.session.query(Camera.path, Camera)
-            .join(Trapgroup)
-            .filter(Trapgroup.survey_id==survey_id)
-            .distinct().all()
-    }
-    isjpeg = re.compile('(\.jpe?g$)|(_jpe?g$)', re.I)
-    cal_images_to_detect = []  # list of (dest_key, filename, cameragroup_id)
+    survey_folder = parts[1]
+    cal_prefix = org + '-comp/' + survey_folder + '/_calibration_'
+    isjpeg = re.compile(r'(\.jpe?g$)|(_jpe?g$)', re.I)
+    cal_images_to_detect = []  # list of (dest_key, cal_image_id)
     for dirpath, folders, filenames in s3traverse(dest_bucket, cal_prefix):
         jpegs = list(filter(isjpeg.search, filenames))
         if not jpegs:
             continue
-        # dirpath = org-comp/survey/_calibration_/trapgroup/.../camera
-        # reconstruct original camera path
-        after_cal = dirpath.split('/_calibration_/', 1)[1]  # trapgroup/.../camera
-        original_camera_path = org + '/' + survey + '/' + after_cal
-        camera = cameras_by_path.get(original_camera_path)
-        if not camera or not camera.cameragroup_id:
+        after_cal = dirpath.split('/_calibration_/', 1)[1]
+        cameragroup_id = resolve_cameragroup_for_calibration(
+            survey_id, org, survey_folder, after_cal
+        )
+        if not cameragroup_id:
             continue
         if not cal_images_to_detect:
             survey_obj = db.session.query(Survey).get(survey_id)
             survey_obj.status = 'Processing Calibration Data'
             db.session.commit()
         for filename in jpegs:
+            dest_key = dirpath + '/' + filename
             try:
                 distance = float(os.path.splitext(filename)[0])
             except ValueError:
                 continue
             existing = db.session.query(CalibrationImage).filter_by(
-                cameragroup_id=camera.cameragroup_id,
-                filename=filename
+                cameragroup_id=cameragroup_id,
+                filename=dest_key,          # full path dedup
             ).first()
             if existing:
                 continue
-            # Create the DB record now (without bbox — MegaDetector fills it in)
             cal_image = CalibrationImage(
-                cameragroup_id=camera.cameragroup_id,
-                filename=filename,
+                cameragroup_id=cameragroup_id,
+                filename=dest_key,          # full comp-bucket S3 key
                 distance=distance,
             )
             db.session.add(cal_image)
-            db.session.flush()  # get the ID
-            dest_key = dirpath + '/' + filename
+            db.session.flush()
             cal_images_to_detect.append((dest_key, cal_image.id))
     db.session.commit()
     # Dispatch all calibration images to MegaDetector as one batch
@@ -4836,11 +4869,6 @@ def is_calibration_dirpath(dirpath, calibration_code):
     if len(parts) < 3:
         return False
     dir_name = parts[-1]
-    rel_from_survey = '/'.join(parts[2:])  # under org/survey/
-    is_nth_folder_pattern = re.match(r'^\(\?:\[\^/]\*/\)\{\d+\}\([^)]*\)$', calibration_code)
-    if is_nth_folder_pattern:
-        match = re.compile(calibration_code).search(rel_from_survey)
-        return bool(match and match.lastindex >= 1 and match.group(1) == dir_name)
     try:
         return re.compile('^' + calibration_code + '$').match(dir_name) is not None
     except re.error:

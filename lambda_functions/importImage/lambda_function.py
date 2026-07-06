@@ -34,11 +34,6 @@ def is_calibration_dirpath(dirpath, calibration_code):
     if len(parts) < 3:
         return False
     dir_name = parts[-1]
-    rel_from_survey = '/'.join(parts[2:])
-    is_nth_folder_pattern = re.match(r'^\(\?:\[\^/]\*/\)\{\d+\}\([^)]*\)$', calibration_code)
-    if is_nth_folder_pattern:
-        match = re.compile(calibration_code).search(rel_from_survey)
-        return bool(match and match.lastindex >= 1 and match.group(1) == dir_name)
     try:
         return re.compile('^' + calibration_code + '$').match(dir_name) is not None
     except re.error:
