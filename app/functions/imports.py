@@ -2612,46 +2612,21 @@ def import_folder(s3Folder, survey_id, sourceBucket,destinationBucket,pipeline,m
     if not pipeline: remove_duplicate_images(sid)
 
 def resolve_cameragroup_for_calibration(survey_id, org, survey_folder, after_cal):
-    '''
-    after_cal: path under survey to parent of cal folder, e.g. Site1 or Site1/Cam1
-    Returns cameragroup_id or None.
-    '''
-    survey = db.session.query(Survey).get(survey_id)
-    if not survey or not after_cal:
+    if not after_cal:
         return None
 
-    trapgroup_tag = after_cal.split('/')[0]
-    trapgroup = db.session.query(Trapgroup).filter(
-        Trapgroup.survey_id == survey_id,
-        Trapgroup.tag == trapgroup_tag,
-    ).first()
-    if not trapgroup:
-        return None
-
-    same_as_site = (
-        survey.camera_code
-        and survey.trapgroup_code
-        and survey.camera_code == survey.trapgroup_code
-    )
-
-    if same_as_site:
-        # One cameragroup per trapgroup — any camera in group will do
-        row = db.session.query(Camera.cameragroup_id).filter(
-            Camera.trapgroup_id == trapgroup.id,
-            Camera.cameragroup_id.isnot(None),
-        ).distinct().first()
-        return row[0] if row else None
-
-    # camLvlFolder or camera identifier: prefix match on camera.path
     camera_path_prefix = org + '/' + survey_folder + '/' + after_cal
-    camera = db.session.query(Camera).filter(
-        Camera.trapgroup_id == trapgroup.id,
-        Camera.cameragroup_id.isnot(None),
-        or_(
+    camera = (
+        db.session.query(Camera)
+        .join(Trapgroup)
+        .filter(Trapgroup.survey_id == survey_id)
+        .filter(Camera.cameragroup_id.isnot(None))
+        .filter(or_(
             Camera.path == camera_path_prefix,
             Camera.path.startswith(camera_path_prefix + '/'),
-        ),
-    ).first()
+        ))
+        .first()
+    )
     return camera.cameragroup_id if camera else None
 
 def process_calibration_images(survey_id, s3_folder, source_bucket, dest_bucket):
