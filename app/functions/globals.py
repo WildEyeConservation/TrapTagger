@@ -2899,7 +2899,7 @@ def checkFileExist(file,folder):
         # file does not exist
         return None, False
 
-def checkFilesExist(files,folder):
+def checkFilesExist(files,folder, survey_id=None):
     '''Checks if a list of files exists in db & s3. Returns the filename if it does and None otherwise.'''
 
     starttime = time.time()
@@ -2917,6 +2917,20 @@ def checkFilesExist(files,folder):
     survey_path = folder + '/' + files[0]['name'].split('/')[0] + '/%'
     survey_path = survey_path.replace('_','\\_')
 
+    calibration_code = None
+    if survey_id:
+        calibration_code = db.session.query(Survey.calibration_code).filter(Survey.id == survey_id).scalar()
+        if not calibration_code or calibration_code == 'None':
+            calibration_code = None
+
+    cal_duplicates = set()
+    if calibration_code:
+        from app.functions.imports import calibration_comp_dest_key, calibration_destination_taken
+        for file_path in hash_dict:
+            dest_key = calibration_comp_dest_key(file_path, calibration_code)
+            if dest_key and calibration_destination_taken(dest_key, survey_id):
+                cal_duplicates.add(file_path)
+
     # Check if the files are already in the database based on the hash
     hashes = list(hash_dict.values())
     hash_check = db.session.query(Image.hash).join(Camera).filter(Image.hash.in_(hashes)).filter(Camera.path.like(survey_path))
@@ -2924,7 +2938,9 @@ def checkFilesExist(files,folder):
     hash_check = [h[0] for h in hash_check.union(vid_hash_check).distinct().all()]
 
     for file in hash_dict:
-        if hash_dict[file] in hash_check:
+        if file in cal_duplicates:
+            already_uploaded.append(file)
+        elif hash_dict[file] in hash_check:
             already_uploaded.append(file)
         else:
             not_imported.append(file)

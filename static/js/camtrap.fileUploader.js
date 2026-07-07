@@ -219,11 +219,14 @@ async function uploadFiles() {
     } else {
         modalAddFiles.modal('hide')
     }
-    var calibrationCode = null;
-    if (typeof getSurveyCalibrationCode === 'function'){
+    var calibrationCode = null
+    if (pendingUploadCalibrationCode) {
+        calibrationCode = pendingUploadCalibrationCode
+        pendingUploadCalibrationCode = null
+    } else if (typeof getSurveyCalibrationCode === 'function') {
         calibrationCode = getSurveyCalibrationCode()
     }
-    uploadWorker.postMessage({'func': 'uploadFiles', 'args': [uploadSurveyName,uploadID, calibrationCode]});
+    uploadWorker.postMessage({'func': 'uploadFiles', 'args': [uploadSurveyName, uploadID, calibrationCode]});
 }
 
 var uppy = new Uppy.Uppy({
@@ -294,13 +297,16 @@ function resetUploadStatusVariables() {
     retrying = false
     globalCalibrationFolderCount = 0
     globalCalibrationFolderPaths = []
+    pendingUploadCalibrationCode = null
 }
 
 function rescanSelectedFolder() {
     if (!uploadDirHandle) {
         return
     }
-    if (!document.getElementById('yesCalImages')?.checked) {
+    var calYes = document.getElementById('yesCalImages')?.checked ||
+        document.getElementById('yesCalImagesES')?.checked
+    if (!calYes) {
         globalCalibrationFolderPaths = []
         globalCalibrationFolderCount = 0
         if (typeof refreshCalibrationUI === 'function') {

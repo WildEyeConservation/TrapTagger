@@ -2704,6 +2704,8 @@ def addFiles():
             checkbox (str): Whether or not the trapgroup code is an advanced code or not
             newSurveyCamCode (str): Camera code for adding images
             camCheckbox (str): Whether or not the camera code is an advanced code or not
+            newSurveyCalCode (str): Calibration identifier when user selects Yes (optional)
+            calCheckbox (str): Whether calibration identifier is advanced (optional)
     '''
     
     status = 'success'
@@ -2749,6 +2751,13 @@ def addFiles():
                     else:
                         survey.camera_code=None
                         newSurveyCamCode=None
+                    
+                    if 'newSurveyCalCode' in request.form:
+                        newSurveyCalCode = request.form['newSurveyCalCode']
+                        calCheckbox = request.form['calCheckbox']
+                        if calCheckbox == 'false':
+                            newSurveyCalCode = newSurveyCalCode + '[0-9]*'
+                        survey.calibration_code = newSurveyCalCode
 
                     db.session.commit()
                     
@@ -10231,7 +10240,7 @@ def check_upload_files():
             userPermissions = db.session.query(UserPermissions).filter(UserPermissions.organisation_id==organisation_id).filter(UserPermissions.user_id==current_user.id).first()
             if userPermissions and userPermissions.create:
                 if checkUploadUser(current_user.id,survey_id):
-                    already_uploaded, require_lambda, new_names = checkFilesExist(files,organisation_folder)
+                    already_uploaded, require_lambda, new_names = checkFilesExist(files,organisation_folder, survey_id=survey_id)
                     return json.dumps((already_uploaded,require_lambda,new_names))
     except:
         pass

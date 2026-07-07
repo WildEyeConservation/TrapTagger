@@ -2399,6 +2399,12 @@ def import_folder(s3Folder, survey_id, sourceBucket,destinationBucket,pipeline,m
             for filename in jpegs:
                 source_key = dirpath + '/' + filename
                 dest_key = cal_prefix + '/' + filename
+                if calibration_destination_taken(dest_key, sid):
+                    try:
+                        GLOBALS.s3client.delete_object(Bucket=sourceBucket, Key=source_key)
+                    except Exception:
+                        pass
+                    continue
                 with tempfile.NamedTemporaryFile(delete=True, suffix='.JPG') as tmp:
                     GLOBALS.s3client.download_file(Bucket=sourceBucket, Key=source_key, Filename=tmp.name)
                     try:
@@ -2661,9 +2667,9 @@ def process_calibration_images(survey_id, s3_folder, source_bucket, dest_bucket)
                 distance = float(os.path.splitext(filename)[0])
             except ValueError:
                 continue
-            existing = db.session.query(CalibrationImage).filter_by(
-                cameragroup_id=cameragroup_id,
-                filename=dest_key,          # full path dedup
+            existing = db.session.query(CalibrationImage).filter(
+                CalibrationImage.cameragroup_id == cameragroup_id,
+                CalibrationImage.distance == distance,
             ).first()
             if existing:
                 continue
@@ -4873,6 +4879,53 @@ def calibration_camera_relative_path(path, calibration_code):
     cal_folder_name = dirparts[-1]
     cal_idx = dirparts.index(cal_folder_name)  # last segment
     return '/'.join(dirparts[2:cal_idx])  # between survey and cal folder
+
+def calibration_comp_dest_key(path, calibration_code):
+    camera_relative = calibration_camera_relative_path(path, calibration_code)
+    if camera_relative is None:
+        return None
+    splits = path.split('/')
+    if len(splits) < 3:
+        return None
+    return splits[0] + '-comp/' + splits[1] + '/_calibration_/' + camera_relative + '/' + splits[-1]
+
+def calibration_destination_taken(dest_key, survey_id=None):
+    try:
+        GLOBALS.s3client.head_object(Bucket=Config.BUCKET, Key=dest_key)
+        return True
+    except Exception:
+        pass
+
+    if db.session.query(CalibrationImage.id).filter(CalibrationImage.filename == dest_key).first():
+        return True
+
+    if survey_id is None:
+        return False
+
+    marker = '/_calibration_/'
+    if marker not in dest_key:
+        return False
+
+    org_comp, rest = dest_key.split(marker, 1)
+    org = org_comp[:-5] if org_comp.endswith('-comp') else org_comp.rsplit('-comp', 1)[0]
+    survey_folder = org_comp.split('/')[1]
+    after_cal, cal_filename = rest.rsplit('/', 1)
+
+    try:
+        distance = float(os.path.splitext(cal_filename)[0])
+    except ValueError:
+        return False
+
+    cameragroup_id = resolve_cameragroup_for_calibration(
+        survey_id, org, survey_folder, after_cal
+    )
+    if not cameragroup_id:
+        return False
+
+    return db.session.query(CalibrationImage.id).filter_by(
+        cameragroup_id=cameragroup_id,
+        distance=distance,
+    ).first() is not None
 
 @celery.task(bind=True,max_retries=5)
 def run_llava(self,image_ids,prompt):

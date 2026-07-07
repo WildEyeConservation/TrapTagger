@@ -177,6 +177,14 @@ def lambda_handler(event, context):
                             splits[0] + '-comp/' + splits[1]
                             + '/_calibration_/' + camera_relative + '/' + filename
                         )
+                        try:
+                            s3.head_object(Bucket=bucket, Key=dest_key)
+                            os.remove(download_path)
+                            s3.delete_object(Bucket=bucket, Key=key)
+                            processed += 1
+                            continue
+                        except Exception:
+                            pass
                         compressed_path = '/tmp/compressed_' + key.replace('/', '_')
                         img = PilImage.open(download_path)
                         img = img.resize((800, 800 * img.height // img.width))

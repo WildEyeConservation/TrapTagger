@@ -124,6 +124,7 @@ var globalSurveyStructure = {}
 var globalStructureCounts = {'sites':0,'cameras':0}
 var globalCalibrationFolderCount = 0
 var globalCalibrationFolderPaths = []
+var pendingUploadCalibrationCode = null
 var structure_page = 1
 var tags_per_page = 10
 var speciesAndTasks = {}
@@ -3220,6 +3221,154 @@ function buildAddIms() {
 
     addFilesDiv.appendChild(document.createElement('br'))
 
+    // Calibration Code
+
+    h5 = document.createElement('h5')
+    h5.setAttribute('style','margin-bottom: 2px')
+    h5.innerHTML = 'Calibration'
+    addFilesDiv.appendChild(h5)
+
+    div = document.createElement('div')
+    div.setAttribute('style','font-size: 80%; margin-bottom: 2px')
+    div.innerHTML = '<i>Do you have calibration images in this survey?</i>'
+    addFilesDiv.appendChild(div)
+
+    var div = document.createElement('div')
+    div.style.marginBottom = '5px'
+    addFilesDiv.appendChild(div)
+
+    var radioDiv = document.createElement('div')
+    radioDiv.setAttribute('class','custom-control custom-radio custom-control-inline')
+    div.appendChild(radioDiv)
+
+    var input = document.createElement('input')
+    input.setAttribute('type','radio')
+    input.classList.add('custom-control-input')
+    input.setAttribute('id','noCalImagesES')
+    input.setAttribute('name','calSelectionES')
+    input.setAttribute('value','customEx')
+    input.checked = true
+    input.setAttribute('onchange','updateCalDiv()')
+    radioDiv.appendChild(input)
+
+    var label = document.createElement('label')
+    label.classList.add('custom-control-label')
+    label.setAttribute('for','noCalImagesES')
+    label.innerHTML = 'No'
+    radioDiv.appendChild(label)
+
+    var radioDiv = document.createElement('div')
+    radioDiv.setAttribute('class','custom-control custom-radio custom-control-inline')
+    div.appendChild(radioDiv)
+
+    var input = document.createElement('input')
+    input.setAttribute('type','radio')
+    input.classList.add('custom-control-input')
+    input.setAttribute('id','yesCalImagesES')
+    input.setAttribute('name','calSelectionES')
+    input.setAttribute('value','customEx')
+    input.checked = false
+    input.setAttribute('onchange','updateCalDiv()')
+    radioDiv.appendChild(input)
+
+    var label = document.createElement('label')
+    label.classList.add('custom-control-label')
+    label.setAttribute('for','yesCalImagesES')
+    label.innerHTML = 'Yes'
+    radioDiv.appendChild(label)
+
+
+    var calDetailsDiv = document.createElement('div')
+    calDetailsDiv.setAttribute('id', 'calDetailsDivES')
+    calDetailsDiv.hidden = true
+    addFilesDiv.appendChild(calDetailsDiv)
+
+    var calOptionDesc = document.createElement('div')
+    calOptionDesc.setAttribute('style', 'font-size: 80%; margin-bottom: 2px')
+    calOptionDesc.setAttribute('id', 'calOptionDescES')
+    calOptionDesc.innerHTML = '<i>The identifier used to designate a calibration folder in your folder structure. Eg. "extra" matches a folder named "extra", or "Cal" matches "Cal", "Cal1", "Cal2", etc. Becomes a regular expression search query if the advanced option is selected.</i>'
+    calDetailsDiv.appendChild(calOptionDesc)
+
+    var calIdDiv = document.createElement('div')
+    calIdDiv.setAttribute('id', 'calIdDivES')
+    calIdDiv.hidden = true
+    addFilesDiv.appendChild(calIdDiv)
+
+    var calRow = document.createElement('div')
+    calRow.classList.add('row')
+    calIdDiv.appendChild(calRow)
+
+    var calCol1 = document.createElement('div')
+    calCol1.classList.add('col-lg-4')
+    calRow.appendChild(calCol1)
+
+    var calInput = document.createElement('input')
+    calInput.setAttribute('type', 'text')
+    calInput.classList.add('form-control')
+    calInput.required = true
+    calInput.setAttribute('id', 'addImagesCalCodeInput')
+    calCol1.appendChild(calInput)
+
+    var calCol2 = document.createElement('div')
+    calCol2.classList.add('col-lg-4')
+    calRow.appendChild(calCol2)
+
+    var calCheckDiv = document.createElement('div')
+    calCheckDiv.setAttribute('class', 'custom-control custom-checkbox')
+    calCol2.appendChild(calCheckDiv)
+
+    var calAdvancedInput = document.createElement('input')
+    calAdvancedInput.setAttribute('type', 'checkbox')
+    calAdvancedInput.classList.add('custom-control-input')
+    calAdvancedInput.setAttribute('id', 'addImagesCalAdvancedCheckbox')
+    calAdvancedInput.setAttribute('name', 'addImagesCalAdvancedCheckbox')
+    calCheckDiv.appendChild(calAdvancedInput)
+
+    var calAdvancedLabel = document.createElement('label')
+    calAdvancedLabel.classList.add('custom-control-label')
+    calAdvancedLabel.setAttribute('for', 'addImagesCalAdvancedCheckbox')
+    calAdvancedLabel.innerHTML = 'Advanced'
+    calCheckDiv.appendChild(calAdvancedLabel)
+
+    var calBuilder = document.createElement('div')
+    calBuilder.setAttribute('id', 'addImagesCalBuilder')
+    calIdDiv.appendChild(calBuilder)
+
+    var addFilesCalErrors = document.createElement('div')
+    addFilesCalErrors.setAttribute('id', 'addFilesCalErrors')
+    addFilesCalErrors.setAttribute('style', 'font-size: 80%; color: #DF691A')
+    addFilesDiv.appendChild(addFilesCalErrors)
+
+    addFilesDiv.appendChild(document.createElement('br'))
+
+    $("#addImagesCalAdvancedCheckbox").change(function() {
+        var calAdvancedCheckbox = document.getElementById('addImagesCalAdvancedCheckbox')
+        var yesCal = document.getElementById('yesCalImagesES').checked
+
+        if (calAdvancedCheckbox.checked && yesCal) {
+            document.getElementById('addFilesCalErrors').innerHTML = ''
+            buildCalBuilderRow()
+        } else {
+            document.getElementById('addFilesCalErrors').innerHTML = ''
+            var addImagesCalBuilder = document.getElementById('addImagesCalBuilder')
+            while (addImagesCalBuilder.firstChild) {
+                addImagesCalBuilder.removeChild(addImagesCalBuilder.firstChild)
+            }
+            document.getElementById('addImagesCalCodeInput').value = ''
+        }
+
+        rescanSelectedFolder()
+        if (!uploadDirHandle) {
+            refreshCalibrationUI()
+        }
+    })
+
+    $("#addImagesCalCodeInput").change(function() {
+        rescanSelectedFolder()
+    })
+
+    // Structure Code
+
     var h5 = document.createElement('h5')
     h5.setAttribute('style','margin-bottom: 2px')
     h5.innerHTML = 'Structure'
@@ -5920,6 +6069,29 @@ function addFiles(){
             addFilesErrors.innerHTML = 'You must select a camera code option.'
         }
     }
+
+    legalCalCode = true
+    var calCtx = getCalibrationUiContext()
+
+    if (calCtx.noCal.checked) {
+        addImagesCalCode = 'None'
+    } else {
+        addImagesCalCode = calCtx.calInput.value.trim()
+        if (addImagesCalCode === '') {
+            legalCalCode = false
+            calCtx.calErrors.innerHTML = 'The calibration identifier field cannot be empty.'
+        } else if (addImagesCalCode.endsWith('.*') || addImagesCalCode.endsWith('.+') ||
+                addImagesCalCode.endsWith('.*[0-9]+') || addImagesCalCode.endsWith('.+[0-9]+')) {
+            legalCalCode = false
+            calCtx.calErrors.innerHTML = 'Your calibration identifier is invalid. Please try again or send an email for assistance.'
+        } else {
+            var calStruct = validateCalibrationStructure()
+            if (!calStruct.valid) {
+                legalCalCode = false
+                calCtx.calErrors.innerHTML = calStruct.message
+            }
+        }
+    }
     
     legalInput = false
     if (document.getElementById('S3BucketAdd').checked == true) {
@@ -5954,13 +6126,13 @@ function addFiles(){
         document.getElementById('addFilesErrors').innerHTML = 'Please wait for your structure check to finish.'
     }
 
-    if ((addImagesStructureDiv!=null)&&((addImagesStructureDiv.innerHTML == '')||(addImagesStructureDiv.innerHTML == 'Malformed expression. Please try again.')||(addImagesStructureDiv.innerHTML == 'Invalid structure. Please check your site and camera identifiers.')||(addImagesStructureDiv.innerHTML.includes('identifier is invalid')))) {
+    if ((addImagesStructureDiv!=null)&&((addImagesStructureDiv.innerHTML == '')||(addImagesStructureDiv.innerHTML == 'Malformed expression. Please try again.')||(addImagesStructureDiv.innerHTML == 'Invalid structure. Please check your site and camera identifiers.')||(addImagesStructureDiv.innerHTML.includes('identifier is invalid'))||(addImagesStructureDiv.innerHTML == 'Invalid structure. Please check your site, camera and calibration identifiers.'))) {
         legalTGCode = false
         legalCamCode = false
         document.getElementById('addFilesErrors').innerHTML = 'Your specified site or camera identifiers are invalid. Please try again.'
     }
 
-    if (legalTGCode&&legalInput&&structureCheckReady&&legalCamCode) {
+    if (legalTGCode&&legalInput&&structureCheckReady&&legalCamCode&&legalCalCode) {
         var formData = new FormData()
         formData.append("survey_id", selectedSurvey)
         formData.append("newSurveyTGCode", addImagesTGCode)
@@ -5968,6 +6140,10 @@ function addFiles(){
         formData.append("checkbox", addImagesCheckboxChecked.toString())
         formData.append("newSurveyCamCode", addImagesCamCode)
         formData.append("camCheckbox", addImagesCamCheckboxChecked.toString())
+        if (!calCtx.noCal.checked) {
+            formData.append("newSurveyCalCode", calCtx.calInput.value)
+            formData.append("calCheckbox", calCtx.calAdvanced.checked.toString())
+        }
 
         var xhttp = new XMLHttpRequest();
         xhttp.open("POST", '/addFiles');
@@ -5976,6 +6152,12 @@ function addFiles(){
             if (this.readyState == 4 && this.status == 200) {
                 reply = JSON.parse(this.responseText);  
                 if (reply.status=='success') {
+                    pendingUploadCalibrationCode = null
+                    if (document.getElementById('BrowserAdd').checked &&
+                            typeof getSurveyCalibrationCode === 'function') {
+                        pendingUploadCalibrationCode = getSurveyCalibrationCode()
+                    }
+                    
                     if (document.getElementById('BrowserAdd').checked) {
                         uploadID = reply.survey_id
                         uploadSurveyName = reply.survey_name
@@ -9307,6 +9489,45 @@ function updateCamDiv() {
 
 }
 
+function isAddFilesCalibrationContext() {
+    return document.getElementById('addImagesTGCode') != null
+}
+
+function getCalibrationUiContext() {
+    if (isAddFilesCalibrationContext()) {
+        return {
+            noCal: document.getElementById('noCalImagesES'),
+            yesCal: document.getElementById('yesCalImagesES'),
+            calInput: document.getElementById('addImagesCalCodeInput'),
+            calAdvanced: document.getElementById('addImagesCalAdvancedCheckbox'),
+            calBuilder: document.getElementById('addImagesCalBuilder'),
+            calErrors: document.getElementById('addFilesCalErrors'),
+            calDetailsDiv: document.getElementById('calDetailsDivES'),
+            calIdDiv: document.getElementById('calIdDivES'),
+        }
+    }
+    return {
+        noCal: document.getElementById('noCalImages'),
+        yesCal: document.getElementById('yesCalImages'),
+        calInput: document.getElementById('newSurveyCalCodeInput'),
+        calAdvanced: document.getElementById('calAdvancedCheckbox'),
+        calBuilder: document.getElementById('newSurveyCalBuilder'),
+        calErrors: document.getElementById('newSurveyCalErrors'),
+        calDetailsDiv: document.getElementById('calDetailsDiv'),
+        calIdDiv: document.getElementById('calIdDiv'),
+    }
+}
+
+function isCalibrationYesSelected() {
+    var ctx = getCalibrationUiContext()
+    return ctx.yesCal && ctx.yesCal.checked
+}
+
+function isBrowserFolderUploadContext() {
+    return (document.getElementById('BrowserUpload') && document.getElementById('BrowserUpload').checked) ||
+        (document.getElementById('BrowserAdd') && document.getElementById('BrowserAdd').checked)
+}
+
 function refreshCalibrationUI() {
     /** Updates cal folder count, validation errors, and structure cal suffix without rebuilding site/camera structure. */
     if (globalCalibrationFolderPaths && globalCalibrationFolderPaths.length > 0) {
@@ -9315,13 +9536,13 @@ function refreshCalibrationUI() {
         globalCalibrationFolderCount = 0
     }
 
-    var calErrors = document.getElementById('newSurveyCalErrors')
-    if (calErrors) {
-        if (document.getElementById('yesCalImages').checked) {
+    var ctx = getCalibrationUiContext()
+    if (ctx.calErrors) {
+        if (isCalibrationYesSelected()) {
             var calStruct = validateCalibrationStructure()
-            calErrors.innerHTML = calStruct.valid ? '' : calStruct.message
+            ctx.calErrors.innerHTML = calStruct.valid ? '' : calStruct.message
         } else {
-            calErrors.innerHTML = ''
+            ctx.calErrors.innerHTML = ''
         }
     }
 
@@ -9331,27 +9552,23 @@ function refreshCalibrationUI() {
 }
 
 function updateCalDiv() {
-    var noCal = document.getElementById('noCalImages').checked;
-    var calDetailsDiv = document.getElementById('calDetailsDiv');
-    var calIdDiv = document.getElementById('calIdDiv');
-    var calBuilder = document.getElementById('newSurveyCalBuilder');
-    var calAdvanced = document.getElementById('calAdvancedCheckbox');
-    var calInput = document.getElementById('newSurveyCalCodeInput');
+    var ctx = getCalibrationUiContext()
+    var noCal = ctx.noCal.checked
 
     if (noCal) {
-        calDetailsDiv.hidden = true;
-        calIdDiv.hidden = true;
-        calAdvanced.checked = false;
-        calInput.value = '';
-        while (calBuilder.firstChild) calBuilder.removeChild(calBuilder.firstChild);
+        ctx.calDetailsDiv.hidden = true
+        ctx.calIdDiv.hidden = true
+        ctx.calAdvanced.checked = false
+        ctx.calInput.value = ''
+        while (ctx.calBuilder.firstChild) ctx.calBuilder.removeChild(ctx.calBuilder.firstChild)
         globalCalibrationFolderPaths = []
         globalCalibrationFolderCount = 0
         refreshCalibrationUI()
     } else {
-        calDetailsDiv.hidden = false;
-        calIdDiv.hidden = false;
-        if (calAdvanced.checked) {
-            buildCalBuilderRow();
+        ctx.calDetailsDiv.hidden = false
+        ctx.calIdDiv.hidden = false
+        if (ctx.calAdvanced.checked) {
+            buildCalBuilderRow()
         }
         rescanSelectedFolder()
         if (!uploadDirHandle) {
@@ -9361,13 +9578,25 @@ function updateCalDiv() {
 }
 
 function getCameraLevelIndexForPath(parts) {
-    var camSameAsSite = document.getElementById('camSameAsSite').checked
-    var camLvlFolder = document.getElementById('camLvlFolder').checked
-    var siteFolderN = document.getElementById('siteFolderN').checked
+    var camSameAsSite, camLvlFolder, siteFolderN, camCode, camAdvanced
+
+    if (isAddFilesCalibrationContext()) {
+        camSameAsSite = document.getElementById('camSameAsSiteES').checked
+        camLvlFolder = document.getElementById('camLvlFolderES').checked
+        siteFolderN = document.getElementById('siteFolderN_ES').checked
+        camCode = document.getElementById('addImagesCamCode').value.trim()
+        camAdvanced = document.getElementById('addImagesCamCheckbox').checked
+    } else {
+        camSameAsSite = document.getElementById('camSameAsSite').checked
+        camLvlFolder = document.getElementById('camLvlFolder').checked
+        siteFolderN = document.getElementById('siteFolderN').checked
+        camCode = document.getElementById('newSurveyCamCode').value.trim()
+        camAdvanced = document.getElementById('camAdvancedCheckbox').checked
+    }
 
     if (camSameAsSite) {
         if (!siteFolderN) {
-            return -1  // rare: can't use folder index; skip depth or add regex later
+            return -1
         }
         var siteFolder = document.querySelector('.site-folder.selected')
         return siteFolder ? parseInt(siteFolder.dataset.index, 10) : -1
@@ -9378,10 +9607,8 @@ function getCameraLevelIndexForPath(parts) {
         return camFolder ? parseInt(camFolder.dataset.index, 10) : -1
     }
 
-    // Camera identifier: deepest segment match before cal folder
-    var camCode = document.getElementById('newSurveyCamCode').value.trim()
     if (!camCode) return -1
-    if (!document.getElementById('camAdvancedCheckbox').checked) {
+    if (!camAdvanced) {
         camCode += '[0-9]+'
     }
 
@@ -9398,7 +9625,8 @@ function getCameraLevelIndexForPath(parts) {
 }
 
 function validateCalibrationStructure() {
-    if (document.getElementById('noCalImages').checked) {
+    var ctx = getCalibrationUiContext()
+    if (ctx.noCal.checked) {
         return { valid: true, message: '' }
     }
 
@@ -9407,8 +9635,8 @@ function validateCalibrationStructure() {
         return { valid: false, message: 'The calibration identifier field cannot be empty.' }
     }
 
-    // Browser upload: require scan results
-    if (document.getElementById('BrowserUpload').checked) {
+    // Browser upload (New Survey or Add Files): require scan results
+    if (isBrowserFolderUploadContext()) {
         if (!globalCalibrationFolderPaths || globalCalibrationFolderPaths.length === 0) {
             return {
                 valid: false,
@@ -9436,24 +9664,22 @@ function validateCalibrationStructure() {
         }
     }
 
-    // S3 bucket-only new survey: no local tree scan yet — skip folder count for now
-    // (or add server-side check later)
-
     return { valid: true, message: '' }
 }
 
 function getSurveyCalibrationCode() {
-    if (!document.getElementById('noCalImages') || document.getElementById('noCalImages').checked) {
-        return null;
+    var ctx = getCalibrationUiContext()
+    if (!ctx.noCal || ctx.noCal.checked) {
+        return null
     }
-    var code = document.getElementById('newSurveyCalCodeInput').value.trim();
+    var code = ctx.calInput.value.trim()
     if (code === '') {
-        return null;
+        return null
     }
-    if (!document.getElementById('calAdvancedCheckbox').checked) {
-        code = code + '[0-9]*';
+    if (!ctx.calAdvanced.checked) {
+        code = code + '[0-9]*'
     }
-    return code;
+    return code
 }
 
 function updateSiteDiv() {
@@ -9661,14 +9887,14 @@ function updateCalCode() {
         }
     }
 
-    document.getElementById('newSurveyCalCodeInput').value = calCode;
-
+    var ctx = getCalibrationUiContext()
+    ctx.calInput.value = calCode
     if (calCode.endsWith('.*') || calCode.endsWith('.+') ||
             calCode.endsWith('.*[0-9]+') || calCode.endsWith('.+[0-9]+')) {
-        document.getElementById('newSurveyCalErrors').innerHTML =
-            'Your calibration identifier is invalid. Please try again or contact us for assistance.';
+        ctx.calErrors.innerHTML =
+            'Your calibration identifier is invalid. Please try again or contact us for assistance.'
     } else {
-        document.getElementById('newSurveyCalErrors').innerHTML = '';
+        ctx.calErrors.innerHTML = ''
     }
     rescanSelectedFolder()
     if (!uploadDirHandle) {
@@ -9683,7 +9909,7 @@ function buildCalBuilderRow() {
 
     if (IDNum==0) {
         // Initialising - build headings
-        calBuilder = document.getElementById('newSurveyCalBuilder');
+        calBuilder = document.getElementById('addImagesCalBuilder') || document.getElementById('newSurveyCalBuilder')
 
         while(calBuilder.firstChild){
             calBuilder.removeChild(calBuilder.firstChild);
@@ -10431,7 +10657,7 @@ function updateSurveyStructure(){
     var structurePages = Object.keys(globalSurveyStructure)
 
     var calOk = true
-    if (document.getElementById('yesCalImages') && document.getElementById('yesCalImages').checked) {
+    if (isCalibrationYesSelected()) {
         calOk = validateCalibrationStructure().valid
     }
 
@@ -10478,8 +10704,8 @@ function updateSurveyStructure(){
         }
     }
     else{
-        if ((infoDiv.innerHTML != 'Checking...')&&(pathDisplay.options.length>0)) {
-            if (document.getElementById('yesCalImages') && document.getElementById('yesCalImages').checked) {
+        if ((infoDiv.innerHTML != 'Checking...') && (pathDisplay.options.length > 0)) {
+            if (isCalibrationYesSelected()) {
                 infoDiv.innerHTML = 'Invalid structure. Please check your site, camera and calibration identifiers.'
             } else {
                 infoDiv.innerHTML = 'Invalid structure. Please check your site and camera identifiers.'
