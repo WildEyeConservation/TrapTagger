@@ -2395,6 +2395,18 @@ def getSurveyTGcode(survey_id):
     else:
         return json.dumps('error')
 
+def get_calibration_image_for_survey(cal_id, survey_id):
+    '''Return a CalibrationImage only if it belongs to the given survey.'''
+    return (
+    db.session.query(CalibrationImage)
+    .join(Cameragroup, CalibrationImage.cameragroup_id == Cameragroup.id)
+    .join(Camera, Camera.cameragroup_id == Cameragroup.id)
+    .join(Trapgroup, Camera.trapgroup_id == Trapgroup.id)
+    .filter(CalibrationImage.id == int(cal_id))
+    .filter(Trapgroup.survey_id == int(survey_id))
+    .first()
+    )
+
 @app.route('/editSurvey', methods=['POST'])
 @login_required
 def editSurvey():
@@ -2593,7 +2605,7 @@ def editSurvey():
                     for cal_id_str, bbox in cal_bboxes.items():
                         if int(cal_id_str) in deletion_ids:
                             continue
-                        cal_image = db.session.query(CalibrationImage).get(int(cal_id_str))
+                        cal_image = get_calibration_image_for_survey(int(cal_id_str), survey.id)
                         if cal_image:
                             affected_cameragroups.add(cal_image.cameragroup_id)
                             cal_image.top    = bbox.get('top')
@@ -2606,7 +2618,7 @@ def editSurvey():
                     for cal_id_str, new_distance in cal_distances.items():
                         if int(cal_id_str) in deletion_ids:
                             continue
-                        cal_image = db.session.query(CalibrationImage).get(int(cal_id_str))
+                        cal_image = get_calibration_image_for_survey(int(cal_id_str), survey.id)
                         if not cal_image:
                             continue
                         try:
@@ -2645,10 +2657,10 @@ def editSurvey():
                         cal_image.distance = new_distance
                         affected_cameragroups.add(cal_image.cameragroup_id)
 
-                # Deletions (reuses exact S3 logic from deleteCalibrationImage)
+                # Deletions
                 if cal_deletions:
                     for cal_id in cal_deletions:
-                        cal_image = db.session.query(CalibrationImage).get(int(cal_id))
+                        cal_image = get_calibration_image_for_survey(int(cal_id), survey.id)
                         if not cal_image:
                             continue
                         affected_cameragroups.add(cal_image.cameragroup_id)
@@ -2659,11 +2671,17 @@ def editSurvey():
                         db.session.delete(cal_image)
 
                 for cg_id in affected_cameragroups:
-                    db.session.query(Detection)\
-                        .join(Image)\
-                        .join(Camera)\
-                        .filter(Camera.cameragroup_id == cg_id)\
-                        .update({Detection.distance: None}, synchronize_session=False)
+                    image_ids = (
+                        db.session.query(Image.id)
+                        .join(Camera, Image.camera_id == Camera.id)
+                        .filter(Camera.cameragroup_id == cg_id)
+                    )
+                    db.session.query(Detection).filter(
+                        Detection.image_id.in_(image_ids)
+                    ).update(
+                        {Detection.distance: None},
+                        synchronize_session=False,
+                    )
 
                 db.session.commit()
             if classifier_id or ignore_small_detections!=None or sky_masked!=None or timestamps or coordData or masks or staticgroups or kml or imageTimestamps or edit_area_option:

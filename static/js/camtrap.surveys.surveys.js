@@ -392,6 +392,7 @@ var mapReadyCal = false
 var selectedCalMode = null
 var editedCalDistances = {}
 var deletedCalImages = []
+var editedCalBboxes = {}
 
 function buildSurveys(survey,disableSurvey) {
     /**
@@ -4454,6 +4455,15 @@ function clearEditSurveyModal() {
     surveyArea = null
     surveyAreaEditOption = null
     areaConfirmOpen = false
+
+    // Calibration tab — full reset when modal is cleared
+    resetCalibrationState()
+    var editCalibrationDiv = document.getElementById('editCalibrationDiv')
+    if (editCalibrationDiv) {
+        while (editCalibrationDiv.firstChild) {
+            editCalibrationDiv.removeChild(editCalibrationDiv.firstChild)
+        }
+    }
 }
 
 function clearAddFilesModal(){
@@ -7425,7 +7435,7 @@ function buildCalibrationImages() {
     document.getElementById('editCalImages').addEventListener('click', () => {
         document.getElementById('calModeDescription').innerHTML = '<i>View and edit bounding boxes and distances for your calibration images.</i>'
         selectedCalMode = 'edit'
-        resetCalibrationState()
+        resetCalibrationView()
         buildCalEditMode()
     })
 
@@ -7447,7 +7457,7 @@ function buildCalibrationImages() {
     document.getElementById('uploadCalImages').addEventListener('click', () => {
         document.getElementById('calModeDescription').innerHTML = '<i>Upload new calibration images for your cameras.</i>'
         selectedCalMode = 'upload'
-        resetCalibrationState()
+        resetCalibrationView()
         buildCalUploadMode()
     })
 
@@ -7469,7 +7479,7 @@ function buildCalibrationImages() {
     document.getElementById('deleteCalImages').addEventListener('click', () => {
         document.getElementById('calModeDescription').innerHTML = '<i>Select calibration images to remove from the survey.</i>'
         selectedCalMode = 'delete'
-        resetCalibrationState()
+        resetCalibrationView()
         buildCalDeleteMode()
     })
 
@@ -7486,14 +7496,11 @@ function buildCalibrationImages() {
     div.appendChild(contentDiv)
 }
 
-function resetCalibrationState() {
-    /** Resets calibration state when switching between sub-modes. */
+function resetCalibrationView() {
     calImages = []
     calImgIndex = 0
-    editedCalBboxes = {}
-    editedCalDistances = {}
     calCurrentBox = null
-    deletedCalImages = []
+    mapReadyCal = false
     if (mapCal != null) {
         mapCal.remove()
         mapCal = null
@@ -7501,7 +7508,23 @@ function resetCalibrationState() {
         drawnItemsCal = null
     }
     var content = document.getElementById('calModeContent')
-    while (content.firstChild) content.removeChild(content.firstChild)
+    if (content) {
+        while (content.firstChild) content.removeChild(content.firstChild)
+    }
+}
+
+function resetCalibrationStaging() {
+    editedCalBboxes = {}
+    editedCalDistances = {}
+    deletedCalImages = []
+}
+
+function resetCalibrationState() {
+    resetCalibrationView()
+    resetCalibrationStaging()
+    calCameras = []
+    selectedCalMode = null
+    calIsDrawing = false
 }
 
 function buildCalUploadMode() {
@@ -8128,6 +8151,19 @@ function getCalibrationImagesForCamera(cameragroup_id) {
     xhttp.onreadystatechange = function() {
         if (this.readyState == 4 && this.status == 200) {
             calImages = JSON.parse(this.responseText)
+            for (var i = 0; i < calImages.length; i++) {
+                var id = calImages[i].id
+                if (editedCalBboxes[id]) {
+                    var b = editedCalBboxes[id]
+                    calImages[i].top = b.top
+                    calImages[i].left = b.left
+                    calImages[i].bottom = b.bottom
+                    calImages[i].right = b.right
+                }
+                if (editedCalDistances[id] !== undefined) {
+                    calImages[i].distance = editedCalDistances[id]
+                }
+            }
             calImgIndex = 0
             if (mapCal != null) {
                 mapCal.remove()
