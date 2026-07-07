@@ -1332,3 +1332,15 @@ def cleanWBIA():
         cleanWBIA.apply_async(queue='priority', priority=0,countdown=600)
 
     return True
+
+def call_periodic_functions():
+    '''Function that calls the periodic functions'''
+    importMonitor.apply_async(queue='priority', priority=0)
+    manageTasks.apply_async(queue='priority', priority=0)
+    clean_up_redis.apply_async(queue='priority', priority=0)
+    monitorSQS.apply_async(queue='priority', priority=0)
+    cleanWBIA.apply_async(queue='priority', priority=0)
+    monitorFileRestores.apply_async(queue='priority', priority=0)
+    manageDownloadRequests.apply_async(queue='priority', priority=0)
+    monitor_live_data_surveys.apply_async(queue='priority', priority=0)
+    return True

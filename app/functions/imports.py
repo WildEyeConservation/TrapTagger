@@ -1115,7 +1115,8 @@ def setupDatabase():
                                 source='Microsoft',
                                 region='Global',
                                 active=True,
-                                threshold=0.1,
+                                version=5.0,
+                                queue='MegaDetectorClassification',
                                 description='Basic classification of vehicles, humans, and animals. The default choice for biomes without a dedicated classifier.')
         db.session.add(classifier)
 

@@ -162,7 +162,7 @@ db_uri = Config.WBIA_DB_URI
 if db_uri and '--db-uri' not in sys.argv:
     sys.argv.extend(['--db-uri', db_uri])
 
-if Config.INITIALISE_IBS=='true':
+if Config.INITIALISE_IBS=='true' and not Config.INITIAL_SETUP:
     import GLOBALS
     if not GLOBALS.ibs:
         import warnings
@@ -172,29 +172,6 @@ if Config.INITIALISE_IBS=='true':
             GLOBALS.ibs = opendb(db=Config.WBIA_DB_NAME,dbdir=Config.WBIA_DIR, allow_newdir=True)
         app.logger.info('IBS initialised.')
 
-
-# Create featurematches table in wbia db
-# from wbia import opendb
-# ibs = opendb(db=Config.WBIA_DB_NAME,dbdir=Config.WBIA_DIR, allow_newdir=True)
-# ibs.db.add_table(
-#     'featurematches',
-#     [
-#         ('fm_rowid', 'INTEGER PRIMARY KEY'),
-#         ('annot_rowid1', 'INTEGER NOT NULL'),
-#         ('annot_rowid2', 'INTEGER NOT NULL'),
-#         ('fm', 'NDARRAY'),
-#         ('fs', 'NDARRAY'),
-#     ],
-#     docstr="""
-#     Stores feature matches between two annotations (index of the matching keypoints) and the feature scores
-#     """,
-#     superkeys=[('annot_rowid1', 'annot_rowid2')],
-#     relates=('annotations', 'annotations'),
-#     dependsmap={
-#         'annot_rowid1': ('annotations', ('annot_rowid',), ('annot_visual_uuid',)),
-#         'annot_rowid2': ('annotations', ('annot_rowid',), ('annot_visual_uuid',)),
-#     },
-# )
 
 from app import routes
 from app.functions.globals import update_label_ids
@@ -210,7 +187,7 @@ def initialise_periodic_functions(sender, instance, **kwargs):
         from app.models import Classifier
         # from flask_migrate import upgrade
         from app.functions.imports import setupDatabase
-        from app.functions.periodic import importMonitor, manageTasks, clean_up_redis, monitor_live_data_surveys, manageDownloadRequests, monitorFileRestores, monitorSQS
+        from app.functions.periodic import call_periodic_functions
         import GLOBALS
    
         # Try to create the database in case it does not exist. If it allready exists a sqlalchemy ProgrammingError
@@ -240,16 +217,49 @@ def initialise_periodic_functions(sender, instance, **kwargs):
 
         print('Queues flushed.')
 
-        # importMonitor.apply_async(queue='priority', priority=0)
-        # manageTasks.apply_async(queue='priority', priority=0)
-        # clean_up_redis.apply_async(queue='priority', priority=0)
-        # monitor_live_data_surveys.apply_async(queue='priority', priority=0)
-        # manageDownloadRequests.apply_async(queue='priority', priority=0)
-        # monitorFileRestores.apply_async(queue='priority', priority=0)
-        # monitorSQS.apply_async(queue='priority', priority=0)
-        # cleanWBIA.apply_async(queue='priority', priority=0)
+        # call_periodic_functions()
         # print('Periodic functions initialised.')
 
+
+        # SETUP WBIA DB
+        if Config.INITIAL_SETUP:
+            # CREATE AN EMPTY WBIA DB
+            try:
+                wbia_engine = sa.create_engine(Config.WBIA_DB_SERVER + '/postgres', echo=True)
+                result = wbia_engine.execute("SELECT 1 FROM pg_database WHERE datname = '" + Config.WBIA_DB_NAME + "'")
+                if result.fetchone() is None:
+                    wbia_engine.execute("CREATE DATABASE " + Config.WBIA_DB_NAME)
+                    app.logger.info('Empty WBIA DB created.')
+                else:
+                    app.logger.info('WBIA DB already exists.')
+                # wbia_engine.execute("CREATE DATABASE " + Config.WBIA_DB_NAME)
+                app.logger.info('Empty WBIA DB created.')
+            except sa.exc.ProgrammingError:
+                pass
+            
+            # INITIALISE THE WBIA DB (it will create the tables)
+            from wbia import opendb
+            ibs = opendb(db=Config.WBIA_DB_NAME,dbdir=Config.WBIA_DIR, allow_newdir=True)
+            if not ibs.db.has_table('featurematches'):
+                ibs.db.add_table(
+                    'featurematches',
+                    [
+                        ('fm_rowid', 'INTEGER PRIMARY KEY'),
+                        ('annot_rowid1', 'INTEGER NOT NULL'),
+                        ('annot_rowid2', 'INTEGER NOT NULL'),
+                        ('fm', 'NDARRAY'),
+                        ('fs', 'NDARRAY'),
+                    ],
+                    docstr="""
+                    Stores feature matches between two annotations (index of the matching keypoints) and the feature scores
+                    """,
+                    superkeys=[('annot_rowid1', 'annot_rowid2')],
+                    relates=('annotations', 'annotations'),
+                    dependsmap={
+                        'annot_rowid1': ('annotations', ('annot_rowid',), ('annot_visual_uuid',)),
+                        'annot_rowid2': ('annotations', ('annot_rowid',), ('annot_visual_uuid',)),
+                    },
+                )
 
         # Setup LAMBDA
         # import time
@@ -259,3 +269,5 @@ def initialise_periodic_functions(sender, instance, **kwargs):
         # time.sleep(10) # Wait for layers to be created
         # NOTE: The layer versions need to be setup in Config before running the below function
         # setup_lambda()    
+
+        if Config.INITIAL_SETUP: app.logger.info('Initial database setup complete.')
