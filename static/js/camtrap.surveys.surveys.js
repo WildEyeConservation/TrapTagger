@@ -393,6 +393,9 @@ var selectedCalMode = null
 var editedCalDistances = {}
 var deletedCalImages = []
 var editedCalBboxes = {}
+var stagedCalUploadSets = []
+var surveyCameragroups = [] // for the upload dropdown only, seperate from calCameras
+var stagedCalUploadSetIdSeq = 0
 
 function buildSurveys(survey,disableSurvey) {
     /**
@@ -6377,6 +6380,29 @@ document.getElementById('btnEditSurvey').addEventListener('click', ()=>{
         formData.append("cal_bboxes", JSON.stringify(editedCalBboxes))
         formData.append("cal_distances", JSON.stringify(editedCalDistances))
         formData.append("cal_deletions", JSON.stringify(deletedCalImages))
+        if (stagedCalUploadSets.length > 0) {
+            var calUploadManifest = []
+            for (var s = 0; s < stagedCalUploadSets.length; s++) {
+                var set = stagedCalUploadSets[s]
+                var fileEntries = []
+                for (var f = 0; f < set.files.length; f++) {
+                    var file = set.files[f]
+                    var fieldKey = 'cal_upload_' + set.id + '_' + f
+                    fileEntries.push({
+                        field_key: fieldKey,
+                        name: file.name,
+                        distance: parseCalUploadDistance(file.name)
+                    })
+                    formData.append(fieldKey, file, file.name)
+                }
+                calUploadManifest.push({
+                    cameragroup_id: set.cameragroupId,
+                    files: fileEntries
+                })
+            }
+            formData.append('cal_upload_manifest', JSON.stringify(calUploadManifest))
+        }
+
         if (document.getElementById('addCoordinatesManualMethod').checked) {
             formData.append("coordData", JSON.stringify(coordData))
         }
@@ -7517,6 +7543,7 @@ function resetCalibrationStaging() {
     editedCalBboxes = {}
     editedCalDistances = {}
     deletedCalImages = []
+    stagedCalUploadSets = []
 }
 
 function resetCalibrationState() {
@@ -7527,12 +7554,304 @@ function resetCalibrationState() {
     calIsDrawing = false
 }
 
+function isCalUploadJpeg(filename) {
+    return /\.jpe?g$/i.test(filename)
+}
+
+function parseCalUploadDistance(filename) {
+    var stem = filename.replace(/\.[^/.]+$/, '')
+    var d = parseFloat(stem)
+    if (isNaN(d) || d <= 0) return null
+    return d
+}
+
+function filterCalUploadDirectChildren(files) {
+    var direct = []
+    for (var i = 0; i < files.length; i++) {
+        var file = files[i]
+        var rel = file.webkitRelativePath || file.name
+        var parts = rel.split('/')
+        // Selected folder / file.jpg  →  2 parts
+        if (parts.length === 2) {
+            direct.push(file)
+        }
+        // parts.length > 2  → inside a subfolder, skip silently
+        // parts.length === 1  → rare; skip unless you hit this in testing
+    }
+    return direct
+}
+
+function validateCalUploadFiles(files) {
+    if (!files || files.length === 0) {
+        return { valid: false, message: 'No folder selected.' }
+    }
+
+    var directFiles = filterCalUploadDirectChildren(files)
+    if (directFiles.length === 0) {
+        return { valid: false, message: 'No JPEG files found in the selected folder.' }
+    }
+
+    var distances = []
+    var validFiles = []
+
+    for (var i = 0; i < directFiles.length; i++) {
+        var file = directFiles[i]
+
+        if (!isCalUploadJpeg(file.name)) {
+            continue
+        }
+
+        var distance = parseCalUploadDistance(file.name)
+        if (distance === null) {
+            continue
+        }
+
+        if (distances.indexOf(distance) !== -1) {
+            continue
+        }
+
+        distances.push(distance)
+        validFiles.push(file)
+    }
+
+    if (validFiles.length === 0) {
+        return { valid: false, message: 'No valid calibration JPEGs found in the selected folder.' }
+    }
+
+    distances.sort(function(a, b) { return a - b })
+    return { valid: true, distances: distances, files: validFiles }
+}
+
+function filterCalUploadAgainstExisting(files, distances, existingDistances, otherStagedSets, cameragroupId) {
+    var taken = {}
+    var i, j, d
+
+    for (i = 0; i < existingDistances.length; i++) {
+        taken[existingDistances[i]] = true
+    }
+    for (j = 0; j < otherStagedSets.length; j++) {
+        var s = otherStagedSets[j]
+        if (s.cameragroupId === cameragroupId) {
+            for (i = 0; i < s.distances.length; i++) {
+                taken[s.distances[i]] = true
+            }
+        }
+    }
+
+    var keptFiles = []
+    var keptDistances = []
+    for (i = 0; i < files.length; i++) {
+        d = distances[i]
+        if (taken[d]) {
+            continue   // skip silently — already in DB or another staged set
+        }
+        taken[d] = true
+        keptFiles.push(files[i])
+        keptDistances.push(d)
+    }
+
+    keptDistances.sort(function(a, b) { return a - b })
+    return { files: keptFiles, distances: keptDistances }
+}
+
+function getSurveyCameragroupsForUpload(callback) {
+    var xhttp = new XMLHttpRequest()
+    xhttp.onreadystatechange = function() {
+        if (this.readyState === 4 && this.status === 200) {
+            surveyCameragroups = JSON.parse(this.responseText)
+            if (callback) callback()
+        }
+    }
+    xhttp.open('GET', '/getSurveyCameragroups/' + selectedSurvey)
+    xhttp.send()
+}
+
+function fetchExistingCalDistances(cameragroupId, callback) {
+    var xhttp = new XMLHttpRequest()
+    xhttp.onreadystatechange = function() {
+        if (this.readyState === 4 && this.status === 200) {
+            var images = JSON.parse(this.responseText)
+            var distances = images.map(function(img) { return img.distance })
+            callback(distances)
+        }
+    }
+    xhttp.open('GET', '/getCalibrationImages/' + selectedSurvey + '/' + cameragroupId)
+    xhttp.send()
+}
+
+function addStagedCalUploadSet(cameragroupId, cameragroupName, files, distances) {
+    stagedCalUploadSetIdSeq += 1
+    stagedCalUploadSets.push({
+        id: stagedCalUploadSetIdSeq,
+        cameragroupId: cameragroupId,
+        cameragroupName: cameragroupName,
+        files: files,
+        distances: distances
+    })
+}
+
+function renderStagedCalUploadSets(container) {
+    while (container.firstChild) container.removeChild(container.firstChild)
+
+    var h5 = document.createElement('h5')
+    h5.innerHTML = 'Staged calibration sets'
+    h5.setAttribute('style', 'margin-top: 16px; margin-bottom: 6px')
+    container.appendChild(h5)
+
+    if (stagedCalUploadSets.length === 0) {
+        var empty = document.createElement('div')
+        empty.setAttribute('style', 'font-size: 80%; color: grey')
+        empty.innerHTML = '<i>No sets staged. Add a set below, then click Save Changes when ready.</i>'
+        container.appendChild(empty)
+        return
+    }
+
+    for (var i = 0; i < stagedCalUploadSets.length; i++) {
+        (function(idx) {
+            var set = stagedCalUploadSets[idx]
+            var row = document.createElement('div')
+            row.classList.add('row')
+            row.style.marginBottom = '6px'
+
+            var col = document.createElement('div')
+            col.classList.add('col-lg-12')
+
+            var text = document.createElement('span')
+            text.textContent = set.cameragroupName + ' — ' + set.files.length + ' image(s), distances ' + set.distances.join(', ')
+            col.appendChild(text)
+
+            var btn = document.createElement('button')
+            btn.classList.add('btn', 'btn-sm', 'btn-danger')
+            btn.style.marginLeft = '8px'
+            btn.innerHTML = 'Remove'
+            btn.onclick = function() {
+                stagedCalUploadSets.splice(idx, 1)
+                renderStagedCalUploadSets(container)
+            }
+            col.appendChild(btn)
+
+            row.appendChild(col)
+            container.appendChild(row)
+        })(i)
+    }
+}
+
 function buildCalUploadMode() {
-    var content = document.getElementById('calModeContent')
-    var p = document.createElement('p')
-    p.setAttribute('style', 'margin-top: 10px')
-    p.innerHTML = 'Upload functionality coming soon.'
-    content.appendChild(p)
+    var div = document.getElementById('calModeContent')
+    while (div.firstChild) div.removeChild(div.firstChild)
+
+    var row1 = document.createElement('div')
+    row1.classList.add('row')
+    div.appendChild(row1)
+
+    var col1 = document.createElement('div')
+    col1.classList.add('col-lg-6')
+    row1.appendChild(col1)
+
+    var h5cam = document.createElement('h5')
+    h5cam.innerHTML = 'Camera'
+    col1.appendChild(h5cam)
+
+    var descCam = document.createElement('div')
+    descCam.setAttribute('style', 'font-size: 80%; margin-bottom: 6px')
+    descCam.innerHTML = '<i>Select the camera this calibration set belongs to.</i>'
+    col1.appendChild(descCam)
+
+    var camSelect = document.createElement('select')
+    camSelect.id = 'calUploadCameraSelect'
+    camSelect.classList.add('form-control')
+    col1.appendChild(camSelect)
+
+    var h5folder = document.createElement('h5')
+    h5folder.setAttribute('style', 'margin-top: 12px')
+    h5folder.innerHTML = 'Calibration folder'
+    col1.appendChild(h5folder)
+
+    var descFolder = document.createElement('div')
+    descFolder.setAttribute('style', 'font-size: 80%; margin-bottom: 6px')
+    descFolder.innerHTML = '<i>Select a folder of JPEGs named by distance (e.g. 5.jpg, 10.jpg). Only files directly in that folder are used.</i>'
+    col1.appendChild(descFolder)
+
+    var folderInput = document.createElement('input')
+    folderInput.type = 'file'
+    folderInput.id = 'calUploadFolderInput'
+    folderInput.setAttribute('webkitdirectory', '')
+    folderInput.setAttribute('multiple', '')
+    folderInput.style.display = 'none'
+    col1.appendChild(folderInput)
+
+    var addBtn = document.createElement('button')
+    addBtn.id = 'calUploadAddSetBtn'
+    addBtn.classList.add('btn', 'btn-primary', 'btn-block')
+    addBtn.style.marginTop = '6px'
+    addBtn.innerHTML = 'Add calibration image set'
+    addBtn.disabled = true
+    col1.appendChild(addBtn)
+
+    var statusDiv = document.createElement('div')
+    statusDiv.id = 'calUploadStatusMsg'
+    statusDiv.setAttribute('style', 'font-size: 80%; margin-top: 8px')
+    col1.appendChild(statusDiv)
+
+    var stagedDiv = document.createElement('div')
+    stagedDiv.id = 'calUploadStagedDiv'
+    div.appendChild(stagedDiv)
+
+    function populateCameraSelect() {
+        while (camSelect.firstChild) camSelect.removeChild(camSelect.firstChild)
+        if (surveyCameragroups.length === 0) {
+            var opt = document.createElement('option')
+            opt.text = 'No cameras found'
+            camSelect.appendChild(opt)
+            addBtn.disabled = true
+            return
+        }
+        for (var i = 0; i < surveyCameragroups.length; i++) {
+            var opt = document.createElement('option')
+            opt.value = surveyCameragroups[i].id
+            opt.text = surveyCameragroups[i].name
+            camSelect.appendChild(opt)
+        }
+        addBtn.disabled = false
+    }
+
+    addBtn.onclick = function() {
+        statusDiv.innerHTML = ''
+        folderInput.click()
+    }
+
+    folderInput.onchange = function() {
+        statusDiv.innerHTML = ''
+        var cgId = parseInt(camSelect.value)
+        var cgName = camSelect.options[camSelect.selectedIndex].text
+
+        var result = validateCalUploadFiles(folderInput.files)
+        folderInput.value = ''
+
+        if (!result.valid) {
+            statusDiv.innerHTML = '<i style="color:red">' + result.message + '</i>'
+            return
+        }
+
+        fetchExistingCalDistances(cgId, function(existingDistances) {
+            var filtered = filterCalUploadAgainstExisting(
+                result.files, result.distances, existingDistances, stagedCalUploadSets, cgId
+            )
+
+            if (filtered.files.length === 0) {
+                statusDiv.innerHTML = '<i style="color:red">No new calibration images to add — all found distances already exist for this camera.</i>'
+                return
+            }
+
+            var count = filtered.files.length
+            addStagedCalUploadSet(cgId, cgName, filtered.files, filtered.distances)
+            renderStagedCalUploadSets(stagedDiv)
+            statusDiv.innerHTML = '<i>Found ' + count + ' valid image' + (count === 1 ? '' : 's') + ' at unique distances for this camera. Set staged — click Save Changes to apply.</i>'
+        })
+    }
+
+    getSurveyCameragroupsForUpload(populateCameraSelect)
+    renderStagedCalUploadSets(stagedDiv)
 }
 
 function buildCalDeleteMode() {

@@ -2480,6 +2480,12 @@ def editSurvey():
             cal_deletions = json.loads(request.form['cal_deletions'])
             if len(cal_deletions) == 0: cal_deletions = None
 
+        cal_upload_manifest = None
+        if 'cal_upload_manifest' in request.form:
+            cal_upload_manifest = json.loads(request.form['cal_upload_manifest'])
+            if len(cal_upload_manifest) == 0:
+                cal_upload_manifest = None
+
         imageTimestamps = None
         if 'imageTimestamps' in request.form:
             imageTimestamps = ast.literal_eval(request.form['imageTimestamps'])
@@ -2595,11 +2601,12 @@ def editSurvey():
 
         if status == 'success':
             # Handle calibration changes synchronously
-            if cal_bboxes or cal_distances or cal_deletions:
+            affected_cameragroups = set()
 
+            if cal_bboxes or cal_distances or cal_deletions:
                 # Build a set of IDs being deleted to skip distance renames for those
                 deletion_ids = set(int(i) for i in cal_deletions) if cal_deletions else set()
-                affected_cameragroups = set()
+
                 # Bounding box updates
                 if cal_bboxes:
                     for cal_id_str, bbox in cal_bboxes.items():
@@ -2670,22 +2677,24 @@ def editSurvey():
                             app.logger.info('Failed to delete calibration image from S3: {}'.format(cal_image.filename))
                         db.session.delete(cal_image)
 
-                for cg_id in affected_cameragroups:
-                    image_ids = (
-                        db.session.query(Image.id)
-                        .join(Camera, Image.camera_id == Camera.id)
-                        .filter(Camera.cameragroup_id == cg_id)
-                    )
-                    db.session.query(Detection).filter(
-                        Detection.image_id.in_(image_ids)
-                    ).update(
-                        {Detection.distance: None},
-                        synchronize_session=False,
-                    )
+            cal_images_to_detect = []
 
+            if cal_upload_manifest:
+                survey.status = 'Processing'
                 db.session.commit()
-            if classifier_id or ignore_small_detections!=None or sky_masked!=None or timestamps or coordData or masks or staticgroups or kml or imageTimestamps or edit_area_option:
+
+                cal_images_to_detect, upload_cg_ids = apply_edit_survey_cal_uploads(
+                    survey.id, cal_upload_manifest, request.files
+                )
+                affected_cameragroups.update(upload_cg_ids)
+
+            if affected_cameragroups and not cal_upload_manifest:
+                null_detection_distances_for_cameragroups(affected_cameragroups)
+                db.session.commit()
+
+            if classifier_id or ignore_small_detections!=None or sky_masked!=None or timestamps or coordData or masks or staticgroups or kml or imageTimestamps or edit_area_option or cal_upload_manifest:
                 app.logger.info('Edit survey requested for {} with classifier: {}, ignore_small_detections: {}, sky_masked: {}, timestamps: {}, coordData: {}, masks: {}, staticgroups: {}, kml: {}, imageTimestamps: {}, edit_area_option: {}'.format(survey.name,classifier_id,ignore_small_detections,sky_masked,timestamps,coordData,masks,staticgroups,kml,imageTimestamps,edit_area_option))
+                cal_cameragroup_ids = list(affected_cameragroups) if cal_upload_manifest else []
                 if classifier_id and survey.classifier_id != classifier_id:
                     if Config.DISABLE_RESTORE:
                         status = 'error'
@@ -2693,15 +2702,15 @@ def editSurvey():
                     else:
                         survey.status = 'Processing'
                         db.session.commit()
-                        edit_survey_args = {'survey_id':survey.id,'user_id':current_user.id,'classifier_id':classifier_id,'ignore_small_detections':ignore_small_detections,'sky_masked':sky_masked,'timestamps':timestamps,'coord_data':coordData,'masks':masks,'staticgroups':staticgroups,'kml_file':kml,'image_timestamps':imageTimestamps, 'edit_area_option': edit_area_option}
+                        edit_survey_args = {'survey_id':survey.id,'user_id':current_user.id,'classifier_id':classifier_id,'ignore_small_detections':ignore_small_detections,'sky_masked':sky_masked,'timestamps':timestamps,'coord_data':coordData,'masks':masks,'staticgroups':staticgroups,'kml_file':kml,'image_timestamps':imageTimestamps, 'edit_area_option': edit_area_option, 'cal_images_to_detect': cal_images_to_detect, 'affected_cameragroup_ids': cal_cameragroup_ids}
                         GLOBALS.redisClient.set('edit_survey_{}'.format(survey_id),json.dumps(edit_survey_args))
                         restore_images_for_classification.delay(survey_id=survey.id,days=Config.EDIT_RESTORE_DAYS,edit_survey_args=edit_survey_args,tier=Config.RESTORE_TIER,restore_time=Config.RESTORE_TIME)
                 else:
                     survey.status = 'Processing'
                     db.session.commit()
-                    edit_survey_args = {'survey_id':survey.id,'user_id':current_user.id,'classifier_id':classifier_id,'ignore_small_detections':ignore_small_detections,'sky_masked':sky_masked,'timestamps':timestamps,'coord_data':coordData,'masks':masks,'staticgroups':staticgroups,'kml_file':kml,'image_timestamps':imageTimestamps, 'edit_area_option': edit_area_option}
+                    edit_survey_args = {'survey_id':survey.id,'user_id':current_user.id,'classifier_id':classifier_id,'ignore_small_detections':ignore_small_detections,'sky_masked':sky_masked,'timestamps':timestamps,'coord_data':coordData,'masks':masks,'staticgroups':staticgroups,'kml_file':kml,'image_timestamps':imageTimestamps, 'edit_area_option': edit_area_option, 'cal_images_to_detect': cal_images_to_detect, 'affected_cameragroup_ids': cal_cameragroup_ids}
                     GLOBALS.redisClient.set('edit_survey_{}'.format(survey_id),json.dumps(edit_survey_args))
-                    edit_survey.delay(survey_id=survey.id,user_id=current_user.id,classifier_id=classifier_id,ignore_small_detections=ignore_small_detections,sky_masked=sky_masked,timestamps=timestamps,coord_data=coordData,masks=masks,staticgroups=staticgroups,kml_file=kml,image_timestamps=imageTimestamps,edit_area_option=edit_area_option)
+                    edit_survey.delay(survey_id=survey.id,user_id=current_user.id,classifier_id=classifier_id,ignore_small_detections=ignore_small_detections,sky_masked=sky_masked,timestamps=timestamps,coord_data=coordData,masks=masks,staticgroups=staticgroups,kml_file=kml,image_timestamps=imageTimestamps,edit_area_option=edit_area_option,cal_images_to_detect=cal_images_to_detect,affected_cameragroup_ids=cal_cameragroup_ids)
 
     else:
         status = 'error'
@@ -18563,3 +18572,22 @@ def getCalibrationImages(survey_id, cameragroup_id):
             })
 
     return json.dumps(images)
+
+@app.route('/getSurveyCameragroups/<int:survey_id>')
+@login_required
+def getSurveyCameragroups(survey_id):
+    '''Returns all cameragroups in a survey (for calibration upload).'''
+    cameragroups = []
+    survey = db.session.query(Survey).get(survey_id)
+    if survey and checkSurveyPermission(current_user.id, survey.id, 'write'):
+        rows = (
+            db.session.query(Cameragroup.id, Cameragroup.name)
+            .join(Camera, Camera.cameragroup_id == Cameragroup.id)
+            .join(Trapgroup, Trapgroup.id == Camera.trapgroup_id)
+            .filter(Trapgroup.survey_id == survey_id)
+            .order_by(Cameragroup.name)
+            .distinct()
+            .all()
+        )
+        cameragroups = [{'id': r[0], 'name': r[1]} for r in rows]
+    return json.dumps(cameragroups)

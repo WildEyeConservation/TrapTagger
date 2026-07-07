@@ -4889,6 +4889,40 @@ def calibration_comp_dest_key(path, calibration_code):
         return None
     return splits[0] + '-comp/' + splits[1] + '/_calibration_/' + camera_relative + '/' + splits[-1]
 
+def calibration_comp_dest_key_for_cameragroup(survey_id, cameragroup_id, filename):
+    '''
+    Comp-bucket key for an edit-survey calibration upload.
+    Uses a Camera.path in this survey/cameragroup — no calibration_code.
+    '''
+    camera = (
+        db.session.query(Camera)
+        .join(Trapgroup)
+        .filter(Trapgroup.survey_id == survey_id)
+        .filter(Camera.cameragroup_id == cameragroup_id)
+        .filter(~Camera.path.contains('_video_images_'))
+        .first()
+    )
+    if not camera:
+        camera = (
+            db.session.query(Camera)
+            .join(Trapgroup)
+            .filter(Trapgroup.survey_id == survey_id)
+            .filter(Camera.cameragroup_id == cameragroup_id)
+            .first()
+        )
+    if not camera:
+        return None
+
+    parts = camera.path.split('/')
+    if len(parts) < 3:
+        return None
+
+    org = parts[0]
+    survey_folder = parts[1]
+    after_cal = '/'.join(parts[2:])
+    return org + '-comp/' + survey_folder + '/_calibration_/' + after_cal + '/' + filename
+
+
 def calibration_destination_taken(dest_key, survey_id=None):
     try:
         GLOBALS.s3client.head_object(Bucket=Config.BUCKET, Key=dest_key)
@@ -4926,6 +4960,92 @@ def calibration_destination_taken(dest_key, survey_id=None):
         cameragroup_id=cameragroup_id,
         distance=distance,
     ).first() is not None
+
+def null_detection_distances_for_cameragroups(cameragroup_ids):
+    for cg_id in cameragroup_ids:
+        image_ids = (
+            db.session.query(Image.id)
+            .join(Camera, Image.camera_id == Camera.id)
+            .filter(Camera.cameragroup_id == cg_id)
+        )
+        db.session.query(Detection).filter(
+            Detection.image_id.in_(image_ids)
+        ).update(
+            {Detection.distance: None},
+            synchronize_session=False,
+        )
+
+def apply_edit_survey_cal_uploads(survey_id, manifest, request_files):
+    '''
+    manifest: list of {cameragroup_id, files: [{field_key, name, distance}]}
+    request_files: Flask request.files
+    Returns (cal_images_to_detect, affected_cameragroups)
+    cal_images_to_detect: list of (dest_key, cal_image_id)
+    '''
+    cal_images_to_detect = []
+    affected_cameragroups = set()
+    for entry in manifest:
+        cg_id = int(entry['cameragroup_id'])
+        belongs = (
+            db.session.query(Cameragroup.id)
+            .join(Camera, Camera.cameragroup_id == Cameragroup.id)
+            .join(Trapgroup, Camera.trapgroup_id == Trapgroup.id)
+            .filter(Cameragroup.id == cg_id)
+            .filter(Trapgroup.survey_id == int(survey_id))
+            .first()
+        )
+        if not belongs:
+            continue
+        for fi in entry['files']:
+            dest_key = calibration_comp_dest_key_for_cameragroup(survey_id, cg_id, fi['name'])
+            if not dest_key or calibration_destination_taken(dest_key, survey_id):
+                continue
+            upload = request_files.get(fi['field_key'])
+            if not upload or not upload.filename:
+                continue
+            GLOBALS.s3client.upload_fileobj(
+                upload, Config.BUCKET, dest_key,
+                ExtraArgs={'ContentType': upload.content_type or 'image/jpeg'}
+            )
+            cal_image = CalibrationImage(
+                cameragroup_id=cg_id,
+                filename=dest_key,
+                distance=float(fi['distance']),
+            )
+            db.session.add(cal_image)
+            db.session.flush()
+            cal_images_to_detect.append((dest_key, cal_image.id))
+            affected_cameragroups.add(cg_id)
+    db.session.commit()
+    return cal_images_to_detect, affected_cameragroups
+
+def run_calibration_detection_batch(cal_images_to_detect):
+    '''cal_images_to_detect: list of (dest_key, cal_image_id)'''
+    if not cal_images_to_detect:
+        return
+
+    batch_keys = [item[0] for item in cal_images_to_detect]
+    GLOBALS.lock.acquire()
+    with allow_join_result():
+        result = detection.apply_async(
+            kwargs={'batch': batch_keys, 'sourceBucket': Config.BUCKET, 'external': False, 'model': Config.DETECTOR},
+            queue='celery', routing_key='celery.detection'
+        ).get(timeout=600)
+    GLOBALS.lock.release()
+
+    for i, (dest_key, cal_id) in enumerate(cal_images_to_detect):
+        if result and i < len(result):
+            detections = result[i]
+            human_detections = [d for d in detections if d.get('category') == 2]
+            if human_detections:
+                best = max(human_detections, key=lambda d: d['score'])
+                cal_image = db.session.query(CalibrationImage).get(cal_id)
+                if cal_image:
+                    cal_image.top = best['top']
+                    cal_image.left = best['left']
+                    cal_image.bottom = best['bottom']
+                    cal_image.right = best['right']
+    db.session.commit()
 
 @celery.task(bind=True,max_retries=5)
 def run_llava(self,image_ids,prompt):

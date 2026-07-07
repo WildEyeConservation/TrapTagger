@@ -23,7 +23,7 @@ from app.functions.globals import classifyTask, update_masks, retryTime, resolve
                                     process_multi_labels
 from app.functions.delete import *
 from app.functions.individualID import calculate_detection_similarities, cleanUpIndividuals, check_individual_detection_mismatch
-from app.functions.imports import classifySurvey, s3traverse, classifyCluster, importKML, import_survey
+from app.functions.imports import classifySurvey, s3traverse, classifyCluster, importKML, import_survey, run_calibration_detection_batch, null_detection_distances_for_cameragroups
 import GLOBALS
 from sqlalchemy.sql import func, or_, and_, distinct, alias
 from sqlalchemy import desc, extract, delete, select
@@ -2396,12 +2396,19 @@ def recluster_after_image_timestamp_change(survey_id,image_timestamps):
 
 
 @celery.task(bind=True,max_retries=5,ignore_result=True)
-def edit_survey(self,survey_id,user_id,classifier_id,sky_masked,ignore_small_detections,masks,staticgroups,timestamps,image_timestamps,coord_data,kml_file,edit_area_option):
+def edit_survey(self,survey_id,user_id,classifier_id,sky_masked,ignore_small_detections,masks,staticgroups,timestamps,image_timestamps,coord_data,kml_file,edit_area_option,cal_images_to_detect=None,affected_cameragroup_ids=None):
     '''Celery task that handles the editing of a survey.'''
     try:
         survey = db.session.query(Survey).get(survey_id)
         survey.status = 'Processing'
         db.session.commit()
+
+        if cal_images_to_detect:
+            cal_images_to_detect = [tuple(item) for item in cal_images_to_detect]
+            run_calibration_detection_batch(cal_images_to_detect)
+        if affected_cameragroup_ids:
+            null_detection_distances_for_cameragroups(affected_cameragroup_ids)
+            db.session.commit()
 
         skipUpdateStatuses = True
 
