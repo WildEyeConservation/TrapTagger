@@ -202,23 +202,25 @@ def initialise_periodic_functions(sender, instance, **kwargs):
         # with app.app_context():
         #     upgrade()
 
-        setupDatabase()
+        if not Config.INITIAL_SETUP:
+            # In Initial Setup, the db is created but not the tables so the following breaks.
+            setupDatabase()
 
-        # Flush all other (non-default) queues
-        allQueues = ['default'] #default needs to be first
-        allQueues.extend([queue for queue in Config.QUEUES if queue not in allQueues])
-        allQueues.extend([r[0] for r in db.session.query(Classifier.queue).filter(Classifier.queue!=None).distinct().all()])
-        for queue in allQueues:
-            if queue not in ['default','ram_intensive']:
-                while True:
-                    task = GLOBALS.redisClient.blpop(queue, timeout=1)
-                    if not task:
-                        break
+            # Flush all other (non-default) queues
+            allQueues = ['default'] #default needs to be first
+            allQueues.extend([queue for queue in Config.QUEUES if queue not in allQueues])
+            allQueues.extend([r[0] for r in db.session.query(Classifier.queue).filter(Classifier.queue!=None).distinct().all()])
+            for queue in allQueues:
+                if queue not in ['default','ram_intensive']:
+                    while True:
+                        task = GLOBALS.redisClient.blpop(queue, timeout=1)
+                        if not task:
+                            break
 
-        print('Queues flushed.')
+            print('Queues flushed.')
 
-        # call_periodic_functions()
-        # print('Periodic functions initialised.')
+            # call_periodic_functions()
+            # print('Periodic functions initialised.')
 
 
         # SETUP WBIA DB
@@ -226,15 +228,15 @@ def initialise_periodic_functions(sender, instance, **kwargs):
             # CREATE AN EMPTY WBIA DB
             try:
                 wbia_engine = sa.create_engine(Config.WBIA_DB_SERVER + '/postgres', echo=True)
-                result = wbia_engine.execute("SELECT 1 FROM pg_database WHERE datname = '" + Config.WBIA_DB_NAME + "'")
-                if result.fetchone() is None:
-                    wbia_engine.execute("CREATE DATABASE " + Config.WBIA_DB_NAME)
-                    app.logger.info('Empty WBIA DB created.')
-                else:
-                    app.logger.info('WBIA DB already exists.')
-                # wbia_engine.execute("CREATE DATABASE " + Config.WBIA_DB_NAME)
-                app.logger.info('Empty WBIA DB created.')
+                with wbia_engine.connect().execution_options(isolation_level="AUTOCOMMIT") as conn:
+                    exists = conn.execute(sa.text(f'SELECT 1 FROM pg_database WHERE datname = \'{Config.WBIA_DB_NAME}\''))
+                    if exists.fetchone():
+                        app.logger.info('WBIA DB already exists.')
+                    else:
+                        conn.execute(sa.text(f'CREATE DATABASE "{Config.WBIA_DB_NAME}"'))
+                        app.logger.info('Empty WBIA DB created.')
             except sa.exc.ProgrammingError:
+                app.logger.info('Error creating WBIA DB.')
                 pass
             
             # INITIALISE THE WBIA DB (it will create the tables)
@@ -261,6 +263,8 @@ def initialise_periodic_functions(sender, instance, **kwargs):
                     },
                 )
 
+            app.logger.info('Initial database setup complete.')
+
         # Setup LAMBDA
         # import time
         # from app.functions.utilities import setup_sqs, setup_layers, setup_lambda
@@ -269,5 +273,3 @@ def initialise_periodic_functions(sender, instance, **kwargs):
         # time.sleep(10) # Wait for layers to be created
         # NOTE: The layer versions need to be setup in Config before running the below function
         # setup_lambda()    
-
-        if Config.INITIAL_SETUP: app.logger.info('Initial database setup complete.')
