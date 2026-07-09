@@ -1,0 +1,152 @@
+TrapTagger Development Setup
+============================
+
+Use these steps when setting up a development environment for the first time.
+Run all commands from the repository root unless noted otherwise.
+
+1. Prepare the environment
+--------------------------
+
+- Create the local environment variables file mentioned in the README.md file.
+- Run the script to setup the environment:
+    . env_variables.sh
+
+2. Initialise the database
+--------------------------
+
+The first startup must run in initial setup mode so the application can create
+the base database state.
+
+- Set INITIAL_SETUP = True in config.py file.
+- Start the containers:
+
+   docker compose up
+
+- Wait until the application has finished initialising the database. In the logs, you will see the message "Database initialised successfully".
+- Stop the containers:
+
+   docker compose down
+
+- Run the traptagger container:
+
+   docker run \
+     -v "$(pwd)":/code \
+     -v "$(pwd)/wildbook-ia/wbia":/code/wbia \
+     -e FLASK_APP=/code/TrapTagger.py \
+     -e DATABASE_NAME \
+     -e DATABASE_SERVER \
+     -e HOST_IP \
+     -e DNS \
+     -e AWS_ACCESS_KEY_ID \
+     -e AWS_SECRET_ACCESS_KEY \
+     -e REGION_NAME \
+     -e SECRET_KEY \
+     -e MAIL_USERNAME \
+     -e MAIL_PASSWORD \
+     -e PARALLEL_AMI \
+     -e SG_ID \
+     -e PUBLIC_SUBNET_ID \
+     -e PRIVATE_SUBNET_ID \
+     -e TOKEN \
+     -e KEY_NAME \
+     -e QUEUE \
+     -e WORKER_NAME \
+     -e MAIN_GIT_REPO \
+     -e MONITORED_EMAIL_ADDRESS \
+     -e BUCKET \
+     -e BRANCH \
+     -e IAM_ADMIN_GROUP \
+     -e AWS_S3_DOWNLOAD_ACCESS_KEY_ID \
+     -e AWS_S3_DOWNLOAD_SECRET_ACCESS_KEY \
+     -e AWS_S3_UPLOAD_ACCESS_KEY_ID \
+     -e AWS_S3_UPLOAD_SECRET_ACCESS_KEY \
+     -e WBIA_DB_NAME \
+     -e WBIA_DB_SERVER \
+     -e WBIA_DIR \
+     -e DEBUGGING \
+     -it traptagger:1.1.3 bash
+
+- Run the database migrations inside the container:
+
+   flask db upgrade
+
+   Note: the index_overhual migration may fail. If it
+   does, comment out the failing migration section, run flask db upgrade
+   again, then restore or review the migration before committing any changes.
+
+- Set INITIAL_SETUP = False in config.py.
+- Start the application again so it can finish normal startup:
+
+   docker compose up
+
+3. Configure Lambda resources
+-----------------------------
+
+- Build the Lambda layers:
+
+   . build_lambda_layers.sh
+
+- Open a Flask shell in the application environment:
+    docker exec -it flask bash
+    flask shell
+    from app.models import *
+    from app.routes import *
+
+- Create the queues and publish the Lambda layers:
+
+   setup_sqs()
+   setup_layers()
+
+- Get the published layer versions from the AWS console and update config.py file. Verify the following lambda variables in the config.py file:
+    - FFMPEG_LAYER
+    - FFPROBE_LAYER
+    - OPENCV_LAYER
+    - LAMBDA_ROLE
+
+- Build the Lambda functions:
+
+   . build_lambda.sh
+
+- Open a Flask shell again and update the Lambda functions:
+
+   setup_lambda()
+
+4. Run the post-setup scripts
+--------------------------------------
+
+   docker exec -it flask bash
+   python migration_scripts/download_js.py
+   cp migration_scripts/add_templates_and_thresholds.py add_templates_and_thresholds.py
+   python add_templates_and_thresholds.py
+   rm add_templates_and_thresholds.py
+   exit
+   
+5. Ignore generated files
+-------------------------
+
+- Add the generated JavaScript and CSS assets to `.gitignore`:
+
+   Chart.bundle.min.js
+   Leaflet.GoogleMutant.js
+   MarkerCluster.Default.css
+   MarkerCluster.css
+   all.min.css
+   bootstrap.min.js
+   font-awesome.min.css
+   jquery.csv.min.js
+   jquery.min.js
+   leaflet-pip.js
+   leaflet.contextmenu.css
+   leaflet.contextmenu.js
+   leaflet.draw.js
+   leaflet.js
+   leaflet.markercluster.js
+   plotly.min.js
+   regression.js
+   splide.min.css
+   splide.min.js
+   uppy.min.css
+   uppy.min.js
+
+- Also ignore the local environment variables file and any other generated files
+or folders created during setup or application runtime.

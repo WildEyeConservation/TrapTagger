@@ -477,6 +477,9 @@ You must download this code to your server:
 - Clone this repository `git clone https://github.com/WildEyeConservation/TrapTagger`
 - Navigate to the newly-added TrapTagger folder
 - Clone the submodules using the following command `git submodule update --init`
+- Clone the WorkR repository `git clone https://github.com/WildEyeConservation/WorkR`
+- Navigate to the newly-added WorkR folder and checkout the server branch `git checkout server`
+- Return to the TrapTagger folder
 
 ### Docker
 
@@ -529,6 +532,7 @@ env_variables.sh, and then simply set them using the command `. env_variables.sh
 - WBIA_DB_SERVER                        The server where the WBIA database is hosted. postgresql://username:password@endpoint
 - WBIA_DIR                              The name of the directory where WBIA will store files
 - AWS_ACCOUNT_ID                        The ID of your AWS account. 
+- DEBUGGING                             True if you are not production.
 
 ### SSL Certificate
 
@@ -556,7 +560,7 @@ Simply follow the instructions on how to use [certbot](https://certbot.eff.org/)
 
 - Start the application with the command `docker-compose up`.
 - You can stop the process by first entering `docker stop flask` and subsequently `docker-compose down`. The first command will reschedule any long-running tasks to be performed once the application is up and running again.
-- Please note the first time you start the application, you must do so in initial setup mode. This is achieved by setting the INITIAL_SETUP variable in the config file to True. This will allow the application to initialise your database. Once it has done so, you can reset the application with initial setup mode switched off.
+- For the initial setup, follow the instructions in setup.txt.
 
 # Using the Site
 

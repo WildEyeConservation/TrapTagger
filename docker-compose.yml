@@ -506,7 +506,7 @@ services:
     traptagger_redis:
         # Redis server
         restart: always
-        image : redis:latest       
+        image : redis:7.4
         container_name: traptagger_redis
         volumes:
             - ./:/data/

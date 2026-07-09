@@ -259,7 +259,7 @@ class Config(object):
             'FunctionName': VIDEO_IMPORT_LAMBDA,	
             'Handler': 'lambda_function.lambda_handler',
             'Role': 'arn:aws:iam::'+AWS_ACCOUNT_ID+':role/'+LAMBDA_ROLE,
-            'Runtime': 'python3.9',
+            'Runtime': 'python3.12',
             'Timeout': 900,
             'MemorySize': 1024,
             'EphemeralStorage': {
@@ -286,7 +286,7 @@ class Config(object):
             'FunctionName': VIDEO_EXTRACT_LAMBDA,
             'Handler': 'lambda_function.lambda_handler',
             'Role': 'arn:aws:iam::'+AWS_ACCOUNT_ID+':role/'+LAMBDA_ROLE,	
-            'Runtime': 'python3.9',
+            'Runtime': 'python3.12',
             'Timeout': 900,
             'MemorySize': 512,
             'EphemeralStorage': {
@@ -313,17 +313,17 @@ class Config(object):
     LAMBDA_LAYERS = {
         FFMPEG_LAYER: {
             'LayerName': 'ffmpeg_layer',
-            'CompatibleRuntimes': ['python3.9', 'python3.12'],
+            'CompatibleRuntimes': ['python3.12'],
             'CompatibleArchitectures': ['x86_64'],
         },
         FFPROBE_LAYER: {
             'LayerName': 'ffprobe_layer',
-            'CompatibleRuntimes': ['python3.9', 'python3.12'],
+            'CompatibleRuntimes': ['python3.12'],
             'CompatibleArchitectures': ['x86_64'],
         },
         OPENCV_LAYER: {
             'LayerName': 'opencv_layer',
-            'CompatibleRuntimes': ['python3.9'],
+            'CompatibleRuntimes': ['python3.12'],
             'CompatibleArchitectures': ['x86_64'],
         }
     }

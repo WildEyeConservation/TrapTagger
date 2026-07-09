@@ -20,7 +20,6 @@
 echo "Building Lambda layers!"
 sudo apt-get install zip -y
 sudo apt-get install wget -y
-sudo apt-get install python3.9 -y
 
 echo "Building Lambda layer: ffmpeg and ffprobe"
 
@@ -60,7 +59,13 @@ echo "Building Lambda layer: OpenCV"
 
 # Build the OpenCV Lambda layer (Create a directory and install OpenCV)
 mkdir -p build/python 
-python3.9 -m pip install opencv-python-headless -t build/python  # Note: Install python3.9 if not installed
+python3 -m pip install "numpy==1.26.4" "opencv-python-headless==4.8.1.78" \
+  --platform manylinux2014_x86_64 \
+  --target=build/python \
+  --implementation cp \
+  --python-version 3.12 \
+  --only-binary=:all: \
+  --upgrade
 cd build
 zip -r opencv.zip .
 cd ..
