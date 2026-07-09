@@ -6391,7 +6391,7 @@ document.getElementById('btnEditSurvey').addEventListener('click', ()=>{
                     fileEntries.push({
                         field_key: fieldKey,
                         name: file.name,
-                        distance: parseCalUploadDistance(file.name)
+                        distance: set.distances[f]
                     })
                     formData.append(fieldKey, file, file.name)
                 }
@@ -7591,8 +7591,8 @@ function validateCalUploadFiles(files) {
         return { valid: false, message: 'No JPEG files found in the selected folder.' }
     }
 
-    var distances = []
-    var validFiles = []
+    var pairs = []
+    var seenDistances = {}
 
     for (var i = 0; i < directFiles.length; i++) {
         var file = directFiles[i]
@@ -7606,23 +7606,29 @@ function validateCalUploadFiles(files) {
             continue
         }
 
-        if (distances.indexOf(distance) !== -1) {
+        if (seenDistances[distance]) {
             continue
         }
 
-        distances.push(distance)
-        validFiles.push(file)
+        seenDistances[distance] = true
+        pairs.push({ file: file, distance: distance })
     }
 
-    if (validFiles.length === 0) {
+    if (pairs.length === 0) {
         return { valid: false, message: 'No valid calibration JPEGs found in the selected folder.' }
     }
 
-    distances.sort(function(a, b) { return a - b })
+    pairs.sort(function(a, b) { return a.distance - b.distance })
+    var validFiles = []
+    var distances = []
+    for (var p = 0; p < pairs.length; p++) {
+        validFiles.push(pairs[p].file)
+        distances.push(pairs[p].distance)
+    }
     return { valid: true, distances: distances, files: validFiles }
 }
 
-function filterCalUploadAgainstExisting(files, distances, existingDistances, otherStagedSets, cameragroupId) {
+function filterCalUploadAgainstExisting(files, existingDistances, otherStagedSets, cameragroupId) {
     var taken = {}
     var i, j, d
 
@@ -7638,19 +7644,24 @@ function filterCalUploadAgainstExisting(files, distances, existingDistances, oth
         }
     }
 
-    var keptFiles = []
-    var keptDistances = []
+    var pairs = []
     for (i = 0; i < files.length; i++) {
-        d = distances[i]
-        if (taken[d]) {
+        var file = files[i]
+        d = parseCalUploadDistance(file.name)
+        if (d === null || taken[d]) {
             continue   // skip silently — already in DB or another staged set
         }
         taken[d] = true
-        keptFiles.push(files[i])
-        keptDistances.push(d)
+        pairs.push({ file: file, distance: d })
     }
 
-    keptDistances.sort(function(a, b) { return a - b })
+    pairs.sort(function(a, b) { return a.distance - b.distance })
+    var keptFiles = []
+    var keptDistances = []
+    for (i = 0; i < pairs.length; i++) {
+        keptFiles.push(pairs[i].file)
+        keptDistances.push(pairs[i].distance)
+    }
     return { files: keptFiles, distances: keptDistances }
 }
 
@@ -7716,8 +7727,12 @@ function renderStagedCalUploadSets(container) {
             var col = document.createElement('div')
             col.classList.add('col-lg-12')
 
+            var labels = []
+            for (var j = 0; j < set.files.length; j++) {
+                labels.push(set.files[j].name + ' (' + set.distances[j] + ')')
+            }
             var text = document.createElement('span')
-            text.textContent = set.cameragroupName + ' — ' + set.files.length + ' image(s), distances ' + set.distances.join(', ')
+            text.textContent = set.cameragroupName + ' — ' + labels.join(', ')
             col.appendChild(text)
 
             var btn = document.createElement('button')
@@ -7835,7 +7850,7 @@ function buildCalUploadMode() {
 
         fetchExistingCalDistances(cgId, function(existingDistances) {
             var filtered = filterCalUploadAgainstExisting(
-                result.files, result.distances, existingDistances, stagedCalUploadSets, cgId
+                result.files, existingDistances, stagedCalUploadSets, cgId
             )
 
             if (filtered.files.length === 0) {
@@ -7846,7 +7861,7 @@ function buildCalUploadMode() {
             var count = filtered.files.length
             addStagedCalUploadSet(cgId, cgName, filtered.files, filtered.distances)
             renderStagedCalUploadSets(stagedDiv)
-            statusDiv.innerHTML = '<i>Found ' + count + ' valid image' + (count === 1 ? '' : 's') + ' at unique distances for this camera. Set staged — click Save Changes to apply.</i>'
+            statusDiv.innerHTML = '<i>Found ' + count + ' valid image' + (count === 1 ? '' : 's') + ' at distances ' + filtered.distances.join(', ') + '. Set staged — click Save Changes to apply.</i>'
         })
     }
 
