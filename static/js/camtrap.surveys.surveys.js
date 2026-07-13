@@ -186,6 +186,8 @@ const btnExcelDownload = document.querySelector('#btnExcelDownload');
 const btnCsvDownload = document.querySelector('#btnCsvDownload');
 const modalConfirmEditSpecies = $('#modalConfirmEditSpecies');
 const modalConfirmEditClose = $('#modalConfirmEditClose');
+const modalConfirmDepthUnsaved = $('#modalConfirmDepthUnsaved');
+const modalConfirmCalSave = $('#modalConfirmCalSave');
 const modalConfirmEmpty = $('#modalConfirmEmpty');
 const modalConfirmRestore = $('#modalConfirmRestore');
 const btnConfirmRestore = document.querySelector('#btnConfirmRestore')
@@ -393,9 +395,22 @@ var selectedCalMode = null
 var editedCalDistances = {}
 var deletedCalImages = []
 var editedCalBboxes = {}
+var calImageCameragroupById = {}
 var stagedCalUploadSets = []
+var activeImageCal = null
+var finishedDisplayingCal = true
 var surveyCameragroups = [] // for the upload dropdown only, seperate from calCameras
 var stagedCalUploadSetIdSeq = 0
+var depthSpeciesSkip = {
+    'All': true,
+    'Vehicles/Humans/Livestock': true,
+    'Nothing': true,
+    'unknown': true
+}
+var surveyIgnoreSmallDetections = null
+var surveySkyMasked = null
+var surveyAdvancedOptionsLoaded = false
+var depthSelectedTaskId = null
 
 function buildSurveys(survey,disableSurvey) {
     /**
@@ -4458,6 +4473,9 @@ function clearEditSurveyModal() {
     surveyArea = null
     surveyAreaEditOption = null
     areaConfirmOpen = false
+    surveyAdvancedOptionsLoaded = false
+    surveyIgnoreSmallDetections = null
+    surveySkyMasked = null
 
     // Calibration tab — full reset when modal is cleared
     resetCalibrationState()
@@ -4465,6 +4483,14 @@ function clearEditSurveyModal() {
     if (editCalibrationDiv) {
         while (editCalibrationDiv.firstChild) {
             editCalibrationDiv.removeChild(editCalibrationDiv.firstChild)
+        }
+    }
+
+    // depth estimation tab
+    var editDepthEstimationDiv = document.getElementById('editDepthEstimationDiv')
+    if (editDepthEstimationDiv){
+        while (editDepthEstimationDiv.firstChild){
+            editDepthEstimationDiv.removeChild(editDepthEstimationDiv.firstChild)
         }
     }
 }
@@ -4537,6 +4563,9 @@ function buildAdvancedOptions() {
             if (reply.smallDetections=='True') {
                 input.checked = true
             }
+            surveyIgnoreSmallDetections = (reply.smallDetections == 'True')
+            surveySkyMasked = (reply.skyMask == 'True')
+            surveyAdvancedOptionsLoaded = true
         
             label = document.createElement('label')
             label.classList.add('custom-control-label')
@@ -6194,6 +6223,152 @@ function addFiles(){
 
 document.getElementById('btnEditSurvey').addEventListener('click', ()=>{
     /** Handles the submission of the edit survey modal. */
+    submitEditSurvey()
+});
+
+function hasUnsavedEditSurveyChanges() {
+    /** Returns true if the edit survey modal has staged changes not yet saved to the server. */
+    if (Object.keys(editedCalBboxes).length > 0) return true
+    if (Object.keys(editedCalDistances).length > 0) return true
+    if (deletedCalImages.length > 0) return true
+    if (stagedCalUploadSets.length > 0) return true
+    if (removedMasks.length > 0) return true
+    if (Object.keys(addedMasks).length > 0) return true
+    if (Object.keys(editedMasks).length > 0) return true
+    for (var i = 0; i < staticgroups.length; i++) {
+        if (staticgroups[i].staticgroup_status != og_staticgroup_status[staticgroups[i].id]) return true
+    }
+    if (Object.keys(corrected_coordinates).length > 0) return true
+    var kmlUpload = document.getElementById('kmlFileUpload2')
+    if (kmlUpload && kmlUpload.files && kmlUpload.files.length > 0) return true
+    if (Object.keys(global_corrected_timestamps).length > 0) return true
+    if (Object.keys(new_missing_timestamps).length > 0) return true
+    if (Object.keys(corrected_extracted_timestamps).length > 0) return true
+    if (Object.keys(corrected_edited_timestamps).length > 0) return true
+    if (surveyClassifier != null) {
+        var selectedClassifier = document.querySelector('input[name="classifierSelection"]:checked')
+        if (selectedClassifier && String(selectedClassifier.value) !== String(surveyClassifier)) return true
+    }
+    if (document.getElementById('smallDetectionsCheckbox') != null && surveyAdvancedOptionsLoaded) {
+        if (document.getElementById('smallDetectionsCheckbox').checked !== surveyIgnoreSmallDetections) return true
+        if (document.getElementById('skyMaskCheckbox').checked !== surveySkyMasked) return true
+    }
+    if (surveyAreaEditOption != null) return true
+    var createSurveyAreaEl = document.getElementById('createSurveyArea')
+    if (createSurveyAreaEl && createSurveyAreaEl.checked) return true
+    var editAreaNameEl = document.getElementById('editAreaName')
+    if (editAreaNameEl && editAreaNameEl.checked) return true
+    var areaSelect = document.getElementById('surveyAreaSelect')
+    if (areaSelect && surveyArea != null && areaSelect.value != surveyArea &&
+        areaSelect.value !== '' && areaSelect.value !== '-1') return true
+    if (editingEnabled) return true
+    return false
+}
+
+function showEditSurveyDepthTab() {
+    /** Shows the depth estimation tab in the edit survey modal. */
+    tabActiveEditSurvey = 'baseDepthEstimationTab'
+    var mainModal = document.getElementById('modalEditSurvey')
+    var tabcontent = mainModal.getElementsByClassName('tabcontent')
+    for (var i = 0; i < tabcontent.length; i++) {
+        tabcontent[i].style.display = (tabcontent[i].id === 'baseDepthEstimationTab') ? 'block' : 'none'
+    }
+    var tablinks = mainModal.getElementsByClassName('tablinks')
+    for (var j = 0; j < tablinks.length; j++) {
+        tablinks[j].className = tablinks[j].className.replace(' active', '')
+        if (tablinks[j].id === 'openDepthEstimationTab') {
+            tablinks[j].className += ' active'
+        }
+    }
+    document.getElementById('editSurveyErrors').innerHTML = ''
+}
+
+function discardEditSurveyStagedChangesKeepingDepthTab() {
+    /** Discards all staged edit-survey changes and rebuilds the depth estimation tab. */
+    clearEditSurveyModal()
+    showEditSurveyDepthTab()
+    openDepthEstimation()
+}
+
+function showDepthUnsavedChangesModal() {
+    /** Prompts the user to save or discard edit-survey changes before depth launch. */
+    modalConfirmDepthUnsaved.modal({keyboard: true})
+}
+
+function hasStagedCalibrationChanges() {
+    if (Object.keys(editedCalBboxes).length > 0) return true
+    if (Object.keys(editedCalDistances).length > 0) return true
+    if (deletedCalImages.length > 0) return true
+    if (stagedCalUploadSets.length > 0) return true
+    return false
+}
+
+function recordCalImageCameragroup(calId) {
+    /** Assocaites a calibration image id with the currently selected cameragroup */
+    var select = document.getElementById('calCameraSelect')
+    if (!select || !select.value) return
+    calImageCameragroupById[calId] = parseInt(select.value, 10)
+}
+
+function getAffectedCalibrationCameragroupIds() {
+    var ids = {}
+    function addId(id) {
+        if (id != null && !isNaN(id)) ids[id] = true
+    }
+
+    for (var calId in editedCalBboxes){
+        addId(calImageCameragroupById[calId])
+    }
+    for (var calId in editedCalDistances) {
+        addId(calImageCameragroupById[calId])
+    }
+    for (var i = 0; i < deletedCalImages.length; i++) {
+        addId(calImageCameragroupById[deletedCalImages[i]])
+    }
+    for (var s = 0; s < stagedCalUploadSets.length; s++) {
+        addId(stagedCalUploadSets[s].cameragroupId)
+    }
+
+    return Object.keys(ids).map(function(k) {return parseInt(k, 10)})
+}
+
+function resolveCalibrationCameragroupName(cgId) {
+    for (var i = 0; i < calCameras.length; i++) {
+        if (calCameras[i].id === cgId) return calCameras[i].name
+    }
+    for (var s = 0; s <  stagedCalUploadSets.length; s++) {
+        if (stagedCalUploadSets[s].cameragroupId === cgId) {
+            return stagedCalUploadSets[s].cameragroupName
+        }
+    }
+    return 'Cameragroup ' + cgId
+}
+
+function getAffectedCalibrationCameragroupNames() {
+    var ids = getAffectedCalibrationCameragroupIds()
+    var names = []
+    for (var i = 0; i < ids.length; i++) {
+        names.push(resolveCalibrationCameragroupName(ids[i]))
+    }
+    names.sort()
+    return names
+}
+
+function showCalSaveWarningModal(){
+    var names = getAffectedCalibrationCameragroupNames()
+    var listEl = document.getElementById('modalConfirmCalSaveCameragroups')
+    listEl.innerHTML = names.length > 0
+        ? names.join(', ')
+        : '<i>Unkown cameragroups</i>'
+
+    var deletionEl = document.getElementById('modalConfirmCalSaveDeletionWarning')
+    deletionEl.style.display = deletedCalImages.length > 0 ? 'block' : 'none'
+
+    modalConfirmCalSave.modal({keyboard:true})
+}
+
+function submitEditSurvey(skipCalSaveWarning) {
+    /** Validates and submits staged edit-survey changes to the server. */
 
     var editSurveyErrors = document.getElementById('editSurveyErrors')
     while(editSurveyErrors.firstChild){
@@ -6366,6 +6541,12 @@ document.getElementById('btnEditSurvey').addEventListener('click', ()=>{
     }
 
     if (legalFile&&legalClassifier&&!editingEnabled&&legalTimestamp&&legalArea) {
+
+        if (!skipCalSaveWarning && hasStagedCalibrationChanges()) {
+            showCalSaveWarningModal()
+            return
+        }
+
         document.getElementById('btnEditSurvey').disabled = true
 
         var formData = new FormData()
@@ -6441,7 +6622,32 @@ document.getElementById('btnEditSurvey').addEventListener('click', ()=>{
         } 
         xhttp.send(formData);
     }
-});
+}
+
+$('#btnDepthUnsavedCancel').click(function() {
+    modalConfirmDepthUnsaved.modal('hide')
+})
+
+$('#btnDepthUnsavedDiscard').click(function() {
+    discardEditSurveyStagedChangesKeepingDepthTab()
+    var statusDiv = document.getElementById('depthEstimationStatus')
+    if (statusDiv) {
+        statusDiv.innerHTML = '<i>Unsaved changes discarded. Review your selections and click Launch when ready.</i>'
+    }
+})
+
+$('#btnDepthUnsavedSave').click(function() {
+    submitEditSurvey()
+})
+
+$('#btnCalSaveCancel').click(function() {
+    modalConfirmCalSave.modal('hide')
+})
+
+$('#btnCalSaveConfirm').click(function(){
+    modalConfirmCalSave.modal('hide')
+    submitEditSurvey(true)
+})
 
 // function addImagesSendRequest(formData) {
 //     /** Submits the add-images request to the server, and begins the browser upload if necessary. */
@@ -6925,6 +7131,9 @@ function changeEditSurveyTab(evt, tabName) {
     }
     else if (tabName == 'baseCalibrationTab') {
         openCalibrationImages()
+    }
+    else if (tabName == 'baseDepthEstimationTab') {
+        openDepthEstimation()
     }
 
     document.getElementById('editSurveyErrors').innerHTML = ''
@@ -7522,17 +7731,24 @@ function buildCalibrationImages() {
     div.appendChild(contentDiv)
 }
 
-function resetCalibrationView() {
-    calImages = []
-    calImgIndex = 0
-    calCurrentBox = null
-    mapReadyCal = false
+function teardownCalMap() {
+    /** Removes the calibration Leaflet map and resets overlay/navigation state. */
     if (mapCal != null) {
         mapCal.remove()
         mapCal = null
         drawControlCal = null
         drawnItemsCal = null
     }
+    activeImageCal = null
+    mapReadyCal = false
+    finishedDisplayingCal = true
+}
+
+function resetCalibrationView() {
+    calImages = []
+    calImgIndex = 0
+    calCurrentBox = null
+    teardownCalMap()
     var content = document.getElementById('calModeContent')
     if (content) {
         while (content.firstChild) content.removeChild(content.firstChild)
@@ -7544,6 +7760,7 @@ function resetCalibrationStaging() {
     editedCalDistances = {}
     deletedCalImages = []
     stagedCalUploadSets = []
+    calImageCameragroupById = {}
 }
 
 function resetCalibrationState() {
@@ -7976,10 +8193,16 @@ function buildCalDeleteMode() {
         if (select.selectedIndex > 0) { select.selectedIndex--; getCalibrationImagesForCamera(parseInt(select.value)) }
     })
     btnPrevImg.addEventListener('click', function() {
-        if (calImgIndex > 0) { calImgIndex--; updateCalMap() }
+        if (calImgIndex > 0 && finishedDisplayingCal) {
+            calImgIndex--
+            updateCalMap()
+        }
     })
     btnNextImg.addEventListener('click', function() {
-        if (calImgIndex < calImages.length - 1) { calImgIndex++; updateCalMap() }
+        if (calImgIndex < calImages.length - 1 && finishedDisplayingCal) {
+            calImgIndex++
+            updateCalMap()
+        }
     })
     btnNextCam.addEventListener('click', function() {
         var select = document.getElementById('calCameraSelect')
@@ -8031,6 +8254,7 @@ function stageCalibrationDeletion() {
     var idx = deletedCalImages.indexOf(cal_id)
     if (idx === -1) {
         deletedCalImages.push(cal_id)
+        recordCalImageCameragroup(cal_id)
         document.getElementById('calStageDeleteBtn').innerHTML = 'Unstage Deletion'
         document.getElementById('calStageDeleteBtn').classList.remove('btn-primary')
         document.getElementById('calStageDeleteBtn').classList.add('btn-warning')
@@ -8195,10 +8419,16 @@ function buildCalEditMode() {
         }
     })
     btnPrevImg.addEventListener('click', function() {
-        if (calImgIndex > 0) { calImgIndex--; updateCalMap() }
+        if (calImgIndex > 0 && finishedDisplayingCal) {
+            calImgIndex--
+            updateCalMap()
+        }
     })
     btnNextImg.addEventListener('click', function() {
-        if (calImgIndex < calImages.length - 1) { calImgIndex++; updateCalMap() }
+        if (calImgIndex < calImages.length - 1 && finishedDisplayingCal) {
+            calImgIndex++
+            updateCalMap()
+        }
     })
     btnNextCam.addEventListener('click', function() {
         var select = document.getElementById('calCameraSelect')
@@ -8293,10 +8523,16 @@ function prepMapCal(image) {
             mapWidthCal = northEast.lng
             mapHeightCal = southWest.lat
 
-            var activeImage = L.imageOverlay(imageUrl, bounds).addTo(mapCal)
-            activeImage.on('load', function() {
+            activeImageCal = L.imageOverlay(imageUrl, bounds).addTo(mapCal)
+            activeImageCal.on('load', function() {
                 drawCalBboxOnMap()
                 mapReadyCal = true
+                finishedDisplayingCal = true
+                updateButtons()
+            })
+            activeImageCal.on('error', function() {
+                finishedDisplayingCal = true
+                updateButtons()
             })
 
             mapCal.setMaxBounds(bounds)
@@ -8402,15 +8638,14 @@ function updateCalMap() {
     calCurrentBox = (img.top != null) ? {top: img.top, left: img.left, bottom: img.bottom, right: img.right} : null
     document.getElementById('calStatusMsg').innerHTML = ''
 
-    if (mapCal != null) {
+    if (mapCal != null && activeImageCal != null) {
+        finishedDisplayingCal = false
+        mapReadyCal = false
+        // Remove stale bbox while new image loads
+        if (drawnItemsCal) drawnItemsCal.clearLayers()
         var imageUrl = 'https://' + bucketName + '.s3.amazonaws.com/' + img.url
-        // Find and update the image overlay
-        mapCal.eachLayer(function(layer) {
-            if (layer instanceof L.ImageOverlay) {
-                layer.setUrl(imageUrl)
-            }
-        })
-        drawCalBboxOnMap()
+        activeImageCal.setUrl(imageUrl)
+        // drawCalBboxOnMap() — REMOVE from here; load handler draws it
     } else {
         prepMapCal(img)
     }
@@ -8487,6 +8722,7 @@ function getCalibrationImagesForCamera(cameragroup_id) {
             calImages = JSON.parse(this.responseText)
             for (var i = 0; i < calImages.length; i++) {
                 var id = calImages[i].id
+                calImageCameragroupById[id] = cameragroup_id
                 if (editedCalBboxes[id]) {
                     var b = editedCalBboxes[id]
                     calImages[i].top = b.top
@@ -8499,12 +8735,7 @@ function getCalibrationImagesForCamera(cameragroup_id) {
                 }
             }
             calImgIndex = 0
-            if (mapCal != null) {
-                mapCal.remove()
-                mapCal = null
-                drawControlCal = null
-                drawnItemsCal = null
-            }
+            teardownCalMap()
             if (calImages.length > 0) {
                 updateCalMap()
             } else {
@@ -8523,6 +8754,7 @@ function saveCalibrationBbox() {
     var cal_id = calImages[calImgIndex].id
     var payload = calCurrentBox ? calCurrentBox : {top: null, left: null, bottom: null, right: null}
     editedCalBboxes[cal_id] = payload
+    recordCalImageCameragroup(cal_id)
     calImages[calImgIndex].top    = payload.top
     calImages[calImgIndex].left   = payload.left
     calImages[calImgIndex].bottom = payload.bottom
@@ -8540,6 +8772,7 @@ function saveCalibrationDistance() {
     // Skip if value hasn't actually changed
     if (newDist === calImages[calImgIndex].distance) return
     editedCalDistances[cal_id] = newDist
+    recordCalImageCameragroup(cal_id)
     calImages[calImgIndex].distance = newDist
     document.getElementById('calStatusMsg').innerHTML = '<i>Distance staged. Click Save Changes to apply.</i>'
 }
@@ -8658,6 +8891,555 @@ function prepMapStatic(image) {
         };
         img.src = imageUrl  
     }
+}
+
+function openDepthEstimation(){
+    /** Initializes the depth estimation tab on first open */
+    if (tabActiveEditSurvey == 'baseDepthEstimationTab'){
+        var div = document.getElementById('editDepthEstimationDiv')
+        if (div.firstChild == null) {
+            buildDepthEstimation()
+        }
+    }
+}
+
+function buildDepthEstimation() {
+    /** Builds the depth estimation tab in the edit survey modal. */
+    var div = document.getElementById('editDepthEstimationDiv')
+    while (div.firstChild) div.removeChild(div.firstChild)
+
+    // Title + description
+    var h5 = document.createElement('h5')
+    h5.setAttribute('style', 'margin-bottom: 2px')
+    h5.innerHTML = 'Depth Estimation'
+    div.appendChild(h5)
+
+    var desc = document.createElement('div')
+    desc.setAttribute('style', 'font-size: 80%; margin-bottom: 2px')
+    desc.innerHTML = '<i>Estimate detection distances using calibration images and species-labelled trap detections from an annotation set.</i>'
+    div.appendChild(desc)
+    div.appendChild(document.createElement('br'))
+
+    // Annotation set
+    h5 = document.createElement('h5')
+    h5.setAttribute('style', 'margin-bottom: 2px')
+    h5.innerHTML = 'Annotation Set'
+    div.appendChild(h5)
+
+    desc = document.createElement('div')
+    desc.setAttribute('style', 'font-size: 80%; margin-bottom: 2px')
+    desc.innerHTML = '<i>Select the annotation set whose species labels should be used.</i>'
+    div.appendChild(desc)
+
+    desc = document.createElement('div')
+    desc.setAttribute('style', 'font-size: 80%; margin-bottom: 2px')
+    desc.innerHTML = '<i>Note that only annotation sets with the species labeling complete will appear here for selection.</i>'
+    div.appendChild(desc)
+
+    var row = document.createElement('div')
+    row.classList.add('row')
+    div.appendChild(row)
+
+    var col = document.createElement('div')
+    col.classList.add('col-lg-4')
+    row.appendChild(col)
+
+    var taskSelect = document.createElement('select')
+    taskSelect.id = 'depthTaskSelect'
+    taskSelect.classList.add('form-control')
+    col.appendChild(taskSelect)
+
+    div.appendChild(document.createElement('br'))
+
+    // Species
+    h5 = document.createElement('h5')
+    h5.innerHTML = 'Species'
+    div.appendChild(h5)
+
+    desc = document.createElement('div')
+    desc.setAttribute('style', 'font-size: 80%; margin-bottom: 2px')
+    desc.innerHTML = '<i>Select one or more species to process. Names must match label names exactly.</i>'
+    div.appendChild(desc)
+
+    row = document.createElement('div')
+    row.classList.add('row')
+    div.appendChild(row)
+
+    col = document.createElement('div')
+    col.classList.add('col-lg-6')
+    row.appendChild(col)
+
+    var speciesActions = document.createElement('div')
+    speciesActions.id = 'depthSpeciesActions'
+    speciesActions.setAttribute('style', 'margin-bottom: 4px; display: none;')
+
+    var selectAllBtn = document.createElement('button')
+    selectAllBtn.type = 'button'
+    selectAllBtn.classList.add('btn', 'btn-link', 'btn-sm')
+    selectAllBtn.style.padding = '0 8px 0 0'
+    selectAllBtn.innerHTML = 'Select all'
+    selectAllBtn.onclick = function() { setAllDepthSpeciesChecked(true) }
+    speciesActions.appendChild(selectAllBtn)
+
+    var deselectAllBtn = document.createElement('button')
+    deselectAllBtn.type = 'button'
+    deselectAllBtn.classList.add('btn', 'btn-link', 'btn-sm')
+    deselectAllBtn.style.padding = '0'
+    deselectAllBtn.innerHTML = 'Deselect all'
+    deselectAllBtn.onclick = function() { setAllDepthSpeciesChecked(false) }
+    speciesActions.appendChild(deselectAllBtn)
+
+    col.appendChild(speciesActions)
+
+    var speciesDiv = document.createElement('div')
+    speciesDiv.id = 'depthSpeciesList'
+    speciesDiv.setAttribute('style', 'max-height: 160px; overflow-y: auto;')
+    col.appendChild(speciesDiv)
+
+    div.appendChild(document.createElement('br'))
+
+    // Preview / primer
+    h5 = document.createElement('h5')
+    h5.setAttribute('style', 'margin-bottom: 2px')
+    h5.innerHTML = 'Preview'
+    div.appendChild(h5)
+    desc = document.createElement('div')
+    desc.setAttribute('style', 'font-size: 80%; margin-bottom: 2px')
+    desc.innerHTML = '<i>Summary based on saved survey data in the database.</i>'
+    div.appendChild(desc)
+    var primerDiv = document.createElement('div')
+    primerDiv.id = 'depthEstimationPrimer'
+    primerDiv.setAttribute('style', 'margin-bottom: 8px;')
+    primerDiv.innerHTML = '<i>Select an annotation set and species to see launch preview.</i>'
+    div.appendChild(primerDiv)
+    div.appendChild(document.createElement('br'))
+
+    // Launch button
+    row = document.createElement('div')
+    row.classList.add('row')
+    div.appendChild(row)
+
+    col = document.createElement('div')
+    col.classList.add('col-lg-4')
+    row.appendChild(col)
+
+    var launchBtn = document.createElement('button')
+    launchBtn.id = 'depthLaunchBtn'
+    launchBtn.classList.add('btn', 'btn-primary', 'btn-block')
+    launchBtn.innerHTML = 'Launch Depth Estimation'
+    launchBtn.disabled = true
+    launchBtn.onclick = function() { launchDepthEstimationFromUI() }
+    col.appendChild(launchBtn)
+
+    div.appendChild(document.createElement('br'))
+
+    // Errors + status (tab-local, not editSurveyErrors)
+    var errorsDiv = document.createElement('div')
+    errorsDiv.id = 'depthEstimationErrors'
+    errorsDiv.setAttribute('style', 'font-size: 80%; color: #DF691A')
+    div.appendChild(errorsDiv)
+
+    var statusDiv = document.createElement('div')
+    statusDiv.id = 'depthEstimationStatus'
+    statusDiv.setAttribute('style', 'font-size: 80%;')
+    div.appendChild(statusDiv)
+
+    // Load annotation sets for current survey
+    loadDepthTasks()
+}
+
+function loadDepthTasks() {
+    var taskSelect = document.getElementById('depthTaskSelect')
+    var errorsDiv = document.getElementById('depthEstimationErrors')
+    var launchBtn = document.getElementById('depthLaunchBtn')
+    var xhttp = new XMLHttpRequest()
+    xhttp.onreadystatechange = function() {
+        if (this.readyState == 4 && this.status == 200) {
+            var reply = JSON.parse(this.responseText)
+            clearSelect(taskSelect)
+            if (reply.status !== 'success' || !reply.tasks || reply.tasks.length === 0) {
+                fillSelect(taskSelect, ['No annotation sets available'], [''])
+                if (taskSelect) taskSelect.disabled = true
+                if (launchBtn) launchBtn.disabled = true
+                var speciesDiv = document.getElementById('depthSpeciesList')
+                if (speciesDiv) {
+                    while (speciesDiv.firstChild) speciesDiv.removeChild(speciesDiv.firstChild)
+                    speciesDiv.innerHTML = '<i>No species available.</i>'
+                }
+                var speciesActions = document.getElementById('depthSpeciesActions')
+                if (speciesActions) speciesActions.style.display = 'none'
+                var primerDiv = document.getElementById('depthEstimationPrimer')
+                if (primerDiv) {
+                    primerDiv.innerHTML = '<i>No annotation sets with completed species labeling are available.</i>'
+                }
+                depthSelectedTaskId = null
+                if (errorsDiv) {
+                    errorsDiv.innerHTML = 'No annotation sets with completed species labeling are available.'
+                }
+                return
+            }
+
+            if (taskSelect) taskSelect.disabled = false
+            var optionTexts = []
+            var optionValues = []
+            for (var i = 0; i < reply.tasks.length; i++) {
+                optionTexts.push(reply.tasks[i].name)
+                optionValues.push(reply.tasks[i].id)
+            }
+            fillSelect(taskSelect, optionTexts, optionValues)
+
+            taskSelect.onchange = function () {
+                loadDepthSpecies(this.value)
+            }
+
+            if (errorsDiv) errorsDiv.innerHTML = ''
+            loadDepthSpecies(optionValues[0])
+        }
+    }
+    xhttp.open('GET', '/getDepthEstimationTasks/' + selectedSurvey)
+    xhttp.send()
+}
+
+function loadDepthSpecies(taskId) {
+    depthSelectedTaskId = taskId
+    var speciesDiv = document.getElementById('depthSpeciesList')
+    var speciesActions = document.getElementById('depthSpeciesActions')
+    var launchBtn = document.getElementById('depthLaunchBtn')
+    while (speciesDiv.firstChild) speciesDiv.removeChild(speciesDiv.firstChild)
+    if (speciesActions) speciesActions.style.display = 'none'
+
+    launchBtn.disabled = true
+    document.getElementById('depthEstimationErrors').innerHTML = ''
+    document.getElementById('depthEstimationStatus').innerHTML = ''
+
+    var loading = document.createElement('div')
+    loading.innerHTML = '<i>Loading species...</i>'
+    speciesDiv.appendChild(loading)
+
+    var xhttp = new XMLHttpRequest()
+    xhttp.onreadystatechange = function () {
+        if (this.readyState !== 4 || this.status !== 200) return
+
+        while (speciesDiv.firstChild) speciesDiv.removeChild(speciesDiv.firstChild)
+        var reply = JSON.parse(this.responseText)
+        var speciesNames = []
+        for (var i = 0; i < reply.names.length; i++) {
+            var name = reply.names[i]
+            if (!depthSpeciesSkip[name]) speciesNames.push(name)
+        }
+        speciesNames.sort(function(a, b) {
+            return a.localeCompare(b, undefined, {sensitivity: 'base'})
+        })
+
+        if (speciesNames.length === 0) {
+            speciesDiv.innerHTML = '<i>No species available.</i>'
+            if (speciesActions) speciesActions.style.display = 'none'
+            refreshDepthEstimationPreview()
+            return
+        }
+
+        if (speciesActions) speciesActions.style.display = 'block'
+
+        for (var j = 0; j < speciesNames.length; j++) {
+            var speciesName = speciesNames[j]
+            var checkDiv = document.createElement('div')
+            checkDiv.classList.add('custom-control', 'custom-checkbox')
+
+            var input = document.createElement('input')
+            input.type = 'checkbox'
+            input.classList.add('custom-control-input')
+            input.id = 'depthSpecies-' + j
+            input.value = speciesName
+            input.checked = false
+            input.addEventListener('change', function () {
+                refreshDepthEstimationPreview()
+            })
+
+            var label = document.createElement('label')
+            label.classList.add('custom-control-label')
+            label.setAttribute('for', 'depthSpecies-' + j)
+            label.textContent = speciesName
+
+            checkDiv.appendChild(input)
+            checkDiv.appendChild(label)
+            speciesDiv.appendChild(checkDiv)
+        }
+
+        refreshDepthEstimationPreview()
+    }
+    xhttp.open('GET', '/getSpeciesandIDs/' + taskId)
+    xhttp.send()
+}
+
+function setAllDepthSpeciesChecked(checked) {
+    var speciesDiv = document.getElementById('depthSpeciesList')
+    if (!speciesDiv) return
+    var inputs = speciesDiv.querySelectorAll('input[type="checkbox"]')
+    for (var i = 0; i < inputs.length; i++) {
+        inputs[i].checked = checked
+    }
+    refreshDepthEstimationPreview()
+}
+
+function getSelectedDepthSpecies() {
+    var speciesDiv = document.getElementById('depthSpeciesList')
+    var selected = []
+    if (!speciesDiv) return selected
+    var inputs = speciesDiv.querySelectorAll('input[type="checkbox"]')
+    for (var i = 0; i < inputs.length; i++) {
+        if (inputs[i].checked) selected.push(inputs[i].value)
+    }
+    return selected
+}
+
+function refreshDepthEstimationPreview() {
+    var taskId = depthSelectedTaskId || document.getElementById('depthTaskSelect').value
+    loadDepthEstimationPreview(taskId, getSelectedDepthSpecies())
+}
+
+function loadDepthEstimationPreview(taskId, speciesList){
+    var primerDiv = document.getElementById('depthEstimationPrimer')
+    var launchBtn = document.getElementById('depthLaunchBtn')
+    var errorsDiv = document.getElementById('depthEstimationErrors')
+
+    if (!primerDiv) return
+
+    if (!taskId || !speciesList || speciesList.length === 0) {
+        primerDiv.innerHTML = '<i>Select an annotation set and at least one species to see launch preview.</i>'
+        if (launchBtn) launchBtn.disabled = true
+        return
+    }
+
+    primerDiv.innerHTML = '<i>Loading preview...</i>'
+    if (launchBtn) launchBtn.disabled = true
+    var xhttp = new XMLHttpRequest()
+    xhttp.onreadystatechange = function() {
+        if (this.readyState !== 4) return
+
+        if (this.status !== 200) {
+            primerDiv.innerHTML = '<span style="color: #DF691A;">Failed to load preview.</span>'
+            return
+        }
+
+        var reply = JSON.parse(this.responseText)
+        if (reply.status !== 'success') {
+            primerDiv.innerHTML = '<span style="color: #DF691A;">' +
+                (reply.message || 'Preview unavailable.') + '</span>'
+            return
+        }
+
+        renderDepthEstimationPrimer(reply.preview, speciesList)
+
+        var s = reply.preview.summary
+        var canLaunch = s.cameras_launchable > 0
+        if (launchBtn) launchBtn.disabled = !canLaunch
+
+        if (errorsDiv) {
+            if (s.cameras_launchable === 0) {
+                errorsDiv.innerHTML = 'No launchable cameras for this selection.'
+            }
+            else {
+                errorsDiv.innerHTML = ''
+            }
+        }
+    }
+
+    var speciesParam = JSON.stringify(speciesList)
+    xhttp.open('GET', '/getDepthEstimationPreview/' + selectedSurvey + '/' + taskId + '?species=' + encodeURIComponent(speciesParam))
+    xhttp.send()
+}
+
+function formatDepthCalColumn(calCount, calMissingBbox) {
+    if (!calCount) return '0'
+    if (!calMissingBbox) return String(calCount)
+    return calCount + ' (' + calMissingBbox + ' missing bounding box)'
+}
+
+function formatDepthStatusColumn(cam) {
+    if (cam.launchable) return 'Ready'
+    return 'Skipped (' + cam.exclusion_reason + ')'
+}
+
+function renderDepthEstimationPrimer(preview, speciesList) {
+    var primerDiv = document.getElementById('depthEstimationPrimer')
+    while (primerDiv.firstChild) primerDiv.removeChild(primerDiv.firstChild)
+
+    var s = preview.summary
+
+    if (speciesList && speciesList.length > 0) {
+        var speciesLine = document.createElement('div')
+        speciesLine.innerHTML = '<i>Species: ' + speciesList.join(', ') + '</i>'
+        primerDiv.appendChild(speciesLine)
+    }
+
+    var summaryLine = document.createElement('div')
+    summaryLine.innerHTML = '<b>' + s.cameras_launchable + '</b> camera(s) will be launched.'
+    primerDiv.appendChild(summaryLine)
+
+    if (s.cameras_skipped > 0) {
+        var skippedLine = document.createElement('div')
+        skippedLine.innerHTML = '<b>' + s.cameras_skipped + '</b> camera(s) will be skipped.'
+        primerDiv.appendChild(skippedLine)
+    }
+
+    if (s.cal_images_missing_bbox > 0) {
+        var bboxLine = document.createElement('div')
+        bboxLine.setAttribute('style', 'color: #DF691A;')
+        bboxLine.innerHTML = '<b>' + s.cal_images_missing_bbox +
+            '</b> calibration image(s) in launchable cameras are missing bounding boxes.'
+        primerDiv.appendChild(bboxLine)
+    }
+
+    if (!preview.sites || preview.sites.length === 0) {
+        var emptyLine = document.createElement('div')
+        emptyLine.innerHTML = '<i>No cameras found in this survey.</i>'
+        primerDiv.appendChild(emptyLine)
+        return
+    }
+
+    var scrollDiv = document.createElement('div')
+    scrollDiv.setAttribute('style', 'max-height: 280px; overflow-y: auto; margin-top: 8px;')
+
+    var table = document.createElement('table')
+    table.classList.add('table', 'table-striped', 'table-bordered')
+    table.style.borderCollapse = 'collapse'
+    table.style.border = '1px solid rgba(0,0,0,0)'
+    table.style.marginBottom = '0'
+    scrollDiv.appendChild(table)
+
+    var thead = document.createElement('thead')
+    table.appendChild(thead)
+    var headerRow = document.createElement('tr')
+    thead.appendChild(headerRow)
+
+    var headers = [
+        {text: 'Site', width: '12%'},
+        {text: 'Camera', width: '28%'},
+        {text: 'Species Count', width: '15%'},
+        {text: 'Calibration images', width: '20%'},
+        {text: 'Status', width: '25%'}
+    ]
+    var cellStyle = 'text-align:left; padding-top: 6px; padding-bottom: 6px; vertical-align: middle;'
+    for (var h = 0; h < headers.length; h++) {
+        var th = document.createElement('th')
+        th.innerHTML = headers[h].text
+        th.setAttribute('width', headers[h].width)
+        th.setAttribute('style', cellStyle)
+        headerRow.appendChild(th)
+    }
+
+    for (var si = 0; si < preview.sites.length; si++) {
+        var siteBlock = preview.sites[si]
+        var tbody = document.createElement('tbody')
+        tbody.classList.add('depth-preview')
+        table.appendChild(tbody)
+
+        for (var ci = 0; ci < siteBlock.cameras.length; ci++) {
+            var cam = siteBlock.cameras[ci]
+            var tr = document.createElement('tr')
+            tbody.appendChild(tr)
+
+            if (ci === 0) {
+                var siteTd = document.createElement('td')
+                siteTd.setAttribute('rowspan', siteBlock.cameras.length)
+                siteTd.setAttribute('style', cellStyle)
+                siteTd.innerHTML = siteBlock.site
+                tr.appendChild(siteTd)
+            }
+
+            var nameTd = document.createElement('td')
+            nameTd.setAttribute('style', cellStyle)
+            nameTd.innerHTML = cam.name
+            tr.appendChild(nameTd)
+
+            var trapTd = document.createElement('td')
+            trapTd.setAttribute('style', cellStyle)
+            trapTd.innerHTML = cam.trap_count
+            tr.appendChild(trapTd)
+
+            var calTd = document.createElement('td')
+            calTd.setAttribute('style', cellStyle)
+            calTd.innerHTML = formatDepthCalColumn(cam.cal_count, cam.cal_missing_bbox)
+            tr.appendChild(calTd)
+
+            var statusTd = document.createElement('td')
+            statusTd.setAttribute('style', cellStyle)
+            statusTd.innerHTML = formatDepthStatusColumn(cam)
+            tr.appendChild(statusTd)
+        }
+    }
+
+    primerDiv.appendChild(scrollDiv)
+}
+
+function launchDepthEstimationFromUI(){
+    if (hasUnsavedEditSurveyChanges()) {
+        showDepthUnsavedChangesModal()
+        return
+    }
+    executeDepthEstimationLaunch()
+}
+
+function executeDepthEstimationLaunch(){
+    var taskId = document.getElementById('depthTaskSelect').value
+    var speciesList = getSelectedDepthSpecies()
+    var errorsDiv = document.getElementById('depthEstimationErrors')
+    var statusDiv = document.getElementById('depthEstimationStatus')
+    var launchBtn = document.getElementById('depthLaunchBtn')
+
+    errorsDiv.innerHTML = ''
+    statusDiv.innerHTML = ''
+
+    if (!taskId || speciesList.length === 0) {
+        errorsDiv.innerHTML = 'Please select an annotation set and at least one species'
+        return
+    }
+
+    launchBtn.disabled = true
+
+    var formData = new FormData()
+    formData.append('survey_id', selectedSurvey)
+    formData.append('task_ids', JSON.stringify([parseInt(taskId, 10)]))
+    formData.append('species', JSON.stringify(speciesList))
+
+    var xhttp = new XMLHttpRequest()
+
+    xhttp.onreadystatechange = function () {
+        if (this.readyState == 4) {
+            launchBtn.disabled = false
+            if (this.status == 200) {
+                var reply = JSON.parse(this.responseText)
+                if (reply.status === 'success') {
+                    var html = '<b>' + reply.message + '</b><br>'
+                    if (reply.launched) {
+                        for (var i = 0;  i< reply.launched.length; i++){
+                            var item = reply.launched[i]
+                            html += item.name + ': ' + item.trap_count + ' trap(s), ' + 
+                                item.cal_count +' calibration image(s)<br>'
+                        }
+                    }
+                    if (reply.skipped && reply.skipped.length > 0) {
+                        html += '<br><i>Skipped:</i><br>'
+                        for (var j = 0; j < reply.skipped.length; j++) {
+                            html += reply.skipped[j].name + ' (' + reply.skipped[j].reason + ')<br>'
+                        }
+                    }
+                    statusDiv.innerHTML = html
+                } else {
+                    errorsDiv.innerHTML = reply.message || 'Launch failed.'
+                    if (reply.skipped) {
+                        statusDiv.innerHTML = '<i>Skipped cameragroups listed in server response.</i>'
+                    }
+                }
+            } else {
+                errorsDiv.innerHTML = 'Server error (' + this.status + ')'
+            }
+        }
+    }
+
+
+    xhttp.open('POST', '/launchDepthEstimation')
+    xhttp.send(formData)
 }
 
 
@@ -8877,7 +9659,7 @@ function updateImageIndex(index) {
             updateImageMap()
         }
     } else if (tabActiveEditSurvey == 'baseCalibrationTab') {
-        if (index >= 0 && index < calImages.length) {
+        if (index >= 0 && index < calImages.length && finishedDisplayingCal) {
             calImgIndex = index
             updateCalMap()
         }
@@ -9080,8 +9862,9 @@ function updateButtons() {
         btnPrevCamera.disabled = cameraIndex === 0;
         btnNextCamera.disabled = cameraIndex === images.length - 1;
     } else if (tabActiveEditSurvey === 'baseCalibrationTab') {
-        document.getElementById('calBtnPrevImg').disabled = (calImgIndex === 0)
-        document.getElementById('calBtnNextImg').disabled = (calImgIndex === calImages.length - 1)
+        var calNavDisabled = !finishedDisplayingCal
+        document.getElementById('calBtnPrevImg').disabled = (calImgIndex === 0) || calNavDisabled
+        document.getElementById('calBtnNextImg').disabled = (calImgIndex === calImages.length - 1) || calNavDisabled
         var select = document.getElementById('calCameraSelect')
         if (select) {
             document.getElementById('calBtnPrevCam').disabled = (select.selectedIndex === 0)

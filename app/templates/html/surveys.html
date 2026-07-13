@@ -601,6 +601,7 @@ limitations under the License. -->
                 <button id="openEditMasksTab" class="tablinks" onclick="changeEditSurveyTab(event, 'baseEditMasksTab')">Masks</button>
                 <button id="openStaticTab" class="tablinks" onclick="changeEditSurveyTab(event, 'baseStaticTab')">Static Detections</button>
                 <button id="openCalibrationTab" class="tablinks" onclick="changeEditSurveyTab(event, 'baseCalibrationTab')">Calibration Images</button>
+                <button id="openDepthEstimationTab" class="tablinks" onclick="changeEditSurveyTab(event, 'baseDepthEstimationTab')">Depth Estimation</button>
                 <!-- <button id="openStructureTab" class="tablinks" onclick="changeEditSurveyTab(event, 'baseStructureTab')">Structure</button> -->
             </div>
 
@@ -632,6 +633,9 @@ limitations under the License. -->
                 </div>
                 <div class="tabcontent" id="baseCalibrationTab">
                     <div id="editCalibrationDiv"></div>
+                </div>
+                <div class="tabcontent" id="baseDepthEstimationTab">
+                    <div id="editDepthEstimationDiv"></div>
                 </div>
                 <!-- <div class="tabcontent" id="baseStructureTab">
                     <div id="editSurveyStructureDiv"></div>
@@ -2264,6 +2268,84 @@ limitations under the License. -->
             </div>
         </div>
   
+    </div>
+</div>
+
+<!-- Confirm unsaved edit-survey changes before depth launch -->
+<div id="modalConfirmDepthUnsaved" class="modal fade" role="dialog" tabindex="-1">
+    <div class="modal-dialog modal-dialog-centered" style="max-width: 520px;">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h4 class="modal-title text-center" style="width: 100%;">Unsaved Changes</h4>
+                <button type="button" class="close" data-dismiss="modal">&times;</button>
+            </div>
+            <div class="modal-body text-center">
+                <p>
+                    Depth estimation uses the saved survey data in the database. You have unsaved changes in this window that must be saved or discarded before launching.
+                </p>
+                <p>
+                    <i>Saving will close this window while your changes are applied. Re-open Edit Survey to launch depth estimation.</i>
+                </p>
+            </div>
+            <div class="modal-footer">
+                <div class="row" style="width: 100%; margin: 0;">
+                    <div class="col-lg-4" style="padding-left: 4px; padding-right: 4px;">
+                        <button id="btnDepthUnsavedCancel" type="button"
+                            class="btn btn-info btn-block"
+                            style="white-space: normal;"
+                            data-dismiss="modal">Cancel</button>
+                    </div>
+                    <div class="col-lg-4" style="padding-left: 4px; padding-right: 4px;">
+                        <button id="btnDepthUnsavedDiscard" type="button"
+                            class="btn btn-danger btn-block"
+                            style="white-space: normal;"
+                            data-dismiss="modal">Discard Changes</button>
+                    </div>
+                    <div class="col-lg-4" style="padding-left: 4px; padding-right: 4px;">
+                        <button id="btnDepthUnsavedSave" type="button"
+                            class="btn btn-primary btn-block"
+                            style="white-space: normal;"
+                            data-dismiss="modal">Save Changes</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Confirm calibration save clears depth data -->
+<div id="modalConfirmCalSave" class="modal fade" role="dialog" tabindex="-1">
+    <div class="modal-dialog modal-dialog-centered" style="max-width: 520px;">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h4 class="modal-title text-center" style="width: 100%;">Calibration Changes</h4>
+                <button type="button" class="close" data-dismiss="modal">&times;</button>
+            </div>
+            <div class="modal-body text-center">
+                <p>
+                    Saving calibration changes will clear <strong>all detection distance values</strong>
+                    for the following cameras:
+                </p>
+                <p id="modalConfirmCalSaveCameragroups" style="font-weight: bold;"></p>
+                <p id="modalConfirmCalSaveDeletionWarning" style="display: none;">
+                    Calibration images marked for deletion will be <strong>permanently removed</strong>
+                    and cannot be recovered.
+                </p>
+                <p>Do you want to save these changes?</p>
+            </div>
+            <div class="modal-footer">
+                <div class="row" style="width: 100%; margin: 0;">
+                    <div class="col-lg-6" style="padding-left: 4px; padding-right: 4px;">
+                        <button id="btnCalSaveCancel" type="button"
+                            class="btn btn-info btn-block" data-dismiss="modal">Cancel</button>
+                    </div>
+                    <div class="col-lg-6" style="padding-left: 4px; padding-right: 4px;">
+                        <button id="btnCalSaveConfirm" type="button"
+                            class="btn btn-primary btn-block">Save Changes</button>
+                    </div>
+                </div>
+            </div>
+        </div>
     </div>
 </div>
 

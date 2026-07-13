@@ -18547,6 +18547,125 @@ def getCalibrationCameras(survey_id):
         cameragroups = [{'id': cg[0], 'name': cg[1]} for cg in cameragroups]
     return json.dumps(cameragroups)
 
+@app.route('/getDepthEstimationTasks/<int:survey_id>')
+@login_required
+def getDepthEstimationTasks(survey_id):
+    '''Returns annotation sets eligible for depth estimation (top-level species labeling complete).'''
+    survey = db.session.query(Survey).get(survey_id)
+    if not survey or not checkSurveyPermission(current_user.id, survey_id, 'write'):
+        return json.dumps({'status': 'error', 'message': 'Permission denied.'})
+
+    rows = surveyPermissionsSQ(
+        db.session.query(Task.id, Task.name)
+        .join(Survey)
+        .filter(Survey.id == int(survey_id))
+        .filter(Task.name != 'default')
+        .filter(~Task.name.contains('_o_l_d_'))
+        .filter(~Task.name.contains('_copying'))
+        .filter(Task.unlabelled_animal_cluster_count == 0),
+        current_user.id,
+        'read',
+    ).distinct().all()
+
+    tasks = [{'id': row[0], 'name': row[1]} for row in rows]
+    return json.dumps({'status': 'success', 'tasks': tasks})
+
+
+@app.route('/getDepthEstimationPreview/<int:survey_id>/<int:task_id>')
+@login_required
+def getDepthEstimationPreview(survey_id, task_id):
+    '''
+    Returns a read-only preview of depth estimation launch eligibility.
+    Query param species: JSON array, e.g. '["Zebra","Impala"]'
+    '''
+    species_raw = request.args.get('species', '').strip()
+    species_list = parse_depth_species_list(species_raw)
+    if not species_list:
+        return json.dumps({'status': 'error', 'message': 'At least one species is required.'})
+
+    survey = db.session.query(Survey).get(survey_id)
+    if not survey or not checkSurveyPermission(current_user.id, survey_id, 'write'):
+        return json.dumps({'status': 'error', 'message': 'Permission denied.'})
+
+    task = (
+        db.session.query(Task)
+        .filter(Task.id == task_id)
+        .filter(Task.survey_id == survey_id)
+        .first()
+    )
+    if not task:
+        return json.dumps({'status': 'error', 'message': 'Invalid annotation set selection.'})
+
+    preview = depth_estimation_preview(survey_id, [task_id], species_list)
+
+    return json.dumps({
+        'status': 'success',
+        'preview': preview
+    })
+
+@app.route('/launchDepthEstimation', methods=['POST'])
+@login_required
+def launchDepthEstimation():
+    '''
+    Launches depth estimation for all cameragroups in a survey that have calibration images and 
+    trap detections for the selected annotation set and species. 
+
+    Parameters (form):
+        survey_id (int)
+        task_ids (str): JSON array of task ids, e.g. "[123]"
+        species (str): JSON array of species names, e.g. '["Zebra","Impala"]'
+    '''
+    survey_id = int(request.form['survey_id'])
+    task_ids = [int(t) for t in json.loads(request.form['task_ids'])]
+    species_list = parse_depth_species_list(request.form['species'])
+    if not species_list:
+        return json.dumps({'status': 'error', 'message': 'At least one species is required.'})
+
+    survey = db.session.query(Survey).get(survey_id)
+    if not survey or not checkSurveyPermission(current_user.id, survey_id, 'write'):
+        return json.dumps({'status': 'error', 'message': 'Permission denied.'})
+
+    if survey.status.lower() not in Config.SURVEY_READY_STATUSES:
+        return json.dumps({'status': 'error', 'message': 'Survey is not in a launchable state'})
+
+    if survey.status == 'Restoring Files':
+        return json.dumps({
+            'status': 'error',
+            'message': 'Survey files are being restored. Please wait until restoration completes'
+        })
+
+    tasks = (
+        db.session.query(Task)
+        .filter(Task.id.in_(task_ids))
+        .filter(Task.survey_id == survey_id)
+        .all()
+    )
+    if len(tasks) != len(task_ids):
+        return json.dumps({'status': 'error', 'message': 'Invalid annotation set selection.'})
+
+    for task in tasks:
+        eligible, eligibility_message = depth_task_eligibility(task.unlabelled_animal_cluster_count)
+        if not eligible:
+            return json.dumps({'status': 'error', 'message': eligibility_message})
+
+    result = launch_depth_estimation(survey_id, task_ids, species_list)
+
+    if not result['launched'] and not result['errors']:
+        return json.dumps({
+            'status': 'error',
+            'message': 'No cameragroups with both calibration images and trap detections were found.',
+            'skipped': result['skipped']
+        })
+
+    return json.dumps({
+        'status': 'success',
+        'message': 'Launched {} depth estimation job(s).'.format(len(result['launched'])),
+        'launched': result['launched'],
+        'skipped': result['skipped'],
+        'errors': result['errors']
+    })
+
+
 @app.route('/getCalibrationImages/<int:survey_id>/<int:cameragroup_id>')
 @login_required
 def getCalibrationImages(survey_id, cameragroup_id):

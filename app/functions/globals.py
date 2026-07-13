@@ -61,6 +61,7 @@ import numpy
 from sqlalchemy.sql.expression import cast
 import sqlalchemy as sa
 from app.functions.delete import delete_clusters
+from depthworker.worker import depth_estimate
 
 # def cleanupWorkers(one, two):
 #     '''
@@ -7016,6 +7017,297 @@ def launch_task(self,task_id,classify=False):
         db.session.remove()
 
     return True
+
+def parse_depth_species_list(species_param):
+    '''
+    Accepts a single species string, a list, or a JSON array string.
+    Returns a deduplicated list of non-empty species names.
+    '''
+    if species_param is None:
+        return []
+    if isinstance(species_param, list):
+        species_list = species_param
+    else:
+        species_param = species_param.strip()
+        if not species_param:
+            return []
+        if species_param.startswith('['):
+            try:
+                species_list = json.loads(species_param)
+            except (ValueError, json.JSONDecodeError):
+                return []
+        else:
+            species_list = [species_param]
+    if not isinstance(species_list, list):
+        species_list = [species_list]
+    species_list = [str(s).strip() for s in species_list if str(s).strip()]
+    return list(dict.fromkeys(species_list))
+
+
+def depth_task_eligibility(unlabelled_animal_cluster_count):
+    '''
+    Depth estimation requires top-level species annotation to be complete on the task.
+    Returns (eligible, message).
+    '''
+    if unlabelled_animal_cluster_count is None:
+        return False, (
+            'Top-level annotation counts are still being calculated for this '
+            'annotation set. Please try again later.'
+        )
+    if unlabelled_animal_cluster_count != 0:
+        return False, (
+            'Top-level species annotation is not complete for this annotation set '
+            '({} cluster(s) remaining).'.format(unlabelled_animal_cluster_count)
+        )
+    return True, None
+
+
+def _depth_exclusion_reason(trap_count, cal_count, cal_with_bbox, launchable):
+    '''Human-readable exclusion reason for a cameragroup preview row.'''
+    if launchable:
+        return None
+    reasons = []
+    if trap_count == 0:
+        reasons.append('No matching detections')
+    if cal_count == 0:
+        reasons.append('No calibration images')
+    elif cal_with_bbox == 0:
+        reasons.append('No calibration images with bounding boxes')
+    if not reasons:
+        reasons.append('Not eligible')
+    return '; '.join(reasons)
+
+
+def depth_estimation_preview(survey_id, task_ids, species_list):
+    '''
+    Read-only preview of what launch_depth_estimation would process.
+    Does not enqueue celery tasks.
+
+    Returns one row per cameragroup in the survey (shown as "camera" in the UI),
+    grouped by trapgroup site for display.
+    '''
+    cg_rows = (
+        db.session.query(Cameragroup.id, Cameragroup.name)
+        .join(Camera, Camera.cameragroup_id == Cameragroup.id)
+        .join(Trapgroup, Trapgroup.id == Camera.trapgroup_id)
+        .filter(Trapgroup.survey_id == survey_id)
+        .distinct()
+        .order_by(Cameragroup.name)
+        .all()
+    )
+
+    cameras_launchable = 0
+    cal_images_missing_bbox = 0
+    camera_rows = []
+
+    for cg_id, cg_name in cg_rows:
+        primary_site = (
+            db.session.query(func.min(Trapgroup.tag))
+            .join(Camera, Camera.trapgroup_id == Trapgroup.id)
+            .filter(Camera.cameragroup_id == cg_id)
+            .filter(Trapgroup.survey_id == survey_id)
+            .scalar()
+        ) or ''
+
+        trap_count = (
+            db.session.query(func.count(distinct(Detection.id)))
+            .join(Image, Detection.image_id == Image.id)
+            .join(Camera, Image.camera_id == Camera.id)
+            .join(Trapgroup, Camera.trapgroup_id == Trapgroup.id)
+            .join(Labelgroup, Labelgroup.detection_id == Detection.id)
+            .join(Task, Labelgroup.task_id == Task.id)
+            .join(Label, Labelgroup.labels)
+            .filter(Trapgroup.survey_id == survey_id)
+            .filter(Camera.cameragroup_id == cg_id)
+            .filter(Task.id.in_(task_ids))
+            .filter(Label.description.in_(species_list))
+            .scalar()
+        ) or 0
+
+        cal_rows = (
+            db.session.query(CalibrationImage)
+            .filter(CalibrationImage.cameragroup_id == cg_id)
+            .all()
+        )
+
+        cal_count = len(cal_rows)
+        cal_with_bbox = 0
+        cal_missing_bbox = 0
+        for cal in cal_rows:
+            if cal.top is None or cal.left is None or cal.bottom is None or cal.right is None:
+                cal_missing_bbox += 1
+            else:
+                cal_with_bbox += 1
+
+        launchable = trap_count > 0 and cal_with_bbox > 0
+        if launchable:
+            cameras_launchable += 1
+            cal_images_missing_bbox += cal_missing_bbox
+
+        camera_rows.append({
+            'cameragroup_id': cg_id,
+            'site': primary_site,
+            'name': cg_name,
+            'trap_count': trap_count,
+            'cal_count': cal_count,
+            'cal_missing_bbox': cal_missing_bbox,
+            'launchable': launchable,
+            'exclusion_reason': _depth_exclusion_reason(
+                trap_count, cal_count, cal_with_bbox, launchable
+            ),
+        })
+
+    cameras_total = len(camera_rows)
+    cameras_skipped = cameras_total - cameras_launchable
+
+    sites_map = {}
+    for row in camera_rows:
+        site_key = row['site'] if row['site'] else '(no site)'
+        if site_key not in sites_map:
+            sites_map[site_key] = []
+        sites_map[site_key].append({
+            'name': row['name'],
+            'trap_count': row['trap_count'],
+            'cal_count': row['cal_count'],
+            'cal_missing_bbox': row['cal_missing_bbox'],
+            'launchable': row['launchable'],
+            'exclusion_reason': row['exclusion_reason'],
+        })
+
+    sites = []
+    for site_name in sorted(sites_map.keys()):
+        cameras = sorted(sites_map[site_name], key=lambda c: c['name'].lower())
+        sites.append({'site': site_name, 'cameras': cameras})
+
+    return {
+        'summary': {
+            'cameras_launchable': cameras_launchable,
+            'cameras_skipped': cameras_skipped,
+            'cameras_total': cameras_total,
+            'cal_images_missing_bbox': cal_images_missing_bbox,
+        },
+        'sites': sites,
+    }
+
+
+
+
+def launch_depth_estimation(survey_id, task_ids, species_list):
+    '''
+    Enqueues one depth_estimate Celery task per cameragroup that has calibration images and
+    trap detections for the given task(s) and species.
+
+    Returns:
+        dict with keys: launched, skipped, celery_task_ids, errors
+    '''
+    launched = []
+    skipped = []
+    celery_task_ids = []
+    errors = []
+
+    cameragroups = (
+        db.session.query(Cameragroup.id, Cameragroup.name)
+        .join(CalibrationImage, CalibrationImage.cameragroup_id == Cameragroup.id)
+        .join(Camera, Camera.cameragroup_id == Cameragroup.id)
+        .join(Trapgroup, Trapgroup.id == Camera.trapgroup_id)
+        .filter(Trapgroup.survey_id == survey_id)
+        .distinct()
+        .all()
+    )
+
+    for cg_id, cg_name in cameragroups:
+        cal_rows = (
+            db.session.query(CalibrationImage)
+            .filter(CalibrationImage.cameragroup_id == cg_id)
+            .order_by(CalibrationImage.distance)
+            .all()
+        )
+
+        calibration_items = [{
+            'image_path': cal.filename,
+            'known_distance': cal.distance,
+            'bbox': {
+                'top': cal.top,
+                'left': cal.left,
+                'bottom': cal.bottom,
+                'right': cal.right
+            },
+        } for cal in cal_rows]
+
+        det_rows = (
+            db.session.query(
+                Detection.id,
+                Detection.left,
+                Detection.right,
+                Detection.top,
+                Detection.bottom,
+                Image.filename,
+                Camera.path,
+            )
+            .join(Image, Detection.image_id == Image.id)
+            .join(Camera, Image.camera_id == Camera.id)
+            .join(Trapgroup, Camera.trapgroup_id == Trapgroup.id)
+            .join(Labelgroup, Labelgroup.detection_id == Detection.id)
+            .join(Task, Labelgroup.task_id == Task.id)
+            .join(Label, Labelgroup.labels)
+            .filter(Trapgroup.survey_id == survey_id)
+            .filter(Camera.cameragroup_id == cg_id)
+            .filter(Task.id.in_(task_ids))
+            .filter(Label.description.in_(species_list))
+            .distinct()
+            .all()
+        )
+
+        if not det_rows:
+            skipped.append({'cameragroup_id': cg_id, 'name': cg_name, 'reason': 'no_trap_detections'})
+            continue
+
+        trap_items = [{
+            'detection_id': d[0],
+            'image_path': d[6] + '/' + d[5],
+            'bbox': {
+                'left': d[1],
+                'right': d[2],
+                'top': d[3],
+                'bottom': d[4],
+            },
+        } for d in det_rows]
+
+        try:
+            async_result = depth_estimate.apply_async(
+                kwargs={
+                    'cameragroup_id': cg_id,
+                    'cam_name': cg_name,
+                    'calibration_items': calibration_items,
+                    'trap_items': trap_items,
+                    'sourceBucket': Config.BUCKET,
+                    'external': False,
+                },
+                queue='depth',
+            )
+
+            celery_task_ids.append(async_result.id)
+            launched.append({
+                'cameragroup_id': cg_id,
+                'name': cg_name,
+                'trap_count': len(trap_items),
+                'cal_count': len(calibration_items),
+                'celery_task_id': async_result.id,
+            })
+        except Exception:
+            app.logger.info(traceback.format_exc())
+            errors.append({'cameragroup_id': cg_id, 'name': cg_name})
+
+    return {
+        'launched': launched,
+        'skipped': skipped,
+        'celery_task_ids': celery_task_ids,
+        'errors': errors,
+    }
+
+
+
+
 
 def process_detections_for_individual_id(task_ids,species,pose_only=False):
     '''
