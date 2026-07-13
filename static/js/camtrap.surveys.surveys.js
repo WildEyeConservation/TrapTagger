@@ -9410,21 +9410,14 @@ function executeDepthEstimationLaunch(){
             if (this.status == 200) {
                 var reply = JSON.parse(this.responseText)
                 if (reply.status === 'success') {
-                    var html = '<b>' + reply.message + '</b><br>'
-                    if (reply.launched) {
-                        for (var i = 0;  i< reply.launched.length; i++){
-                            var item = reply.launched[i]
-                            html += item.name + ': ' + item.trap_count + ' trap(s), ' + 
-                                item.cal_count +' calibration image(s)<br>'
-                        }
-                    }
-                    if (reply.skipped && reply.skipped.length > 0) {
-                        html += '<br><i>Skipped:</i><br>'
-                        for (var j = 0; j < reply.skipped.length; j++) {
-                            html += reply.skipped[j].name + ' (' + reply.skipped[j].reason + ')<br>'
-                        }
-                    }
-                    statusDiv.innerHTML = html
+                    document.getElementById('modalAlertHeader').innerHTML = 'Success'
+                    document.getElementById('modalAlertBody').innerHTML =
+                        'Depth estimation has started for this survey. This may take some time. ' +
+                        'The survey will be unavailable until processing completes.'
+                    alertReload = true
+                    modalEditSurvey.modal('hide')
+                    modalAlert.modal({keyboard: true})
+                    clearEditSurveyModal()
                 } else {
                     errorsDiv.innerHTML = reply.message || 'Launch failed.'
                     if (reply.skipped) {

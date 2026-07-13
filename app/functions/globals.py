@@ -7198,11 +7198,12 @@ def launch_depth_estimation(survey_id, task_ids, species_list):
     trap detections for the given task(s) and species.
 
     Returns:
-        dict with keys: launched, skipped, celery_task_ids, errors
+        dict with keys: launched, skipped, celery_task_ids, async_results, errors
     '''
     launched = []
     skipped = []
     celery_task_ids = []
+    async_results = []
     errors = []
 
     cameragroups = (
@@ -7287,6 +7288,7 @@ def launch_depth_estimation(survey_id, task_ids, species_list):
             )
 
             celery_task_ids.append(async_result.id)
+            async_results.append(async_result)
             launched.append({
                 'cameragroup_id': cg_id,
                 'name': cg_name,
@@ -7302,9 +7304,95 @@ def launch_depth_estimation(survey_id, task_ids, species_list):
         'launched': launched,
         'skipped': skipped,
         'celery_task_ids': celery_task_ids,
+        'async_results': async_results,
         'errors': errors,
     }
 
+def apply_depth_estimation_results(results):
+    '''
+    Persist depth worker output to Detection.distance on the server
+
+     Worker returns:
+        {str(detection_id): {'distance': float|None, 'error': str|None}, ...}
+    '''
+    if not results:
+        return 0
+
+    updates = {}
+    for det_id_str, payload in results.items():
+        if not isinstance(payload, dict) or payload.get('error'):
+            continue
+        distance = payload.get('distance')
+        if distance is None:
+            continue
+        updates[int(det_id_str)] = float(distance)
+
+    if not updates:
+        return 0
+
+    detections = db.session.query(Detection).filter(Detection.id.in_(list(updates.keys())).all())
+
+    updated = 0
+    for detection in detections:
+        if detection.id in updates:
+            detection.distance = updates[detection.id]
+            updated += 1
+
+    return updated
+
+@celery.task(bind=True, max_retries=2, ignore_result=True)
+def run_depth_estimation(self, survey_id, task_ids, species_list):
+    '''
+    Orchestrates depth estimation for a survey:
+      1. Mark survey Processing
+      2. Enqueue one depth_estimate job per cameragroup (depth queue)
+      3. Wait for each job, persist Detection.distance
+      4. Mark survey Ready
+    '''
+
+    try:
+        survey = db.session.query(Survey).get(survey_id)
+        if not survey:
+            app.logger.info('run_depth_estimation: survey {} not found'.format(survey_id))
+            return False
+        survey.status = 'Processing'
+        db.session.commit()
+        launch_summary = launch_depth_estimation(survey_id, task_ids, species_list)
+        total_updated = 0
+        if launch_summary['async_results']:
+            GLOBALS.lock.acquire()
+            try:
+                with allow_join_result():
+                    for async_result in launch_summary['async_results']:
+                        try:
+                            response = async_result.get()
+                            total_updated += apply_depth_estimation_results(response)
+                            db.session.commit()
+                        except Exception:
+                            app.logger.info(traceback.format_exc())
+                        finally:
+                            async_result.forget()
+            finally:
+                GLOBALS.lock.release()
+        survey = db.session.query(Survey).get(survey_id)
+        if survey:
+            survey.status = 'Ready'
+            db.session.commit()
+        app.logger.info(
+            'Depth estimation finished for survey {}: {} job(s), {} detection(s) updated, {} skipped, {} error(s)'.format(
+                survey_id,
+                len(launch_summary['launched']),
+                total_updated,
+                len(launch_summary['skipped']),
+                len(launch_summary['errors']),
+            )
+        )
+    except Exception as exc:
+        app.logger.info(traceback.format_exc())
+        self.retry(exc=exc, countdown=retryTime(self.request.retries))
+    finally:
+        db.session.remove()
+    return True
 
 
 

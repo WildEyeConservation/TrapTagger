@@ -18648,21 +18648,65 @@ def launchDepthEstimation():
         if not eligible:
             return json.dumps({'status': 'error', 'message': eligibility_message})
 
-    result = launch_depth_estimation(survey_id, task_ids, species_list)
-
-    if not result['launched'] and not result['errors']:
+    preview = depth_estimation_preview(survey_id, task_ids, species_list)
+    if preview['summary']['cameras_launchable'] == 0:
+        launched = []
+        skipped = []
+        for site in preview['sites']:
+            for cam in site['cameras']:
+                if cam['launchable']:
+                    launched.append({
+                        'name': cam['name'],
+                        'trap_count': cam['trap_count'],
+                        'cal_count': cam['cal_count'],
+                    })
+                else:
+                    skipped.append({
+                        'name': cam['name'],
+                        'reason': cam['exclusion_reason'],
+                    })
         return json.dumps({
             'status': 'error',
             'message': 'No cameragroups with both calibration images and trap detections were found.',
-            'skipped': result['skipped']
+            'skipped': skipped,
         })
+
+    survey.status = 'Processing'
+    db.session.commit()
+
+    run_depth_estimation.apply_async(
+        kwargs={
+            'survey_id': survey_id,
+            'task_ids': task_ids,
+            'species_list': species_list,
+        },
+        queue='default',
+    )
+
+    launched = []
+    skipped = []
+    for site in preview['sites']:
+        for cam in site['cameras']:
+            if cam['launchable']:
+                launched.append({
+                    'name': cam['name'],
+                    'trap_count': cam['trap_count'],
+                    'cal_count': cam['cal_count'],
+                })
+            else:
+                skipped.append({
+                    'name': cam['name'],
+                    'reason': cam['exclusion_reason'],
+                })
 
     return json.dumps({
         'status': 'success',
-        'message': 'Launched {} depth estimation job(s).'.format(len(result['launched'])),
-        'launched': result['launched'],
-        'skipped': result['skipped'],
-        'errors': result['errors']
+        'message': 'Depth estimation started for {} camera(s). The survey will be unavailable until processing completes.'.format(
+            len(launched)
+        ),
+        'launched': launched,
+        'skipped': skipped,
+        'errors': [],
     })
 
 
