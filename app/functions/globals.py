@@ -56,6 +56,7 @@ import pytz
 import timezonefinder
 import secrets
 from celery.result import allow_join_result
+from celery.exceptions import MaxRetriesExceededError
 from gpuworker.worker import segment_and_pose
 import numpy 
 from sqlalchemy.sql.expression import cast
@@ -7087,6 +7088,16 @@ def _calibration_image_has_bbox(cal):
     )
 
 
+def _detection_has_bbox(left, right, top, bottom):
+    '''True if detection has all bbox coordinates set.'''
+    return (
+        left is not None
+        and right is not None
+        and top is not None
+        and bottom is not None
+    )
+
+
 def depth_estimation_preview(survey_id, task_ids, species_list):
     '''
     Read-only preview of what launch_depth_estimation would process.
@@ -7291,7 +7302,16 @@ def launch_depth_estimation(survey_id, task_ids, species_list):
                 'top': d[3],
                 'bottom': d[4],
             },
-        } for d in det_rows]
+        } for d in det_rows
+          if _detection_has_bbox(d[1], d[2], d[3], d[4])]
+
+        if not trap_items:
+            skipped.append({
+                'cameragroup_id': cg_id,
+                'name': cg_name,
+                'reason': 'no_trap_detections_with_bbox',
+            })
+            continue
 
         try:
             async_result = depth_estimate.apply_async(
@@ -7408,7 +7428,14 @@ def run_depth_estimation(self, survey_id, task_ids, species_list):
         )
     except Exception as exc:
         app.logger.info(traceback.format_exc())
-        self.retry(exc=exc, countdown=retryTime(self.request.retries))
+        try:
+            raise self.retry(exc=exc, countdown=retryTime(self.request.retries))
+        except MaxRetriesExceededError:
+            survey = db.session.query(Survey).get(survey_id)
+            if survey:
+                survey.status = 'Ready'
+                db.session.commit()
+            raise
     finally:
         db.session.remove()
     return True
