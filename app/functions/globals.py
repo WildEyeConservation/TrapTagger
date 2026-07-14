@@ -7077,6 +7077,15 @@ def _depth_exclusion_reason(trap_count, cal_count, cal_with_bbox, launchable):
         reasons.append('Not eligible')
     return '; '.join(reasons)
 
+def _calibration_image_has_bbox(cal):
+    '''True if calibration image has all bbox coordinates set.'''
+    return (
+        cal.top is not None
+        and cal.left is not None
+        and cal.bottom is not None
+        and cal.right is not None
+    )
+
 
 def depth_estimation_preview(survey_id, task_ids, species_list):
     '''
@@ -7231,9 +7240,11 @@ def launch_depth_estimation(survey_id, task_ids, species_list):
                 'top': cal.top,
                 'left': cal.left,
                 'bottom': cal.bottom,
-                'right': cal.right
+                'right': cal.right,
             },
-        } for cal in cal_rows]
+        } for cal in cal_rows
+          if cal.distance is not None
+          and _calibration_image_has_bbox(cal)]
 
         det_rows = (
             db.session.query(
@@ -7261,6 +7272,14 @@ def launch_depth_estimation(survey_id, task_ids, species_list):
 
         if not det_rows:
             skipped.append({'cameragroup_id': cg_id, 'name': cg_name, 'reason': 'no_trap_detections'})
+            continue
+
+        if not calibration_items:
+            skipped.append({
+                'cameragroup_id': cg_id,
+                'name': cg_name,
+                'reason': 'no_calibration_with_bbox',
+            })
             continue
 
         trap_items = [{
@@ -7330,7 +7349,7 @@ def apply_depth_estimation_results(results):
     if not updates:
         return 0
 
-    detections = db.session.query(Detection).filter(Detection.id.in_(list(updates.keys())).all())
+    detections = db.session.query(Detection).filter(Detection.id.in_(list(updates.keys()))).all()
 
     updated = 0
     for detection in detections:

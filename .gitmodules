@@ -13,3 +13,6 @@
 [submodule "ScarceNet"]
 	path = ScarceNet
 	url = https://github.com/chaneyddtt/ScarceNet.git
+[submodule "depth-estimation-repo"]
+	path = depth-estimation-repo
+	url = https://github.com/Morphocam/depth-estimation-traptagger.git

@@ -131,6 +131,9 @@ def _download_and_build_manifest(cameragroup_id, cam_name, cal_dir, det_dir, cal
         distance = item.get('known_distance', item.get('distance'))
         if distance is None:
             continue
+        bbox = item.get('bbox') or {}
+        if any(bbox.get(k) is None for k in ('top', 'left', 'bottom', 'right')):
+            continue
         dest_path = os.path.join(cal_dir, '{}.jpg'.format(distance))
         
         ok = _download_image(sourceBucket, item['image_path'], dest_path, external)
