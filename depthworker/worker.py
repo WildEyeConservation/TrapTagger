@@ -50,6 +50,8 @@ def depth_estimate(
   sourceBucket,
   external=False,
   survey_id=None,
+  batch_index=1,
+  batch_count=1,
 ):
     '''
     Celery wrapper for depth estimation on one cameragroup.
@@ -67,8 +69,13 @@ def depth_estimate(
     '''
     starttime = time.time()
     print(
-        'Depth job started for cameragroup {} ({}): {} calibration, {} trap detections'.format(
-            cameragroup_id, cam_name, len(calibration_items), len(trap_items)
+        'Depth job started for cameragroup {} ({}): batch {}/{}, {} calibration, {} trap detections'.format(
+            cameragroup_id,
+            cam_name,
+            batch_index,
+            batch_count,
+            len(calibration_items),
+            len(trap_items),
         )
     )
 
@@ -80,6 +87,8 @@ def depth_estimate(
         sourceBucket,
         external,
         survey_id=survey_id,
+        batch_index=batch_index,
+        batch_count=batch_count,
     )
 
     finishtime = time.time()

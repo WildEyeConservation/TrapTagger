@@ -7214,8 +7214,11 @@ def depth_estimation_preview(survey_id, task_ids, species_list):
 
 def launch_depth_estimation(survey_id, task_ids, species_list):
     '''
-    Enqueues one depth_estimate Celery task per cameragroup that has calibration images and
-    trap detections for the given task(s) and species.
+    Enqueues depth_estimate Celery tasks for each cameragroup that has calibration images
+    and trap detections for the given task(s) and species.
+
+    Trap detections are split into batches of at most Config.DEPTH_TRAP_BATCH_SIZE (default 400)
+    per task; calibration items are included on every batch for the same cameragroup.
 
     Returns:
         dict with keys: launched, skipped, celery_task_ids, async_results, errors
@@ -7313,29 +7316,37 @@ def launch_depth_estimation(survey_id, task_ids, species_list):
             })
             continue
 
+        trap_batches = list(chunker(trap_items, Config.DEPTH_TRAP_BATCH_SIZE))
+        batch_count = len(trap_batches)
         try:
-            async_result = depth_estimate.apply_async(
-                kwargs={
-                    'cameragroup_id': cg_id,
-                    'cam_name': cg_name,
-                    'calibration_items': calibration_items,
-                    'trap_items': trap_items,
-                    'sourceBucket': Config.BUCKET,
-                    'external': False,
-                    'survey_id': survey_id,
-                },
-                queue='depth',
-            )
+            for batch_index, trap_batch in enumerate(trap_batches, start=1):
+                async_result = depth_estimate.apply_async(
+                    kwargs={
+                        'cameragroup_id': cg_id,
+                        'cam_name': cg_name,
+                        'calibration_items': calibration_items,
+                        'trap_items': trap_batch,
+                        'sourceBucket': Config.BUCKET,
+                        'external': False,
+                        'survey_id': survey_id,
+                        'batch_index': batch_index,
+                        'batch_count': batch_count,
+                    },
+                    queue='depth',
+                )
 
-            celery_task_ids.append(async_result.id)
-            async_results.append(async_result)
-            launched.append({
-                'cameragroup_id': cg_id,
-                'name': cg_name,
-                'trap_count': len(trap_items),
-                'cal_count': len(calibration_items),
-                'celery_task_id': async_result.id,
-            })
+                celery_task_ids.append(async_result.id)
+                async_results.append(async_result)
+                launched.append({
+                    'cameragroup_id': cg_id,
+                    'name': cg_name,
+                    'trap_count': len(trap_batch),
+                    'trap_count_total': len(trap_items),
+                    'cal_count': len(calibration_items),
+                    'batch_index': batch_index,
+                    'batch_count': batch_count,
+                    'celery_task_id': async_result.id,
+                })
         except Exception:
             app.logger.info(traceback.format_exc())
             errors.append({'cameragroup_id': cg_id, 'name': cg_name})

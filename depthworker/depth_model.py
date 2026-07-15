@@ -24,6 +24,8 @@ def infer(
   sourceBucket,
   external=False,
   survey_id=None,
+  batch_index=1,
+  batch_count=1,
 ):
   '''
   Runs depth estimation for one cameragroup: stages calibration and trap images,
@@ -47,6 +49,22 @@ def infer(
     transect_id = _sanitize_cam_name(cam_name)
     transect_dir = _cam_job_dir(job_root, cam_name)
     cal_dir, det_dir = _stage_paths(transect_dir)
+    use_cal_cache = batch_count > 1 and survey_id is not None
+    calib_cache_path = (
+      _calib_cache_path(survey_id, cameragroup_id) if use_cal_cache else None
+    )
+    cached_calib_path = None
+
+    if use_cal_cache and batch_index == 1:
+      _clear_cal_cache(survey_id, cameragroup_id)
+    elif use_cal_cache and batch_index > 1:
+      if _restore_cal_frames(cal_dir, survey_id, cameragroup_id):
+        print(
+          'Restored calibration images from cache for cameragroup {} (batch {}/{})'.format(
+            cameragroup_id, batch_index, batch_count,
+          )
+        )
+
     manifest = _download_and_build_manifest(
       cameragroup_id,
       cam_name,
@@ -63,7 +81,31 @@ def infer(
         for t in trap_items
       }
 
+    if use_cal_cache and batch_index > 1:
+      if calib_cache_path and os.path.isfile(calib_cache_path):
+        cached_calib_path = calib_cache_path
+        print(
+          'Will reuse cached calibration state for cameragroup {} (batch {}/{})'.format(
+            cameragroup_id, batch_index, batch_count,
+          )
+        )
+      elif _restore_cal_masks(transect_dir, survey_id, cameragroup_id):
+        print(
+          'Restored calibration masks from cache for cameragroup {} (batch {}/{})'.format(
+            cameragroup_id, batch_index, batch_count,
+          )
+        )
+      else:
+        print(
+          'Cal cache miss for cameragroup {} (batch {}/{}); will run full calibration'.format(
+            cameragroup_id, batch_index, batch_count,
+          )
+        )
+
     from traptagger_api import run_transect_job, traptagger_default_config
+
+    if use_cal_cache and batch_index == 1:
+      os.makedirs(_cal_cache_root(survey_id, cameragroup_id), exist_ok=True)
 
     collect_bbox_audit = os.environ.get('DEPTH_BBOX_AUDIT', '0') == '1'
     job_output = run_transect_job(
@@ -71,10 +113,24 @@ def infer(
       transect_id,
       config=traptagger_default_config(),
       collect_bbox_audit=collect_bbox_audit,
+      cached_calib_path=cached_calib_path,
+      calib_cache_path=calib_cache_path if batch_index == 1 else None,
     )
+    if use_cal_cache and batch_index == 1:
+      _save_cal_frames(transect_dir, survey_id, cameragroup_id)
+      _save_cal_masks(transect_dir, survey_id, cameragroup_id)
+    if use_cal_cache and batch_index == batch_count:
+      _clear_cal_cache(survey_id, cameragroup_id)
+
     if collect_bbox_audit:
       results = job_output['results']
-      _write_bbox_audit(job_output['bbox_audit'], survey_id, cameragroup_id)
+      _write_bbox_audit(
+        job_output['bbox_audit'],
+        survey_id,
+        cameragroup_id,
+        batch_index=batch_index,
+        batch_count=batch_count,
+      )
       return results
     return job_output
   finally:
@@ -196,7 +252,10 @@ def _download_and_build_manifest(
       continue
     dest_path = os.path.join(cal_dir, '{}.jpg'.format(distance))
 
-    ok = _download_image(sourceBucket, item['image_path'], dest_path, external)
+    if os.path.isfile(dest_path):
+      ok = True
+    else:
+      ok = _download_image(sourceBucket, item['image_path'], dest_path, external)
     if not ok:
       continue
     with Image.open(dest_path) as img:
@@ -245,7 +304,74 @@ def _download_and_build_manifest(
   return manifest
 
 
-def _write_bbox_audit(audit, survey_id, cameragroup_id):
+def _survey_cache_dir(survey_id):
+  return os.path.join(os.path.dirname(__file__), 'cal_cache', str(survey_id))
+
+
+def _cal_cache_root(survey_id, cameragroup_id):
+  return os.path.join(_survey_cache_dir(survey_id), str(cameragroup_id))
+
+
+def _cal_cache_masks_dir(survey_id, cameragroup_id):
+  return os.path.join(_cal_cache_root(survey_id, cameragroup_id), 'calibration_frames_masks')
+
+
+def _cal_cache_frames_dir(survey_id, cameragroup_id):
+  return os.path.join(_cal_cache_root(survey_id, cameragroup_id), 'calibration_frames')
+
+
+def _calib_cache_path(survey_id, cameragroup_id):
+  return os.path.join(_cal_cache_root(survey_id, cameragroup_id), 'calib_state.npz')
+
+
+def _clear_cal_cache(survey_id, cameragroup_id):
+  shutil.rmtree(_cal_cache_root(survey_id, cameragroup_id), ignore_errors=True)
+  try:
+    os.rmdir(_survey_cache_dir(survey_id))
+  except OSError:
+    pass
+
+
+def _restore_cal_masks(transect_dir, survey_id, cameragroup_id):
+  cache_masks = _cal_cache_masks_dir(survey_id, cameragroup_id)
+  if not os.path.isdir(cache_masks):
+    return False
+  dest = os.path.join(transect_dir, 'calibration_frames_masks')
+  shutil.copytree(cache_masks, dest, dirs_exist_ok=True)
+  return True
+
+
+def _restore_cal_frames(cal_dir, survey_id, cameragroup_id):
+  cache_frames = _cal_cache_frames_dir(survey_id, cameragroup_id)
+  if not os.path.isdir(cache_frames):
+    return False
+  shutil.copytree(cache_frames, cal_dir, dirs_exist_ok=True)
+  return True
+
+
+def _save_cal_masks(transect_dir, survey_id, cameragroup_id):
+  src = os.path.join(transect_dir, 'calibration_frames_masks')
+  if not os.path.isdir(src):
+    return
+  dest = _cal_cache_masks_dir(survey_id, cameragroup_id)
+  os.makedirs(os.path.dirname(dest), exist_ok=True)
+  if os.path.isdir(dest):
+    shutil.rmtree(dest)
+  shutil.copytree(src, dest)
+
+
+def _save_cal_frames(transect_dir, survey_id, cameragroup_id):
+  src = os.path.join(transect_dir, 'calibration_frames')
+  if not os.path.isdir(src) or not os.listdir(src):
+    return
+  dest = _cal_cache_frames_dir(survey_id, cameragroup_id)
+  os.makedirs(os.path.dirname(dest), exist_ok=True)
+  if os.path.isdir(dest):
+    shutil.rmtree(dest)
+  shutil.copytree(src, dest)
+
+
+def _write_bbox_audit(audit, survey_id, cameragroup_id, batch_index=1, batch_count=1):
   '''
   Writes bbox audit JSON to depthworker/bbox_audit/{survey_id}/{cameragroup_id}.json
   when DEPTH_BBOX_AUDIT=1.
@@ -258,8 +384,29 @@ def _write_bbox_audit(audit, survey_id, cameragroup_id):
     str(survey_id),
   )
   os.makedirs(audit_dir, exist_ok=True)
-  audit['survey_id'] = survey_id
   out_path = os.path.join(audit_dir, '{}.json'.format(cameragroup_id))
+
+  for trap in audit.get('trap', []):
+    trap['batch_index'] = batch_index
+
+  batch_run = {
+    'batch_index': batch_index,
+    'batch_count': batch_count,
+    'trap_count': len(audit.get('trap', [])),
+  }
+
+  if batch_index > 1 and os.path.isfile(out_path):
+    with open(out_path) as f:
+      existing = json.load(f)
+    existing.setdefault('trap', []).extend(audit.get('trap', []))
+    existing.setdefault('batch_runs', []).append(batch_run)
+    audit = existing
+  else:
+    audit['batch_index'] = batch_index
+    audit['batch_count'] = batch_count
+    audit['batch_runs'] = [batch_run]
+
+  audit['survey_id'] = survey_id
   with open(out_path, 'w') as f:
     json.dump(audit, f, indent=2)
-  print('Wrote bbox audit to {}'.format(out_path))
+  print('Wrote bbox audit to {} (batch {}/{})'.format(out_path, batch_index, batch_count))
