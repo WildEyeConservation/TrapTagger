@@ -18,11 +18,11 @@ RUN apt-get update && \
     && rm -rf /var/lib/apt/lists/*
 
 COPY depthworker/requirements.txt /code/depthworker/requirements.txt
-COPY depth-estimation-repo/requirements_v2.txt /code/depth-estimation-repo/requirements_v2.txt
+COPY depthworker/requirements_inference.txt /code/depthworker/requirements_inference.txt
 
 RUN pip install --upgrade pip && \
     pip install -r /code/depthworker/requirements.txt && \
-    pip install -r /code/depth-estimation-repo/requirements_v2.txt
+    pip install -r /code/depthworker/requirements_inference.txt
 
 COPY depthworker /code/depthworker
 COPY depth-estimation-repo /code/depth-estimation-repo

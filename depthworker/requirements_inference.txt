@@ -1,0 +1,15 @@
+# Headless inference deps for TrapTagger depth_worker.
+# Omits GUI/packaging packages from depth-estimation-repo/requirements_v2.txt
+# (desktop-notifier, toga, pyinstaller) which need GObject/GTK system libs.
+
+numpy<2.0.0
+onnxruntime==1.18.0
+opencv-python>=4.0.0
+scikit-learn
+scipy
+platformdirs
+transformers
+accelerate
+--extra-index-url https://download.pytorch.org/whl/cpu
+torch
+torchvision

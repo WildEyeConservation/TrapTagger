@@ -16,7 +16,15 @@ if os.path.isdir(_DEPTH_REPO) and _DEPTH_REPO not in sys.path:
   sys.path.insert(0, _DEPTH_REPO)
 
 
-def infer(cameragroup_id, cam_name, calibration_items, trap_items, sourceBucket, external=False):
+def infer(
+  cameragroup_id,
+  cam_name,
+  calibration_items,
+  trap_items,
+  sourceBucket,
+  external=False,
+  survey_id=None,
+):
   '''
   Runs depth estimation for one cameragroup: stages calibration and trap images,
   runs the depth model, and returns estimated distances per detection.
@@ -57,7 +65,18 @@ def infer(cameragroup_id, cam_name, calibration_items, trap_items, sourceBucket,
 
     from traptagger_api import run_transect_job, traptagger_default_config
 
-    return run_transect_job(job_root, transect_id, config=traptagger_default_config())
+    collect_bbox_audit = os.environ.get('DEPTH_BBOX_AUDIT', '0') == '1'
+    job_output = run_transect_job(
+      job_root,
+      transect_id,
+      config=traptagger_default_config(),
+      collect_bbox_audit=collect_bbox_audit,
+    )
+    if collect_bbox_audit:
+      results = job_output['results']
+      _write_bbox_audit(job_output['bbox_audit'], survey_id, cameragroup_id)
+      return results
+    return job_output
   finally:
     shutil.rmtree(job_root, ignore_errors=True)
 
@@ -224,3 +243,23 @@ def _download_and_build_manifest(
     json.dump(manifest, f, indent=2)
 
   return manifest
+
+
+def _write_bbox_audit(audit, survey_id, cameragroup_id):
+  '''
+  Writes bbox audit JSON to depthworker/bbox_audit/{survey_id}/{cameragroup_id}.json
+  when DEPTH_BBOX_AUDIT=1.
+  '''
+  if survey_id is None:
+    survey_id = 'unknown'
+  audit_dir = os.path.join(
+    os.path.dirname(__file__),
+    'bbox_audit',
+    str(survey_id),
+  )
+  os.makedirs(audit_dir, exist_ok=True)
+  audit['survey_id'] = survey_id
+  out_path = os.path.join(audit_dir, '{}.json'.format(cameragroup_id))
+  with open(out_path, 'w') as f:
+    json.dump(audit, f, indent=2)
+  print('Wrote bbox audit to {}'.format(out_path))

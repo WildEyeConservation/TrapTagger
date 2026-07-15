@@ -7322,6 +7322,7 @@ def launch_depth_estimation(survey_id, task_ids, species_list):
                     'trap_items': trap_items,
                     'sourceBucket': Config.BUCKET,
                     'external': False,
+                    'survey_id': survey_id,
                 },
                 queue='depth',
             )

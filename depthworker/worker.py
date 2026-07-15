@@ -42,7 +42,15 @@ def setup_direct_queue(sender, instance, **kwargs):
 
 
 @app.task()
-def depth_estimate(cameragroup_id, cam_name, calibration_items, trap_items, sourceBucket, external=False):
+def depth_estimate(
+  cameragroup_id,
+  cam_name,
+  calibration_items,
+  trap_items,
+  sourceBucket,
+  external=False,
+  survey_id=None,
+):
     '''
     Celery wrapper for depth estimation on one cameragroup.
 
@@ -71,6 +79,7 @@ def depth_estimate(cameragroup_id, cam_name, calibration_items, trap_items, sour
         trap_items,
         sourceBucket,
         external,
+        survey_id=survey_id,
     )
 
     finishtime = time.time()
