@@ -1484,7 +1484,7 @@ def stopTask(task_id):
     task = db.session.query(Task).get(int(task_id))
     tasks = [t for t in task.sub_tasks]
     tasks.append(task)
-    if task and all(checkSurveyPermission(current_user.id,t.survey_id,'write') for t in tasks) and (task.status.lower() not in Config.TASK_READY_STATUSES):
+    if task and all(checkSurveyPermission(current_user.id,t.survey_id,'write') for t in tasks) and (task.status == 'PROGRESS'):
         task.status = 'Stopping'
         db.session.commit()
         stop_task.apply_async(kwargs={'task_id':task_id})
