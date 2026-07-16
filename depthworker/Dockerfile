@@ -1,6 +1,6 @@
 # Copyright 2026
-# Production depth worker image: TrapTagger depthworker + depth-estimation-repo.
-# CUDA 11.8 runtime for onnxruntime-gpu 1.18.x (host NVIDIA driver via --gpus all).
+# Production depth worker image: CUDA + Python deps only (gpuworker/llava pattern).
+# TrapTagger depthworker and depth-estimation-repo are mounted at launch from the AMI host.
 
 FROM nvidia/cuda:11.8.0-cudnn8-runtime-ubuntu22.04
 
@@ -32,6 +32,3 @@ COPY depthworker/requirements_inference.txt /code/depthworker/requirements_infer
 RUN python -m pip install --no-cache-dir --upgrade pip && \
     python -m pip install --no-cache-dir -r /code/depthworker/requirements.txt && \
     python -m pip install --no-cache-dir -r /code/depthworker/requirements_inference.txt
-
-COPY depthworker /code/depthworker
-COPY depth-estimation-repo /code/depth-estimation-repo
