@@ -303,19 +303,89 @@ def delete_cameras(survey_id, ids=None, empty=False, delete_from_s3=False):
 
     return True
 
-def delete_calibration_images(survey_id):
-    '''Deletes calibration images for a given survey ID.'''
+def _calibration_s3_delete_keys(filename):
+    '''Return S3 keys to delete for a calibration image (comp path plus defensive raw).'''
+    if not filename:
+        return []
+    keys = [filename]
+    parts = filename.split('/', 1)
+    if parts[0].endswith('-comp'):
+        raw_prefix = parts[0][:-5]
+        keys.append(raw_prefix + ('/' + parts[1] if len(parts) > 1 else ''))
+    return keys
 
-    cal_subq = db.session.query(CalibrationImage.id)\
-        .join(Cameragroup, CalibrationImage.cameragroup_id == Cameragroup.id)\
-        .join(Camera, Camera.cameragroup_id == Cameragroup.id)\
-        .join(Trapgroup, Camera.trapgroup_id == Trapgroup.id)\
-        .filter(Trapgroup.survey_id == survey_id)\
-        .subquery()
+
+def _delete_calibration_images_from_s3(filenames):
+    for filename in filenames:
+        for key in _calibration_s3_delete_keys(filename):
+            try:
+                GLOBALS.s3client.delete_object(Bucket=Config.BUCKET, Key=key)
+            except Exception:
+                app.logger.info('Failed to delete calibration image from S3: {}'.format(key))
+
+
+def _calibration_image_query(survey_id=None, cameragroup_ids=None, ids=None):
+    '''Build a CalibrationImage query from optional survey / cameragroup / id filters.'''
+    cal_q = db.session.query(CalibrationImage.id, CalibrationImage.filename)
+
+    if ids is not None:
+        cal_q = cal_q.filter(CalibrationImage.id.in_(ids))
+
+    if cameragroup_ids is not None:
+        cal_q = cal_q.filter(CalibrationImage.cameragroup_id.in_(cameragroup_ids))
+
+    if survey_id is not None:
+        survey = db.session.query(Survey).get(survey_id)
+        if not survey:
+            return cal_q.filter(False)
+
+        cameragroup_ids_in_survey = (
+            db.session.query(Camera.cameragroup_id)
+            .join(Trapgroup)
+            .filter(Trapgroup.survey_id == survey_id)
+            .filter(Camera.cameragroup_id.isnot(None))
+            .distinct()
+        )
+        cal_prefix = survey.organisation.folder + '-comp/' + survey.name + '/_calibration_/'
+        cal_prefix = cal_prefix.replace('_', '\\_')
+        cal_q = cal_q.filter(
+            or_(
+                CalibrationImage.cameragroup_id.in_(cameragroup_ids_in_survey),
+                CalibrationImage.filename.like(cal_prefix + '%'),
+            )
+        )
+
+    return cal_q
+
+
+def delete_calibration_images(survey_id=None, cameragroup_ids=None, ids=None, delete_from_s3=True):
+    '''
+    Deletes calibration images and optionally their S3 objects.
+
+    Scope by survey_id, cameragroup_ids, and/or ids (at least one required).
+    Survey scope uses cameragroups linked to trap cameras and calibration keys
+    under the survey prefix, so orphaned rows are included without a Camera join.
+    '''
+    if survey_id is None and cameragroup_ids is None and ids is None:
+        return True
+
+    cal_rows = _calibration_image_query(
+        survey_id=survey_id,
+        cameragroup_ids=cameragroup_ids,
+        ids=ids,
+    ).distinct().all()
+
+    if not cal_rows:
+        app.logger.info('No calibration images to delete.')
+        return True
+
+    cal_ids = [row[0] for row in cal_rows]
+    if delete_from_s3:
+        _delete_calibration_images_from_s3([row[1] for row in cal_rows if row[1]])
 
     result = db.session.execute(
         delete(CalibrationImage)
-        .where(CalibrationImage.id.in_(select(cal_subq.c.id)))
+        .where(CalibrationImage.id.in_(cal_ids))
         .execution_options(synchronize_session=False)
     )
     db.session.commit()
@@ -599,6 +669,11 @@ def delete_cameragroups(survey_id, empty=False,ids=None):
         cameragroupQ = cameragroupQ.filter(Cameragroup.id.in_(ids))
 
     cg_subq = cameragroupQ.subquery()
+    cg_ids = [r[0] for r in db.session.query(cg_subq.c.id).all()]
+
+    if cg_ids:
+        delete_calibration_images(cameragroup_ids=cg_ids)
+
     mask_subq = db.session.query(Mask.id).join(Cameragroup).filter(Cameragroup.id.in_(select(cg_subq.c.id))).subquery()
 
     #Delete masks

@@ -7416,10 +7416,15 @@ def run_depth_estimation(self, survey_id, task_ids, species_list):
                 with allow_join_result():
                     for async_result in launch_summary['async_results']:
                         try:
-                            response = async_result.get()
+                            response = async_result.get(timeout=Config.DEPTH_JOB_TIMEOUT)
                             total_updated += apply_depth_estimation_results(response)
                             db.session.commit()
                         except Exception:
+                            app.logger.info(
+                                'Depth batch {} failed or timed out after {}s'.format(
+                                    async_result.id, Config.DEPTH_JOB_TIMEOUT
+                                )
+                            )
                             app.logger.info(traceback.format_exc())
                         finally:
                             async_result.forget()

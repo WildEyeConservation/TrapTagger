@@ -2666,16 +2666,15 @@ def editSurvey():
 
                 # Deletions
                 if cal_deletions:
+                    validated_cal_ids = []
                     for cal_id in cal_deletions:
                         cal_image = get_calibration_image_for_survey(int(cal_id), survey.id)
                         if not cal_image:
                             continue
                         affected_cameragroups.add(cal_image.cameragroup_id)
-                        try:
-                            GLOBALS.s3client.delete_object(Bucket=Config.BUCKET, Key=cal_image.filename)
-                        except Exception:
-                            app.logger.info('Failed to delete calibration image from S3: {}'.format(cal_image.filename))
-                        db.session.delete(cal_image)
+                        validated_cal_ids.append(cal_image.id)
+                    if validated_cal_ids:
+                        delete_calibration_images(survey_id=survey.id, ids=validated_cal_ids)
 
             cal_images_to_detect = []
 
