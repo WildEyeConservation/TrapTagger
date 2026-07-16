@@ -28,6 +28,7 @@ for ((i=0;$((i<$NUMGPUS));i++)) do
     -e AWS_ACCESS_KEY_ID \
     -e AWS_SECRET_ACCESS_KEY \
     -e REDIS_IP \
+    -e DEPTH_BBOX_AUDIT=0 \
     --hostname worker$i@$1 \
     -e WORKER_NAME=$1 \
     -e QUEUE \
