@@ -29,9 +29,9 @@ RUN apt-get update && \
 COPY depthworker/requirements.txt /code/depthworker/requirements.txt
 COPY depthworker/requirements_inference.txt /code/depthworker/requirements_inference.txt
 
-RUN python -m pip install --upgrade pip && \
-    python -m pip install -r /code/depthworker/requirements.txt && \
-    python -m pip install -r /code/depthworker/requirements_inference.txt
+RUN python -m pip install --no-cache-dir --upgrade pip && \
+    python -m pip install --no-cache-dir -r /code/depthworker/requirements.txt && \
+    python -m pip install --no-cache-dir -r /code/depthworker/requirements_inference.txt
 
 COPY depthworker /code/depthworker
 COPY depth-estimation-repo /code/depth-estimation-repo
