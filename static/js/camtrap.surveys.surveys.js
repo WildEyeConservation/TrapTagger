@@ -124,6 +124,7 @@ var globalSurveyStructure = {}
 var globalStructureCounts = {'sites':0,'cameras':0}
 var globalCalibrationFolderCount = 0
 var globalCalibrationFolderPaths = []
+var globalCalibrationFolderEmptyPaths = []
 var pendingUploadCalibrationCode = null
 var structure_page = 1
 var tags_per_page = 10
@@ -411,6 +412,7 @@ var surveyIgnoreSmallDetections = null
 var surveySkyMasked = null
 var surveyAdvancedOptionsLoaded = false
 var depthSelectedTaskId = null
+var CAL_UPLOAD_DISTANCE_STEM_RE = /^\d+(\.\d+)?$/
 
 function buildSurveys(survey,disableSurvey) {
     /**
@@ -7775,8 +7777,11 @@ function isCalUploadJpeg(filename) {
     return /\.jpe?g$/i.test(filename)
 }
 
+
 function parseCalUploadDistance(filename) {
+    if (!isCalUploadJpeg(filename)) return null
     var stem = filename.replace(/\.[^/.]+$/, '')
+    if (!CAL_UPLOAD_DISTANCE_STEM_RE.test(stem)) return null
     var d = parseFloat(stem)
     if (isNaN(d) || d <= 0) return null
     return d
@@ -7810,6 +7815,7 @@ function validateCalUploadFiles(files) {
 
     var pairs = []
     var seenDistances = {}
+    var jpegCount = 0
 
     for (var i = 0; i < directFiles.length; i++) {
         var file = directFiles[i]
@@ -7817,6 +7823,7 @@ function validateCalUploadFiles(files) {
         if (!isCalUploadJpeg(file.name)) {
             continue
         }
+        jpegCount += 1
 
         var distance = parseCalUploadDistance(file.name)
         if (distance === null) {
@@ -7832,6 +7839,12 @@ function validateCalUploadFiles(files) {
     }
 
     if (pairs.length === 0) {
+        if (jpegCount > 0) {
+            return {
+                valid: false,
+                message: 'No valid calibration images found. Filenames must be a distance in metres (e.g. 5.jpg, 10.0.jpg).'
+            }
+        }
         return { valid: false, message: 'No valid calibration JPEGs found in the selected folder.' }
     }
 
@@ -10708,6 +10721,7 @@ function updateCalDiv() {
         ctx.calInput.value = ''
         while (ctx.calBuilder.firstChild) ctx.calBuilder.removeChild(ctx.calBuilder.firstChild)
         globalCalibrationFolderPaths = []
+        globalCalibrationFolderEmptyPaths = []
         globalCalibrationFolderCount = 0
         refreshCalibrationUI()
     } else {
@@ -10806,6 +10820,19 @@ function validateCalibrationStructure() {
                     valid: false,
                     message: 'Calibration folder must be below the camera folder level.'
                 }
+            }
+        }
+
+        if (globalCalibrationFolderEmptyPaths && globalCalibrationFolderEmptyPaths.length > 0) {
+            var folderNames = globalCalibrationFolderEmptyPaths.map(function (p) {
+                return '"' + p.split('/').pop() + '"'
+            }).join(', ')
+            var calIdLabel = ctx.calInput.value.trim()
+            return {
+                valid: false,
+                message: 'No valid calibration images found in folder(s) ' + folderNames +
+                    ' matching identifier "' + calIdLabel + '". ' +
+                    'Filenames must be a distance in metres (e.g. 5.jpg, 10.0.jpg).'
             }
         }
     }

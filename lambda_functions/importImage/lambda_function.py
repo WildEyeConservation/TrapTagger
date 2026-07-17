@@ -56,6 +56,22 @@ def calibration_camera_relative_path(path, calibration_code):
     cal_idx = dirparts.index(cal_folder_name)
     return '/'.join(dirparts[2:cal_idx])
 
+CALIBRATION_DISTANCE_STEM_RE = re.compile(r'^\d+(\.\d+)?$')
+
+def parse_calibration_distance_filename(filename):
+    if not filename or not re.search(r'\.jpe?g$', filename, re.I):
+        return None
+    stem = os.path.splitext(filename)[0]
+    if not CALIBRATION_DISTANCE_STEM_RE.match(stem):
+        return None
+    try:
+        distance = float(stem)
+    except ValueError:
+        return None
+    if distance <= 0:
+        return None
+    return distance
+
 def lambda_handler(event, context):
     '''Updates the image in the database with metadata & compresses the image.'''
     ImageFile.LOAD_TRUNCATED_IMAGES = True
@@ -173,6 +189,12 @@ def lambda_handler(event, context):
                     if camera_relative is not None:
                         splits = key.split('/')
                         filename = splits[-1]
+                        if parse_calibration_distance_filename(filename) is None:
+                            print('Skipping invalid calibration filename - {}'.format(key))
+                            os.remove(download_path)
+                            s3.delete_object(Bucket=bucket, Key=key)
+                            processed += 1
+                            continue
                         dest_key = (
                             splits[0] + '-comp/' + splits[1]
                             + '/_calibration_/' + camera_relative + '/' + filename

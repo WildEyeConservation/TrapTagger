@@ -28,15 +28,27 @@ uploadWorker.onmessage = function(evt){
         uppy.addFiles(evt.data.args)
     } else if (evt.data.func=='updatePathDisplay') {
         updatePathDisplay(evt.data.args[0], evt.data.args[1])
-        updateCalibrationNotice(evt.data.args[2])
+        updateCalibrationNotice(evt.data.args[2], evt.data.args[3])
         updateSiteFolderSelect()
         updateCamFolderSelect()
         if (typeof updateSurveyStructure === 'function') {
             updateSurveyStructure()
         }
     } else if (evt.data.func=='updateCalibrationFolders') {
-        updateCalibrationNotice(evt.data.args[0])
+        updateCalibrationNotice(evt.data.args[0], evt.data.args[1])
         checkTrapgroupCode()
+        if (typeof refreshCalibrationUI === 'function') {
+            refreshCalibrationUI()
+        }
+    } else if (evt.data.func=='calibrationUploadBlocked') {
+        uploading = false
+        var emptyPaths = evt.data.args[0] || []
+        var folderNames = emptyPaths.map(function (p) { return '"' + p.split('/').pop() + '"' }).join(', ')
+        document.getElementById('modalAlertHeader').innerHTML = 'Alert'
+        document.getElementById('modalAlertBody').innerHTML =
+            'Upload blocked: no valid calibration images found in folder(s) ' + folderNames +
+            '. Filenames must be a distance in metres (e.g. 5.jpg, 10.0.jpg).'
+        modalAlert.modal({keyboard: true})
         if (typeof refreshCalibrationUI === 'function') {
             refreshCalibrationUI()
         }
@@ -70,8 +82,9 @@ uploadWorker.onmessage = function(evt){
     }
 };
 
-function updateCalibrationNotice(calibrationFolderPaths) {
+function updateCalibrationNotice(calibrationFolderPaths, calibrationFolderEmptyPaths) {
     globalCalibrationFolderPaths = calibrationFolderPaths || []
+    globalCalibrationFolderEmptyPaths = calibrationFolderEmptyPaths || []
     globalCalibrationFolderCount = globalCalibrationFolderPaths.length
 }
 
@@ -297,6 +310,7 @@ function resetUploadStatusVariables() {
     retrying = false
     globalCalibrationFolderCount = 0
     globalCalibrationFolderPaths = []
+    globalCalibrationFolderEmptyPaths = []
     pendingUploadCalibrationCode = null
 }
 
@@ -308,6 +322,7 @@ function rescanSelectedFolder() {
         document.getElementById('yesCalImagesES')?.checked
     if (!calYes) {
         globalCalibrationFolderPaths = []
+        globalCalibrationFolderEmptyPaths = []
         globalCalibrationFolderCount = 0
         if (typeof refreshCalibrationUI === 'function') {
             refreshCalibrationUI()

@@ -2398,6 +2398,13 @@ def import_folder(s3Folder, survey_id, sourceBucket,destinationBucket,pipeline,m
             cal_prefix = comp_splits[0] + '/' + comp_splits[1] + '/_calibration_/' + '/'.join(comp_splits[2:])
             for filename in jpegs:
                 source_key = dirpath + '/' + filename
+                if parse_calibration_distance_filename(filename) is None:
+                    try:
+                        GLOBALS.s3client.delete_object(Bucket=sourceBucket, Key=source_key)
+                    except Exception:
+                        pass
+                    app.logger.info('Skipping invalid calibration filename {}'.format(source_key))
+                    continue
                 dest_key = cal_prefix + '/' + filename
                 if calibration_destination_taken(dest_key, sid):
                     try:
@@ -2622,18 +2629,28 @@ def resolve_cameragroup_for_calibration(survey_id, org, survey_folder, after_cal
         return None
 
     camera_path_prefix = org + '/' + survey_folder + '/' + after_cal
-    camera = (
+    cameras = (
         db.session.query(Camera)
         .join(Trapgroup)
         .filter(Trapgroup.survey_id == survey_id)
         .filter(Camera.cameragroup_id.isnot(None))
-        .filter(or_(
-            Camera.path == camera_path_prefix,
-            Camera.path.startswith(camera_path_prefix + '/'),
-        ))
-        .first()
+        .all()
     )
-    return camera.cameragroup_id if camera else None
+
+    best = None
+    best_len = -1
+    for camera in cameras:
+        path = camera.path
+        if (
+            path == camera_path_prefix
+            or path.startswith(camera_path_prefix + '/')
+            or camera_path_prefix.startswith(path + '/')
+        ):
+            if len(path) > best_len:
+                best_len = len(path)
+                best = camera
+
+    return best.cameragroup_id if best else None
 
 def process_calibration_images(survey_id, s3_folder, source_bucket, dest_bucket):
     '''
@@ -2663,9 +2680,9 @@ def process_calibration_images(survey_id, s3_folder, source_bucket, dest_bucket)
             db.session.commit()
         for filename in jpegs:
             dest_key = dirpath + '/' + filename
-            try:
-                distance = float(os.path.splitext(filename)[0])
-            except ValueError:
+            distance = parse_calibration_distance_filename(filename)
+            if distance is None:
+                app.logger.info('Skipping invalid calibration filename {}'.format(dest_key))
                 continue
             existing = db.session.query(CalibrationImage).filter(
                 CalibrationImage.cameragroup_id == cameragroup_id,
@@ -4838,6 +4855,26 @@ def extract_camera_name(camera_code,trapgroup_code,survey_name,trapgroup_tag,pat
 
     return camera_name
 
+CALIBRATION_DISTANCE_STEM_RE = re.compile(r'^\d+(\.\d+)?$')
+
+def parse_calibration_distance_filename(filename):
+    '''
+    Returns distance (float) from a calibration JPEG filename, or None if invalid.
+    Stem must be digits with optional decimal; extension .jpg/.jpeg; distance > 0.
+    '''
+    if not filename or not re.search(r'\.jpe?g$', filename, re.I):
+        return None
+    stem = os.path.splitext(filename)[0]
+    if not CALIBRATION_DISTANCE_STEM_RE.match(stem):
+        return None
+    try:
+        distance = float(stem)
+    except ValueError:
+        return None
+    if distance <= 0:
+        return None
+    return distance
+
 def is_calibration_dirpath(dirpath, calibration_code):
     '''
     Returns True if dirpath points at a calibration folder.
@@ -4997,20 +5034,37 @@ def apply_edit_survey_cal_uploads(survey_id, manifest, request_files):
         if not belongs:
             continue
         for fi in entry['files']:
+            distance = parse_calibration_distance_filename(fi['name'])
+            if distance is None:
+                app.logger.info('Skipping invalid calibration upload filename {}'.format(fi['name']))
+                continue
             dest_key = calibration_comp_dest_key_for_cameragroup(survey_id, cg_id, fi['name'])
             if not dest_key or calibration_destination_taken(dest_key, survey_id):
                 continue
             upload = request_files.get(fi['field_key'])
             if not upload or not upload.filename:
                 continue
-            GLOBALS.s3client.upload_fileobj(
-                upload, Config.BUCKET, dest_key,
-                ExtraArgs={'ContentType': upload.content_type or 'image/jpeg'}
-            )
+            try:
+                with tempfile.NamedTemporaryFile(delete=True, suffix='.JPG') as tmp:
+                    upload.save(tmp.name)
+                    GLOBALS.lock.acquire()
+                    try:
+                        with wandImage(filename=tmp.name).convert('jpeg') as img:
+                            img.metadata['colorspace:auto-grayscale'] = 'false'
+                            img.transform(resize='800')
+                            GLOBALS.s3client.upload_fileobj(
+                                BytesIO(img.make_blob()), Config.BUCKET, dest_key,
+                                ExtraArgs={'ContentType': 'image/jpeg'}
+                            )
+                    finally:
+                        GLOBALS.lock.release()
+            except Exception:
+                app.logger.info('Failed to compress calibration image upload for {}'.format(dest_key))
+                continue
             cal_image = CalibrationImage(
                 cameragroup_id=cg_id,
                 filename=dest_key,
-                distance=float(fi['distance']),
+                distance=distance,
             )
             db.session.add(cal_image)
             db.session.flush()

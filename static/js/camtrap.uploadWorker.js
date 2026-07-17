@@ -34,6 +34,7 @@ addingBatch = false
 checkingFiles = false
 folders = []
 calibrationFolderPaths = []
+calibrationFolderEmptyPaths = []
 lambdaQueue = []
 checkingLambda = false
 largeFiles = 0
@@ -208,6 +209,14 @@ async function addBatch() {
     return true
 }
 
+function isCalUploadDistanceFilename(filename) {
+    if (!/^[^.].*\.jpe?g$/i.test(filename)) return false
+    var stem = filename.replace(/\.[^/.]+$/i, '')
+    if (!/^\d+(\.\d+)?$/.test(stem)) return false
+    var d = parseFloat(stem)
+    return !isNaN(d) && d > 0
+}
+
 function isCalibrationFolder(dirName, dirPath) {
     /** Returns true if dirName at dirPath matches calibrationCode. */
 
@@ -257,18 +266,40 @@ async function listCalibrationFolder(dirHandle, path, cameraPath) {
         calibrationFolderPaths.push(path)
     }
 
+    var validCount = 0
     for await (const entry of dirHandle.values()) {
         if (entry.kind == 'file') {
-            if (/^[^.].*\.(jpe?g)$/.test(entry.name.toLowerCase())) {
-                filecount += 1
-                proposedQueue.push([path, entry])
+            if (/^[^.].*\.(jpe?g)$/i.test(entry.name)) {
+                if (isCalUploadDistanceFilename(entry.name)) {
+                    filecount += 1
+                    proposedQueue.push([path, entry])
+                    validCount += 1
+                }
             }
         }
+    }
+
+    if (validCount === 0 && !calibrationFolderEmptyPaths.includes(path)) {
+        calibrationFolderEmptyPaths.push(path)
+    }
+}
+
+async function auditCalibrationFolderFiles(dirHandle, path) {
+    var validCount = 0
+    for await (const entry of dirHandle.values()) {
+        if (entry.kind == 'file' && /^[^.].*\.(jpe?g)$/i.test(entry.name)) {
+            if (isCalUploadDistanceFilename(entry.name)) {
+                validCount += 1
+            }
+        }
+    }
+    if (validCount === 0 && !calibrationFolderEmptyPaths.includes(path)) {
+        calibrationFolderEmptyPaths.push(path)
     }
 }
 
 async function walkForCalibrationFolders(dirHandle, path) {
-    /** Finds cal folder paths only — does not alter trap scan state or upload queue. */
+    /** Finds cal folder paths and checks each contains valid distance-named JPEGs. */
     for await (const entry of dirHandle.values()) {
         if (entry.kind == 'directory') {
             var nextPath = path + '/' + entry.name
@@ -276,6 +307,7 @@ async function walkForCalibrationFolders(dirHandle, path) {
                 if (!calibrationFolderPaths.includes(nextPath)) {
                     calibrationFolderPaths.push(nextPath)
                 }
+                await auditCalibrationFolderFiles(entry, nextPath)
             } else {
                 await walkForCalibrationFolders(entry, nextPath)
             }
@@ -285,6 +317,7 @@ async function walkForCalibrationFolders(dirHandle, path) {
 
 async function rescanCalibrationFolders(dirHandle) {
     calibrationFolderPaths = []
+    calibrationFolderEmptyPaths = []
     if (dirHandle && calibrationCode) {
         await walkForCalibrationFolders(dirHandle, dirHandle.name)
     }
@@ -294,7 +327,7 @@ async function rescanCalibrationFolders(dirHandle) {
 function updateCalibrationFolders() {
     postMessage({
         'func': 'updateCalibrationFolders',
-        'args': [calibrationFolderPaths]
+        'args': [calibrationFolderPaths, calibrationFolderEmptyPaths]
     })
 }
 
@@ -307,7 +340,7 @@ function updatePathDisplay() {
     /** Wrapper function for updatePathDisplay so that the main js can update the page. */
     postMessage({
         'func': 'updatePathDisplay',
-        'args': [folders, filecount, calibrationFolderPaths]
+        'args': [folders, filecount, calibrationFolderPaths, calibrationFolderEmptyPaths]
     })
 }
 
@@ -346,6 +379,14 @@ async function uploadFiles() {
         calibrationCode = calibrationCode || null
         await listFolder(rootDirHandle, rootDirHandle.name)
         updatePathDisplay()
+
+        if (calibrationCode && calibrationFolderEmptyPaths.length > 0) {
+            postMessage({
+                'func': 'calibrationUploadBlocked',
+                'args': [calibrationFolderEmptyPaths]
+            })
+            return
+        }
     }
 
     if (!checkingFiles) {
@@ -408,6 +449,7 @@ function resetScanResults() {
     checkingFiles = false
     folders = []
     calibrationFolderPaths = []
+    calibrationFolderEmptyPaths = []
     lambdaQueue = []
     checkingLambda = false
     largeFiles = 0
