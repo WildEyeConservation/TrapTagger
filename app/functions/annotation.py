@@ -933,7 +933,6 @@ def fetch_clusters(taggingLevel,task_id,isBounding,trapgroup_id,limit=None,id=No
                                 .outerjoin(requiredimagestable,requiredimagestable.c.cluster_id==Cluster.id)\
                                 .join(Camera) \
                                 .filter(Image.zip_id==None)\
-                                .join(clusterSQ,clusterSQ.c.id==Cluster.id)\
                                 .outerjoin(detectionSQ,detectionSQ.c.image_id==Image.id)
             
             clusters = clusters.filter(Camera.trapgroup_id==trapgroup_id)\
