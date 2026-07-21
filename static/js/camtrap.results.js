@@ -157,6 +157,7 @@ var globalSummaryResults = null
 var globalActivityResults = null 
 var globalOccupancyResults = null
 var globalSCRResults = null
+var globalDistanceResults = null
 var ssPolygon = null
 var globalIndividualSpecies = []
 var resultsFolder = null
@@ -278,6 +279,7 @@ function generateResults(){
     document.getElementById('statisticsErrors').innerHTML = ''
     var analysisDescription = document.getElementById('analysisDescription')
     analysisDescription.innerHTML = ''
+    document.getElementById('distanceSamplingDiv').hidden = true
 
     var speciesSelector = document.getElementById('speciesSelect')
 
@@ -575,6 +577,51 @@ function generateResults(){
             buildSCRtabs(globalSCRResults)
         }
     }
+    else if (analysisType=='8') {
+        // Builds the selectors for distance sampling analysis
+        document.getElementById('btnExportResults').disabled = true
+        document.getElementById('chartTypeDiv').hidden = true
+        document.getElementById('normalisationDiv').hidden = true
+        document.getElementById('timeUnitSelectionDiv').hidden = true
+        document.getElementById('spatialOptionsDiv').hidden = true
+        document.getElementById('spatialDataDiv').hidden = false
+        document.getElementById('analysisDataDiv').hidden = true
+        document.getElementById('comparisonDiv').hidden = true
+        document.getElementById('numericalDataDiv').hidden = true
+        document.getElementById('trendlineDiv').hidden = true
+        document.getElementById('speciesDataDiv').hidden = true
+        document.getElementById('optionsDiv').hidden = true
+        document.getElementById('buttonsR').hidden = false
+        document.getElementById('btnViewScript').hidden = false
+        document.getElementById('btnDownloadResultsCSV').hidden = false
+        document.getElementById('covariatesDiv').hidden = true
+        document.getElementById('observationWindowDiv').hidden = true
+        document.getElementById('distanceSamplingDiv').hidden = false
+        document.getElementById('cameraTrapDiv').hidden = true
+        document.getElementById('dataUnitDiv').hidden = true
+        document.getElementById('indivCharacteristicsDiv').hidden = true
+        document.getElementById('dateDivTA').hidden = true
+        document.getElementById('openChartTab').disabled = true
+        document.getElementById('relativeAbundanceDiv').hidden = true
+        document.getElementById('shapefileDiv').hidden = true
+        document.getElementById('descriptionDiv').hidden = false
+        document.getElementById('flankDiv').hidden = true
+
+        analysisDescription.innerHTML = '<i> Distance sampling estimates species density from detections with measured distances and camera effort. Detections must have distance values (from depth estimation). </i>'
+
+        if (speciesSelector) {
+            clearSelect(speciesSelector)
+            var optionValues = ['-1', '0']
+            var optionTexts = ['None', 'All']
+            optionValues = optionValues.concat(globalLabels)
+            optionTexts = optionTexts.concat(globalLabels)
+            fillSelect(speciesSelector, optionTexts, optionValues)
+        }
+
+        if (globalDistanceResults) {
+            buildDistanceResults(globalDistanceResults)
+        }
+    }
     else{
         document.getElementById('btnExportResults').disabled = true
         document.getElementById('chartTypeDiv').hidden = true
@@ -599,7 +646,8 @@ function generateResults(){
         document.getElementById('relativeAbundanceDiv').hidden = true
         document.getElementById('shapefileDiv').hidden = true
         document.getElementById('descriptionDiv').hidden = true
-        document.getElementById('flankDiv').hidden = true 
+        document.getElementById('flankDiv').hidden = true
+        document.getElementById('distanceSamplingDiv').hidden = true
 
         analysisDescription.innerHTML = ''
 
@@ -773,6 +821,20 @@ function disablePanel(){
         document.getElementById('rbUploadShp').disabled = true
         document.getElementById('flankSelector').disabled = true
     }
+    else if (analysisType=='8') {
+        // Distance sampling analysis
+        document.getElementById('studyAreaKm2').disabled = true
+        document.getElementById('cameraFovDegrees').disabled = true
+        document.getElementById('distanceLeftTrunc').disabled = true
+        document.getElementById('distanceRightTrunc').disabled = true
+        document.getElementById('btnRunScript').disabled = true
+        document.getElementById('btnCancelResults').disabled = false
+        document.getElementById('btnViewScript').disabled = false
+        document.getElementById('btnDownloadResultsCSV').disabled = true
+        document.getElementById('speciesSelect').disabled = true
+        document.getElementById('startDate').disabled = true
+        document.getElementById('endDate').disabled = true
+    }
 
 }
 
@@ -935,6 +997,20 @@ function enablePanel(){
         document.getElementById('rbDrawPoly').disabled = false
         document.getElementById('rbUploadShp').disabled = false
         document.getElementById('flankSelector').disabled = false
+    }
+    else if (analysisType=='8') {
+        // Distance sampling analysis
+        document.getElementById('studyAreaKm2').disabled = false
+        document.getElementById('cameraFovDegrees').disabled = false
+        document.getElementById('distanceLeftTrunc').disabled = false
+        document.getElementById('distanceRightTrunc').disabled = false
+        document.getElementById('btnRunScript').disabled = false
+        document.getElementById('btnCancelResults').disabled = true
+        document.getElementById('btnViewScript').disabled = false
+        document.getElementById('btnDownloadResultsCSV').disabled = false
+        document.getElementById('speciesSelect').disabled = false
+        document.getElementById('startDate').disabled = false
+        document.getElementById('endDate').disabled = false
     }
     else{
         document.getElementById('cameraSelector').disabled = false;
@@ -2102,6 +2178,9 @@ function updateResults(update=false){
     else if (analysisSelection == '7') {
         updateSCR()
     }
+    else if (analysisSelection == '8') {
+        updateDistanceSampling()
+    }
 }
 
 function updatePolar(){
@@ -2700,7 +2779,7 @@ function getSelectedSpecies(){
             }
         }
     }
-    else if (analysisSelection == '6' || analysisSelection == '7') {
+    else if (analysisSelection == '6' || analysisSelection == '7' || analysisSelection == '8') {
         var allSpecies = document.getElementById('speciesSelect').value
         if (allSpecies != '-1' && allSpecies != '0') {
             species = [allSpecies]
@@ -4027,6 +4106,9 @@ $('#btnViewScript').click( function() {
     else if (analysisSelection == '7') {
         filename = 'spatial_capture_recapture'
     }
+    else if (analysisSelection == '8') {
+        filename = 'distance_sampling'
+    }
     else{
         filename = null
     }
@@ -4075,6 +4157,9 @@ $('#btnDownloadResultsCSV').click( function() {
     }
     else if (analysisSelection == '7') {
         getSCRcsv()
+    }
+    else if (analysisSelection == '8') {
+        getDistanceSamplingCSV()
     }
 });
 
@@ -6292,6 +6377,370 @@ function updateOccupancy(check=false){
 
     }
 
+}
+
+function checkDistanceSampling(species, studyAreaKm2, cameraFovDegrees, leftTrunc, rightTrunc){
+    /** Checks if the distance sampling options are valid */
+    var valid = true
+    var message = ''
+
+    if (species == '-1' || species == '0' || (Array.isArray(species) && species.length === 0)) {
+        message = 'Please select a species.'
+        valid = false
+    }
+
+    if (studyAreaKm2 === '' || isNaN(studyAreaKm2) || parseFloat(studyAreaKm2) <= 0) {
+        message = 'Please enter a valid study area (km²) greater than 0.'
+        valid = false
+    }
+
+    if (cameraFovDegrees === '' || isNaN(cameraFovDegrees) || parseFloat(cameraFovDegrees) <= 0 || parseFloat(cameraFovDegrees) > 360) {
+        message = 'Please enter a valid camera field of view between 0 and 360 degrees.'
+        valid = false
+    }
+
+    if (leftTrunc !== '' && (isNaN(leftTrunc) || parseFloat(leftTrunc) < 0)) {
+        message = 'Left truncation must be a non-negative number or blank.'
+        valid = false
+    }
+
+    if (rightTrunc !== '' && (isNaN(rightTrunc) || parseFloat(rightTrunc) <= 0)) {
+        message = 'Right truncation must be a positive number or blank.'
+        valid = false
+    }
+
+    if (leftTrunc !== '' && rightTrunc !== '' && parseFloat(leftTrunc) >= parseFloat(rightTrunc)) {
+        message = 'Left truncation must be less than right truncation.'
+        valid = false
+    }
+
+    if (valid) {
+        document.getElementById('distanceSamplingErrors').innerHTML = ''
+    } else {
+        document.getElementById('distanceSamplingErrors').innerHTML = message
+    }
+
+    return valid
+}
+
+function updateDistanceSampling(check=false){
+    /** Gets the distance sampling analysis results */
+    if (check) {
+        var species = '0'
+        var tasks = '0'
+        var validDistance = true
+        var validDates = true
+        var formData = new FormData()
+        formData.append('folder', JSON.stringify(resultsFolder))
+    }
+    else {
+        resultsFolder = null
+        var tasks = getSelectedTasks()
+        var selectedSites = getSelectedSites()
+        var sites = selectedSites[0]
+        var groups = selectedSites[1]
+        var species = getSelectedSpecies()
+        var startDate = document.getElementById('startDate').value
+        var endDate = document.getElementById('endDate').value
+        var studyAreaKm2 = document.getElementById('studyAreaKm2').value
+        var cameraFovDegrees = document.getElementById('cameraFovDegrees').value
+        var leftTrunc = document.getElementById('distanceLeftTrunc').value
+        var rightTrunc = document.getElementById('distanceRightTrunc').value
+
+        var validDistance = checkDistanceSampling(species, studyAreaKm2, cameraFovDegrees, leftTrunc, rightTrunc)
+        var validDates = checkDates(startDate, endDate)
+
+        var formData = new FormData()
+        formData.append('task_ids', JSON.stringify(tasks))
+        formData.append('trapgroups', JSON.stringify(sites))
+        formData.append('species', JSON.stringify(species))
+        formData.append('groups', JSON.stringify(groups))
+        formData.append('area_km2', JSON.stringify(parseFloat(studyAreaKm2)))
+        formData.append('fov_degrees', JSON.stringify(parseFloat(cameraFovDegrees)))
+        formData.append('csv', JSON.stringify('0'))
+
+        if (leftTrunc !== '') {
+            formData.append('left_trunc', JSON.stringify(parseFloat(leftTrunc)))
+        }
+        if (rightTrunc !== '') {
+            formData.append('right_trunc', JSON.stringify(parseFloat(rightTrunc)))
+        }
+
+        var area = document.getElementById('areaSelect').value
+        if (area != null && area != '' && area != '0') {
+            formData.append('area', JSON.stringify(area))
+        }
+
+        if (startDate != '') {
+            startDate = startDate + ' 00:00:00'
+            formData.append('startDate', JSON.stringify(startDate))
+        }
+
+        if (endDate != '') {
+            endDate = endDate + ' 23:59:59'
+            formData.append('endDate', JSON.stringify(endDate))
+        }
+    }
+
+    if (species != '-1' && validDistance && tasks != '-1' && validDates) {
+
+        if (!check) {
+            document.getElementById('resultsDiv').style.display = 'none'
+            document.getElementById('loadingDiv').style.display = 'block'
+            document.getElementById('loadingCircle').style.display = 'block'
+            document.getElementById('statisticsErrors').innerHTML = 'Please note that this analysis may take a few minutes to run. Do not navigate away from this page until the analysis is complete.'
+            disablePanel()
+
+            resultsTab = document.getElementById('resultsTab')
+            while (resultsTab.firstChild) {
+                resultsTab.removeChild(resultsTab.firstChild)
+            }
+        }
+
+        var xhttp = new XMLHttpRequest()
+        xhttp.onreadystatechange =
+        function(){
+            if (this.readyState == 4 && this.status == 200) {
+                reply = JSON.parse(this.responseText)
+                resultsFolder = reply.folder
+                if (reply.status == 'SUCCESS') {
+                    clearTimeout(timeout)
+                    document.getElementById('loadingDiv').style.display = 'none'
+                    document.getElementById('loadingCircle').style.display = 'none'
+                    document.getElementById('resultsDiv').style.display = 'block'
+                    document.getElementById('statisticsErrors').innerHTML = ''
+                    enablePanel()
+
+                    globalDistanceResults = reply.results
+                    while (document.getElementById('resultsDiv').firstChild) {
+                        document.getElementById('resultsDiv').removeChild(document.getElementById('resultsDiv').firstChild)
+                    }
+                    buildDistanceResults(reply.results)
+                }
+                else if (reply.status == 'FAILURE') {
+                    document.getElementById('loadingDiv').style.display = 'none'
+                    document.getElementById('loadingCircle').style.display = 'none'
+                    document.getElementById('resultsDiv').style.display = 'block'
+
+                    while (document.getElementById('resultsDiv').firstChild) {
+                        document.getElementById('resultsDiv').removeChild(document.getElementById('resultsDiv').firstChild)
+                    }
+
+                    var errMsg = reply.message || 'An error occurred while running the analysis. Please try again.'
+                    document.getElementById('statisticsErrors').innerHTML = errMsg
+                    enablePanel()
+                }
+                else {
+                    timeout = setTimeout(function(){updateDistanceSampling(true)}, 10000)
+                }
+            }
+            else if (this.readyState == 4 && this.status != 200) {
+                document.getElementById('loadingDiv').style.display = 'none'
+                document.getElementById('loadingCircle').style.display = 'none'
+                document.getElementById('resultsDiv').style.display = 'block'
+
+                while (document.getElementById('resultsDiv').firstChild) {
+                    document.getElementById('resultsDiv').removeChild(document.getElementById('resultsDiv').firstChild)
+                }
+
+                document.getElementById('statisticsErrors').innerHTML = 'An error occurred while running the analysis. Please try again.'
+                enablePanel()
+            }
+        }
+        xhttp.open('POST', '/getDistanceSampling')
+        xhttp.send(formData)
+    }
+}
+
+function buildDistanceResults(results){
+    /** Builds the distance sampling results panel */
+    var mainDiv = document.getElementById('resultsDiv')
+
+    var h5 = document.createElement('h5')
+    h5.innerHTML = 'Distance Sampling'
+    h5.setAttribute('style', 'margin-bottom: 2px')
+    mainDiv.appendChild(h5)
+
+    h5 = document.createElement('h5')
+    h5.innerHTML = '<div><i>Density estimates from camera-trap distance sampling using detections with measured distances.</i></div>'
+    h5.setAttribute('style', 'font-size: 80%; margin-bottom: 2px')
+    mainDiv.appendChild(h5)
+    mainDiv.appendChild(document.createElement('br'))
+
+    if (results && results.flatfile_url) {
+        var csvLink = document.createElement('p')
+        csvLink.innerHTML = '<a href="' + results.flatfile_url + '" target="_blank">Download flatfile CSV</a>'
+        mainDiv.appendChild(csvLink)
+        mainDiv.appendChild(document.createElement('br'))
+        return
+    }
+
+    function fmt(val, digits) {
+        if (val === null || val === undefined || val === '') return '—'
+        var n = parseFloat(val)
+        if (isNaN(n)) return String(val)
+        return n.toFixed(digits === undefined ? 3 : digits)
+    }
+
+    var table = document.createElement('table')
+    table.classList.add('table', 'table-striped', 'table-bordered')
+    table.setAttribute('id', 'distanceSamplingTable')
+    mainDiv.appendChild(table)
+
+    var thead = document.createElement('thead')
+    table.appendChild(thead)
+    var headerRow = document.createElement('tr')
+    thead.appendChild(headerRow)
+    var headers = ['Metric', 'Value']
+    for (var h = 0; h < headers.length; h++) {
+        var th = document.createElement('th')
+        th.innerHTML = headers[h]
+        headerRow.appendChild(th)
+    }
+
+    var tbody = document.createElement('tbody')
+    table.appendChild(tbody)
+
+    var rows = [
+        ['Density (per km²)', fmt(results.density, 4)],
+        ['Standard error', fmt(results.density_se, 4)],
+        ['Lower CI', fmt(results.density_lci, 4)],
+        ['Upper CI', fmt(results.density_uci, 4)],
+        ['CV', fmt(results.density_cv, 4)],
+        ['Detections', results.n_detections != null ? results.n_detections : '—'],
+        ['Sites', results.n_sites != null ? results.n_sites : '—'],
+        ['Sample fraction (FOV/360)', fmt(results.sample_fraction, 4)],
+        ['Effective detection radius (m)', fmt(results.effective_detection_radius, 2)],
+        ['Model', results.model_key || '—'],
+    ]
+
+    for (var i = 0; i < rows.length; i++) {
+        var tr = document.createElement('tr')
+        tbody.appendChild(tr)
+        for (var j = 0; j < rows[i].length; j++) {
+            var td = document.createElement('td')
+            td.innerHTML = rows[i][j]
+            tr.appendChild(td)
+        }
+    }
+
+    if (results.plot_url) {
+        mainDiv.appendChild(document.createElement('br'))
+        h5 = document.createElement('h5')
+        h5.innerHTML = 'Detection Function'
+        h5.setAttribute('style', 'margin-bottom: 2px')
+        mainDiv.appendChild(h5)
+
+        var imgRow = document.createElement('div')
+        imgRow.classList.add('row')
+        mainDiv.appendChild(imgRow)
+
+        var imgCol = document.createElement('div')
+        imgCol.classList.add('col-lg-10')
+        imgRow.appendChild(imgCol)
+
+        var img = document.createElement('img')
+        img.setAttribute('src', results.plot_url)
+        img.setAttribute('alt', 'Detection function plot')
+        img.setAttribute('style', 'max-width: 100%; height: auto;')
+        imgCol.appendChild(img)
+    }
+}
+
+function getDistanceSamplingCSV(check=false){
+    /** Download distance sampling flatfile CSV */
+    if (check) {
+        var species = '0'
+        var tasks = '0'
+        var validDates = true
+        var validDistance = true
+        var formData = new FormData()
+        formData.append('folder', JSON.stringify(resultsFolder))
+    }
+    else {
+        resultsFolder = null
+        var tasks = getSelectedTasks()
+        var selectedSites = getSelectedSites()
+        var sites = selectedSites[0]
+        var groups = selectedSites[1]
+        var species = getSelectedSpecies()
+        var startDate = document.getElementById('startDate').value
+        var endDate = document.getElementById('endDate').value
+        var studyAreaKm2 = document.getElementById('studyAreaKm2').value
+        var cameraFovDegrees = document.getElementById('cameraFovDegrees').value
+        var leftTrunc = document.getElementById('distanceLeftTrunc').value
+        var rightTrunc = document.getElementById('distanceRightTrunc').value
+
+        var validDistance = checkDistanceSampling(species, studyAreaKm2, cameraFovDegrees, leftTrunc, rightTrunc)
+        var validDates = checkDates(startDate, endDate)
+
+        var formData = new FormData()
+        formData.append('task_ids', JSON.stringify(tasks))
+        formData.append('trapgroups', JSON.stringify(sites))
+        formData.append('species', JSON.stringify(species))
+        formData.append('groups', JSON.stringify(groups))
+        formData.append('area_km2', JSON.stringify(parseFloat(studyAreaKm2)))
+        formData.append('fov_degrees', JSON.stringify(parseFloat(cameraFovDegrees)))
+        formData.append('csv', JSON.stringify('1'))
+
+        if (leftTrunc !== '') {
+            formData.append('left_trunc', JSON.stringify(parseFloat(leftTrunc)))
+        }
+        if (rightTrunc !== '') {
+            formData.append('right_trunc', JSON.stringify(parseFloat(rightTrunc)))
+        }
+
+        var area = document.getElementById('areaSelect').value
+        if (area != null && area != '' && area != '0') {
+            formData.append('area', JSON.stringify(area))
+        }
+
+        if (startDate != '') {
+            startDate = startDate + ' 00:00:00'
+            formData.append('startDate', JSON.stringify(startDate))
+        }
+
+        if (endDate != '') {
+            endDate = endDate + ' 23:59:59'
+            formData.append('endDate', JSON.stringify(endDate))
+        }
+    }
+
+    if (species != '-1' && validDistance && tasks != '-1' && validDates) {
+
+        document.getElementById('rErrors').innerHTML = 'Downloading CSV...'
+        disablePanel()
+
+        var xhttp = new XMLHttpRequest()
+        xhttp.onreadystatechange =
+        function(){
+            if (this.readyState == 4 && this.status == 200) {
+                reply = JSON.parse(this.responseText)
+                resultsFolder = reply.folder
+                if (reply.status == 'SUCCESS') {
+                    clearTimeout(timeout)
+                    if (reply.results && reply.results.flatfile_url) {
+                        window.open(reply.results.flatfile_url, '_blank')
+                    }
+                    document.getElementById('rErrors').innerHTML = ''
+                    enablePanel()
+                }
+                else if (reply.status == 'FAILURE') {
+                    document.getElementById('rErrors').innerHTML = reply.message || 'CSV export failed.'
+                    enablePanel()
+                }
+                else {
+                    timeout = setTimeout(function(){getDistanceSamplingCSV(true)}, 10000)
+                }
+            }
+            else if (this.readyState == 4 && this.status != 200) {
+                document.getElementById('rErrors').innerHTML = 'An error occurred while downloading the CSV.'
+                enablePanel()
+            }
+        }
+        xhttp.open('POST', '/getDistanceSampling')
+        xhttp.send(formData)
+    }
 }
 
 
@@ -10567,6 +11016,9 @@ function cancelResults(){
     } 
     else if (analysisSelection == '7'){
         result_type = 'scr'
+    }
+    else if (analysisSelection == '8'){
+        result_type = 'distance'
     }
 
     var tasks = getSelectedTasks()

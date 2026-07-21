@@ -134,6 +134,7 @@ limitations under the License. -->
                                 <option value="5">Activity Pattern</option>
                                 <option value="6">Occupancy Analysis</option>
                                 <option value="7">Spatial Capture-Recapture</option>
+                                <option value="8">Distance Sampling</option>
                             </select>
                         </div>
                     </div>
@@ -236,6 +237,39 @@ limitations under the License. -->
                                 <input type="number" class="form-control" id="observationWindow" value="1" min="1" step="1" default="1"></input>
                             </div>
                         </div>
+                        <br>
+                    </div>
+
+                    <div id="distanceSamplingDiv" hidden>
+                        <h5 style="margin-bottom: 2px">Study Area</h5>
+                        <div style="font-size: 80%; margin-bottom: 2px"><i>Total study area in km² used for density estimation.</i></div>
+                        <div class="row">
+                            <div class='col-lg-10'>
+                                <input type="number" class="form-control" id="studyAreaKm2" value="" min="0" step="any">
+                            </div>
+                        </div>
+                        <br>
+                        <h5 style="margin-bottom: 2px">Camera Field of View</h5>
+                        <div style="font-size: 80%; margin-bottom: 2px"><i>Horizontal field of view in degrees (used as sample fraction = FOV / 360).</i></div>
+                        <div class="row">
+                            <div class='col-lg-10'>
+                                <input type="number" class="form-control" id="cameraFovDegrees" value="" min="0" max="360" step="any">
+                            </div>
+                        </div>
+                        <br>
+                        <h5 style="margin-bottom: 2px">Truncation (optional)</h5>
+                        <div style="font-size: 80%; margin-bottom: 2px"><i>Optional left and right truncation distances in metres. Leave blank for none.</i></div>
+                        <div class="row">
+                            <div class='col-lg-5'>
+                                <label for="distanceLeftTrunc" style="margin-bottom: 2px">Left (m):</label>
+                                <input type="number" class="form-control" id="distanceLeftTrunc" value="" min="0" step="any">
+                            </div>
+                            <div class='col-lg-5'>
+                                <label for="distanceRightTrunc" style="margin-bottom: 2px">Right (m):</label>
+                                <input type="number" class="form-control" id="distanceRightTrunc" value="" min="0" step="any">
+                            </div>
+                        </div>
+                        <div id="distanceSamplingErrors" style="font-size: 80%; color: #DF691A"></div>
                         <br>
                     </div>
 

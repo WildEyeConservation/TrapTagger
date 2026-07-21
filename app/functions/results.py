@@ -2924,8 +2924,10 @@ def clean_up_R_results(self,R_type, folder, user_name):
             isFile = re.compile('^' + user_name + '_Occupancy_', re.I)
         elif R_type == 'scr':
             isFile = re.compile('^' + user_name + '_SCR_', re.I)
+        elif R_type == 'distance':
+            isFile = re.compile('^' + user_name + '_Distance_Sampling_', re.I)
         else:
-            isFile = re.compile('^(' + user_name + '_Activity_Pattern_|' + user_name + '_Occupancy_|' + user_name + '_SCR_)', re.I)
+            isFile = re.compile('^(' + user_name + '_Activity_Pattern_|' + user_name + '_Occupancy_|' + user_name + '_SCR_|' + user_name + '_Distance_Sampling_)', re.I)
 
         sourceBucket = Config.BUCKET
         s3Folder = folder + '/docs'

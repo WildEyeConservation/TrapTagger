@@ -61,7 +61,7 @@ import io
 import tracemalloc
 import calendar
 import pandas as pd
-from WorkR.worker import calculate_activity_pattern, calculate_occupancy_analysis, calculate_spatial_capture_recapture
+from WorkR.worker import calculate_activity_pattern, calculate_occupancy_analysis, calculate_spatial_capture_recapture, calculate_distance_sampling
 from celery.result import allow_join_result
 from scipy.spatial import ConvexHull
 
@@ -12487,6 +12487,115 @@ def getOccupancy():
                 clean_up_R_results.apply_async(kwargs={'R_type': R_type, 'folder': folder, 'user_name': current_user.username})
 
     return json.dumps({'status': status, 'results': occupancy_results, 'message': message, 'folder': folder})
+
+@app.route('/getDistanceSampling', methods=['POST'])
+@login_required
+def getDistanceSampling():
+    ''' Get camera-trap distance sampling density for a species '''
+    if 'task_ids' in request.form:
+        task_ids = ast.literal_eval(request.form['task_ids'])
+        species = ast.literal_eval(request.form['species'])
+        trapgroups = ast.literal_eval(request.form['trapgroups'])
+        groups = ast.literal_eval(request.form['groups'])
+        area_km2 = ast.literal_eval(request.form['area_km2'])
+        fov_degrees = ast.literal_eval(request.form['fov_degrees'])
+        if 'startDate' in request.form:
+            startDate = ast.literal_eval(request.form['startDate'])
+        else:
+            startDate = None
+        if 'endDate' in request.form:
+            endDate = ast.literal_eval(request.form['endDate'])
+        else:
+            endDate = None
+        if 'left_trunc' in request.form:
+            left_trunc = ast.literal_eval(request.form['left_trunc'])
+        else:
+            left_trunc = None
+        if 'right_trunc' in request.form:
+            right_trunc = ast.literal_eval(request.form['right_trunc'])
+        else:
+            right_trunc = None
+        csv = ast.literal_eval(request.form['csv'])
+        if csv == '1':
+            csv = True
+        else:
+            csv = False
+        folder = None
+        if 'area' in request.form:
+            area = ast.literal_eval(request.form['area'])
+        else:
+            area = None
+        if Config.DEBUGGING: app.logger.info('Distance sampling requested for tasks:{} species:{} trapgroups:{} groups:{} startDate:{} endDate:{} area_km2:{} fov_degrees:{} csv:{}'.format(task_ids, species, trapgroups, groups, startDate, endDate, area_km2, fov_degrees, csv))
+    else:
+        task_ids = None
+        folder = ast.literal_eval(request.form['folder'])
+
+    status = 'FAILURE'
+    celery_result = None
+    distance_results = None
+    message = None
+    R_type = 'distance'
+    if current_user.is_authenticated and current_user.admin:
+        if task_ids:
+            if area and area != '0':
+                tasks = surveyPermissionsSQ(db.session.query(Task.id).join(Survey).join(Area).filter(Area.name==area).filter(Task.name != 'default').filter(~Task.name.contains('_o_l_d_')).filter(~Task.name.contains('_copying')), current_user.id, 'read')
+                if task_ids[0] != '0': tasks = tasks.filter(Task.id.in_(task_ids))
+                tasks = tasks.distinct().all()
+                task_ids = [r[0] for r in tasks]
+                if not task_ids: return json.dumps({'status': status, 'results': distance_results, 'message': message, 'folder': folder})
+
+            if task_ids[0] == '0':
+                survey = surveyPermissionsSQ(db.session.query(Survey.id, Organisation.folder).join(Task).filter(Task.name != 'default').filter(~Task.name.contains('_o_l_d_')).filter(~Task.name.contains('_copying')).group_by(Task.survey_id).order_by(Task.id), current_user.id, 'read').first()
+            else:
+                survey = surveyPermissionsSQ(db.session.query(Survey.id, Organisation.folder).join(Task).filter(Task.id.in_(task_ids)), current_user.id, 'read').first()
+            if survey:
+                folder = survey[1]
+
+                if GLOBALS.redisClient.get('analysis_' + str(current_user.id)):
+                    result_id = GLOBALS.redisClient.get('analysis_' + str(current_user.id))
+                    try:
+                        result_id = result_id.decode()
+                        celery.control.revoke(result_id)
+                    except:
+                        pass
+
+                user_id = current_user.id
+                bucket = Config.BUCKET
+                result = calculate_distance_sampling.apply_async(queue='statistics', kwargs={'task_ids': task_ids, 'species': species, 'trapgroups': trapgroups, 'groups': groups, 'startDate': startDate, 'endDate': endDate, 'area_km2': area_km2, 'fov_degrees': fov_degrees, 'user_id': user_id, 'folder': folder, 'bucket': bucket, 'csv': csv, 'left_trunc': left_trunc, 'right_trunc': right_trunc})
+                GLOBALS.redisClient.set('analysis_' + str(user_id), result.id)
+                status = 'PENDING'
+        else:
+            result_id = GLOBALS.redisClient.get('analysis_' + str(current_user.id))
+            if result_id:
+                result = calculate_distance_sampling.AsyncResult(result_id)
+                status = result.state
+                if status == 'SUCCESS':
+                    celery_result = result.result
+                    if celery_result['status'] == 'SUCCESS':
+                        distance_results = celery_result['distance_results']
+                        result.forget()
+                        GLOBALS.redisClient.delete('analysis_' + str(current_user.id))
+                        clean_up_R_results.apply_async(kwargs={'R_type': R_type, 'folder': folder, 'user_name': current_user.username})
+                    else:
+                        status = celery_result['status']
+                        message = celery_result['error']
+                        distance_results = {}
+                        result.forget()
+                        GLOBALS.redisClient.delete('analysis_' + str(current_user.id))
+                        clean_up_R_results.apply_async(kwargs={'R_type': R_type, 'folder': folder, 'user_name': current_user.username})
+                elif status == 'FAILURE':
+                    message = 'Task {} failed'.format(result_id)
+                    distance_results = {}
+                    result.forget()
+                    GLOBALS.redisClient.delete('analysis_' + str(current_user.id))
+                    clean_up_R_results.apply_async(kwargs={'R_type': R_type, 'folder': folder, 'user_name': current_user.username})
+            else:
+                distance_results = {}
+                message = 'No task ID'
+                GLOBALS.redisClient.delete('analysis_' + str(current_user.id))
+                clean_up_R_results.apply_async(kwargs={'R_type': R_type, 'folder': folder, 'user_name': current_user.username})
+
+    return json.dumps({'status': status, 'results': distance_results, 'message': message, 'folder': folder})
 
 @app.route('/getCovariateCSV', methods=['POST'])
 @login_required
