@@ -12519,6 +12519,14 @@ def getDistanceSampling():
             snapshot_interval_seconds = ast.literal_eval(request.form['snapshot_interval_seconds'])
         else:
             snapshot_interval_seconds = 2.0
+        if 'time_to_independence' in request.form:
+            time_to_independence = ast.literal_eval(request.form['time_to_independence'])
+        else:
+            time_to_independence = 30
+        if 'time_to_independence_unit' in request.form:
+            time_to_independence_unit = ast.literal_eval(request.form['time_to_independence_unit'])
+        else:
+            time_to_independence_unit = 'm'
         csv = ast.literal_eval(request.form['csv'])
         if csv == '1':
             csv = True
@@ -12565,7 +12573,7 @@ def getDistanceSampling():
 
                 user_id = current_user.id
                 bucket = Config.BUCKET
-                result = calculate_distance_sampling.apply_async(queue='statistics', kwargs={'task_ids': task_ids, 'species': species, 'trapgroups': trapgroups, 'groups': groups, 'startDate': startDate, 'endDate': endDate, 'area_km2': area_km2, 'fov_degrees': fov_degrees, 'user_id': user_id, 'folder': folder, 'bucket': bucket, 'csv': csv, 'left_trunc': left_trunc, 'right_trunc': right_trunc, 'snapshot_interval_seconds': snapshot_interval_seconds})
+                result = calculate_distance_sampling.apply_async(queue='statistics', kwargs={'task_ids': task_ids, 'species': species, 'trapgroups': trapgroups, 'groups': groups, 'startDate': startDate, 'endDate': endDate, 'area_km2': area_km2, 'fov_degrees': fov_degrees, 'user_id': user_id, 'folder': folder, 'bucket': bucket, 'csv': csv, 'left_trunc': left_trunc, 'right_trunc': right_trunc, 'snapshot_interval_seconds': snapshot_interval_seconds, 'time_to_independence': time_to_independence, 'time_to_independence_unit': time_to_independence_unit})
                 GLOBALS.redisClient.set('analysis_' + str(user_id), result.id)
                 status = 'PENDING'
         else:

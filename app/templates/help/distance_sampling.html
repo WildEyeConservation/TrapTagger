@@ -1,0 +1,61 @@
+<!-- Copyright 2023
+
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+
+http://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License. -->
+
+<h4>Distance sampling</h4>
+
+<p>
+    <strong>Distance sampling</strong> estimates the density of a single species (animals per km²) from camera-trap detections with measured distances and camera effort. It follows the camera-trap distance sampling (CTDS) approach implemented in the R <a href="https://cran.r-project.org/web/packages/Distance/index.html">Distance</a> package.
+</p>
+
+<p>
+    Key requirements:
+</p>
+
+<ul>
+    <li><strong>One species:</strong> Select a single species for each run. Density is estimated per species; pooled multi-species analysis is not supported.</li>
+    <li><strong>Detection distances:</strong> Detections must have distance values, typically from depth estimation on calibration and trap images.</li>
+    <li><strong>Study area:</strong> Enter the survey or stratum area in km² used as the <em>Area</em> column in the Distance flatfile.</li>
+    <li><strong>Camera field of view:</strong> Enter the horizontal field of view in degrees. Sample fraction is calculated as FOV / 360.</li>
+    <li><strong>Camera effort:</strong> Effort is operating time at each site divided by the snapshot interval (default 2 seconds). Sites with effort but no detections of the selected species are included in the analysis.</li>
+    <li><strong>Time to independence:</strong> Detections at the same site are thinned so burst photos closer together than this interval count as one independent event (default 30 minutes). Set to 0 to disable thinning.</li>
+</ul>
+
+<p>
+    Optional settings:
+</p>
+
+<ul>
+    <li><strong>Left / right truncation:</strong> Optional truncation distances in metres for the detection function.</li>
+    <li><strong>Advanced options:</strong> Snapshot interval (seconds) used to convert operating time into CTDS effort units. Change only if your study used a different interval.</li>
+</ul>
+
+<p>
+    Data selection on the <em>Datasets</em> tab applies as for other R analyses: choose surveys and annotation sets, an optional date range, and sites on the <em>Sites</em> tab. For a single-survey estimate, select that survey rather than <em>All</em>.
+</p>
+
+<p>
+    Results include density, standard error, confidence interval, detection count (after independence thinning), site count, sample fraction, effective detection radius, and a detection function plot. Reliable inference generally requires sufficient camera sites and independent detections; very few sites produce wide confidence intervals.
+</p>
+
+<p>
+    View the underlying R script with <em>View R Script</em>, or download the Distance flatfile CSV with <em>Download CSV</em>. Click <em>Generate Results</em> to run the analysis. The job may take several minutes; do not leave the page until it completes.
+</p>
+
+<p>
+    The analysis uses the R package:
+</p>
+
+<ul>
+    <li><a href="https://cran.r-project.org/web/packages/Distance/index.html">Distance</a>: Detection function fitting and density estimation via <em>dht2</em>.</li>
+</ul>

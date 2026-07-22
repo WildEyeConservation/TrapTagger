@@ -257,6 +257,21 @@ limitations under the License. -->
                             </div>
                         </div>
                         <br>
+                        <h5 style="margin-bottom: 2px">Time to independence</h5>
+                        <div style="font-size: 80%; margin-bottom: 2px"><i>Minimum time between detections at the same site to count as independent events. Burst photos closer together are thinned to one detection.</i></div>
+                        <div class="row">
+                            <div class="col-lg-5" style="padding-right: 0px;">
+                                <input type="number" class="form-control" id="distanceTimeToIndependence" value="30" min="0" max="10000" step="1">
+                            </div>
+                            <div class="col-lg-5" style="padding-left: 0px;">
+                                <select id="distanceTimeToIndependenceUnit" class="form-control">
+                                    <option value="s">Seconds</option>
+                                    <option value="m" selected>Minutes</option>
+                                    <option value="h">Hours</option>
+                                </select>
+                            </div>
+                        </div>
+                        <br>
                         <h5 style="margin-bottom: 2px">Truncation (optional)</h5>
                         <div style="font-size: 80%; margin-bottom: 2px"><i>Optional left and right truncation distances in metres. Leave blank for none.</i></div>
                         <div class="row">

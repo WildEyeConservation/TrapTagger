@@ -216,6 +216,12 @@ function getLabelsSitesTagsAndGroups(){
                     optionValues = optionValues.concat(globalIndividualSpecies)
                     optionTexts = optionTexts.concat(globalIndividualSpecies)
                 }
+                else if (analysisType=='8') {
+                    optionValues = ['-1']
+                    optionTexts = ['None']
+                    optionValues = optionValues.concat(globalLabels)
+                    optionTexts = optionTexts.concat(globalLabels)
+                }
                 else{
                     optionValues = optionValues.concat(globalLabels)
                     optionTexts = optionTexts.concat(globalLabels)
@@ -277,6 +283,9 @@ function generateResults(){
     clearButtonColours()
 
     document.getElementById('statisticsErrors').innerHTML = ''
+    document.getElementById('rErrors').innerHTML = ''
+    document.getElementById('distanceSamplingErrors').innerHTML = ''
+    document.getElementById('analysisOptionsErrors').innerHTML = ''
     var analysisDescription = document.getElementById('analysisDescription')
     analysisDescription.innerHTML = ''
     document.getElementById('distanceSamplingDiv').hidden = true
@@ -607,12 +616,12 @@ function generateResults(){
         document.getElementById('descriptionDiv').hidden = false
         document.getElementById('flankDiv').hidden = true
 
-        analysisDescription.innerHTML = '<i> Distance sampling estimates species density from detections with measured distances and camera effort (operating time in snapshot intervals). Detections must have distance values (from depth estimation). </i>'
+        analysisDescription.innerHTML = '<i> Distance sampling estimates density for a single species from detections with measured distances and camera effort (operating time in snapshot intervals). Detections must have distance values (from depth estimation). </i>'
 
         if (speciesSelector) {
             clearSelect(speciesSelector)
-            var optionValues = ['-1', '0']
-            var optionTexts = ['None', 'All']
+            var optionValues = ['-1']
+            var optionTexts = ['None']
             optionValues = optionValues.concat(globalLabels)
             optionTexts = optionTexts.concat(globalLabels)
             fillSelect(speciesSelector, optionTexts, optionValues)
@@ -827,6 +836,8 @@ function disablePanel(){
         document.getElementById('cameraFovDegrees').disabled = true
         document.getElementById('distanceLeftTrunc').disabled = true
         document.getElementById('distanceRightTrunc').disabled = true
+        document.getElementById('distanceTimeToIndependence').disabled = true
+        document.getElementById('distanceTimeToIndependenceUnit').disabled = true
         document.getElementById('distanceAdvancedOptions').disabled = true
         document.getElementById('distanceSnapshotInterval').disabled = true
         document.getElementById('btnRunScript').disabled = true
@@ -1006,6 +1017,8 @@ function enablePanel(){
         document.getElementById('cameraFovDegrees').disabled = false
         document.getElementById('distanceLeftTrunc').disabled = false
         document.getElementById('distanceRightTrunc').disabled = false
+        document.getElementById('distanceTimeToIndependence').disabled = false
+        document.getElementById('distanceTimeToIndependenceUnit').disabled = false
         document.getElementById('distanceAdvancedOptions').disabled = false
         document.getElementById('distanceSnapshotInterval').disabled = false
         document.getElementById('btnRunScript').disabled = false
@@ -6402,6 +6415,19 @@ function getDistanceSnapshotInterval(){
     return parseFloat(val)
 }
 
+function getDistanceTimeToIndependence(){
+    /** Returns time-to-independence value (default 30). Use 0 to disable thinning. */
+    var val = document.getElementById('distanceTimeToIndependence').value
+    if (val === '' || isNaN(val) || parseFloat(val) < 0) {
+        return null
+    }
+    return parseFloat(val)
+}
+
+function getDistanceTimeToIndependenceUnit(){
+    return document.getElementById('distanceTimeToIndependenceUnit').value
+}
+
 function appendDistanceSamplingFormParams(formData, leftTrunc, rightTrunc){
     /** Appends shared distance sampling parameters to a FormData object. */
     var studyAreaKm2 = document.getElementById('studyAreaKm2').value
@@ -6409,6 +6435,8 @@ function appendDistanceSamplingFormParams(formData, leftTrunc, rightTrunc){
     formData.append('area_km2', JSON.stringify(parseFloat(studyAreaKm2)))
     formData.append('fov_degrees', JSON.stringify(parseFloat(cameraFovDegrees)))
     formData.append('snapshot_interval_seconds', JSON.stringify(getDistanceSnapshotInterval()))
+    formData.append('time_to_independence', JSON.stringify(getDistanceTimeToIndependence()))
+    formData.append('time_to_independence_unit', JSON.stringify(getDistanceTimeToIndependenceUnit()))
 
     if (leftTrunc !== '') {
         formData.append('left_trunc', JSON.stringify(parseFloat(leftTrunc)))
@@ -6421,50 +6449,58 @@ function appendDistanceSamplingFormParams(formData, leftTrunc, rightTrunc){
 function checkDistanceSampling(species, studyAreaKm2, cameraFovDegrees, leftTrunc, rightTrunc){
     /** Checks if the distance sampling options are valid */
     var valid = true
-    var message = ''
+    var error = ''
+    var noSpecies = false
 
-    if (species == '-1' || species == '0' || (Array.isArray(species) && species.length === 0)) {
-        message = 'Please select a species.'
-        valid = false
+    if (species == '-1' || species == '0') {
+        noSpecies = true
+    } else if (Array.isArray(species)) {
+        if (species.length === 0 || species[0] == '-1' || species[0] == '0') {
+            noSpecies = true
+        }
+    }
+
+    if (noSpecies) {
+        error += 'Please select a species. '
     }
 
     if (studyAreaKm2 === '' || isNaN(studyAreaKm2) || parseFloat(studyAreaKm2) <= 0) {
-        message = 'Please enter a valid study area (km²) greater than 0.'
-        valid = false
+        error += 'Please enter a valid study area (km²) greater than 0. '
     }
 
     if (cameraFovDegrees === '' || isNaN(cameraFovDegrees) || parseFloat(cameraFovDegrees) <= 0 || parseFloat(cameraFovDegrees) > 360) {
-        message = 'Please enter a valid camera field of view between 0 and 360 degrees.'
-        valid = false
+        error += 'Please enter a valid camera field of view between 0 and 360 degrees. '
     }
 
     if (leftTrunc !== '' && (isNaN(leftTrunc) || parseFloat(leftTrunc) < 0)) {
-        message = 'Left truncation must be a non-negative number or blank.'
-        valid = false
+        error += 'Left truncation must be a non-negative number or blank. '
     }
 
     if (rightTrunc !== '' && (isNaN(rightTrunc) || parseFloat(rightTrunc) <= 0)) {
-        message = 'Right truncation must be a positive number or blank.'
-        valid = false
+        error += 'Right truncation must be a positive number or blank. '
     }
 
     if (leftTrunc !== '' && rightTrunc !== '' && parseFloat(leftTrunc) >= parseFloat(rightTrunc)) {
-        message = 'Left truncation must be less than right truncation.'
-        valid = false
+        error += 'Left truncation must be less than right truncation. '
     }
 
     if (document.getElementById('distanceAdvancedOptions').checked) {
         var snapshotInterval = getDistanceSnapshotInterval()
         if (snapshotInterval === null) {
-            message = 'Snapshot interval must be a positive number of seconds.'
-            valid = false
+            error += 'Snapshot interval must be a positive number of seconds. '
         }
     }
 
-    if (valid) {
-        document.getElementById('distanceSamplingErrors').innerHTML = ''
+    var timeToIndependence = getDistanceTimeToIndependence()
+    if (timeToIndependence === null) {
+        error += 'Time to independence must be a non-negative number. '
+    }
+
+    if (error !== '') {
+        valid = false
+        document.getElementById('rErrors').innerHTML = error
     } else {
-        document.getElementById('distanceSamplingErrors').innerHTML = message
+        document.getElementById('rErrors').innerHTML = ''
     }
 
     return valid
@@ -6527,7 +6563,7 @@ function updateDistanceSampling(check=false){
             document.getElementById('resultsDiv').style.display = 'none'
             document.getElementById('loadingDiv').style.display = 'block'
             document.getElementById('loadingCircle').style.display = 'block'
-            document.getElementById('statisticsErrors').innerHTML = 'Please note that this analysis may take a few minutes to run. Do not navigate away from this page until the analysis is complete.'
+            document.getElementById('statisticsErrors').innerHTML = 'Please note that this analysis may take a while to run. Please do not navigate away from this page until the analysis has completed.'
             disablePanel()
 
             resultsTab = document.getElementById('resultsTab')
@@ -6554,7 +6590,11 @@ function updateDistanceSampling(check=false){
                     while (document.getElementById('resultsDiv').firstChild) {
                         document.getElementById('resultsDiv').removeChild(document.getElementById('resultsDiv').firstChild)
                     }
-                    buildDistanceResults(reply.results)
+                    if (!reply.results || Object.keys(reply.results).length == 0) {
+                        document.getElementById('statisticsErrors').innerHTML = 'No results were generated for the selected analysis options. Please ensure that your selected analysis options are valid and try again.'
+                    } else {
+                        buildDistanceResults(reply.results)
+                    }
                 }
                 else if (reply.status == 'FAILURE') {
                     document.getElementById('loadingDiv').style.display = 'none'
@@ -6565,8 +6605,7 @@ function updateDistanceSampling(check=false){
                         document.getElementById('resultsDiv').removeChild(document.getElementById('resultsDiv').firstChild)
                     }
 
-                    var errMsg = reply.message || 'An error occurred while running the analysis. Please try again.'
-                    document.getElementById('statisticsErrors').innerHTML = errMsg
+                    document.getElementById('statisticsErrors').innerHTML = 'An error occurred while running the analysis. Please ensure that your selected analysis options are valid and try again.'
                     enablePanel()
                 }
                 else {
@@ -6582,7 +6621,7 @@ function updateDistanceSampling(check=false){
                     document.getElementById('resultsDiv').removeChild(document.getElementById('resultsDiv').firstChild)
                 }
 
-                document.getElementById('statisticsErrors').innerHTML = 'An error occurred while running the analysis. Please try again.'
+                document.getElementById('statisticsErrors').innerHTML = 'An error occurred while running the analysis. Please ensure that your selected analysis options are valid and try again.'
                 enablePanel()
             }
         }
@@ -6757,7 +6796,7 @@ function getDistanceSamplingCSV(check=false){
                     enablePanel()
                 }
                 else if (reply.status == 'FAILURE') {
-                    document.getElementById('rErrors').innerHTML = reply.message || 'CSV export failed.'
+                    document.getElementById('rErrors').innerHTML = 'An error occured while downloading the CSV. Please try again.'
                     enablePanel()
                 }
                 else {
@@ -11302,6 +11341,9 @@ function openAnalysisHelp(){
     }
     else if (analysisSelection == '7'){
         help_page = 'scr_analysis'
+    }
+    else if (analysisSelection == '8'){
+        help_page = 'distance_sampling'
     }
 
     helpOpen(help_page)
