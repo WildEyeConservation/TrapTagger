@@ -35,7 +35,7 @@ from flask import render_template, redirect, url_for, flash, request, send_from_
 from flask_login import current_user, login_user, logout_user, login_required
 from app.forms import LoginForm, NewSurveyForm, EnquiryForm, ResetPasswordForm, RequestPasswordChangeForm
 from werkzeug.urls import url_parse
-from app.forms import RegistrationForm
+from app.forms import RegistrationForm, InviteRegistrationForm
 import time
 from sqlalchemy.sql import func, or_, alias, and_, distinct, literal
 from sqlalchemy import desc, extract
@@ -4989,7 +4989,7 @@ def inviteWorker():
                         {'organisation_id': organisation.id, 'new_email': inviteUsername, 'user_id': current_user.id, 'permissions': permissions, 'exceptions': exceptions, 'ts': ts},
                         app.config['SECRET_KEY'], algorithm='HS256')
 
-                        urlAccept = 'https://'+Config.DNS+'/acceptInvitationNewAccount/'+token
+                        urlAccept = 'https://'+Config.DNS+'/inviteSignup/'+token
 
                         send_email('[TrapTagger] Invitation to Join Organisation (New Account)',
                         recipients=[inviteUsername],
@@ -5012,7 +5012,6 @@ def inviteWorker():
     return json.dumps({'status': status, 'message':message, 'create_new_account': create_new_account})
 
 @app.route('/acceptInvitation/<token>/<action>')
-@login_required
 def acceptInvitation(token,action):
     '''Accepts a worker's invitation to annotate for a user based on the supplied token.'''
 
@@ -5027,7 +5026,7 @@ def acceptInvitation(token,action):
             organisation = db.session.query(Organisation).get(organisation_id)
             worker = db.session.query(User).get(worker_id)
 
-            if not organisation or not worker: return redirect(url_for('index'))
+            if not organisation or not worker or worker.id != current_user.id: return redirect(url_for('index'))
 
             # check redis
             ts = GLOBALS.redisClient.get('invitation_'+str(organisation.id)+'_'+str(worker.id))
@@ -5100,15 +5099,17 @@ def acceptInvitation(token,action):
             GLOBALS.redisClient.delete('invitation_'+str(organisation_id)+'_'+str(worker_id))
 
             updateUserAdminStatus(worker_id)
-        
+
+        elif not current_user.is_authenticated:
+            return redirect(url_for('login_page', next=url_for('acceptInvitation', token=token, action=action)))
     except:
         pass
     
     return redirect(url_for('index'))
 
-@app.route('/acceptInvitationNewAccount/<token>')
-def acceptInvitationNewAccount(token):
-    '''Creates a new account for the user afrom org invitation and adds them to the organisation.'''
+@app.route('/inviteSignup/<token>', methods=['GET', 'POST'])
+def inviteSignup(token):
+    '''Returns the form for invite signup, and handles its submission.'''
     try:
         info = jwt.decode(token, app.config['SECRET_KEY'], algorithms=['HS256'])
         organisation_id = info['organisation_id']
@@ -5130,114 +5131,85 @@ def acceptInvitationNewAccount(token):
         else:
             return render_template("html/block.html",text="Error.", helpFile='block', version=Config.VERSION)
 
+        form = InviteRegistrationForm()
+        if form.validate_on_submit():
+            new_username = form.username.data
+            new_password = form.password.data
 
-        # Check no account already exists for this email address
-        check = db.session.query(User).filter(or_(User.username==new_email, User.email==new_email)).first()
-        if check:
-            return render_template("html/block.html",text="Error.", helpFile='block', version=Config.VERSION)
-
-        new_username = new_email.split('@')[0]
-        disallowed_chars = '"[@!#$%^&*()<>?/\|}{~:]' + "'"
-        # Ensure valid username
-        new_username = ''.join(c for c in new_username if c not in disallowed_chars)
-        if new_username == '': new_username = 'user'
-        if len(new_username) > 64:
-            new_username = new_username[:64]
-
-        folder = new_username.lower().replace(' ','-').replace('_','-')
-        check_username = db.session.query(User).filter(or_(User.username==new_username, User.email==new_email)).first()
-        org_check = db.session.query(Organisation).filter(or_(func.lower(Organisation.name)==new_username.lower(), Organisation.folder==folder)).first()
-        count = 0
-        while check_username or org_check:
-            new_username = (new_username + str(random.randint(1, 9999)))[:64]
-            check_username = db.session.query(User).filter(or_(User.username==new_username, User.email==new_email)).first()
-            folder = new_username.lower().replace(' ','-').replace('_','-')
-            org_check = db.session.query(Organisation).filter(or_(func.lower(Organisation.name)==new_username.lower(), Organisation.folder==folder)).first()
-            count += 1
-            if count > 100:
+            # Check no account already exists for this email address
+            check = db.session.query(User).filter(or_(User.username==new_email, User.email==new_email)).first()
+            if check:
                 return render_template("html/block.html",text="Error.", helpFile='block', version=Config.VERSION)
 
-        # Create new account
-        user = User(username=new_username, email=new_email, admin=False, cloud_access=False)
-        new_password = randomString()
-        user.set_password(new_password)
-        db.session.add(user)
-        turkcode = Turkcode(code=new_username, active=False, tagging_time=0)
-        db.session.add(turkcode)
-        turkcode.user = user
-        notifications = db.session.query(Notification)\
-                .filter(Notification.user_id==None)\
-                .filter(or_(Notification.expires==None,Notification.expires<datetime.utcnow()))\
-                .distinct().all()
-        user.seen_notifications = notifications
+            folder = new_username.lower().replace(' ','-').replace('_','-')
+            check_username = db.session.query(User).filter(or_(User.username==new_username, User.email==new_email)).first()
+            org_check = db.session.query(Organisation).filter(or_(func.lower(Organisation.name)==new_username.lower(), Organisation.folder==folder)).first()
+            if check_username or org_check:
+                app.logger.error('Username or organisation already exists.')
+                return render_template("html/block.html",text="Error.", helpFile='block', version=Config.VERSION)
 
-        # Add user to organisation
-        default = 'worker'
-        if 'default' in permissions and permissions['default'] in ['admin', 'write', 'read', 'hidden']:
-            default = permissions['default']
-        annotation = False
-        if 'annotation' in permissions and permissions['annotation'] == '1':
-            annotation = True
-        create = False
-        delete = False
-        if default != 'worker':
-            if 'create' in permissions and permissions['create'] == '1':
-                create = True
-        if default in ['admin', 'write']:
-            if 'delete' in permissions and permissions['delete'] == '1':
-                delete = True
-        user_permission = UserPermissions(user=user, organisation_id=organisation_id, default=default, annotation=annotation, delete=delete, create=create)
-        db.session.add(user_permission)
+            # Create new account
+            user = User(username=new_username, email=new_email, admin=False, cloud_access=False)
+            user.set_password(new_password)
+            db.session.add(user)
+            turkcode = Turkcode(code=new_username, active=False, tagging_time=0)
+            db.session.add(turkcode)
+            turkcode.user = user
+            notifications = db.session.query(Notification)\
+                    .filter(Notification.user_id==None)\
+                    .filter(or_(Notification.expires==None,Notification.expires<datetime.utcnow()))\
+                    .distinct().all()
+            user.seen_notifications = notifications
 
-        if default != 'admin':
-            for exception in exceptions:
-                annotation_exception = True if exception['annotation'] == '1' else False
-                if exception['permission'] in ['worker', 'hidden', 'read', 'write']:
-                    newException = SurveyPermissionException(user=user, survey_id=exception['survey_id'], permission=exception['permission'], annotation=annotation_exception)
-                    db.session.add(newException)
+            # Add user to organisation
+            default = 'worker'
+            if 'default' in permissions and permissions['default'] in ['admin', 'write', 'read', 'hidden']:
+                default = permissions['default']
+            annotation = False
+            if 'annotation' in permissions and permissions['annotation'] == '1':
+                annotation = True
+            create = False
+            delete = False
+            if default != 'worker':
+                if 'create' in permissions and permissions['create'] == '1':
+                    create = True
+            if default in ['admin', 'write']:
+                if 'delete' in permissions and permissions['delete'] == '1':
+                    delete = True
+            user_permission = UserPermissions(user=user, organisation_id=organisation_id, default=default, annotation=annotation, delete=delete, create=create)
+            db.session.add(user_permission)
 
-        db.session.commit()
-        GLOBALS.redisClient.delete('invitation_new_account_'+str(organisation_id)+'_'+str(new_email))
+            if default != 'admin':
+                for exception in exceptions:
+                    annotation_exception = True if exception['annotation'] == '1' else False
+                    if exception['permission'] in ['worker', 'hidden', 'read', 'write']:
+                        newException = SurveyPermissionException(user=user, survey_id=exception['survey_id'], permission=exception['permission'], annotation=annotation_exception)
+                        db.session.add(newException)
 
-        # send email to user with login details
-        send_email('[TrapTagger] New Account',
-        recipients=[new_email],
-        text_body=render_template(
-            'email/newAccountFromInvitation.txt',
-            username=new_username,
-            password=new_password,
-            tutorials_url=Config.TUTORIALS_PLAYLIST,
-            login_url='https://'+Config.DNS+'/login',
-            reset_url='https://'+Config.DNS+'/requestPasswordChange'),
-        html_body=render_template(
-            'email/newAccountFromInvitation.html',
-            username=new_username,
-            password=new_password,
-            tutorials_url=Config.TUTORIALS_PLAYLIST,
-            login_url='https://'+Config.DNS+'/login',
-            reset_url='https://'+Config.DNS+'/requestPasswordChange'))
+            db.session.commit()
+            GLOBALS.redisClient.delete('invitation_new_account_'+str(organisation_id)+'_'+str(new_email))
+            updateUserAdminStatus(user.id)
 
-        updateUserAdminStatus(user.id)
+            # Send notifications to user and organisation admins
+            organisation = db.session.query(Organisation).get(organisation_id)
+            notif_msg_worker = '<p>You have accepted an invitation to join '+organisation.name+'.</p>'
+            notif_worker = Notification(user_id=user.id, contents=notif_msg_worker, seen=False)
+            db.session.add(notif_worker)
 
-        # Send notifications
-        organisation = db.session.query(Organisation).get(organisation_id)
-        notif_msg_worker = '<p>You have accepted an invitation to join '+organisation.name+'.</p>'
-        notif_worker = Notification(user_id=user.id, contents=notif_msg_worker, seen=False)
-        db.session.add(notif_worker)
+            organisation_admins = [r[0] for r in db.session.query(User.id).join(UserPermissions).filter(UserPermissions.organisation_id==organisation.id).filter(UserPermissions.default=='admin').all()]
+            notif_msg_org = '<p>'+user.username+' has accepted the invitation to join '+organisation.name+'. Please modify their permissions as required <a href="/permissions">here</a>.</p>'
+            for admin_id in organisation_admins:
+                notif_org = Notification(user_id=admin_id, contents=notif_msg_org, seen=False)
+                db.session.add(notif_org)
 
-        organisation_admins = [r[0] for r in db.session.query(User.id).join(UserPermissions).filter(UserPermissions.organisation_id==organisation.id).filter(UserPermissions.default=='admin').all()]
-        notif_msg_org = '<p>'+user.username+' has accepted the invitation to join '+organisation.name+'. Please modify their permissions as required <a href="/permissions">here</a>.</p>'
-        for admin_id in organisation_admins:
-            notif_org = Notification(user_id=admin_id, contents=notif_msg_org, seen=False)
-            db.session.add(notif_org)
+            db.session.commit()
 
-        db.session.commit()
+            login_user(user, remember=False)
+            return redirect(url_for('index'))
 
-    except Exception as e:
-        app.logger.error('Error accepting invitation: {}'.format(e))
+        return render_template('html/invite_signup.html', title='Sign Up', form=form, organisation=organisation.name, helpFile='worker_signup', version=Config.VERSION)
+    except:
         return render_template("html/block.html",text="Error.", helpFile='block', version=Config.VERSION)
-
-    return render_template("html/block.html",text="Success.", helpFile='block', version=Config.VERSION)
 
 @app.route('/cancelInvitation/<token>')
 @login_required

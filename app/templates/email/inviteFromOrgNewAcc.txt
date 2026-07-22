@@ -1,12 +1,12 @@
 Hi,
 
-{{ organisation }} has invited you to join their organisation. 
+{{ organisation }} has invited you to join their organisation on TrapTagger. 
 
-By accepting this invitation, an account will be created for you and you will be added to the organisation. You will receive an email with your login details once you have accepted the invitation.
+By accepting this invitation, you'll be able to create a TrapTagger user account and join the organisation.
 
-To accept this invitation and join the organisation, please click here: {{ urlAccept }}.
+To accept the invitation, please click here: {{ urlAccept }}.
 
-If you would like to decline the invitation, simply ignore this email.
+If you would like to decline the invitation, you cansimply ignore this email.
 
 Please note that this invitation will expire in 7 days.
 

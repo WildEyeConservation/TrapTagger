@@ -1,6 +1,6 @@
 Hi {{ username }},
 
-{{ organisation }} has invited you to join their organisation. 
+{{ organisation }} has invited you to join their organisation on TrapTagger. 
 
 To accept this invitation and join the organisation, please click here: {{ urlAccept }}.
 
