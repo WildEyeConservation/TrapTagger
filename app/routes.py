@@ -5111,6 +5111,9 @@ def acceptInvitation(token,action):
 def inviteSignup(token):
     '''Returns the form for invite signup, and handles its submission.'''
     try:
+        if current_user and current_user.is_authenticated:
+            return redirect(url_for('index'))
+
         info = jwt.decode(token, app.config['SECRET_KEY'], algorithms=['HS256'])
         organisation_id = info['organisation_id']
         new_email = info['new_email']
@@ -5521,12 +5524,12 @@ def UploadCSV():
                         uploaded_file.save(temp_file.name)
                         GLOBALS.s3client.put_object(Bucket=Config.BUCKET,Key=filePath,Body=temp_file)
 
-                    task = Task(survey_id=survey_id,name=taskName,tagging_level='-1',test_size=0,status='Importing')
+                    task = Task(survey_id=survey_id,name=taskName,tagging_level='-1',test_size=0,tagging_time=0,size=200,status='Importing')
                     db.session.add(task)
                     survey.status = 'Importing'
                     db.session.commit()
                     task_id = task.id
-
+                    app.logger.info('Import CSV: {}, {}, {}, {}'.format(survey_id,task_id,filePath,current_user.id))
                     importCSV.delay(survey_id=survey_id,task_id=task_id,filePath=filePath,user_id=current_user.id)
                     return json.dumps('success')
 
