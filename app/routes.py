@@ -12515,6 +12515,10 @@ def getDistanceSampling():
             right_trunc = ast.literal_eval(request.form['right_trunc'])
         else:
             right_trunc = None
+        if 'snapshot_interval_seconds' in request.form:
+            snapshot_interval_seconds = ast.literal_eval(request.form['snapshot_interval_seconds'])
+        else:
+            snapshot_interval_seconds = 2.0
         csv = ast.literal_eval(request.form['csv'])
         if csv == '1':
             csv = True
@@ -12561,7 +12565,7 @@ def getDistanceSampling():
 
                 user_id = current_user.id
                 bucket = Config.BUCKET
-                result = calculate_distance_sampling.apply_async(queue='statistics', kwargs={'task_ids': task_ids, 'species': species, 'trapgroups': trapgroups, 'groups': groups, 'startDate': startDate, 'endDate': endDate, 'area_km2': area_km2, 'fov_degrees': fov_degrees, 'user_id': user_id, 'folder': folder, 'bucket': bucket, 'csv': csv, 'left_trunc': left_trunc, 'right_trunc': right_trunc})
+                result = calculate_distance_sampling.apply_async(queue='statistics', kwargs={'task_ids': task_ids, 'species': species, 'trapgroups': trapgroups, 'groups': groups, 'startDate': startDate, 'endDate': endDate, 'area_km2': area_km2, 'fov_degrees': fov_degrees, 'user_id': user_id, 'folder': folder, 'bucket': bucket, 'csv': csv, 'left_trunc': left_trunc, 'right_trunc': right_trunc, 'snapshot_interval_seconds': snapshot_interval_seconds})
                 GLOBALS.redisClient.set('analysis_' + str(user_id), result.id)
                 status = 'PENDING'
         else:

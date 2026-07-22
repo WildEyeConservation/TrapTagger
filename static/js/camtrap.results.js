@@ -607,7 +607,7 @@ function generateResults(){
         document.getElementById('descriptionDiv').hidden = false
         document.getElementById('flankDiv').hidden = true
 
-        analysisDescription.innerHTML = '<i> Distance sampling estimates species density from detections with measured distances and camera effort. Detections must have distance values (from depth estimation). </i>'
+        analysisDescription.innerHTML = '<i> Distance sampling estimates species density from detections with measured distances and camera effort (operating time in snapshot intervals). Detections must have distance values (from depth estimation). </i>'
 
         if (speciesSelector) {
             clearSelect(speciesSelector)
@@ -827,6 +827,8 @@ function disablePanel(){
         document.getElementById('cameraFovDegrees').disabled = true
         document.getElementById('distanceLeftTrunc').disabled = true
         document.getElementById('distanceRightTrunc').disabled = true
+        document.getElementById('distanceAdvancedOptions').disabled = true
+        document.getElementById('distanceSnapshotInterval').disabled = true
         document.getElementById('btnRunScript').disabled = true
         document.getElementById('btnCancelResults').disabled = false
         document.getElementById('btnViewScript').disabled = false
@@ -1004,6 +1006,8 @@ function enablePanel(){
         document.getElementById('cameraFovDegrees').disabled = false
         document.getElementById('distanceLeftTrunc').disabled = false
         document.getElementById('distanceRightTrunc').disabled = false
+        document.getElementById('distanceAdvancedOptions').disabled = false
+        document.getElementById('distanceSnapshotInterval').disabled = false
         document.getElementById('btnRunScript').disabled = false
         document.getElementById('btnCancelResults').disabled = true
         document.getElementById('btnViewScript').disabled = false
@@ -6379,6 +6383,41 @@ function updateOccupancy(check=false){
 
 }
 
+function toggleDistanceAdvancedOptions(){
+    /** Shows or hides distance sampling advanced fields. */
+    var show = document.getElementById('distanceAdvancedOptions').checked
+    document.getElementById('distanceAdvancedFields').hidden = !show
+}
+
+function getDistanceSnapshotInterval(){
+    /** Returns snapshot interval in seconds (default 2 for Howe-style CTDS). */
+    var advanced = document.getElementById('distanceAdvancedOptions').checked
+    if (!advanced) {
+        return 2
+    }
+    var val = document.getElementById('distanceSnapshotInterval').value
+    if (val === '' || isNaN(val) || parseFloat(val) <= 0) {
+        return null
+    }
+    return parseFloat(val)
+}
+
+function appendDistanceSamplingFormParams(formData, leftTrunc, rightTrunc){
+    /** Appends shared distance sampling parameters to a FormData object. */
+    var studyAreaKm2 = document.getElementById('studyAreaKm2').value
+    var cameraFovDegrees = document.getElementById('cameraFovDegrees').value
+    formData.append('area_km2', JSON.stringify(parseFloat(studyAreaKm2)))
+    formData.append('fov_degrees', JSON.stringify(parseFloat(cameraFovDegrees)))
+    formData.append('snapshot_interval_seconds', JSON.stringify(getDistanceSnapshotInterval()))
+
+    if (leftTrunc !== '') {
+        formData.append('left_trunc', JSON.stringify(parseFloat(leftTrunc)))
+    }
+    if (rightTrunc !== '') {
+        formData.append('right_trunc', JSON.stringify(parseFloat(rightTrunc)))
+    }
+}
+
 function checkDistanceSampling(species, studyAreaKm2, cameraFovDegrees, leftTrunc, rightTrunc){
     /** Checks if the distance sampling options are valid */
     var valid = true
@@ -6412,6 +6451,14 @@ function checkDistanceSampling(species, studyAreaKm2, cameraFovDegrees, leftTrun
     if (leftTrunc !== '' && rightTrunc !== '' && parseFloat(leftTrunc) >= parseFloat(rightTrunc)) {
         message = 'Left truncation must be less than right truncation.'
         valid = false
+    }
+
+    if (document.getElementById('distanceAdvancedOptions').checked) {
+        var snapshotInterval = getDistanceSnapshotInterval()
+        if (snapshotInterval === null) {
+            message = 'Snapshot interval must be a positive number of seconds.'
+            valid = false
+        }
     }
 
     if (valid) {
@@ -6455,16 +6502,8 @@ function updateDistanceSampling(check=false){
         formData.append('trapgroups', JSON.stringify(sites))
         formData.append('species', JSON.stringify(species))
         formData.append('groups', JSON.stringify(groups))
-        formData.append('area_km2', JSON.stringify(parseFloat(studyAreaKm2)))
-        formData.append('fov_degrees', JSON.stringify(parseFloat(cameraFovDegrees)))
         formData.append('csv', JSON.stringify('0'))
-
-        if (leftTrunc !== '') {
-            formData.append('left_trunc', JSON.stringify(parseFloat(leftTrunc)))
-        }
-        if (rightTrunc !== '') {
-            formData.append('right_trunc', JSON.stringify(parseFloat(rightTrunc)))
-        }
+        appendDistanceSamplingFormParams(formData, leftTrunc, rightTrunc)
 
         var area = document.getElementById('areaSelect').value
         if (area != null && area != '' && area != '0') {
@@ -6679,16 +6718,8 @@ function getDistanceSamplingCSV(check=false){
         formData.append('trapgroups', JSON.stringify(sites))
         formData.append('species', JSON.stringify(species))
         formData.append('groups', JSON.stringify(groups))
-        formData.append('area_km2', JSON.stringify(parseFloat(studyAreaKm2)))
-        formData.append('fov_degrees', JSON.stringify(parseFloat(cameraFovDegrees)))
         formData.append('csv', JSON.stringify('1'))
-
-        if (leftTrunc !== '') {
-            formData.append('left_trunc', JSON.stringify(parseFloat(leftTrunc)))
-        }
-        if (rightTrunc !== '') {
-            formData.append('right_trunc', JSON.stringify(parseFloat(rightTrunc)))
-        }
+        appendDistanceSamplingFormParams(formData, leftTrunc, rightTrunc)
 
         var area = document.getElementById('areaSelect').value
         if (area != null && area != '' && area != '0') {

@@ -271,6 +271,21 @@ limitations under the License. -->
                         </div>
                         <div id="distanceSamplingErrors" style="font-size: 80%; color: #DF691A"></div>
                         <br>
+                        <div class="custom-control custom-checkbox">
+                            <input type="checkbox" class="custom-control-input" id="distanceAdvancedOptions" name="distanceAdvancedOptions" onchange="toggleDistanceAdvancedOptions()">
+                            <label class="custom-control-label" for="distanceAdvancedOptions">Advanced options</label>
+                        </div>
+                        <div id="distanceAdvancedFields" hidden>
+                            <br>
+                            <h5 style="margin-bottom: 2px">Snapshot interval (seconds)</h5>
+                            <div style="font-size: 80%; margin-bottom: 2px"><i>Temporal effort uses operating seconds divided by this interval (Howe et al. default: 2 seconds). Only change if you know your camera trigger interval.</i></div>
+                            <div class="row">
+                                <div class='col-lg-10'>
+                                    <input type="number" class="form-control" id="distanceSnapshotInterval" value="2" min="0.001" step="any">
+                                </div>
+                            </div>
+                        </div>
+                        <br>
                     </div>
 
                     <div id="comparisonDiv" hidden>
