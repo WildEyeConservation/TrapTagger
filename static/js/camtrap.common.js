@@ -4314,6 +4314,12 @@ document.onkeydown = function(event){
             hideDetections(true)
         }
     }
+    else if (isReviewing){
+        if (event.key.toLowerCase() == 'tab') {
+            event.preventDefault()
+            hideBoundingLabels()
+        }
+    }
 }
 
 
