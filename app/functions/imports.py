@@ -331,7 +331,7 @@ def importCSV(self,survey_id,task_id,filePath,user_id):
             add_clusters_for_csv_import(survey_id,task_id)
 
             # Add labels to labelgroups and clusters
-            label_ids = df['labels'].values.tolist()
+            label_ids = list(labelIDs.values())
             labels = db.session.query(Label).filter(Label.id.in_(label_ids)).all()
             for label in labels:
                 image_ids = df[df['labels'].apply(lambda x: label.id in x)]['image_id'].tolist()
