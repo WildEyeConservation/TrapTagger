@@ -4,12 +4,23 @@ from sqlalchemy.sql import func, or_, and_, distinct
 
 from app import db
 from app.models import *
+from app.functions.globals import getChildList
 from config import Config
-from WorkR.worker import getChildList, _apply_distance_site_filters
 
 nothing_id = db.session.query(Label).filter(Label.description == 'Nothing').first().id
 knocked_id = db.session.query(Label).filter(Label.description == 'Knocked Down').first().id
 vhl_id = db.session.query(Label).filter(Label.description == 'Vehicles/Humans/Livestock').first().id
+
+
+def _apply_distance_site_filters(query, trapgroups, groups):
+    '''Applies trapgroup / sitegroup filters used by TTE detection queries.'''
+    if trapgroups != '0' and trapgroups != '-1' and groups != '0' and groups != '-1':
+        return query.filter(or_(Trapgroup.id.in_(trapgroups), Sitegroup.id.in_(groups)))
+    if trapgroups != '0' and trapgroups != '-1':
+        return query.filter(Trapgroup.id.in_(trapgroups))
+    if groups != '0' and groups != '-1':
+        return query.filter(Sitegroup.id.in_(groups))
+    return query
 
 
 def _species_label_ids(task_ids, species):
