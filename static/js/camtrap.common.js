@@ -2161,6 +2161,24 @@ function switchTaggingLevel(level) {
     getKeys()
 }
 
+function switchInfoTaggingLevel(level, mapID = 'map1') {
+    /** Switches to the info tagging level to either informational tagging or species labelling */
+    if (level=='-1') {
+        switchToLabel = true
+        multipleStatus = false
+        wrongStatus = true
+        tempTaggingLevel = '-1'
+    } else {
+        switchToLabel = false
+        multipleStatus = true
+        wrongStatus = false
+        tempTaggingLevel = '-2'
+    } 
+    switchTaggingLevel(level)
+    addedDetections[mapID] = false
+    addDetections(mapID)
+}
+
 function assignLabel(label,mapID = 'map1'){
     /** Assigns the specified label to the current cluster. */
     var hasIndividuals = false

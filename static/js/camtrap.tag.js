@@ -1116,24 +1116,6 @@ function addTaggingControl(mapID = 'map1') {
     map[mapID].addControl(boundingBackControl);
 }
 
-function switchInfoTaggingLevel(level, mapID = 'map1') {
-    /** Switches to the info tagging level to either informational tagging or species labelling */
-    if (level=='-1') {
-        switchToLabel = true
-        multipleStatus = false
-        wrongStatus = true
-        tempTaggingLevel = '-1'
-    } else {
-        switchToLabel = false
-        multipleStatus = true
-        wrongStatus = false
-        tempTaggingLevel = '-2'
-    } 
-    switchTaggingLevel(level)
-    addedDetections[mapID] = false
-    addDetections(mapID)
-}
-
 function sendBoundingBack() {
     /** Activates 'send to back' mode. */
     clearBoundingSelect()

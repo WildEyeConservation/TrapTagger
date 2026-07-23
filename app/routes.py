@@ -12528,11 +12528,11 @@ def getDistanceSampling():
         else:
             time_to_independence_unit = 'm'
         if 'apply_activity_multiplier' in request.form:
-            apply_activity_multiplier = ast.literal_eval(request.form['apply_activity_multiplier'])
+            apply_activity_multiplier = json.loads(request.form['apply_activity_multiplier'])
         else:
             apply_activity_multiplier = False
         if 'camera_hours_per_day' in request.form:
-            camera_hours_per_day = ast.literal_eval(request.form['camera_hours_per_day'])
+            camera_hours_per_day = json.loads(request.form['camera_hours_per_day'])
         else:
             camera_hours_per_day = 24.0
         if 'activity_time_mode' in request.form:

@@ -718,6 +718,18 @@ function checkIndividualInfo(cluster_id, cluster_index, mapID = 'map1') {
     }
 }
 
+function formatDetectionDistance(distance) {
+    /** Formats depth-estimated detection distance for the sighting info panel. */
+    if (distance === null || distance === undefined || distance === '') {
+        return '—'
+    }
+    var metres = parseFloat(distance)
+    if (isNaN(metres)) {
+        return '—'
+    }
+    return metres.toFixed(2) + ' m'
+}
+
 function updateDetInfo(det=null, mapID = 'map1') {
     /** Updates the detection information. */
     let multiple_selected = checkMultipleSightingsSelected(mapID)
@@ -731,6 +743,7 @@ function updateDetInfo(det=null, mapID = 'map1') {
             }
         }
         document.getElementById('detLabel').innerHTML = tempLab
+        document.getElementById('detDistance').innerHTML = formatDetectionDistance(det.distance)
         if (det.individual != '-1') {
             let detIndiv = document.getElementById('detIndividual');
             detIndiv.innerHTML = det.individual_names[0]
@@ -762,6 +775,7 @@ function updateDetInfo(det=null, mapID = 'map1') {
         document.getElementById('detIndividual').onclick = null;
         document.getElementById('detFlankDiv').hidden = true
         document.getElementById('detFlank').innerHTML = ''
+        document.getElementById('detDistance').innerHTML = ''
     }
 }
 
