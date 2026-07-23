@@ -12527,6 +12527,18 @@ def getDistanceSampling():
             time_to_independence_unit = ast.literal_eval(request.form['time_to_independence_unit'])
         else:
             time_to_independence_unit = 'm'
+        if 'apply_activity_multiplier' in request.form:
+            apply_activity_multiplier = ast.literal_eval(request.form['apply_activity_multiplier'])
+        else:
+            apply_activity_multiplier = False
+        if 'camera_hours_per_day' in request.form:
+            camera_hours_per_day = ast.literal_eval(request.form['camera_hours_per_day'])
+        else:
+            camera_hours_per_day = 24.0
+        if 'activity_time_mode' in request.form:
+            activity_time_mode = ast.literal_eval(request.form['activity_time_mode'])
+        else:
+            activity_time_mode = 'clock'
         csv = ast.literal_eval(request.form['csv'])
         if csv == '1':
             csv = True
@@ -12573,7 +12585,7 @@ def getDistanceSampling():
 
                 user_id = current_user.id
                 bucket = Config.BUCKET
-                result = calculate_distance_sampling.apply_async(queue='statistics', kwargs={'task_ids': task_ids, 'species': species, 'trapgroups': trapgroups, 'groups': groups, 'startDate': startDate, 'endDate': endDate, 'area_km2': area_km2, 'fov_degrees': fov_degrees, 'user_id': user_id, 'folder': folder, 'bucket': bucket, 'csv': csv, 'left_trunc': left_trunc, 'right_trunc': right_trunc, 'snapshot_interval_seconds': snapshot_interval_seconds, 'time_to_independence': time_to_independence, 'time_to_independence_unit': time_to_independence_unit})
+                result = calculate_distance_sampling.apply_async(queue='statistics', kwargs={'task_ids': task_ids, 'species': species, 'trapgroups': trapgroups, 'groups': groups, 'startDate': startDate, 'endDate': endDate, 'area_km2': area_km2, 'fov_degrees': fov_degrees, 'user_id': user_id, 'folder': folder, 'bucket': bucket, 'csv': csv, 'left_trunc': left_trunc, 'right_trunc': right_trunc, 'snapshot_interval_seconds': snapshot_interval_seconds, 'time_to_independence': time_to_independence, 'time_to_independence_unit': time_to_independence_unit, 'apply_activity_multiplier': apply_activity_multiplier, 'camera_hours_per_day': camera_hours_per_day, 'activity_time_mode': activity_time_mode})
                 GLOBALS.redisClient.set('analysis_' + str(user_id), result.id)
                 status = 'PENDING'
         else:

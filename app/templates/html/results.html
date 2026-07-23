@@ -292,6 +292,31 @@ limitations under the License. -->
                         </div>
                         <div id="distanceAdvancedFields" hidden>
                             <br>
+                            <div class="custom-control custom-checkbox">
+                                <input type="checkbox" class="custom-control-input" id="distanceApplyActivityMultiplier" name="distanceApplyActivityMultiplier">
+                                <label class="custom-control-label" for="distanceApplyActivityMultiplier">Apply activity multiplier</label>
+                            </div>
+                            <div style="font-size: 80%; margin-bottom: 2px"><i>Adjust density for temporal availability using detection times and the R <em>activity</em> package (Howe et al.). Uses the same thinned detections as the distance flatfile. All multiplier calculations run in the R script.</i></div>
+                            <br>
+                            <h5 style="margin-bottom: 2px">Camera operating hours per day</h5>
+                            <div style="font-size: 80%; margin-bottom: 2px"><i>Hours per 24 h calendar day that cameras were recording (default 24). This is separate from the activity time scale below; it scales the activity rate into the temporal availability multiplier when cameras were not on 24 h.</i></div>
+                            <div class="row">
+                                <div class='col-lg-10'>
+                                    <input type="number" class="form-control" id="distanceCameraHoursPerDay" value="24" min="0.001" max="24" step="any">
+                                </div>
+                            </div>
+                            <br>
+                            <h5 style="margin-bottom: 2px">Activity time scale</h5>
+                            <div style="font-size: 80%; margin-bottom: 2px"><i>How detection times are converted to time-of-day before estimating activity: <strong>Clock</strong> uses wall-clock timestamps; <strong>Solar</strong> converts to solar time of day using mean site coordinates (requires lat/lng from trap sites). This is not the same as camera operating hours.</i></div>
+                            <div class="row">
+                                <div class='col-lg-10'>
+                                    <select id="distanceActivityTimeMode" class="form-control">
+                                        <option value="clock" selected>Clock time</option>
+                                        <option value="solar">Solar time</option>
+                                    </select>
+                                </div>
+                            </div>
+                            <br>
                             <h5 style="margin-bottom: 2px">Snapshot interval (seconds)</h5>
                             <div style="font-size: 80%; margin-bottom: 2px"><i>Temporal effort uses operating seconds divided by this interval (Howe et al. default: 2 seconds). Only change if you know your camera trigger interval.</i></div>
                             <div class="row">

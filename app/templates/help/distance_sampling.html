@@ -29,6 +29,7 @@ limitations under the License. -->
     <li><strong>Camera field of view:</strong> Enter the horizontal field of view in degrees. Sample fraction is calculated as FOV / 360.</li>
     <li><strong>Camera effort:</strong> Effort is operating time at each site divided by the snapshot interval (default 2 seconds). Sites with effort but no detections of the selected species are included in the analysis.</li>
     <li><strong>Time to independence:</strong> Detections at the same site are thinned so burst photos closer together than this interval count as one independent event (default 30 minutes). Set to 0 to disable thinning.</li>
+    <li><strong>Detection function:</strong> Models are selected automatically using QAIC within each key-function family (uniform, half-normal, hazard-rate), then compared with χ²/df (<em>chi2_select</em>, Howe et al. 2019). If right truncation is not set, the maximum observed detection distance is used.</li>
 </ul>
 
 <p>
@@ -38,6 +39,9 @@ limitations under the License. -->
 <ul>
     <li><strong>Left / right truncation:</strong> Optional truncation distances in metres for the detection function.</li>
     <li><strong>Advanced options:</strong> Snapshot interval (seconds) used to convert operating time into CTDS effort units. Change only if your study used a different interval.</li>
+    <li><strong>Activity multiplier:</strong> When enabled, temporal availability is estimated from detection times with the R <em>activity</em> package and passed to <em>dht2</em> as a multiplier (Howe et al. 2017). The full calculation is in <em>distance_sampling.R</em> (see <em>build_activity_multiplier()</em>). This adjusts density for the proportion of camera operating time when animals were active and available for detection.</li>
+    <li><strong>Camera operating hours per day:</strong> Hours per 24 h calendar day that cameras were recording (default 24). Scales the activity rate when cameras were not on continuously.</li>
+    <li><strong>Activity time scale:</strong> <em>Clock</em> uses wall-clock detection timestamps. <em>Solar</em> converts timestamps to solar time of day using mean trap-site coordinates and a UTC offset (computed in TrapTagger, same approach as activity pattern analysis). This is separate from camera operating hours.</li>
 </ul>
 
 <p>
@@ -45,17 +49,45 @@ limitations under the License. -->
 </p>
 
 <p>
-    Results include density, standard error, confidence interval, detection count (after independence thinning), site count, sample fraction, effective detection radius, and a detection function plot. Reliable inference generally requires sufficient camera sites and independent detections; very few sites produce wide confidence intervals.
+    Results include density, standard error, confidence interval, detection count (after independence thinning), site count, sample fraction, effective detection radius, the selected detection function model, QAIC tables, optional activity multiplier details, and a detection function plot. Reliable inference generally requires sufficient camera sites and independent detections; very few sites produce wide confidence intervals.
 </p>
 
 <p>
-    View the underlying R script with <em>View R Script</em>, or download the Distance flatfile CSV with <em>Download CSV</em>. Click <em>Generate Results</em> to run the analysis. The job may take several minutes; do not leave the page until it completes.
+    View the underlying R script with <em>View R Script</em>, or download the Distance flatfile CSV with <em>Download CSV</em>. When detections are available, the CSV export also includes thinned detection timestamps and a one-row activity params file (<em>lat</em>, <em>lng</em>, <em>utc_offset_hours</em>, <em>timezone</em>) for reproducing the activity multiplier in standalone R.
 </p>
 
 <p>
-    The analysis uses the R package:
+    Standalone R example with solar-time activity (after sourcing <em>distance_sampling.R</em>):
+</p>
+
+<pre><code>flatfile &lt;- read.csv("..._Flatfile.csv")
+times &lt;- read.csv("..._Activity_Timestamps.csv")$timestamp
+params &lt;- read.csv("..._Activity_Params.csv")
+
+avail &lt;- build_activity_multiplier(
+  times,
+  params$lat,
+  params$lng,
+  camera_hours_per_day = 24,
+  activity_time_mode = "solar",
+  utc_offset_hours = params$utc_offset_hours
+)
+
+# Then pass avail$multipliers to dht2() when fitting density from flatfile.</code></pre>
+
+<p>
+    Solar conversion uses <em>solartime::solartime()</em> with the UTC offset from TrapTagger (Python <em>timezonefinder</em> / <em>pytz</em>). No additional R timezone packages are required.
+</p>
+
+<p>
+    Click <em>Generate Results</em> to run the analysis in TrapTagger. The job may take several minutes; do not leave the page until it completes.
+</p>
+
+<p>
+    The analysis uses the R packages:
 </p>
 
 <ul>
     <li><a href="https://cran.r-project.org/web/packages/Distance/index.html">Distance</a>: Detection function fitting and density estimation via <em>dht2</em>.</li>
+    <li><a href="https://cran.r-project.org/web/packages/activity/index.html">activity</a>: Temporal availability estimation when the activity multiplier is enabled.</li>
 </ul>

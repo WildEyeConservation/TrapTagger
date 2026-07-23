@@ -6428,6 +6428,26 @@ function getDistanceTimeToIndependenceUnit(){
     return document.getElementById('distanceTimeToIndependenceUnit').value
 }
 
+function getDistanceApplyActivityMultiplier(){
+    return document.getElementById('distanceApplyActivityMultiplier').checked
+}
+
+function getDistanceCameraHoursPerDay(){
+    var advanced = document.getElementById('distanceAdvancedOptions').checked
+    if (!advanced) {
+        return 24
+    }
+    var val = document.getElementById('distanceCameraHoursPerDay').value
+    if (val === '' || isNaN(val) || parseFloat(val) <= 0 || parseFloat(val) > 24) {
+        return null
+    }
+    return parseFloat(val)
+}
+
+function getDistanceActivityTimeMode(){
+    return document.getElementById('distanceActivityTimeMode').value
+}
+
 function appendDistanceSamplingFormParams(formData, leftTrunc, rightTrunc){
     /** Appends shared distance sampling parameters to a FormData object. */
     var studyAreaKm2 = document.getElementById('studyAreaKm2').value
@@ -6437,6 +6457,9 @@ function appendDistanceSamplingFormParams(formData, leftTrunc, rightTrunc){
     formData.append('snapshot_interval_seconds', JSON.stringify(getDistanceSnapshotInterval()))
     formData.append('time_to_independence', JSON.stringify(getDistanceTimeToIndependence()))
     formData.append('time_to_independence_unit', JSON.stringify(getDistanceTimeToIndependenceUnit()))
+    formData.append('apply_activity_multiplier', JSON.stringify(getDistanceApplyActivityMultiplier()))
+    formData.append('camera_hours_per_day', JSON.stringify(getDistanceCameraHoursPerDay()))
+    formData.append('activity_time_mode', JSON.stringify(getDistanceActivityTimeMode()))
 
     if (leftTrunc !== '') {
         formData.append('left_trunc', JSON.stringify(parseFloat(leftTrunc)))
@@ -6488,6 +6511,12 @@ function checkDistanceSampling(species, studyAreaKm2, cameraFovDegrees, leftTrun
         var snapshotInterval = getDistanceSnapshotInterval()
         if (snapshotInterval === null) {
             error += 'Snapshot interval must be a positive number of seconds. '
+        }
+        if (getDistanceApplyActivityMultiplier()) {
+            var cameraHours = getDistanceCameraHoursPerDay()
+            if (cameraHours === null) {
+                error += 'Camera operating hours per day must be greater than 0 and at most 24. '
+            }
         }
     }
 
@@ -6630,6 +6659,75 @@ function updateDistanceSampling(check=false){
     }
 }
 
+function appendDistanceModelSelectionTable(mainDiv, title, description, tableId, records){
+    /** Appends a model-selection comparison table to the distance sampling results panel. */
+    if (!records || records.length === 0) {
+        return
+    }
+
+    mainDiv.appendChild(document.createElement('br'))
+
+    var row = document.createElement('div')
+    row.classList.add('row')
+    row.setAttribute('style', 'margin:0px')
+    mainDiv.appendChild(row)
+
+    var h5 = document.createElement('h5')
+    h5.innerHTML = title
+    h5.setAttribute('style', 'margin-bottom: 2px;')
+    row.appendChild(h5)
+
+    if (description) {
+        h5 = document.createElement('h5')
+        h5.innerHTML = '<div><i>' + description + '</i></div>'
+        h5.setAttribute('style', 'font-size: 80%; margin-bottom: 2px')
+        mainDiv.appendChild(h5)
+    }
+
+    var table = document.createElement('table')
+    table.id = tableId
+    table.classList.add('table', 'table-bordered', 'table-striped', 'table-hover')
+    table.style.borderCollapse = 'collapse'
+    table.style.width = '100%'
+    mainDiv.appendChild(table)
+
+    var keys = Object.keys(records[0])
+    var thead = document.createElement('thead')
+    table.appendChild(thead)
+    var tr = document.createElement('tr')
+    thead.appendChild(tr)
+    for (var i = 0; i < keys.length; i++) {
+        var th = document.createElement('th')
+        th.innerHTML = keys[i]
+        tr.appendChild(th)
+    }
+
+    var tbody = document.createElement('tbody')
+    table.appendChild(tbody)
+    for (var r = 0; r < records.length; r++) {
+        var trBody = document.createElement('tr')
+        tbody.appendChild(trBody)
+        for (var j = 0; j < keys.length; j++) {
+            var td = document.createElement('td')
+            var cell = records[r][keys[j]]
+            if (cell === null || cell === undefined) {
+                td.innerHTML = '—'
+            }
+            else if (typeof cell === 'number') {
+                td.innerHTML = cell.toFixed(4)
+            }
+            else if (cell === 'NA' || cell === 'Inf' || cell === '-Inf') {
+                td.innerHTML = String(cell)
+            }
+            else {
+                var num = parseFloat(cell)
+                td.innerHTML = isNaN(num) ? String(cell) : num.toFixed(4)
+            }
+            trBody.appendChild(td)
+        }
+    }
+}
+
 function buildDistanceResults(results){
     /** Builds the distance sampling results panel */
     var mainDiv = document.getElementById('resultsDiv')
@@ -6649,6 +6747,16 @@ function buildDistanceResults(results){
         var csvLink = document.createElement('p')
         csvLink.innerHTML = '<a href="' + results.flatfile_url + '" target="_blank">Download flatfile CSV</a>'
         mainDiv.appendChild(csvLink)
+        if (results.activity_timestamps_url) {
+            csvLink = document.createElement('p')
+            csvLink.innerHTML = '<a href="' + results.activity_timestamps_url + '" target="_blank">Download activity timestamps CSV</a>'
+            mainDiv.appendChild(csvLink)
+        }
+        if (results.activity_params_url) {
+            csvLink = document.createElement('p')
+            csvLink.innerHTML = '<a href="' + results.activity_params_url + '" target="_blank">Download activity params CSV (lat, lng, UTC offset, timezone)</a>'
+            mainDiv.appendChild(csvLink)
+        }
         mainDiv.appendChild(document.createElement('br'))
         return
     }
@@ -6689,8 +6797,30 @@ function buildDistanceResults(results){
         ['Sites', results.n_sites != null ? results.n_sites : '—'],
         ['Sample fraction (FOV/360)', fmt(results.sample_fraction, 4)],
         ['Effective detection radius (m)', fmt(results.effective_detection_radius, 2)],
-        ['Model', results.model_key || '—'],
+        ['Left truncation (m)', fmt(results.left_trunc_effective, 2)],
+        ['Right truncation (m)', fmt(results.right_trunc_effective, 2)],
+        ['Distance binning', results.used_cutpoints ? 'Yes' : 'No'],
+        ['Selected model', results.model_name || results.model_key || '—'],
+        ['Model family', results.model_key || '—'],
+        ['Selection method', results.selection_method || '—'],
+        ['Overdispersion (χ²/df)', fmt(results.chat, 3)],
     ]
+
+    if (results.activity_multiplier_applied) {
+        rows.push(['Activity multiplier applied', 'Yes'])
+        rows.push(['Temporal availability rate', fmt(results.activity_rate, 4)])
+        rows.push(['Temporal availability SE', fmt(results.activity_rate_se, 4)])
+        rows.push(['Camera hours per day', fmt(results.camera_hours_per_day, 2)])
+        rows.push(['Activity time scale', results.activity_time_mode || '—'])
+        if (results.activity_time_mode === 'solar' && results.utc_offset_hours != null) {
+            rows.push(['UTC offset used (solar)', fmt(results.utc_offset_hours, 2)])
+        }
+        if (results.activity_time_mode === 'solar' && results.timezone) {
+            rows.push(['Timezone (solar)', results.timezone])
+        }
+    } else {
+        rows.push(['Activity multiplier applied', 'No'])
+    }
 
     for (var i = 0; i < rows.length; i++) {
         var tr = document.createElement('tr')
@@ -6701,6 +6831,45 @@ function buildDistanceResults(results){
             tr.appendChild(td)
         }
     }
+
+    if (results.model_warnings && results.model_warnings.length > 0) {
+        mainDiv.appendChild(document.createElement('br'))
+        var warn = document.createElement('div')
+        warn.setAttribute('style', 'font-size: 85%; color: #DF691A')
+        warn.innerHTML = '<strong>Model selection notes:</strong><ul style="margin-bottom: 0;">' +
+            results.model_warnings.map(function(w){ return '<li>' + w + '</li>' }).join('') +
+            '</ul>'
+        mainDiv.appendChild(warn)
+    }
+
+    appendDistanceModelSelectionTable(
+        mainDiv,
+        'QAIC — uniform key',
+        'Lower QAIC is better within the uniform key-function family.',
+        'distanceQaicUniformTable',
+        results.qaic_uniform
+    )
+    appendDistanceModelSelectionTable(
+        mainDiv,
+        'QAIC — half-normal key',
+        'Lower QAIC is better within the half-normal key-function family.',
+        'distanceQaicHalfNormalTable',
+        results.qaic_half_normal
+    )
+    appendDistanceModelSelectionTable(
+        mainDiv,
+        'QAIC — hazard-rate key',
+        'Lower QAIC is better within the hazard-rate key-function family.',
+        'distanceQaicHazardRateTable',
+        results.qaic_hazard_rate
+    )
+    appendDistanceModelSelectionTable(
+        mainDiv,
+        'Final model comparison (χ²/df)',
+        'The selected model has the lowest χ² goodness-of-fit statistic divided by degrees of freedom among the QAIC winners from each key-function family.',
+        'distanceChi2Table',
+        results.chi2_comparison
+    )
 
     if (results.plot_url) {
         mainDiv.appendChild(document.createElement('br'))
@@ -6791,6 +6960,12 @@ function getDistanceSamplingCSV(check=false){
                     clearTimeout(timeout)
                     if (reply.results && reply.results.flatfile_url) {
                         window.open(reply.results.flatfile_url, '_blank')
+                    }
+                    if (reply.results && reply.results.activity_timestamps_url) {
+                        window.open(reply.results.activity_timestamps_url, '_blank')
+                    }
+                    if (reply.results && reply.results.activity_params_url) {
+                        window.open(reply.results.activity_params_url, '_blank')
                     }
                     document.getElementById('rErrors').innerHTML = ''
                     enablePanel()
