@@ -61,7 +61,8 @@ import io
 import tracemalloc
 import calendar
 import pandas as pd
-from WorkR.worker import calculate_activity_pattern, calculate_occupancy_analysis, calculate_spatial_capture_recapture, calculate_distance_sampling
+from WorkR.worker import calculate_activity_pattern, calculate_occupancy_analysis, calculate_spatial_capture_recapture, calculate_distance_sampling, calculate_space_ntime_tte
+from app.functions.space_ntime import preflight_space_ntime_tte
 from celery.result import allow_join_result
 from scipy.spatial import ConvexHull
 
@@ -12620,6 +12621,147 @@ def getDistanceSampling():
                 clean_up_R_results.apply_async(kwargs={'R_type': R_type, 'folder': folder, 'user_name': current_user.username})
 
     return json.dumps({'status': status, 'results': distance_results, 'message': message, 'folder': folder})
+
+@app.route('/getSpaceNtimeTTE', methods=['POST'])
+@login_required
+def getSpaceNtimeTTE():
+    ''' Get camera-trap time-to-event abundance for a species '''
+    if 'task_ids' in request.form:
+        task_ids = ast.literal_eval(request.form['task_ids'])
+        species = ast.literal_eval(request.form['species'])
+        trapgroups = ast.literal_eval(request.form['trapgroups'])
+        groups = ast.literal_eval(request.form['groups'])
+        area_mode = ast.literal_eval(request.form['area_mode'])
+        species_speed_m_hr = ast.literal_eval(request.form['species_speed_m_hr'])
+        study_area_m2 = ast.literal_eval(request.form['study_area_m2'])
+        nper = ast.literal_eval(request.form['nper'])
+        time_btw_seconds = ast.literal_eval(request.form['time_btw_seconds'])
+        if 'viewable_area_m2' in request.form:
+            viewable_area_m2 = ast.literal_eval(request.form['viewable_area_m2'])
+        else:
+            viewable_area_m2 = None
+        if 'fov_degrees' in request.form:
+            fov_degrees = ast.literal_eval(request.form['fov_degrees'])
+        else:
+            fov_degrees = None
+        if 'startDate' in request.form:
+            startDate = ast.literal_eval(request.form['startDate'])
+        else:
+            startDate = None
+        if 'endDate' in request.form:
+            endDate = ast.literal_eval(request.form['endDate'])
+        else:
+            endDate = None
+        csv = ast.literal_eval(request.form['csv'])
+        if csv == '1':
+            csv = True
+        else:
+            csv = False
+        folder = None
+        if 'area' in request.form:
+            area = ast.literal_eval(request.form['area'])
+        else:
+            area = None
+        if Config.DEBUGGING: app.logger.info('TTE abundance requested for tasks:{} species:{} trapgroups:{} groups:{} startDate:{} endDate:{} area_mode:{} study_area_m2:{} csv:{}'.format(task_ids, species, trapgroups, groups, startDate, endDate, area_mode, study_area_m2, csv))
+    else:
+        task_ids = None
+        folder = ast.literal_eval(request.form['folder'])
+
+    status = 'FAILURE'
+    celery_result = None
+    tte_results = None
+    message = None
+    R_type = 'tte'
+    if current_user.is_authenticated and current_user.admin:
+        if task_ids:
+            if area and area != '0':
+                tasks = surveyPermissionsSQ(db.session.query(Task.id).join(Survey).join(Area).filter(Area.name==area).filter(Task.name != 'default').filter(~Task.name.contains('_o_l_d_')).filter(~Task.name.contains('_copying')), current_user.id, 'read')
+                if task_ids[0] != '0': tasks = tasks.filter(Task.id.in_(task_ids))
+                tasks = tasks.distinct().all()
+                task_ids = [r[0] for r in tasks]
+                if not task_ids: return json.dumps({'status': status, 'results': tte_results, 'message': message, 'folder': folder})
+
+            if task_ids[0] == '0':
+                survey = surveyPermissionsSQ(db.session.query(Survey.id, Organisation.folder).join(Task).filter(Task.name != 'default').filter(~Task.name.contains('_o_l_d_')).filter(~Task.name.contains('_copying')).group_by(Task.survey_id).order_by(Task.id), current_user.id, 'read').first()
+            else:
+                survey = surveyPermissionsSQ(db.session.query(Survey.id, Organisation.folder).join(Task).filter(Task.id.in_(task_ids)), current_user.id, 'read').first()
+            if survey:
+                folder = survey[1]
+
+                if task_ids[0] == '0':
+                    task_rows = surveyPermissionsSQ(
+                        db.session.query(Task.id, Task.survey_id)
+                            .join(Survey)
+                            .filter(Task.name != 'default')
+                            .filter(~Task.name.contains('_o_l_d_'))
+                            .filter(~Task.name.contains('_copying'))
+                            .group_by(Task.survey_id)
+                            .order_by(Task.id),
+                        current_user.id,
+                        'read'
+                    ).distinct().all()
+                else:
+                    task_rows = surveyPermissionsSQ(
+                        db.session.query(Task.id, Task.survey_id)
+                            .join(Survey)
+                            .filter(Task.id.in_(task_ids)),
+                        current_user.id,
+                        'read'
+                    ).distinct().all()
+                task_ids = [r[0] for r in task_rows]
+                survey_ids = list(set([r[1] for r in task_rows]))
+
+                ok, preflight_message = preflight_space_ntime_tte(
+                    task_ids, survey_ids, species, trapgroups, groups, startDate, endDate, area_mode
+                )
+                if not ok:
+                    return json.dumps({'status': 'FAILURE', 'results': {}, 'message': preflight_message, 'folder': folder})
+
+                if GLOBALS.redisClient.get('analysis_' + str(current_user.id)):
+                    result_id = GLOBALS.redisClient.get('analysis_' + str(current_user.id))
+                    try:
+                        result_id = result_id.decode()
+                        celery.control.revoke(result_id)
+                    except:
+                        pass
+
+                user_id = current_user.id
+                bucket = Config.BUCKET
+                result = calculate_space_ntime_tte.apply_async(queue='statistics', kwargs={'task_ids': task_ids, 'species': species, 'trapgroups': trapgroups, 'groups': groups, 'startDate': startDate, 'endDate': endDate, 'area_mode': area_mode, 'viewable_area_m2': viewable_area_m2, 'fov_degrees': fov_degrees, 'species_speed_m_hr': species_speed_m_hr, 'study_area_m2': study_area_m2, 'nper': nper, 'time_btw_seconds': time_btw_seconds, 'user_id': user_id, 'folder': folder, 'bucket': bucket, 'csv': csv})
+                GLOBALS.redisClient.set('analysis_' + str(user_id), result.id)
+                status = 'PENDING'
+        else:
+            result_id = GLOBALS.redisClient.get('analysis_' + str(current_user.id))
+            if result_id:
+                result = calculate_space_ntime_tte.AsyncResult(result_id)
+                status = result.state
+                if status == 'SUCCESS':
+                    celery_result = result.result
+                    if celery_result['status'] == 'SUCCESS':
+                        tte_results = celery_result['tte_results']
+                        result.forget()
+                        GLOBALS.redisClient.delete('analysis_' + str(current_user.id))
+                        clean_up_R_results.apply_async(kwargs={'R_type': R_type, 'folder': folder, 'user_name': current_user.username})
+                    else:
+                        status = celery_result['status']
+                        message = celery_result['error']
+                        tte_results = {}
+                        result.forget()
+                        GLOBALS.redisClient.delete('analysis_' + str(current_user.id))
+                        clean_up_R_results.apply_async(kwargs={'R_type': R_type, 'folder': folder, 'user_name': current_user.username})
+                elif status == 'FAILURE':
+                    message = 'Task {} failed'.format(result_id)
+                    tte_results = {}
+                    result.forget()
+                    GLOBALS.redisClient.delete('analysis_' + str(current_user.id))
+                    clean_up_R_results.apply_async(kwargs={'R_type': R_type, 'folder': folder, 'user_name': current_user.username})
+            else:
+                tte_results = {}
+                message = 'No task ID'
+                GLOBALS.redisClient.delete('analysis_' + str(current_user.id))
+                clean_up_R_results.apply_async(kwargs={'R_type': R_type, 'folder': folder, 'user_name': current_user.username})
+
+    return json.dumps({'status': status, 'results': tte_results, 'message': message, 'folder': folder})
 
 @app.route('/getCovariateCSV', methods=['POST'])
 @login_required

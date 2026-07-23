@@ -1,0 +1,48 @@
+<!-- Copyright 2023
+
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+
+http://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License. -->
+
+<h4>Time-to-event abundance</h4>
+
+<p>
+    <strong>Time-to-event (TTE) abundance</strong> estimates population size (N) for a single species from camera-trap detections using the R <a href="https://github.com/annam21/spaceNtime">spaceNtime</a> package (Moeller et al. 2018).
+</p>
+
+<p>
+    Key requirements:
+</p>
+
+<ul>
+    <li><strong>One species:</strong> Select a single species for each run.</li>
+    <li><strong>Study area:</strong> Enter the survey area in m² passed to <em>tte_estN_fn()</em>.</li>
+    <li><strong>Viewable area:</strong> Enter the camera viewshed area in m² directly, or choose field-of-view mode to derive effective detection radius (95th percentile of detection distances) and sector area from FOV.</li>
+    <li><strong>Species speed:</strong> Average movement speed in m/hr used by <em>tte_samp_per()</em> to set TTE sampling period length. Leave blank for the default 30 m/hr.</li>
+    <li><strong>Detections:</strong> At least one detection of the selected species is required. Field-of-view mode additionally requires measured detection distances.</li>
+</ul>
+
+<p>
+    Advanced settings:
+</p>
+
+<ul>
+    <li><strong>Periods per occasion (nper):</strong> Number of TTE sampling periods in each occasion (default 24).</li>
+    <li><strong>Time between occasions:</strong> Gap between sampling occasions allowing animals to re-randomize (default 2 hours).</li>
+</ul>
+
+<p>
+    Results report abundance (N), standard error, and log-normal confidence intervals from <em>tte_estN_fn()</em>, along with the viewable area, species speed, and sampling settings used. Download CSV exports for detections and deployment tables with <em>Download CSV</em>.
+</p>
+
+<p>
+    View the underlying R script with <em>View R Script</em>.
+</p>

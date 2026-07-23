@@ -158,6 +158,7 @@ var globalActivityResults = null
 var globalOccupancyResults = null
 var globalSCRResults = null
 var globalDistanceResults = null
+var globalTteResults = null
 var ssPolygon = null
 var globalIndividualSpecies = []
 var resultsFolder = null
@@ -659,8 +660,8 @@ function generateResults(){
         document.getElementById('speciesDataDiv').hidden = true
         document.getElementById('optionsDiv').hidden = true
         document.getElementById('buttonsR').hidden = false
-        document.getElementById('btnViewScript').hidden = true
-        document.getElementById('btnDownloadResultsCSV').hidden = true
+        document.getElementById('btnViewScript').hidden = false
+        document.getElementById('btnDownloadResultsCSV').hidden = false
         document.getElementById('covariatesDiv').hidden = true
         document.getElementById('observationWindowDiv').hidden = true
         document.getElementById('distanceSamplingDiv').hidden = true
@@ -688,6 +689,10 @@ function generateResults(){
         }
 
         initTtePanel()
+
+        if (globalTteResults) {
+            buildTteResults(globalTteResults)
+        }
     }
     else{
         document.getElementById('btnExportResults').disabled = true
@@ -901,7 +906,7 @@ function disablePanel(){
         document.getElementById('distanceSnapshotInterval').disabled = true
         document.getElementById('btnRunScript').disabled = true
         document.getElementById('btnCancelResults').disabled = false
-        document.getElementById('btnViewScript').disabled = false
+        document.getElementById('btnViewScript').disabled = true
         document.getElementById('btnDownloadResultsCSV').disabled = true
         document.getElementById('speciesSelect').disabled = true
         document.getElementById('startDate').disabled = true
@@ -1120,8 +1125,8 @@ function enablePanel(){
         document.getElementById('tteTimeBetweenOccasionsUnit').disabled = false
         document.getElementById('btnRunScript').disabled = false
         document.getElementById('btnCancelResults').disabled = true
-        document.getElementById('btnViewScript').disabled = true
-        document.getElementById('btnDownloadResultsCSV').disabled = true
+        document.getElementById('btnViewScript').disabled = false
+        document.getElementById('btnDownloadResultsCSV').disabled = false
         document.getElementById('speciesSelect').disabled = false
         document.getElementById('startDate').disabled = false
         document.getElementById('endDate').disabled = false
@@ -4226,6 +4231,9 @@ $('#btnViewScript').click( function() {
     else if (analysisSelection == '8') {
         filename = 'distance_sampling'
     }
+    else if (analysisSelection == '9') {
+        filename = 'space_ntime'
+    }
     else{
         filename = null
     }
@@ -4277,6 +4285,9 @@ $('#btnDownloadResultsCSV').click( function() {
     }
     else if (analysisSelection == '8') {
         getDistanceSamplingCSV()
+    }
+    else if (analysisSelection == '9') {
+        getTteCSV()
     }
 });
 
@@ -6785,21 +6796,122 @@ function checkSpaceNtimeTte(species){
 }
 
 function updateSpaceNtimeTte(check=false){
-    /** Validates TTE abundance options and runs the analysis when implemented. */
+    /** Gets the time-to-event abundance analysis results */
     if (check) {
-        return
+        var species = '0'
+        var tasks = '0'
+        var validTte = true
+        var validDates = true
+        var formData = new FormData()
+        formData.append('folder', JSON.stringify(resultsFolder))
+    }
+    else {
+        resultsFolder = null
+        var tasks = getSelectedTasks()
+        var selectedSites = getSelectedSites()
+        var sites = selectedSites[0]
+        var groups = selectedSites[1]
+        var species = getSelectedSpecies()
+        var startDate = document.getElementById('startDate').value
+        var endDate = document.getElementById('endDate').value
+        var validTte = checkSpaceNtimeTte(species)
+        var validDates = checkDates(startDate, endDate)
+
+        var formData = new FormData()
+        formData.append('task_ids', JSON.stringify(tasks))
+        formData.append('trapgroups', JSON.stringify(sites))
+        formData.append('species', JSON.stringify(species))
+        formData.append('groups', JSON.stringify(groups))
+        formData.append('csv', JSON.stringify('0'))
+        appendSpaceNtimeTteFormParams(formData)
+
+        var area = document.getElementById('areaSelect').value
+        if (area != null && area != '' && area != '0') {
+            formData.append('area', JSON.stringify(area))
+        }
+
+        if (startDate != '') {
+            startDate = startDate + ' 00:00:00'
+            formData.append('startDate', JSON.stringify(startDate))
+        }
+
+        if (endDate != '') {
+            endDate = endDate + ' 23:59:59'
+            formData.append('endDate', JSON.stringify(endDate))
+        }
     }
 
-    var tasks = getSelectedTasks()
-    var species = getSelectedSpecies()
-    var startDate = document.getElementById('startDate').value
-    var endDate = document.getElementById('endDate').value
-    var validDates = checkDates(startDate, endDate)
-    var validTte = checkSpaceNtimeTte(species)
-
     if (species != '-1' && validTte && tasks != '-1' && validDates) {
-        document.getElementById('statisticsErrors').innerHTML = ''
-        document.getElementById('resultsDiv').style.display = 'block'
+
+        if (!check) {
+            document.getElementById('resultsDiv').style.display = 'none'
+            document.getElementById('loadingDiv').style.display = 'block'
+            document.getElementById('loadingCircle').style.display = 'block'
+            document.getElementById('statisticsErrors').innerHTML = 'Please note that this analysis may take a while to run. Please do not navigate away from this page until the analysis has completed.'
+            disablePanel()
+
+            resultsTab = document.getElementById('resultsTab')
+            while (resultsTab.firstChild) {
+                resultsTab.removeChild(resultsTab.firstChild)
+            }
+        }
+
+        var xhttp = new XMLHttpRequest()
+        xhttp.onreadystatechange =
+        function(){
+            if (this.readyState == 4 && this.status == 200) {
+                reply = JSON.parse(this.responseText)
+                resultsFolder = reply.folder
+                if (reply.status == 'SUCCESS') {
+                    clearTimeout(timeout)
+                    document.getElementById('loadingDiv').style.display = 'none'
+                    document.getElementById('loadingCircle').style.display = 'none'
+                    document.getElementById('resultsDiv').style.display = 'block'
+                    document.getElementById('statisticsErrors').innerHTML = ''
+                    enablePanel()
+
+                    globalTteResults = reply.results
+                    while (document.getElementById('resultsDiv').firstChild) {
+                        document.getElementById('resultsDiv').removeChild(document.getElementById('resultsDiv').firstChild)
+                    }
+                    if (!reply.results || Object.keys(reply.results).length == 0) {
+                        document.getElementById('statisticsErrors').innerHTML = 'No results were generated for the selected analysis options. Please ensure that your selected analysis options are valid and try again.'
+                    } else {
+                        buildTteResults(reply.results)
+                    }
+                }
+                else if (reply.status == 'FAILURE') {
+                    document.getElementById('loadingDiv').style.display = 'none'
+                    document.getElementById('loadingCircle').style.display = 'none'
+                    document.getElementById('resultsDiv').style.display = 'block'
+
+                    while (document.getElementById('resultsDiv').firstChild) {
+                        document.getElementById('resultsDiv').removeChild(document.getElementById('resultsDiv').firstChild)
+                    }
+
+                    var failureMessage = reply.message || 'An error occurred while running the analysis. Please ensure that your selected analysis options are valid and try again.'
+                    document.getElementById('statisticsErrors').innerHTML = failureMessage
+                    enablePanel()
+                }
+                else {
+                    timeout = setTimeout(function(){updateSpaceNtimeTte(true)}, 10000)
+                }
+            }
+            else if (this.readyState == 4 && this.status != 200) {
+                document.getElementById('loadingDiv').style.display = 'none'
+                document.getElementById('loadingCircle').style.display = 'none'
+                document.getElementById('resultsDiv').style.display = 'block'
+
+                while (document.getElementById('resultsDiv').firstChild) {
+                    document.getElementById('resultsDiv').removeChild(document.getElementById('resultsDiv').firstChild)
+                }
+
+                document.getElementById('statisticsErrors').innerHTML = 'An error occurred while running the analysis. Please ensure that your selected analysis options are valid and try again.'
+                enablePanel()
+            }
+        }
+        xhttp.open('POST', '/getSpaceNtimeTTE')
+        xhttp.send(formData)
     }
 }
 
@@ -7159,6 +7271,178 @@ function buildDistanceResults(results){
         img.setAttribute('alt', 'Detection function plot')
         img.setAttribute('style', 'max-width: 100%; height: auto;')
         imgCol.appendChild(img)
+    }
+}
+
+function buildTteResults(results){
+    /** Builds the time-to-event abundance results panel */
+    var mainDiv = document.getElementById('resultsDiv')
+
+    var h5 = document.createElement('h5')
+    h5.innerHTML = 'Time-to-Event Abundance'
+    h5.setAttribute('style', 'margin-bottom: 2px')
+    mainDiv.appendChild(h5)
+
+    h5 = document.createElement('h5')
+    h5.innerHTML = '<div><i>Population abundance (N) from camera-trap detections using the spaceNtime TTE model.</i></div>'
+    h5.setAttribute('style', 'font-size: 80%; margin-bottom: 2px')
+    mainDiv.appendChild(h5)
+    mainDiv.appendChild(document.createElement('br'))
+
+    if (results && (results.detections_url || results.deploy_url)) {
+        if (results.detections_url) {
+            var csvLink = document.createElement('p')
+            csvLink.innerHTML = '<a href="' + results.detections_url + '" target="_blank">Download detections CSV</a>'
+            mainDiv.appendChild(csvLink)
+        }
+        if (results.deploy_url) {
+            csvLink = document.createElement('p')
+            csvLink.innerHTML = '<a href="' + results.deploy_url + '" target="_blank">Download deployment CSV</a>'
+            mainDiv.appendChild(csvLink)
+        }
+        mainDiv.appendChild(document.createElement('br'))
+        return
+    }
+
+    function fmt(val, digits) {
+        if (val === null || val === undefined || val === '') return '—'
+        var n = parseFloat(val)
+        if (isNaN(n)) return String(val)
+        return n.toFixed(digits === undefined ? 2 : digits)
+    }
+
+    var table = document.createElement('table')
+    table.classList.add('table', 'table-striped', 'table-bordered')
+    table.setAttribute('id', 'tteAbundanceTable')
+    mainDiv.appendChild(table)
+
+    var thead = document.createElement('thead')
+    table.appendChild(thead)
+    var headerRow = document.createElement('tr')
+    thead.appendChild(headerRow)
+    var headers = ['Metric', 'Value']
+    for (var h = 0; h < headers.length; h++) {
+        var th = document.createElement('th')
+        th.innerHTML = headers[h]
+        headerRow.appendChild(th)
+    }
+
+    var tbody = document.createElement('tbody')
+    table.appendChild(tbody)
+
+    var rows = [
+        ['Abundance (N)', fmt(results.N, 2)],
+        ['Standard error', fmt(results.SE, 2)],
+        ['Lower CI', fmt(results.LCI, 2)],
+        ['Upper CI', fmt(results.UCI, 2)],
+        ['Detections', results.n_detections != null ? results.n_detections : '—'],
+        ['Cameras', results.n_cameras != null ? results.n_cameras : '—'],
+        ['Sampling occasions', results.n_occasions != null ? results.n_occasions : '—'],
+        ['Study area (m²)', fmt(results.study_area_m2, 2)],
+        ['Viewable area used (m²)', fmt(results.viewable_area_m2, 2)],
+        ['Species speed (m/hr)', fmt(results.species_speed_m_hr, 2)],
+        ['TTE sampling period (s)', fmt(results.sampling_period_seconds, 2)],
+    ]
+
+    if (results.area_mode === 'fov') {
+        rows.push(['Area mode', 'Derived from field of view'])
+        if (results.fov_degrees != null) {
+            rows.push(['Camera field of view (°)', fmt(results.fov_degrees, 2)])
+        }
+        rows.push(['Effective detection radius (m)', fmt(results.effective_detection_radius_m, 2)])
+    } else {
+        rows.push(['Area mode', 'Direct viewable area'])
+    }
+
+    for (var i = 0; i < rows.length; i++) {
+        var tr = document.createElement('tr')
+        tbody.appendChild(tr)
+        for (var j = 0; j < rows[i].length; j++) {
+            var td = document.createElement('td')
+            td.innerHTML = rows[i][j]
+            tr.appendChild(td)
+        }
+    }
+}
+
+function getTteCSV(check=false){
+    /** Download TTE abundance CSV exports */
+    if (check) {
+        var species = '0'
+        var tasks = '0'
+        var validDates = true
+        var validTte = true
+        var formData = new FormData()
+        formData.append('folder', JSON.stringify(resultsFolder))
+    }
+    else {
+        resultsFolder = null
+        var tasks = getSelectedTasks()
+        var selectedSites = getSelectedSites()
+        var sites = selectedSites[0]
+        var groups = selectedSites[1]
+        var species = getSelectedSpecies()
+        var startDate = document.getElementById('startDate').value
+        var endDate = document.getElementById('endDate').value
+        var validTte = checkSpaceNtimeTte(species)
+        var validDates = checkDates(startDate, endDate)
+
+        var formData = new FormData()
+        formData.append('task_ids', JSON.stringify(tasks))
+        formData.append('trapgroups', JSON.stringify(sites))
+        formData.append('species', JSON.stringify(species))
+        formData.append('groups', JSON.stringify(groups))
+        formData.append('csv', JSON.stringify('1'))
+        appendSpaceNtimeTteFormParams(formData)
+
+        var area = document.getElementById('areaSelect').value
+        if (area != null && area != '' && area != '0') {
+            formData.append('area', JSON.stringify(area))
+        }
+
+        if (startDate != '') {
+            startDate = startDate + ' 00:00:00'
+            formData.append('startDate', JSON.stringify(startDate))
+        }
+
+        if (endDate != '') {
+            endDate = endDate + ' 23:59:59'
+            formData.append('endDate', JSON.stringify(endDate))
+        }
+    }
+
+    if (species != '-1' && validTte && tasks != '-1' && validDates) {
+        if (!check) {
+            document.getElementById('rErrors').innerHTML = 'Generating CSV. Please wait...'
+            disablePanel()
+        }
+
+        var xhttp = new XMLHttpRequest()
+        xhttp.onreadystatechange =
+        function(){
+            if (this.readyState == 4 && this.status == 200) {
+                reply = JSON.parse(this.responseText)
+                if (reply.status == 'SUCCESS') {
+                    document.getElementById('rErrors').innerHTML = ''
+                    enablePanel()
+                    globalTteResults = reply.results
+                    buildTteResults(reply.results)
+                }
+                else if (reply.status == 'FAILURE') {
+                    document.getElementById('rErrors').innerHTML = reply.message || 'An error occurred while downloading the CSV. Please try again.'
+                    enablePanel()
+                }
+                else {
+                    timeout = setTimeout(function(){getTteCSV(true)}, 10000)
+                }
+            }
+            else if (this.readyState == 4 && this.status != 200) {
+                document.getElementById('rErrors').innerHTML = 'An error occurred while downloading the CSV.'
+                enablePanel()
+            }
+        }
+        xhttp.open('POST', '/getSpaceNtimeTTE')
+        xhttp.send(formData)
     }
 }
 
@@ -11541,6 +11825,9 @@ function cancelResults(){
     else if (analysisSelection == '8'){
         result_type = 'distance'
     }
+    else if (analysisSelection == '9'){
+        result_type = 'tte'
+    }
 
     var tasks = getSelectedTasks()
     formData.append('result_type', JSON.stringify(result_type));
@@ -11795,6 +12082,9 @@ function openAnalysisHelp(){
     }
     else if (analysisSelection == '8'){
         help_page = 'distance_sampling'
+    }
+    else if (analysisSelection == '9'){
+        help_page = 'space_ntime_tte'
     }
 
     helpOpen(help_page)
