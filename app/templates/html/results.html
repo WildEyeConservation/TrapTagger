@@ -135,6 +135,7 @@ limitations under the License. -->
                                 <option value="6">Occupancy Analysis</option>
                                 <option value="7">Spatial Capture-Recapture</option>
                                 <option value="8">Distance Sampling</option>
+                                <option value="9">Time-to-Event Abundance</option>
                             </select>
                         </div>
                     </div>
@@ -249,14 +250,6 @@ limitations under the License. -->
                             </div>
                         </div>
                         <br>
-                        <h5 style="margin-bottom: 2px">Camera Field of View</h5>
-                        <div style="font-size: 80%; margin-bottom: 2px"><i>Horizontal field of view in degrees (used as sample fraction = FOV / 360).</i></div>
-                        <div class="row">
-                            <div class='col-lg-10'>
-                                <input type="number" class="form-control" id="cameraFovDegrees" value="" min="0" max="360" step="any">
-                            </div>
-                        </div>
-                        <br>
                         <h5 style="margin-bottom: 2px">Time to independence</h5>
                         <div style="font-size: 80%; margin-bottom: 2px"><i>Minimum time between detections at the same site to count as independent events. Burst photos closer together are thinned to one detection.</i></div>
                         <div class="row">
@@ -325,6 +318,83 @@ limitations under the License. -->
                                 </div>
                             </div>
                         </div>
+                        <br>
+                    </div>
+
+                    <div id="cameraFovDiv" hidden>
+                        <h5 style="margin-bottom: 2px">Camera field of view</h5>
+                        <div id="cameraFovHelpDistance" style="font-size: 80%; margin-bottom: 2px"><i>Horizontal field of view in degrees (used as sample fraction = FOV / 360).</i></div>
+                        <div id="cameraFovHelpTte" hidden style="font-size: 80%; margin-bottom: 2px"><i>Horizontal field of view in degrees. When you run the analysis, effective detection distance and viewable area will be calculated from your detection distances and this value. The values used will be shown in the results.</i></div>
+                        <div class="row">
+                            <div class='col-lg-10'>
+                                <input type="number" class="form-control" id="cameraFovDegrees" value="" min="0" max="360" step="any">
+                            </div>
+                        </div>
+                        <br>
+                    </div>
+
+                    <div id="tteAbundanceDiv" hidden>
+                        <h5 style="margin-bottom: 2px">Viewable area</h5>
+                        <div style="font-size: 80%; margin-bottom: 2px"><i>Area visible to the camera used for time-to-event abundance (<em>deploy$area</em> in spaceNtime).</i></div>
+                        <div class="custom-control custom-radio">
+                            <input type="radio" class="custom-control-input" id="tteAreaModeDirect" name="tteAreaMode" value="direct" checked onchange="toggleTteAreaMode()">
+                            <label class="custom-control-label" for="tteAreaModeDirect">Enter viewable area directly (m²)</label>
+                        </div>
+                        <div class="custom-control custom-radio">
+                            <input type="radio" class="custom-control-input" id="tteAreaModeFov" name="tteAreaMode" value="fov" onchange="toggleTteAreaMode()">
+                            <label class="custom-control-label" for="tteAreaModeFov">Derive from camera field of view</label>
+                        </div>
+                        <br>
+                        <div id="tteAreaDirectDiv">
+                            <div class="row">
+                                <div class='col-lg-10'>
+                                    <input type="number" class="form-control" id="tteViewableAreaM2" value="" min="0" step="any" placeholder="Viewable area (m²)">
+                                </div>
+                            </div>
+                        </div>
+                        <div id="tteAreaFovDiv" hidden>
+                            <div style="font-size: 80%; margin-bottom: 2px"><i>Enter the camera field of view below. Viewable area will be derived when you run the analysis.</i></div>
+                        </div>
+                        <br>
+                        <h5 style="margin-bottom: 2px">Species speed (m/hr)</h5>
+                        <div style="font-size: 80%; margin-bottom: 2px"><i>Movement speed used for time-to-event analysis. Default 30 m/hr matches the spaceNtime vignette; use literature or telemetry if available, or leave blank for 30.</i></div>
+                        <div class="row">
+                            <div class='col-lg-10'>
+                                <input type="number" class="form-control" id="tteSpeciesSpeedMhr" min="0" step="any">
+                            </div>
+                        </div>
+                        <br>
+                        <h5 style="margin-bottom: 2px">Study area (m²)</h5>
+                        <div style="font-size: 80%; margin-bottom: 2px"><i>Total study area in square metres.</i></div>
+                        <div class="row">
+                            <div class='col-lg-10'>
+                                <input type="number" class="form-control" id="tteStudyAreaM2" value="" min="0" step="any">
+                            </div>
+                        </div>
+                        <br>
+                        <h5 style="margin-bottom: 2px">Periods per occasion</h5>
+                        <div style="font-size: 80%; margin-bottom: 2px"><i>Number of TTE sampling periods in each sampling occasion. Each period length is derived from viewable area and species speed (<em>tte_samp_per</em>).</i></div>
+                        <div class="row">
+                            <div class='col-lg-10'>
+                                <input type="number" class="form-control" id="tteNper" value="24" min="1" step="1">
+                            </div>
+                        </div>
+                        <br>
+                        <h5 style="margin-bottom: 2px">Time between occasions</h5>
+                        <div style="font-size: 80%; margin-bottom: 2px"><i>Gap between sampling occasions (<em>time_btw</em> in spaceNtime), allowing animals to re-randomize before the next occasion starts.</i></div>
+                        <div class="row">
+                            <div class="col-lg-5" style="padding-right: 0px;">
+                                <input type="number" class="form-control" id="tteTimeBetweenOccasions" value="2" min="0" step="any">
+                            </div>
+                            <div class="col-lg-5" style="padding-left: 0px;">
+                                <select id="tteTimeBetweenOccasionsUnit" class="form-control">
+                                    <option value="s">Seconds</option>
+                                    <option value="m">Minutes</option>
+                                    <option value="h" selected>Hours</option>
+                                </select>
+                            </div>
+                        </div>
+                        <div id="tteAbundanceErrors" style="font-size: 80%; color: #DF691A"></div>
                         <br>
                     </div>
 

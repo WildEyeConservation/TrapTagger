@@ -164,6 +164,7 @@ var resultsFolder = null
 var orangeMarker = null 
 var blueMarker = null
 var markersDict = {}
+var TTE_DEFAULT_SPEED_M_HR = 30
 
 const modalExportAlert = $('#modalExportAlert')
 const modalCovariates = $('#modalCovariates')
@@ -217,6 +218,12 @@ function getLabelsSitesTagsAndGroups(){
                     optionTexts = optionTexts.concat(globalIndividualSpecies)
                 }
                 else if (analysisType=='8') {
+                    optionValues = ['-1']
+                    optionTexts = ['None']
+                    optionValues = optionValues.concat(globalLabels)
+                    optionTexts = optionTexts.concat(globalLabels)
+                }
+                else if (analysisType=='9') {
                     optionValues = ['-1']
                     optionTexts = ['None']
                     optionValues = optionValues.concat(globalLabels)
@@ -285,10 +292,13 @@ function generateResults(){
     document.getElementById('statisticsErrors').innerHTML = ''
     document.getElementById('rErrors').innerHTML = ''
     document.getElementById('distanceSamplingErrors').innerHTML = ''
+    document.getElementById('tteAbundanceErrors').innerHTML = ''
     document.getElementById('analysisOptionsErrors').innerHTML = ''
     var analysisDescription = document.getElementById('analysisDescription')
     analysisDescription.innerHTML = ''
     document.getElementById('distanceSamplingDiv').hidden = true
+    document.getElementById('tteAbundanceDiv').hidden = true
+    document.getElementById('cameraFovDiv').hidden = true
 
     var speciesSelector = document.getElementById('speciesSelect')
 
@@ -606,6 +616,9 @@ function generateResults(){
         document.getElementById('covariatesDiv').hidden = true
         document.getElementById('observationWindowDiv').hidden = true
         document.getElementById('distanceSamplingDiv').hidden = false
+        document.getElementById('cameraFovDiv').hidden = false
+        document.getElementById('cameraFovHelpDistance').hidden = false
+        document.getElementById('cameraFovHelpTte').hidden = true
         document.getElementById('cameraTrapDiv').hidden = true
         document.getElementById('dataUnitDiv').hidden = true
         document.getElementById('indivCharacteristicsDiv').hidden = true
@@ -630,6 +643,51 @@ function generateResults(){
         if (globalDistanceResults) {
             buildDistanceResults(globalDistanceResults)
         }
+    }
+    else if (analysisType=='9') {
+        // Builds the selectors for time-to-event abundance analysis
+        document.getElementById('btnExportResults').disabled = true
+        document.getElementById('chartTypeDiv').hidden = true
+        document.getElementById('normalisationDiv').hidden = true
+        document.getElementById('timeUnitSelectionDiv').hidden = true
+        document.getElementById('spatialOptionsDiv').hidden = true
+        document.getElementById('spatialDataDiv').hidden = false
+        document.getElementById('analysisDataDiv').hidden = true
+        document.getElementById('comparisonDiv').hidden = true
+        document.getElementById('numericalDataDiv').hidden = true
+        document.getElementById('trendlineDiv').hidden = true
+        document.getElementById('speciesDataDiv').hidden = true
+        document.getElementById('optionsDiv').hidden = true
+        document.getElementById('buttonsR').hidden = false
+        document.getElementById('btnViewScript').hidden = true
+        document.getElementById('btnDownloadResultsCSV').hidden = true
+        document.getElementById('covariatesDiv').hidden = true
+        document.getElementById('observationWindowDiv').hidden = true
+        document.getElementById('distanceSamplingDiv').hidden = true
+        document.getElementById('tteAbundanceDiv').hidden = false
+        document.getElementById('cameraFovDiv').hidden = true
+        document.getElementById('cameraTrapDiv').hidden = true
+        document.getElementById('dataUnitDiv').hidden = true
+        document.getElementById('indivCharacteristicsDiv').hidden = true
+        document.getElementById('dateDivTA').hidden = true
+        document.getElementById('openChartTab').disabled = true
+        document.getElementById('relativeAbundanceDiv').hidden = true
+        document.getElementById('shapefileDiv').hidden = true
+        document.getElementById('descriptionDiv').hidden = false
+        document.getElementById('flankDiv').hidden = true
+
+        analysisDescription.innerHTML = '<i> Time-to-event (TTE) abundance estimates population density from camera-trap detections using the spaceNtime package. Enter viewable area directly or provide camera field of view (effective detection distance and viewable area are calculated when you run the analysis). </i>'
+
+        if (speciesSelector) {
+            clearSelect(speciesSelector)
+            var optionValues = ['-1']
+            var optionTexts = ['None']
+            optionValues = optionValues.concat(globalLabels)
+            optionTexts = optionTexts.concat(globalLabels)
+            fillSelect(speciesSelector, optionTexts, optionValues)
+        }
+
+        initTtePanel()
     }
     else{
         document.getElementById('btnExportResults').disabled = true
@@ -657,6 +715,7 @@ function generateResults(){
         document.getElementById('descriptionDiv').hidden = true
         document.getElementById('flankDiv').hidden = true
         document.getElementById('distanceSamplingDiv').hidden = true
+        document.getElementById('tteAbundanceDiv').hidden = true
 
         analysisDescription.innerHTML = ''
 
@@ -848,6 +907,25 @@ function disablePanel(){
         document.getElementById('startDate').disabled = true
         document.getElementById('endDate').disabled = true
     }
+    else if (analysisType=='9') {
+        // Time-to-event abundance analysis
+        document.getElementById('tteAreaModeDirect').disabled = true
+        document.getElementById('tteAreaModeFov').disabled = true
+        document.getElementById('tteViewableAreaM2').disabled = true
+        document.getElementById('cameraFovDegrees').disabled = true
+        document.getElementById('tteSpeciesSpeedMhr').disabled = true
+        document.getElementById('tteStudyAreaM2').disabled = true
+        document.getElementById('tteNper').disabled = true
+        document.getElementById('tteTimeBetweenOccasions').disabled = true
+        document.getElementById('tteTimeBetweenOccasionsUnit').disabled = true
+        document.getElementById('btnRunScript').disabled = true
+        document.getElementById('btnCancelResults').disabled = false
+        document.getElementById('btnViewScript').disabled = true
+        document.getElementById('btnDownloadResultsCSV').disabled = true
+        document.getElementById('speciesSelect').disabled = true
+        document.getElementById('startDate').disabled = true
+        document.getElementById('endDate').disabled = true
+    }
 
 }
 
@@ -1025,6 +1103,25 @@ function enablePanel(){
         document.getElementById('btnCancelResults').disabled = true
         document.getElementById('btnViewScript').disabled = false
         document.getElementById('btnDownloadResultsCSV').disabled = false
+        document.getElementById('speciesSelect').disabled = false
+        document.getElementById('startDate').disabled = false
+        document.getElementById('endDate').disabled = false
+    }
+    else if (analysisType=='9') {
+        // Time-to-event abundance analysis
+        document.getElementById('tteAreaModeDirect').disabled = false
+        document.getElementById('tteAreaModeFov').disabled = false
+        document.getElementById('tteViewableAreaM2').disabled = false
+        document.getElementById('cameraFovDegrees').disabled = false
+        document.getElementById('tteSpeciesSpeedMhr').disabled = false
+        document.getElementById('tteStudyAreaM2').disabled = false
+        document.getElementById('tteNper').disabled = false
+        document.getElementById('tteTimeBetweenOccasions').disabled = false
+        document.getElementById('tteTimeBetweenOccasionsUnit').disabled = false
+        document.getElementById('btnRunScript').disabled = false
+        document.getElementById('btnCancelResults').disabled = true
+        document.getElementById('btnViewScript').disabled = true
+        document.getElementById('btnDownloadResultsCSV').disabled = true
         document.getElementById('speciesSelect').disabled = false
         document.getElementById('startDate').disabled = false
         document.getElementById('endDate').disabled = false
@@ -2198,6 +2295,9 @@ function updateResults(update=false){
     else if (analysisSelection == '8') {
         updateDistanceSampling()
     }
+    else if (analysisSelection == '9') {
+        updateSpaceNtimeTte()
+    }
 }
 
 function updatePolar(){
@@ -2796,7 +2896,7 @@ function getSelectedSpecies(){
             }
         }
     }
-    else if (analysisSelection == '6' || analysisSelection == '7' || analysisSelection == '8') {
+    else if (analysisSelection == '6' || analysisSelection == '7' || analysisSelection == '8' || analysisSelection == '9') {
         var allSpecies = document.getElementById('speciesSelect').value
         if (allSpecies != '-1' && allSpecies != '0') {
             species = [allSpecies]
@@ -6533,6 +6633,174 @@ function checkDistanceSampling(species, studyAreaKm2, cameraFovDegrees, leftTrun
     }
 
     return valid
+}
+
+function getCameraFovDegrees(){
+    var val = document.getElementById('cameraFovDegrees').value
+    if (val === '' || isNaN(val) || parseFloat(val) <= 0 || parseFloat(val) > 360) {
+        return null
+    }
+    return parseFloat(val)
+}
+
+function getTteAreaMode(){
+    if (document.getElementById('tteAreaModeFov').checked) {
+        return 'fov'
+    }
+    return 'direct'
+}
+
+function toggleTteAreaMode(){
+    var mode = getTteAreaMode()
+    document.getElementById('tteAreaDirectDiv').hidden = (mode !== 'direct')
+    document.getElementById('tteAreaFovDiv').hidden = (mode !== 'fov')
+    if (document.getElementById('analysisSelector').value == '9') {
+        document.getElementById('cameraFovDiv').hidden = (mode !== 'fov')
+        document.getElementById('cameraFovHelpDistance').hidden = true
+        document.getElementById('cameraFovHelpTte').hidden = (mode !== 'fov')
+    }
+}
+
+function getTteSpeciesSpeedMhr(){
+    var val = document.getElementById('tteSpeciesSpeedMhr').value
+    if (val === '' || val === null) {
+        return TTE_DEFAULT_SPEED_M_HR
+    }
+    if (isNaN(val) || parseFloat(val) <= 0) {
+        return null
+    }
+    return parseFloat(val)
+}
+
+function getTteNper(){
+    var val = document.getElementById('tteNper').value
+    if (val === '' || isNaN(val) || parseFloat(val) < 1 || parseInt(val, 10) != parseFloat(val)) {
+        return null
+    }
+    return parseInt(val, 10)
+}
+
+function getTteTimeBetweenOccasionsUnit(){
+    return document.getElementById('tteTimeBetweenOccasionsUnit').value
+}
+
+function getTteTimeBetweenOccasionsSeconds(){
+    var val = document.getElementById('tteTimeBetweenOccasions').value
+    if (val === '' || isNaN(val) || parseFloat(val) < 0) {
+        return null
+    }
+    var n = parseFloat(val)
+    var unit = getTteTimeBetweenOccasionsUnit()
+    if (unit === 's') {
+        return n
+    }
+    if (unit === 'h') {
+        return n * 3600
+    }
+    return n * 60
+}
+
+function getTteViewableAreaM2(){
+    if (getTteAreaMode() !== 'direct') {
+        return null
+    }
+    var directVal = document.getElementById('tteViewableAreaM2').value
+    if (directVal === '' || isNaN(directVal) || parseFloat(directVal) <= 0) {
+        return null
+    }
+    return parseFloat(directVal)
+}
+
+function appendSpaceNtimeTteFormParams(formData){
+    /** Appends TTE abundance parameters to a FormData object for /getSpaceNtimeTTE. */
+    formData.append('area_mode', JSON.stringify(getTteAreaMode()))
+    formData.append('species_speed_m_hr', JSON.stringify(getTteSpeciesSpeedMhr()))
+    formData.append('study_area_m2', JSON.stringify(parseFloat(document.getElementById('tteStudyAreaM2').value)))
+    formData.append('nper', JSON.stringify(getTteNper()))
+    formData.append('time_btw_seconds', JSON.stringify(getTteTimeBetweenOccasionsSeconds()))
+    if (getTteAreaMode() === 'direct') {
+        formData.append('viewable_area_m2', JSON.stringify(getTteViewableAreaM2()))
+    } else {
+        formData.append('fov_degrees', JSON.stringify(getCameraFovDegrees()))
+    }
+}
+
+function initTtePanel(){
+    toggleTteAreaMode()
+}
+
+function checkSpaceNtimeTte(species){
+    var valid = true
+    var error = ''
+    var noSpecies = false
+
+    if (species == '-1' || species == '0') {
+        noSpecies = true
+    } else if (Array.isArray(species)) {
+        if (species.length === 0 || species[0] == '-1' || species[0] == '0') {
+            noSpecies = true
+        }
+    }
+
+    if (noSpecies) {
+        error += 'Please select a species. '
+    }
+
+    var studyAreaM2 = document.getElementById('tteStudyAreaM2').value
+    if (studyAreaM2 === '' || isNaN(studyAreaM2) || parseFloat(studyAreaM2) <= 0) {
+        error += 'Please enter a valid study area (m²) greater than 0. '
+    }
+
+    if (getTteSpeciesSpeedMhr() === null) {
+        error += 'Species speed must be a positive number (m/hr), or leave blank for 30. '
+    }
+
+    if (getTteAreaMode() === 'direct') {
+        if (getTteViewableAreaM2() === null) {
+            error += 'Please enter a valid viewable area (m²) greater than 0. '
+        }
+    } else {
+        var fov = getCameraFovDegrees()
+        if (fov === null) {
+            error += 'Please enter a valid camera field of view between 0 and 360 degrees. '
+        }
+    }
+
+    if (getTteNper() === null) {
+        error += 'Periods per occasion (nper) must be a positive whole number. '
+    }
+
+    if (getTteTimeBetweenOccasionsSeconds() === null) {
+        error += 'Time between occasions must be a non-negative number. '
+    }
+
+    if (error !== '') {
+        valid = false
+        document.getElementById('tteAbundanceErrors').innerHTML = error
+    } else {
+        document.getElementById('tteAbundanceErrors').innerHTML = ''
+    }
+
+    return valid
+}
+
+function updateSpaceNtimeTte(check=false){
+    /** Validates TTE abundance options and runs the analysis when implemented. */
+    if (check) {
+        return
+    }
+
+    var tasks = getSelectedTasks()
+    var species = getSelectedSpecies()
+    var startDate = document.getElementById('startDate').value
+    var endDate = document.getElementById('endDate').value
+    var validDates = checkDates(startDate, endDate)
+    var validTte = checkSpaceNtimeTte(species)
+
+    if (species != '-1' && validTte && tasks != '-1' && validDates) {
+        document.getElementById('statisticsErrors').innerHTML = ''
+        document.getElementById('resultsDiv').style.display = 'block'
+    }
 }
 
 function updateDistanceSampling(check=false){
@@ -11192,6 +11460,14 @@ function saveDataSelection(){
     var allTaskSelctors =  document.querySelectorAll('[id^=asSelect-]')
     var allSurveySelctors =  document.querySelectorAll('[id^=surveySelect-]')
     var allMultipleAnnotationSets = document.querySelectorAll('[id^=annotationSetSelect-]')
+
+    if (allSurveySelctors.length === 0) {
+        if (selectedTasks && selectedTasks.length > 0 && selectedTasks !== '-1') {
+            return
+        }
+        selectedTasks = '-1'
+        return
+    }
 
     var validDataSelection = true
     var error = ""
