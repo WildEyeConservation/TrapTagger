@@ -109,7 +109,8 @@ def findImID(survey_id,fullPath,isVideo):
     else:
         images = [db.session.query(Image).join(Camera).join(Trapgroup).filter(Trapgroup.survey_id==survey_id).filter(Camera.path.like(path_str)).filter(Image.filename==filename).first()]
     if images:
-        return [image.id for image in images]
+        ids = [image.id for image in images if image]
+        return ids if ids else np.nan
     else:
         return np.nan
 
