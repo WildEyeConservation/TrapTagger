@@ -2919,14 +2919,15 @@ def checkFilesExist(files,folder, survey_id=None):
     survey_path = folder + '/' + files[0]['name'].split('/')[0] + '/%'
     survey_path = survey_path.replace('_','\\_')
 
-    calibration_code = None
-    if survey_id:
-        calibration_code = db.session.query(Survey.calibration_code).filter(Survey.id == survey_id).scalar()
-        if not calibration_code or calibration_code == 'None':
-            calibration_code = None
+    calibration_code = Config.CALIBRATION_FOLDER_KEYWORD
+    # Previous: read survey.calibration_code and skip if None.
+    # if survey_id:
+    #     calibration_code = db.session.query(Survey.calibration_code).filter(Survey.id == survey_id).scalar()
+    #     if not calibration_code or calibration_code == 'None':
+    #         calibration_code = None
 
     cal_duplicates = set()
-    if calibration_code:
+    if calibration_code and survey_id:
         from app.functions.imports import calibration_comp_dest_key, calibration_destination_taken
         for file_path in hash_dict:
             dest_key = calibration_comp_dest_key(file_path, calibration_code)

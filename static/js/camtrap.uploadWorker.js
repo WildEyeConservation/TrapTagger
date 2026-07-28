@@ -218,18 +218,21 @@ function isCalUploadDistanceFilename(filename) {
 }
 
 function isCalibrationFolder(dirName, dirPath) {
-    /** Returns true if dirName at dirPath matches calibrationCode. */
+    /** Returns true if dirName matches the fixed calibration folder keyword exactly. */
 
     if (!calibrationCode) {
         return false;
     }
 
-    try {
-        var nameRe = new RegExp('^' + calibrationCode + '$');
-        return nameRe.test(dirName);
-    } catch (e) {
-        return false;
-    }
+    // Exact keyword match.
+    // Previous regex path against survey.calibration_code:
+    // try {
+    //     var nameRe = new RegExp('^' + calibrationCode + '$');
+    //     return nameRe.test(dirName);
+    // } catch (e) {
+    //     return false;
+    // }
+    return dirName === calibrationCode;
 }
 
 async function listFolder(dirHandle,path){

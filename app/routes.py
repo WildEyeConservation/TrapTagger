@@ -1935,8 +1935,12 @@ def createNewSurvey():
         if camCheckbox=='false' and newSurveyCamCode != 'None':
             newSurveyCamCode = newSurveyCamCode+'[0-9]+'
 
-        if calCheckbox == 'false' and newSurveyCalCode != 'None':
-            newSurveyCalCode = newSurveyCalCode + '[0-9]*'
+        # Always use the fixed calibration folder keyword (auto-detect on import).
+        # Previous configurable identifier path appended [0-9]* when calCheckbox was false.
+        if newSurveyCalCode and newSurveyCalCode != 'None':
+            newSurveyCalCode = Config.CALIBRATION_FOLDER_KEYWORD
+        # if calCheckbox == 'false' and newSurveyCalCode != 'None':
+        #     newSurveyCalCode = newSurveyCalCode + '[0-9]*'
 
         if newSurveyCamCode == 'None':
             newSurveyCamCode = None
@@ -2780,11 +2784,15 @@ def addFiles():
                         newSurveyCamCode=None
                     
                     if 'newSurveyCalCode' in request.form:
-                        newSurveyCalCode = request.form['newSurveyCalCode']
-                        calCheckbox = request.form['calCheckbox']
-                        if calCheckbox == 'false':
-                            newSurveyCalCode = newSurveyCalCode + '[0-9]*'
-                        survey.calibration_code = newSurveyCalCode
+                        # Always override to the fixed keyword on manage-files upload.
+                        # Previous path used calCheckbox to optionally append [0-9]*.
+                        # calCheckbox = request.form['calCheckbox']
+                        # if calCheckbox == 'false':
+                        #     newSurveyCalCode = newSurveyCalCode + '[0-9]*'
+                        # survey.calibration_code = newSurveyCalCode
+                        survey.calibration_code = Config.CALIBRATION_FOLDER_KEYWORD
+                    else:
+                        survey.calibration_code = Config.CALIBRATION_FOLDER_KEYWORD
 
                     db.session.commit()
                     

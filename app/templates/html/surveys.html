@@ -454,6 +454,13 @@ limitations under the License. -->
                     <div id="newSurveyCamErrors" style="font-size: 80%; color: #DF691A"></div>
 
                     <br>
+                    <!--
+                      Calibration identifier UI is hidden.
+                      Folders named exactly "calibration" are auto-detected instead.
+                      Keep these controls in the DOM (hidden) so existing JS reset/helpers
+                      keep working if we restore configurable regex identifiers later.
+                    -->
+                    <div id="calibrationOptionsSection" hidden>
                     <h5 style="margin-bottom: 2px">Calibration</h5>
                     <div style="font-size: 80%; margin-bottom: 2px"><i>Do you have calibration images in this survey?</i></div>
                     <div style="margin-bottom: 5px">
@@ -485,6 +492,7 @@ limitations under the License. -->
                         <div id="newSurveyCalBuilder"></div>
                     </div>      
                     <div id="newSurveyCalErrors" style="font-size: 80%; color: #DF691A"></div>
+                    </div>
 
                     <br>
                     <h5 style="margin-bottom: 2px">Structure</h5>

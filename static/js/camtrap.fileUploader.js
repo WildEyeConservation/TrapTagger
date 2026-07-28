@@ -31,8 +31,9 @@ uploadWorker.onmessage = function(evt){
         updateCalibrationNotice(evt.data.args[2], evt.data.args[3])
         updateSiteFolderSelect()
         updateCamFolderSelect()
-        if (typeof updateSurveyStructure === 'function') {
-            updateSurveyStructure()
+        checkTrapgroupCode()
+        if (typeof refreshCalibrationUI === 'function') {
+            refreshCalibrationUI()
         }
     } else if (evt.data.func=='updateCalibrationFolders') {
         updateCalibrationNotice(evt.data.args[0], evt.data.args[1])
@@ -318,21 +319,23 @@ function rescanSelectedFolder() {
     if (!uploadDirHandle) {
         return
     }
-    var calYes = document.getElementById('yesCalImages')?.checked ||
-        document.getElementById('yesCalImagesES')?.checked
-    if (!calYes) {
-        globalCalibrationFolderPaths = []
-        globalCalibrationFolderEmptyPaths = []
-        globalCalibrationFolderCount = 0
-        if (typeof refreshCalibrationUI === 'function') {
-            refreshCalibrationUI()
-        }
-        return
-    }
+    // Always auto-scan for the fixed calibration keyword (Yes/No UI is hidden).
     var calibrationCode = null
     if (typeof getSurveyCalibrationCode === 'function') {
         calibrationCode = getSurveyCalibrationCode()
     }
+    // Previous gate on Yes radio:
+    // var calYes = document.getElementById('yesCalImages')?.checked ||
+    //     document.getElementById('yesCalImagesES')?.checked
+    // if (!calYes) {
+    //     globalCalibrationFolderPaths = []
+    //     globalCalibrationFolderEmptyPaths = []
+    //     globalCalibrationFolderCount = 0
+    //     if (typeof refreshCalibrationUI === 'function') {
+    //         refreshCalibrationUI()
+    //     }
+    //     return
+    // }
     uploadWorker.postMessage({
         'func': 'rescanCalibrationFolders',
         'args': [uploadDirHandle, calibrationCode]

@@ -4878,29 +4878,41 @@ def parse_calibration_distance_filename(filename):
 def is_calibration_dirpath(dirpath, calibration_code):
     '''
     Returns True if dirpath points at a calibration folder.
-    dirpath example: org/survey/site/cam/extra
-    calibration_code from survey.calibration_code (same strings as trapgroup/camera codes).
+    dirpath example: org/survey/site/cam/calibration
+
+    Uses the fixed Config.CALIBRATION_FOLDER_KEYWORD (exact folder-name match).
+    Configurable regex identifiers were removed from the UI but may be restored later —
+    see the commented regex path below.
     '''
-    if not calibration_code or not dirpath:
+    if not dirpath:
         return False
     parts = dirpath.split('/')
     if len(parts) < 3:
         return False
     dir_name = parts[-1]
-    try:
-        return re.compile('^' + calibration_code + '$').match(dir_name) is not None
-    except re.error:
-        return False
+    if dir_name == Config.CALIBRATION_FOLDER_KEYWORD:
+        return True
+
+    # Previous regex path against survey.calibration_code:
+    # if not calibration_code:
+    #     return False
+    # try:
+    #     return re.compile('^' + calibration_code + '$').match(dir_name) is not None
+    # except re.error:
+    #     return False
+    return False
 
 def calibration_camera_relative_path(path, calibration_code):
     '''
     For a calibration folder path or S3 key, return trapgroup/.../camera relative path
     (parent of the calibration folder), or None if not calibration.
-    key example:    org/survey/site/cam/extra/image.jpg
-    dirpath example: org/survey/site/cam/extra
+    key example:    org/survey/site/cam/calibration/image.jpg
+    dirpath example: org/survey/site/cam/calibration
     returns:        site/cam   (used under _calibration_/)
     '''
-    if not calibration_code:
+    # Prefer the fixed keyword; fall back to provided code for callers that still pass it.
+    effective_code = Config.CALIBRATION_FOLDER_KEYWORD or calibration_code
+    if not effective_code:
         return None
     splits = path.split('/')
     if len(splits) < 4:
@@ -4911,7 +4923,7 @@ def calibration_camera_relative_path(path, calibration_code):
     else:
         dirparts = splits
     dirpath = '/'.join(dirparts)
-    if not is_calibration_dirpath(dirpath, calibration_code):
+    if not is_calibration_dirpath(dirpath, effective_code):
         return None
     cal_folder_name = dirparts[-1]
     cal_idx = dirparts.index(cal_folder_name)  # last segment
