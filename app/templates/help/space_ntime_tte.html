@@ -24,7 +24,7 @@ limitations under the License. -->
 
 <ul>
     <li><strong>One species:</strong> Select a single species for each run.</li>
-    <li><strong>Study area:</strong> Enter the survey area in m² passed to <em>tte_estN_fn()</em>.</li>
+    <li><strong>Study area:</strong> Enter the survey area in km² (converted to m² for <em>tte_estN_fn()</em>).</li>
     <li><strong>Viewable area:</strong> Enter the camera viewshed area in m² directly, or choose field-of-view mode to derive effective detection radius (95th percentile of detection distances) and sector area from FOV.</li>
     <li><strong>Species speed:</strong> Average movement speed in m/hr used by <em>tte_samp_per()</em> to set TTE sampling period length. Leave blank for the default 30 m/hr.</li>
     <li><strong>Detections:</strong> At least one detection of the selected species is required. Field-of-view mode additionally requires measured detection distances.</li>
@@ -40,7 +40,7 @@ limitations under the License. -->
 </ul>
 
 <p>
-    Results report abundance (N), standard error, and log-normal confidence intervals from <em>tte_estN_fn()</em>, along with the viewable area, species speed, and sampling settings used. Download CSV exports for detections and deployment tables with <em>Download CSV</em>.
+    Results report abundance (N), standard error, and log-normal confidence intervals from <em>tte_estN_fn()</em>, along with the viewable area, species speed, and sampling settings used. Download CSV exports for detections, deployment, and analysis parameters with <em>Download CSV</em> (use with <em>View R Script</em> to reproduce the analysis in R).
 </p>
 
 <p>

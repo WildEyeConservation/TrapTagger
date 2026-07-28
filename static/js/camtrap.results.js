@@ -919,7 +919,7 @@ function disablePanel(){
         document.getElementById('tteViewableAreaM2').disabled = true
         document.getElementById('cameraFovDegrees').disabled = true
         document.getElementById('tteSpeciesSpeedMhr').disabled = true
-        document.getElementById('tteStudyAreaM2').disabled = true
+        document.getElementById('tteStudyAreaKm2').disabled = true
         document.getElementById('tteNper').disabled = true
         document.getElementById('tteTimeBetweenOccasions').disabled = true
         document.getElementById('tteTimeBetweenOccasionsUnit').disabled = true
@@ -1119,7 +1119,7 @@ function enablePanel(){
         document.getElementById('tteViewableAreaM2').disabled = false
         document.getElementById('cameraFovDegrees').disabled = false
         document.getElementById('tteSpeciesSpeedMhr').disabled = false
-        document.getElementById('tteStudyAreaM2').disabled = false
+        document.getElementById('tteStudyAreaKm2').disabled = false
         document.getElementById('tteNper').disabled = false
         document.getElementById('tteTimeBetweenOccasions').disabled = false
         document.getElementById('tteTimeBetweenOccasionsUnit').disabled = false
@@ -6722,11 +6722,27 @@ function getTteViewableAreaM2(){
     return parseFloat(directVal)
 }
 
+function getTteStudyAreaKm2(){
+    var val = document.getElementById('tteStudyAreaKm2').value
+    if (val === '' || isNaN(val) || parseFloat(val) <= 0) {
+        return null
+    }
+    return parseFloat(val)
+}
+
+function getTteStudyAreaM2(){
+    var km2 = getTteStudyAreaKm2()
+    if (km2 === null) {
+        return null
+    }
+    return km2 * 1000000
+}
+
 function appendSpaceNtimeTteFormParams(formData){
     /** Appends TTE abundance parameters to a FormData object for /getSpaceNtimeTTE. */
     formData.append('area_mode', JSON.stringify(getTteAreaMode()))
     formData.append('species_speed_m_hr', JSON.stringify(getTteSpeciesSpeedMhr()))
-    formData.append('study_area_m2', JSON.stringify(parseFloat(document.getElementById('tteStudyAreaM2').value)))
+    formData.append('study_area_m2', JSON.stringify(getTteStudyAreaM2()))
     formData.append('nper', JSON.stringify(getTteNper()))
     formData.append('time_btw_seconds', JSON.stringify(getTteTimeBetweenOccasionsSeconds()))
     if (getTteAreaMode() === 'direct') {
@@ -6757,9 +6773,8 @@ function checkSpaceNtimeTte(species){
         error += 'Please select a species. '
     }
 
-    var studyAreaM2 = document.getElementById('tteStudyAreaM2').value
-    if (studyAreaM2 === '' || isNaN(studyAreaM2) || parseFloat(studyAreaM2) <= 0) {
-        error += 'Please enter a valid study area (m²) greater than 0. '
+    if (getTteStudyAreaKm2() === null) {
+        error += 'Please enter a valid study area (km²) greater than 0. '
     }
 
     if (getTteSpeciesSpeedMhr() === null) {
@@ -7123,24 +7138,6 @@ function buildDistanceResults(results){
     mainDiv.appendChild(h5)
     mainDiv.appendChild(document.createElement('br'))
 
-    if (results && results.flatfile_url) {
-        var csvLink = document.createElement('p')
-        csvLink.innerHTML = '<a href="' + results.flatfile_url + '" target="_blank">Download flatfile CSV</a>'
-        mainDiv.appendChild(csvLink)
-        if (results.activity_timestamps_url) {
-            csvLink = document.createElement('p')
-            csvLink.innerHTML = '<a href="' + results.activity_timestamps_url + '" target="_blank">Download activity timestamps CSV</a>'
-            mainDiv.appendChild(csvLink)
-        }
-        if (results.activity_params_url) {
-            csvLink = document.createElement('p')
-            csvLink.innerHTML = '<a href="' + results.activity_params_url + '" target="_blank">Download activity params CSV (lat, lng, UTC offset, timezone)</a>'
-            mainDiv.appendChild(csvLink)
-        }
-        mainDiv.appendChild(document.createElement('br'))
-        return
-    }
-
     function fmt(val, digits) {
         if (val === null || val === undefined || val === '') return '—'
         var n = parseFloat(val)
@@ -7289,21 +7286,6 @@ function buildTteResults(results){
     mainDiv.appendChild(h5)
     mainDiv.appendChild(document.createElement('br'))
 
-    if (results && (results.detections_url || results.deploy_url)) {
-        if (results.detections_url) {
-            var csvLink = document.createElement('p')
-            csvLink.innerHTML = '<a href="' + results.detections_url + '" target="_blank">Download detections CSV</a>'
-            mainDiv.appendChild(csvLink)
-        }
-        if (results.deploy_url) {
-            csvLink = document.createElement('p')
-            csvLink.innerHTML = '<a href="' + results.deploy_url + '" target="_blank">Download deployment CSV</a>'
-            mainDiv.appendChild(csvLink)
-        }
-        mainDiv.appendChild(document.createElement('br'))
-        return
-    }
-
     function fmt(val, digits) {
         if (val === null || val === undefined || val === '') return '—'
         var n = parseFloat(val)
@@ -7338,7 +7320,7 @@ function buildTteResults(results){
         ['Detections', results.n_detections != null ? results.n_detections : '—'],
         ['Cameras', results.n_cameras != null ? results.n_cameras : '—'],
         ['Sampling occasions', results.n_occasions != null ? results.n_occasions : '—'],
-        ['Study area (m²)', fmt(results.study_area_m2, 2)],
+        ['Study area (km²)', results.study_area_m2 != null ? fmt(results.study_area_m2 / 1000000, 4) : '—'],
         ['Viewable area used (m²)', fmt(results.viewable_area_m2, 2)],
         ['Species speed (m/hr)', fmt(results.species_speed_m_hr, 2)],
         ['TTE sampling period (s)', fmt(results.sampling_period_seconds, 2)],
@@ -7422,17 +7404,29 @@ function getTteCSV(check=false){
         function(){
             if (this.readyState == 4 && this.status == 200) {
                 reply = JSON.parse(this.responseText)
+                resultsFolder = reply.folder
                 if (reply.status == 'SUCCESS') {
+                    clearTimeout(timeout)
                     document.getElementById('rErrors').innerHTML = ''
                     enablePanel()
-                    globalTteResults = reply.results
-                    buildTteResults(reply.results)
+                    csv_urls = []
+                    if (reply.results && reply.results.detections_url) {
+                        csv_urls.push(reply.results.detections_url)
+                    }
+                    if (reply.results && reply.results.deploy_url) {
+                        csv_urls.push(reply.results.deploy_url)
+                    }
+                    if (reply.results && reply.results.params_url) {
+                        csv_urls.push(reply.results.params_url)
+                    }
+                    downloadCSV(csv_urls)
                 }
                 else if (reply.status == 'FAILURE') {
+                    clearTimeout(timeout)
                     document.getElementById('rErrors').innerHTML = reply.message || 'An error occurred while downloading the CSV. Please try again.'
                     enablePanel()
                 }
-                else {
+                else if (resultsFolder) {
                     timeout = setTimeout(function(){getTteCSV(true)}, 10000)
                 }
             }
