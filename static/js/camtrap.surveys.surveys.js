@@ -129,7 +129,7 @@ var pendingUploadCalibrationCode = null
 // Fixed calibration folder keyword (exact match). Configurable regex UI was removed
 // but may be restored later — see getSurveyCalibrationCode.
 var CALIBRATION_FOLDER_KEYWORD = 'calibration'
-var CALIBRATION_MISSING_COLOUR = '#DF691A'
+var CALIBRATION_MISSING_COLOUR = '#e6cc00'
 var structure_page = 1
 var tags_per_page = 10
 var speciesAndTasks = {}
@@ -416,7 +416,8 @@ var surveyIgnoreSmallDetections = null
 var surveySkyMasked = null
 var surveyAdvancedOptionsLoaded = false
 var depthSelectedTaskId = null
-var CAL_UPLOAD_DISTANCE_STEM_RE = /^\d+(\.\d+)?$/
+// First decimal number in the stem; digits after a second decimal are ignored.
+var CAL_UPLOAD_DISTANCE_NUMBER_RE = /\d+(?:\.\d+)?/
 
 function buildSurveys(survey,disableSurvey) {
     /**
@@ -1764,6 +1765,8 @@ function pingTgCheck() {
                 camCheckCode = null
                 checkingTGC = false
                 checkingTrapgroupCode = false
+                applyCalibrationFolderPaths([], [])
+                refreshCalibrationUI()
 
             }
             else if (tgCode.endsWith('.*') || tgCode.endsWith('.+') || tgCode.endsWith('.*[0-9]+') || tgCode.endsWith('.+[0-9]+' ) || camCode.endsWith('.*') || camCode.endsWith('.+') || camCode.endsWith('.*[0-9]+') || camCode.endsWith('.+[0-9]+' )) {
@@ -1847,8 +1850,15 @@ function pingTgCheck() {
                                 // infoDiv.innerHTML = response.data
                                 data = response.data
 
+                                // Apply S3 cal discovery before structure UI (parity with browser worker).
+                                applyCalibrationFolderPaths(
+                                    data.calibration_folder_paths,
+                                    data.calibration_folder_empty_paths
+                                )
+
                                 if (data.message != 'Structure found.'){
                                     infoDiv.innerHTML = data.message
+                                    refreshCalibrationUI()
                                 }
                                 else{
                                     infoDiv.innerHTML = ''
@@ -1873,6 +1883,7 @@ function pingTgCheck() {
                                         }
 
                                         updateSurveyStructure()
+                                        refreshCalibrationUI()
 
                                         if (highestCamsPerSite > 2) {
                                             document.getElementById('modalAlertHeader').innerHTML = "Warning"
@@ -1882,6 +1893,7 @@ function pingTgCheck() {
                                     }
                                     else{
                                         infoDiv.innerHTML = 'No structure found.'
+                                        refreshCalibrationUI()
                                     }
                                 }
                                 tgCheckFolder = null
@@ -1890,6 +1902,8 @@ function pingTgCheck() {
                                 checkingTGC = false
                             } else if (response.status=='FAILURE') {
                                 infoDiv.innerHTML = 'Check failed.'
+                                applyCalibrationFolderPaths([], [])
+                                refreshCalibrationUI()
                                 tgCheckFolder = null
                                 tgCheckCode = null
                                 camCheckCode = null
@@ -2395,6 +2409,8 @@ function checkTrapgroupCode() {
     
         if ((tgCode!='')&&(folder!='')) {
             infoDiv.innerHTML = 'Checking...'
+            // Clear stale browser/previous-S3 cal state until the structure check returns.
+            applyCalibrationFolderPaths([], [])
 
             if (!checkingTGC) {
                 checkingTGC = true
@@ -2435,7 +2451,12 @@ function checkTrapgroupCode() {
             // }
             // xhttp.open("POST", '/checkTrapgroupCode');
             // xhttp.send(formData);
+        } else {
+            applyCalibrationFolderPaths([], [])
         }
+    } else {
+        // Neither browser nor bucket selected — clear auto-detected cal folders.
+        applyCalibrationFolderPaths([], [])
     }
     if (globalCalibrationFolderPaths && globalCalibrationFolderPaths.length > 0) {
         globalCalibrationFolderCount = globalCalibrationFolderPaths.length
@@ -2890,6 +2911,7 @@ function buildAddIms() {
     $("#S3BucketAdd").change( function() {
         S3BucketAdd = document.getElementById('S3BucketAdd')
         if (S3BucketAdd.checked) {
+            applyCalibrationFolderPaths([], [])
             var xhttp = new XMLHttpRequest();
             xhttp.open("GET", '/getFolders?survey_id='+selectedSurvey);
             xhttp.onreadystatechange =
@@ -2906,6 +2928,7 @@ function buildAddIms() {
     $("#BrowserAdd").change( function() {
         BrowserAdd = document.getElementById('BrowserAdd')
         if (BrowserAdd.checked) {
+            applyCalibrationFolderPaths([], [])
             buildBrowserUpload('addImagesFormDiv')
         }
     })
@@ -4708,6 +4731,7 @@ $("#newSurveyCheckbox").change( function() {
 $("#S3BucketUpload").change( function() {
     /** Listens for and initialises the bucket upload form when the option is selected. */
     document.getElementById('newSurveyStructureDiv').innerHTML = ''
+    applyCalibrationFolderPaths([], [])
     S3BucketUpload = document.getElementById('S3BucketUpload')
     org_id = document.getElementById('newSurveyOrg').value
     if (S3BucketUpload.checked) {
@@ -4727,6 +4751,7 @@ $("#S3BucketUpload").change( function() {
 $("#BrowserUpload").change( function() {
     /** Listens for and initialises the browser upload form when the option is selected. */
     document.getElementById('newSurveyStructureDiv').innerHTML = ''
+    applyCalibrationFolderPaths([], [])
     BrowserUpload = document.getElementById('BrowserUpload')
     if (BrowserUpload.checked) {
         buildBrowserUpload('newSurveyFormDiv')
@@ -7821,10 +7846,12 @@ function isCalUploadJpeg(filename) {
 
 
 function parseCalUploadDistance(filename) {
+    /** First number in the stem (optional decimal); leading zeros drop via parseFloat. */
     if (!isCalUploadJpeg(filename)) return null
     var stem = filename.replace(/\.[^/.]+$/, '')
-    if (!CAL_UPLOAD_DISTANCE_STEM_RE.test(stem)) return null
-    var d = parseFloat(stem)
+    var match = stem.match(CAL_UPLOAD_DISTANCE_NUMBER_RE)
+    if (!match) return null
+    var d = parseFloat(match[0])
     if (isNaN(d) || d <= 0) return null
     return d
 }
@@ -7884,7 +7911,7 @@ function validateCalUploadFiles(files) {
         if (jpegCount > 0) {
             return {
                 valid: false,
-                message: 'No valid calibration images found. Filenames must be a distance in metres (e.g. 5.jpg, 10.0.jpg).'
+                message: 'No valid calibration images found. Filenames must contain a distance in metres (e.g. 5.jpg, 10m.jpg, board_5.5m.jpg).'
             }
         }
         return { valid: false, message: 'No valid calibration JPEGs found in the selected folder.' }
@@ -8056,7 +8083,7 @@ function buildCalUploadMode() {
 
     var descFolder = document.createElement('div')
     descFolder.setAttribute('style', 'font-size: 80%; margin-bottom: 6px')
-    descFolder.innerHTML = '<i>Select a folder of JPEGs named by distance (e.g. 5.jpg, 10.jpg). Only files directly in that folder are used.</i>'
+    descFolder.innerHTML = '<i>Select a folder of JPEGs whose filenames contain a distance in metres (e.g. 5.jpg, 10m.jpg, board_5.5m.jpg). Only files directly in that folder are used.</i>'
     col1.appendChild(descFolder)
 
     var folderInput = document.createElement('input')
@@ -10730,6 +10757,18 @@ function isBrowserFolderUploadContext() {
         (document.getElementById('BrowserAdd') && document.getElementById('BrowserAdd').checked)
 }
 
+function isBucketFolderUploadContext() {
+    return (document.getElementById('S3BucketUpload') && document.getElementById('S3BucketUpload').checked) ||
+        (document.getElementById('S3BucketAdd') && document.getElementById('S3BucketAdd').checked)
+}
+
+function applyCalibrationFolderPaths(calibrationFolderPaths, calibrationFolderEmptyPaths) {
+    /** Mirrors updateCalibrationNotice for S3 structure-check replies. */
+    globalCalibrationFolderPaths = calibrationFolderPaths || []
+    globalCalibrationFolderEmptyPaths = calibrationFolderEmptyPaths || []
+    globalCalibrationFolderCount = globalCalibrationFolderPaths.length
+}
+
 function refreshCalibrationUI() {
     /** Updates cal folder count, validation errors, and structure cal suffix without rebuilding site/camera structure. */
     if (globalCalibrationFolderPaths && globalCalibrationFolderPaths.length > 0) {
@@ -10835,8 +10874,8 @@ function validateCalibrationStructure() {
         return { valid: true, message: '' }
     }
 
-    // Browser upload (New Survey or Add Files): validate nesting and image filenames
-    if (isBrowserFolderUploadContext()) {
+    // Browser and bucket upload (New Survey or Add Files): nesting + filename checks
+    if (isBrowserFolderUploadContext() || isBucketFolderUploadContext()) {
         for (var i = 0; i < globalCalibrationFolderPaths.length; i++) {
             var parts = globalCalibrationFolderPaths[i].split('/')
             var calIndex = parts.length - 1
@@ -10863,7 +10902,7 @@ function validateCalibrationStructure() {
             return {
                 valid: false,
                 message: 'No valid calibration images found in folder(s) ' + folderNames +
-                    '. Filenames must be a distance in metres (e.g. 5.jpg, 10.0.jpg).'
+                    '. Filenames must contain a distance in metres (e.g. 5.jpg, 10m.jpg, board_5.5m.jpg).'
             }
         }
     }
@@ -10907,9 +10946,16 @@ function siteCameraHasCalibration(siteName, camName) {
     return false
 }
 
-function colouredStructureLabel(text, missing) {
-    if (!missing) return text
-    return '<span style="color: ' + CALIBRATION_MISSING_COLOUR + ';">' + text + '</span>'
+function colouredStructureLabel(text, missing, showCalCoverage) {
+    /**
+     * When calibration coverage is shown, highlight missing sites/cameras in yellow
+     * and keep covered labels in the panel's usual orange.
+     */
+    if (!showCalCoverage) return text
+    if (missing) {
+        return '<span style="color: ' + CALIBRATION_MISSING_COLOUR + ';">' + text + '</span>'
+    }
+    return '<span style="color: #DF691A;">' + text + '</span>'
 }
 
 function updateSiteDiv() {
@@ -11893,13 +11939,15 @@ function updateSurveyStructure(){
         infoDiv.innerHTML = ''
         let calText = showCalCoverage ? ', ' + globalCalibrationFolderCount + ' calibration folders.' : '.'
         infoDiv.innerHTML = 'Structure found: ' + globalStructureCounts['sites'] + ' sites, ' + globalStructureCounts['cameras'] + ' cameras' + calText + '<br>'
-
+        if (showCalCoverage) {
+            infoDiv.innerHTML += '<i>Sites/cameras shown in yellow are missing calibration images.</i><br>'
+        }
         if (camSameAsSite) {
             for (let i = 0; i < structurePages.length; i++) {
                 var tags = Object.keys(globalSurveyStructure[structurePages[i]])
                 for (let j = 0; j < tags.length; j++) {
                     var siteMissing = showCalCoverage && !siteCameraHasCalibration(tags[j], tags[j])
-                    infoDiv.innerHTML += colouredStructureLabel(tags[j], siteMissing) + ' , '
+                    infoDiv.innerHTML += colouredStructureLabel(tags[j], siteMissing, showCalCoverage) + ' , '
                 }
             }
             infoDiv.innerHTML = infoDiv.innerHTML.slice(0, -3) + '<br>'
@@ -11917,10 +11965,10 @@ function updateSurveyStructure(){
                         }
                     }
                 }
-                infoDiv.innerHTML += colouredStructureLabel(tags[i], siteHasMissingCam) + ' : '
+                infoDiv.innerHTML += colouredStructureLabel(tags[i], siteHasMissingCam, showCalCoverage) + ' : '
                 for (let n=0;n<cams.length;n++) {
                     var camMissing = showCalCoverage && !siteCameraHasCalibration(tags[i], cams[n])
-                    infoDiv.innerHTML += colouredStructureLabel(cams[n], camMissing) + ' , '
+                    infoDiv.innerHTML += colouredStructureLabel(cams[n], camMissing, showCalCoverage) + ' , '
                 }
                 infoDiv.innerHTML = infoDiv.innerHTML.slice(0, -3) + '<br>'
             }
@@ -11934,11 +11982,16 @@ function updateSurveyStructure(){
         }
     }
     else{
-        if ((infoDiv.innerHTML != 'Checking...') && (pathDisplay.options.length > 0)) {
-            if (showCalCoverage && !calOk) {
-                infoDiv.innerHTML = 'Invalid structure. Please check your site, camera and calibration folders.'
-            } else {
-                infoDiv.innerHTML = 'Invalid structure. Please check your site and camera identifiers.'
+        if (infoDiv.innerHTML != 'Checking...') {
+            var pathDisplayEl = document.getElementById('pathDisplay')
+            var hasBrowserPaths = pathDisplayEl && pathDisplayEl.options && pathDisplayEl.options.length > 0
+            // S3 has no pathDisplay; still surface cal/structure failures when we have state.
+            if (structurePages.length > 0 || hasBrowserPaths || (showCalCoverage && !calOk)) {
+                if (showCalCoverage && !calOk) {
+                    infoDiv.innerHTML = 'Invalid structure. Please check your site, camera and calibration folders.'
+                } else {
+                    infoDiv.innerHTML = 'Invalid structure. Please check your site and camera identifiers.'
+                }
             }
         }
     }

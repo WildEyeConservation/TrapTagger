@@ -210,10 +210,12 @@ async function addBatch() {
 }
 
 function isCalUploadDistanceFilename(filename) {
+    /** True if filename is a JPEG whose stem contains a positive distance number. */
     if (!/^[^.].*\.jpe?g$/i.test(filename)) return false
     var stem = filename.replace(/\.[^/.]+$/i, '')
-    if (!/^\d+(\.\d+)?$/.test(stem)) return false
-    var d = parseFloat(stem)
+    var match = stem.match(/\d+(?:\.\d+)?/)
+    if (!match) return false
+    var d = parseFloat(match[0])
     return !isNaN(d) && d > 0
 }
 

@@ -23,7 +23,7 @@ from app.functions.globals import classifyTask, update_masks, retryTime, resolve
                                     process_multi_labels
 from app.functions.delete import *
 from app.functions.individualID import calculate_detection_similarities, cleanUpIndividuals, check_individual_detection_mismatch
-from app.functions.imports import classifySurvey, s3traverse, classifyCluster, importKML, import_survey, run_calibration_detection_batch, null_detection_distances_for_cameragroups
+from app.functions.imports import classifySurvey, s3traverse, classifyCluster, importKML, import_survey, run_calibration_detection_batch, null_detection_distances_for_cameragroups, parse_calibration_distance_filename
 import GLOBALS
 from sqlalchemy.sql import func, or_, and_, distinct, alias
 from sqlalchemy import desc, extract, delete, select
@@ -1568,7 +1568,8 @@ def findTrapgroupTags(self,tgCode,folder,organisation_id,surveyName,camCode):
 
     try:
         reply = {}
-        # isjpeg = re.compile('\.jpe?g$', re.I)
+        isjpeg = re.compile(r'(\.jpe?g$)|(_jpe?g$)', re.I)
+        cal_keyword = Config.CALIBRATION_FOLDER_KEYWORD
 
         try:
             is_tg_nth_folder_pattern = re.match(r'^\(\?:\[\^/]\*/\)\{\d+\}\([^)]*\)$', tgCode)
@@ -1585,6 +1586,8 @@ def findTrapgroupTags(self,tgCode,folder,organisation_id,surveyName,camCode):
             allTags = []
             allCams = []
             structure = {}
+            calibration_folder_paths = []
+            calibration_folder_empty_paths = []
             for dirpath, folders, filenames in s3traverse(Config.BUCKET, db.session.query(Organisation).get(organisation_id).folder+'/'+folder):
                 # jpegs = list(filter(isjpeg.search, filenames))
                 # if len(jpegs):
@@ -1595,6 +1598,23 @@ def findTrapgroupTags(self,tgCode,folder,organisation_id,surveyName,camCode):
 
                 # if surveyName:
                 #     dirpath = dirpath.replace(surveyName+'/','')
+
+                # Skip calibration folders (and anything nested under them) for site/camera
+                # structure — same as browser pathMatchesCalibration. Collect cal paths and
+                # whether each has at least one valid distance-named JPEG.
+                path_parts = [p for p in dirpath.split('/') if p]
+                if cal_keyword in path_parts:
+                    if path_parts and path_parts[-1] == cal_keyword:
+                        if dirpath not in calibration_folder_paths:
+                            calibration_folder_paths.append(dirpath)
+                        jpegs = list(filter(isjpeg.search, filenames))
+                        valid_count = 0
+                        for filename in jpegs:
+                            if parse_calibration_distance_filename(filename) is not None:
+                                valid_count += 1
+                        if valid_count == 0 and dirpath not in calibration_folder_empty_paths:
+                            calibration_folder_empty_paths.append(dirpath)
+                    continue
 
                 tags = tgCode.search(dirpath)
                 if tags:
@@ -1660,11 +1680,16 @@ def findTrapgroupTags(self,tgCode,folder,organisation_id,surveyName,camCode):
                 reply['nr_sites'] = 0
                 reply['nr_cams'] = 0
 
+            reply['calibration_folder_paths'] = calibration_folder_paths
+            reply['calibration_folder_empty_paths'] = calibration_folder_empty_paths
+
         except:
             reply['message'] = 'Malformed expression. Please try again.'
             reply['structure'] = {}
             reply['nr_sites'] = 0
             reply['nr_cams'] = 0
+            reply['calibration_folder_paths'] = []
+            reply['calibration_folder_empty_paths'] = []
 
     except Exception as exc:
         app.logger.info(' ')

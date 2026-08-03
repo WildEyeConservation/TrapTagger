@@ -56,16 +56,24 @@ def calibration_camera_relative_path(path, calibration_code):
     cal_idx = dirparts.index(cal_folder_name)
     return '/'.join(dirparts[2:cal_idx])
 
-CALIBRATION_DISTANCE_STEM_RE = re.compile(r'^\d+(\.\d+)?$')
+# First decimal number in the stem (digits with optional fractional part).
+# Extra digits after a second decimal are ignored (e.g. 10.5.2 -> 10.5).
+CALIBRATION_DISTANCE_NUMBER_RE = re.compile(r'\d+(?:\.\d+)?')
 
 def parse_calibration_distance_filename(filename):
+    '''
+    Returns distance (float) from a calibration JPEG filename, or None if invalid.
+    Takes the first number in the stem (optional decimal); leading zeros drop via float;
+    extension .jpg/.jpeg; distance > 0. Filename itself may contain other text.
+    '''
     if not filename or not re.search(r'\.jpe?g$', filename, re.I):
         return None
     stem = os.path.splitext(filename)[0]
-    if not CALIBRATION_DISTANCE_STEM_RE.match(stem):
+    match = CALIBRATION_DISTANCE_NUMBER_RE.search(stem)
+    if not match:
         return None
     try:
-        distance = float(stem)
+        distance = float(match.group(0))
     except ValueError:
         return None
     if distance <= 0:
