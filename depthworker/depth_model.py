@@ -244,6 +244,8 @@ def _download_and_build_manifest(
     'trap': [],
   }
   for item in calibration_items:
+    # known_distance comes from CalibrationImage.distance (DB), not the S3 basename.
+    # Stage locally as <distance>.jpg for the depth-estimation repo layout.
     distance = item.get('known_distance', item.get('distance'))
     if distance is None:
       continue

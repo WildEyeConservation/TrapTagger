@@ -6618,78 +6618,70 @@ function submitEditSurvey(skipCalSaveWarning) {
 
         document.getElementById('btnEditSurvey').disabled = true
 
-        var formData = new FormData()
-        formData.append("survey_id", selectedSurvey)
-        formData.append("classifier_id", classifier_id)          
-        formData.append("timestamps", JSON.stringify(timestampData))     
-        formData.append("imageTimestamps", JSON.stringify(imageTimestampData))
-        formData.append("masks", JSON.stringify(mask_dict))
-        formData.append("staticgroups", JSON.stringify(staticgroup_data))
-        formData.append("ignore_small_detections", ignore_small_detections)
-        formData.append("sky_masked", sky_masked)
-        formData.append("cal_bboxes", JSON.stringify(editedCalBboxes))
-        formData.append("cal_distances", JSON.stringify(editedCalDistances))
-        formData.append("cal_deletions", JSON.stringify(deletedCalImages))
-        if (stagedCalUploadSets.length > 0) {
-            var calUploadManifest = []
-            for (var s = 0; s < stagedCalUploadSets.length; s++) {
-                var set = stagedCalUploadSets[s]
-                var fileEntries = []
-                for (var f = 0; f < set.files.length; f++) {
-                    var file = set.files[f]
-                    var fieldKey = 'cal_upload_' + set.id + '_' + f
-                    fileEntries.push({
-                        field_key: fieldKey,
-                        name: file.name,
-                        distance: set.distances[f]
-                    })
-                    formData.append(fieldKey, file, file.name)
-                }
-                calUploadManifest.push({
-                    cameragroup_id: set.cameragroupId,
-                    files: fileEntries
-                })
+        prepareCalUploadManifestForSubmit(function (prepErr, calUploadManifest, multipartFiles) {
+            if (prepErr) {
+                document.getElementById('editSurveyErrors').innerHTML = prepErr
+                document.getElementById('btnEditSurvey').disabled = false
+                return
             }
-            formData.append('cal_upload_manifest', JSON.stringify(calUploadManifest))
-        }
 
-        if (document.getElementById('addCoordinatesManualMethod').checked) {
-            formData.append("coordData", JSON.stringify(coordData))
-        }
-        else if (document.getElementById('addCoordinatesKMLMethod').checked) {
-            formData.append("kml", kmlFileUpload.files[0])
-        }
-        formData.append("survey_area", survey_area)
-        if (editAreaName) {
-            formData.append("editAreaName", 'true')
-        } else if (createNewArea) {
-            formData.append("createNewArea", 'true')
-        }
-        if (surveyAreaEditOption != null && survey_area != 'none') {
-            formData.append('edit_area_option', surveyAreaEditOption)
-        }
-
-        var xhttp = new XMLHttpRequest();
-        xhttp.open("POST", '/editSurvey');
-        xhttp.onreadystatechange =
-        function(){
-            if (this.readyState == 4 && this.status == 200) {
-                reply = JSON.parse(this.responseText);  
-                if (reply.status=='success') {
-                    document.getElementById('modalAlertBody').innerHTML = 'Your survey is being edited. Please note that this may take some time.'
-                    document.getElementById('modalAlertHeader').innerHTML = 'Success'
-                    alertReload = true
-                    modalEditSurvey.modal('hide')
-                    modalAlert.modal({keyboard: true});
-                    clearEditSurveyModal()
-
-                } else {
-                    document.getElementById('editSurveyErrors').innerHTML = reply.message
-                    document.getElementById('btnEditSurvey').disabled = false
+            var formData = new FormData()
+            formData.append("survey_id", selectedSurvey)
+            formData.append("classifier_id", classifier_id)
+            formData.append("timestamps", JSON.stringify(timestampData))
+            formData.append("imageTimestamps", JSON.stringify(imageTimestampData))
+            formData.append("masks", JSON.stringify(mask_dict))
+            formData.append("staticgroups", JSON.stringify(staticgroup_data))
+            formData.append("ignore_small_detections", ignore_small_detections)
+            formData.append("sky_masked", sky_masked)
+            formData.append("cal_bboxes", JSON.stringify(editedCalBboxes))
+            formData.append("cal_distances", JSON.stringify(editedCalDistances))
+            formData.append("cal_deletions", JSON.stringify(deletedCalImages))
+            if (calUploadManifest && calUploadManifest.length > 0) {
+                formData.append('cal_upload_manifest', JSON.stringify(calUploadManifest))
+                for (var m = 0; m < multipartFiles.length; m++) {
+                    formData.append(multipartFiles[m].fieldKey, multipartFiles[m].file, multipartFiles[m].file.name)
                 }
             }
-        } 
-        xhttp.send(formData);
+
+            if (document.getElementById('addCoordinatesManualMethod').checked) {
+                formData.append("coordData", JSON.stringify(coordData))
+            }
+            else if (document.getElementById('addCoordinatesKMLMethod').checked) {
+                formData.append("kml", kmlFileUpload.files[0])
+            }
+            formData.append("survey_area", survey_area)
+            if (editAreaName) {
+                formData.append("editAreaName", 'true')
+            } else if (createNewArea) {
+                formData.append("createNewArea", 'true')
+            }
+            if (surveyAreaEditOption != null && survey_area != 'none') {
+                formData.append('edit_area_option', surveyAreaEditOption)
+            }
+
+            var xhttp = new XMLHttpRequest();
+            xhttp.open("POST", '/editSurvey');
+            xhttp.onreadystatechange =
+            function(){
+                if (this.readyState == 4 && this.status == 200) {
+                    reply = JSON.parse(this.responseText);
+                    if (reply.status=='success') {
+                        document.getElementById('modalAlertBody').innerHTML = 'Your survey is being edited. Please note that this may take some time.'
+                        document.getElementById('modalAlertHeader').innerHTML = 'Success'
+                        alertReload = true
+                        modalEditSurvey.modal('hide')
+                        modalAlert.modal({keyboard: true});
+                        clearEditSurveyModal()
+
+                    } else {
+                        document.getElementById('editSurveyErrors').innerHTML = reply.message
+                        document.getElementById('btnEditSurvey').disabled = false
+                    }
+                }
+            }
+            xhttp.send(formData);
+        })
     }
 }
 
@@ -7737,7 +7729,7 @@ function buildCalibrationImages() {
     label.innerHTML = 'Edit Calibration Images'
     radio.appendChild(label)
     document.getElementById('editCalImages').addEventListener('click', () => {
-        document.getElementById('calModeDescription').innerHTML = '<i>View and edit bounding boxes and distances for your calibration images.</i>'
+        document.getElementById('calModeDescription').innerHTML = '<i>View and edit bounding boxes and distances, or stage images for deletion.</i>'
         selectedCalMode = 'edit'
         resetCalibrationView()
         buildCalEditMode()
@@ -7765,28 +7757,6 @@ function buildCalibrationImages() {
         buildCalUploadMode()
     })
 
-    // Delete radio
-    radio = document.createElement('div')
-    radio.setAttribute('class', 'custom-control custom-radio custom-control-inline')
-    row.appendChild(radio)
-    input = document.createElement('input')
-    input.setAttribute('type', 'radio')
-    input.setAttribute('class', 'custom-control-input')
-    input.setAttribute('id', 'deleteCalImages')
-    input.setAttribute('name', 'calibrationImageMode')
-    radio.appendChild(input)
-    label = document.createElement('label')
-    label.setAttribute('class', 'custom-control-label')
-    label.setAttribute('for', 'deleteCalImages')
-    label.innerHTML = 'Delete Calibration Images'
-    radio.appendChild(label)
-    document.getElementById('deleteCalImages').addEventListener('click', () => {
-        document.getElementById('calModeDescription').innerHTML = '<i>Select calibration images to remove from the survey.</i>'
-        selectedCalMode = 'delete'
-        resetCalibrationView()
-        buildCalDeleteMode()
-    })
-
     // Description line
     var descDiv = document.createElement('div')
     descDiv.id = 'calModeDescription'
@@ -7798,6 +7768,10 @@ function buildCalibrationImages() {
     var contentDiv = document.createElement('div')
     contentDiv.id = 'calModeContent'
     div.appendChild(contentDiv)
+
+    // Default to Edit Calibration Images
+    document.getElementById('editCalImages').checked = true
+    document.getElementById('editCalImages').click()
 }
 
 function teardownCalMap() {
@@ -7928,6 +7902,7 @@ function validateCalUploadFiles(files) {
 }
 
 function filterCalUploadAgainstExisting(files, existingDistances, otherStagedSets, cameragroupId) {
+    /** Keep files whose parsed filename distance is not already in DB (or staged) for this camera. */
     var taken = {}
     var i, j, d
 
@@ -7989,14 +7964,16 @@ function fetchExistingCalDistances(cameragroupId, callback) {
     xhttp.send()
 }
 
-function addStagedCalUploadSet(cameragroupId, cameragroupName, files, distances) {
+function addStagedCalUploadSet(cameragroupId, cameragroupName, files, distances, uploadViaS3) {
     stagedCalUploadSetIdSeq += 1
     stagedCalUploadSets.push({
         id: stagedCalUploadSetIdSeq,
         cameragroupId: cameragroupId,
         cameragroupName: cameragroupName,
         files: files,
-        distances: distances
+        distances: distances,
+        uploadViaS3: !!uploadViaS3,
+        cameraRelativePath: null
     })
 }
 
@@ -8026,12 +8003,10 @@ function renderStagedCalUploadSets(container) {
             var col = document.createElement('div')
             col.classList.add('col-lg-12')
 
-            var labels = []
-            for (var j = 0; j < set.files.length; j++) {
-                labels.push(set.files[j].name + ' (' + set.distances[j] + ')')
-            }
+            var modeLabel = set.uploadViaS3 ? ' [bulk]' : ''
             var text = document.createElement('span')
-            text.textContent = set.cameragroupName + ' — ' + labels.join(', ')
+            text.textContent = set.cameragroupName + modeLabel + ' — ' + set.files.length +
+                ' image(s) at distances ' + set.distances.join(', ')
             col.appendChild(text)
 
             var btn = document.createElement('button')
@@ -8050,14 +8025,281 @@ function renderStagedCalUploadSets(container) {
     }
 }
 
+function matchCameragroupForCalRelativePath(cameraRelativePath, cameragroups) {
+    /** Match local path above a calibration folder to an existing cameragroup relative_path. */
+    if (!cameraRelativePath || !cameragroups) return null
+    var parts = cameraRelativePath.split('/').filter(function (p) { return p })
+    var candidates = []
+    for (var i = 0; i < parts.length; i++) {
+        candidates.push(parts.slice(i).join('/'))
+    }
+    for (var c = 0; c < candidates.length; c++) {
+        for (var g = 0; g < cameragroups.length; g++) {
+            if (cameragroups[g].relative_path && cameragroups[g].relative_path === candidates[c]) {
+                return cameragroups[g]
+            }
+        }
+    }
+    // Fallback: last folder name equals cameragroup name
+    if (parts.length > 0) {
+        var last = parts[parts.length - 1]
+        for (var n = 0; n < cameragroups.length; n++) {
+            if (cameragroups[n].name === last) return cameragroups[n]
+        }
+    }
+    return null
+}
+
+function scanBulkCalibrationFolderFiles(fileList) {
+    /**
+     * Walk webkitdirectory files, group valid distance JPEGs under .../calibration/.
+     * Returns { groups: [{cameraRelativePath, files, distances}], emptyPaths, unmatchedPaths note later }
+     */
+    var byCamera = {}
+    var emptyCheck = {}
+
+    for (var i = 0; i < fileList.length; i++) {
+        var file = fileList[i]
+        var rel = file.webkitRelativePath || file.name
+        var parts = rel.split('/').filter(function (p) { return p })
+        if (parts.length < 3) continue
+        var calIdx = -1
+        for (var p = 0; p < parts.length - 1; p++) {
+            if (parts[p] === CALIBRATION_FOLDER_KEYWORD) {
+                calIdx = p
+                break
+            }
+        }
+        if (calIdx < 0 || calIdx !== parts.length - 2) continue
+
+        var cameraRelativePath = parts.slice(0, calIdx).join('/')
+        if (!byCamera[cameraRelativePath]) {
+            byCamera[cameraRelativePath] = { files: [], distances: [], seen: {} }
+            emptyCheck[cameraRelativePath] = true
+        }
+
+        if (!isCalUploadJpeg(file.name)) continue
+        var distance = parseCalUploadDistance(file.name)
+        if (distance === null) continue
+        if (byCamera[cameraRelativePath].seen[distance]) continue
+        byCamera[cameraRelativePath].seen[distance] = true
+        byCamera[cameraRelativePath].files.push(file)
+        byCamera[cameraRelativePath].distances.push(distance)
+        emptyCheck[cameraRelativePath] = false
+    }
+
+    var groups = []
+    var emptyPaths = []
+    Object.keys(byCamera).forEach(function (cameraRelativePath) {
+        var g = byCamera[cameraRelativePath]
+        if (g.files.length === 0) {
+            emptyPaths.push(cameraRelativePath + '/' + CALIBRATION_FOLDER_KEYWORD)
+            return
+        }
+        // Sort by distance
+        var pairs = []
+        for (var j = 0; j < g.files.length; j++) {
+            pairs.push({ file: g.files[j], distance: g.distances[j] })
+        }
+        pairs.sort(function (a, b) { return a.distance - b.distance })
+        groups.push({
+            cameraRelativePath: cameraRelativePath,
+            files: pairs.map(function (x) { return x.file }),
+            distances: pairs.map(function (x) { return x.distance })
+        })
+    })
+
+    return { groups: groups, emptyPaths: emptyPaths }
+}
+
+function uploadOneCalFileToStaging(file, cameragroupId) {
+    /** Fetches a presigned URL and PUTs the file. Resolves with staging_key. */
+    return fetch('/getCalibrationUploadUrl', {
+        method: 'POST',
+        headers: {
+            accept: 'application/json',
+            'content-type': 'application/json',
+        },
+        body: JSON.stringify({
+            survey_id: selectedSurvey,
+            cameragroup_id: cameragroupId,
+            filename: file.name,
+            contentType: file.type || 'image/jpeg',
+        }),
+    }).then(function (response) {
+        if (!response.ok) throw new Error('Could not get upload URL for ' + file.name)
+        return response.json()
+    }).then(function (data) {
+        if (!data || data.status !== 'success' || !data.url) {
+            throw new Error((data && data.message) || ('Upload URL failed for ' + file.name))
+        }
+        return fetch(data.url, {
+            method: 'PUT',
+            headers: { 'Content-Type': data.contentType || file.type || 'image/jpeg' },
+            body: file,
+        }).then(function (putResp) {
+            if (!putResp.ok) throw new Error('Failed to upload ' + file.name + ' to storage')
+            return data.staging_key
+        })
+    })
+}
+
+function prepareCalUploadManifestForSubmit(callback) {
+    /**
+     * Builds cal_upload_manifest. Bulk sets upload to S3 first (staging keys);
+     * single-camera sets stay as multipart FormData fields.
+     */
+    if (!stagedCalUploadSets || stagedCalUploadSets.length === 0) {
+        callback(null, [], [])
+        return
+    }
+
+    var calUploadManifest = []
+    var multipartFiles = []
+    var bulkJobs = []
+    var totalBulkFiles = 0
+    var uploadedCount = 0
+
+    for (var s = 0; s < stagedCalUploadSets.length; s++) {
+        var set = stagedCalUploadSets[s]
+        if (set.uploadViaS3) {
+            totalBulkFiles += set.files.length
+            bulkJobs.push(set)
+        } else {
+            var fileEntries = []
+            for (var f = 0; f < set.files.length; f++) {
+                var fieldKey = 'cal_upload_' + set.id + '_' + f
+                fileEntries.push({
+                    field_key: fieldKey,
+                    name: set.files[f].name,
+                    distance: set.distances[f]
+                })
+                multipartFiles.push({ fieldKey: fieldKey, file: set.files[f] })
+            }
+            calUploadManifest.push({
+                cameragroup_id: set.cameragroupId,
+                files: fileEntries
+            })
+        }
+    }
+
+    if (bulkJobs.length === 0) {
+        callback(null, calUploadManifest, multipartFiles)
+        return
+    }
+
+    var statusEl = document.getElementById('editSurveyErrors')
+    if (statusEl) {
+        statusEl.innerHTML = '<i>Uploading calibration images to storage (0/' + totalBulkFiles + ')...</i>'
+    }
+
+    var chain = Promise.resolve()
+    bulkJobs.forEach(function (set) {
+        chain = chain.then(function () {
+            var fileEntries = []
+            var fileChain = Promise.resolve()
+            for (var f = 0; f < set.files.length; f++) {
+                (function (file, distance) {
+                    fileChain = fileChain.then(function () {
+                        return uploadOneCalFileToStaging(file, set.cameragroupId).then(function (stagingKey) {
+                            uploadedCount += 1
+                            if (statusEl) {
+                                statusEl.innerHTML = '<i>Uploading calibration images to storage (' +
+                                    uploadedCount + '/' + totalBulkFiles + ')...</i>'
+                            }
+                            fileEntries.push({
+                                name: file.name,
+                                distance: distance,
+                                staging_key: stagingKey
+                            })
+                        })
+                    })
+                })(set.files[f], set.distances[f])
+            }
+            return fileChain.then(function () {
+                calUploadManifest.push({
+                    cameragroup_id: set.cameragroupId,
+                    files: fileEntries
+                })
+            })
+        })
+    })
+
+    chain.then(function () {
+        if (statusEl) statusEl.innerHTML = ''
+        callback(null, calUploadManifest, multipartFiles)
+    }).catch(function (err) {
+        callback((err && err.message) || 'Calibration image upload failed.', null, null)
+    })
+}
+
 function buildCalUploadMode() {
     var div = document.getElementById('calModeContent')
     while (div.firstChild) div.removeChild(div.firstChild)
 
+    // Mode radios
+    var modeRow = document.createElement('div')
+    modeRow.classList.add('row')
+    modeRow.style.marginBottom = '8px'
+    div.appendChild(modeRow)
+    var modeCol = document.createElement('div')
+    modeCol.classList.add('col-lg-12')
+    modeRow.appendChild(modeCol)
+
+    var modeH5 = document.createElement('h5')
+    modeH5.setAttribute('style', 'margin-bottom: 4px')
+    modeH5.innerHTML = 'Upload mode'
+    modeCol.appendChild(modeH5)
+
+    var singleRadioWrap = document.createElement('div')
+    singleRadioWrap.setAttribute('class', 'custom-control custom-radio custom-control-inline')
+    modeCol.appendChild(singleRadioWrap)
+    var singleInput = document.createElement('input')
+    singleInput.type = 'radio'
+    singleInput.classList.add('custom-control-input')
+    singleInput.id = 'calUploadModeSingle'
+    singleInput.name = 'calUploadMode'
+    singleInput.checked = true
+    singleRadioWrap.appendChild(singleInput)
+    var singleLabel = document.createElement('label')
+    singleLabel.classList.add('custom-control-label')
+    singleLabel.setAttribute('for', 'calUploadModeSingle')
+    singleLabel.innerHTML = 'Single camera'
+    singleRadioWrap.appendChild(singleLabel)
+
+    var bulkRadioWrap = document.createElement('div')
+    bulkRadioWrap.setAttribute('class', 'custom-control custom-radio custom-control-inline')
+    modeCol.appendChild(bulkRadioWrap)
+    var bulkInput = document.createElement('input')
+    bulkInput.type = 'radio'
+    bulkInput.classList.add('custom-control-input')
+    bulkInput.id = 'calUploadModeBulk'
+    bulkInput.name = 'calUploadMode'
+    bulkRadioWrap.appendChild(bulkInput)
+    var bulkLabel = document.createElement('label')
+    bulkLabel.classList.add('custom-control-label')
+    bulkLabel.setAttribute('for', 'calUploadModeBulk')
+    bulkLabel.innerHTML = 'Bulk from folder structure'
+    bulkRadioWrap.appendChild(bulkLabel)
+
+    var modeDesc = document.createElement('div')
+    modeDesc.id = 'calUploadModeDesc'
+    modeDesc.setAttribute('style', 'font-size: 80%; margin-top: 4px; margin-bottom: 8px')
+    modeCol.appendChild(modeDesc)
+
+    var singlePanel = document.createElement('div')
+    singlePanel.id = 'calUploadSinglePanel'
+    div.appendChild(singlePanel)
+
+    var bulkPanel = document.createElement('div')
+    bulkPanel.id = 'calUploadBulkPanel'
+    bulkPanel.hidden = true
+    div.appendChild(bulkPanel)
+
+    // ── Single-camera panel (existing flow) ─────────────────────────
     var row1 = document.createElement('div')
     row1.classList.add('row')
-    div.appendChild(row1)
-
+    singlePanel.appendChild(row1)
     var col1 = document.createElement('div')
     col1.classList.add('col-lg-6')
     row1.appendChild(col1)
@@ -8065,12 +8307,10 @@ function buildCalUploadMode() {
     var h5cam = document.createElement('h5')
     h5cam.innerHTML = 'Camera'
     col1.appendChild(h5cam)
-
     var descCam = document.createElement('div')
     descCam.setAttribute('style', 'font-size: 80%; margin-bottom: 6px')
     descCam.innerHTML = '<i>Select the camera this calibration set belongs to.</i>'
     col1.appendChild(descCam)
-
     var camSelect = document.createElement('select')
     camSelect.id = 'calUploadCameraSelect'
     camSelect.classList.add('form-control')
@@ -8080,7 +8320,6 @@ function buildCalUploadMode() {
     h5folder.setAttribute('style', 'margin-top: 12px')
     h5folder.innerHTML = 'Calibration folder'
     col1.appendChild(h5folder)
-
     var descFolder = document.createElement('div')
     descFolder.setAttribute('style', 'font-size: 80%; margin-bottom: 6px')
     descFolder.innerHTML = '<i>Select a folder of JPEGs whose filenames contain a distance in metres (e.g. 5.jpg, 10m.jpg, board_5.5m.jpg). Only files directly in that folder are used.</i>'
@@ -8107,9 +8346,72 @@ function buildCalUploadMode() {
     statusDiv.setAttribute('style', 'font-size: 80%; margin-top: 8px')
     col1.appendChild(statusDiv)
 
-    var stagedDiv = document.createElement('div')
-    stagedDiv.id = 'calUploadStagedDiv'
-    div.appendChild(stagedDiv)
+    // ── Bulk panel ──────────────────────────────────────────────────
+    var brow = document.createElement('div')
+    brow.classList.add('row')
+    bulkPanel.appendChild(brow)
+    var bcol = document.createElement('div')
+    bcol.classList.add('col-lg-10')
+    brow.appendChild(bcol)
+
+    var bh5 = document.createElement('h5')
+    bh5.innerHTML = 'Survey folder structure'
+    bcol.appendChild(bh5)
+    var bdesc = document.createElement('div')
+    bdesc.setAttribute('style', 'font-size: 80%; margin-bottom: 6px')
+    bdesc.innerHTML = '<i>Select a root folder that contains site/camera folders with nested <b>calibration</b> folders. Matched cameras are shown below. Files upload to storage when you click Save Changes.</i>'
+    bcol.appendChild(bdesc)
+
+    var bulkFolderInput = document.createElement('input')
+    bulkFolderInput.type = 'file'
+    bulkFolderInput.id = 'calUploadBulkFolderInput'
+    bulkFolderInput.setAttribute('webkitdirectory', '')
+    bulkFolderInput.setAttribute('multiple', '')
+    bulkFolderInput.style.display = 'none'
+    bcol.appendChild(bulkFolderInput)
+
+    var bulkScanBtn = document.createElement('button')
+    bulkScanBtn.id = 'calUploadBulkScanBtn'
+    bulkScanBtn.classList.add('btn', 'btn-primary', 'btn-block')
+    bulkScanBtn.style.maxWidth = '360px'
+    bulkScanBtn.innerHTML = 'Select folder and scan'
+    bulkScanBtn.disabled = true
+    bcol.appendChild(bulkScanBtn)
+
+    var bulkStatus = document.createElement('div')
+    bulkStatus.id = 'calUploadBulkStatusMsg'
+    bulkStatus.setAttribute('style', 'font-size: 80%; margin-top: 8px')
+    bcol.appendChild(bulkStatus)
+
+    var bulkMatchDiv = document.createElement('div')
+    bulkMatchDiv.id = 'calUploadBulkMatchDiv'
+    bulkMatchDiv.style.marginTop = '10px'
+    bcol.appendChild(bulkMatchDiv)
+
+    var bulkStageBtn = document.createElement('button')
+    bulkStageBtn.id = 'calUploadBulkStageBtn'
+    bulkStageBtn.classList.add('btn', 'btn-primary', 'btn-block')
+    bulkStageBtn.style.maxWidth = '360px'
+    bulkStageBtn.style.marginTop = '8px'
+    bulkStageBtn.innerHTML = 'Stage matched sets'
+    bulkStageBtn.disabled = true
+    bulkStageBtn.hidden = true
+    bcol.appendChild(bulkStageBtn)
+
+    var pendingBulkMatches = []
+
+    function setUploadMode(mode) {
+        var isBulk = mode === 'bulk'
+        singlePanel.hidden = isBulk
+        bulkPanel.hidden = !isBulk
+        modeDesc.innerHTML = isBulk
+            ? '<i>Scan a folder tree for calibration folders and match them to existing cameras.</i>'
+            : '<i>Upload a calibration folder for one camera at a time.</i>'
+    }
+
+    singleInput.addEventListener('change', function () { if (singleInput.checked) setUploadMode('single') })
+    bulkInput.addEventListener('change', function () { if (bulkInput.checked) setUploadMode('bulk') })
+    setUploadMode('single')
 
     function populateCameraSelect() {
         while (camSelect.firstChild) camSelect.removeChild(camSelect.firstChild)
@@ -8118,6 +8420,7 @@ function buildCalUploadMode() {
             opt.text = 'No cameras found'
             camSelect.appendChild(opt)
             addBtn.disabled = true
+            bulkScanBtn.disabled = true
             return
         }
         for (var i = 0; i < surveyCameragroups.length; i++) {
@@ -8127,14 +8430,15 @@ function buildCalUploadMode() {
             camSelect.appendChild(opt)
         }
         addBtn.disabled = false
+        bulkScanBtn.disabled = false
     }
 
-    addBtn.onclick = function() {
+    addBtn.onclick = function () {
         statusDiv.innerHTML = ''
         folderInput.click()
     }
 
-    folderInput.onchange = function() {
+    folderInput.onchange = function () {
         statusDiv.innerHTML = ''
         var cgId = parseInt(camSelect.value)
         var cgName = camSelect.options[camSelect.selectedIndex].text
@@ -8147,7 +8451,7 @@ function buildCalUploadMode() {
             return
         }
 
-        fetchExistingCalDistances(cgId, function(existingDistances) {
+        fetchExistingCalDistances(cgId, function (existingDistances) {
             var filtered = filterCalUploadAgainstExisting(
                 result.files, existingDistances, stagedCalUploadSets, cgId
             )
@@ -8158,196 +8462,220 @@ function buildCalUploadMode() {
             }
 
             var count = filtered.files.length
-            addStagedCalUploadSet(cgId, cgName, filtered.files, filtered.distances)
+            addStagedCalUploadSet(cgId, cgName, filtered.files, filtered.distances, false)
             renderStagedCalUploadSets(stagedDiv)
             statusDiv.innerHTML = '<i>Found ' + count + ' valid image' + (count === 1 ? '' : 's') + ' at distances ' + filtered.distances.join(', ') + '. Set staged — click Save Changes to apply.</i>'
         })
     }
 
+    bulkScanBtn.onclick = function () {
+        bulkStatus.innerHTML = ''
+        bulkMatchDiv.innerHTML = ''
+        bulkStageBtn.hidden = true
+        bulkStageBtn.disabled = true
+        pendingBulkMatches = []
+        bulkFolderInput.click()
+    }
+
+    bulkFolderInput.onchange = function () {
+        var files = bulkFolderInput.files
+        bulkFolderInput.value = ''
+        if (!files || files.length === 0) return
+
+        bulkStatus.innerHTML = '<i>Scanning folder structure...</i>'
+        var scanned = scanBulkCalibrationFolderFiles(files)
+        if (scanned.groups.length === 0 && scanned.emptyPaths.length === 0) {
+            bulkStatus.innerHTML = '<i style="color:red">No calibration folders found. Expected nested folders named exactly "calibration".</i>'
+            return
+        }
+
+        pendingBulkMatches = []
+        var unmatched = []
+        for (var i = 0; i < scanned.groups.length; i++) {
+            var g = scanned.groups[i]
+            var cg = matchCameragroupForCalRelativePath(g.cameraRelativePath, surveyCameragroups)
+            if (cg) {
+                pendingBulkMatches.push({
+                    cameragroupId: cg.id,
+                    cameragroupName: cg.name,
+                    cameraRelativePath: g.cameraRelativePath,
+                    matchedPath: cg.relative_path,
+                    files: g.files,
+                    distances: g.distances
+                })
+            } else {
+                unmatched.push(g.cameraRelativePath)
+            }
+        }
+
+        while (bulkMatchDiv.firstChild) bulkMatchDiv.removeChild(bulkMatchDiv.firstChild)
+        var table = document.createElement('table')
+        table.classList.add('table', 'table-sm', 'table-bordered')
+        table.style.fontSize = '80%'
+        var thead = document.createElement('thead')
+        thead.innerHTML = '<tr><th>Local path</th><th>Matched camera</th><th>Images</th><th>Distances</th></tr>'
+        table.appendChild(thead)
+        var tbody = document.createElement('tbody')
+        for (var m = 0; m < pendingBulkMatches.length; m++) {
+            var row = pendingBulkMatches[m]
+            var tr = document.createElement('tr')
+            tr.innerHTML = '<td>' + row.cameraRelativePath + '/' + CALIBRATION_FOLDER_KEYWORD +
+                '</td><td>' + row.cameragroupName +
+                (row.matchedPath ? ' <span style="color:grey">(' + row.matchedPath + ')</span>' : '') +
+                '</td><td>' + row.files.length +
+                '</td><td>' + row.distances.join(', ') + '</td>'
+            tbody.appendChild(tr)
+        }
+        for (var u = 0; u < unmatched.length; u++) {
+            var utr = document.createElement('tr')
+            utr.innerHTML = '<td>' + unmatched[u] + '/' + CALIBRATION_FOLDER_KEYWORD +
+                '</td><td style="color:#DF691A">No match</td><td>—</td><td>—</td>'
+            tbody.appendChild(utr)
+        }
+        for (var e = 0; e < scanned.emptyPaths.length; e++) {
+            var etr = document.createElement('tr')
+            etr.innerHTML = '<td>' + scanned.emptyPaths[e] +
+                '</td><td style="color:#DF691A">No valid images</td><td>0</td><td>—</td>'
+            tbody.appendChild(etr)
+        }
+        table.appendChild(tbody)
+        bulkMatchDiv.appendChild(table)
+
+        var summary = 'Matched ' + pendingBulkMatches.length + ' camera(s)'
+        if (unmatched.length) summary += ', ' + unmatched.length + ' unmatched'
+        if (scanned.emptyPaths.length) summary += ', ' + scanned.emptyPaths.length + ' empty/invalid'
+        bulkStatus.innerHTML = '<i>' + summary + '.</i>'
+
+        bulkStageBtn.hidden = false
+        bulkStageBtn.disabled = pendingBulkMatches.length === 0
+    }
+
+    bulkStageBtn.onclick = function () {
+        if (pendingBulkMatches.length === 0) return
+        bulkStageBtn.disabled = true
+        var remaining = pendingBulkMatches.length
+        var stagedCount = 0
+        var skippedAllExist = 0
+
+        function finishOne() {
+            remaining -= 1
+            if (remaining > 0) return
+            renderStagedCalUploadSets(stagedDiv)
+            bulkStatus.innerHTML = '<i>Staged ' + stagedCount + ' camera set(s)' +
+                (skippedAllExist ? '; skipped ' + skippedAllExist + ' with no new distances' : '') +
+                '. Click Save Changes to upload and apply.</i>'
+            bulkStageBtn.disabled = pendingBulkMatches.length === 0
+            pendingBulkMatches = []
+            bulkStageBtn.hidden = true
+            bulkMatchDiv.innerHTML = ''
+        }
+
+        pendingBulkMatches.forEach(function (row) {
+            fetchExistingCalDistances(row.cameragroupId, function (existingDistances) {
+                var filtered = filterCalUploadAgainstExisting(
+                    row.files, existingDistances, stagedCalUploadSets, row.cameragroupId
+                )
+                if (filtered.files.length === 0) {
+                    skippedAllExist += 1
+                    finishOne()
+                    return
+                }
+                addStagedCalUploadSet(
+                    row.cameragroupId, row.cameragroupName,
+                    filtered.files, filtered.distances, true
+                )
+                stagedCount += 1
+                finishOne()
+            })
+        })
+    }
+
     getSurveyCameragroupsForUpload(populateCameraSelect)
+
+    var stagedDiv = document.createElement('div')
+    stagedDiv.id = 'calUploadStagedDiv'
+    div.appendChild(stagedDiv)
     renderStagedCalUploadSets(stagedDiv)
 }
 
-function buildCalDeleteMode() {
-    /** Builds the Delete Calibration Images sub-tab — read-only view with staging. */
-    var div = document.getElementById('calModeContent')
-    while (div.firstChild) div.removeChild(div.firstChild)
-    // ── Rows 1–4: identical grid structure to buildCalEditMode ───────
-    // Row 1: title
-    var row1 = document.createElement('div')
-    row1.classList.add('row')
-    div.appendChild(row1)
-    row1.appendChild(document.createElement('div')).classList.add('col-lg-2')
-    var r1col2 = document.createElement('div')
-    r1col2.classList.add('col-lg-8')
-    r1col2.setAttribute('style', 'text-align: center;')
-    row1.appendChild(r1col2)
-    row1.appendChild(document.createElement('div')).classList.add('col-lg-2')
-    var h6 = document.createElement('h6')
-    h6.id = 'mapTitle_cal'
-    h6.innerHTML = 'Loading...'
-    r1col2.appendChild(h6)
-    // Row 2: empty | map | right panel
-    var row2 = document.createElement('div')
-    row2.classList.add('row')
-    div.appendChild(row2)
-    row2.appendChild(document.createElement('div')).classList.add('col-lg-2')
-    var col2 = document.createElement('div')
-    col2.classList.add('col-lg-8')
-    col2.setAttribute('style', 'text-align: center;')
-    row2.appendChild(col2)
-    var col3 = document.createElement('div')
-    col3.classList.add('col-lg-2')
-    row2.appendChild(col3)
-    var center = document.createElement('center')
-    col2.appendChild(center)
-    var mapDiv = document.createElement('div')
-    mapDiv.id = 'mapDiv_cal'
-    mapDiv.style.height = '700px'
-    center.appendChild(mapDiv)
-    // Row 3: pagination circles
-    var row3 = document.createElement('div')
-    row3.classList.add('row')
-    div.appendChild(row3)
-    row3.appendChild(document.createElement('div')).classList.add('col-lg-1')
-    var r3col2 = document.createElement('div')
-    r3col2.classList.add('col-lg-10')
-    r3col2.setAttribute('style', 'text-align: center;')
-    row3.appendChild(r3col2)
-    row3.appendChild(document.createElement('div')).classList.add('col-lg-1')
-    var rowDiv = document.createElement('div')
-    rowDiv.classList.add('row')
-    r3col2.appendChild(rowDiv)
-    var colDiv = document.createElement('div')
-    colDiv.classList.add('col-lg-12', 'd-flex', 'align-items-center', 'justify-content-center')
-    rowDiv.appendChild(colDiv)
-    var clusterDiv = document.createElement('div')
-    clusterDiv.id = 'clusterPosition_cal'
-    colDiv.appendChild(clusterDiv)
-    var paginationUl = document.createElement('ul')
-    paginationUl.classList.add('pagination')
-    paginationUl.id = 'paginationCircles_cal'
-    paginationUl.style.margin = '10px'
-    clusterDiv.appendChild(paginationUl)
-    // Row 4: navigation buttons
-    var row4 = document.createElement('div')
-    row4.classList.add('row')
-    div.appendChild(row4)
-    row4.appendChild(document.createElement('div')).classList.add('col-lg-1')
-    var r4nav = document.createElement('div')
-    r4nav.classList.add('col-lg-10')
-    r4nav.setAttribute('style', 'text-align: center;')
-    row4.appendChild(r4nav)
-    row4.appendChild(document.createElement('div')).classList.add('col-lg-1')
-    var navRow = document.createElement('div')
-    navRow.classList.add('row')
-    r4nav.appendChild(navRow)
-    var nc1 = document.createElement('div'); nc1.classList.add('col-lg-3'); navRow.appendChild(nc1)
-    var nc2 = document.createElement('div'); nc2.classList.add('col-lg-3'); navRow.appendChild(nc2)
-    var nc3 = document.createElement('div'); nc3.classList.add('col-lg-3'); navRow.appendChild(nc3)
-    var nc4 = document.createElement('div'); nc4.classList.add('col-lg-3'); navRow.appendChild(nc4)
-    var btnPrevCam = document.createElement('button')
-    btnPrevCam.id = 'calBtnPrevCam'
-    btnPrevCam.innerHTML = '<span style="font-size:100%">&#x276e;&#x276e;</span> Previous Camera'
-    btnPrevCam.classList.add('btn', 'btn-primary', 'btn-block')
-    btnPrevCam.disabled = true
-    nc1.appendChild(btnPrevCam)
-    var btnPrevImg = document.createElement('button')
-    btnPrevImg.id = 'calBtnPrevImg'
-    btnPrevImg.innerHTML = '<span style="font-size:100%">&#x276e;</span> Previous Image'
-    btnPrevImg.classList.add('btn', 'btn-primary', 'btn-block')
-    btnPrevImg.disabled = true
-    nc2.appendChild(btnPrevImg)
-    var btnNextImg = document.createElement('button')
-    btnNextImg.id = 'calBtnNextImg'
-    btnNextImg.innerHTML = 'Next Image <span style="font-size:100%">&#x276f;</span>'
-    btnNextImg.classList.add('btn', 'btn-primary', 'btn-block')
-    btnNextImg.disabled = true
-    nc3.appendChild(btnNextImg)
-    var btnNextCam = document.createElement('button')
-    btnNextCam.id = 'calBtnNextCam'
-    btnNextCam.innerHTML = 'Next Camera <span style="font-size:100%">&#x276f;&#x276f;</span>'
-    btnNextCam.classList.add('btn', 'btn-primary', 'btn-block')
-    btnNextCam.disabled = true
-    nc4.appendChild(btnNextCam)
-    btnPrevCam.addEventListener('click', function() {
-        var select = document.getElementById('calCameraSelect')
-        if (select.selectedIndex > 0) { select.selectedIndex--; getCalibrationImagesForCamera(parseInt(select.value)) }
-    })
-    btnPrevImg.addEventListener('click', function() {
-        if (calImgIndex > 0 && finishedDisplayingCal) {
-            calImgIndex--
-            updateCalMap()
+function areAllCurrentCalImagesStagedForDeletion() {
+    if (!calImages || calImages.length === 0) return false
+    for (var i = 0; i < calImages.length; i++) {
+        if (deletedCalImages.indexOf(calImages[i].id) === -1) return false
+    }
+    return true
+}
+
+function updateCalDeleteButtonStates() {
+    /** Syncs single-image and cameragroup delete staging button labels. */
+    var stageBtn = document.getElementById('calStageDeleteBtn')
+    if (stageBtn && calImages.length > 0) {
+        var isStaged = deletedCalImages.indexOf(calImages[calImgIndex].id) !== -1
+        if (isStaged) {
+            stageBtn.innerHTML = 'Unstage Deletion'
+            stageBtn.classList.remove('btn-primary')
+            stageBtn.classList.add('btn-warning')
+        } else {
+            stageBtn.innerHTML = 'Stage for Deletion'
+            stageBtn.classList.remove('btn-warning')
+            stageBtn.classList.add('btn-primary')
         }
-    })
-    btnNextImg.addEventListener('click', function() {
-        if (calImgIndex < calImages.length - 1 && finishedDisplayingCal) {
-            calImgIndex++
-            updateCalMap()
+    }
+
+    var camBtn = document.getElementById('calStageDeleteCameraBtn')
+    if (camBtn) {
+        camBtn.disabled = !calImages || calImages.length === 0
+        if (areAllCurrentCalImagesStagedForDeletion()) {
+            camBtn.innerHTML = 'Unstage Camera Deletion'
+            camBtn.classList.remove('btn-primary')
+            camBtn.classList.add('btn-warning')
+        } else {
+            camBtn.innerHTML = 'Stage Camera for Deletion'
+            camBtn.classList.remove('btn-warning')
+            camBtn.classList.add('btn-primary')
         }
-    })
-    btnNextCam.addEventListener('click', function() {
-        var select = document.getElementById('calCameraSelect')
-        if (select.selectedIndex < select.options.length - 1) { select.selectedIndex++; getCalibrationImagesForCamera(parseInt(select.value)) }
-    })
-    // ── Right panel (delete-specific) ────────────────────────────────
-    var h5cam = document.createElement('h5')
-    h5cam.setAttribute('style', 'margin-bottom: 2px')
-    h5cam.innerHTML = 'Camera'
-    col3.appendChild(h5cam)
-    var descCam = document.createElement('div')
-    descCam.setAttribute('style', 'font-size: 80%; margin-bottom: 6px')
-    descCam.innerHTML = '<i>Select a camera to review.</i>'
-    col3.appendChild(descCam)
-    var camSelect = document.createElement('select')
-    camSelect.id = 'calCameraSelect'
-    camSelect.classList.add('form-control')
-    camSelect.style.marginBottom = '16px'
-    camSelect.addEventListener('change', function() {
-        getCalibrationImagesForCamera(parseInt(this.value))
-    })
-    col3.appendChild(camSelect)
-    var h5del = document.createElement('h5')
-    h5del.setAttribute('style', 'margin-bottom: 2px')
-    h5del.innerHTML = 'Delete'
-    col3.appendChild(h5del)
-    var descDel = document.createElement('div')
-    descDel.setAttribute('style', 'font-size: 80%; margin-bottom: 6px')
-    descDel.innerHTML = '<i>Stage this image for deletion. Changes apply when you click Save Changes.</i>'
-    col3.appendChild(descDel)
-    var stageBtn = document.createElement('button')
-    stageBtn.id = 'calStageDeleteBtn'
-    stageBtn.innerHTML = 'Stage for Deletion'
-    stageBtn.classList.add('btn', 'btn-primary', 'btn-block')
-    stageBtn.style.marginBottom = '6px'
-    stageBtn.onclick = function() { stageCalibrationDeletion() }
-    col3.appendChild(stageBtn)
-    var calStatusMsg = document.createElement('div')
-    calStatusMsg.id = 'calStatusMsg'
-    calStatusMsg.setAttribute('style', 'font-size: 80%; color: grey; margin-top: 6px')
-    calStatusMsg.innerHTML = '<i>Changes are saved when you click Save Changes.</i>'
-    col3.appendChild(calStatusMsg)
-    getCalibrationCameras()
+    }
 }
 
 function stageCalibrationDeletion() {
     /** Stages or un-stages the current image for deletion. */
+    if (!calImages || calImages.length === 0) return
     var cal_id = calImages[calImgIndex].id
     var idx = deletedCalImages.indexOf(cal_id)
     if (idx === -1) {
         deletedCalImages.push(cal_id)
         recordCalImageCameragroup(cal_id)
-        document.getElementById('calStageDeleteBtn').innerHTML = 'Unstage Deletion'
-        document.getElementById('calStageDeleteBtn').classList.remove('btn-primary')
-        document.getElementById('calStageDeleteBtn').classList.add('btn-warning')
         document.getElementById('calStatusMsg').innerHTML = '<i>Staged for deletion. Click Save Changes to apply.</i>'
     } else {
         deletedCalImages.splice(idx, 1)
-        document.getElementById('calStageDeleteBtn').innerHTML = 'Stage for Deletion'
-        document.getElementById('calStageDeleteBtn').classList.remove('btn-warning')
-        document.getElementById('calStageDeleteBtn').classList.add('btn-primary')
         document.getElementById('calStatusMsg').innerHTML = '<i>Unstaged.</i>'
     }
+    updateCalDeleteButtonStates()
+}
+
+function stageCalibrationCameragroupDeletion() {
+    /** Stages or un-stages all calibration images for the currently selected cameragroup. */
+    if (!calImages || calImages.length === 0) return
+
+    if (areAllCurrentCalImagesStagedForDeletion()) {
+        for (var i = 0; i < calImages.length; i++) {
+            var idx = deletedCalImages.indexOf(calImages[i].id)
+            if (idx !== -1) deletedCalImages.splice(idx, 1)
+        }
+        document.getElementById('calStatusMsg').innerHTML =
+            '<i>Unstaged deletion for all ' + calImages.length + ' image(s) on this camera.</i>'
+    } else {
+        for (var j = 0; j < calImages.length; j++) {
+            var cal_id = calImages[j].id
+            if (deletedCalImages.indexOf(cal_id) === -1) {
+                deletedCalImages.push(cal_id)
+            }
+            recordCalImageCameragroup(cal_id)
+        }
+        document.getElementById('calStatusMsg').innerHTML =
+            '<i>Staged all ' + calImages.length + ' image(s) on this camera for deletion. Click Save Changes to apply.</i>'
+    }
+    updateCalDeleteButtonStates()
 }
 
 
@@ -8562,6 +8890,32 @@ function buildCalEditMode() {
         saveCalibrationDistance()
     })
 
+    var h5del = document.createElement('h5')
+    h5del.setAttribute('style', 'margin-bottom: 2px')
+    h5del.innerHTML = 'Delete'
+    col3.appendChild(h5del)
+
+    var descDel = document.createElement('div')
+    descDel.setAttribute('style', 'font-size: 80%; margin-bottom: 6px')
+    descDel.innerHTML = '<i>Stage this image or all images for this camera for deletion. Changes apply when you click Save Changes.</i>'
+    col3.appendChild(descDel)
+
+    var stageBtn = document.createElement('button')
+    stageBtn.id = 'calStageDeleteBtn'
+    stageBtn.innerHTML = 'Stage for Deletion'
+    stageBtn.classList.add('btn', 'btn-primary', 'btn-block')
+    stageBtn.style.marginBottom = '6px'
+    stageBtn.onclick = function() { stageCalibrationDeletion() }
+    col3.appendChild(stageBtn)
+
+    var stageCamBtn = document.createElement('button')
+    stageCamBtn.id = 'calStageDeleteCameraBtn'
+    stageCamBtn.innerHTML = 'Stage Camera for Deletion'
+    stageCamBtn.classList.add('btn', 'btn-primary', 'btn-block')
+    stageCamBtn.style.marginBottom = '6px'
+    stageCamBtn.onclick = function() { stageCalibrationCameragroupDeletion() }
+    col3.appendChild(stageCamBtn)
+
     var calStatusMsg = document.createElement('div')
     calStatusMsg.id = 'calStatusMsg'
     calStatusMsg.setAttribute('style', 'font-size: 80%; color: grey; margin-top: 6px')
@@ -8701,22 +9055,12 @@ function updateCalMap() {
     /** Updates the calibration map when navigating to a new image. */
     var img = calImages[calImgIndex]
 
-    document.getElementById('mapTitle_cal').innerHTML = img.url.split('/').slice(2).join('/')
+    document.getElementById('mapTitle_cal').innerHTML = img.url.split('/').slice(2).filter(function (p) {
+        return p !== '_calibration_'
+    }).join('/')
     var distInput = document.getElementById('calDistInput')
     if (distInput) distInput.value = img.distance
-    if (selectedCalMode === 'delete' && document.getElementById('calStageDeleteBtn')) {
-        var isStaged = deletedCalImages.indexOf(calImages[calImgIndex].id) !== -1
-        var btn = document.getElementById('calStageDeleteBtn')
-        if (isStaged) {
-            btn.innerHTML = 'Unstage Deletion'
-            btn.classList.remove('btn-primary')
-            btn.classList.add('btn-warning')
-        } else {
-            btn.innerHTML = 'Stage for Deletion'
-            btn.classList.remove('btn-warning')
-            btn.classList.add('btn-primary')
-        }
-    }
+    updateCalDeleteButtonStates()
     calCurrentBox = (img.top != null) ? {top: img.top, left: img.left, bottom: img.bottom, right: img.right} : null
     document.getElementById('calStatusMsg').innerHTML = ''
 
@@ -8760,7 +9104,7 @@ function getCalibrationCameras() {
         if (this.readyState == 4 && this.status == 200) {
             calCameras = JSON.parse(this.responseText)
 
-            if (calCameras.length === 0 && (selectedCalMode === 'edit' || selectedCalMode === 'delete')) {
+            if (calCameras.length === 0 && selectedCalMode === 'edit') {
                 var content = document.getElementById('calModeContent')
                 while (content.firstChild) content.removeChild(content.firstChild)
                 var row = document.createElement('div')
@@ -8770,7 +9114,7 @@ function getCalibrationCameras() {
                 col.classList.add('col-lg-12', 'd-flex', 'align-items-center', 'justify-content-center')
                 row.appendChild(col)
                 var h6 = document.createElement('h6')
-                h6.innerHTML = 'No calibration images available to ' + selectedCalMode + '.' 
+                h6.innerHTML = 'No calibration images available to edit.'
                 col.appendChild(h6)
                 return
             }

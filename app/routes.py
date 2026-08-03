@@ -2625,7 +2625,7 @@ def editSurvey():
                             cal_image.bottom = bbox.get('bottom')
                             cal_image.right  = bbox.get('right')
 
-                # Distance renames
+                # Distance updates — keep S3 filename as uploaded; distance lives in DB only.
                 if cal_distances:
                     for cal_id_str, new_distance in cal_distances.items():
                         if int(cal_id_str) in deletion_ids:
@@ -2637,35 +2637,21 @@ def editSurvey():
                             new_distance = float(new_distance)
                         except (TypeError, ValueError):
                             continue
-
-                        old_key = cal_image.filename
-                        basename = os.path.basename(old_key)
-                        ext = os.path.splitext(basename)[1]
-                        new_basename = str(new_distance) + ext
-                        new_key = old_key.rsplit('/', 1)[0] + '/' + new_basename
-
-                        if new_key == old_key:
+                        if new_distance <= 0:
                             continue
 
-                        conflict = db.session.query(CalibrationImage).filter_by(
-                            cameragroup_id=cal_image.cameragroup_id,
-                            filename=new_key,
+                        if cal_image.distance is not None and float(cal_image.distance) == new_distance:
+                            continue
+
+                        conflict = db.session.query(CalibrationImage).filter(
+                            CalibrationImage.cameragroup_id == cal_image.cameragroup_id,
+                            CalibrationImage.distance == new_distance,
+                            CalibrationImage.id != cal_image.id,
                         ).first()
-                        if conflict and conflict.id != cal_image.id:
+                        if conflict:
+                            # Silent skip — same as previous filename-conflict behaviour
                             continue
 
-                        try:
-                            GLOBALS.s3client.copy_object(
-                                Bucket=Config.BUCKET,
-                                CopySource={'Bucket': Config.BUCKET, 'Key': old_key},
-                                Key=new_key,
-                            )
-                            GLOBALS.s3client.delete_object(Bucket=Config.BUCKET, Key=old_key)
-                        except Exception:
-                            app.logger.info('Failed to rename calibration image in S3: {}'.format(old_key))
-                            continue
-
-                        cal_image.filename = new_key
                         cal_image.distance = new_distance
                         affected_cameragroups.add(cal_image.cameragroup_id)
 
@@ -19021,18 +19007,110 @@ def getCalibrationImages(survey_id, cameragroup_id):
 @app.route('/getSurveyCameragroups/<int:survey_id>')
 @login_required
 def getSurveyCameragroups(survey_id):
-    '''Returns all cameragroups in a survey (for calibration upload).'''
+    '''Returns all cameragroups in a survey (for calibration upload), with a relative camera path for folder matching.'''
     cameragroups = []
     survey = db.session.query(Survey).get(survey_id)
     if survey and checkSurveyPermission(current_user.id, survey.id, 'write'):
         rows = (
-            db.session.query(Cameragroup.id, Cameragroup.name)
+            db.session.query(Cameragroup.id, Cameragroup.name, Camera.path)
             .join(Camera, Camera.cameragroup_id == Cameragroup.id)
             .join(Trapgroup, Trapgroup.id == Camera.trapgroup_id)
             .filter(Trapgroup.survey_id == survey_id)
-            .order_by(Cameragroup.name)
-            .distinct()
+            .order_by(Cameragroup.name, Camera.path)
             .all()
         )
-        cameragroups = [{'id': r[0], 'name': r[1]} for r in rows]
+        seen = {}
+        for cg_id, cg_name, cam_path in rows:
+            relative_path = ''
+            if cam_path:
+                parts = cam_path.split('/')
+                if len(parts) >= 3:
+                    relative_path = '/'.join(parts[2:])
+                    if '/_video_images_/' in relative_path:
+                        relative_path = relative_path.split('/_video_images_/')[0]
+            # Prefer a non-video path when available
+            if cg_id not in seen:
+                seen[cg_id] = {
+                    'id': cg_id,
+                    'name': cg_name,
+                    'relative_path': relative_path,
+                }
+            elif relative_path and (
+                not seen[cg_id]['relative_path']
+                or '_video_images_' in seen[cg_id]['relative_path']
+            ):
+                seen[cg_id]['relative_path'] = relative_path
+        cameragroups = sorted(seen.values(), key=lambda r: (r['name'] or '').lower())
     return json.dumps(cameragroups)
+
+
+@app.route('/getCalibrationUploadUrl', methods=['POST'])
+@login_required
+def getCalibrationUploadUrl():
+    '''
+    Presigned PUT URL for staging a calibration JPEG before edit-survey save.
+    Allowed for Ready surveys with write permission. Staging keys live under
+    {org}/{survey_folder}/_cal_upload_staging_/{cameragroup_id}/...
+    '''
+    try:
+        data = request.json or {}
+        survey_id = int(data.get('survey_id'))
+        cameragroup_id = int(data.get('cameragroup_id'))
+        filename = (data.get('filename') or '').strip().split('/')[-1]
+        content_type = data.get('contentType') or 'image/jpeg'
+    except (TypeError, ValueError):
+        return json.dumps({'status': 'error', 'message': 'Invalid request.'}), 400
+
+    if not filename or not re.search(r'\.jpe?g$', filename, re.I):
+        return json.dumps({'status': 'error', 'message': 'Filename must be a JPEG.'}), 400
+
+    survey = db.session.query(Survey).get(survey_id)
+    if not survey or not checkSurveyPermission(current_user.id, survey.id, 'write'):
+        return json.dumps({'status': 'error', 'message': 'Permission denied.'}), 403
+    if survey.status.lower() not in Config.SURVEY_READY_STATUSES:
+        return json.dumps({'status': 'error', 'message': 'Survey is not ready for calibration uploads.'}), 400
+
+    belongs = (
+        db.session.query(Cameragroup.id)
+        .join(Camera, Camera.cameragroup_id == Cameragroup.id)
+        .join(Trapgroup, Camera.trapgroup_id == Trapgroup.id)
+        .filter(Cameragroup.id == cameragroup_id)
+        .filter(Trapgroup.survey_id == survey_id)
+        .first()
+    )
+    if not belongs:
+        return json.dumps({'status': 'error', 'message': 'Camera not found in survey.'}), 400
+
+    from app.functions.imports import parse_calibration_distance_filename
+    if parse_calibration_distance_filename(filename) is None:
+        return json.dumps({'status': 'error', 'message': 'Invalid calibration filename.'}), 400
+
+    org_folder = survey.organisation.folder
+    survey_folder = survey.folder if survey.folder and survey.folder != 'none' else survey.name
+    # Unique staging object so concurrent/bulk uploads do not collide.
+    safe_name = re.sub(r'[^A-Za-z0-9._-]+', '_', filename)
+    staging_key = '{}/{}/_cal_upload_staging_/{}/{}_{}'.format(
+        org_folder, survey_folder, cameragroup_id, int(time.time() * 1000), safe_name
+    )
+
+    try:
+        url = GLOBALS.s3UploadClient.generate_presigned_url(
+            ClientMethod='put_object',
+            Params={
+                'Bucket': Config.BUCKET,
+                'Key': staging_key,
+                'ContentType': content_type,
+                'Body': '',
+            },
+            ExpiresIn=604800,
+        )
+    except Exception:
+        app.logger.info('Failed to generate calibration upload URL for survey {}'.format(survey_id))
+        return json.dumps({'status': 'error', 'message': 'Could not create upload URL.'}), 500
+
+    return json.dumps({
+        'status': 'success',
+        'url': url,
+        'staging_key': staging_key,
+        'contentType': content_type,
+    })

@@ -2928,10 +2928,17 @@ def checkFilesExist(files,folder, survey_id=None):
 
     cal_duplicates = set()
     if calibration_code and survey_id:
-        from app.functions.imports import calibration_comp_dest_key, calibration_destination_taken
+        from app.functions.imports import (
+            calibration_comp_dest_key,
+            calibration_destination_taken,
+            parse_calibration_distance_filename,
+        )
         for file_path in hash_dict:
             dest_key = calibration_comp_dest_key(file_path, calibration_code)
-            if dest_key and calibration_destination_taken(dest_key, survey_id):
+            if not dest_key:
+                continue
+            distance = parse_calibration_distance_filename(file_path.rsplit('/', 1)[-1])
+            if dest_key and calibration_destination_taken(dest_key, survey_id, distance=distance):
                 cal_duplicates.add(file_path)
 
     # Check if the files are already in the database based on the hash
