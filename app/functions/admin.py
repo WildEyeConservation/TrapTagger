@@ -23,7 +23,7 @@ from app.functions.globals import classifyTask, update_masks, retryTime, resolve
                                     process_multi_labels
 from app.functions.delete import *
 from app.functions.individualID import calculate_detection_similarities, cleanUpIndividuals, check_individual_detection_mismatch
-from app.functions.imports import classifySurvey, s3traverse, classifyCluster, importKML, import_survey, run_calibration_detection_batch, null_detection_distances_for_cameragroups, parse_calibration_distance_filename
+from app.functions.imports import classifySurvey, s3traverse, classifyCluster, importKML, import_survey, run_calibration_detection_batch, null_detection_distances_for_cameragroups, parse_calibration_distance_filename, apply_edit_survey_cal_edits, apply_edit_survey_cal_uploads, clean_cal_upload_staging
 import GLOBALS
 from sqlalchemy.sql import func, or_, and_, distinct, alias
 from sqlalchemy import desc, extract, delete, select
@@ -2421,18 +2421,42 @@ def recluster_after_image_timestamp_change(survey_id,image_timestamps):
 
 
 @celery.task(bind=True,max_retries=5,ignore_result=True)
-def edit_survey(self,survey_id,user_id,classifier_id,sky_masked,ignore_small_detections,masks,staticgroups,timestamps,image_timestamps,coord_data,kml_file,edit_area_option,cal_images_to_detect=None,affected_cameragroup_ids=None):
+def edit_survey(self,survey_id,user_id,classifier_id,sky_masked,ignore_small_detections,masks,staticgroups,timestamps,image_timestamps,coord_data,kml_file,edit_area_option,cal_bboxes=None,cal_distances=None,cal_deletions=None,cal_upload_manifest=None,cal_images_to_detect=None,affected_cameragroup_ids=None):
     '''Celery task that handles the editing of a survey.'''
     try:
         survey = db.session.query(Survey).get(survey_id)
         survey.status = 'Processing'
         db.session.commit()
 
+        # All calibration mutations run here (edits, deletions, staged uploads),
+        # then MegaDetector for new uploads, then null detection distances for
+        # every affected cameragroup.
+        affected_cameragroups = set(affected_cameragroup_ids or [])
+        cal_images_to_detect = list(cal_images_to_detect or [])
+
+        if cal_bboxes or cal_distances or cal_deletions:
+            affected_cameragroups.update(
+                apply_edit_survey_cal_edits(
+                    survey_id,
+                    cal_bboxes=cal_bboxes,
+                    cal_distances=cal_distances,
+                    cal_deletions=cal_deletions,
+                )
+            )
+
+        if cal_upload_manifest:
+            uploaded_to_detect, upload_cg_ids = apply_edit_survey_cal_uploads(
+                survey_id, cal_upload_manifest
+            )
+            cal_images_to_detect.extend(uploaded_to_detect)
+            affected_cameragroups.update(upload_cg_ids)
+
         if cal_images_to_detect:
             cal_images_to_detect = [tuple(item) for item in cal_images_to_detect]
             run_calibration_detection_batch(cal_images_to_detect)
-        if affected_cameragroup_ids:
-            null_detection_distances_for_cameragroups(affected_cameragroup_ids)
+
+        if affected_cameragroups:
+            null_detection_distances_for_cameragroups(affected_cameragroups)
             db.session.commit()
 
         skipUpdateStatuses = True

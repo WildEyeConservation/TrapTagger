@@ -1546,7 +1546,7 @@ def deleteSurvey(survey_id):
 
         if userPermissions and userPermissions.delete:
 
-            if survey.status.lower() == 'uploading':
+            if survey.status.lower() in ('uploading', 'uploading calibration'):
                 if not checkUploadUser(current_user.id,survey_id):
                     status = 'error'
                     message = 'The survey is currently being uploaded to by another user.'
@@ -1569,7 +1569,7 @@ def deleteSurvey(survey_id):
 
             #Check that survey is not in use
             if status != 'error':
-                if (survey.status.lower() in Config.SURVEY_READY_STATUSES) or (survey.status.lower() == 'uploading') or ('preprocessing' in survey.status.lower()):
+                if (survey.status.lower() in Config.SURVEY_READY_STATUSES) or (survey.status.lower() in ('uploading', 'uploading calibration')) or ('preprocessing' in survey.status.lower()):
                     pass
                 else:
                     status = 'error'
@@ -2605,86 +2605,87 @@ def editSurvey():
                     edit_area_option = None
 
         if status == 'success':
-            # Handle calibration changes synchronously
-            affected_cameragroups = set()
+            cal_upload_pending = False
+            if 'cal_upload_pending' in request.form:
+                cal_upload_pending = request.form['cal_upload_pending'] in ('true', 'True', '1')
 
-            if cal_bboxes or cal_distances or cal_deletions:
-                # Build a set of IDs being deleted to skip distance renames for those
-                deletion_ids = set(int(i) for i in cal_deletions) if cal_deletions else set()
+            # Pending file metadata for the client-side calibration upload session
+            # (staging happens in-browser before edit_survey is launched).
+            cal_upload_pending_files = None
+            if 'cal_upload_pending_files' in request.form:
+                try:
+                    cal_upload_pending_files = json.loads(request.form['cal_upload_pending_files'])
+                except (TypeError, ValueError):
+                    cal_upload_pending_files = None
+                if not cal_upload_pending_files:
+                    cal_upload_pending_files = None
 
-                # Bounding box updates
-                if cal_bboxes:
-                    for cal_id_str, bbox in cal_bboxes.items():
-                        if int(cal_id_str) in deletion_ids:
-                            continue
-                        cal_image = get_calibration_image_for_survey(int(cal_id_str), survey.id)
-                        if cal_image:
-                            affected_cameragroups.add(cal_image.cameragroup_id)
-                            cal_image.top    = bbox.get('top')
-                            cal_image.left   = bbox.get('left')
-                            cal_image.bottom = bbox.get('bottom')
-                            cal_image.right  = bbox.get('right')
+            if cal_upload_pending and not cal_upload_pending_files:
+                status = 'error'
+                message = 'No calibration files were provided for upload.'
+            elif cal_upload_pending and cal_upload_manifest:
+                # Manifest with staging keys is only accepted after the upload session.
+                cal_upload_manifest = None
 
-                # Distance updates — keep S3 filename as uploaded; distance lives in DB only.
-                if cal_distances:
-                    for cal_id_str, new_distance in cal_distances.items():
-                        if int(cal_id_str) in deletion_ids:
-                            continue
-                        cal_image = get_calibration_image_for_survey(int(cal_id_str), survey.id)
-                        if not cal_image:
-                            continue
-                        try:
-                            new_distance = float(new_distance)
-                        except (TypeError, ValueError):
-                            continue
-                        if new_distance <= 0:
-                            continue
+            has_cal_changes = bool(cal_bboxes or cal_distances or cal_deletions or cal_upload_pending or cal_upload_manifest)
+            has_edit_work = bool(
+                classifier_id or ignore_small_detections is not None or sky_masked is not None
+                or timestamps or coordData or masks or staticgroups or kml or imageTimestamps
+                or edit_area_option or has_cal_changes
+            )
 
-                        if cal_image.distance is not None and float(cal_image.distance) == new_distance:
-                            continue
-
-                        conflict = db.session.query(CalibrationImage).filter(
-                            CalibrationImage.cameragroup_id == cal_image.cameragroup_id,
-                            CalibrationImage.distance == new_distance,
-                            CalibrationImage.id != cal_image.id,
-                        ).first()
-                        if conflict:
-                            # Silent skip — same as previous filename-conflict behaviour
-                            continue
-
-                        cal_image.distance = new_distance
-                        affected_cameragroups.add(cal_image.cameragroup_id)
-
-                # Deletions
-                if cal_deletions:
-                    validated_cal_ids = []
-                    for cal_id in cal_deletions:
-                        cal_image = get_calibration_image_for_survey(int(cal_id), survey.id)
-                        if not cal_image:
-                            continue
-                        affected_cameragroups.add(cal_image.cameragroup_id)
-                        validated_cal_ids.append(cal_image.id)
-                    if validated_cal_ids:
-                        delete_calibration_images(survey_id=survey.id, ids=validated_cal_ids)
-
-            cal_images_to_detect = []
-
-            if cal_upload_manifest:
-                survey.status = 'Processing'
-                db.session.commit()
-
-                cal_images_to_detect, upload_cg_ids = apply_edit_survey_cal_uploads(
-                    survey.id, cal_upload_manifest, request.files
+            if status == 'success' and has_edit_work:
+                app.logger.info(
+                    'Edit survey requested for {} with classifier: {}, ignore_small_detections: {}, '
+                    'sky_masked: {}, timestamps: {}, coordData: {}, masks: {}, staticgroups: {}, '
+                    'kml: {}, imageTimestamps: {}, edit_area_option: {}, cal_upload_pending: {}'.format(
+                        survey.name, classifier_id, ignore_small_detections, sky_masked, timestamps,
+                        coordData, masks, staticgroups, kml, imageTimestamps, edit_area_option,
+                        cal_upload_pending
+                    )
                 )
-                affected_cameragroups.update(upload_cg_ids)
 
-            if affected_cameragroups and not cal_upload_manifest:
-                null_detection_distances_for_cameragroups(affected_cameragroups)
-                db.session.commit()
+                edit_survey_args = {
+                    'survey_id': survey.id,
+                    'user_id': current_user.id,
+                    'classifier_id': classifier_id,
+                    'ignore_small_detections': ignore_small_detections,
+                    'sky_masked': sky_masked,
+                    'timestamps': timestamps,
+                    'coord_data': coordData,
+                    'masks': masks,
+                    'staticgroups': staticgroups,
+                    'kml_file': kml,
+                    'image_timestamps': imageTimestamps,
+                    'edit_area_option': edit_area_option,
+                    'cal_bboxes': cal_bboxes,
+                    'cal_distances': cal_distances,
+                    'cal_deletions': cal_deletions,
+                    'cal_upload_manifest': None,
+                }
 
-            if classifier_id or ignore_small_detections!=None or sky_masked!=None or timestamps or coordData or masks or staticgroups or kml or imageTimestamps or edit_area_option or cal_upload_manifest:
-                app.logger.info('Edit survey requested for {} with classifier: {}, ignore_small_detections: {}, sky_masked: {}, timestamps: {}, coordData: {}, masks: {}, staticgroups: {}, kml: {}, imageTimestamps: {}, edit_area_option: {}'.format(survey.name,classifier_id,ignore_small_detections,sky_masked,timestamps,coordData,masks,staticgroups,kml,imageTimestamps,edit_area_option))
-                cal_cameragroup_ids = list(affected_cameragroups) if cal_upload_manifest else []
+                if cal_upload_pending:
+                    # Snapshot edits, block survey, let the client run the upload session.
+                    # edit_survey is launched only after complete/cancel of that session.
+                    survey.status = 'Uploading Calibration'
+                    db.session.commit()
+                    GLOBALS.redisClient.set('edit_survey_{}'.format(survey_id), json.dumps(edit_survey_args))
+                    GLOBALS.redisClient.set(
+                        'cal_upload_pending_{}'.format(survey_id),
+                        json.dumps(cal_upload_pending_files),
+                    )
+                    GLOBALS.redisClient.set('cal_upload_progress_{}'.format(survey_id), json.dumps([]))
+                    GLOBALS.redisClient.set('upload_user_'+str(survey_id), current_user.id)
+                    GLOBALS.redisClient.set('upload_ping_'+str(survey_id), datetime.utcnow().timestamp())
+                    return json.dumps({
+                        'status': 'success',
+                        'message': '',
+                        'cal_upload': True,
+                        'survey_id': survey.id,
+                        'survey_name': survey.name,
+                    })
+
+                # No calibration file upload session — launch edit_survey now.
                 if classifier_id and survey.classifier_id != classifier_id:
                     if Config.DISABLE_RESTORE:
                         status = 'error'
@@ -2692,15 +2693,19 @@ def editSurvey():
                     else:
                         survey.status = 'Processing'
                         db.session.commit()
-                        edit_survey_args = {'survey_id':survey.id,'user_id':current_user.id,'classifier_id':classifier_id,'ignore_small_detections':ignore_small_detections,'sky_masked':sky_masked,'timestamps':timestamps,'coord_data':coordData,'masks':masks,'staticgroups':staticgroups,'kml_file':kml,'image_timestamps':imageTimestamps, 'edit_area_option': edit_area_option, 'cal_images_to_detect': cal_images_to_detect, 'affected_cameragroup_ids': cal_cameragroup_ids}
-                        GLOBALS.redisClient.set('edit_survey_{}'.format(survey_id),json.dumps(edit_survey_args))
-                        restore_images_for_classification.delay(survey_id=survey.id,days=Config.EDIT_RESTORE_DAYS,edit_survey_args=edit_survey_args,tier=Config.RESTORE_TIER,restore_time=Config.RESTORE_TIME)
+                        GLOBALS.redisClient.set('edit_survey_{}'.format(survey_id), json.dumps(edit_survey_args))
+                        restore_images_for_classification.delay(
+                            survey_id=survey.id,
+                            days=Config.EDIT_RESTORE_DAYS,
+                            edit_survey_args=edit_survey_args,
+                            tier=Config.RESTORE_TIER,
+                            restore_time=Config.RESTORE_TIME,
+                        )
                 else:
                     survey.status = 'Processing'
                     db.session.commit()
-                    edit_survey_args = {'survey_id':survey.id,'user_id':current_user.id,'classifier_id':classifier_id,'ignore_small_detections':ignore_small_detections,'sky_masked':sky_masked,'timestamps':timestamps,'coord_data':coordData,'masks':masks,'staticgroups':staticgroups,'kml_file':kml,'image_timestamps':imageTimestamps, 'edit_area_option': edit_area_option, 'cal_images_to_detect': cal_images_to_detect, 'affected_cameragroup_ids': cal_cameragroup_ids}
-                    GLOBALS.redisClient.set('edit_survey_{}'.format(survey_id),json.dumps(edit_survey_args))
-                    edit_survey.delay(survey_id=survey.id,user_id=current_user.id,classifier_id=classifier_id,ignore_small_detections=ignore_small_detections,sky_masked=sky_masked,timestamps=timestamps,coord_data=coordData,masks=masks,staticgroups=staticgroups,kml_file=kml,image_timestamps=imageTimestamps,edit_area_option=edit_area_option,cal_images_to_detect=cal_images_to_detect,affected_cameragroup_ids=cal_cameragroup_ids)
+                    GLOBALS.redisClient.set('edit_survey_{}'.format(survey_id), json.dumps(edit_survey_args))
+                    edit_survey.delay(**edit_survey_args)
 
     else:
         status = 'error'
@@ -4376,7 +4381,9 @@ def getHomeSurveys():
                             .filter(or_(Task.id==None,~Task.name.contains('_o_l_d_'))),current_user.id,'read', ShareUserPermissions)
 
     # uploading/downloading surveys always need to be on the page
-    compulsory_surveys = survey_base_query.filter(Survey.status=='Uploading').all()
+    compulsory_surveys = survey_base_query.filter(
+        Survey.status.in_(['Uploading', 'Uploading Calibration'])
+    ).all()
     if current_downloads != '': compulsory_surveys.extend(survey_base_query.filter(Survey.id.in_(re.split('[,]',current_downloads))).all())
 
     if compulsory_surveys:
@@ -19048,9 +19055,8 @@ def getSurveyCameragroups(survey_id):
 @login_required
 def getCalibrationUploadUrl():
     '''
-    Presigned PUT URL for staging a calibration JPEG before edit-survey save.
-    Allowed for Ready surveys with write permission. Staging keys live under
-    {org}/{survey_folder}/_cal_upload_staging_/{cameragroup_id}/...
+    Presigned PUT URL for staging a calibration JPEG during an Uploading Calibration session.
+    Staging keys live under {org}/{survey_folder}/_cal_upload_staging_/{cameragroup_id}/...
     '''
     try:
         data = request.json or {}
@@ -19067,8 +19073,10 @@ def getCalibrationUploadUrl():
     survey = db.session.query(Survey).get(survey_id)
     if not survey or not checkSurveyPermission(current_user.id, survey.id, 'write'):
         return json.dumps({'status': 'error', 'message': 'Permission denied.'}), 403
-    if survey.status.lower() not in Config.SURVEY_READY_STATUSES:
-        return json.dumps({'status': 'error', 'message': 'Survey is not ready for calibration uploads.'}), 400
+    if survey.status != 'Uploading Calibration':
+        return json.dumps({'status': 'error', 'message': 'Survey is not accepting calibration uploads.'}), 400
+    if not checkUploadUser(current_user.id, survey_id):
+        return json.dumps({'status': 'error', 'message': 'Calibration upload is checked out by another user.'}), 400
 
     belongs = (
         db.session.query(Cameragroup.id)
@@ -19081,16 +19089,13 @@ def getCalibrationUploadUrl():
     if not belongs:
         return json.dumps({'status': 'error', 'message': 'Camera not found in survey.'}), 400
 
-    from app.functions.imports import parse_calibration_distance_filename
     if parse_calibration_distance_filename(filename) is None:
         return json.dumps({'status': 'error', 'message': 'Invalid calibration filename.'}), 400
 
-    org_folder = survey.organisation.folder
-    survey_folder = survey.folder if survey.folder and survey.folder != 'none' else survey.name
-    # Unique staging object so concurrent/bulk uploads do not collide.
+    staging_prefix = cal_upload_staging_prefix(survey)
     safe_name = re.sub(r'[^A-Za-z0-9._-]+', '_', filename)
-    staging_key = '{}/{}/_cal_upload_staging_/{}/{}_{}'.format(
-        org_folder, survey_folder, cameragroup_id, int(time.time() * 1000), safe_name
+    staging_key = '{}{}/{}_{}'.format(
+        staging_prefix, cameragroup_id, int(time.time() * 1000), safe_name
     )
 
     try:
@@ -19113,4 +19118,198 @@ def getCalibrationUploadUrl():
         'url': url,
         'staging_key': staging_key,
         'contentType': content_type,
+    })
+
+
+def _load_edit_survey_args(survey_id):
+    raw = GLOBALS.redisClient.get('edit_survey_{}'.format(survey_id))
+    if not raw:
+        return None
+    try:
+        return json.loads(raw.decode() if isinstance(raw, bytes) else raw)
+    except (TypeError, ValueError):
+        return None
+
+
+def _launch_edit_survey_from_args(survey, edit_survey_args):
+    '''Move survey to Processing and launch edit_survey (or restore-then-edit).'''
+    classifier_id = edit_survey_args.get('classifier_id')
+    GLOBALS.redisClient.set('edit_survey_{}'.format(survey.id), json.dumps(edit_survey_args))
+    GLOBALS.redisClient.delete('cal_upload_pending_{}'.format(survey.id))
+    GLOBALS.redisClient.delete('cal_upload_progress_{}'.format(survey.id))
+    GLOBALS.redisClient.delete('upload_ping_'+str(survey.id))
+    GLOBALS.redisClient.delete('upload_user_'+str(survey.id))
+
+    if classifier_id and survey.classifier_id != classifier_id:
+        if Config.DISABLE_RESTORE:
+            return False, 'File de-archival is currently not available. Please try again later.'
+        survey.status = 'Processing'
+        db.session.commit()
+        restore_images_for_classification.delay(
+            survey_id=survey.id,
+            days=Config.EDIT_RESTORE_DAYS,
+            edit_survey_args=edit_survey_args,
+            tier=Config.RESTORE_TIER,
+            restore_time=Config.RESTORE_TIME,
+        )
+    else:
+        survey.status = 'Processing'
+        db.session.commit()
+        edit_survey.delay(**edit_survey_args)
+    return True, ''
+
+
+@app.route('/completeCalUpload', methods=['POST'])
+@login_required
+def completeCalUpload():
+    '''
+    Finish a calibration upload session: attach staging-key manifest to the
+    snapshotted edit_survey args and launch edit_survey.
+    '''
+    try:
+        data = request.json or {}
+        survey_id = int(data.get('survey_id'))
+        cal_upload_manifest = data.get('cal_upload_manifest') or []
+    except (TypeError, ValueError):
+        return json.dumps({'status': 'error', 'message': 'Invalid request.'})
+
+    survey = db.session.query(Survey).get(survey_id)
+    if not survey or not checkSurveyPermission(current_user.id, survey_id, 'write'):
+        return json.dumps({'status': 'error', 'message': 'Permission denied.'})
+    if survey.status != 'Uploading Calibration':
+        return json.dumps({'status': 'error', 'message': 'Survey is not uploading calibration images.'})
+    if not checkUploadUser(current_user.id, survey_id):
+        return json.dumps({'status': 'error', 'message': 'Calibration upload is checked out by another user.'})
+
+    edit_survey_args = _load_edit_survey_args(survey_id)
+    if not edit_survey_args:
+        return json.dumps({'status': 'error', 'message': 'Edit survey session expired. Please try again.'})
+
+    if not isinstance(cal_upload_manifest, list) or len(cal_upload_manifest) == 0:
+        return json.dumps({'status': 'error', 'message': 'No uploaded calibration files to apply.'})
+
+    edit_survey_args['cal_upload_manifest'] = cal_upload_manifest
+    ok, message = _launch_edit_survey_from_args(survey, edit_survey_args)
+    if not ok:
+        return json.dumps({'status': 'error', 'message': message})
+    return json.dumps({'status': 'success', 'message': ''})
+
+
+@app.route('/cancelCalUpload/<survey_id>')
+@login_required
+def cancelCalUpload(survey_id):
+    '''
+    Cancel the calibration upload session: clean staging objects, drop the
+    upload manifest, then still launch edit_survey with the other snapshotted changes.
+    '''
+    survey = db.session.query(Survey).get(survey_id)
+    if not survey or not checkSurveyPermission(current_user.id, survey_id, 'write'):
+        return json.dumps({'status': 'error', 'message': 'Permission denied.'})
+    if survey.status != 'Uploading Calibration':
+        return json.dumps({'status': 'error', 'message': 'Survey is not uploading calibration images.'})
+    if not checkUploadUser(current_user.id, survey_id):
+        return json.dumps({'status': 'error', 'message': 'Calibration upload is checked out by another user.'})
+
+    edit_survey_args = _load_edit_survey_args(survey_id)
+    if not edit_survey_args:
+        clean_cal_upload_staging(survey_id)
+        GLOBALS.redisClient.delete('cal_upload_pending_{}'.format(survey_id))
+        GLOBALS.redisClient.delete('cal_upload_progress_{}'.format(survey_id))
+        GLOBALS.redisClient.delete('upload_ping_'+str(survey_id))
+        GLOBALS.redisClient.delete('upload_user_'+str(survey_id))
+        survey.status = 'Ready'
+        db.session.commit()
+        return json.dumps({'status': 'success', 'message': 'Calibration upload cancelled.'})
+
+    clean_cal_upload_staging(survey_id)
+    edit_survey_args['cal_upload_manifest'] = None
+    ok, message = _launch_edit_survey_from_args(survey, edit_survey_args)
+    if not ok:
+        return json.dumps({'status': 'error', 'message': message})
+    return json.dumps({'status': 'success', 'message': 'Calibration upload cancelled. Applying remaining survey edits.'})
+
+
+@app.route('/recordCalUploadProgress', methods=['POST'])
+@login_required
+def recordCalUploadProgress():
+    '''Record a successfully staged calibration file so resume can skip it.'''
+    try:
+        data = request.json or {}
+        survey_id = int(data.get('survey_id'))
+        entry = data.get('entry') or {}
+        cameragroup_id = int(entry.get('cameragroup_id'))
+        name = (entry.get('name') or '').strip()
+        staging_key = (entry.get('staging_key') or '').strip()
+        distance = entry.get('distance')
+    except (TypeError, ValueError):
+        return json.dumps({'status': 'error', 'message': 'Invalid request.'})
+
+    survey = db.session.query(Survey).get(survey_id)
+    if not survey or not checkSurveyPermission(current_user.id, survey_id, 'write'):
+        return json.dumps({'status': 'error', 'message': 'Permission denied.'})
+    if survey.status != 'Uploading Calibration':
+        return json.dumps({'status': 'error', 'message': 'Survey is not uploading calibration images.'})
+    if not checkUploadUser(current_user.id, survey_id):
+        return json.dumps({'status': 'error', 'message': 'Calibration upload is checked out by another user.'})
+    if not name or not staging_key:
+        return json.dumps({'status': 'error', 'message': 'Missing staging entry fields.'})
+
+    expected_prefix = cal_upload_staging_prefix(survey) + str(cameragroup_id) + '/'
+    if not staging_key.startswith(expected_prefix):
+        return json.dumps({'status': 'error', 'message': 'Invalid staging key.'})
+
+    progress = []
+    raw = GLOBALS.redisClient.get('cal_upload_progress_{}'.format(survey_id))
+    if raw:
+        try:
+            progress = json.loads(raw.decode() if isinstance(raw, bytes) else raw) or []
+        except (TypeError, ValueError):
+            progress = []
+
+    progress = [
+        p for p in progress
+        if not (int(p.get('cameragroup_id', -1)) == cameragroup_id and p.get('name') == name)
+    ]
+    progress.append({
+        'cameragroup_id': cameragroup_id,
+        'name': name,
+        'distance': distance,
+        'staging_key': staging_key,
+    })
+    GLOBALS.redisClient.set('cal_upload_progress_{}'.format(survey_id), json.dumps(progress))
+    GLOBALS.redisClient.set('upload_ping_'+str(survey_id), datetime.utcnow().timestamp())
+    return json.dumps({'status': 'success', 'uploaded': len(progress)})
+
+
+@app.route('/getCalUploadProgress/<survey_id>')
+@login_required
+def getCalUploadProgress(survey_id):
+    '''Return pending file list + already-staged progress for resume UI.'''
+    survey = db.session.query(Survey).get(survey_id)
+    if not survey or not checkSurveyPermission(current_user.id, survey_id, 'write'):
+        return json.dumps({'status': 'error', 'message': 'Permission denied.'})
+    if survey.status != 'Uploading Calibration':
+        return json.dumps({'status': 'error', 'message': 'Survey is not uploading calibration images.'})
+
+    pending = []
+    progress = []
+    raw_pending = GLOBALS.redisClient.get('cal_upload_pending_{}'.format(survey_id))
+    raw_progress = GLOBALS.redisClient.get('cal_upload_progress_{}'.format(survey_id))
+    if raw_pending:
+        try:
+            pending = json.loads(raw_pending.decode() if isinstance(raw_pending, bytes) else raw_pending) or []
+        except (TypeError, ValueError):
+            pending = []
+    if raw_progress:
+        try:
+            progress = json.loads(raw_progress.decode() if isinstance(raw_progress, bytes) else raw_progress) or []
+        except (TypeError, ValueError):
+            progress = []
+
+    return json.dumps({
+        'status': 'success',
+        'pending': pending,
+        'progress': progress,
+        'survey_id': survey.id,
+        'survey_name': survey.name,
     })

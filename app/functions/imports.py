@@ -5045,13 +5045,117 @@ def null_detection_distances_for_cameragroups(cameragroup_ids):
             synchronize_session=False,
         )
 
-def apply_edit_survey_cal_uploads(survey_id, manifest, request_files):
-    '''
-    manifest: list of {cameragroup_id, files: [{field_key?, name, distance?, staging_key?}]}
-    request_files: Flask request.files (used when field_key is set; optional for S3 staging uploads)
+def get_calibration_image_for_survey(cal_id, survey_id):
+    '''Return a CalibrationImage only if it belongs to the given survey.'''
+    return (
+        db.session.query(CalibrationImage)
+        .join(Cameragroup, CalibrationImage.cameragroup_id == Cameragroup.id)
+        .join(Camera, Camera.cameragroup_id == Cameragroup.id)
+        .join(Trapgroup, Camera.trapgroup_id == Trapgroup.id)
+        .filter(CalibrationImage.id == int(cal_id))
+        .filter(Trapgroup.survey_id == int(survey_id))
+        .first()
+    )
 
-    Files may arrive either as multipart uploads (field_key) or already PUT to a
-    staging_key under {org}/{survey}/_cal_upload_staging_/{cg_id}/...
+def cal_upload_staging_prefix(survey):
+    '''S3 prefix for edit-survey calibration staging uploads.'''
+    org_folder = survey.organisation.folder
+    survey_folder = survey.folder if survey.folder and survey.folder != 'none' else survey.name
+    return '{}/{}/_cal_upload_staging_/'.format(org_folder, survey_folder)
+
+def clean_cal_upload_staging(survey_id):
+    '''Delete all objects under the survey's calibration upload staging prefix.'''
+    survey = db.session.query(Survey).get(survey_id)
+    if not survey:
+        return
+    prefix = cal_upload_staging_prefix(survey)
+    try:
+        paginator = GLOBALS.s3client.get_paginator('list_objects_v2')
+        for page in paginator.paginate(Bucket=Config.BUCKET, Prefix=prefix):
+            contents = page.get('Contents') or []
+            if not contents:
+                continue
+            for batch_start in range(0, len(contents), 1000):
+                batch = contents[batch_start:batch_start + 1000]
+                GLOBALS.s3client.delete_objects(
+                    Bucket=Config.BUCKET,
+                    Delete={'Objects': [{'Key': obj['Key']} for obj in batch]},
+                )
+    except Exception:
+        app.logger.info('Failed cleaning calibration staging for survey {}'.format(survey_id))
+        app.logger.info(traceback.format_exc())
+
+def apply_edit_survey_cal_edits(survey_id, cal_bboxes=None, cal_distances=None, cal_deletions=None):
+    '''
+    Apply bbox / distance / deletion calibration edits for a survey.
+    Returns set of affected cameragroup IDs.
+    '''
+    from app.functions.delete import delete_calibration_images
+
+    affected_cameragroups = set()
+    if not (cal_bboxes or cal_distances or cal_deletions):
+        return affected_cameragroups
+
+    deletion_ids = set(int(i) for i in cal_deletions) if cal_deletions else set()
+
+    if cal_bboxes:
+        for cal_id_str, bbox in cal_bboxes.items():
+            if int(cal_id_str) in deletion_ids:
+                continue
+            cal_image = get_calibration_image_for_survey(int(cal_id_str), survey_id)
+            if cal_image:
+                affected_cameragroups.add(cal_image.cameragroup_id)
+                cal_image.top = bbox.get('top')
+                cal_image.left = bbox.get('left')
+                cal_image.bottom = bbox.get('bottom')
+                cal_image.right = bbox.get('right')
+
+    if cal_distances:
+        for cal_id_str, new_distance in cal_distances.items():
+            if int(cal_id_str) in deletion_ids:
+                continue
+            cal_image = get_calibration_image_for_survey(int(cal_id_str), survey_id)
+            if not cal_image:
+                continue
+            try:
+                new_distance = float(new_distance)
+            except (TypeError, ValueError):
+                continue
+            if new_distance <= 0:
+                continue
+            if cal_image.distance is not None and float(cal_image.distance) == new_distance:
+                continue
+            conflict = db.session.query(CalibrationImage).filter(
+                CalibrationImage.cameragroup_id == cal_image.cameragroup_id,
+                CalibrationImage.distance == new_distance,
+                CalibrationImage.id != cal_image.id,
+            ).first()
+            if conflict:
+                continue
+            cal_image.distance = new_distance
+            affected_cameragroups.add(cal_image.cameragroup_id)
+
+    if cal_deletions:
+        validated_cal_ids = []
+        for cal_id in cal_deletions:
+            cal_image = get_calibration_image_for_survey(int(cal_id), survey_id)
+            if not cal_image:
+                continue
+            affected_cameragroups.add(cal_image.cameragroup_id)
+            validated_cal_ids.append(cal_image.id)
+        if validated_cal_ids:
+            delete_calibration_images(survey_id=survey_id, ids=validated_cal_ids)
+
+    db.session.commit()
+    return affected_cameragroups
+
+def apply_edit_survey_cal_uploads(survey_id, manifest, request_files=None):
+    '''
+    manifest: list of {cameragroup_id, files: [{name, distance?, staging_key}]}
+    Files must already be PUT to staging_key under
+    {org}/{survey}/_cal_upload_staging_/{cg_id}/...
+
+    request_files is unused (kept for call-site compatibility).
 
     Returns (cal_images_to_detect, affected_cameragroups)
     cal_images_to_detect: list of (dest_key, cal_image_id)
@@ -5059,12 +5163,10 @@ def apply_edit_survey_cal_uploads(survey_id, manifest, request_files):
     cal_images_to_detect = []
     affected_cameragroups = set()
     survey = db.session.query(Survey).get(survey_id)
-    if not survey:
+    if not survey or not manifest:
         return cal_images_to_detect, affected_cameragroups
 
-    org_folder = survey.organisation.folder
-    survey_folder = survey.folder if survey.folder and survey.folder != 'none' else survey.name
-    staging_prefix = '{}/{}/_cal_upload_staging_/'.format(org_folder, survey_folder)
+    staging_prefix = cal_upload_staging_prefix(survey)
 
     for entry in manifest:
         cg_id = int(entry['cameragroup_id'])
@@ -5098,56 +5200,34 @@ def apply_edit_survey_cal_uploads(survey_id, manifest, request_files):
                 continue
 
             staging_key = fi.get('staging_key')
-            upload = None
-            if not staging_key and request_files is not None:
-                upload = request_files.get(fi.get('field_key'))
+            if not staging_key:
+                continue
 
-            if staging_key:
-                # Only accept staging keys under this survey's staging prefix for this cameragroup.
-                expected_prefix = staging_prefix + str(cg_id) + '/'
-                if not staging_key.startswith(expected_prefix):
-                    app.logger.info('Rejecting calibration staging key outside prefix: {}'.format(staging_key))
-                    continue
-                try:
-                    with tempfile.NamedTemporaryFile(delete=True, suffix='.JPG') as tmp:
-                        GLOBALS.s3client.download_file(Bucket=Config.BUCKET, Key=staging_key, Filename=tmp.name)
-                        GLOBALS.lock.acquire()
-                        try:
-                            with wandImage(filename=tmp.name).convert('jpeg') as img:
-                                img.metadata['colorspace:auto-grayscale'] = 'false'
-                                img.transform(resize='800')
-                                GLOBALS.s3client.upload_fileobj(
-                                    BytesIO(img.make_blob()), Config.BUCKET, dest_key,
-                                    ExtraArgs={'ContentType': 'image/jpeg'}
-                                )
-                        finally:
-                            GLOBALS.lock.release()
+            # Only accept staging keys under this survey's staging prefix for this cameragroup.
+            expected_prefix = staging_prefix + str(cg_id) + '/'
+            if not staging_key.startswith(expected_prefix):
+                app.logger.info('Rejecting calibration staging key outside prefix: {}'.format(staging_key))
+                continue
+            try:
+                with tempfile.NamedTemporaryFile(delete=True, suffix='.JPG') as tmp:
+                    GLOBALS.s3client.download_file(Bucket=Config.BUCKET, Key=staging_key, Filename=tmp.name)
+                    GLOBALS.lock.acquire()
                     try:
-                        GLOBALS.s3client.delete_object(Bucket=Config.BUCKET, Key=staging_key)
-                    except Exception:
-                        pass
-                except Exception:
-                    app.logger.info('Failed to process staged calibration upload {}'.format(staging_key))
-                    continue
-            elif upload and upload.filename:
+                        with wandImage(filename=tmp.name).convert('jpeg') as img:
+                            img.metadata['colorspace:auto-grayscale'] = 'false'
+                            img.transform(resize='800')
+                            GLOBALS.s3client.upload_fileobj(
+                                BytesIO(img.make_blob()), Config.BUCKET, dest_key,
+                                ExtraArgs={'ContentType': 'image/jpeg'}
+                            )
+                    finally:
+                        GLOBALS.lock.release()
                 try:
-                    with tempfile.NamedTemporaryFile(delete=True, suffix='.JPG') as tmp:
-                        upload.save(tmp.name)
-                        GLOBALS.lock.acquire()
-                        try:
-                            with wandImage(filename=tmp.name).convert('jpeg') as img:
-                                img.metadata['colorspace:auto-grayscale'] = 'false'
-                                img.transform(resize='800')
-                                GLOBALS.s3client.upload_fileobj(
-                                    BytesIO(img.make_blob()), Config.BUCKET, dest_key,
-                                    ExtraArgs={'ContentType': 'image/jpeg'}
-                                )
-                        finally:
-                            GLOBALS.lock.release()
+                    GLOBALS.s3client.delete_object(Bucket=Config.BUCKET, Key=staging_key)
                 except Exception:
-                    app.logger.info('Failed to compress calibration image upload for {}'.format(dest_key))
-                    continue
-            else:
+                    pass
+            except Exception:
+                app.logger.info('Failed to process staged calibration upload {}'.format(staging_key))
                 continue
 
             cal_image = CalibrationImage(
