@@ -4977,6 +4977,8 @@ def run_llava(self,image_ids,prompt):
 def clean_extracted_timestamp(text,dayfirst):
     '''Function that tries to clean up the messy extracted timestamps'''
     try:
+        fp_timestamp = find_first_prize_timestamp(text,dayfirst)
+        if fp_timestamp: return fp_timestamp
         final_candidates = []
         disallowed_characters = ['°'] #allows us to remove number information like temperature
         terms_for_removal = [r'[0-9.,]+.?in[Hh]g',r'[0-9.,]+.?[°cCfF]'] # Temp & pressure trip up the parsing
@@ -4994,13 +4996,51 @@ def clean_extracted_timestamp(text,dayfirst):
                 final_candidates.append(candidate.replace(' ',''))
             except:
                 continue
-        if len(final_candidates)==0: return text
+        if len(final_candidates)==0: return check_extracted_timestamp(text,dayfirst)
         timestamp = ' '.join(final_candidates)
         if 'PM' in text: timestamp += ' PM'
         if 'AM' in text.replace('CAMERA','').replace('CAM',''): timestamp += ' AM' #we need to prevent the AM match in CAMERA
+        checked_timestamp = check_extracted_timestamp(timestamp,dayfirst)
+        if not checked_timestamp: return check_extracted_timestamp(text,dayfirst)
         return timestamp
     except:
-        return text
+        return check_extracted_timestamp(text,dayfirst)
+
+def check_extracted_timestamp(text,dayfirst):
+    '''Function that checks if the extracted text includes a year, month, day, hour, and minute'''
+    try:
+        dateA = datetime(1900, 1, 1, 0, 0, 0)
+        dateB = datetime(1901, 2, 2, 3, 4, 0)
+        testA = dateutil_parse(text, fuzzy=True, dayfirst=dayfirst, default=dateA)
+        testB = dateutil_parse(text, fuzzy=True, dayfirst=dayfirst, default=dateB)
+        if testA != testB:
+            return None
+        else:
+            return text
+    except:
+        return None
+
+def find_first_prize_timestamp(text,dayfirst):
+    '''Function that finds the first prize timestamp in the given text'''
+    try:
+        date_regex = re.compile(r'\b(?:\d{4}([/-])\d{2}\1\d{2}|\d{2}([/-])\d{2}\2\d{4})\b') #Date format: YYYY/MM/DD or DD/MM/YYYY or with - instead of /
+        time_regex = re.compile(r"\b\d{1,2}:\d{1,2}(?::\d{1,2})?(?![:\d])") #Time format: HH:MM or HH:MM:SS
+        timestamp = None
+        date_candidates = [m.group(0) for m in date_regex.finditer(text)]
+        time_candidates = time_regex.findall(text)
+        if len(date_candidates) > 0 and len(time_candidates) > 0:
+            date = date_candidates[0]
+            time = time_candidates[0]
+            timestamp_txt = date + ' ' + time
+            timestamp = dateutil_parse(timestamp_txt,fuzzy=True,dayfirst=dayfirst,default=datetime(year=2024,month=1,day=1))
+            if timestamp.year<2000: return None
+            if timestamp>=datetime.utcnow(): return None
+            if 'PM' in text: timestamp_txt += ' PM'
+            if 'AM' in text.replace('CAMERA','').replace('CAM',''): timestamp_txt += ' AM' #we need to prevent the AM match in CAMERA
+            timestamp_txt = check_extracted_timestamp(timestamp_txt,dayfirst)
+            return timestamp_txt
+    except:
+        return None
 
 @celery.task(bind=True,max_retries=5)
 def get_timestamps(self,trapgroup_id,index=None):
@@ -5068,8 +5108,9 @@ def get_timestamps(self,trapgroup_id,index=None):
 
         for test in ordered_tests:
             try:
-                timestamp = dateutil_parse(clean_extracted_timestamp(test,dayfirst),fuzzy=True,dayfirst=True,default=datetime.utcnow()+timedelta(days=365))
-                if (timestamp.year<2000) or (timestamp>=datetime.utcnow().replace(hour=0,minute=0,second=0,microsecond=0)): continue #dateutil_parse uses todays date if there is only a time - need to filter this out
+                date_now = datetime.utcnow().replace(second=0,microsecond=0)
+                timestamp = dateutil_parse(clean_extracted_timestamp(test,dayfirst),fuzzy=True,dayfirst=dayfirst,default=date_now+timedelta(days=365))
+                if (timestamp.year<2000) or (timestamp>=date_now.replace(hour=0,minute=0,second=0,microsecond=0)): continue #dateutil_parse uses todays date if there is only a time - need to filter this out
                 if timestamp.day>12:
                     if len(test.split(str(timestamp.day))[0]) < len(test.split(str(timestamp.month))[0]):
                         dayfirst = True
@@ -5113,8 +5154,9 @@ def get_timestamps(self,trapgroup_id,index=None):
                 extracted_text = item[1].extracted_data
                 item_id = item[1].id
             try:
-                timestamp = dateutil_parse(clean_extracted_timestamp(extracted_text,dayfirst),fuzzy=True,dayfirst=dayfirst,default=datetime.utcnow()+timedelta(days=365))
-                if (timestamp.year<2000) or (timestamp>=datetime.utcnow().replace(hour=0,minute=0,second=0,microsecond=0)): continue #dateutil_parse uses todays date if there is only a time - need to filter this out
+                date_now = datetime.utcnow().replace(second=0,microsecond=0)
+                timestamp = dateutil_parse(clean_extracted_timestamp(extracted_text,dayfirst),fuzzy=True,dayfirst=dayfirst,default=date_now+timedelta(days=365))
+                if (timestamp.year<2000) or (timestamp>=date_now.replace(hour=0,minute=0,second=0,microsecond=0)): continue #dateutil_parse uses todays date if there is only a time - need to filter this out
                 dates.append(pd.Timestamp(timestamp)) # this needs to be first - if it fails there is something wrong with the date and it should be dropped
                 parsed_timestamps[item_id] = timestamp
             except:
@@ -5251,10 +5293,11 @@ def use_textract(data,index,check=False):
         if check:
             # Check if we can extract timestamps from the text
             try:
-                timestamp = dateutil_parse(clean_extracted_timestamp(text,True),fuzzy=True,dayfirst=True,default=datetime.utcnow()+timedelta(days=365))
-                if (timestamp.year<2000) or (timestamp>=datetime.utcnow().replace(hour=0,minute=0,second=0,microsecond=0)):
-                    timestamp = dateutil_parse(clean_extracted_timestamp(text,False),fuzzy=True,dayfirst=False,default=datetime.utcnow()+timedelta(days=365))
-                    if (timestamp.year<2000) or (timestamp>=datetime.utcnow().replace(hour=0,minute=0,second=0,microsecond=0)):
+                date_now = datetime.utcnow().replace(second=0,microsecond=0)
+                timestamp = dateutil_parse(clean_extracted_timestamp(text,True),fuzzy=True,dayfirst=True,default=date_now+timedelta(days=365))
+                if (timestamp.year<2000) or (timestamp>=date_now.replace(hour=0,minute=0,second=0,microsecond=0)):
+                    timestamp = dateutil_parse(clean_extracted_timestamp(text,False),fuzzy=True,dayfirst=False,default=date_now+timedelta(days=365))
+                    if (timestamp.year<2000) or (timestamp>=date_now.replace(hour=0,minute=0,second=0,microsecond=0)):
                         failed += 1
                         continue
             except:

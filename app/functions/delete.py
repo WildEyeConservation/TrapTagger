@@ -383,7 +383,7 @@ def delete_floating_data(survey_id, delete_from_s3=False):
 def delete_task_individuals(task_ids, species=None, camera_ids=None, image_ids=None):
     '''Deletes individuals for a given task ID , species and optional camera and image IDs.'''
 
-    app.logger.info('Deleting individuals for task IDs: {}, species: {}, camera IDs: {}, image IDs: {}'.format(task_ids, species, camera_ids, image_ids))
+    app.logger.info('Deleting individuals for task IDs: {}, species: {}, camera IDs: {}, image IDs: {}'.format(task_ids, species, camera_ids, len(image_ids) if image_ids else None))
 
     #Delete Individuals
     if not species:
@@ -578,36 +578,39 @@ def delete_cameragroups(survey_id, empty=False,ids=None):
     if ids is not None:
         cameragroupQ = cameragroupQ.filter(Cameragroup.id.in_(ids))
 
-    cg_subq = cameragroupQ.subquery()
-    mask_subq = db.session.query(Mask.id).join(Cameragroup).filter(Cameragroup.id.in_(select(cg_subq.c.id))).subquery()
+    cameragoup_ids = [r[0] for r in cameragroupQ.distinct().all()]
 
-    #Delete masks
-    result1 = db.session.execute(delete(Mask).where(Mask.id.in_(select(mask_subq.c.id))).execution_options(synchronize_session=False))
-
-    #Delete cameragroups
-    result2 = db.session.execute(delete(Cameragroup).where(Cameragroup.id.in_(select(cg_subq.c.id))).execution_options(synchronize_session=False))
+    result1 = 0
+    result2 = 0
+    # Delete cameragroups and masks
+    for chunk in chunker1000(cameragoup_ids):
+        result1 += db.session.query(Mask).filter(Mask.cameragroup_id.in_(chunk)).delete(synchronize_session=False)
+        result2 += db.session.query(Cameragroup).filter(Cameragroup.id.in_(chunk)).delete(synchronize_session=False)
 
     db.session.commit()
-    app.logger.info(f'cameragroups: {result2.rowcount}, masks: {result1.rowcount} deleted successfully.')
+    app.logger.info(f'Cameragroups: {result2}, Masks: {result1} deleted successfully.')
 
     return True
 
 def delete_empty_areas():
     '''Deletes empty areas.'''
-    area_subq = db.session.query(Area.id).filter(~Area.surveys.any()).subquery()
-    result = db.session.execute(delete(Area).where(Area.id.in_(select(area_subq.c.id))).execution_options(synchronize_session=False))
-    db.session.commit()
-    app.logger.info('{} empty areas deleted successfully.'.format(result.rowcount))
+    empty_areas = [r[0] for r in db.session.query(Area.id).filter(~Area.surveys.any()).all()]
+    total_deleted = 0
+    for chunk in chunker1000(empty_areas):
+        total_deleted += db.session.query(Area).filter(Area.id.in_(chunk)).delete(synchronize_session=False)
+        db.session.commit()
+    app.logger.info('{} empty areas deleted successfully.'.format(total_deleted))
 
     return True
 
 def delete_empty_staticgroups():
     '''Deletes empty staticgroups.'''
-    staticgroup_subq = db.session.query(Staticgroup.id).filter(~Staticgroup.detections.any()).subquery()
-    result = db.session.execute(delete(Staticgroup).where(Staticgroup.id.in_(select(staticgroup_subq.c.id))).execution_options(synchronize_session=False))
-    db.session.commit()
-    app.logger.info('{} empty staticgroups deleted successfully.'.format(result.rowcount))
-
+    empty_staticgroups = [r[0] for r in db.session.query(Staticgroup.id).filter(~Staticgroup.detections.any()).all()]
+    total_deleted = 0
+    for chunk in chunker1000(empty_staticgroups):
+        total_deleted += db.session.query(Staticgroup).filter(Staticgroup.id.in_(chunk)).delete(synchronize_session=False)
+        db.session.commit()
+    app.logger.info('{} empty staticgroups deleted successfully.'.format(total_deleted))
     return True
 
 def delete_tags(task_id, ids=None):
