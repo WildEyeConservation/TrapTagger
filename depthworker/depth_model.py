@@ -18,13 +18,13 @@ if os.path.isdir(_DEPTH_REPO) and _DEPTH_REPO not in sys.path:
 
 # Sibling cameragroup cal-cache dirs older than this are removed (orphans from
 # multi-instance runs where the last batch never ran on this worker).
-_CAL_CACHE_MAX_AGE_SECONDS = int(os.environ.get('DEPTH_CAL_CACHE_MAX_AGE_SECONDS') or 3600)
+_CAL_CACHE_MAX_AGE_SECONDS = int(os.environ.get('DEPTH_CAL_CACHE_MAX_AGE_SECONDS') or 36)
 
 
 def _trap_download_chunk_size():
   '''Internal trap download/inference chunk size for one Celery depth job.'''
   try:
-    return max(1, int(os.environ.get('DEPTH_TRAP_DOWNLOAD_CHUNK_SIZE') or 300))
+    return max(1, int(os.environ.get('DEPTH_TRAP_DOWNLOAD_CHUNK_SIZE') or 2))
   except (TypeError, ValueError):
     return 200
 
