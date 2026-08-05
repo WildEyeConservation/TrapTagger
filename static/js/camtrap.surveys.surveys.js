@@ -4995,6 +4995,22 @@ function buildStatusTable(labels,headings) {
     table.classList.add('table-bordered')
     tableDiv.appendChild(table)
 
+    // Slightly shrink Label and give Informational Tagging a bit more room; other columns share the rest.
+    colgroup = document.createElement('colgroup')
+    table.appendChild(colgroup)
+    col = document.createElement('col')
+    col.style.width = '15%'
+    colgroup.appendChild(col)
+    for (let heading in headings) {
+        for (let i=0;i<headings[heading].length;i++) {
+            col = document.createElement('col')
+            if (heading=='Informational Tagging') {
+                col.style.width = '8%'
+            }
+            colgroup.appendChild(col)
+        }
+    }
+
     thead = document.createElement('thead')
     table.appendChild(thead)
 
@@ -5002,7 +5018,7 @@ function buildStatusTable(labels,headings) {
     tableRow = document.createElement('tr')
     tableCol = document.createElement('th')
     tableCol.setAttribute('scope','col')
-    tableCol.setAttribute('style','border-bottom: 1px solid white;width: 20%')
+    tableCol.setAttribute('style','border-bottom: 1px solid white;width: 15%')
     tableRow.appendChild(tableCol)
 
     for (let heading in headings) {
@@ -5023,7 +5039,7 @@ function buildStatusTable(labels,headings) {
     tableRow.setAttribute('class','stripe')
     tableCol = document.createElement('th')
     tableCol.setAttribute('scope','col')
-    tableCol.setAttribute('style','border-bottom: 1px solid white;width: 20%')
+    tableCol.setAttribute('style','border-bottom: 1px solid white;width: 15%')
     tableCol.innerHTML = 'Label'
     tableRow.appendChild(tableCol)
 
@@ -10198,6 +10214,15 @@ function renderDepthEstimationPrimer(preview, speciesList) {
         primerDiv.appendChild(bboxLine)
     }
 
+    if (s.cameras_cal_below_mode > 0 && s.mode_cal_count != null) {
+        var modeLine = document.createElement('div')
+        modeLine.setAttribute('style', 'color: #DF691A;')
+        modeLine.innerHTML = '<b>' + s.cameras_cal_below_mode +
+            '</b> camera(s) have fewer calibration images than the typical count (' +
+            s.mode_cal_count + '). Highlighted in orange below.'
+        primerDiv.appendChild(modeLine)
+    }
+
     if (!preview.sites || preview.sites.length === 0) {
         var emptyLine = document.createElement('div')
         emptyLine.innerHTML = '<i>No cameras found in this survey.</i>'
@@ -10222,10 +10247,11 @@ function renderDepthEstimationPrimer(preview, speciesList) {
 
     var headers = [
         {text: 'Site', width: '12%'},
-        {text: 'Camera', width: '28%'},
-        {text: 'Species Count', width: '15%'},
-        {text: 'Calibration images', width: '20%'},
-        {text: 'Status', width: '25%'}
+        {text: 'Camera', width: '22%'},
+        {text: 'Sightings with depth', width: '14%'},
+        {text: 'Sightings without depth', width: '14%'},
+        {text: 'Calibration images', width: '18%'},
+        {text: 'Status', width: '20%'}
     ]
     var cellStyle = 'text-align:left; padding-top: 6px; padding-bottom: 6px; vertical-align: middle;'
     for (var h = 0; h < headers.length; h++) {
@@ -10260,13 +10286,26 @@ function renderDepthEstimationPrimer(preview, speciesList) {
             nameTd.innerHTML = cam.name
             tr.appendChild(nameTd)
 
-            var trapTd = document.createElement('td')
-            trapTd.setAttribute('style', cellStyle)
-            trapTd.innerHTML = cam.trap_count
-            tr.appendChild(trapTd)
+            var withDepthTd = document.createElement('td')
+            withDepthTd.setAttribute('style', cellStyle)
+            withDepthTd.innerHTML = (cam.sightings_with_depth != null)
+                ? cam.sightings_with_depth
+                : 0
+            tr.appendChild(withDepthTd)
+
+            var withoutDepthTd = document.createElement('td')
+            withoutDepthTd.setAttribute('style', cellStyle)
+            withoutDepthTd.innerHTML = (cam.sightings_without_depth != null)
+                ? cam.sightings_without_depth
+                : (cam.trap_count || 0)
+            tr.appendChild(withoutDepthTd)
 
             var calTd = document.createElement('td')
-            calTd.setAttribute('style', cellStyle)
+            var calStyle = cellStyle
+            if (cam.cal_below_mode) {
+                calStyle += ' color: #DF691A; font-weight: bold;'
+            }
+            calTd.setAttribute('style', calStyle)
             calTd.innerHTML = formatDepthCalColumn(cam.cal_count, cam.cal_missing_bbox)
             tr.appendChild(calTd)
 

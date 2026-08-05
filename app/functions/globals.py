@@ -380,9 +380,9 @@ def launch_instances(queue,ami,user_data,instances_required,idle_multiplier,ec2,
         userData += ' chown -R root /home/ubuntu/TrapTagger/WorkR;'
         userData += ' git fetch --all;'
         if queue=='statistics':
-            userData += ' git checkout master;'
+            userData += ' git checkout dev-morpho-master;'
         else:
-            userData += ' git checkout server;'
+            userData += ' git checkout dev-morpho-server;'
         userData += ' git pull; '
     userData += 'cd /home/ubuntu; '
     userData += user_data
@@ -7071,13 +7071,16 @@ def depth_task_eligibility(unlabelled_animal_cluster_count):
     return True, None
 
 
-def _depth_exclusion_reason(trap_count, cal_count, cal_with_bbox, launchable):
+def _depth_exclusion_reason(sightings_without_depth, sightings_with_depth, cal_count, cal_with_bbox, launchable):
     '''Human-readable exclusion reason for a cameragroup preview row.'''
     if launchable:
         return None
     reasons = []
-    if trap_count == 0:
-        reasons.append('No matching detections')
+    if sightings_without_depth == 0:
+        if sightings_with_depth > 0:
+            reasons.append('All matching detections already have depth')
+        else:
+            reasons.append('No matching detections')
     if cal_count == 0:
         reasons.append('No calibration images')
     elif cal_with_bbox == 0:
@@ -7106,6 +7109,39 @@ def _detection_has_bbox(left, right, top, bottom):
     )
 
 
+def _depth_matching_detection_query(survey_id, cg_id, task_ids, species_list):
+    '''Base query for detections matching survey/cameragroup/task/species for depth estimation.'''
+    return (
+        db.session.query(Detection)
+        .join(Image, Detection.image_id == Image.id)
+        .join(Camera, Image.camera_id == Camera.id)
+        .join(Trapgroup, Camera.trapgroup_id == Trapgroup.id)
+        .join(Labelgroup, Labelgroup.detection_id == Detection.id)
+        .join(Task, Labelgroup.task_id == Task.id)
+        .join(Label, Labelgroup.labels)
+        .filter(Trapgroup.survey_id == survey_id)
+        .filter(Camera.cameragroup_id == cg_id)
+        .filter(Task.id.in_(task_ids))
+        .filter(Label.description.in_(species_list))
+    )
+
+
+def _depth_mode_cal_count(cal_counts):
+    '''
+    Mode of calibration-image counts among valid cameras.
+    On a frequency tie, prefer the larger count so "expected" reflects the
+    higher typical calibration set size.
+    '''
+    if not cal_counts:
+        return None
+    frequencies = {}
+    for count in cal_counts:
+        frequencies[count] = frequencies.get(count, 0) + 1
+    max_freq = max(frequencies.values())
+    mode_candidates = [c for c, freq in frequencies.items() if freq == max_freq]
+    return max(mode_candidates)
+
+
 def depth_estimation_preview(survey_id, task_ids, species_list):
     '''
     Read-only preview of what launch_depth_estimation would process.
@@ -7113,6 +7149,12 @@ def depth_estimation_preview(survey_id, task_ids, species_list):
 
     Returns one row per cameragroup in the survey (shown as "camera" in the UI),
     grouped by trapgroup site for display.
+
+    Sighting counts are split into detections that already have Detection.distance
+    and those that do not. Only the latter are launchable / sent for depth estimation.
+
+    Cameras with fewer calibration images than the mode across all cameras
+    are flagged (cal_below_mode) for UI highlighting.
     '''
     cg_rows = (
         db.session.query(Cameragroup.id, Cameragroup.name)
@@ -7137,18 +7179,15 @@ def depth_estimation_preview(survey_id, task_ids, species_list):
             .scalar()
         ) or ''
 
-        trap_count = (
-            db.session.query(func.count(distinct(Detection.id)))
-            .join(Image, Detection.image_id == Image.id)
-            .join(Camera, Image.camera_id == Camera.id)
-            .join(Trapgroup, Camera.trapgroup_id == Trapgroup.id)
-            .join(Labelgroup, Labelgroup.detection_id == Detection.id)
-            .join(Task, Labelgroup.task_id == Task.id)
-            .join(Label, Labelgroup.labels)
-            .filter(Trapgroup.survey_id == survey_id)
-            .filter(Camera.cameragroup_id == cg_id)
-            .filter(Task.id.in_(task_ids))
-            .filter(Label.description.in_(species_list))
+        matching = _depth_matching_detection_query(survey_id, cg_id, task_ids, species_list)
+        sightings_with_depth = (
+            matching.filter(Detection.distance != None)
+            .with_entities(func.count(distinct(Detection.id)))
+            .scalar()
+        ) or 0
+        sightings_without_depth = (
+            matching.filter(Detection.distance == None)
+            .with_entities(func.count(distinct(Detection.id)))
             .scalar()
         ) or 0
 
@@ -7167,7 +7206,7 @@ def depth_estimation_preview(survey_id, task_ids, species_list):
             else:
                 cal_with_bbox += 1
 
-        launchable = trap_count > 0 and cal_with_bbox > 0
+        launchable = sightings_without_depth > 0 and cal_with_bbox > 0
         if launchable:
             cameras_launchable += 1
             cal_images_missing_bbox += cal_missing_bbox
@@ -7176,14 +7215,30 @@ def depth_estimation_preview(survey_id, task_ids, species_list):
             'cameragroup_id': cg_id,
             'site': primary_site,
             'name': cg_name,
-            'trap_count': trap_count,
+            'sightings_with_depth': sightings_with_depth,
+            'sightings_without_depth': sightings_without_depth,
+            # trap_count kept as detections that would actually be processed
+            'trap_count': sightings_without_depth,
             'cal_count': cal_count,
             'cal_missing_bbox': cal_missing_bbox,
             'launchable': launchable,
             'exclusion_reason': _depth_exclusion_reason(
-                trap_count, cal_count, cal_with_bbox, launchable
+                sightings_without_depth, sightings_with_depth, cal_count, cal_with_bbox, launchable
             ),
         })
+
+    mode_cal_count = _depth_mode_cal_count(
+        [row['cal_count'] for row in camera_rows]
+    )
+    cameras_cal_below_mode = 0
+    for row in camera_rows:
+        below = (
+            mode_cal_count is not None
+            and row['cal_count'] < mode_cal_count
+        )
+        row['cal_below_mode'] = below
+        if below:
+            cameras_cal_below_mode += 1
 
     cameras_total = len(camera_rows)
     cameras_skipped = cameras_total - cameras_launchable
@@ -7195,9 +7250,12 @@ def depth_estimation_preview(survey_id, task_ids, species_list):
             sites_map[site_key] = []
         sites_map[site_key].append({
             'name': row['name'],
+            'sightings_with_depth': row['sightings_with_depth'],
+            'sightings_without_depth': row['sightings_without_depth'],
             'trap_count': row['trap_count'],
             'cal_count': row['cal_count'],
             'cal_missing_bbox': row['cal_missing_bbox'],
+            'cal_below_mode': row['cal_below_mode'],
             'launchable': row['launchable'],
             'exclusion_reason': row['exclusion_reason'],
         })
@@ -7213,6 +7271,8 @@ def depth_estimation_preview(survey_id, task_ids, species_list):
             'cameras_skipped': cameras_skipped,
             'cameras_total': cameras_total,
             'cal_images_missing_bbox': cal_images_missing_bbox,
+            'mode_cal_count': mode_cal_count,
+            'cameras_cal_below_mode': cameras_cal_below_mode,
         },
         'sites': sites,
     }
@@ -7225,8 +7285,12 @@ def launch_depth_estimation(survey_id, task_ids, species_list):
     Enqueues depth_estimate Celery tasks for each cameragroup that has calibration images
     and trap detections for the given task(s) and species.
 
-    Trap detections are split into batches of at most Config.DEPTH_TRAP_BATCH_SIZE (default 400)
-    per task; calibration items are included on every batch for the same cameragroup.
+    Only detections with Detection.distance IS NULL are sent for depth estimation.
+    Trap detections are split into batches of at most Config.DEPTH_TRAP_BATCH_SIZE (default 2000)
+    per Celery task; calibration items are included on every batch for the same cameragroup.
+    The depth worker downloads/infers trap images in chunks of
+    Config.DEPTH_TRAP_DOWNLOAD_CHUNK_SIZE (default 200), keeping calibration staged for the
+    whole Celery job and deleting local trap frames between chunks.
 
     Returns:
         dict with keys: launched, skipped, celery_task_ids, async_results, errors
@@ -7288,12 +7352,17 @@ def launch_depth_estimation(survey_id, task_ids, species_list):
             .filter(Camera.cameragroup_id == cg_id)
             .filter(Task.id.in_(task_ids))
             .filter(Label.description.in_(species_list))
+            .filter(Detection.distance == None)
             .distinct()
             .all()
         )
 
         if not det_rows:
-            skipped.append({'cameragroup_id': cg_id, 'name': cg_name, 'reason': 'no_trap_detections'})
+            skipped.append({
+                'cameragroup_id': cg_id,
+                'name': cg_name,
+                'reason': 'no_trap_detections_without_depth',
+            })
             continue
 
         if not calibration_items:

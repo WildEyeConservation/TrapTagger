@@ -16,6 +16,14 @@ if os.path.isdir(_DEPTH_REPO) and _DEPTH_REPO not in sys.path:
   sys.path.insert(0, _DEPTH_REPO)
 
 
+def _trap_download_chunk_size():
+  '''Internal trap download/inference chunk size for one Celery depth job.'''
+  try:
+    return max(1, int(os.environ.get('DEPTH_TRAP_DOWNLOAD_CHUNK_SIZE') or 200))
+  except (TypeError, ValueError):
+    return 200
+
+
 def infer(
   cameragroup_id,
   cam_name,
@@ -28,8 +36,9 @@ def infer(
   batch_count=1,
 ):
   '''
-  Runs depth estimation for one cameragroup: stages calibration and trap images,
-  runs the depth model, and returns estimated distances per detection.
+  Runs depth estimation for one cameragroup: stages calibration once, then
+  downloads/infers trap images in chunks (default 200), cleaning local trap
+  frames between chunks while keeping calibration staged for the whole job.
 
   Parameters:
       cameragroup_id (int): Cameragroup ID for this job.
@@ -65,21 +74,25 @@ def infer(
           )
         )
 
-    manifest = _download_and_build_manifest(
-      cameragroup_id,
-      cam_name,
+    calibration_entries = _download_calibration(
       cal_dir,
-      det_dir,
       calibration_items,
-      trap_items,
       sourceBucket,
       external,
     )
-    if manifest is None:
+    if not calibration_entries:
       return {
         str(t['detection_id']): {'distance': None, 'error': 'staging_failed'}
         for t in trap_items
       }
+
+    _write_manifest(
+      transect_dir,
+      cameragroup_id,
+      cam_name,
+      calibration_entries,
+      [],
+    )
 
     if use_cal_cache and batch_index > 1:
       if calib_cache_path and os.path.isfile(calib_cache_path):
@@ -102,13 +115,17 @@ def infer(
           )
         )
 
-    from traptagger_api import run_transect_job, traptagger_default_config
+    from traptagger_api import (
+      estimate_transect_traps,
+      prepare_transect_session,
+      traptagger_default_config,
+    )
 
     if use_cal_cache and batch_index == 1:
       os.makedirs(_cal_cache_root(survey_id, cameragroup_id), exist_ok=True)
 
     collect_bbox_audit = os.environ.get('DEPTH_BBOX_AUDIT', '0') == '1'
-    job_output = run_transect_job(
+    session = prepare_transect_session(
       job_root,
       transect_id,
       config=traptagger_default_config(),
@@ -116,23 +133,48 @@ def infer(
       cached_calib_path=cached_calib_path,
       calib_cache_path=calib_cache_path if batch_index == 1 else None,
     )
+
     if use_cal_cache and batch_index == 1:
       _save_cal_frames(transect_dir, survey_id, cameragroup_id)
       _save_cal_masks(transect_dir, survey_id, cameragroup_id)
+
+    chunk_size = _trap_download_chunk_size()
+    all_results = {}
+    for chunk_start in range(0, len(trap_items), chunk_size):
+      chunk = trap_items[chunk_start:chunk_start + chunk_size]
+      trap_entries = _download_traps(det_dir, chunk, sourceBucket, external)
+      _write_manifest(
+        transect_dir,
+        cameragroup_id,
+        cam_name,
+        calibration_entries,
+        trap_entries,
+      )
+      print(
+        'Depth infer chunk {}-{} of {} traps for cameragroup {} (batch {}/{})'.format(
+          chunk_start + 1,
+          chunk_start + len(chunk),
+          len(trap_items),
+          cameragroup_id,
+          batch_index,
+          batch_count,
+        )
+      )
+      all_results.update(estimate_transect_traps(session))
+      _clear_detection_frames(det_dir)
+
     if use_cal_cache and batch_index == batch_count:
       _clear_cal_cache(survey_id, cameragroup_id)
 
     if collect_bbox_audit:
-      results = job_output['results']
       _write_bbox_audit(
-        job_output['bbox_audit'],
+        session.get('bbox_audit') or {},
         survey_id,
         cameragroup_id,
         batch_index=batch_index,
         batch_count=batch_count,
       )
-      return results
-    return job_output
+    return all_results
   finally:
     shutil.rmtree(job_root, ignore_errors=True)
 
@@ -220,29 +262,11 @@ def _bbox_has_coords(bbox):
   return not any(bbox.get(k) is None for k in ('top', 'left', 'bottom', 'right'))
 
 
-def _download_and_build_manifest(
-  cameragroup_id,
-  cam_name,
-  cal_dir,
-  det_dir,
-  calibration_items,
-  trap_items,
-  sourceBucket,
-  external,
-):
+def _download_calibration(cal_dir, calibration_items, sourceBucket, external):
   '''
-  Downloads calibration and trap images into cal_dir and det_dir, builds manifest
-  metadata (paths, pixel bboxes), and writes manifest.json under cam_dir.
-
-  Returns:
-      manifest (dict) on success, or None if no calibration images could be staged.
+  Downloads calibration images into cal_dir and returns manifest calibration entries.
   '''
-  manifest = {
-    'cameragroup_id': cameragroup_id,
-    'cam_name': cam_name,
-    'calibration': [],
-    'trap': [],
-  }
+  calibration = []
   for item in calibration_items:
     # known_distance comes from CalibrationImage.distance (DB), not the S3 basename.
     # Stage locally as <distance>.jpg for the depth-estimation repo layout.
@@ -262,18 +286,23 @@ def _download_and_build_manifest(
       continue
     with Image.open(dest_path) as img:
       width, height = img.size
-    manifest['calibration'].append({
+    calibration.append({
       'known_distance': distance,
       'relative_path': os.path.join('calibration_frames', '{}.jpg'.format(distance)),
       'bbox_pixels': _bbox_to_pixels(item['bbox'], width, height),
     })
-  if not manifest['calibration']:
-    return None
+  return calibration
 
+
+def _download_traps(det_dir, trap_items, sourceBucket, external):
+  '''
+  Downloads trap images into det_dir and returns manifest trap entries.
+  '''
+  traps = []
   for item in trap_items:
     bbox = item.get('bbox') or {}
     if not _bbox_has_coords(bbox):
-      manifest['trap'].append({
+      traps.append({
         'detection_id': item['detection_id'],
         'download_ok': True,
       })
@@ -282,14 +311,14 @@ def _download_and_build_manifest(
     dest_path = os.path.join(det_dir, '{}.jpg'.format(item['detection_id']))
     ok = _download_image(sourceBucket, item['image_path'], dest_path, external)
     if not ok:
-      manifest['trap'].append({
+      traps.append({
         'detection_id': item['detection_id'],
         'download_ok': False,
       })
     else:
       with Image.open(dest_path) as img:
         width, height = img.size
-      manifest['trap'].append({
+      traps.append({
         'detection_id': item['detection_id'],
         'relative_path': os.path.join(
           'detection_frames',
@@ -298,12 +327,36 @@ def _download_and_build_manifest(
         'bbox_pixels': _bbox_to_pixels(item['bbox'], width, height),
         'download_ok': True,
       })
+  return traps
 
-  manifest_path = os.path.join(os.path.dirname(cal_dir), 'manifest.json')
+
+def _write_manifest(transect_dir, cameragroup_id, cam_name, calibration, traps):
+  '''Writes manifest.json for the current calibration + trap staging.'''
+  manifest = {
+    'cameragroup_id': cameragroup_id,
+    'cam_name': cam_name,
+    'calibration': calibration,
+    'trap': traps,
+  }
+  manifest_path = os.path.join(transect_dir, 'manifest.json')
   with open(manifest_path, 'w') as f:
     json.dump(manifest, f, indent=2)
-
   return manifest
+
+
+def _clear_detection_frames(det_dir):
+  '''Removes downloaded trap images after a chunk finishes inference.'''
+  if not os.path.isdir(det_dir):
+    return
+  for name in os.listdir(det_dir):
+    path = os.path.join(det_dir, name)
+    try:
+      if os.path.isfile(path) or os.path.islink(path):
+        os.unlink(path)
+      elif os.path.isdir(path):
+        shutil.rmtree(path, ignore_errors=True)
+    except OSError:
+      pass
 
 
 def _survey_cache_dir(survey_id):

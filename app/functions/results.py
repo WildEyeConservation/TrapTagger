@@ -352,7 +352,7 @@ def create_task_dataframe(task_id,selectedLevel,include,exclude,trapgroup_id,sta
                 Detection.top.label('Top'), \
                 Detection.bottom.label('Bottom'), \
                 Detection.score.label('Score'), \
-                Detection.distance.label('Distance'), \
+                Detection.distance.label('Distance (metres)'), \
                 Cluster.notes.label('Notes'), \
                 Cluster.id.label('Cluster ID'), \
                 Label.description.label('Species'), \
@@ -460,7 +460,7 @@ def create_task_dataframe(task_id,selectedLevel,include,exclude,trapgroup_id,sta
         df2['Top'] = 0
         df2['Bottom'] = 0
         df2['Score'] = 0
-        df2['Distance'] = float('nan')
+        df2['Distance (metres)'] = float('nan')
 
         # This ensures that multi non-rDet images only have one empty detection
         df2 = df2.drop_duplicates(subset=['Image ID'], keep='first')
@@ -503,7 +503,7 @@ def create_task_dataframe(task_id,selectedLevel,include,exclude,trapgroup_id,sta
         'Top': 'float32',
         'Bottom': 'float32',
         'Score': 'float32',
-        'Distance': 'float32',
+        'Distance (metres)': 'float32',
         'Camera ID': 'int32',
         'Site ID': 'int32',
         'Latitude': 'float32',

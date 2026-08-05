@@ -3517,6 +3517,9 @@ def getDetailedTaskStatus(task_id):
             'Sighting Correction': [
                 'Checked Sightings'
             ],
+            'Depth Estimation': [
+                'Sightings With Distances'
+            ],
             'Individual ID': [
                 'Cluster-Level',
                 'Inter-Cluster',
@@ -3552,6 +3555,7 @@ def getDetailedTaskStatus(task_id):
                 reply['AI Check'] = {}
                 reply['Informational Tagging'] = {}
                 reply['Sighting Correction'] = {}
+                reply['Depth Estimation'] = {}
                 reply['Individual ID'] = {}
                 
                 if label_id==GLOBALS.vhl_id:
@@ -3598,6 +3602,22 @@ def getDetailedTaskStatus(task_id):
                         reply['Sighting Correction']['Checked Sightings'] = str(checked_detections) + '/' + str(sighting_count) + ' (' + str(checked_perc) + '%)'
                     else:
                         reply['Sighting Correction']['Checked Sightings'] = '-'
+
+                    # Depth Estimation — live count of sightings with Detection.distance
+                    if sighting_count != 0:
+                        depth_count = db.session.query(Labelgroup)\
+                            .join(Detection)\
+                            .filter(Labelgroup.task_id==task_id)\
+                            .filter(Labelgroup.labels.contains(label))\
+                            .filter(Detection.distance!=None)\
+                            .filter(or_(and_(Detection.source==model,Detection.score>Config.DETECTOR_THRESHOLDS[model]) for model in Config.DETECTOR_THRESHOLDS))\
+                            .filter(Detection.static==False)\
+                            .filter(~Detection.status.in_(Config.DET_IGNORE_STATUSES))\
+                            .distinct().count()
+                        depth_perc = round((depth_count/sighting_count)*100,2)
+                        reply['Depth Estimation']['Sightings With Distances'] = str(depth_count) + '/' + str(sighting_count) + ' (' + str(depth_perc) + '%)'
+                    else:
+                        reply['Depth Estimation']['Sightings With Distances'] = '-'
 
                     # Species Annotation Status
                     if label.parent == None:
@@ -3695,6 +3715,7 @@ def getDetailedTaskStatus(task_id):
                     # reply['AI Check']['Potential Clusters'] = '-'
                     reply['Informational Tagging']['Tagged'] = '-'
                     reply['Sighting Correction']['Checked Sightings'] = '-'
+                    reply['Depth Estimation']['Sightings With Distances'] = '-'
                     reply['Individual ID']['Cluster-Level'] = '-'
                     reply['Individual ID']['Inter-Cluster'] = '-'
                     reply['Individual ID']['Exhaustive'] = '-'
