@@ -3,6 +3,7 @@ import os
 import shutil
 import sys
 import tempfile
+import time
 
 import boto3
 from PIL import Image
@@ -15,11 +16,15 @@ _DEPTH_REPO = os.path.abspath(
 if os.path.isdir(_DEPTH_REPO) and _DEPTH_REPO not in sys.path:
   sys.path.insert(0, _DEPTH_REPO)
 
+# Sibling cameragroup cal-cache dirs older than this are removed (orphans from
+# multi-instance runs where the last batch never ran on this worker).
+_CAL_CACHE_MAX_AGE_SECONDS = int(os.environ.get('DEPTH_CAL_CACHE_MAX_AGE_SECONDS') or 3600)
+
 
 def _trap_download_chunk_size():
   '''Internal trap download/inference chunk size for one Celery depth job.'''
   try:
-    return max(1, int(os.environ.get('DEPTH_TRAP_DOWNLOAD_CHUNK_SIZE') or 200))
+    return max(1, int(os.environ.get('DEPTH_TRAP_DOWNLOAD_CHUNK_SIZE') or 300))
   except (TypeError, ValueError):
     return 200
 
@@ -63,6 +68,9 @@ def infer(
       _calib_cache_path(survey_id, cameragroup_id) if use_cal_cache else None
     )
     cached_calib_path = None
+
+    if use_cal_cache:
+      _cleanup_stale_sibling_cal_caches(survey_id, cameragroup_id)
 
     if use_cal_cache and batch_index == 1:
       _clear_cal_cache(survey_id, cameragroup_id)
@@ -383,6 +391,65 @@ def _clear_cal_cache(survey_id, cameragroup_id):
   shutil.rmtree(_cal_cache_root(survey_id, cameragroup_id), ignore_errors=True)
   try:
     os.rmdir(_survey_cache_dir(survey_id))
+  except OSError:
+    pass
+
+
+def _cal_cache_dir_mtime(cache_dir):
+  '''
+  Best-effort age signal for a cameragroup cal-cache directory.
+  Prefer calib_state.npz mtime when present; otherwise the directory mtime.
+  '''
+  state_path = os.path.join(cache_dir, 'calib_state.npz')
+  try:
+    if os.path.isfile(state_path):
+      return os.path.getmtime(state_path)
+    return os.path.getmtime(cache_dir)
+  except OSError:
+    return None
+
+
+def _cleanup_stale_sibling_cal_caches(
+  survey_id,
+  cameragroup_id,
+  max_age_seconds=_CAL_CACHE_MAX_AGE_SECONDS,
+):
+  '''
+  Delete other cameragroup cache dirs under this survey that are older than
+  max_age_seconds. Never removes the current cameragroup's cache.
+  '''
+  survey_dir = _survey_cache_dir(survey_id)
+  if not os.path.isdir(survey_dir):
+    return
+
+  keep_name = str(cameragroup_id)
+  now = time.time()
+  try:
+    entries = os.listdir(survey_dir)
+  except OSError:
+    return
+
+  for name in entries:
+    if name == keep_name:
+      continue
+    path = os.path.join(survey_dir, name)
+    if not os.path.isdir(path):
+      continue
+    mtime = _cal_cache_dir_mtime(path)
+    if mtime is None:
+      continue
+    age = now - mtime
+    if age < max_age_seconds:
+      continue
+    print(
+      'Removing stale cal cache for cameragroup {} (survey {}, age {:.0f}s)'.format(
+        name, survey_id, age,
+      )
+    )
+    shutil.rmtree(path, ignore_errors=True)
+
+  try:
+    os.rmdir(survey_dir)
   except OSError:
     pass
 
