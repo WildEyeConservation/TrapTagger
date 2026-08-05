@@ -58,6 +58,7 @@ def infer(
       results (dict): {str(detection_id): {'distance': float|None, 'error': str|None}}
   '''
   job_root = tempfile.mkdtemp(prefix='depth_job_')
+  session = None
   try:
     os.makedirs(os.path.join(job_root, 'results'), exist_ok=True)
     transect_id = _sanitize_cam_name(cam_name)
@@ -126,6 +127,7 @@ def infer(
     from traptagger_api import (
       estimate_transect_traps,
       prepare_transect_session,
+      release_transect_session,
       traptagger_default_config,
     )
 
@@ -184,6 +186,13 @@ def infer(
       )
     return all_results
   finally:
+    # Always unload SAM/DPT ORT sessions so VRAM does not leak across Celery tasks.
+    if session is not None:
+      try:
+        from traptagger_api import release_transect_session
+        release_transect_session(session)
+      except Exception as e:
+        print('Failed to release depth session GPU resources: {}'.format(e))
     shutil.rmtree(job_root, ignore_errors=True)
 
 
