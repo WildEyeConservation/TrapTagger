@@ -797,7 +797,7 @@ function buildSurveys(survey,disableSurvey) {
             if (isCalUpload) {
                 buildCalUploadProgressUI()
             } else {
-                uploadWorker.postMessage({'func': 'buildUploadProgress', 'args': null});
+            uploadWorker.postMessage({'func': 'buildUploadProgress', 'args': null});
             }
             disableSurvey = true
         } else {
@@ -832,9 +832,9 @@ function buildSurveys(survey,disableSurvey) {
                         document.getElementById('btnConfirm').addEventListener('click', confirmCancelCalUpload);
                         document.getElementById('confirmclose').addEventListener('click', removeCancelCalUploadListeners);
                     } else {
-                        document.getElementById('modalConfirmBody').innerHTML = 'Do you wish to cancel uploading files to ' + survey.name + '? This will delete any new files already uploaded.'
-                        document.getElementById('btnConfirm').addEventListener('click', confirmCancelUpload);
-                        document.getElementById('confirmclose').addEventListener('click', removeCancelUploadListeners);
+                    document.getElementById('modalConfirmBody').innerHTML = 'Do you wish to cancel uploading files to ' + survey.name + '? This will delete any new files already uploaded.'
+                    document.getElementById('btnConfirm').addEventListener('click', confirmCancelUpload);
+                    document.getElementById('confirmclose').addEventListener('click', removeCancelUploadListeners);
                     }
                     modalConfirm.modal({keyboard: true});
                 }
@@ -845,7 +845,7 @@ function buildSurveys(survey,disableSurvey) {
             if (isCalUpload) {
                 btnResume.setAttribute('onclick','resumeCalUpload('+survey.id+',"'+survey.name.replace(/"/g, '\\"')+'")')
             } else {
-                btnResume.setAttribute('onclick','checkUploadAvailable('+survey.id+',"'+survey.name+'")')
+            btnResume.setAttribute('onclick','checkUploadAvailable('+survey.id+',"'+survey.name+'")')
             }
             btnResume.innerHTML = 'Resume Upload'
             if (uploadID) {
@@ -5837,10 +5837,10 @@ document.getElementById('btnSaveSurvey').addEventListener('click', ()=>{
     newSurveyCalCode = CALIBRATION_FOLDER_KEYWORD
 
     // Always store the fixed keyword. Validate only when calibration folders were found.
-    var calStruct = validateCalibrationStructure()
-    if (!calStruct.valid) {
-        legalCalCode = false
-        document.getElementById('newSurveyCalErrors').innerHTML = calStruct.message
+            var calStruct = validateCalibrationStructure()
+            if (!calStruct.valid) {
+                legalCalCode = false
+                document.getElementById('newSurveyCalErrors').innerHTML = calStruct.message
     } else {
         document.getElementById('newSurveyCalErrors').innerHTML = ''
     }
@@ -5950,7 +5950,7 @@ document.getElementById('btnSaveSurvey').addEventListener('click', ()=>{
 
             // Always persist the fixed calibration keyword (auto-detect on import).
             formData.append("newSurveyCalCode", CALIBRATION_FOLDER_KEYWORD)
-            formData.append("calCheckbox", 'true')
+                formData.append("calCheckbox", 'true')
             // Previous Yes/No submit path:
             // if (noCalImages || emptySurvey) {
             //     formData.append("newSurveyCalCode", 'None')
@@ -6234,11 +6234,11 @@ function addFiles(){
     var calCtx = getCalibrationUiContext()
     addImagesCalCode = CALIBRATION_FOLDER_KEYWORD
 
-    var calStruct = validateCalibrationStructure()
-    if (!calStruct.valid) {
-        legalCalCode = false
+            var calStruct = validateCalibrationStructure()
+            if (!calStruct.valid) {
+                legalCalCode = false
         if (calCtx.calErrors) {
-            calCtx.calErrors.innerHTML = calStruct.message
+                calCtx.calErrors.innerHTML = calStruct.message
         } else {
             addFilesErrors.innerHTML = calStruct.message
         }
@@ -6692,50 +6692,50 @@ function submitEditSurvey(skipCalSaveWarning) {
                 return
             }
 
-            var formData = new FormData()
-            formData.append("survey_id", selectedSurvey)
-            formData.append("classifier_id", classifier_id)
-            formData.append("timestamps", JSON.stringify(timestampData))
-            formData.append("imageTimestamps", JSON.stringify(imageTimestampData))
-            formData.append("masks", JSON.stringify(mask_dict))
-            formData.append("staticgroups", JSON.stringify(staticgroup_data))
-            formData.append("ignore_small_detections", ignore_small_detections)
-            formData.append("sky_masked", sky_masked)
-            formData.append("cal_bboxes", JSON.stringify(editedCalBboxes))
-            formData.append("cal_distances", JSON.stringify(editedCalDistances))
-            formData.append("cal_deletions", JSON.stringify(deletedCalImages))
+        var formData = new FormData()
+        formData.append("survey_id", selectedSurvey)
+        formData.append("classifier_id", classifier_id)          
+        formData.append("timestamps", JSON.stringify(timestampData))     
+        formData.append("imageTimestamps", JSON.stringify(imageTimestampData))
+        formData.append("masks", JSON.stringify(mask_dict))
+        formData.append("staticgroups", JSON.stringify(staticgroup_data))
+        formData.append("ignore_small_detections", ignore_small_detections)
+        formData.append("sky_masked", sky_masked)
+        formData.append("cal_bboxes", JSON.stringify(editedCalBboxes))
+        formData.append("cal_distances", JSON.stringify(editedCalDistances))
+        formData.append("cal_deletions", JSON.stringify(deletedCalImages))
             if (pendingCalFiles && pendingCalFiles.length > 0) {
                 formData.append('cal_upload_pending', 'true')
                 formData.append('cal_upload_pending_files', JSON.stringify(pendingCalFiles))
-            }
+        }
 
-            if (document.getElementById('addCoordinatesManualMethod').checked) {
-                formData.append("coordData", JSON.stringify(coordData))
-            }
-            else if (document.getElementById('addCoordinatesKMLMethod').checked) {
-                formData.append("kml", kmlFileUpload.files[0])
-            }
-            formData.append("survey_area", survey_area)
-            if (editAreaName) {
-                formData.append("editAreaName", 'true')
-            } else if (createNewArea) {
-                formData.append("createNewArea", 'true')
-            }
-            if (surveyAreaEditOption != null && survey_area != 'none') {
-                formData.append('edit_area_option', surveyAreaEditOption)
-            }
+        if (document.getElementById('addCoordinatesManualMethod').checked) {
+            formData.append("coordData", JSON.stringify(coordData))
+        }
+        else if (document.getElementById('addCoordinatesKMLMethod').checked) {
+            formData.append("kml", kmlFileUpload.files[0])
+        }
+        formData.append("survey_area", survey_area)
+        if (editAreaName) {
+            formData.append("editAreaName", 'true')
+        } else if (createNewArea) {
+            formData.append("createNewArea", 'true')
+        }
+        if (surveyAreaEditOption != null && survey_area != 'none') {
+            formData.append('edit_area_option', surveyAreaEditOption)
+        }
 
-            var xhttp = new XMLHttpRequest();
-            xhttp.open("POST", '/editSurvey');
-            xhttp.onreadystatechange =
-            function(){
-                if (this.readyState == 4 && this.status == 200) {
-                    reply = JSON.parse(this.responseText);
-                    if (reply.status=='success') {
+        var xhttp = new XMLHttpRequest();
+        xhttp.open("POST", '/editSurvey');
+        xhttp.onreadystatechange =
+        function(){
+            if (this.readyState == 4 && this.status == 200) {
+                reply = JSON.parse(this.responseText);  
+                if (reply.status=='success') {
                         // Skip the "unsaved changes" close confirm — edits are already snapshotted.
-                        alertReload = true
-                        modalEditSurvey.modal('hide')
-                        clearEditSurveyModal()
+                    alertReload = true
+                    modalEditSurvey.modal('hide')
+                    clearEditSurveyModal()
 
                         if (reply.cal_upload) {
                             // Wait until the edit modal has fully hidden (and skipped the
@@ -6755,13 +6755,13 @@ function submitEditSurvey(skipCalSaveWarning) {
                             modalAlert.modal({keyboard: true});
                         }
 
-                    } else {
-                        document.getElementById('editSurveyErrors').innerHTML = reply.message
-                        document.getElementById('btnEditSurvey').disabled = false
-                    }
+                } else {
+                    document.getElementById('editSurveyErrors').innerHTML = reply.message
+                    document.getElementById('btnEditSurvey').disabled = false
                 }
             }
-            xhttp.send(formData);
+        } 
+        xhttp.send(formData);
         })
     }
 }
@@ -9108,7 +9108,7 @@ function updateCalDeleteButtonStates() {
             stageBtn.classList.remove('btn-primary')
             stageBtn.classList.add('btn-warning')
         } else {
-            stageBtn.innerHTML = 'Stage for Deletion'
+    stageBtn.innerHTML = 'Stage for Deletion'
             stageBtn.classList.remove('btn-warning')
             stageBtn.classList.add('btn-primary')
         }
@@ -11644,8 +11644,8 @@ function refreshCalibrationUI() {
 
     var ctx = getCalibrationUiContext()
     if (ctx.calErrors) {
-        var calStruct = validateCalibrationStructure()
-        ctx.calErrors.innerHTML = calStruct.valid ? '' : calStruct.message
+            var calStruct = validateCalibrationStructure()
+            ctx.calErrors.innerHTML = calStruct.valid ? '' : calStruct.message
     }
 
     if (Object.keys(globalSurveyStructure).length > 0) {
@@ -11666,7 +11666,7 @@ function updateCalDiv() {
         if (ctx.calAdvanced) ctx.calAdvanced.checked = false
         if (ctx.calInput) ctx.calInput.value = ''
         if (ctx.calBuilder) {
-            while (ctx.calBuilder.firstChild) ctx.calBuilder.removeChild(ctx.calBuilder.firstChild)
+        while (ctx.calBuilder.firstChild) ctx.calBuilder.removeChild(ctx.calBuilder.firstChild)
         }
         globalCalibrationFolderPaths = []
         globalCalibrationFolderEmptyPaths = []
@@ -12854,8 +12854,8 @@ function updateSurveyStructure(){
             if (structurePages.length > 0 || hasBrowserPaths || (showCalCoverage && !calOk)) {
                 if (showCalCoverage && !calOk) {
                     infoDiv.innerHTML = 'Invalid structure. Please check your site, camera and calibration folders.'
-                } else {
-                    infoDiv.innerHTML = 'Invalid structure. Please check your site and camera identifiers.'
+            } else {
+                infoDiv.innerHTML = 'Invalid structure. Please check your site and camera identifiers.'
                 }
             }
         }

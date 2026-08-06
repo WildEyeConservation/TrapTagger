@@ -18,13 +18,13 @@ if os.path.isdir(_DEPTH_REPO) and _DEPTH_REPO not in sys.path:
 
 # Sibling cameragroup cal-cache dirs older than this are removed (orphans from
 # multi-instance runs where the last batch never ran on this worker).
-_CAL_CACHE_MAX_AGE_SECONDS = int(os.environ.get('DEPTH_CAL_CACHE_MAX_AGE_SECONDS') or 36)
+_CAL_CACHE_MAX_AGE_SECONDS = int(os.environ.get('DEPTH_CAL_CACHE_MAX_AGE_SECONDS') or 3600)
 
 
 def _trap_download_chunk_size():
   '''Internal trap download/inference chunk size for one Celery depth job.'''
   try:
-    return max(1, int(os.environ.get('DEPTH_TRAP_DOWNLOAD_CHUNK_SIZE') or 2))
+    return max(1, int(os.environ.get('DEPTH_TRAP_DOWNLOAD_CHUNK_SIZE') or 300))
   except (TypeError, ValueError):
     return 200
 
@@ -124,6 +124,13 @@ def infer(
           )
         )
 
+    # Persist cal cache after a full calibrate on any non-final batch so later
+    # batches on this host can reuse it (not only batch 1). Final batch clears.
+    cal_cache_hit = cached_calib_path is not None
+    write_cal_cache = (
+      use_cal_cache and batch_index < batch_count and not cal_cache_hit
+    )
+
     from traptagger_api import (
       estimate_transect_traps,
       prepare_transect_session,
@@ -131,7 +138,7 @@ def infer(
       traptagger_default_config,
     )
 
-    if use_cal_cache and batch_index == 1:
+    if write_cal_cache:
       os.makedirs(_cal_cache_root(survey_id, cameragroup_id), exist_ok=True)
 
     collect_bbox_audit = os.environ.get('DEPTH_BBOX_AUDIT', '0') == '1'
@@ -141,12 +148,17 @@ def infer(
       config=traptagger_default_config(),
       collect_bbox_audit=collect_bbox_audit,
       cached_calib_path=cached_calib_path,
-      calib_cache_path=calib_cache_path if batch_index == 1 else None,
+      calib_cache_path=calib_cache_path if write_cal_cache else None,
     )
 
-    if use_cal_cache and batch_index == 1:
+    if write_cal_cache:
       _save_cal_frames(transect_dir, survey_id, cameragroup_id)
       _save_cal_masks(transect_dir, survey_id, cameragroup_id)
+      print(
+        'Saved cal cache for cameragroup {} (batch {}/{})'.format(
+          cameragroup_id, batch_index, batch_count,
+        )
+      )
 
     chunk_size = _trap_download_chunk_size()
     all_results = {}
