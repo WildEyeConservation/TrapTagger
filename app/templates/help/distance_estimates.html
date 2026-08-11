@@ -1,0 +1,102 @@
+<!-- Copyright 2023
+
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+
+http://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License. -->
+
+<h4>Distance sampling estimates</h4>
+
+<p>
+    The <strong>Estimates</strong> table summarises the camera-trap distance sampling (CTDS) density result for the selected species. Values come from the fitted detection function and <em>dht2</em> density estimation in the R <em>Distance</em> package.
+</p>
+
+<p>
+    Metrics include:
+</p>
+
+<ul>
+    <li>
+        <strong>Density (per km²):</strong>
+        Estimated number of animals per square kilometre in the study area.
+    </li>
+    <li>
+        <strong>Standard error:</strong>
+        Standard error of the density estimate.
+    </li>
+    <li>
+        <strong>Lower CI / Upper CI:</strong>
+        Lower and upper bounds of the 95% confidence interval for density.
+    </li>
+    <li>
+        <strong>CV:</strong>
+        Coefficient of variation of the density estimate (standard error divided by the estimate). Higher values indicate greater relative uncertainty.
+    </li>
+    <li>
+        <strong>Detections:</strong>
+        Number of independent detections used after time-to-independence thinning.
+    </li>
+    <li>
+        <strong>Sites:</strong>
+        Number of camera sites included in the analysis (including sites with effort but no detections of the selected species).
+    </li>
+    <li>
+        <strong>Sample fraction (FOV/360):</strong>
+        Horizontal camera field of view divided by 360°. This is the fraction of a full circle covered by each camera.
+    </li>
+    <li>
+        <strong>Effective detection radius (m):</strong>
+        Effective strip half-width / detection radius implied by the fitted detection function (metres).
+    </li>
+    <li>
+        <strong>Min / max truncation (m):</strong>
+        Truncation distances applied when fitting the detection function. If max truncation was not set, the maximum observed detection distance is used.
+    </li>
+    <li>
+        <strong>Distance binning:</strong>
+        Whether distance cutpoints were used when fitting the detection function.
+    </li>
+    <li>
+        <strong>Selected model:</strong>
+        Name of the detection-function model chosen by automatic model selection.
+    </li>
+    <li>
+        <strong>Model family:</strong>
+        Key-function family of the selected model (uniform, half-normal, or hazard-rate).
+    </li>
+    <li>
+        <strong>Selection method:</strong>
+        How the final model was chosen (QAIC within each key-function family, then χ²/df comparison among family winners).
+    </li>
+    <li>
+        <strong>Overdispersion (χ²/df):</strong>
+        Chi-square goodness-of-fit statistic divided by degrees of freedom for the selected model. Used in the final model comparison step.
+    </li>
+    <li>
+        <strong>Activity multiplier applied:</strong>
+        Whether temporal availability was estimated and passed to <em>dht2</em> as a multiplier (Howe et al. 2017).
+    </li>
+    <li>
+        <strong>Temporal availability rate / SE:</strong>
+        Estimated proportion of camera operating time when animals were active and available for detection, and its standard error (shown when the activity multiplier is enabled).
+    </li>
+    <li>
+        <strong>Camera hours per day:</strong>
+        Hours per 24 h day that cameras were recording, used to scale the activity rate.
+    </li>
+    <li>
+        <strong>Activity time scale:</strong>
+        <em>Clock</em> uses wall-clock timestamps; <em>Solar</em> converts timestamps to solar time of day using mean trap-site coordinates and a UTC offset.
+    </li>
+</ul>
+
+<p>
+    Reliable inference generally requires sufficient camera sites and independent detections. Very few sites often produce wide confidence intervals even when the point density looks plausible.
+</p>

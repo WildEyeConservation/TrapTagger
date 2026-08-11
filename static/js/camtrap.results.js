@@ -96,6 +96,7 @@ var chartColours = {
 }
 
 var globalLabels = []
+var globalLabelsWithDistances = []
 var globalSites = []
 var globalSitesIDs = []
 var globalTags = []
@@ -192,6 +193,7 @@ function getLabelsSitesTagsAndGroups(){
             reply = JSON.parse(this.responseText);
             // console.log(reply)
             globalLabels = reply.labels
+            globalLabelsWithDistances = reply.labels_with_distances || []
             globalTags = reply.tags
             globalSites = []
             for (let i=0;i<reply.sites.length;i++) {
@@ -218,17 +220,11 @@ function getLabelsSitesTagsAndGroups(){
                     optionValues = optionValues.concat(globalIndividualSpecies)
                     optionTexts = optionTexts.concat(globalIndividualSpecies)
                 }
-                else if (analysisType=='8') {
+                else if (analysisType=='8' || analysisType=='9') {
                     optionValues = ['-1']
                     optionTexts = ['None']
-                    optionValues = optionValues.concat(globalLabels)
-                    optionTexts = optionTexts.concat(globalLabels)
-                }
-                else if (analysisType=='9') {
-                    optionValues = ['-1']
-                    optionTexts = ['None']
-                    optionValues = optionValues.concat(globalLabels)
-                    optionTexts = optionTexts.concat(globalLabels)
+                    optionValues = optionValues.concat(globalLabelsWithDistances)
+                    optionTexts = optionTexts.concat(globalLabelsWithDistances)
                 }
                 else{
                     optionValues = optionValues.concat(globalLabels)
@@ -292,12 +288,11 @@ function generateResults(){
 
     document.getElementById('statisticsErrors').innerHTML = ''
     document.getElementById('rErrors').innerHTML = ''
-    document.getElementById('distanceSamplingErrors').innerHTML = ''
-    document.getElementById('tteAbundanceErrors').innerHTML = ''
     document.getElementById('analysisOptionsErrors').innerHTML = ''
     var analysisDescription = document.getElementById('analysisDescription')
     analysisDescription.innerHTML = ''
     document.getElementById('distanceSamplingDiv').hidden = true
+    document.getElementById('distanceAdvancedDiv').hidden = true
     document.getElementById('tteAbundanceDiv').hidden = true
     document.getElementById('cameraFovDiv').hidden = true
 
@@ -617,9 +612,9 @@ function generateResults(){
         document.getElementById('covariatesDiv').hidden = true
         document.getElementById('observationWindowDiv').hidden = true
         document.getElementById('distanceSamplingDiv').hidden = false
+        document.getElementById('distanceAdvancedDiv').hidden = false
         document.getElementById('cameraFovDiv').hidden = false
         document.getElementById('cameraFovHelpDistance').hidden = false
-        document.getElementById('cameraFovHelpTte').hidden = true
         document.getElementById('cameraTrapDiv').hidden = true
         document.getElementById('dataUnitDiv').hidden = true
         document.getElementById('indivCharacteristicsDiv').hidden = true
@@ -636,8 +631,8 @@ function generateResults(){
             clearSelect(speciesSelector)
             var optionValues = ['-1']
             var optionTexts = ['None']
-            optionValues = optionValues.concat(globalLabels)
-            optionTexts = optionTexts.concat(globalLabels)
+            optionValues = optionValues.concat(globalLabelsWithDistances)
+            optionTexts = optionTexts.concat(globalLabelsWithDistances)
             fillSelect(speciesSelector, optionTexts, optionValues)
         }
 
@@ -665,6 +660,7 @@ function generateResults(){
         document.getElementById('covariatesDiv').hidden = true
         document.getElementById('observationWindowDiv').hidden = true
         document.getElementById('distanceSamplingDiv').hidden = true
+        document.getElementById('distanceAdvancedDiv').hidden = true
         document.getElementById('tteAbundanceDiv').hidden = false
         document.getElementById('cameraFovDiv').hidden = true
         document.getElementById('cameraTrapDiv').hidden = true
@@ -683,8 +679,8 @@ function generateResults(){
             clearSelect(speciesSelector)
             var optionValues = ['-1']
             var optionTexts = ['None']
-            optionValues = optionValues.concat(globalLabels)
-            optionTexts = optionTexts.concat(globalLabels)
+            optionValues = optionValues.concat(globalLabelsWithDistances)
+            optionTexts = optionTexts.concat(globalLabelsWithDistances)
             fillSelect(speciesSelector, optionTexts, optionValues)
         }
 
@@ -720,6 +716,7 @@ function generateResults(){
         document.getElementById('descriptionDiv').hidden = true
         document.getElementById('flankDiv').hidden = true
         document.getElementById('distanceSamplingDiv').hidden = true
+        document.getElementById('distanceAdvancedDiv').hidden = true
         document.getElementById('tteAbundanceDiv').hidden = true
 
         analysisDescription.innerHTML = ''
@@ -917,7 +914,7 @@ function disablePanel(){
         document.getElementById('tteAreaModeDirect').disabled = true
         document.getElementById('tteAreaModeFov').disabled = true
         document.getElementById('tteViewableAreaM2').disabled = true
-        document.getElementById('cameraFovDegrees').disabled = true
+        document.getElementById('tteCameraFovDegrees').disabled = true
         document.getElementById('tteSpeciesSpeedMhr').disabled = true
         document.getElementById('tteStudyAreaKm2').disabled = true
         document.getElementById('tteNper').disabled = true
@@ -1117,7 +1114,7 @@ function enablePanel(){
         document.getElementById('tteAreaModeDirect').disabled = false
         document.getElementById('tteAreaModeFov').disabled = false
         document.getElementById('tteViewableAreaM2').disabled = false
-        document.getElementById('cameraFovDegrees').disabled = false
+        document.getElementById('tteCameraFovDegrees').disabled = false
         document.getElementById('tteSpeciesSpeedMhr').disabled = false
         document.getElementById('tteStudyAreaKm2').disabled = false
         document.getElementById('tteNper').disabled = false
@@ -4514,6 +4511,14 @@ function exportResults(){
             link.click();
         }
     }
+    else if (analysisSelection == '8') {
+        if (globalDistanceResults && globalDistanceResults.plot_url) {
+            var link = document.createElement('a');
+            link.href = globalDistanceResults.plot_url;
+            link.download = 'distance_detection_function.png';
+            link.click();
+        }
+    }
     else if (analysisSelection == '6') {
         // Get active tab and export selected graph 
         occu_name = tabActiveResults.split('occuTab_')[1]
@@ -4633,7 +4638,9 @@ function openAnalysisEdit(evt, editName) {
     if (tabActive == 'baseAnalysisDiv') {
         var analysisSelector = document.getElementById('analysisSelector')
         var analysisSelection = analysisSelector.options[analysisSelector.selectedIndex].value
-        if (analysisSelection != '0' && analysisSelection != '5' && analysisSelection != '6' && analysisSelection != '7'){
+        // R analyses (activity, occupancy, SCR, distance, TTE) require Generate —
+        // do not auto-run validation/results when returning from Datasets.
+        if (analysisSelection != '0' && analysisSelection != '5' && analysisSelection != '6' && analysisSelection != '7' && analysisSelection != '8' && analysisSelection != '9'){
             updateResults()
         }
     }
@@ -4666,6 +4673,9 @@ function openResultsTab(evt, tabName, results) {
     }
     else if (analysisSelection == '7'){
         buildSCR(results, tabName)
+    }
+    else if (analysisSelection == '8'){
+        buildDistanceTab(results, tabName)
     }
 }
 
@@ -6607,15 +6617,15 @@ function checkDistanceSampling(species, studyAreaKm2, cameraFovDegrees, leftTrun
     }
 
     if (leftTrunc !== '' && (isNaN(leftTrunc) || parseFloat(leftTrunc) < 0)) {
-        error += 'Left truncation must be a non-negative number or blank. '
+        error += 'Min truncation must be a non-negative number or blank. '
     }
 
     if (rightTrunc !== '' && (isNaN(rightTrunc) || parseFloat(rightTrunc) <= 0)) {
-        error += 'Right truncation must be a positive number or blank. '
+        error += 'Max truncation must be a positive number or blank. '
     }
 
     if (leftTrunc !== '' && rightTrunc !== '' && parseFloat(leftTrunc) >= parseFloat(rightTrunc)) {
-        error += 'Left truncation must be less than right truncation. '
+        error += 'Min truncation must be less than max truncation. '
     }
 
     if (document.getElementById('distanceAdvancedOptions').checked) {
@@ -6654,6 +6664,14 @@ function getCameraFovDegrees(){
     return parseFloat(val)
 }
 
+function getTteCameraFovDegrees(){
+    var val = document.getElementById('tteCameraFovDegrees').value
+    if (val === '' || isNaN(val) || parseFloat(val) <= 0 || parseFloat(val) > 360) {
+        return null
+    }
+    return parseFloat(val)
+}
+
 function getTteAreaMode(){
     if (document.getElementById('tteAreaModeFov').checked) {
         return 'fov'
@@ -6665,11 +6683,6 @@ function toggleTteAreaMode(){
     var mode = getTteAreaMode()
     document.getElementById('tteAreaDirectDiv').hidden = (mode !== 'direct')
     document.getElementById('tteAreaFovDiv').hidden = (mode !== 'fov')
-    if (document.getElementById('analysisSelector').value == '9') {
-        document.getElementById('cameraFovDiv').hidden = (mode !== 'fov')
-        document.getElementById('cameraFovHelpDistance').hidden = true
-        document.getElementById('cameraFovHelpTte').hidden = (mode !== 'fov')
-    }
 }
 
 function getTteSpeciesSpeedMhr(){
@@ -6748,7 +6761,7 @@ function appendSpaceNtimeTteFormParams(formData){
     if (getTteAreaMode() === 'direct') {
         formData.append('viewable_area_m2', JSON.stringify(getTteViewableAreaM2()))
     } else {
-        formData.append('fov_degrees', JSON.stringify(getCameraFovDegrees()))
+        formData.append('fov_degrees', JSON.stringify(getTteCameraFovDegrees()))
     }
 }
 
@@ -6786,7 +6799,7 @@ function checkSpaceNtimeTte(species){
             error += 'Please enter a valid viewable area (m²) greater than 0. '
         }
     } else {
-        var fov = getCameraFovDegrees()
+        var fov = getTteCameraFovDegrees()
         if (fov === null) {
             error += 'Please enter a valid camera field of view between 0 and 360 degrees. '
         }
@@ -6802,9 +6815,9 @@ function checkSpaceNtimeTte(species){
 
     if (error !== '') {
         valid = false
-        document.getElementById('tteAbundanceErrors').innerHTML = error
+        document.getElementById('rErrors').innerHTML = error
     } else {
-        document.getElementById('tteAbundanceErrors').innerHTML = ''
+        document.getElementById('rErrors').innerHTML = ''
     }
 
     return valid
@@ -7072,6 +7085,16 @@ function appendDistanceModelSelectionTable(mainDiv, title, description, tableId,
     h5.setAttribute('style', 'margin-bottom: 2px;')
     row.appendChild(h5)
 
+    var copyClipboard = document.createElement('button')
+    copyClipboard.setAttribute('type', 'button')
+    copyClipboard.setAttribute('class', 'btn btn-link btn-sm')
+    copyClipboard.setAttribute('data-toggle', 'tooltip')
+    copyClipboard.setAttribute('title', 'Copy to clipboard')
+    copyClipboard.setAttribute('onclick', "copyToClipboard('" + tableId + "')")
+    copyClipboard.setAttribute('style', 'font-size: 1.10em; padding: 0px; margin-left: 5px; margin-bottom: 0px;')
+    copyClipboard.innerHTML = '<i class="fa fa-clipboard" aria-hidden="true"></i>'
+    row.appendChild(copyClipboard)
+
     if (description) {
         h5 = document.createElement('h5')
         h5.innerHTML = '<div><i>' + description + '</i></div>'
@@ -7124,20 +7147,53 @@ function appendDistanceModelSelectionTable(mainDiv, title, description, tableId,
 }
 
 function buildDistanceResults(results){
-    /** Builds the distance sampling results panel */
-    var mainDiv = document.getElementById('resultsDiv')
+    /** Builds distance sampling result tabs: Estimates, Model selection, Detection function. */
+    var resultsDiv = document.getElementById('resultsDiv')
+    var resultsTab = document.getElementById('resultsTab')
+    resultsTab.hidden = false
 
-    var h5 = document.createElement('h5')
-    h5.innerHTML = 'Distance Sampling'
-    h5.setAttribute('style', 'margin-bottom: 2px')
-    mainDiv.appendChild(h5)
+    while (resultsTab.firstChild) {
+        resultsTab.removeChild(resultsTab.firstChild)
+    }
+    while (resultsDiv.firstChild) {
+        resultsDiv.removeChild(resultsDiv.firstChild)
+    }
 
-    h5 = document.createElement('h5')
-    h5.innerHTML = '<div><i>Density estimates from camera-trap distance sampling using detections with measured distances.</i></div>'
-    h5.setAttribute('style', 'font-size: 80%; margin-bottom: 2px')
-    mainDiv.appendChild(h5)
-    mainDiv.appendChild(document.createElement('br'))
+    var tabs = [
+        { id: 'distanceEstimatesTab', label: 'Estimates', exportable: false },
+        { id: 'distanceModelSelectionTab', label: 'Model selection', exportable: false },
+        { id: 'distanceDetectionFunctionTab', label: 'Detection function', exportable: true },
+    ]
 
+    for (var i = 0; i < tabs.length; i++) {
+        ;(function(tabInfo, isFirst) {
+            var btn = document.createElement('button')
+            btn.classList.add('tablinks')
+            if (isFirst) {
+                btn.classList.add('active')
+            }
+            btn.innerHTML = tabInfo.label
+            resultsTab.appendChild(btn)
+
+            var panel = document.createElement('div')
+            panel.classList.add('tabcontent')
+            panel.setAttribute('id', tabInfo.id)
+            panel.style.display = 'none'
+            resultsDiv.appendChild(panel)
+
+            btn.addEventListener('click', function(event) {
+                document.getElementById('statisticsErrors').innerHTML = ''
+                document.getElementById('btnExportResults').disabled = !tabInfo.exportable || !results.plot_url
+                openResultsTab(event, tabInfo.id, results)
+            })
+        })(tabs[i], i === 0)
+    }
+
+    resultsTab.getElementsByClassName('tablinks')[0].click()
+}
+
+function buildDistanceTab(results, tab){
+    /** Lazily fills a distance sampling results tab. */
     function fmt(val, digits) {
         if (val === null || val === undefined || val === '') return '—'
         var n = parseFloat(val)
@@ -7145,140 +7201,301 @@ function buildDistanceResults(results){
         return n.toFixed(digits === undefined ? 3 : digits)
     }
 
-    var table = document.createElement('table')
-    table.classList.add('table', 'table-striped', 'table-bordered')
-    table.setAttribute('id', 'distanceSamplingTable')
-    mainDiv.appendChild(table)
-
-    var thead = document.createElement('thead')
-    table.appendChild(thead)
-    var headerRow = document.createElement('tr')
-    thead.appendChild(headerRow)
-    var headers = ['Metric', 'Value']
-    for (var h = 0; h < headers.length; h++) {
-        var th = document.createElement('th')
-        th.innerHTML = headers[h]
-        headerRow.appendChild(th)
-    }
-
-    var tbody = document.createElement('tbody')
-    table.appendChild(tbody)
-
-    var rows = [
-        ['Density (per km²)', fmt(results.density, 4)],
-        ['Standard error', fmt(results.density_se, 4)],
-        ['Lower CI', fmt(results.density_lci, 4)],
-        ['Upper CI', fmt(results.density_uci, 4)],
-        ['CV', fmt(results.density_cv, 4)],
-        ['Detections', results.n_detections != null ? results.n_detections : '—'],
-        ['Sites', results.n_sites != null ? results.n_sites : '—'],
-        ['Sample fraction (FOV/360)', fmt(results.sample_fraction, 4)],
-        ['Effective detection radius (m)', fmt(results.effective_detection_radius, 2)],
-        ['Left truncation (m)', fmt(results.left_trunc_effective, 2)],
-        ['Right truncation (m)', fmt(results.right_trunc_effective, 2)],
-        ['Distance binning', results.used_cutpoints ? 'Yes' : 'No'],
-        ['Selected model', results.model_name || results.model_key || '—'],
-        ['Model family', results.model_key || '—'],
-        ['Selection method', results.selection_method || '—'],
-        ['Overdispersion (χ²/df)', fmt(results.chat, 3)],
-    ]
-
-    if (results.activity_multiplier_applied) {
-        rows.push(['Activity multiplier applied', 'Yes'])
-        rows.push(['Temporal availability rate', fmt(results.activity_rate, 4)])
-        rows.push(['Temporal availability SE', fmt(results.activity_rate_se, 4)])
-        rows.push(['Camera hours per day', fmt(results.camera_hours_per_day, 2)])
-        rows.push(['Activity time scale', results.activity_time_mode || '—'])
-        if (results.activity_time_mode === 'solar' && results.utc_offset_hours != null) {
-            rows.push(['UTC offset used (solar)', fmt(results.utc_offset_hours, 2)])
+    if (tab == 'distanceEstimatesTab') {
+        var estimatesTab = document.getElementById('distanceEstimatesTab')
+        if (estimatesTab.firstChild != null) {
+            return
         }
-        if (results.activity_time_mode === 'solar' && results.timezone) {
-            rows.push(['Timezone (solar)', results.timezone])
-        }
-    } else {
-        rows.push(['Activity multiplier applied', 'No'])
-    }
 
-    for (var i = 0; i < rows.length; i++) {
-        var tr = document.createElement('tr')
-        tbody.appendChild(tr)
-        for (var j = 0; j < rows[i].length; j++) {
-            var td = document.createElement('td')
-            td.innerHTML = rows[i][j]
-            tr.appendChild(td)
-        }
-    }
+        var row = document.createElement('div')
+        row.classList.add('row')
+        row.setAttribute('style', 'margin:0px')
+        estimatesTab.appendChild(row)
 
-    if (results.model_warnings && results.model_warnings.length > 0) {
-        mainDiv.appendChild(document.createElement('br'))
-        var warn = document.createElement('div')
-        warn.setAttribute('style', 'font-size: 85%; color: #DF691A')
-        warn.innerHTML = '<strong>Model selection notes:</strong><ul style="margin-bottom: 0;">' +
-            results.model_warnings.map(function(w){ return '<li>' + w + '</li>' }).join('') +
-            '</ul>'
-        mainDiv.appendChild(warn)
-    }
-
-    appendDistanceModelSelectionTable(
-        mainDiv,
-        'QAIC — uniform key',
-        'Lower QAIC is better within the uniform key-function family.',
-        'distanceQaicUniformTable',
-        results.qaic_uniform
-    )
-    appendDistanceModelSelectionTable(
-        mainDiv,
-        'QAIC — half-normal key',
-        'Lower QAIC is better within the half-normal key-function family.',
-        'distanceQaicHalfNormalTable',
-        results.qaic_half_normal
-    )
-    appendDistanceModelSelectionTable(
-        mainDiv,
-        'QAIC — hazard-rate key',
-        'Lower QAIC is better within the hazard-rate key-function family.',
-        'distanceQaicHazardRateTable',
-        results.qaic_hazard_rate
-    )
-    appendDistanceModelSelectionTable(
-        mainDiv,
-        'Final model comparison (χ²/df)',
-        'The selected model has the lowest χ² goodness-of-fit statistic divided by degrees of freedom among the QAIC winners from each key-function family.',
-        'distanceChi2Table',
-        results.chi2_comparison
-    )
-
-    if (results.plot_url) {
-        mainDiv.appendChild(document.createElement('br'))
-        h5 = document.createElement('h5')
-        h5.innerHTML = 'Detection Function'
+        var h5 = document.createElement('h5')
+        h5.innerHTML = 'Distance Sampling'
         h5.setAttribute('style', 'margin-bottom: 2px')
-        mainDiv.appendChild(h5)
+        row.appendChild(h5)
 
-        var imgRow = document.createElement('div')
-        imgRow.classList.add('row')
-        mainDiv.appendChild(imgRow)
+        var help = document.createElement('button')
+        help.setAttribute('type', 'button')
+        help.setAttribute('class', 'btn btn-link btn-sm')
+        help.setAttribute('align', 'left')
+        help.setAttribute('value', 'help')
+        help.setAttribute('data-toggle', 'tooltip')
+        help.setAttribute('title', 'Help')
+        help.setAttribute('onclick', "helpOpen('distance_estimates')")
+        help.setAttribute('style', 'font-size: 1.10em; padding: 0px; margin-left: 5px; margin-bottom: 0px;')
+        help.innerHTML = '<i class="fa fa-question" aria-hidden="true"></i>'
+        row.appendChild(help)
 
-        var imgCol = document.createElement('div')
-        imgCol.classList.add('col-lg-10')
-        imgRow.appendChild(imgCol)
+        var copyClipboard = document.createElement('button')
+        copyClipboard.setAttribute('type', 'button')
+        copyClipboard.setAttribute('class', 'btn btn-link btn-sm')
+        copyClipboard.setAttribute('align', 'left')
+        copyClipboard.setAttribute('data-toggle', 'tooltip')
+        copyClipboard.setAttribute('title', 'Copy to clipboard')
+        copyClipboard.setAttribute('onclick', "copyToClipboard('distanceSamplingTable')")
+        copyClipboard.setAttribute('style', 'font-size: 1.10em; padding: 0px; margin-left: 5px; margin-bottom: 0px;')
+        copyClipboard.innerHTML = '<i class="fa fa-clipboard" aria-hidden="true"></i>'
+        row.appendChild(copyClipboard)
 
-        var img = document.createElement('img')
-        img.setAttribute('src', results.plot_url)
-        img.setAttribute('alt', 'Detection function plot')
-        img.setAttribute('style', 'max-width: 100%; height: auto;')
-        imgCol.appendChild(img)
+        h5 = document.createElement('h5')
+        h5.innerHTML = '<div><i>Density estimates from camera-trap distance sampling using detections with measured distances.</i></div>'
+        h5.setAttribute('style', 'font-size: 80%; margin-bottom: 2px')
+        estimatesTab.appendChild(h5)
+        estimatesTab.appendChild(document.createElement('br'))
+
+        var table = document.createElement('table')
+        table.classList.add('table', 'table-striped', 'table-bordered')
+        table.setAttribute('id', 'distanceSamplingTable')
+        estimatesTab.appendChild(table)
+
+        var thead = document.createElement('thead')
+        table.appendChild(thead)
+        var headerRow = document.createElement('tr')
+        thead.appendChild(headerRow)
+        var headers = ['Metric', 'Value']
+        for (var h = 0; h < headers.length; h++) {
+            var th = document.createElement('th')
+            th.innerHTML = headers[h]
+            headerRow.appendChild(th)
+        }
+
+        var tbody = document.createElement('tbody')
+        table.appendChild(tbody)
+
+        var rows = [
+            ['Density (per km²)', fmt(results.density, 4)],
+            ['Standard error', fmt(results.density_se, 4)],
+            ['Lower CI', fmt(results.density_lci, 4)],
+            ['Upper CI', fmt(results.density_uci, 4)],
+            ['CV', fmt(results.density_cv, 4)],
+            ['Detections', results.n_detections != null ? results.n_detections : '—'],
+            ['Sites', results.n_sites != null ? results.n_sites : '—'],
+            ['Sample fraction (FOV/360)', fmt(results.sample_fraction, 4)],
+            ['Effective detection radius (m)', fmt(results.effective_detection_radius, 2)],
+            ['Min truncation (m)', fmt(results.left_trunc_effective, 2)],
+            ['Max truncation (m)', fmt(results.right_trunc_effective, 2)],
+            ['Distance binning', results.used_cutpoints ? 'Yes' : 'No'],
+            ['Selected model', results.model_name || results.model_key || '—'],
+            ['Model family', results.model_key || '—'],
+            ['Selection method', results.selection_method || '—'],
+            ['Overdispersion (χ²/df)', fmt(results.chat, 3)],
+        ]
+
+        if (results.activity_multiplier_applied) {
+            rows.push(['Activity multiplier applied', 'Yes'])
+            rows.push(['Temporal availability rate', fmt(results.activity_rate, 4)])
+            rows.push(['Temporal availability SE', fmt(results.activity_rate_se, 4)])
+            rows.push(['Camera hours per day', fmt(results.camera_hours_per_day, 2)])
+            rows.push(['Activity time scale', results.activity_time_mode || '—'])
+            if (results.activity_time_mode === 'solar' && results.utc_offset_hours != null) {
+                rows.push(['UTC offset used (solar)', fmt(results.utc_offset_hours, 2)])
+            }
+            if (results.activity_time_mode === 'solar' && results.timezone) {
+                rows.push(['Timezone (solar)', results.timezone])
+            }
+        } else {
+            rows.push(['Activity multiplier applied', 'No'])
+        }
+
+        for (var i = 0; i < rows.length; i++) {
+            var tr = document.createElement('tr')
+            tbody.appendChild(tr)
+            for (var j = 0; j < rows[i].length; j++) {
+                var td = document.createElement('td')
+                td.innerHTML = rows[i][j]
+                tr.appendChild(td)
+            }
+        }
+
+        if (results.model_warnings && results.model_warnings.length > 0) {
+            estimatesTab.appendChild(document.createElement('br'))
+            var warn = document.createElement('div')
+            warn.setAttribute('style', 'font-size: 85%; color: #DF691A')
+            warn.innerHTML = '<strong>Model selection notes:</strong><ul style="margin-bottom: 0;">' +
+                results.model_warnings.map(function(w){ return '<li>' + w + '</li>' }).join('') +
+                '</ul>'
+            estimatesTab.appendChild(warn)
+        }
+    }
+    else if (tab == 'distanceModelSelectionTab') {
+        var modelTab = document.getElementById('distanceModelSelectionTab')
+        if (modelTab.firstChild != null) {
+            return
+        }
+
+        var modelRow = document.createElement('div')
+        modelRow.classList.add('row')
+        modelRow.setAttribute('style', 'margin:0px')
+        modelTab.appendChild(modelRow)
+
+        var modelH5 = document.createElement('h5')
+        modelH5.innerHTML = 'Model selection'
+        modelH5.setAttribute('style', 'margin-bottom: 2px')
+        modelRow.appendChild(modelH5)
+
+        var modelHelp = document.createElement('button')
+        modelHelp.setAttribute('type', 'button')
+        modelHelp.setAttribute('class', 'btn btn-link btn-sm')
+        modelHelp.setAttribute('align', 'left')
+        modelHelp.setAttribute('value', 'help')
+        modelHelp.setAttribute('data-toggle', 'tooltip')
+        modelHelp.setAttribute('title', 'Help')
+        modelHelp.setAttribute('onclick', "helpOpen('distance_model_selection')")
+        modelHelp.setAttribute('style', 'font-size: 1.10em; padding: 0px; margin-left: 5px; margin-bottom: 0px;')
+        modelHelp.innerHTML = '<i class="fa fa-question" aria-hidden="true"></i>'
+        modelRow.appendChild(modelHelp)
+
+        modelH5 = document.createElement('h5')
+        modelH5.innerHTML = '<div><i>QAIC comparisons within each key-function family, then final χ²/df comparison among family winners.</i></div>'
+        modelH5.setAttribute('style', 'font-size: 80%; margin-bottom: 2px')
+        modelTab.appendChild(modelH5)
+
+        appendDistanceModelSelectionTable(
+            modelTab,
+            'QAIC — uniform key',
+            'Lower QAIC is better within the uniform key-function family.',
+            'distanceQaicUniformTable',
+            results.qaic_uniform
+        )
+        appendDistanceModelSelectionTable(
+            modelTab,
+            'QAIC — half-normal key',
+            'Lower QAIC is better within the half-normal key-function family.',
+            'distanceQaicHalfNormalTable',
+            results.qaic_half_normal
+        )
+        appendDistanceModelSelectionTable(
+            modelTab,
+            'QAIC — hazard-rate key',
+            'Lower QAIC is better within the hazard-rate key-function family.',
+            'distanceQaicHazardRateTable',
+            results.qaic_hazard_rate
+        )
+        appendDistanceModelSelectionTable(
+            modelTab,
+            'Final model comparison (χ²/df)',
+            'The selected model has the lowest χ² goodness-of-fit statistic divided by degrees of freedom among the QAIC winners from each key-function family.',
+            'distanceChi2Table',
+            results.chi2_comparison
+        )
+    }
+    else if (tab == 'distanceDetectionFunctionTab') {
+        var plotTab = document.getElementById('distanceDetectionFunctionTab')
+        if (plotTab.firstChild != null) {
+            return
+        }
+
+        var plotRow = document.createElement('div')
+        plotRow.classList.add('row')
+        plotRow.setAttribute('style', 'margin:0px')
+        plotTab.appendChild(plotRow)
+
+        var plotH5 = document.createElement('h5')
+        plotH5.innerHTML = 'Detection Function'
+        plotH5.setAttribute('style', 'margin-bottom: 2px')
+        plotRow.appendChild(plotH5)
+
+        var plotHelp = document.createElement('button')
+        plotHelp.setAttribute('type', 'button')
+        plotHelp.setAttribute('class', 'btn btn-link btn-sm')
+        plotHelp.setAttribute('align', 'left')
+        plotHelp.setAttribute('value', 'help')
+        plotHelp.setAttribute('data-toggle', 'tooltip')
+        plotHelp.setAttribute('title', 'Help')
+        plotHelp.setAttribute('onclick', "helpOpen('distance_detection_function')")
+        plotHelp.setAttribute('style', 'font-size: 1.10em; padding: 0px; margin-left: 5px; margin-bottom: 0px;')
+        plotHelp.innerHTML = '<i class="fa fa-question" aria-hidden="true"></i>'
+        plotRow.appendChild(plotHelp)
+
+        plotH5 = document.createElement('h5')
+        plotH5.innerHTML = '<div><i>Fitted detection function for the selected model.</i></div>'
+        plotH5.setAttribute('style', 'font-size: 80%; margin-bottom: 2px')
+        plotTab.appendChild(plotH5)
+        plotTab.appendChild(document.createElement('br'))
+
+        if (results.plot_url) {
+            var imgRow = document.createElement('div')
+            imgRow.classList.add('row')
+            plotTab.appendChild(imgRow)
+
+            var imgSpace = document.createElement('div')
+            imgSpace.classList.add('col-lg-1')
+            imgRow.appendChild(imgSpace)
+
+            var imgCol = document.createElement('div')
+            imgCol.classList.add('col-lg-10')
+            imgRow.appendChild(imgCol)
+
+            var imgCenter = document.createElement('center')
+            imgCol.appendChild(imgCenter)
+
+            var img = document.createElement('img')
+            img.setAttribute('src', results.plot_url)
+            img.setAttribute('alt', 'Detection function plot')
+            img.setAttribute('style', 'max-width: 100%; height: auto;')
+            imgCenter.appendChild(img)
+
+            imgSpace = document.createElement('div')
+            imgSpace.classList.add('col-lg-1')
+            imgRow.appendChild(imgSpace)
+        } else {
+            var missing = document.createElement('div')
+            missing.setAttribute('style', 'font-size: 85%; color: #DF691A')
+            missing.innerHTML = 'No detection function plot was generated for this run.'
+            plotTab.appendChild(missing)
+        }
     }
 }
 
 function buildTteResults(results){
     /** Builds the time-to-event abundance results panel */
     var mainDiv = document.getElementById('resultsDiv')
+    var resultsTab = document.getElementById('resultsTab')
+    resultsTab.hidden = true
+    while (resultsTab.firstChild) {
+        resultsTab.removeChild(resultsTab.firstChild)
+    }
+    document.getElementById('btnExportResults').disabled = true
+
+    while (mainDiv.firstChild) {
+        mainDiv.removeChild(mainDiv.firstChild)
+    }
+
+    var row = document.createElement('div')
+    row.classList.add('row')
+    row.setAttribute('style', 'margin:0px')
+    mainDiv.appendChild(row)
 
     var h5 = document.createElement('h5')
     h5.innerHTML = 'Time-to-Event Abundance'
     h5.setAttribute('style', 'margin-bottom: 2px')
-    mainDiv.appendChild(h5)
+    row.appendChild(h5)
+
+    var help = document.createElement('button')
+    help.setAttribute('type', 'button')
+    help.setAttribute('class', 'btn btn-link btn-sm')
+    help.setAttribute('align', 'left')
+    help.setAttribute('value', 'help')
+    help.setAttribute('data-toggle', 'tooltip')
+    help.setAttribute('title', 'Help')
+    help.setAttribute('onclick', "helpOpen('tte_abundance_results')")
+    help.setAttribute('style', 'font-size: 1.10em; padding: 0px; margin-left: 5px; margin-bottom: 0px;')
+    help.innerHTML = '<i class="fa fa-question" aria-hidden="true"></i>'
+    row.appendChild(help)
+
+    var copyClipboard = document.createElement('button')
+    copyClipboard.setAttribute('type', 'button')
+    copyClipboard.setAttribute('class', 'btn btn-link btn-sm')
+    copyClipboard.setAttribute('align', 'left')
+    copyClipboard.setAttribute('data-toggle', 'tooltip')
+    copyClipboard.setAttribute('title', 'Copy to clipboard')
+    copyClipboard.setAttribute('onclick', "copyToClipboard('tteAbundanceTable')")
+    copyClipboard.setAttribute('style', 'font-size: 1.10em; padding: 0px; margin-left: 5px; margin-bottom: 0px;')
+    copyClipboard.innerHTML = '<i class="fa fa-clipboard" aria-hidden="true"></i>'
+    row.appendChild(copyClipboard)
 
     h5 = document.createElement('h5')
     h5.innerHTML = '<div><i>Population abundance (N) from camera-trap detections using the spaceNtime TTE model.</i></div>'
@@ -7320,7 +7537,7 @@ function buildTteResults(results){
         ['Detections', results.n_detections != null ? results.n_detections : '—'],
         ['Cameras', results.n_cameras != null ? results.n_cameras : '—'],
         ['Sampling occasions', results.n_occasions != null ? results.n_occasions : '—'],
-        ['Study area (km²)', results.study_area_m2 != null ? fmt(results.study_area_m2 / 1000000, 4) : '—'],
+        ['Study area (km²)', results.study_area_m2 != null ? fmt(results.study_area_m2 / 1000000, 2) : '—'],
         ['Viewable area used (m²)', fmt(results.viewable_area_m2, 2)],
         ['Species speed (m/hr)', fmt(results.species_speed_m_hr, 2)],
         ['TTE sampling period (s)', fmt(results.sampling_period_seconds, 2)],

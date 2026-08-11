@@ -23,11 +23,11 @@ retrying = false
 uploadWorker.onmessage = function(evt){
     /** Take instructions from the web worker */
     if (evt.data.func=='updateUploadProgress') {
-        updateUploadProgress(evt.data.args[0],evt.data.args[1])
+        updateUploadProgress(evt.data.args[0], evt.data.args[1], evt.data.args[2])
     } else if (evt.data.func=='uppyAddFiles') {
         uppy.addFiles(evt.data.args)
     } else if (evt.data.func=='updatePathDisplay') {
-        updatePathDisplay(evt.data.args[0], evt.data.args[1])
+        updatePathDisplay(evt.data.args[0], evt.data.args[1], evt.data.args[4], evt.data.args[2])
         updateCalibrationNotice(evt.data.args[2], evt.data.args[3])
         updateSiteFolderSelect()
         updateCamFolderSelect()
@@ -56,7 +56,7 @@ uploadWorker.onmessage = function(evt){
     } else if (evt.data.func=='checkTrapgroupCode') {
         checkTrapgroupCode()
     } else if (evt.data.func=='buildUploadProgress') {
-        buildUploadProgress(evt.data.args[0],evt.data.args[1])
+        buildUploadProgress(evt.data.args[0], evt.data.args[1], evt.data.args[2])
     } else if (evt.data.func=='updatePage') {
         updatePage(current_page)
     } else if (evt.data.func=='uploadStart') {
@@ -89,7 +89,28 @@ function updateCalibrationNotice(calibrationFolderPaths, calibrationFolderEmptyP
     globalCalibrationFolderCount = globalCalibrationFolderPaths.length
 }
 
-function buildUploadProgress(filesUploaded,filecount) {
+function formatDetectedFilesLabel(filecount, calibrationFileCount) {
+    /** Builds the files-detected / upload-progress label with optional calibration split. */
+    var calCount = calibrationFileCount || 0
+    if (calCount > 0) {
+        var trapCount = Math.max(0, (filecount || 0) - calCount)
+        return filecount.toString() + ' (' + trapCount.toString() + ' images, ' + calCount.toString() + ' calibration)'
+    }
+    return (filecount || 0).toString()
+}
+
+function formatDetectedPathsLabel(folders, calibrationFolderPaths) {
+    /** Builds the paths-found heading with optional calibration split. */
+    var cameraCount = (folders && folders.length) ? folders.length : 0
+    var calCount = (calibrationFolderPaths && calibrationFolderPaths.length) ? calibrationFolderPaths.length : 0
+    var total = cameraCount + calCount
+    if (calCount > 0) {
+        return total.toString() + ' (' + cameraCount.toString() + ' camera, ' + calCount.toString() + ' calibration)'
+    }
+    return total.toString()
+}
+
+function buildUploadProgress(filesUploaded, filecount, calibrationFileCount) {
     /** Builds the upload progress bar */
 
     deleteSurveyBtn = document.getElementById('deleteSurveyBtn'+uploadID.toString())
@@ -158,7 +179,7 @@ function buildUploadProgress(filesUploaded,filecount) {
     newProgInner.setAttribute("aria-valuemin", "0");
     newProgInner.setAttribute("aria-valuemax", filecount);
     newProgInner.setAttribute("style","width:"+perc+"%");
-    newProgInner.innerHTML = filesUploaded.toString() + '/' + filecount.toString() + " files uploaded."
+    newProgInner.innerHTML = filesUploaded.toString() + '/' + filecount.toString() + ' files uploaded.'
 
     newProg.appendChild(newProgInner);
     col21.appendChild(newProg);
@@ -170,9 +191,11 @@ function buildUploadProgress(filesUploaded,filecount) {
     col31.appendChild(timeRemDiv);
 }
 
-function updatePathDisplay(folders,filecount) {
+function updatePathDisplay(folders, filecount, calibrationFileCount, calibrationFolderPaths) {
     /** Updates the folders found display */
     pathDisplay = document.getElementById('pathDisplay')
+    folders = folders || []
+    calibrationFolderPaths = calibrationFolderPaths || []
 
     if (pathDisplay) {
         while(pathDisplay.firstChild){
@@ -181,21 +204,29 @@ function updatePathDisplay(folders,filecount) {
 
         // add file count
         let fileCountOption = document.createElement('option');
-        fileCountOption.text = 'Files detected: '+filecount.toString();
+        fileCountOption.text = 'Files detected: ' + formatDetectedFilesLabel(filecount, calibrationFileCount);
         fileCountOption.value = 0;
         pathDisplay.add(fileCountOption);
 
         // add folder heading
         let folderDisplay = document.createElement('option');
-        folderDisplay.text = 'Paths found:';
+        folderDisplay.text = 'Paths found: ' + formatDetectedPathsLabel(folders, calibrationFolderPaths);
         folderDisplay.value = 1;
         pathDisplay.add(folderDisplay)
 
-        //add paths
+        // camera / trap paths
         for (let i = 0; i < folders.length; i++){
             let option = document.createElement('option');
             option.text = folders[i];
             option.value = i;
+            pathDisplay.add(option);
+        }
+
+        // calibration paths (only when present; structure checks already skip these)
+        for (let i = 0; i < calibrationFolderPaths.length; i++){
+            let option = document.createElement('option');
+            option.text = calibrationFolderPaths[i];
+            option.value = folders.length + i;
             pathDisplay.add(option);
         }
     }
@@ -365,14 +396,14 @@ function getTimeRemaining(value,total) {
     return timeRemaining
 }
 
-function updateUploadProgress(value,total) {
+function updateUploadProgress(value, total, calibrationFileCount) {
     /** Updates the file upload progress bar */
     progBar = document.getElementById('uploadProgBar')
     if (progBar) {
         perc=(value/total)*100
         progBar.setAttribute('aria-valuenow',value)
         progBar.setAttribute('style',"width:"+perc+"%")
-        progBar.innerHTML = value.toString() + '/' + total.toString() + " files uploaded."
+        progBar.innerHTML = value.toString() + '/' + total.toString() + ' files uploaded.'
         document.getElementById('uploadStatus').innerHTML = 'Uploading...'
         document.getElementById('uploadTimeRemDiv').innerHTML = 'Time Remaining: ' + getTimeRemaining(value,total)
     } else if (uploading) {

@@ -255,7 +255,7 @@ var barColours = {
 
 var btnOpacity = 0.2
 
-var disabledSurveyStatuses = ['re-clustering','extracting labels','correcting timestamps','reclustering','removing duplicate images','importing coordinates','processing','deleting','launched','importing','removing humans','identifying static detections','clustering','import queued','cancelled','prepping annotation set','classifying','calculating scores', 'static detection analysis','extracting timestamps','copying', 'processing cameras', 'processing static detections']
+var disabledSurveyStatuses = ['re-clustering','extracting labels','correcting timestamps','reclustering','removing duplicate images','importing coordinates','processing','deleting','launched','importing','removing humans','identifying static detections','clustering','import queued','cancelled','prepping annotation set','classifying','calculating scores', 'static detection analysis','extracting timestamps','copying', 'processing cameras', 'processing static detections', 'processing calibration data']
 var diabledTaskStatuses = ['wrapping up','prepping','deleting','importing','processing','pending','started','initialising','stopping','copying','waiting']
 const launchMTurkTaskBtn = document.querySelector('#launchMTurkTaskBtn');
 const btnCreateTask = document.querySelector('#btnCreateTask');
@@ -403,6 +403,7 @@ var editedCalDistances = {}
 var deletedCalImages = []
 var editedCalBboxes = {}
 var calImageCameragroupById = {}
+var allSurveyCalImages = [] // [{id, cameragroup_id}] across all cameras
 var stagedCalUploadSets = []
 var activeImageCal = null
 var finishedDisplayingCal = true
@@ -2043,6 +2044,9 @@ function updateSiteFolderSelect(){
             //find the longest path 
             path = ''
             for (let i=2;i<pathDisplay.options.length;i++) {
+                if (typeof pathMatchesCalibration === 'function' && pathMatchesCalibration(pathDisplay.options[i].text)) {
+                    continue
+                }
                 if (pathDisplay.options[i].text.length > path.length) {
                     path = pathDisplay.options[i].text;
                 }
@@ -2106,6 +2110,9 @@ function updateCamFolderSelect(){
             //find the longest path
             path = ''
             for (let i=2;i<pathDisplay.options.length;i++) {
+                if (typeof pathMatchesCalibration === 'function' && pathMatchesCalibration(pathDisplay.options[i].text)) {
+                    continue
+                }
                 if (pathDisplay.options[i].text.length > path.length) {
                     path = pathDisplay.options[i].text;
                 }
@@ -7885,6 +7892,7 @@ function resetCalibrationStaging() {
     deletedCalImages = []
     stagedCalUploadSets = []
     calImageCameragroupById = {}
+    allSurveyCalImages = []
 }
 
 function resetCalibrationState() {
@@ -8020,7 +8028,8 @@ function filterCalUploadAgainstExisting(files, existingDistances, otherStagedSet
     return { files: keptFiles, distances: keptDistances }
 }
 
-function getSurveyCameragroupsForUpload(callback) {
+function getSurveyCameragroupsForUpload(callback, surveyId) {
+    var id = surveyId || selectedSurvey
     var xhttp = new XMLHttpRequest()
     xhttp.onreadystatechange = function() {
         if (this.readyState === 4 && this.status === 200) {
@@ -8028,7 +8037,7 @@ function getSurveyCameragroupsForUpload(callback) {
             if (callback) callback()
         }
     }
-    xhttp.open('GET', '/getSurveyCameragroups/' + selectedSurvey)
+    xhttp.open('GET', '/getSurveyCameragroups/' + id)
     xhttp.send()
 }
 
@@ -8045,7 +8054,7 @@ function fetchExistingCalDistances(cameragroupId, callback) {
     xhttp.send()
 }
 
-function addStagedCalUploadSet(cameragroupId, cameragroupName, files, distances, uploadViaS3) {
+function addStagedCalUploadSet(cameragroupId, cameragroupName, files, distances, uploadViaS3, cameraRelativePath) {
     // Merge into an existing staged set for this camera when staging again (e.g. second bulk).
     for (var i = 0; i < stagedCalUploadSets.length; i++) {
         var existing = stagedCalUploadSets[i]
@@ -8063,6 +8072,9 @@ function addStagedCalUploadSet(cameragroupId, cameragroupName, files, distances,
         // Keep bulk flag if either contribution was bulk.
         existing.uploadViaS3 = existing.uploadViaS3 || !!uploadViaS3
         if (cameragroupName) existing.cameragroupName = cameragroupName
+        if (cameraRelativePath && !existing.cameraRelativePath) {
+            existing.cameraRelativePath = cameraRelativePath
+        }
         return
     }
     stagedCalUploadSetIdSeq += 1
@@ -8073,7 +8085,7 @@ function addStagedCalUploadSet(cameragroupId, cameragroupName, files, distances,
         files: files,
         distances: distances,
         uploadViaS3: !!uploadViaS3,
-        cameraRelativePath: null
+        cameraRelativePath: cameraRelativePath || null
     })
 }
 
@@ -8310,15 +8322,27 @@ function prepareCalUploadManifestForSubmit(callback) {
         return
     }
 
+    function relativePathForSet(set) {
+        if (set.cameraRelativePath) return set.cameraRelativePath
+        for (var g = 0; g < surveyCameragroups.length; g++) {
+            if (surveyCameragroups[g].id === set.cameragroupId) {
+                return surveyCameragroups[g].relative_path || null
+            }
+        }
+        return null
+    }
+
     var pendingFiles = []
     var queue = []
     for (var s = 0; s < stagedCalUploadSets.length; s++) {
         var set = stagedCalUploadSets[s]
+        var relPath = relativePathForSet(set)
         for (var f = 0; f < set.files.length; f++) {
             pendingFiles.push({
                 cameragroup_id: set.cameragroupId,
                 name: set.files[f].name,
-                distance: set.distances[f]
+                distance: set.distances[f],
+                relative_path: relPath
             })
             queue.push({
                 cameragroupId: set.cameragroupId,
@@ -8619,8 +8643,9 @@ function pauseCalUpload() {
 function resumeCalUpload(surveyId, surveyName) {
     /**
      * Resume a paused Uploading Calibration session.
-     * User re-selects remaining calibration images (pause reloads the page and
+     * User re-selects the original root folder (pause reloads the page and
      * drops File handles, matching the normal survey upload resume pattern).
+     * Already-staged files are skipped; remaining files are rematched by camera path.
      */
     if (uploadID && uploadID != surveyId && (uploading || uploadingCalibration)) {
         document.getElementById('modalAlertHeader').innerHTML = 'Alert'
@@ -8629,6 +8654,8 @@ function resumeCalUpload(surveyId, surveyName) {
         modalAlert.modal({keyboard: true})
         return
     }
+
+    selectedSurvey = surveyId
 
     fetch('/getCalUploadProgress/' + surveyId).then(function (r) { return r.json() }).then(function (data) {
         if (!data || data.status != 'success') {
@@ -8667,7 +8694,7 @@ function resumeCalUpload(surveyId, surveyName) {
             return
         }
 
-        promptResumeCalFiles(surveyId, surveyName || data.survey_name, pending, progress, remainingMeta)
+        promptResumeCalFolder(surveyId, surveyName || data.survey_name, pending, progress, remainingMeta)
     }).catch(function () {
         document.getElementById('modalAlertHeader').innerHTML = 'Error'
         document.getElementById('modalAlertBody').innerHTML = 'Could not resume calibration upload.'
@@ -8675,68 +8702,206 @@ function resumeCalUpload(surveyId, surveyName) {
     })
 }
 
-function promptResumeCalFiles(surveyId, surveyName, pending, progress, remainingMeta) {
-    document.getElementById('modalAlertHeader').innerHTML = 'Resume Calibration Upload'
-    document.getElementById('modalAlertBody').innerHTML =
-        'Please re-select the remaining calibration image(s) (' + remainingMeta.length +
-        ' file(s) left). Filenames must match the original selection.'
-    modalAlert.modal({keyboard: true})
+async function collectFilesFromDirectoryHandle(dirHandle, pathPrefix) {
+    /** Recursively collect File objects with webkitRelativePath set for cal resume scanning. */
+    var out = []
+    for await (var entry of dirHandle.values()) {
+        if (entry.kind === 'directory') {
+            var nextPath = pathPrefix ? (pathPrefix + '/' + entry.name) : entry.name
+            var nested = await collectFilesFromDirectoryHandle(entry, nextPath)
+            for (var i = 0; i < nested.length; i++) out.push(nested[i])
+        } else if (entry.kind === 'file') {
+            var file = await entry.getFile()
+            var relPath = pathPrefix ? (pathPrefix + '/' + entry.name) : entry.name
+            var wrapped = new File([file], file.name, {
+                type: file.type || 'image/jpeg',
+                lastModified: file.lastModified
+            })
+            Object.defineProperty(wrapped, 'webkitRelativePath', {
+                value: relPath,
+                configurable: true
+            })
+            out.push(wrapped)
+        }
+    }
+    return out
+}
+
+function pickResumeCalibrationFolder(callback) {
+    /**
+     * Lets the user pick the original root folder for resume.
+     * Prefers showDirectoryPicker (same as survey upload); falls back to webkitdirectory.
+     */
+    if (window.showDirectoryPicker) {
+        window.showDirectoryPicker().then(function (dirHandle) {
+            return collectFilesFromDirectoryHandle(dirHandle, dirHandle.name || '')
+        }).then(function (files) {
+            callback(null, files)
+        }).catch(function (err) {
+            if (err && err.name === 'AbortError') {
+                callback(null, [])
+                return
+            }
+            callback(err || new Error('Could not read the selected folder.'))
+        })
+        return
+    }
 
     var input = document.createElement('input')
     input.type = 'file'
-    input.accept = 'image/jpeg,.jpg,.jpeg'
+    input.setAttribute('webkitdirectory', '')
+    input.setAttribute('directory', '')
     input.multiple = true
     input.style.display = 'none'
     document.body.appendChild(input)
     input.addEventListener('change', function () {
         var files = Array.prototype.slice.call(input.files || [])
         document.body.removeChild(input)
-        if (!files.length) return
-
-        var filesByName = {}
-        for (var f = 0; f < files.length; f++) {
-            filesByName[files[f].name] = files[f]
-        }
-
-        var queue = []
-        var missing = []
-        for (var i = 0; i < remainingMeta.length; i++) {
-            var meta = remainingMeta[i]
-            var file = filesByName[meta.name]
-            if (!file) {
-                missing.push(meta.name)
-                continue
-            }
-            queue.push({
-                cameragroupId: meta.cameragroup_id,
-                name: meta.name,
-                distance: meta.distance,
-                file: file
-            })
-        }
-
-        if (missing.length) {
-            document.getElementById('modalAlertHeader').innerHTML = 'Alert'
-            document.getElementById('modalAlertBody').innerHTML =
-                'Missing file(s) for resume: ' + missing.slice(0, 8).join(', ') +
-                (missing.length > 8 ? '…' : '') + '. Please select all remaining files.'
-            modalAlert.modal({keyboard: true})
-            return
-        }
-
-        var fullQueue = []
-        for (var p = 0; p < progress.length; p++) {
-            fullQueue.push({
-                cameragroupId: progress[p].cameragroup_id,
-                name: progress[p].name,
-                distance: progress[p].distance,
-                file: null
-            })
-        }
-        fullQueue = fullQueue.concat(queue)
-        startCalUploadSession(surveyId, surveyName, fullQueue, progress)
+        callback(null, files)
     })
-    setTimeout(function () { input.click() }, 300)
+    input.click()
+}
+
+function indexResumeCalFilesByCamera(files, cameragroups) {
+    /**
+     * Build lookup maps for resume rematching:
+     *   byName[cgId|filename] and byDistance[cgId|distance] -> File
+     * Uses bulk folder structure when present; also supports a flat single-camera folder.
+     */
+    var byName = {}
+    var byDistance = {}
+    var scanned = scanBulkCalibrationFolderFiles(files)
+
+    for (var i = 0; i < scanned.groups.length; i++) {
+        var g = scanned.groups[i]
+        var cg = matchCameragroupForCalRelativePath(g.cameraRelativePath, cameragroups)
+        if (!cg) continue
+        for (var f = 0; f < g.files.length; f++) {
+            var file = g.files[f]
+            var dist = g.distances[f]
+            byName[String(cg.id) + '|' + file.name] = file
+            byDistance[String(cg.id) + '|' + String(dist)] = file
+        }
+    }
+
+    return { byName: byName, byDistance: byDistance, structuredGroups: scanned.groups.length }
+}
+
+function indexFlatCalFilesForSingleCamera(files, cameragroupId) {
+    /** Index distance JPEGs from a flat / single-camera folder pick. */
+    var byName = {}
+    var byDistance = {}
+    var seen = {}
+    for (var i = 0; i < files.length; i++) {
+        var file = files[i]
+        var rel = file.webkitRelativePath || file.name
+        var parts = rel.split('/').filter(function (p) { return p })
+        var baseName = parts.length ? parts[parts.length - 1] : file.name
+        if (!isCalUploadJpeg(baseName)) continue
+        var distance = parseCalUploadDistance(baseName)
+        if (distance === null) continue
+        if (seen[distance]) continue
+        seen[distance] = true
+        byName[String(cameragroupId) + '|' + baseName] = file
+        byDistance[String(cameragroupId) + '|' + String(distance)] = file
+    }
+    return { byName: byName, byDistance: byDistance }
+}
+
+function buildResumeCalQueue(files, remainingMeta, cameragroups) {
+    /** Rematch remaining pending entries to files from the re-selected folder tree. */
+    var indexed = indexResumeCalFilesByCamera(files, cameragroups)
+    var byName = indexed.byName
+    var byDistance = indexed.byDistance
+
+    // If structured scan found nothing, allow flat pick when remaining is one camera.
+    if (indexed.structuredGroups === 0 && remainingMeta.length > 0) {
+        var onlyCg = remainingMeta[0].cameragroup_id
+        var singleCamera = true
+        for (var c = 1; c < remainingMeta.length; c++) {
+            if (remainingMeta[c].cameragroup_id !== onlyCg) {
+                singleCamera = false
+                break
+            }
+        }
+        if (singleCamera) {
+            var flat = indexFlatCalFilesForSingleCamera(files, onlyCg)
+            byName = flat.byName
+            byDistance = flat.byDistance
+        }
+    }
+
+    var queue = []
+    var missing = []
+    for (var i = 0; i < remainingMeta.length; i++) {
+        var meta = remainingMeta[i]
+        var cgId = meta.cameragroup_id
+        var file = byName[String(cgId) + '|' + meta.name]
+        if (!file && meta.distance != null && meta.distance !== '') {
+            file = byDistance[String(cgId) + '|' + String(meta.distance)]
+        }
+        if (!file) {
+            var label = meta.name
+            if (meta.relative_path) label = meta.relative_path + '/' + meta.name
+            missing.push(label)
+            continue
+        }
+        queue.push({
+            cameragroupId: cgId,
+            name: meta.name,
+            distance: meta.distance,
+            file: file
+        })
+    }
+
+    return { queue: queue, missing: missing }
+}
+
+function promptResumeCalFolder(surveyId, surveyName, pending, progress, remainingMeta) {
+    document.getElementById('modalAlertHeader').innerHTML = 'Resume Calibration Upload'
+    document.getElementById('modalAlertBody').innerHTML =
+        'Please re-select the same root folder that contains your calibration images (' +
+        remainingMeta.length + ' file(s) remaining). Already uploaded files will be skipped automatically.'
+    modalAlert.modal({keyboard: true})
+
+    getSurveyCameragroupsForUpload(function () {
+        setTimeout(function () {
+            pickResumeCalibrationFolder(function (err, files) {
+                if (err) {
+                    document.getElementById('modalAlertHeader').innerHTML = 'Error'
+                    document.getElementById('modalAlertBody').innerHTML =
+                        (err && err.message) || 'Could not read the selected folder.'
+                    modalAlert.modal({keyboard: true})
+                    return
+                }
+                if (!files || !files.length) return
+
+                var result = buildResumeCalQueue(files, remainingMeta, surveyCameragroups)
+                if (result.missing.length) {
+                    document.getElementById('modalAlertHeader').innerHTML = 'Alert'
+                    document.getElementById('modalAlertBody').innerHTML =
+                        'Could not find ' + result.missing.length + ' remaining calibration file(s) in the selected folder. ' +
+                        'Please select the same root folder used for the original upload. Missing: ' +
+                        result.missing.slice(0, 8).join(', ') +
+                        (result.missing.length > 8 ? '…' : '')
+                    modalAlert.modal({keyboard: true})
+                    return
+                }
+
+                var fullQueue = []
+                for (var p = 0; p < progress.length; p++) {
+                    fullQueue.push({
+                        cameragroupId: progress[p].cameragroup_id,
+                        name: progress[p].name,
+                        distance: progress[p].distance,
+                        file: null
+                    })
+                }
+                fullQueue = fullQueue.concat(result.queue)
+                startCalUploadSession(surveyId, surveyName, fullQueue, progress)
+            })
+        }, 300)
+    }, surveyId)
 }
 
 function buildCalUploadMode() {
@@ -9074,7 +9239,7 @@ function buildCalUploadMode() {
                 }
                 addStagedCalUploadSet(
                     row.cameragroupId, row.cameragroupName,
-                    filtered.files, filtered.distances, true
+                    filtered.files, filtered.distances, true, row.cameraRelativePath
                 )
                 stagedCount += 1
                 finishOne()
@@ -9098,8 +9263,16 @@ function areAllCurrentCalImagesStagedForDeletion() {
     return true
 }
 
+function areAllSurveyCalImagesStagedForDeletion() {
+    if (!allSurveyCalImages || allSurveyCalImages.length === 0) return false
+    for (var i = 0; i < allSurveyCalImages.length; i++) {
+        if (deletedCalImages.indexOf(allSurveyCalImages[i].id) === -1) return false
+    }
+    return true
+}
+
 function updateCalDeleteButtonStates() {
-    /** Syncs single-image and cameragroup delete staging button labels. */
+    /** Syncs single-image, cameragroup, and survey-wide delete staging button labels. */
     var stageBtn = document.getElementById('calStageDeleteBtn')
     if (stageBtn && calImages.length > 0) {
         var isStaged = deletedCalImages.indexOf(calImages[calImgIndex].id) !== -1
@@ -9108,7 +9281,7 @@ function updateCalDeleteButtonStates() {
             stageBtn.classList.remove('btn-primary')
             stageBtn.classList.add('btn-warning')
         } else {
-    stageBtn.innerHTML = 'Stage for Deletion'
+            stageBtn.innerHTML = 'Stage for Deletion'
             stageBtn.classList.remove('btn-warning')
             stageBtn.classList.add('btn-primary')
         }
@@ -9128,6 +9301,23 @@ function updateCalDeleteButtonStates() {
             camBtn.innerHTML = 'Stage Camera for Deletion'
             camBtn.classList.remove('btn-warning')
             camBtn.classList.add('btn-primary')
+        }
+    }
+
+    var allBtn = document.getElementById('calStageDeleteAllBtn')
+    if (allBtn) {
+        allBtn.disabled = !allSurveyCalImages || allSurveyCalImages.length === 0
+        allBtn.style.whiteSpace = 'normal'
+        allBtn.style.height = 'auto'
+        allBtn.style.lineHeight = '1.2'
+        if (areAllSurveyCalImagesStagedForDeletion()) {
+            allBtn.innerHTML = 'Unstage All Deletion'
+            allBtn.classList.remove('btn-primary')
+            allBtn.classList.add('btn-warning')
+        } else {
+            allBtn.innerHTML = 'Stage All for Deletion'
+            allBtn.classList.remove('btn-warning')
+            allBtn.classList.add('btn-primary')
         }
     }
 }
@@ -9169,6 +9359,33 @@ function stageCalibrationCameragroupDeletion() {
         }
         document.getElementById('calStatusMsg').innerHTML =
             '<i>Staged all ' + calImages.length + ' image(s) on this camera for deletion. Click Save Changes to apply.</i>'
+    }
+    updateCalDeleteButtonStates()
+}
+
+function stageAllCalibrationDeletion() {
+    /** Stages or un-stages all calibration images across every camera in the survey. */
+    if (!allSurveyCalImages || allSurveyCalImages.length === 0) return
+
+    if (areAllSurveyCalImagesStagedForDeletion()) {
+        for (var i = 0; i < allSurveyCalImages.length; i++) {
+            var idx = deletedCalImages.indexOf(allSurveyCalImages[i].id)
+            if (idx !== -1) deletedCalImages.splice(idx, 1)
+        }
+        document.getElementById('calStatusMsg').innerHTML =
+            '<i>Unstaged deletion for all ' + allSurveyCalImages.length +
+            ' calibration image(s) across all cameras.</i>'
+    } else {
+        for (var j = 0; j < allSurveyCalImages.length; j++) {
+            var cal = allSurveyCalImages[j]
+            if (deletedCalImages.indexOf(cal.id) === -1) {
+                deletedCalImages.push(cal.id)
+            }
+            calImageCameragroupById[cal.id] = cal.cameragroup_id
+        }
+        document.getElementById('calStatusMsg').innerHTML =
+            '<i>Staged all ' + allSurveyCalImages.length +
+            ' calibration image(s) across all cameras for deletion. Click Save Changes to apply.</i>'
     }
     updateCalDeleteButtonStates()
 }
@@ -9392,7 +9609,7 @@ function buildCalEditMode() {
 
     var descDel = document.createElement('div')
     descDel.setAttribute('style', 'font-size: 80%; margin-bottom: 6px')
-    descDel.innerHTML = '<i>Stage this image or all images for this camera for deletion. Changes apply when you click Save Changes.</i>'
+    descDel.innerHTML = '<i>Stage this image, this camera, or all cameras for deletion. Changes apply when you click Save Changes.</i>'
     col3.appendChild(descDel)
 
     var stageBtn = document.createElement('button')
@@ -9413,6 +9630,18 @@ function buildCalEditMode() {
     stageCamBtn.style.lineHeight = '1.2'
     stageCamBtn.onclick = function() { stageCalibrationCameragroupDeletion() }
     col3.appendChild(stageCamBtn)
+
+    var stageAllBtn = document.createElement('button')
+    stageAllBtn.id = 'calStageDeleteAllBtn'
+    stageAllBtn.innerHTML = 'Stage All for Deletion'
+    stageAllBtn.classList.add('btn', 'btn-primary', 'btn-block')
+    stageAllBtn.style.marginBottom = '6px'
+    stageAllBtn.style.whiteSpace = 'normal'
+    stageAllBtn.style.height = 'auto'
+    stageAllBtn.style.lineHeight = '1.2'
+    stageAllBtn.disabled = true
+    stageAllBtn.onclick = function() { stageAllCalibrationDeletion() }
+    col3.appendChild(stageAllBtn)
 
     var calStatusMsg = document.createElement('div')
     calStatusMsg.id = 'calStatusMsg'
@@ -9603,6 +9832,7 @@ function getCalibrationCameras() {
             calCameras = JSON.parse(this.responseText)
 
             if (calCameras.length === 0 && selectedCalMode === 'edit') {
+                allSurveyCalImages = []
                 var content = document.getElementById('calModeContent')
                 while (content.firstChild) content.removeChild(content.firstChild)
                 var row = document.createElement('div')
@@ -9620,9 +9850,11 @@ function getCalibrationCameras() {
             var select = document.getElementById('calCameraSelect')
             while (select.firstChild) select.removeChild(select.firstChild)
             if (calCameras.length == 0) {
+                allSurveyCalImages = []
                 var opt = document.createElement('option')
                 opt.text = 'No calibration images found'
                 select.appendChild(opt)
+                updateCalDeleteButtonStates()
             } else {
                 for (var i = 0; i < calCameras.length; i++) {
                     var opt = document.createElement('option')
@@ -9630,11 +9862,28 @@ function getCalibrationCameras() {
                     opt.text = calCameras[i].name
                     select.appendChild(opt)
                 }
+                loadAllSurveyCalibrationImageIds()
                 getCalibrationImagesForCamera(calCameras[0].id)
             }
         }
     }
     xhttp.open('GET', '/getCalibrationCameras/' + selectedSurvey)
+    xhttp.send()
+}
+
+function loadAllSurveyCalibrationImageIds() {
+    /** Loads all calibration image IDs across every camera for survey-wide deletion staging. */
+    var xhttp = new XMLHttpRequest()
+    xhttp.onreadystatechange = function() {
+        if (this.readyState == 4 && this.status == 200) {
+            allSurveyCalImages = JSON.parse(this.responseText)
+            for (var i = 0; i < allSurveyCalImages.length; i++) {
+                calImageCameragroupById[allSurveyCalImages[i].id] = allSurveyCalImages[i].cameragroup_id
+            }
+            updateCalDeleteButtonStates()
+        }
+    }
+    xhttp.open('GET', '/getAllCalibrationImageIds/' + selectedSurvey)
     xhttp.send()
 }
 

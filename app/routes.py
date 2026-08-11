@@ -11447,6 +11447,7 @@ def getAllLabelsTagsSitesAndGroups():
     sites_ids = []
     unique_sites = {}
     labels = []
+    labels_with_distances = []
     tags = []
     group_ids = []
     group_names = []
@@ -11466,6 +11467,20 @@ def getAllLabelsTagsSitesAndGroups():
         #     individual_species = [r[0] for r in surveyPermissionsSQ(db.session.query(Individual.species).join(Task,Individual.tasks).join(Survey),current_user.id,'read').filter(Task.id.in_(task_ids)).distinct().all()]
 
         labels = surveyPermissionsSQ(db.session.query(Label.description).join(Task).join(Survey),current_user.id,'read')
+        labels_with_distances = surveyPermissionsSQ(
+            db.session.query(Label.description)
+            .select_from(Labelgroup)
+            .join(Label, Labelgroup.labels)
+            .join(Detection, Detection.id == Labelgroup.detection_id)
+            .join(Task, Task.id == Labelgroup.task_id)
+            .join(Survey, Survey.id == Task.survey_id)
+            .filter(Detection.distance != None)
+            .filter(Detection.static == False)
+            .filter(~Detection.status.in_(Config.DET_IGNORE_STATUSES))
+            .filter(or_(and_(Detection.source == model, Detection.score > Config.DETECTOR_THRESHOLDS[model]) for model in Config.DETECTOR_THRESHOLDS)),
+            current_user.id,
+            'read',
+        )
         tags = surveyPermissionsSQ(db.session.query(Tag.description).join(Task).join(Survey),current_user.id,'read')
         sites = surveyPermissionsSQ(db.session.query(Trapgroup.id, Trapgroup.tag, Trapgroup.latitude, Trapgroup.longitude).join(Survey).join(Task),current_user.id,'read')
         groups = surveyPermissionsSQ(db.session.query(Sitegroup.id, Sitegroup.name).join(Trapgroup, Sitegroup.trapgroups).join(Survey).join(Task),current_user.id,'read')
@@ -11473,6 +11488,7 @@ def getAllLabelsTagsSitesAndGroups():
 
         if task_ids[0] != '0':
             labels = labels.filter(Task.id.in_(task_ids))
+            labels_with_distances = labels_with_distances.filter(Labelgroup.task_id.in_(task_ids))
             tags = tags.filter(Task.id.in_(task_ids))
             sites = sites.filter(Task.id.in_(task_ids))
             groups = groups.filter(Task.id.in_(task_ids))
@@ -11480,12 +11496,14 @@ def getAllLabelsTagsSitesAndGroups():
 
         if area and area != '0': 
             labels = labels.join(Area).filter(Area.name==area)
+            labels_with_distances = labels_with_distances.join(Area).filter(Area.name==area)
             tags = tags.join(Area).filter(Area.name==area)
             sites = sites.join(Area).filter(Area.name==area)
             groups = groups.join(Area).filter(Area.name==area)
             individual_species = individual_species.join(Area).filter(Area.name==area)
 
         labels = [r[0] for r in labels.order_by(Label.description).distinct().all()]
+        labels_with_distances = [r[0] for r in labels_with_distances.order_by(Label.description).distinct().all()]
         tags = [r[0] for r in tags.order_by(Tag.description).distinct().all()]
         sites = sites.order_by(Trapgroup.id).distinct().all()
         groups = groups.order_by(Sitegroup.name).distinct().all()
@@ -11507,7 +11525,16 @@ def getAllLabelsTagsSitesAndGroups():
         group_ids = [r[0] for r in groups]
         group_names = [r[1] for r in groups]
 
-    return json.dumps({'labels': labels, 'sites': sites_data, 'sites_ids': sites_ids, 'tags': tags, 'group_ids': group_ids, 'group_names': group_names, 'individual_species': individual_species})
+    return json.dumps({
+        'labels': labels,
+        'labels_with_distances': labels_with_distances,
+        'sites': sites_data,
+        'sites_ids': sites_ids,
+        'tags': tags,
+        'group_ids': group_ids,
+        'group_names': group_names,
+        'individual_species': individual_species,
+    })
 
 @app.route('/getLineData', methods=['POST'])
 @login_required
@@ -18842,6 +18869,22 @@ def getCalibrationCameras(survey_id):
             .distinct().all()
         cameragroups = [{'id': cg[0], 'name': cg[1]} for cg in cameragroups]
     return json.dumps(cameragroups)
+
+@app.route('/getAllCalibrationImageIds/<int:survey_id>')
+@login_required
+def getAllCalibrationImageIds(survey_id):
+    '''Returns all calibration image IDs (with cameragroup) for a survey.'''
+    images = []
+    survey = db.session.query(Survey).get(survey_id)
+    if survey and checkSurveyPermission(current_user.id, survey.id, 'write'):
+        rows = db.session.query(CalibrationImage.id, CalibrationImage.cameragroup_id)\
+            .join(Cameragroup, CalibrationImage.cameragroup_id == Cameragroup.id)\
+            .join(Camera, Camera.cameragroup_id == Cameragroup.id)\
+            .join(Trapgroup, Trapgroup.id == Camera.trapgroup_id)\
+            .filter(Trapgroup.survey_id == survey_id)\
+            .distinct().all()
+        images = [{'id': r[0], 'cameragroup_id': r[1]} for r in rows]
+    return json.dumps(images)
 
 @app.route('/getDepthEstimationTasks/<int:survey_id>')
 @login_required

@@ -30,6 +30,7 @@ filesQueued = 0
 proposedQueue = []
 uploadQueue = []
 filecount=0
+calibrationFileCount = 0
 addingBatch = false
 checkingFiles = false
 folders = []
@@ -277,6 +278,7 @@ async function listCalibrationFolder(dirHandle, path, cameraPath) {
             if (/^[^.].*\.(jpe?g)$/i.test(entry.name)) {
                 if (isCalUploadDistanceFilename(entry.name)) {
                     filecount += 1
+                    calibrationFileCount += 1
                     proposedQueue.push([path, entry])
                     validCount += 1
                 }
@@ -338,20 +340,20 @@ function updateCalibrationFolders() {
 
 function buildUploadProgress() {
     /** Wrapper function for buildUploadProgress so that the main js can update the page. */
-    postMessage({'func': 'buildUploadProgress', 'args': [filesUploaded,filecount]})
+    postMessage({'func': 'buildUploadProgress', 'args': [filesUploaded, filecount, calibrationFileCount]})
 }
 
 function updatePathDisplay() {
     /** Wrapper function for updatePathDisplay so that the main js can update the page. */
     postMessage({
         'func': 'updatePathDisplay',
-        'args': [folders, filecount, calibrationFolderPaths, calibrationFolderEmptyPaths]
+        'args': [folders, filecount, calibrationFolderPaths, calibrationFolderEmptyPaths, calibrationFileCount]
     })
 }
 
 function updateUploadProgress(value,total) {
     /** Wrapper function for updateUploadProgress so that the main js can update the page. */
-    postMessage({'func': 'updateUploadProgress', 'args': [value,total]})
+    postMessage({'func': 'updateUploadProgress', 'args': [value, total, calibrationFileCount]})
 }
 
 function fileUploadedSuccessfully(filename) {
@@ -450,6 +452,7 @@ function resetScanResults() {
     proposedQueue = []
     uploadQueue = []
     filecount = 0
+    calibrationFileCount = 0
     addingBatch = false
     checkingFiles = false
     folders = []

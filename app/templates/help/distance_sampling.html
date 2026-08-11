@@ -26,10 +26,10 @@ limitations under the License. -->
     <li><strong>One species:</strong> Select a single species for each run. Density is estimated per species; pooled multi-species analysis is not supported.</li>
     <li><strong>Detection distances:</strong> Detections must have distance values, typically from depth estimation on calibration and trap images.</li>
     <li><strong>Study area:</strong> Enter the survey or stratum area in km² used as the <em>Area</em> column in the Distance flatfile.</li>
-    <li><strong>Camera field of view:</strong> Enter the horizontal field of view in degrees. Sample fraction is calculated as FOV / 360.</li>
+    <li><strong>Camera field of view:</strong> Enter the horizontal field of view in degrees.</li>
     <li><strong>Camera effort:</strong> Effort is operating time at each site divided by the snapshot interval (default 2 seconds). Sites with effort but no detections of the selected species are included in the analysis.</li>
     <li><strong>Time to independence:</strong> Detections at the same site are thinned so burst photos closer together than this interval count as one independent event (default 30 minutes). Set to 0 to disable thinning.</li>
-    <li><strong>Detection function:</strong> Models are selected automatically using QAIC within each key-function family (uniform, half-normal, hazard-rate), then compared with χ²/df (<em>chi2_select</em>, Howe et al. 2019). If right truncation is not set, the maximum observed detection distance is used.</li>
+    <li><strong>Detection function:</strong> Models are selected automatically using QAIC within each key-function family (uniform, half-normal, hazard-rate), then compared with χ²/df (<em>chi2_select</em>, Howe et al. 2019). If max truncation is not set, the maximum observed detection distance is used.</li>
 </ul>
 
 <p>
@@ -37,7 +37,7 @@ limitations under the License. -->
 </p>
 
 <ul>
-    <li><strong>Left / right truncation:</strong> Optional truncation distances in metres for the detection function.</li>
+    <li><strong>Min / max truncation:</strong> Optional truncation distances in metres for the detection function.</li>
     <li><strong>Advanced options:</strong> Snapshot interval (seconds) used to convert operating time into CTDS effort units. Change only if your study used a different interval.</li>
     <li><strong>Activity multiplier:</strong> When enabled, temporal availability is estimated from detection times with the R <em>activity</em> package and passed to <em>dht2</em> as a multiplier (Howe et al. 2017). The full calculation is in <em>distance_sampling.R</em> (see <em>build_activity_multiplier()</em>). This adjusts density for the proportion of camera operating time when animals were active and available for detection.</li>
     <li><strong>Camera operating hours per day:</strong> Hours per 24 h calendar day that cameras were recording (default 24). Scales the activity rate when cameras were not on continuously.</li>

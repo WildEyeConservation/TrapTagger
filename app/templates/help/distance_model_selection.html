@@ -1,0 +1,50 @@
+<!-- Copyright 2023
+
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+
+http://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License. -->
+
+<h4>Distance sampling model selection</h4>
+
+<p>
+    Detection-function models are selected automatically following the camera-trap distance sampling approach (Howe et al. 2019). Candidate models are fitted across three key-function families, then compared in two stages.
+</p>
+
+<p>
+    The <strong>Model selection</strong> tab shows:
+</p>
+
+<ul>
+    <li>
+        <strong>QAIC — uniform key:</strong>
+        Quasi-AIC comparisons among adjustment-term options within the uniform key-function family. Lower QAIC is better within the family.
+    </li>
+    <li>
+        <strong>QAIC — half-normal key:</strong>
+        The same within-family QAIC comparison for half-normal key functions.
+    </li>
+    <li>
+        <strong>QAIC — hazard-rate key:</strong>
+        The same within-family QAIC comparison for hazard-rate key functions.
+    </li>
+    <li>
+        <strong>Final model comparison (χ²/df):</strong>
+        The QAIC winner from each key-function family is compared using the chi-square goodness-of-fit statistic divided by degrees of freedom (<em>chi2_select</em>). The model with the lowest χ²/df is selected for density estimation.
+    </li>
+</ul>
+
+<p>
+    Typical columns in these tables include model name or formula, QAIC (or ΔQAIC), χ², degrees of freedom, and χ²/df. Exact columns depend on what the fitted models return for that run.
+</p>
+
+<p>
+    The selected model name, family, selection method, and overdispersion (χ²/df) are also summarised on the <em>Estimates</em> tab. Notes or warnings from model selection, if any, appear under the estimates table.
+</p>

@@ -1,0 +1,50 @@
+<!-- Copyright 2023
+
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+
+http://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License. -->
+
+<h4>Detection function</h4>
+
+<p>
+    The <strong>Detection function</strong> plot shows the fitted detection probability as a function of distance from the camera for the model selected on the <em>Model selection</em> tab.
+</p>
+
+<p>
+    How to read the plot:
+</p>
+
+<ul>
+    <li>
+        <strong>Horizontal axis:</strong>
+        Detection distance (metres), after any min/max truncation applied for the analysis.
+    </li>
+    <li>
+        <strong>Vertical axis:</strong>
+        Estimated probability of detection at that distance.
+    </li>
+    <li>
+        <strong>Histogram / points:</strong>
+        Observed detection distances (often shown in distance bins).
+    </li>
+    <li>
+        <strong>Fitted curve:</strong>
+        The selected key function (uniform, half-normal, or hazard-rate, with any chosen adjustments).
+    </li>
+</ul>
+
+<p>
+    A well-behaved fit typically declines from near 1 at zero distance (subject to left truncation and sample fraction) toward lower detection at greater distances. The shape should follow the histogram of observed distances reasonably closely; large mismatches may indicate truncation, sample size, or model-selection issues.
+</p>
+
+<p>
+    Use <em>Export</em> on this tab to download the detection-function image. The underlying R script is available via <em>View R Script</em>, and the Distance flatfile via <em>Download CSV</em>.
+</p>

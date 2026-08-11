@@ -1,0 +1,82 @@
+<!-- Copyright 2023
+
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+
+http://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License. -->
+
+<h4>Time-to-event abundance results</h4>
+
+<p>
+    The results table summarises the time-to-event (TTE) abundance estimate for the selected species from the R <em>spaceNtime</em> package (<em>tte_estN_fn()</em>).
+</p>
+
+<p>
+    Metrics include:
+</p>
+
+<ul>
+    <li>
+        <strong>Abundance (N):</strong>
+        Estimated population size in the study area.
+    </li>
+    <li>
+        <strong>Standard error:</strong>
+        Standard error of the abundance estimate.
+    </li>
+    <li>
+        <strong>Lower CI / Upper CI:</strong>
+        Lower and upper bounds of the log-normal confidence interval for abundance.
+    </li>
+    <li>
+        <strong>Detections:</strong>
+        Number of detections of the selected species used in the analysis.
+    </li>
+    <li>
+        <strong>Cameras:</strong>
+        Number of camera sites included.
+    </li>
+    <li>
+        <strong>Sampling occasions:</strong>
+        Number of sampling occasions constructed for the TTE analysis.
+    </li>
+    <li>
+        <strong>Study area (km²):</strong>
+        Study area used for abundance estimation (entered in km²; converted to m² for <em>tte_estN_fn()</em>).
+    </li>
+    <li>
+        <strong>Viewable area used (m²):</strong>
+        Camera viewshed area used by the model. Either the value you entered directly, or the area derived from field of view and effective detection radius.
+    </li>
+    <li>
+        <strong>Species speed (m/hr):</strong>
+        Average movement speed used to set TTE sampling period length via <em>tte_samp_per()</em>.
+    </li>
+    <li>
+        <strong>TTE sampling period (s):</strong>
+        Length of each time-to-event sampling period in seconds, derived from viewable area and species speed.
+    </li>
+    <li>
+        <strong>Area mode:</strong>
+        Whether viewable area was entered directly or derived from camera field of view.
+    </li>
+    <li>
+        <strong>Camera field of view (°):</strong>
+        Horizontal field of view used when area mode is derived from FOV.
+    </li>
+    <li>
+        <strong>Effective detection radius (m):</strong>
+        When FOV mode is used, the effective detection distance estimated from detection distances (95th percentile) and used with FOV to derive viewable area.
+    </li>
+</ul>
+
+<p>
+    Use the clipboard button to copy the table. Download CSV exports for detections, deployment, and analysis parameters with <em>Download CSV</em>, and view the underlying R code with <em>View R Script</em>.
+</p>

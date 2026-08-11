@@ -266,19 +266,32 @@ limitations under the License. -->
                         </div>
                         <br>
                         <h5 style="margin-bottom: 2px">Truncation (optional)</h5>
-                        <div style="font-size: 80%; margin-bottom: 2px"><i>Optional left and right truncation distances in metres. Leave blank for none.</i></div>
+                        <div style="font-size: 80%; margin-bottom: 2px"><i>Optional minimum and maximum truncation distances in metres. Leave blank for none.</i></div>
                         <div class="row">
                             <div class='col-lg-5'>
-                                <label for="distanceLeftTrunc" style="margin-bottom: 2px">Left (m):</label>
+                                <label for="distanceLeftTrunc" style="margin-bottom: 2px">Min (m):</label>
                                 <input type="number" class="form-control" id="distanceLeftTrunc" value="" min="0" step="any">
                             </div>
                             <div class='col-lg-5'>
-                                <label for="distanceRightTrunc" style="margin-bottom: 2px">Right (m):</label>
+                                <label for="distanceRightTrunc" style="margin-bottom: 2px">Max (m):</label>
                                 <input type="number" class="form-control" id="distanceRightTrunc" value="" min="0" step="any">
                             </div>
                         </div>
-                        <div id="distanceSamplingErrors" style="font-size: 80%; color: #DF691A"></div>
                         <br>
+                    </div>
+
+                    <div id="cameraFovDiv" hidden>
+                        <h5 style="margin-bottom: 2px">Camera field of view</h5>
+                        <div id="cameraFovHelpDistance" style="font-size: 80%; margin-bottom: 2px"><i>Horizontal field of view in degrees.</i></div>
+                        <div class="row">
+                            <div class='col-lg-10'>
+                                <input type="number" class="form-control" id="cameraFovDegrees" value="" min="0" max="360" step="any">
+                            </div>
+                        </div>
+                        <br>
+                    </div>
+
+                    <div id="distanceAdvancedDiv" hidden>
                         <div class="custom-control custom-checkbox">
                             <input type="checkbox" class="custom-control-input" id="distanceAdvancedOptions" name="distanceAdvancedOptions" onchange="toggleDistanceAdvancedOptions()">
                             <label class="custom-control-label" for="distanceAdvancedOptions">Advanced options</label>
@@ -321,18 +334,6 @@ limitations under the License. -->
                         <br>
                     </div>
 
-                    <div id="cameraFovDiv" hidden>
-                        <h5 style="margin-bottom: 2px">Camera field of view</h5>
-                        <div id="cameraFovHelpDistance" style="font-size: 80%; margin-bottom: 2px"><i>Horizontal field of view in degrees (used as sample fraction = FOV / 360).</i></div>
-                        <div id="cameraFovHelpTte" hidden style="font-size: 80%; margin-bottom: 2px"><i>Horizontal field of view in degrees. When you run the analysis, effective detection distance and viewable area will be calculated from your detection distances and this value. The values used will be shown in the results.</i></div>
-                        <div class="row">
-                            <div class='col-lg-10'>
-                                <input type="number" class="form-control" id="cameraFovDegrees" value="" min="0" max="360" step="any">
-                            </div>
-                        </div>
-                        <br>
-                    </div>
-
                     <div id="tteAbundanceDiv" hidden>
                         <h5 style="margin-bottom: 2px">Viewable area</h5>
                         <div style="font-size: 80%; margin-bottom: 2px"><i>Area visible to the camera used for time-to-event abundance (<em>deploy$area</em> in spaceNtime).</i></div>
@@ -353,7 +354,14 @@ limitations under the License. -->
                             </div>
                         </div>
                         <div id="tteAreaFovDiv" hidden>
-                            <div style="font-size: 80%; margin-bottom: 2px"><i>Enter the camera field of view below. Viewable area will be derived when you run the analysis.</i></div>
+                            <div style="font-size: 80%; margin-bottom: 2px"><i>When you run the analysis, effective detection distance and viewable area will be calculated from your detection distances and this field of view.</i></div>
+                            <h5 style="margin-bottom: 2px">Camera field of view</h5>
+                            <div style="font-size: 80%; margin-bottom: 2px"><i>Horizontal field of view in degrees.</i></div>
+                            <div class="row">
+                                <div class='col-lg-10'>
+                                    <input type="number" class="form-control" id="tteCameraFovDegrees" value="" min="0" max="360" step="any">
+                                </div>
+                            </div>
                         </div>
                         <br>
                         <h5 style="margin-bottom: 2px">Species speed (m/hr)</h5>
@@ -394,7 +402,6 @@ limitations under the License. -->
                                 </select>
                             </div>
                         </div>
-                        <div id="tteAbundanceErrors" style="font-size: 80%; color: #DF691A"></div>
                         <br>
                     </div>
 
