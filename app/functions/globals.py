@@ -568,6 +568,16 @@ def updateTaskCompletionStatus(task_id):
                     .filter(or_(and_(Detection.source==model,Detection.score>Config.DETECTOR_THRESHOLDS[model]) for model in Config.DETECTOR_THRESHOLDS)) \
                     .filter(~Detection.status.in_(Config.DET_IGNORE_STATUSES)) \
                     .distinct().count()
+
+    task.vhl_distance_count = db.session.query(Labelgroup)\
+                    .join(Detection)\
+                    .filter(Labelgroup.task_id==task_id)\
+                    .filter(Labelgroup.labels.contains(vhl_label))\
+                    .filter(Detection.distance!=None)\
+                    .filter(Detection.static==False)\
+                    .filter(or_(and_(Detection.source==model,Detection.score>Config.DETECTOR_THRESHOLDS[model]) for model in Config.DETECTOR_THRESHOLDS))\
+                    .filter(~Detection.status.in_(Config.DET_IGNORE_STATUSES))\
+                    .distinct().count()
     
     # sq = db.session.query(Cluster)\
     #                 .join(Translation,Cluster.classification==Translation.classification)\
@@ -1705,6 +1715,17 @@ def updateLabelCompletionStatus(task_id):
                             .filter(Labelgroup.task_id==task_id) \
                             .filter(Labelgroup.labels.contains(label)) \
                             .filter(Labelgroup.checked==False) \
+                            .filter(Detection.static==False) \
+                            .filter(or_(and_(Detection.source==model,Detection.score>Config.DETECTOR_THRESHOLDS[model]) for model in Config.DETECTOR_THRESHOLDS)) \
+                            .filter(~Detection.status.in_(Config.DET_IGNORE_STATUSES)) \
+                            .distinct().count()
+
+        # Sightings with Detection.distance
+        label.distance_count = db.session.query(Labelgroup) \
+                            .join(Detection) \
+                            .filter(Labelgroup.task_id==task_id) \
+                            .filter(Labelgroup.labels.contains(label)) \
+                            .filter(Detection.distance!=None) \
                             .filter(Detection.static==False) \
                             .filter(or_(and_(Detection.source==model,Detection.score>Config.DETECTOR_THRESHOLDS[model]) for model in Config.DETECTOR_THRESHOLDS)) \
                             .filter(~Detection.status.in_(Config.DET_IGNORE_STATUSES)) \
@@ -7078,7 +7099,7 @@ def _depth_exclusion_reason(sightings_without_depth, sightings_with_depth, cal_c
     reasons = []
     if sightings_without_depth == 0:
         if sightings_with_depth > 0:
-            reasons.append('All matching detections already have depth')
+            reasons.append('All matching detections already have distances')
         else:
             reasons.append('No matching detections')
     if cal_count == 0:
@@ -7511,6 +7532,12 @@ def run_depth_estimation(self, survey_id, task_ids, species_list):
         if survey:
             survey.status = 'Ready'
             db.session.commit()
+        for task_id in (task_ids or []):
+            try:
+                updateAllStatuses(task_id=task_id)
+            except Exception:
+                app.logger.info('Failed updateAllStatuses after depth estimation for task {}'.format(task_id))
+                app.logger.info(traceback.format_exc())
         app.logger.info(
             'Depth estimation finished for survey {}: {} job(s), {} detection(s) updated, {} skipped, {} error(s)'.format(
                 survey_id,
@@ -7784,7 +7811,11 @@ def calculate_detection_score(raw_score,top,bottom,left,right,flank,timestamp):
 
 
 def find_first_file(bucket, prefix):
-    """Recursively find the first file in an S3 bucket with the given prefix."""
+    """
+    Recursively find a representative file under prefix for folder-level UI.
+    Skips calibration folders (soft match: name contains the keyword), matching
+    browser upload which excludes calibration paths when picking a sample path.
+    """
 
     if not prefix.endswith('/'): prefix += '/'
 
@@ -7800,7 +7831,11 @@ def find_first_file(bucket, prefix):
                 return obj['Key']
 
     if 'CommonPrefixes' in response:
+        cal_kw = (Config.CALIBRATION_FOLDER_KEYWORD or 'calibration').lower()
         for cp in sorted(response['CommonPrefixes'], key=lambda x: x['Prefix']):
+            last_seg = cp['Prefix'].rstrip('/').rsplit('/', 1)[-1]
+            if cal_kw in last_seg.lower():
+                continue
             result = find_first_file(bucket, cp['Prefix'])
             if result:
                 return result

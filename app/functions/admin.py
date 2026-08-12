@@ -23,7 +23,7 @@ from app.functions.globals import classifyTask, update_masks, retryTime, resolve
                                     process_multi_labels
 from app.functions.delete import *
 from app.functions.individualID import calculate_detection_similarities, cleanUpIndividuals, check_individual_detection_mismatch
-from app.functions.imports import classifySurvey, s3traverse, classifyCluster, importKML, import_survey, run_calibration_detection_batch, null_detection_distances_for_cameragroups, parse_calibration_distance_filename, apply_edit_survey_cal_edits, apply_edit_survey_cal_uploads, clean_cal_upload_staging
+from app.functions.imports import classifySurvey, s3traverse, classifyCluster, importKML, import_survey, run_calibration_detection_batch, null_detection_distances_for_cameragroups, parse_calibration_distance_filename, apply_edit_survey_cal_edits, apply_edit_survey_cal_uploads, clean_cal_upload_staging, folder_name_is_calibration, path_contains_calibration_folder
 import GLOBALS
 from sqlalchemy.sql import func, or_, and_, distinct, alias
 from sqlalchemy import desc, extract, delete, select
@@ -1569,7 +1569,6 @@ def findTrapgroupTags(self,tgCode,folder,organisation_id,surveyName,camCode):
     try:
         reply = {}
         isjpeg = re.compile(r'(\.jpe?g$)|(_jpe?g$)', re.I)
-        cal_keyword = Config.CALIBRATION_FOLDER_KEYWORD
 
         try:
             is_tg_nth_folder_pattern = re.match(r'^\(\?:\[\^/]\*/\)\{\d+\}\([^)]*\)$', tgCode)
@@ -1603,8 +1602,8 @@ def findTrapgroupTags(self,tgCode,folder,organisation_id,surveyName,camCode):
                 # structure — same as browser pathMatchesCalibration. Collect cal paths and
                 # whether each has at least one valid distance-named JPEG.
                 path_parts = [p for p in dirpath.split('/') if p]
-                if cal_keyword in path_parts:
-                    if path_parts and path_parts[-1] == cal_keyword:
+                if path_contains_calibration_folder(dirpath):
+                    if path_parts and folder_name_is_calibration(path_parts[-1]):
                         if dirpath not in calibration_folder_paths:
                             calibration_folder_paths.append(dirpath)
                         jpegs = list(filter(isjpeg.search, filenames))
@@ -2459,7 +2458,8 @@ def edit_survey(self,survey_id,user_id,classifier_id,sky_masked,ignore_small_det
             null_detection_distances_for_cameragroups(affected_cameragroups)
             db.session.commit()
 
-        skipUpdateStatuses = True
+        # Refresh cached label counts when cal edits cleared Detection.distance
+        skipUpdateStatuses = not bool(affected_cameragroups)
 
         # Coordinates
         if coord_data:

@@ -13,7 +13,7 @@ See the License for the specific language governing permissions and
 limitations under the License. -->
 
 <div align="justify">
-    Here you are able to edit your survey in eight ways:
+    Here you are able to edit your survey in ten ways:
 </div>
 
 <ul align="justify">
@@ -65,6 +65,28 @@ limitations under the License. -->
     <li>
         Static Detections: View and edit the detections that were marked as static. You can edit whether the idenitified static detections are correct or not. It is recommended that you do this
         before creating your first annotation set.
+    </li>
+
+    <li>
+        Calibration Images: Manage the reference images used to estimate detection distances. Calibration images are photographs of a person taken at known distances from the camera,
+        and are required if you wish to run distance estimation on your sightings. You can work with them in two ways:
+        <ul>
+            <li>
+                Edit Calibration Images: View the calibration images for each camera, adjust the bounding box around the calibration object, correct the recorded distance, or delete the calibration images.
+            </li>
+            <li>
+                Upload Calibration Images: Add new calibration images for one camera at a time, or in bulk by selecting a folder tree that contains calibration folders matched to your existing cameras.
+                Filenames must contain a distance in metres (for example 5.jpg, 10m.jpg, or cal_5.5m.jpg). For a single-camera upload the folder itself can be named anything; for bulk upload,
+                folders whose names contain "calibration" (case-insensitive) are detected automatically under each camera. Changes are applied when you save the survey.
+            </li>
+        </ul>
+    </li>
+
+    <li>
+        Distance Estimation: Estimate the distance of animal detections from the camera using your calibration images and species-labelled trap detections. Select an annotation set whose species
+        labelling is complete, choose one or more species to process, review the launch preview, and then launch distance estimation. Cameras need suitable calibration images before they can be
+        processed. The resulting detection distances are what enable Distance Sampling and TTE Abundance analysis types in the Analysis section. Please note that launching distance estimation will process your survey,
+        so any unsaved survey edits should be saved or discarded first.
     </li>
 
     <!-- <li>

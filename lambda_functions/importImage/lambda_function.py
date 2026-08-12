@@ -28,16 +28,23 @@ import re
 s3 = boto3.client('s3')
 
 def is_calibration_dirpath(dirpath, calibration_code):
-    if not calibration_code or not dirpath:
+    if not dirpath:
         return False
     parts = dirpath.split('/')
     if len(parts) < 3:
         return False
-    dir_name = parts[-1]
-    try:
-        return re.compile('^' + calibration_code + '$').match(dir_name) is not None
-    except re.error:
+    dir_name = parts[-1] or ''
+    # Soft match going forward: folder name contains "calibration" (case-insensitive).
+    # Still require a calibration_code on the survey so detection stays opt-in per survey.
+    if not calibration_code:
         return False
+    return 'calibration' in dir_name.lower()
+
+def path_contains_calibration_folder(path):
+    '''True if any path segment contains "calibration" (case-insensitive).'''
+    if not path:
+        return False
+    return any('calibration' in p.lower() for p in path.split('/') if p)
 
 def calibration_camera_relative_path(path, calibration_code):
     if not calibration_code:
@@ -52,8 +59,7 @@ def calibration_camera_relative_path(path, calibration_code):
     dirpath = '/'.join(dirparts)
     if not is_calibration_dirpath(dirpath, calibration_code):
         return None
-    cal_folder_name = dirparts[-1]
-    cal_idx = dirparts.index(cal_folder_name)
+    cal_idx = len(dirparts) - 1
     return '/'.join(dirparts[2:cal_idx])
 
 # First decimal number in the stem (digits with optional fractional part).
@@ -229,6 +235,13 @@ def lambda_handler(event, context):
                         s3.delete_object(Bucket=bucket, Key=key)
                         processed += 1
                         continue  # skip Camera/Image DB insertion
+                    # Nested under a calibration folder but not a leaf cal JPEG — ignore
+                    # (browser uploadWorker does not recurse into calibration folders).
+                    if path_contains_calibration_folder('/'.join(key.split('/')[:-1])):
+                        print('Skipping nested path under calibration folder - {}'.format(key))
+                        os.remove(download_path)
+                        processed += 1
+                        continue
                     # Get Timestamp with pyexif 
                     try:
                         exif_data = piexif.load(download_path)

@@ -38,7 +38,7 @@ from werkzeug.urls import url_parse
 from app.forms import RegistrationForm
 import time
 from sqlalchemy.sql import func, or_, alias, and_, distinct, literal
-from sqlalchemy import desc, extract
+from sqlalchemy import desc, extract, case
 from datetime import datetime, timedelta
 import re
 import math
@@ -3517,7 +3517,7 @@ def getDetailedTaskStatus(task_id):
             'Sighting Correction': [
                 'Checked Sightings'
             ],
-            'Depth Estimation': [
+            'Distance Estimation': [
                 'Sightings With Distances'
             ],
             'Individual ID': [
@@ -3555,7 +3555,7 @@ def getDetailedTaskStatus(task_id):
                 reply['AI Check'] = {}
                 reply['Informational Tagging'] = {}
                 reply['Sighting Correction'] = {}
-                reply['Depth Estimation'] = {}
+                reply['Distance Estimation'] = {}
                 reply['Individual ID'] = {}
                 
                 if label_id==GLOBALS.vhl_id:
@@ -3563,6 +3563,7 @@ def getDetailedTaskStatus(task_id):
                     image_count = task.vhl_image_count
                     sighting_count = task.vhl_sighting_count
                     bounding_count = task.vhl_bounding_count
+                    distance_count = task.vhl_distance_count
                     info_tag_count = task.infoless_vhl_count
                     # potential_clusters = task.potential_vhl_clusters
                 else:
@@ -3570,6 +3571,7 @@ def getDetailedTaskStatus(task_id):
                     image_count = label.image_count
                     sighting_count = label.sighting_count
                     bounding_count = label.bounding_count
+                    distance_count = label.distance_count
                     info_tag_count = label.info_tag_count
                     # potential_clusters = label.potential_clusters
                 
@@ -3603,21 +3605,12 @@ def getDetailedTaskStatus(task_id):
                     else:
                         reply['Sighting Correction']['Checked Sightings'] = '-'
 
-                    # Depth Estimation — live count of sightings with Detection.distance
+                    # Distance Estimation — cached sightings with Detection.distance
                     if sighting_count != 0:
-                        depth_count = db.session.query(Labelgroup)\
-                            .join(Detection)\
-                            .filter(Labelgroup.task_id==task_id)\
-                            .filter(Labelgroup.labels.contains(label))\
-                            .filter(Detection.distance!=None)\
-                            .filter(or_(and_(Detection.source==model,Detection.score>Config.DETECTOR_THRESHOLDS[model]) for model in Config.DETECTOR_THRESHOLDS))\
-                            .filter(Detection.static==False)\
-                            .filter(~Detection.status.in_(Config.DET_IGNORE_STATUSES))\
-                            .distinct().count()
-                        depth_perc = round((depth_count/sighting_count)*100,2)
-                        reply['Depth Estimation']['Sightings With Distances'] = str(depth_count) + '/' + str(sighting_count) + ' (' + str(depth_perc) + '%)'
+                        depth_perc = round((distance_count/sighting_count)*100,2)
+                        reply['Distance Estimation']['Sightings With Distances'] = str(distance_count) + '/' + str(sighting_count) + ' (' + str(depth_perc) + '%)'
                     else:
-                        reply['Depth Estimation']['Sightings With Distances'] = '-'
+                        reply['Distance Estimation']['Sightings With Distances'] = '-'
 
                     # Species Annotation Status
                     if label.parent == None:
@@ -3715,7 +3708,7 @@ def getDetailedTaskStatus(task_id):
                     # reply['AI Check']['Potential Clusters'] = '-'
                     reply['Informational Tagging']['Tagged'] = '-'
                     reply['Sighting Correction']['Checked Sightings'] = '-'
-                    reply['Depth Estimation']['Sightings With Distances'] = '-'
+                    reply['Distance Estimation']['Sightings With Distances'] = '-'
                     reply['Individual ID']['Cluster-Level'] = '-'
                     reply['Individual ID']['Inter-Cluster'] = '-'
                     reply['Individual ID']['Exhaustive'] = '-'
@@ -11448,6 +11441,8 @@ def getAllLabelsTagsSitesAndGroups():
     unique_sites = {}
     labels = []
     labels_with_distances = []
+    labels_with_detections = []
+    labels_incomplete_distances = []
     tags = []
     group_ids = []
     group_names = []
@@ -11481,6 +11476,24 @@ def getAllLabelsTagsSitesAndGroups():
             current_user.id,
             'read',
         )
+        label_distance_coverage = surveyPermissionsSQ(
+            db.session.query(
+                Label.description,
+                func.count(distinct(Labelgroup.id)).label('total'),
+                func.count(distinct(case([(Detection.distance != None, Labelgroup.id)]))).label('with_distance'),
+            )
+            .select_from(Labelgroup)
+            .join(Label, Labelgroup.labels)
+            .join(Detection, Detection.id == Labelgroup.detection_id)
+            .join(Task, Task.id == Labelgroup.task_id)
+            .join(Survey, Survey.id == Task.survey_id)
+            .filter(Detection.static == False)
+            .filter(~Detection.status.in_(Config.DET_IGNORE_STATUSES))
+            .filter(or_(and_(Detection.source == model, Detection.score > Config.DETECTOR_THRESHOLDS[model]) for model in Config.DETECTOR_THRESHOLDS))
+            .group_by(Label.description),
+            current_user.id,
+            'read',
+        )
         tags = surveyPermissionsSQ(db.session.query(Tag.description).join(Task).join(Survey),current_user.id,'read')
         sites = surveyPermissionsSQ(db.session.query(Trapgroup.id, Trapgroup.tag, Trapgroup.latitude, Trapgroup.longitude).join(Survey).join(Task),current_user.id,'read')
         groups = surveyPermissionsSQ(db.session.query(Sitegroup.id, Sitegroup.name).join(Trapgroup, Sitegroup.trapgroups).join(Survey).join(Task),current_user.id,'read')
@@ -11489,6 +11502,7 @@ def getAllLabelsTagsSitesAndGroups():
         if task_ids[0] != '0':
             labels = labels.filter(Task.id.in_(task_ids))
             labels_with_distances = labels_with_distances.filter(Labelgroup.task_id.in_(task_ids))
+            label_distance_coverage = label_distance_coverage.filter(Labelgroup.task_id.in_(task_ids))
             tags = tags.filter(Task.id.in_(task_ids))
             sites = sites.filter(Task.id.in_(task_ids))
             groups = groups.filter(Task.id.in_(task_ids))
@@ -11497,6 +11511,7 @@ def getAllLabelsTagsSitesAndGroups():
         if area and area != '0': 
             labels = labels.join(Area).filter(Area.name==area)
             labels_with_distances = labels_with_distances.join(Area).filter(Area.name==area)
+            label_distance_coverage = label_distance_coverage.join(Area).filter(Area.name==area)
             tags = tags.join(Area).filter(Area.name==area)
             sites = sites.join(Area).filter(Area.name==area)
             groups = groups.join(Area).filter(Area.name==area)
@@ -11504,6 +11519,12 @@ def getAllLabelsTagsSitesAndGroups():
 
         labels = [r[0] for r in labels.order_by(Label.description).distinct().all()]
         labels_with_distances = [r[0] for r in labels_with_distances.order_by(Label.description).distinct().all()]
+        coverage_rows = label_distance_coverage.all()
+        labels_with_detections = sorted(r[0] for r in coverage_rows if r[1])
+        labels_incomplete_distances = sorted(
+            r[0] for r in coverage_rows
+            if r[1] and r[2] and r[2] < r[1]
+        )
         tags = [r[0] for r in tags.order_by(Tag.description).distinct().all()]
         sites = sites.order_by(Trapgroup.id).distinct().all()
         groups = groups.order_by(Sitegroup.name).distinct().all()
@@ -11528,6 +11549,8 @@ def getAllLabelsTagsSitesAndGroups():
     return json.dumps({
         'labels': labels,
         'labels_with_distances': labels_with_distances,
+        'labels_with_detections': labels_with_detections,
+        'labels_incomplete_distances': labels_incomplete_distances,
         'sites': sites_data,
         'sites_ids': sites_ids,
         'tags': tags,
@@ -19040,7 +19063,7 @@ def launchDepthEstimation():
 
     return json.dumps({
         'status': 'success',
-        'message': 'Depth estimation started for {} camera(s). The survey will be unavailable until processing completes.'.format(
+        'message': 'Distance estimation started for {} camera(s). The survey will be unavailable until processing completes.'.format(
             len(launched)
         ),
         'launched': launched,

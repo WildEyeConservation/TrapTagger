@@ -250,7 +250,7 @@ limitations under the License. -->
                             </div>
                         </div>
                         <br>
-                        <h5 style="margin-bottom: 2px">Time to independence</h5>
+                        <h5 style="margin-bottom: 2px">Time To Independence</h5>
                         <div style="font-size: 80%; margin-bottom: 2px"><i>Minimum time between detections at the same site to count as independent events. Burst photos closer together are thinned to one detection.</i></div>
                         <div class="row">
                             <div class="col-lg-5" style="padding-right: 0px;">
@@ -265,7 +265,7 @@ limitations under the License. -->
                             </div>
                         </div>
                         <br>
-                        <h5 style="margin-bottom: 2px">Truncation (optional)</h5>
+                        <h5 style="margin-bottom: 2px">Truncation (Optional)</h5>
                         <div style="font-size: 80%; margin-bottom: 2px"><i>Optional minimum and maximum truncation distances in metres. Leave blank for none.</i></div>
                         <div class="row">
                             <div class='col-lg-5'>
@@ -281,7 +281,7 @@ limitations under the License. -->
                     </div>
 
                     <div id="cameraFovDiv" hidden>
-                        <h5 style="margin-bottom: 2px">Camera field of view</h5>
+                        <h5 style="margin-bottom: 2px">Camera Field Of View</h5>
                         <div id="cameraFovHelpDistance" style="font-size: 80%; margin-bottom: 2px"><i>Horizontal field of view in degrees.</i></div>
                         <div class="row">
                             <div class='col-lg-10'>
@@ -294,37 +294,37 @@ limitations under the License. -->
                     <div id="distanceAdvancedDiv" hidden>
                         <div class="custom-control custom-checkbox">
                             <input type="checkbox" class="custom-control-input" id="distanceAdvancedOptions" name="distanceAdvancedOptions" onchange="toggleDistanceAdvancedOptions()">
-                            <label class="custom-control-label" for="distanceAdvancedOptions">Advanced options</label>
+                            <label class="custom-control-label" for="distanceAdvancedOptions">Advanced Options</label>
                         </div>
                         <div id="distanceAdvancedFields" hidden>
                             <br>
                             <div class="custom-control custom-checkbox">
                                 <input type="checkbox" class="custom-control-input" id="distanceApplyActivityMultiplier" name="distanceApplyActivityMultiplier">
-                                <label class="custom-control-label" for="distanceApplyActivityMultiplier">Apply activity multiplier</label>
+                                <label class="custom-control-label" for="distanceApplyActivityMultiplier">Apply Activity Multiplier</label>
                             </div>
-                            <div style="font-size: 80%; margin-bottom: 2px"><i>Adjust density for temporal availability using detection times and the R <em>activity</em> package (Howe et al.). Uses the same thinned detections as the distance flatfile. All multiplier calculations run in the R script.</i></div>
+                            <div style="font-size: 80%; margin-bottom: 2px"><i>Adjust density for temporal availability using detection times.</i></div>
                             <br>
-                            <h5 style="margin-bottom: 2px">Camera operating hours per day</h5>
-                            <div style="font-size: 80%; margin-bottom: 2px"><i>Hours per 24 h calendar day that cameras were recording (default 24). This is separate from the activity time scale below; it scales the activity rate into the temporal availability multiplier when cameras were not on 24 h.</i></div>
+                            <h5 style="margin-bottom: 2px">Camera Operating Hours Per Day</h5>
+                            <div style="font-size: 80%; margin-bottom: 2px"><i>Hours per 24 h calendar day that cameras were recording. This is separate from the activity time scale below; it scales the activity rate into the temporal availability multiplier when cameras were not on 24 h.</i></div>
                             <div class="row">
                                 <div class='col-lg-10'>
                                     <input type="number" class="form-control" id="distanceCameraHoursPerDay" value="24" min="0.001" max="24" step="any">
                                 </div>
                             </div>
                             <br>
-                            <h5 style="margin-bottom: 2px">Activity time scale</h5>
+                            <h5 style="margin-bottom: 2px">Activity Time Scale</h5>
                             <div style="font-size: 80%; margin-bottom: 2px"><i>How detection times are converted to time-of-day before estimating activity: <strong>Clock</strong> uses wall-clock timestamps; <strong>Solar</strong> converts to solar time of day using mean site coordinates (requires lat/lng from trap sites). This is not the same as camera operating hours.</i></div>
                             <div class="row">
                                 <div class='col-lg-10'>
                                     <select id="distanceActivityTimeMode" class="form-control">
                                         <option value="clock" selected>Clock time</option>
-                                        <option value="solar">Solar time</option>
+                                        <option value="solar">Solar Time</option>
                                     </select>
                                 </div>
                             </div>
                             <br>
-                            <h5 style="margin-bottom: 2px">Snapshot interval (seconds)</h5>
-                            <div style="font-size: 80%; margin-bottom: 2px"><i>Temporal effort uses operating seconds divided by this interval (Howe et al. default: 2 seconds). Only change if you know your camera trigger interval.</i></div>
+                            <h5 style="margin-bottom: 2px">Snapshot Interval (Seconds)</h5>
+                            <div style="font-size: 80%; margin-bottom: 2px"><i>Temporal effort uses operating seconds divided by this interval. Only change if you know your camera trigger interval.</i></div>
                             <div class="row">
                                 <div class='col-lg-10'>
                                     <input type="number" class="form-control" id="distanceSnapshotInterval" value="2" min="0.001" step="any">
@@ -335,7 +335,7 @@ limitations under the License. -->
                     </div>
 
                     <div id="tteAbundanceDiv" hidden>
-                        <h5 style="margin-bottom: 2px">Viewable area</h5>
+                        <h5 style="margin-bottom: 2px">Viewable Area</h5>
                         <div style="font-size: 80%; margin-bottom: 2px"><i>Area visible to the camera used for time-to-event abundance (<em>deploy$area</em> in spaceNtime).</i></div>
                         <div class="custom-control custom-radio">
                             <input type="radio" class="custom-control-input" id="tteAreaModeDirect" name="tteAreaMode" value="direct" checked onchange="toggleTteAreaMode()">
@@ -354,9 +354,8 @@ limitations under the License. -->
                             </div>
                         </div>
                         <div id="tteAreaFovDiv" hidden>
-                            <div style="font-size: 80%; margin-bottom: 2px"><i>When you run the analysis, effective detection distance and viewable area will be calculated from your detection distances and this field of view.</i></div>
-                            <h5 style="margin-bottom: 2px">Camera field of view</h5>
-                            <div style="font-size: 80%; margin-bottom: 2px"><i>Horizontal field of view in degrees.</i></div>
+                            <h5 style="margin-bottom: 2px">Camera Field Of View</h5>
+                            <div style="font-size: 80%; margin-bottom: 2px"><i>Enter the horizontal field of view in degrees. When you run the analysis, effective detection distance and viewable area will be calculated from your detection distances and this field of view.</i></div>
                             <div class="row">
                                 <div class='col-lg-10'>
                                     <input type="number" class="form-control" id="tteCameraFovDegrees" value="" min="0" max="360" step="any">
@@ -364,15 +363,15 @@ limitations under the License. -->
                             </div>
                         </div>
                         <br>
-                        <h5 style="margin-bottom: 2px">Species speed (m/hr)</h5>
-                        <div style="font-size: 80%; margin-bottom: 2px"><i>Movement speed used for time-to-event analysis. Default 30 m/hr matches the spaceNtime vignette; use literature or telemetry if available, or leave blank for 30.</i></div>
+                        <h5 style="margin-bottom: 2px">Species Speed (m/hr)</h5>
+                        <div style="font-size: 80%; margin-bottom: 2px"><i>Movement speed used for time-to-event analysis. Default 30 m/hr matches the spaceNtime vignette; use literature or telemetry if available.</i></div>
                         <div class="row">
                             <div class='col-lg-10'>
-                                <input type="number" class="form-control" id="tteSpeciesSpeedMhr" min="0" step="any">
+                                <input type="number" class="form-control" id="tteSpeciesSpeedMhr" value="30" min="0" step="any">
                             </div>
                         </div>
                         <br>
-                        <h5 style="margin-bottom: 2px">Study area (km²)</h5>
+                        <h5 style="margin-bottom: 2px">Study Area (km²)</h5>
                         <div style="font-size: 80%; margin-bottom: 2px"><i>Total study area in square kilometres, passed to <em>tte_estN_fn()</em> as m² internally.</i></div>
                         <div class="row">
                             <div class='col-lg-10'>
@@ -380,7 +379,7 @@ limitations under the License. -->
                             </div>
                         </div>
                         <br>
-                        <h5 style="margin-bottom: 2px">Periods per occasion</h5>
+                        <h5 style="margin-bottom: 2px">Periods Per Occasion</h5>
                         <div style="font-size: 80%; margin-bottom: 2px"><i>Number of TTE sampling periods in each sampling occasion. Each period length is derived from viewable area and species speed (<em>tte_samp_per</em>).</i></div>
                         <div class="row">
                             <div class='col-lg-10'>
@@ -388,7 +387,7 @@ limitations under the License. -->
                             </div>
                         </div>
                         <br>
-                        <h5 style="margin-bottom: 2px">Time between occasions</h5>
+                        <h5 style="margin-bottom: 2px">Time Between Occasions</h5>
                         <div style="font-size: 80%; margin-bottom: 2px"><i>Gap between sampling occasions (<em>time_btw</em> in spaceNtime), allowing animals to re-randomize before the next occasion starts.</i></div>
                         <div class="row">
                             <div class="col-lg-5" style="padding-right: 0px;">
@@ -500,6 +499,7 @@ limitations under the License. -->
                         <div class="row">
                         <div class="col-lg-10">
                             <select class="form-control" id="speciesSelect"></select>
+                            <div id="speciesDistanceWarning" style="font-size: 80%; color: #DF691A; margin-top: 4px;" hidden></div>
                         </div>
                         </div>
                         <br>

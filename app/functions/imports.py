@@ -20,7 +20,7 @@ from app.models import *
 from app.functions.globals import detection_rating, randomString, updateTaskCompletionStatus, updateLabelCompletionStatus, updateIndividualIdStatus, retryTime,\
                                  chunker, save_crops, list_all, classifyTask, all_equal, generate_raw_image_hash, updateAllStatuses, setup_new_survey_permissions, \
                                  hideSmallDetections, maskSky, rDets, verify_label, checkChildTranslations, createChildTranslations, add_new_task, prepTask, launch_task
-from app.functions.delete import delete_clusters, delete_cameras, delete_trapgroups, delete_cameragroups
+from app.functions.delete import delete_clusters, delete_cameras, delete_trapgroups, delete_cameragroups, delete_calibration_images
 import GLOBALS
 from sqlalchemy.sql import func, or_, distinct, and_, literal_column, alias
 from sqlalchemy import desc, insert, select
@@ -2389,42 +2389,44 @@ def import_folder(s3Folder, survey_id, sourceBucket,destinationBucket,pipeline,m
     for dirpath, folders, filenames in s3traverse(sourceBucket, s3Folder):
         videos = list(filter(isVideo.search, filenames))
         jpegs = list(filter(isjpeg.search, filenames))
-        # handle calibration images
-        if is_calibration_dirpath(dirpath, survey.calibration_code) and jpegs:
-            # Build the _calibration_/ destination key for each jpeg
-            parent_camera_path = '/'.join(dirpath.split('/')[:-1])
-            comp_splits = parent_camera_path.split('/')
-            comp_splits[0] = comp_splits[0] + '-comp'
-            cal_prefix = comp_splits[0] + '/' + comp_splits[1] + '/_calibration_/' + '/'.join(comp_splits[2:])
-            for filename in jpegs:
-                source_key = dirpath + '/' + filename
-                distance = parse_calibration_distance_filename(filename)
-                if distance is None:
-                    try:
-                        GLOBALS.s3client.delete_object(Bucket=sourceBucket, Key=source_key)
-                    except Exception:
-                        pass
-                    app.logger.info('Skipping invalid calibration filename {}'.format(source_key))
-                    continue
-                dest_key = cal_prefix + '/' + filename
-                if calibration_destination_taken(dest_key, sid, distance=distance):
-                    try:
-                        GLOBALS.s3client.delete_object(Bucket=sourceBucket, Key=source_key)
-                    except Exception:
-                        pass
-                    continue
-                with tempfile.NamedTemporaryFile(delete=True, suffix='.JPG') as tmp:
-                    GLOBALS.s3client.download_file(Bucket=sourceBucket, Key=source_key, Filename=tmp.name)
-                    try:
-                        with wandImage(filename=tmp.name).convert('jpeg') as img:
-                            img.metadata['colorspace:auto-grayscale'] = 'false'
-                            img.transform(resize='800')
-                            GLOBALS.s3client.upload_fileobj(BytesIO(img.make_blob()), destinationBucket, dest_key)
-                        GLOBALS.s3client.delete_object(Bucket=sourceBucket, Key=source_key)
-                    except Exception:
-                        app.logger.info('Failed to compress calibration image {}'.format(source_key))
-            continue  # don't process as a regular camera folder
-        if (len(jpegs) or len(videos)) and not any(exclusion in dirpath for exclusion in exclusions) and not is_calibration_dirpath(dirpath, survey.calibration_code):
+        # handle calibration images (leaf cal folder only — same as browser uploadWorker)
+        if path_contains_calibration_folder(dirpath):
+            if is_calibration_dirpath(dirpath, survey.calibration_code) and jpegs:
+                # Build the _calibration_/ destination key for each jpeg
+                parent_camera_path = '/'.join(dirpath.split('/')[:-1])
+                comp_splits = parent_camera_path.split('/')
+                comp_splits[0] = comp_splits[0] + '-comp'
+                cal_prefix = comp_splits[0] + '/' + comp_splits[1] + '/_calibration_/' + '/'.join(comp_splits[2:])
+                for filename in jpegs:
+                    source_key = dirpath + '/' + filename
+                    distance = parse_calibration_distance_filename(filename)
+                    if distance is None:
+                        try:
+                            GLOBALS.s3client.delete_object(Bucket=sourceBucket, Key=source_key)
+                        except Exception:
+                            pass
+                        app.logger.info('Skipping invalid calibration filename {}'.format(source_key))
+                        continue
+                    dest_key = cal_prefix + '/' + filename
+                    if calibration_destination_taken(dest_key, sid, distance=distance):
+                        try:
+                            GLOBALS.s3client.delete_object(Bucket=sourceBucket, Key=source_key)
+                        except Exception:
+                            pass
+                        continue
+                    with tempfile.NamedTemporaryFile(delete=True, suffix='.JPG') as tmp:
+                        GLOBALS.s3client.download_file(Bucket=sourceBucket, Key=source_key, Filename=tmp.name)
+                        try:
+                            with wandImage(filename=tmp.name).convert('jpeg') as img:
+                                img.metadata['colorspace:auto-grayscale'] = 'false'
+                                img.transform(resize='800')
+                                GLOBALS.s3client.upload_fileobj(BytesIO(img.make_blob()), destinationBucket, dest_key)
+                            GLOBALS.s3client.delete_object(Bucket=sourceBucket, Key=source_key)
+                        except Exception:
+                            app.logger.info('Failed to compress calibration image {}'.format(source_key))
+            # Nested under a cal folder (or cal folder without jpegs): never treat as a camera
+            continue
+        if (len(jpegs) or len(videos)) and not any(exclusion in dirpath for exclusion in exclusions):
             if dirpath in cameras_with_trapgroups.keys():
                 trapgroup = cameras_with_trapgroups[dirpath].trapgroup
             else:
@@ -2494,7 +2496,11 @@ def import_folder(s3Folder, survey_id, sourceBucket,destinationBucket,pipeline,m
     for dirpath, folders, filenames in s3traverse(sourceBucket, s3Folder):
         jpegs = list(filter(isjpeg.search, filenames))
         
-        if len(jpegs) and not any(exclusion in dirpath for exclusion in exclusions) and not is_calibration_dirpath(dirpath, survey.calibration_code):
+        # Skip calibration folders and anything nested under them (browser only uploads
+        # distance JPEGs directly inside a calibration folder).
+        if path_contains_calibration_folder(dirpath):
+            continue
+        if len(jpegs) and not any(exclusion in dirpath for exclusion in exclusions):
             if dirpath in cameras_with_trapgroups.keys():
                 camera = cameras_with_trapgroups[dirpath]
                 trapgroup = camera.trapgroup
@@ -4788,13 +4794,47 @@ def group_cameras(self,trapgroup_id,camera_code,trapgroup_code):
                         else:
                             all_cameras = []
                             all_masks = []
+                            all_cal_images = []
                             for existing_cameragroup in existing_cameragroups:
                                 all_cameras.extend(existing_cameragroup.cameras)
                                 all_masks.extend(existing_cameragroup.masks)
+                                all_cal_images.extend(list(existing_cameragroup.calibration_images))
+
+                            # Merge cal images onto the new group; keep one per distance.
+                            kept_cal_ids = []
+                            discard_cal_ids = []
+                            seen_distances = set()
+                            for cal in all_cal_images:
+                                dist = cal.distance
+                                if dist is not None and dist in seen_distances:
+                                    discard_cal_ids.append(cal.id)
+                                else:
+                                    if dist is not None:
+                                        seen_distances.add(dist)
+                                    kept_cal_ids.append(cal.id)
+
+                            if discard_cal_ids:
+                                delete_calibration_images(ids=discard_cal_ids)
+
+                            kept_cal = []
+                            if kept_cal_ids:
+                                kept_cal = db.session.query(CalibrationImage).filter(
+                                    CalibrationImage.id.in_(kept_cal_ids)
+                                ).all()
+                                for cal in kept_cal:
+                                    cal.cameragroup_id = None
+
+                            for existing_cameragroup in existing_cameragroups:
                                 db.session.delete(existing_cameragroup)
+
                             all_cameras.append(camera)
                             all_cameras = list(set(all_cameras))
-                            camera_group = Cameragroup(name=camera_name,cameras=all_cameras,masks=all_masks)
+                            camera_group = Cameragroup(
+                                name=camera_name,
+                                cameras=all_cameras,
+                                masks=all_masks,
+                                calibration_images=kept_cal,
+                            )
                             db.session.add(camera_group)
                     else:
                         camera_group = Cameragroup(name=camera_name,cameras=[camera],masks=[])
@@ -4880,12 +4920,27 @@ def parse_calibration_distance_filename(filename):
         return None
     return distance
 
+def folder_name_is_calibration(dir_name):
+    '''True if folder name contains the calibration keyword (case-insensitive).'''
+    if not dir_name:
+        return False
+    return Config.CALIBRATION_FOLDER_KEYWORD.lower() in dir_name.lower()
+
+
+def path_contains_calibration_folder(dirpath):
+    '''True if any path segment is a calibration folder (soft match).'''
+    if not dirpath:
+        return False
+    return any(folder_name_is_calibration(p) for p in dirpath.split('/') if p)
+
+
 def is_calibration_dirpath(dirpath, calibration_code):
     '''
     Returns True if dirpath points at a calibration folder.
     dirpath example: org/survey/site/cam/calibration
 
-    Uses the fixed Config.CALIBRATION_FOLDER_KEYWORD (exact folder-name match).
+    Matching is case-insensitive substring: the leaf folder name must contain
+    Config.CALIBRATION_FOLDER_KEYWORD (e.g. "calibration", "Calibration_1").
     Configurable regex identifiers were removed from the UI but may be restored later —
     see the commented regex path below.
     '''
@@ -4894,8 +4949,7 @@ def is_calibration_dirpath(dirpath, calibration_code):
     parts = dirpath.split('/')
     if len(parts) < 3:
         return False
-    dir_name = parts[-1]
-    if dir_name == Config.CALIBRATION_FOLDER_KEYWORD:
+    if folder_name_is_calibration(parts[-1]):
         return True
 
     # Previous regex path against survey.calibration_code:
@@ -4931,7 +4985,7 @@ def calibration_camera_relative_path(path, calibration_code):
     if not is_calibration_dirpath(dirpath, effective_code):
         return None
     cal_folder_name = dirparts[-1]
-    cal_idx = dirparts.index(cal_folder_name)  # last segment
+    cal_idx = len(dirparts) - 1
     return '/'.join(dirparts[2:cal_idx])  # between survey and cal folder
 
 def calibration_comp_dest_key(path, calibration_code):

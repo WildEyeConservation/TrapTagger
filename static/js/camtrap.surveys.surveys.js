@@ -126,10 +126,17 @@ var globalCalibrationFolderCount = 0
 var globalCalibrationFolderPaths = []
 var globalCalibrationFolderEmptyPaths = []
 var pendingUploadCalibrationCode = null
-// Fixed calibration folder keyword (exact match). Configurable regex UI was removed
-// but may be restored later — see getSurveyCalibrationCode.
+// Calibration folder detection keyword. Matching is case-insensitive substring:
+// any folder whose name contains this keyword counts as a calibration folder.
+// Configurable regex UI was removed but may be restored later — see getSurveyCalibrationCode.
 var CALIBRATION_FOLDER_KEYWORD = 'calibration'
 var CALIBRATION_MISSING_COLOUR = '#e6cc00'
+
+function isCalibrationFolderName(name) {
+    /** True if folder name contains the calibration keyword (case-insensitive). */
+    if (!name) return false
+    return name.toLowerCase().indexOf(CALIBRATION_FOLDER_KEYWORD.toLowerCase()) !== -1
+}
 var structure_page = 1
 var tags_per_page = 10
 var speciesAndTasks = {}
@@ -2150,9 +2157,9 @@ function updateCamFolderSelect(){
 }
 
 function pathMatchesCalibration(path) {
-    /** True if any path segment is the fixed calibration folder keyword. */
+    /** True if any path segment contains the calibration keyword (case-insensitive). */
     if (!path) return false
-    return path.split('/').some(function (seg) { return seg === CALIBRATION_FOLDER_KEYWORD })
+    return path.split('/').some(function (seg) { return isCalibrationFolderName(seg) })
 }
 
 function checkTrapgroupCode() {
@@ -3325,7 +3332,7 @@ function buildAddIms() {
     addFilesDiv.appendChild(document.createElement('br'))
 
     // Calibration identifier UI is hidden.
-    // Folders named exactly "calibration" are auto-detected instead.
+    // Folders whose names contain "calibration" (case-insensitive) are auto-detected instead.
     // Keep these controls in the DOM (hidden) so existing JS helpers keep working
     // if we restore configurable regex identifiers later.
     var calOptionsSection = document.createElement('div')
@@ -8234,7 +8241,7 @@ function scanBulkCalibrationFolderFiles(fileList) {
         if (parts.length < 3) continue
         var calIdx = -1
         for (var p = 0; p < parts.length - 1; p++) {
-            if (parts[p].toLowerCase() === CALIBRATION_FOLDER_KEYWORD) {
+            if (isCalibrationFolderName(parts[p])) {
                 calIdx = p
                 break
             }
@@ -8989,11 +8996,11 @@ function buildCalUploadMode() {
 
     var h5folder = document.createElement('h5')
     h5folder.setAttribute('style', 'margin-top: 12px')
-    h5folder.innerHTML = 'Calibration folder'
+    h5folder.innerHTML = 'Image folder'
     col1.appendChild(h5folder)
     var descFolder = document.createElement('div')
     descFolder.setAttribute('style', 'font-size: 80%; margin-bottom: 6px')
-    descFolder.innerHTML = '<i>Select a folder of JPEGs whose filenames contain a distance in metres (e.g. 5.jpg, 10m.jpg, board_5.5m.jpg). Only files directly in that folder are used.</i>'
+    descFolder.innerHTML = '<i>Select any folder of JPEGs whose filenames contain a distance in metres (e.g. 5.jpg, 10m.jpg, board_5.5m.jpg). The folder itself can be named anything. Only files directly in that folder are used.</i>'
     col1.appendChild(descFolder)
 
     var folderInput = document.createElement('input')
@@ -9077,7 +9084,7 @@ function buildCalUploadMode() {
         bulkPanel.hidden = !isBulk
         modeDesc.innerHTML = isBulk
             ? '<i>Scan a folder tree for calibration folders and match them to existing cameras.</i>'
-            : '<i>Upload a calibration folder for one camera at a time.</i>'
+            : '<i>Upload any folder of distance-named JPEGs for one camera at a time. The folder name does not matter.</i>'
     }
 
     singleInput.addEventListener('change', function () { if (singleInput.checked) setUploadMode('single') })
@@ -9163,7 +9170,7 @@ function buildCalUploadMode() {
         var scanned = scanBulkCalibrationFolderFiles(files)
         if (scanned.groups.length === 0 && scanned.emptyPaths.length === 0) {
             bulkStatus.innerHTML = '<i style="color:red">No calibration folders found in ' +
-                scanned.fileCount + ' selected file(s). Expected nested folders named exactly "' +
+                scanned.fileCount + ' selected file(s). Expected nested folders whose names contain "' +
                 CALIBRATION_FOLDER_KEYWORD + '" (e.g. Site/Camera/calibration/10.jpg).</i>'
             return
         }
@@ -9396,32 +9403,9 @@ function buildCalEditMode() {
     var div = document.getElementById('calModeContent')
     while (div.firstChild) div.removeChild(div.firstChild)
 
-    // ── Row 1: title ────────────────────────────────────────────────
-    var row1 = document.createElement('div')
-    row1.classList.add('row')
-    div.appendChild(row1)
-
-    var r1col1 = document.createElement('div')
-    r1col1.classList.add('col-lg-2')
-    row1.appendChild(r1col1)
-
-    var r1col2 = document.createElement('div')
-    r1col2.classList.add('col-lg-8')
-    r1col2.setAttribute('style', 'text-align: center;')
-    row1.appendChild(r1col2)
-
-    var r1col3 = document.createElement('div')
-    r1col3.classList.add('col-lg-2')
-    row1.appendChild(r1col3)
-
-    var h6 = document.createElement('h6')
-    h6.id = 'mapTitle_cal'
-    h6.innerHTML = 'Loading...'
-    r1col2.appendChild(h6)
-
-    // ── Row 2: empty | map | right panel ────────────────────────────
+    // ── Row 1: empty | title + map | right panel ─────────────────────
     var row2 = document.createElement('div')
-    row2.classList.add('row')
+    row2.classList.add('row', 'align-items-end')
     div.appendChild(row2)
 
     var col1 = document.createElement('div')
@@ -9436,6 +9420,12 @@ function buildCalEditMode() {
     var col3 = document.createElement('div')
     col3.classList.add('col-lg-2')
     row2.appendChild(col3)
+
+    // Title sits with the map so both bottom-align with the side panel
+    var h6 = document.createElement('h6')
+    h6.id = 'mapTitle_cal'
+    h6.innerHTML = 'Loading...'
+    col2.appendChild(h6)
 
     // Map div (Leaflet target)
     var center = document.createElement('center')
@@ -10084,7 +10074,7 @@ function buildDepthEstimation() {
     // Title + description
     var h5 = document.createElement('h5')
     h5.setAttribute('style', 'margin-bottom: 2px')
-    h5.innerHTML = 'Depth Estimation'
+    h5.innerHTML = 'Distance Estimation'
     div.appendChild(h5)
 
     var desc = document.createElement('div')
@@ -10199,7 +10189,7 @@ function buildDepthEstimation() {
     var launchBtn = document.createElement('button')
     launchBtn.id = 'depthLaunchBtn'
     launchBtn.classList.add('btn', 'btn-primary', 'btn-block')
-    launchBtn.innerHTML = 'Launch Depth Estimation'
+    launchBtn.innerHTML = 'Launch Distance Estimation'
     launchBtn.disabled = true
     launchBtn.onclick = function() { launchDepthEstimationFromUI() }
     col.appendChild(launchBtn)
@@ -10497,8 +10487,8 @@ function renderDepthEstimationPrimer(preview, speciesList) {
     var headers = [
         {text: 'Site', width: '12%'},
         {text: 'Camera', width: '22%'},
-        {text: 'Sightings with depth', width: '14%'},
-        {text: 'Sightings without depth', width: '14%'},
+        {text: 'Sightings with distance', width: '14%'},
+        {text: 'Sightings without distance', width: '14%'},
         {text: 'Calibration images', width: '18%'},
         {text: 'Status', width: '20%'}
     ]
@@ -10608,7 +10598,7 @@ function executeDepthEstimationLaunch(){
                 if (reply.status === 'success') {
                     document.getElementById('modalAlertHeader').innerHTML = 'Success'
                     document.getElementById('modalAlertBody').innerHTML =
-                        'Depth estimation has started for this survey. This may take some time. ' +
+                        'Distance estimation has started for this survey. This may take some time. ' +
                         'The survey will be unavailable until processing completes.'
                     alertReload = true
                     modalEditSurvey.modal('hide')
@@ -12026,9 +12016,8 @@ function validateCalibrationStructure() {
 
 function getSurveyCalibrationCode() {
     /**
-     * Returns the fixed calibration folder keyword used for upload/import detection.
-     * Always returns CALIBRATION_FOLDER_KEYWORD so the worker auto-detects folders
-     * named exactly "calibration".
+     * Returns the calibration folder keyword used for upload/import detection.
+     * Matching is case-insensitive substring (folder name contains this keyword).
      *
      * Previous configurable-identifier path:
      *   var ctx = getCalibrationUiContext()
@@ -12046,7 +12035,7 @@ function siteCameraHasCalibration(siteName, camName) {
     if (!globalCalibrationFolderPaths || !globalCalibrationFolderPaths.length) return false
     for (var i = 0; i < globalCalibrationFolderPaths.length; i++) {
         var parts = globalCalibrationFolderPaths[i].split('/')
-        if (parts.length < 2 || parts[parts.length - 1] !== CALIBRATION_FOLDER_KEYWORD) continue
+        if (parts.length < 2 || !isCalibrationFolderName(parts[parts.length - 1])) continue
         var siteIdx = parts.indexOf(siteName)
         if (siteIdx < 0) continue
         if (camName == null || camName === siteName) {

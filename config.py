@@ -89,6 +89,7 @@ class Config(object):
     #Worker config
     PARALLEL_AMI = os.environ.get('PARALLEL_AMI')
     LLAVA_AMI = os.environ.get('LLAVA_AMI')
+    DEPTH_AMI = os.environ.get('DEPTH_AMI')
     BRANCH = os.environ.get('BRANCH')
     GPU_INSTANCE_TYPES = ['g4dn.xlarge'] #['p3.2xlarge', 'g4dn.xlarge', 'g3s.xlarge']
     XL_GPU_INSTANCE_TYPES = ['g5.12xlarge']
@@ -103,6 +104,7 @@ class Config(object):
         'statistics':         {'t2.xlarge': 1000, 't3a.xlarge': 1000},  #estimated
         'pipeline':         {'t2.xlarge': 1000, 't3a.xlarge': 1000},  #estimated
         'llava':           {'g5.12xlarge': 3130}, #measured. 20 min startup
+        'depth':           {'g4dn.xlarge': 10}, #estimated depth_estimate jobs per hour
         'similarity':      {'g4dn.xlarge': 4128},
         'utility':         {'t2.xlarge': 1000, 't3a.xlarge': 1000},
         'utility_2':       {'t2.xlarge': 1000, 't3a.xlarge': 1000},
@@ -119,6 +121,7 @@ class Config(object):
     MAX_STATS = 4
     MAX_PIPELINE = 8
     MAX_LLAVA = 5
+    MAX_DEPTH = 5
     MAX_SIMILARITY = 5
     MAX_UTILITY = 15
     MAX_UTILITY_2 = 50
@@ -134,6 +137,16 @@ class Config(object):
     # maximum number of detections displayed per cluster during annotation - prevents long load times
     MAX_DETS_PER_CLUSTER = 500
 
+    # max trap detections per depth_estimate Celery task (orchestrator batches above this)
+    DEPTH_TRAP_BATCH_SIZE = int(os.environ.get('DEPTH_TRAP_BATCH_SIZE') or 5000)
+    # Internal download/inference chunk size inside a depth Celery job (traps only).
+    DEPTH_TRAP_DOWNLOAD_CHUNK_SIZE = int(
+      os.environ.get('DEPTH_TRAP_DOWNLOAD_CHUNK_SIZE') or 300
+    )
+
+    # max seconds to wait for each depth_estimate batch before skipping it
+    DEPTH_JOB_TIMEOUT = int(os.environ.get('DEPTH_JOB_TIMEOUT') or 3600)
+
     # maximum length of a cluster in minutes
     MAX_CLUSTER_MINUTES = 15
 
@@ -147,6 +160,12 @@ class Config(object):
 
     # Detection statuses
     DET_IGNORE_STATUSES = ['deleted','hidden','masked']
+
+    # Calibration folder detection keyword. Matching is case-insensitive substring:
+    # any folder whose name contains this keyword counts as a calibration folder.
+    # Configurable regex identifiers were removed from the UI but may be restored later —
+    # see commented regex paths in imports.is_calibration_dirpath and getSurveyCalibrationCode.
+    CALIBRATION_FOLDER_KEYWORD = 'calibration'
 
     # Hotkey info
     NUMBER_OF_HOTKEYS = 39
@@ -346,6 +365,7 @@ class Config(object):
         'statistics': '300',
         'pipeline': '300',
         'llava': '1500',
+        'depth': '600',
         'similarity': '300',
         'utility': '300',
         'utility_2': '300',
@@ -367,6 +387,7 @@ class Config(object):
         'statistics': 12,
         'pipeline': 12,
         'llava': 12,
+        'depth': 12,
         'similarity': 12,
         'utility': 12,
         'utility_2': 12,
@@ -381,6 +402,7 @@ class Config(object):
         'statistics': 1,
         'pipeline': 1,
         'llava': 1,
+        'depth': 1,
         'similarity': 1,
         'utility': 1,
         'utility_2': 1,
@@ -667,6 +689,28 @@ class Config(object):
                 os.environ.get('AWS_SECRET_ACCESS_KEY') + "' " + 
                 '-l info'
         },
+        'depth': {
+            'type': 'GPU',
+            'ami': DEPTH_AMI,
+            'instances': GPU_INSTANCE_TYPES,
+            'max_instances': MAX_DEPTH,
+            'launch_delay': 600,
+            'rate': 10,
+            'init_size': 0.5,
+            'queue_type': 'rate',
+            'repo': os.environ.get('MAIN_GIT_REPO'),
+            'branch': BRANCH,
+            'user_data':
+                'bash /home/ubuntu/TrapTagger/depthworker/launch.sh ' +
+                'depth_worker_{}' + ' ' +
+                HOST_IP + ' ' +
+                'depth ' +
+                SETUP_PERIOD['depth'] + " " +
+                'IDLE_MULTIPLIER' + " '" +
+                os.environ.get('AWS_ACCESS_KEY_ID') + "' '" +
+                os.environ.get('AWS_SECRET_ACCESS_KEY') + "' " +
+                '-l info'
+        },
         'similarity': {
             'type': 'GPU',
             'ami': PARALLEL_AMI,
@@ -891,7 +935,7 @@ class Config(object):
     #     '7':{'name': 'Custom', 'columns': []}
     # }
     CSV_INFO = {
-        '0':{'name': 'Sighting', 'columns': ['Sighting ID','Boxes', 'Flank']},
+        '0':{'name': 'Sighting', 'columns': ['Sighting ID','Boxes', 'Flank', 'Distance (metres)']},
         '1':{'name': 'Image', 'columns': ['File', 'Image ID', 'Image URL', 'Video Path']},
         '2':{'name': 'Capture', 'columns': ['Capture Number', 'Capture ID', 'Capture URL']},
         '3':{'name': 'Cluster', 'columns': ['Cluster ID', 'Notes', 'Cluster URL']},

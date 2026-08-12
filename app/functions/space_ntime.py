@@ -2,14 +2,11 @@
 
 from sqlalchemy.sql import func, or_, and_, distinct
 
+import GLOBALS
 from app import db
 from app.models import *
 from app.functions.globals import getChildList
 from config import Config
-
-nothing_id = db.session.query(Label).filter(Label.description == 'Nothing').first().id
-knocked_id = db.session.query(Label).filter(Label.description == 'Knocked Down').first().id
-vhl_id = db.session.query(Label).filter(Label.description == 'Vehicles/Humans/Livestock').first().id
 
 
 def _apply_distance_site_filters(query, trapgroups, groups):
@@ -46,8 +43,8 @@ def _apply_tte_detection_filters(detectionQuery, task_ids, species, trapgroups, 
         label_list = _species_label_ids(task_ids, species)
         detectionQuery = detectionQuery.filter(Labelgroup.labels.any(Label.id.in_(label_list)))
     else:
-        vhl = db.session.query(Label).get(vhl_id)
-        label_list = [vhl_id, nothing_id, knocked_id]
+        vhl = db.session.query(Label).get(GLOBALS.vhl_id)
+        label_list = [GLOBALS.vhl_id, GLOBALS.nothing_id, GLOBALS.knocked_id]
         for task_id in task_ids:
             label_list.extend(getChildList(vhl, int(task_id)))
         detectionQuery = detectionQuery.filter(~Labelgroup.labels.any(Label.id.in_(label_list)))

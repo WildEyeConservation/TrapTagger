@@ -97,6 +97,8 @@ var chartColours = {
 
 var globalLabels = []
 var globalLabelsWithDistances = []
+var globalLabelsWithDetections = []
+var globalLabelsIncompleteDistances = []
 var globalSites = []
 var globalSitesIDs = []
 var globalTags = []
@@ -194,6 +196,8 @@ function getLabelsSitesTagsAndGroups(){
             // console.log(reply)
             globalLabels = reply.labels
             globalLabelsWithDistances = reply.labels_with_distances || []
+            globalLabelsWithDetections = reply.labels_with_detections || []
+            globalLabelsIncompleteDistances = reply.labels_incomplete_distances || []
             globalTags = reply.tags
             globalSites = []
             for (let i=0;i<reply.sites.length;i++) {
@@ -220,17 +224,25 @@ function getLabelsSitesTagsAndGroups(){
                     optionValues = optionValues.concat(globalIndividualSpecies)
                     optionTexts = optionTexts.concat(globalIndividualSpecies)
                 }
-                else if (analysisType=='8' || analysisType=='9') {
+                else if (analysisType=='8') {
                     optionValues = ['-1']
                     optionTexts = ['None']
                     optionValues = optionValues.concat(globalLabelsWithDistances)
                     optionTexts = optionTexts.concat(globalLabelsWithDistances)
+                }
+                else if (analysisType=='9') {
+                    optionValues = ['-1']
+                    optionTexts = ['None']
+                    optionValues = optionValues.concat(globalLabelsWithDetections)
+                    optionTexts = optionTexts.concat(globalLabelsWithDetections)
                 }
                 else{
                     optionValues = optionValues.concat(globalLabels)
                     optionTexts = optionTexts.concat(globalLabels)
                 }
                 fillSelect(speciesSelector, optionTexts, optionValues)
+                speciesSelector.onchange = updateSpeciesDistanceCoverageWarning
+                updateSpeciesDistanceCoverageWarning()
             }
 
             var dataDiv = document.getElementById('dataDiv')
@@ -625,7 +637,7 @@ function generateResults(){
         document.getElementById('descriptionDiv').hidden = false
         document.getElementById('flankDiv').hidden = true
 
-        analysisDescription.innerHTML = '<i> Distance sampling estimates density for a single species from detections with measured distances and camera effort (operating time in snapshot intervals). Detections must have distance values (from depth estimation). </i>'
+        analysisDescription.innerHTML = '<i> Distance sampling estimates density for a single species from detections with measured distances and camera effort (operating time in snapshot intervals). Detections must have distance values (from distance estimation). </i>'
 
         if (speciesSelector) {
             clearSelect(speciesSelector)
@@ -634,6 +646,8 @@ function generateResults(){
             optionValues = optionValues.concat(globalLabelsWithDistances)
             optionTexts = optionTexts.concat(globalLabelsWithDistances)
             fillSelect(speciesSelector, optionTexts, optionValues)
+            speciesSelector.onchange = updateSpeciesDistanceCoverageWarning
+            updateSpeciesDistanceCoverageWarning()
         }
 
         if (globalDistanceResults) {
@@ -673,15 +687,17 @@ function generateResults(){
         document.getElementById('descriptionDiv').hidden = false
         document.getElementById('flankDiv').hidden = true
 
-        analysisDescription.innerHTML = '<i> Time-to-event (TTE) abundance estimates population density from camera-trap detections using the spaceNtime package. Enter viewable area directly or provide camera field of view (effective detection distance and viewable area are calculated when you run the analysis). </i>'
+        analysisDescription.innerHTML = '<i> Time-to-event (TTE) abundance estimates population density from camera-trap detections using the spaceNtime package. Enter viewable area directly, or derive it from camera field of view using detection distances when available. </i>'
 
         if (speciesSelector) {
             clearSelect(speciesSelector)
             var optionValues = ['-1']
             var optionTexts = ['None']
-            optionValues = optionValues.concat(globalLabelsWithDistances)
-            optionTexts = optionTexts.concat(globalLabelsWithDistances)
+            optionValues = optionValues.concat(globalLabelsWithDetections)
+            optionTexts = optionTexts.concat(globalLabelsWithDetections)
             fillSelect(speciesSelector, optionTexts, optionValues)
+            speciesSelector.onchange = updateSpeciesDistanceCoverageWarning
+            updateSpeciesDistanceCoverageWarning()
         }
 
         initTtePanel()
@@ -730,6 +746,8 @@ function generateResults(){
             fillSelect(speciesSelector, optionTexts, optionValues)
         }
     }
+
+    updateSpeciesDistanceCoverageWarning()
 
 }
 
@@ -6683,14 +6701,12 @@ function toggleTteAreaMode(){
     var mode = getTteAreaMode()
     document.getElementById('tteAreaDirectDiv').hidden = (mode !== 'direct')
     document.getElementById('tteAreaFovDiv').hidden = (mode !== 'fov')
+    updateSpeciesDistanceCoverageWarning()
 }
 
 function getTteSpeciesSpeedMhr(){
     var val = document.getElementById('tteSpeciesSpeedMhr').value
-    if (val === '' || val === null) {
-        return TTE_DEFAULT_SPEED_M_HR
-    }
-    if (isNaN(val) || parseFloat(val) <= 0) {
+    if (val === '' || val === null || isNaN(val) || parseFloat(val) <= 0) {
         return null
     }
     return parseFloat(val)
@@ -6767,6 +6783,76 @@ function appendSpaceNtimeTteFormParams(formData){
 
 function initTtePanel(){
     toggleTteAreaMode()
+    var speedInput = document.getElementById('tteSpeciesSpeedMhr')
+    if (speedInput && (speedInput.value === '' || speedInput.value === null)) {
+        speedInput.value = TTE_DEFAULT_SPEED_M_HR
+    }
+}
+
+function updateSpeciesDistanceCoverageWarning(){
+    /** Warn about missing/incomplete detection distances for DS, or TTE FOV mode. */
+    var warning = document.getElementById('speciesDistanceWarning')
+    if (!warning) return
+
+    var analysisType = document.getElementById('analysisSelector').value
+    if (analysisType != '8' && analysisType != '9') {
+        warning.hidden = true
+        warning.innerHTML = ''
+        return
+    }
+
+    var speciesSelector = document.getElementById('speciesSelect')
+    var species = speciesSelector ? speciesSelector.value : '-1'
+    if (!species || species == '-1' || species == '0') {
+        warning.hidden = true
+        warning.innerHTML = ''
+        return
+    }
+
+    var hasAnyDistance = globalLabelsWithDistances.indexOf(species) !== -1
+    var hasIncompleteDistance = globalLabelsIncompleteDistances.indexOf(species) !== -1
+
+    if (analysisType == '9') {
+        // Distances only matter for TTE when deriving viewable area from FOV
+        if (getTteAreaMode() !== 'fov') {
+            warning.hidden = true
+            warning.innerHTML = ''
+            return
+        }
+        if (!hasAnyDistance) {
+            warning.innerHTML = '<i>Field-of-view mode requires detection distances for this species to derive viewable area. Enter viewable area directly, or run distance estimation for this species.</i>'
+            warning.hidden = false
+            return
+        }
+        if (hasIncompleteDistance) {
+            warning.innerHTML = '<i>Warning: not all sightings of this species have detection distances. Viewable area will be derived only from sightings that have distances.</i>'
+            warning.hidden = false
+            return
+        }
+        warning.hidden = true
+        warning.innerHTML = ''
+        return
+    }
+
+    // Distance sampling: distances are always required for the selected species
+    if (hasIncompleteDistance) {
+        warning.innerHTML = '<i>Warning: not all sightings of this species have detection distances. Sightings without distances will be excluded from the analysis.</i>'
+        warning.hidden = false
+    } else {
+        warning.hidden = true
+        warning.innerHTML = ''
+    }
+}
+
+function speciesHasDetectionDistances(species){
+    /** True if the selected species has at least one detection distance in the current dataset. */
+    var name = species
+    if (Array.isArray(species)) {
+        if (species.length === 0) return false
+        name = species[0]
+    }
+    if (!name || name == '-1' || name == '0') return false
+    return globalLabelsWithDistances.indexOf(name) !== -1
 }
 
 function checkSpaceNtimeTte(species){
@@ -6791,7 +6877,7 @@ function checkSpaceNtimeTte(species){
     }
 
     if (getTteSpeciesSpeedMhr() === null) {
-        error += 'Species speed must be a positive number (m/hr), or leave blank for 30. '
+        error += 'Please enter a valid species speed (m/hr) greater than 0. '
     }
 
     if (getTteAreaMode() === 'direct') {
@@ -6802,6 +6888,9 @@ function checkSpaceNtimeTte(species){
         var fov = getTteCameraFovDegrees()
         if (fov === null) {
             error += 'Please enter a valid camera field of view between 0 and 360 degrees. '
+        }
+        if (!noSpecies && !speciesHasDetectionDistances(species)) {
+            error += 'Field-of-view mode requires detection distances for the selected species. Enter viewable area directly, or run distance estimation for this species. '
         }
     }
 
