@@ -1611,6 +1611,7 @@ def findTrapgroupTags(self,tgCode,folder,organisation_id,surveyName,camCode):
                         for filename in jpegs:
                             if parse_calibration_distance_filename(filename) is not None:
                                 valid_count += 1
+                        print(f"Valid count: {valid_count} for dirpath: {dirpath}, filenames: {filenames}")
                         if valid_count == 0 and dirpath not in calibration_folder_empty_paths:
                             calibration_folder_empty_paths.append(dirpath)
                     continue

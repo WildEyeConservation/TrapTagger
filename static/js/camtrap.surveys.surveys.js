@@ -9405,15 +9405,11 @@ function buildCalEditMode() {
 
     // ── Row 1: empty | title + map | right panel ─────────────────────
     var row2 = document.createElement('div')
-    row2.classList.add('row', 'align-items-end')
+    row2.classList.add('row')
     div.appendChild(row2)
 
-    var col1 = document.createElement('div')
-    col1.classList.add('col-lg-2')
-    row2.appendChild(col1)
-
     var col2 = document.createElement('div')
-    col2.classList.add('col-lg-8')
+    col2.classList.add('col-lg-10')
     col2.setAttribute('style', 'text-align: center;')
     row2.appendChild(col2)
 
@@ -9439,7 +9435,7 @@ function buildCalEditMode() {
     // ── Row 3: pagination circles ────────────────────────────────────
     var row3 = document.createElement('div')
     row3.classList.add('row')
-    div.appendChild(row3)
+    col2.appendChild(row3)
 
     var r3col1 = document.createElement('div')
     r3col1.classList.add('col-lg-1')
@@ -9473,7 +9469,7 @@ function buildCalEditMode() {
     // ── Row 4: navigation buttons ────────────────────────────────────
     var row4 = document.createElement('div')
     row4.classList.add('row')
-    div.appendChild(row4)
+    col2.appendChild(row4)
 
     var r4col1 = document.createElement('div')
     r4col1.classList.add('col-lg-1')
@@ -9557,18 +9553,19 @@ function buildCalEditMode() {
     col3.appendChild(h5cam)
 
     var descCam = document.createElement('div')
-    descCam.setAttribute('style', 'font-size: 80%; margin-bottom: 6px')
+    descCam.setAttribute('style', 'font-size: 80%; margin-bottom: 2px')
     descCam.innerHTML = '<i>Select a camera to review.</i>'
     col3.appendChild(descCam)
 
     var camSelect = document.createElement('select')
     camSelect.id = 'calCameraSelect'
     camSelect.classList.add('form-control')
-    camSelect.style.marginBottom = '16px'
     camSelect.addEventListener('change', function() {
         getCalibrationImagesForCamera(parseInt(this.value))
     })
     col3.appendChild(camSelect)
+
+    col3.appendChild(document.createElement('br'))
 
     var h5dist = document.createElement('h5')
     h5dist.setAttribute('style', 'margin-bottom: 2px')
@@ -9576,7 +9573,7 @@ function buildCalEditMode() {
     col3.appendChild(h5dist)
 
     var descDist = document.createElement('div')
-    descDist.setAttribute('style', 'font-size: 80%; margin-bottom: 6px')
+    descDist.setAttribute('style', 'font-size: 80%; margin-bottom: 2px')
     descDist.innerHTML = '<i>Distance (m) at which this image was taken.</i>'
     col3.appendChild(descDist)
 
@@ -9585,12 +9582,13 @@ function buildCalEditMode() {
     distInput.type = 'number'
     distInput.step = '0.1'
     distInput.classList.add('form-control')
-    distInput.style.marginBottom = '6px'
     col3.appendChild(distInput)
 
     distInput.addEventListener('change', function() {
         saveCalibrationDistance()
     })
+
+    col3.appendChild(document.createElement('br'))
 
     var h5del = document.createElement('h5')
     h5del.setAttribute('style', 'margin-bottom: 2px')
@@ -9598,8 +9596,8 @@ function buildCalEditMode() {
     col3.appendChild(h5del)
 
     var descDel = document.createElement('div')
-    descDel.setAttribute('style', 'font-size: 80%; margin-bottom: 6px')
-    descDel.innerHTML = '<i>Stage this image, this camera, or all cameras for deletion. Changes apply when you click Save Changes.</i>'
+    descDel.setAttribute('style', 'font-size: 80%; margin-bottom: 2px')
+    descDel.innerHTML = '<i>Stage this image, this camera, or all cameras for deletion.</i>'
     col3.appendChild(descDel)
 
     var stageBtn = document.createElement('button')
@@ -9607,6 +9605,9 @@ function buildCalEditMode() {
     stageBtn.innerHTML = 'Stage for Deletion'
     stageBtn.classList.add('btn', 'btn-primary', 'btn-block')
     stageBtn.style.marginBottom = '6px'
+    stageBtn.style.whiteSpace = 'normal'
+    stageBtn.style.height = 'auto'
+    stageBtn.style.lineHeight = '1.2'
     stageBtn.onclick = function() { stageCalibrationDeletion() }
     col3.appendChild(stageBtn)
 
@@ -9691,6 +9692,36 @@ function prepMapCal(image) {
             mapCal.setMaxBounds(bounds)
             mapCal.fitBounds(bounds)
             mapCal.setMinZoom(mapCal.getZoom())
+
+            
+            hc = document.getElementById('mapDiv_cal').clientHeight
+            wc = document.getElementById('mapDiv_cal').clientWidth
+            mapCal.on('resize', function() {
+                if(document.getElementById('mapDiv_cal') && document.getElementById('mapDiv_cal').clientHeight){
+                    var h1 = document.getElementById('mapDiv_cal').clientHeight
+                    var w1 = document.getElementById('mapDiv_cal').clientWidth
+                }
+                else{
+                    var h1 = hc
+                    var w1 = wc
+                }
+
+                var southWest = mapCal.unproject([0, h1], 2);
+                var northEast = mapCal.unproject([w1, 0], 2);
+                var bounds = new L.LatLngBounds(southWest, northEast);
+        
+                mapWidthCal = northEast.lng
+                mapHeightCal = southWest.lat
+
+                mapCal.invalidateSize()
+                mapCal.setMaxBounds(bounds)
+                mapCal.fitBounds(bounds)
+                mapCal.setMinZoom(mapCal.getZoom())
+                activeImageCal.setBounds(bounds)
+
+                drawCalBboxOnMap()
+
+            })
 
             mapCal.on('drag', function() {
                 mapCal.panInsideBounds(bounds, { animate: false })
@@ -9794,6 +9825,7 @@ function updateCalMap() {
     }
 
     updateButtons()
+    preloadImages(true)
 }
 
 function drawCalBboxOnMap() {
@@ -11925,7 +11957,7 @@ function updateCalDiv() {
 }
 
 function getCameraLevelIndexForPath(parts) {
-    var camSameAsSite, camLvlFolder, siteFolderN, camCode, camAdvanced
+    var camSameAsSite, camLvlFolder, siteFolderN, camCode, camAdvanced, tgCode, tgAdvanced
 
     if (isAddFilesCalibrationContext()) {
         camSameAsSite = document.getElementById('camSameAsSiteES').checked
@@ -11933,20 +11965,31 @@ function getCameraLevelIndexForPath(parts) {
         siteFolderN = document.getElementById('siteFolderN_ES').checked
         camCode = document.getElementById('addImagesCamCode').value.trim()
         camAdvanced = document.getElementById('addImagesCamCheckbox').checked
+        tgCode = document.getElementById('addImagesTGCode').value.trim()
+        tgAdvanced = document.getElementById('addImagesCheckbox').checked
     } else {
         camSameAsSite = document.getElementById('camSameAsSite').checked
         camLvlFolder = document.getElementById('camLvlFolder').checked
         siteFolderN = document.getElementById('siteFolderN').checked
         camCode = document.getElementById('newSurveyCamCode').value.trim()
         camAdvanced = document.getElementById('camAdvancedCheckbox').checked
+        tgCode = document.getElementById('newSurveyTGCode').value.trim()
+        tgAdvanced = document.getElementById('newSurveyCheckbox').checked
     }
 
     if (camSameAsSite) {
-        if (!siteFolderN) {
-            return -1
+        if (siteFolderN) {
+            var siteFolder = document.querySelector('.site-folder.selected')
+            return siteFolder ? parseInt(siteFolder.dataset.index, 10) : -1
+        } else {
+            if (tgCode) {
+                camCode = tgCode
+                camLvlFolder = false
+                camAdvanced = tgAdvanced
+            } else {
+                return -1
+            }
         }
-        var siteFolder = document.querySelector('.site-folder.selected')
-        return siteFolder ? parseInt(siteFolder.dataset.index, 10) : -1
     }
 
     if (camLvlFolder) {
@@ -11961,7 +12004,7 @@ function getCameraLevelIndexForPath(parts) {
 
     var deepest = -1
     var calIndex = parts.length - 1
-    for (var i = 1; i < calIndex; i++) {
+    for (var i = 0; i < calIndex; i++) {
         try {
             if (new RegExp('^' + camCode + '$').test(parts[i])) {
                 deepest = i
@@ -14190,6 +14233,16 @@ function preloadImages(imageOnly=false){
         if (cameraIndex<images.length-1 && !imageOnly){
             im = new Image();
             im.src = "https://"+bucketName+".s3.amazonaws.com/" + modifyToCompURL(images[cameraIndex+1].images[0].url)
+        }
+    
+    } else if (tabActiveEditSurvey === 'baseCalibrationTab') {
+        if (document.getElementById('editCalImages').checked) {
+
+            if (calImgIndex < calImages.length - 1) {
+                im = new Image();
+                im.src = "https://"+bucketName+".s3.amazonaws.com/" + calImages[calImgIndex + 1].url
+            }
+
         }
     }
 }

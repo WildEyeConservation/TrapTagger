@@ -721,11 +721,11 @@ function checkIndividualInfo(cluster_id, cluster_index, mapID = 'map1') {
 function formatDetectionDistance(distance) {
     /** Formats depth-estimated detection distance for the sighting info panel. */
     if (distance === null || distance === undefined || distance === '') {
-        return '—'
+        return 'None'
     }
     var metres = parseFloat(distance)
     if (isNaN(metres)) {
-        return '—'
+        return 'None'
     }
     return metres.toFixed(2) + ' m'
 }

@@ -7828,7 +7828,9 @@ def find_first_file(bucket, prefix):
     if 'Contents' in response:
         for obj in response['Contents']:
             if obj['Key'] != prefix:  # skip the "folder" itself
-                return obj['Key']
+                # Only return file if image/video 
+                if obj['Key'].lower().endswith(('.jpg', '.jpeg', '.mp4', '.avi', '.mov')):
+                    return obj['Key']
 
     if 'CommonPrefixes' in response:
         cal_kw = (Config.CALIBRATION_FOLDER_KEYWORD or 'calibration').lower()
