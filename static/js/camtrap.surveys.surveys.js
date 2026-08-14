@@ -10352,6 +10352,8 @@ function loadDepthSpecies(taskId) {
             input.addEventListener('change', function () {
                 if (this.checked) {
                     checkDepthSpeciesChildren(this.value)
+                } else {
+                    uncheckDepthSpeciesParents(this.value)
                 }
                 refreshDepthEstimationPreview()
             })
@@ -10385,6 +10387,29 @@ function checkDepthSpeciesChildren(parentName) {
     for (var i = 0; i < inputs.length; i++) {
         if (childSet[inputs[i].value] && !inputs[i].checked) {
             inputs[i].checked = true
+        }
+    }
+}
+
+function uncheckDepthSpeciesParents(childName) {
+    var speciesDiv = document.getElementById('depthSpeciesList')
+    if (!speciesDiv || !childName) return
+    var parentSet = {}
+    for (var parentName in depthSpeciesChildren) {
+        if (!Object.prototype.hasOwnProperty.call(depthSpeciesChildren, parentName)) continue
+        var childNames = depthSpeciesChildren[parentName] || []
+        for (var c = 0; c < childNames.length; c++) {
+            if (childNames[c] === childName) {
+                parentSet[parentName] = true
+                break
+            }
+        }
+    }
+    if (Object.keys(parentSet).length === 0) return
+    var inputs = speciesDiv.querySelectorAll('input[type="checkbox"]')
+    for (var i = 0; i < inputs.length; i++) {
+        if (parentSet[inputs[i].value] && inputs[i].checked) {
+            inputs[i].checked = false
         }
     }
 }
