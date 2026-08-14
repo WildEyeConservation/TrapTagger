@@ -422,6 +422,7 @@ var depthSpeciesSkip = {
     'Nothing': true,
     'unknown': true
 }
+var depthSpeciesChildren = {}
 var surveyIgnoreSmallDetections = null
 var surveySkyMasked = null
 var surveyAdvancedOptionsLoaded = false
@@ -10297,6 +10298,7 @@ function loadDepthTasks() {
 
 function loadDepthSpecies(taskId) {
     depthSelectedTaskId = taskId
+    depthSpeciesChildren = {}
     var speciesDiv = document.getElementById('depthSpeciesList')
     var speciesActions = document.getElementById('depthSpeciesActions')
     var launchBtn = document.getElementById('depthLaunchBtn')
@@ -10317,6 +10319,7 @@ function loadDepthSpecies(taskId) {
 
         while (speciesDiv.firstChild) speciesDiv.removeChild(speciesDiv.firstChild)
         var reply = JSON.parse(this.responseText)
+        depthSpeciesChildren = reply.children || {}
         var speciesNames = []
         for (var i = 0; i < reply.names.length; i++) {
             var name = reply.names[i]
@@ -10347,6 +10350,9 @@ function loadDepthSpecies(taskId) {
             input.value = speciesName
             input.checked = false
             input.addEventListener('change', function () {
+                if (this.checked) {
+                    checkDepthSpeciesChildren(this.value)
+                }
                 refreshDepthEstimationPreview()
             })
 
@@ -10364,6 +10370,23 @@ function loadDepthSpecies(taskId) {
     }
     xhttp.open('GET', '/getSpeciesandIDs/' + taskId)
     xhttp.send()
+}
+
+function checkDepthSpeciesChildren(parentName) {
+    var childNames = depthSpeciesChildren[parentName]
+    if (!childNames || !childNames.length) return
+    var speciesDiv = document.getElementById('depthSpeciesList')
+    if (!speciesDiv) return
+    var inputs = speciesDiv.querySelectorAll('input[type="checkbox"]')
+    var childSet = {}
+    for (var c = 0; c < childNames.length; c++) {
+        childSet[childNames[c]] = true
+    }
+    for (var i = 0; i < inputs.length; i++) {
+        if (childSet[inputs[i].value] && !inputs[i].checked) {
+            inputs[i].checked = true
+        }
+    }
 }
 
 function setAllDepthSpeciesChecked(checked) {

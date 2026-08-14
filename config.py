@@ -141,11 +141,8 @@ class Config(object):
     DEPTH_TRAP_BATCH_SIZE = int(os.environ.get('DEPTH_TRAP_BATCH_SIZE') or 5000)
     # Internal download/inference chunk size inside a depth Celery job (traps only).
     DEPTH_TRAP_DOWNLOAD_CHUNK_SIZE = int(
-      os.environ.get('DEPTH_TRAP_DOWNLOAD_CHUNK_SIZE') or 300
+        os.environ.get('DEPTH_TRAP_DOWNLOAD_CHUNK_SIZE') or 300
     )
-
-    # max seconds to wait for each depth_estimate batch before skipping it
-    DEPTH_JOB_TIMEOUT = int(os.environ.get('DEPTH_JOB_TIMEOUT') or 3600)
 
     # maximum length of a cluster in minutes
     MAX_CLUSTER_MINUTES = 15

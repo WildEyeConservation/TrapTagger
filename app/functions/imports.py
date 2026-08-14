@@ -2714,7 +2714,7 @@ def process_calibration_images(survey_id, s3_folder, source_bucket, dest_bucket)
             result = detection.apply_async(
                 kwargs={'batch': batch_keys, 'sourceBucket': dest_bucket, 'external': False, 'model': Config.DETECTOR},
                 queue='celery', routing_key='celery.detection'
-            ).get(timeout=600)
+            ).get()
         GLOBALS.lock.release()
         # Update CalibrationImage records with bbox data
         for i, (dest_key, cal_id) in enumerate(cal_images_to_detect):
@@ -5307,7 +5307,7 @@ def run_calibration_detection_batch(cal_images_to_detect):
         result = detection.apply_async(
             kwargs={'batch': batch_keys, 'sourceBucket': Config.BUCKET, 'external': False, 'model': Config.DETECTOR},
             queue='celery', routing_key='celery.detection'
-        ).get(timeout=600)
+        ).get()
     GLOBALS.lock.release()
 
     for i, (dest_key, cal_id) in enumerate(cal_images_to_detect):

@@ -9523,6 +9523,7 @@ def getSpeciesandIDs(task_id):
 
     final_names = ['All']
     final_ids = [0]
+    children = {}
     for task_id in tasks:
         task = db.session.query(Task).get(task_id)
         # if task and (task.survey.user==current_user):
@@ -9545,7 +9546,28 @@ def getSpeciesandIDs(task_id):
                     final_names.append(names[n])
                     final_ids.append(ids[n])
 
-    return json.dumps({'names':final_names,'ids':final_ids})
+            # Parent description -> all descendant descriptions (for UI cascade-check)
+            labels_for_children = (
+                db.session.query(Label)
+                .filter(or_(Label.task_id == task_id, Label.id.in_([GLOBALS.unknown_id, GLOBALS.vhl_id])))
+                .all()
+            )
+            for label in labels_for_children:
+                child_ids = getChildList(label, int(task_id))
+                if not child_ids:
+                    continue
+                child_names = [
+                    r[0] for r in db.session.query(Label.description).filter(Label.id.in_(child_ids)).all()
+                ]
+                if not child_names:
+                    continue
+                existing = children.get(label.description, [])
+                for child_name in child_names:
+                    if child_name not in existing:
+                        existing.append(child_name)
+                children[label.description] = existing
+
+    return json.dumps({'names': final_names, 'ids': final_ids, 'children': children})
 
 @app.route('/checkDownload/<fileType>/<selectedTask>')
 @login_required
@@ -19036,12 +19058,18 @@ def launchDepthEstimation():
     survey.status = 'Processing'
     db.session.commit()
 
+    depth_estimation_args = {
+        'survey_id': survey_id,
+        'task_ids': task_ids,
+        'species_list': species_list,
+    }
+    GLOBALS.redisClient.set(
+        'depth_estimation_{}'.format(survey_id),
+        json.dumps(depth_estimation_args),
+    )
+
     run_depth_estimation.apply_async(
-        kwargs={
-            'survey_id': survey_id,
-            'task_ids': task_ids,
-            'species_list': species_list,
-        },
+        kwargs=depth_estimation_args,
         queue='default',
     )
 

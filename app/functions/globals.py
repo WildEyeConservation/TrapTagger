@@ -56,7 +56,6 @@ import pytz
 import timezonefinder
 import secrets
 from celery.result import allow_join_result
-from celery.exceptions import MaxRetriesExceededError
 from gpuworker.worker import segment_and_pose
 import numpy 
 from sqlalchemy.sql.expression import cast
@@ -7130,9 +7129,40 @@ def _detection_has_bbox(left, right, top, bottom):
     )
 
 
+def _depth_species_label_ids(task_ids, species_list):
+    '''
+    Resolve selected species names to label IDs, including children (same pattern as
+    analysis / TTE via getChildList). Global labels (task_id None) expand under each task.
+    '''
+    if not species_list or not task_ids:
+        return []
+    labels = (
+        db.session.query(Label)
+        .filter(Label.description.in_(species_list))
+        .filter(or_(Label.task_id.in_(task_ids), Label.task_id == None))
+        .all()
+    )
+    label_list = []
+    for label in labels:
+        label_list.append(label.id)
+        if label.task_id is not None:
+            label_list.extend(getChildList(label, int(label.task_id)))
+        else:
+            for task_id in task_ids:
+                label_list.extend(getChildList(label, int(task_id)))
+    return list(set(label_list))
+
+
 def _depth_matching_detection_query(survey_id, cg_id, task_ids, species_list):
-    '''Base query for detections matching survey/cameragroup/task/species for depth estimation.'''
-    return (
+    '''
+    Base query for detections matching survey/cameragroup/task/species for depth estimation.
+    Selected species include child labels (e.g. Antelope → Impala), matching analysis types.
+    Applies the same relevant-detection filters as rDets / updateAllStatuses distance counts.
+    '''
+    label_list = _depth_species_label_ids(task_ids, species_list)
+    if not label_list:
+        label_list = [-1]
+    return rDets(
         db.session.query(Detection)
         .join(Image, Detection.image_id == Image.id)
         .join(Camera, Image.camera_id == Camera.id)
@@ -7143,7 +7173,7 @@ def _depth_matching_detection_query(survey_id, cg_id, task_ids, species_list):
         .filter(Trapgroup.survey_id == survey_id)
         .filter(Camera.cameragroup_id == cg_id)
         .filter(Task.id.in_(task_ids))
-        .filter(Label.description.in_(species_list))
+        .filter(Label.id.in_(label_list))
     )
 
 
@@ -7306,7 +7336,8 @@ def launch_depth_estimation(survey_id, task_ids, species_list):
     Enqueues depth_estimate Celery tasks for each cameragroup that has calibration images
     and trap detections for the given task(s) and species.
 
-    Only detections with Detection.distance IS NULL are sent for depth estimation.
+    Only relevant detections (rDets: non-static, not ignored, above detector
+    confidence) with Detection.distance IS NULL are sent for depth estimation.
     Trap detections are split into batches of at most Config.DEPTH_TRAP_BATCH_SIZE (default 2000)
     per Celery task; calibration items are included on every batch for the same cameragroup.
     The depth worker downloads/infers trap images in chunks of
@@ -7354,7 +7385,9 @@ def launch_depth_estimation(survey_id, task_ids, species_list):
           and _calibration_image_has_bbox(cal)]
 
         det_rows = (
-            db.session.query(
+            _depth_matching_detection_query(survey_id, cg_id, task_ids, species_list)
+            .filter(Detection.distance == None)
+            .with_entities(
                 Detection.id,
                 Detection.left,
                 Detection.right,
@@ -7363,17 +7396,6 @@ def launch_depth_estimation(survey_id, task_ids, species_list):
                 Image.filename,
                 Camera.path,
             )
-            .join(Image, Detection.image_id == Image.id)
-            .join(Camera, Image.camera_id == Camera.id)
-            .join(Trapgroup, Camera.trapgroup_id == Trapgroup.id)
-            .join(Labelgroup, Labelgroup.detection_id == Detection.id)
-            .join(Task, Labelgroup.task_id == Task.id)
-            .join(Label, Labelgroup.labels)
-            .filter(Trapgroup.survey_id == survey_id)
-            .filter(Camera.cameragroup_id == cg_id)
-            .filter(Task.id.in_(task_ids))
-            .filter(Label.description.in_(species_list))
-            .filter(Detection.distance == None)
             .distinct()
             .all()
         )
@@ -7496,7 +7518,11 @@ def run_depth_estimation(self, survey_id, task_ids, species_list):
       1. Mark survey Processing
       2. Enqueue one depth_estimate job per cameragroup (depth queue)
       3. Wait for each job, persist Detection.distance
-      4. Mark survey Ready
+      4. Refresh cached task/label statuses
+      5. Mark survey Ready and clear redis args only after all work succeeds
+
+    On failure, survey stays Processing and depth_estimation_{survey_id} remains
+    in redis for debugging (same pattern as edit_survey).
     '''
 
     try:
@@ -7508,36 +7534,49 @@ def run_depth_estimation(self, survey_id, task_ids, species_list):
         db.session.commit()
         launch_summary = launch_depth_estimation(survey_id, task_ids, species_list)
         total_updated = 0
+        batch_failures = 0
         if launch_summary['async_results']:
             GLOBALS.lock.acquire()
             try:
                 with allow_join_result():
                     for async_result in launch_summary['async_results']:
                         try:
-                            response = async_result.get(timeout=Config.DEPTH_JOB_TIMEOUT)
+                            response = async_result.get()
                             total_updated += apply_depth_estimation_results(response)
                             db.session.commit()
                         except Exception:
+                            batch_failures += 1
                             app.logger.info(
-                                'Depth batch {} failed or timed out after {}s'.format(
-                                    async_result.id, Config.DEPTH_JOB_TIMEOUT
-                                )
+                                'Depth batch {} failed'.format(async_result.id)
                             )
                             app.logger.info(traceback.format_exc())
                         finally:
                             async_result.forget()
             finally:
                 GLOBALS.lock.release()
+
+        launch_errors = len(launch_summary.get('errors') or [])
+        if batch_failures or launch_errors:
+            app.logger.info(
+                'Depth estimation did not complete cleanly for survey {}: '
+                '{} batch failure(s), {} launch error(s), {} detection(s) updated. '
+                'Leaving survey Processing and keeping depth_estimation_{} in redis.'.format(
+                    survey_id,
+                    batch_failures,
+                    launch_errors,
+                    total_updated,
+                    survey_id,
+                )
+            )
+            return False
+
+        for task_id in (task_ids or []):
+            updateAllStatuses(task_id=task_id)
         survey = db.session.query(Survey).get(survey_id)
         if survey:
             survey.status = 'Ready'
             db.session.commit()
-        for task_id in (task_ids or []):
-            try:
-                updateAllStatuses(task_id=task_id)
-            except Exception:
-                app.logger.info('Failed updateAllStatuses after depth estimation for task {}'.format(task_id))
-                app.logger.info(traceback.format_exc())
+        GLOBALS.redisClient.delete('depth_estimation_{}'.format(survey_id))
         app.logger.info(
             'Depth estimation finished for survey {}: {} job(s), {} detection(s) updated, {} skipped, {} error(s)'.format(
                 survey_id,
@@ -7548,15 +7587,13 @@ def run_depth_estimation(self, survey_id, task_ids, species_list):
             )
         )
     except Exception as exc:
+        app.logger.info(' ')
+        app.logger.info('!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!')
         app.logger.info(traceback.format_exc())
-        try:
-            raise self.retry(exc=exc, countdown=retryTime(self.request.retries))
-        except MaxRetriesExceededError:
-            survey = db.session.query(Survey).get(survey_id)
-            if survey:
-                survey.status = 'Ready'
-                db.session.commit()
-            raise
+        app.logger.info('!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!')
+        app.logger.info(' ')
+        self.retry(exc=exc, countdown=retryTime(self.request.retries))
+
     finally:
         db.session.remove()
     return True
