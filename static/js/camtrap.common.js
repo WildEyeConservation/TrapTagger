@@ -81,6 +81,7 @@ var isTimestampCheck
 var ctrlHeld = false
 var shiftHeld = false
 var switchToLabel = false
+var reviewingAccess = true
 
 const divBtns = document.querySelector('#divBtns');
 const catcounts = document.querySelector('#categorycounts');
@@ -431,7 +432,7 @@ function buildDetection(image,detection,mapID = 'map1',colour=null) {
                         wrapRect.bringToBack()
                         sendBoundingBack()
                     }
-                    else if(!drawControl._toolbars.edit._activeMode && !drawControl._toolbars.draw._activeMode){
+                    else if(drawControl==null||(!drawControl._toolbars.edit._activeMode && !drawControl._toolbars.draw._activeMode)){
                         if (!((isBounding||isReviewing) && event.ctrlKey)) {
                             colour = colourBase
                             // prevClickBounding.rect.setStyle({color: colour}); //un-highlight old selection
@@ -453,7 +454,7 @@ function buildDetection(image,detection,mapID = 'map1',colour=null) {
             // Highlights and un-highlight when right click on bounding box
             rect.addEventListener('contextmenu', function(wrapRect, wrapDet){
                 return function() {
-                    if(!drawControl._toolbars.edit._activeMode && !drawControl._toolbars.draw._activeMode){
+                    if(drawControl==null||(!drawControl._toolbars.edit._activeMode && !drawControl._toolbars.draw._activeMode)){
                          if (!((isBounding||isReviewing) && event.ctrlKey)) {
                             colour = colourBase
                             // prevClickBounding.rect.setStyle({color: colour}); //un-highlight old selection
@@ -898,7 +899,7 @@ function addDetections(mapID = 'map1') {
         } else if (isIDing && mapID!='known') {
             drawControl[mapID]._toolbars.edit._toolbarContainer.firstElementChild.title = 'Edit sightings'
             drawControl[mapID]._toolbars.edit._toolbarContainer.lastElementChild.title = 'Delete sightings'
-        } else if (isReviewing||(isTagging&&!isTutorial&&!maskMode&&!isIDing)) {
+        } else if ((isReviewing&&reviewingAccess)||(isTagging&&!isTutorial&&!maskMode&&!isIDing)) {
             drawControl._toolbars.edit._toolbarContainer.firstElementChild.title = 'Edit sightings'
             drawControl._toolbars.edit._toolbarContainer.lastElementChild.title = 'Delete sightings' 
         }

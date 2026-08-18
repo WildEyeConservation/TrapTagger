@@ -3152,7 +3152,7 @@ def inspect_celery(include_spam=False,include_reserved=False,include_scheduled=F
     spam = ['importImages','.detection','.classify','runClassifier','processCameraStaticDetections', 'process_video_batch','processStaticWindow', 
             'segment_and_pose', 'calculate_individual_similarity','calculate_hotspotter_similarity', 'generateDetections', 'archive_images', 'archive_empty_images',
             'archive_videos', 'group_cameras', 'updateTrapgroupStaticDetections', 'extrapolate_timestamps', 'classifyTrapgroup', 
-            'updateTrapgroupDetectionRatings', 'extract_zip']
+            'updateTrapgroupDetectionRatings', 'extract_zip', 'prep_required_images']
     if include_spam: spam = []
 
     print('//////////////////////Active tasks://////////////////////')

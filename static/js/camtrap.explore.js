@@ -30,6 +30,7 @@ var editingEnabled = false
 var getClusterAttempts = 0
 var labelsDict = {}
 var checkIndividualsTimer = null
+var reviewingAccess = true
 isTagging = false
 isReviewing = true
 isKnockdown = false
@@ -114,6 +115,10 @@ function loadNewCluster(mapID = 'map1') {
                             }
                             annotationLevel.disabled = false
                             document.getElementById('noteboxExp').readOnly = false
+                            reviewingAccess = true
+                            if (map[mapID] != null && drawControl==null) {
+                                setRectOptions()
+                            }
                         }
                         else{
                             annotationLevel.disabled = true
@@ -121,6 +126,15 @@ function loadNewCluster(mapID = 'map1') {
                                 divBtns.removeChild(divBtns.firstChild);
                             }
                             document.getElementById('noteboxExp').readOnly = true
+                            if (drawControl!=null) {
+                                drawControl.remove()
+                                drawControl = null
+                            }
+                            if (selectAllControl!=null) {
+                                selectAllControl.remove()
+                                selectAllControl = null
+                            }
+                            reviewingAccess = false
                         }
 
                         if (clusters[mapID].length - 1 == clusterIndex[mapID]) {

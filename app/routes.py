@@ -13643,6 +13643,9 @@ def shareSurveys():
                     if check:
                         return json.dumps({'status': 'FAILURE', 'message': 'Survey already shared with organisation.'})
 
+                    if organisation.id == share_query[1]:
+                        return json.dumps({'status': 'FAILURE', 'message': 'You cannot share a survey with the same organisation.'})
+
                     token = jwt.encode({'organisation_id': organisation.id, 'survey_id': survey_id, 'permission': permission}, app.config['SECRET_KEY'], algorithm='HS256')
                     url = 'https://'+Config.DNS+'/acceptSurveyShare/'+token + '/'
 
@@ -13701,7 +13704,8 @@ def acceptSurveyShare(token, action):
 
                 if action == 'accept':
                     check = db.session.query(SurveyShare).filter(SurveyShare.organisation_id==organisation.id).filter(SurveyShare.survey_id==survey_id).first()
-                    if not check:
+                    orgSame = True if organisation.id == share_organisation.id else False
+                    if not check and not orgSame:
                         survey_share = SurveyShare(organisation_id=organisation.id, survey_id=survey_id, permission=permission)
                         db.session.add(survey_share)
 
