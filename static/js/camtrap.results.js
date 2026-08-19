@@ -936,6 +936,8 @@ function disablePanel(){
         document.getElementById('tteAreaModeFov').disabled = true
         document.getElementById('tteViewableAreaM2').disabled = true
         document.getElementById('tteCameraFovDegrees').disabled = true
+        document.getElementById('btnGenerateTteViewableArea').disabled = true
+        document.getElementById('tteCalculatedViewableAreaM2').disabled = true
         document.getElementById('tteSpeciesSpeedMhr').disabled = true
         document.getElementById('tteStudyAreaKm2').disabled = true
         document.getElementById('tteNper').disabled = true
@@ -1136,6 +1138,8 @@ function enablePanel(){
         document.getElementById('tteAreaModeFov').disabled = false
         document.getElementById('tteViewableAreaM2').disabled = false
         document.getElementById('tteCameraFovDegrees').disabled = false
+        document.getElementById('btnGenerateTteViewableArea').disabled = false
+        document.getElementById('tteCalculatedViewableAreaM2').disabled = false
         document.getElementById('tteSpeciesSpeedMhr').disabled = false
         document.getElementById('tteStudyAreaKm2').disabled = false
         document.getElementById('tteNper').disabled = false
@@ -6905,7 +6909,9 @@ function generateTteViewableArea(){
     var xhttp = new XMLHttpRequest()
     xhttp.onreadystatechange = function () {
         if (this.readyState !== 4) return
-        if (btn) btn.disabled = false
+        var resultsRunning = document.getElementById('btnRunScript') && document.getElementById('btnRunScript').disabled
+        if (btn) btn.disabled = !!resultsRunning
+        if (calcInput) calcInput.disabled = !!resultsRunning
         if (this.status !== 200) {
             setTteViewableAreaNote('Could not generate viewable area. Please try again.', 'warning')
             return
