@@ -355,10 +355,24 @@ limitations under the License. -->
                         </div>
                         <div id="tteAreaFovDiv" hidden>
                             <h5 style="margin-bottom: 2px">Camera Field Of View</h5>
-                            <div style="font-size: 80%; margin-bottom: 2px"><i>Enter the horizontal field of view in degrees. When you run the analysis, effective detection distance and viewable area will be calculated from your detection distances and this field of view.</i></div>
+                            <div style="font-size: 80%; margin-bottom: 2px"><i>Enter the horizontal field of view in degrees. Select a species, then generate viewable area. You can edit the calculated area before generating results.</i></div>
                             <div class="row">
                                 <div class='col-lg-10'>
                                     <input type="number" class="form-control" id="tteCameraFovDegrees" value="" min="0" max="360" step="any">
+                                </div>
+                            </div>
+                            <div class="row" style="margin-top: 4px;">
+                                <div class='col-lg-10'>
+                                    <button type="button" class="btn btn-primary btn-sm" id="btnGenerateTteViewableArea" onclick="generateTteViewableArea()">Generate Viewable Area</button>
+                                </div>
+                            </div>
+                            <div id="tteViewableAreaErrors" style="font-size: 80%; margin-top: 4px;"></div>
+                            <br>
+                            <h5 style="margin-bottom: 2px">Calculated Viewable Area (m²)</h5>
+                            <div style="font-size: 80%; margin-bottom: 2px"><i>Filled by Generate Viewable Area. Edit this value if needed before generating results.</i></div>
+                            <div class="row">
+                                <div class='col-lg-10'>
+                                    <input type="number" class="form-control" id="tteCalculatedViewableAreaM2" value="" min="0" step="any">
                                 </div>
                             </div>
                         </div>

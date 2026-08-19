@@ -169,6 +169,9 @@ var orangeMarker = null
 var blueMarker = null
 var markersDict = {}
 var TTE_DEFAULT_SPEED_M_HR = 30
+var tteLastSpeciesForViewableArea = null
+var ttePreviousSpeciesSelection = null
+var tteGeneratedEddM = null
 
 const modalExportAlert = $('#modalExportAlert')
 const modalCovariates = $('#modalCovariates')
@@ -687,7 +690,7 @@ function generateResults(){
         document.getElementById('descriptionDiv').hidden = false
         document.getElementById('flankDiv').hidden = true
 
-        analysisDescription.innerHTML = '<i> Time-to-event (TTE) abundance estimates population density from camera-trap detections using the spaceNtime package. Enter viewable area directly, or derive it from camera field of view using detection distances when available. </i>'
+        analysisDescription.innerHTML = '<i> Time-to-event (TTE) abundance estimates population density from camera-trap detections using the spaceNtime package. Enter viewable area directly, or generate it from camera field of view and detection distances. </i>'
 
         if (speciesSelector) {
             clearSelect(speciesSelector)
@@ -6701,6 +6704,15 @@ function toggleTteAreaMode(){
     var mode = getTteAreaMode()
     document.getElementById('tteAreaDirectDiv').hidden = (mode !== 'direct')
     document.getElementById('tteAreaFovDiv').hidden = (mode !== 'fov')
+    if (mode === 'direct') {
+        var fovInput = document.getElementById('tteCameraFovDegrees')
+        if (fovInput) fovInput.value = ''
+        clearTteGeneratedViewableArea('')
+    } else {
+        var directInput = document.getElementById('tteViewableAreaM2')
+        if (directInput) directInput.value = ''
+        setTteViewableAreaNote('')
+    }
     updateSpeciesDistanceCoverageWarning()
 }
 
@@ -6741,8 +6753,12 @@ function getTteTimeBetweenOccasionsSeconds(){
 }
 
 function getTteViewableAreaM2(){
-    if (getTteAreaMode() !== 'direct') {
-        return null
+    if (getTteAreaMode() === 'fov') {
+        var calculatedVal = document.getElementById('tteCalculatedViewableAreaM2').value
+        if (calculatedVal === '' || isNaN(calculatedVal) || parseFloat(calculatedVal) <= 0) {
+            return null
+        }
+        return parseFloat(calculatedVal)
     }
     var directVal = document.getElementById('tteViewableAreaM2').value
     if (directVal === '' || isNaN(directVal) || parseFloat(directVal) <= 0) {
@@ -6769,16 +6785,147 @@ function getTteStudyAreaM2(){
 
 function appendSpaceNtimeTteFormParams(formData){
     /** Appends TTE abundance parameters to a FormData object for /getSpaceNtimeTTE. */
-    formData.append('area_mode', JSON.stringify(getTteAreaMode()))
     formData.append('species_speed_m_hr', JSON.stringify(getTteSpeciesSpeedMhr()))
     formData.append('study_area_m2', JSON.stringify(getTteStudyAreaM2()))
     formData.append('nper', JSON.stringify(getTteNper()))
     formData.append('time_btw_seconds', JSON.stringify(getTteTimeBetweenOccasionsSeconds()))
-    if (getTteAreaMode() === 'direct') {
-        formData.append('viewable_area_m2', JSON.stringify(getTteViewableAreaM2()))
-    } else {
+    formData.append('area_mode', JSON.stringify(getTteAreaMode()))
+    formData.append('viewable_area_m2', JSON.stringify(getTteViewableAreaM2()))
+    if (getTteAreaMode() === 'fov') {
         formData.append('fov_degrees', JSON.stringify(getTteCameraFovDegrees()))
+        if (tteGeneratedEddM != null) {
+            formData.append('effective_detection_radius_m', JSON.stringify(tteGeneratedEddM))
+        }
     }
+}
+
+function setTteViewableAreaNote(message, kind){
+    var note = document.getElementById('tteViewableAreaErrors')
+    if (!note) return
+    if (!message) {
+        note.innerHTML = ''
+        note.style.color = ''
+        return
+    }
+    note.innerHTML = '<i>' + message + '</i>'
+    note.style.color = (kind === 'warning') ? '#DF691A' : ''
+}
+
+function clearTteGeneratedViewableArea(message, kind){
+    var calcInput = document.getElementById('tteCalculatedViewableAreaM2')
+    if (calcInput) calcInput.value = ''
+    tteLastSpeciesForViewableArea = null
+    tteGeneratedEddM = null
+    setTteViewableAreaNote(message || '', kind)
+}
+
+function handleTteSpeciesChangeForViewableArea(){
+    if (document.getElementById('analysisSelector').value != '9') return
+    if (getTteAreaMode() !== 'fov') return
+
+    var speciesSelector = document.getElementById('speciesSelect')
+    var species = speciesSelector ? speciesSelector.value : '-1'
+    if (ttePreviousSpeciesSelection === null) {
+        ttePreviousSpeciesSelection = species
+        return
+    }
+    if (species === ttePreviousSpeciesSelection) return
+    ttePreviousSpeciesSelection = species
+
+    var calcInput = document.getElementById('tteCalculatedViewableAreaM2')
+    var hadValue = calcInput && calcInput.value !== ''
+    if (hadValue || tteLastSpeciesForViewableArea) {
+        clearTteGeneratedViewableArea(
+            'Species changed. Generate viewable area again for the newly selected species.',
+            'warning'
+        )
+    } else {
+        setTteViewableAreaNote('')
+    }
+}
+
+function generateTteViewableArea(){
+    var errorsDiv = document.getElementById('tteViewableAreaErrors')
+    var calcInput = document.getElementById('tteCalculatedViewableAreaM2')
+    var btn = document.getElementById('btnGenerateTteViewableArea')
+    if (errorsDiv) errorsDiv.innerHTML = ''
+    if (calcInput) calcInput.value = ''
+    tteLastSpeciesForViewableArea = null
+    tteGeneratedEddM = null
+
+    var species = getSelectedSpecies()
+    var noSpecies = false
+    if (species == '-1' || species == '0') {
+        noSpecies = true
+    } else if (Array.isArray(species)) {
+        if (species.length === 0 || species[0] == '-1' || species[0] == '0') {
+            noSpecies = true
+        }
+    }
+    if (noSpecies) {
+        setTteViewableAreaNote('Please select a species before generating viewable area.', 'warning')
+        return
+    }
+
+    var fov = getTteCameraFovDegrees()
+    if (fov === null) {
+        setTteViewableAreaNote('Please enter a valid camera field of view between 0 and 360 degrees.', 'warning')
+        return
+    }
+
+    var tasks = getSelectedTasks()
+    if (!tasks || tasks == '-1') {
+        setTteViewableAreaNote('Please select an annotation set.', 'warning')
+        return
+    }
+
+    var selectedSites = getSelectedSites()
+    var startDate = document.getElementById('startDate').value
+    var endDate = document.getElementById('endDate').value
+    var formData = new FormData()
+    formData.append('task_ids', JSON.stringify(tasks))
+    formData.append('trapgroups', JSON.stringify(selectedSites[0]))
+    formData.append('groups', JSON.stringify(selectedSites[1]))
+    formData.append('species', JSON.stringify(species))
+    formData.append('fov_degrees', JSON.stringify(fov))
+
+    var area = document.getElementById('areaSelect').value
+    if (area != null && area != '' && area != '0') {
+        formData.append('area', JSON.stringify(area))
+    }
+    if (startDate != '') {
+        formData.append('startDate', JSON.stringify(startDate + ' 00:00:00'))
+    }
+    if (endDate != '') {
+        formData.append('endDate', JSON.stringify(endDate + ' 23:59:59'))
+    }
+
+    if (btn) btn.disabled = true
+
+    var xhttp = new XMLHttpRequest()
+    xhttp.onreadystatechange = function () {
+        if (this.readyState !== 4) return
+        if (btn) btn.disabled = false
+        if (this.status !== 200) {
+            setTteViewableAreaNote('Could not generate viewable area. Please try again.', 'warning')
+            return
+        }
+        var reply = JSON.parse(this.responseText)
+        if (reply.status !== 'SUCCESS' || !reply.results) {
+            setTteViewableAreaNote(reply.message || 'Could not generate viewable area.', 'warning')
+            return
+        }
+        if (calcInput) {
+            calcInput.value = parseFloat(reply.results.viewable_area_m2).toFixed(2)
+        }
+        tteGeneratedEddM = reply.results.effective_detection_radius_m != null
+            ? parseFloat(reply.results.effective_detection_radius_m)
+            : null
+        tteLastSpeciesForViewableArea = Array.isArray(species) ? species[0] : species
+        setTteViewableAreaNote('Viewable area generated from field of view and ' + reply.results.n_distances + ' detection distances.')
+    }
+    xhttp.open('POST', '/generateTteViewableArea')
+    xhttp.send(formData)
 }
 
 function initTtePanel(){
@@ -6791,6 +6938,7 @@ function initTtePanel(){
 
 function updateSpeciesDistanceCoverageWarning(){
     /** Warn about missing/incomplete detection distances for DS, or TTE FOV mode. */
+    handleTteSpeciesChangeForViewableArea()
     var warning = document.getElementById('speciesDistanceWarning')
     if (!warning) return
 
@@ -6884,14 +7032,8 @@ function checkSpaceNtimeTte(species){
         if (getTteViewableAreaM2() === null) {
             error += 'Please enter a valid viewable area (m²) greater than 0. '
         }
-    } else {
-        var fov = getTteCameraFovDegrees()
-        if (fov === null) {
-            error += 'Please enter a valid camera field of view between 0 and 360 degrees. '
-        }
-        if (!noSpecies && !speciesHasDetectionDistances(species)) {
-            error += 'Field-of-view mode requires detection distances for the selected species. Enter viewable area directly, or run distance estimation for this species. '
-        }
+    } else if (getTteViewableAreaM2() === null) {
+        error += 'Please generate viewable area, or enter a calculated viewable area (m²) greater than 0. '
     }
 
     if (getTteNper() === null) {

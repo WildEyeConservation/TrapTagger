@@ -25,9 +25,9 @@ limitations under the License. -->
 <ul>
     <li><strong>Species:</strong> Select a single species for abundance analysis.</li>
     <li><strong>Study Area:</strong> Enter the survey area in km².</li>
-    <li><strong>Viewable Area:</strong> Enter the camera viewshed area in m² directly, or choose field-of-view mode to derive effective detection radius (95th percentile of detection distances) and sector area from FOV. Detection distances are only required for field-of-view mode, and only for the selected species.</li>
+    <li><strong>Viewable Area:</strong> Enter the camera viewshed area in m² directly, or choose field-of-view mode. In field-of-view mode, enter the horizontal camera field of view (used as the camera angle, theta), select a species, and click <em>Generate Viewable Area</em>. Area is derived from that field of view and an effective detection distance fitted to the species' detection distances (at least 20 distances required). You can edit the calculated area before generating results. Detection distances are only required for field-of-view mode, and only for the selected species.</li>
     <li><strong>Species Speed:</strong> Average movement speed in metres/hr used to set TTE sampling period length. Prefills to 30 m/hr; a positive value is required to run the analysis.</li>
-    <li><strong>Detections:</strong> At least one detection of the selected species is required. Field-of-view mode additionally requires at least one measured detection distance for that species.</li>
+    <li><strong>Detections:</strong> At least one detection of the selected species is required. Field-of-view mode additionally requires at least 20 measured detection distances for that species to generate viewable area.</li>
 </ul>
 
 <p>

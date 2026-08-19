@@ -62,7 +62,7 @@ import tracemalloc
 import calendar
 import pandas as pd
 from WorkR.worker import calculate_activity_pattern, calculate_occupancy_analysis, calculate_spatial_capture_recapture, calculate_distance_sampling, calculate_space_ntime_tte
-from app.functions.space_ntime import preflight_space_ntime_tte
+from app.functions.space_ntime import preflight_space_ntime_tte, generate_tte_viewable_area
 from celery.result import allow_join_result
 from scipy.spatial import ConvexHull
 
@@ -12716,6 +12716,83 @@ def getDistanceSampling():
 
     return json.dumps({'status': status, 'results': distance_results, 'message': message, 'folder': folder})
 
+@app.route('/generateTteViewableArea', methods=['POST'])
+@login_required
+def generateTteViewableArea():
+    '''Fits EDD from detection distances and returns a sector viewable area for TTE FOV mode.'''
+    status = 'FAILURE'
+    message = 'Permission denied.'
+    results = {}
+    if not (current_user.is_authenticated and current_user.admin):
+        return json.dumps({'status': status, 'message': message, 'results': results})
+
+    if 'species' not in request.form or 'fov_degrees' not in request.form or 'task_ids' not in request.form:
+        return json.dumps({'status': status, 'message': 'Please select a species and enter a camera field of view.', 'results': results})
+
+    task_ids = ast.literal_eval(request.form['task_ids'])
+    species = ast.literal_eval(request.form['species'])
+    trapgroups = ast.literal_eval(request.form['trapgroups']) if 'trapgroups' in request.form else '0'
+    groups = ast.literal_eval(request.form['groups']) if 'groups' in request.form else '0'
+    fov_degrees = ast.literal_eval(request.form['fov_degrees'])
+    if 'startDate' in request.form:
+        startDate = ast.literal_eval(request.form['startDate'])
+    else:
+        startDate = None
+    if 'endDate' in request.form:
+        endDate = ast.literal_eval(request.form['endDate'])
+    else:
+        endDate = None
+    if 'area' in request.form:
+        area = ast.literal_eval(request.form['area'])
+    else:
+        area = None
+
+    if not task_ids:
+        return json.dumps({'status': status, 'message': 'Please select an annotation set.', 'results': results})
+
+    if area and area != '0':
+        tasks = surveyPermissionsSQ(db.session.query(Task.id).join(Survey).join(Area).filter(Area.name==area).filter(Task.name != 'default').filter(~Task.name.contains('_o_l_d_')).filter(~Task.name.contains('_copying')), current_user.id, 'read')
+        if task_ids[0] != '0':
+            tasks = tasks.filter(Task.id.in_(task_ids))
+        tasks = tasks.distinct().all()
+        task_ids = [r[0] for r in tasks]
+        if not task_ids:
+            return json.dumps({'status': status, 'message': 'No accessible tasks found for the selected surveys.', 'results': results})
+
+    if task_ids[0] == '0':
+        task_rows = surveyPermissionsSQ(
+            db.session.query(Task.id, Task.survey_id)
+                .join(Survey)
+                .filter(Task.name != 'default')
+                .filter(~Task.name.contains('_o_l_d_'))
+                .filter(~Task.name.contains('_copying'))
+                .group_by(Task.survey_id)
+                .order_by(Task.id),
+            current_user.id,
+            'read'
+        ).distinct().all()
+    else:
+        task_rows = surveyPermissionsSQ(
+            db.session.query(Task.id, Task.survey_id)
+                .join(Survey)
+                .filter(Task.id.in_(task_ids)),
+            current_user.id,
+            'read'
+        ).distinct().all()
+
+    task_ids = [r[0] for r in task_rows]
+    survey_ids = list(set([r[1] for r in task_rows]))
+    if not task_ids:
+        return json.dumps({'status': status, 'message': 'No accessible tasks found for the selected surveys.', 'results': results})
+
+    ok, payload = generate_tte_viewable_area(
+        task_ids, survey_ids, species, trapgroups, groups, startDate, endDate, fov_degrees
+    )
+    if not ok:
+        return json.dumps({'status': status, 'message': payload, 'results': results})
+
+    return json.dumps({'status': 'SUCCESS', 'message': None, 'results': payload})
+
 @app.route('/getSpaceNtimeTTE', methods=['POST'])
 @login_required
 def getSpaceNtimeTTE():
@@ -12738,6 +12815,10 @@ def getSpaceNtimeTTE():
             fov_degrees = ast.literal_eval(request.form['fov_degrees'])
         else:
             fov_degrees = None
+        if 'effective_detection_radius_m' in request.form:
+            effective_detection_radius_m = ast.literal_eval(request.form['effective_detection_radius_m'])
+        else:
+            effective_detection_radius_m = None
         if 'startDate' in request.form:
             startDate = ast.literal_eval(request.form['startDate'])
         else:
@@ -12821,7 +12902,7 @@ def getSpaceNtimeTTE():
 
                 user_id = current_user.id
                 bucket = Config.BUCKET
-                result = calculate_space_ntime_tte.apply_async(queue='statistics', kwargs={'task_ids': task_ids, 'species': species, 'trapgroups': trapgroups, 'groups': groups, 'startDate': startDate, 'endDate': endDate, 'area_mode': area_mode, 'viewable_area_m2': viewable_area_m2, 'fov_degrees': fov_degrees, 'species_speed_m_hr': species_speed_m_hr, 'study_area_m2': study_area_m2, 'nper': nper, 'time_btw_seconds': time_btw_seconds, 'user_id': user_id, 'folder': folder, 'bucket': bucket, 'csv': csv})
+                result = calculate_space_ntime_tte.apply_async(queue='statistics', kwargs={'task_ids': task_ids, 'species': species, 'trapgroups': trapgroups, 'groups': groups, 'startDate': startDate, 'endDate': endDate, 'area_mode': area_mode, 'viewable_area_m2': viewable_area_m2, 'fov_degrees': fov_degrees, 'effective_detection_radius_m': effective_detection_radius_m, 'species_speed_m_hr': species_speed_m_hr, 'study_area_m2': study_area_m2, 'nper': nper, 'time_btw_seconds': time_btw_seconds, 'user_id': user_id, 'folder': folder, 'bucket': bucket, 'csv': csv})
                 GLOBALS.redisClient.set('analysis_' + str(user_id), result.id)
                 status = 'PENDING'
         else:
