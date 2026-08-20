@@ -19,7 +19,7 @@ from app.models import *
 # from app.functions.admin import setup_new_survey_permissions
 from app.functions.globals import detection_rating, randomString, updateTaskCompletionStatus, updateLabelCompletionStatus, updateIndividualIdStatus, retryTime,\
                                  chunker, save_crops, list_all, classifyTask, all_equal, generate_raw_image_hash, updateAllStatuses, setup_new_survey_permissions, \
-                                 hideSmallDetections, maskSky, rDets, verify_label, checkChildTranslations, createChildTranslations, add_new_task, prepTask, launch_task
+                                 hideSmallDetections, maskSky, rDets, verify_label, checkChildTranslations, createChildTranslations, add_new_task, prepTask, launch_task, add_labelgroups
 from app.functions.delete import delete_clusters, delete_cameras, delete_trapgroups, delete_cameragroups, delete_calibration_images
 import GLOBALS
 from sqlalchemy.sql import func, or_, distinct, and_, literal_column, alias
@@ -102,15 +102,167 @@ def findImID(survey_id,fullPath,isVideo):
     filename = re.split('/',fullPath)[-1]
     # path = re.split(filename,fullPath)[0][:-1]
     path = os.path.join(*re.split('/',fullPath)[:-1])
+    path_str = path.replace('_','\\_')
+    path_str = '%' + path_str
     if list(filter(isVideo.search, [filename])):
-        images = db.session.query(Image).join(Camera).join(Trapgroup).join(Video).filter(Trapgroup.survey_id==survey_id).filter(Camera.path.contains(path)).filter(Video.filename==filename).distinct().all()
+        images = db.session.query(Image).join(Camera).join(Trapgroup).join(Video).filter(Trapgroup.survey_id==survey_id).filter(Camera.path.like(path_str)).filter(Video.filename==filename).distinct().all()
     else:
-        images = [db.session.query(Image).join(Camera).join(Trapgroup).filter(Trapgroup.survey_id==survey_id).filter(Camera.path.contains(path)).filter(Image.filename==filename).first()]
+        images = [db.session.query(Image).join(Camera).join(Trapgroup).filter(Trapgroup.survey_id==survey_id).filter(Camera.path.like(path_str)).filter(Image.filename==filename).first()]
     if images:
-        return [image.id for image in images]
+        ids = [image.id for image in images if image]
+        return ids if ids else np.nan
     else:
         return np.nan
 
+def add_clusters_for_csv_import(survey_id,task_id):
+    ''' Bulk adds missing clusters to the specified task. Each image is assigned to a new cluster. '''
+    
+    try:
+        sq = db.session.query(Image.id.label('image_id'), Cluster.id.label('cluster_id'))\
+                            .join(Camera)\
+                            .join(Trapgroup)\
+                            .filter(Trapgroup.survey_id==survey_id)\
+                            .join(Cluster,Image.clusters)\
+                            .filter(Cluster.task_id==task_id)\
+                            .subquery()
+        
+        while True:
+            images = db.session.query(Image)\
+                .outerjoin(sq, sq.c.image_id==Image.id)\
+                .join(Camera)\
+                .join(Trapgroup)\
+                .filter(Trapgroup.survey_id==survey_id)\
+                .filter(sq.c.cluster_id==None)\
+                .distinct().limit(20000).all()
+
+            if not images: break
+            clusters = []
+            date_now = datetime.utcnow()
+            for image in images:
+                cluster = Cluster(task_id=task_id, timestamp=date_now)
+                cluster.images = [image]
+                clusters.append(cluster)
+            db.session.add_all(clusters)
+            db.session.commit()
+
+    except Exception as exc:
+        app.logger.info(' ')
+        app.logger.info('!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!')
+        app.logger.info(traceback.format_exc())
+        app.logger.info('!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!')
+        app.logger.info(' ')
+
+    finally:
+        db.session.remove()
+
+    return True
+
+# @celery.task(bind=True,max_retries=5,ignore_result=True)
+# def importCSV(self,survey_id,task_id,filePath,user_id):
+#     '''
+#     Celery task for importing a csv file.
+
+#         Parameters:
+#             survey_id (int): Survey for which the csv is being imported
+#             task_id (int): The task into which the csv is being imported
+#             filePath (str): The file path for the csv
+#             user_id: The user who owns the csv
+#     '''
+#     try:
+#         localsession=db.session()
+
+#         with tempfile.NamedTemporaryFile(delete=True, suffix='.csv') as temp_file:
+#             GLOBALS.s3client.download_file(Bucket=Config.BUCKET, Key=filePath, Filename=temp_file.name)
+#             df = pd.read_csv(temp_file.name)
+
+#         if df:
+#             isVideo = re.compile('(\.avi$)|(\.mp4$)|(\.mov$)', re.I)
+#             df.drop_duplicates(subset=['filepath'], keep=True, inplace=True)
+#             df['image_id'] = df.apply(lambda x: findImID(survey_id,x.filename,isVideo), axis=1)
+#             df = df[df['image_id'].notna()]
+#             del df['filename']
+#             df=df.explode('image_id')
+
+#             labelColumns = []
+#             for column in df:
+#                 if 'label' in column.lower():
+#                     labelColumns.append(column)
+
+#             labels = pd.unique(df[labelColumns].values.ravel('K'))
+#             labels = [x for x in labels if str(x) != 'nan']
+
+#             labelIDs = {}
+#             for labelName in labels:
+#                 if labelName.lower() == 'nothing':
+#                     labelIDs[labelName] = GLOBALS.nothing_id
+#                 elif labelName.lower() == 'knocked down':
+#                     labelIDs[labelName] = GLOBALS.knocked_id
+#                 elif labelName.lower() == 'wrong':
+#                     labelIDs[labelName] = -1
+#                 elif labelName.lower() == 'unknown':
+#                     labelIDs[labelName] = GLOBALS.unknown_id
+#                 elif labelName.lower() == 'skip':
+#                     labelIDs[labelName] = -1
+#                 elif labelName.lower() == 'vehicles/humans/livestock':
+#                     labelIDs[labelName] = GLOBALS.vhl_id
+#                 else:
+#                     label = db.session.query(Label).filter(Label.task_id==task_id).filter(Label.description==labelName).first()
+
+#                     if label==None:
+#                         label = Label(description=labelName,hotkey=None,parent_id=None,task_id=task_id,complete=True)
+#                         db.session.add(label)
+#                         db.session.commit()
+
+#                     labelIDs[labelName]=label.id
+
+#             df['labelstemp']= df[labelColumns].values.tolist()
+#             df['labels'] = df.apply(lambda x: [labelIDs[r] for r in x.labelstemp if str(r) != 'nan'], axis=1)
+#             del df['labelstemp']
+#             for column in labelColumns: del df[column]
+
+#             df.apply(lambda x: clusterAndLabel(localsession,task_id,user_id,x.image_id,x.labels), axis=1)
+#             # localsession.commit()
+
+#             sq = localsession.query(Image.id).join(Cluster, Image.clusters).filter(Cluster.task_id==task_id).subquery()
+#             images = localsession.query(Image).outerjoin(sq, sq.c.id==Image.id).join(Camera).join(Trapgroup).filter(Trapgroup.survey_id==survey_id).filter(sq.c.id==None).all()
+
+#             for image in images:
+#                 cluster = Cluster(task_id=task_id)
+#                 localsession.add(cluster)
+#                 cluster.images = [image]
+#                 cluster.classification = classifyCluster(cluster)
+            
+#             localsession.commit()
+
+#         # # Classify clusters
+#         task = localsession.query(Task).get(task_id)
+#         # pool = Pool(processes=4)
+#         # for trapgroup in task.survey.trapgroups:
+#         #     pool.apply_async(classifyTrapgroup,(task.id,trapgroup.id))
+#         # pool.close()
+#         # pool.join()
+
+#         task.status = 'Ready'
+#         task.survey.status = 'Ready'
+#         localsession.commit()
+
+#         try:
+#             GLOBALS.s3client.delete_object(Bucket=Config.BUCKET, Key=filePath)
+#         except:
+#             pass
+
+#     except Exception as exc:
+#         app.logger.info(' ')
+#         app.logger.info('!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!')
+#         app.logger.info(traceback.format_exc())
+#         app.logger.info('!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!')
+#         app.logger.info(' ')
+#         self.retry(exc=exc, countdown= retryTime(self.request.retries))
+
+#     finally:
+#         localsession.remove()
+
+#     return True
 
 @celery.task(bind=True,max_retries=5,ignore_result=True)
 def importCSV(self,survey_id,task_id,filePath,user_id):
@@ -124,15 +276,13 @@ def importCSV(self,survey_id,task_id,filePath,user_id):
             user_id: The user who owns the csv
     '''
     try:
-        localsession=db.session()
-
         with tempfile.NamedTemporaryFile(delete=True, suffix='.csv') as temp_file:
             GLOBALS.s3client.download_file(Bucket=Config.BUCKET, Key=filePath, Filename=temp_file.name)
             df = pd.read_csv(temp_file.name)
 
-        if df:
+        if not df.empty:
             isVideo = re.compile('(\.avi$)|(\.mp4$)|(\.mov$)', re.I)
-            df.drop_duplicates(subset=['filepath'], keep=True, inplace=True)
+            df.drop_duplicates(subset=['filename'], inplace=True)
             df['image_id'] = df.apply(lambda x: findImID(survey_id,x.filename,isVideo), axis=1)
             df = df[df['image_id'].notna()]
             del df['filename']
@@ -175,31 +325,70 @@ def importCSV(self,survey_id,task_id,filePath,user_id):
             del df['labelstemp']
             for column in labelColumns: del df[column]
 
-            df.apply(lambda x: clusterAndLabel(localsession,task_id,user_id,x.image_id,x.labels), axis=1)
-            # localsession.commit()
+            # Add labelgroups
+            add_labelgroups(survey_id,task_id)
 
-            sq = localsession.query(Image.id).join(Cluster, Image.clusters).filter(Cluster.task_id==task_id).subquery()
-            images = localsession.query(Image).outerjoin(sq, sq.c.id==Image.id).join(Camera).join(Trapgroup).filter(Trapgroup.survey_id==survey_id).filter(sq.c.id==None).all()
+            # Add clusters
+            add_clusters_for_csv_import(survey_id,task_id)
 
-            for image in images:
-                cluster = Cluster(task_id=task_id)
-                localsession.add(cluster)
-                cluster.images = [image]
-                cluster.classification = classifyCluster(cluster)
-            
-            localsession.commit()
+            # Add labels to labelgroups and clusters
+            label_ids = list(labelIDs.values())
+            labels = db.session.query(Label).filter(Label.id.in_(label_ids)).all()
+            for label in labels:
+                image_ids = df[df['labels'].apply(lambda x: label.id in x)]['image_id'].tolist()
+                for batch in chunker(image_ids, 1000):
+                    labelgroup_ids = [r[0] for r in db.session.query(Labelgroup.id)\
+                        .join(Detection)\
+                        .filter(Detection.image_id.in_(batch))\
+                        .filter(Labelgroup.task_id==task_id)\
+                        .filter(~Labelgroup.labels.contains(label))\
+                        .distinct().all()]
 
-        # # Classify clusters
-        task = localsession.query(Task).get(task_id)
-        # pool = Pool(processes=4)
-        # for trapgroup in task.survey.trapgroups:
-        #     pool.apply_async(classifyTrapgroup,(task.id,trapgroup.id))
-        # pool.close()
-        # pool.join()
+                    insert_values = []
+                    for labelgroup_id in labelgroup_ids:
+                        insert_values.append({
+                            'labelgroup_id': labelgroup_id,
+                            'label_id': label.id
+                        })
+                    if insert_values: db.session.execute(insert(detectionLabels), insert_values)
 
+                    cluster_ids = [r[0] for r in db.session.query(Cluster.id)\
+                        .join(Image, Cluster.images)\
+                        .filter(Image.id.in_(batch))\
+                        .filter(Cluster.task_id==task_id)\
+                        .filter(~Cluster.labels.contains(label))\
+                        .distinct().all()]
+
+                    insert_values = []
+                    for cluster_id in cluster_ids:
+                        insert_values.append({
+                            'cluster_id': cluster_id,
+                            'label_id': label.id
+                        })
+                    if insert_values: db.session.execute(insert(labelstable), insert_values)
+
+                    update_values = []
+                    date_now = datetime.utcnow()
+                    for cluster_id in cluster_ids:
+                        update_values.append({
+                            'id': cluster_id,
+                            'user_id': user_id,
+                            'timestamp': date_now
+                        })
+                    if update_values: db.session.bulk_update_mappings(Cluster, update_values)
+
+                db.session.commit()
+
+        trapgroup_ids = [r[0] for r in db.session.query(Trapgroup.id).filter(Trapgroup.survey_id==survey_id).all()]
+        for trapgroup_id in trapgroup_ids:
+            classifyTrapgroup(task_id,trapgroup_id)
+
+        updateAllStatuses(task_id)
+
+        task = db.session.query(Task).get(task_id)
         task.status = 'Ready'
         task.survey.status = 'Ready'
-        localsession.commit()
+        db.session.commit()
 
         try:
             GLOBALS.s3client.delete_object(Bucket=Config.BUCKET, Key=filePath)
@@ -215,7 +404,7 @@ def importCSV(self,survey_id,task_id,filePath,user_id):
         self.retry(exc=exc, countdown= retryTime(self.request.retries))
 
     finally:
-        localsession.remove()
+        db.session.remove()
 
     return True
 
@@ -4322,9 +4511,16 @@ def validate_csv(stream,survey_id):
         filename = re.split('/',fullPath)[-1]
         # path = re.split(filename,fullPath)[0][:-1]
         path = os.path.join(*re.split('/',fullPath)[:-1])
-        image = db.session.query(Image).join(Camera).join(Trapgroup).filter(Trapgroup.survey_id==survey_id).filter(Camera.path==path).filter(Image.filename==filename).first()
-
-        if image: return True
+        path_str = path.replace('_','\\_')
+        path_str = '%' + path_str
+        camera = db.session.query(Camera).join(Trapgroup).filter(Trapgroup.survey_id==survey_id).filter(Camera.path.like(path_str)).first()
+        if camera:
+            camera_path_splits = camera.path.split('/')
+            correct_camera_paths = []
+            for i in range(0,3): correct_camera_paths.append('/'.join(camera_path_splits[i:]))
+            if path in correct_camera_paths:
+                image = db.session.query(Image).join(Camera).join(Trapgroup).filter(Trapgroup.survey_id==survey_id).filter(Camera.path.like(path_str)).filter(Image.filename==filename).first()
+                if image: return True
 
     return False
 
@@ -5408,6 +5604,8 @@ def run_llava(self,image_ids,prompt):
 def clean_extracted_timestamp(text,dayfirst):
     '''Function that tries to clean up the messy extracted timestamps'''
     try:
+        fp_timestamp = find_first_prize_timestamp(text,dayfirst)
+        if fp_timestamp: return fp_timestamp
         final_candidates = []
         disallowed_characters = ['°'] #allows us to remove number information like temperature
         terms_for_removal = [r'[0-9.,]+.?in[Hh]g',r'[0-9.,]+.?[°cCfF]'] # Temp & pressure trip up the parsing
@@ -5425,13 +5623,51 @@ def clean_extracted_timestamp(text,dayfirst):
                 final_candidates.append(candidate.replace(' ',''))
             except:
                 continue
-        if len(final_candidates)==0: return text
+        if len(final_candidates)==0: return check_extracted_timestamp(text,dayfirst)
         timestamp = ' '.join(final_candidates)
         if 'PM' in text: timestamp += ' PM'
         if 'AM' in text.replace('CAMERA','').replace('CAM',''): timestamp += ' AM' #we need to prevent the AM match in CAMERA
+        checked_timestamp = check_extracted_timestamp(timestamp,dayfirst)
+        if not checked_timestamp: return check_extracted_timestamp(text,dayfirst)
         return timestamp
     except:
-        return text
+        return check_extracted_timestamp(text,dayfirst)
+
+def check_extracted_timestamp(text,dayfirst):
+    '''Function that checks if the extracted text includes a year, month, day, hour, and minute'''
+    try:
+        dateA = datetime(1900, 1, 1, 0, 0, 0)
+        dateB = datetime(1901, 2, 2, 3, 4, 0)
+        testA = dateutil_parse(text, fuzzy=True, dayfirst=dayfirst, default=dateA)
+        testB = dateutil_parse(text, fuzzy=True, dayfirst=dayfirst, default=dateB)
+        if testA != testB:
+            return None
+        else:
+            return text
+    except:
+        return None
+
+def find_first_prize_timestamp(text,dayfirst):
+    '''Function that finds the first prize timestamp in the given text'''
+    try:
+        date_regex = re.compile(r'\b(?:\d{4}([/-])\d{2}\1\d{2}|\d{2}([/-])\d{2}\2\d{4})\b') #Date format: YYYY/MM/DD or DD/MM/YYYY or with - instead of /
+        time_regex = re.compile(r"\b\d{1,2}:\d{1,2}(?::\d{1,2})?(?![:\d])") #Time format: HH:MM or HH:MM:SS
+        timestamp = None
+        date_candidates = [m.group(0) for m in date_regex.finditer(text)]
+        time_candidates = time_regex.findall(text)
+        if len(date_candidates) > 0 and len(time_candidates) > 0:
+            date = date_candidates[0]
+            time = time_candidates[0]
+            timestamp_txt = date + ' ' + time
+            timestamp = dateutil_parse(timestamp_txt,fuzzy=True,dayfirst=dayfirst,default=datetime(year=2024,month=1,day=1))
+            if timestamp.year<2000: return None
+            if timestamp>=datetime.utcnow(): return None
+            if 'PM' in text: timestamp_txt += ' PM'
+            if 'AM' in text.replace('CAMERA','').replace('CAM',''): timestamp_txt += ' AM' #we need to prevent the AM match in CAMERA
+            timestamp_txt = check_extracted_timestamp(timestamp_txt,dayfirst)
+            return timestamp_txt
+    except:
+        return None
 
 @celery.task(bind=True,max_retries=5)
 def get_timestamps(self,trapgroup_id,index=None):
@@ -5499,8 +5735,9 @@ def get_timestamps(self,trapgroup_id,index=None):
 
         for test in ordered_tests:
             try:
-                timestamp = dateutil_parse(clean_extracted_timestamp(test,dayfirst),fuzzy=True,dayfirst=True,default=datetime.utcnow()+timedelta(days=365))
-                if (timestamp.year<2000) or (timestamp>=datetime.utcnow().replace(hour=0,minute=0,second=0,microsecond=0)): continue #dateutil_parse uses todays date if there is only a time - need to filter this out
+                date_now = datetime.utcnow().replace(second=0,microsecond=0)
+                timestamp = dateutil_parse(clean_extracted_timestamp(test,dayfirst),fuzzy=True,dayfirst=dayfirst,default=date_now+timedelta(days=365))
+                if (timestamp.year<2000) or (timestamp>=date_now.replace(hour=0,minute=0,second=0,microsecond=0)): continue #dateutil_parse uses todays date if there is only a time - need to filter this out
                 if timestamp.day>12:
                     if len(test.split(str(timestamp.day))[0]) < len(test.split(str(timestamp.month))[0]):
                         dayfirst = True
@@ -5544,8 +5781,9 @@ def get_timestamps(self,trapgroup_id,index=None):
                 extracted_text = item[1].extracted_data
                 item_id = item[1].id
             try:
-                timestamp = dateutil_parse(clean_extracted_timestamp(extracted_text,dayfirst),fuzzy=True,dayfirst=dayfirst,default=datetime.utcnow()+timedelta(days=365))
-                if (timestamp.year<2000) or (timestamp>=datetime.utcnow().replace(hour=0,minute=0,second=0,microsecond=0)): continue #dateutil_parse uses todays date if there is only a time - need to filter this out
+                date_now = datetime.utcnow().replace(second=0,microsecond=0)
+                timestamp = dateutil_parse(clean_extracted_timestamp(extracted_text,dayfirst),fuzzy=True,dayfirst=dayfirst,default=date_now+timedelta(days=365))
+                if (timestamp.year<2000) or (timestamp>=date_now.replace(hour=0,minute=0,second=0,microsecond=0)): continue #dateutil_parse uses todays date if there is only a time - need to filter this out
                 dates.append(pd.Timestamp(timestamp)) # this needs to be first - if it fails there is something wrong with the date and it should be dropped
                 parsed_timestamps[item_id] = timestamp
             except:
@@ -5682,10 +5920,11 @@ def use_textract(data,index,check=False):
         if check:
             # Check if we can extract timestamps from the text
             try:
-                timestamp = dateutil_parse(clean_extracted_timestamp(text,True),fuzzy=True,dayfirst=True,default=datetime.utcnow()+timedelta(days=365))
-                if (timestamp.year<2000) or (timestamp>=datetime.utcnow().replace(hour=0,minute=0,second=0,microsecond=0)):
-                    timestamp = dateutil_parse(clean_extracted_timestamp(text,False),fuzzy=True,dayfirst=False,default=datetime.utcnow()+timedelta(days=365))
-                    if (timestamp.year<2000) or (timestamp>=datetime.utcnow().replace(hour=0,minute=0,second=0,microsecond=0)):
+                date_now = datetime.utcnow().replace(second=0,microsecond=0)
+                timestamp = dateutil_parse(clean_extracted_timestamp(text,True),fuzzy=True,dayfirst=True,default=date_now+timedelta(days=365))
+                if (timestamp.year<2000) or (timestamp>=date_now.replace(hour=0,minute=0,second=0,microsecond=0)):
+                    timestamp = dateutil_parse(clean_extracted_timestamp(text,False),fuzzy=True,dayfirst=False,default=date_now+timedelta(days=365))
+                    if (timestamp.year<2000) or (timestamp>=date_now.replace(hour=0,minute=0,second=0,microsecond=0)):
                         failed += 1
                         continue
             except:

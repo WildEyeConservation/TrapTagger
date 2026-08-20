@@ -334,6 +334,9 @@ def clean_up_redis():
                                         .distinct().count()
                         if count != 1:
                             resolve_abandoned_jobs([[user,user.turkcode[0].task]])
+                        else:
+                            if user.last_ping < (datetime.utcnow()-timedelta(minutes=30)):
+                                resolve_abandoned_jobs([[user,user.turkcode[0].task]])
 
             elif any(name in key for name in ['lambda_invoked', 'lambda_completed', 'upload_complete']):
                 survey_id = key.split('_')[-1]

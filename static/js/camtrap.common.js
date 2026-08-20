@@ -81,6 +81,7 @@ var isTimestampCheck
 var ctrlHeld = false
 var shiftHeld = false
 var switchToLabel = false
+var reviewingAccess = true
 
 const divBtns = document.querySelector('#divBtns');
 const catcounts = document.querySelector('#categorycounts');
@@ -431,7 +432,7 @@ function buildDetection(image,detection,mapID = 'map1',colour=null) {
                         wrapRect.bringToBack()
                         sendBoundingBack()
                     }
-                    else if(!drawControl._toolbars.edit._activeMode && !drawControl._toolbars.draw._activeMode){
+                    else if(drawControl==null||(!drawControl._toolbars.edit._activeMode && !drawControl._toolbars.draw._activeMode)){
                         if (!((isBounding||isReviewing) && event.ctrlKey)) {
                             colour = colourBase
                             // prevClickBounding.rect.setStyle({color: colour}); //un-highlight old selection
@@ -453,7 +454,7 @@ function buildDetection(image,detection,mapID = 'map1',colour=null) {
             // Highlights and un-highlight when right click on bounding box
             rect.addEventListener('contextmenu', function(wrapRect, wrapDet){
                 return function() {
-                    if(!drawControl._toolbars.edit._activeMode && !drawControl._toolbars.draw._activeMode){
+                    if(drawControl==null||(!drawControl._toolbars.edit._activeMode && !drawControl._toolbars.draw._activeMode)){
                          if (!((isBounding||isReviewing) && event.ctrlKey)) {
                             colour = colourBase
                             // prevClickBounding.rect.setStyle({color: colour}); //un-highlight old selection
@@ -898,7 +899,7 @@ function addDetections(mapID = 'map1') {
         } else if (isIDing && mapID!='known') {
             drawControl[mapID]._toolbars.edit._toolbarContainer.firstElementChild.title = 'Edit sightings'
             drawControl[mapID]._toolbars.edit._toolbarContainer.lastElementChild.title = 'Delete sightings'
-        } else if (isReviewing||(isTagging&&!isTutorial&&!maskMode&&!isIDing)) {
+        } else if ((isReviewing&&reviewingAccess)||(isTagging&&!isTutorial&&!maskMode&&!isIDing)) {
             drawControl._toolbars.edit._toolbarContainer.firstElementChild.title = 'Edit sightings'
             drawControl._toolbars.edit._toolbarContainer.lastElementChild.title = 'Delete sightings' 
         }
@@ -3102,9 +3103,19 @@ function prepMap(mapID = 'map1') {
                                 }
                                 if (isIDing && (document.getElementById('btnSendToBack')==null)) {
                                     if (document.getElementById('cxFeaturesHeatmap').checked){
-                                        var detID1 = clusters['map1'][clusterIndex['map1']].images[imageIndex['map1']].detections[0].id
-                                        var detID2 = clusters['map2'][clusterIndex['map2']].images[imageIndex['map2']].detections[0].id
-                                        getMatchingKpts(detID1,detID2)
+                                        var detID1 = clusters['map1'][clusterIndex['map1']].images[imageIndex['map1']].detections.find(detection => detection.active).id ?? null
+                                        var detID2 = clusters['map2'][clusterIndex['map2']].images[imageIndex['map2']].detections.find(detection => detection.active).id ?? null
+                                        if (detID1 != null && detID2 != null){
+                                            getMatchingKpts(detID1,detID2)
+                                        }
+                                        else{
+                                            if (kpts_layer['map1'] != null){
+                                                map['map1'].removeLayer(kpts_layer['map1'])
+                                            }
+                                            if (kpts_layer['map2'] != null){
+                                                map['map2'].removeLayer(kpts_layer['map2'])
+                                            }
+                                        }
                                     }
                                 }
                             }
@@ -4320,6 +4331,12 @@ document.onkeydown = function(event){
         if (event.key.toLowerCase() == ' ') {
             event.preventDefault()
             hideDetections(true)
+        }
+    }
+    else if (isReviewing){
+        if (event.key.toLowerCase() == 'tab') {
+            event.preventDefault()
+            hideBoundingLabels()
         }
     }
 }

@@ -311,7 +311,7 @@ def stop_task(self,task_id,live=False):
                     except:
                         pass
 
-                if cleanup: cleanup_empty_restored_images.delay(task_id)
+                if cleanup: cleanup_empty_restored_images.delay(task_id=task_id)
 
             db.session.commit()
 

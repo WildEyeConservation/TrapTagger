@@ -57,6 +57,33 @@ class RegistrationForm(FlaskForm):
         if sum_check.data != 11:
             raise ValidationError('Incorrect answer.')
 
+class InviteRegistrationForm(FlaskForm):
+    username = StringField('Username', validators=[DataRequired()])
+    password = PasswordField('Password', validators=[DataRequired()])
+    password2 = PasswordField(
+        'Repeat Password', validators=[DataRequired(), EqualTo('password')])
+    sum_check = IntegerField('What is 5 + 3?', validators=[DataRequired()])
+    submit = SubmitField('Register')
+
+    def validate_username(self, username):
+        username.data = username.data.strip()
+        user = User.query.filter_by(username=username.data).first()
+        folder = username.data.lower().replace(' ','-').replace('_','-')
+        folder_check = Organisation.query.filter_by(folder=folder).first()
+        org = Organisation.query.filter_by(name=username.data).first()
+        if user is not None or folder_check is not None or org is not None:
+            raise ValidationError('Please use a different username.')
+        if len(username.data) > 64:
+            raise ValidationError('Username must be less than 64 characters.')
+        disallowed_chars = '"[@!#$%^&*()<>?/\|}{~:]' + "'"
+        disallowed = any(r in disallowed_chars for r in username.data)
+        if disallowed:
+            raise ValidationError('Username cannot contain special characters.')
+
+    def validate_sum_check(self, sum_check):
+        if sum_check.data != 8:
+            raise ValidationError('Incorrect answer.')
+
 class NewSurveyForm(FlaskForm):
     name = StringField('Name', validators=[DataRequired()])
     description = TextAreaField('Name', validators=[DataRequired()])

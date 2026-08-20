@@ -181,7 +181,8 @@ function submitChanges(mapID = 'map1') {
                     right: drawnItems[mapID]._layers[leafletID]._bounds._northEast.lng/mapWidth[mapID],
                     category: 1,
                     individual: '-1',
-                    static: false
+                    static: false,
+                    active: true
                 }
                 clusters[mapID][clusterIndex[mapID]].images[imageIndex[mapID]].detections.push(det)
             } else {

@@ -14,7 +14,7 @@
 
 document.addEventListener('click', function(event){
     /** Un-highlights the selected bounding box */
-    if(!drawControl._toolbars.edit._activeMode && !drawControl._toolbars.draw._activeMode){
+    if(drawControl!=null&&!drawControl._toolbars.edit._activeMode && !drawControl._toolbars.draw._activeMode){
         if (event.target.classList.contains('leaflet-interactive')==false&&event.target.classList.contains('bounding-btn')==false&&event.target.classList.contains('select-all-bounding-btn')==false){
             if (!event.target.classList.contains('label-btn')) {
                 clearBoundingSelect()  
@@ -171,7 +171,7 @@ function sightingAnalysisMapPrep(mapID = 'map1') {
         //         return
         //     }
         // }
-        if(!drawControl._toolbars.edit._activeMode && !drawControl._toolbars.draw._activeMode){
+        if(drawControl!=null&&!drawControl._toolbars.edit._activeMode && !drawControl._toolbars.draw._activeMode){
             // nr_items = 2*clusters[mapID][clusterIndex[mapID]].label.length + 1
             nr_items = 5
 
@@ -354,27 +354,31 @@ function setRectOptions(mapID = 'map1') {
         drawControl.remove()
     }
 
-    drawControl = new L.Control.Draw({
-        draw: {
-            polygon: false,
-            polyline: false,
-            circle: false,
-            circlemarker: false,
-            marker: false,
-            rectangle: {
-                shapeOptions: rectOptions,
-                showArea: false
+    if (isBounding||(isReviewing&&reviewingAccess)) {
+
+        drawControl = new L.Control.Draw({
+            draw: {
+                polygon: false,
+                polyline: false,
+                circle: false,
+                circlemarker: false,
+                marker: false,
+                rectangle: {
+                    shapeOptions: rectOptions,
+                    showArea: false
+                }
+            },
+            edit: {
+                featureGroup: drawnItems[mapID]
             }
-        },
-        edit: {
-            featureGroup: drawnItems[mapID]
+        });
+        map[mapID].addControl(drawControl);
+        if (isReviewing) {
+            drawControl._toolbars.draw._toolbarContainer.firstElementChild.title = 'Add a sighting'
+        } else {
+            drawControl._toolbars.draw._toolbarContainer.firstElementChild.title = '(A)dd a sighting'
         }
-    });
-    map[mapID].addControl(drawControl);
-    if (isReviewing) {
-        drawControl._toolbars.draw._toolbarContainer.firstElementChild.title = 'Add a sighting'
-    } else {
-        drawControl._toolbars.draw._toolbarContainer.firstElementChild.title = '(A)dd a sighting'
+
     }
 
     if (isReviewing) {
@@ -383,48 +387,49 @@ function setRectOptions(mapID = 'map1') {
             selectAllControl.remove()
         }
 
-        const SelectAllControl = L.Control.extend({
-            options: {
-                position: 'topleft' 
-            },
-        
-            onAdd: function (map) {
-                const container = L.DomUtil.create('div', 'leaflet-bar');
-        
-                const button = L.DomUtil.create('a', '', container);
-                button.innerHTML = '✔'; 
-                button.href = '#';
-                button.style.color = '#333';
-                button.title = 'Select All';
-                button.classList.add('select-all-bounding-btn')
-        
-                // prevent map interactions when clicking
-                L.DomEvent.disableClickPropagation(container);
-                L.DomEvent.on(button, 'click', function (e) {
-                    L.DomEvent.preventDefault(e);
-                    selectAllBounding(mapID)
-                });
+        if (reviewingAccess) {
+            const SelectAllControl = L.Control.extend({
+                options: {
+                    position: 'topleft' 
+                },
+            
+                onAdd: function (map) {
+                    const container = L.DomUtil.create('div', 'leaflet-bar');
+            
+                    const button = L.DomUtil.create('a', '', container);
+                    button.innerHTML = '✔'; 
+                    button.href = '#';
+                    button.style.color = '#333';
+                    button.title = 'Select All';
+                    button.classList.add('select-all-bounding-btn')
+            
+                    // prevent map interactions when clicking
+                    L.DomEvent.disableClickPropagation(container);
+                    L.DomEvent.on(button, 'click', function (e) {
+                        L.DomEvent.preventDefault(e);
+                        selectAllBounding(mapID)
+                    });
 
-                const buttonSendBoundingBack = L.DomUtil.create('a', '', container);
-                buttonSendBoundingBack.innerHTML = '⧉'
-                buttonSendBoundingBack.href = '#';
-                buttonSendBoundingBack.style.color = '#333';
-                buttonSendBoundingBack.title = 'Send to Back';
-                buttonSendBoundingBack.classList.add('send-bounding-back-btn')
-                buttonSendBoundingBack.id = 'ctrlBtnSendBoundingBack'
+                    const buttonSendBoundingBack = L.DomUtil.create('a', '', container);
+                    buttonSendBoundingBack.innerHTML = '⧉'
+                    buttonSendBoundingBack.href = '#';
+                    buttonSendBoundingBack.style.color = '#333';
+                    buttonSendBoundingBack.title = 'Send to Back';
+                    buttonSendBoundingBack.classList.add('send-bounding-back-btn')
+                    buttonSendBoundingBack.id = 'ctrlBtnSendBoundingBack'
 
-                L.DomEvent.on(buttonSendBoundingBack, 'click', function (e) {
-                    L.DomEvent.preventDefault(e);
-                    sendBoundingBack()
-                });
+                    L.DomEvent.on(buttonSendBoundingBack, 'click', function (e) {
+                        L.DomEvent.preventDefault(e);
+                        sendBoundingBack()
+                    });
 
-                return container;
-            }
-        });
+                    return container;
+                }
+            });
 
-        selectAllControl = new SelectAllControl();
-        map[mapID].addControl(selectAllControl);
-
+            selectAllControl = new SelectAllControl();
+            map[mapID].addControl(selectAllControl);
+        }
     }
 }
 
