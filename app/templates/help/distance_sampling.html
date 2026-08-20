@@ -38,7 +38,7 @@ limitations under the License. -->
 
 <ul>
     <li><strong>Min / Max Truncation:</strong> Optional truncation distances in metres for the detection function.</li>
-    <li><strong>Advanced Options:</strong> Snapshot interval (seconds) used to convert operating time into CTDS effort units. Change only if your study used a different interval.</li>
+    <li><strong>Snapshot Interval:</strong> Seconds used to convert operating time into CTDS effort units (default 2). Change only if your study used a different interval.</li>
     <li><strong>Activity Multiplier:</strong> When enabled, temporal availability is estimated from detection times with the R <em>activity</em> package and passed to <em>dht2</em> as a multiplier (Howe et al. 2017). The full calculation is in <em>distance_sampling.R</em> (see <em>build_activity_multiplier()</em>). This adjusts density for the proportion of camera operating time when animals were active and available for detection.</li>
     <li><strong>Camera Operating Hours Per Day:</strong> Hours per 24 h calendar day that cameras were recording (default 24). Scales the activity rate when cameras were not on continuously.</li>
     <li><strong>Activity Time Scale:</strong> <em>Clock</em> uses wall-clock detection timestamps. <em>Solar</em> converts timestamps to solar time of day using mean trap-site coordinates and a UTC offset (computed in TrapTagger, same approach as activity pattern analysis). This is separate from camera operating hours.</li>

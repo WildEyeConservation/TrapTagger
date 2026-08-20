@@ -307,7 +307,6 @@ function generateResults(){
     var analysisDescription = document.getElementById('analysisDescription')
     analysisDescription.innerHTML = ''
     document.getElementById('distanceSamplingDiv').hidden = true
-    document.getElementById('distanceAdvancedDiv').hidden = true
     document.getElementById('tteAbundanceDiv').hidden = true
     document.getElementById('cameraFovDiv').hidden = true
 
@@ -627,7 +626,6 @@ function generateResults(){
         document.getElementById('covariatesDiv').hidden = true
         document.getElementById('observationWindowDiv').hidden = true
         document.getElementById('distanceSamplingDiv').hidden = false
-        document.getElementById('distanceAdvancedDiv').hidden = false
         document.getElementById('cameraFovDiv').hidden = false
         document.getElementById('cameraFovHelpDistance').hidden = false
         document.getElementById('cameraTrapDiv').hidden = true
@@ -677,7 +675,6 @@ function generateResults(){
         document.getElementById('covariatesDiv').hidden = true
         document.getElementById('observationWindowDiv').hidden = true
         document.getElementById('distanceSamplingDiv').hidden = true
-        document.getElementById('distanceAdvancedDiv').hidden = true
         document.getElementById('tteAbundanceDiv').hidden = false
         document.getElementById('cameraFovDiv').hidden = true
         document.getElementById('cameraTrapDiv').hidden = true
@@ -735,7 +732,6 @@ function generateResults(){
         document.getElementById('descriptionDiv').hidden = true
         document.getElementById('flankDiv').hidden = true
         document.getElementById('distanceSamplingDiv').hidden = true
-        document.getElementById('distanceAdvancedDiv').hidden = true
         document.getElementById('tteAbundanceDiv').hidden = true
 
         analysisDescription.innerHTML = ''
@@ -920,7 +916,9 @@ function disablePanel(){
         document.getElementById('distanceRightTrunc').disabled = true
         document.getElementById('distanceTimeToIndependence').disabled = true
         document.getElementById('distanceTimeToIndependenceUnit').disabled = true
-        document.getElementById('distanceAdvancedOptions').disabled = true
+        document.getElementById('distanceApplyActivityMultiplier').disabled = true
+        document.getElementById('distanceCameraHoursPerDay').disabled = true
+        document.getElementById('distanceActivityTimeMode').disabled = true
         document.getElementById('distanceSnapshotInterval').disabled = true
         document.getElementById('btnRunScript').disabled = true
         document.getElementById('btnCancelResults').disabled = false
@@ -1122,7 +1120,9 @@ function enablePanel(){
         document.getElementById('distanceRightTrunc').disabled = false
         document.getElementById('distanceTimeToIndependence').disabled = false
         document.getElementById('distanceTimeToIndependenceUnit').disabled = false
-        document.getElementById('distanceAdvancedOptions').disabled = false
+        document.getElementById('distanceApplyActivityMultiplier').disabled = false
+        document.getElementById('distanceCameraHoursPerDay').disabled = false
+        document.getElementById('distanceActivityTimeMode').disabled = false
         document.getElementById('distanceSnapshotInterval').disabled = false
         document.getElementById('btnRunScript').disabled = false
         document.getElementById('btnCancelResults').disabled = true
@@ -6542,18 +6542,8 @@ function updateOccupancy(check=false){
 
 }
 
-function toggleDistanceAdvancedOptions(){
-    /** Shows or hides distance sampling advanced fields. */
-    var show = document.getElementById('distanceAdvancedOptions').checked
-    document.getElementById('distanceAdvancedFields').hidden = !show
-}
-
 function getDistanceSnapshotInterval(){
     /** Returns snapshot interval in seconds (default 2 for Howe-style CTDS). */
-    var advanced = document.getElementById('distanceAdvancedOptions').checked
-    if (!advanced) {
-        return 2
-    }
     var val = document.getElementById('distanceSnapshotInterval').value
     if (val === '' || isNaN(val) || parseFloat(val) <= 0) {
         return null
@@ -6579,10 +6569,6 @@ function getDistanceApplyActivityMultiplier(){
 }
 
 function getDistanceCameraHoursPerDay(){
-    var advanced = document.getElementById('distanceAdvancedOptions').checked
-    if (!advanced) {
-        return 24
-    }
     var val = document.getElementById('distanceCameraHoursPerDay').value
     if (val === '' || isNaN(val) || parseFloat(val) <= 0 || parseFloat(val) > 24) {
         return null
@@ -6653,17 +6639,14 @@ function checkDistanceSampling(species, studyAreaKm2, cameraFovDegrees, leftTrun
         error += 'Min truncation must be less than max truncation. '
     }
 
-    if (document.getElementById('distanceAdvancedOptions').checked) {
-        var snapshotInterval = getDistanceSnapshotInterval()
-        if (snapshotInterval === null) {
-            error += 'Snapshot interval must be a positive number of seconds. '
-        }
-        if (getDistanceApplyActivityMultiplier()) {
-            var cameraHours = getDistanceCameraHoursPerDay()
-            if (cameraHours === null) {
-                error += 'Camera operating hours per day must be greater than 0 and at most 24. '
-            }
-        }
+    var snapshotInterval = getDistanceSnapshotInterval()
+    if (snapshotInterval === null) {
+        error += 'Snapshot interval must be a positive number of seconds. '
+    }
+
+    var cameraHours = getDistanceCameraHoursPerDay()
+    if (cameraHours === null) {
+        error += 'Camera operating hours per day must be greater than 0 and at most 24. '
     }
 
     var timeToIndependence = getDistanceTimeToIndependence()

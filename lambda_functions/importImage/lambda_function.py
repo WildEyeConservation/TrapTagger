@@ -27,6 +27,10 @@ import re
 
 s3 = boto3.client('s3')
 
+CALIBRATION_FOLDER_KEYWORD = 'calibration'
+# S3 keys are org/survey/...; survey names may contain the calibration keyword.
+S3_ORG_SURVEY_PREFIX_SEGMENTS = 2
+
 def is_calibration_dirpath(dirpath, calibration_code):
     if not dirpath:
         return False
@@ -38,13 +42,15 @@ def is_calibration_dirpath(dirpath, calibration_code):
     # Still require a calibration_code on the survey so detection stays opt-in per survey.
     if not calibration_code:
         return False
-    return 'calibration' in dir_name.lower()
+    return CALIBRATION_FOLDER_KEYWORD in dir_name.lower()
 
-def path_contains_calibration_folder(path):
-    '''True if any path segment contains "calibration" (case-insensitive).'''
+def path_contains_calibration_folder(path, skip_segments=S3_ORG_SURVEY_PREFIX_SEGMENTS):
+    '''True if any path segment after skip_segments contains "calibration".'''
     if not path:
         return False
-    return any('calibration' in p.lower() for p in path.split('/') if p)
+    parts = [p for p in path.split('/') if p]
+    keyword = CALIBRATION_FOLDER_KEYWORD.lower()
+    return any(keyword in p.lower() for p in parts[skip_segments:])
 
 def calibration_camera_relative_path(path, calibration_code):
     if not calibration_code:

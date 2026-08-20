@@ -2013,6 +2013,15 @@ def create_new_aws_user(userName):
 
     return s3UserName, s3Password
 
+def detection_bbox_changed(detection, top, left, right, bottom, eps=1e-6):
+    '''True if any bbox edge moved, including a same-size translation.'''
+    return (
+        abs((detection.top or 0) - top) > eps
+        or abs((detection.left or 0) - left) > eps
+        or abs((detection.right or 0) - right) > eps
+        or abs((detection.bottom or 0) - bottom) > eps
+    )
+
 def detection_rating(image):
     '''Returns a rating of the best detection in an image for cluster-ordering purposes.'''
 

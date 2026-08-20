@@ -396,6 +396,8 @@ var filesTabChange = false
 var cancelCloseES = false
 var calCameras = []
 var calImages = []
+var calImagesByCamera = {}
+var calImagesFetchCallbacks = {}
 var calImgIndex = 0
 var calIsDrawing = false
 var calCurrentBox = null
@@ -2157,10 +2159,14 @@ function updateCamFolderSelect(){
     }
 }
 
-function pathMatchesCalibration(path) {
-    /** True if any path segment contains the calibration keyword (case-insensitive). */
+function pathMatchesCalibration(path, skipSegments) {
+    /** True if a path segment after skipSegments is a calibration folder.
+     *  Browser paths start with the selected root folder, so skip 1 by default
+     *  and do not treat a survey folder named e.g. "no calibration" as a cal folder. */
     if (!path) return false
-    return path.split('/').some(function (seg) { return isCalibrationFolderName(seg) })
+    if (skipSegments == null) skipSegments = 1
+    var parts = path.split('/').filter(function (p) { return p })
+    return parts.slice(skipSegments).some(function (seg) { return isCalibrationFolderName(seg) })
 }
 
 function checkTrapgroupCode() {
@@ -7885,6 +7891,8 @@ function teardownCalMap() {
 
 function resetCalibrationView() {
     calImages = []
+    calImagesByCamera = {}
+    calImagesFetchCallbacks = {}
     calImgIndex = 0
     calCurrentBox = null
     teardownCalMap()
@@ -8240,15 +8248,9 @@ function scanBulkCalibrationFolderFiles(fileList) {
         var rel = file.webkitRelativePath || file.name
         var parts = rel.split('/').filter(function (p) { return p })
         if (parts.length < 3) continue
-        var calIdx = -1
-        for (var p = 0; p < parts.length - 1; p++) {
-            if (isCalibrationFolderName(parts[p])) {
-                calIdx = p
-                break
-            }
-        }
+        var calIdx = parts.length - 2
         // calibration must be the immediate parent folder of the file
-        if (calIdx < 0 || calIdx !== parts.length - 2) continue
+        if (!isCalibrationFolderName(parts[calIdx])) continue
 
         var cameraRelativePath = parts.slice(0, calIdx).join('/')
         if (!byCamera[cameraRelativePath]) {
@@ -8927,7 +8929,7 @@ function buildCalUploadMode() {
 
     var modeH5 = document.createElement('h5')
     modeH5.setAttribute('style', 'margin-bottom: 4px')
-    modeH5.innerHTML = 'Upload mode'
+    modeH5.innerHTML = 'Upload Mode'
     modeCol.appendChild(modeH5)
 
     var singleRadioWrap = document.createElement('div')
@@ -9279,8 +9281,64 @@ function areAllSurveyCalImagesStagedForDeletion() {
     return true
 }
 
+function isCurrentCalImageStagedForDeletion() {
+    if (!calImages || calImages.length === 0) return false
+    return deletedCalImages.indexOf(calImages[calImgIndex].id) !== -1
+}
+
+function removeCalibrationDrawControl() {
+    if (drawControlCal != null) {
+        drawControlCal.remove()
+        drawControlCal = null
+    }
+}
+
+function addCalibrationDrawControl() {
+    if (!mapCal || !drawnItemsCal || selectedCalMode !== 'edit') return
+    if (drawControlCal != null) return
+    var calRectOptions = {
+        color: 'rgba(223,105,26,1)',
+        fill: true,
+        fillOpacity: 0.1,
+        opacity: 0.8,
+        weight: 3
+    }
+    drawControlCal = new L.Control.Draw({
+        draw: {
+            polygon: false,
+            polyline: false,
+            circle: false,
+            circlemarker: false,
+            marker: false,
+            rectangle: {
+                shapeOptions: calRectOptions,
+                showArea: false
+            }
+        },
+        edit: {
+            featureGroup: drawnItemsCal
+        }
+    })
+    mapCal.addControl(drawControlCal)
+}
+
+function syncCalibrationEditControls() {
+    /** Locks distance and bbox editing while the current image is staged for deletion. */
+    var staged = isCurrentCalImageStagedForDeletion()
+    var distInput = document.getElementById('calDistInput')
+    if (distInput) {
+        distInput.disabled = staged || !calImages || calImages.length === 0
+    }
+    if (staged) {
+        removeCalibrationDrawControl()
+    } else {
+        addCalibrationDrawControl()
+    }
+}
+
 function updateCalDeleteButtonStates() {
     /** Syncs single-image, cameragroup, and survey-wide delete staging button labels. */
+    syncCalibrationEditControls()
     var stageBtn = document.getElementById('calStageDeleteBtn')
     if (stageBtn && calImages.length > 0) {
         var isStaged = deletedCalImages.indexOf(calImages[calImgIndex].id) !== -1
@@ -9731,39 +9789,10 @@ function prepMapCal(image) {
             drawnItemsCal = new L.FeatureGroup()
             mapCal.addLayer(drawnItemsCal)
 
-            var calRectOptions = {
-                color: 'rgba(223,105,26,1)',
-                fill: true,
-                fillOpacity: 0.1,
-                opacity: 0.8,
-                weight: 3
-            }
-
-            if (drawControlCal != null) {
-                drawControlCal.remove()
-                drawControlCal = null
-            }
             if (selectedCalMode === 'edit') {
-                drawControlCal = new L.Control.Draw({
-                    draw: {
-                        polygon: false,
-                        polyline: false,
-                        circle: false,
-                        circlemarker: false,
-                        marker: false,
-                        rectangle: {
-                            shapeOptions: calRectOptions,
-                            showArea: false
-                        }
-                    },
-                    edit: {
-                        featureGroup: drawnItemsCal
-                    }
-                })
-                mapCal.addControl(drawControlCal)
-
                 // Auto-save when a rectangle is drawn
                 mapCal.on('draw:created', function(e) {
+                    if (isCurrentCalImageStagedForDeletion()) return
                     drawnItemsCal.clearLayers()
                     drawnItemsCal.addLayer(e.layer)
                     var bounds = e.layer.getBounds()
@@ -9774,10 +9803,11 @@ function prepMapCal(image) {
                         right:  bounds.getEast()  / mapWidthCal
                     }
                     saveCalibrationBbox()
-                })                              
+                })
 
                 // Update coords after edit
                 mapCal.on('draw:edited', function(e) {
+                    if (isCurrentCalImageStagedForDeletion()) return
                     e.layers.eachLayer(function(layer) {
                         var bounds = layer.getBounds()
                         calCurrentBox = {
@@ -9791,10 +9821,12 @@ function prepMapCal(image) {
                 })
 
                 mapCal.on('draw:deleted', function() {
+                    if (isCurrentCalImageStagedForDeletion()) return
                     calCurrentBox = null
                     saveCalibrationBbox()
                 })
             }
+            syncCalibrationEditControls()
         }
         img.src = imageUrl
     }
@@ -9910,35 +9942,57 @@ function loadAllSurveyCalibrationImageIds() {
     xhttp.send()
 }
 
-function getCalibrationImagesForCamera(cameragroup_id) {
-    /** Fetches the calibration images associated with a given cameragroup */
+function applyCalImageLocalEdits(images, cameragroup_id) {
+    /** Overlays staged bbox/distance edits onto a camera's calibration images. */
+    for (var i = 0; i < images.length; i++) {
+        var id = images[i].id
+        calImageCameragroupById[id] = cameragroup_id
+        if (editedCalBboxes[id]) {
+            var b = editedCalBboxes[id]
+            images[i].top = b.top
+            images[i].left = b.left
+            images[i].bottom = b.bottom
+            images[i].right = b.right
+        }
+        if (editedCalDistances[id] !== undefined) {
+            images[i].distance = editedCalDistances[id]
+        }
+    }
+}
+
+function getNextCalCameraImages() {
+    /** Returns cached images for the camera after the one currently selected, if fetched. */
+    var select = document.getElementById('calCameraSelect')
+    if (!select || select.selectedIndex < 0 || select.selectedIndex >= select.options.length - 1) {
+        return null
+    }
+    var nextId = parseInt(select.options[select.selectedIndex + 1].value)
+    return calImagesByCamera[nextId] || null
+}
+
+function fetchCalibrationImagesPayload(cameragroup_id, callback) {
+    /** Loads a cameragroup's calibration images, sharing in-flight requests and caching the result. */
+    if (calImagesByCamera[cameragroup_id]) {
+        callback(calImagesByCamera[cameragroup_id])
+        return
+    }
+    if (calImagesFetchCallbacks[cameragroup_id]) {
+        calImagesFetchCallbacks[cameragroup_id].push(callback)
+        return
+    }
+    calImagesFetchCallbacks[cameragroup_id] = [callback]
     var xhttp = new XMLHttpRequest()
     xhttp.onreadystatechange = function() {
-        if (this.readyState == 4 && this.status == 200) {
-            calImages = JSON.parse(this.responseText)
-            for (var i = 0; i < calImages.length; i++) {
-                var id = calImages[i].id
-                calImageCameragroupById[id] = cameragroup_id
-                if (editedCalBboxes[id]) {
-                    var b = editedCalBboxes[id]
-                    calImages[i].top = b.top
-                    calImages[i].left = b.left
-                    calImages[i].bottom = b.bottom
-                    calImages[i].right = b.right
+        if (this.readyState == 4) {
+            var cbs = calImagesFetchCallbacks[cameragroup_id] || []
+            delete calImagesFetchCallbacks[cameragroup_id]
+            if (this.status == 200) {
+                var images = JSON.parse(this.responseText)
+                applyCalImageLocalEdits(images, cameragroup_id)
+                calImagesByCamera[cameragroup_id] = images
+                for (var i = 0; i < cbs.length; i++) {
+                    cbs[i](images)
                 }
-                if (editedCalDistances[id] !== undefined) {
-                    calImages[i].distance = editedCalDistances[id]
-                }
-            }
-            calImgIndex = 0
-            teardownCalMap()
-            if (calImages.length > 0) {
-                updateCalMap()
-            } else {
-                document.getElementById('mapTitle_cal').innerHTML = 'No calibration images for this camera.'
-                document.getElementById('calDistInput').value = ''
-                document.getElementById('calBtnPrevImg').disabled = true
-                document.getElementById('calBtnNextImg').disabled = true
             }
         }
     }
@@ -9946,7 +10000,42 @@ function getCalibrationImagesForCamera(cameragroup_id) {
     xhttp.send()
 }
 
+function prefetchNextCalibrationCamera() {
+    /** Fetches the next camera's images in the background and warms its first S3 object. */
+    var select = document.getElementById('calCameraSelect')
+    if (!select || select.selectedIndex < 0 || select.selectedIndex >= select.options.length - 1) {
+        return
+    }
+    var nextId = parseInt(select.options[select.selectedIndex + 1].value)
+    fetchCalibrationImagesPayload(nextId, function() {
+        preloadImages()
+    })
+}
+
+function getCalibrationImagesForCamera(cameragroup_id) {
+    /** Displays the calibration images associated with a given cameragroup. */
+    fetchCalibrationImagesPayload(cameragroup_id, function(images) {
+        var select = document.getElementById('calCameraSelect')
+        if (!select || parseInt(select.value) !== cameragroup_id) {
+            return
+        }
+        calImages = images
+        calImgIndex = 0
+        teardownCalMap()
+        if (calImages.length > 0) {
+            updateCalMap()
+        } else {
+            document.getElementById('mapTitle_cal').innerHTML = 'No calibration images for this camera.'
+            document.getElementById('calDistInput').value = ''
+            document.getElementById('calBtnPrevImg').disabled = true
+            document.getElementById('calBtnNextImg').disabled = true
+        }
+        prefetchNextCalibrationCamera()
+    })
+}
+
 function saveCalibrationBbox() {
+    if (isCurrentCalImageStagedForDeletion()) return
     var cal_id = calImages[calImgIndex].id
     var payload = calCurrentBox ? calCurrentBox : {top: null, left: null, bottom: null, right: null}
     editedCalBboxes[cal_id] = payload
@@ -9959,6 +10048,7 @@ function saveCalibrationBbox() {
 }
 
 function saveCalibrationDistance() {
+    if (isCurrentCalImageStagedForDeletion()) return
     var newDist = parseFloat(document.getElementById('calDistInput').value)
     if (isNaN(newDist) || newDist <= 0) {
         document.getElementById('calStatusMsg').innerHTML = '<i>Enter a valid distance.</i>'
@@ -14289,6 +14379,14 @@ function preloadImages(imageOnly=false){
             if (calImgIndex < calImages.length - 1) {
                 im = new Image();
                 im.src = "https://"+bucketName+".s3.amazonaws.com/" + calImages[calImgIndex + 1].url
+            }
+
+            if (!imageOnly) {
+                var nextCalImages = getNextCalCameraImages()
+                if (nextCalImages && nextCalImages.length > 0) {
+                    im = new Image();
+                    im.src = "https://"+bucketName+".s3.amazonaws.com/" + nextCalImages[0].url
+                }
             }
 
         }

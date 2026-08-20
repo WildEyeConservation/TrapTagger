@@ -278,6 +278,40 @@ limitations under the License. -->
                             </div>
                         </div>
                         <br>
+                        <h5 style="margin-bottom: 2px">Activity Multiplier</h5>
+                        <div style="font-size: 80%; margin-bottom: 2px"><i>Adjust density for temporal availability using detection times.</i></div>
+                        <div class="custom-control custom-checkbox">
+                            <input type="checkbox" class="custom-control-input" id="distanceApplyActivityMultiplier" name="distanceApplyActivityMultiplier">
+                            <label class="custom-control-label" for="distanceApplyActivityMultiplier">Apply Activity Multiplier</label>
+                        </div>
+                        <br>
+                        <h5 style="margin-bottom: 2px">Camera Operating Hours Per Day</h5>
+                        <div style="font-size: 80%; margin-bottom: 2px"><i>Hours per 24 h calendar day that cameras were recording. This is separate from the activity time scale below; it scales the activity rate into the temporal availability multiplier when cameras were not on 24 h.</i></div>
+                        <div class="row">
+                            <div class='col-lg-10'>
+                                <input type="number" class="form-control" id="distanceCameraHoursPerDay" value="24" min="0.001" max="24" step="any">
+                            </div>
+                        </div>
+                        <br>
+                        <h5 style="margin-bottom: 2px">Activity Time Scale</h5>
+                        <div style="font-size: 80%; margin-bottom: 2px"><i>How detection times are converted to time-of-day before estimating activity: <strong>Clock</strong> uses wall-clock timestamps; <strong>Solar</strong> converts to solar time of day using mean site coordinates (requires lat/lng from trap sites). This is not the same as camera operating hours.</i></div>
+                        <div class="row">
+                            <div class='col-lg-10'>
+                                <select id="distanceActivityTimeMode" class="form-control">
+                                    <option value="clock" selected>Clock time</option>
+                                    <option value="solar">Solar Time</option>
+                                </select>
+                            </div>
+                        </div>
+                        <br>
+                        <h5 style="margin-bottom: 2px">Snapshot Interval (Seconds)</h5>
+                        <div style="font-size: 80%; margin-bottom: 2px"><i>Temporal effort uses operating seconds divided by this interval. Only change if you know your camera trigger interval.</i></div>
+                        <div class="row">
+                            <div class='col-lg-10'>
+                                <input type="number" class="form-control" id="distanceSnapshotInterval" value="2" min="0.001" step="any">
+                            </div>
+                        </div>
+                        <br>
                     </div>
 
                     <div id="cameraFovDiv" hidden>
@@ -291,52 +325,9 @@ limitations under the License. -->
                         <br>
                     </div>
 
-                    <div id="distanceAdvancedDiv" hidden>
-                        <div class="custom-control custom-checkbox">
-                            <input type="checkbox" class="custom-control-input" id="distanceAdvancedOptions" name="distanceAdvancedOptions" onchange="toggleDistanceAdvancedOptions()">
-                            <label class="custom-control-label" for="distanceAdvancedOptions">Advanced Options</label>
-                        </div>
-                        <div id="distanceAdvancedFields" hidden>
-                            <br>
-                            <div class="custom-control custom-checkbox">
-                                <input type="checkbox" class="custom-control-input" id="distanceApplyActivityMultiplier" name="distanceApplyActivityMultiplier">
-                                <label class="custom-control-label" for="distanceApplyActivityMultiplier">Apply Activity Multiplier</label>
-                            </div>
-                            <div style="font-size: 80%; margin-bottom: 2px"><i>Adjust density for temporal availability using detection times.</i></div>
-                            <br>
-                            <h5 style="margin-bottom: 2px">Camera Operating Hours Per Day</h5>
-                            <div style="font-size: 80%; margin-bottom: 2px"><i>Hours per 24 h calendar day that cameras were recording. This is separate from the activity time scale below; it scales the activity rate into the temporal availability multiplier when cameras were not on 24 h.</i></div>
-                            <div class="row">
-                                <div class='col-lg-10'>
-                                    <input type="number" class="form-control" id="distanceCameraHoursPerDay" value="24" min="0.001" max="24" step="any">
-                                </div>
-                            </div>
-                            <br>
-                            <h5 style="margin-bottom: 2px">Activity Time Scale</h5>
-                            <div style="font-size: 80%; margin-bottom: 2px"><i>How detection times are converted to time-of-day before estimating activity: <strong>Clock</strong> uses wall-clock timestamps; <strong>Solar</strong> converts to solar time of day using mean site coordinates (requires lat/lng from trap sites). This is not the same as camera operating hours.</i></div>
-                            <div class="row">
-                                <div class='col-lg-10'>
-                                    <select id="distanceActivityTimeMode" class="form-control">
-                                        <option value="clock" selected>Clock time</option>
-                                        <option value="solar">Solar Time</option>
-                                    </select>
-                                </div>
-                            </div>
-                            <br>
-                            <h5 style="margin-bottom: 2px">Snapshot Interval (Seconds)</h5>
-                            <div style="font-size: 80%; margin-bottom: 2px"><i>Temporal effort uses operating seconds divided by this interval. Only change if you know your camera trigger interval.</i></div>
-                            <div class="row">
-                                <div class='col-lg-10'>
-                                    <input type="number" class="form-control" id="distanceSnapshotInterval" value="2" min="0.001" step="any">
-                                </div>
-                            </div>
-                        </div>
-                        <br>
-                    </div>
-
                     <div id="tteAbundanceDiv" hidden>
                         <h5 style="margin-bottom: 2px">Viewable Area</h5>
-                        <div style="font-size: 80%; margin-bottom: 2px"><i>Area visible to the camera used for time-to-event abundance (<em>deploy$area</em> in spaceNtime).</i></div>
+                        <div style="font-size: 80%; margin-bottom: 2px"><i>Area visible to the camera used for time-to-event abundance.</i></div>
                         <div class="custom-control custom-radio">
                             <input type="radio" class="custom-control-input" id="tteAreaModeDirect" name="tteAreaMode" value="direct" checked onchange="toggleTteAreaMode()">
                             <label class="custom-control-label" for="tteAreaModeDirect">Enter viewable area directly (m²)</label>
@@ -377,8 +368,8 @@ limitations under the License. -->
                             </div>
                         </div>
                         <br>
-                        <h5 style="margin-bottom: 2px">Species Speed (m/hr)</h5>
-                        <div style="font-size: 80%; margin-bottom: 2px"><i>Movement speed used for time-to-event analysis. Default 30 m/hr matches the spaceNtime vignette; use literature or telemetry if available.</i></div>
+                        <h5 style="margin-bottom: 2px">Species Speed (metres/hr)</h5>
+                        <div style="font-size: 80%; margin-bottom: 2px"><i>Movement speed used for time-to-event analysis. Default 30 metres/hr matches the spaceNtime example; use literature or telemetry if available.</i></div>
                         <div class="row">
                             <div class='col-lg-10'>
                                 <input type="number" class="form-control" id="tteSpeciesSpeedMhr" value="30" min="0" step="any">
@@ -386,7 +377,7 @@ limitations under the License. -->
                         </div>
                         <br>
                         <h5 style="margin-bottom: 2px">Study Area (km²)</h5>
-                        <div style="font-size: 80%; margin-bottom: 2px"><i>Total study area in square kilometres, passed to <em>tte_estN_fn()</em> as m² internally.</i></div>
+                        <div style="font-size: 80%; margin-bottom: 2px"><i>Total study area in square kilometres.</i></div>
                         <div class="row">
                             <div class='col-lg-10'>
                                 <input type="number" class="form-control" id="tteStudyAreaKm2" value="" min="0" step="any">
@@ -394,7 +385,7 @@ limitations under the License. -->
                         </div>
                         <br>
                         <h5 style="margin-bottom: 2px">Periods Per Occasion</h5>
-                        <div style="font-size: 80%; margin-bottom: 2px"><i>Number of TTE sampling periods in each sampling occasion. Each period length is derived from viewable area and species speed (<em>tte_samp_per</em>).</i></div>
+                        <div style="font-size: 80%; margin-bottom: 2px"><i>Number of TTE sampling periods in each sampling occasion.</i></div>
                         <div class="row">
                             <div class='col-lg-10'>
                                 <input type="number" class="form-control" id="tteNper" value="24" min="1" step="1">
@@ -402,7 +393,7 @@ limitations under the License. -->
                         </div>
                         <br>
                         <h5 style="margin-bottom: 2px">Time Between Occasions</h5>
-                        <div style="font-size: 80%; margin-bottom: 2px"><i>Gap between sampling occasions (<em>time_btw</em> in spaceNtime), allowing animals to re-randomize before the next occasion starts.</i></div>
+                        <div style="font-size: 80%; margin-bottom: 2px"><i>Gap between sampling occasions, allowing animals to re-randomize before the next occasion starts.</i></div>
                         <div class="row">
                             <div class="col-lg-5" style="padding-right: 0px;">
                                 <input type="number" class="form-control" id="tteTimeBetweenOccasions" value="2" min="0" step="any">

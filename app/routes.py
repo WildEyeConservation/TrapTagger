@@ -9077,6 +9077,7 @@ def editSightings(image_id,task_id):
 
                     for detection in to_remove:
                         detection.status = 'deleted'
+                        detection.distance = None
                         labelgroups = db.session.query(Labelgroup).filter(Labelgroup.detection_id==detection.id).all()
                         for labelgroup in labelgroups:
                             labelgroup.checked = True
@@ -9146,10 +9147,16 @@ def editSightings(image_id,task_id):
                             else:
                                 # edit old detection
                                 detection = db.session.query(Detection).get(int(detID))
-                                detection.top = max(0.0, min(1.0, float(detectionsDict[detID]['top'])))
-                                detection.bottom = max(0.0, min(1.0, float(detectionsDict[detID]['bottom'])))
-                                detection.left = max(0.0, min(1.0, float(detectionsDict[detID]['left'])))
-                                detection.right = max(0.0, min(1.0, float(detectionsDict[detID]['right'])))
+                                new_top = max(0.0, min(1.0, float(detectionsDict[detID]['top'])))
+                                new_bottom = max(0.0, min(1.0, float(detectionsDict[detID]['bottom'])))
+                                new_left = max(0.0, min(1.0, float(detectionsDict[detID]['left'])))
+                                new_right = max(0.0, min(1.0, float(detectionsDict[detID]['right'])))
+                                if detection_bbox_changed(detection, new_top, new_left, new_right, new_bottom):
+                                    detection.distance = None
+                                detection.top = new_top
+                                detection.bottom = new_bottom
+                                detection.left = new_left
+                                detection.right = new_right
                                 detection.source='user'
                                 detection.status = 'edited'
                                 labelgroup = db.session.query(Labelgroup).filter(Labelgroup.detection_id==int(detID)).filter(Labelgroup.task_id==int(task_id)).first()
@@ -18580,6 +18587,7 @@ def editSightingsGeneral(task_id):
             detections = db.session.query(Detection).filter(Detection.id.in_(detection_edits)).all()
             for detection in detections:
                 detection.status = 'deleted'
+                detection.distance = None
                 if detection.individuals:
                     detection.individuals = []
                     detection.primary_individuals = []
@@ -18604,10 +18612,16 @@ def editSightingsGeneral(task_id):
                     detection.status = 'edited'
                     detection.source = 'user'
                     bounding_box = detection_edits[det_id]['bounding_box']
-                    detection.top = max(0.0, min(1.0, float(bounding_box['top'])))
-                    detection.left = max(0.0, min(1.0, float(bounding_box['left'])))
-                    detection.right = max(0.0, min(1.0, float(bounding_box['right'])))
-                    detection.bottom = max(0.0, min(1.0, float(bounding_box['bottom'])))
+                    new_top = max(0.0, min(1.0, float(bounding_box['top'])))
+                    new_left = max(0.0, min(1.0, float(bounding_box['left'])))
+                    new_right = max(0.0, min(1.0, float(bounding_box['right'])))
+                    new_bottom = max(0.0, min(1.0, float(bounding_box['bottom'])))
+                    if detection_bbox_changed(detection, new_top, new_left, new_right, new_bottom):
+                        detection.distance = None
+                    detection.top = new_top
+                    detection.left = new_left
+                    detection.right = new_right
+                    detection.bottom = new_bottom
 
                 if 'label' in detection_edits[det_id]:
                     label = detection_edits[det_id]['label']

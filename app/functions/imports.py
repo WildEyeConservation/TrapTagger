@@ -2390,7 +2390,7 @@ def import_folder(s3Folder, survey_id, sourceBucket,destinationBucket,pipeline,m
         videos = list(filter(isVideo.search, filenames))
         jpegs = list(filter(isjpeg.search, filenames))
         # handle calibration images (leaf cal folder only — same as browser uploadWorker)
-        if path_contains_calibration_folder(dirpath):
+        if path_contains_calibration_folder(dirpath, skip_segments=S3_ORG_SURVEY_PREFIX_SEGMENTS):
             if is_calibration_dirpath(dirpath, survey.calibration_code) and jpegs:
                 # Build the _calibration_/ destination key for each jpeg
                 parent_camera_path = '/'.join(dirpath.split('/')[:-1])
@@ -2497,8 +2497,9 @@ def import_folder(s3Folder, survey_id, sourceBucket,destinationBucket,pipeline,m
         jpegs = list(filter(isjpeg.search, filenames))
         
         # Skip calibration folders and anything nested under them (browser only uploads
-        # distance JPEGs directly inside a calibration folder).
-        if path_contains_calibration_folder(dirpath):
+        # distance JPEGs directly inside a calibration folder). Ignore org/survey
+        # segments so a survey named e.g. "no calibration" is not treated as a cal folder.
+        if path_contains_calibration_folder(dirpath, skip_segments=S3_ORG_SURVEY_PREFIX_SEGMENTS):
             continue
         if len(jpegs) and not any(exclusion in dirpath for exclusion in exclusions):
             if dirpath in cameras_with_trapgroups.keys():
@@ -4927,11 +4928,15 @@ def folder_name_is_calibration(dir_name):
     return Config.CALIBRATION_FOLDER_KEYWORD.lower() in dir_name.lower()
 
 
-def path_contains_calibration_folder(dirpath):
-    '''True if any path segment is a calibration folder (soft match).'''
+# S3 keys are org/survey/...; survey names may contain the calibration keyword.
+S3_ORG_SURVEY_PREFIX_SEGMENTS = 2
+
+def path_contains_calibration_folder(dirpath, skip_segments=0):
+    '''True if any path segment after skip_segments is a calibration folder.'''
     if not dirpath:
         return False
-    return any(folder_name_is_calibration(p) for p in dirpath.split('/') if p)
+    parts = [p for p in dirpath.split('/') if p]
+    return any(folder_name_is_calibration(p) for p in parts[skip_segments:])
 
 
 def is_calibration_dirpath(dirpath, calibration_code):
@@ -5092,6 +5097,20 @@ def null_detection_distances_for_cameragroups(cameragroup_ids):
             .join(Camera, Image.camera_id == Camera.id)
             .filter(Camera.cameragroup_id == cg_id)
         )
+        db.session.query(Detection).filter(
+            Detection.image_id.in_(image_ids)
+        ).update(
+            {Detection.distance: None},
+            synchronize_session=False,
+        )
+
+def null_detection_distances_for_cameras(camera_ids):
+    '''Clear Detection.distance for images on the given cameras only.'''
+    camera_ids = [cid for cid in camera_ids if cid is not None]
+    if not camera_ids:
+        return
+    for batch in chunker(camera_ids, 1000):
+        image_ids = db.session.query(Image.id).filter(Image.camera_id.in_(list(batch)))
         db.session.query(Detection).filter(
             Detection.image_id.in_(image_ids)
         ).update(

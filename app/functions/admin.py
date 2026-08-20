@@ -23,7 +23,7 @@ from app.functions.globals import classifyTask, update_masks, retryTime, resolve
                                     process_multi_labels
 from app.functions.delete import *
 from app.functions.individualID import calculate_detection_similarities, cleanUpIndividuals, check_individual_detection_mismatch
-from app.functions.imports import classifySurvey, s3traverse, classifyCluster, importKML, import_survey, run_calibration_detection_batch, null_detection_distances_for_cameragroups, parse_calibration_distance_filename, apply_edit_survey_cal_edits, apply_edit_survey_cal_uploads, clean_cal_upload_staging, folder_name_is_calibration, path_contains_calibration_folder
+from app.functions.imports import classifySurvey, s3traverse, classifyCluster, importKML, import_survey, run_calibration_detection_batch, null_detection_distances_for_cameragroups, null_detection_distances_for_cameras, parse_calibration_distance_filename, apply_edit_survey_cal_edits, apply_edit_survey_cal_uploads, clean_cal_upload_staging, folder_name_is_calibration, path_contains_calibration_folder
 import GLOBALS
 from sqlalchemy.sql import func, or_, and_, distinct, alias
 from sqlalchemy import desc, extract, delete, select
@@ -1601,6 +1601,8 @@ def findTrapgroupTags(self,tgCode,folder,organisation_id,surveyName,camCode):
                 # Skip calibration folders (and anything nested under them) for site/camera
                 # structure — same as browser pathMatchesCalibration. Collect cal paths and
                 # whether each has at least one valid distance-named JPEG.
+                # dirpath is already relative (org/survey stripped), so do not skip extra
+                # segments — a survey named e.g. "no calibration" is not in this path.
                 path_parts = [p for p in dirpath.split('/') if p]
                 if path_contains_calibration_folder(dirpath):
                     if path_parts and folder_name_is_calibration(path_parts[-1]):
@@ -3181,6 +3183,7 @@ def move_survey_folders(survey_id, folders):
     status = 'success'
     moved_folders = set()
     new_trapgroups = set()
+    cameras_to_clear_distances = set()
     query_limit = 1000
     for folder in folders:
         cameras = db.session.query(Camera).join(Trapgroup).filter(Trapgroup.survey_id==survey_id).filter(or_(Camera.path==folder['folder'], Camera.path.like(folder['folder']+'/_video_images_/%'))).distinct().all()
@@ -3207,13 +3210,20 @@ def move_survey_folders(survey_id, folders):
         else: 
             new_cameragroup = db.session.query(Cameragroup).join(Camera, Cameragroup.id==Camera.cameragroup_id).filter(Camera.trapgroup_id==new_site_id).filter(Cameragroup.id==new_camera_id).first()
         
-        if new_site and new_cameragroup: 
+        if new_site and new_cameragroup:
+            if new_cameragroup.id is None:
+                db.session.flush()
             for camera in cameras:
                 affected_trapgroups.add(camera.trapgroup_id)
+                if camera.cameragroup_id != new_cameragroup.id:
+                    cameras_to_clear_distances.add(camera.id)
                 camera.trapgroup = new_site
                 camera.cameragroup = new_cameragroup
                 moved_folders.add(camera.path)
             new_trapgroups.add(new_site)
+
+    if cameras_to_clear_distances:
+        null_detection_distances_for_cameras(cameras_to_clear_distances)
 
     db.session.commit()
 
