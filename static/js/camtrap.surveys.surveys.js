@@ -8110,7 +8110,7 @@ function renderStagedCalUploadSets(container) {
 
     var h5 = document.createElement('h5')
     h5.innerHTML = 'Staged calibration sets'
-    h5.setAttribute('style', 'margin-top: 16px; margin-bottom: 6px')
+    h5.setAttribute('style', 'margin-bottom: 2px')
     container.appendChild(h5)
 
     if (stagedCalUploadSets.length === 0) {
@@ -8918,17 +8918,18 @@ function buildCalUploadMode() {
     var div = document.getElementById('calModeContent')
     while (div.firstChild) div.removeChild(div.firstChild)
 
+    div.appendChild(document.createElement('br'))
+
     // Mode radios
     var modeRow = document.createElement('div')
     modeRow.classList.add('row')
-    modeRow.style.marginBottom = '8px'
     div.appendChild(modeRow)
     var modeCol = document.createElement('div')
     modeCol.classList.add('col-lg-12')
     modeRow.appendChild(modeCol)
 
     var modeH5 = document.createElement('h5')
-    modeH5.setAttribute('style', 'margin-bottom: 4px')
+    modeH5.setAttribute('style', 'margin-bottom: 2px')
     modeH5.innerHTML = 'Upload Mode'
     modeCol.appendChild(modeH5)
 
@@ -8965,8 +8966,10 @@ function buildCalUploadMode() {
 
     var modeDesc = document.createElement('div')
     modeDesc.id = 'calUploadModeDesc'
-    modeDesc.setAttribute('style', 'font-size: 80%; margin-top: 4px; margin-bottom: 8px')
+    modeDesc.setAttribute('style', 'font-size: 80%; margin-bottom: 2px')
     modeCol.appendChild(modeDesc)
+
+    modeCol.appendChild(document.createElement('br'))
 
     var singlePanel = document.createElement('div')
     singlePanel.id = 'calUploadSinglePanel'
@@ -8987,9 +8990,10 @@ function buildCalUploadMode() {
 
     var h5cam = document.createElement('h5')
     h5cam.innerHTML = 'Camera'
+    h5cam.style.marginBottom = '2px'
     col1.appendChild(h5cam)
     var descCam = document.createElement('div')
-    descCam.setAttribute('style', 'font-size: 80%; margin-bottom: 6px')
+    descCam.setAttribute('style', 'font-size: 80%; margin-bottom: 2px')
     descCam.innerHTML = '<i>Select the camera this calibration set belongs to.</i>'
     col1.appendChild(descCam)
     var camSelect = document.createElement('select')
@@ -8997,8 +9001,10 @@ function buildCalUploadMode() {
     camSelect.classList.add('form-control')
     col1.appendChild(camSelect)
 
+    col1.appendChild(document.createElement('br'))
+
     var h5folder = document.createElement('h5')
-    h5folder.setAttribute('style', 'margin-top: 12px')
+    h5folder.setAttribute('style', 'margin-bottom: 2px')
     h5folder.innerHTML = 'Image folder'
     col1.appendChild(h5folder)
     var descFolder = document.createElement('div')
@@ -9037,9 +9043,10 @@ function buildCalUploadMode() {
 
     var bh5 = document.createElement('h5')
     bh5.innerHTML = 'Survey folder structure'
+    bh5.style.marginBottom = '2px'
     bcol.appendChild(bh5)
     var bdesc = document.createElement('div')
-    bdesc.setAttribute('style', 'font-size: 80%; margin-bottom: 6px')
+    bdesc.setAttribute('style', 'font-size: 80%; margin-bottom: 2px')
     bdesc.innerHTML = '<i>Select a root folder that contains site/camera folders with nested <b>calibration</b> folders. Matched cameras are shown below. Files upload to storage when you click Save Changes.</i>'
     bcol.appendChild(bdesc)
 
@@ -9258,6 +9265,8 @@ function buildCalUploadMode() {
     }
 
     getSurveyCameragroupsForUpload(populateCameraSelect)
+
+    div.appendChild(document.createElement('br'))
 
     var stagedDiv = document.createElement('div')
     stagedDiv.id = 'calUploadStagedDiv'
@@ -10239,6 +10248,7 @@ function buildDepthEstimation() {
 
     // Species
     h5 = document.createElement('h5')
+    h5.setAttribute('style', 'margin-bottom: 2px')
     h5.innerHTML = 'Species'
     div.appendChild(h5)
 
@@ -10317,7 +10327,7 @@ function buildDepthEstimation() {
     launchBtn.onclick = function() { launchDepthEstimationFromUI() }
     col.appendChild(launchBtn)
 
-    div.appendChild(document.createElement('br'))
+    // div.appendChild(document.createElement('br'))
 
     // Errors + status (tab-local, not editSurveyErrors)
     var errorsDiv = document.createElement('div')
