@@ -674,9 +674,10 @@ def delete_cameragroups(survey_id, empty=False,ids=None):
     result2 = 0
     # Delete cameragroups and masks
     for chunk in chunker1000(cameragoup_ids):
+        delete_calibration_images(cameragroup_ids=chunk)
         result1 += db.session.query(Mask).filter(Mask.cameragroup_id.in_(chunk)).delete(synchronize_session=False)
         result2 += db.session.query(Cameragroup).filter(Cameragroup.id.in_(chunk)).delete(synchronize_session=False)
-        delete_calibration_images(cameragroup_ids=chunk)
+        
     db.session.commit()
     app.logger.info(f'Cameragroups: {result2}, Masks: {result1} deleted successfully.')
 
