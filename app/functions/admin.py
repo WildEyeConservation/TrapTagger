@@ -1035,51 +1035,51 @@ def reclusterAfterTimestampChange(survey_id,trapgroup_ids,cameragroup_ids):
         # There is no reliable way to know what images were viewed and labelled
         # Need to use sq2 to be able to include all labelgroups from the affected clusters
         # Need to include labelgroup.checked because checked labelgroups are probbably right
-        sq = db.session.query(Cluster.id,func.count(distinct(Camera.cameragroup_id)).label('count')).join(Image,Cluster.images).join(Camera).filter(Cluster.task_id==task_id).filter(Cluster.labels.any()).group_by(Cluster.id).subquery()
-        sq2 = db.session.query(Cluster.id).join(Image,Cluster.images).join(Camera).filter(Camera.cameragroup_id.in_(cameragroup_ids)).filter(Cluster.labels.any()).filter(Cluster.task_id==task_id).subquery()
+        # sq = db.session.query(Cluster.id,func.count(distinct(Camera.cameragroup_id)).label('count')).join(Image,Cluster.images).join(Camera).filter(Cluster.task_id==task_id).filter(Cluster.labels.any()).group_by(Cluster.id).subquery()
+        # sq2 = db.session.query(Cluster.id).join(Image,Cluster.images).join(Camera).filter(Camera.cameragroup_id.in_(cameragroup_ids)).filter(Cluster.labels.any()).filter(Cluster.task_id==task_id).subquery()
 
-        # Remove cluster user and timestamp info for clusters that are not checked
-        checked_lg_clusters_sq = db.session.query(Cluster.id)\
-                        .join(Image,Cluster.images)\
-                        .join(Detection)\
-                        .join(Labelgroup)\
-                        .filter(Cluster.task_id==task_id)\
-                        .filter(Labelgroup.task_id==task_id)\
-                        .filter(Labelgroup.checked==True)\
-                        .filter(Labelgroup.labels.any())\
-                        .distinct().subquery()
+        # # Remove cluster user and timestamp info for clusters that are not checked
+        # checked_lg_clusters_sq = db.session.query(Cluster.id)\
+        #                 .join(Image,Cluster.images)\
+        #                 .join(Detection)\
+        #                 .join(Labelgroup)\
+        #                 .filter(Cluster.task_id==task_id)\
+        #                 .filter(Labelgroup.task_id==task_id)\
+        #                 .filter(Labelgroup.checked==True)\
+        #                 .filter(Labelgroup.labels.any())\
+        #                 .distinct().subquery()
 
-        clusterQ = db.session.query(Cluster.id)\
-                        .join(sq,sq.c.id==Cluster.id)\
-                        .join(sq2,sq2.c.id==Cluster.id)\
-                        .filter(sq.c.count>1)\
-                        .outerjoin(checked_lg_clusters_sq,checked_lg_clusters_sq.c.id==Cluster.id)\
-                        .filter(checked_lg_clusters_sq.c.id==None)\
-                        .distinct().subquery()
+        # clusterQ = db.session.query(Cluster.id)\
+        #                 .join(sq,sq.c.id==Cluster.id)\
+        #                 .join(sq2,sq2.c.id==Cluster.id)\
+        #                 .filter(sq.c.count>1)\
+        #                 .outerjoin(checked_lg_clusters_sq,checked_lg_clusters_sq.c.id==Cluster.id)\
+        #                 .filter(checked_lg_clusters_sq.c.id==None)\
+        #                 .distinct().subquery()
 
-        uc = db.session.query(Cluster).filter(Cluster.id.in_(select(clusterQ.c.id))).filter(Cluster.user_id!=None)\
-                        .update({Cluster.user_id: None, Cluster.timestamp: None}, synchronize_session=False)
-        if Config.DEBUGGING: app.logger.info('Updated {} clusters with user_id and timestamp set to None in reclusterAfterTimestampChange'.format(uc))
+        # uc = db.session.query(Cluster).filter(Cluster.id.in_(select(clusterQ.c.id))).filter(Cluster.user_id!=None)\
+        #                 .update({Cluster.user_id: None, Cluster.timestamp: None}, synchronize_session=False)
+        # if Config.DEBUGGING: app.logger.info('Updated {} clusters with user_id and timestamp set to None in reclusterAfterTimestampChange'.format(uc))
 
-        labelgroupSQ = db.session.query(Labelgroup.id)\
-                        .join(Detection)\
-                        .join(Image)\
-                        .join(Cluster,Image.clusters)\
-                        .join(sq,sq.c.id==Cluster.id)\
-                        .join(sq2,sq2.c.id==Cluster.id)\
-                        .filter(Labelgroup.task_id==task_id)\
-                        .filter(Labelgroup.checked==False)\
-                        .filter(Cluster.task_id==task_id)\
-                        .filter(Cluster.labels.any())\
-                        .filter(sq.c.count>1)\
-                        .distinct().subquery()
+        # labelgroupSQ = db.session.query(Labelgroup.id)\
+        #                 .join(Detection)\
+        #                 .join(Image)\
+        #                 .join(Cluster,Image.clusters)\
+        #                 .join(sq,sq.c.id==Cluster.id)\
+        #                 .join(sq2,sq2.c.id==Cluster.id)\
+        #                 .filter(Labelgroup.task_id==task_id)\
+        #                 .filter(Labelgroup.checked==False)\
+        #                 .filter(Cluster.task_id==task_id)\
+        #                 .filter(Cluster.labels.any())\
+        #                 .filter(sq.c.count>1)\
+        #                 .distinct().subquery()
         
-        lgl=db.session.query(detectionLabels).filter(detectionLabels.c.labelgroup_id.in_(select(labelgroupSQ.c.id))).delete(synchronize_session=False)
-        if Config.DEBUGGING: app.logger.info('Deleted detectionLabels: {} from labelgroups in reclusterAfterTimestampChange'.format(lgl))
+        # lgl=db.session.query(detectionLabels).filter(detectionLabels.c.labelgroup_id.in_(select(labelgroupSQ.c.id))).delete(synchronize_session=False)
+        # if Config.DEBUGGING: app.logger.info('Deleted detectionLabels: {} from labelgroups in reclusterAfterTimestampChange'.format(lgl))
 
-        db.session.commit()
+        # db.session.commit()
 
-        prepTask(task_id=task_id,trapgroup_ids=trapgroup_ids)
+        prepTask(task_id=task_id,trapgroup_ids=trapgroup_ids,drop_changed_labels=True)
 
     db.session.commit()
 
@@ -2120,41 +2120,38 @@ def recluster_after_image_timestamp_change(survey_id,image_timestamps):
     # Strip all labels and cluster info from affected clusters and labelgroups
     # cluster labels don't get copied so we don't need to worry about those
     # we don't know which image the human looked at, so we need to just drop everything
-    query_limit = 20000
-    clusterSQ = db.session.query(Cluster.id).join(Image,Cluster.images).filter(Image.id.in_(list(image_timestamps.keys()))).distinct().subquery()
+    # query_limit = 20000
+    # clusterSQ = db.session.query(Cluster.id).join(Image,Cluster.images).filter(Image.id.in_(list(image_timestamps.keys()))).distinct().subquery()
 
-    checked_lg_clusters = db.session.query(Cluster.id)\
-                    .join(clusterSQ,clusterSQ.c.id==Cluster.id)\
-                    .join(Image,Cluster.images)\
-                    .join(Detection)\
-                    .join(Labelgroup,and_(Labelgroup.detection_id==Detection.id,Labelgroup.task_id==Cluster.task_id))\
-                    .filter(Labelgroup.checked==True)\
-                    .filter(Labelgroup.labels.any())\
-                    .distinct().subquery()
+    # checked_lg_clusters = db.session.query(Cluster.id)\
+    #                 .join(clusterSQ,clusterSQ.c.id==Cluster.id)\
+    #                 .join(Image,Cluster.images)\
+    #                 .join(Detection)\
+    #                 .join(Labelgroup,and_(Labelgroup.detection_id==Detection.id,Labelgroup.task_id==Cluster.task_id))\
+    #                 .filter(Labelgroup.checked==True)\
+    #                 .filter(Labelgroup.labels.any())\
+    #                 .distinct().subquery()
 
-    c = db.session.query(Cluster).filter(Cluster.id.in_(select(clusterSQ.c.id))).filter(~Cluster.id.in_(select(checked_lg_clusters.c.id))).filter(Cluster.user_id!=None)\
-                    .update({Cluster.user_id: None, Cluster.timestamp: None}, synchronize_session=False)
-    if Config.DEBUGGING: app.logger.info('Updated {} clusters with user_id and timestamp set to None after timestamp change'.format(c))
+    # c = db.session.query(Cluster).filter(Cluster.id.in_(select(clusterSQ.c.id))).filter(~Cluster.id.in_(select(checked_lg_clusters.c.id))).filter(Cluster.user_id!=None)\
+    #                 .update({Cluster.user_id: None, Cluster.timestamp: None}, synchronize_session=False)
+    # if Config.DEBUGGING: app.logger.info('Updated {} clusters with user_id and timestamp set to None after timestamp change'.format(c))
 
-    labelgroupsSQ = db.session.query(Labelgroup.id)\
-                            .join(Detection)\
-                            .join(Image)\
-                            .join(Cluster,Image.clusters)\
-                            .join(clusterSQ,clusterSQ.c.id==Cluster.id)\
-                            .filter(Labelgroup.checked==False)\
-                            .filter(Labelgroup.labels.any())\
-                            .distinct().subquery()
-    lgl=db.session.query(detectionLabels).filter(detectionLabels.c.labelgroup_id.in_(select(labelgroupsSQ.c.id))).delete(synchronize_session=False)
-    if Config.DEBUGGING: app.logger.info('Deleted {} detection labels from labelgroups after timestamp change'.format(lgl))
+    # labelgroupsSQ = db.session.query(Labelgroup.id)\
+    #                         .join(Detection)\
+    #                         .join(Image)\
+    #                         .join(Cluster,Image.clusters)\
+    #                         .join(clusterSQ,clusterSQ.c.id==Cluster.id)\
+    #                         .filter(Labelgroup.checked==False)\
+    #                         .filter(Labelgroup.labels.any())\
+    #                         .distinct().subquery()
+    # lgl=db.session.query(detectionLabels).filter(detectionLabels.c.labelgroup_id.in_(select(labelgroupsSQ.c.id))).delete(synchronize_session=False)
+    # if Config.DEBUGGING: app.logger.info('Deleted {} detection labels from labelgroups after timestamp change'.format(lgl))
 
-    db.session.commit()
+    # db.session.commit()
 
     task_ids = [r[0] for r in db.session.query(Task.id).filter(Task.survey_id==survey_id).all()]
     for task_id in task_ids:
-        prepTask(
-            task_id=task_id,
-            trapgroup_ids=trapgroup_ids
-        )
+        prepTask(task_id=task_id,trapgroup_ids=trapgroup_ids,drop_changed_labels=True)
 
     return True
 

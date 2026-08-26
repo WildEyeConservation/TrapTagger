@@ -11556,11 +11556,11 @@ function filterTsFilesBySearch() {
     if (search != '' && regex) {
         var pattern = new RegExp(search);
         tsFiles = tsFiles.filter(function(file) {
-            return pattern.test(file.path+'/'+file.name);
+            return pattern.test(file.folder+'/'+file.name);
         });
     } else if (search != '') {
         tsFiles = tsFiles.filter(function(file) {
-            return (file.path+'/'+file.name).includes(search);
+            return (file.folder+'/'+file.name).includes(search);
         });
     }
 }
