@@ -195,6 +195,7 @@ const modalConfirmEditFiles = $('#modalConfirmEditFiles');
 const modalMoveFolder = $('#modalMoveFolder');
 const modalFolderFiles = $('#modalFolderFiles');
 const modalManageFilesClose = $('#modalManageFilesClose');
+const modalCalculateTsShift = $('#modalCalculateTsShift');
 
 var polarColours = {'rgba(10,120,80,0.2)':false,
                     'rgba(255,255,255,0.2)':false,
@@ -375,6 +376,12 @@ var selectedFolderToMove = null
 var folderFiles = []
 var filesTabChange = false
 var cancelCloseES = false
+var tsFiles = []
+var currentTsFileOrder = {'column': 'timestamp', 'direction': 'asc'}
+var shift_timestamps = {}
+var unsavedEditChanges = false
+var tsCalcShiftResult = null
+var calculateShift = false
 
 function buildSurveys(survey,disableSurvey) {
     /**
@@ -3469,7 +3476,7 @@ function buildEditImageTimestamp() {
 
     h5 = document.createElement('h5')
     h5.setAttribute('style','margin-bottom: 2px')
-    h5.innerHTML = 'Edit File Timestamps'
+    h5.innerHTML = 'Missing/AI Extracted Timestamps'
     editImgTimestampsDiv.appendChild(h5)
 
     var row = document.createElement('div')
@@ -3783,6 +3790,7 @@ function buildKml() {
         } else {
             document.getElementById('kmlFileUploadText2').value = ''
         }
+        unsavedEditChanges = true
     })
 }
 
@@ -3981,6 +3989,7 @@ function getCoords(url='/getTrapgroupCoords') {
                         } else {
                             document.getElementById('editSurveyErrors').innerHTML = ''
                         }
+                        unsavedEditChanges = true
                     }
                 }(trapgroup.id));
 
@@ -4004,6 +4013,7 @@ function getCoords(url='/getTrapgroupCoords') {
                         } else {
                             document.getElementById('editSurveyErrors').innerHTML = ''
                         }
+                        unsavedEditChanges = true
                     }
                 }(trapgroup.id));
 
@@ -4027,6 +4037,7 @@ function getCoords(url='/getTrapgroupCoords') {
                         } else {
                             document.getElementById('editSurveyErrors').innerHTML = ''
                         }
+                        unsavedEditChanges = true
                     }
                 }(trapgroup.id));
 
@@ -4139,10 +4150,10 @@ function buildCoordsOptions() {
 function clearEditSurveyModal() {
     /** Clears the edit survey modal */
     
-    editTimestampsDiv = document.getElementById('editTimestampsDiv')
-    while(editTimestampsDiv.firstChild){
-        editTimestampsDiv.removeChild(editTimestampsDiv.firstChild);
-    }
+    // editTimestampsDiv = document.getElementById('editTimestampsDiv')
+    // while(editTimestampsDiv.firstChild){
+    //     editTimestampsDiv.removeChild(editTimestampsDiv.firstChild);
+    // }
 
     editImgTimestampsDiv = document.getElementById('editImgTimestampsDiv')
     while(editImgTimestampsDiv.firstChild){
@@ -4182,6 +4193,11 @@ function clearEditSurveyModal() {
     editAreaDiv = document.getElementById('editAreaDiv')
     while(editAreaDiv.firstChild){
         editAreaDiv.removeChild(editAreaDiv.firstChild);
+    }
+
+    editShiftTimestampsDiv = document.getElementById('editShiftTimestampsDiv')
+    while(editShiftTimestampsDiv.firstChild){
+        editShiftTimestampsDiv.removeChild(editShiftTimestampsDiv.firstChild);
     }
 
     tabActiveEditSurvey = 'baseAddCoordinatesTab'
@@ -4259,6 +4275,10 @@ function clearEditSurveyModal() {
     surveyArea = null
     surveyAreaEditOption = null
     areaConfirmOpen = false
+    tsFiles = []
+    currentTsFileOrder = {'column': 'timestamp', 'direction': 'asc'}
+    shift_timestamps = {}
+    unsavedEditChanges = false
 }
 
 function clearAddFilesModal(){
@@ -4377,6 +4397,10 @@ function buildAdvancedOptions() {
             div.setAttribute('style','font-size: 80%; margin-bottom: 2px')
             div.innerHTML = '<i>Ignores detections where the bottom occurs in the top third of the image - useful for ignoring triggers from birds. Improves system performance for waterhole cameras in exchange for some reduced recall.</i>'
             editAdvancedDiv.appendChild(div)
+
+            $('#smallDetectionsCheckbox,#skyMaskCheckbox').change(function() {
+                unsavedEditChanges = true
+            });
         }
     }
     xhttp.send();
@@ -4419,9 +4443,9 @@ function openEditImageTimestamps(){
     /** Listens for and initialises the edit timestamps form on the edit survey modal when the radio button is selected. */
 
     if (tabActiveEditSurvey=='baseEditImgTimestampsTab') {
-        editImgTimestampsDiv = document.getElementById('editImgTimestampsDiv')
-        if (editImgTimestampsDiv.firstChild==null) {
-            getTimestampSitesCameraAndSpecies()
+        if (document.getElementById('editShiftTimestampsDiv').firstChild==null) {
+            document.getElementById('shiftTimestampsSelect').checked = true;
+            changeTimestampsSubTab('shift')
         }
     }
 }
@@ -4857,6 +4881,7 @@ function updateClassifierTable(url=null) {
                                 btnConfirmRestore.addEventListener('click', confirmRestoreEdit);
                                 btnCancelRestore.addEventListener('click', cancelRestoreEdit);
                             }
+                            unsavedEditChanges = true
                         }
                     });
                 }
@@ -5061,9 +5086,14 @@ modalEditSurvey.on('shown.bs.modal', function(){
 modalEditSurvey.on('hidden.bs.modal', function(){
     /** Clears the edit-survey modal when closed. */
 
-    if (!helpReturn && !alertReload && !confirmRestore && !areaConfirmOpen) {
-        modalConfirmEditClose.modal({keyboard: true});
-    } else if (!helpReturn && !confirmRestore && !areaConfirmOpen && alertReload) {
+    if (!helpReturn && !alertReload && !confirmRestore && !areaConfirmOpen && !calculateShift) {
+        if (unsavedEditChanges) {
+            modalConfirmEditClose.modal({keyboard: true});
+        } else {
+            resetEditSurveyModal()
+            document.getElementById('btnEditSurvey').disabled = false
+        }
+    } else if (!helpReturn && !confirmRestore && !areaConfirmOpen && alertReload && !calculateShift) {
         resetEditSurveyModal()
         document.getElementById('btnEditSurvey').disabled = false
     } else {
@@ -5989,6 +6019,33 @@ document.getElementById('btnEditSurvey').addEventListener('click', ()=>{
         timestampData[camera_id] = {'original': global_original_timestamps[camera_id], 'corrected': global_corrected_timestamps[camera_id]}
     }
 
+    //Shift timestamps
+    let legalShiftTimestamp = true
+    let shiftTimestampData = {}
+    if (Object.keys(shift_timestamps).length > 0) {
+        shiftTimestampData['videos'] = {}
+        shiftTimestampData['images'] = {}
+        for (let cam_id in shift_timestamps) {
+            for (let video_id in shift_timestamps[cam_id]['videos']) {
+                shiftTimestampData['videos'][video_id] = shift_timestamps[cam_id]['videos'][video_id];
+                delete shiftTimestampData['videos'][video_id].type;
+            }
+            for (let image_id in shift_timestamps[cam_id]['images']) {
+                shiftTimestampData['images'][image_id] = shift_timestamps[cam_id]['images'][image_id];
+                delete shiftTimestampData['images'][image_id].type;
+            }
+        }
+    } else if (document.getElementById('tsStageShiftBtn') && tsShiftInputsHaveValue()) {
+        legalShiftTimestamp = false
+        document.getElementById('editSurveyErrors').innerHTML = 'Stage the current timestamp shift before saving, or clear the shift fields.'
+    }
+
+    // Check for overlapping timestamp edits
+    if (Object.keys(imageTimestampData).length > 0 && Object.keys(shiftTimestampData).length > 0) {
+        legalTimestamp = false
+        document.getElementById('editSurveyErrors').innerHTML = 'You have overlapping shift and file timestamp edits. Please only apply one type of timestamp edit at a time.'
+    }
+
     //Advanced 
     ignore_small_detections= 'none'
     sky_masked = 'none'
@@ -6091,7 +6148,7 @@ document.getElementById('btnEditSurvey').addEventListener('click', ()=>{
         windowReload = false
     }
 
-    if (legalFile&&legalClassifier&&!editingEnabled&&legalTimestamp&&legalArea) {
+    if (legalFile&&legalClassifier&&!editingEnabled&&legalTimestamp&&legalArea&&legalShiftTimestamp) {
         document.getElementById('btnEditSurvey').disabled = true
 
         var formData = new FormData()
@@ -6099,6 +6156,7 @@ document.getElementById('btnEditSurvey').addEventListener('click', ()=>{
         formData.append("classifier_id", classifier_id)          
         formData.append("timestamps", JSON.stringify(timestampData))     
         formData.append("imageTimestamps", JSON.stringify(imageTimestampData))
+        formData.append("shiftTimestamps", JSON.stringify(shiftTimestampData))
         formData.append("masks", JSON.stringify(mask_dict))
         formData.append("staticgroups", JSON.stringify(staticgroup_data))
         formData.append("ignore_small_detections", ignore_small_detections)
@@ -6579,7 +6637,7 @@ function buildSurveyPermissionRow(){
 }
 
 function changeEditSurveyTab(evt, tabName) {
-    /** Opens the permissions tab */
+    /** Opens the specified tab */
 
     var mainModal = document.getElementById('modalEditSurvey')
     var tabcontent = mainModal.getElementsByClassName("tabcontent");
@@ -7558,6 +7616,7 @@ function updateMasks() {
             }
         }
     }
+    unsavedEditChanges = true
 }
 
 function getMaskCameras(){
@@ -7953,6 +8012,7 @@ function buildViewStatic() {
         else{
             staticgroups[staticgroupIndex].staticgroup_status = 'rejected'
         }
+        unsavedEditChanges = true
     });
 
     var div = document.createElement('div')
@@ -9284,6 +9344,8 @@ function buildTimestampsMap(){
 
     document.getElementById('btnNoTimestamp').addEventListener('click', function(){
         noTimestamp()
+        unsavedEditChanges = true
+        updateTimestampEditConflictWarning()
     });
 
     if (selectedTimestampType != 'missing'){
@@ -9296,6 +9358,8 @@ function buildTimestampsMap(){
 
         document.getElementById('btnClearTimestamp').addEventListener('click', function(){
             clearTimestamp()
+            unsavedEditChanges = true
+            updateTimestampEditConflictWarning()
         });
     }
 
@@ -9357,6 +9421,7 @@ function buildTimestampsMap(){
                 addTimestamp()
             }
         }
+        unsavedEditChanges = true
     });
     
     monthInput.addEventListener('input', function() {
@@ -9383,6 +9448,7 @@ function buildTimestampsMap(){
                 addTimestamp()
             }
         }
+        unsavedEditChanges = true
     });
     
     dayInput.addEventListener('input', function() {
@@ -9409,6 +9475,7 @@ function buildTimestampsMap(){
                 addTimestamp()
             }
         }
+        unsavedEditChanges = true
     });
     
     hourInput.addEventListener('input', function() {
@@ -9435,6 +9502,7 @@ function buildTimestampsMap(){
                 addTimestamp()
             }
         }
+        unsavedEditChanges = true
     });
 
     minutesInput.addEventListener('input', function() {
@@ -9461,6 +9529,7 @@ function buildTimestampsMap(){
                 addTimestamp()
             }
         }
+        unsavedEditChanges = true
     });
     
     secondsInput.addEventListener('input', function() {
@@ -9487,6 +9556,7 @@ function buildTimestampsMap(){
                 nextTimestamp()
             }
         }
+        unsavedEditChanges = true
     });
 
     // col2.appendChild(document.createElement('br'))
@@ -9897,6 +9967,7 @@ function addTimestamp(){
             delete corrected_edited_timestamps[images[cameraIndex].images[imageIndex].id]
         }
     }
+    updateTimestampEditConflictWarning()
 }
 
 function noTimestamp(){
@@ -10094,7 +10165,7 @@ function getTimestamp(time_dict){
 
 modalEditSurvey.on('keyup', function(event) {
     /** Event listener for hotkeys on Edit Timestamps. */
-    if (tabActiveEditSurvey=='baseEditImgTimestampsTab' && (document.getElementById('missingTimestamps').checked||document.getElementById('extractedTimestamps').checked||document.getElementById('editedTimestamps').checked)){
+    if (tabActiveEditSurvey=='baseEditImgTimestampsTab' && document.getElementById('editImgTimestampsDiv').style.display == 'block' && (document.getElementById('missingTimestamps').checked||document.getElementById('extractedTimestamps').checked||document.getElementById('editedTimestamps').checked)){
         if (event.key.toLowerCase() == 'n') {
             event.preventDefault()
             noTimestamp()
@@ -10118,7 +10189,7 @@ modalEditSurvey.on('keyup', function(event) {
 
 modalEditSurvey.on('keydown', function(event) {
     /** Event listener for hotkeys on Edit Timestamps. */
-    if (tabActiveEditSurvey=='baseEditImgTimestampsTab' && (document.getElementById('missingTimestamps').checked||document.getElementById('extractedTimestamps').checked||document.getElementById('editedTimestamps').checked)){
+    if (tabActiveEditSurvey=='baseEditImgTimestampsTab' && document.getElementById('editImgTimestampsDiv').style.display == 'block' && (document.getElementById('missingTimestamps').checked||document.getElementById('extractedTimestamps').checked||document.getElementById('editedTimestamps').checked)){
         if (event.key.toLowerCase() == 'tab') {
             event.preventDefault()
         }
@@ -10510,6 +10581,7 @@ function openArea(){
                         modalEditSurvey.modal('hide');
                         modalEditAreaAlert.modal('show');
                     }
+                    unsavedEditChanges = true
                 });
 
                 var surveyAreaInput = document.createElement('input')
@@ -10519,6 +10591,10 @@ function openArea(){
                 surveyAreaInput.setAttribute('placeholder', 'Area Name')
                 surveyAreaInput.style.display = 'none';
                 col1.appendChild(surveyAreaInput)
+
+                $('#surveyAreaText').on('change', function() {
+                    unsavedEditChanges = true
+                });
 
             }
         };
@@ -10550,3 +10626,1130 @@ $('#editAreaConfirm').on('click', function () {
     }
     modalEditAreaAlert.modal('hide');
 });
+
+function getCameraGroups(){
+    /** Gets the camera groups for the selected survey. */
+    var xhttp = new XMLHttpRequest();
+    xhttp.onreadystatechange = function() {
+        if (this.readyState == 4 && this.status == 200) {
+            var reply = JSON.parse(this.responseText);
+
+            timestampSites = reply.sites
+            timestampCameras = reply.cameras
+
+            var tsSiteSelect = document.getElementById('tsSiteSelect');
+            clearSelect(tsSiteSelect);
+            var optionTexts = []
+            var optionValues = []
+            for (var i = 0; i < timestampSites.length; i++) {
+                optionTexts.push(timestampSites[i].name)
+                optionValues.push(timestampSites[i].id)
+            }
+            fillSelect(tsSiteSelect, optionTexts, optionValues);
+
+            var tsCamSelect = document.getElementById('tsCamSelect');
+            clearSelect(tsCamSelect);
+            var optionTexts = []
+            var optionValues = []
+            for (var i = 0; i < timestampCameras[tsSiteSelect.value].length; i++) {
+                optionTexts.push(timestampCameras[tsSiteSelect.value][i].name)
+                optionValues.push(timestampCameras[tsSiteSelect.value][i].id)
+            }
+            fillSelect(tsCamSelect, optionTexts, optionValues);
+
+            getTimestampFiles();
+        }
+    };
+    xhttp.open("GET", '/getTimestampSitesCameraAndSpecies/' + selectedSurvey);
+    xhttp.send();
+
+}
+
+function getTimestampFiles(img_next=null, vid_next=null){
+    /** Gets the timestamp files for the selected survey. */
+    var camera_id = document.getElementById('tsCamSelect').value;
+    var time_type = document.getElementById('tsTimestampType').value;
+
+    if (img_next == null && vid_next == null) {
+        editShiftFiltersDisabledState(true);
+
+        var tsFilesTableDiv = document.getElementById('tsFilesTableDiv');
+        while (tsFilesTableDiv.firstChild) {
+            tsFilesTableDiv.removeChild(tsFilesTableDiv.firstChild);
+        }
+
+        tsFilesTableDiv.style.display = 'flex';
+        tsFilesTableDiv.style.alignItems = 'center';
+        tsFilesTableDiv.style.justifyContent = 'center';
+        tsFilesTableDiv.style.height = '100%';
+
+        var loadCircle = document.createElement('div');
+        loadCircle.setAttribute('class','loading-circle');
+        tsFilesTableDiv.appendChild(loadCircle);
+        loadCircle.style.display = 'block';
+
+        tsFiles = [];
+    }
+
+    var startDate = document.getElementById('startDateShift').value;
+    var endDate = document.getElementById('endDateShift').value;
+    var formData = new FormData();
+    if (startDate != '' && /^\d{4}-\d{2}-\d{2}$/.test(startDate)) {
+        formData.append('startDate', JSON.stringify(startDate + ' 00:00:00'));
+    }
+    if (endDate != '' && /^\d{4}-\d{2}-\d{2}$/.test(endDate)) {
+        formData.append('endDate', JSON.stringify(endDate + ' 23:59:59'));
+    }
+    formData.append('time_type', JSON.stringify(time_type));
+    if (img_next != null) {
+        formData.append('img_page', JSON.stringify(img_next));
+    }
+    if (vid_next != null) {
+        formData.append('vid_page', JSON.stringify(vid_next));
+    }
+
+    if (camera_id != '') {
+        var xhttp = new XMLHttpRequest();
+        xhttp.onreadystatechange = function() {
+            if (this.readyState == 4 && this.status == 200) {
+                var reply = JSON.parse(this.responseText);
+                console.log(reply);
+                tsFiles = tsFiles.concat(reply.files);
+
+                if (reply.img_next != null || reply.vid_next != null) {
+                    getTimestampFiles(reply.img_next, reply.vid_next);
+                } else {
+                    // Filter by search and regular expression
+                    filterTsFilesBySearch();
+                    orderTsFilesBy('timestamp', 'asc');
+                    
+                    document.getElementById('selectAllTsFiles').checked = false;
+                    buildTsFilesTable();
+                    editShiftFiltersDisabledState(false);
+                }
+            }
+        };
+        xhttp.open("POST", '/getTimeshiftFiles/' + camera_id);
+        xhttp.send(formData);
+    } else {
+        var tsFilesTableDiv = document.getElementById('tsFilesTableDiv');
+        while (tsFilesTableDiv.firstChild) {
+            tsFilesTableDiv.removeChild(tsFilesTableDiv.firstChild);
+        }
+        editShiftFiltersDisabledState(false);
+    }
+}
+
+function buildShiftTimestamps(){
+    /** Builds the shift timestamps form on the edit survey modal when the radio button is selected. */
+    editShiftTimestampsDiv = document.getElementById('editShiftTimestampsDiv')
+    while (editShiftTimestampsDiv.firstChild) {
+        editShiftTimestampsDiv.removeChild(editShiftTimestampsDiv.firstChild)
+    }
+
+    var h5 = document.createElement('h5')
+    h5.innerHTML = 'Shift Timestamps'
+    h5.setAttribute('style','margin-bottom: 2px')
+    editShiftTimestampsDiv.appendChild(h5)
+    var div = document.createElement('div')
+    div.setAttribute('style','margin-bottom: 10px; font-size: 80%')
+    div.innerHTML = '<i> Here you can shift the timestamps of the selected files in your survey if the timestamps are not correct.</i>'
+    editShiftTimestampsDiv.appendChild(div)
+
+    var row = document.createElement('div')
+    row.classList.add('row')
+    editShiftTimestampsDiv.appendChild(row)
+
+    var colPanel = document.createElement('div')
+    colPanel.classList.add('col-lg-2')
+    row.appendChild(colPanel)
+
+    var colTable = document.createElement('div')
+    colTable.classList.add('col-lg-8')
+    row.appendChild(colTable)
+
+    var colPanel2 = document.createElement('div')
+    colPanel2.classList.add('col-lg-2')
+    row.appendChild(colPanel2)
+
+    var row = document.createElement('div')
+    row.classList.add('row')
+    colTable.appendChild(row)
+
+    var col = document.createElement('div')
+    col.classList.add('col-lg-12')
+    row.appendChild(col)
+
+    var toggleDiv = document.createElement('div');
+    toggleDiv.style.display = 'flex';
+    toggleDiv.style.alignItems = 'center';
+    toggleDiv.style.marginBottom = '5px';
+    col.appendChild(toggleDiv);
+
+    var label = document.createElement('label')
+    label.setAttribute('for', 'selectAllTsFiles');
+    label.classList.add('h6');
+    label.style.margin = '0';
+    label.style.paddingRight = '5px';
+    label.innerHTML = 'Select All'
+    toggleDiv.appendChild(label)
+
+    var toggle = document.createElement('label');
+    toggle.classList.add('switch');
+    toggleDiv.appendChild(toggle);
+
+    var checkbox = document.createElement('input');
+    checkbox.setAttribute("type", "checkbox");
+    checkbox.setAttribute('id', 'selectAllTsFiles');
+    checkbox.checked = false;
+    toggle.appendChild(checkbox);
+
+    var slider = document.createElement('span');
+    slider.classList.add('slider');
+    slider.classList.add('round');
+    toggle.appendChild(slider);
+
+    
+    $('#selectAllTsFiles').on('change', function() {
+        /** Event listener for selecting or deselecting all files in the timestamp shift files table. */
+        var selectAll = this.checked;
+        for (var file_idx in tsFiles) {
+            var fileObj = tsFiles[file_idx];
+            if (selectAll) {
+                fileObj.selected = true;
+            } else {
+                delete fileObj.selected;
+            }
+        }
+        buildTsFilesTable();
+    });
+
+    var div = document.createElement('div')
+    div.id = 'tsFilesTableDiv';
+    div.style.display = 'flex';
+    div.style.alignItems = 'flex-start';
+    div.style.justifyContent = 'flex-start';
+    div.style.height = '100%';
+    colTable.appendChild(div)
+    
+    var tsPanelDiv = document.createElement('div')
+    colPanel.appendChild(tsPanelDiv)
+
+    var tsPanelDiv2 = document.createElement('div')
+    colPanel2.appendChild(tsPanelDiv2)
+
+    h5 = document.createElement('h5')
+    h5.setAttribute('style','margin-bottom: 2px')
+    h5.innerHTML = 'Site'
+    tsPanelDiv.appendChild(h5)
+
+    div = document.createElement('div')
+    div.setAttribute('style','font-size: 80%; margin-bottom: 2px')
+    div.innerHTML = '<i>Filter your files by site.</i>'
+    tsPanelDiv.appendChild(div)
+
+    var select = document.createElement('select');
+    select.id = 'tsSiteSelect';
+    select.classList.add('form-control');
+    tsPanelDiv.appendChild(select);
+
+    $('#tsSiteSelect').on('change', function() {
+        document.getElementById('selectAllTsFiles').checked = false;
+        var tsCamSelect = document.getElementById('tsCamSelect');
+        clearSelect(tsCamSelect);
+        var optionTexts = []
+        var optionValues = []
+        for (var i = 0; i < timestampCameras[this.value].length; i++) {
+            optionTexts.push(timestampCameras[this.value][i].name)
+            optionValues.push(timestampCameras[this.value][i].id)
+        }
+        fillSelect(tsCamSelect, optionTexts, optionValues);
+        getTimestampFiles();
+    });
+
+    tsPanelDiv.appendChild(document.createElement('br'))
+
+    h5 = document.createElement('h5')
+    h5.setAttribute('style','margin-bottom: 2px')
+    h5.innerHTML = 'Camera'
+    tsPanelDiv.appendChild(h5)
+
+    div = document.createElement('div')
+    div.setAttribute('style','font-size: 80%; margin-bottom: 2px')
+    div.innerHTML = '<i>Filter your files by camera.</i>'
+    tsPanelDiv.appendChild(div)
+
+    var select = document.createElement('select');
+    select.id = 'tsCamSelect';
+    select.classList.add('form-control');
+    tsPanelDiv.appendChild(select);
+
+    $('#tsCamSelect').on('change', function() {
+        document.getElementById('selectAllTsFiles').checked = false;
+        getTimestampFiles();
+    });
+
+    tsPanelDiv.appendChild(document.createElement('br'))
+
+    h5 = document.createElement('h5')
+    h5.setAttribute('style','margin-bottom: 2px')
+    h5.innerHTML = 'Search'
+    tsPanelDiv.appendChild(h5)
+
+    div = document.createElement('div')
+    div.setAttribute('style','font-size: 80%; margin-bottom: 2px')
+    div.innerHTML = '<i>Search for files by filename or using a regular expression.</i>'
+    tsPanelDiv.appendChild(div)
+
+    var input = document.createElement('input')
+    input.setAttribute('type', 'text')
+    input.classList.add('form-control')
+    input.setAttribute('id', 'tsSearchInput')
+    input.setAttribute('placeholder', 'Search')
+    tsPanelDiv.appendChild(input)
+
+    var div = document.createElement('div')
+    div.setAttribute('class','custom-control custom-checkbox')
+    tsPanelDiv.appendChild(div)
+
+    var checkbox = document.createElement('input')
+    checkbox.setAttribute('type', 'checkbox')
+    checkbox.setAttribute('class','custom-control-input')
+    checkbox.setAttribute('id', 'tsSearchRegExp')
+    checkbox.setAttribute('name', 'tsSearchRegExp')
+    checkbox.setAttribute('value', 'true')
+    checkbox.checked = false;
+    div.appendChild(checkbox)
+
+    var label = document.createElement('label')
+    label.setAttribute('class', 'custom-control-label')
+    label.setAttribute('for', 'tsSearchRegExp')
+    label.innerHTML = 'Regular Expression'
+    div.appendChild(label)
+
+    $('#tsSearchInput').change(function() {
+        /** Event listener for filtering the timestamp shift files by search. */
+        document.getElementById('selectAllTsFiles').checked = false;
+        getTimestampFiles();
+    });
+
+    $('#tsSearchRegExp').on('change', function() {
+        /** Event listener for filtering the timestamp shift files by regular expression. */
+        if (document.getElementById('tsSearchInput').value != '') {
+            document.getElementById('selectAllTsFiles').checked = false;
+            getTimestampFiles();
+        }
+    });
+
+    tsPanelDiv.appendChild(document.createElement('br'))
+
+    h5 = document.createElement('h5')
+    h5.innerHTML = 'Date'
+    h5.setAttribute('style','margin-bottom: 2px')
+    tsPanelDiv.appendChild(h5)
+
+    h5 = document.createElement('div')
+    h5.innerHTML = "<i>Filter your files by date.</i>"
+    h5.setAttribute('style','font-size: 80%; margin-bottom: 2px')
+    tsPanelDiv.appendChild(h5)
+
+    dateRange = document.createElement('div')
+    tsPanelDiv.appendChild(dateRange)
+
+    startDateLabel = document.createElement('label');
+    startDateLabel.textContent = 'Start date:';
+    startDateLabel.setAttribute('for', 'startDateShift');
+    startDateLabel.setAttribute('style', 'margin-bottom: 2px');
+    dateRange.appendChild(startDateLabel)
+
+    startDateInput = document.createElement('input');
+    startDateInput.setAttribute('type', 'date');
+    startDateInput.setAttribute('id', 'startDateShift');
+    startDateInput.setAttribute('class', 'form-control');
+    dateRange.appendChild(startDateInput)
+
+    endDateLabel = document.createElement('label');
+    endDateLabel.textContent = 'End date:';
+    endDateLabel.setAttribute('for', 'endDateShift');
+    endDateLabel.setAttribute('style', 'margin-bottom: 2px');
+    dateRange.appendChild(endDateLabel)
+
+    endDateInput = document.createElement('input');
+    endDateInput.setAttribute('type', 'date');
+    endDateInput.setAttribute('id', 'endDateShift');
+    endDateInput.setAttribute('class', 'form-control');
+    dateRange.appendChild(endDateInput)
+
+    $('#startDateShift').change( function() {
+        if (/^\d{4}-\d{2}-\d{2}$/.test(this.value) || this.value == '') {
+            document.getElementById('selectAllTsFiles').checked = false;
+            getTimestampFiles();
+        }
+    });
+
+    $('#endDateShift').change( function() {
+        if (/^\d{4}-\d{2}-\d{2}$/.test(this.value) || this.value == '') {
+            document.getElementById('selectAllTsFiles').checked = false;
+            getTimestampFiles();
+        }
+    });
+
+    h5 = document.createElement('h5')
+    h5.setAttribute('style','margin-bottom: 2px')
+    h5.innerHTML = 'Timestamp'
+    tsPanelDiv2.appendChild(h5)
+
+    div = document.createElement('div')  
+    div.setAttribute('style','font-size: 80%; margin-bottom: 2px')
+    div.innerHTML = '<i>Apply a timestamp shift to the current or original timestamps.</i>'
+    tsPanelDiv2.appendChild(div)
+
+    select = document.createElement('select');
+    select.id = 'tsTimestampType';
+    select.classList.add('form-control');
+    tsPanelDiv2.appendChild(select);
+
+    var optionTexts = ['Original Timestamp', 'Current Timestamp'];
+    var optionValues = ['original', 'corrected'];
+    fillSelect(select, optionTexts, optionValues);
+    select.value = 'corrected';
+
+    $('#tsTimestampType').on('change', function() {
+        /** Event listener for changing the timestamp type. */
+        clearTsFileSelection()
+        clearTsShiftInputs()
+        document.getElementById('selectAllTsFiles').checked = false;
+
+        getTimestampFiles();
+    });
+
+    tsPanelDiv2.appendChild(document.createElement('br'))
+    
+    h5 = document.createElement('h5')
+    h5.setAttribute('style', 'margin-bottom: 2px')
+    h5.innerHTML = 'Timestamp Shift'
+    tsPanelDiv2.appendChild(h5)
+
+    div = document.createElement('div')
+    div.setAttribute('style', 'font-size: 80%; margin-bottom: 2px')
+    div.innerHTML = '<i>Shift selected files forward (+) or backward (−). Leave unused fields empty.</i>'
+    tsPanelDiv2.appendChild(div)
+
+    var signGroup = document.createElement('div')
+    signGroup.classList.add('btn-group')
+    signGroup.setAttribute('style', 'width: 100%; margin-bottom: 6px')
+    tsPanelDiv2.appendChild(signGroup)
+
+    var plusBtn = document.createElement('button')
+    plusBtn.setAttribute('type', 'button')
+    plusBtn.id = 'tsShiftPlus'
+    plusBtn.classList.add('btn', 'btn-primary', 'btn-sm', 'active')
+    plusBtn.setAttribute('style', 'width: 50%')
+    plusBtn.setAttribute('data-sign', '+')
+    plusBtn.innerHTML = '+'
+    signGroup.appendChild(plusBtn)
+
+    var minusBtn = document.createElement('button')
+    minusBtn.setAttribute('type', 'button')
+    minusBtn.id = 'tsShiftMinus'
+    minusBtn.classList.add('btn', 'btn-default', 'btn-sm')
+    minusBtn.setAttribute('style', 'width: 50%')
+    minusBtn.setAttribute('data-sign', '-')
+    minusBtn.innerHTML = '−'
+    signGroup.appendChild(minusBtn)
+
+    plusBtn.addEventListener('click', function() { setTsShiftSign('+') })
+    minusBtn.addEventListener('click', function() { setTsShiftSign('-') })
+
+    var shiftFields = [
+        { id: 'tsShiftDays', label: 'Days' },
+        { id: 'tsShiftHours', label: 'Hours' },
+        { id: 'tsShiftMinutes', label: 'Minutes' },
+        { id: 'tsShiftSeconds', label: 'Seconds' }
+    ]
+
+    for (var rowIdx = 0; rowIdx < 2; rowIdx++) {
+        var fieldRow = document.createElement('div')
+        fieldRow.setAttribute('style', 'display: flex; margin-left: -3px; margin-right: -3px; margin-bottom: 4px')
+        tsPanelDiv2.appendChild(fieldRow)
+
+        for (var colIdx = 0; colIdx < 2; colIdx++) {
+            var field = shiftFields[rowIdx * 2 + colIdx]
+            
+            var fieldCol = document.createElement('div')
+            fieldCol.setAttribute('style', 'flex: 1; padding: 0 3px; min-width: 0')
+            fieldRow.appendChild(fieldCol)
+
+            var fieldLabel = document.createElement('label')
+            fieldLabel.setAttribute('for', field.id)
+            fieldLabel.setAttribute('style', 'margin-bottom: 2px; font-size: 80%')
+            fieldLabel.textContent = field.label
+            fieldCol.appendChild(fieldLabel)
+
+            var fieldInput = document.createElement('input')
+            fieldInput.setAttribute('type', 'number')
+            fieldInput.setAttribute('min', '0')
+            fieldInput.setAttribute('step', '1')
+            fieldInput.setAttribute('placeholder', '0')
+            fieldInput.id = field.id
+            fieldInput.classList.add('form-control')
+            fieldInput.setAttribute('style', 'padding-left: 6px; padding-right: 6px')
+            fieldCol.appendChild(fieldInput)
+            fieldInput.addEventListener('input', updateTsShiftSummary)
+        }
+    }
+
+    var summary = document.createElement('div')
+    summary.id = 'tsShiftSummary'
+    summary.setAttribute('style', 'font-size: 80%; font-style: italic; margin-top: 2px;')
+    tsPanelDiv2.appendChild(summary)
+    updateTsShiftSummary()
+
+    var stageShiftButton = document.createElement('button')
+    stageShiftButton.setAttribute('type', 'button')
+    stageShiftButton.id = 'stageShiftButton'
+    stageShiftButton.classList.add('btn', 'btn-primary', 'btn-block', 'btn-sm')
+    stageShiftButton.innerHTML = 'Stage Shift'
+    stageShiftButton.setAttribute('style', 'margin-top: 8px; margin-bottom: 6px')
+    tsPanelDiv2.appendChild(stageShiftButton)
+    stageShiftButton.addEventListener('click', function() {
+        stageTsShift()
+        unsavedEditChanges = true
+        updateTimestampEditConflictWarning()
+    })
+
+    var helpCalculateShiftButton = document.createElement('button')
+    helpCalculateShiftButton.setAttribute('type', 'button')
+    helpCalculateShiftButton.id = 'helpCalculateShiftButton'
+    helpCalculateShiftButton.classList.add('btn', 'btn-primary', 'btn-block', 'btn-sm')
+    helpCalculateShiftButton.innerHTML = 'Help Calculate Shift'
+    tsPanelDiv2.appendChild(helpCalculateShiftButton)
+    helpCalculateShiftButton.addEventListener('click', function() {
+        helpCalculateShift()
+    })
+
+    var clearShiftButton = document.createElement('button')
+    clearShiftButton.setAttribute('type', 'button')
+    clearShiftButton.id = 'clearCamShiftButton'
+    clearShiftButton.classList.add('btn', 'btn-danger', 'btn-block', 'btn-sm')
+    clearShiftButton.innerHTML = 'Clear Camera Shifts'
+    tsPanelDiv2.appendChild(clearShiftButton)
+    clearShiftButton.addEventListener('click', function() {
+        /** Clears the staged timestamp shifts. */
+        let cam_id = document.getElementById('tsCamSelect').value;
+        delete shift_timestamps[cam_id];
+        document.getElementById('selectAllTsFiles').checked = false;
+        document.getElementById('tsShiftStageError').innerHTML = '';
+        clearTsFileSelection()
+        clearTsShiftInputs()
+        buildTsFilesTable()
+        updateTimestampEditConflictWarning()
+    })
+
+
+    var clearShiftButton = document.createElement('button')
+    clearShiftButton.setAttribute('type', 'button')
+    clearShiftButton.id = 'clearShiftButton'
+    clearShiftButton.classList.add('btn', 'btn-danger', 'btn-block', 'btn-sm')
+    clearShiftButton.innerHTML = 'Clear All Shifts'
+    tsPanelDiv2.appendChild(clearShiftButton)
+    clearShiftButton.addEventListener('click', function() {
+        /** Clears the staged timestamp shifts. */
+        shift_timestamps = {}
+        document.getElementById('selectAllTsFiles').checked = false;
+        document.getElementById('tsShiftStageError').innerHTML = '';
+        clearTsFileSelection()
+        clearTsShiftInputs()
+        buildTsFilesTable()
+        updateTimestampEditConflictWarning()
+    })
+
+    var stageError = document.createElement('div')
+    stageError.id = 'tsShiftStageError'
+    stageError.setAttribute('style', 'font-size: 80%; color: #DF691A; margin-top: 4px')
+    tsPanelDiv2.appendChild(stageError)
+
+    getCameraGroups();
+}
+
+function setTsShiftSign(sign) {
+    var plus = document.getElementById('tsShiftPlus')
+    var minus = document.getElementById('tsShiftMinus')
+    if (sign === '-') {
+        plus.classList.remove('btn-primary', 'active')
+        plus.classList.add('btn-default')
+        minus.classList.remove('btn-default')
+        minus.classList.add('btn-primary', 'active')
+    } else {
+        minus.classList.remove('btn-primary', 'active')
+        minus.classList.add('btn-default')
+        plus.classList.remove('btn-default')
+        plus.classList.add('btn-primary', 'active')
+    }
+    updateTsShiftSummary()
+}
+
+function getTsShift() {
+    /** Reads the timestamp-shift form into a signed component object. */
+    function readField(id) {
+        var el = document.getElementById(id)
+        if (!el) return 0
+        var v = el.value.trim()
+        if (v === '') return 0
+        return parseInt(v, 10)
+    }
+    var minus = document.getElementById('tsShiftMinus')
+    var sign = (minus && minus.classList.contains('active')) ? -1 : 1
+    var days = readField('tsShiftDays')
+    var hours = readField('tsShiftHours')
+    var minutes = readField('tsShiftMinutes')
+    var seconds = readField('tsShiftSeconds')
+    return {
+        valid: [days, hours, minutes, seconds].every(function(v) { return Number.isInteger(v) && v >= 0 }),
+        empty: (days + hours + minutes + seconds) === 0,
+        shift: {
+            days: sign * days,
+            hours: sign * hours,
+            minutes: sign * minutes,
+            seconds: sign * seconds
+        }
+    }
+}
+
+function formatTsShiftSummary(shift, short, type=null) {
+    /** Formats a shift object. short=true uses d/h/m/s for the table. */
+    if (!shift) return ''
+    var units = short
+        ? [
+            ['d', 'days'],
+            ['h', 'hours'],
+            ['m', 'minutes'],
+            ['s', 'seconds']
+        ]
+        : [
+            ['day', 'days'],
+            ['hour', 'hours'],
+            ['minute', 'minutes'],
+            ['second', 'seconds']
+        ]
+    var parts = []
+    units.forEach(function(u) {
+        var v = Math.abs(shift[u[1]])
+        if (!v) return
+        if (short) {
+            parts.push(v + u[0])
+        } else {
+            parts.push(v + ' ' + (v === 1 ? u[0] : u[1]))
+        }
+    })
+    if (!parts.length) return ''
+    var negative = Object.keys(shift).some(function(k) { return shift[k] < 0 })
+    if (short) return (type ? type + ' ' : '') + (negative ? '− ' : '+ ') + parts.join(' ')
+    return (type ? type + ' ' : '') + (negative ? '− ' : '+ ') + parts.join(', ')
+}
+
+function updateTsShiftSummary() {
+    var summary = document.getElementById('tsShiftSummary')
+    if (!summary) return
+    var result = getTsShift()
+    if (!result.valid) {
+        summary.textContent = 'Enter whole numbers only.'
+        return
+    }
+    let shiftSummary = formatTsShiftSummary(result.shift)
+    if (shiftSummary) {
+        summary.textContent = 'Shift by ' + shiftSummary
+    } else {
+        summary.textContent = ''
+    }
+}
+
+function clearTsShiftInputs() {
+    ['tsShiftDays', 'tsShiftHours', 'tsShiftMinutes', 'tsShiftSeconds'].forEach(function(id) {
+        var el = document.getElementById(id)
+        if (el) el.value = ''
+    })
+    var plus = document.getElementById('tsShiftPlus')
+    var minus = document.getElementById('tsShiftMinus')
+    if (plus && minus) {
+        minus.classList.remove('btn-primary', 'active')
+        minus.classList.add('btn-default')
+        plus.classList.remove('btn-default')
+        plus.classList.add('btn-primary', 'active')
+    }
+    updateTsShiftSummary()
+}
+
+function tsShiftInputsHaveValue() {
+    return ['tsShiftDays', 'tsShiftHours', 'tsShiftMinutes', 'tsShiftSeconds'].some(function(id) {
+        var el = document.getElementById(id)
+        return el && el.value.trim() !== ''
+    })
+}
+
+function stageTsShift() {
+    /** Stages the current form shift onto the selected files. */
+    var errorDiv = document.getElementById('tsShiftStageError')
+    errorDiv.innerHTML = ''
+    var result = getTsShift()
+    if (!result.valid || result.empty) {
+        errorDiv.innerHTML = 'Please provide a valid timestamp shift.'
+        return
+    }
+    var selected = tsFiles.filter(function(fileObj) { return fileObj.selected })
+    if (!selected.length) {
+        errorDiv.innerHTML = 'Select files to stage this shift.'
+        return
+    }
+    timestampType = document.getElementById('tsTimestampType').value;
+    let cam_id = document.getElementById('tsCamSelect').value;
+    if (!shift_timestamps[cam_id]) {
+        shift_timestamps[cam_id] = {videos: {}, images: {}}
+    }
+    selected.forEach(function(fileObj) {
+        getTsShiftBucket(fileObj)[fileObj.id] = {
+            base: fileObj.timestamp,
+            type: timestampType == 'corrected' ? 'CT' : 'OT',
+            shift: Object.assign({}, result.shift)
+        }
+        delete fileObj.selected
+    })
+    document.getElementById('selectAllTsFiles').checked = false
+    clearTsShiftInputs()
+    buildTsFilesTable()
+}
+
+function getTsShiftBucket(fileObj) {
+    let cam_id = document.getElementById('tsCamSelect').value;
+    return shift_timestamps[cam_id] ? (fileObj.type == 'video' ? shift_timestamps[cam_id]['videos'] : shift_timestamps[cam_id]['images']) : {};
+}
+
+function getStagedShiftForFile(fileObj) {
+    var entry = getTsShiftBucket(fileObj)[fileObj.id]
+    if (entry && typeof entry === 'object' && entry.shift) return entry
+    return null
+}
+
+function clearTsFileSelection() {
+    for (var i = 0; i < tsFiles.length; i++) {
+        delete tsFiles[i].selected
+    }
+}
+
+function buildTsFilesTable() {
+    /** Builds the timestamp shift files table. */
+    var tsFilesTableDiv = document.getElementById('tsFilesTableDiv'); 
+    while (tsFilesTableDiv.firstChild) {
+        tsFilesTableDiv.removeChild(tsFilesTableDiv.firstChild);
+    }
+
+    tsFilesTableDiv.style.alignItems = 'flex-start';
+    tsFilesTableDiv.style.justifyContent = 'flex-start';
+
+    var tableDiv = document.createElement('div')
+    tableDiv.setAttribute('class','table-responsive')
+    tableDiv.setAttribute('style','max-height:540px')
+    tableDiv.id='ts_files_table_div'
+    tsFilesTableDiv.appendChild(tableDiv)
+
+    var table = document.createElement('table')
+    table.classList.add('table');
+    table.classList.add('table-striped');
+    table.classList.add('table-bordered');
+    table.style.borderCollapse = 'collapse'
+    table.style.border = '1px solid rgba(0,0,0,0)'
+    table.style.marginBottom = '2px'
+    table.id = 'ts_files_tbl'
+    tableDiv.appendChild(table)
+
+    var thead = document.createElement('thead');
+    table.appendChild(thead);
+    var headerRow = document.createElement('tr');
+    thead.appendChild(headerRow);
+
+    var thFilename = document.createElement('th');
+    thFilename.setAttribute('style', 'vertical-align: middle; padding: 8px 12px;');
+    thFilename.innerHTML = 'Filename';
+    headerRow.appendChild(thFilename);
+
+    if (currentTsFileOrder.column == 'filename') {
+        if (currentTsFileOrder.direction == 'asc') {
+            thFilename.innerHTML += ' <i class="fa fa-sort-up"></i>';
+        } else {
+            thFilename.innerHTML += ' <i class="fa fa-sort-down"></i>';
+        }
+    }
+
+    // add ordering functionality to the name header column
+    thFilename.style.cursor = 'pointer';
+    thFilename.title = 'Sort by Filename';
+    thFilename.addEventListener('click', function() {
+        /** Event listener for sorting the folder contents table by filename. */
+        if (currentTsFileOrder.column == 'filename' && currentTsFileOrder.direction == 'asc') {
+            orderTsFilesBy('filename', 'desc');
+        } else {
+            orderTsFilesBy('filename', 'asc');
+        }
+        buildTsFilesTable();
+    });
+
+    var thTimestamp = document.createElement('th');
+    thTimestamp.setAttribute('style', 'width: 20%; text-align: center; vertical-align: middle; padding: 8px 12px;');
+    thTimestamp.innerHTML = 'Timestamp';
+    headerRow.appendChild(thTimestamp);
+
+    if (currentTsFileOrder.column == 'timestamp') {
+        if (currentTsFileOrder.direction == 'asc') {
+            thTimestamp.innerHTML += ' <i class="fa fa-sort-up"></i>';
+        } else {
+            thTimestamp.innerHTML += ' <i class="fa fa-sort-down"></i>';
+        }
+    }
+
+    thTimestamp.style.cursor = 'pointer';
+    thTimestamp.title = 'Sort by Timestamp';
+    thTimestamp.addEventListener('click', function() {
+        /** Event listener for sorting the folder contents table by original timestamp. */
+        if (currentTsFileOrder.column == 'timestamp' && currentTsFileOrder.direction == 'asc') {
+            orderTsFilesBy('timestamp', 'desc');
+        } else {
+            orderTsFilesBy('timestamp', 'asc');
+        }
+        buildTsFilesTable();
+    });
+
+    var thStagedShift = document.createElement('th');
+    thStagedShift.innerHTML = 'Staged Shift';
+    thStagedShift.setAttribute('style', 'width: 20%; text-align: center; vertical-align: middle; padding: 8px 12px;');
+    headerRow.appendChild(thStagedShift);
+
+    var thSelect = document.createElement('th');
+    thSelect.innerHTML = 'Select';
+    thSelect.setAttribute('style', 'width: 5%; text-align: center; vertical-align: middle; padding: 8px 12px;');
+    headerRow.appendChild(thSelect);
+
+    var tbody = document.createElement('tbody');
+    table.appendChild(tbody);
+
+    for (var file_idx in tsFiles) {
+        var fileObj = tsFiles[file_idx];
+        var tr = document.createElement('tr');
+        tr.setAttribute('id', 'tsFile-'+fileObj.id);
+        tbody.appendChild(tr);
+
+        var tdFilename = document.createElement('td');
+        tdFilename.setAttribute('style', 'text-align: left; vertical-align: middle; padding: 8px 12px;');
+        tdFilename.innerHTML = fileObj.folder + '/' + fileObj.name;
+        tr.appendChild(tdFilename); 
+
+        var tdTimestamp = document.createElement('td');
+        tdTimestamp.setAttribute('style', 'text-align: center; vertical-align: middle; padding: 8px 12px;');
+        tdTimestamp.innerHTML = fileObj.timestamp;
+        tr.appendChild(tdTimestamp);
+
+        var tdStagedShift = document.createElement('td');
+        tdStagedShift.setAttribute('style', 'text-align: center; vertical-align: middle; padding: 8px 12px;');
+        let stagedShift = getStagedShiftForFile(fileObj);
+        if (stagedShift && stagedShift.shift) {
+            tdStagedShift.innerHTML = formatTsShiftSummary(stagedShift.shift,true,stagedShift.type);
+        } else {
+            tdStagedShift.innerHTML = '';
+        }
+        tr.appendChild(tdStagedShift);
+
+        var tdSelect = document.createElement('td');
+        tdSelect.setAttribute('style', 'text-align: center; vertical-align: middle; padding: 8px 12px;');
+        tdSelect.id = 'selectFile-'+fileObj.id;
+        tr.appendChild(tdSelect);
+
+        buildSelectIcon(fileObj.id,file_idx,fileObj.selected);
+
+    }
+}
+
+function buildSelectIcon(id,file_idx,selected) {
+    /** Builds the select icon for the timestamp shift files table. */
+    let td_select = document.getElementById('selectFile-'+id);
+    while (td_select.firstChild) {
+        td_select.removeChild(td_select.firstChild);
+    }
+    if (selected) {
+        var undoIcon = document.createElement('i');
+        // undoIcon.classList.add('fa', 'fa-undo');
+        undoIcon.classList.add('fa', 'fa-square-check');
+        undoIcon.setAttribute('style', 'cursor: pointer;');
+        undoIcon.setAttribute('title', 'Undo Select');
+        td_select.appendChild(undoIcon);
+
+        undoIcon.addEventListener('click', function(fileIDX) {
+            return function() {
+                /** Event listener for undoing the selection of a file from the timestamp shift files table. */
+                delete tsFiles[fileIDX].selected;
+                buildSelectIcon(id,file_idx,false);
+                applyTsFileRowStyle(tsFiles[fileIDX])
+            };
+        }(file_idx));
+    } else {
+        var selectIcon = document.createElement('i');
+        selectIcon.classList.add('fa', 'fa-square');
+        selectIcon.setAttribute('style', 'cursor: pointer;');
+        selectIcon.setAttribute('title', 'Select File');
+        td_select.appendChild(selectIcon);
+
+        selectIcon.addEventListener('click', function(fileIDX) {
+            return function() {
+                /** Event listener for selecting a file from the timestamp shift files table. */
+                tsFiles[fileIDX].selected = true;
+                buildSelectIcon(id,file_idx,true);
+                applyTsFileRowStyle(tsFiles[fileIDX])
+            };
+        }(file_idx));
+    }
+
+    applyTsFileRowStyle(tsFiles[file_idx])
+}
+
+function applyTsFileRowStyle(fileObj) {
+    var tr = document.getElementById('tsFile-' + fileObj.id)
+    if (!tr) return
+    if (fileObj.selected) {
+        tr.style.backgroundColor = 'rgba(223, 105, 26, 0.3)'
+    } else if (getStagedShiftForFile(fileObj)) {
+        tr.style.backgroundColor = 'rgba(91, 192, 222, 0.3)'
+    } else {
+        tr.style.backgroundColor = ''
+    }
+}
+
+function orderTsFilesBy(column, direction) {
+    /** Orders the timestamp shift files by the specified column and direction. */
+
+    tsFiles.sort(function(a, b) {
+        var res = 0;
+        if (column == 'filename') {
+            if (a.name < b.name) res = -1;
+            else if (a.name > b.name) res = 1;
+            else res = 0;
+        } else if (column == 'timestamp') {
+            res = new Date(a.timestamp) - new Date(b.timestamp);
+        }
+
+        res = direction == 'asc' ? res : -res;
+
+        if (res == 0) {
+            if (a.name < b.name) res = -1;
+            else if (a.name > b.name) res = 1;
+            else res = 0;
+        }
+
+        return res;
+    });
+
+    currentTsFileOrder.column = column;
+    currentTsFileOrder.direction = direction;
+}
+
+function filterTsFilesBySearch() {
+    /** Filters the timestamp shift files by search and regular expression. */
+    var search = document.getElementById('tsSearchInput').value;
+    var regex = document.getElementById('tsSearchRegExp').checked;
+    if (search != '' && regex) {
+        var pattern = new RegExp(search);
+        tsFiles = tsFiles.filter(function(file) {
+            return pattern.test(file.path+'/'+file.name);
+        });
+    } else if (search != '') {
+        tsFiles = tsFiles.filter(function(file) {
+            return (file.path+'/'+file.name).includes(search);
+        });
+    }
+}
+
+function editShiftFiltersDisabledState(state) {
+    /** Edits the disabled state of the timestamp shift filters. */
+    document.getElementById('tsSiteSelect').disabled = state;
+    document.getElementById('tsCamSelect').disabled = state;
+    document.getElementById('tsSearchInput').disabled = state;
+    document.getElementById('tsSearchRegExp').disabled = state;
+    document.getElementById('startDateShift').disabled = state;
+    document.getElementById('endDateShift').disabled = state;
+    document.getElementById('tsTimestampType').disabled = state;
+    document.getElementById('tsShiftPlus').disabled = state
+    document.getElementById('tsShiftMinus').disabled = state
+    ;['tsShiftDays', 'tsShiftHours', 'tsShiftMinutes', 'tsShiftSeconds'].forEach(function(id) {
+        document.getElementById(id).disabled = state
+    })
+    document.getElementById('selectAllTsFiles').disabled = state;
+    document.getElementById('stageShiftButton').disabled = state;
+    document.getElementById('clearShiftButton').disabled = state;
+    document.getElementById('helpCalculateShiftButton').disabled = state;
+    document.getElementById('clearCamShiftButton').disabled = state;
+}
+
+function changeTimestampsSubTab(mode) {
+    /** mode: 'shift' | 'edit' */
+    var shiftDiv = document.getElementById('editShiftTimestampsDiv')
+    var editDiv = document.getElementById('editImgTimestampsDiv')
+
+    if (mode === 'shift') {
+        shiftDiv.style.display = 'block'
+        editDiv.style.display = 'none'
+        if (shiftDiv.firstChild == null) buildShiftTimestamps()
+    } else {
+        shiftDiv.style.display = 'none'
+        editDiv.style.display = 'block'
+        if (editDiv.firstChild == null) getTimestampSitesCameraAndSpecies()
+    }
+}
+
+$('#shiftTimestampsSelect').change(function() {
+    if (this.checked) {
+        changeTimestampsSubTab('shift')
+    }
+})
+
+$('#editFileTimestampsSelect').change(function() {
+    if (this.checked) {
+        changeTimestampsSubTab('edit')
+    }
+})
+
+function parseTsString(value) {
+    /** Parses YYYY/MM/DD HH:MM:SS into a local Date, or null if invalid. */
+    if (!value) return null
+    var str = value.trim()
+    var timestamp_format = /^[0-9]{4}\/[0-9]{2}\/[0-9]{2} [0-9]{2}:[0-5][0-9]:[0-5][0-9]$/
+    if (!timestamp_format.test(str)) return null
+    var parts = str.split(/[\s/:]/).map(function(p) { return parseInt(p, 10) })
+    var year = parts[0], month = parts[1], day = parts[2]
+    var hour = parts[3], minute = parts[4], second = parts[5]
+    var d = new Date(year, month - 1, day, hour, minute, second)
+    if (!isValidDate(d)) return null
+    // Reject overflow dates like 2024/02/31
+    if (
+        d.getFullYear() !== year ||
+        d.getMonth() !== month - 1 ||
+        d.getDate() !== day ||
+        d.getHours() !== hour ||
+        d.getMinutes() !== minute ||
+        d.getSeconds() !== second
+    ) {
+        return null
+    }
+    return d
+}
+
+function deltaToTsShift(incorrectDate, correctDate) {
+    /** Builds a signed d/h/m/s shift from incorrect -> correct. */
+    var deltaSec = Math.round((correctDate.getTime() - incorrectDate.getTime()) / 1000)
+    if (deltaSec === 0) {
+        return { empty: true, shift: { days: 0, hours: 0, minutes: 0, seconds: 0 } }
+    }
+    var sign = deltaSec < 0 ? -1 : 1
+    var abs = Math.abs(deltaSec)
+    var days = Math.floor(abs / 86400)
+    var hours = Math.floor((abs % 86400) / 3600)
+    var minutes = Math.floor((abs % 3600) / 60)
+    var seconds = abs % 60
+    return {
+        empty: false,
+        shift: {
+            days: sign * days,
+            hours: sign * hours,
+            minutes: sign * minutes,
+            seconds: sign * seconds
+        }
+    }
+}
+
+function clearTsCalcModal() {
+    document.getElementById('tsCalcIncorrect').value = ''
+    document.getElementById('tsCalcCorrect').value = ''
+    document.getElementById('tsCalcPreview').textContent = ''
+    document.getElementById('tsCalcError').textContent = ''
+    document.getElementById('btnUseTsCalcShift').disabled = true
+    tsCalcShiftResult = null
+}
+
+function updateTsCalcPreview() {
+    /** Validates modal inputs and updates preview / Use Shift state. */
+    var incorrectEl = document.getElementById('tsCalcIncorrect')
+    var correctEl = document.getElementById('tsCalcCorrect')
+    var preview = document.getElementById('tsCalcPreview')
+    var errorDiv = document.getElementById('tsCalcError')
+    var useBtn = document.getElementById('btnUseTsCalcShift')
+    var incorrectRaw = incorrectEl.value.trim()
+    var correctRaw = correctEl.value.trim()
+    preview.textContent = ''
+    errorDiv.textContent = ''
+    useBtn.disabled = true
+    tsCalcShiftResult = null
+    if (!incorrectRaw && !correctRaw) return
+    if ((incorrectRaw && !correctRaw) || (!incorrectRaw && correctRaw)) {
+        // Wait until both fields have something before showing errors
+        return
+    }
+    var incorrectDate = parseTsString(incorrectRaw)
+    var correctDate = parseTsString(correctRaw)
+    if (!incorrectDate || !correctDate) {
+        errorDiv.textContent = 'Please enter timestamps in the format YYYY/MM/DD HH:MM:SS.'
+        return
+    }
+    var result = deltaToTsShift(incorrectDate, correctDate)
+    if (result.empty) {
+        errorDiv.textContent = 'Timestamps are the same.'
+        return
+    }
+    tsCalcShiftResult = result.shift
+    preview.textContent = 'Shift: ' + formatTsShiftSummary(result.shift)
+    useBtn.disabled = false
+}
+
+function applyTsCalcShiftToForm() {
+    /** Fills the Timestamp Shift panel from the modal calculation. */
+    if (!tsCalcShiftResult) return
+    var shift = tsCalcShiftResult
+    var negative = Object.keys(shift).some(function(k) { return shift[k] < 0 })
+    setTsShiftSign(negative ? '-' : '+')
+    document.getElementById('tsShiftDays').value = Math.abs(shift.days) || ''
+    document.getElementById('tsShiftHours').value = Math.abs(shift.hours) || ''
+    document.getElementById('tsShiftMinutes').value = Math.abs(shift.minutes) || ''
+    document.getElementById('tsShiftSeconds').value = Math.abs(shift.seconds) || ''
+    updateTsShiftSummary()
+    modalCalculateTsShift.modal('hide')
+}
+
+function helpCalculateShift() {
+    /** Opens the calculate-shift modal and resets its state. */
+    calculateShift = true
+    modalEditSurvey.modal('hide');
+    clearTsCalcModal()
+    modalCalculateTsShift.modal({ keyboard: true })
+}
+
+$('#tsCalcIncorrect, #tsCalcCorrect').on('input', updateTsCalcPreview)
+
+$('#btnUseTsCalcShift').on('click', function() {
+    applyTsCalcShiftToForm()
+})
+
+modalCalculateTsShift.on('hidden.bs.modal', function() {
+    clearTsCalcModal()
+    calculateShift = false
+    modalEditSurvey.modal({keyboard: true});
+})
+
+function updateTimestampEditConflictWarning() {
+    var fileEdits = Object.keys(Object.assign(
+        {}, new_missing_timestamps, corrected_extracted_timestamps, corrected_edited_timestamps
+    )).length
+    var hasShifts = Object.keys(shift_timestamps).length > 0
+    var el = document.getElementById('editSurveyErrors')
+    var overlapMsg = 'You have overlapping shift and file timestamp edits. Please only apply one type of timestamp edit at a time.'
+
+    if (fileEdits > 0 && hasShifts) {
+        el.innerHTML = overlapMsg
+    } else if (el.innerHTML === overlapMsg) {
+        el.innerHTML = ''
+    }
+}

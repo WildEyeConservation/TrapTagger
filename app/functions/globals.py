@@ -3202,6 +3202,8 @@ def inspect_celery(include_spam=False,include_reserved=False,include_scheduled=F
                     print('{:{}}{:{}}{:{}}{:{}}  task_id={}'.format(task['id'],40,name,36,hostname,36,time_start,29,task['kwargs']['task_id']))
                 elif 'edit_survey_files' in task['name']:
                     print('{:{}}{:{}}{:{}}{:{}}  survey_id={}'.format(task['id'],40,name,36,hostname,36,time_start,29,task['kwargs']['survey_id']))
+                elif 'edit_survey' in task['name']:
+                    print('{:{}}{:{}}{:{}}{:{}}  survey_id={}'.format(task['id'],40,name,36,hostname,36,time_start,29,task['kwargs']['survey_id']))
                 else:
                     print('{:{}}{:{}}{:{}}{:{}}  {}'.format(task['id'],40,name,36,hostname,36,time_start,29,task['kwargs']))
 
@@ -3255,6 +3257,8 @@ def inspect_celery(include_spam=False,include_reserved=False,include_scheduled=F
                     elif 'handleTaskEdit' in task['name']:
                         print('{:{}}{:{}}{:{}}{:{}}  task_id={}'.format(task['id'],40,name,36,hostname,36,time_start,29,task['kwargs']['task_id']))
                     elif 'edit_survey_files' in task['name']:
+                        print('{:{}}{:{}}{:{}}{:{}}  survey_id={}'.format(task['id'],40,name,36,hostname,36,time_start,29,task['kwargs']['survey_id']))
+                    elif 'edit_survey' in task['name']:
                         print('{:{}}{:{}}{:{}}{:{}}  survey_id={}'.format(task['id'],40,name,36,hostname,36,time_start,29,task['kwargs']['survey_id']))
                     else:
                         print('{:{}}{:{}}{:{}}{:{}}  {}'.format(task['id'],40,name,36,hostname,36,time_start,29,task['kwargs']))
@@ -3311,6 +3315,8 @@ def inspect_celery(include_spam=False,include_reserved=False,include_scheduled=F
                     elif 'handleTaskEdit' in request['name']:
                         print('{:{}}{:{}}{:{}}{:{}}  task_id={}'.format(request['id'],40,name,36,hostname,36,eta,29,request['kwargs']['task_id']))
                     elif 'edit_survey_files' in request['name']:
+                        print('{:{}}{:{}}{:{}}{:{}}  survey_id={}'.format(request['id'],40,name,36,hostname,36,eta,29,request['kwargs']['survey_id']))
+                    elif 'edit_survey' in request['name']:
                         print('{:{}}{:{}}{:{}}{:{}}  survey_id={}'.format(request['id'],40,name,36,hostname,36,eta,29,request['kwargs']['survey_id']))
                     else:
                         print('{:{}}{:{}}{:{}}{:{}}  {}'.format(request['id'],40,name,36,hostname,36,eta,29,request['kwargs']))
@@ -5897,8 +5903,8 @@ def sync_tags(self,task_id,trapgroup_ids):
 
     try:
         # copy up tags from labelgroups to the clusters
-        tags = db.session.query(Tag).filter(Tag.task_id==task_id).distinct().all()
-        for tag in tags:       
+        task_tags = db.session.query(Tag).filter(Tag.task_id==task_id).distinct().all()
+        for tag in task_tags:       
             cluster_ids = [r[0] for r in rDets(db.session.query(Cluster.id)\
                                 .join(Image,Cluster.images)\
                                 .join(Camera)\
@@ -5920,7 +5926,7 @@ def sync_tags(self,task_id,trapgroup_ids):
             if insert_values: db.session.execute(insert(tags), insert_values)
 
         # copy back down tags (for later when we actually need this)
-        for tag in tags:
+        for tag in task_tags:
             labelgroup_ids = [r[0] for r in db.session.query(Labelgroup.id)\
                                 .join(Detection)\
                                 .join(Image)\
@@ -6090,7 +6096,7 @@ def prepare_labelgroup_cluster_labels(task_id,trapgroup_id,query_limit,timestamp
     return True
 
 @celery.task(bind=True,max_retries=2,ignore_result=True)
-def prepTask(self, task_id, includes=None, translation=None, labels=None, auto_release=False, trapgroup_ids=None, timestamp=None, bypass_update_statuses=False, added_files=False):
+def prepTask(self, task_id, includes=None, translation=None, labels=None, auto_release=False, trapgroup_ids=None, timestamp=None, bypass_update_statuses=False, added_files=False, drop_changed_labels=False):
     ''' Prepares/updates a task in terms of: labels, translations, clustering, labelgroups, classification & statuses '''
     
     try:
@@ -6155,6 +6161,16 @@ def prepTask(self, task_id, includes=None, translation=None, labels=None, auto_r
                 cluster_trapgroup(task_id,trapgroup_id,query_limit,timestamp,starting_last_cluster_id,trigger_source,added_files)
 
         if Config.DEBUGGING: print('{}: Finished clustering task {}'.format(time.time()-starttime,task_id))
+
+
+        # If the clustering changed from timestamp shift, we only want to drop the labels from clusters that have changed.
+        if drop_changed_labels:
+            changed_clusters = []
+            for trapgroup_id in trapgroup_ids:
+                changed_clusters.extend(get_changed_clusters(task_id,trapgroup_id,starting_last_cluster_id))
+            changed_clusters = list(set(changed_clusters))
+            app.logger.info('There are {} changed clusters for task {}'.format(len(changed_clusters),task_id))
+            if changed_clusters: drop_changed_cluster_labels(task_id,changed_clusters)  
 
         # Finally, cleanup all the old clusters
         # We don't necessarily know the number of clusters. So just keep the latest and delete everything else
@@ -7669,3 +7685,118 @@ def get_all_keys(d):
         if isinstance(v, dict):
             keys.extend(get_all_keys(v))
     return keys
+
+def get_changed_clusters(task_id,trapgroup_id,starting_last_cluster_id):
+    '''
+        Compares the newly-generated clusters of the specified task and trapgroup against the old clusters they replace, and returns the IDs of the
+        new clusters whose image composition has changed. Must be called after clustering, but before the old clusters have been deleted.
+    '''
+    downLabel = db.session.query(Label).get(GLOBALS.knocked_id)
+    knockedImagesSQ = db.session.query(Image.id.label('image_id'),Labelgroup.id.label('labelgroup_id'))\
+                        .join(Detection,Detection.image_id==Image.id)\
+                        .join(Labelgroup)\
+                        .filter(Labelgroup.task_id==task_id)\
+                        .filter(Labelgroup.labels.contains(downLabel))\
+                        .subquery()
+
+    newSQ = db.session.query(
+                            Cluster.id.label('cluster_id'),
+                            Image.id.label('image_id')
+                        )\
+                        .join(Image,Cluster.images)\
+                        .join(Camera)\
+                        .outerjoin(knockedImagesSQ,knockedImagesSQ.c.image_id==Image.id)\
+                        .filter(Cluster.task_id==task_id)\
+                        .filter(Cluster.id>starting_last_cluster_id)\
+                        .filter(Camera.trapgroup_id==trapgroup_id)\
+                        .filter(knockedImagesSQ.c.labelgroup_id==None)\
+                        .subquery()
+
+    oldClusterSQ = db.session.query(Cluster.id.label('cluster_id'))\
+                        .join(Image,Cluster.images)\
+                        .join(Camera)\
+                        .outerjoin(knockedImagesSQ,knockedImagesSQ.c.image_id==Image.id)\
+                        .filter(Cluster.task_id==task_id)\
+                        .filter(Cluster.id<=starting_last_cluster_id)\
+                        .filter(Camera.trapgroup_id==trapgroup_id)\
+                        .filter(knockedImagesSQ.c.labelgroup_id==None)\
+                        .distinct().subquery()
+
+    # An interrupted run can leave more than one generation of old clusters on an image. The oldest is the one the labels were assigned against,
+    # which matches the convention the clustering functions use when carrying cluster info forward.
+    oldSQ = db.session.query(
+                            images.c.cluster_id.label('cluster_id'),
+                            images.c.image_id.label('image_id'),
+                            func.row_number().over(
+                                partition_by=images.c.image_id,
+                                order_by=images.c.cluster_id
+                            ).label('row_number')
+                        )\
+                        .join(oldClusterSQ,oldClusterSQ.c.cluster_id==images.c.cluster_id)\
+                        .outerjoin(knockedImagesSQ,knockedImagesSQ.c.image_id==images.c.image_id)\
+                        .filter(knockedImagesSQ.c.labelgroup_id==None)\
+                        .subquery()
+
+    oldSizeSQ = db.session.query(
+                            oldSQ.c.cluster_id.label('cluster_id'),
+                            func.count(oldSQ.c.image_id).label('image_count')
+                        )\
+                        .filter(oldSQ.c.row_number==1)\
+                        .group_by(oldSQ.c.cluster_id)\
+                        .subquery()
+
+    # A cluster is unchanged if every one of its images came from the same single old cluster, and that old cluster held nothing else
+    # Conditions in query that indicate a change:
+    # 1. Gained images from a different old cluster (more than one old cluster id)
+    # 2. Lost images (the image count of the old cluster is not the same as the image count of the new cluster)
+    # 3. Gained images from nowhere (image does not have old cluster so the join would include NULLs and the count will skip the NULLs) ** this should not really happen
+    changed_clusters = [r[0] for r in db.session.query(newSQ.c.cluster_id)\
+                        .outerjoin(oldSQ,and_(oldSQ.c.image_id==newSQ.c.image_id,oldSQ.c.row_number==1))\
+                        .outerjoin(oldSizeSQ,oldSizeSQ.c.cluster_id==oldSQ.c.cluster_id)\
+                        .group_by(newSQ.c.cluster_id)\
+                        .having(or_(
+                            func.count(distinct(oldSQ.c.cluster_id))!=1,
+                            func.max(oldSizeSQ.c.image_count)!=func.count(newSQ.c.image_id),
+                            func.count(oldSQ.c.image_id)!=func.count(newSQ.c.image_id)
+                        ))\
+                        .all()]
+
+    return changed_clusters
+
+def drop_changed_cluster_labels(task_id,cluster_ids):
+    '''
+        Drops the labels of the unchecked labelgroups from the specified changed clusters as well as remove their user_id and timestamp if they do not contain a checked labelgroup with labels.
+    '''
+    for chunk in chunker(cluster_ids,1000):
+        checkedClusterSQ = db.session.query(Cluster.id)\
+                            .join(Image,Cluster.images)\
+                            .join(Detection)\
+                            .join(Labelgroup)\
+                            .filter(Cluster.id.in_(chunk))\
+                            .filter(Labelgroup.task_id==task_id)\
+                            .filter(Labelgroup.checked==True)\
+                            .filter(Labelgroup.labels.any())\
+                            .distinct().subquery()
+
+        uc = db.session.query(Cluster)\
+                            .filter(Cluster.id.in_(chunk))\
+                            .filter(~Cluster.id.in_(select(checkedClusterSQ.c.id)))\
+                            .filter(Cluster.user_id!=None)\
+                            .update({Cluster.user_id: None, Cluster.timestamp: None}, synchronize_session=False)
+
+        labelgroupSQ = db.session.query(Labelgroup.id)\
+                            .join(Detection)\
+                            .join(Image)\
+                            .join(Cluster,Image.clusters)\
+                            .filter(Cluster.id.in_(chunk))\
+                            .filter(Labelgroup.task_id==task_id)\
+                            .filter(Labelgroup.checked==False)\
+                            .filter(Labelgroup.labels.any())\
+                            .distinct().subquery()
+
+        lgl = db.session.query(detectionLabels).filter(detectionLabels.c.labelgroup_id.in_(select(labelgroupSQ.c.id))).delete(synchronize_session=False)
+
+        db.session.commit()
+        if Config.DEBUGGING: app.logger.info('Reset {} clusters, and deleted {} labelgroup labels'.format(uc,lgl))
+        
+    return True

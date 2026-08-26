@@ -1475,6 +1475,67 @@ def changeTimestamps(survey_id,timestamps):
     
     return overlaps, cameragroup_ids
 
+def parseTimestampShift(shift):
+    '''Builds a timedelta from a staged d/h/m/s shift dict.'''
+    if not shift:
+        return None
+    return timedelta(
+        days=int(shift.get('days') or 0), 
+        hours=int(shift.get('hours') or 0), 
+        minutes=int(shift.get('minutes') or 0), 
+        seconds=int(shift.get('seconds') or 0))
+
+def shiftFileTimestamps(survey_id,shift_timestamps):
+    '''Shifts the timestamps of the specified files in the survey.'''
+
+    starttime = time.time()  
+
+    trapgroups = []
+
+    app.logger.info('Shift timestamps for survey: {}, videos: {}, images: {}'.format(survey_id,len(shift_timestamps['videos']),len(shift_timestamps['images'])))
+
+    # Get frame timestamps
+    video_ids = list(shift_timestamps['videos'].keys())
+    for chunk in chunker(video_ids,1000):
+        data = db.session.query(Image.id, Image.filename, Video.id, Video.still_rate).join(Camera,Image.camera_id==Camera.id).join(Trapgroup).join(Video).filter(Video.id.in_(chunk)).filter(Trapgroup.survey_id==survey_id).distinct().all()
+        for frame_id, filename, video_id, still_rate in data:
+            base = shift_timestamps['videos'][str(video_id)]['base']
+            shift = shift_timestamps['videos'][str(video_id)]['shift']
+            if base:
+                base = datetime.strptime(base,"%Y/%m/%d %H:%M:%S")
+                frame_nr = int(filename.split('frame')[1][:-4])
+                frame_timestamp = base + timedelta(seconds=frame_nr/still_rate)
+                shift_timestamps['images'][str(frame_id)] = {'base': frame_timestamp.strftime("%Y/%m/%d %H:%M:%S"), 'shift': shift}
+
+ 
+    # Shift timestamps
+    image_ids = list(shift_timestamps['images'].keys())
+    for chunk in chunker(image_ids,1000):
+        trapgroups.extend([r[0] for r in db.session.query(Trapgroup.id).join(Camera).join(Image).filter(Image.id.in_(chunk)).filter(Trapgroup.survey_id==survey_id).distinct().all()])
+        images = db.session.query(Image).join(Camera).join(Trapgroup).filter(Trapgroup.survey_id==survey_id).filter(Image.id.in_(chunk)).all()
+
+        for image in images:
+            base = shift_timestamps['images'][str(image.id)].get('base',None)
+            shift = shift_timestamps['images'][str(image.id)].get('shift',None)
+            timestamp_shift = parseTimestampShift(shift)
+            if base and timestamp_shift:
+                base_timestamp = datetime.strptime(base,"%Y/%m/%d %H:%M:%S")
+                image.corrected_timestamp = base_timestamp + timestamp_shift
+        
+
+    db.session.commit()
+    endtime = time.time()
+    app.logger.info(f'Shift timestamps for survey: {survey_id} completed in {endtime-starttime} seconds')
+
+    task_ids = [r[0] for r in db.session.query(Task.id).filter(Task.survey_id==survey_id).all()]
+    trapgroups = list(set(trapgroups))
+    if trapgroups:
+        for task_id in task_ids:
+            app.logger.info(f'Running prepTask for task {task_id} and trapgroups {trapgroups}')
+            prepTask(task_id=task_id, trapgroup_ids=trapgroups, drop_changed_labels=True)
+    
+    return True
+
 def re_classify_survey(survey_id,classifier_id):
     '''Re-classifies a survey using a specified classifier.'''
     
@@ -2386,7 +2447,7 @@ def recluster_after_image_timestamp_change(survey_id,image_timestamps):
 
 
 @celery.task(bind=True,max_retries=5,ignore_result=True)
-def edit_survey(self,survey_id,user_id,classifier_id,sky_masked,ignore_small_detections,masks,staticgroups,timestamps,image_timestamps,coord_data,kml_file,edit_area_option):
+def edit_survey(self,survey_id,user_id,classifier_id,sky_masked,ignore_small_detections,masks,staticgroups,timestamps,image_timestamps,shift_timestamps,coord_data,kml_file,edit_area_option):
     '''Celery task that handles the editing of a survey.'''
     try:
         survey = db.session.query(Survey).get(survey_id)
@@ -2481,6 +2542,10 @@ def edit_survey(self,survey_id,user_id,classifier_id,sky_masked,ignore_small_det
             overlaps,cameragroup_ids = changeTimestamps(survey_id=survey_id,timestamps=timestamps)
             if overlaps and cameragroup_ids:
                 reclusterAfterTimestampChange(survey_id=survey_id,trapgroup_ids=overlaps,cameragroup_ids=cameragroup_ids)
+
+        # Shift file timestamps
+        if shift_timestamps:
+            shiftFileTimestamps(survey_id=survey_id,shift_timestamps=shift_timestamps)
 
         # Update All statuses
         if not skipUpdateStatuses:
@@ -2708,6 +2773,7 @@ def edit_survey_files(self, survey_id, name_changes, move_folders, delete_folder
         # 4. Delete empty data 
         if status != 'error' and (delete_files.get('image_ids') or delete_files.get('video_ids') or delete_folders or move_folders):
             status = delete_empty_data(survey_id=survey_id)
+            update_detection_masked_status(survey_id=survey_id)
 
         # 5. Rename sites and cameras
         if status != 'error' and name_changes:
@@ -3196,3 +3262,69 @@ def move_survey_folders(survey_id, folders):
     app.logger.info(f'Deleted labelgroup labels: {l}, updated clusters: {uc}')
 
     return (status, affected_trapgroups)
+
+def update_detection_masked_status(survey_id,query_limit=20000):
+    ''' Updates the masked status of detections in the survey. '''
+   
+   # Mask detections
+    polygon = func.ST_GeomFromText(func.concat('POLYGON((',
+                        Detection.left, ' ', Detection.top, ', ',
+                        Detection.left, ' ', Detection.bottom, ', ',
+                        Detection.right, ' ', Detection.bottom, ', ',
+                        Detection.right, ' ', Detection.top, ', ',
+                        Detection.left, ' ', Detection.top, '))'), 32734)
+
+    mask_query = db.session.query(Detection)\
+                            .join(Image)\
+                            .join(Camera)\
+                            .join(Cameragroup)\
+                            .join(Trapgroup)\
+                            .join(Mask)\
+                            .filter(Trapgroup.survey_id==survey_id)\
+                            .filter(or_(and_(Detection.source==model,Detection.score>Config.DETECTOR_THRESHOLDS[model]) for model in Config.DETECTOR_THRESHOLDS))\
+                            .filter(Detection.source!='user')\
+                            .filter(func.ST_Contains(Mask.shape, polygon))
+
+    while True:
+        detections = mask_query.filter(~Detection.status.in_(Config.DET_IGNORE_STATUSES)).distinct().limit(query_limit).all()
+        if not detections: break
+        
+        images = []
+        for detection in detections:
+            detection.status = 'masked'
+            images.append(detection.image)
+        db.session.commit()
+
+        for image in set(images):
+            image.detection_rating = detection_rating(image)
+        db.session.commit()
+
+    # Unmask detections
+    masked_detections = mask_query.filter(Detection.status=='masked').subquery()
+
+    unmasked_detections = db.session.query(Detection)\
+                            .join(Image)\
+                            .join(Camera)\
+                            .join(Cameragroup)\
+                            .join(Trapgroup)\
+                            .outerjoin(masked_detections, masked_detections.c.id==Detection.id)\
+                            .filter(Trapgroup.survey_id==survey_id)\
+                            .filter(or_(and_(Detection.source==model,Detection.score>Config.DETECTOR_THRESHOLDS[model]) for model in Config.DETECTOR_THRESHOLDS))\
+                            .filter(Detection.status=='masked')\
+                            .filter(masked_detections.c.id==None)
+
+    while True:
+        detections = unmasked_detections.distinct().limit(query_limit).all()
+        if not detections: break
+
+        images = []
+        for detection in detections:
+            detection.status = 'active'
+            images.append(detection.image)
+        db.session.commit()
+
+        for image in set(images):
+            image.detection_rating = detection_rating(image)
+        db.session.commit()
+
+    return True
