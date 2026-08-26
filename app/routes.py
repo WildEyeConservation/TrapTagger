@@ -13795,31 +13795,24 @@ def getAdminOrganisations():
     organisations = []
     include_surveys = request.args.get('include_surveys', False, type=bool)
     if current_user and current_user.is_authenticated:
+        orgs = db.session.query(Organisation.id, Organisation.name).join(UserPermissions).filter(UserPermissions.user_id == current_user.id).filter(UserPermissions.default == 'admin').distinct().all()
+        for org in orgs:
+            organisations.append({
+                'id': org[0],
+                'name': org[1]
+            })
+
         if include_surveys:
             surveys = []
-            org_data = db.session.query(Survey.id, Survey.name, Organisation.id, Organisation.name).join(Organisation).join(UserPermissions).filter(UserPermissions.user_id == current_user.id).filter(UserPermissions.default == 'admin').distinct().all()
-            org_added = []
+            org_data = db.session.query(Survey.id, Survey.name, Organisation.id).join(Organisation).join(UserPermissions).filter(UserPermissions.user_id == current_user.id).filter(UserPermissions.default == 'admin').distinct().all()
             for data in org_data:
                 surveys.append({
                     'id': data[0],
                     'name': data[1],
-                    'org_id': data[2],
+                    'org_id': data[2]
                 })
-                if data[2] not in org_added:
-                    organisations.append({
-                        'id': data[2],
-                        'name': data[3]
-                    })
-                    org_added.append(data[2])
             
             return json.dumps({'organisations': organisations, 'surveys': surveys})
-        else:
-            orgs = db.session.query(Organisation.id, Organisation.name).join(UserPermissions).filter(UserPermissions.user_id == current_user.id).filter(UserPermissions.default == 'admin').distinct().all()
-            for org in orgs:
-                organisations.append({
-                    'id': org[0],
-                    'name': org[1]
-                })
 
     return json.dumps({'organisations': organisations})
     
