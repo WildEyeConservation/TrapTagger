@@ -2152,7 +2152,7 @@ def recluster_after_image_timestamp_change(survey_id,image_timestamps):
     # lgl=db.session.query(detectionLabels).filter(detectionLabels.c.labelgroup_id.in_(select(labelgroupsSQ.c.id))).delete(synchronize_session=False)
     # if Config.DEBUGGING: app.logger.info('Deleted {} detection labels from labelgroups after timestamp change'.format(lgl))
 
-    # db.session.commit()
+    db.session.commit()
 
     task_ids = [r[0] for r in db.session.query(Task.id).filter(Task.survey_id==survey_id).all()]
     for task_id in task_ids:
