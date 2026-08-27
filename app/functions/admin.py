@@ -1490,45 +1490,50 @@ def shiftFileTimestamps(survey_id,shift_timestamps):
 
     starttime = time.time()  
 
-    trapgroups = []
+    trapgroups = set()
 
-    app.logger.info('Shift timestamps for survey: {}, videos: {}, images: {}'.format(survey_id,len(shift_timestamps['videos']),len(shift_timestamps['images'])))
+    app.logger.info('Shift timestamps for survey: {}, video shifts: {}, image shifts: {}'.format(survey_id,len(shift_timestamps['videos']),len(shift_timestamps['images'])))
 
-    # Get frame timestamps
-    video_ids = list(shift_timestamps['videos'].keys())
-    for chunk in chunker(video_ids,1000):
-        data = db.session.query(Image.id, Image.filename, Video.id, Video.still_rate).join(Camera,Image.camera_id==Camera.id).join(Trapgroup).join(Video).filter(Video.id.in_(chunk)).filter(Trapgroup.survey_id==survey_id).distinct().all()
-        for frame_id, filename, video_id, still_rate in data:
-            base = shift_timestamps['videos'][str(video_id)]['base']
-            shift = shift_timestamps['videos'][str(video_id)]['shift']
-            if base:
-                base = datetime.strptime(base,"%Y/%m/%d %H:%M:%S")
-                frame_nr = int(filename.split('frame')[1][:-4])
-                frame_timestamp = base + timedelta(seconds=frame_nr/still_rate)
-                shift_timestamps['images'][str(frame_id)] = {'base': frame_timestamp.strftime("%Y/%m/%d %H:%M:%S"), 'shift': shift}
+    # Shift video timestamps
+    for item in shift_timestamps['videos']:
+        shift = item['shift']
+        timestamp_shift = parseTimestampShift(shift)
+        video_ids = list(item['files'].keys())
+        app.logger.info('Shift video timestamps for video ids: {}, video shift: {}'.format(len(video_ids),shift))
+        for chunk in chunker(video_ids,100):
+            data = db.session.query(Image, Video.id, Video.still_rate, Camera.trapgroup_id).join(Camera,Image.camera_id==Camera.id).join(Trapgroup).join(Video).filter(Video.id.in_(chunk)).filter(Trapgroup.survey_id==survey_id).distinct().all()
+            for frame, video_id, still_rate, trapgroup_id in data:
+                trapgroups.add(trapgroup_id)
+                base = item['files'].get(str(video_id),None)
+                if base:
+                    base = datetime.strptime(base,"%Y/%m/%d %H:%M:%S")
+                    frame_nr = int(frame.filename.split('frame')[1][:-4])
+                    frame_timestamp = base + timedelta(seconds=frame_nr/still_rate)
+                    frame.corrected_timestamp = frame_timestamp + timestamp_shift
 
- 
-    # Shift timestamps
-    image_ids = list(shift_timestamps['images'].keys())
-    for chunk in chunker(image_ids,1000):
-        trapgroups.extend([r[0] for r in db.session.query(Trapgroup.id).join(Camera).join(Image).filter(Image.id.in_(chunk)).filter(Trapgroup.survey_id==survey_id).distinct().all()])
-        images = db.session.query(Image).join(Camera).join(Trapgroup).filter(Trapgroup.survey_id==survey_id).filter(Image.id.in_(chunk)).all()
+    db.session.commit()
 
-        for image in images:
-            base = shift_timestamps['images'][str(image.id)].get('base',None)
-            shift = shift_timestamps['images'][str(image.id)].get('shift',None)
-            timestamp_shift = parseTimestampShift(shift)
-            if base and timestamp_shift:
-                base_timestamp = datetime.strptime(base,"%Y/%m/%d %H:%M:%S")
-                image.corrected_timestamp = base_timestamp + timestamp_shift
-        
+    # Shift image timestamps
+    for item in shift_timestamps['images']:
+        shift = item['shift']
+        timestamp_shift = parseTimestampShift(shift)
+        image_ids = list(item['files'].keys())
+        app.logger.info('Shift image timestamps for image ids: {}, image shift: {}'.format(len(image_ids),shift))
+        for chunk in chunker(image_ids,1000):
+            image_data = db.session.query(Image, Camera.trapgroup_id).join(Camera).join(Trapgroup).filter(Trapgroup.survey_id==survey_id).filter(Image.id.in_(chunk)).all()
+            for image, trapgroup_id in image_data:
+                trapgroups.add(trapgroup_id)
+                base = item['files'].get(str(image.id),None)
+                if base:
+                    base_timestamp = datetime.strptime(base,"%Y/%m/%d %H:%M:%S")
+                    image.corrected_timestamp = base_timestamp + timestamp_shift         
 
     db.session.commit()
     endtime = time.time()
     app.logger.info(f'Shift timestamps for survey: {survey_id} completed in {endtime-starttime} seconds')
 
     task_ids = [r[0] for r in db.session.query(Task.id).filter(Task.survey_id==survey_id).all()]
-    trapgroups = list(set(trapgroups))
+    trapgroups = list(trapgroups)
     if trapgroups:
         for task_id in task_ids:
             app.logger.info(f'Running prepTask for task {task_id} and trapgroups {trapgroups}')
@@ -2444,7 +2449,7 @@ def recluster_after_image_timestamp_change(survey_id,image_timestamps):
 
 
 @celery.task(bind=True,max_retries=5,ignore_result=True)
-def edit_survey(self,survey_id,user_id,classifier_id,sky_masked,ignore_small_detections,masks,staticgroups,timestamps,image_timestamps,shift_timestamps,coord_data,kml_file,edit_area_option):
+def edit_survey(self,survey_id,user_id,classifier_id,sky_masked,ignore_small_detections,masks,staticgroups,timestamps,image_timestamps,shift_flag,coord_data,kml_file,edit_area_option):
     '''Celery task that handles the editing of a survey.'''
     try:
         survey = db.session.query(Survey).get(survey_id)
@@ -2541,8 +2546,10 @@ def edit_survey(self,survey_id,user_id,classifier_id,sky_masked,ignore_small_det
                 reclusterAfterTimestampChange(survey_id=survey_id,trapgroup_ids=overlaps,cameragroup_ids=cameragroup_ids)
 
         # Shift file timestamps
-        if shift_timestamps:
-            shiftFileTimestamps(survey_id=survey_id,shift_timestamps=shift_timestamps)
+        if shift_flag:
+            if GLOBALS.redisClient.get('shift_timestamps_{}'.format(survey_id)):
+                shift_timestamps = json.loads(GLOBALS.redisClient.get('shift_timestamps_{}'.format(survey_id)).decode())
+                shiftFileTimestamps(survey_id=survey_id,shift_timestamps=shift_timestamps)
 
         # Update All statuses
         if not skipUpdateStatuses:
@@ -2567,6 +2574,7 @@ def edit_survey(self,survey_id,user_id,classifier_id,sky_masked,ignore_small_det
         db.session.commit()
         app.logger.info('Finished editing survey {}'.format(survey_id))
         GLOBALS.redisClient.delete('edit_survey_{}'.format(survey_id))
+        GLOBALS.redisClient.delete('shift_timestamps_{}'.format(survey_id))
 
     except Exception as exc:
         app.logger.info(' ')

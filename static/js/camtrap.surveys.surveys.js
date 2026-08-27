@@ -6023,18 +6023,7 @@ document.getElementById('btnEditSurvey').addEventListener('click', ()=>{
     let legalShiftTimestamp = true
     let shiftTimestampData = {}
     if (Object.keys(shift_timestamps).length > 0) {
-        shiftTimestampData['videos'] = {}
-        shiftTimestampData['images'] = {}
-        for (let cam_id in shift_timestamps) {
-            for (let video_id in shift_timestamps[cam_id]['videos']) {
-                shiftTimestampData['videos'][video_id] = shift_timestamps[cam_id]['videos'][video_id];
-                delete shiftTimestampData['videos'][video_id].type;
-            }
-            for (let image_id in shift_timestamps[cam_id]['images']) {
-                shiftTimestampData['images'][image_id] = shift_timestamps[cam_id]['images'][image_id];
-                delete shiftTimestampData['images'][image_id].type;
-            }
-        }
+        shiftTimestampData = getCompactShiftTimestamps()
     } else if (document.getElementById('tsStageShiftBtn') && tsShiftInputsHaveValue()) {
         legalShiftTimestamp = false
         document.getElementById('editSurveyErrors').innerHTML = 'Stage the current timestamp shift before saving, or clear the shift fields.'
@@ -11752,4 +11741,34 @@ function updateTimestampEditConflictWarning() {
     } else if (el.innerHTML === overlapMsg) {
         el.innerHTML = ''
     }
+}
+
+function getCompactShiftTimestamps() {
+    /** compacts the shift_timestamps for submission to the server. */
+
+    if (Object.keys(shift_timestamps).length === 0) {
+        return {}
+    }
+
+    var images = {}
+    var videos = {}
+
+    function addToDict(dict, id, entry) {
+        var key = JSON.stringify(entry.shift)
+        if (!dict[key]) {
+            dict[key] = {shift: entry.shift, files : {}};
+        }
+        dict[key].files[id] = entry.base
+    }
+
+    for (var cam_id in shift_timestamps) {
+        for (var id in shift_timestamps[cam_id].images) {
+            addToDict(images, id, shift_timestamps[cam_id].images[id])
+        }
+        for (var id in shift_timestamps[cam_id].videos) {
+            addToDict(videos, id, shift_timestamps[cam_id].videos[id])
+        }
+    }
+
+    return {images: Object.values(images), videos: Object.values(videos)}
 }
