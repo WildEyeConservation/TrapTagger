@@ -48,7 +48,8 @@ from config import Config
 import os
 import jwt
 import tempfile
-from multiprocessing import Lock
+# from multiprocessing import Lock
+from threading import Lock
 from gpuworker.worker import detectAndClassify
 from flask_cors import cross_origin
 from calendar import monthrange
@@ -80,6 +81,8 @@ try:
     GLOBALS.sqsQueueUrl = GLOBALS.sqsClient.get_queue_url(QueueName=Config.SQS_QUEUE)['QueueUrl']
 except:
     GLOBALS.sqsQueueUrl = None
+# Serialises the non-thread-safe Wand/ImageMagick calls made by the import ThreadPools. A threading lock
+# is deliberate: a multiprocessing one is a kernel semaphore that stays held if the process holding it dies.
 GLOBALS.lock = Lock()
 
 # @app.before_first_request
@@ -5267,30 +5270,30 @@ def cancelInvitation(token):
 #         re_classify_survey.delay(survey_id=survey.id,classifier=classifier)
 #     return json.dumps('Success')
 
-@app.route('/classifySpecies', methods=['POST'])
-@cross_origin()
-def classifySpecies():
-    '''The species classifier API endpoint. Takes a list of urls and returns the species contained therein, and their respective scores.'''
+# @app.route('/classifySpecies', methods=['POST'])
+# @cross_origin()
+# def classifySpecies():
+#     '''The species classifier API endpoint. Takes a list of urls and returns the species contained therein, and their respective scores.'''
 
-    try:
-        token = request.form['token']
-        urls = re.split(',',request.form['urls'])
+#     try:
+#         token = request.form['token']
+#         urls = re.split(',',request.form['urls'])
 
-        if token==Config.TOKEN:
-            result = detectAndClassify.apply_async(kwargs={'batch': urls,'detector_model': Config.DETECTOR,'threshold': Config.DETECTOR_THRESHOLDS[Config.DETECTOR]}, queue='local', routing_key='local.detectAndClassify',expires=datetime.now() + timedelta(minutes=2))
-            GLOBALS.lock.acquire()
-            with allow_join_result():
-                try:
-                    response = result.get()
-                except:
-                    response = 'error'
-                result.forget()
-            GLOBALS.lock.release()
-            return json.dumps(response)
-        else:
-            return json.dumps('error')
-    except:
-        return json.dumps('error')
+#         if token==Config.TOKEN:
+#             result = detectAndClassify.apply_async(kwargs={'batch': urls,'detector_model': Config.DETECTOR,'threshold': Config.DETECTOR_THRESHOLDS[Config.DETECTOR]}, queue='local', routing_key='local.detectAndClassify',expires=datetime.now() + timedelta(minutes=2))
+#             GLOBALS.lock.acquire()
+#             with allow_join_result():
+#                 try:
+#                     response = result.get()
+#                 except:
+#                     response = 'error'
+#                 result.forget()
+#             GLOBALS.lock.release()
+#             return json.dumps(response)
+#         else:
+#             return json.dumps('error')
+#     except:
+#         return json.dumps('error')
 
 
 # @app.route('/getSurveyClassificationLevel/<survey>')

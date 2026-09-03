@@ -16,26 +16,22 @@ limitations under the License.
 
 from app import app, db, celery
 from app.models import *
-from app.functions.globals import classifyTask, update_masks, retryTime, resolve_abandoned_jobs, addChildLabels, updateAllStatuses, deleteFile,\
-                                    stringify_timestamp, rDets, update_staticgroups, detection_rating, chunker, verify_label, cleanup_empty_restored_images, \
-                                    reconcile_cluster_labelgroup_labels_and_tags, hideSmallDetections, maskSky, checkChildTranslations, createChildTranslations, \
-                                    prepTask, removeHumans, sync_labels, sync_tags, update_individuals_primary_dets, updateIndividualIdStatus, update_duplicate_individual_names, \
-                                    process_multi_labels
+from app.functions.globals import classifyTask, update_masks, retryTime, resolve_abandoned_jobs, updateAllStatuses, rDets, update_staticgroups, detection_rating, chunker, verify_label, \
+    cleanup_empty_restored_images, reconcile_cluster_labelgroup_labels_and_tags, hideSmallDetections, maskSky, checkChildTranslations, createChildTranslations, prepTask, removeHumans, \
+    sync_labels, sync_tags, update_individuals_primary_dets, updateIndividualIdStatus, update_duplicate_individual_names, process_multi_labels
 from app.functions.delete import *
-from app.functions.individualID import calculate_detection_similarities, cleanUpIndividuals, check_individual_detection_mismatch
-from app.functions.imports import classifySurvey, s3traverse, classifyCluster, importKML, import_survey
+from app.functions.individualID import cleanUpIndividuals, check_individual_detection_mismatch
+from app.functions.imports import classifySurvey, s3traverse, classifyCluster, importKML
 import GLOBALS
 from sqlalchemy.sql import func, or_, and_, distinct, alias
 from sqlalchemy import desc, extract, delete, select
 from datetime import datetime, timedelta
 import re
-import ast
 from multiprocessing.pool import ThreadPool as Pool
 import traceback
 from config import Config
 import json
 import boto3
-from celery.result import allow_join_result
 import time
 
 @celery.task(bind=True,max_retries=5,ignore_result=True)

@@ -17,7 +17,7 @@ limitations under the License.
 from app import app, db, celery
 from app.models import *
 from app.functions.globals import *
-from app.functions.imports import archive_images, archive_empty_images, archive_videos, classifySurvey, s3traverse
+from app.functions.imports import archive_images, archive_empty_images, archive_videos, classifySurvey, s3traverse, wait_for_jobs
 from app.functions.admin import stop_task
 from app.functions.archive import check_storage_class, get_restore_info, crop_image_to_individual
 import GLOBALS
@@ -25,7 +25,6 @@ from sqlalchemy.sql import func, or_, and_, alias
 from sqlalchemy import desc, extract
 from config import Config
 import traceback
-from celery.result import allow_join_result
 import cv2
 from PIL import Image as pilImage
 import os
@@ -224,25 +223,18 @@ def copy_task_to_same_survey(self,old_task_id,new_name,copy_individuals=False):
                                                             .distinct().all()
                 db.session.commit()
         
-        results = []
+        jobs = []
         for trapgroup in oldTask.survey.trapgroups:
             check = db.session.query(Cluster).join(Image,Cluster.images).join(Camera).filter(Camera.trapgroup==trapgroup).filter(Cluster.task==newTask).first()
             if not check:
-                results.append(copy_task_trapgroup.apply_async(kwargs={'trapgroup_id': trapgroup.id,'old_task_id': old_task_id,'new_task_id': new_task_id},queue='default'))
+                jobs.append({'task': copy_task_trapgroup, 'kwargs': {'trapgroup_id': trapgroup.id,'old_task_id': old_task_id,'new_task_id': new_task_id}, 'queue': 'default'})
 
-        GLOBALS.lock.acquire()
-        with allow_join_result():
-            for result in results:
-                try:
-                    result.get()
-                except Exception:
-                    app.logger.info(' ')
-                    app.logger.info('!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!')
-                    app.logger.info(traceback.format_exc())
-                    app.logger.info('!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!')
-                    app.logger.info(' ')
-                result.forget()
-        GLOBALS.lock.release()
+        app.logger.info('Waiting for task trapgroup copying to complete')
+        if jobs:
+            for job, response in wait_for_jobs(jobs):
+                if response is None: continue
+                if Config.DEBUGGING: print('Copied task trapgroup {}'.format(job['kwargs']['trapgroup_id']))
+        app.logger.info('Task trapgroup copying completed')
 
         oldTask = db.session.query(Task).get(old_task_id)
         oldTask.status = 'Ready'
@@ -510,24 +502,17 @@ def copy_survey(self,old_survey_id,organisation_id,new_name=None,copy_individual
                 folders.append(path.replace(oldSurvey_organisation_folder,oldSurvey_organisation_folder+'-comp'))
 
             folders = list(set(folders))
-            results = []
+            jobs = []
             for folder in folders:
-                results.append(copy_s3_folder.apply_async(kwargs={'source_folder':folder,'destination_folder':folder.replace(oldSurvey_organisation_folder,newOrganisation_folder)},queue='default'))
+                jobs.append({'task': copy_s3_folder, 'kwargs': {'source_folder':folder,'destination_folder':folder.replace(oldSurvey_organisation_folder,newOrganisation_folder)}, 'queue': 'default'})
 
-            GLOBALS.lock.acquire()
-            with allow_join_result():
-                for result in results:
-                    try:
-                        result.get()
-                    except Exception:
-                        app.logger.info(' ')
-                        app.logger.info('!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!')
-                        app.logger.info(traceback.format_exc())
-                        app.logger.info('!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!')
-                        app.logger.info(' ')
-                    result.forget()
-            GLOBALS.lock.release()
-                        
+            app.logger.info('Waiting for s3 folder copying to complete')
+            if jobs:
+                for job, response in wait_for_jobs(jobs):
+                    if response is None: continue
+                    if Config.DEBUGGING: print('Copied s3 folder {}'.format(job['kwargs']['source_folder']))
+            app.logger.info('S3 folder copying completed')
+
             # Re-init the db session now that the long copy is finished
             oldSurvey = db.session.query(Survey).get(old_survey_id)
 
@@ -645,26 +630,19 @@ def copy_survey(self,old_survey_id,organisation_id,new_name=None,copy_individual
             task_translations[oldTask.id] = newTask.id
         
         #copy trapgroups
-        results = []
+        jobs = []
         for oldTrapgroup in oldSurvey.trapgroups:
             checkTrapgroup = db.session.query(Trapgroup).filter(Trapgroup.survey==newSurvey).filter(Trapgroup.tag==oldTrapgroup.tag).first()
 
             if not checkTrapgroup:
-                results.append(copy_trapgroup.apply_async(kwargs={'old_trapgroup_id':oldTrapgroup.id,'old_survey_id':old_survey_id,'new_survey_id':new_survey_id,'task_translations':task_translations,'copy_individuals':copy_individuals},queue='default'))
+                jobs.append({'task': copy_trapgroup, 'kwargs': {'old_trapgroup_id':oldTrapgroup.id,'old_survey_id':old_survey_id,'new_survey_id':new_survey_id,'task_translations':task_translations,'copy_individuals':copy_individuals}, 'queue': 'default'})
 
-        GLOBALS.lock.acquire()
-        with allow_join_result():
-            for result in results:
-                try:
-                    result.get()
-                except Exception:
-                    app.logger.info(' ')
-                    app.logger.info('!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!')
-                    app.logger.info(traceback.format_exc())
-                    app.logger.info('!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!')
-                    app.logger.info(' ')
-                result.forget()
-        GLOBALS.lock.release()
+        app.logger.info('Waiting for trapgroup copying to complete')
+        if jobs:
+            for job, response in wait_for_jobs(jobs):
+                if response is None: continue
+                if Config.DEBUGGING: print('Copied trapgroup {}'.format(job['kwargs']['old_trapgroup_id']))
+        app.logger.info('Trapgroup copying completed')
 
         newSurvey = db.session.query(Survey).get(new_survey_id)
         newSurvey.status = 'Ready'
@@ -1060,7 +1038,7 @@ def crop_training_images(key,source_bucket,dest_bucket,parallelisation):
 
     df = pd.read_csv(key)
 
-    results = []
+    jobs = []
     detection_count = len(df)
     grouping = math.ceil(detection_count/parallelisation)
     for index in range(0,detection_count,grouping):
@@ -1069,23 +1047,16 @@ def crop_training_images(key,source_bucket,dest_bucket,parallelisation):
         with tempfile.NamedTemporaryFile(delete=True, suffix='.csv') as temp_file:
             df_temp.to_csv(temp_file.name,index=False)
             GLOBALS.s3client.put_object(Bucket=dest_bucket,Key=temp_key,Body=temp_file)
-        results.append(crop_training_images_parallel.apply_async(kwargs={'key':temp_key,'source_bucket':source_bucket,'dest_bucket':dest_bucket}))
+        jobs.append({'task': crop_training_images_parallel, 'kwargs': {'key':temp_key,'source_bucket':source_bucket,'dest_bucket':dest_bucket}, 'queue': 'parallel'})
     
     df = None
 
-    GLOBALS.lock.acquire()
-    with allow_join_result():
-        for result in results:
-            try:
-                result.get()
-            except Exception:
-                app.logger.info(' ')
-                app.logger.info('!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!')
-                app.logger.info(traceback.format_exc())
-                app.logger.info('!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!')
-                app.logger.info(' ')
-            result.forget()
-    GLOBALS.lock.release()
+    app.logger.info('Waiting for training image cropping to complete')
+    if jobs:
+        for job, response in wait_for_jobs(jobs):
+            if response is None: continue
+            if Config.DEBUGGING: print('Cropped training images for csv {}'.format(job['kwargs']['key']))
+    app.logger.info('Training image cropping completed')
 
     return True
 
@@ -1377,73 +1348,44 @@ def archive_survey_and_update_counts(self,survey_id,launch_id=None):
         trapgroup_ids = [r[0] for r in db.session.query(Trapgroup.id).filter(Trapgroup.survey_id==survey_id).distinct().all()]
         cameragroup_ids = [r[0] for r in db.session.query(Cameragroup.id).join(Camera).join(Trapgroup).filter(Trapgroup.survey_id==survey_id).filter(Camera.videos.any()).distinct().all()]
 
+        db.session.remove()
+
         # Compressed Videos
-        video_results = []
+        jobs = []
         for cameragroup_id in cameragroup_ids:
-            video_results.append(archive_videos.apply_async(kwargs={'cameragroup_id':cameragroup_id},queue='utility_2'))
+            jobs.append({'task': archive_videos, 'kwargs': {'cameragroup_id':cameragroup_id}, 'queue': 'utility_2'})
 
-        if video_results:
-            #Wait for processing to complete
-            db.session.remove()
-            GLOBALS.lock.acquire()
-            with allow_join_result():
-                for result in video_results:
-                    try:
-                        result.get()
-                    except Exception:
-                        app.logger.info(' ')
-                        app.logger.info('!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!')
-                        app.logger.info(traceback.format_exc())
-                        app.logger.info('!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!')
-                        app.logger.info(' ')
-                    result.forget()
-            GLOBALS.lock.release()
-
+        app.logger.info('Waiting for video archiving to complete')
+        if jobs:
+            for job, response in wait_for_jobs(jobs):
+                if response is None: continue
+                if Config.DEBUGGING: print('Archived videos for cameragroup {}'.format(job['kwargs']['cameragroup_id']))
+        app.logger.info('Video archiving completed')
+        
         # Empty Images
-        empty_results = []
+        jobs = []
         for trapgroup_id in trapgroup_ids:
-            empty_results.append(archive_empty_images.apply_async(kwargs={'trapgroup_id':trapgroup_id},queue='utility_2'))
+            jobs.append({'task': archive_empty_images, 'kwargs': {'trapgroup_id':trapgroup_id}, 'queue': 'utility_2'})
 
-        if empty_results:
-            #Wait for processing to complete
-            db.session.remove()
-            GLOBALS.lock.acquire()
-            with allow_join_result():
-                for result in empty_results:
-                    try:
-                        result.get()
-                    except Exception:
-                        app.logger.info(' ')
-                        app.logger.info('!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!')
-                        app.logger.info(traceback.format_exc())
-                        app.logger.info('!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!')
-                        app.logger.info(' ')
-                    result.forget()
-            GLOBALS.lock.release()
-
+        app.logger.info('Waiting for empty image archiving to complete')
+        if jobs:
+            for job, response in wait_for_jobs(jobs):
+                if response is None: continue
+                if Config.DEBUGGING: print('Archived empty images for trapgroup {}'.format(job['kwargs']['trapgroup_id']))
+        app.logger.info('Empty image archiving completed')
 
         # Raw Animal Images
-        image_results = []
+        jobs = []
         for trapgroup_id in trapgroup_ids:
-            image_results.append(archive_images.apply_async(kwargs={'trapgroup_id':trapgroup_id},queue='utility_2'))
+            jobs.append({'task': archive_images, 'kwargs': {'trapgroup_id':trapgroup_id}, 'queue': 'utility_2'})
 
-        if image_results:
-            #Wait for processing to complete
-            db.session.remove()
-            GLOBALS.lock.acquire()
-            with allow_join_result():
-                for result in image_results:
-                    try:
-                        result.get()
-                    except Exception:
-                        app.logger.info(' ')
-                        app.logger.info('!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!')
-                        app.logger.info(traceback.format_exc())
-                        app.logger.info('!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!')
-                        app.logger.info(' ')
-                    result.forget()
-            GLOBALS.lock.release()
-
+        app.logger.info('Waiting for raw image archiving to complete')
+        if jobs:
+            for job, response in wait_for_jobs(jobs):
+                if response is None: continue
+                if Config.DEBUGGING: print('Archived images for trapgroup {}'.format(job['kwargs']['trapgroup_id']))
+        app.logger.info('Raw image archiving completed')
+        
         app.logger.info('Survey {} archived'.format(survey_id))
         app.logger.info('Updating task empty image counts')
 
@@ -1804,7 +1746,7 @@ def prepare_crops(csv_key,desired_splits,CROPS_BUCKET,date_cutoff=None):
         GLOBALS.s3client.download_file(Bucket=Config.BUCKET, Key=csv_key, Filename=temp_file.name)
         df = pd.read_csv(temp_file.name)
 
-    results = []
+    jobs = []
     second_round = False
     base_key = csv_key.replace('.csv','')
     if 'raw_missing' not in df.columns:
@@ -1819,14 +1761,14 @@ def prepare_crops(csv_key,desired_splits,CROPS_BUCKET,date_cutoff=None):
 
         dfs = np.array_split(df, desired_splits)
         for df in dfs:
-            new_key = base_key+str(len(results))+'.csv'
+            new_key = base_key+str(len(jobs))+'.csv'
 
             with tempfile.NamedTemporaryFile(delete=True, suffix='.csv') as temp_file:
                 df.to_csv(temp_file.name,index=False)
                 GLOBALS.s3client.upload_file(Filename=temp_file.name, Bucket=Config.BUCKET, Key=new_key)
 
             app.logger.info("Kicking off {}".format(new_key))
-            results.append(restore_crops.apply_async(kwargs={'csv_key': new_key, 'CROPS_BUCKET':CROPS_BUCKET, 'date_cutoff':date_cutoff},queue='utility'))
+            jobs.append({'task': restore_crops, 'kwargs': {'csv_key': new_key, 'CROPS_BUCKET':CROPS_BUCKET, 'date_cutoff':date_cutoff}, 'queue': 'utility'})
 
     else:
         # images have already been de-archived. go forth and crop.
@@ -1836,30 +1778,21 @@ def prepare_crops(csv_key,desired_splits,CROPS_BUCKET,date_cutoff=None):
 
         dfs = np.array_split(df, desired_splits)
         for df in dfs:
-            new_key = base_key+str(len(results))+'.csv'
+            new_key = base_key+str(len(jobs))+'.csv'
 
             with tempfile.NamedTemporaryFile(delete=True, suffix='.csv') as temp_file:
                 df.to_csv(temp_file.name,index=False)
                 GLOBALS.s3client.upload_file(Filename=temp_file.name, Bucket=Config.BUCKET, Key=new_key)
 
             app.logger.info("Kicking off {}".format(new_key))
-            results.append(crop_restored_images.apply_async(kwargs={'csv_key': new_key, 'CROPS_BUCKET':CROPS_BUCKET},queue='utility'))
+            jobs.append({'task': crop_restored_images, 'kwargs': {'csv_key': new_key, 'CROPS_BUCKET':CROPS_BUCKET}, 'queue': 'utility'})
 
     app.logger.info("Waiting for sub-processes...")
-    GLOBALS.lock.acquire()
-    with allow_join_result():
-        for result in results:
-            try:
-                result.get()
-            except Exception:
-                app.logger.info(' ')
-                app.logger.info('!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!')
-                app.logger.info(traceback.format_exc())
-                app.logger.info('!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!')
-                app.logger.info(' ')
-            
-            result.forget()
-    GLOBALS.lock.release()
+    if jobs:
+        for job, response in wait_for_jobs(jobs):
+            if response is None: continue
+            if Config.DEBUGGING: print('Restored crops for csv {}'.format(job['kwargs']['csv_key']))
+
     app.logger.info("Done! Conbining results...")
 
     #combine all the output csvs again

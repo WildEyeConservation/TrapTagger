@@ -16,15 +16,12 @@ limitations under the License.
 
 from app import app, db, celery
 from app.models import *
-# from app.functions.admin import setup_new_survey_permissions
-from app.functions.globals import detection_rating, randomString, updateTaskCompletionStatus, updateLabelCompletionStatus, updateIndividualIdStatus, retryTime,\
-                                 chunker, save_crops, list_all, classifyTask, all_equal, generate_raw_image_hash, updateAllStatuses, setup_new_survey_permissions, \
-                                 hideSmallDetections, maskSky, rDets, verify_label, checkChildTranslations, createChildTranslations, add_new_task, prepTask, launch_task, add_labelgroups
+from app.functions.globals import detection_rating, randomString, retryTime, chunker, save_crops, list_all, all_equal, generate_raw_image_hash, updateAllStatuses, \
+    hideSmallDetections, maskSky, add_new_task, prepTask, launch_task, add_labelgroups, wait_for_jobs
 from app.functions.delete import delete_clusters, delete_cameras, delete_trapgroups, delete_cameragroups
 import GLOBALS
 from sqlalchemy.sql import func, or_, distinct, and_, literal_column, alias
 from sqlalchemy import desc, insert, select
-from sqlalchemy import exc as sa_exc
 from datetime import datetime, timedelta
 import re
 import math
@@ -48,7 +45,6 @@ from dateutil.relativedelta import relativedelta
 import pandas as pd
 import boto3
 import time
-import requests
 import random
 import cv2
 import piexif
@@ -992,16 +988,17 @@ def processCameraStaticDetections(self,cameragroup_id):
         if total_images>0:
             # Divide detections into max 4k detection windows to avoid ON^2 growth
             grouping = math.ceil(total_images/math.ceil(total_images/4000))
-            results = []
+            jobs = []
             for i in range(0,total_images,grouping):
-                results.append(processStaticWindow.apply_async(kwargs={'cameragroup_id':cameragroup_id,'index':i,'grouping':grouping,'dataType':dataType},queue='parallel_2'))
+                jobs.append({'task': processStaticWindow, 'kwargs': {'cameragroup_id':cameragroup_id,'index':i,'grouping':grouping,'dataType':dataType}, 'queue': 'parallel_2'})
 
             static_groups = {}
-            GLOBALS.lock.acquire()
-            with allow_join_result():
-                for result in results:
+            app.logger.info('Waiting for static window processing to complete')
+            if jobs:
+                for job, response in wait_for_jobs(jobs):
+                    if response is None: continue
                     try:
-                        response = result.get()
+                        if Config.DEBUGGING: print('Processed static window for index {}'.format(job['kwargs']['index']))
                         static_groups[response['index']] = response['static_groups']
                     except Exception:
                         app.logger.info(' ')
@@ -1009,8 +1006,7 @@ def processCameraStaticDetections(self,cameragroup_id):
                         app.logger.info(traceback.format_exc())
                         app.logger.info('!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!')
                         app.logger.info(' ')
-                    result.forget()
-            GLOBALS.lock.release()
+            app.logger.info('Static window processing completed')
 
             df = pd.read_sql(db.session.query(
                                         Detection.id.label('detection_id'),
@@ -1230,26 +1226,17 @@ def processStaticDetections(survey_id):
     # db.session.commit()
 
     # Process static detections (only do this for cameragroups with new images - those with no clusters)
-    results = []
+    jobs = []
     cameragroup_ids = [r[0] for r in db.session.query(Cameragroup.id).join(Camera).join(Trapgroup).join(Image).filter(~Image.clusters.any()).filter(Trapgroup.survey_id==survey_id).distinct().all()]
     for cameragroup_id in cameragroup_ids:
-        results.append(processCameraStaticDetections.apply_async(kwargs={'cameragroup_id':cameragroup_id},queue='parallel'))
-    
-    #Wait for processing to complete
-    db.session.remove()
-    GLOBALS.lock.acquire()
-    with allow_join_result():
-        for result in results:
-            try:
-                result.get()
-            except Exception:
-                app.logger.info(' ')
-                app.logger.info('!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!')
-                app.logger.info(traceback.format_exc())
-                app.logger.info('!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!')
-                app.logger.info(' ')
-            result.forget()
-    GLOBALS.lock.release()
+        jobs.append({'task': processCameraStaticDetections, 'kwargs': {'cameragroup_id':cameragroup_id}, 'queue': 'parallel'})
+
+    app.logger.info('Waiting for static detections processing to complete')
+    if jobs:
+        for job, response in wait_for_jobs(jobs):
+            if response is None: continue
+            if Config.DEBUGGING: print('Processed static detections for cameragroup {}'.format(job['kwargs']['cameragroup_id']))
+    app.logger.info('Static detections processing completed')
 
     return True
 
@@ -1696,8 +1683,9 @@ def setupDatabase():
 
     db.session.commit()
 
-def batch_images(camera_id,filenames,sourceBucket,dirpath,destBucket,survey_id,pipeline,external,lock,remove_gps,live=False):
-    ''' Helper function for importImages that batches images and adds them to the queue to be run through the detector. '''
+def batch_images(camera_id,filenames,sourceBucket,dirpath,destBucket,survey_id,pipeline,external,lock,remove_gps,jobs,live=False):
+    ''' Helper function for importImages that batches images and adds them to the queue to be run through the detector.
+        The dispatched job is appended to jobs, along with the image metadata that belongs with its result. '''
 
     try:
 
@@ -1821,12 +1809,17 @@ def batch_images(camera_id,filenames,sourceBucket,dirpath,destBucket,survey_id,p
                 images.append(image)
         
         if batch:
-            if Config.DEBUGGING: print('Acquiring lock')
-            GLOBALS.lock.acquire()
             print('Queueing batch')
-            GLOBALS.results_queue.append((images, detection.apply_async(kwargs={'batch': batch,'sourceBucket':sourceBucket,'external':external,'model':Config.DETECTOR}, queue='celery', routing_key='celery.detection')))
-            GLOBALS.lock.release()
-            if Config.DEBUGGING: print('Lock released')
+            kwargs = {'batch': batch,'sourceBucket':sourceBucket,'external':external,'model':Config.DETECTOR}
+            # Dispatched here rather than by wait_for_jobs so that inference overlaps with the remaining batching
+            jobs.append({
+                'task': detection,
+                'kwargs': kwargs,
+                'queue': 'celery',
+                'options': {'routing_key': 'celery.detection'},
+                'images': images,
+                'result': detection.apply_async(kwargs=kwargs, queue='celery', routing_key='celery.detection')
+            })
 
     except Exception:
         app.logger.info(' ')
@@ -1861,7 +1854,7 @@ def importImages(self,batch,csv,pipeline,external,min_area,remove_gps,label_sour
     
     try:
         #Prep bacthes
-        GLOBALS.results_queue = []
+        jobs = []
         pool = Pool(processes=4)
         isjpeg = re.compile('(\.jpe?g$)|(_jpe?g$)', re.I)
         print('Received importImages task with {} batches.'.format(len(batch)))
@@ -1887,25 +1880,21 @@ def importImages(self,batch,csv,pipeline,external,min_area,remove_gps,label_sour
             print("Starting import of batch for {} with {} images.".format(dirpath,len(jpegs)))
                 
             for filenames in chunker(jpegs,100):
-                pool.apply_async(batch_images,(camera_id,filenames,sourceBucket,dirpath,destBucket,survey_id,pipeline,external,GLOBALS.lock,remove_gps,live))
+                pool.apply_async(batch_images,(camera_id,filenames,sourceBucket,dirpath,destBucket,survey_id,pipeline,external,GLOBALS.lock,remove_gps,jobs,live))
 
         pool.close()
         pool.join()
 
         # Fetch the results
-        if Config.DEBUGGING: print('{} batch results to fetch'.format(len(GLOBALS.results_queue)))
+        if Config.DEBUGGING: print('{} batch results to fetch'.format(len(jobs)))
         counter = 0
-        GLOBALS.lock.acquire()
-        with allow_join_result():
-            for images, result in GLOBALS.results_queue:
+        if jobs:
+            for job, response in wait_for_jobs(jobs):
+                if response is None: continue
                 try:
                     counter += 1
-                    if Config.DEBUGGING: print('Fetching result {}'.format(counter))
-                    starttime = datetime.utcnow()
-                    response = result.get()
-                    if Config.DEBUGGING: print('Fetched result {} after {}.'.format(counter,datetime.utcnow()-starttime))
-
-                    for img, detections in zip(images, response):
+                    if Config.DEBUGGING: print('Fetched result {}'.format(counter))
+                    for img, detections in zip(job['images'], response):
                         try:
                             if live:
                                 image = db.session.query(Image).get(img['id'])
@@ -1927,7 +1916,6 @@ def importImages(self,batch,csv,pipeline,external,min_area,remove_gps,label_sour
                             app.logger.info(traceback.format_exc())
                             app.logger.info('!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!')
                             app.logger.info(' ')
-                            # db.session.rollback()
                     
                     # # Commit every 400 images (2 batches) to speed up result fetching
                     # if counter%2==0:
@@ -1940,10 +1928,6 @@ def importImages(self,batch,csv,pipeline,external,min_area,remove_gps,label_sour
                     app.logger.info(traceback.format_exc())
                     app.logger.info('!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!')
                     app.logger.info(' ')
-                    # db.session.rollback()
-                
-                result.forget()
-        GLOBALS.lock.release()
 
         #Commit the last batch & increase count
         db.session.query(Survey).get(survey_id).image_count = db.session.query(Image).join(Camera).join(Trapgroup).filter(Trapgroup.survey_id==survey_id).distinct().count()
@@ -2166,7 +2150,7 @@ def runClassifier(self,lower_index,upper_index,sourceBucket,batch_size,cameragro
 
         else:
             classifier_queue = classifier.queue
-            GLOBALS.results_queue = []
+            jobs = []
 
             detections = db.session.query(Detection.id,Detection.left,Detection.right,Detection.top,Detection.bottom,Image.id,Image.filename,Camera.path)\
                                 .join(Image,Image.id==Detection.image_id)\
@@ -2195,23 +2179,18 @@ def runClassifier(self,lower_index,upper_index,sourceBucket,batch_size,cameragro
                         app.logger.info(' ')
 
                 if len(batch['images'].keys()) >= 0:
-                    # GLOBALS.lock.acquire()
-                    GLOBALS.results_queue.append(classify.apply_async(kwargs={'batch': batch}, queue=classifier_queue, routing_key='classification.classify'))
-                    # GLOBALS.lock.release()
+                    jobs.append({'task': classify, 'kwargs': {'batch': batch}, 'queue': classifier_queue, 'options': {'routing_key': 'classification.classify'}})
 
-            if Config.DEBUGGING: print('{} results to fetch'.format(len(GLOBALS.results_queue)))
+            if Config.DEBUGGING: print('{} results to fetch'.format(len(jobs)))
 
             counter = 0
-            GLOBALS.lock.acquire()
-            with allow_join_result():
-                for result in GLOBALS.results_queue:
+            app.logger.info('Waiting for classifying to complete')
+            if jobs:
+                for job, response in wait_for_jobs(jobs):
+                    if response is None: continue
                     try:
                         counter += 1
                         if Config.DEBUGGING: print('Fetching result {}'.format(counter))
-                        starttime = datetime.utcnow()
-                        response = result.get()
-                        if Config.DEBUGGING: print('Fetched result {} after {}.'.format(counter,datetime.utcnow()-starttime))
-
                         detections = db.session.query(Detection).filter(Detection.id.in_(list(response.keys()))).all()
                         for detection in detections:
                             try:
@@ -2231,9 +2210,8 @@ def runClassifier(self,lower_index,upper_index,sourceBucket,batch_size,cameragro
                         app.logger.info('!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!')
                         app.logger.info(' ')
 
-                    result.forget()
-            GLOBALS.lock.release()
             db.session.commit()
+            app.logger.info('Classifying complete')
 
     except Exception as exc:
         app.logger.info(' ')
@@ -2574,7 +2552,7 @@ def import_folder(s3Folder, survey_id, sourceBucket,destinationBucket,pipeline,m
     cameras_with_trapgroups = {r[0]:r[1] for r in localsession.query(func.SUBSTRING_INDEX(Camera.path, '/_video_images_',1), Camera).join(Trapgroup).filter(Trapgroup.survey_id==sid).distinct().all()}
 
     # Handle videos first so that their frames can be imported like normal images
-    results = []
+    jobs = []
     for dirpath, folders, filenames in s3traverse(sourceBucket, s3Folder):
         videos = list(filter(isVideo.search, filenames))
         jpegs = list(filter(isjpeg.search, filenames))
@@ -2608,7 +2586,7 @@ def import_folder(s3Folder, survey_id, sourceBucket,destinationBucket,pipeline,m
                 to_process = [video for video in videos if video not in already_processed]
 
                 for batch in chunker(to_process,500):
-                    results.append(process_video_batch.apply_async(kwargs={'dirpath':dirpath,'batch':batch,'bucket':sourceBucket, 'trapgroup_id': trapgroup.id},queue='parallel'))
+                    jobs.append({'task': process_video_batch, 'kwargs': {'dirpath':dirpath,'batch':batch,'bucket':sourceBucket,'trapgroup_id': trapgroup.id}, 'queue': 'parallel'})
                     app.logger.info('Processing video batch: '.format(len(batch)))
 
     # survey.processing_initialised = False
@@ -2616,19 +2594,10 @@ def import_folder(s3Folder, survey_id, sourceBucket,destinationBucket,pipeline,m
     localsession.close()
 
     app.logger.info('Waiting for video processing to complete')
-    GLOBALS.lock.acquire()
-    with allow_join_result():
-        for result in results:
-            try:
-                result.get()
-            except Exception:
-                app.logger.info(' ')
-                app.logger.info('!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!')
-                app.logger.info(traceback.format_exc())
-                app.logger.info('!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!')
-                app.logger.info(' ')
-            result.forget()
-    GLOBALS.lock.release()
+    if jobs:
+        for job, response in wait_for_jobs(jobs):
+            if response is None: continue
+            if Config.DEBUGGING: print('Processed video batch for dirpath {}'.format(job['kwargs']['dirpath']))
     app.logger.info('Video processing complete')
 
     #check for any duplicates
@@ -2637,7 +2606,7 @@ def import_folder(s3Folder, survey_id, sourceBucket,destinationBucket,pipeline,m
     # Now handle images
     localsession=db.session()
     survey = db.session.query(Survey).get(sid)
-    results = []
+    jobs = []
     batch_count = 0
     batch = []
     # chunk_size = round(Config.QUEUES['parallel']['rate']/4)
@@ -2742,7 +2711,7 @@ def import_folder(s3Folder, survey_id, sourceBucket,destinationBucket,pipeline,m
 
                     # if (batch_count / (((Config.QUEUES['parallel']['rate'])*random.uniform(0.5, 1.5))/2) ) >= 1:
                     if (batch_count / (((10000)*random.uniform(0.5, 1.5))/2) ) >= 1:
-                        results.append(importImages.apply_async(kwargs={'batch':batch,'csv':False,'pipeline':pipeline,'external':False,'min_area':min_area,'remove_gps':remove_gps,'label_source':label_source},queue='parallel'))
+                        jobs.append({'task': importImages, 'kwargs': {'batch':batch,'csv':False,'pipeline':pipeline,'external':False,'min_area':min_area,'remove_gps':remove_gps,'label_source':label_source}, 'queue': 'parallel'})
                         app.logger.info('Queued batch with {} images'.format(batch_count))
                         batch_count = 0
                         batch = []
@@ -2751,7 +2720,7 @@ def import_folder(s3Folder, survey_id, sourceBucket,destinationBucket,pipeline,m
                 app.logger.info('{}: failed to import path {}. No tag found.'.format(survey_id,dirpath))
 
     if batch_count!=0:
-        results.append(importImages.apply_async(kwargs={'batch':batch,'csv':False,'pipeline':pipeline,'external':False,'min_area':min_area, 'remove_gps':any_gps,'label_source':label_source},queue='parallel'))
+        jobs.append({'task': importImages, 'kwargs': {'batch':batch,'csv':False,'pipeline':pipeline,'external':False,'min_area':min_area, 'remove_gps':any_gps,'label_source':label_source}, 'queue': 'parallel'})
 
     survey.processing_initialised = False
     localsession.commit()
@@ -2761,19 +2730,24 @@ def import_folder(s3Folder, survey_id, sourceBucket,destinationBucket,pipeline,m
     # Using locking here as a workaround. Looks like celery result fetching is not threadsafe.
     # See https://github.com/celery/celery/issues/4480
     app.logger.info('Waiting for image processing to complete')
-    GLOBALS.lock.acquire()
-    with allow_join_result():
-        for result in results:
-            try:
-                result.get()
-            except Exception:
-                app.logger.info(' ')
-                app.logger.info('!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!')
-                app.logger.info(traceback.format_exc())
-                app.logger.info('!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!')
-                app.logger.info(' ')
-            result.forget()
-    GLOBALS.lock.release()
+    # GLOBALS.lock.acquire()
+    # with allow_join_result():
+    #     for result in results:
+    #         try:
+    #             result.get()
+    #         except Exception:
+    #             app.logger.info(' ')
+    #             app.logger.info('!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!')
+    #             app.logger.info(traceback.format_exc())
+    #             app.logger.info('!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!')
+    #             app.logger.info(' ')
+    #         result.forget()
+    # GLOBALS.lock.release()
+    if jobs:
+        for job, response in wait_for_jobs(jobs):
+            if response is None: continue
+            if Config.DEBUGGING: print('Processed import images job')
+
     app.logger.info('Image processing complete')
 
     # Remove any duplicate images that made their way into the database due to the parallel import process.
@@ -2903,7 +2877,7 @@ def pipeline_csv(df,survey_id,tag,exclusions,source,destBucket,min_area,external
     tag = re.compile(tag)
 
     # Now handle images
-    results = []
+    jobs = []
     batch_count = 0
     batch = []
     # chunk_size = round(Config.QUEUES['parallel']['rate']/4)
@@ -2942,7 +2916,7 @@ def pipeline_csv(df,survey_id,tag,exclusions,source,destBucket,min_area,external
 
                     # if (batch_count / (((Config.QUEUES['parallel']['rate'])*random.uniform(0.5, 1.5))/2) ) >= 1:
                     if (batch_count / (((10000)*random.uniform(0.5, 1.5))/2) ) >= 1:
-                        results.append(importImages.apply_async(kwargs={'batch':batch,'csv':False,'pipeline':True,'external':external,'min_area':min_area,'remove_gps':False,'label_source':label_source},queue='parallel'))
+                        jobs.append({'task': importImages, 'kwargs': {'batch':batch,'csv':False,'pipeline':True,'external':external,'min_area':min_area,'remove_gps':False,'label_source':label_source}, 'queue': 'parallel'})
                         app.logger.info('Queued batch with {} images'.format(batch_count))
                         batch_count = 0
                         batch = []
@@ -2951,29 +2925,19 @@ def pipeline_csv(df,survey_id,tag,exclusions,source,destBucket,min_area,external
                 app.logger.info('{}: failed to import path {}. No tag found.'.format(name,dirpath))
 
     if batch_count!=0:
-        results.append(importImages.apply_async(kwargs={'batch':batch,'csv':False,'pipeline':True,'external':external,'min_area':min_area,'remove_gps':False,'label_source':label_source},queue='parallel'))
+        jobs.append({'task': importImages, 'kwargs': {'batch':batch,'csv':False,'pipeline':True,'external':external,'min_area':min_area,'remove_gps':False,'label_source':label_source}, 'queue': 'parallel'})
 
     survey.processing_initialised = False
     localsession.commit()
     localsession.close()
     
     #Wait for import to complete
-    # Using locking here as a workaround. Looks like celery result fetching is not threadsafe.
-    # See https://github.com/celery/celery/issues/4480
     app.logger.info('Waiting for image processing to complete')
-    GLOBALS.lock.acquire()
-    with allow_join_result():
-        for result in results:
-            try:
-                result.get()
-            except Exception:
-                app.logger.info(' ')
-                app.logger.info('!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!')
-                app.logger.info(traceback.format_exc())
-                app.logger.info('!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!')
-                app.logger.info(' ')
-            result.forget()
-    GLOBALS.lock.release()
+    if jobs:
+        for job, response in wait_for_jobs(jobs):
+            if response is None: continue
+            if Config.DEBUGGING: print('Processed import images job')
+
     app.logger.info('Image processing complete')
 
     # Remove any duplicate images that made their way into the database due to the parallel import process.
@@ -3126,26 +3090,18 @@ def updateSurveyDetectionRatings(survey_id):
             processes (int): Optional number of threads to use. Defaults to 4.
     '''
     
-    results = []
+    jobs = []
     for trapgroup_id in db.session.query(Trapgroup.id).filter(Trapgroup.survey_id==survey_id).distinct().all():
-        results.append(updateTrapgroupDetectionRatings.apply_async(kwargs={'trapgroup_id':trapgroup_id[0]},queue='parallel'))
+        jobs.append({'task': updateTrapgroupDetectionRatings, 'kwargs': {'trapgroup_id':trapgroup_id[0]}, 'queue': 'parallel'})
     
     #Wait for processing to complete
     db.session.remove()
-    GLOBALS.lock.acquire()
-    with allow_join_result():
-        for result in results:
-            try:
-                result.get()
-            except Exception:
-                app.logger.info(' ')
-                app.logger.info('!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!')
-                app.logger.info(traceback.format_exc())
-                app.logger.info('!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!')
-                app.logger.info(' ')
-            
-            result.forget()
-    GLOBALS.lock.release()
+    app.logger.info('Waiting for detection ratings update to complete')
+    if jobs:
+        for job, response in wait_for_jobs(jobs):
+            if response is None: continue
+            if Config.DEBUGGING: print('Updated detection ratings for trapgroup {}'.format(job['kwargs']['trapgroup_id']))
+    app.logger.info('Detection ratings update complete')
 
     return True
 
@@ -3160,7 +3116,7 @@ def classifySurvey(survey_id,sourceBucket,classifier_id=None,batch_size=100):
             batch_size (int): Optional batch size to use for species classifier. Default is 100.
     '''
 
-    results = []
+    jobs = []
     survey = db.session.query(Survey).get(survey_id)
 
     if classifier_id == None: classifier_id = survey.classifier_id
@@ -3188,38 +3144,28 @@ def classifySurvey(survey_id,sourceBucket,classifier_id=None,batch_size=100):
         if item[1] >= chunk_size:
             number_of_chunks = math.ceil(item[1]/chunk_size)
             for n in range(number_of_chunks):
-                results.append(runClassifier.apply_async(kwargs={'lower_index':n*chunk_size,'upper_index':(n+1)*chunk_size,'sourceBucket':sourceBucket,'batch_size':batch_size,'cameragroup_ids':[item[0]],'classifier_id':classifier_id},queue='parallel'))
+                jobs.append({'task': runClassifier, 'kwargs': {'lower_index':n*chunk_size,'upper_index':(n+1)*chunk_size,'sourceBucket':sourceBucket,'batch_size':batch_size,'cameragroup_ids':[item[0]],'classifier_id':classifier_id}, 'queue': 'parallel'})
         else:
             if current_size + item[1] > chunk_size:
-                results.append(runClassifier.apply_async(kwargs={'lower_index':0,'upper_index':chunk_size,'sourceBucket':sourceBucket,'batch_size':batch_size,'cameragroup_ids':cameragroup_ids,'classifier_id':classifier_id},queue='parallel'))
+                jobs.append({'task': runClassifier, 'kwargs': {'lower_index':0,'upper_index':chunk_size,'sourceBucket':sourceBucket,'batch_size':batch_size,'cameragroup_ids':cameragroup_ids,'classifier_id':classifier_id}, 'queue': 'parallel'})
                 cameragroup_ids = []
                 current_size = 0
             cameragroup_ids.append(item[0])
             current_size += item[1]
 
     if len(cameragroup_ids) > 0:
-        results.append(runClassifier.apply_async(kwargs={'lower_index':0,'upper_index':chunk_size,'sourceBucket':sourceBucket,'batch_size':batch_size,'cameragroup_ids':cameragroup_ids,'classifier_id':classifier_id},queue='parallel'))
+        jobs.append({'task': runClassifier, 'kwargs': {'lower_index':0,'upper_index':chunk_size,'sourceBucket':sourceBucket,'batch_size':batch_size,'cameragroup_ids':cameragroup_ids,'classifier_id':classifier_id}, 'queue': 'parallel'})
 
     survey.processing_initialised = False
     db.session.commit()
     db.session.remove()
 
     # Wait for processing to finish
-    # Using locking here as a workaround. Looks like celery result fetching is not threadsafe.
-    # See https://github.com/celery/celery/issues/4480
-    GLOBALS.lock.acquire()
-    with allow_join_result():
-        for result in results:
-            try:
-                result.get()
-            except Exception:
-                app.logger.info(' ')
-                app.logger.info('!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!')
-                app.logger.info(traceback.format_exc())
-                app.logger.info('!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!')
-                app.logger.info(' ')
-            result.forget()
-    GLOBALS.lock.release()
+    app.logger.info('Waiting for classifying to complete')
+    for job, response in wait_for_jobs(jobs):
+        if response is None: continue
+        if Config.DEBUGGING: print('Processed run classifier for cameragroup {}'.format(job['kwargs']['cameragroup_ids']))
+    app.logger.info('Classifying complete')
 
     # Set static detection classifications to nothing
     detections = db.session.query(Detection)\
@@ -3237,29 +3183,20 @@ def classifySurvey(survey_id,sourceBucket,classifier_id=None,batch_size=100):
     db.session.commit()
 
     #Update cluster classifications
-    results = []
+    jobs = []
     survey = db.session.query(Survey).get(survey_id)
     for task in survey.tasks:
         for trapgroup in survey.trapgroups:
-            results.append(classifyTrapgroup.apply_async(kwargs={'task_id':task.id,'trapgroup_id':trapgroup.id},queue='parallel'))
+            jobs.append({'task': classifyTrapgroup, 'kwargs': {'task_id':task.id,'trapgroup_id':trapgroup.id}, 'queue': 'parallel'})
 
     # Wait for processing to finish
-    # Using locking here as a workaround. Looks like celery result fetching is not threadsafe.
-    # See https://github.com/celery/celery/issues/4480
     db.session.remove()
-    GLOBALS.lock.acquire()
-    with allow_join_result():
-        for result in results:
-            try:
-                result.get()
-            except Exception:
-                app.logger.info(' ')
-                app.logger.info('!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!')
-                app.logger.info(traceback.format_exc())
-                app.logger.info('!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!')
-                app.logger.info(' ')
-            result.forget()
-    GLOBALS.lock.release()
+    app.logger.info('Waiting for classifying trapgroup to complete')
+    if jobs:
+        for job, response in wait_for_jobs(jobs):
+            if response is None: continue
+            if Config.DEBUGGING: print('Classified trapgroup {}'.format(job['kwargs']['trapgroup_id']))
+    app.logger.info('Classifying trapgroup complete')
 
     # survey = db.session.query(Survey).get(survey_id)
     # classifier = db.session.query(Classifier).filter(Classifier.name==classifier).first()
@@ -4246,28 +4183,18 @@ def pipeline_survey(self,surveyName,bucketName,dataSource,fileAttached,trapgroup
                 survey = db.session.query(Survey).filter(Survey.name==surveyName).filter(Survey.organisation_id==organisation_id).first()
                 survey.status = 'Clustering'
                 db.session.commit()
-                results = []
+                jobs = []
                 camera_ids = [r[0] for r in db.session.query(Camera.id).join(Trapgroup).filter(Trapgroup.survey_id==survey_id).distinct().all()]
                 db.session.remove()
                 for camera_id in camera_ids:
-                    results.append(pipeline_cluster_camera.apply_async(kwargs={'camera_id':camera_id,'task_id':task_id},queue='parallel'))
+                    jobs.append({'task': pipeline_cluster_camera, 'kwargs': {'camera_id':camera_id,'task_id':task_id}, 'queue': 'parallel'})
 
-                # Wait for processing to finish
-                # Using locking here as a workaround. Looks like celery result fetching is not threadsafe.
-                # See https://github.com/celery/celery/issues/4480
-                GLOBALS.lock.acquire()
-                with allow_join_result():
-                    for result in results:
-                        try:
-                            result.get()
-                        except Exception:
-                            app.logger.info(' ')
-                            app.logger.info('!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!')
-                            app.logger.info(traceback.format_exc())
-                            app.logger.info('!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!')
-                            app.logger.info(' ')
-                        result.forget()
-                GLOBALS.lock.release()        
+                if jobs:
+                    app.logger.info('Waiting for pipeline cluster camera to complete')
+                    for job, response in wait_for_jobs(jobs):
+                        if response is None: continue
+                        if Config.DEBUGGING: print('Processed pipeline cluster camera job')
+                    app.logger.info('Pipeline cluster camera complete')
 
             else:
                 # Extract labels:
@@ -4287,7 +4214,7 @@ def pipeline_survey(self,surveyName,bucketName,dataSource,fileAttached,trapgroup
                     translations[species] = label.id
 
                 # Run the folders in parallel
-                results = []
+                jobs = []
                 for dirpath in df['dirpath'].unique():
                     # dirpathDF = df.loc[df['dirpath'] == dirpath]
                     # key = 'pipelineCSVs/' + surveyName + '_' + dirpath.replace('/','_') + '.csv'
@@ -4296,25 +4223,14 @@ def pipeline_survey(self,surveyName,bucketName,dataSource,fileAttached,trapgroup
                     #     GLOBALS.s3client.put_object(Bucket=bucketName,Key=key,Body=temp_file)
                     for species in df[df['dirpath'] == dirpath]['species'].unique():
                         filenames = list(df[(df['dirpath'] == dirpath) & (df['species']==species)]['filename'].unique())
-                        results.append(extract_dirpath_labels.apply_async(kwargs={'label_id':translations[species],'dirpath':dirpath,'filenames':filenames,'task_id':task_id,'survey_id':survey_id},queue='parallel'))
+                        jobs.append({'task': extract_dirpath_labels, 'kwargs': {'label_id':translations[species],'dirpath':dirpath,'filenames':filenames,'task_id':task_id,'survey_id':survey_id}, 'queue': 'parallel'})
 
-                # Wait for processing to finish
-                # Using locking here as a workaround. Looks like celery result fetching is not threadsafe.
-                # See https://github.com/celery/celery/issues/4480
-                db.session.remove()
-                GLOBALS.lock.acquire()
-                with allow_join_result():
-                    for result in results:
-                        try:
-                            result.get()
-                        except Exception:
-                            app.logger.info(' ')
-                            app.logger.info('!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!')
-                            app.logger.info(traceback.format_exc())
-                            app.logger.info('!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!')
-                            app.logger.info(' ')
-                        result.forget()
-                GLOBALS.lock.release()
+                if jobs:
+                    app.logger.info('Waiting for extract dirpath labels to complete')
+                    for job, response in wait_for_jobs(jobs):
+                        if response is None: continue
+                        if Config.DEBUGGING: print('Processed extract dirpath labels job')
+                    app.logger.info('Extract dirpath labels complete')
 
         survey = db.session.query(Survey).get(survey_id)
         survey.status = 'Ready'
@@ -4791,25 +4707,18 @@ def processCameras(survey_id, trapgroup_code, camera_code, queue='parallel'):
     ''' Processes all cameras in a survey without a cameragroup, extracting the camera code from the path and creating a cameragroup for each unique code.'''
     trapgroup_ids = [r[0] for r in db.session.query(Trapgroup.id).filter(Trapgroup.survey_id==survey_id).all()]
 
-    results = []
+    jobs = []
     for trapgroup_id in trapgroup_ids:
-        results.append(group_cameras.apply_async(kwargs={'trapgroup_id':trapgroup_id, 'camera_code': camera_code, 'trapgroup_code': trapgroup_code},queue=queue))
+        jobs.append({'task': group_cameras, 'kwargs': {'trapgroup_id':trapgroup_id, 'camera_code': camera_code, 'trapgroup_code': trapgroup_code}, 'queue': queue})
 
     #Wait for processing to complete
     db.session.remove()
-    GLOBALS.lock.acquire()
-    with allow_join_result():
-        for result in results:
-            try:
-                result.get()
-            except Exception:
-                app.logger.info(' ')
-                app.logger.info('!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!')
-                app.logger.info(traceback.format_exc())
-                app.logger.info('!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!')
-                app.logger.info(' ')
-            result.forget()
-    GLOBALS.lock.release()
+    app.logger.info('Waiting for cameras to complete')
+    if jobs:
+        for job, response in wait_for_jobs(jobs):
+            if response is None: continue
+            if Config.DEBUGGING: print('Processed cameras for trapgroup {}'.format(job['kwargs']['trapgroup_id']))
+    app.logger.info('Cameras complete')
 
     # Find empty cameragroups
     delete_cameragroups(survey_id=survey_id, empty=True)
@@ -4923,16 +4832,16 @@ def run_llava(self,image_ids,prompt):
                                         .distinct().all()]
         db.session.close()
 
-        results = []
+        jobs = []
         for batch in chunker(images,100):
-            results.append(llava_infer.apply_async(kwargs={'batch':batch, 'sourceBucket':Config.BUCKET, 'prompt': prompt, 'external': False},queue='llava'))
+            jobs.append({'task': llava_infer, 'kwargs': {'batch':batch, 'sourceBucket':Config.BUCKET, 'prompt': prompt, 'external': False}, 'queue': 'llava'})
 
-        GLOBALS.lock.acquire()
-        with allow_join_result():
-            for result in results:
+        if jobs:
+            app.logger.info('Waiting for llava infer to complete')
+            for job, response in wait_for_jobs(jobs):
+                if response is None: continue
+                if Config.DEBUGGING: print('Processed llava infer job')
                 try:
-                    response = result.get()
-
                     data = db.session.query(Camera.path+'/'+Image.filename,Image)\
                                     .join(Camera,Image.camera_id==Camera.id)\
                                     .filter((Camera.path+'/'+Image.filename).in_(list(response.keys())))\
@@ -4956,11 +4865,8 @@ def run_llava(self,image_ids,prompt):
                     app.logger.info('!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!')
                     app.logger.info(' ')
 
-                result.forget()
-
-        GLOBALS.lock.release()
-
         db.session.commit()
+        app.logger.info('LLaVA infer complete')
 
     except Exception as exc:
         app.logger.info(' ')
@@ -5379,57 +5285,39 @@ def extract_missing_timestamps(survey_id):
                                                 .filter(~Camera.videos.any())\
                                                 .distinct().all()]
                                             
-
-    results = []
+    jobs = []
     for cg_id, path in camera_data:
-        results.append(extrapolate_timestamps.apply_async(kwargs={'camera_id':cg_id,'folder':path},queue='parallel'))
+        jobs.append({'task': extrapolate_timestamps, 'kwargs': {'camera_id':cg_id,'folder':path}, 'queue': 'parallel'})
 
     for camera_id in camera_ids:
-        results.append(extrapolate_timestamps.apply_async(kwargs={'camera_id':camera_id,'folder':None},queue='parallel'))
+        jobs.append({'task': extrapolate_timestamps, 'kwargs': {'camera_id':camera_id,'folder':None}, 'queue': 'parallel'})
 
     #Wait for processing to complete
     db.session.remove()
-    GLOBALS.lock.acquire()
-    with allow_join_result():
-        for result in results:
-            try:
-                result.get()
-            except Exception:
-                app.logger.info(' ')
-                app.logger.info('!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!')
-                app.logger.info(traceback.format_exc())
-                app.logger.info('!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!')
-                app.logger.info(' ')
-            result.forget()
-    GLOBALS.lock.release()
+    app.logger.info('Waiting for extrapolate timestamps to complete')
+    if jobs:
+        for job, response in wait_for_jobs(jobs):
+            if response is None: continue
+            if Config.DEBUGGING: print('Extrapolated timestamps for camera {}'.format(job['kwargs']['camera_id']))
+    app.logger.info('Extrapolate timestamps complete')
 
     return True
 
 def wrapUpStaticDetectionCheck(survey_id):
     '''Wraps up the static status for detections after the static detections have been reviewed in the Preprocessing stage.'''	
 
-    results = []
+    jobs = []
     trapgroup_ids = [r[0] for r in db.session.query(Trapgroup.id).join(Camera).join(Image).join(Detection).join(Staticgroup).filter(Trapgroup.survey_id==survey_id).distinct().all()]
     for trapgroup_id in trapgroup_ids:
-        results.append(updateTrapgroupStaticDetections.apply_async(kwargs={'trapgroup_id':trapgroup_id},queue='parallel'))
+        jobs.append({'task': updateTrapgroupStaticDetections, 'kwargs': {'trapgroup_id':trapgroup_id}, 'queue': 'parallel'})
     
-    if results:
-        #Wait for processing to complete
-        db.session.remove()
-        GLOBALS.lock.acquire()
-        with allow_join_result():
-            for result in results:
-                try:
-                    result.get()
-                except Exception:
-                    app.logger.info(' ')
-                    app.logger.info('!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!')
-                    app.logger.info(traceback.format_exc())
-                    app.logger.info('!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!')
-                    app.logger.info(' ')
-                
-                result.forget()
-        GLOBALS.lock.release()
+    db.session.remove()
+    app.logger.info('Waiting for update trapgroup static detections to complete')
+    if jobs:
+        for job, response in wait_for_jobs(jobs):
+            if response is None: continue
+            if Config.DEBUGGING: print('Updated static detections for trapgroup {}'.format(job['kwargs']['trapgroup_id']))
+    app.logger.info('Update trapgroup static detections complete')
 
     return True
 
@@ -5590,7 +5478,7 @@ def extrapolate_timestamps(self,camera_id,folder=None):
 def import_live_data(survey_id):
     '''Imports live data for the given survey.'''
 
-    results = []
+    jobs = []
     batch_count = 0
     batch = []
     chunk_size = round(10000/4)
@@ -5610,13 +5498,13 @@ def import_live_data(survey_id):
             batch_count += len(chunk)
 
             if (batch_count / (((10000)*random.uniform(0.5, 1.5))/2) ) >= 1:
-                results.append(generateDetections.apply_async(kwargs={'batch':batch, 'sourceBucket':Config.BUCKET},queue='parallel'))
+                jobs.append({'task': generateDetections, 'kwargs': {'batch':batch, 'sourceBucket':Config.BUCKET}, 'queue': 'parallel'})
                 app.logger.info('Queued batch with {} images'.format(batch_count))
                 batch_count = 0
                 batch = []
 
     if batch_count!=0:
-        results.append(generateDetections.apply_async(kwargs={'batch':batch, 'sourceBucket':Config.BUCKET},queue='parallel'))
+        jobs.append({'task': generateDetections, 'kwargs': {'batch':batch, 'sourceBucket':Config.BUCKET}, 'queue': 'parallel'})
         app.logger.info('Queued batch with {} images'.format(batch_count))
 
 
@@ -5625,22 +5513,12 @@ def import_live_data(survey_id):
     db.session.close()
     
     #Wait for import to complete
-    # Using locking here as a workaround. Looks like celery result fetching is not threadsafe.
-    # See https://github.com/celery/celery/issues/4480
     app.logger.info('Waiting for image processing to complete')
-    GLOBALS.lock.acquire()
-    with allow_join_result():
-        for result in results:
-            try:
-                result.get()
-            except Exception:
-                app.logger.info(' ')
-                app.logger.info('!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!')
-                app.logger.info(traceback.format_exc())
-                app.logger.info('!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!')
-                app.logger.info(' ')
-            result.forget()
-    GLOBALS.lock.release()
+    if jobs:
+        for job, response in wait_for_jobs(jobs):
+            if response is None: continue
+            if Config.DEBUGGING: print('Processed generate detections job')
+
     app.logger.info('Image (Live) processing complete')
 
     # Remove any duplicate images that made their way into the database due to the parallel import process.
@@ -5955,72 +5833,47 @@ def archive_survey(survey_id):
     trapgroup_ids = [r[0] for r in db.session.query(Trapgroup.id).filter(Trapgroup.survey_id==survey_id).distinct().all()]
     cameragroup_ids = [r[0] for r in db.session.query(Cameragroup.id).join(Camera).join(Trapgroup).filter(Trapgroup.survey_id==survey_id).filter(Camera.videos.any()).distinct().all()]
 
+    db.session.remove()
+
     # Compressed Videos
-    video_results = []
+    video_jobs = []
     for cameragroup_id in cameragroup_ids:
-        video_results.append(archive_videos.apply_async(kwargs={'cameragroup_id':cameragroup_id},queue='parallel'))
+        video_jobs.append({'task': archive_videos, 'kwargs': {'cameragroup_id':cameragroup_id}, 'queue': 'parallel'})
 
     #Wait for processing to complete
-    db.session.remove()
-    GLOBALS.lock.acquire()
-    with allow_join_result():
-        for result in video_results:
-            try:
-                result.get()
-            except Exception:
-                app.logger.info(' ')
-                app.logger.info('!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!')
-                app.logger.info(traceback.format_exc())
-                app.logger.info('!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!')
-                app.logger.info(' ')
-            result.forget()
-    GLOBALS.lock.release()
+    app.logger.info('Waiting for video archiving to complete')
+    if video_jobs:
+        for job, response in wait_for_jobs(video_jobs):
+            if response is None: continue
+            if Config.DEBUGGING: print('Archived videos for cameragroup {}'.format(job['kwargs']['cameragroup_id']))
 
     app.logger.info('Videos archived for survey {}'.format(survey_id))
 
     # Empty Images
-    empty_results = []
+    empty_jobs = []
     for trapgroup_id in trapgroup_ids:
-        empty_results.append(archive_empty_images.apply_async(kwargs={'trapgroup_id':trapgroup_id},queue='parallel'))
+        empty_jobs.append({'task': archive_empty_images, 'kwargs': {'trapgroup_id':trapgroup_id}, 'queue': 'parallel'})
 
     #Wait for processing to complete
-    db.session.remove()
-    GLOBALS.lock.acquire()
-    with allow_join_result():
-        for result in empty_results:
-            try:
-                result.get()
-            except Exception:
-                app.logger.info(' ')
-                app.logger.info('!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!')
-                app.logger.info(traceback.format_exc())
-                app.logger.info('!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!')
-                app.logger.info(' ')
-            result.forget()
-    GLOBALS.lock.release()
+    app.logger.info('Waiting for empty image archiving to complete')
+    if empty_jobs:
+        for job, response in wait_for_jobs(empty_jobs):
+            if response is None: continue
+            if Config.DEBUGGING: print('Archived empty images for trapgroup {}'.format(job['kwargs']['trapgroup_id']))
 
     app.logger.info('Empty images archived for survey {}'.format(survey_id))
 
     # Raw Animal Images
-    image_results = []
+    image_jobs = []
     for trapgroup_id in trapgroup_ids:
-        image_results.append(archive_images.apply_async(kwargs={'trapgroup_id':trapgroup_id},queue='parallel'))
+        image_jobs.append({'task': archive_images, 'kwargs': {'trapgroup_id':trapgroup_id}, 'queue': 'parallel'})
 
     #Wait for processing to complete
-    db.session.remove()
-    GLOBALS.lock.acquire()
-    with allow_join_result():
-        for result in image_results:
-            try:
-                result.get()
-            except Exception:
-                app.logger.info(' ')
-                app.logger.info('!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!')
-                app.logger.info(traceback.format_exc())
-                app.logger.info('!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!')
-                app.logger.info(' ')
-            result.forget()
-    GLOBALS.lock.release()
+    app.logger.info('Waiting for raw image archiving to complete')
+    if image_jobs:
+        for job, response in wait_for_jobs(image_jobs):
+            if response is None: continue
+            if Config.DEBUGGING: print('Archived images for trapgroup {}'.format(job['kwargs']['trapgroup_id']))
 
     app.logger.info('Images archived for survey {}'.format(survey_id))
 
@@ -6050,7 +5903,7 @@ def process_folder(s3Folder, survey_id, sourceBucket):
     tag = re.compile(tag)
 
     # Create trapgroups for each camera & batch images for detection
-    results = []
+    jobs = []
     batch_count = 0
     batch = []
     chunk_size = round(10000/4)
@@ -6118,14 +5971,13 @@ def process_folder(s3Folder, survey_id, sourceBucket):
                 batch_count += len(chunk)
 
                 if (batch_count / (((10000)*random.uniform(0.5, 1.5))/2) ) >= 1:
-                    results.append(generateDetections.apply_async(kwargs={'batch':batch, 'sourceBucket':sourceBucket},queue='parallel'))
+                    jobs.append({'task': generateDetections, 'kwargs': {'batch':batch, 'sourceBucket':sourceBucket}, 'queue': 'parallel'})
                     app.logger.info('Queued batch with {} images'.format(batch_count))
                     batch_count = 0
                     batch = []
 
-
     if batch_count!=0:
-        results.append(generateDetections.apply_async(kwargs={'batch':batch, 'sourceBucket':sourceBucket},queue='parallel'))
+        jobs.append({'task': generateDetections, 'kwargs': {'batch':batch, 'sourceBucket':sourceBucket}, 'queue': 'parallel'})
         app.logger.info('Queued batch with {} images'.format(batch_count))
 
     survey.processing_initialised = False
@@ -6134,22 +5986,11 @@ def process_folder(s3Folder, survey_id, sourceBucket):
     
     #Wait for import to complete
     app.logger.info('Waiting for image processing to complete')
-    GLOBALS.lock.acquire()
-    with allow_join_result():
-        for result in results:
-            try:
-                result.get()
-            except Exception:
-                app.logger.info(' ')
-                app.logger.info('!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!')
-                app.logger.info(traceback.format_exc())
-                app.logger.info('!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!')
-                app.logger.info(' ')
-            result.forget()
-    GLOBALS.lock.release()
+    if jobs:
+        for job, response in wait_for_jobs(jobs):
+            if response is None: continue
+            if Config.DEBUGGING: print('Generated detections job')
     app.logger.info('Image processing complete')
-
-
 
     # Cleanup images, videos & cameras from lambda imports
     remove_duplicate_videos(sid)
@@ -6198,7 +6039,7 @@ def generateDetections(self,batch, sourceBucket):
     '''
     try:
         #Prep bacthes
-        GLOBALS.results_queue = []
+        jobs = []
         pool = Pool(processes=4)
         print('Received generateDetections task with {} batches.'.format(len(batch)))
         image_ids = []
@@ -6210,7 +6051,7 @@ def generateDetections(self,batch, sourceBucket):
             print("Generating detctions for {} with batch of {} images.".format(dirpath,len(jpegs)))
                 
             for image_data in chunker(jpegs,100):
-                pool.apply_async(batch_images_for_detection_only, args=(image_data,sourceBucket,dirpath))
+                pool.apply_async(batch_images_for_detection_only, args=(image_data,sourceBucket,dirpath,jobs))
 
         pool.close()
         pool.join()
@@ -6218,19 +6059,17 @@ def generateDetections(self,batch, sourceBucket):
         db_images = {image.id: image for image in db.session.query(Image).filter(Image.id.in_(image_ids)).filter(~Image.detections.any()).distinct().all()}
 
         # Fetch the results
-        if Config.DEBUGGING: print('{} batch results to fetch'.format(len(GLOBALS.results_queue)))
+        app.logger.info('Waiting for generate detections to complete')
+        if Config.DEBUGGING: print('{} batch results to fetch'.format(len(jobs)))
         counter = 0
-        GLOBALS.lock.acquire()
-        with allow_join_result():
-            for images, result in GLOBALS.results_queue:
+        if jobs:
+            for job, response in wait_for_jobs(jobs):
+                if response is None: continue
                 try:
                     counter += 1
-                    if Config.DEBUGGING: print('Fetching result {}'.format(counter))
-                    starttime = datetime.utcnow()
-                    response = result.get()
-                    if Config.DEBUGGING: print('Fetched result {} after {}.'.format(counter,datetime.utcnow()-starttime))
+                    if Config.DEBUGGING: print('Fetched result {}'.format(counter))
 
-                    for img, detections in zip(images, response):
+                    for img, detections in zip(job['images'], response):
                         try:
                             image = db_images.get(img['id'])
                             if image:
@@ -6244,7 +6083,6 @@ def generateDetections(self,batch, sourceBucket):
                             app.logger.info(traceback.format_exc())
                             app.logger.info('!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!')
                             app.logger.info(' ')
-                            # db.session.rollback()
                 
                 except Exception:
                     app.logger.info(' ')
@@ -6252,13 +6090,10 @@ def generateDetections(self,batch, sourceBucket):
                     app.logger.info(traceback.format_exc())
                     app.logger.info('!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!')
                     app.logger.info(' ')
-                    # db.session.rollback()
-                
-                result.forget()
-        GLOBALS.lock.release()
 
         #Commit the last batch
         db.session.commit()
+        app.logger.info('Generate detections complete')
 
     except Exception as exc:
         app.logger.info(' ')
@@ -6273,22 +6108,28 @@ def generateDetections(self,batch, sourceBucket):
 
     return True
 
-def batch_images_for_detection_only(image_data,sourceBucket,dirpath,external=False):
-    ''' Helper function that batches images and adds them to the queue to be run through the detector. '''
+def batch_images_for_detection_only(image_data,sourceBucket,dirpath,jobs,external=False):
+    ''' Helper function that batches images and adds them to the queue to be run through the detector.
+        The dispatched job is appended to jobs, along with the image metadata that belongs with its result. '''
     try:
         batch = []
         images = []
         for image in image_data:
             batch.append(dirpath + '/' + image['filename'])
             images.append(image)
-        
+
         if batch:
-            if Config.DEBUGGING: print('Acquiring lock')
-            GLOBALS.lock.acquire()
             print('Queueing batch')
-            GLOBALS.results_queue.append((images, detection.apply_async(kwargs={'batch': batch,'sourceBucket':sourceBucket,'external':external,'model':Config.DETECTOR}, queue='celery', routing_key='celery.detection')))
-            GLOBALS.lock.release()
-            if Config.DEBUGGING: print('Lock released')
+            kwargs = {'batch': batch,'sourceBucket':sourceBucket,'external':external,'model':Config.DETECTOR}
+            # Dispatched here rather than by wait_for_jobs so that inference overlaps with the remaining batching
+            jobs.append({
+                'task': detection,
+                'kwargs': kwargs,
+                'queue': 'celery',
+                'options': {'routing_key': 'celery.detection'},
+                'images': images,
+                'result': detection.apply_async(kwargs=kwargs, queue='celery', routing_key='celery.detection')
+            })
 
     except Exception:
         app.logger.info(' ')

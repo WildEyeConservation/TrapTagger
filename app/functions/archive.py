@@ -16,26 +16,22 @@ limitations under the License.
 
 from app import app, db, celery
 from app.models import *
-from app.functions.globals import retryTime, checkForIdWork, taggingLevelSQ, updateAllStatuses, rDets, calculate_restore_expiry_date, chunker, launch_task, crop_image_to_individual
+from app.functions.globals import retryTime, checkForIdWork, taggingLevelSQ, updateAllStatuses, rDets, calculate_restore_expiry_date, chunker, launch_task, crop_image_to_individual, \
+    wait_for_jobs
 from app.functions.individualID import calculate_detection_similarities, check_label_and_species_match
 from app.functions.admin import edit_survey, delete_individuals
 from app.functions.results import generate_wildbook_export
 from app.functions.imports import s3traverse
 import GLOBALS
 from sqlalchemy.sql import func, distinct, or_, alias, and_
-from sqlalchemy import desc
 from datetime import datetime, timedelta
 from config import Config
 import traceback
 import re
-from celery.result import allow_join_result
 import os 
 import zipfile
 import json
 from botocore.exceptions import ClientError
-import numpy as np
-from PIL import Image as PILImage
-import tempfile
 
 def check_restore_status(key):
     '''
@@ -213,25 +209,16 @@ def extract_zips(self,task_id,zip_ids):
         zip_folder = survey.organisation.folder + '-comp/' + Config.SURVEY_ZIP_FOLDER
         zip_keys = [zip_folder + '/' + str(zip_id) + '.zip' for zip_id in zip_ids]
 
-        results = []
+        jobs = []
         for zip_key in zip_keys:
-            results.append(extract_zip.apply_async(kwargs={'zip_key':zip_key},queue='parallel'))
-            
-        #Wait for processing to complete
-        db.session.remove()
-        GLOBALS.lock.acquire()
-        with allow_join_result():
-            for result in results:
-                try:
-                    result.get()
-                except Exception:
-                    app.logger.info(' ')
-                    app.logger.info('!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!')
-                    app.logger.info(traceback.format_exc())
-                    app.logger.info('!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!')
-                    app.logger.info(' ')
-                result.forget()
-        GLOBALS.lock.release()
+            jobs.append({'task': extract_zip, 'kwargs': {'zip_key':zip_key}, 'queue': 'parallel'})
+
+        app.logger.info('Waiting for zip extraction to complete')
+        if jobs:
+            for job, response in wait_for_jobs(jobs):
+                if response is None: continue
+                if Config.DEBUGGING: print('Extracted zip {}'.format(job['kwargs']['zip_key']))
+        app.logger.info('Zip extraction completed')
 
         # Launch task
         launch_task.apply_async(kwargs={'task_id':task_id})
@@ -887,7 +874,7 @@ def process_files_for_download(self,task_id,download_request_id,zips):
             # zip_keys = [zip_folder + '/' + str(zip.id) + '.zip' for zip in survey.zips]
             zip_ids = [zip.id for zip in survey.zips]
 
-            results = []
+            jobs = []
             for zip_id in zip_ids:
                 zip_key = zip_folder + '/' + str(zip_id) + '.zip'
                 img = db.session.query(Image).filter(Image.zip_id==zip_id).first()
@@ -901,24 +888,14 @@ def process_files_for_download(self,task_id,download_request_id,zips):
                 except:
                     pass
                 if not check:
-                    results.append(extract_zip.apply_async(kwargs={'zip_key':zip_key},queue='parallel'))
+                    jobs.append({'task': extract_zip, 'kwargs': {'zip_key':zip_key}, 'queue': 'parallel'})
 
-            if results:  
-                #Wait for processing to complete
-                db.session.remove()
-                GLOBALS.lock.acquire()
-                with allow_join_result():
-                    for result in results:
-                        try:
-                            result.get()
-                        except Exception:
-                            app.logger.info(' ')
-                            app.logger.info('!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!')
-                            app.logger.info(traceback.format_exc())
-                            app.logger.info('!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!')
-                            app.logger.info(' ')
-                        result.forget()
-                GLOBALS.lock.release()
+            if jobs: 
+                app.logger.info('Waiting for zip extraction to complete')
+                for job, response in wait_for_jobs(jobs):
+                    if response is None: continue
+                    if Config.DEBUGGING: print('Extracted zip {}'.format(job['kwargs']['zip_key']))
+                app.logger.info('Zip extraction completed')
 
         download_request = db.session.query(DownloadRequest).get(download_request_id)
         if download_request: download_request.status = 'Available'

@@ -55,7 +55,7 @@ import pandas as pd
 import pytz
 import timezonefinder
 import secrets
-from celery.result import allow_join_result
+from celery.result import allow_join_result, AsyncResult
 from gpuworker.worker import segment_and_pose
 import numpy 
 from sqlalchemy.sql.expression import cast
@@ -6136,9 +6136,9 @@ def prepTask(self, task_id, includes=None, translation=None, labels=None, auto_r
 
         # Cluster trapgroups
         if parallel:
-            results = []
+            jobs = []
             for trapgroup_id in trapgroup_ids:
-                results.append(cluster_trapgroup.apply_async(kwargs={
+                jobs.append({'task': cluster_trapgroup, 'kwargs': {
                         'task_id': task_id,
                         'trapgroup_id': trapgroup_id,
                         'query_limit': query_limit,
@@ -6146,10 +6146,13 @@ def prepTask(self, task_id, includes=None, translation=None, labels=None, auto_r
                         'starting_last_cluster_id': starting_last_cluster_id,
                         'trigger_source': trigger_source,
                         'added_files': added_files
-                },queue='parallel'))
+                }, 'queue': 'parallel'})
 
-            wait_for_parallel(results)
-
+            app.logger.info('Waiting for cluster trapgroup to complete')
+            for job, response in wait_for_jobs(jobs):
+                if response is None: continue
+                if Config.DEBUGGING: print('Processed cluster trapgroup for task {} and trapgroup {}'.format(task_id, job['kwargs']['trapgroup_id']))
+            app.logger.info('Cluster trapgroup completed')
         else:
             for trapgroup_id in trapgroup_ids:
                 cluster_trapgroup(task_id,trapgroup_id,query_limit,timestamp,starting_last_cluster_id,trigger_source,added_files)
@@ -6171,15 +6174,18 @@ def prepTask(self, task_id, includes=None, translation=None, labels=None, auto_r
         
         # clean up labelgroup and cluster labels
         if parallel:
-            results = []
+            jobs = []
             for trapgroup_id in trapgroup_ids:
-                results.append(sync_labels.apply_async(kwargs={
+                jobs.append({'task': sync_labels, 'kwargs': {
                         'task_id': task_id,
                         'trapgroup_ids': [trapgroup_id]
-                },queue='parallel'))
+                }, 'queue': 'parallel'})
 
-            wait_for_parallel(results)
-
+            app.logger.info('Waiting for sync labels to complete')
+            for job, response in wait_for_jobs(jobs):
+                if response is None: continue
+                if Config.DEBUGGING: print('Processed sync labels for task {} and trapgroup {}'.format(task_id, job['kwargs']['trapgroup_id']))
+            app.logger.info('Sync labels completed')
         else:
             sync_labels(task_id,trapgroup_ids)
 
@@ -6187,15 +6193,18 @@ def prepTask(self, task_id, includes=None, translation=None, labels=None, auto_r
 
         # clean up labelgroup and cluster tags
         if parallel:
-            results = []
+            jobs = []
             for trapgroup_id in trapgroup_ids:
-                results.append(sync_tags.apply_async(kwargs={
+                jobs.append({'task': sync_tags, 'kwargs': {
                         'task_id': task_id,
                         'trapgroup_ids': [trapgroup_id]
-                },queue='parallel'))
+                }, 'queue': 'parallel'})
 
-            wait_for_parallel(results)
-
+            app.logger.info('Waiting for sync tags to complete')
+            for job, response in wait_for_jobs(jobs):
+                if response is None: continue
+                if Config.DEBUGGING: print('Processed sync tags for task {} and trapgroup {}'.format(task_id, job['kwargs']['trapgroup_id']))
+            app.logger.info('Sync tags completed')
         else:
             sync_tags(task_id,trapgroup_ids)
 
@@ -6203,15 +6212,18 @@ def prepTask(self, task_id, includes=None, translation=None, labels=None, auto_r
 
         # perform the rest of the old import tasks
         if parallel:
-            results = []
+            jobs = []
             for trapgroup_id in trapgroup_ids:
-                results.append(removeHumans.apply_async(kwargs={
+                jobs.append({'task': removeHumans, 'kwargs': {
                         'task_id': task_id,
                         'trapgroup_ids': [trapgroup_id]
-                },queue='parallel'))
+                }, 'queue': 'parallel'})
 
-            wait_for_parallel(results)
-
+            app.logger.info('Waiting for remove humans to complete')
+            for job, response in wait_for_jobs(jobs):
+                if response is None: continue
+                if Config.DEBUGGING: print('Processed remove humans for task {} and trapgroup {}'.format(task_id, job['kwargs']['trapgroup_id']))
+            app.logger.info('Remove humans completed')
         else:
             removeHumans(task_id,trapgroup_ids)
 
@@ -6224,11 +6236,15 @@ def prepTask(self, task_id, includes=None, translation=None, labels=None, auto_r
             # db.session.commit()
 
             if parallel:
-                results = []
+                jobs = []
                 for trapgroup_id in trapgroup_ids:
-                    results.append(classifyTask.apply_async(kwargs={'task': task_id, 'trapgroup_ids':[trapgroup_id]},queue='parallel'))
+                    jobs.append({'task': classifyTask, 'kwargs': {'task': task_id, 'trapgroup_ids': [trapgroup_id]}, 'queue': 'parallel'})
 
-                wait_for_parallel(results)
+                app.logger.info('Waiting for classify task to complete')
+                for job, response in wait_for_jobs(jobs):
+                    if response is None: continue
+                    if Config.DEBUGGING: print('Processed classify task for task {} and trapgroup {}'.format(task_id, job['kwargs']['trapgroup_id']))
+                app.logger.info('Classify task completed')
             else:
                 classifyTask(task=task_id,trapgroup_ids=trapgroup_ids)
 
@@ -6300,24 +6316,26 @@ def cluster_trapgroup(self,task_id,trapgroup_id,query_limit,timestamp,starting_l
 
     return True
 
-def wait_for_parallel(results):
-    ''' Function that handels the waiting logic for the specified set of celry jobs. '''
-    db.session.remove()
-    GLOBALS.lock.acquire()
-    with allow_join_result():
-        for result in results:
-            try:
-                result.get()
-            except Exception:
-                app.logger.info(' ')
-                app.logger.info('!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!')
-                app.logger.info(traceback.format_exc())
-                app.logger.info('!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!')
-                app.logger.info(' ')
+# def wait_for_parallel(results):
+#     ''' Function that handels the waiting logic for the specified set of celry jobs. '''
+#     # Using locking here as a workaround. Looks like celery result fetching is not threadsafe.
+#     # See https://github.com/celery/celery/issues/4480
+#     db.session.remove()
+#     GLOBALS.lock.acquire()
+#     with allow_join_result():
+#         for result in results:
+#             try:
+#                 result.get()
+#             except Exception:
+#                 app.logger.info(' ')
+#                 app.logger.info('!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!')
+#                 app.logger.info(traceback.format_exc())
+#                 app.logger.info('!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!')
+#                 app.logger.info(' ')
             
-            result.forget()
-    GLOBALS.lock.release()
-    return True
+#             result.forget()
+#     GLOBALS.lock.release()
+#     return True
 
 def setupTranslations(task_id, survey_id, translations, includes):
     '''
@@ -6894,27 +6912,17 @@ def launch_task(self,task_id,classify=False):
 
         # if not (any(item in taggingLevel for item in ['-4','-5','-6']) or isBounding):
         if not (any(item in taggingLevel for item in ['-4','-5','-7']) or isBounding):
-            results = []
+            jobs = []
             trapgroup_ids = [r[0] for r in db.session.query(Trapgroup.id).filter(Trapgroup.survey_id==task.survey_id).distinct().all()]
             for trapgroup_id in trapgroup_ids:
-                results.append(prep_required_images.apply_async(kwargs={'task_id': task_id, 'trapgroup_id':trapgroup_id},queue='parallel'))
-    
-            #Wait for processing to complete
-            db.session.remove()
-            GLOBALS.lock.acquire()
-            with allow_join_result():
-                for result in results:
-                    try:
-                        result.get()
-                    except Exception:
-                        app.logger.info(' ')
-                        app.logger.info('!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!')
-                        app.logger.info(traceback.format_exc())
-                        app.logger.info('!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!')
-                        app.logger.info(' ')
-                    
-                    result.forget()
-            GLOBALS.lock.release()
+                jobs.append({'task': prep_required_images, 'kwargs': {'task_id': task_id, 'trapgroup_id':trapgroup_id}, 'queue': 'parallel'})
+
+            if jobs:
+                app.logger.info('Waiting for prep required images to complete')
+                for job, response in wait_for_jobs(jobs):
+                    if response is None: continue
+                    if Config.DEBUGGING: print('Prepped required images for trapgroup {}'.format(job['kwargs']['trapgroup_id']))
+                app.logger.info('Prep required images completed')
 
         task = db.session.query(Task).get(task_id)
 
@@ -7047,16 +7055,17 @@ def process_detections_for_individual_id(task_ids,species,pose_only=False):
                 'image_path': d[7] + '/' + d[6]
             })
 
-        results = []
+        jobs = []
         for batch in chunker(det_data,500):
-            results.append(segment_and_pose.apply_async(kwargs={'batch': batch, 'sourceBucket': Config.BUCKET, 'species': species, 'pose_only':pose_only}, queue='similarity', routing_key='similarity.segment_and_pose'))
-        
+            jobs.append({'task': segment_and_pose, 'kwargs': {'batch': batch, 'sourceBucket': Config.BUCKET, 'species': species, 'pose_only':pose_only}, 'queue': 'similarity', 'options': {'routing_key': 'similarity.segment_and_pose'}})
+
         aid_list = []
-        GLOBALS.lock.acquire()
-        with allow_join_result():
-            for result in results:
+        app.logger.info('Waiting for segment and pose processing to complete')
+        if jobs:
+            for job, response in wait_for_jobs(jobs):
+                if response is None: continue
+                if Config.DEBUGGING: print('Processed segment and pose for batch {}'.format(job['kwargs']['batch'][0]))
                 try:
-                    response = result.get()
                     detections = db.session.query(Detection).filter(Detection.id.in_(response.keys())).all()
                     for detection in detections:
                         try:
@@ -7065,6 +7074,7 @@ def process_detections_for_individual_id(task_ids,species,pose_only=False):
                             if not pose_only:
                                 detection.aid = response[str(detection.id)]['aid']
                                 aid_list.append(detection.aid)
+
                         except Exception:
                             app.logger.info(' ')
                             app.logger.info('!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!')
@@ -7079,11 +7089,9 @@ def process_detections_for_individual_id(task_ids,species,pose_only=False):
                     app.logger.info('!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!')
                     app.logger.info(' ')
 
-                result.forget()
-        GLOBALS.lock.release()
-
         db.session.commit()
-        
+        app.logger.info('Segment and pose processing completed')
+
         if aid_list: 
             # Remove aids from delete_aid_list (safety check)
             for aid in aid_list: GLOBALS.redisClient.lrem('delete_aid_list', 0, aid)
@@ -7669,3 +7677,109 @@ def get_all_keys(d):
         if isinstance(v, dict):
             keys.extend(get_all_keys(v))
     return keys
+
+def known_task_ids(queues):
+    '''
+    Returns the ids of every task Celery still knows about - waiting in a queue, prefetched by a worker,
+    or currently running. Returns None if the cluster could not be reached, in which case no task may be
+    assumed lost.
+    '''
+    # kombu suffixes the queue key for non-default priorities
+    PRIORITY_SUFFIXES = ['', '\x06\x163', '\x06\x166', '\x06\x169']
+
+    try:
+        known = set()
+
+        for queue in queues:
+            for suffix in PRIORITY_SUFFIXES:
+                for message in GLOBALS.redisClient.lrange(queue + suffix, 0, -1):
+                    try:
+                        known.add(json.loads(message)['headers']['id'])
+                    except Exception:
+                        pass
+
+        inspector = celery.control.inspect(timeout=15)
+        replies = [inspector.active(), inspector.reserved(), inspector.scheduled()]
+        if not any(replies): return None
+
+        for reply in replies:
+            if not reply: continue
+            for worker_tasks in reply.values():
+                for task in worker_tasks:
+                    known.add(task['request']['id'] if 'request' in task else task['id'])
+
+        return known
+
+    except Exception:
+        # A broker hiccup must not be mistaken for tasks having been lost
+        app.logger.info('Could not establish which tasks Celery still knows about: {}'.format(traceback.format_exc()))
+        return None
+
+def dispatch_task(job):
+    '''Dispatches the task described by a job, returning its AsyncResult.'''
+    return job['task'].apply_async(kwargs=job['kwargs'], queue=job['queue'], **job.get('options', {}))
+
+def wait_for_jobs(jobs, poll=5, stall_timeout=300, max_attempts=3):   #TODO: Set stall_timeout to 1800 or something like that
+    '''
+    Dispatches a batch of parallel tasks and yields (job, result) as each completes, so that the caller
+    can get back anything else it stored on the job alongside the result. Failed tasks yield a result of
+    None. Any task Celery has lost track of is re-submitted, up to max_attempts times.
+
+    NOTE: this is a generator - it must be iterated for any of the work to happen.
+
+    jobs: list of {'task': someCeleryTask, 'kwargs': {...}, 'queue': 'parallel'}, optionally including:
+        'options': additional apply_async keyword arguments, such as a routing_key
+        'result': an AsyncResult, where the caller has already dispatched the task itself
+        any other keys the caller needs back alongside the result
+    '''
+    outstanding = {}
+    for job in jobs:
+        job['attempts'] = 1
+        if job.get('result') is None: job['result'] = dispatch_task(job)
+        outstanding[job['result'].id] = job
+
+    queues = {job['queue'] for job in jobs}
+    strikes = {}
+    last_progress = time.time()
+
+    while outstanding:
+        for task_id in list(outstanding):
+            result = AsyncResult(task_id, app=celery)
+            if not result.ready(): continue
+
+            job = outstanding.pop(task_id)
+            strikes.pop(task_id, None)
+            last_progress = time.time()
+            if not result.successful():
+                app.logger.info('Task {} failed with kwargs {}: {}'.format(job['task'].name, job['kwargs'], result.result))
+            try:
+                yield job, (result.result if result.successful() else None)
+            finally:
+                result.forget()
+
+        if not outstanding: break
+
+        if (time.time() - last_progress) > stall_timeout:
+            last_progress = time.time()
+            known = known_task_ids(queues)
+            if known is not None:
+                for task_id in list(outstanding):
+                    if task_id in known:
+                        strikes.pop(task_id, None)
+                        continue
+
+                    # only act on the second consecutive miss - a task can briefly be off the queue
+                    # but not yet reported as running
+                    strikes[task_id] = strikes.get(task_id, 0) + 1
+                    if strikes[task_id] < 2: continue
+
+                    job = outstanding.pop(task_id)
+                    strikes.pop(task_id)
+                    if job['attempts'] >= max_attempts:
+                        raise Exception('Task {} lost {} times with kwargs {}'.format(job['task'].name, job['attempts'], job['kwargs']))
+                    job['attempts'] += 1
+                    app.logger.info('Re-submitting lost task {} with kwargs {}'.format(job['task'].name, job['kwargs']))
+                    job['result'] = dispatch_task(job)
+                    outstanding[job['result'].id] = job
+
+        time.sleep(poll)

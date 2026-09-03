@@ -17,24 +17,18 @@ limitations under the License.
 from app import app, db, celery
 from app.models import *
 from app.functions.globals import coordinateDistance, retryTime, rDets, updateIndividualIdStatus, chunker, process_detections_for_individual_id, update_individuals_primary_dets,\
-    crop_image_to_individual
+    crop_image_to_individual, wait_for_jobs
 from app.functions.delete import delete_individuals_helper
 import GLOBALS
 import time
 from sqlalchemy.sql import func, or_, and_, alias, distinct
-from sqlalchemy.sql.expression import cast
-from sqlalchemy import desc
-import random
 import re
 import math
 from config import Config
 import os
 from multiprocessing.pool import ThreadPool as Pool
 import traceback
-import sqlalchemy as sa
 import shutil
-from celery.result import allow_join_result
-import pandas as pd
 
 # @celery.task(bind=True,max_retries=5,ignore_result=True)
 # def calculate_detection_similarities(self,task_ids,species,algorithm):
@@ -356,7 +350,7 @@ def calculate_detection_similarities(self,task_ids,species,algorithm):
                                             .join(Label,Labelgroup.labels)\
                                             .filter(Label.description==species))\
                                             .filter(Detection.aid!=None)
-            results = []
+            jobs = []
             ambiguous_flank = Config.FLANK_DB['ambiguous']
             flanks = [flank for flank in  Config.FLANK_DB.values() if flank != None and flank != ambiguous_flank]
             flanks = [ambiguous_flank] + flanks # Ensure ambiguous flank is processed first
@@ -427,10 +421,10 @@ def calculate_detection_similarities(self,task_ids,species,algorithm):
                                 if dets_2:
                                     if len(dets_2) > 5000:
                                         for chunk in chunker(dets_2,5000):
-                                            results.append(calculate_hotspotter_similarity.apply_async(kwargs={'batch': [{'query_ids': [det_1], 'db_ids': chunk}]}, queue='individual_id'))
+                                            jobs.append({'task': calculate_hotspotter_similarity, 'kwargs': {'batch': [{'query_ids': [det_1], 'db_ids': chunk}]}, 'queue': 'individual_id'})
                                     else:
                                         if (count_in_batch + len(dets_2)) > 5000:
-                                            results.append(calculate_hotspotter_similarity.apply_async(kwargs={'batch': batch}, queue='individual_id'))
+                                            jobs.append({'task': calculate_hotspotter_similarity, 'kwargs': {'batch': batch}, 'queue': 'individual_id'})
                                             batch = []
                                             count_in_batch = 0
                                         
@@ -441,23 +435,15 @@ def calculate_detection_similarities(self,task_ids,species,algorithm):
                                         count_in_batch += len(dets_2)
                                         
             if batch:
-                results.append(calculate_hotspotter_similarity.apply_async(kwargs={'batch': batch}, queue='individual_id'))
+                jobs.append({'task': calculate_hotspotter_similarity, 'kwargs': {'batch': batch}, 'queue': 'individual_id'})
 
             app.logger.info('Waiting for hotspotter similarity calculations to complete')
             db.session.remove()
-            GLOBALS.lock.acquire()
-            with allow_join_result():
-                for result in results:
-                    try:
-                        result.get()
-                    except Exception:
-                        app.logger.info(' ')
-                        app.logger.info('!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!')
-                        app.logger.info(traceback.format_exc())
-                        app.logger.info('!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!')
-                        app.logger.info(' ')
-                        result.forget()
-            GLOBALS.lock.release()
+            if jobs:
+                for job, response in wait_for_jobs(jobs):
+                    if response is None: continue
+                    if Config.DEBUGGING: print('Calculated hotspotter similarity for batch {}'.format(job['kwargs']['batch'][0]['query_ids']))
+            app.logger.info('Hotspotter similarity calculations completed')
 
         labels = db.session.query(Label).filter(Label.description==species).filter(Label.task_id.in_(task_ids)).all()
         for label in labels:
@@ -830,29 +816,20 @@ def calculate_individual_similarities(self,task_id,species,queue='parallel'):
         # task.survey.images_processing = total_individual_count
         # db.session.commit()
 
-        results = []
+        jobs = []
         if total_individual_count > 1:
             for individual1 in individuals1:
                 if individual1 in individuals2: individuals2.remove(individual1)
                 if individuals2:
-                    results.append(calculate_individual_similarity.apply_async(kwargs={'individual1':individual1,'individuals2':individuals2,'species':species},queue=queue))
+                    jobs.append({'task': calculate_individual_similarity, 'kwargs': {'individual1':individual1,'individuals2':individuals2,'species':species}, 'queue': queue})
             
         #Wait for processing to complete
         app.logger.info('Waiting for individual similarity calculations to complete')
         db.session.remove()
-        GLOBALS.lock.acquire()
-        with allow_join_result():
-            for result in results:
-                try:
-                    result.get()
-                except Exception:
-                    app.logger.info(' ')
-                    app.logger.info('!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!')
-                    app.logger.info(traceback.format_exc())
-                    app.logger.info('!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!')
-                    app.logger.info(' ')
-                result.forget()
-        GLOBALS.lock.release()
+        if jobs:
+            for job, response in wait_for_jobs(jobs):
+                if response is None: continue
+                if Config.DEBUGGING: print('Calculated individual similarity for individual {}'.format(job['kwargs']['individual1']))
 
         endTime = time.time()
         app.logger.info("All individual similarities completed in {}".format(endTime - OverallStartTime))

@@ -16,7 +16,7 @@ limitations under the License.
 
 from app import app, db, celery
 from app.models import *
-from app.functions.globals import retryTime, list_all, chunker, batch_crops, rDets, randomString, stringify_timestamp, getChildList, deleteFile
+from app.functions.globals import retryTime, list_all, chunker, batch_crops, randomString, stringify_timestamp, getChildList, deleteFile, wait_for_jobs
 import GLOBALS
 from sqlalchemy.sql import alias, func, or_, and_, distinct, case
 import re
@@ -25,7 +25,6 @@ import ast
 import boto3
 from config import Config
 import os
-from multiprocessing.pool import ThreadPool as Pool
 import tempfile
 import traceback
 import piexif
@@ -38,14 +37,12 @@ import pandas as pd
 import json
 import io
 from celery.result import allow_join_result
-import redis
 from datetime import datetime, timedelta
 import numpy as np
 from app.functions.imports import s3traverse
 from app.functions.permissions import surveyPermissionsSQ
 import zipfile
 import csv
-import tracemalloc
 
 def translate(labels, dictionary):
     '''
@@ -794,7 +791,7 @@ def generate_csv_parent(self,selectedTasks, selectedLevel, requestedColumns, cus
             # Large csv, let's parallelise
             trapgroup_data = db.session.query(Trapgroup.id,func.count(Detection.id)).filter(Trapgroup.survey_id==task.survey_id).join(Camera).join(Image).join(Detection).group_by(Trapgroup.id).all()
             trapgroup_filenames = []
-            results = []
+            jobs = []
             for trapgroup_id, count in trapgroup_data:
                 trapgroup_filename = task.survey.organisation.name+'_'+user_name+'_'+task.survey.name+'_'+str(trapgroup_id)+'_'+randomness+'.csv'
                 trapgroup_filenames.append(trapgroup_filename)
@@ -814,27 +811,17 @@ def generate_csv_parent(self,selectedTasks, selectedLevel, requestedColumns, cus
                     'required_columns':required_columns
                 }
                 if count < 400000:
-                    results.append(generate_csv.apply_async(kwargs=kwargs, queue='parallel'))
+                    jobs.append({'task': generate_csv, 'kwargs': kwargs, 'queue': 'parallel'})
                 else:
-                    results.append(generate_csv.apply_async(kwargs=kwargs, queue='ram_intensive'))
-            
-            if results:
-                #Wait for processing to complete
+                    jobs.append({'task': generate_csv, 'kwargs': kwargs, 'queue': 'ram_intensive'})
+
+            app.logger.info('Waiting for CSV generation to complete')
+            if jobs:
                 db.session.remove()
-                GLOBALS.lock.acquire()
-                with allow_join_result():
-                    for result in results:
-                        try:
-                            result.get()
-                        except Exception:
-                            app.logger.info(' ')
-                            app.logger.info('!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!')
-                            app.logger.info(traceback.format_exc())
-                            app.logger.info('!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!')
-                            app.logger.info(' ')
-                        
-                        result.forget()
-                GLOBALS.lock.release()
+                for job, response in wait_for_jobs(jobs):
+                    if response is None: continue
+                    if Config.DEBUGGING: print('Generated csv for trapgroup {}'.format(job['kwargs']['trapgroup_id']))
+            app.logger.info('CSV generation completed')
 
             with tempfile.NamedTemporaryFile(delete=True, suffix='.csv') as temp_output_file:
                 with open(temp_output_file.name, "w", newline='') as outfile:
@@ -1991,25 +1978,16 @@ def crop_survey_images(self,task_id,min_area,destBucket,include_empties=False):
         # Drop detections
         df = df.drop_duplicates(subset=['detection_id'], keep=False)
 
-        results = []
+        jobs = []
         for chunk in chunker(df['image_id'].unique(),10000):
-            results.append(batch_crops.apply_async(kwargs={'image_ids':[int(r) for r in chunk],'source':None,'min_area':min_area,'destBucket':destBucket,'external':False,'update_image_info':False},queue='default'))
+            jobs.append({'task': batch_crops, 'kwargs': {'image_ids':[int(r) for r in chunk],'source':None,'min_area':min_area,'destBucket':destBucket,'external':False,'update_image_info':False}, 'queue': 'default'})
 
-        # Using locking here as a workaround. Looks like celery result fetching is not threadsafe.
-        # See https://github.com/celery/celery/issues/4480
-        GLOBALS.lock.acquire()
-        with allow_join_result():
-            for result in results:
-                try:
-                    result.get()
-                except Exception:
-                    app.logger.info(' ')
-                    app.logger.info('!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!')
-                    app.logger.info(traceback.format_exc())
-                    app.logger.info('!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!')
-                    app.logger.info(' ')
-                result.forget()
-        GLOBALS.lock.release()
+        app.logger.info('Waiting for survey image cropping to complete')
+        if jobs:
+            for job, response in wait_for_jobs(jobs):
+                if response is None: continue
+                if Config.DEBUGGING: print('Cropped survey images')
+        app.logger.info('Survey image cropping completed')
 
         # task.survey.images_processing = 0
         # task.survey.status='Ready'
