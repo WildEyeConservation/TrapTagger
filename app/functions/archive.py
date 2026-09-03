@@ -213,6 +213,7 @@ def extract_zips(self,task_id,zip_ids):
         for zip_key in zip_keys:
             jobs.append({'task': extract_zip, 'kwargs': {'zip_key':zip_key}, 'queue': 'parallel'})
 
+        db.session.remove()
         app.logger.info('Waiting for zip extraction to complete')
         if jobs:
             for job, response in wait_for_jobs(jobs):
@@ -890,7 +891,8 @@ def process_files_for_download(self,task_id,download_request_id,zips):
                 if not check:
                     jobs.append({'task': extract_zip, 'kwargs': {'zip_key':zip_key}, 'queue': 'parallel'})
 
-            if jobs: 
+            if jobs:
+                db.session.remove()
                 app.logger.info('Waiting for zip extraction to complete')
                 for job, response in wait_for_jobs(jobs):
                     if response is None: continue

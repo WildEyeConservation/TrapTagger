@@ -1231,6 +1231,7 @@ def processStaticDetections(survey_id):
     for cameragroup_id in cameragroup_ids:
         jobs.append({'task': processCameraStaticDetections, 'kwargs': {'cameragroup_id':cameragroup_id}, 'queue': 'parallel'})
 
+    db.session.remove()
     app.logger.info('Waiting for static detections processing to complete')
     if jobs:
         for job, response in wait_for_jobs(jobs):
@@ -4226,6 +4227,7 @@ def pipeline_survey(self,surveyName,bucketName,dataSource,fileAttached,trapgroup
                         jobs.append({'task': extract_dirpath_labels, 'kwargs': {'label_id':translations[species],'dirpath':dirpath,'filenames':filenames,'task_id':task_id,'survey_id':survey_id}, 'queue': 'parallel'})
 
                 if jobs:
+                    db.session.remove()
                     app.logger.info('Waiting for extract dirpath labels to complete')
                     for job, response in wait_for_jobs(jobs):
                         if response is None: continue

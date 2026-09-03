@@ -6148,6 +6148,7 @@ def prepTask(self, task_id, includes=None, translation=None, labels=None, auto_r
                         'added_files': added_files
                 }, 'queue': 'parallel'})
 
+            db.session.remove()
             app.logger.info('Waiting for cluster trapgroup to complete')
             for job, response in wait_for_jobs(jobs):
                 if response is None: continue
@@ -6181,6 +6182,7 @@ def prepTask(self, task_id, includes=None, translation=None, labels=None, auto_r
                         'trapgroup_ids': [trapgroup_id]
                 }, 'queue': 'parallel'})
 
+            db.session.remove()
             app.logger.info('Waiting for sync labels to complete')
             for job, response in wait_for_jobs(jobs):
                 if response is None: continue
@@ -6200,6 +6202,7 @@ def prepTask(self, task_id, includes=None, translation=None, labels=None, auto_r
                         'trapgroup_ids': [trapgroup_id]
                 }, 'queue': 'parallel'})
 
+            db.session.remove()
             app.logger.info('Waiting for sync tags to complete')
             for job, response in wait_for_jobs(jobs):
                 if response is None: continue
@@ -6219,6 +6222,7 @@ def prepTask(self, task_id, includes=None, translation=None, labels=None, auto_r
                         'trapgroup_ids': [trapgroup_id]
                 }, 'queue': 'parallel'})
 
+            db.session.remove()
             app.logger.info('Waiting for remove humans to complete')
             for job, response in wait_for_jobs(jobs):
                 if response is None: continue
@@ -6240,6 +6244,7 @@ def prepTask(self, task_id, includes=None, translation=None, labels=None, auto_r
                 for trapgroup_id in trapgroup_ids:
                     jobs.append({'task': classifyTask, 'kwargs': {'task': task_id, 'trapgroup_ids': [trapgroup_id]}, 'queue': 'parallel'})
 
+                db.session.remove()
                 app.logger.info('Waiting for classify task to complete')
                 for job, response in wait_for_jobs(jobs):
                     if response is None: continue
@@ -6918,6 +6923,7 @@ def launch_task(self,task_id,classify=False):
                 jobs.append({'task': prep_required_images, 'kwargs': {'task_id': task_id, 'trapgroup_id':trapgroup_id}, 'queue': 'parallel'})
 
             if jobs:
+                db.session.remove()
                 app.logger.info('Waiting for prep required images to complete')
                 for job, response in wait_for_jobs(jobs):
                     if response is None: continue
@@ -7062,6 +7068,7 @@ def process_detections_for_individual_id(task_ids,species,pose_only=False):
         aid_list = []
         app.logger.info('Waiting for segment and pose processing to complete')
         if jobs:
+            db.session.remove()
             for job, response in wait_for_jobs(jobs):
                 if response is None: continue
                 if Config.DEBUGGING: print('Processed segment and pose for batch {}'.format(job['kwargs']['batch'][0]))
