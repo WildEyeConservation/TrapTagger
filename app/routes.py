@@ -170,6 +170,8 @@ def launchTask():
     '''
 
     task_ids = ast.literal_eval(request.form['selectedTasks'])
+    if not isinstance(task_ids, list) or not all(isinstance(t, int) for t in task_ids):
+        return json.dumps('error')
     taskSize = request.form['taskSize']
     taggingLevel = request.form['taskTaggingLevel']
     isBounding = request.form['isBounding']
