@@ -560,8 +560,8 @@ limitations under the License. -->
 
             <div class="tab" id="editSurveyTabs">
                 <button id="openAddCoordinatesTab" class="tablinks" onclick="changeEditSurveyTab(event, 'baseAddCoordinatesTab')">Coordinates</button>
-                <button id="openEditTimestampsTab" class="tablinks" onclick="changeEditSurveyTab(event, 'baseEditTimestampsTab')">Camera Timestamps</button>
-                <button id="openEditImgTimestampsTab" class="tablinks" onclick="changeEditSurveyTab(event, 'baseEditImgTimestampsTab')">File Timestamps</button>
+                <!-- <button id="openEditTimestampsTab" class="tablinks" onclick="changeEditSurveyTab(event, 'baseEditTimestampsTab')">Camera Timestamps</button> -->
+                <button id="openEditImgTimestampsTab" class="tablinks" onclick="changeEditSurveyTab(event, 'baseEditImgTimestampsTab')">Timestamps</button>
                 <button id="openEditClassifierTab" class="tablinks" onclick="changeEditSurveyTab(event, 'baseEditClassifierTab')">Species Classifier</button>
                 <button id="openAreaTab" class="tablinks" onclick="changeEditSurveyTab(event, 'baseAreaTab')">Area</button>
                 <button id="openAdvancedTab" class="tablinks" onclick="changeEditSurveyTab(event, 'baseAdvancedTab')">Advanced Options</button>
@@ -575,11 +575,23 @@ limitations under the License. -->
                 <div class="tabcontent" id="baseAddCoordinatesTab">
                     <div id="editCoordsDiv"></div>
                 </div>
-                <div class="tabcontent" id="baseEditTimestampsTab">
+                <!-- <div class="tabcontent" id="baseEditTimestampsTab">
                     <div id="editTimestampsDiv"></div>
-                </div>
+                </div> -->
                 <div class="tabcontent" id="baseEditImgTimestampsTab">
-                    <div id="editImgTimestampsDiv"></div>
+                    <h5 style="margin-bottom: 2px">Timestamps</h5>
+                    <div class="custom-control custom-radio custom-control-inline">
+                        <input type="radio" class="custom-control-input" id="shiftTimestampsSelect" name="timestampsSelection" value="customEx" checked="true">   
+                        <label class="custom-control-label" for="shiftTimestampsSelect">Shift Timestamps</label>
+                    </div>
+                    <div class="custom-control custom-radio custom-control-inline">
+                        <input type="radio" class="custom-control-input" id="editFileTimestampsSelect" name="timestampsSelection" value="customEx">
+                        <label class="custom-control-label" for="editFileTimestampsSelect">Missing/AI Extracted Timestamps</label>
+                    </div>
+                    <br>
+                    <br>
+                    <div id="editShiftTimestampsDiv"></div>
+                    <div id="editImgTimestampsDiv" style="display: none"></div>
                 </div>
                 <div class="tabcontent" id="baseEditClassifierTab">
                     <div id="editClassifierDiv"></div>
@@ -2553,6 +2565,36 @@ limitations under the License. -->
                 <div class="col-lg-3">
                     <button id="btnConfirmCloseMF" type="button" class="btn btn-danger btn-block" 
                     data-dismiss="modal">Discard</button>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div id="modalCalculateTsShift" class="modal fade" role="dialog" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h4 class="modal-title">Calculate Timestamp Shift</h4>
+                <button type="button" class="close" data-dismiss="modal">&times;</button>
+            </div>
+            <div class="modal-body">
+                <div style="font-size: 80%; margin-bottom: 12px">
+                    <i>Help calculate the timestamp shift by entering an incorrect timestamp and what it should be. Use format YYYY/MM/DD HH:MM:SS.</i>
+                </div>
+                <label for="tsCalcIncorrect" style="margin-bottom: 2px">Incorrect timestamp</label>
+                <input type="text" id="tsCalcIncorrect" class="form-control" placeholder="YYYY/MM/DD HH:MM:SS">
+                <label for="tsCalcCorrect" style="margin-bottom: 2px">Correct timestamp</label>
+                <input type="text" id="tsCalcCorrect" class="form-control"placeholder="YYYY/MM/DD HH:MM:SS">
+                <div id="tsCalcPreview" style="font-size: 80%; font-style: italic; margin-top: 10px"></div>
+                <div id="tsCalcError" style="font-size: 80%; color: #DF691A; margin-top: 4px"></div>
+            </div>
+            <div class="modal-footer">
+                <div class="col-lg-3">
+                    <button type="button" class="btn btn-info btn-block" data-dismiss="modal">Cancel</button>
+                </div>
+                <div class="col-lg-3">
+                    <button type="button" id="btnUseTsCalcShift" class="btn btn-primary btn-block" disabled>Use Shift</button>
                 </div>
             </div>
         </div>

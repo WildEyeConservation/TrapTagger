@@ -389,6 +389,7 @@ def launchTask():
             for sub_task in task.sub_tasks:
                 sub_task.status = 'ID Processing'
                 sub_task.survey.status = 'Launched'
+                sub_task.sub_tasks = []
 
         task.size = taskSize
         task.tagging_level = taggingLevel
@@ -2453,6 +2454,15 @@ def editSurvey():
             imageTimestamps = ast.literal_eval(request.form['imageTimestamps'])
             if len(imageTimestamps)==0: imageTimestamps = None
 
+        shiftTimestamps = None
+        if 'shiftTimestamps' in request.form:
+            shiftTimestamps = ast.literal_eval(request.form['shiftTimestamps'])
+            if 'images' not in shiftTimestamps or 'videos' not in shiftTimestamps: 
+                shiftTimestamps = None
+            else:
+                if len(shiftTimestamps['images'])==0 and len(shiftTimestamps['videos'])==0:
+                    shiftTimestamps = None
+
         kml = None
         if 'kml' in request.files:
             uploaded_file = request.files['kml']
@@ -2562,8 +2572,9 @@ def editSurvey():
                     edit_area_option = None
 
         if status == 'success':
-            if classifier_id or ignore_small_detections!=None or sky_masked!=None or timestamps or coordData or masks or staticgroups or kml or imageTimestamps or edit_area_option:
-                app.logger.info('Edit survey requested for {} with classifier: {}, ignore_small_detections: {}, sky_masked: {}, timestamps: {}, coordData: {}, masks: {}, staticgroups: {}, kml: {}, imageTimestamps: {}, edit_area_option: {}'.format(survey.name,classifier_id,ignore_small_detections,sky_masked,timestamps,coordData,masks,staticgroups,kml,imageTimestamps,edit_area_option))
+            if classifier_id or ignore_small_detections!=None or sky_masked!=None or timestamps or coordData or masks or staticgroups or kml or imageTimestamps or shiftTimestamps or edit_area_option:
+                shiftFlag = True if shiftTimestamps else None
+                app.logger.info('Edit survey requested for {} with classifier: {}, ignore_small_detections: {}, sky_masked: {}, timestamps: {}, coordData: {}, masks: {}, staticgroups: {}, kml: {}, imageTimestamps: {}, shiftFlag: {}, edit_area_option: {}'.format(survey.name,classifier_id,ignore_small_detections,sky_masked,timestamps,coordData,masks,staticgroups,kml,imageTimestamps,shiftFlag,edit_area_option))
                 if classifier_id and survey.classifier_id != classifier_id:
                     if Config.DISABLE_RESTORE:
                         status = 'error'
@@ -2571,15 +2582,19 @@ def editSurvey():
                     else:
                         survey.status = 'Processing'
                         db.session.commit()
-                        edit_survey_args = {'survey_id':survey.id,'user_id':current_user.id,'classifier_id':classifier_id,'ignore_small_detections':ignore_small_detections,'sky_masked':sky_masked,'timestamps':timestamps,'coord_data':coordData,'masks':masks,'staticgroups':staticgroups,'kml_file':kml,'image_timestamps':imageTimestamps, 'edit_area_option': edit_area_option}
+                        if shiftTimestamps:
+                            GLOBALS.redisClient.set('shift_timestamps_{}'.format(survey_id),json.dumps(shiftTimestamps))
+                        edit_survey_args = {'survey_id':survey.id,'user_id':current_user.id,'classifier_id':classifier_id,'ignore_small_detections':ignore_small_detections,'sky_masked':sky_masked,'timestamps':timestamps,'coord_data':coordData,'masks':masks,'staticgroups':staticgroups,'kml_file':kml,'image_timestamps':imageTimestamps, 'shift_flag':shiftFlag, 'edit_area_option': edit_area_option}
                         GLOBALS.redisClient.set('edit_survey_{}'.format(survey_id),json.dumps(edit_survey_args))
                         restore_images_for_classification.delay(survey_id=survey.id,days=Config.EDIT_RESTORE_DAYS,edit_survey_args=edit_survey_args,tier=Config.RESTORE_TIER,restore_time=Config.RESTORE_TIME)
                 else:
                     survey.status = 'Processing'
                     db.session.commit()
-                    edit_survey_args = {'survey_id':survey.id,'user_id':current_user.id,'classifier_id':classifier_id,'ignore_small_detections':ignore_small_detections,'sky_masked':sky_masked,'timestamps':timestamps,'coord_data':coordData,'masks':masks,'staticgroups':staticgroups,'kml_file':kml,'image_timestamps':imageTimestamps, 'edit_area_option': edit_area_option}
+                    if shiftTimestamps:
+                        GLOBALS.redisClient.set('shift_timestamps_{}'.format(survey_id),json.dumps(shiftTimestamps))
+                    edit_survey_args = {'survey_id':survey.id,'user_id':current_user.id,'classifier_id':classifier_id,'ignore_small_detections':ignore_small_detections,'sky_masked':sky_masked,'timestamps':timestamps,'coord_data':coordData,'masks':masks,'staticgroups':staticgroups,'kml_file':kml,'image_timestamps':imageTimestamps, 'shift_flag':shiftFlag, 'edit_area_option': edit_area_option}
                     GLOBALS.redisClient.set('edit_survey_{}'.format(survey_id),json.dumps(edit_survey_args))
-                    edit_survey.delay(survey_id=survey.id,user_id=current_user.id,classifier_id=classifier_id,ignore_small_detections=ignore_small_detections,sky_masked=sky_masked,timestamps=timestamps,coord_data=coordData,masks=masks,staticgroups=staticgroups,kml_file=kml,image_timestamps=imageTimestamps,edit_area_option=edit_area_option)
+                    edit_survey.delay(survey_id=survey.id,user_id=current_user.id,classifier_id=classifier_id,ignore_small_detections=ignore_small_detections,sky_masked=sky_masked,timestamps=timestamps,coord_data=coordData,masks=masks,staticgroups=staticgroups,kml_file=kml,image_timestamps=imageTimestamps,shift_flag=shiftFlag,edit_area_option=edit_area_option)
 
     else:
         status = 'error'
@@ -14947,7 +14962,7 @@ def getStaticCameragroups(survey_id):
     cameragroups = []
     survey = db.session.query(Survey).get(survey_id)
     if survey and checkSurveyPermission(current_user.id,survey.id,'write'):
-        cameragroups = db.session.query(Cameragroup.id, Cameragroup.name)\
+        cameragroups = db.session.query(Cameragroup.id, Cameragroup.name, Trapgroup.tag)\
                                 .join(Camera, Camera.cameragroup_id==Cameragroup.id)\
                                 .join(Trapgroup, Trapgroup.id==Camera.trapgroup_id)\
                                 .join(Image)\
@@ -14958,9 +14973,12 @@ def getStaticCameragroups(survey_id):
                                 .order_by(Cameragroup.name)\
                                 .distinct().all()
 
-                                
-        for i in range(len(cameragroups)):
-            cameragroups[i] = {'id': cameragroups[i][0], 'name': cameragroups[i][1]}
+        check_names = [c[1] for c in cameragroups]
+        unique_cam_names = False if len(check_names) != len(set(check_names)) else True
+        if unique_cam_names:
+            cameragroups = [{'id': c[0], 'name': c[1]} for c in cameragroups]
+        else:
+            cameragroups = [{'id': c[0], 'name': c[2] + ' - ' + c[1]} for c in cameragroups]
     
     return json.dumps(cameragroups)
 
@@ -18615,3 +18633,131 @@ def getLabelHierarchyIndividual(individual_id):
         if overlap_labels: overlap_labels.sort()
 
     return json.dumps({'label_hierarchy': reply, 'overlap_labels': overlap_labels, 'species': species})
+
+@app.route('/getTimeshiftFiles/<cameragroup_id>', methods=['POST'])
+@login_required
+def getTimeshiftFiles(cameragroup_id):
+    '''Returns a list of filenames for a specific camera for the timeshift editor'''
+    reply = {'files': []} 
+    filenames = []
+    cameragroup = db.session.query(Cameragroup).get(cameragroup_id)
+    time_type = ast.literal_eval(request.form['time_type'])
+    if 'startDate' in request.form:
+        startDate = ast.literal_eval(request.form['startDate'])
+    else:
+        startDate = None
+    if 'endDate' in request.form:
+        endDate = ast.literal_eval(request.form['endDate'])
+    else:
+        endDate = None
+
+    if 'img_page' in request.form:
+        img_page = ast.literal_eval(request.form['img_page'])
+    else:
+        img_page = 1
+    if 'vid_page' in request.form:
+        vid_page = ast.literal_eval(request.form['vid_page'])
+    else:
+        vid_page = 1
+
+    if cameragroup and checkSurveyPermission(current_user.id,cameragroup.cameras[0].trapgroup.survey_id,'read'):
+        if time_type == 'original':
+            images = db.session.query(Image.id, Image.filename, Camera.path, Image.timestamp)\
+                        .join(Camera)\
+                        .filter(Camera.cameragroup_id==cameragroup_id)\
+                        .filter(Image.timestamp!=None)
+
+            video_image_subquery = db.session.query(
+                        Video.id.label("video_id"),
+                        Image.timestamp.label("timestamp"),
+                        Image.filename.label("image_filename"),
+                        func.row_number().over(
+                            partition_by=Video.id,
+                            order_by=(Image.timestamp, Image.filename)
+                        ).label("rn")
+                    )\
+                    .join(Camera, Camera.id == Video.camera_id)\
+                    .join(Image, Image.camera_id == Camera.id)\
+                    .filter(Camera.cameragroup_id == cameragroup_id)\
+                    .filter(Image.timestamp!=None)
+
+            if startDate:
+                images = images.filter(Image.timestamp >= startDate)
+                video_image_subquery = video_image_subquery.filter(Image.timestamp >= startDate)
+            if endDate:
+                images = images.filter(Image.timestamp <= endDate)
+                video_image_subquery = video_image_subquery.filter(Image.timestamp <= endDate)
+
+            video_image_subquery = video_image_subquery.subquery()
+        else:
+            images = db.session.query(Image.id, Image.filename, Camera.path, Image.corrected_timestamp)\
+                        .join(Camera)\
+                        .filter(Camera.cameragroup_id==cameragroup_id)\
+                        .filter(Image.corrected_timestamp!=None)
+
+            video_image_subquery = db.session.query(
+                        Video.id.label("video_id"),
+                        Image.corrected_timestamp.label("timestamp"),
+                        Image.filename.label("image_filename"),
+                        func.row_number().over(
+                            partition_by=Video.id,
+                            order_by=(Image.corrected_timestamp, Image.filename)
+                        ).label("rn")
+                    )\
+                    .join(Camera, Camera.id == Video.camera_id)\
+                    .join(Image, Image.camera_id == Camera.id)\
+                    .filter(Camera.cameragroup_id == cameragroup_id)\
+                    .filter(Image.corrected_timestamp!=None)
+
+            if startDate:
+                images = images.filter(Image.corrected_timestamp >= startDate)
+                video_image_subquery = video_image_subquery.filter(Image.corrected_timestamp >= startDate)
+            if endDate:
+                images = images.filter(Image.corrected_timestamp <= endDate)
+                video_image_subquery = video_image_subquery.filter(Image.corrected_timestamp <= endDate)
+
+            video_image_subquery = video_image_subquery.subquery()
+
+        # images = images.filter(~Camera.videos.any()).order_by(Image.filename).distinct().all()
+        images = images.filter(~Camera.videos.any()).order_by(Image.filename).paginate(img_page, 10000, False)
+                
+        videos = db.session.query(
+                            Video.id, 
+                            Video.filename,
+                            Camera.path, 
+                            video_image_subquery.c.timestamp, 
+                            video_image_subquery.c.image_filename
+                        )\
+                        .join(Camera)\
+                        .join(video_image_subquery, video_image_subquery.c.video_id == Video.id)\
+                        .filter(Camera.cameragroup_id==cameragroup_id)\
+                        .filter(video_image_subquery.c.timestamp!=None)\
+                        .filter(video_image_subquery.c.rn == 1)
+
+        videos = videos.order_by(Video.filename).distinct().paginate(vid_page, 10000, False)
+
+        for img in images.items:
+            filenames.append({
+                'id': img[0],
+                'name': img[1],
+                'folder': '/'.join(img[2].split('/')[2:]),
+                'timestamp': stringify_timestamp(img[3]),
+                'type': 'image'
+            })
+        for vid in videos.items:
+            vid_path = vid[2].split('/_video_images_/')[0]
+            filenames.append({
+                'id': vid[0],
+                'name': vid[1],
+                'folder': '/'.join(vid_path.split('/')[2:]),
+                'timestamp': stringify_timestamp(vid[3]),
+                'type': 'video'
+            })
+
+        filenames = sorted(filenames, key=lambda x: x['name'])
+
+        reply['files'] = filenames
+        reply['img_next'] = images.next_num
+        reply['vid_next'] = videos.next_num
+
+    return json.dumps(reply)
