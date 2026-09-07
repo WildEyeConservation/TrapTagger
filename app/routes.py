@@ -15629,7 +15629,7 @@ def addImage():
 
     api_key = request.headers.get('apikey')
     try:
-        hashed_key = hashlib.md5(api_key.encode()).hexdigest()
+        hashed_key = hashlib.sha256(api_key.encode()).hexdigest()
     except:
         hashed_key = None
     if hashed_key is None or hashed_key == '':
@@ -15900,7 +15900,7 @@ def testSetup():
 
     api_key = request.headers.get('apikey')
     try:
-        hashed_key = hashlib.md5(api_key.encode()).hexdigest()
+        hashed_key = hashlib.sha256(api_key.encode()).hexdigest()
     except:
         hashed_key = None
     if hashed_key is None or hashed_key == '':
