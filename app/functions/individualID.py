@@ -836,7 +836,7 @@ def calculate_individual_similarities(self,task_id,species,queue='parallel'):
             for individual1 in individuals1:
                 if individual1 in individuals2: individuals2.remove(individual1)
                 if individuals2:
-                    jobs.append({'task': calculate_individual_similarity, 'kwargs': {'individual1':individual1,'individuals2':individuals2,'species':species}, 'queue': queue})
+                    jobs.append({'task': calculate_individual_similarity, 'kwargs': {'individual1':individual1,'individuals2':individuals2.copy(),'species':species}, 'queue': queue})
             
         #Wait for processing to complete
         app.logger.info('Waiting for individual similarity calculations to complete')
