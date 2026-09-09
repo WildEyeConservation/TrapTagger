@@ -6245,10 +6245,7 @@ def prepTask(self, task_id, includes=None, translation=None, labels=None, auto_r
         if parallel:
             jobs = []
             for trapgroup_id in trapgroup_ids:
-                jobs.append({'task': sync_labels, 'kwargs': {
-                        'task_id': task_id,
-                        'trapgroup_ids': [trapgroup_id]
-                }, 'queue': 'parallel'})
+                jobs.append({'task': sync_labels, 'kwargs': {'task_id': task_id, 'trapgroup_ids': [trapgroup_id]}, 'queue': 'parallel'})
 
             db.session.remove()
             app.logger.info('Waiting for sync labels to complete')
@@ -6265,10 +6262,7 @@ def prepTask(self, task_id, includes=None, translation=None, labels=None, auto_r
         if parallel:
             jobs = []
             for trapgroup_id in trapgroup_ids:
-                jobs.append({'task': sync_tags, 'kwargs': {
-                        'task_id': task_id,
-                        'trapgroup_ids': [trapgroup_id]
-                }, 'queue': 'parallel'})
+                jobs.append({'task': sync_tags, 'kwargs': {'task_id': task_id, 'trapgroup_ids': [trapgroup_id]}, 'queue': 'parallel'})
 
             db.session.remove()
             app.logger.info('Waiting for sync tags to complete')
@@ -6285,10 +6279,7 @@ def prepTask(self, task_id, includes=None, translation=None, labels=None, auto_r
         if parallel:
             jobs = []
             for trapgroup_id in trapgroup_ids:
-                jobs.append({'task': removeHumans, 'kwargs': {
-                        'task_id': task_id,
-                        'trapgroup_ids': [trapgroup_id]
-                }, 'queue': 'parallel'})
+                jobs.append({'task': removeHumans, 'kwargs': {'task_id': task_id, 'trapgroup_ids': [trapgroup_id]}, 'queue': 'parallel'})
 
             db.session.remove()
             app.logger.info('Waiting for remove humans to complete')
@@ -7901,6 +7892,7 @@ def known_task_ids(queues):
                 for task in worker_tasks:
                     known.add(task['request']['id'] if 'request' in task else task['id'])
 
+        if Config.DEBUGGING: app.logger.info(f'Known tasks: {known}')
         return known
 
     except Exception:
@@ -7953,6 +7945,7 @@ def wait_for_jobs(jobs, poll=5, stall_timeout=300, max_attempts=3):   #TODO: Set
         if not outstanding: break
 
         if (time.time() - last_progress) > stall_timeout:
+            if Config.DEBUGGING: app.logger.info(f'Stall timeout reached: {time.time() - last_progress}')
             last_progress = time.time()
             known = known_task_ids(queues)
             if known is not None:
@@ -7964,6 +7957,7 @@ def wait_for_jobs(jobs, poll=5, stall_timeout=300, max_attempts=3):   #TODO: Set
                     # only act on the second consecutive miss - a task can briefly be off the queue
                     # but not yet reported as running
                     strikes[task_id] = strikes.get(task_id, 0) + 1
+                    if Config.DEBUGGING: app.logger.info(f'Strikes for task {task_id}: {strikes[task_id]}')
                     if strikes[task_id] < 2: continue
 
                     job = outstanding.pop(task_id)

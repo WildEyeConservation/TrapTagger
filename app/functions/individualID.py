@@ -421,10 +421,20 @@ def calculate_detection_similarities(self,task_ids,species,algorithm):
                                 if dets_2:
                                     if len(dets_2) > 5000:
                                         for chunk in chunker(dets_2,5000):
-                                            jobs.append({'task': calculate_hotspotter_similarity, 'kwargs': {'batch': [{'query_ids': [det_1], 'db_ids': chunk}]}, 'queue': 'individual_id'})
+                                            jobs.append({
+                                                'task': calculate_hotspotter_similarity, 
+                                                'kwargs': {'batch': [{'query_ids': [det_1], 'db_ids': chunk}]}, 
+                                                'queue': 'individual_id',
+                                                'result': calculate_hotspotter_similarity.apply_async(kwargs={'batch': [{'query_ids': [det_1], 'db_ids': chunk}]},queue='individual_id')
+                                            })
                                     else:
                                         if (count_in_batch + len(dets_2)) > 5000:
-                                            jobs.append({'task': calculate_hotspotter_similarity, 'kwargs': {'batch': batch}, 'queue': 'individual_id'})
+                                            jobs.append({
+                                                'task': calculate_hotspotter_similarity, 
+                                                'kwargs': {'batch': batch}, 
+                                                'queue': 'individual_id',
+                                                'result': calculate_hotspotter_similarity.apply_async(kwargs={'batch': batch},queue='individual_id')
+                                            })
                                             batch = []
                                             count_in_batch = 0
                                         
@@ -435,7 +445,12 @@ def calculate_detection_similarities(self,task_ids,species,algorithm):
                                         count_in_batch += len(dets_2)
                                         
             if batch:
-                jobs.append({'task': calculate_hotspotter_similarity, 'kwargs': {'batch': batch}, 'queue': 'individual_id'})
+                jobs.append({
+                    'task': calculate_hotspotter_similarity, 
+                    'kwargs': {'batch': batch}, 
+                    'queue': 'individual_id',
+                    'result': calculate_hotspotter_similarity.apply_async(kwargs={'batch': batch},queue='individual_id')
+                })
 
             app.logger.info('Waiting for hotspotter similarity calculations to complete')
             db.session.remove()

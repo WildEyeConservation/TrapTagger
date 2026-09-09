@@ -2180,7 +2180,13 @@ def runClassifier(self,lower_index,upper_index,sourceBucket,batch_size,cameragro
                         app.logger.info(' ')
 
                 if len(batch['images'].keys()) >= 0:
-                    jobs.append({'task': classify, 'kwargs': {'batch': batch}, 'queue': classifier_queue, 'options': {'routing_key': 'classification.classify'}})
+                    jobs.append({
+                        'task': classify, 
+                        'kwargs': {'batch': batch}, 
+                        'queue': classifier_queue, 
+                        'options': {'routing_key': 'classification.classify'},
+                        'result': classify.apply_async(kwargs={'batch': batch},queue=classifier_queue,routing_key='classification.classify')
+                    })
 
             if Config.DEBUGGING: print('{} results to fetch'.format(len(jobs)))
 
@@ -2587,7 +2593,13 @@ def import_folder(s3Folder, survey_id, sourceBucket,destinationBucket,pipeline,m
                 to_process = [video for video in videos if video not in already_processed]
 
                 for batch in chunker(to_process,500):
-                    jobs.append({'task': process_video_batch, 'kwargs': {'dirpath':dirpath,'batch':batch,'bucket':sourceBucket,'trapgroup_id': trapgroup.id}, 'queue': 'parallel'})
+                    job_kwargs = {'dirpath':dirpath,'batch':batch,'bucket':sourceBucket,'trapgroup_id': trapgroup.id}
+                    jobs.append({
+                        'task': process_video_batch, 
+                        'kwargs': job_kwargs, 
+                        'queue': 'parallel',
+                        'result': process_video_batch.apply_async(kwargs=job_kwargs,queue='parallel')
+                    })
                     app.logger.info('Processing video batch: '.format(len(batch)))
 
     # survey.processing_initialised = False
@@ -2712,7 +2724,13 @@ def import_folder(s3Folder, survey_id, sourceBucket,destinationBucket,pipeline,m
 
                     # if (batch_count / (((Config.QUEUES['parallel']['rate'])*random.uniform(0.5, 1.5))/2) ) >= 1:
                     if (batch_count / (((10000)*random.uniform(0.5, 1.5))/2) ) >= 1:
-                        jobs.append({'task': importImages, 'kwargs': {'batch':batch,'csv':False,'pipeline':pipeline,'external':False,'min_area':min_area,'remove_gps':remove_gps,'label_source':label_source}, 'queue': 'parallel'})
+                        job_kwargs = {'batch':batch,'csv':False,'pipeline':pipeline,'external':False,'min_area':min_area,'remove_gps':remove_gps,'label_source':label_source}   
+                        jobs.append({
+                            'task': importImages, 
+                            'kwargs': job_kwargs, 
+                            'queue': 'parallel',
+                            'result': importImages.apply_async(kwargs=job_kwargs,queue='parallel')
+                        })
                         app.logger.info('Queued batch with {} images'.format(batch_count))
                         batch_count = 0
                         batch = []
@@ -2721,7 +2739,13 @@ def import_folder(s3Folder, survey_id, sourceBucket,destinationBucket,pipeline,m
                 app.logger.info('{}: failed to import path {}. No tag found.'.format(survey_id,dirpath))
 
     if batch_count!=0:
-        jobs.append({'task': importImages, 'kwargs': {'batch':batch,'csv':False,'pipeline':pipeline,'external':False,'min_area':min_area, 'remove_gps':any_gps,'label_source':label_source}, 'queue': 'parallel'})
+        job_kwargs = {'batch':batch,'csv':False,'pipeline':pipeline,'external':False,'min_area':min_area, 'remove_gps':any_gps,'label_source':label_source}
+        jobs.append({
+            'task': importImages, 
+            'kwargs': job_kwargs, 
+            'queue': 'parallel',
+            'result': importImages.apply_async(kwargs=job_kwargs,queue='parallel')
+        })
 
     survey.processing_initialised = False
     localsession.commit()
@@ -2917,16 +2941,28 @@ def pipeline_csv(df,survey_id,tag,exclusions,source,destBucket,min_area,external
 
                     # if (batch_count / (((Config.QUEUES['parallel']['rate'])*random.uniform(0.5, 1.5))/2) ) >= 1:
                     if (batch_count / (((10000)*random.uniform(0.5, 1.5))/2) ) >= 1:
-                        jobs.append({'task': importImages, 'kwargs': {'batch':batch,'csv':False,'pipeline':True,'external':external,'min_area':min_area,'remove_gps':False,'label_source':label_source}, 'queue': 'parallel'})
+                        job_kwargs = {'batch':batch,'csv':False,'pipeline':True,'external':external,'min_area':min_area,'remove_gps':False,'label_source':label_source}
+                        jobs.append({
+                            'task': importImages, 
+                            'kwargs': job_kwargs, 
+                            'queue': 'parallel',
+                            'result': importImages.apply_async(kwargs=job_kwargs,queue='parallel')
+                        })
                         app.logger.info('Queued batch with {} images'.format(batch_count))
                         batch_count = 0
                         batch = []
 
             else:
-                app.logger.info('{}: failed to import path {}. No tag found.'.format(name,dirpath))
+                app.logger.info('{}: failed to import path {}. No tag found.'.format(survey_id,dirpath))
 
     if batch_count!=0:
-        jobs.append({'task': importImages, 'kwargs': {'batch':batch,'csv':False,'pipeline':True,'external':external,'min_area':min_area,'remove_gps':False,'label_source':label_source}, 'queue': 'parallel'})
+        job_kwargs = {'batch':batch,'csv':False,'pipeline':True,'external':external,'min_area':min_area,'remove_gps':False,'label_source':label_source}
+        jobs.append({
+            'task': importImages, 
+            'kwargs': job_kwargs, 
+            'queue': 'parallel',
+            'result': importImages.apply_async(kwargs=job_kwargs,queue='parallel')
+        })
 
     survey.processing_initialised = False
     localsession.commit()
@@ -5500,13 +5536,23 @@ def import_live_data(survey_id):
             batch_count += len(chunk)
 
             if (batch_count / (((10000)*random.uniform(0.5, 1.5))/2) ) >= 1:
-                jobs.append({'task': generateDetections, 'kwargs': {'batch':batch, 'sourceBucket':Config.BUCKET}, 'queue': 'parallel'})
+                jobs.append({
+                    'task': generateDetections, 
+                    'kwargs': {'batch':batch, 'sourceBucket':Config.BUCKET}, 
+                    'queue': 'parallel',
+                    'result': generateDetections.apply_async(kwargs={'batch':batch, 'sourceBucket':Config.BUCKET},queue='parallel')
+                    })
                 app.logger.info('Queued batch with {} images'.format(batch_count))
                 batch_count = 0
                 batch = []
 
     if batch_count!=0:
-        jobs.append({'task': generateDetections, 'kwargs': {'batch':batch, 'sourceBucket':Config.BUCKET}, 'queue': 'parallel'})
+        jobs.append({
+            'task': generateDetections, 
+            'kwargs': {'batch':batch, 'sourceBucket':Config.BUCKET}, 
+            'queue': 'parallel',
+            'result': generateDetections.apply_async(kwargs={'batch':batch, 'sourceBucket':Config.BUCKET},queue='parallel')
+            })
         app.logger.info('Queued batch with {} images'.format(batch_count))
 
 
@@ -5973,13 +6019,23 @@ def process_folder(s3Folder, survey_id, sourceBucket):
                 batch_count += len(chunk)
 
                 if (batch_count / (((10000)*random.uniform(0.5, 1.5))/2) ) >= 1:
-                    jobs.append({'task': generateDetections, 'kwargs': {'batch':batch, 'sourceBucket':sourceBucket}, 'queue': 'parallel'})
+                    jobs.append({
+                        'task': generateDetections, 
+                        'kwargs': {'batch':batch, 'sourceBucket':sourceBucket}, 
+                        'queue': 'parallel',
+                        'result': generateDetections.apply_async(kwargs={'batch':batch, 'sourceBucket':sourceBucket},queue='parallel')
+                    })
                     app.logger.info('Queued batch with {} images'.format(batch_count))
                     batch_count = 0
                     batch = []
 
     if batch_count!=0:
-        jobs.append({'task': generateDetections, 'kwargs': {'batch':batch, 'sourceBucket':sourceBucket}, 'queue': 'parallel'})
+        jobs.append({
+            'task': generateDetections, 
+            'kwargs': {'batch':batch, 'sourceBucket':sourceBucket}, 
+            'queue': 'parallel',
+            'result': generateDetections.apply_async(kwargs={'batch':batch, 'sourceBucket':sourceBucket},queue='parallel')
+        })
         app.logger.info('Queued batch with {} images'.format(batch_count))
 
     survey.processing_initialised = False
