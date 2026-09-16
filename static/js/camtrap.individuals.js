@@ -569,7 +569,8 @@ function getIndividual(individualID, individualName, association=false, order_va
 
                     document.getElementById('btnRemoveImg').addEventListener('click', ()=>{
                         removeIndividualEventListeners()
-                        if (individualImages.length > 1){
+                        let anyActiveDetection = individualImages[individualSplide.index].detections.find(det => det.active)??null
+                        if (individualImages.length > 1 && anyActiveDetection != null) {
                             // document.getElementById('modalAlertIndividualsHeader').innerHTML = 'Confirmation'
                             // document.getElementById('modalAlertIndividualsBody').innerHTML = 'Do you want to permanently remove this image from this individual?'
                             // document.getElementById('btnContinueIndividualAlert').setAttribute('onclick','removeImage()')
@@ -2861,10 +2862,12 @@ function submitFlanks(){
             reply = JSON.parse(this.responseText);  
             if (reply.status=='success') {
                 for (let i=0;i<individualImages.length;i++) {
-                    detection_id = individualImages[i].detections[0].id
-                    if (changed_flanks[detection_id] != undefined) {
-                        individualImages[i].detections[0].flank = changed_flanks[detection_id]
-                        delete changed_flanks[detection_id]
+                    for (let j=0;j<individualImages[i].detections.length;j++) {
+                        detection_id = individualImages[i].detections[j].id
+                        if (changed_flanks[detection_id] != undefined) {
+                            individualImages[i].detections[j].flank = changed_flanks[detection_id]
+                            delete changed_flanks[detection_id]
+                        }
                     }
                 }
             }
@@ -3384,6 +3387,8 @@ function cleanupMergeIndividuals(){
     merge_individual_prev = null
     merge_individual_next = null
 
+    document.getElementById('mergeErrors').innerHTML = ''
+
 }
 
 
@@ -3519,8 +3524,9 @@ function updateMergeSlider(mapID, divIDImageSplide, divID) {
     for (let i=0;i<mergeImages[mapID].length;i++) {
         img = document.createElement('img')
         // img.setAttribute('src',"https://"+bucketName+".s3.amazonaws.com/" + modifyToCompURL(mergeImages[mapID][i].url))
-        if (mergeImages[mapID][i].detections.length>0){
-            image_url = "https://"+bucketName+".s3.amazonaws.com/" + modifyToCropURL(mergeImages[mapID][i].url, mergeImages[mapID][i].detections[0].id)
+        var detection = mergeImages[mapID][i].detections.find(det => det.active==true)??null
+        if (detection != null) {
+            image_url = "https://"+bucketName+".s3.amazonaws.com/" + modifyToCropURL(mergeImages[mapID][i].url, detection.id)
         } else {
             image_url = "https://"+bucketName+".s3.amazonaws.com/" + modifyToCompURL(mergeImages[mapID][i].url)
         }
@@ -3771,6 +3777,7 @@ function getMergeIndividuals(page = null) {
 function viewMergeIndividual(){
     /** Views the selected individual in the merge individuals modal. */
 
+    document.getElementById('mergeErrors').innerHTML = ''
     var individualMergeDivR = document.getElementById('individualMergeDivR')
 
     while (individualMergeDivR.firstChild) {
@@ -3833,6 +3840,7 @@ function viewMergeIndividual(){
                 mergeImages['R'] = null
                 addedDetectionsMerge['R'] = false
                 mergeImageIndex['R'] = 0
+                document.getElementById('mergeErrors').innerHTML = ''
                 initialiseMergeIndividualsRight()
             });
 
@@ -4103,6 +4111,25 @@ function viewMergeIndividual(){
 }
 
 $('#btnMerge').click( function() {
+    /** Merges the selected individual into the selected merge individual. */
+    var mergeErrors = document.getElementById('mergeErrors')
+    mergeErrors.innerHTML = ''
+
+    let checkImageOverlap = false 
+    for (let i = 0; i < mergeImages['L'].length; i++) {
+        for (let j = 0; j < mergeImages['R'].length; j++) {
+            if (mergeImages['L'][i].id == mergeImages['R'][j].id) {
+                checkImageOverlap = true;
+                break;
+            }
+        }
+    }
+
+    if (checkImageOverlap) {
+        mergeErrors.innerHTML = 'Cannot merge individuals with shared images.'
+        return;
+    }
+
     if (mergeImageOnly){
         document.getElementById('modalAlertIndividualsHeader').innerHTML = 'Confirmation'
         if (selectedIndividualName == 'Unidentifiable Sighting') {
@@ -4265,7 +4292,11 @@ function mergeImage(){
     confirmMerge = true
     modalAlertIndividuals.modal('hide')
 
-    detection_id = individualImages[individualSplide.index].detections[0].id
+    var detection = individualImages[individualSplide.index].detections.find(det => det.active==true)??null
+    if (detection == null) {
+        return;
+    }
+    var detection_id = detection.id
     if (unidentifiableOpen){
         access = individualImages[individualSplide.index].access
         if (access != 'write'){
@@ -4382,6 +4413,11 @@ modalMergeIndividual.on('hidden.bs.modal', function(){
 
 $('#btnConfirmDissociate').click( function() {
     /** Confirms the dissociation of the selected individual. */
+    let anyActiveDetection = individualImages[individualSplide.index].detections.find(det => det.active==true)??null
+    if (anyActiveDetection == null) {
+        modalIndividual.modal({keyboard: true});
+        return;
+    }
 
     var removeImg = document.getElementById('removeImg').checked
     var moveImg = document.getElementById('moveImg').checked
@@ -4398,8 +4434,9 @@ $('#btnConfirmDissociate').click( function() {
                 mergeIndividualsOpened = true
                 mergeImageOnly = true
                 mergeImages['L'] = [individualImages[individualSplide.index]]
-                individualTasks = [mergeImages['L'][0].detections[0].task]
-                selectedIndividual = mergeImages['L'][0].detections[0].individual_id
+                var detection = mergeImages['L'][0].detections.find(det => det.active==true)??null
+                individualTasks = [detection.task]
+                selectedIndividual = detection.individual_id
                 selectedIndividualName = 'Unidentifiable Sighting'
                 modalDissociateImage.modal('hide')
                 modalMergeIndividual.modal({keyboard: true});
@@ -5441,8 +5478,9 @@ function getUnidentifiable(){
                 document.getElementById('tgInfoUnid').innerHTML = individualImages[0].trapgroup.tag
                 document.getElementById('timeInfoUnid').innerHTML = individualImages[0].timestamp
 
-                document.getElementById('labelsDivUnid').innerHTML =  individualImages[0].detections[0].species
-                document.getElementById('surveysDivUnid').innerHTML = individualImages[0].detections[0].task
+                let det = individualImages[0].detections.find(det => det.active==true)
+                document.getElementById('labelsDivUnid').innerHTML =  det?.species??''
+                document.getElementById('surveysDivUnid').innerHTML = det?.task??''
 
                 if (individualImages[0].access=='write'){
                     document.getElementById('btnRestoreDetUnid').disabled = false
@@ -5451,6 +5489,7 @@ function getUnidentifiable(){
                     document.getElementById('btnRestoreDetUnid').disabled = true
                 }
 
+                addedDetections = false
                 initUnidMap()
                 prepMapIndividual(individualImages[0])
                 updateSlider()
@@ -5696,7 +5735,11 @@ function restoreUnidSighting(){
     
     if (individualImages.length > 0 && individualImages[individualSplide.index].access=='write'){
         var image = individualImages[individualSplide.index]
-        var detection = image.detections[0]
+        var detection = image.detections.find(det => det.active==true)??null
+        if (detection == null) {
+            modalUnidentifiable.modal({keyboard: true});
+            return;
+        }
 
         individualImages.splice(individualSplide.index, 1)
         if (individualImages.length == 0){
@@ -5731,8 +5774,9 @@ function restoreUnidSighting(){
 
                 document.getElementById('tgInfoUnid').innerHTML = image.trapgroup.tag
                 document.getElementById('timeInfoUnid').innerHTML = image.timestamp
-                document.getElementById('labelsDivUnid').innerHTML =  image.detections[0].species
-                document.getElementById('surveysDivUnid').innerHTML = image.detections[0].task
+                let active_detection = image.detections.find(det => det.active==true)
+                document.getElementById('labelsDivUnid').innerHTML =  active_detection?.species??''
+                document.getElementById('surveysDivUnid').innerHTML = active_detection?.task??''
 
                 addedDetections = false
                 activeImage.setUrl("https://"+bucketName+".s3.amazonaws.com/" + modifyToCompURL(image.url))
@@ -5980,7 +6024,7 @@ function submitSightingChangesIndividual(detection_edits, action) {
     formData.append('individual_id', JSON.stringify(selectedIndividual));
     console.log(detection_edits, action)
     var xhttp = new XMLHttpRequest();
-    xhttp.open("POST", '/editSightingsGeneral/'+0);
+    xhttp.open("POST", '/editSightingsGeneral/'+individualImages[individualSplide.index].task_id);
     xhttp.onreadystatechange =
     function(wrapImageIndex,wrapAction){
         return function() {

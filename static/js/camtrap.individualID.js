@@ -354,7 +354,8 @@ function goToMax() {
     /** Focuses on the pair of images with the greates similarity score. */
     maximums = clusters['map2'][clusterIndex['map2']].max_pair
     for (let i=0;i<clusters['map1'][clusterIndex['map1']].images.length;i++) {
-        if (maximums.includes(clusters['map1'][clusterIndex['map1']].images[i].detections[0].id)) {
+        let detection = clusters['map1'][clusterIndex['map1']].images[i].detections.find(det => det.active==true)??null
+        if (detection != null && maximums.includes(detection.id)) {
             clusterPositionSplide['map1'].go(i)
             imageIndex['map1'] = i
             update('map1')
@@ -362,7 +363,8 @@ function goToMax() {
         }
     }
     for (let i=0;i<clusters['map2'][clusterIndex['map2']].images.length;i++) {
-        if (maximums.includes(clusters['map2'][clusterIndex['map2']].images[i].detections[0].id)) {
+        let detection = clusters['map2'][clusterIndex['map2']].images[i].detections.find(det => det.active==true)??null
+        if (detection != null && maximums.includes(detection.id)) {
             clusterPositionSplide['map2'].go(i)
             imageIndex['map2'] = i
             update('map2')
@@ -882,6 +884,7 @@ function prepIndividualModal() {
     }
 
     document.getElementById('newIndividualErrors').innerHTML = ''
+    document.getElementById('knownIndividualErrors').innerHTML = ''
     modalNewIndividual.modal({backdrop: 'static', keyboard: false});
     document.getElementById('openNewIndivTab').click()
 }
@@ -1488,7 +1491,22 @@ function submitIndividual(){
 
 function submitKnownIndividual() {
     /** Submits the new-individual modal, adding the individual to the individuals object for the cluster, and building the bounding boxes. */
-    if (!blockIndividualSubmit && selectedKnownIndividual != null) {
+
+    //check if the known individual has any images that overlap with the new individual's images
+    let overlapImage = false;
+    let new_individual_images = individuals[individualIndex][globalIndividual]['images'];
+    for (let i = 0; i < clusters['known'][clusterIndex['known']].images.length; i++) {
+        if (new_individual_images.includes(clusters['known'][clusterIndex['known']].images[i].id)) {
+            overlapImage = true;
+            break;
+        }
+    }
+    if (overlapImage) {
+        document.getElementById('knownIndividualErrors').innerHTML = 'The known individual has images that overlap with the new individual.'
+        return;
+    }
+
+    if (!blockIndividualSubmit && selectedKnownIndividual != null && !overlapImage) {
 
         document.getElementById('knownIndividualErrors').innerHTML = ''
 
@@ -1594,7 +1612,8 @@ function dissociateDetection(detID,mapID="map1") {
     if ((clusters[mapID][clusterIndex[mapID]].images.length > 1) && (finishedDisplaying['map1']) && (finishedDisplaying['map2']) && (modalActive == false) && (modalActive2 == false)) {
         
         for (let i=0;i<clusters[mapID][clusterIndex[mapID]].images.length;i++) {
-            if (clusters[mapID][clusterIndex[mapID]].images[i].detections[0].id == detID) {
+            let detection = clusters[mapID][clusterIndex[mapID]].images[i].detections.find(det => det.id==detID)??null
+            if (detection != null && detection.id == detID) {
                 actions.push(['dissociation',detID,JSON.parse(JSON.stringify(clusters[mapID][clusterIndex[mapID]].images[i])),mapID,clusters[mapID][clusterIndex[mapID]].id])
                 clusters[mapID][clusterIndex[mapID]].images.splice(i, 1)
                 break
@@ -1731,10 +1750,13 @@ function IDMapPrep(mapID = 'map1') {
     map[mapID].on('moveend', function(wrapMapID){
         return function(){
             if (fitBoundsInProcess[wrapMapID]) {
-                det_id = clusters[wrapMapID][clusterIndex[wrapMapID]].images[imageIndex[wrapMapID]].detections[0].id
-                detection_zoom[wrapMapID][det_id] = map[mapID].getZoom()
-                fitBoundsInProcess[wrapMapID] = false
-                // updateKpts()
+                let detection = clusters[wrapMapID][clusterIndex[wrapMapID]].images[imageIndex[wrapMapID]].detections.find(det => det.active==true)??null
+                if (detection != null) {
+                    det_id = detection.id
+                    detection_zoom[wrapMapID][det_id] = map[mapID].getZoom()
+                    fitBoundsInProcess[wrapMapID] = false
+                    // updateKpts()
+                }
             }
             updateKpts()
         }
@@ -2084,14 +2106,18 @@ function getMatchingKpts(detID1, detID2) {
         zoom1 = detection_zoom['map1'][detID1]
         zoom2 = detection_zoom['map2'][detID2]
         if (zoom1==0||zoom1==null){
-            det1 = clusters['map1'][clusterIndex['map1']].images[imageIndex['map1']].detections[0]
-            det_bounds = [[det1.top*mapHeight['map1'],det1.left*mapWidth['map1']],[det1.bottom*mapHeight['map1'],det1.right*mapWidth['map1']]]
-            zoom1 = map['map1'].getBoundsZoom(det_bounds,false,[10, 10])
+            let det1 = clusters['map1'][clusterIndex['map1']].images[imageIndex['map1']].detections.find(det => det.id==detID1)??null
+            if (det1 != null) {
+                det_bounds = [[det1.top*mapHeight['map1'],det1.left*mapWidth['map1']],[det1.bottom*mapHeight['map1'],det1.right*mapWidth['map1']]]
+                zoom1 = map['map1'].getBoundsZoom(det_bounds,false,[10, 10])
+            }
         }
         if (zoom2==0||zoom2==null){
-            det2 = clusters['map2'][clusterIndex['map2']].images[imageIndex['map2']].detections[0]
-            det_bounds = [[det2.top*mapHeight['map2'],det2.left*mapWidth['map2']],[det2.bottom*mapHeight['map2'],det2.right*mapWidth['map2']]]
-            zoom2 = map['map2'].getBoundsZoom(det_bounds,false,[10, 10])
+            let det2 = clusters['map2'][clusterIndex['map2']].images[imageIndex['map2']].detections.find(det => det.id==detID2)??null
+            if (det2 != null) {
+                det_bounds = [[det2.top*mapHeight['map2'],det2.left*mapWidth['map2']],[det2.bottom*mapHeight['map2'],det2.right*mapWidth['map2']]]
+                zoom2 = map['map2'].getBoundsZoom(det_bounds,false,[10, 10])
+            }
         }
 
         addHotspotsHeatmap('map1', savedKpts[id].kpts[detID1], savedKpts[id].scores, zoom1)
@@ -2115,14 +2141,18 @@ function getMatchingKpts(detID1, detID2) {
                 zoom1 = detection_zoom['map1'][wrapDetID1]
                 zoom2 = detection_zoom['map2'][wrapDetID2]
                 if (zoom1==0||zoom1==null){
-                    det1 = clusters['map1'][clusterIndex['map1']].images[imageIndex['map1']].detections[0]
-                    det_bounds = [[det1.top*mapHeight['map1'],det1.left*mapWidth['map1']],[det1.bottom*mapHeight['map1'],det1.right*mapWidth['map1']]]
-                    zoom1 = map['map1'].getBoundsZoom(det_bounds,false,[10, 10])
+                    let det1 = clusters['map1'][clusterIndex['map1']].images[imageIndex['map1']].detections.find(det => det.id==wrapDetID1)??null
+                    if (det1 != null) {
+                        det_bounds = [[det1.top*mapHeight['map1'],det1.left*mapWidth['map1']],[det1.bottom*mapHeight['map1'],det1.right*mapWidth['map1']]]
+                        zoom1 = map['map1'].getBoundsZoom(det_bounds,false,[10, 10])
+                    }
                 }
                 if (zoom2==0||zoom2==null){
-                    det2 = clusters['map2'][clusterIndex['map2']].images[imageIndex['map2']].detections[0]
-                    det_bounds = [[det2.top*mapHeight['map2'],det2.left*mapWidth['map2']],[det2.bottom*mapHeight['map2'],det2.right*mapWidth['map2']]]
-                    zoom2 = map['map2'].getBoundsZoom(det_bounds,false,[10, 10])
+                    let det2 = clusters['map2'][clusterIndex['map2']].images[imageIndex['map2']].detections.find(det => det.id==wrapDetID2)??null
+                    if (det2 != null) {
+                        det_bounds = [[det2.top*mapHeight['map2'],det2.left*mapWidth['map2']],[det2.bottom*mapHeight['map2'],det2.right*mapWidth['map2']]]
+                        zoom2 = map['map2'].getBoundsZoom(det_bounds,false,[10, 10])
+                    }
                 }
 
                 addHotspotsHeatmap('map1', results.kpts[wrapDetID1], results.scores, zoom1)
@@ -2214,8 +2244,8 @@ function updateKpts() {
                 }
                 return
             }
-            detID1 = clusters['map1'][clusterIndex['map1']].images[imageIndex['map1']].detections.find(detection => detection.active).id ?? null
-            detID2 = clusters['map2'][clusterIndex['map2']].images[imageIndex['map2']].detections.find(detection => detection.active).id ?? null
+            detID1 = clusters['map1'][clusterIndex['map1']].images[imageIndex['map1']].detections.find(detection => detection.active)?.id ?? null
+            detID2 = clusters['map2'][clusterIndex['map2']].images[imageIndex['map2']].detections.find(detection => detection.active)?.id ?? null
             if (detID1 != null && detID2 != null){
                 getMatchingKpts(detID1,detID2)
             } else {
@@ -2251,18 +2281,24 @@ $('#radiusInput').on('change', function() {
     document.getElementById('radiusInputSpan').innerHTML = radius 
 
     if (kpts_layer['map1'] != null){
-        zoom1 = detection_zoom['map1'][clusters['map1'][clusterIndex['map1']].images[imageIndex['map1']].detections[0].id]
-        scaleFactor1 = Math.pow(2, zoom1)
-        radius1 = radius/scaleFactor1
-        kpts_layer['map1'].cfg.radius = radius1
-        kpts_layer['map1']._update()
+        let detection = clusters['map1'][clusterIndex['map1']].images[imageIndex['map1']].detections.find(det => det.active==true)??null
+        if (detection != null) {
+            zoom1 = detection_zoom['map1'][detection.id]
+            scaleFactor1 = Math.pow(2, zoom1)
+            radius1 = radius/scaleFactor1
+            kpts_layer['map1'].cfg.radius = radius1
+            kpts_layer['map1']._update()
+        }
     }
     if (kpts_layer['map2'] != null){
-        zoom2 = detection_zoom['map2'][clusters['map2'][clusterIndex['map2']].images[imageIndex['map2']].detections[0].id]
-        scaleFactor2 = Math.pow(2, zoom2)
-        radius2 = radius/scaleFactor2
-        kpts_layer['map2'].cfg.radius = radius2
-        kpts_layer['map2']._update()
+        let detection = clusters['map2'][clusterIndex['map2']].images[imageIndex['map2']].detections.find(det => det.active==true)??null
+        if (detection != null) {
+            zoom2 = detection_zoom['map2'][detection.id]
+            scaleFactor2 = Math.pow(2, zoom2)
+            radius2 = radius/scaleFactor2
+            kpts_layer['map2'].cfg.radius = radius2
+            kpts_layer['map2']._update()
+        }
     }
 });
 
@@ -2529,6 +2565,7 @@ function buildKnownIndividuals(){
 
 function getKnownIndividuals(page = null){
     /** Gets a page of individuals. Gets the first page if none is specified. */
+    document.getElementById('knownIndividualErrors').innerHTML = ''
     var formData = new FormData()
     formData.append("cluster_id", JSON.stringify(clusters['map1'][clusterIndex['map1']].id))    
     task_id = document.getElementById('knownTaskSelect').value
@@ -2663,6 +2700,7 @@ function getKnownIndividuals(page = null){
 function viewKnownIndividual(mapID='known') {
     /** Views the selected known individual. */
 
+    document.getElementById('knownIndividualErrors').innerHTML = ''
     document.getElementById('knownDescription').hidden = true
 
     var knownInfoCol = document.getElementById('knownInfoCol')
