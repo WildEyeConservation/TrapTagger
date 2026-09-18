@@ -1903,7 +1903,8 @@ function updateSlider(mapID = 'map1', update_flank = false) {
         }
         
         for (let i=0;i<clusters[mapID][clusterIndex[mapID]].images.length;i++) {
-            if ((mapID!='known')&&(currentFlank != null) && clusters[mapID][clusterIndex[mapID]].images[i].detections.length > 0 && (clusters[mapID][clusterIndex[mapID]].images[i].detections[0].flank.toLowerCase() != currentFlank)) {
+            let activeDetection = clusters[mapID][clusterIndex[mapID]].images[i].detections.find(det => det.active==true)
+            if ((mapID!='known')&&(currentFlank != null) && (activeDetection==null || (activeDetection != null && activeDetection.flank.toLowerCase() != currentFlank))) {
                 continue;
             }
             sliderImageIndexMap[mapID].push(i)
@@ -3085,8 +3086,8 @@ function prepMap(mapID = 'map1') {
                                 }
                                 if (isIDing && (document.getElementById('btnSendToBack')==null)) {
                                     if (document.getElementById('cxFeaturesHeatmap').checked){
-                                        var detID1 = clusters['map1'][clusterIndex['map1']].images[imageIndex['map1']].detections.find(detection => detection.active).id ?? null
-                                        var detID2 = clusters['map2'][clusterIndex['map2']].images[imageIndex['map2']].detections.find(detection => detection.active).id ?? null
+                                        var detID1 = clusters['map1'][clusterIndex['map1']].images[imageIndex['map1']].detections.find(detection => detection.active)?.id ?? null
+                                        var detID2 = clusters['map2'][clusterIndex['map2']].images[imageIndex['map2']].detections.find(detection => detection.active)?.id ?? null
                                         if (detID1 != null && detID2 != null){
                                             getMatchingKpts(detID1,detID2)
                                         }

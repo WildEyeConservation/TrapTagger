@@ -5909,6 +5909,8 @@ def dissociateDetection(detection_id):
 
     detection = db.session.query(Detection).get(detection_id)
 
+    if Config.DEBUGGING: app.logger.info('Dissociating detection {} from individual {}'.format(detection_id,individual_id))
+
     # if task and detection and ((current_user==task.survey.user) or (current_user.parent in detection.image.camera.trapgroup.survey.user.workers) or (current_user.parent == detection.image.camera.trapgroup.survey.user)):
     if task and detection and (all(checkSurveyPermission(current_user.id,task.survey_id,'write') for task in tasks) or all(checkAnnotationPermission(current_user.parent_id,task.id) for task in tasks)):
 
@@ -16713,7 +16715,24 @@ def mergeIndividuals():
             status = 'error'
             msg = "Duplicate name detected. Please enter a different name."
             return json.dumps({'status': status, 'message': msg})
-        
+
+        Det1 = alias(Detection)
+        Det2 = alias(Detection)
+        individualDetections1 = alias(individualDetections)
+        individualDetections2 = alias(individualDetections)
+        sharedImage = db.session.query(Image.id)\
+                                .join(Det1, Det1.c.image_id==Image.id)\
+                                .join(Det2, Det2.c.image_id==Image.id)\
+                                .join(individualDetections1,individualDetections1.c.detection_id==Det1.c.id)\
+                                .join(individualDetections2,individualDetections2.c.detection_id==Det2.c.id)\
+                                .filter(individualDetections1.c.individual_id==individual1.id)\
+                                .filter(individualDetections2.c.individual_id==individual2.id)\
+                                .first()
+        if sharedImage:
+            status = 'error'
+            msg = "Images shared between the two individuals. Please remove the shared images and try again."
+            return json.dumps({'status': status, 'message': msg})
+
         individual1.active = False
         individual2.active = False
         db.session.commit()
@@ -16799,6 +16818,16 @@ def mergeDetectionIntoIndividual():
     merge_individual = db.session.query(Individual).get(merge_indiviudal_id)
 
     if detection and individual and merge_individual and individual.active==True and merge_individual.active==True and  all(checkSurveyPermission(current_user.id,task.survey_id,'write') for task in individual.tasks) and all(checkSurveyPermission(current_user.id,task.survey_id,'write') for task in merge_individual.tasks):
+        
+        imageCheck = db.session.query(Image.id)\
+                                .join(Detection, Detection.image_id==Image.id)\
+                                .filter(Image.id==detection.image_id)\
+                                .filter(Detection.individuals.contains(merge_individual))\
+                                .first()
+        if imageCheck:
+            return json.dumps({'status': 'error'})
+        
+        
         if individual.name != 'unidentifiable': individual.active = False
         merge_individual.active = False
         db.session.commit()
@@ -17576,6 +17605,7 @@ def getUnidentifiable():
                     Trapgroup.altitude,
                     Individual.id,
                     Individual.species,
+                    Task.id,
                     Task.name,
                     Survey.name,
                     Survey.id
@@ -17622,7 +17652,7 @@ def getUnidentifiable():
         unidentifiable = unidentifiable.distinct().all()
 
         for data in unidentifiable:
-            detection_id, top, left, right, bottom, flank, image_id, filename, timestamp, path, trapgroup_id, tag, latitude, longitude, altitude, individual_id, species, task, survey, survey_id = data
+            detection_id, top, left, right, bottom, flank, image_id, filename, timestamp, path, trapgroup_id, tag, latitude, longitude, altitude, individual_id, species, tsk_id, task, survey, survey_id = data
             reply.append({
                 'id': image_id,
                 'url': (path + '/' + filename).replace('+','%2B').replace('?','%3F').replace('#','%23').replace('\\','%5C'),
@@ -17647,6 +17677,7 @@ def getUnidentifiable():
                     'task': '{} {}'.format(survey,task),
                     'individual_id': individual_id
                 }],
+                'task_id': tsk_id,
                 'access': 'write' if survey_id in write_access_surveys else 'read'
             })
 
@@ -18211,7 +18242,8 @@ def editSightingsGeneral(task_id):
 
     if 'individual_id' in request.form:
         individual_id = ast.literal_eval(request.form['individual_id'])
-        task = db.session.query(Task).join(Individual,Task.individuals).join(Detection,Individual.detections).filter(Individual.id==individual_id).filter(Detection.image_id==image_id).first()
+        img_tasks = [r[0] for r in db.session.query(Cluster.task_id).join(Image,Cluster.images).filter(Image.id==image_id).all()]
+        task = db.session.query(Task).filter(Task.id.in_(img_tasks)).first()
         if task and task.status.lower() in Config.TASK_READY_STATUSES:
             task_id = task.id
         else:
