@@ -18,7 +18,7 @@ from app import app, db, celery
 from app.models import *
 from app.functions.globals import detection_rating, randomString, retryTime, chunker, save_crops, list_all, all_equal, generate_raw_image_hash, updateAllStatuses, \
     hideSmallDetections, maskSky, add_new_task, prepTask, launch_task, add_labelgroups, wait_for_jobs
-from app.functions.delete import delete_clusters, delete_cameras, delete_trapgroups, delete_cameragroups
+from app.functions.delete import delete_clusters, delete_cameras, delete_trapgroups, delete_cameragroups, delete_videos
 import GLOBALS
 from sqlalchemy.sql import func, or_, distinct, and_, literal_column, alias
 from sqlalchemy import desc, insert, select
@@ -2513,6 +2513,12 @@ def remove_duplicate_images(survey_id):
     for task_id in task_ids:
         delete_clusters(task_id=task_id, empty=True)
 
+    # delete any videos without frames
+    video_ids = [r[0] for r in db.session.query(Video.id).join(Camera).join(Trapgroup).filter(Trapgroup.survey_id==survey_id).filter(~Camera.images.any()).all()]
+    app.logger.info(f'Deleting {len(video_ids)} videos without frames')
+    for chunk in chunker(video_ids, 1000):
+        delete_videos(survey_id=survey_id, ids=chunk, delete_from_s3=True)
+
     #delete any empty cameras
     delete_cameras(survey_id=survey_id, empty=True)
 
@@ -3865,11 +3871,12 @@ def import_survey(self,survey_id,preprocess_done=False,live=False,launch_id=None
             else:
                 import_folder(survey.organisation.folder+'/'+survey.folder, survey_id,Config.BUCKET,Config.BUCKET,False,None,[],processes)
             
+            db.session.remove()
             survey = db.session.query(Survey).get(survey_id)
             survey_id = survey.id
-            survey.image_count = db.session.query(Image).join(Camera).join(Trapgroup).outerjoin(Video).filter(Trapgroup.survey==survey).filter(Video.id==None).distinct().count()
-            survey.video_count = db.session.query(Video).join(Camera).join(Trapgroup).filter(Trapgroup.survey==survey).distinct().count()
-            survey.frame_count = db.session.query(Image).join(Camera).join(Trapgroup).join(Video).filter(Trapgroup.survey==survey).distinct().count()
+            survey.image_count = db.session.query(Image).join(Camera).join(Trapgroup).outerjoin(Video).filter(Trapgroup.survey_id==survey_id).filter(Video.id==None).distinct().count()
+            survey.video_count = db.session.query(Video).join(Camera).join(Trapgroup).filter(Trapgroup.survey_id==survey_id).distinct().count()
+            survey.frame_count = db.session.query(Image).join(Camera).join(Trapgroup).join(Video).filter(Trapgroup.survey_id==survey_id).distinct().count()
             survey.status = 'Extracting Timestamps'
             db.session.commit()
 
@@ -5956,7 +5963,13 @@ def process_folder(s3Folder, survey_id, sourceBucket):
     batch = []
     chunk_size = round(10000/4)
     s3Folder = s3Folder.replace('_','\\_')
-    cameras = localsession.query(Camera).filter(Camera.path.like(s3Folder+'/%')).join(Image).filter(or_(~Image.detections.any(),Camera.trapgroup==None)).distinct().all()
+    cameras = localsession.query(Camera)\
+        .filter(Camera.path.like(s3Folder+'/%'))\
+        .outerjoin(Image)\
+        .filter(or_(
+            and_(Image.id!=None, ~Image.detections.any()),
+            Camera.trapgroup_id==None))\
+        .distinct().all()
     for camera in cameras:
         trapgroup = camera.trapgroup
         if not trapgroup:
@@ -5976,7 +5989,7 @@ def process_folder(s3Folder, survey_id, sourceBucket):
                     camera.trapgroup = trapgroup
 
         if trapgroup:
-            images_to_process = [{'id': r[0], 'filename': r[1]} for r in localsession.query(Image.id,Image.filename).filter(Image.camera==camera).filter(~Image.detections.any()).filter(Image.hash!=None).all()]
+            images_to_process = [{'id': r[0], 'filename': r[1]} for r in localsession.query(Image.id,Image.filename).filter(Image.camera_id==camera.id).filter(~Image.detections.any()).filter(Image.hash!=None).all()]
             survey.images_processing += len(images_to_process)
 
             if images_to_process and trapgroup.latitude == 0 and trapgroup.longitude == 0 and trapgroup.altitude == 0:
