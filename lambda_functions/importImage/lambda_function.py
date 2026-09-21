@@ -40,7 +40,7 @@ def lambda_handler(event, context):
     download_path = None
     compressed_path = None
     for batch in chunker(keys, 25):
-        if context.get_remaining_time_in_millis() < 60000:
+        if context.get_remaining_time_in_millis() < 180000:
             remaining_keys = keys[processed:]
             conn.commit()
             conn.close()
@@ -189,9 +189,11 @@ def lambda_handler(event, context):
                         if camera is None:
                             insert_camera_query = 'INSERT INTO camera (path) VALUES (%s)'
                             cursor.execute(insert_camera_query, (camera_path))
+                            camera = [cursor.lastrowid]
                             conn.commit()
-                            cursor.execute(camera_query, (camera_path))
-                            camera = cursor.fetchone()
+                            if not camera[0]:
+                                cursor.execute(camera_query, (camera_path))
+                                camera = cursor.fetchone()
                         cameras[camera_path] = camera[0]
                     camera_id = cameras[camera_path]
 

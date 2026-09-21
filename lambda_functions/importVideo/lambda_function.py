@@ -171,11 +171,13 @@ def lambda_handler(event, context):
                 camera_path = video_path+'/_video_images_/'+video_name
                 insert_query = 'INSERT INTO camera (path) VALUES (%s)'
                 cursor.execute(insert_query, (camera_path))
+                camera_id = cursor.lastrowid
                 conn.commit()
-                camera_query = 'SELECT id FROM camera WHERE path = %s'
-                cursor.execute(camera_query, (camera_path))
-                camera = cursor.fetchone()
-                camera_id = camera[0]
+                if not camera_id:
+                    camera_query = 'SELECT id FROM camera WHERE path = %s ORDER BY id DESC'
+                    cursor.execute(camera_query, (camera_path))
+                    camera = cursor.fetchone()
+                    camera_id = camera[0]
 
                 insert_query = 'INSERT INTO video (filename, hash, still_rate, camera_id, downloaded) VALUES (%s, %s, %s, %s, 0)'
                 cursor.execute(insert_query, (filename, hash, still_rate, camera_id))
