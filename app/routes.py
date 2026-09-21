@@ -16721,16 +16721,6 @@ def invoke_lambda():
                     except:
                         GLOBALS.redisClient.set('lambda_invoked_'+str(survey_id),invoked_lambdas)
 
-                    # TODO: REMOVE THIS (FOR TESTING ONLY) NB!!!
-                    for batch in chunker(image_keys, 250):
-                        payload['keys'] = batch
-                        GLOBALS.lambdaClient.invoke(FunctionName=Config.IMAGE_IMPORT_LAMBDA, InvocationType='Event', Payload=json.dumps(payload))
-
-                    for batch in chunker(video_keys, 5):
-                        payload['keys'] = batch
-                        payload['extract_function'] = Config.VIDEO_EXTRACT_LAMBDA
-                        GLOBALS.lambdaClient.invoke(FunctionName=Config.VIDEO_IMPORT_LAMBDA, InvocationType='Event', Payload=json.dumps(payload))
-
                     return 'success'
 
     except Exception as e:
