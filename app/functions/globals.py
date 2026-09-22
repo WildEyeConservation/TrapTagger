@@ -7904,7 +7904,7 @@ def dispatch_task(job):
     '''Dispatches the task described by a job, returning its AsyncResult.'''
     return job['task'].apply_async(kwargs=job['kwargs'], queue=job['queue'], **job.get('options', {}))
 
-def wait_for_jobs(jobs, poll=5, stall_timeout=300, max_attempts=3):   #TODO: Set stall_timeout to 1800 or something like that
+def wait_for_jobs(jobs, poll=30, stall_timeout=1800, max_attempts=3):
     '''
     Dispatches a batch of parallel tasks and yields (job, result) as each completes, so that the caller
     can get back anything else it stored on the job alongside the result. Failed tasks yield a result of
@@ -7966,7 +7966,40 @@ def wait_for_jobs(jobs, poll=5, stall_timeout=300, max_attempts=3):   #TODO: Set
                         raise Exception('Task {} lost {} times with kwargs {}'.format(job['task'].name, job['attempts'], job['kwargs']))
                     job['attempts'] += 1
                     app.logger.info('Re-submitting lost task {} with kwargs {}'.format(job['task'].name, job['kwargs']))
+                    discard_task(task_id)
                     job['result'] = dispatch_task(job)
                     outstanding[job['result'].id] = job
 
         time.sleep(poll)
+
+def discard_task(task_id):
+    '''Discards a task from Celery and clears it from the Redis unacked queue.'''
+    try:
+        celery.control.revoke(task_id, terminate=True)
+
+        tag = None
+        for candidate, raw in GLOBALS.redisClient.hscan_iter('unacked'):
+            try:
+                message = json.loads(raw)[0]
+                if isinstance(message, str):
+                    message = json.loads(message)
+                if message['headers']['id'] == task_id:
+                    tag = candidate
+                    break
+            except Exception:
+                continue
+
+        if tag:
+            pipe = GLOBALS.redisClient.pipeline()
+            pipe.hdel('unacked', tag)
+            pipe.zrem('unacked_index', tag)
+            pipe.execute()
+        else:
+            app.logger.info(f'No tag found for task {task_id}')
+
+        AsyncResult(task_id, app=celery).forget()
+        app.logger.info(f'Discarded task {task_id}')
+        return True
+    except Exception:
+        app.logger.info(f'Error discarding task {task_id}: {traceback.format_exc()}')
+        return False
