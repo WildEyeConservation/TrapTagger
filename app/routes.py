@@ -10129,6 +10129,9 @@ def generateExcel(selectedTask):
     if (task == None) or (not checkSurveyPermission(current_user.id,task.survey_id,'read')):
         return json.dumps({'status':'error',  'message': None})
 
+    if task.survey.status.lower() not in Config.SURVEY_READY_STATUSES or task.status.lower() not in Config.TASK_READY_STATUSES:
+        return json.dumps({'status':'error',  'message':'The survey is currently unavailable. Please wait for the survey to be ready.'})
+
     # fileName = task.survey.user.folder+'/docs/'+task.survey.user.username+'_'+task.survey.name+'_'+task.name+'.xlsx'
     # fileName = task.survey.organisation.folder+'/docs/'+task.survey.organisation.name+'_'+current_user.username+'_'+task.survey.name+'_'+task.name+'.xlsx'
 
@@ -10206,6 +10209,9 @@ def generateCSV():
             check_end = db.session.query(Image).join(Camera).join(Trapgroup).filter(Trapgroup.survey_id==task.survey_id).filter(Image.timestamp<end_date).first()
             if check_end==None: return json.dumps({'status':'error',  'message':'The date range specified is outside the survey. Please select a date range within the survey.'})
 
+        if task.survey.status.lower() not in Config.SURVEY_READY_STATUSES or task.status.lower() not in Config.TASK_READY_STATUSES:
+            return json.dumps({'status':'error',  'message':'The survey is currently unavailable. Please wait for the survey to be ready.'})
+
     check = db.session.query(DownloadRequest).filter(DownloadRequest.task_id==selectedTasks[0]).filter(DownloadRequest.user_id==current_user.id).filter(DownloadRequest.type=='csv').filter(DownloadRequest.status=='Pending').first()
     if check: return json.dumps({'status':'error',  'message': 'You already have a csv being generated for this annotation set.'})
 
@@ -10233,6 +10239,9 @@ def generateCOCO():
     # if (task == None) or (task.survey.user != current_user):
     if (task == None) or (not checkSurveyPermission(current_user.id,task.survey_id,'read')):
         return json.dumps({'status':'error',  'message': None})
+
+    if task.survey.status.lower() not in Config.SURVEY_READY_STATUSES or task.status.lower() not in Config.TASK_READY_STATUSES:
+        return json.dumps({'status':'error',  'message':'The survey is currently unavailable. Please wait for the survey to be ready.'})
 
     # fileName = task.survey.user.folder+'/docs/'+task.survey.user.username+'_'+task.survey.name+'_'+task.name+'.json'
     # fileName = task.survey.organisation.folder+'/docs/'+task.survey.organisation.name+'_'+current_user.username+'_'+task.survey.name+'_'+task.name+'.json'
@@ -18913,8 +18922,7 @@ def editSightingsGeneral(task_id):
 
     if 'individual_id' in request.form:
         individual_id = ast.literal_eval(request.form['individual_id'])
-        img_tasks = [r[0] for r in db.session.query(Cluster.task_id).join(Image,Cluster.images).filter(Image.id==image_id).all()]
-        task = db.session.query(Task).filter(Task.id.in_(img_tasks)).first()
+        task = db.session.query(Task).get(task_id)
         if task and task.status.lower() in Config.TASK_READY_STATUSES:
             task_id = task.id
         else:
@@ -19464,3 +19472,22 @@ def getTimeshiftFiles(cameragroup_id):
         reply['vid_next'] = videos.next_num
 
     return json.dumps(reply)
+
+@app.route('/checkUpdatedClusters', methods=['POST'])
+@login_required
+def checkUpdatedClusters():
+    '''Checks whether for a given task it has any clusters with a timestamp greather tham the timestamp provided.'''
+
+    task_id = ast.literal_eval(request.form['task_id'])
+    timestamp = ast.literal_eval(request.form['timestamp'])
+    task = db.session.query(Task).get(task_id)
+
+    if task and checkSurveyPermission(current_user.id,task.survey_id,'read'):
+        try:
+            timestamp = datetime.strptime(timestamp, '%Y-%m-%d %H:%M:%S')
+        except:
+            return json.dumps({'status':'error', 'message':'Invalid timestamp format. Required format: YYYY-MM-DD HH:MM:SS'})
+        cluster_count = db.session.query(Cluster.id).filter(Cluster.task_id==task_id).filter(Cluster.timestamp>timestamp).distinct().count()
+        return json.dumps({'status':'success', 'cluster_count': cluster_count})
+
+    return json.dumps({'status':'error'})

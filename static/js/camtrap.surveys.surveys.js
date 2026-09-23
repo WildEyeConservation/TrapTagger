@@ -382,6 +382,21 @@ var shift_timestamps = {}
 var unsavedEditChanges = false
 var tsCalcShiftResult = null
 var calculateShift = false
+var homeActivity = new Date()
+
+function updateHomeActivity() {
+    homeActivity = new Date()
+}
+
+;['pointerdown','keydown','wheel','touchstart'].forEach(event => {
+    document.addEventListener(event, updateHomeActivity, { passive: true })
+})
+
+window.addEventListener('focus', updateHomeActivity)
+
+document.addEventListener('visibilitychange', () => {
+    if (!document.hidden) updateHomeActivity()
+})
 
 function buildSurveys(survey,disableSurvey) {
     /**
@@ -1096,6 +1111,7 @@ function buildSurveys(survey,disableSurvey) {
 function onload(){
     /**Function for initialising the page on load.*/
     document.getElementById('downloadsNav').hidden = false
+    updateHomeActivity()
     updatePage(current_page)
     populateFilters()
 }
@@ -1108,10 +1124,21 @@ function updatePage(url){
      * @param {str} url the url to load for the page
      */
 
+    if (processingTimer != null) {
+        clearTimeout(processingTimer)
+    }
+
     if (url==null) {
         url = (' ' + current_page).slice(1);
     } else {
         current_page = (' ' + url).slice(1);
+    }
+
+    let currentTimestamp = new Date()
+    if (currentTimestamp - homeActivity > 180000) {
+        // If the user has been inactive for more than 3 minutes, skip the update
+        processingTimer = setTimeout(function() { updatePage(current_page); }, 5000)
+        return
     }
 
     // Add request ID to prevent reload on response race
