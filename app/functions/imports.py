@@ -6085,20 +6085,21 @@ def handle_duplicate_cameras(survey_id):
                         .join(sq,sq.c.path==Camera.path)\
                         .filter(sq.c.count>1)\
                         .all()]
-    if Config.DEBUGGING: app.logger.info(f'{len(duplicates)} duplicate cameras found')
+
+    app.logger.info(f'{len(duplicates)} duplicate cameras found')
 
     for path in duplicates:
-        cameras = db.session.query(Camera).join(Trapgroup).filter(Trapgroup.survey_id==survey_id).filter(Camera.path==path).distinct().all()
-        if len(cameras) == 1: continue
+        cameras = db.session.query(Camera).join(Trapgroup).filter(Trapgroup.survey_id==survey_id).filter(Camera.path==path).order_by(Camera.id).distinct().all()
+        if len(cameras) < 2: continue
         camera = cameras[0]
         duplicate_cameras = cameras[1:]
         for duplicate in duplicate_cameras:
-            for image in duplicate.images:
-                image.camera_id = camera.id
-            for video in duplicate.videos:
-                video.camera_id = camera.id
-            db.session.delete(duplicate)
+            db.session.query(Image).filter(Image.camera_id==duplicate.id).update({'camera_id': camera.id}, synchronize_session=False)
+            db.session.query(Video).filter(Video.camera_id==duplicate.id).update({'camera_id': camera.id}, synchronize_session=False)
         db.session.commit()
+
+    #delete the empty duplicate cameras
+    if duplicates: delete_cameras(survey_id=survey_id, empty=True)
 
     return True
     
