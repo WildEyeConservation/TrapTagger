@@ -198,7 +198,7 @@ def infer(
       )
     return all_results
   finally:
-    # Always unload SAM/DPT ORT sessions so VRAM does not leak across Celery tasks.
+    # Always unload SAM/depth ONNX sessions so VRAM does not leak across Celery tasks.
     if session is not None:
       try:
         from traptagger_api import release_transect_session
