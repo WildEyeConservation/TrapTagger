@@ -36,6 +36,7 @@ for ((i=0;$((i<$NUMGPUS));i++)) do
     -e CUDA_VISIBLE_DEVICES=$i \
     -v /home/ubuntu/TrapTagger/depthworker:/code/depthworker \
     -v /home/ubuntu/TrapTagger/depth-estimation-repo:/code/depth-estimation-repo \
+    -v /home/ubuntu/depth-weights:/root/.cache/depth-estimation-traptagger/weights \
     --gpus all \
     --ipc=host \
     --name depthworker$i \
