@@ -339,9 +339,10 @@ def delete_floating_data(survey_id, delete_from_s3=False):
     survey_folder = survey_folder.replace('_','\\_')
 
     if delete_from_s3:
-        images = db.session.query(Image, Camera.path).join(Camera).filter(Camera.path.like(survey_folder)).filter(Camera.trapgroup_id==None).all()
-        for image, path in images:
-            image_key = path + '/' + image.filename
+        images = db.session.query(Image.filename, Camera.path).join(Camera).filter(Camera.path.like(survey_folder)).filter(Camera.trapgroup_id==None).all()
+        db.session.remove() # Remove session to avoid lost connection error if there are lots of data to delete
+        for image_filename, path in images:
+            image_key = path + '/' + image_filename
             splits = image_key.split('/')
             splits[0] = splits[0] + '-comp'
             image_comp_key = '/'.join(splits)
@@ -356,13 +357,14 @@ def delete_floating_data(survey_id, delete_from_s3=False):
     app.logger.info('{} floating images deleted successfully.'.format(result.rowcount))
 
     if delete_from_s3:
-        videos = db.session.query(Video, Camera.path).join(Camera).filter(Camera.path.like(survey_folder)).filter(Camera.trapgroup_id==None).all()
-        for video, path in videos:
+        videos = db.session.query(Video.filename, Camera.path).join(Camera).filter(Camera.path.like(survey_folder)).filter(Camera.trapgroup_id==None).all()
+        db.session.remove() # Remove session to avoid lost connection error if there are lots of data to delete
+        for video_filename, path in videos:
             video_path = path.split('/_video_images_/')[0]
-            video_key = video_path + '/' + video.filename
+            video_key = video_path + '/' + video_filename
             splits = video_path.split('/')
             splits[0] = splits[0]+'-comp'
-            video_comp_key = '/'.join(splits) + '/' + video.filename.rsplit('.', 1)[0] + '.mp4'
+            video_comp_key = '/'.join(splits) + '/' + video_filename.rsplit('.', 1)[0] + '.mp4'
             GLOBALS.s3client.delete_object(Bucket=Config.BUCKET, Key=video_key)
             GLOBALS.s3client.delete_object(Bucket=Config.BUCKET, Key=video_comp_key)
         app.logger.info(f'{len(videos)} Floating videos deleted from S3 successfully.')
