@@ -349,6 +349,13 @@ def delete_floating_data(survey_id, delete_from_s3=False):
             GLOBALS.s3client.delete_object(Bucket=Config.BUCKET, Key=image_comp_key)
         app.logger.info(f'{len(images)} Floating images deleted from S3 successfully.')
 
+    #Delete floating images (from unfinished upload)
+    floatImage_subq = db.session.query(Image.id).join(Camera).filter(Camera.path.like(survey_folder)).filter(Camera.trapgroup_id==None).subquery()
+    result = db.session.execute(delete(Image).where(Image.id.in_(select(floatImage_subq.c.id))).execution_options(synchronize_session=False))
+    db.session.commit()
+    app.logger.info('{} floating images deleted successfully.'.format(result.rowcount))
+
+    if delete_from_s3:
         videos = db.session.query(Video, Camera.path).join(Camera).filter(Camera.path.like(survey_folder)).filter(Camera.trapgroup_id==None).all()
         for video, path in videos:
             video_path = path.split('/_video_images_/')[0]
@@ -359,12 +366,6 @@ def delete_floating_data(survey_id, delete_from_s3=False):
             GLOBALS.s3client.delete_object(Bucket=Config.BUCKET, Key=video_key)
             GLOBALS.s3client.delete_object(Bucket=Config.BUCKET, Key=video_comp_key)
         app.logger.info(f'{len(videos)} Floating videos deleted from S3 successfully.')
-
-    #Delete floating images (from unfinished upload)
-    floatImage_subq = db.session.query(Image.id).join(Camera).filter(Camera.path.like(survey_folder)).filter(Camera.trapgroup_id==None).subquery()
-    result = db.session.execute(delete(Image).where(Image.id.in_(select(floatImage_subq.c.id))).execution_options(synchronize_session=False))
-    db.session.commit()
-    app.logger.info('{} floating images deleted successfully.'.format(result.rowcount))
 
     #Delete floating videos (from unfinished upload)
     floatVideo_subq = db.session.query(Video.id).join(Camera).filter(Camera.path.like(survey_folder)).filter(Camera.trapgroup_id==None).subquery()
