@@ -19476,18 +19476,25 @@ def getTimeshiftFiles(cameragroup_id):
 @app.route('/checkUpdatedClusters', methods=['POST'])
 @login_required
 def checkUpdatedClusters():
-    '''Checks whether for a given task it has any clusters with a timestamp greather tham the timestamp provided.'''
+    '''Checks whether for a given task it has any clusters with a timestamp greather tham the timestamp provided. Timestamp is in UTC and epoch seconds.'''
 
     task_id = ast.literal_eval(request.form['task_id'])
     timestamp = ast.literal_eval(request.form['timestamp'])
     task = db.session.query(Task).get(task_id)
 
     if task and checkSurveyPermission(current_user.id,task.survey_id,'read'):
+        if task.survey.status.lower() not in Config.SURVEY_READY_STATUSES or task.status.lower() not in Config.TASK_READY_STATUSES:
+            return json.dumps({'status':'error', 'message':'The survey is currently unavailable. Please wait for the survey to be ready.'})
+        
         try:
-            timestamp = datetime.strptime(timestamp, '%Y-%m-%d %H:%M:%S')
+            timestamp = int(timestamp)
+            timestamp = datetime.fromtimestamp(timestamp)
         except:
-            return json.dumps({'status':'error', 'message':'Invalid timestamp format. Required format: YYYY-MM-DD HH:MM:SS'})
-        cluster_count = db.session.query(Cluster.id).filter(Cluster.task_id==task_id).filter(Cluster.timestamp>timestamp).distinct().count()
-        return json.dumps({'status':'success', 'cluster_count': cluster_count})
+            return json.dumps({'status':'error', 'message':'Invalid timestamp format. Required epoch seconds.'})
+
+        cluster = db.session.query(Cluster.id).filter(Cluster.task_id==task_id).filter(Cluster.timestamp>timestamp).first()
+        if cluster: return json.dumps({'status':'success', 'updated': True})
+
+        return json.dumps({'status':'success', 'updated': False})
 
     return json.dumps({'status':'error'})

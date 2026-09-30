@@ -388,7 +388,7 @@ function updateHomeActivity() {
     homeActivity = new Date()
 }
 
-;['pointerdown','keydown','wheel','touchstart'].forEach(event => {
+;['pointerdown','keydown','wheel'].forEach(event => {
     document.addEventListener(event, updateHomeActivity, { passive: true })
 })
 
@@ -1135,8 +1135,8 @@ function updatePage(url){
     }
 
     let currentTimestamp = new Date()
-    if (currentTimestamp - homeActivity > 180000) {
-        // If the user has been inactive for more than 3 minutes, skip the update
+    if (currentTimestamp - homeActivity > 120000) {
+        // If the user has been inactive for more than 2 minutes, skip the update
         processingTimer = setTimeout(function() { updatePage(current_page); }, 5000)
         return
     }
