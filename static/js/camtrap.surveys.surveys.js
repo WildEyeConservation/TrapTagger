@@ -799,7 +799,7 @@ function buildSurveys(survey,disableSurvey) {
                 return function() {
                     selectedSurvey = wrapSurveyId
                     document.getElementById('modalConfirmHeader').innerHTML = 'Confirmation Required'
-                    document.getElementById('modalConfirmBody').innerHTML = 'Do you wish to cancel uploading files to ' + survey.name + '? This will delete any new files already uploaded.'
+                    document.getElementById('modalConfirmBody').innerHTML = 'Do you wish to cancel uploading files to ' + survey.name + '? This will delete any new files already uploaded.<br><br>If you believe your upload is stuck, please refresh the page and select the <strong>Resume Upload</strong> button. The system will only upload the missing files.'
                     document.getElementById('btnConfirm').addEventListener('click', confirmCancelUpload);
                     document.getElementById('confirmclose').addEventListener('click', removeCancelUploadListeners);
                     modalConfirm.modal({keyboard: true});

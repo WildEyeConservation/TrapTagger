@@ -241,7 +241,8 @@ uppy.use(Uppy.AwsS3, {
 
 uppy.on('upload-success', (file, response) => {
     /** On successful upload, remove the file from memory and tell the worker to increment the counts and check if finished. */
-    uppy.removeFile(file)
+    // uppy.removeFile(file)
+    uppy.removeFile(file.id)
     uploadWorker.postMessage({'func': 'fileUploadedSuccessfully', 'args': [file.name]});
 })
 
