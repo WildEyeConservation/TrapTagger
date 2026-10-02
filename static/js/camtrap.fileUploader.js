@@ -34,6 +34,7 @@ uploadWorker.onmessage = function(evt){
     } else if (evt.data.func=='buildUploadProgress') {
         buildUploadProgress(evt.data.args[0],evt.data.args[1])
     } else if (evt.data.func=='updatePage') {
+        updateHomeActivity()
         updatePage(current_page)
     } else if (evt.data.func=='uploadStart') {
         uploading = true
@@ -44,6 +45,7 @@ uploadWorker.onmessage = function(evt){
         uploadStart = null
         retrying = false
         uploading= false
+        updateHomeActivity()
         updatePage(generate_url())
         largeFiles = evt.data.args[0]
         if (largeFiles>0) {
