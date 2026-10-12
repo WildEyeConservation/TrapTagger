@@ -873,20 +873,29 @@ def fetch_clusters(taggingLevel,task_id,isBounding,trapgroup_id,limit=None,id=No
                 #                         .filter(Label.description==species))\
                 #                         .subquery()
 
+                species_id = db.session.query(Label.id).filter(Label.task_id==task_id,Label.description==species).scalar()
+
                 # Get all clusters that has a label that matches the species
                 clusterSQ = db.session.query(Cluster.id)\
                                         .join(Image,Cluster.images)\
-                                        .join(Detection,Image.detections)\
+                                        .join(Detection)\
                                         .join(Labelgroup)\
-                                        .join(Label,Labelgroup.labels)\
                                         .filter(Cluster.task_id==task_id)\
                                         .filter(Labelgroup.task_id==task_id)\
-                                        .filter(Label.description==species)\
-                                        .subquery()
+                                        .filter(Labelgroup.labels.any(Label.id==species_id))\
+                                        .distinct().subquery()
 
                 # We are including all species, will mark dets as inactive if they don't match the species
                 detectionSQ = rDets(db.session.query(
-                                            Detection,
+                                            Detection.id,
+                                            Detection.top,
+                                            Detection.bottom,
+                                            Detection.left,
+                                            Detection.right,
+                                            Detection.category,
+                                            Detection.static,
+                                            Detection.flank,
+                                            Detection.image_id,
                                             Label.id.label('label_id'),
                                             Label.description.label('label_description'),
                                             Individual.id.label('individual_id'),
@@ -895,12 +904,12 @@ def fetch_clusters(taggingLevel,task_id,isBounding,trapgroup_id,limit=None,id=No
                                         .join(Image)\
                                         .join(Labelgroup)\
                                         .join(Label,Labelgroup.labels)\
-                                        .outerjoin(Individual,Detection.individuals)\
-                                        .outerjoin(IndividualTask,Individual.tasks)\
                                         .join(Cluster,Image.clusters)\
                                         .join(clusterSQ,clusterSQ.c.id==Cluster.id)\
                                         .filter(Cluster.task_id==task_id)\
                                         .filter(Labelgroup.task_id==task_id))\
+                                        .outerjoin(Individual,Detection.individuals)\
+                                        .outerjoin(IndividualTask,Individual.tasks)\
                                         .subquery()
                 
                 clusters = db.session.query(
