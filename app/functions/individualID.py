@@ -529,7 +529,8 @@ def calculate_individual_similarity(self,individual1,individuals2,species,algori
 
         task_ids = [t.id for t in individual1.tasks] if individual1 else []
         if algorithm == None:
-            algorithm = db.session.query(Label.algorithm).filter(Label.description==species).filter(Label.task_id.in_(task_ids)).first()[0]
+            algorithm = db.session.query(Label.algorithm).filter(Label.description==species).filter(Label.task_id.in_(task_ids)).first()
+            algorithm = algorithm[0] if algorithm else None
 
         # # Find all family
         # family = []
