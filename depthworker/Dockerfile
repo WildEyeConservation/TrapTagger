@@ -37,3 +37,6 @@ COPY depth-estimation-repo/requirements_dist-estimation-tt.txt /tmp/requirements
 COPY depth-estimation-repo/requirements_dist-estimation-tt-nodeps.txt /tmp/requirements_dist-estimation-tt-nodeps.txt
 RUN python -m pip install --no-cache-dir -r /tmp/requirements_dist-estimation-tt.txt && \
     python -m pip install --no-cache-dir --no-deps -r /tmp/requirements_dist-estimation-tt-nodeps.txt
+
+# needed for unidepth model
+RUN python -m pip install --no-cache-dir wandb
