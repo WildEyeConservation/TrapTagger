@@ -34,6 +34,11 @@ for ((i=0;$((i<$NUMGPUS));i++)) do
     -e QUEUE \
     -e WORKER_NUMBER=$i \
     -e CUDA_VISIBLE_DEVICES=$i \
+    -e HF_HOME=/hf-cache \
+    -e HUGGINGFACE_HUB_CACHE=/hf-cache/hub \
+    -e TORCH_HOME=/hf-cache/torch \
+    -e HF_HUB_OFFLINE=1 \
+    -v /home/ubuntu/hf-cache:/hf-cache \
     -v /home/ubuntu/TrapTagger/depthworker:/code/depthworker \
     -v /home/ubuntu/TrapTagger/depth-estimation-repo:/code/depth-estimation-repo \
     -v /home/ubuntu/depth-weights:/root/.cache/depth-estimation-traptagger/weights \

@@ -23,12 +23,17 @@ RUN apt-get update && \
       libxext6 \
       libxrender1 \
       wget \
+      git \
     && rm -rf /var/lib/apt/lists/* \
     && ln -sf /usr/bin/python3 /usr/bin/python
 
 COPY depthworker/requirements.txt /code/depthworker/requirements.txt
 COPY depthworker/requirements_inference.txt /code/depthworker/requirements_inference.txt
-
 RUN python -m pip install --no-cache-dir --upgrade pip && \
     python -m pip install --no-cache-dir -r /code/depthworker/requirements.txt && \
     python -m pip install --no-cache-dir -r /code/depthworker/requirements_inference.txt
+
+COPY depth-estimation-repo/requirements_dist-estimation-tt.txt /tmp/requirements_dist-estimation-tt.txt
+COPY depth-estimation-repo/requirements_dist-estimation-tt-nodeps.txt /tmp/requirements_dist-estimation-tt-nodeps.txt
+RUN python -m pip install --no-cache-dir -r /tmp/requirements_dist-estimation-tt.txt && \
+    python -m pip install --no-cache-dir --no-deps -r /tmp/requirements_dist-estimation-tt-nodeps.txt
