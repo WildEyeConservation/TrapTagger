@@ -21,6 +21,21 @@ var timerJobStatus
 var jobTimer
 const btnNextJobs = document.querySelector('#btnNextJobs');
 const btnPrevJobs = document.querySelector('#btnPrevJobs');
+var jobActivity = new Date()
+
+function updateJobActivity() {
+    jobActivity = new Date()
+}
+
+;['pointerdown','keydown','wheel','touchstart'].forEach(event => {
+    document.addEventListener(event, updateJobActivity, { passive: true })
+})
+
+window.addEventListener('focus', updateJobActivity)
+
+document.addEventListener('visibilitychange', () => {
+    if (!document.hidden) updateJobActivity()
+})
 
 function buildJob(job) {
     /** Builds the supplied job item on the page. */
@@ -147,6 +162,7 @@ function buildJob(job) {
 
 function onload(){
     /** Initialises the jobs page on load. */
+    updateJobActivity()
     updatePage(current_page)
 }
 
@@ -155,12 +171,23 @@ window.addEventListener('load', onload, false);
 function updatePage(url){
     /** Updates the current page of paginated jobs, or switches the current page to the specified URL. */
 
+    if (jobTimer != null) {
+        clearTimeout(jobTimer)
+    }
+
     if (url==null) {
         url = current_page
     } else {
         current_page = url
     }
     
+    let currentTimestamp = new Date()
+    if (currentTimestamp - jobActivity > 180000) {
+        // If the user has been inactive for more than 3 minutes, skip the update
+        jobTimer = setTimeout(function() { updatePage(current_page); }, 10000)
+        return
+    }
+
     var xhttp = new XMLHttpRequest();
     xhttp.onreadystatechange =
     function(){

@@ -73,8 +73,9 @@ function updateSlider() {
     for (let i=0;i<individualImages.length;i++) {
         img = document.createElement('img')
         // img.setAttribute('src',"https://"+bucketName+".s3.amazonaws.com/" + modifyToCompURL(individualImages[i].url))
-        if (individualImages[i].detections.length > 0) {
-            image_url = "https://"+bucketName+".s3.amazonaws.com/" + modifyToCropURL(individualImages[i].url,individualImages[i].detections[0].id)
+        detection = individualImages[i].detections.find(det => det.active==true)??null
+        if (detection != null) {
+            image_url = "https://"+bucketName+".s3.amazonaws.com/" + modifyToCropURL(individualImages[i].url,detection.id)
         } else {
             image_url = "https://"+bucketName+".s3.amazonaws.com/" + modifyToCompURL(individualImages[i].url)
         }
@@ -119,11 +120,12 @@ function updateSlider() {
             if (bucketName!=null) {
                 finishedDisplaying = false
                 var image = individualImages[individualSplide.index]
+                var det = image.detections.find(det => det.active==true)
                 if (document.getElementById('tgInfoUnid') != null && (modalUnidentifiable.is(':visible')||unidentifiableOpen)) {
                     document.getElementById('tgInfoUnid').innerHTML = image.trapgroup.tag
                     document.getElementById('timeInfoUnid').innerHTML = image.timestamp
-                    document.getElementById('labelsDivUnid').innerHTML =  image.detections[0].species
-                    document.getElementById('surveysDivUnid').innerHTML = image.detections[0].task
+                    document.getElementById('labelsDivUnid').innerHTML =  det?.species??''
+                    document.getElementById('surveysDivUnid').innerHTML = det?.task??''
                     if (image.access=='write'){
                         document.getElementById('btnRestoreDetUnid').disabled = false
                     }
@@ -639,8 +641,13 @@ function removeImage() {
     modalAlertIndividuals.modal('hide')
     
     if (individualImages.length > 1){
-        image = individualImages[individualSplide.index]
-        detection = image.detections[0]
+        var image = individualImages[individualSplide.index]
+        var detection = image.detections.find(det => det.active==true)??null
+        if (detection == null) {
+            modalIndividual.modal({keyboard: true});
+            return;
+        }
+        var detection_id = detection.id
 
         individualImages.splice(individualSplide.index, 1)
         updateSlider()
@@ -673,7 +680,7 @@ function removeImage() {
                 }
             }
         }
-        xhttp.open("GET", '/dissociateDetection/'+detection.id.toString()+'?individual_id='+selectedIndividual.toString());
+        xhttp.open("GET", '/dissociateDetection/'+detection_id.toString()+'?individual_id='+selectedIndividual.toString());
         xhttp.send();
 
         modalIndividual.modal({keyboard: true});
@@ -711,7 +718,11 @@ function markImgUnidentifiable() {
     
     if (individualImages.length > 1){
         var image = individualImages[individualSplide.index]
-        var detection = image.detections[0]
+        var detection = image.detections.find(det => det.active==true)??null
+        if (detection == null) {
+            modalIndividual.modal({keyboard: true});
+            return;
+        }
 
         individualImages.splice(individualSplide.index, 1)
         updateSlider()
@@ -763,7 +774,8 @@ function individualMapPrep() {
         if (targetUpdated) {  
             if (isActiveContextMenu) {
                 detection_id = dbDetIds[targetRect.toString()]
-                original_flank = individualImages[individualSplide.index].detections[0].flank
+                var detection = individualImages[individualSplide.index].detections.find(det => det.id==detection_id)
+                original_flank = detection.flank
                 if (original_flank != e.el.textContent) {
                     changed_flanks[detection_id] = e.el.textContent
                     unsavedChanges = true

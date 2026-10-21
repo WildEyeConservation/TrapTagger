@@ -2,11 +2,7 @@ from app import app, db, celery
 from app.models import *
 from app.functions.globals import *
 from app.functions.delete import delete_notifications
-import GLOBALS
 from sqlalchemy.sql import func, or_, and_, alias
-from sqlalchemy import desc
-from config import Config
-import traceback
 
 def surveyPermissionsSQ(sq,user_id,requiredPermission,aliasPermission=None):
     '''Adds the necessary SQLAlchemy filters to check if a user has the required permission for a survey. Gives the user the highest permission available to them.'''

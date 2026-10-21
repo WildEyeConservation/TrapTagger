@@ -16,10 +16,8 @@ limitations under the License.
 
 from app import app, db, celery
 from app.models import *
-from app.functions.globals import addChildLabels, resolve_abandoned_jobs, createTurkcodes, deleteTurkcodes, \
-                                    updateTaskCompletionStatus, updateLabelCompletionStatus, updateIndividualIdStatus, retryTime, chunker, \
-                                    getClusterClassifications, checkForIdWork, numify_timestamp, rDets, prep_required_images, updateAllStatuses, classifyTask, cleanup_empty_restored_images,\
-                                    reconcile_cluster_labelgroup_labels_and_tags, generateUniqueName, update_individuals_primary_dets, process_multi_labels
+from app.functions.globals import updateIndividualIdStatus, retryTime, getClusterClassifications, numify_timestamp, rDets, updateAllStatuses, cleanup_empty_restored_images,\
+    reconcile_cluster_labelgroup_labels_and_tags, update_individuals_primary_dets, process_multi_labels
 from app.functions.delete import delete_turkcodes
 from app.functions.individualID import calculate_detection_similarities, cleanUpIndividuals, calculate_individual_similarities, check_individual_detection_mismatch
 # from app.functions.results import resetDownloadStatus
@@ -28,15 +26,10 @@ from sqlalchemy.sql import func, distinct, or_, alias, and_, literal_column
 from sqlalchemy import desc
 from datetime import datetime, timedelta
 import re
-import math
 from config import Config
 import traceback
 import time
-from multiprocessing.pool import ThreadPool as Pool
-import ast
-import numpy
 import json
-from celery.result import allow_join_result
 
 # @celery.task(bind=True,max_retries=5,ignore_result=True)
 def freeUpWork(task_id):
