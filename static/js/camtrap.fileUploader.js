@@ -58,6 +58,7 @@ uploadWorker.onmessage = function(evt){
     } else if (evt.data.func=='buildUploadProgress') {
         buildUploadProgress(evt.data.args[0], evt.data.args[1], evt.data.args[2])
     } else if (evt.data.func=='updatePage') {
+        updateHomeActivity()
         updatePage(current_page)
     } else if (evt.data.func=='uploadStart') {
         uploading = true
@@ -68,6 +69,7 @@ uploadWorker.onmessage = function(evt){
         uploadStart = null
         retrying = false
         uploading= false
+        updateHomeActivity()
         updatePage(generate_url())
         largeFiles = evt.data.args[0]
         if (largeFiles>0) {
@@ -316,7 +318,8 @@ uppy.use(Uppy.AwsS3, {
 
 uppy.on('upload-success', (file, response) => {
     /** On successful upload, remove the file from memory and tell the worker to increment the counts and check if finished. */
-    uppy.removeFile(file)
+    // uppy.removeFile(file)
+    uppy.removeFile(file.id)
     uploadWorker.postMessage({'func': 'fileUploadedSuccessfully', 'args': [file.name]});
 })
 

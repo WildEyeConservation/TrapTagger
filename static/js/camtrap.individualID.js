@@ -540,11 +540,13 @@ function loadNewCluster(mapID = 'map1') {
                                         }
                                         else{
                                             current_timestamp = new_clusters[new_cluster_index-1].images[new_clusters[new_cluster_index-1].images.length-1].timestamp
+                                            current_size = new_clusters[new_cluster_index-1].images.length
                                             new_timestamp = info.info[i].images[0].timestamp
+                                            new_size = info.info[i].images.length
                                             // If timestamp is within 30 minutes of the previous cluster, add to the same cluster
                                             allow_merge = (new_timestamp==0 || current_timestamp==0) ? false : true
                                             time_diff = new_timestamp-current_timestamp
-                                            if (allow_merge && time_diff < 1800) {
+                                            if (allow_merge && time_diff < 1800 && (current_size+new_size) <= 200) {
                                                 for (let j=0;j<info.info[i].images.length;j++) {
                                                     info.info[i].images[j].cluster_id = info.info[i].id
                                                     new_clusters[new_cluster_index-1].images.push(info.info[i].images[j])

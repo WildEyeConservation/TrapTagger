@@ -84,6 +84,7 @@ async function checkFileBatch() {
             var file = await item[1].getFile()
             let hash = ''
             var total_pixel = null
+            var bitmap = null
             if (file.type.startsWith('image/')) {
                 try {
                     // Get Image resolution
@@ -92,6 +93,8 @@ async function checkFileBatch() {
                     total_pixel = bitmap.width * bitmap.height;
                 } catch (e) {
                     total_pixel = null;
+                } finally {
+                    if (bitmap) bitmap.close();
                 }
             }
             if (file != null && file.size > 500000000) { // 500MB
@@ -555,12 +558,12 @@ async function checkLambdaQueue(pause=false) {
                 survey_id: uploadID
             })
         }).then((response) => {
+            checkingLambda = false
             if (!response.ok) {
                 throw new Error(response.statusText)
             } else if (response.status==278) {
                 postMessage({'func': 'reloadPage', 'args': [largeFiles]})
             }
-            checkingLambda = false
             if (!pause){
                 if (lambdaQueue.length==0){
                     checkFinishedUpload()
@@ -570,8 +573,9 @@ async function checkLambdaQueue(pause=false) {
                 }
             }
         }).catch( (error) => {
+            checkingLambda = false
             if (!pause){
-                lambdaQueue.push(...files)
+                for (let i=0;i<files.length;i++) lambdaQueue.push(files[i].filename)
                 setTimeout(function() { checkLambdaQueue(pause); }, 10000);
             }
         }))

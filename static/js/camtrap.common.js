@@ -3828,7 +3828,7 @@ function initKeys(res){
             divBtns.removeChild(divBtns.firstChild);
         }
 
-        if (taggingLevel.includes('-2')||switchToLabel) {
+        if (!isReviewing&&(taggingLevel.includes('-2')||switchToLabel)) {
             let annotationLevelSelector = document.createElement('select');
             annotationLevelSelector.setAttribute("id", 'annotationLevelSelector');
             annotationLevelSelector.setAttribute("class", "form-control");
