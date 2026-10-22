@@ -2904,25 +2904,31 @@ def process_calibration_images(survey_id, s3_folder, source_bucket, dest_bucket)
     # Dispatch all calibration images to MegaDetector as one batch
     if cal_images_to_detect:
         batch_keys = [item[0] for item in cal_images_to_detect]
-        GLOBALS.lock.acquire()
-        with allow_join_result():
-            result = detection.apply_async(
-                kwargs={'batch': batch_keys, 'sourceBucket': dest_bucket, 'external': False, 'model': Config.DETECTOR},
-                queue='celery', routing_key='celery.detection'
-            ).get()
-        GLOBALS.lock.release()
-        # Update CalibrationImage records with bbox data
-        for i, (dest_key, cal_id) in enumerate(cal_images_to_detect):
-            if result and i < len(result):
-                detections = result[i]
-                human_detections = [d for d in detections if d.get('category') == 2]
-                if human_detections:
-                    best = max(human_detections, key=lambda d: d['score'])
-                    cal_image = db.session.query(CalibrationImage).get(cal_id)
-                    cal_image.top = best['top']
-                    cal_image.left = best['left']
-                    cal_image.bottom = best['bottom']
-                    cal_image.right = best['right']
+        jobs = [{
+            'task': detection,
+            'kwargs': {
+                'batch': batch_keys,
+                'sourceBucket': dest_bucket,
+                'external': False,
+                'model': Config.DETECTOR,
+            },
+            'queue': 'celery',
+            'options': {'routing_key': 'celery.detection'},
+        }]
+        # Wait once for the batch, then apply bboxes to every calibration image
+        for job, result in wait_for_jobs(jobs):
+            if result is None: continue
+            for i, (dest_key, cal_id) in enumerate(cal_images_to_detect):
+                if i < len(result):
+                    detections = result[i]
+                    human_detections = [d for d in detections if d.get('category') == 2]
+                    if human_detections:
+                        best = max(human_detections, key=lambda d: d['score'])
+                        cal_image = db.session.query(CalibrationImage).get(cal_id)
+                        cal_image.top = best['top']
+                        cal_image.left = best['left']
+                        cal_image.bottom = best['bottom']
+                        cal_image.right = best['right']
         db.session.commit()
     return True
 
@@ -5471,26 +5477,31 @@ def run_calibration_detection_batch(cal_images_to_detect):
         return
 
     batch_keys = [item[0] for item in cal_images_to_detect]
-    GLOBALS.lock.acquire()
-    with allow_join_result():
-        result = detection.apply_async(
-            kwargs={'batch': batch_keys, 'sourceBucket': Config.BUCKET, 'external': False, 'model': Config.DETECTOR},
-            queue='celery', routing_key='celery.detection'
-        ).get()
-    GLOBALS.lock.release()
-
-    for i, (dest_key, cal_id) in enumerate(cal_images_to_detect):
-        if result and i < len(result):
-            detections = result[i]
-            human_detections = [d for d in detections if d.get('category') == 2]
-            if human_detections:
-                best = max(human_detections, key=lambda d: d['score'])
-                cal_image = db.session.query(CalibrationImage).get(cal_id)
-                if cal_image:
-                    cal_image.top = best['top']
-                    cal_image.left = best['left']
-                    cal_image.bottom = best['bottom']
-                    cal_image.right = best['right']
+    jobs = [{
+        'task': detection,
+        'kwargs': {
+            'batch': batch_keys,
+            'sourceBucket': Config.BUCKET,
+            'external': False,
+            'model': Config.DETECTOR,
+        },
+        'queue': 'celery',
+        'options': {'routing_key': 'celery.detection'},
+    }]
+    for job, result in wait_for_jobs(jobs):
+        if result is None: continue
+        for i, (dest_key, cal_id) in enumerate(cal_images_to_detect):
+            if i < len(result):
+                detections = result[i]
+                human_detections = [d for d in detections if d.get('category') == 2]
+                if human_detections:
+                    best = max(human_detections, key=lambda d: d['score'])
+                    cal_image = db.session.query(CalibrationImage).get(cal_id)
+                    if cal_image:
+                        cal_image.top = best['top']
+                        cal_image.left = best['left']
+                        cal_image.bottom = best['bottom']
+                        cal_image.right = best['right']
     db.session.commit()
 
 @celery.task(bind=True,max_retries=5)

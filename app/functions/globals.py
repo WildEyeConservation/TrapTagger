@@ -7430,12 +7430,11 @@ def launch_depth_estimation(survey_id, task_ids, species_list):
     whole Celery job and deleting local trap frames between chunks.
 
     Returns:
-        dict with keys: launched, skipped, celery_task_ids, async_results, errors
+        dict with keys: launched, skipped, jobs, errors
     '''
     launched = []
     skipped = []
-    celery_task_ids = []
-    async_results = []
+    jobs = []
     errors = []
 
     cameragroups = (
@@ -7525,23 +7524,26 @@ def launch_depth_estimation(survey_id, task_ids, species_list):
         batch_count = len(trap_batches)
         try:
             for batch_index, trap_batch in enumerate(trap_batches, start=1):
-                async_result = depth_estimate.apply_async(
-                    kwargs={
-                        'cameragroup_id': cg_id,
-                        'cam_name': cg_name,
-                        'calibration_items': calibration_items,
-                        'trap_items': trap_batch,
-                        'sourceBucket': Config.BUCKET,
-                        'external': False,
-                        'survey_id': survey_id,
-                        'batch_index': batch_index,
-                        'batch_count': batch_count,
-                    },
-                    queue='depth',
-                )
-
-                celery_task_ids.append(async_result.id)
-                async_results.append(async_result)
+                # Dispatched here rather than by wait_for_jobs so that depth work
+                # overlaps with preparing remaining cameragroups
+                kwargs = {
+                    'cameragroup_id': cg_id,
+                    'cam_name': cg_name,
+                    'calibration_items': calibration_items,
+                    'trap_items': trap_batch,
+                    'sourceBucket': Config.BUCKET,
+                    'external': False,
+                    'survey_id': survey_id,
+                    'batch_index': batch_index,
+                    'batch_count': batch_count,
+                }
+                async_result = depth_estimate.apply_async(kwargs=kwargs, queue='depth')
+                jobs.append({
+                    'task': depth_estimate,
+                    'kwargs': kwargs,
+                    'queue': 'depth',
+                    'result': async_result,
+                })
                 launched.append({
                     'cameragroup_id': cg_id,
                     'name': cg_name,
@@ -7559,8 +7561,7 @@ def launch_depth_estimation(survey_id, task_ids, species_list):
     return {
         'launched': launched,
         'skipped': skipped,
-        'celery_task_ids': celery_task_ids,
-        'async_results': async_results,
+        'jobs': jobs,
         'errors': errors,
     }
 
@@ -7620,25 +7621,21 @@ def run_depth_estimation(self, survey_id, task_ids, species_list):
         launch_summary = launch_depth_estimation(survey_id, task_ids, species_list)
         total_updated = 0
         batch_failures = 0
-        if launch_summary['async_results']:
-            GLOBALS.lock.acquire()
-            try:
-                with allow_join_result():
-                    for async_result in launch_summary['async_results']:
-                        try:
-                            response = async_result.get()
-                            total_updated += apply_depth_estimation_results(response)
-                            db.session.commit()
-                        except Exception:
-                            batch_failures += 1
-                            app.logger.info(
-                                'Depth batch {} failed'.format(async_result.id)
-                            )
-                            app.logger.info(traceback.format_exc())
-                        finally:
-                            async_result.forget()
-            finally:
-                GLOBALS.lock.release()
+        jobs = launch_summary.get('jobs') or []
+        if jobs:
+            for job, response in wait_for_jobs(jobs):
+                if response is None:
+                    batch_failures += 1
+                    app.logger.info(
+                        'Depth batch failed for cameragroup {} batch {}/{}'.format(
+                            job['kwargs'].get('cameragroup_id'),
+                            job['kwargs'].get('batch_index'),
+                            job['kwargs'].get('batch_count'),
+                        )
+                    )
+                    continue
+                total_updated += apply_depth_estimation_results(response)
+                db.session.commit()
 
         launch_errors = len(launch_summary.get('errors') or [])
         if batch_failures or launch_errors:

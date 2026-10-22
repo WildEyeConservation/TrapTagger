@@ -2684,6 +2684,8 @@ def editSurvey():
                     # edit_survey is launched only after complete/cancel of that session.
                     survey.status = 'Uploading Calibration'
                     db.session.commit()
+                    if shiftTimestamps:
+                        GLOBALS.redisClient.set('shift_timestamps_{}'.format(survey_id),json.dumps(shiftTimestamps))
                     GLOBALS.redisClient.set('edit_survey_{}'.format(survey_id), json.dumps(edit_survey_args))
                     GLOBALS.redisClient.set(
                         'cal_upload_pending_{}'.format(survey_id),
