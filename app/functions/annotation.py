@@ -213,12 +213,16 @@ def wrapUpTask(self,task_id):
                     db.session.commit()
                     if tL[4]=='h':
                         calculate_detection_similarities.delay(task_ids=t_ids,species=species,algorithm='hotspotter')
+                    elif tL[4]=='m':
+                        calculate_detection_similarities.delay(task_ids=t_ids,species=species,algorithm='miewid')
                     elif tL[4]=='n':
                         calculate_detection_similarities.delay(task_ids=t_ids,species=species,algorithm='none')
                 else:
                     db.session.commit()
                     if tL[4]=='h':
                         calculate_detection_similarities.delay(task_ids=[task_id],species=species,algorithm='hotspotter')
+                    elif tL[4]=='m':
+                        calculate_detection_similarities.delay(task_ids=[task_id],species=species,algorithm='miewid')
                     elif tL[4]=='n':
                         calculate_detection_similarities.delay(task_ids=[task_id],species=species,algorithm='none')
             else:

@@ -1141,7 +1141,8 @@ function updateCanvas(mapID = 'map1') {
 
                         if (('detsim' in clusters['map2'][0])&&(image1 in clusters['map2'][0]['detsim'])&&(image2 in clusters['map2'][0]['detsim'][image1])) {
                             detSim = document.createElement('div')
-                            detSim.innerHTML = 'Hotspotter: ' + String(clusters['map2'][0]['detsim'][image1][image2])
+                            var simLabel = (taggingAlgorithm == 'miewid') ? 'MiewID: ' : 'Hotspotter: '
+                            detSim.innerHTML = simLabel + String(clusters['map2'][0]['detsim'][image1][image2])
                             debugInfo.append(detSim)
                         }
 

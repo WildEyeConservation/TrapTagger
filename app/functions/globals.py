@@ -57,11 +57,13 @@ import timezonefinder
 import secrets
 from celery.result import allow_join_result, AsyncResult
 from gpuworker.worker import segment_and_pose
+from miewID_worker.worker import miewid_prepare
 import numpy 
 from sqlalchemy.sql.expression import cast
 import sqlalchemy as sa
 from app.functions.delete import delete_clusters
 from depthworker.worker import depth_estimate
+import array
 
 # def cleanupWorkers(one, two):
 #     '''
@@ -3257,7 +3259,7 @@ def inspect_celery(include_spam=False,include_reserved=False,include_scheduled=F
     ''' Funcion to manually inspect the running celery tasks'''
     inspector = celery.control.inspect()
     spam = ['importImages','.detection','.classify','runClassifier','processCameraStaticDetections', 'process_video_batch','processStaticWindow', 
-            'segment_and_pose', 'calculate_individual_similarity','calculate_hotspotter_similarity', 'generateDetections', 'archive_images', 'archive_empty_images',
+            'segment_and_pose', 'miewid_prepare', 'calculate_individual_similarity','calculate_hotspotter_similarity', 'calculate_miewid_similarity', 'generateDetections', 'archive_images', 'archive_empty_images',
             'archive_videos', 'group_cameras', 'updateTrapgroupStaticDetections', 'extrapolate_timestamps', 'classifyTrapgroup', 
             'updateTrapgroupDetectionRatings', 'extract_zip', 'prep_required_images']
     if include_spam: spam = []
@@ -6736,6 +6738,9 @@ def launch_task(self,task_id,classify=False):
                 if tL[4]=='h':
                     label.algorithm = 'hotspotter'
                     process_detections_for_individual_id([task_id],species)
+                elif tL[4]=='m':
+                    label.algorithm = 'miewid'
+                    process_detections_for_miewid([task_id],species)
                 elif tL[4]=='n':
                     label.algorithm = 'heuristic'
                     process_detections_for_individual_id([task_id],species,pose_only=True)
@@ -7017,6 +7022,8 @@ def launch_task(self,task_id,classify=False):
                     from app.functions.individualID import calculate_detection_similarities
                     if tL[4]=='h':
                         calculate_detection_similarities.delay(task_ids=[task_id],species=species,algorithm='hotspotter')
+                    elif tL[4]=='m':
+                        calculate_detection_similarities.delay(task_ids=[task_id],species=species,algorithm='miewid')
                     elif tL[4]=='n':
                         calculate_detection_similarities.delay(task_ids=[task_id],species=species,algorithm='none')
 
@@ -7683,6 +7690,16 @@ def run_depth_estimation(self, survey_id, task_ids, species_list):
 
 
 
+def pack_embedding(floats):
+    '''Pack a list/iterable of floats into float32 bytes for DetectionEmbedding.embedding.'''
+    return array.array('f', floats).tobytes()
+
+
+def unpack_embedding(blob):
+    '''Unpack DetectionEmbedding.embedding bytes into a float32 numpy array.'''
+    return numpy.frombuffer(blob, dtype=numpy.float32)
+
+
 def process_detections_for_individual_id(task_ids,species,pose_only=False):
     '''
     Task for processing detections for individual ID purposes. This task is used to segment images and perform pose estimation. It is also used
@@ -7772,6 +7789,115 @@ def process_detections_for_individual_id(task_ids,species,pose_only=False):
             for aid in aid_list: GLOBALS.redisClient.lrem('delete_aid_list', 0, aid)
 
         app.logger.info('Finished processing detections for individual ID in {}s'.format(time.time()-starttime))
+
+    except Exception:
+        app.logger.info(' ')
+        app.logger.info('!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!')
+        app.logger.info(traceback.format_exc())
+        app.logger.info('!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!')
+        app.logger.info(' ')
+
+    return True
+
+
+def process_detections_for_miewid(task_ids, species):
+    '''
+    Enqueue miewid_prepare for detections missing a MiewID embedding. Writes Detection.flank
+    and DetectionEmbedding from the Celery results.
+
+        Parameters:
+            task_ids (list): Task IDs whose detections should be prepared
+            species (str): Species label description
+    '''
+
+    try:
+        app.logger.info('Process detections for MiewID for task_ids: {}, species: {}'.format(task_ids, species))
+        starttime = time.time()
+
+        embedded_ids = db.session.query(DetectionEmbedding.detection_id)
+        data = rDets(db.session.query(
+                Detection.id, Detection.left, Detection.right, Detection.top, Detection.bottom,
+                Image.id, Image.filename, Camera.path
+            )\
+            .join(Image, Detection.image_id == Image.id)\
+            .join(Camera, Image.camera_id == Camera.id)\
+            .join(Labelgroup, Labelgroup.detection_id == Detection.id)\
+            .join(Task, Labelgroup.task_id == Task.id)\
+            .join(Label, Labelgroup.labels)\
+            .filter(Task.id.in_(task_ids))\
+            .filter(Label.description == species)\
+            .filter(~Detection.id.in_(embedded_ids)))\
+            .distinct().all()
+
+        det_data = []
+        for d in data:
+            det_data.append({
+                'detection_id': d[0],
+                'image_id': d[5],
+                'bbox': {
+                    'left': d[1],
+                    'right': d[2],
+                    'top': d[3],
+                    'bottom': d[4],
+                },
+                'image_path': d[7] + '/' + d[6],
+            })
+
+        jobs = []
+        for batch in chunker(det_data, 500):
+            jobs.append({
+                'task': miewid_prepare,
+                'kwargs': {
+                    'batch': batch,
+                    'sourceBucket': Config.BUCKET,
+                    'species': species,
+                },
+                'queue': 'miewid',
+                'options': {'routing_key': 'miewid.prepare'},
+            })
+
+        app.logger.info('Waiting for miewid_prepare ({} detections, {} jobs)'.format(len(det_data), len(jobs)))
+        if jobs:
+            db.session.remove()
+            for job, response in wait_for_jobs(jobs):
+                if response is None:
+                    continue
+                if Config.DEBUGGING:
+                    print('Processed miewid_prepare for batch {}'.format(job['kwargs']['batch'][0]))
+                try:
+                    det_ids = [int(k) for k in response.keys()]
+                    detections = db.session.query(Detection).filter(Detection.id.in_(det_ids)).all()
+                    for detection in detections:
+                        try:
+                            item = response[str(detection.id)]
+                            if detection.flank is None:
+                                detection.flank = item['flank']
+                            emb_bytes = pack_embedding(item['embedding'])
+                            existing = db.session.query(DetectionEmbedding).get(detection.id)
+                            if existing is None:
+                                db.session.add(DetectionEmbedding(
+                                    detection_id=detection.id,
+                                    embedding=emb_bytes,
+                                    dim=len(item['embedding']),
+                                ))
+                            else:
+                                existing.embedding = emb_bytes
+                                existing.dim = len(item['embedding'])
+                        except Exception:
+                            app.logger.info(' ')
+                            app.logger.info('!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!')
+                            app.logger.info(traceback.format_exc())
+                            app.logger.info('!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!')
+                            app.logger.info(' ')
+                except Exception:
+                    app.logger.info(' ')
+                    app.logger.info('!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!')
+                    app.logger.info(traceback.format_exc())
+                    app.logger.info('!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!')
+                    app.logger.info(' ')
+
+        db.session.commit()
+        app.logger.info('Finished MiewID prepare in {}s'.format(time.time() - starttime))
 
     except Exception:
         app.logger.info(' ')

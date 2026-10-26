@@ -16,8 +16,9 @@ limitations under the License.
 
 from app import app, db, celery
 from app.models import *
-from app.functions.globals import coordinateDistance, retryTime, rDets, updateIndividualIdStatus, chunker, process_detections_for_individual_id, update_individuals_primary_dets,\
-    crop_image_to_individual, wait_for_jobs
+from app.functions.globals import coordinateDistance, retryTime, rDets, updateIndividualIdStatus, chunker, process_detections_for_individual_id, process_detections_for_miewid, update_individuals_primary_dets,\
+    crop_image_to_individual, wait_for_jobs, unpack_embedding
+import numpy
 from app.functions.delete import delete_individuals_helper
 import GLOBALS
 import time
@@ -334,7 +335,7 @@ def calculate_detection_similarities(self,task_ids,species,algorithm):
 
     try:
 
-        if algorithm == 'hotspotter':
+        if algorithm in ('hotspotter', 'miewid'):
 
             if len(task_ids)==1:
                 task = db.session.query(Task).get(task_ids[0])
@@ -343,13 +344,22 @@ def calculate_detection_similarities(self,task_ids,species,algorithm):
             task.survey.status = 'processing'
             db.session.commit()
 
-            process_detections_for_individual_id(task_ids,species)
+            if algorithm == 'hotspotter':
+                process_detections_for_individual_id(task_ids,species)
+                visual_ready = Detection.aid!=None
+                sim_task = calculate_hotspotter_similarity
+            else:
+                process_detections_for_miewid(task_ids,species)
+                # exists() is session-safe across remove()/commit cycles
+                visual_ready = db.session.query(DetectionEmbedding.detection_id)\
+                    .filter(DetectionEmbedding.detection_id == Detection.id).exists()
+                sim_task = calculate_miewid_similarity
 
             base_detection_query = rDets(db.session.query(Detection.id)\
                                             .join(Labelgroup)\
                                             .join(Label,Labelgroup.labels)\
                                             .filter(Label.description==species))\
-                                            .filter(Detection.aid!=None)
+                                            .filter(visual_ready)
             jobs = []
             ambiguous_flank = Config.FLANK_DB['ambiguous']
             flanks = [flank for flank in  Config.FLANK_DB.values() if flank != None and flank != ambiguous_flank]
@@ -376,7 +386,7 @@ def calculate_detection_similarities(self,task_ids,species,algorithm):
                                             .filter(Labelgroup.task_id==task_2)\
                                             .filter(Label.description==species)\
                                             .filter(Detection.flank.in_(required_flanks)))\
-                                            .filter(Detection.aid!=None)\
+                                            .filter(visual_ready)\
                                             .subquery()
                         sim_dets1 = db.session.query(DetSimilarity.detection_1.label('id'))\
                                             .join(task2_dets, task2_dets.c.id==DetSimilarity.detection_2)\
@@ -422,18 +432,18 @@ def calculate_detection_similarities(self,task_ids,species,algorithm):
                                     if len(dets_2) > 5000:
                                         for chunk in chunker(dets_2,5000):
                                             jobs.append({
-                                                'task': calculate_hotspotter_similarity, 
+                                                'task': sim_task, 
                                                 'kwargs': {'batch': [{'query_ids': [det_1], 'db_ids': chunk}]}, 
                                                 'queue': 'individual_id',
-                                                'result': calculate_hotspotter_similarity.apply_async(kwargs={'batch': [{'query_ids': [det_1], 'db_ids': chunk}]},queue='individual_id')
+                                                'result': sim_task.apply_async(kwargs={'batch': [{'query_ids': [det_1], 'db_ids': chunk}]},queue='individual_id')
                                             })
                                     else:
                                         if (count_in_batch + len(dets_2)) > 5000:
                                             jobs.append({
-                                                'task': calculate_hotspotter_similarity, 
+                                                'task': sim_task, 
                                                 'kwargs': {'batch': batch}, 
                                                 'queue': 'individual_id',
-                                                'result': calculate_hotspotter_similarity.apply_async(kwargs={'batch': batch},queue='individual_id')
+                                                'result': sim_task.apply_async(kwargs={'batch': batch},queue='individual_id')
                                             })
                                             batch = []
                                             count_in_batch = 0
@@ -446,19 +456,19 @@ def calculate_detection_similarities(self,task_ids,species,algorithm):
                                         
             if batch:
                 jobs.append({
-                    'task': calculate_hotspotter_similarity, 
+                    'task': sim_task, 
                     'kwargs': {'batch': batch}, 
                     'queue': 'individual_id',
-                    'result': calculate_hotspotter_similarity.apply_async(kwargs={'batch': batch},queue='individual_id')
+                    'result': sim_task.apply_async(kwargs={'batch': batch},queue='individual_id')
                 })
 
-            app.logger.info('Waiting for hotspotter similarity calculations to complete')
+            app.logger.info('Waiting for {} similarity calculations to complete'.format(algorithm))
             db.session.remove()
             if jobs:
                 for job, response in wait_for_jobs(jobs):
                     if response is None: continue
-                    if Config.DEBUGGING: print('Calculated hotspotter similarity for batch {}'.format(job['kwargs']['batch'][0]['query_ids']))
-            app.logger.info('Hotspotter similarity calculations completed')
+                    if Config.DEBUGGING: print('Calculated {} similarity for batch {}'.format(algorithm, job['kwargs']['batch'][0]['query_ids']))
+            app.logger.info('{} similarity calculations completed'.format(algorithm))
 
         labels = db.session.query(Label).filter(Label.description==species).filter(Label.task_id.in_(task_ids)).all()
         for label in labels:
@@ -622,7 +632,7 @@ def calculate_individual_similarity(self,individual1,individuals2,species,algori
                             if tag not in individual1_tags:
                                 tagScore -= mismatchWeight
 
-                        if algorithm == 'hotspotter':
+                        if algorithm in ('hotspotter', 'miewid'):
                             detSimilarities = db.session.query(DetSimilarity.score,
                                         Det1.c.id,Det1.c.left,Det1.c.right,Det1.c.top,Det1.c.bottom,Det1.c.flank,Image1.c.camera_id,Image1.c.corrected_timestamp,Trapgroup1.c.latitude,Trapgroup1.c.longitude,
                                         Det2.c.id,Det2.c.left,Det2.c.right,Det2.c.top,Det2.c.bottom,Det2.c.flank,Image2.c.camera_id,Image2.c.corrected_timestamp,Trapgroup2.c.latitude,Trapgroup2.c.longitude)\
@@ -1316,6 +1326,71 @@ def check_individual_detection_mismatch(self,task_id,cluster_id=None):
         db.session.remove()
 
     return True
+
+@celery.task(bind=True,max_retries=5)
+def calculate_miewid_similarity(self, batch):
+    '''
+    Celery task: cosine similarity between stored MiewID embeddings → DetSimilarity.
+
+        Parameters:
+            batch (list): Items with query_ids / db_ids (detection IDs), same shape as Hotspotter jobs.
+    '''
+
+    try:
+        starttime = time.time()
+
+        det_ids = []
+        for item in batch:
+            det_ids.extend(item['query_ids'])
+            det_ids.extend(item['db_ids'])
+        det_ids = list(set(det_ids))
+
+        rows = db.session.query(DetectionEmbedding.detection_id, DetectionEmbedding.embedding)\
+            .filter(DetectionEmbedding.detection_id.in_(det_ids)).all()
+        embeddings = {det_id: unpack_embedding(blob) for det_id, blob in rows}
+
+        for item in batch:
+            query_ids = [d for d in item['query_ids'] if d in embeddings]
+            db_ids = [d for d in item['db_ids'] if d in embeddings]
+            if not query_ids or not db_ids:
+                continue
+
+            db_matrix = numpy.stack([embeddings[d] for d in db_ids], axis=0)
+            for qid in query_ids:
+                scores = db_matrix @ embeddings[qid]
+                for n, score in enumerate(scores):
+                    score = float(score)
+                    if score <= 0:
+                        continue
+                    detection1_id = qid
+                    detection2_id = db_ids[n]
+                    detSimilarity = db.session.query(DetSimilarity).filter(
+                        or_(
+                            and_(DetSimilarity.detection_1 == detection1_id, DetSimilarity.detection_2 == detection2_id),
+                            and_(DetSimilarity.detection_1 == detection2_id, DetSimilarity.detection_2 == detection1_id),
+                        )
+                    ).first()
+                    if detSimilarity is None:
+                        detSimilarity = DetSimilarity(detection_1=detection1_id, detection_2=detection2_id)
+                        db.session.add(detSimilarity)
+                    detSimilarity.score = score
+
+        db.session.commit()
+        app.logger.info('Finished calculating miewid similarity in {}s'.format(time.time() - starttime))
+
+    except Exception as exc:
+        app.logger.info(' ')
+        app.logger.info('!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!')
+        app.logger.info(traceback.format_exc())
+        app.logger.info('!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!')
+        app.logger.info(' ')
+        self.retry(exc=exc, countdown=retryTime(self.request.retries))
+
+    finally:
+        db.session.remove()
+
+    return True
+
 
 @celery.task(bind=True,max_retries=5)
 def calculate_hotspotter_similarity(self,batch):

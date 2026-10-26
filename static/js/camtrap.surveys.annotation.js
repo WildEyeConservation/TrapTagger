@@ -44,7 +44,7 @@ launchMTurkTaskBtn.addEventListener('click', ()=>{
             idcheck = false
             document.getElementById('launchErrors').innerHTML = 'Individual Identification requires the survey to have an area defined. Please define an area for the survey before launching.'
         } else{
-            if (!(document.getElementById('hotspotter').checked || document.getElementById('heuristic').checked)) {
+            if (!(document.getElementById('hotspotter').checked || document.getElementById('miewid').checked || document.getElementById('heuristic').checked)) {
                 idcheck = false
                 document.getElementById('launchErrors').innerHTML = 'Please select an algorithm. '
             }
@@ -141,6 +141,8 @@ function launchTask(){
         taskTaggingLevel += ',m'
         if (document.getElementById('hotspotter').checked) {
             taskTaggingLevel += ',h'
+        } else if (document.getElementById('miewid').checked) {
+            taskTaggingLevel += ',m'
         } else if (document.getElementById('heuristic').checked) {
             taskTaggingLevel += ',n'
         } else {
@@ -777,6 +779,24 @@ function buildIndividualOptions() {
     label.setAttribute('class','custom-control-label')
     label.setAttribute('for','hotspotter')
     label.innerHTML = 'Hotspotter'
+    radio.appendChild(label)
+
+    radio = document.createElement('div')
+    radio.setAttribute('class','custom-control custom-radio custom-control-inline')
+    row.appendChild(radio)
+
+    input = document.createElement('input')
+    input.setAttribute('type','radio')
+    input.setAttribute('class','custom-control-input')
+    input.setAttribute('id','miewid')
+    input.setAttribute('name','algorithmSelection')
+    input.setAttribute('value','customEx')
+    radio.appendChild(input)
+
+    label = document.createElement('label')
+    label.setAttribute('class','custom-control-label')
+    label.setAttribute('for','miewid')
+    label.innerHTML = 'MiewID'
     radio.appendChild(label)
     
     radio = document.createElement('div')

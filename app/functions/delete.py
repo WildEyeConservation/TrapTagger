@@ -72,8 +72,9 @@ def delete_detections(survey_id, camera_ids=None, image_ids=None, ids=None):
     det_subq = detectionQ.subquery()
     det_select = select(det_subq.c.id)
 
-    #Delete features
+    #Delete features and embeddings
     db.session.query(Feature).filter(Feature.detection_id.in_(det_select)).delete(synchronize_session=False)
+    db.session.query(DetectionEmbedding).filter(DetectionEmbedding.detection_id.in_(det_select)).delete(synchronize_session=False)
     db.session.commit()
 
     # Handle IndSimilarities (if they were not handled elsewhere)

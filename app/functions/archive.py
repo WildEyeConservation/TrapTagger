@@ -315,6 +315,8 @@ def restore_images_for_id(self,task_id,days,tier,restore_time,extend=False):
         if '-5' in taggingLevel and len(tL)>4:
             if tL[4]=='h':
                 algorithm = 'hotspotter'
+            elif tL[4]=='m':
+                algorithm = 'miewid'
             elif tL[4]=='n':
                 algorithm = 'none'
 

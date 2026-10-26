@@ -87,6 +87,7 @@ def make_celery(flask_app):
         Queue('pipeline',     routing_key='pipeline.#'),
         Queue('llava',     routing_key='llava.#'),
         Queue('similarity',     routing_key='similarity.#'),
+        Queue('miewid',     routing_key='miewid.#'),
         Queue('utility',     routing_key='utility.#'),
         Queue('utility_2',     routing_key='utility_2.#'),
         Queue('individual_id',     routing_key='individual_id.#'),

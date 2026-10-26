@@ -1814,6 +1814,24 @@ modalLaunchID.on('shown.bs.modal', function(){
     label.setAttribute('for','hotspotter')
     label.innerHTML = 'Hotspotter'
     radio.appendChild(label)
+
+    radio = document.createElement('div')
+    radio.setAttribute('class','custom-control custom-radio custom-control-inline')
+    row.appendChild(radio)
+
+    input = document.createElement('input')
+    input.setAttribute('type','radio')
+    input.setAttribute('class','custom-control-input')
+    input.setAttribute('id','miewid')
+    input.setAttribute('name','algorithmSelection')
+    input.setAttribute('value','customEx')
+    radio.appendChild(input)
+
+    label = document.createElement('label')
+    label.setAttribute('class','custom-control-label')
+    label.setAttribute('for','miewid')
+    label.innerHTML = 'MiewID'
+    radio.appendChild(label)
     
     radio = document.createElement('div')
     radio.setAttribute('class','custom-control custom-radio custom-control-inline')
@@ -1871,6 +1889,8 @@ modalLaunchID.on('shown.bs.modal', function(){
 
         if (document.getElementById('hotspotter').checked) {
             taskTaggingLevel += ',h'
+        } else if (document.getElementById('miewid').checked) {
+            taskTaggingLevel += ',m'
         } else if (document.getElementById('heuristic').checked) {
             taskTaggingLevel += ',n'
         } else {

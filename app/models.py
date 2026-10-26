@@ -295,9 +295,20 @@ class Detection(db.Model):
     aid = db.Column(db.Integer, index=True) # annotation id for wbia db 
     features = db.relationship('Feature', backref='detection', lazy=True)
     distance = db.Column(db.Float, index=False)
+    embedding = db.relationship('DetectionEmbedding', backref='detection', uselist=False, lazy=True)
 
     def __repr__(self):
         return '<Detection of class {} on image {}>'.format(self.category, self.image_id)
+
+
+class DetectionEmbedding(db.Model):
+    '''MiewID embedding for a detection. Stored as float32 bytes'''
+    detection_id = db.Column(db.Integer, db.ForeignKey('detection.id'), primary_key=True)
+    embedding = db.Column(db.LargeBinary, nullable=False)
+    dim = db.Column(db.Integer, nullable=False, default=2152)
+
+    def __repr__(self):
+        return '<DetectionEmbedding for detection {} dim={}>'.format(self.detection_id, self.dim)
 
 class Turkcode(db.Model):
     id = db.Column(db.Integer, primary_key=True)
@@ -378,7 +389,7 @@ class Label(db.Model):
     sighting_count = db.Column(db.Integer, index=False)
     unidentified_count = db.Column(db.Integer, index=False)
     task_id = db.Column(db.Integer, db.ForeignKey('task.id'), index=True)
-    algorithm = db.Column(db.String(64), index=False) #hotspotter/heuristic (for Individual ID)
+    algorithm = db.Column(db.String(64), index=False) #hotspotter/heuristic/miewid (for Individual ID)
     icID_q1_complete = db.Column(db.Boolean, default=False, index=False) # Individual ID first quantile complete
     indID_allowed = db.Column(db.Boolean, default=True, index=False) # Independent Individual ID allowed
     children = db.relationship('Label', backref=db.backref('parent', remote_side=[id]), lazy=True)
