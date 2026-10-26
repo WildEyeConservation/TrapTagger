@@ -99,7 +99,11 @@ def _ensure_pose():
     torch.backends.cudnn.deterministic = False
     torch.backends.cudnn.enabled = True
 
-    checkpoint = torch.load(Config.SCARCENET_CHECKPOINT, map_location='cpu')
+    checkpoint = torch.load(
+    Config.SCARCENET_CHECKPOINT,
+    map_location='cpu',
+    weights_only=False,  # trusted ScarceNet checkpoint; required on torch>=2.6
+    )
     pose = get_pose_net(cfg, is_train=False)
     pose.load_state_dict(checkpoint['state_dict'], strict=True)
     _pose_model = torch.nn.DataParallel(pose, device_ids=cfg.GPUS).cuda()
