@@ -6128,7 +6128,7 @@ def generateDetections(self,batch, sourceBucket):
         pool.close()
         pool.join()
 
-        db_images = {image.id: image for image in db.session.query(Image).filter(Image.id.in_(image_ids)).filter(~Image.detections.any()).distinct().all()}
+        # db_images = {image.id: image for image in db.session.query(Image).filter(Image.id.in_(image_ids)).filter(~Image.detections.any()).distinct().all()}
 
         # Fetch the results
         app.logger.info('Waiting for generate detections to complete')
@@ -6138,25 +6138,46 @@ def generateDetections(self,batch, sourceBucket):
             for job, response in wait_for_jobs(jobs):
                 if response is None: continue
                 try:
+                    results = {img['id']: dets for img, dets in zip(job['images'], response)}
+                    if not results: continue
                     counter += 1
                     if Config.DEBUGGING: print('Fetched result {}'.format(counter))
+                    # End any open transaction so the reads below see other workers' commits
+                    db.session.commit()
+                    # Lock the image rows (in a consistent order to avoid deadlocks). A second worker handling the same images blocks here until this transaction commits.
+                    locked_ids = [r[0] for r in db.session.query(Image.id)
+                                                        .filter(Image.id.in_(list(results)))
+                                                        .order_by(Image.id)
+                                                        .with_for_update()
+                                                        .all()]
+                    done_ids = {r[0] for r in db.session.query(Detection.image_id).filter(Detection.image_id.in_(locked_ids)).distinct().all()}
+                    # Add the detections to the database
+                    new_detections = []
+                    for image_id in locked_ids:
+                        if image_id not in done_ids:
+                            for detection in results[image_id]:
+                                new_detections.append(Detection(image_id=image_id, **detection))
+                    
+                    db.session.add_all(new_detections)
+                    db.session.commit()
 
-                    for img, detections in zip(job['images'], response):
-                        try:
-                            image = db_images.get(img['id'])
-                            if image:
-                                image.detections = [Detection(**detection) for detection in detections]
-                                for detection in image.detections:
-                                    db.session.add(detection)
+                    # for img, detections in zip(job['images'], response):
+                    #     try:
+                    #         image = db_images.get(img['id'])
+                    #         if image:
+                    #             image.detections = [Detection(**detection) for detection in detections]
+                    #             for detection in image.detections:
+                    #                 db.session.add(detection)
                         
-                        except Exception:
-                            app.logger.info(' ')
-                            app.logger.info('!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!')
-                            app.logger.info(traceback.format_exc())
-                            app.logger.info('!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!')
-                            app.logger.info(' ')
+                    #     except Exception:
+                    #         app.logger.info(' ')
+                    #         app.logger.info('!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!')
+                    #         app.logger.info(traceback.format_exc())
+                    #         app.logger.info('!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!')
+                    #         app.logger.info(' ')
                 
                 except Exception:
+                    db.session.rollback()
                     app.logger.info(' ')
                     app.logger.info('!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!')
                     app.logger.info(traceback.format_exc())
