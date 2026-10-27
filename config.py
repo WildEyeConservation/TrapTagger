@@ -90,6 +90,7 @@ class Config(object):
     PARALLEL_AMI = os.environ.get('PARALLEL_AMI')
     LLAVA_AMI = os.environ.get('LLAVA_AMI')
     DEPTH_AMI = os.environ.get('DEPTH_AMI')
+    MIEWID_AMI = os.environ.get('MIEWID_AMI')  # set after baking the miewid worker AMI
     BRANCH = os.environ.get('BRANCH')
     GPU_INSTANCE_TYPES = ['g4dn.xlarge'] #['p3.2xlarge', 'g4dn.xlarge', 'g3s.xlarge']
     XL_GPU_INSTANCE_TYPES = ['g5.12xlarge']
@@ -106,6 +107,7 @@ class Config(object):
         'llava':           {'g5.12xlarge': 3130}, #measured. 20 min startup
         'depth':           {'g4dn.xlarge': 10}, #estimated depth_estimate jobs per hour
         'similarity':      {'g4dn.xlarge': 4128},
+        'miewid':          {'g4dn.xlarge': 200}, #estimated miewid_prepare batches per hour (SAM-bound)
         'utility':         {'t2.xlarge': 1000, 't3a.xlarge': 1000},
         'utility_2':       {'t2.xlarge': 1000, 't3a.xlarge': 1000},
         'individual_id':   {'t2.xlarge': 1000, 't3a.xlarge': 1000}
@@ -123,6 +125,7 @@ class Config(object):
     MAX_LLAVA = 5
     MAX_DEPTH = 5
     MAX_SIMILARITY = 5
+    MAX_MIEWID = 5
     MAX_UTILITY = 15
     MAX_UTILITY_2 = 50
     MAX_INDIVIDUAL_ID = 25
@@ -364,6 +367,7 @@ class Config(object):
         'llava': '1500',
         'depth': '600',
         'similarity': '300',
+        'miewid': '900',  # SAM + ScarceNet + MiewID cold start
         'utility': '300',
         'utility_2': '300',
         'individual_id': '300'
@@ -386,6 +390,7 @@ class Config(object):
         'llava': 12,
         'depth': 12,
         'similarity': 12,
+        'miewid': 12,
         'utility': 12,
         'utility_2': 12,
         'individual_id': 12
@@ -731,6 +736,28 @@ class Config(object):
                 os.environ.get('WBIA_DB_NAME') + "' '" +
                 os.environ.get('WBIA_DB_SERVER') + "' '" +
                 os.environ.get('WBIA_DIR') + "' " +
+                '-l info'
+        },
+        'miewid': {
+            'type': 'GPU',
+            'ami': MIEWID_AMI,
+            'instances': GPU_INSTANCE_TYPES,
+            'max_instances': MAX_MIEWID,
+            'launch_delay': 600,
+            'rate': 20,
+            'init_size': 0.5,
+            'queue_type': 'rate',
+            'repo': os.environ.get('MAIN_GIT_REPO'),
+            'branch': BRANCH,
+            'user_data':
+                'bash /home/ubuntu/TrapTagger/miewID_worker/launch.sh ' +
+                'miewid_worker_{}' + ' ' +
+                HOST_IP + ' ' +
+                'miewid ' +
+                SETUP_PERIOD['miewid'] + " " +
+                'IDLE_MULTIPLIER' + " '" +
+                os.environ.get('AWS_ACCESS_KEY_ID') + "' '" +
+                os.environ.get('AWS_SECRET_ACCESS_KEY') + "' " +
                 '-l info'
         },
         'utility': {
