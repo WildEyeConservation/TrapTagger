@@ -6134,6 +6134,7 @@ def generateDetections(self,batch, sourceBucket):
         app.logger.info('Waiting for generate detections to complete')
         if Config.DEBUGGING: print('{} batch results to fetch'.format(len(jobs)))
         counter = 0
+        db_error=False
         if jobs:
             for job, response in wait_for_jobs(jobs):
                 if response is None: continue
@@ -6156,9 +6157,16 @@ def generateDetections(self,batch, sourceBucket):
                     for image_id in locked_ids:
                         if image_id not in done_ids:
                             for detection in results[image_id]:
-                                new_detections.append(Detection(image_id=image_id, **detection))
+                                try:
+                                    new_detections.append(Detection(image_id=image_id, **detection))
+                                except Exception:
+                                    app.logger.info(' ')
+                                    app.logger.info('!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!')
+                                    app.logger.info(traceback.format_exc())
+                                    app.logger.info('!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!')
+                                    app.logger.info(' ')
                     
-                    db.session.add_all(new_detections)
+                    if new_detections: db.session.add_all(new_detections)
                     db.session.commit()
 
                     # for img, detections in zip(job['images'], response):
@@ -6178,15 +6186,21 @@ def generateDetections(self,batch, sourceBucket):
                 
                 except Exception:
                     db.session.rollback()
+                    db_error=True
                     app.logger.info(' ')
                     app.logger.info('!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!')
                     app.logger.info(traceback.format_exc())
                     app.logger.info('!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!')
                     app.logger.info(' ')
 
-        #Commit the last batch
-        db.session.commit()
-        app.logger.info('Generate detections complete')
+        # #Commit the last batch
+        # db.session.commit()
+
+        if db_error:
+            app.logger.info('Database error encountered, raising exception')
+            raise Exception('Database error while saving detections')
+        else:
+            app.logger.info('Generate detections complete')
 
     except Exception as exc:
         app.logger.info(' ')

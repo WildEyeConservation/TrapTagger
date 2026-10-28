@@ -367,7 +367,7 @@ def delete_survey(self,survey_id):
             try:
                 app.logger.info('Deleting the following root folders from S3: {}'.format(root_folders))
                 for root_folder in root_folders:
-                    if root_folder and root_folder.startswith(survey.organisation.folder):
+                    if root_folder and root_folder.startswith(survey.organisation.folder+'/'):
                         if not root_folder.endswith('/'): root_folder = root_folder + '/'
                         bucketObject.objects.filter(Prefix=root_folder).delete()
                 app.logger.info('images deleted from S3 successfully.')
@@ -380,7 +380,7 @@ def delete_survey(self,survey_id):
         if status != 'error':
             try:
                 for root_folder in root_folders:
-                    if root_folder and root_folder.startswith(survey.organisation.folder):
+                    if root_folder and root_folder.startswith(survey.organisation.folder+'/'):
                         splits = root_folder.split('/')
                         splits[0] = splits[0]+'-comp'
                         comp_root_folder = '/'.join(splits)

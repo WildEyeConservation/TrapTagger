@@ -1969,7 +1969,7 @@ def createNewSurvey():
         else:
             if browser_upload:
                 # Browser upload - check that folder doesn't already exist
-                response = GLOBALS.s3client.list_objects(Bucket=Config.BUCKET, Prefix=organisation.folder+'/'+surveyName, Delimiter='/',MaxKeys=1)
+                response = GLOBALS.s3client.list_objects(Bucket=Config.BUCKET, Prefix=organisation.folder+'/'+surveyName+'/', Delimiter='/',MaxKeys=1)
                 if 'CommonPrefixes' in response:
                     status = 'error'
                     message = 'That folder name is already in use in your storage. Please try another name for your survey.' 

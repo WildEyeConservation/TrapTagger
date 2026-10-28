@@ -773,10 +773,11 @@ def find_root_folders(survey_id, for_delete=False):
     Finds all root folders associated with a survey. If for_delete is True, it will only return the root folders that are not associated with any other survey.
     '''
     survey = db.session.query(Survey).get(survey_id)
-    survey_folder = survey.organisation.folder + '/' + survey.name
     root_folders = []
     if not survey:
         return root_folders
+
+    survey_folder = survey.organisation.folder + '/' + survey.name
     
     paths = [r[0] for r in db.session.query(func.SUBSTRING_INDEX(Camera.path, '/', 2)).join(Trapgroup).filter(Trapgroup.survey_id==survey_id).distinct().all()]
     if survey_folder not in paths:
