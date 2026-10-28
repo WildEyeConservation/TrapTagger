@@ -346,9 +346,11 @@ def delete_survey(self,survey_id):
         survey = db.session.query(Survey).get(survey_id)
         if not survey:
             return True
-        
-        survey_folder = survey.organisation.folder+'/'+survey.name+'/%'
-        survey_folder = survey_folder.replace('_','\\_')
+
+        # Find all root folders associated with the survey
+        root_folders = find_root_folders(survey_id, for_delete=True)
+        s3 = boto3.resource('s3')
+        bucketObject = s3.Bucket(Config.BUCKET)
 
         app.logger.info('Deleting survey {}'.format(survey_id))
 
@@ -358,6 +360,37 @@ def delete_survey(self,survey_id):
                 if tempStatus != None:
                     status = tempStatus
                     message = tempMessage
+
+        survey = db.session.query(Survey).get(survey_id)
+        #Delete images from S3
+        if status != 'error':
+            try:
+                app.logger.info('Deleting the following root folders from S3: {}'.format(root_folders))
+                for root_folder in root_folders:
+                    if root_folder and root_folder.startswith(survey.organisation.folder):
+                        if not root_folder.endswith('/'): root_folder = root_folder + '/'
+                        bucketObject.objects.filter(Prefix=root_folder).delete()
+                app.logger.info('images deleted from S3 successfully.')
+            except:
+                # status = 'error'
+                # message = 'Could not delete images from S3.'
+                app.logger.info('Could not delete images from S3')
+        
+        #Delete images from S3-comp
+        if status != 'error':
+            try:
+                for root_folder in root_folders:
+                    if root_folder and root_folder.startswith(survey.organisation.folder):
+                        splits = root_folder.split('/')
+                        splits[0] = splits[0]+'-comp'
+                        comp_root_folder = '/'.join(splits)
+                        if not comp_root_folder.endswith('/'): comp_root_folder = comp_root_folder + '/'
+                        bucketObject.objects.filter(Prefix=comp_root_folder).delete()
+                app.logger.info('images deleted from S3-comp successfully.')
+            except: 
+                # status = 'error'
+                # message = 'Could not delete images from S3.'
+                app.logger.info('Could not delete images from S3-comp')
 
         #Delete floating images, videos & cameras
         if status != 'error':
@@ -459,29 +492,6 @@ def delete_survey(self,survey_id):
                 status = 'error'
                 message = 'Could not delete survey API keys.'
                 app.logger.info('Failed to delete survey API keys.')
-                
-        #Delete images from S3
-        if status != 'error':
-            try:
-                survey = db.session.query(Survey).get(survey_id)
-                s3 = boto3.resource('s3')
-                bucketObject = s3.Bucket(Config.BUCKET)
-                bucketObject.objects.filter(Prefix=survey.organisation.folder+'/'+survey.name+'/').delete()
-                app.logger.info('images deleted from S3 successfully.')
-            except:
-                # status = 'error'
-                # message = 'Could not delete images from S3.'
-                app.logger.info('Could not delete images from S3')
-        
-        #Delete images from S3-comp
-        if status != 'error':
-            try:
-                bucketObject.objects.filter(Prefix=survey.organisation.folder+'-comp/'+survey.name+'/').delete()
-                app.logger.info('images deleted from S3-comp successfully.')
-            except:
-                # status = 'error'
-                # message = 'Could not delete images from S3.'
-                app.logger.info('Could not delete images from S3-comp')
 
         #Delete survey zips 
         if status != 'error':

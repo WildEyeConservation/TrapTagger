@@ -189,15 +189,20 @@ def delete_images(survey_id, camera_ids=None, ids=None ,empty=False, delete_from
     image_subq = imageQ.subquery()
 
     if delete_from_s3:
-        imgs = db.session.query(Image.filename, Camera.path).join(Camera).filter(Image.id.in_(select(image_subq.c.id))).distinct().all()
+        root_folders = find_root_folders(survey_id=survey_id, for_delete=True)
+        imgs = db.session.query(Image.filename, Camera.path).join(image_subq, Image.id==image_subq.c.id).join(Camera).distinct().all()
+        img_count = 0
         for filename, path in imgs:
+            if not any(path.startswith(root_folder) for root_folder in root_folders):
+                continue # Skip if the image is not in a root folder (means it is in use by another survey)
             image_path = path + '/' + filename
             splits = image_path.split('/')
             splits[0] = splits[0] + '-comp'
             image_path_comp = '/'.join(splits)
             GLOBALS.s3client.delete_object(Bucket=Config.BUCKET, Key=image_path)
             GLOBALS.s3client.delete_object(Bucket=Config.BUCKET, Key=image_path_comp)
-        app.logger.info(f'{len(imgs)} images deleted from S3 successfully.')
+            img_count += 1
+        app.logger.info(f'{img_count} images deleted from S3 successfully.')
 
 
     r1 = db.session.query(requiredimagestable).filter(requiredimagestable.c.image_id.in_(select(image_subq.c.id))).delete(synchronize_session=False)
@@ -229,8 +234,12 @@ def delete_videos(survey_id, camera_ids=None, ids=None, delete_from_s3=False):
     video_subq = videoQ.subquery()
 
     if delete_from_s3:
-        videos = db.session.query(Video.filename, Camera.path).join(Camera).filter(Video.id.in_(select(video_subq.c.id))).distinct().all()
+        root_folders = find_root_folders(survey_id=survey_id, for_delete=True)
+        videos = db.session.query(Video.filename, Camera.path).join(video_subq, Video.id==video_subq.c.id).join(Camera).distinct().all()
+        vid_count = 0
         for filename, path in videos:
+            if not any(path.startswith(root_folder) for root_folder in root_folders):
+                continue # Skip if the video is not in a root folder (means it is in use by another survey)
             # Delete from s3 if specific videos
             cam_path = path.split('/_video_images_')[0]
             video_path = cam_path + '/' + filename
@@ -240,7 +249,8 @@ def delete_videos(survey_id, camera_ids=None, ids=None, delete_from_s3=False):
             video_path_comp = video_path_comp.rsplit('.', 1)[0] + '.mp4'
             GLOBALS.s3client.delete_object(Bucket=Config.BUCKET, Key=video_path)
             GLOBALS.s3client.delete_object(Bucket=Config.BUCKET, Key=video_path_comp)
-        app.logger.info(f'{len(videos)} videos deleted from S3 successfully.')
+            vid_count += 1
+        app.logger.info(f'{vid_count} videos deleted from S3 successfully.')
 
     #Delete Videos
     result = db.session.execute(delete(Video).where(Video.id.in_(select(video_subq.c.id))).execution_options(synchronize_session=False))
@@ -265,11 +275,15 @@ def delete_cameras(survey_id, ids=None, empty=False, delete_from_s3=False):
     camera_subq = cameraQ.subquery()
     
     if delete_from_s3:
+        root_folders = find_root_folders(survey_id=survey_id, for_delete=True)
         camera_paths = [r[0] for r in db.session.query(Camera.path).filter(Camera.id.in_(select(camera_subq.c.id))).distinct().all()]
         s3 = boto3.resource('s3')
         bucketObject = s3.Bucket(Config.BUCKET)
         if Config.DEBUGGING: app.logger.info('Camera paths to delete from S3: {}'.format(camera_paths))
         for camera_path in camera_paths:
+            if not any(camera_path.startswith(root_folder) for root_folder in root_folders):
+                app.logger.info('Skipping (root folder found in use by another survey): {}'.format(camera_path))
+                continue # Skip if the camera path is not in a root folder (means it is in use by another survey)
             splits = camera_path.split('/')
             splits[0] = splits[0] + '-comp'
             camera_path_comp = '/'.join(splits)
@@ -753,3 +767,33 @@ def delete_notifications(user_ids, contents=None):
     db.session.commit()
     app.logger.info(f'{r} notifications deleted successfully.')
     return True
+
+def find_root_folders(survey_id, for_delete=False):
+    '''
+    Finds all root folders associated with a survey. If for_delete is True, it will only return the root folders that are not associated with any other survey.
+    '''
+    survey = db.session.query(Survey).get(survey_id)
+    survey_folder = survey.organisation.folder + '/' + survey.name
+    root_folders = []
+    if not survey:
+        return root_folders
+    
+    paths = [r[0] for r in db.session.query(func.SUBSTRING_INDEX(Camera.path, '/', 2)).join(Trapgroup).filter(Trapgroup.survey_id==survey_id).distinct().all()]
+    if survey_folder not in paths:
+        # Adding the default root folder for the survey (for the case floating data have not been linked to survey yet)
+        paths.append(survey_folder)
+
+    if for_delete:
+        org_id = survey.organisation_id
+        # Check if the root folders are in the database for another survey
+        for path in paths:
+            query_path = path.replace('_','\\_') + '/%'
+            check = db.session.query(Camera.path).filter(Camera.path.like(query_path)).join(Trapgroup).join(Survey).filter(Survey.id!=survey_id).filter(Survey.organisation_id==org_id).first()
+            if not check:
+                root_folders.append(path)
+    else:
+        root_folders = paths
+
+    root_folders = [r + '/' for r in root_folders]
+
+    return root_folders

@@ -2951,7 +2951,7 @@ def checkFileExist(file,folder):
         # file does not exist
         return None, False
 
-def checkFilesExist(files,folder):
+def checkFilesExist(files,folder,survey_id):
     '''Checks if a list of files exists in db & s3. Returns the filename if it does and None otherwise.'''
 
     starttime = time.time()
@@ -2974,6 +2974,13 @@ def checkFilesExist(files,folder):
     hash_check = db.session.query(Image.hash).join(Camera).filter(Image.hash.in_(hashes)).filter(Camera.path.like(survey_path))
     vid_hash_check = db.session.query(Video.hash).join(Camera).filter(Video.hash.in_(hashes)).filter(Camera.path.like(survey_path))
     hash_check = [h[0] for h in hash_check.union(vid_hash_check).distinct().all()]
+
+    remaining_hashes = set(hashes) - set(hash_check)
+    if remaining_hashes:
+        hash_check2 = db.session.query(Image.hash).join(Camera).join(Trapgroup).filter(Trapgroup.survey_id==survey_id).filter(Image.hash.in_(remaining_hashes))
+        vid_hash_check2 = db.session.query(Video.hash).join(Camera).join(Trapgroup).filter(Trapgroup.survey_id==survey_id).filter(Video.hash.in_(remaining_hashes))
+        hash_check2 = [h[0] for h in hash_check2.union(vid_hash_check2).distinct().all()]
+        hash_check = list(set(hash_check + hash_check2))
 
     for file in hash_dict:
         if hash_dict[file] in hash_check:

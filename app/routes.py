@@ -4660,25 +4660,13 @@ def getHomeSurveys():
     # uploading/downloading surveys always need to be on the page
     compulsory_surveys = survey_base_query.filter(Survey.status=='Uploading').all()
     if current_downloads != '': compulsory_surveys.extend(survey_base_query.filter(Survey.id.in_(re.split('[,]',current_downloads))).all())
-    compulsory_data = []
+    compulsory_ids = []
     survey_permissions = {}
     if compulsory_surveys:
-        compulsory_ids = set([s[0] for s in compulsory_surveys])
-        site_and_cam_counts = {r[0] : (r[1],r[2]) for r  in  db.session.query(Trapgroup.survey_id, func.count(distinct(Trapgroup.id)).label('site_count'), func.count(distinct(Cameragroup.id)).label('cam_count'))\
-                                .join(Camera, Camera.trapgroup_id==Trapgroup.id)\
-                                .outerjoin(Cameragroup, Cameragroup.id==Camera.cameragroup_id)\
-                                .filter(Trapgroup.survey_id.in_(compulsory_ids)).group_by(Trapgroup.survey_id).all()}
-
-        completeJobs = {r[0] : r[1] for r in db.session.query(Task.id,(func.count(Turkcode.id)-Task.jobs_finished).label('count'))\
-                                    .join(Turkcode)\
-                                    .join(User)\
-                                    .filter(Task.survey_id.in_(compulsory_ids))
-                                    .filter(User.parent_id!=None)\
-                                    .filter(Turkcode.tagging_time!=None)\
-                                    .group_by(Task.id).all()}
-
         for item in compulsory_surveys:
             sid = item[0]
+            if sid not in compulsory_ids:
+                compulsory_ids.append(sid)
             # user permissions
             up_uid=item[1]
             up_default=item[2]
@@ -4697,125 +4685,6 @@ def getHomeSurveys():
             if share_permission and (sup_uid==current_user.id): survey_permissions[sid]['share_level']=share_permission
             if up_delete and (up_uid==current_user.id): survey_permissions[sid]['delete']=up_delete
             if up_create and (up_uid==current_user.id): survey_permissions[sid]['create']=up_create
-
-        compulsory_data = db.session.query(
-                                Survey.id, #0
-                                Survey.name, #1
-                                Survey.description, #2
-                                Survey.image_count, #3
-                                Survey.video_count, #4
-                                Survey.status, #5
-                                Survey.start_date, #6
-                                Survey.end_date, #7
-                                Survey.require_launch, #8
-                                Task.id, #9
-                                Task.name, #10
-                                Task.status, #11
-                                Task.complete, #12
-                                Task.tagging_level, #13
-                                Task.cluster_count, #14
-                                Organisation.name, #15
-                                Area.name #16
-                            )\
-                            .join(Organisation,Survey.organisation_id==Organisation.id)\
-                            .outerjoin(Task,Task.survey_id==Survey.id)\
-                            .outerjoin(Area,Survey.area_id==Area.id)\
-                            .filter(Survey.id.in_(compulsory_ids))\
-                            .filter(or_(Task.id==None,~Task.name.contains('_o_l_d_')))\
-                            .all()
-
-    # digest survey data
-    survey_data = {}
-    handled_tasks = []
-    for item in compulsory_data:
-        if item[0] and (item[0] not in survey_data.keys()):
-            surveyStatus = item[5]
-            if surveyStatus in ['indprocessing','Preparing Download']:
-                surveyStatus = 'processing'
-            elif 'failed' in surveyStatus.lower():
-                surveyStatus = 'Failed'
-
-            sc_count = site_and_cam_counts.get(item[0], (0,0))
-            survey_data[item[0]] = {'id': item[0],
-                                    'name': item[1], 
-                                    'description': item[2], 
-                                    'numImages': item[3], 
-                                    'numVideos': item[4], 
-                                    'numCams': sc_count[1],
-                                    'status': surveyStatus, 
-                                    'numTrapgroups': sc_count[0],
-                                    'organisation': item[15],
-                                    'area': item[16] if item[16] else 'No Area Defined',
-                                    'start_date': item[6].strftime('%Y-%m-%d') if item[6] else 'N/A',
-                                    'end_date': item[7].strftime('%Y-%m-%d') if item[7] else 'N/A',
-                                    'tasks': []}
-
-            if 'preprocessing' in surveyStatus.lower():
-                prep_statusses = surveyStatus.split(',')
-                survey_data[item[0]]['status'] = prep_statusses[0]
-                survey_data[item[0]]['prep_statusses'] = prep_statusses[1:]
-                prep_progress = 0
-                if prep_statusses[1] in ['Available', 'In Progress']:
-                    prep_progress = 0
-                elif prep_statusses[2] in ['Available', 'In Progress']:
-                    prep_progress = 1
-                else:
-                    prep_progress = 2
-                survey_data[item[0]]['prep_progress'] = prep_progress
-            elif surveyStatus.lower() == 'restoring files':
-                survey_data[item[0]]['restore'] = 0
-                survey_data[item[0]]['total_restore'] = Config.RESTORE_TIME/3600
-                require_launch = item[8]
-                if require_launch:
-                    restore_time = math.floor(((Config.RESTORE_TIME-(require_launch-datetime.now()).total_seconds()) / 3600))
-                    survey_data[item[0]]['restore'] = restore_time
-
-        if item[9] and (item[10]!='default') and (item[9] not in handled_tasks):
-            handled_tasks.append(item[9])
-            clusters_remaining = GLOBALS.redisClient.get('clusters_remaining_'+str(item[9]))
-            if clusters_remaining: clusters_remaining = int(clusters_remaining.decode())
-
-            jobsAvailable = GLOBALS.redisClient.scard('job_pool_'+str(item[9]))
-
-            taskStatus = item[11]
-            if taskStatus == 'ID Processing':
-                taskStatus = 'Processing'
-
-            taskInfo = {'id': item[9],
-                        'name': item[10],
-                        'status': taskStatus,
-                        'complete': item[12],
-                        'tagging_level': item[13],
-                        'total': item[14],
-                        'remaining': clusters_remaining,
-                        'jobsAvailable': jobsAvailable,
-                        'jobsCompleted': completeJobs.get(item[9])}
-
-            if taskInfo['total'] and taskInfo['remaining']:
-                taskInfo['completed'] = taskInfo['total'] - taskInfo['remaining']
-            else:
-                taskInfo['completed'] = 0
-
-            survey_data[item[0]]['tasks'].append(taskInfo)
-
-    for survey_id in survey_data:
-        if survey_permissions[survey_id]['exception']:
-            survey_data[survey_id]['access'] = survey_permissions[survey_id]['exception']
-        else:
-            if permission_order.index(survey_permissions[survey_id]['share_level']) < permission_order.index(survey_permissions[survey_id]['share_default']):
-                survey_permissions[survey_id]['share_default'] = survey_permissions[survey_id]['share_level']
-            if permission_order.index(survey_permissions[survey_id]['default']) > permission_order.index(survey_permissions[survey_id]['share_default']):
-                survey_data[survey_id]['access'] = survey_permissions[survey_id]['default']
-            else:
-                survey_data[survey_id]['access'] = survey_permissions[survey_id]['share_default']
-        if survey_permissions[survey_id]['delete']:
-            survey_data[survey_id]['delete'] = True
-        else:
-            survey_data[survey_id]['delete'] = False
-        if survey_permissions[survey_id]['create']:
-            survey_data[survey_id]['create'] = True
-        else:
-            survey_data[survey_id]['create'] = False
 
     # Org filter 
     if org != 0:
@@ -4861,14 +4730,14 @@ def getHomeSurveys():
         survey_base_query = survey_base_query.order_by(Survey.area_id, Survey.id.desc())
 
     survey_base_info = survey_base_query.distinct().all()
-    survey_ids = []
+    base_ids = []
     for s in survey_base_info:
-        if s[0] not in survey_ids and s[0] not in survey_data.keys():
-            survey_ids.append(s[0])
-    count = 5-len(survey_data)
+        if s[0] not in base_ids and s[0] not in compulsory_ids:
+            base_ids.append(s[0])
+    count = 5-len(compulsory_ids)
     if count <=0: count = 1
     if count > 0:
-        if (page*count) >= len(survey_ids):
+        if (page*count) >= len(base_ids):
             has_next = False
         else:
             has_next = True
@@ -4878,7 +4747,8 @@ def getHomeSurveys():
         else:
             has_prev = False
 
-        survey_ids = survey_ids[(page-1)*count:page*count]
+        base_ids = base_ids[(page-1)*count:page*count]
+        survey_ids = compulsory_ids + base_ids
 
         site_and_cam_counts = {r[0] : (r[1],r[2]) for r  in  db.session.query(Trapgroup.survey_id, func.count(distinct(Trapgroup.id)).label('site_count'), func.count(distinct(Cameragroup.id)).label('cam_count'))\
                         .join(Camera, Camera.trapgroup_id==Trapgroup.id)\
@@ -5057,9 +4927,6 @@ def getHomeSurveys():
             else:
                 survey_data2[survey_id]['create'] = False
 
-        for survey_id in survey_ids:
-            survey_data[survey_id] = survey_data2[survey_id]
-
         next_url = url_for('getHomeSurveys', page=(page+1), order=order, downloads=current_downloads, search=search, org=org, area=area, year=year) if has_next else None
         prev_url = url_for('getHomeSurveys', page=(page-1), order=order, downloads=current_downloads, search=search, org=org, area=area, year=year) if has_prev else None
 
@@ -5069,8 +4936,9 @@ def getHomeSurveys():
 
     # Handle disabled launches & translate to legacy client format
     survey_list = []
-    for survey_id in survey_data:
-        survey = survey_data[survey_id]
+    for survey_id in survey_ids:  # Need this to ensure the compulsory surveys are at the top of the list
+        survey = survey_data2.get(survey_id, None)
+        if not survey: continue
 
         disabledLaunch='false'
         for task in survey['tasks']:
@@ -11048,7 +10916,7 @@ def check_upload_files():
             userPermissions = db.session.query(UserPermissions).filter(UserPermissions.organisation_id==organisation_id).filter(UserPermissions.user_id==current_user.id).first()
             if userPermissions and userPermissions.create:
                 if checkUploadUser(current_user.id,survey_id):
-                    already_uploaded, require_lambda, new_names = checkFilesExist(files,organisation_folder)
+                    already_uploaded, require_lambda, new_names = checkFilesExist(files,organisation_folder,survey_id)
                     return json.dumps((already_uploaded,require_lambda,new_names))
     except:
         pass
@@ -18552,7 +18420,7 @@ def cancelUpload(survey_id):
                 GLOBALS.redisClient.delete('upload_ping_'+str(survey_id))
                 GLOBALS.redisClient.delete('upload_user_'+str(survey_id))
                 GLOBALS.redisClient.set('cancel_upload_'+str(survey_id), 'true')
-                cancel_upload.delay(survey_id=survey_id)
+                cancel_upload.delay(survey_id=survey.id)
             else:
                 status = 'error'
                 message = 'The survey is currently being uploaded to by another user.'
