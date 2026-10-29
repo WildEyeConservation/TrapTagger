@@ -115,9 +115,9 @@ limitations under the License. -->
 <p align="justify">
     In the first level, you identify individuals within a cluster, using the contextual information at hand to find multiple view angles of each individual. This is particularly 
     useful for combining both sides of an individual, especially when you have multiple cameras per site.
-    Here you also have some additional options. Firstly, you can select which individual ID algorithm to use. At present you can either use Hotspotter in conjunction with a 
-    heuristic algorithm, or the heuristic algorithm on its own. Hotspotter is a pattern-recognition algorithm that performs well on species like leopards and zebra, but 
-    struggles on non-patterned species. As such, it is recommended that you rather use the heurstic on its own for such non-patterned species as it will be detrimental to the identification process.
+    Here you also have some additional options. Firstly, you can select which individual ID algorithm to use: Hotspotter (pattern recognition; strong on patterned species),
+    MiewID (deep-learning visual embeddings; generally more robust across species), or Heuristic Only (time, location, and tags without visual matching). Both Hotspotter and
+    MiewID are used in conjunction with a heuristic algorithm.
     Additionally, you can select how single-detection clusters are handled. Since the whole point of this ID stage is to identify individuals within a cluster, there is little 
     point to seeing clusters that contain a single detection, unless you would like to add additional informational tags to those individuals. Therefore, you can chose for 
     those clusters to be automatically handled for you, or for you to handle them manually.
@@ -148,9 +148,28 @@ limitations under the License. -->
 </p>
 
 <p align="justify">
-    You can select which individual ID algorithm to use. At present you can either use Hotspotter in conjunction with a 
-    heuristic algorithm, or the heuristic algorithm on its own. Hotspotter is a pattern-recognition algorithm that performs well on species like leopards and zebra, but 
-    struggles on non-patterned species. As such, it is recommended that you rather use the heuristic on its own for such non-patterned species as it will be detrimental to the identification process.
+    You can select which individual ID algorithm to use:
+</p>
+<ul>
+    <li>
+        <b>Hotspotter:</b> a pattern-recognition algorithm that compares visual features between sightings. It performs well on
+        patterned species such as leopards and zebra, but struggles on non-patterned species. When Hotspotter is used, a
+        matching-feature heatmap is available during inter-cluster identification for same-flank sightings.
+    </li>
+    <li>
+        <b>MiewID:</b> a deep-learning embedding model that scores visual similarity between sightings. It is generally more
+        robust across a wider range of species than Hotspotter, including species with weaker coat patterns. MiewID does not
+        provide a feature heatmap.
+    </li>
+    <li>
+        <b>Heuristic Only (None):</b> uses only non-visual cues such as time, location, and tags. Prefer this when visual matching
+        is unlikely to help, or when you want suggestions driven purely by those heuristics.
+    </li>
+</ul>
+<p align="justify">
+    Hotspotter and MiewID both combine their visual scores with the same heuristic factors. If you later relaunch individual ID
+    with a different algorithm (including across surveys in an area library), existing detection similarities for that species
+    will be recalculated to match the newly selected algorithm. Previously rejected matches are kept.
 </p>
 
 <p align="justify">

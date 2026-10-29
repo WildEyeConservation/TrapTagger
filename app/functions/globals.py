@@ -6805,6 +6805,29 @@ def launch_task(self,task_id,classify=False):
                 task_ids = [r.id for r in task.sub_tasks]
                 task_ids.append(task.id)
 
+                # If any included Label.algorithm is stale vs the selected algo, wipe+recompute DetSims before -5 work
+                algorithm = None
+                if len(tL) > 4:
+                    algorithm = {'h': 'hotspotter', 'm': 'miewid', 'n': 'none'}.get(tL[4])
+                if algorithm:
+                    from app.functions.individualID import species_detection_sims_stale, calculate_detection_similarities
+                    calc_task_ids = [task.id] + [r.id for r in task.sub_tasks]
+                    if species_detection_sims_stale(calc_task_ids, species, algorithm):
+                        app.logger.info(
+                            'Stale detection similarities for {} on task {}; recalculating with {}'.format(
+                                species, task_id, algorithm
+                            )
+                        )
+                        task.status = 'Processing'
+                        task.survey.status = 'processing'
+                        for st in task.sub_tasks:
+                            st.survey.status = 'processing'
+                        db.session.commit()
+                        calculate_detection_similarities.delay(
+                            task_ids=calc_task_ids, species=species, algorithm=algorithm
+                        )
+                        return True
+
                 # check if indsims are actually there - specifically for post timestamp edits
                 if len(task_ids)==1:
                     # check = db.session.query(IndSimilarity)\

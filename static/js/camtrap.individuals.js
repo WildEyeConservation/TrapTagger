@@ -1915,38 +1915,83 @@ modalLaunchID.on('shown.bs.modal', function(){
 
         if(allow){
             btnLaunch.disabled=true
-            document.getElementById('launchErrors').innerHTML = ''	
+            document.getElementById('launchErrors').innerHTML = ''
 
-            var formData = new FormData()
-            formData.append("selectedTasks", JSON.stringify(selectedTasks))
-            formData.append("taskSize", taskSize)
-            formData.append("taskTaggingLevel", taskTaggingLevel)
-            formData.append("isBounding", isBounding)
-
-            var xhttp = new XMLHttpRequest();
-            xhttp.onreadystatechange =
-            function(){
-                if (this.readyState == 4 && this.status == 200) {
-                    reply = JSON.parse(this.responseText);  
-
-                    if (reply.status=='Success') {
-                        modalLaunchID.modal('hide')
-                    }
-                    else {
-                        document.getElementById('launchErrors').innerHTML = reply.message
-                    }
-
-                    btnLaunch.disabled=false
-
-                }
-                    
+            var checkAlgorithm = null
+            if (document.getElementById('hotspotter').checked) {
+                checkAlgorithm = 'hotspotter'
+            } else if (document.getElementById('miewid').checked) {
+                checkAlgorithm = 'miewid'
+            } else if (document.getElementById('heuristic').checked) {
+                checkAlgorithm = 'none'
             }
-            xhttp.open("POST", '/launchTask');
-            xhttp.send(formData);
+            var checkSpecies = document.getElementById('taskTaggingLevel').value
+            var numericTaskIds = selectedTasks.map(function (id) { return parseInt(id) }).filter(function (id) { return !isNaN(id) && id > 0 })
+
+            checkIdAlgorithmRecalc(
+                numericTaskIds,
+                checkSpecies,
+                checkAlgorithm,
+                function (recalc, requestedAlgorithm) {
+                    var warningHtml = buildIdAlgorithmRecalcWarningHtml(recalc, requestedAlgorithm)
+                    if (warningHtml) {
+                        document.getElementById('modalAlertIndividualsHeader').innerHTML = 'Please Confirm'
+                        document.getElementById('modalAlertIndividualsBody').innerHTML = warningHtml + '<p>Would you like to proceed?</p>'
+                        document.getElementById('btnContinueIndividualAlert').setAttribute('onclick', '')
+                        document.getElementById('btnCancelIndividualAlert').setAttribute('onclick', 'document.getElementById("btnLaunch").disabled=false; modalLaunchID.modal({keyboard: true});')
+                        removeIndividualEventListeners()
+                        document.getElementById('btnContinueIndividualAlert').addEventListener('click', function launchIdAfterRecalcConfirm() {
+                            document.getElementById('btnContinueIndividualAlert').removeEventListener('click', launchIdAfterRecalcConfirm)
+                            modalAlertIndividuals.modal('hide')
+                            submitIndividualsIdLaunch(selectedTasks, taskSize, taskTaggingLevel, isBounding)
+                        })
+                        modalLaunchID.modal('hide')
+                        modalAlertIndividuals.modal({keyboard: true})
+                    } else {
+                        submitIndividualsIdLaunch(selectedTasks, taskSize, taskTaggingLevel, isBounding)
+                    }
+                },
+                function (message) {
+                    document.getElementById('launchErrors').innerHTML = message
+                    btnLaunch.disabled = false
+                }
+            )
         }
     });
     
 })
+
+function submitIndividualsIdLaunch(selectedTasks, taskSize, taskTaggingLevel, isBounding) {
+    /** POSTs the individuals-page individual ID launch after optional recalc confirmation. */
+    document.getElementById('btnLaunch').disabled = true
+    document.getElementById('launchErrors').innerHTML = ''
+
+    var formData = new FormData()
+    formData.append("selectedTasks", JSON.stringify(selectedTasks))
+    formData.append("taskSize", taskSize)
+    formData.append("taskTaggingLevel", taskTaggingLevel)
+    formData.append("isBounding", isBounding)
+
+    var xhttp = new XMLHttpRequest();
+    xhttp.onreadystatechange =
+    function(){
+        if (this.readyState == 4 && this.status == 200) {
+            reply = JSON.parse(this.responseText);
+
+            if (reply.status=='Success') {
+                modalLaunchID.modal('hide')
+            }
+            else {
+                document.getElementById('launchErrors').innerHTML = reply.message
+                modalLaunchID.modal({keyboard: true})
+            }
+
+            document.getElementById('btnLaunch').disabled=false
+        }
+    }
+    xhttp.open("POST", '/launchTask');
+    xhttp.send(formData);
+}
 
 modalLaunchID.on('hidden.bs.modal', function(){
     /** Clears the launchID modal */

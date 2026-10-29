@@ -55,17 +55,53 @@ launchMTurkTaskBtn.addEventListener('click', ()=>{
         }
 
         if (idcheck) {
-            confirmRestore = true
-            modalLaunchTask.modal('hide')
-            // document.getElementById('modalConfirmBodyRestore').innerHTML = '<p>Individual identification jobs require the restoration of the raw images of your chosen species from our archival storage for both processing and viewing purposes. This process will take 48 hours to complete. Thereafter, you will have 30 days to complete the identification job before the raw images are returned to archival storage. However, if you are still actively working on it at the end of this period, it will be automatically extended to allow you to finish.<br><br>Would you like to proceed?</p>'
-            document.getElementById('modalConfirmBodyRestore').innerHTML = '<p>Individual identification jobs require the restoration of the raw images of your chosen species from our archival storage for both processing and viewing purposes. This process will take 48 hours to complete. Thereafter, the raw images will be permanently returned to standard storage so that you can have immediate access to the raw images when working with your individuals.<br><br>Would you like to proceed?</p>'
-            btnConfirmRestore.disabled = false
-            modalConfirmRestore.modal({keyboard: true})
+            var checkTasks = [selectedTask]
+            var checkAlgorithm = null
+            if (document.getElementById('hotspotter').checked) {
+                checkAlgorithm = 'hotspotter'
+            } else if (document.getElementById('miewid').checked) {
+                checkAlgorithm = 'miewid'
+            } else if (document.getElementById('heuristic').checked) {
+                checkAlgorithm = 'none'
+            }
+            var checkSpecies = document.getElementById('taskTaggingLevel').options[document.getElementById('taskTaggingLevel').selectedIndex].text
+            var areaID = document.getElementById('areaID')
+            if (!areaID.disabled && areaID.checked) {
+                var allAreaTasks = document.querySelectorAll('[id^=idTaskSelect-]')
+                for (let i = 0; i < allAreaTasks.length; i++) {
+                    if (allAreaTasks[i].value != '') {
+                        checkTasks.push(parseInt(allAreaTasks[i].value))
+                    }
+                }
+                checkTasks = [...new Set(checkTasks)]
+            }
 
-            removeRestoreEventListeners()
+            document.getElementById('launchMTurkTaskBtn').disabled = true
+            checkIdAlgorithmRecalc(
+                checkTasks,
+                checkSpecies,
+                checkAlgorithm,
+                function (recalc, requestedAlgorithm) {
+                    document.getElementById('launchMTurkTaskBtn').disabled = false
+                    confirmRestore = true
+                    modalLaunchTask.modal('hide')
+                    var restoreHtml = '<p>Individual identification jobs require the restoration of the raw images of your chosen species from our archival storage for both processing and viewing purposes. This process will take 48 hours to complete. Thereafter, the raw images will be permanently returned to standard storage so that you can have immediate access to the raw images when working with your individuals.</p>'
+                    restoreHtml += buildIdAlgorithmRecalcWarningHtml(recalc, requestedAlgorithm)
+                    restoreHtml += '<p>Would you like to proceed?</p>'
+                    document.getElementById('modalConfirmBodyRestore').innerHTML = restoreHtml
+                    btnConfirmRestore.disabled = false
+                    modalConfirmRestore.modal({keyboard: true})
 
-            btnConfirmRestore.addEventListener('click', confirmRestoreLaunch);
-            btnCancelRestore.addEventListener('click', cancelRestoreLaunch);
+                    removeRestoreEventListeners()
+
+                    btnConfirmRestore.addEventListener('click', confirmRestoreLaunch);
+                    btnCancelRestore.addEventListener('click', cancelRestoreLaunch);
+                },
+                function (message) {
+                    document.getElementById('launchMTurkTaskBtn').disabled = false
+                    document.getElementById('launchErrors').innerHTML = message
+                }
+            )
         }
     }
     else{

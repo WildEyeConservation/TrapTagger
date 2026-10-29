@@ -334,6 +334,31 @@ def species_detection_sims_stale(task_ids, species, algorithm):
         return True
     return any(label.algorithm != expected for label in labels)
 
+def get_conflicting_algorithm_tasks(task_ids, species, algorithm):
+    '''
+    Return included tasks whose Label.algorithm is set and differs from the requested algorithm.
+    Used for launch-time warnings (NULL/first-run labels are omitted).
+    '''
+    expected = _stored_algorithm_name(algorithm)
+    rows = db.session.query(Label, Task, Survey)\
+        .join(Task, Label.task_id==Task.id)\
+        .join(Survey, Task.survey_id==Survey.id)\
+        .filter(Label.description==species)\
+        .filter(Label.task_id.in_(task_ids))\
+        .filter(Label.algorithm.isnot(None))\
+        .filter(Label.algorithm!=expected)\
+        .all()
+    conflicts = []
+    for label, task, survey in rows:
+        conflicts.append({
+            'task_id': task.id,
+            'task_name': task.name,
+            'survey_id': survey.id,
+            'survey_name': survey.name,
+            'current_algorithm': label.algorithm,
+        })
+    return conflicts, expected
+
 def wipe_species_det_similarities(task_ids, species):
     '''Delete all DetSimilarity rows touching viable species detections across the given tasks.'''
     det_ids = [r[0] for r in rDets(
@@ -519,7 +544,7 @@ def calculate_detection_similarities(self,task_ids,species,algorithm):
 
         task = _resolve_id_parent_task(task_ids)
         task.survey.status = 'indprocessing'
-        calculate_individual_similarities.delay(task_id=task.id,species=species,queue='individual_id')
+        calculate_individual_similarities.delay(task_id=task.id, species=species, queue='individual_id', algorithm=algorithm)
         db.session.commit()
 
     except Exception as exc:

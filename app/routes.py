@@ -154,6 +154,37 @@ def releaseTask(task_id):
 #   snapshot.dump('/code/snapshot.bin')
 #   return send_file('/code/snapshot.bin', attachment_filename='snapshot.bin')
 
+@app.route('/checkIdAlgorithmRecalc', methods=['POST'])
+@login_required
+def checkIdAlgorithmRecalc():
+    '''
+    Pre-launch check: which selected tasks already have a different Label.algorithm for the species.
+    Used to warn that DetSimilarity rows will be wiped and recalculated for the whole job.
+    '''
+
+    try:
+        task_ids = [int(r) for r in ast.literal_eval(request.form['task_ids'])]
+    except Exception:
+        return json.dumps({'status': 'error', 'message': 'Invalid task selection.'})
+
+    species = request.form.get('species', '')
+    algorithm = request.form.get('algorithm', '')
+    if not species or algorithm not in ('hotspotter', 'miewid', 'none'):
+        return json.dumps({'status': 'error', 'message': 'Invalid species or algorithm.'})
+
+    tasks = db.session.query(Task).filter(Task.id.in_(task_ids)).all()
+    if len(tasks) != len(set(task_ids)):
+        return json.dumps({'status': 'error', 'message': 'One or more selected tasks could not be found.'})
+    if not all(checkSurveyPermission(current_user.id, task.survey_id, 'write') for task in tasks):
+        return json.dumps({'status': 'error', 'message': 'You do not have permission to launch one or more of the selected tasks.'})
+
+    conflicts, expected = get_conflicting_algorithm_tasks(task_ids, species, algorithm)
+    return json.dumps({
+        'status': 'success',
+        'recalc': conflicts,
+        'requested_algorithm': expected,
+    })
+
 @app.route('/launchTask', methods=['POST'])
 @login_required
 def launchTask():

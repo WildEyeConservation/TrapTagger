@@ -30,7 +30,13 @@ limitations under the License. -->
             their calculated similarity down to a pre-defined threshold. Exhausive identification allows you to identify individuals with no threshold.
         </li>
         <li>
-            Algorithm: Select the algorithm you want to use for individual identification. You can select from the following algorithms: Hotspotter or Heuristic Only.
+            Algorithm: Select the algorithm you want to use for individual identification.
+            <ul>
+                <li><b>Hotspotter:</b> pattern-recognition matching; works best on patterned species such as leopards and zebra. Supports a matching-feature heatmap for same-flank sightings.</li>
+                <li><b>MiewID:</b> deep-learning visual embeddings; generally more robust across a wider range of species. Does not provide a feature heatmap.</li>
+                <li><b>Heuristic Only:</b> suggestions based on time, location, and tags without visual matching.</li>
+            </ul>
+            If selected surveys already have scores from a different algorithm, those detection similarities will be recalculated for the newly selected algorithm. Previously rejected matches are kept.
         </li>
     </ul>
 

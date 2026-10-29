@@ -767,6 +767,55 @@ function removeIndividualEventListeners() {
     document.getElementById('btnContinueIndividualAlert').removeEventListener('click', restoreUnidSighting)
 }
 
+function formatIdAlgorithmName(algorithm) {
+    /** Display name for stored / requested individual-ID algorithms. */
+    if (algorithm == 'hotspotter') return 'Hotspotter'
+    if (algorithm == 'miewid') return 'MiewID'
+    if (algorithm == 'heuristic' || algorithm == 'none') return 'Heuristic Only'
+    return algorithm || 'Unknown'
+}
+
+function buildIdAlgorithmRecalcWarningHtml(recalc, requestedAlgorithm) {
+    /** HTML block warning that DetSims will be recalculated for included surveys. */
+    if (!recalc || !recalc.length) return ''
+    var requestedName = formatIdAlgorithmName(requestedAlgorithm)
+    var html = '<p><b>Algorithm recalculation:</b> The following surveys already have individual-ID scores for this species using a different algorithm. Proceeding will recalculate detection similarities for <b>all surveys included in this job</b> with <b>' + requestedName + '</b> (existing individuals are kept; previously rejected matches stay rejected):</p><ul>'
+    for (let i = 0; i < recalc.length; i++) {
+        html += '<li>' + recalc[i].survey_name + ' — currently ' + formatIdAlgorithmName(recalc[i].current_algorithm) + '</li>'
+    }
+    html += '</ul>'
+    return html
+}
+
+function checkIdAlgorithmRecalc(taskIds, species, algorithm, onSuccess, onError) {
+    /**
+     * Asks the server which selected tasks have a conflicting Label.algorithm.
+     * onSuccess(recalc, requestedAlgorithm); onError(message).
+     */
+    var formData = new FormData()
+    formData.append('task_ids', JSON.stringify(taskIds))
+    formData.append('species', species)
+    formData.append('algorithm', algorithm)
+
+    var xhttp = new XMLHttpRequest()
+    xhttp.onreadystatechange = function () {
+        if (this.readyState == 4) {
+            if (this.status == 200) {
+                var reply = JSON.parse(this.responseText)
+                if (reply.status == 'success') {
+                    onSuccess(reply.recalc || [], reply.requested_algorithm)
+                } else {
+                    onError(reply.message || 'Unable to check algorithm recalculation.')
+                }
+            } else {
+                onError('Unable to check algorithm recalculation.')
+            }
+        }
+    }
+    xhttp.open('POST', '/checkIdAlgorithmRecalc')
+    xhttp.send(formData)
+}
+
 function individualMapPrep() {
     /** Finishes prepping the map for intra-cluster individual ID by adding the dissociate option to the context menu. */
 
