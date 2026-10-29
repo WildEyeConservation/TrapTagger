@@ -546,6 +546,8 @@ def calculate_detection_similarities(self,task_ids,species,algorithm):
         task.survey.status = 'indprocessing'
         calculate_individual_similarities.delay(task_id=task.id, species=species, queue='individual_id', algorithm=algorithm)
         db.session.commit()
+        calculate_individual_similarities.delay(task_id=task.id, species=species, queue='individual_id', algorithm=algorithm)
+        
 
     except Exception as exc:
         app.logger.info(' ')
