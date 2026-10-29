@@ -6890,7 +6890,8 @@ def launch_task(self,task_id,classify=False):
 
                     if check:
                         from app.functions.individualID import calculate_individual_similarities
-                        calculate_individual_similarities(task.id,species)
+                        # algorithm defaults to None → Label.algorithm fallback inside the task
+                        calculate_individual_similarities(task.id, species, algorithm=algorithm)
                         task = db.session.query(Task).get(task_id)
 
                 # Define quantile thresholds
