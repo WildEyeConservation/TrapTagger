@@ -9374,7 +9374,9 @@ def getTaggingLevel():
             tL = taggingLevel.split(',')
             species = tL[1]
             label = db.session.query(Label).filter(Label.task_id==task.id).filter(Label.description==species).first()
-            taggingAlgorithm = label.algorithm
+            # Prefer tagging_level letter so -4 UI is correct before Label.algorithm is stamped post-calc
+            algo_from_tl = {'h': 'hotspotter', 'm': 'miewid', 'n': 'heuristic'}.get(tL[4]) if len(tL) > 4 else None
+            taggingAlgorithm = algo_from_tl or (label.algorithm if label else None)
 
     return json.dumps({'taggingLevel':taggingLevel, 'taggingLabel':taggingLabel, 'wrongStatus':wrongStatus, 'taggingAlgorithm':taggingAlgorithm})
 

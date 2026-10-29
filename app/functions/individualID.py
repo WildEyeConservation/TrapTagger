@@ -322,6 +322,43 @@ import shutil
 
 #     return True
 
+def _stored_algorithm_name(algorithm):
+    '''Map calculate_detection_similarities algorithm arg to Label.algorithm storage value.'''
+    return 'heuristic' if algorithm == 'none' else algorithm
+
+def species_detection_sims_stale(task_ids, species, algorithm):
+    '''True if any included Label.algorithm is missing or differs from the requested algorithm.'''
+    expected = _stored_algorithm_name(algorithm)
+    labels = db.session.query(Label).filter(Label.description==species).filter(Label.task_id.in_(task_ids)).all()
+    if not labels:
+        return True
+    return any(label.algorithm != expected for label in labels)
+
+def wipe_species_det_similarities(task_ids, species):
+    '''Delete all DetSimilarity rows touching viable species detections across the given tasks.'''
+    det_ids = [r[0] for r in rDets(
+        db.session.query(Detection.id)
+            .join(Labelgroup)
+            .join(Label, Labelgroup.labels)
+            .filter(Labelgroup.task_id.in_(task_ids))
+            .filter(Label.description==species)
+    ).distinct().all()]
+    if not det_ids:
+        return 0
+    deleted = 0
+    for chunk in chunker(det_ids, 1000):
+        deleted += db.session.query(DetSimilarity).filter(DetSimilarity.detection_1.in_(chunk)).delete(synchronize_session=False)
+        deleted += db.session.query(DetSimilarity).filter(DetSimilarity.detection_2.in_(chunk)).delete(synchronize_session=False)
+    db.session.commit()
+    return deleted
+
+def _resolve_id_parent_task(task_ids):
+    '''Prefer the area-ID parent (has sub_tasks) when multiple task ids are included.'''
+    if len(task_ids) == 1:
+        return db.session.query(Task).get(task_ids[0])
+    parent = db.session.query(Task).filter(Task.id.in_(task_ids)).filter(Task.sub_tasks.any()).first()
+    return parent or db.session.query(Task).get(task_ids[0])
+
 @celery.task(bind=True,max_retries=5,ignore_result=True)
 def calculate_detection_similarities(self,task_ids,species,algorithm):
     '''
@@ -335,12 +372,17 @@ def calculate_detection_similarities(self,task_ids,species,algorithm):
 
     try:
 
+        if species_detection_sims_stale(task_ids, species, algorithm):
+            wiped = wipe_species_det_similarities(task_ids, species)
+            app.logger.info(
+                'Stale DetSimilarity algorithm for {} on tasks {}; wiped {} rows before full recompute with {}'.format(
+                    species, task_ids, wiped, algorithm
+                )
+            )
+
         if algorithm in ('hotspotter', 'miewid'):
 
-            if len(task_ids)==1:
-                task = db.session.query(Task).get(task_ids[0])
-            else:
-                task = db.session.query(Task).filter(Task.id.in_(task_ids)).filter(Task.sub_tasks.any()).first()
+            task = _resolve_id_parent_task(task_ids)
             task.survey.status = 'processing'
             db.session.commit()
 
@@ -470,14 +512,12 @@ def calculate_detection_similarities(self,task_ids,species,algorithm):
                     if Config.DEBUGGING: print('Calculated {} similarity for batch {}'.format(algorithm, job['kwargs']['batch'][0]['query_ids']))
             app.logger.info('{} similarity calculations completed'.format(algorithm))
 
+        # Only stamp Label.algorithm after a successful calc so relaunch can detect stale scores
         labels = db.session.query(Label).filter(Label.description==species).filter(Label.task_id.in_(task_ids)).all()
         for label in labels:
-            if algorithm == 'none': 
-                label.algorithm = 'heuristic'
-            else:
-                label.algorithm = algorithm
+            label.algorithm = _stored_algorithm_name(algorithm)
 
-        task = db.session.query(Task).get(task_ids[0])
+        task = _resolve_id_parent_task(task_ids)
         task.survey.status = 'indprocessing'
         calculate_individual_similarities.delay(task_id=task.id,species=species,queue='individual_id')
         db.session.commit()
@@ -1331,6 +1371,7 @@ def check_individual_detection_mismatch(self,task_id,cluster_id=None):
 def calculate_miewid_similarity(self, batch):
     '''
     Celery task: cosine similarity between stored MiewID embeddings → DetSimilarity.
+    Cosine in [-1,1] is affine-mapped to [0,1] via (cosine+1)/2; all pairs are stored.
 
         Parameters:
             batch (list): Items with query_ids / db_ids (detection IDs), same shape as Hotspotter jobs.
@@ -1360,8 +1401,8 @@ def calculate_miewid_similarity(self, batch):
                 scores = db_matrix @ embeddings[qid]
                 for n, score in enumerate(scores):
                     score = float(score)
-                    if score <= 0:
-                        continue
+                    # Affine map cosine [-1,1] → [0,1]; no cutoff
+                    score = (float(score) + 1.0) / 2.0
                     detection1_id = qid
                     detection2_id = db_ids[n]
                     detSimilarity = db.session.query(DetSimilarity).filter(

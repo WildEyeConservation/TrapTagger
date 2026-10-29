@@ -6733,16 +6733,14 @@ def launch_task(self,task_id,classify=False):
                 #     calculate_detection_similarities.delay(task_ids=[task_id],species=label.description,algorithm='hotspotter')
                 # elif tL[4]=='n':
                 #     calculate_detection_similarities.delay(task_ids=[task_id],species=label.description,algorithm='none')
+                # Do not stamp Label.algorithm here — calculate_detection_similarities writes it only after a successful calc
                 task.status = 'Processing'
                 db.session.commit()
                 if tL[4]=='h':
-                    label.algorithm = 'hotspotter'
                     process_detections_for_individual_id([task_id],species)
                 elif tL[4]=='m':
-                    label.algorithm = 'miewid'
                     process_detections_for_miewid([task_id],species)
                 elif tL[4]=='n':
-                    label.algorithm = 'heuristic'
                     process_detections_for_individual_id([task_id],species,pose_only=True)
                 task = db.session.query(Task).get(task_id)
                 if tL[3] == 'a':
