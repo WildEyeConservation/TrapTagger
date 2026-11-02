@@ -36,7 +36,7 @@ limitations under the License. -->
                 <li><b>MiewID:</b> deep-learning visual embeddings; generally more robust across a wider range of species. Does not provide a feature heatmap.</li>
                 <li><b>Heuristic Only:</b> suggestions based on time, location, and tags without visual matching.</li>
             </ul>
-            If selected surveys already have scores from a different algorithm, those detection similarities will be recalculated for the newly selected algorithm. Previously rejected matches are kept.
+            If selected surveys already have scores from a different algorithm, any missing detection similarities for the newly selected algorithm are computed; scores from other algorithms are kept. Previously rejected matches are kept.
         </li>
     </ul>
 

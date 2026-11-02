@@ -776,14 +776,15 @@ function formatIdAlgorithmName(algorithm) {
 }
 
 function buildIdAlgorithmRecalcWarningHtml(recalc, requestedAlgorithm) {
-    /** HTML block warning that DetSims will be recalculated for included surveys. */
+    /** HTML block warning that the active algorithm is changing for included surveys. */
     if (!recalc || !recalc.length) return ''
     var requestedName = formatIdAlgorithmName(requestedAlgorithm)
-    var html = '<p><b>Algorithm recalculation:</b> The following surveys already have individual-ID scores for this species using a different algorithm. Proceeding will recalculate detection similarities for <b>all surveys included in this job</b> with <b>' + requestedName + '</b> (existing individuals are kept; previously rejected matches stay rejected):</p><ul>'
+    var html = '<p><b>Algorithm change:</b> The following surveys already used a different individual-ID algorithm for this species. Proceeding will use <b>' + requestedName + '</b> for <b>all surveys included in this job</b>, and compute any missing detection similarities for that algorithm. Scores from other algorithms are kept:</p><ul>'
     for (let i = 0; i < recalc.length; i++) {
         html += '<li>' + recalc[i].survey_name + ' — currently ' + formatIdAlgorithmName(recalc[i].current_algorithm) + '</li>'
     }
     html += '</ul>'
+    html += '<p><i><b>Your existing individuals are kept, and previously rejected matches stay rejected.</b></i></p>'
     return html
 }
 

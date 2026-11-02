@@ -17,7 +17,8 @@ limitations under the License.
 from app import app, db, celery
 from app.models import *
 from app.functions.globals import coordinateDistance, retryTime, rDets, updateIndividualIdStatus, chunker, process_detections_for_individual_id, process_detections_for_miewid, update_individuals_primary_dets,\
-    crop_image_to_individual, wait_for_jobs, unpack_embedding
+    crop_image_to_individual, wait_for_jobs, unpack_embedding, detsim_source_for_algorithm, embedding_source_for_algorithm,\
+    CURRENT_HOTSPOTTER_DETSIM_SOURCE, CURRENT_MIEWID_DETSIM_SOURCE, CURRENT_MIEWID_EMBEDDING_SOURCE
 import numpy
 from app.functions.delete import delete_individuals_helper
 import GLOBALS
@@ -359,24 +360,6 @@ def get_conflicting_algorithm_tasks(task_ids, species, algorithm):
         })
     return conflicts, expected
 
-def wipe_species_det_similarities(task_ids, species):
-    '''Delete all DetSimilarity rows touching viable species detections across the given tasks.'''
-    det_ids = [r[0] for r in rDets(
-        db.session.query(Detection.id)
-            .join(Labelgroup)
-            .join(Label, Labelgroup.labels)
-            .filter(Labelgroup.task_id.in_(task_ids))
-            .filter(Label.description==species)
-    ).distinct().all()]
-    if not det_ids:
-        return 0
-    deleted = 0
-    for chunk in chunker(det_ids, 1000):
-        deleted += db.session.query(DetSimilarity).filter(DetSimilarity.detection_1.in_(chunk)).delete(synchronize_session=False)
-        deleted += db.session.query(DetSimilarity).filter(DetSimilarity.detection_2.in_(chunk)).delete(synchronize_session=False)
-    db.session.commit()
-    return deleted
-
 def _resolve_id_parent_task(task_ids):
     '''Prefer the area-ID parent (has sub_tasks) when multiple task ids are included.'''
     if len(task_ids) == 1:
@@ -397,15 +380,16 @@ def calculate_detection_similarities(self,task_ids,species,algorithm):
 
     try:
 
+        detsim_source = detsim_source_for_algorithm(algorithm)
+        embedding_source = embedding_source_for_algorithm(algorithm)
         if species_detection_sims_stale(task_ids, species, algorithm):
-            wiped = wipe_species_det_similarities(task_ids, species)
             app.logger.info(
-                'Stale DetSimilarity algorithm for {} on tasks {}; wiped {} rows before full recompute with {}'.format(
-                    species, task_ids, wiped, algorithm
+                'Active Label.algorithm differs for {} on tasks {}; filling missing DetSims for source {} (no wipe)'.format(
+                    species, task_ids, detsim_source
                 )
             )
 
-        if algorithm in ('hotspotter', 'miewid'):
+        if algorithm in ('hotspotter', 'miewid') and detsim_source:
 
             task = _resolve_id_parent_task(task_ids)
             task.survey.status = 'processing'
@@ -416,10 +400,12 @@ def calculate_detection_similarities(self,task_ids,species,algorithm):
                 visual_ready = Detection.aid!=None
                 sim_task = calculate_hotspotter_similarity
             else:
-                process_detections_for_miewid(task_ids,species)
+                process_detections_for_miewid(task_ids,species,embedding_source=embedding_source)
                 # exists() is session-safe across remove()/commit cycles
                 visual_ready = db.session.query(DetectionEmbedding.detection_id)\
-                    .filter(DetectionEmbedding.detection_id == Detection.id).exists()
+                    .filter(DetectionEmbedding.detection_id == Detection.id)\
+                    .filter(DetectionEmbedding.source == embedding_source)\
+                    .exists()
                 sim_task = calculate_miewid_similarity
 
             base_detection_query = rDets(db.session.query(Detection.id)\
@@ -457,9 +443,11 @@ def calculate_detection_similarities(self,task_ids,species,algorithm):
                                             .subquery()
                         sim_dets1 = db.session.query(DetSimilarity.detection_1.label('id'))\
                                             .join(task2_dets, task2_dets.c.id==DetSimilarity.detection_2)\
+                                            .filter(DetSimilarity.source==detsim_source)\
                                             .distinct()
                         sim_dets2 = db.session.query(DetSimilarity.detection_2.label('id'))\
                                             .join(task2_dets, task2_dets.c.id==DetSimilarity.detection_1)\
+                                            .filter(DetSimilarity.source==detsim_source)\
                                             .distinct()
                         sim_dets = sim_dets1.union(sim_dets2).subquery()
                         new_dets[task_1][task_2] = [r[0] for r in base_detection_query\
@@ -698,7 +686,8 @@ def calculate_individual_similarity(self,individual1,individuals2,species,algori
                             if tag not in individual1_tags:
                                 tagScore -= mismatchWeight
 
-                        if algorithm in ('hotspotter', 'miewid'):
+                        detsim_source = detsim_source_for_algorithm(algorithm)
+                        if detsim_source:
                             detSimilarities = db.session.query(DetSimilarity.score,
                                         Det1.c.id,Det1.c.left,Det1.c.right,Det1.c.top,Det1.c.bottom,Det1.c.flank,Image1.c.camera_id,Image1.c.corrected_timestamp,Trapgroup1.c.latitude,Trapgroup1.c.longitude,
                                         Det2.c.id,Det2.c.left,Det2.c.right,Det2.c.top,Det2.c.bottom,Det2.c.flank,Image2.c.camera_id,Image2.c.corrected_timestamp,Trapgroup2.c.latitude,Trapgroup2.c.longitude)\
@@ -712,6 +701,7 @@ def calculate_individual_similarity(self,individual1,individuals2,species,algori
                                                     .join(Trapgroup2, Trapgroup2.c.id==Camera2.c.trapgroup_id)\
                                                     .join(individualDetections1, individualDetections1.c.detection_id==Det1.c.id)\
                                                     .join(individualDetections2, individualDetections2.c.detection_id==Det2.c.id)\
+                                                    .filter(DetSimilarity.source==detsim_source)\
                                                     .filter(DetSimilarity.score>0)\
                                                     .filter(
                                                         or_(
@@ -1195,19 +1185,27 @@ def handleIndividualUndo(indSimilarity,individual1,individual2,individual3,task_
             Det2 = alias(Detection)
             IndividualDetections1 = alias(individualDetections)
             IndividualDetections2 = alias(individualDetections)
+            undo_algorithm = db.session.query(Label.algorithm)\
+                                .filter(Label.task_id==task_id)\
+                                .filter(Label.description==individual1.species)\
+                                .scalar()
+            undo_detsim_source = detsim_source_for_algorithm(undo_algorithm)
             for similarity in allSimilarities:
                 similarity.score = similarity.old_score
-                maxSim = db.session.query(DetSimilarity)\
-                                        .join(Det1, Det1.c.id==DetSimilarity.detection_1)\
-                                        .join(Det2, Det2.c.id==DetSimilarity.detection_2)\
-                                        .join(IndividualDetections1, IndividualDetections1.c.detection_id==Det1.c.id)\
-                                        .join(IndividualDetections2, IndividualDetections2.c.detection_id==Det2.c.id)\
-                                        .filter(or_(
-                                            and_(IndividualDetections1.c.individual_id==similarity.individual_1,IndividualDetections2.c.individual_id==similarity.individual_2),
-                                            and_(IndividualDetections1.c.individual_id==similarity.individual_2,IndividualDetections2.c.individual_id==similarity.individual_1)
-                                        ))\
-                                        .order_by(DetSimilarity.score.desc())\
-                                        .first()
+                maxSim = None
+                if undo_detsim_source:
+                    maxSim = db.session.query(DetSimilarity)\
+                                            .join(Det1, Det1.c.id==DetSimilarity.detection_1)\
+                                            .join(Det2, Det2.c.id==DetSimilarity.detection_2)\
+                                            .join(IndividualDetections1, IndividualDetections1.c.detection_id==Det1.c.id)\
+                                            .join(IndividualDetections2, IndividualDetections2.c.detection_id==Det2.c.id)\
+                                            .filter(DetSimilarity.source==undo_detsim_source)\
+                                            .filter(or_(
+                                                and_(IndividualDetections1.c.individual_id==similarity.individual_1,IndividualDetections2.c.individual_id==similarity.individual_2),
+                                                and_(IndividualDetections1.c.individual_id==similarity.individual_2,IndividualDetections2.c.individual_id==similarity.individual_1)
+                                            ))\
+                                            .order_by(DetSimilarity.score.desc())\
+                                            .first()
                 if maxSim:
                     similarity.detection_1 = maxSim.detection_1
                     similarity.detection_2 = maxSim.detection_2
@@ -1419,6 +1417,8 @@ def calculate_miewid_similarity(self, batch):
 
     try:
         starttime = time.time()
+        detsim_source = CURRENT_MIEWID_DETSIM_SOURCE
+        embedding_source = CURRENT_MIEWID_EMBEDDING_SOURCE
 
         det_ids = []
         for item in batch:
@@ -1427,7 +1427,9 @@ def calculate_miewid_similarity(self, batch):
         det_ids = list(set(det_ids))
 
         rows = db.session.query(DetectionEmbedding.detection_id, DetectionEmbedding.embedding)\
-            .filter(DetectionEmbedding.detection_id.in_(det_ids)).all()
+            .filter(DetectionEmbedding.detection_id.in_(det_ids))\
+            .filter(DetectionEmbedding.source==embedding_source)\
+            .all()
         embeddings = {det_id: unpack_embedding(blob) for det_id, blob in rows}
 
         for item in batch:
@@ -1450,9 +1452,13 @@ def calculate_miewid_similarity(self, batch):
                             and_(DetSimilarity.detection_1 == detection1_id, DetSimilarity.detection_2 == detection2_id),
                             and_(DetSimilarity.detection_1 == detection2_id, DetSimilarity.detection_2 == detection1_id),
                         )
-                    ).first()
+                    ).filter(DetSimilarity.source==detsim_source).first()
                     if detSimilarity is None:
-                        detSimilarity = DetSimilarity(detection_1=detection1_id, detection_2=detection2_id)
+                        detSimilarity = DetSimilarity(
+                            detection_1=detection1_id,
+                            detection_2=detection2_id,
+                            source=detsim_source,
+                        )
                         db.session.add(detSimilarity)
                     detSimilarity.score = score
 
@@ -1553,10 +1559,14 @@ def calculate_hotspotter_similarity(self,batch):
                                                         and_(\
                                                             DetSimilarity.detection_1==detection2_id,\
                                                             DetSimilarity.detection_2==detection1_id)\
-                                                    )).first()
+                                                    )).filter(DetSimilarity.source==CURRENT_HOTSPOTTER_DETSIM_SOURCE).first()
 
                         if detSimilarity == None:
-                            detSimilarity = DetSimilarity(detection_1=detection1_id, detection_2=detection2_id)
+                            detSimilarity = DetSimilarity(
+                                detection_1=detection1_id,
+                                detection_2=detection2_id,
+                                source=CURRENT_HOTSPOTTER_DETSIM_SOURCE,
+                            )
                             db.session.add(detSimilarity)
 
                         detSimilarity.score = float(score)

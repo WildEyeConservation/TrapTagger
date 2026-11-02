@@ -6805,7 +6805,7 @@ def launch_task(self,task_id,classify=False):
                 task_ids = [r.id for r in task.sub_tasks]
                 task_ids.append(task.id)
 
-                # If any included Label.algorithm is stale vs the selected algo, wipe+recompute DetSims before -5 work
+                # If any included Label.algorithm is stale vs the selected algo, fill missing DetSims for the new source before -5 work
                 algorithm = None
                 if len(tL) > 4:
                     algorithm = {'h': 'hotspotter', 'm': 'miewid', 'n': 'none'}.get(tL[4])
@@ -7721,6 +7721,42 @@ def unpack_embedding(blob):
     '''Unpack DetectionEmbedding.embedding bytes into a float32 numpy array.'''
     return numpy.frombuffer(blob, dtype=numpy.float32)
 
+# Versioned individual-ID sources for DetSimilarity / DetectionEmbedding rows.
+# Label.algorithm stays unversioned (hotspotter/miewid/heuristic); map at read/write time.
+CURRENT_HOTSPOTTER_DETSIM_SOURCE = 'hotspotter_v1'
+CURRENT_MIEWID_DETSIM_SOURCE = 'miewid_v1'
+CURRENT_MIEWID_EMBEDDING_SOURCE = 'miewid_v1'
+
+ID_DETSIM_SOURCES = {
+    'hotspotter': CURRENT_HOTSPOTTER_DETSIM_SOURCE,
+    'miewid': CURRENT_MIEWID_DETSIM_SOURCE,
+}
+ID_EMBEDDING_SOURCES = {
+    'miewid': CURRENT_MIEWID_EMBEDDING_SOURCE,
+}
+
+def normalize_id_algorithm(algorithm):
+    '''Normalize calc/UI/Label algorithm names to hotspotter|miewid|heuristic|None.'''
+    if algorithm is None:
+        return None
+    if algorithm in ('none', 'heuristic'):
+        return 'heuristic'
+    return algorithm
+
+def detsim_source_for_algorithm(algorithm):
+    '''DetSimilarity.source for an algorithm, or None if that algo does not persist DetSims (heuristic).'''
+    algo = normalize_id_algorithm(algorithm)
+    if algo is None:
+        return None
+    return ID_DETSIM_SOURCES.get(algo)
+
+def embedding_source_for_algorithm(algorithm):
+    '''DetectionEmbedding.source for an algorithm, or None if it does not use embeddings.'''
+    algo = normalize_id_algorithm(algorithm)
+    if algo is None:
+        return None
+    return ID_EMBEDDING_SOURCES.get(algo)
+
 
 def process_detections_for_individual_id(task_ids,species,pose_only=False):
     '''
@@ -7822,21 +7858,29 @@ def process_detections_for_individual_id(task_ids,species,pose_only=False):
     return True
 
 
-def process_detections_for_miewid(task_ids, species):
+def process_detections_for_miewid(task_ids, species, embedding_source=None):
     '''
-    Enqueue miewid_prepare for detections missing a MiewID embedding. Writes Detection.flank
-    and DetectionEmbedding from the Celery results.
+    Enqueue miewid_prepare for detections missing an embedding for embedding_source.
+    Writes Detection.flank and DetectionEmbedding from the Celery results.
 
         Parameters:
             task_ids (list): Task IDs whose detections should be prepared
             species (str): Species label description
+            embedding_source (str): Versioned embedding source (default CURRENT_MIEWID_EMBEDDING_SOURCE)
     '''
 
     try:
-        app.logger.info('Process detections for MiewID for task_ids: {}, species: {}'.format(task_ids, species))
+        if embedding_source is None:
+            embedding_source = CURRENT_MIEWID_EMBEDDING_SOURCE
+        app.logger.info(
+            'Process detections for MiewID for task_ids: {}, species: {}, source: {}'.format(
+                task_ids, species, embedding_source
+            )
+        )
         starttime = time.time()
 
-        embedded_ids = db.session.query(DetectionEmbedding.detection_id)
+        embedded_ids = db.session.query(DetectionEmbedding.detection_id)\
+            .filter(DetectionEmbedding.source == embedding_source)
         data = rDets(db.session.query(
                 Detection.id, Detection.left, Detection.right, Detection.top, Detection.bottom,
                 Image.id, Image.filename, Camera.path
@@ -7895,10 +7939,11 @@ def process_detections_for_miewid(task_ids, species):
                             if detection.flank is None:
                                 detection.flank = item['flank']
                             emb_bytes = pack_embedding(item['embedding'])
-                            existing = db.session.query(DetectionEmbedding).get(detection.id)
+                            existing = db.session.query(DetectionEmbedding).get((detection.id, embedding_source))
                             if existing is None:
                                 db.session.add(DetectionEmbedding(
                                     detection_id=detection.id,
+                                    source=embedding_source,
                                     embedding=emb_bytes,
                                     dim=len(item['embedding']),
                                 ))

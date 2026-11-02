@@ -295,20 +295,23 @@ class Detection(db.Model):
     aid = db.Column(db.Integer, index=True) # annotation id for wbia db 
     features = db.relationship('Feature', backref='detection', lazy=True)
     distance = db.Column(db.Float, index=False)
-    embedding = db.relationship('DetectionEmbedding', backref='detection', uselist=False, lazy=True)
+    embeddings = db.relationship('DetectionEmbedding', backref='detection', lazy=True)
 
     def __repr__(self):
         return '<Detection of class {} on image {}>'.format(self.category, self.image_id)
 
 
 class DetectionEmbedding(db.Model):
-    '''MiewID embedding for a detection. Stored as float32 bytes'''
+    '''Per-model embedding for a detection. Stored as float32 bytes; source is versioned (e.g. miewid_v1).'''
     detection_id = db.Column(db.Integer, db.ForeignKey('detection.id'), primary_key=True)
+    source = db.Column(db.String(64), primary_key=True, nullable=False, index=True)
     embedding = db.Column(db.LargeBinary, nullable=False)
     dim = db.Column(db.Integer, nullable=False, default=2152)
 
     def __repr__(self):
-        return '<DetectionEmbedding for detection {} dim={}>'.format(self.detection_id, self.dim)
+        return '<DetectionEmbedding for detection {} source={} dim={}>'.format(
+            self.detection_id, self.source, self.dim
+        )
 
 class Turkcode(db.Model):
     id = db.Column(db.Integer, primary_key=True)
@@ -522,12 +525,16 @@ class Translation(db.Model):
 
 
 class DetSimilarity(db.Model):
+    '''Pairwise detection similarity for a versioned algorithm source (e.g. hotspotter_v1, miewid_v1).'''
     detection_1 = db.Column(db.Integer, db.ForeignKey('detection.id'), primary_key=True)
     detection_2 = db.Column(db.Integer, db.ForeignKey('detection.id'), primary_key=True)
+    source = db.Column(db.String(64), primary_key=True, nullable=False, index=True)
     score = db.Column(db.Float, index=True)
 
     def __repr__(self):
-        return '<Detection similarity for {} and {}>'.format(self.detection_1, self.detection_2)
+        return '<Detection similarity for {} and {} source={}>'.format(
+            self.detection_1, self.detection_2, self.source
+        )
 
 
 class IndSimilarity(db.Model):
@@ -779,5 +786,5 @@ class Area(db.Model):
 
 db.Index('ix_det_srce_scre_stc_stat_class_classcre', Detection.source, Detection.score, Detection.static, Detection.status, Detection.classification, Detection.class_score)
 db.Index('ix_cluster_examined_task', Cluster.examined, Cluster.task_id)
-db.Index('ix_det_similarity_2_1', DetSimilarity.detection_2, DetSimilarity.detection_1, unique=True)
+db.Index('ix_det_similarity_2_1_source', DetSimilarity.detection_2, DetSimilarity.detection_1, DetSimilarity.source, unique=True)
 db.Index('ix_ind_similarity_2_1', IndSimilarity.individual_2, IndSimilarity.individual_1, unique=True)

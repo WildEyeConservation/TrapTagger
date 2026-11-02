@@ -159,7 +159,8 @@ def releaseTask(task_id):
 def checkIdAlgorithmRecalc():
     '''
     Pre-launch check: which selected tasks already have a different Label.algorithm for the species.
-    Used to warn that DetSimilarity rows will be wiped and recalculated for the whole job.
+    Used to warn that the active algorithm will change and missing DetSims for the new source may be computed
+    (existing DetSims for other sources are kept).
     '''
 
     try:
@@ -7498,20 +7499,29 @@ def getSuggestion(individual_id):
 
                         detections1 = individual1.detections[:]
                         detections2 = individual.detections[:]
+                        debug_algo = {'h': 'hotspotter', 'm': 'miewid', 'n': 'heuristic'}.get(tL[4]) if len(tL) > 4 else None
+                        if debug_algo is None:
+                            debug_algo = db.session.query(Label.algorithm)\
+                                            .filter(Label.task_id==task.id)\
+                                            .filter(Label.description==individual1.species)\
+                                            .scalar()
+                        debug_detsim_source = detsim_source_for_algorithm(debug_algo)
                         for detection1 in detections1:
                             reply['detsim'][str(detection1.image.id)] = {}
                             reply['adjsim'][str(detection1.image.id)] = {}
                             for detection2 in detections2:
 
-                                detSimilarity = db.session.query(DetSimilarity).filter(\
-                                                            or_(\
-                                                                and_(\
-                                                                    DetSimilarity.detection_1==detection1.id,\
-                                                                    DetSimilarity.detection_2==detection2.id),\
-                                                                and_(\
-                                                                    DetSimilarity.detection_1==detection2.id,\
-                                                                    DetSimilarity.detection_2==detection1.id)\
-                                                            )).first()
+                                detSimilarity = None
+                                if debug_detsim_source:
+                                    detSimilarity = db.session.query(DetSimilarity).filter(\
+                                                                or_(\
+                                                                    and_(\
+                                                                        DetSimilarity.detection_1==detection1.id,\
+                                                                        DetSimilarity.detection_2==detection2.id),\
+                                                                    and_(\
+                                                                        DetSimilarity.detection_1==detection2.id,\
+                                                                        DetSimilarity.detection_2==detection1.id)\
+                                                                )).filter(DetSimilarity.source==debug_detsim_source).first()
 
                                 if max_similarity:
                                     reply['detsim'][str(detection1.image.id)][str(detection2.image.id)] = detSimilarity.score
