@@ -4684,7 +4684,8 @@ def reconcile_cluster_labelgroup_labels_and_tags(task_id):
     
     # Reconcile Labels first
     labels = [r[0] for r in db.session.query(Label.id).filter(Label.task_id==task_id).distinct().all()]
-    labels.extend([GLOBALS.vhl_id,GLOBALS.nothing_id,GLOBALS.unknown_id,GLOBALS.knocked_id])
+    global_label_ids = [GLOBALS.vhl_id,GLOBALS.nothing_id,GLOBALS.unknown_id,GLOBALS.knocked_id]
+    labels.extend(global_label_ids)
 
     # Add labels to labelgroups that are in cluster
     for label_id in labels:
@@ -4707,17 +4708,28 @@ def reconcile_cluster_labelgroup_labels_and_tags(task_id):
                                 .distinct().limit(10000).all()]
             
             if not labelgroups: break
-            
-            insert_values = []
-            for labelgroup_id in labelgroups:
-                insert_values.append({
-                    'labelgroup_id': labelgroup_id,
-                    'label_id': label_id
-                })
-                
-            if insert_values: db.session.execute(insert(detectionLabels), insert_values)
-            
-            db.session.commit()
+
+            if label_id in global_label_ids:
+                for chunk in chunker(labelgroups,200):
+                    insert_values = []
+                    for labelgroup_id in chunk:
+                        insert_values.append({
+                            'labelgroup_id': labelgroup_id,
+                            'label_id': label_id
+                        })
+                        
+                    if insert_values: db.session.execute(insert(detectionLabels), insert_values)
+                    db.session.commit()
+            else:
+                insert_values = []
+                for labelgroup_id in labelgroups:
+                    insert_values.append({
+                        'labelgroup_id': labelgroup_id,
+                        'label_id': label_id
+                    })
+                    
+                if insert_values: db.session.execute(insert(detectionLabels), insert_values)
+                db.session.commit()
 
     # Remove labels from labelgroups that are not in cluster
     for label_id in labels:
@@ -4743,6 +4755,7 @@ def reconcile_cluster_labelgroup_labels_and_tags(task_id):
             
             for chunk in chunker(labelgroups,1000):
                 db.session.query(detectionLabels).filter(detectionLabels.c.labelgroup_id.in_(chunk)).filter(detectionLabels.c.label_id==label_id).delete(synchronize_session=False)
+                if label_id in global_label_ids: db.session.commit()
 
             db.session.commit()
 
@@ -4819,6 +4832,7 @@ def update_labelgroup_labels_tags(self,cluster_id):
         cluster = db.session.query(Cluster).get(cluster_id)
         cluster_label_ids = [lab.id for lab in cluster.labels]
         cluster_tag_ids = [tag.id for tag in cluster.tags]
+        global_label_ids = [GLOBALS.vhl_id,GLOBALS.nothing_id,GLOBALS.unknown_id,GLOBALS.knocked_id]
         # Update labels
         for label_id in cluster_label_ids:
             while True:
@@ -4836,24 +4850,25 @@ def update_labelgroup_labels_tags(self,cluster_id):
                                 .distinct().limit(10000).all()]
                 
                 if not labelgroups: break
-                
-                insert_values = []
-                for labelgroup_id in labelgroups:
-                    insert_values.append({
-                        'labelgroup_id': labelgroup_id,
-                        'label_id': label_id
-                    })
-                    
-                if insert_values: db.session.execute(insert(detectionLabels), insert_values)
-                            
 
-                for chunk in chunker(labelgroups,1000):
+                if label_id in global_label_ids:
+                    chunk_size = 200
+                else:
+                    chunk_size = 1000
+
+                for chunk in chunker(labelgroups,chunk_size):
+                    insert_values = []
+                    for labelgroup_id in chunk:
+                        insert_values.append({
+                            'labelgroup_id': labelgroup_id,
+                            'label_id': label_id
+                        })
+                    if insert_values: db.session.execute(insert(detectionLabels), insert_values)
                     db.session.query(Labelgroup).filter(Labelgroup.id.in_(chunk)).update({'checked': False}, synchronize_session=False)
-
-                db.session.commit()
+                    db.session.commit()
 
         labels = [r[0] for r in db.session.query(Label.id).filter(Label.task_id==cluster.task_id).distinct().all()]
-        labels.extend([GLOBALS.vhl_id,GLOBALS.nothing_id,GLOBALS.unknown_id,GLOBALS.knocked_id])
+        labels.extend(global_label_ids)
         labels = [r for r in labels if r not in cluster_label_ids]
 
         # Remove labels
@@ -4879,8 +4894,7 @@ def update_labelgroup_labels_tags(self,cluster_id):
                 for chunk in chunker(labelgroups,1000):
                     db.session.query(detectionLabels).filter(detectionLabels.c.labelgroup_id.in_(chunk)).filter(detectionLabels.c.label_id==label_id).delete(synchronize_session=False)
                     db.session.query(Labelgroup).filter(Labelgroup.id.in_(chunk)).update({'checked': False}, synchronize_session=False)
-
-                db.session.commit()
+                    db.session.commit()
 
         # Update tags
         for tag_id in cluster_tag_ids:
@@ -4900,15 +4914,16 @@ def update_labelgroup_labels_tags(self,cluster_id):
                 
                 if not labelgroups: break
                 
-                insert_values = []
-                for labelgroup_id in labelgroups:
-                    insert_values.append({
-                        'labelgroup_id': labelgroup_id,
-                        'tag_id': tag_id
-                    })
-                if insert_values: db.session.execute(insert(detectionTags), insert_values)
+                for chunk in chunker(labelgroups,1000):
+                    insert_values = []
+                    for labelgroup_id in chunk:
+                        insert_values.append({
+                            'labelgroup_id': labelgroup_id,
+                            'tag_id': tag_id
+                        })
+                    if insert_values: db.session.execute(insert(detectionTags), insert_values)
 
-                db.session.commit()
+                    db.session.commit()
 
         tag_ids = [r[0] for r in db.session.query(Tag.id).filter(Tag.task_id==cluster.task_id).distinct().all()]
         tag_ids = [r for r in tag_ids if r not in cluster_tag_ids]
@@ -4935,8 +4950,7 @@ def update_labelgroup_labels_tags(self,cluster_id):
                 
                 for chunk in chunker(labelgroups,1000):
                     db.session.query(detectionTags).filter(detectionTags.c.labelgroup_id.in_(chunk)).filter(detectionTags.c.tag_id==tag_id).delete(synchronize_session=False)
-
-                db.session.commit()
+                    db.session.commit()
 
     except Exception as exc:
         app.logger.info(' ')
