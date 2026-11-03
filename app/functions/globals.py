@@ -7723,9 +7723,9 @@ def unpack_embedding(blob):
 
 # Versioned individual-ID sources for DetSimilarity / DetectionEmbedding rows.
 # Label.algorithm stays unversioned (hotspotter/miewid/heuristic); map at read/write time.
-CURRENT_HOTSPOTTER_DETSIM_SOURCE = 'hotspotter_v2'
-CURRENT_MIEWID_DETSIM_SOURCE = 'miewid_v2'
-CURRENT_MIEWID_EMBEDDING_SOURCE = 'miewid_v2'
+CURRENT_HOTSPOTTER_DETSIM_SOURCE = 'hotspotter_v1'
+CURRENT_MIEWID_DETSIM_SOURCE = 'miewid_v1'
+CURRENT_MIEWID_EMBEDDING_SOURCE = 'miewid_v1'
 
 ID_DETSIM_SOURCES = {
     'hotspotter': CURRENT_HOTSPOTTER_DETSIM_SOURCE,
