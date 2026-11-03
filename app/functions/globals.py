@@ -6805,7 +6805,7 @@ def launch_task(self,task_id,classify=False):
                 task_ids = [r.id for r in task.sub_tasks]
                 task_ids.append(task.id)
 
-                # If any included Label.algorithm is stale vs the selected algo, fill missing DetSims for the new source before -5 work
+                # Algo mismatch and/or incomplete current-source DetSim coverage → fill before -5 work
                 algorithm = None
                 if len(tL) > 4:
                     algorithm = {'h': 'hotspotter', 'm': 'miewid', 'n': 'none'}.get(tL[4])
@@ -6814,7 +6814,7 @@ def launch_task(self,task_id,classify=False):
                     calc_task_ids = [task.id] + [r.id for r in task.sub_tasks]
                     if species_detection_sims_stale(calc_task_ids, species, algorithm):
                         app.logger.info(
-                            'Stale detection similarities for {} on task {}; recalculating with {}'.format(
+                            'DetSim update needed for {} on task {} (algo={} / current source); recalculating before -5'.format(
                                 species, task_id, algorithm
                             )
                         )

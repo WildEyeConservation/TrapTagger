@@ -18,7 +18,7 @@ from app import app, db, celery
 from app.models import *
 from app.functions.globals import coordinateDistance, retryTime, rDets, updateIndividualIdStatus, chunker, process_detections_for_individual_id, process_detections_for_miewid, update_individuals_primary_dets,\
     crop_image_to_individual, wait_for_jobs, unpack_embedding, detsim_source_for_algorithm, embedding_source_for_algorithm,\
-    CURRENT_HOTSPOTTER_DETSIM_SOURCE, CURRENT_MIEWID_DETSIM_SOURCE, CURRENT_MIEWID_EMBEDDING_SOURCE
+    normalize_id_algorithm, CURRENT_HOTSPOTTER_DETSIM_SOURCE, CURRENT_MIEWID_DETSIM_SOURCE, CURRENT_MIEWID_EMBEDDING_SOURCE
 import numpy
 from app.functions.delete import delete_individuals_helper
 import GLOBALS
@@ -328,12 +328,64 @@ def _stored_algorithm_name(algorithm):
     return 'heuristic' if algorithm == 'none' else algorithm
 
 def species_detection_sims_stale(task_ids, species, algorithm):
-    '''True if any included Label.algorithm is missing or differs from the requested algorithm.'''
+    '''
+    True if detection similarities need (re)work for this job:
+      - any included Label.algorithm is missing or differs from the requested algorithm, OR
+      - current versioned source coverage is incomplete (missing prep and/or DetSims).
+
+    Coverage is version-aware via CURRENT_*_SOURCE constants: bumping e.g. miewid_v1 → miewid_v2
+    makes existing rows invisible to the current source, so this returns True and fill runs
+    incrementally for the new source (old sources are kept). Heuristic has no DetSims — algo only.
+    '''
     expected = _stored_algorithm_name(algorithm)
     labels = db.session.query(Label).filter(Label.description==species).filter(Label.task_id.in_(task_ids)).all()
-    if not labels:
-        return True
-    return any(label.algorithm != expected for label in labels)
+    algo_stale = (not labels) or any(label.algorithm != expected for label in labels)
+
+    detsim_source = detsim_source_for_algorithm(algorithm)
+    if not detsim_source:
+        return algo_stale
+
+    candidate_ids_q = rDets(db.session.query(Detection.id)\
+                            .join(Labelgroup)\
+                            .join(Label, Labelgroup.labels)\
+                            .filter(Label.description==species)\
+                            .filter(Labelgroup.task_id.in_(task_ids)))\
+                            .distinct()
+    # Need at least two detections to form a pair; otherwise coverage is vacuously OK
+    if len(candidate_ids_q.limit(2).all()) < 2:
+        return algo_stale
+
+    # Rebuild without limit() for the coverage subquery (limit sticks on the prior query object)
+    cand_sq = rDets(db.session.query(Detection.id.label('id'))\
+                            .join(Labelgroup)\
+                            .join(Label, Labelgroup.labels)\
+                            .filter(Label.description==species)\
+                            .filter(Labelgroup.task_id.in_(task_ids)))\
+                            .distinct().subquery()
+    algo = normalize_id_algorithm(algorithm)
+    if algo == 'miewid':
+        embedding_source = embedding_source_for_algorithm(algorithm)
+        not_ready = ~db.session.query(DetectionEmbedding.detection_id)\
+                        .filter(DetectionEmbedding.detection_id==Detection.id)\
+                        .filter(DetectionEmbedding.source==embedding_source)\
+                        .exists()
+    else:
+        # hotspotter (and any other DetSim-backed algo)
+        not_ready = Detection.aid==None
+
+    has_detsim = db.session.query(DetSimilarity.detection_1)\
+                    .filter(DetSimilarity.source==detsim_source)\
+                    .filter(or_(
+                        DetSimilarity.detection_1==Detection.id,
+                        DetSimilarity.detection_2==Detection.id,
+                    ))\
+                    .exists()
+
+    needs_work = db.session.query(Detection.id)\
+                    .filter(Detection.id.in_(db.session.query(cand_sq.c.id)))\
+                    .filter(or_(not_ready, ~has_detsim))\
+                    .first()
+    return algo_stale or (needs_work is not None)
 
 def get_conflicting_algorithm_tasks(task_ids, species, algorithm):
     '''
@@ -384,7 +436,7 @@ def calculate_detection_similarities(self,task_ids,species,algorithm):
         embedding_source = embedding_source_for_algorithm(algorithm)
         if species_detection_sims_stale(task_ids, species, algorithm):
             app.logger.info(
-                'Active Label.algorithm differs for {} on tasks {}; filling missing DetSims for source {} (no wipe)'.format(
+                'DetSim update needed for {} on tasks {} (algo mismatch and/or incomplete coverage for source {}); filling missing rows (no wipe)'.format(
                     species, task_ids, detsim_source
                 )
             )
