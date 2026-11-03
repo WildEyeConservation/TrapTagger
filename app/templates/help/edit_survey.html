@@ -75,14 +75,19 @@ limitations under the License. -->
 
     <li>
         Calibration Images: Manage the reference images used to estimate detection distances. Calibration images are photographs of a person taken at known distances from the camera,
-        and are required if you wish to run distance estimation on your sightings. You can work with them in two ways:
+        and are required if you wish to run distance estimation on your sightings. You can work with them in three ways:
         <ul>
             <li>
-                Edit Calibration Images: View the calibration images for each camera, adjust the bounding box around the calibration object, correct the recorded distance, or delete the calibration images.
+                Calibration Summary: See one row per camera, with its site, its number of calibration images, the distances they cover, and the camera height recorded against them.
+                Select any number of cameras to apply a single camera height to all of their calibration images at once, or to remove the heights again.
+            </li>
+            <li>
+                Edit Calibration Images: View the calibration images for each camera, adjust the bounding box around the calibration object, correct the recorded distance or camera height, or delete the calibration images.
             </li>
             <li>
                 Upload Calibration Images: Add new calibration images for one camera at a time, or in bulk by selecting a folder tree that contains calibration folders matched to your existing cameras.
-                Filenames must contain a distance in metres (for example 5.jpg, 10m.jpg, or cal_5.5m.jpg). For a single-camera upload the folder itself can be named anything; for bulk upload,
+                Filenames must contain a distance in metres, optionally followed by the camera height in metres (for example 5.jpg, 10m.jpg, cal_5.5m.jpg, or 10m_2m.jpg). The two numbers must be
+                separated by characters that cannot form part of a number, such as an underscore. For a single-camera upload the folder itself can be named anything; for bulk upload,
                 folders whose names contain "calibration" (case-insensitive) are detected automatically under each camera. Changes are applied when you save the survey.
             </li>
         </ul>

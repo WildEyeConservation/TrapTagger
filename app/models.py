@@ -179,6 +179,7 @@ class CalibrationImage(db.Model):
     cameragroup_id = db.Column(db.Integer, db.ForeignKey('cameragroup.id'), index=True)
     filename = db.Column(db.String(512), index=False) # refers to entire path + filename
     distance = db.Column(db.Float, index=False)
+    height = db.Column(db.Float, index=False)
     top = db.Column(db.Float, index=False)
     left = db.Column(db.Float, index=False)
     bottom = db.Column(db.Float, index=False)

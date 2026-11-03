@@ -2882,7 +2882,7 @@ def process_calibration_images(survey_id, s3_folder, source_bucket, dest_bucket)
             db.session.commit()
         for filename in jpegs:
             dest_key = dirpath + '/' + filename
-            distance = parse_calibration_distance_filename(filename)
+            distance, height = parse_calibration_filename(filename)
             if distance is None:
                 app.logger.info('Skipping invalid calibration filename {}'.format(dest_key))
                 continue
@@ -2896,6 +2896,7 @@ def process_calibration_images(survey_id, s3_folder, source_bucket, dest_bucket)
                 cameragroup_id=cameragroup_id,
                 filename=dest_key,          # full comp-bucket S3 key
                 distance=distance,
+                height=height,
             )
             db.session.add(cal_image)
             db.session.flush()
@@ -5053,29 +5054,53 @@ def extract_camera_name(camera_code,trapgroup_code,survey_name,trapgroup_tag,pat
 
     return camera_name
 
-# First decimal number in the stem (digits with optional fractional part).
-# Extra digits after a second decimal are ignored (e.g. 10.5.2 -> 10.5).
+# Decimal numbers in the stem (digits with optional fractional part).
 CALIBRATION_DISTANCE_NUMBER_RE = re.compile(r'\d+(?:\.\d+)?')
 
-def parse_calibration_distance_filename(filename):
+def parse_calibration_filename(filename):
     '''
-    Returns distance (float) from a calibration JPEG filename, or None if invalid.
-    Takes the first number in the stem (optional decimal); leading zeros drop via float;
-    extension .jpg/.jpeg; distance > 0. Filename itself may contain other text.
+    Returns (distance, height) in metres from a calibration JPEG filename, or
+    (None, None) if invalid. The first number in the stem is the distance, and an optional
+    second number is the height. Both take an optional decimal; leading zeros drop via float;
+    extension .jpg/.jpeg; values > 0. Filename itself may contain other text.
+
+    The two numbers must be separated by characters that cannot form part of a number
+    (eg. 10_2.jpg -> 10m at 2m). A decimal point is not a separator, so extra digits after
+    a second decimal are still ignored (e.g. 10.5.2 -> 10.5m, no height).
     '''
     if not filename or not re.search(r'\.jpe?g$', filename, re.I):
-        return None
+        return None, None
     stem = os.path.splitext(filename)[0]
-    match = CALIBRATION_DISTANCE_NUMBER_RE.search(stem)
-    if not match:
-        return None
+    matches = list(CALIBRATION_DISTANCE_NUMBER_RE.finditer(stem))
+    if not matches:
+        return None, None
     try:
-        distance = float(match.group(0))
+        distance = float(matches[0].group(0))
     except ValueError:
-        return None
+        return None, None
     if distance <= 0:
-        return None
-    return distance
+        return None, None
+
+    height = None
+    previous_end = matches[0].end()
+    for match in matches[1:]:
+        separator = stem[previous_end:match.start()]
+        previous_end = match.end()
+        if '.' in separator:
+            continue
+        try:
+            value = float(match.group(0))
+        except ValueError:
+            break
+        if value > 0:
+            height = value
+        break
+
+    return distance, height
+
+def parse_calibration_distance_filename(filename):
+    '''Returns distance (float) from a calibration JPEG filename, or None if invalid.'''
+    return parse_calibration_filename(filename)[0]
 
 def folder_name_is_calibration(dir_name):
     '''True if folder name contains the calibration keyword (case-insensitive).'''
@@ -5314,15 +5339,16 @@ def clean_cal_upload_staging(survey_id):
         app.logger.info('Failed cleaning calibration staging for survey {}'.format(survey_id))
         app.logger.info(traceback.format_exc())
 
-def apply_edit_survey_cal_edits(survey_id, cal_bboxes=None, cal_distances=None, cal_deletions=None):
+def apply_edit_survey_cal_edits(survey_id, cal_bboxes=None, cal_distances=None, cal_heights=None, cal_deletions=None):
     '''
-    Apply bbox / distance / deletion calibration edits for a survey.
-    Returns set of affected cameragroup IDs.
+    Apply bbox / distance / height / deletion calibration edits for a survey.
+    Returns set of affected cameragroup IDs. Heights do not affect depth estimation, so
+    height-only edits leave their cameragroups unaffected.
     '''
     from app.functions.delete import delete_calibration_images
 
     affected_cameragroups = set()
-    if not (cal_bboxes or cal_distances or cal_deletions):
+    if not (cal_bboxes or cal_distances or cal_heights or cal_deletions):
         return affected_cameragroups
 
     deletion_ids = set(int(i) for i in cal_deletions) if cal_deletions else set()
@@ -5364,6 +5390,25 @@ def apply_edit_survey_cal_edits(survey_id, cal_bboxes=None, cal_distances=None, 
             cal_image.distance = new_distance
             affected_cameragroups.add(cal_image.cameragroup_id)
 
+    if cal_heights:
+        for cal_id_str, new_height in cal_heights.items():
+            if int(cal_id_str) in deletion_ids:
+                continue
+            cal_image = get_calibration_image_for_survey(int(cal_id_str), survey_id)
+            if not cal_image:
+                continue
+            # An empty height clears the value.
+            if new_height in (None, '', 'none'):
+                cal_image.height = None
+                continue
+            try:
+                new_height = float(new_height)
+            except (TypeError, ValueError):
+                continue
+            if new_height <= 0:
+                continue
+            cal_image.height = new_height
+
     if cal_deletions:
         validated_cal_ids = []
         for cal_id in cal_deletions:
@@ -5380,7 +5425,7 @@ def apply_edit_survey_cal_edits(survey_id, cal_bboxes=None, cal_distances=None, 
 
 def apply_edit_survey_cal_uploads(survey_id, manifest, request_files=None):
     '''
-    manifest: list of {cameragroup_id, files: [{name, distance?, staging_key}]}
+    manifest: list of {cameragroup_id, files: [{name, distance?, height? staging_key}]}
     Files must already be PUT to staging_key under
     {org}/{survey}/_cal_upload_staging_/{cg_id}/...
 
@@ -5411,6 +5456,7 @@ def apply_edit_survey_cal_uploads(survey_id, manifest, request_files=None):
             continue
         for fi in entry['files']:
             # Dup check is parsed filename distance vs CalibrationImage.distance (not basename equality).
+            parsed_distance, parsed_height = parse_calibration_filename(fi['name'])
             distance = fi.get('distance')
             if distance is not None:
                 try:
@@ -5418,7 +5464,17 @@ def apply_edit_survey_cal_uploads(survey_id, manifest, request_files=None):
                 except (TypeError, ValueError):
                     distance = None
             if distance is None:
-                distance = parse_calibration_distance_filename(fi['name'])
+                distance = parsed_distance
+            height = fi.get('height')
+            if height is not None:
+                try:
+                    height = float(height)
+                except (TypeError, ValueError):
+                    height = None
+            if height is None:
+                height = parsed_height
+            if height is not None and height <= 0:
+                height = None
             if distance is None:
                 app.logger.info('Skipping invalid calibration upload filename {}'.format(fi['name']))
                 continue
@@ -5463,6 +5519,7 @@ def apply_edit_survey_cal_uploads(survey_id, manifest, request_files=None):
                 cameragroup_id=cg_id,
                 filename=dest_key,
                 distance=distance,
+                height=height,
             )
             db.session.add(cal_image)
             db.session.flush()

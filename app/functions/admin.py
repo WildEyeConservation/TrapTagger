@@ -2482,7 +2482,7 @@ def recluster_after_image_timestamp_change(survey_id,image_timestamps):
 
 
 @celery.task(bind=True,max_retries=5,ignore_result=True)
-def edit_survey(self,survey_id,user_id,classifier_id,sky_masked,ignore_small_detections,masks,staticgroups,timestamps,image_timestamps,shift_flag,coord_data,kml_file,edit_area_option,cal_bboxes=None,cal_distances=None,cal_deletions=None,cal_upload_manifest=None,cal_images_to_detect=None,affected_cameragroup_ids=None):
+def edit_survey(self,survey_id,user_id,classifier_id,sky_masked,ignore_small_detections,masks,staticgroups,timestamps,image_timestamps,shift_flag,coord_data,kml_file,edit_area_option,cal_bboxes=None,cal_distances=None,cal_heights=None,cal_deletions=None,cal_upload_manifest=None,cal_images_to_detect=None,affected_cameragroup_ids=None):
     '''Celery task that handles the editing of a survey.'''
     try:
         survey = db.session.query(Survey).get(survey_id)
@@ -2495,12 +2495,13 @@ def edit_survey(self,survey_id,user_id,classifier_id,sky_masked,ignore_small_det
         affected_cameragroups = set(affected_cameragroup_ids or [])
         cal_images_to_detect = list(cal_images_to_detect or [])
 
-        if cal_bboxes or cal_distances or cal_deletions:
+        if cal_bboxes or cal_distances or cal_heights or cal_deletions:
             affected_cameragroups.update(
                 apply_edit_survey_cal_edits(
                     survey_id,
                     cal_bboxes=cal_bboxes,
                     cal_distances=cal_distances,
+                    cal_heights=cal_heights,
                     cal_deletions=cal_deletions,
                 )
             )

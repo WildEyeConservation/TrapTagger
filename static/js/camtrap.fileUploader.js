@@ -48,7 +48,7 @@ uploadWorker.onmessage = function(evt){
         document.getElementById('modalAlertHeader').innerHTML = 'Alert'
         document.getElementById('modalAlertBody').innerHTML =
             'Upload blocked: no valid calibration images found in folder(s) ' + folderNames +
-            '. Filenames must contain a distance in metres (e.g. 5.jpg, 10m.jpg, board_5.5m.jpg).'
+            '. Filenames must contain a distance in metres, optionally followed by the camera height in metres (e.g. 5.jpg, 10m.jpg, board_5.5m.jpg, 10m_2m.jpg).'
         modalAlert.modal({keyboard: true})
         if (typeof refreshCalibrationUI === 'function') {
             refreshCalibrationUI()

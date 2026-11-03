@@ -2516,6 +2516,11 @@ def editSurvey():
             cal_distances = json.loads(request.form['cal_distances'])
             if len(cal_distances) == 0: cal_distances = None
 
+        cal_heights = None
+        if 'cal_heights' in request.form:
+            cal_heights = json.loads(request.form['cal_heights'])
+            if len(cal_heights) == 0: cal_heights = None
+
         cal_deletions = None
         if 'cal_deletions' in request.form:
             cal_deletions = json.loads(request.form['cal_deletions'])
@@ -2672,7 +2677,7 @@ def editSurvey():
                 # Manifest with staging keys is only accepted after the upload session.
                 cal_upload_manifest = None
 
-            has_cal_changes = bool(cal_bboxes or cal_distances or cal_deletions or cal_upload_pending or cal_upload_manifest)
+            has_cal_changes = bool(cal_bboxes or cal_distances or cal_heights or cal_deletions or cal_upload_pending or cal_upload_manifest)
             has_edit_work = bool(
                 classifier_id or ignore_small_detections is not None or sky_masked is not None
                 or timestamps or coordData or masks or staticgroups or kml or imageTimestamps
@@ -2707,6 +2712,7 @@ def editSurvey():
                     'edit_area_option': edit_area_option,
                     'cal_bboxes': cal_bboxes,
                     'cal_distances': cal_distances,
+                    'cal_heights': cal_heights,
                     'cal_deletions': cal_deletions,
                     'cal_upload_manifest': None,
                 }
@@ -20225,6 +20231,7 @@ def getCalibrationImages(survey_id, cameragroup_id):
                 'id': cal.id,
                 'filename': cal.filename,
                 'distance': cal.distance,
+                'height': cal.height,
                 'top': cal.top,
                 'left': cal.left,
                 'bottom': cal.bottom,
@@ -20233,6 +20240,43 @@ def getCalibrationImages(survey_id, cameragroup_id):
             })
 
     return json.dumps(images)
+
+@app.route('/getCalibrationHeightSummary/<int:survey_id>')
+@login_required
+def getCalibrationHeightSummary(survey_id):
+    '''Returns a per-cameragroup summary of calibration image heights for a survey.'''
+    cameragroups = []
+    survey = db.session.query(Survey).get(survey_id)
+    if survey and checkSurveyPermission(current_user.id, survey.id, 'write'):
+        rows = db.session.query(Cameragroup.id, Cameragroup.name, Trapgroup.tag, CalibrationImage.id, CalibrationImage.distance, CalibrationImage.height)\
+            .join(CalibrationImage, CalibrationImage.cameragroup_id == Cameragroup.id)\
+            .join(Camera, Camera.cameragroup_id == Cameragroup.id)\
+            .join(Trapgroup, Trapgroup.id == Camera.trapgroup_id)\
+            .filter(Trapgroup.survey_id == survey_id)\
+            .order_by(Cameragroup.name)\
+            .distinct().all()
+
+        summary = {}
+        for cg_id, cg_name, tg_tag, cal_id, cal_distance, cal_height in rows:
+            if cg_id not in summary:
+                summary[cg_id] = {'id': cg_id, 'name': cg_name, 'sites': [], 'images': []}
+            if tg_tag and tg_tag not in summary[cg_id]['sites']:
+                summary[cg_id]['sites'].append(tg_tag)
+            if not any(image['id'] == cal_id for image in summary[cg_id]['images']):
+                summary[cg_id]['images'].append({'id': cal_id, 'distance': cal_distance, 'height': cal_height})
+
+        for cameragroup in summary.values():
+            cameragroup['sites'].sort()
+            cameragroup['site'] = ', '.join(cameragroup['sites'])
+            cameragroup['images'].sort(key=lambda image: (
+                image['distance'] is None,
+                image['distance'] if image['distance'] is not None else 0,
+                image['id'],
+            ))
+
+        cameragroups = sorted(summary.values(), key=lambda r: (r['name'] or '').lower())
+
+    return json.dumps(cameragroups)
 
 @app.route('/getSurveyCameragroups/<int:survey_id>')
 @login_required
@@ -20464,6 +20508,7 @@ def recordCalUploadProgress():
         name = (entry.get('name') or '').strip()
         staging_key = (entry.get('staging_key') or '').strip()
         distance = entry.get('distance')
+        height = entry.get('height')
     except (TypeError, ValueError):
         return json.dumps({'status': 'error', 'message': 'Invalid request.'})
 
@@ -20497,6 +20542,7 @@ def recordCalUploadProgress():
         'cameragroup_id': cameragroup_id,
         'name': name,
         'distance': distance,
+        'height': height,
         'staging_key': staging_key,
     })
     GLOBALS.redisClient.set('cal_upload_progress_{}'.format(survey_id), json.dumps(progress))
