@@ -7543,15 +7543,22 @@ def getSuggestion(individual_id):
                                         #         iou = intersection_area/union_area
                                         #         iou_factor = iouWeight*((1-iou)**2)
 
-                                        distance = coordinateDistance(detection1.image.camera.trapgroup.latitude, detection1.image.camera.trapgroup.longitude, detection2.image.camera.trapgroup.latitude, detection2.image.camera.trapgroup.longitude)
-                                        
+                                        lat1 = detection1.image.camera.trapgroup.latitude
+                                        lon1 = detection1.image.camera.trapgroup.longitude
+                                        lat2 = detection2.image.camera.trapgroup.latitude
+                                        lon2 = detection2.image.camera.trapgroup.longitude
+                                        # Match IndSim: (0,0) coords mean unknown GPS — do not apply same-site distance boost
+                                        if lat1 == lon1 == 0:
+                                            distanceScore = 1
+                                        else:
+                                            distance = coordinateDistance(lat1, lon1, lat2, lon2)
+                                            distanceScore = 1 + distanceWeight - (distanceWeight*distanceNormFactor*distance)
+                                            if distanceScore < 1: distanceScore=1
+
                                         if detection1.image.corrected_timestamp and detection2.image.corrected_timestamp:
                                             time = abs((detection1.image.corrected_timestamp-detection2.image.corrected_timestamp).total_seconds())
                                         else:
                                             time = 0
-                                        
-                                        distanceScore = 1 + distanceWeight - (distanceWeight*distanceNormFactor*distance)
-                                        if distanceScore < 1: distanceScore=1
 
                                         timeScore = 1 + timeWeight - (timeWeight*timeNormFactor*time)
                                         if timeScore < 1: timeScore=1

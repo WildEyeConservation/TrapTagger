@@ -2750,6 +2750,12 @@ function fetchTaggingLevel() {
             taggingLevel = taggingInfo.taggingLevel
             taggingAlgorithm = taggingInfo.taggingAlgorithm
 
+            // Hotspotter-only heatmap control: apply as soon as algorithm is known (HTML starts hidden)
+            var heatmapDiv = document.getElementById('heatmapDiv')
+            if (heatmapDiv != null) {
+                heatmapDiv.hidden = (taggingAlgorithm != 'hotspotter')
+            }
+
             if (taggingInfo.wrongStatus=='true') {
                 wrongStatus = true
                 dontResetWrong = true
