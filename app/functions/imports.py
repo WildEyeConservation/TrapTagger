@@ -5425,9 +5425,14 @@ def apply_edit_survey_cal_edits(survey_id, cal_bboxes=None, cal_distances=None, 
 
 def apply_edit_survey_cal_uploads(survey_id, manifest, request_files=None):
     '''
-    manifest: list of {cameragroup_id, files: [{name, distance?, height? staging_key}]}
+    manifest: list of {cameragroup_id, files: [{name, distance?, height?, staging_key}]}
     Files must already be PUT to staging_key under
     {org}/{survey}/_cal_upload_staging_/{cg_id}/...
+
+    A file whose distance is already stored for that cameragroup is not a new image.
+    When its filename includes a different height, only CalibrationImage.height is updated.
+    A filename with no height leaves the saved height unchanged. The uploaded file is
+    discarded either way, and the cameragroup is not marked affected.
 
     request_files is unused (kept for call-site compatibility).
 
@@ -5478,7 +5483,25 @@ def apply_edit_survey_cal_uploads(survey_id, manifest, request_files=None):
             if distance is None:
                 app.logger.info('Skipping invalid calibration upload filename {}'.format(fi['name']))
                 continue
-            if calibration_distance_taken(cg_id, distance):
+            # Same distance is not a new image. A filename that includes a different height
+            # updates that field only; a missing height leaves the saved height alone.
+            # Either way the uploaded file is discarded and detection distances stay put.
+            existing = db.session.query(CalibrationImage).filter(
+                CalibrationImage.cameragroup_id == cg_id,
+                CalibrationImage.distance == distance,
+            ).first()
+            if existing:
+                if height is not None and (
+                    existing.height is None or float(existing.height) != float(height)
+                ):
+                    existing.height = height
+                staging_key = fi.get('staging_key')
+                expected_prefix = staging_prefix + str(cg_id) + '/'
+                if staging_key and staging_key.startswith(expected_prefix):
+                    try:
+                        GLOBALS.s3client.delete_object(Bucket=Config.BUCKET, Key=staging_key)
+                    except Exception:
+                        pass
                 continue
             dest_key = calibration_comp_dest_key_for_cameragroup(survey_id, cg_id, fi['name'])
             if not dest_key or calibration_destination_taken(dest_key, survey_id, distance=distance):

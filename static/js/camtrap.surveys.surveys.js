@@ -416,6 +416,7 @@ var editedCalBboxes = {}
 var calImageCameragroupById = {}
 var allSurveyCalImages = [] // [{id, cameragroup_id}] across all cameras
 var stagedCalUploadSets = []
+var stagedCalUploadHeightUpdates = [] // existing images whose height an upload will change
 var activeImageCal = null
 var finishedDisplayingCal = true
 var surveyCameragroups = [] // for the upload dropdown only, seperate from calCameras
@@ -8010,6 +8011,7 @@ function resetCalibrationStaging() {
     editedCalHeights = {}
     deletedCalImages = []
     stagedCalUploadSets = []
+    stagedCalUploadHeightUpdates = []
     calImageCameragroupById = {}
     allSurveyCalImages = []
 }
@@ -8149,13 +8151,16 @@ function validateCalUploadFiles(files) {
     return { valid: true, distances: distances, heights: heights, files: validFiles }
 }
 
-function filterCalUploadAgainstExisting(files, existingDistances, otherStagedSets, cameragroupId) {
-    /** Keep files whose parsed filename distance is not already in DB (or staged) for this camera. */
+function filterCalUploadAgainstExisting(files, existingImages, otherStagedSets, cameragroupId) {
+    /** Split a folder into new images and height-only updates of images this camera already has.
+     *  A distance staged as a new image, or repeated in this folder, is not a height update. */
     var taken = {}
+    var existingByDistance = {}
     var i, j, d
 
-    for (i = 0; i < existingDistances.length; i++) {
-        taken[existingDistances[i]] = true
+    existingImages = existingImages || []
+    for (i = 0; i < existingImages.length; i++) {
+        existingByDistance[existingImages[i].distance] = existingImages[i]
     }
     for (j = 0; j < otherStagedSets.length; j++) {
         var s = otherStagedSets[j]
@@ -8167,12 +8172,30 @@ function filterCalUploadAgainstExisting(files, existingDistances, otherStagedSet
     }
 
     var pairs = []
+    var heightUpdates = []
     for (i = 0; i < files.length; i++) {
         var file = files[i]
         var parsed = parseCalUploadNumbers(file.name)
         d = parsed ? parsed.distance : null
         if (d === null || taken[d]) {
-            continue   // skip silently — already in DB or another staged set
+            continue   // skip silently — already staged as a new image, or repeated in this folder
+        }
+        var existing = existingByDistance[d]
+        if (existing) {
+            if (deletedCalImages.indexOf(existing.id) !== -1) continue
+            // A filename with no height never changes a saved height.
+            var currentHeight = editedCalHeights[existing.id] !== undefined
+                ? editedCalHeights[existing.id]
+                : existing.height
+            if (parsed.height != null && parsed.height !== currentHeight) {
+                heightUpdates.push({
+                    id: existing.id,
+                    distance: d,
+                    oldHeight: existing.height,
+                    newHeight: parsed.height
+                })
+            }
+            continue
         }
         taken[d] = true
         pairs.push({ file: file, distance: d, height: parsed.height })
@@ -8187,7 +8210,7 @@ function filterCalUploadAgainstExisting(files, existingDistances, otherStagedSet
         keptDistances.push(pairs[i].distance)
         keptHeights.push(pairs[i].height)
     }
-    return { files: keptFiles, distances: keptDistances, heights: keptHeights }
+    return { files: keptFiles, distances: keptDistances, heights: keptHeights, heightUpdates: heightUpdates }
 }
 
 function getSurveyCameragroupsForUpload(callback, surveyId) {
@@ -8203,17 +8226,70 @@ function getSurveyCameragroupsForUpload(callback, surveyId) {
     xhttp.send()
 }
 
-function fetchExistingCalDistances(cameragroupId, callback) {
+function fetchExistingCalibrationImages(cameragroupId, callback) {
     var xhttp = new XMLHttpRequest()
     xhttp.onreadystatechange = function() {
         if (this.readyState === 4 && this.status === 200) {
-            var images = JSON.parse(this.responseText)
-            var distances = images.map(function(img) { return img.distance })
-            callback(distances)
+            callback(JSON.parse(this.responseText))
         }
     }
     xhttp.open('GET', '/getCalibrationImages/' + selectedSurvey + '/' + cameragroupId)
     xhttp.send()
+}
+
+function stageCalUploadHeightUpdates(cameragroupId, cameragroupName, heightUpdates, uploadViaS3) {
+    /** Stages a height change for an existing calibration image. The uploaded file is not kept. */
+    for (var i = 0; i < heightUpdates.length; i++) {
+        var update = heightUpdates[i]
+        editedCalHeights[update.id] = update.newHeight
+        calImageCameragroupById[update.id] = cameragroupId
+        var entry = {
+            id: update.id,
+            cameragroupId: cameragroupId,
+            cameragroupName: cameragroupName,
+            distance: update.distance,
+            oldHeight: update.oldHeight,
+            newHeight: update.newHeight,
+            uploadViaS3: !!uploadViaS3
+        }
+        var replaced = false
+        for (var j = 0; j < stagedCalUploadHeightUpdates.length; j++) {
+            if (stagedCalUploadHeightUpdates[j].id === update.id) {
+                stagedCalUploadHeightUpdates[j] = entry
+                replaced = true
+                break
+            }
+        }
+        if (!replaced) stagedCalUploadHeightUpdates.push(entry)
+    }
+}
+
+function removeCalUploadHeightUpdates(predicate) {
+    stagedCalUploadHeightUpdates = stagedCalUploadHeightUpdates.filter(function (update) {
+        if (!predicate(update)) return true
+        if (editedCalHeights[update.id] === update.newHeight) delete editedCalHeights[update.id]
+        return false
+    })
+}
+
+function formatCalUploadHeightUpdate(update) {
+    var from = update.oldHeight == null ? 'none' : update.oldHeight + ' m'
+    return update.distance + ' m: ' + from + ' → ' + update.newHeight + ' m'
+}
+
+function formatCalUploadStageStatus(filtered) {
+    var parts = []
+    if (filtered.files.length) {
+        var count = filtered.files.length
+        parts.push('Found ' + count + ' new image' + (count === 1 ? '' : 's') +
+            ' at distances ' + filtered.distances.join(', ') + formatCalUploadHeightsSuffix(filtered.heights))
+    }
+    if (filtered.heightUpdates.length) {
+        var updates = filtered.heightUpdates.map(formatCalUploadHeightUpdate).join(', ')
+        parts.push('Staged ' + filtered.heightUpdates.length + ' height update' +
+            (filtered.heightUpdates.length === 1 ? '' : 's') + ' (' + updates + ')')
+    }
+    return '<i>' + parts.join('. ') + '. Click Save Changes to apply.</i>'
 }
 
 function addStagedCalUploadSet(cameragroupId, cameragroupName, files, distances, heights, uploadViaS3, cameraRelativePath) {
@@ -8273,11 +8349,16 @@ function renderStagedCalUploadSets(container) {
     h5.setAttribute('style', 'margin-bottom: 2px')
     container.appendChild(h5)
 
-    if (stagedCalUploadSets.length === 0) {
+    if (stagedCalUploadSets.length === 0 && stagedCalUploadHeightUpdates.length === 0) {
         var empty = document.createElement('div')
         empty.setAttribute('style', 'font-size: 80%; color: grey')
         empty.innerHTML = '<i>No sets staged. Add a set below, then click Save Changes when ready.</i>'
         container.appendChild(empty)
+        return
+    }
+
+    if (stagedCalUploadSets.length === 0) {
+        renderStagedCalUploadHeightUpdates(container)
         return
     }
 
@@ -8358,6 +8439,7 @@ function renderStagedCalUploadSets(container) {
             stagedCalUploadSets = stagedCalUploadSets.filter(function (set) {
                 return !set.uploadViaS3
             })
+            removeCalUploadHeightUpdates(function (update) { return update.uploadViaS3 })
             var bulkStatusEl = document.getElementById('calUploadBulkStatusMsg')
             if (bulkStatusEl) bulkStatusEl.innerHTML = ''
             var bulkMatchEl = document.getElementById('calUploadBulkMatchDiv')
@@ -8368,6 +8450,64 @@ function renderStagedCalUploadSets(container) {
 
         bulkRow.appendChild(bulkCol)
         container.appendChild(bulkRow)
+    }
+
+    renderStagedCalUploadHeightUpdates(container)
+}
+
+function renderStagedCalUploadHeightUpdates(container) {
+    /** Height changes for images the camera already has. Shown apart from new images. */
+    stagedCalUploadHeightUpdates = stagedCalUploadHeightUpdates.filter(function (update) {
+        return editedCalHeights[update.id] === update.newHeight
+    })
+    if (stagedCalUploadHeightUpdates.length === 0) return
+
+    var byCamera = {}
+    var order = []
+    for (var i = 0; i < stagedCalUploadHeightUpdates.length; i++) {
+        var update = stagedCalUploadHeightUpdates[i]
+        if (!byCamera[update.cameragroupId]) {
+            byCamera[update.cameragroupId] = []
+            order.push(update.cameragroupId)
+        }
+        byCamera[update.cameragroupId].push(update)
+    }
+
+    var heading = document.createElement('div')
+    heading.setAttribute('style', 'font-size: 80%; color: grey; margin-bottom: 2px')
+    heading.textContent = 'Height updates (existing images):'
+    container.appendChild(heading)
+
+    for (var c = 0; c < order.length; c++) {
+        (function (cameragroupId) {
+            var updates = byCamera[cameragroupId]
+            var row = document.createElement('div')
+            row.classList.add('row')
+            row.style.marginBottom = '6px'
+
+            var col = document.createElement('div')
+            col.classList.add('col-lg-12')
+
+            var text = document.createElement('span')
+            text.textContent = updates[0].cameragroupName + ' — ' +
+                updates.map(formatCalUploadHeightUpdate).join(', ')
+            col.appendChild(text)
+
+            var btn = document.createElement('button')
+            btn.classList.add('btn', 'btn-sm', 'btn-danger')
+            btn.style.marginLeft = '8px'
+            btn.innerHTML = 'Remove'
+            btn.onclick = function () {
+                removeCalUploadHeightUpdates(function (update) {
+                    return update.cameragroupId === cameragroupId
+                })
+                renderStagedCalUploadSets(container)
+            }
+            col.appendChild(btn)
+
+            row.appendChild(col)
+            container.appendChild(row)
+        })(order[c])
     }
 }
 
@@ -9311,20 +9451,24 @@ function buildCalUploadMode() {
             return
         }
 
-        fetchExistingCalDistances(cgId, function (existingDistances) {
+        fetchExistingCalibrationImages(cgId, function (existingImages) {
             var filtered = filterCalUploadAgainstExisting(
-                result.files, existingDistances, stagedCalUploadSets, cgId
+                result.files, existingImages, stagedCalUploadSets, cgId
             )
 
-            if (filtered.files.length === 0) {
-                statusDiv.innerHTML = '<i style="color:red">No new calibration images to add — all found distances already exist for this camera.</i>'
+            if (filtered.files.length === 0 && filtered.heightUpdates.length === 0) {
+                statusDiv.innerHTML = '<i style="color:red">Nothing to stage. Distances already on this camera were left unchanged.</i>'
                 return
             }
 
-            var count = filtered.files.length
-            addStagedCalUploadSet(cgId, cgName, filtered.files, filtered.distances, filtered.heights, false)
+            if (filtered.files.length) {
+                addStagedCalUploadSet(cgId, cgName, filtered.files, filtered.distances, filtered.heights, false)
+            }
+            if (filtered.heightUpdates.length) {
+                stageCalUploadHeightUpdates(cgId, cgName, filtered.heightUpdates, false)
+            }
             renderStagedCalUploadSets(stagedDiv)
-            statusDiv.innerHTML = '<i>Found ' + count + ' valid image' + (count === 1 ? '' : 's') + ' at distances ' + filtered.distances.join(', ') + formatCalUploadHeightsSuffix(filtered.heights) + '. Set staged — click Save Changes to apply.</i>'
+            statusDiv.innerHTML = formatCalUploadStageStatus(filtered)
         })
     }
 
@@ -9399,6 +9543,7 @@ function buildCalUploadMode() {
         bulkStageBtn.disabled = true
         var remaining = pendingBulkMatches.length
         var stagedCount = 0
+        var heightUpdateCount = 0
         var skippedAllExist = 0
 
         function finishOne() {
@@ -9406,7 +9551,8 @@ function buildCalUploadMode() {
             if (remaining > 0) return
             renderStagedCalUploadSets(stagedDiv)
             bulkStatus.innerHTML = '<i>Staged ' + stagedCount + ' camera set(s)' +
-                (skippedAllExist ? '; skipped ' + skippedAllExist + ' with no new distances' : '') +
+                (heightUpdateCount ? ', ' + heightUpdateCount + ' height update' + (heightUpdateCount === 1 ? '' : 's') : '') +
+                (skippedAllExist ? '; skipped ' + skippedAllExist + ' with nothing to change' : '') +
                 '. Click Save Changes to upload and apply.</i>'
             bulkStageBtn.disabled = pendingBulkMatches.length === 0
             pendingBulkMatches = []
@@ -9415,20 +9561,26 @@ function buildCalUploadMode() {
         }
 
         pendingBulkMatches.forEach(function (row) {
-            fetchExistingCalDistances(row.cameragroupId, function (existingDistances) {
+            fetchExistingCalibrationImages(row.cameragroupId, function (existingImages) {
                 var filtered = filterCalUploadAgainstExisting(
-                    row.files, existingDistances, stagedCalUploadSets, row.cameragroupId
+                    row.files, existingImages, stagedCalUploadSets, row.cameragroupId
                 )
-                if (filtered.files.length === 0) {
+                if (filtered.files.length === 0 && filtered.heightUpdates.length === 0) {
                     skippedAllExist += 1
                     finishOne()
                     return
                 }
-                addStagedCalUploadSet(
-                    row.cameragroupId, row.cameragroupName,
-                    filtered.files, filtered.distances, filtered.heights, true, row.cameraRelativePath
-                )
-                stagedCount += 1
+                if (filtered.files.length) {
+                    addStagedCalUploadSet(
+                        row.cameragroupId, row.cameragroupName,
+                        filtered.files, filtered.distances, filtered.heights, true, row.cameraRelativePath
+                    )
+                    stagedCount += 1
+                }
+                if (filtered.heightUpdates.length) {
+                    stageCalUploadHeightUpdates(row.cameragroupId, row.cameragroupName, filtered.heightUpdates, true)
+                    heightUpdateCount += filtered.heightUpdates.length
+                }
                 finishOne()
             })
         })

@@ -88,7 +88,10 @@ limitations under the License. -->
                 Upload Calibration Images: Add new calibration images for one camera at a time, or in bulk by selecting a folder tree that contains calibration folders matched to your existing cameras.
                 Filenames must contain a distance in metres, optionally followed by the camera height in metres (for example 5.jpg, 10m.jpg, cal_5.5m.jpg, or 10m_2m.jpg). The two numbers must be
                 separated by characters that cannot form part of a number, such as an underscore. For a single-camera upload the folder itself can be named anything; for bulk upload,
-                folders whose names contain "calibration" (case-insensitive) are detected automatically under each camera. Changes are applied when you save the survey.
+                folders whose names contain "calibration" (case-insensitive) are detected automatically under each camera.
+                If a filename repeats a distance this camera already has and includes a different height, only that height is updated — the existing image is kept.
+                A repeated distance with no height in the filename is left unchanged, and a second image at the same distance in one folder is ignored.
+                Changes are applied when you save the survey.
             </li>
         </ul>
     </li>
