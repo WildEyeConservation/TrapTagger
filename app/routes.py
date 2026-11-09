@@ -3629,7 +3629,7 @@ def getDetailedTaskStatus(task_id):
                         reply['Sighting Correction']['Checked Sightings'] = '-'
 
                     # Distance Estimation — cached sightings with Detection.distance
-                    if sighting_count != 0:
+                    if distance_count and sighting_count != 0:
                         depth_perc = round((distance_count/sighting_count)*100,2)
                         reply['Distance Estimation']['Sightings With Distances'] = str(distance_count) + '/' + str(sighting_count) + ' (' + str(depth_perc) + '%)'
                     else:

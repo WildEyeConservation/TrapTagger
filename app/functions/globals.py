@@ -379,9 +379,9 @@ def launch_instances(queue,ami,user_data,instances_required,idle_multiplier,ec2,
         userData += ' chown -R root /home/ubuntu/TrapTagger/WorkR;'
         userData += ' git fetch --all;'
         if queue=='statistics':
-            userData += ' git checkout dev-morpho-master;'
+            userData += ' git checkout master;'
         else:
-            userData += ' git checkout dev-morpho-server;'
+            userData += ' git checkout server;'
         userData += ' git pull; '
     userData += 'cd /home/ubuntu; '
     userData += user_data
