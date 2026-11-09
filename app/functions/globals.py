@@ -2519,7 +2519,7 @@ def list_all(bucket,prefix,include_size=False,include_restored=False,include_all
                     else:
                         contents.append(f['Key'].split('/')[-1])
                 else:
-                    if 'STANDARD' in f['StorageClass']:
+                    if 'STANDARD' in f['StorageClass'] or 'INTELLIGENT_TIERING' in f['StorageClass']:
                         if include_size:
                             contents.append((f['Key'].split('/')[-1],f['Size']))
                         else:
