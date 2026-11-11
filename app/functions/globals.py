@@ -7575,6 +7575,7 @@ def run_depth_estimation(self, survey_id, task_ids, species_list):
         batch_failures = 0
         jobs = launch_summary.get('jobs') or []
         if jobs:
+            app.logger.info('Waiting for depth estimation jobs to complete')
             for job, response in wait_for_jobs(jobs):
                 if response is None:
                     batch_failures += 1
@@ -7588,7 +7589,7 @@ def run_depth_estimation(self, survey_id, task_ids, species_list):
                     continue
                 total_updated += apply_depth_estimation_results(response)
                 db.session.commit()
-
+            app.logger.info('Depth estimation jobs completed')
         launch_errors = len(launch_summary.get('errors') or [])
         if batch_failures or launch_errors:
             app.logger.info(

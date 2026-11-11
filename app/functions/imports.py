@@ -2916,6 +2916,7 @@ def process_calibration_images(survey_id, s3_folder, source_bucket, dest_bucket)
             'options': {'routing_key': 'celery.detection'},
         }]
         # Wait once for the batch, then apply bboxes to every calibration image
+        app.logger.info('Waiting for calibration image detection jobs to complete')
         for job, result in wait_for_jobs(jobs):
             if result is None: continue
             for i, (dest_key, cal_id) in enumerate(cal_images_to_detect):
@@ -2930,6 +2931,7 @@ def process_calibration_images(survey_id, s3_folder, source_bucket, dest_bucket)
                         cal_image.bottom = best['bottom']
                         cal_image.right = best['right']
         db.session.commit()
+        app.logger.info('Calibration image detection jobs completed')
     return True
 
 # def pipeline_csv(df,surveyName,tgcode,source,external,min_area,destBucket,exclusions,label_source):
@@ -5488,6 +5490,7 @@ def run_calibration_detection_batch(cal_images_to_detect):
         'queue': 'celery',
         'options': {'routing_key': 'celery.detection'},
     }]
+    app.logger.info('Waiting for calibration image detection jobs to complete')
     for job, result in wait_for_jobs(jobs):
         if result is None: continue
         for i, (dest_key, cal_id) in enumerate(cal_images_to_detect):
@@ -5503,6 +5506,8 @@ def run_calibration_detection_batch(cal_images_to_detect):
                         cal_image.bottom = best['bottom']
                         cal_image.right = best['right']
     db.session.commit()
+    app.logger.info('Calibration image detection jobs completed')
+    return True
 
 @celery.task(bind=True,max_retries=5)
 def run_llava(self,image_ids,prompt):

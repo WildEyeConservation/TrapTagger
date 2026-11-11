@@ -2650,14 +2650,12 @@ def editSurvey():
             if status == 'success' and has_edit_work:
                 shiftFlag = True if shiftTimestamps else None
                 app.logger.info(
-                    'Edit survey requested for {} with classifier: {}, ignore_small_detections: {}, '
-                    'sky_masked: {}, timestamps: {}, coordData: {}, masks: {}, staticgroups: {}, '
-                    'kml: {}, imageTimestamps: {}, edit_area_option: {}, cal_upload_pending: {}'.format(
-                        survey.name, classifier_id, ignore_small_detections, sky_masked, timestamps,
-                        coordData, masks, staticgroups, kml, imageTimestamps, edit_area_option,
-                        cal_upload_pending
-                    )
+                    'Edit survey requested for {} with classifier: {}, ignore_small_detections: {}, sky_masked: {}, timestamps: {}, coordData: {}, masks: {}, staticgroups: {}, '
+                    'kml: {}, imageTimestamps: {}, shiftFlag: {}, edit_area_option: {}, cal_upload_pending: {}'.format(survey.name, classifier_id, ignore_small_detections, 
+                    sky_masked, timestamps, coordData, masks, staticgroups, kml, imageTimestamps, shiftFlag, edit_area_option, cal_upload_pending)
                 )
+                if has_cal_changes:
+                    app.logger.info('Cal changes for {} include bboxes: {}, distances: {}, deletions: {}, upload_manifest: {}'.format(survey.name, cal_bboxes, cal_distances, cal_deletions, cal_upload_manifest))
 
                 edit_survey_args = {
                     'survey_id': survey.id,
