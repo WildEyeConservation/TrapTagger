@@ -296,7 +296,11 @@ class Detection(db.Model):
     aid = db.Column(db.Integer, index=True) # annotation id for wbia db 
     features = db.relationship('Feature', backref='detection', lazy=True)
     distance = db.Column(db.Float, index=False)
+    back_length = db.Column(db.Float, index=False) # metres; 0 means the user marked the detection unusable
+    shoulder_height = db.Column(db.Float, index=False) # metres; 0 means the user marked the detection unusable
+    pose_checked = db.Column(db.Boolean, nullable=False, default=False, server_default='0', index=True)
     embeddings = db.relationship('DetectionEmbedding', backref='detection', lazy=True)
+    pose_keypoints = db.relationship('PoseKeypoint', backref='detection', lazy=True)
 
     def __repr__(self):
         return '<Detection of class {} on image {}>'.format(self.category, self.image_id)
@@ -313,6 +317,20 @@ class DetectionEmbedding(db.Model):
         return '<DetectionEmbedding for detection {} source={} dim={}>'.format(
             self.detection_id, self.source, self.dim
         )
+
+class PoseKeypoint(db.Model):
+    '''A pose point on a detection. x and y are fractions of image width and height, in the same 0-1 space as Detection bbox coordinates. name is unique per detection. source is a model name and version, or user / user_edited after a manual change. score is the model confidence and is empty for a hand-placed point.'''
+    id = db.Column(db.Integer, primary_key=True)
+    detection_id = db.Column(db.Integer, db.ForeignKey('detection.id'), index=False)
+    x = db.Column(db.Float, index=False)
+    y = db.Column(db.Float, index=False)
+    name = db.Column(db.String(64), index=False)
+    source = db.Column(db.String(64), index=True)
+    score = db.Column(db.Float, index=False)
+    __table_args__ = (db.UniqueConstraint('detection_id', 'name'),)
+
+    def __repr__(self):
+        return '<PoseKeypoint {} for detection {}>'.format(self.name, self.detection_id)
 
 class Turkcode(db.Model):
     id = db.Column(db.Integer, primary_key=True)
