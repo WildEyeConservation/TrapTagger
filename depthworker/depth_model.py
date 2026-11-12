@@ -258,12 +258,16 @@ def _download_image(sourceBucket, image_key, dest_path, external=False):
     return True
   except Exception:
     try:
-      s3_client.download_file(
-        Bucket=sourceBucket,
-        Key=_comp_fallback_key(image_key),
-        Filename=dest_path,
-      )
-      return True
+      if '-comp/' in image_key:
+        print('Failed to download {}'.format(image_key))
+        return False
+      else:
+        s3_client.download_file(
+          Bucket=sourceBucket,
+          Key=_comp_fallback_key(image_key),
+          Filename=dest_path,
+        )
+        return True
     except Exception:
       print('Failed to download {}'.format(image_key))
       return False

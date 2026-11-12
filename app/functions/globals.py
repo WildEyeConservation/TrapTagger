@@ -379,9 +379,11 @@ def launch_instances(queue,ami,user_data,instances_required,idle_multiplier,ec2,
         userData += ' chown -R root /home/ubuntu/TrapTagger/WorkR;'
         userData += ' git fetch --all;'
         if queue=='statistics':
-            userData += ' git checkout master;'
+            # userData += ' git checkout master;'
+            userData += ' git checkout dev-morpho-master;'
         else:
-            userData += ' git checkout server;'
+            # userData += ' git checkout server;'
+            userData += ' git checkout dev-morpho-server;'
         userData += ' git pull; '
     userData += 'cd /home/ubuntu; '
     userData += user_data
@@ -3118,7 +3120,7 @@ def inspect_celery(include_spam=False,include_reserved=False,include_scheduled=F
     spam = ['importImages','.detection','.classify','runClassifier','processCameraStaticDetections', 'process_video_batch','processStaticWindow', 
             'segment_and_pose', 'calculate_individual_similarity','calculate_hotspotter_similarity', 'generateDetections', 'archive_images', 'archive_empty_images',
             'archive_videos', 'group_cameras', 'updateTrapgroupStaticDetections', 'extrapolate_timestamps', 'classifyTrapgroup', 
-            'updateTrapgroupDetectionRatings', 'extract_zip', 'prep_required_images']
+            'updateTrapgroupDetectionRatings', 'extract_zip', 'prep_required_images', 'depth_estimate']
     if include_spam: spam = []
 
     print('//////////////////////Active tasks://////////////////////')
@@ -3170,6 +3172,12 @@ def inspect_celery(include_spam=False,include_reserved=False,include_scheduled=F
                     print('{:{}}{:{}}{:{}}{:{}}  survey_id={}'.format(task['id'],40,name,36,hostname,36,time_start,29,task['kwargs']['survey_id']))
                 elif 'edit_survey' in task['name']:
                     print('{:{}}{:{}}{:{}}{:{}}  survey_id={}'.format(task['id'],40,name,36,hostname,36,time_start,29,task['kwargs']['survey_id']))
+                elif 'depth_estimate' in task['name']:
+                    cg_id = task['kwargs']['cameragroup_id']
+                    batch_index = task['kwargs']['batch_index']
+                    batch_count = task['kwargs']['batch_count']
+                    nr_items = len(task['kwargs']['trap_items'])
+                    print('{:{}}{:{}}{:{}}{:{}}  cameragroup_id={}, batch_index={}, batch_count={}, nr_items={}'.format(task['id'],40,name,36,hostname,36,time_start,29,cg_id,batch_index,batch_count,nr_items))
                 else:
                     print('{:{}}{:{}}{:{}}{:{}}  {}'.format(task['id'],40,name,36,hostname,36,time_start,29,task['kwargs']))
 
@@ -7452,17 +7460,22 @@ def launch_depth_estimation(survey_id, task_ids, species_list):
             })
             continue
 
-        trap_items = [{
-            'detection_id': d[0],
-            'image_path': d[6] + '/' + d[5],
-            'bbox': {
-                'left': d[1],
-                'right': d[2],
-                'top': d[3],
-                'bottom': d[4],
-            },
-        } for d in det_rows
-          if _detection_has_bbox(d[1], d[2], d[3], d[4])]
+        trap_items = []
+        for d in det_rows:
+            if _detection_has_bbox(d[1], d[2], d[3], d[4]):
+                splits = d[6].split('/')
+                splits[0] = splits[0] + '-comp'
+                comp_cam_path = '/'.join(splits)
+                trap_items.append({
+                    'detection_id': d[0],
+                    'image_path': comp_cam_path + '/' + d[5],
+                    'bbox': {
+                        'left': d[1],
+                        'right': d[2],
+                        'top': d[3],
+                        'bottom': d[4],
+                    },
+                })
 
         if not trap_items:
             skipped.append({
