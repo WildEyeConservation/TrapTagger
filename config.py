@@ -138,7 +138,7 @@ class Config(object):
     MAX_DETS_PER_CLUSTER = 500
 
     # max trap detections per depth_estimate Celery task (orchestrator batches above this)
-    DEPTH_TRAP_BATCH_SIZE = int(os.environ.get('DEPTH_TRAP_BATCH_SIZE') or 5000)
+    DEPTH_TRAP_BATCH_SIZE = int(os.environ.get('DEPTH_TRAP_BATCH_SIZE') or 500)
     # Internal download/inference chunk size inside a depth Celery job (traps only).
     DEPTH_TRAP_DOWNLOAD_CHUNK_SIZE = int(
         os.environ.get('DEPTH_TRAP_DOWNLOAD_CHUNK_SIZE') or 300

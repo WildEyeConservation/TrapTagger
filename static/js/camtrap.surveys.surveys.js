@@ -10826,6 +10826,7 @@ function executeDepthEstimationLaunch(){
     var errorsDiv = document.getElementById('depthEstimationErrors')
     var statusDiv = document.getElementById('depthEstimationStatus')
     var launchBtn = document.getElementById('depthLaunchBtn')
+    var btnEditSurvey = document.getElementById('btnEditSurvey')
 
     errorsDiv.innerHTML = ''
     statusDiv.innerHTML = ''
@@ -10836,6 +10837,7 @@ function executeDepthEstimationLaunch(){
     }
 
     launchBtn.disabled = true
+    btnEditSurvey.disabled = true
 
     var formData = new FormData()
     formData.append('survey_id', selectedSurvey)
@@ -10847,6 +10849,7 @@ function executeDepthEstimationLaunch(){
     xhttp.onreadystatechange = function () {
         if (this.readyState == 4) {
             launchBtn.disabled = false
+            btnEditSurvey.disabled = false
             if (this.status == 200) {
                 var reply = JSON.parse(this.responseText)
                 if (reply.status === 'success') {

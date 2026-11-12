@@ -7600,7 +7600,7 @@ def run_depth_estimation(self, survey_id, task_ids, species_list):
                     continue
                 total_updated += apply_depth_estimation_results(response)
                 db.session.commit()
-                if Config.DEBUGGING: print('Depth estimation job completed for cameragroup {} batch {}/{}'.format(job['kwargs'].get('cameragroup_id'),job['kwargs'].get('batch_index'), job['kwargs'].get('batch_count')))
+                if Config.DEBUGGING: app.logger.info('Depth estimation job completed for cameragroup {} batch {}/{}'.format(job['kwargs'].get('cameragroup_id'),job['kwargs'].get('batch_index'), job['kwargs'].get('batch_count')))
             app.logger.info('Depth estimation jobs completed')
         launch_errors = len(launch_summary.get('errors') or [])
         if batch_failures or launch_errors:
