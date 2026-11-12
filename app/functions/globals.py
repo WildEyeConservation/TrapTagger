@@ -7318,6 +7318,11 @@ def depth_estimation_preview(survey_id, task_ids, species_list):
     Sighting counts are split into detections that already have Detection.distance
     and those that do not. Only the latter are launchable / sent for depth estimation.
 
+    Each camera also reports the distinct positive calibration heights on its
+    images (heights) and how many images have one (cal_with_height). A camera
+    with at least one height is eligible for height estimation alongside distance
+    estimation. Differing heights are allowed and are not an exclusion reason.
+
     Cameras with fewer calibration images than the mode across all cameras
     are flagged (cal_below_mode) for UI highlighting.
     '''
@@ -7365,11 +7370,19 @@ def depth_estimation_preview(survey_id, task_ids, species_list):
         cal_count = len(cal_rows)
         cal_with_bbox = 0
         cal_missing_bbox = 0
+        cal_with_height = 0
+        heights = []
         for cal in cal_rows:
             if cal.top is None or cal.left is None or cal.bottom is None or cal.right is None:
                 cal_missing_bbox += 1
             else:
                 cal_with_bbox += 1
+            if cal.height is not None and float(cal.height) > 0:
+                cal_with_height += 1
+                value = float(cal.height)
+                if not any(abs(value - existing) < 1e-6 for existing in heights):
+                    heights.append(value)
+        heights.sort()
 
         launchable = sightings_without_depth > 0 and cal_with_bbox > 0
         if launchable:
@@ -7386,6 +7399,8 @@ def depth_estimation_preview(survey_id, task_ids, species_list):
             'trap_count': sightings_without_depth,
             'cal_count': cal_count,
             'cal_missing_bbox': cal_missing_bbox,
+            'cal_with_height': cal_with_height,
+            'heights': heights,
             'launchable': launchable,
             'exclusion_reason': _depth_exclusion_reason(
                 sightings_without_depth, sightings_with_depth, cal_count, cal_with_bbox, launchable
@@ -7420,6 +7435,8 @@ def depth_estimation_preview(survey_id, task_ids, species_list):
             'trap_count': row['trap_count'],
             'cal_count': row['cal_count'],
             'cal_missing_bbox': row['cal_missing_bbox'],
+            'cal_with_height': row['cal_with_height'],
+            'heights': row['heights'],
             'cal_below_mode': row['cal_below_mode'],
             'launchable': row['launchable'],
             'exclusion_reason': row['exclusion_reason'],
@@ -7774,7 +7791,7 @@ def process_detections_for_individual_id(task_ids,species,pose_only=False):
         app.logger.info('Process detections for individual ID for task_ids: {}, species: {}'.format(task_ids,species))
         starttime = time.time()
 
-        data = rDets(db.session.query(Detection.id,Detection.left,Detection.right,Detection.top,Detection.bottom,Image.id,Image.filename,Camera.path)\
+        data = rDets(db.session.query(Detection.id,Detection.left,Detection.right,Detection.top,Detection.bottom,Image.id,Image.filename,Camera.path,Detection.flank)\
                             .join(Image,Detection.image_id==Image.id)\
                             .join(Camera,Image.camera_id==Camera.id)\
                             .join(Labelgroup,Labelgroup.detection_id==Detection.id)\
@@ -7801,7 +7818,8 @@ def process_detections_for_individual_id(task_ids,species,pose_only=False):
                     'top': d[3],
                     'bottom': d[4]
                 },
-                'image_path': d[7] + '/' + d[6]
+                'image_path': d[7] + '/' + d[6],
+                'flank': d[8]
             })
 
         jobs = []
@@ -7883,7 +7901,7 @@ def process_detections_for_miewid(task_ids, species, embedding_source=None):
             .filter(DetectionEmbedding.source == embedding_source)
         data = rDets(db.session.query(
                 Detection.id, Detection.left, Detection.right, Detection.top, Detection.bottom,
-                Image.id, Image.filename, Camera.path
+                Image.id, Image.filename, Camera.path, Detection.flank
             )\
             .join(Image, Detection.image_id == Image.id)\
             .join(Camera, Image.camera_id == Camera.id)\
@@ -7907,6 +7925,7 @@ def process_detections_for_miewid(task_ids, species, embedding_source=None):
                     'bottom': d[4],
                 },
                 'image_path': d[7] + '/' + d[6],
+                'flank': d[8],
             })
 
         jobs = []

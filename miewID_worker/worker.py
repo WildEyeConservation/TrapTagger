@@ -55,7 +55,7 @@ def miewid_prepare(batch, sourceBucket, species):
     SAM segment + ScarceNet flank + MiewID embedding for a batch of detections.
 
         Parameters:
-            batch (list): Items with keys detection_id, image_id, bbox, image_path
+            batch (list): Items with keys detection_id, image_id, bbox, image_path, and optional flank (L/R/A)
             sourceBucket (str): S3 bucket containing the images
             species (str): Species string (logging / temp folder naming)
 

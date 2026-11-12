@@ -130,7 +130,7 @@ def segment_and_pose(batch,sourceBucket,species,pose_only=False):
     and calculates the keypoints for each detection which will be used later in hotspotter for individual identification.
     
             Parameters:
-                batch (list): A list of detections to be processed.
+                batch (list): A list of detections to be processed. An item may include flank (L/R/A) to skip pose estimation.
                 sourceBucket (str): S3 bucket.
                 species (str): The species to segment and estimate pose for.
                 pose_only (bool): Whether to only estimate pose.

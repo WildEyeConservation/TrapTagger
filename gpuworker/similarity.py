@@ -159,7 +159,8 @@ def process_images(ibs,batch,sourceBucket,species,pose_only=False):
             print('SAM initialized in {} seconds'.format(time.time() - starttime))
             init_sam = True
 
-        if not init_pose:
+        needs_pose = pose_only or any(image.get('flank') not in ('L', 'R', 'A') for image in batch)
+        if needs_pose and not init_pose:
             # Pose detection initialization
             print('Initializing Pose Detection')
             starttime = time.time()
@@ -252,15 +253,19 @@ def process_images(ibs,batch,sourceBucket,species,pose_only=False):
                         filename = imFolder + '/' + str(detection_id) + '.jpg'
                         segmented_image.save(filename)
 
-                    #Get flank from the segmented image
-                    flank = get_flank(filename)
-                    print('Get flank for detection_id: {} - {}'.format(detection_id, flank))
-                    if flank == 'left':
-                        flank = 'L'
-                    elif flank == 'right':
-                        flank = 'R'
-                    else: #ambiguous
-                        flank = 'A'
+                    # Use a flank already stored on the detection. Otherwise estimate it.
+                    flank = image.get('flank') if image.get('flank') in ('L', 'R', 'A') else None
+                    if flank:
+                        print('Using existing flank for detection_id: {} - {}'.format(detection_id, flank))
+                    else:
+                        flank = get_flank(filename)
+                        print('Get flank for detection_id: {} - {}'.format(detection_id, flank))
+                        if flank == 'left':
+                            flank = 'L'
+                        elif flank == 'right':
+                            flank = 'R'
+                        else: #ambiguous
+                            flank = 'A'
 
                     if pose_only:
                         detection_results[detection_id] = {

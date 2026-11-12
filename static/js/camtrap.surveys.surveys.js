@@ -11494,9 +11494,36 @@ function formatDepthCalColumn(calCount, calMissingBbox) {
     return calCount + ' (' + calMissingBbox + ' missing bounding box)'
 }
 
+function formatDepthHeightValue(value) {
+    var n = Number(value)
+    if (!isFinite(n)) return ''
+    return String(Math.round(n * 1000) / 1000) + ' m'
+}
+
+function formatDepthHeightColumn(cam) {
+    var heights = cam.heights || []
+    var calCount = cam.cal_count || 0
+    var withHeight = cam.cal_with_height || 0
+    if (!heights.length) return 'None'
+    var labels = []
+    for (var i = 0; i < heights.length; i++) {
+        labels.push(formatDepthHeightValue(heights[i]))
+    }
+    var text = labels.join(', ')
+    if (calCount && withHeight < calCount) {
+        text += ' (' + withHeight + ' of ' + calCount + ')'
+    }
+    return text
+}
+
 function formatDepthStatusColumn(cam) {
-    if (cam.launchable) return 'Ready'
-    return 'Skipped (' + cam.exclusion_reason + ')'
+    if (!cam.launchable) return 'Skipped (' + cam.exclusion_reason + ')'
+    var heights = cam.heights || []
+    if (!heights.length) return 'Ready. Distance only (no calibration height).'
+    if (heights.length > 1) {
+        return 'Ready. Height estimation included. Calibration images use different heights.'
+    }
+    return 'Ready. Height estimation included.'
 }
 
 function renderDepthEstimationPrimer(preview, speciesList) {
@@ -11561,12 +11588,13 @@ function renderDepthEstimationPrimer(preview, speciesList) {
     thead.appendChild(headerRow)
 
     var headers = [
-        {text: 'Site', width: '12%'},
-        {text: 'Camera', width: '22%'},
-        {text: 'Sightings with distance', width: '14%'},
-        {text: 'Sightings without distance', width: '14%'},
-        {text: 'Calibration images', width: '18%'},
-        {text: 'Status', width: '20%'}
+        {text: 'Site', width: '10%'},
+        {text: 'Camera', width: '16%'},
+        {text: 'Sightings With Distance', width: '13%'},
+        {text: 'Sightings Without Distance', width: '14%'},
+        {text: 'Calibration<br>Images', width: '10%'},
+        {text: 'Height', width: '15%'},
+        {text: 'Status', width: '22%'}
     ]
     var cellStyle = 'text-align:left; padding-top: 6px; padding-bottom: 6px; vertical-align: middle;'
     for (var h = 0; h < headers.length; h++) {
@@ -11623,6 +11651,15 @@ function renderDepthEstimationPrimer(preview, speciesList) {
             calTd.setAttribute('style', calStyle)
             calTd.innerHTML = formatDepthCalColumn(cam.cal_count, cam.cal_missing_bbox)
             tr.appendChild(calTd)
+
+            var heightTd = document.createElement('td')
+            var heightStyle = cellStyle
+            if (cam.heights && cam.heights.length > 1) {
+                heightStyle += ' color: #DF691A;'
+            }
+            heightTd.setAttribute('style', heightStyle)
+            heightTd.innerHTML = formatDepthHeightColumn(cam)
+            tr.appendChild(heightTd)
 
             var statusTd = document.createElement('td')
             statusTd.setAttribute('style', cellStyle)

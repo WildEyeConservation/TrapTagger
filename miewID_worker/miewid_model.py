@@ -240,6 +240,14 @@ def _flank_to_db(flank_text):
     return 'A'
 
 
+def _known_flank(item):
+    '''Return a stored L/R/A flank, or None when ScarceNet still needs to run.'''
+    flank = item.get('flank')
+    if flank in ('L', 'R', 'A'):
+        return flank
+    return None
+
+
 def _embed_chips(chip_paths):
     '''
     Embed a list of local JPEG/PNG chip paths with MiewID.
@@ -272,7 +280,7 @@ def process_batch(batch, source_bucket, species):
     Run the full miewid_prepare pipeline on one Celery batch.
 
         Parameters:
-            batch (list): Items with detection_id, image_id, bbox, image_path
+            batch (list): Items with detection_id, image_id, bbox, image_path, and optional flank (L/R/A)
             source_bucket (str): S3 bucket name
             species (str): Species label (used for temp folder naming / logs)
 
@@ -280,7 +288,8 @@ def process_batch(batch, source_bucket, species):
             dict: {str(detection_id): {'flank': str, 'embedding': list[float]}}
     '''
     _ensure_sam()
-    _ensure_pose()
+    if any(_known_flank(item) is None for item in batch):
+        _ensure_pose()
     _ensure_miewid()
 
     work_dir = 'miewid_chips_' + species.replace(' ', '_').lower()
@@ -329,9 +338,13 @@ def process_batch(batch, source_bucket, species):
                 chip_path = os.path.join(work_dir, '{}.jpg'.format(det_key))
                 chip.save(chip_path)
 
-                flank_text = _get_flank(chip_path)
-                flank = _flank_to_db(flank_text)
-                print('Flank for detection {}: {} -> {}'.format(det_key, flank_text, flank))
+                flank = _known_flank(item)
+                if flank:
+                    print('Using existing flank for detection {}: {}'.format(det_key, flank))
+                else:
+                    flank_text = _get_flank(chip_path)
+                    flank = _flank_to_db(flank_text)
+                    print('Flank for detection {}: {} -> {}'.format(det_key, flank_text, flank))
                 pending.append((det_key, flank, chip_path))
 
         except Exception as e:
