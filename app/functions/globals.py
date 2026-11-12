@@ -379,11 +379,9 @@ def launch_instances(queue,ami,user_data,instances_required,idle_multiplier,ec2,
         userData += ' chown -R root /home/ubuntu/TrapTagger/WorkR;'
         userData += ' git fetch --all;'
         if queue=='statistics':
-            # userData += ' git checkout master;'
-            userData += ' git checkout dev-morpho-master;'
+            userData += ' git checkout master;'
         else:
-            # userData += ' git checkout server;'
-            userData += ' git checkout dev-morpho-server;'
+            userData += ' git checkout server;'
         userData += ' git pull; '
     userData += 'cd /home/ubuntu; '
     userData += user_data
@@ -7588,7 +7586,7 @@ def run_depth_estimation(self, survey_id, task_ids, species_list):
         batch_failures = 0
         jobs = launch_summary.get('jobs') or []
         if jobs:
-            app.logger.info('Waiting for depth estimation jobs to complete')
+            app.logger.info('Waiting for depth estimation jobs to complete, jobs: {}'.format(len(jobs)))
             for job, response in wait_for_jobs(jobs):
                 if response is None:
                     batch_failures += 1
@@ -7602,6 +7600,7 @@ def run_depth_estimation(self, survey_id, task_ids, species_list):
                     continue
                 total_updated += apply_depth_estimation_results(response)
                 db.session.commit()
+                if Config.DEBUGGING: print('Depth estimation job completed for cameragroup {} batch {}/{}'.format(job['kwargs'].get('cameragroup_id'),job['kwargs'].get('batch_index'), job['kwargs'].get('batch_count')))
             app.logger.info('Depth estimation jobs completed')
         launch_errors = len(launch_summary.get('errors') or [])
         if batch_failures or launch_errors:
