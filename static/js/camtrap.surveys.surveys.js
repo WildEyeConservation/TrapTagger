@@ -430,6 +430,10 @@ var surveyIgnoreSmallDetections = null
 var surveySkyMasked = null
 var surveyAdvancedOptionsLoaded = false
 var depthSelectedTaskId = null
+var depthPreviewRequestId = 0
+var depthPreviewTimer = null
+var depthPreviewCanLaunch = false
+var depthLaunchInProgress = false
 // First decimal number in the stem; digits after a second decimal are ignored.
 var CAL_UPLOAD_DISTANCE_NUMBER_RE = /\d+(?:\.\d+)?/
 var tsFiles = []
@@ -10274,6 +10278,13 @@ function openDepthEstimation(){
 
 function buildDepthEstimation() {
     /** Builds the depth estimation tab in the edit survey modal. */
+    depthLaunchInProgress = false
+    depthPreviewCanLaunch = false
+    depthPreviewRequestId += 1
+    if (depthPreviewTimer) {
+        clearTimeout(depthPreviewTimer)
+        depthPreviewTimer = null
+    }
     var div = document.getElementById('editDepthEstimationDiv')
     while (div.firstChild) div.removeChild(div.firstChild)
 
@@ -10484,7 +10495,7 @@ function loadDepthSpecies(taskId) {
     document.getElementById('depthEstimationStatus').innerHTML = ''
 
     var loading = document.createElement('div')
-    loading.innerHTML = '<i>Loading species...</i>'
+    loading.innerHTML = '<i class="fa-solid fa-spinner fa-spin" style="color: #DF694A"></i> <i>Loading species...</i>'
     speciesDiv.appendChild(loading)
 
     var xhttp = new XMLHttpRequest()
@@ -10609,32 +10620,85 @@ function getSelectedDepthSpecies() {
     return selected
 }
 
-function refreshDepthEstimationPreview() {
-    var taskId = depthSelectedTaskId || document.getElementById('depthTaskSelect').value
-    loadDepthEstimationPreview(taskId, getSelectedDepthSpecies())
+function depthPreviewLoadingHtml() {
+    return '<i class="fa-solid fa-spinner fa-spin" style="color: #DF694A"></i> <i>Loading preview...</i>'
 }
 
-function loadDepthEstimationPreview(taskId, speciesList){
+function setDepthEstimationLaunching(active) {
+    /** Covers the distance-estimation panel while a launch request is in flight. */
+    var div = document.getElementById('editDepthEstimationDiv')
+    if (!div) return
+    var existing = document.getElementById('depthLaunchOverlay')
+    if (!active) {
+        if (existing) existing.parentNode.removeChild(existing)
+        return
+    }
+    if (existing) return
+    div.style.position = 'relative'
+    var overlay = document.createElement('div')
+    overlay.id = 'depthLaunchOverlay'
+    overlay.setAttribute('style', 'position: absolute; top: 0; left: 0; right: 0; bottom: 0; background: rgba(255,255,255,0.72); z-index: 20; display: flex; align-items: center; justify-content: center;')
+    overlay.innerHTML = '<div style="text-align: center;"><i class="fa-solid fa-spinner fa-spin fa-2xl" style="color: #DF694A"></i><div style="margin-top: 10px;"><i>Starting distance estimation...</i></div></div>'
+    div.appendChild(overlay)
+}
+
+function refreshDepthEstimationPreview() {
+    if (depthLaunchInProgress) return
+    if (depthPreviewTimer) {
+        clearTimeout(depthPreviewTimer)
+        depthPreviewTimer = null
+    }
+
+    depthPreviewRequestId += 1
+    var requestId = depthPreviewRequestId
+    depthPreviewCanLaunch = false
+
+    var primerDiv = document.getElementById('depthEstimationPrimer')
+    var launchBtn = document.getElementById('depthLaunchBtn')
+    if (launchBtn) launchBtn.disabled = true
+    if (!primerDiv) return
+
+    var taskId = depthSelectedTaskId || document.getElementById('depthTaskSelect').value
+    var speciesList = getSelectedDepthSpecies()
+    if (!taskId || !speciesList || speciesList.length === 0) {
+        primerDiv.innerHTML = '<i>Select an annotation set and at least one species to see launch preview.</i>'
+        return
+    }
+
+    primerDiv.innerHTML = depthPreviewLoadingHtml()
+    depthPreviewTimer = setTimeout(function() {
+        depthPreviewTimer = null
+        if (requestId !== depthPreviewRequestId || depthLaunchInProgress) return
+        loadDepthEstimationPreview(taskId, getSelectedDepthSpecies(), requestId)
+    }, 300)
+}
+
+function loadDepthEstimationPreview(taskId, speciesList, requestId){
     var primerDiv = document.getElementById('depthEstimationPrimer')
     var launchBtn = document.getElementById('depthLaunchBtn')
     var errorsDiv = document.getElementById('depthEstimationErrors')
 
     if (!primerDiv) return
+    if (depthLaunchInProgress || requestId !== depthPreviewRequestId) return
 
     if (!taskId || !speciesList || speciesList.length === 0) {
         primerDiv.innerHTML = '<i>Select an annotation set and at least one species to see launch preview.</i>'
         if (launchBtn) launchBtn.disabled = true
+        depthPreviewCanLaunch = false
         return
     }
 
-    primerDiv.innerHTML = '<i>Loading preview...</i>'
+    primerDiv.innerHTML = depthPreviewLoadingHtml()
     if (launchBtn) launchBtn.disabled = true
     var xhttp = new XMLHttpRequest()
     xhttp.onreadystatechange = function() {
         if (this.readyState !== 4) return
+        if (requestId !== depthPreviewRequestId || depthLaunchInProgress) return
 
         if (this.status !== 200) {
             primerDiv.innerHTML = '<span style="color: #DF691A;">Failed to load preview.</span>'
+            depthPreviewCanLaunch = false
+            if (launchBtn) launchBtn.disabled = true
             return
         }
 
@@ -10642,14 +10706,16 @@ function loadDepthEstimationPreview(taskId, speciesList){
         if (reply.status !== 'success') {
             primerDiv.innerHTML = '<span style="color: #DF691A;">' +
                 (reply.message || 'Preview unavailable.') + '</span>'
+            depthPreviewCanLaunch = false
+            if (launchBtn) launchBtn.disabled = true
             return
         }
 
         renderDepthEstimationPrimer(reply.preview, speciesList)
 
         var s = reply.preview.summary
-        var canLaunch = s.cameras_launchable > 0
-        if (launchBtn) launchBtn.disabled = !canLaunch
+        depthPreviewCanLaunch = s.cameras_launchable > 0
+        if (launchBtn) launchBtn.disabled = !depthPreviewCanLaunch
 
         if (errorsDiv) {
             if (s.cameras_launchable === 0) {
@@ -10821,6 +10887,8 @@ function launchDepthEstimationFromUI(){
 }
 
 function executeDepthEstimationLaunch(){
+    if (depthLaunchInProgress) return
+
     var taskId = document.getElementById('depthTaskSelect').value
     var speciesList = getSelectedDepthSpecies()
     var errorsDiv = document.getElementById('depthEstimationErrors')
@@ -10836,8 +10904,15 @@ function executeDepthEstimationLaunch(){
         return
     }
 
+    depthLaunchInProgress = true
+    depthPreviewRequestId += 1
+    if (depthPreviewTimer) {
+        clearTimeout(depthPreviewTimer)
+        depthPreviewTimer = null
+    }
     launchBtn.disabled = true
     btnEditSurvey.disabled = true
+    setDepthEstimationLaunching(true)
 
     var formData = new FormData()
     formData.append('survey_id', selectedSurvey)
@@ -10848,11 +10923,11 @@ function executeDepthEstimationLaunch(){
 
     xhttp.onreadystatechange = function () {
         if (this.readyState == 4) {
-            launchBtn.disabled = false
             btnEditSurvey.disabled = false
             if (this.status == 200) {
                 var reply = JSON.parse(this.responseText)
                 if (reply.status === 'success') {
+                    depthLaunchInProgress = false
                     document.getElementById('modalAlertHeader').innerHTML = 'Success'
                     document.getElementById('modalAlertBody').innerHTML =
                         'Distance estimation has started for this survey. This may take some time. ' +
@@ -10862,12 +10937,18 @@ function executeDepthEstimationLaunch(){
                     modalAlert.modal({keyboard: true})
                     clearEditSurveyModal()
                 } else {
+                    depthLaunchInProgress = false
+                    setDepthEstimationLaunching(false)
+                    if (launchBtn) launchBtn.disabled = !depthPreviewCanLaunch
                     errorsDiv.innerHTML = reply.message || 'Launch failed.'
                     if (reply.skipped) {
                         statusDiv.innerHTML = '<i>Skipped cameragroups listed in server response.</i>'
                     }
                 }
             } else {
+                depthLaunchInProgress = false
+                setDepthEstimationLaunching(false)
+                if (launchBtn) launchBtn.disabled = !depthPreviewCanLaunch
                 errorsDiv.innerHTML = 'Server error (' + this.status + ')'
             }
         }

@@ -19956,31 +19956,39 @@ def launchDepthEstimation():
         if not eligible:
             return json.dumps({'status': 'error', 'message': eligibility_message})
 
-    preview = depth_estimation_preview(survey_id, task_ids, species_list)
-    if preview['summary']['cameras_launchable'] == 0:
-        launched = []
-        skipped = []
-        for site in preview['sites']:
-            for cam in site['cameras']:
-                if cam['launchable']:
-                    launched.append({
-                        'name': cam['name'],
-                        'trap_count': cam['trap_count'],
-                        'cal_count': cam['cal_count'],
-                    })
-                else:
-                    skipped.append({
-                        'name': cam['name'],
-                        'reason': cam['exclusion_reason'],
-                    })
+    # Claim the survey before the slow preview so a second launch cannot pass the
+    # ready check and queue another job while this request is still counting cameras.
+    lock_key = 'depth_estimation_{}'.format(survey_id)
+    acquired = GLOBALS.redisClient.set(lock_key, 'starting', nx=True)
+    if not acquired:
         return json.dumps({
             'status': 'error',
-            'message': 'No cameragroups with both calibration images and trap detections were found.',
-            'skipped': skipped,
+            'message': 'Distance estimation is already running for this survey.'
         })
 
-    survey.status = 'Processing'
-    db.session.commit()
+    try:
+        preview = depth_estimation_preview(survey_id, task_ids, species_list)
+        if preview['summary']['cameras_launchable'] == 0:
+            GLOBALS.redisClient.delete(lock_key)
+            skipped = []
+            for site in preview['sites']:
+                for cam in site['cameras']:
+                    if not cam['launchable']:
+                        skipped.append({
+                            'name': cam['name'],
+                            'reason': cam['exclusion_reason'],
+                        })
+            return json.dumps({
+                'status': 'error',
+                'message': 'No cameragroups with both calibration images and trap detections were found.',
+                'skipped': skipped,
+            })
+
+        survey.status = 'Processing'
+        db.session.commit()
+    except Exception:
+        GLOBALS.redisClient.delete(lock_key)
+        raise
 
     depth_estimation_args = {
         'survey_id': survey_id,
