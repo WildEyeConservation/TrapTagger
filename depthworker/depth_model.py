@@ -39,26 +39,35 @@ def infer(
   survey_id=None,
   batch_index=1,
   batch_count=1,
+  scale_factor=None,
 ):
   '''
   Runs depth estimation for one cameragroup: stages calibration once, then
   downloads/infers trap images in chunks (default 200), cleaning local trap
   frames between chunks while keeping calibration staged for the whole job.
 
+  When a scale factor is available, each detection with a distance also gets
+  ViTPose keypoints and, where the points allow it, shoulder height and back
+  length in centimetres.
+
   Parameters:
       cameragroup_id (int): Cameragroup ID for this job.
       cam_name (str): Camera/cameragroup name used in the transects folder path.
       calibration_items (list): Calibration image dicts with image_path, bbox,
-          and known_distance (or distance).
-      trap_items (list): Trap detection dicts with detection_id, image_path, bbox.
+          known_distance (or distance), and optional height in metres.
+      trap_items (list): Trap detection dicts with detection_id, image_path, bbox,
+          and optional flank (L, R, or A).
       sourceBucket (str): S3 bucket to download images from.
       external (bool): Whether images are external to S3 (not implemented).
+      scale_factor (float|None): Stored average scale factor, in pixels. When
+          null, it is computed from calibration images that have a height.
 
   Returns:
-      results (dict): {str(detection_id): {'distance': float|None, 'error': str|None}}
+      results (dict): {str(detection_id): {...}, '_job': {scale_factor, ...}}
   '''
   job_root = tempfile.mkdtemp(prefix='depth_job_')
   session = None
+  pose_model = None
   try:
     os.makedirs(os.path.join(job_root, 'results'), exist_ok=True)
     transect_id = _sanitize_cam_name(cam_name)
@@ -160,6 +169,28 @@ def infer(
         )
       )
 
+    from depthworker.height import average_scale_factor
+    scale_was_provided = scale_factor is not None
+    try:
+      scale_factor = float(scale_factor) if scale_factor is not None else None
+    except (TypeError, ValueError):
+      scale_factor = None
+      scale_was_provided = False
+    if scale_factor is not None and scale_factor <= 0:
+      scale_factor = None
+      scale_was_provided = False
+    if scale_factor is None:
+      scale_factor = average_scale_factor(calibration_entries)
+    scale_computed = (not scale_was_provided) and scale_factor is not None
+    if scale_factor is not None:
+      from depthworker.vitpose import ViTPose
+      pose_model = ViTPose()
+      print(
+        'Height estimation enabled for cameragroup {} (scale factor {})'.format(
+          cameragroup_id, scale_factor,
+        )
+      )
+
     chunk_size = _trap_download_chunk_size()
     all_results = {}
     for chunk_start in range(0, len(trap_items), chunk_size):
@@ -182,7 +213,19 @@ def infer(
           batch_count,
         )
       )
-      all_results.update(estimate_transect_traps(session))
+      chunk_results = estimate_transect_traps(session)
+      try:
+        if scale_factor is not None:
+          _add_height_estimates(
+            chunk_results,
+            trap_entries,
+            transect_dir,
+            scale_factor,
+            pose_model,
+          )
+      finally:
+        _drop_masks(chunk_results)
+      all_results.update(chunk_results)
       _clear_detection_frames(det_dir)
 
     if use_cal_cache and batch_index == batch_count:
@@ -196,6 +239,11 @@ def infer(
         batch_index=batch_index,
         batch_count=batch_count,
       )
+    all_results['_job'] = {
+      'cameragroup_id': cameragroup_id,
+      'scale_factor': scale_factor,
+      'scale_factor_computed': scale_computed,
+    }
     return all_results
   finally:
     # Always unload SAM/depth ONNX sessions so VRAM does not leak across Celery tasks.
@@ -205,6 +253,11 @@ def infer(
         release_transect_session(session)
       except Exception as e:
         print('Failed to release depth session GPU resources: {}'.format(e))
+    try:
+      if pose_model is not None:
+        pose_model.close()
+    except Exception:
+      pass
     shutil.rmtree(job_root, ignore_errors=True)
 
 
@@ -321,6 +374,7 @@ def _download_calibration(cal_dir, calibration_items, sourceBucket, external):
       width, height = img.size
     calibration.append({
       'known_distance': distance,
+      'height': item.get('height'),
       'relative_path': os.path.join('calibration_frames', '{}.jpg'.format(distance)),
       'bbox_pixels': _bbox_to_pixels(item['bbox'], width, height),
     })
@@ -358,9 +412,80 @@ def _download_traps(det_dir, trap_items, sourceBucket, external):
           '{}.jpg'.format(item['detection_id']),
         ),
         'bbox_pixels': _bbox_to_pixels(item['bbox'], width, height),
+        'flank': item.get('flank') if item.get('flank') in ('L', 'R', 'A') else None,
         'download_ok': True,
       })
   return traps
+
+
+def _drop_masks(results):
+  '''Remove in-memory SAM masks so the Celery result stays JSON-serialisable.'''
+  for payload in results.values():
+    if isinstance(payload, dict):
+      payload.pop('_mask', None)
+
+
+def _normalize_keypoints(points, width, height):
+  if not width or not height:
+    return []
+  normalized = []
+  for point in points:
+    score = point.get('score')
+    normalized.append({
+      'name': point['name'],
+      'x': float(point['x']) / float(width),
+      'y': float(point['y']) / float(height),
+      'score': None if score is None else float(score),
+    })
+  return normalized
+
+
+def _add_height_estimates(results, trap_entries, transect_dir, scale_factor, pose_model):
+  '''Fill shoulder height, back length, flank, and keypoints onto depth results.'''
+  from depthworker.height import estimate_flank, measure_animal
+
+  entries = {str(entry['detection_id']): entry for entry in trap_entries}
+  for det_id, payload in results.items():
+    if not isinstance(payload, dict) or payload.get('error') or payload.get('distance') is None:
+      continue
+    entry = entries.get(str(det_id))
+    if not entry or not entry.get('download_ok') or not entry.get('bbox_pixels') or not entry.get('relative_path'):
+      continue
+    image_path = os.path.join(transect_dir, entry['relative_path'])
+    if not os.path.isfile(image_path):
+      continue
+    try:
+      points = pose_model.predict(image_path, entry['bbox_pixels'])
+    except Exception as exc:
+      print('ViTPose failed for detection {}: {}'.format(det_id, exc))
+      continue
+    keypoints = {point['name']: point for point in points}
+    given_flank = entry.get('flank')
+    flank = given_flank if given_flank in ('L', 'R', 'A') else None
+    estimated_flank = None
+    if flank is None:
+      flank = estimate_flank(keypoints)
+      estimated_flank = flank
+    measured = measure_animal(
+      keypoints,
+      payload.get('_mask'),
+      payload.get('distance'),
+      scale_factor,
+      flank,
+    )
+    mask = payload.get('_mask')
+    if mask is not None:
+      height, width = mask.shape[:2]
+    else:
+      with Image.open(image_path) as img:
+        width, height = img.size
+    payload['keypoints'] = _normalize_keypoints(measured['keypoints'], width, height)
+    payload['shoulder_height'] = measured['shoulder_height']
+    payload['shoulder_keypoints'] = measured['shoulder_keypoints']
+    payload['back_length'] = measured['back_length']
+    payload['back_keypoints'] = measured['back_keypoints']
+    if estimated_flank is not None:
+      payload['flank'] = estimated_flank
 
 
 def _write_manifest(transect_dir, cameragroup_id, cam_name, calibration, traps):

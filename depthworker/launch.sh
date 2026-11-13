@@ -38,10 +38,12 @@ for ((i=0;$((i<$NUMGPUS));i++)) do
     -e HUGGINGFACE_HUB_CACHE=/hf-cache/hub \
     -e TORCH_HOME=/hf-cache/torch \
     -e HF_HUB_OFFLINE=1 \
+    -e VITPOSE_WEIGHTS=/opt/models/vitpose/vitpose-b-ap10k.pth \
     -v /home/ubuntu/hf-cache:/hf-cache \
     -v /home/ubuntu/TrapTagger/depthworker:/code/depthworker \
     -v /home/ubuntu/TrapTagger/depth-estimation-repo:/code/depth-estimation-repo \
     -v /home/ubuntu/depth-weights:/root/.cache/depth-estimation-traptagger/weights \
+    -v /home/ubuntu/vitpose-weights:/opt/models/vitpose \
     --gpus all \
     --ipc=host \
     --name depthworker$i \

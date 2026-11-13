@@ -296,8 +296,8 @@ class Detection(db.Model):
     aid = db.Column(db.Integer, index=True) # annotation id for wbia db 
     features = db.relationship('Feature', backref='detection', lazy=True)
     distance = db.Column(db.Float, index=False)
-    back_length = db.Column(db.Float, index=False) # metres; 0 means the user marked the detection unusable
-    shoulder_height = db.Column(db.Float, index=False) # metres; 0 means the user marked the detection unusable
+    back_length = db.Column(db.Float, index=False) # centimetres; 0 means the user marked the detection unusable
+    shoulder_height = db.Column(db.Float, index=False) # centimetres; 0 means the user marked the detection unusable
     pose_checked = db.Column(db.Boolean, nullable=False, default=False, server_default='0', index=True)
     embeddings = db.relationship('DetectionEmbedding', backref='detection', lazy=True)
     pose_keypoints = db.relationship('PoseKeypoint', backref='detection', lazy=True)
@@ -731,6 +731,7 @@ class ERangerID(db.Model):
 class Cameragroup(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     name = db.Column(db.String(64), index=False)
+    scale_factor = db.Column(db.Float, index=False)
     cameras = db.relationship('Camera', backref='cameragroup', lazy=True)
     masks = db.relationship('Mask', backref='cameragroup', lazy=True)
     calibration_images = db.relationship('CalibrationImage', backref='cameragroup', lazy=True)

@@ -2,9 +2,9 @@
 # Omits GUI/packaging packages from depth-estimation-repo/requirements_v2.txt
 # (desktop-notifier, toga, pyinstaller) which need GObject/GTK system libs.
 #
-# GPU inference: onnxruntime-gpu (uses CUDA from depthworker/Dockerfile base image).
-# PyTorch is CPU-only here — traptagger_api uses torch DataLoader/Dataset only;
-# installing torch+cu118 pulls multi-GB nvidia/cu* pip wheels and bloats the image.
+# Depth models run through onnxruntime-gpu. ViTPose runs through PyTorch, so the
+# CUDA 12.1 wheel is installed here. It bundles its own CUDA libraries. The host
+# NVIDIA driver must support CUDA 12.1. torchvision 0.20.1 matches torch 2.5.1.
 
 numpy<2.0.0
 onnxruntime-gpu==1.18.0
@@ -12,6 +12,6 @@ opencv-python>=4.0.0
 scikit-learn
 scipy
 platformdirs
---extra-index-url https://download.pytorch.org/whl/cpu
-torch
-torchvision
+--extra-index-url https://download.pytorch.org/whl/cu121
+torch==2.5.1
+torchvision==0.20.1

@@ -52,6 +52,7 @@ def depth_estimate(
   survey_id=None,
   batch_index=1,
   batch_count=1,
+  scale_factor=None,
 ):
     '''
     Celery wrapper for depth estimation on one cameragroup.
@@ -59,13 +60,14 @@ def depth_estimate(
         Parameters:
             cameragroup_id (int): Cameragroup ID for this job.
             cam_name (str): Camera/cameragroup name for the transects folder path.
-            calibration_items (list): Calibration image dicts (image_path, bbox, known_distance).
-            trap_items (list): Trap detection dicts (detection_id, image_path, bbox).
+            calibration_items (list): Calibration image dicts (image_path, bbox, known_distance, height).
+            trap_items (list): Trap detection dicts (detection_id, image_path, bbox, flank).
             sourceBucket (str): S3 bucket to download images from.
             external (bool): Whether images are external to S3.
+            scale_factor (float|None): Stored average scale factor. Null means the worker computes it.
 
         Returns:
-            results (dict): {str(detection_id): {'distance': float|None, 'error': str|None}}
+            results (dict): detection payloads plus a '_job' entry for the scale factor.
     '''
     starttime = time.time()
     print(
@@ -89,6 +91,7 @@ def depth_estimate(
         survey_id=survey_id,
         batch_index=batch_index,
         batch_count=batch_count,
+        scale_factor=scale_factor,
     )
 
     finishtime = time.time()

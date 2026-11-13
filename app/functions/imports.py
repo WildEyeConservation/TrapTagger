@@ -5273,6 +5273,20 @@ def calibration_destination_taken(dest_key, survey_id=None, distance=None):
 
     return calibration_distance_taken(cameragroup_id, distance)
 
+def clear_cameragroup_scale_factors(cameragroup_ids):
+    '''Null Cameragroup.scale_factor so the next depth job recomputes it.
+
+    Called when a calibration image is added or removed, or its distance, height,
+    or bounding box changes. This does not clear Detection.distance.
+    '''
+    ids = [cg_id for cg_id in set(cameragroup_ids) if cg_id is not None]
+    if not ids:
+        return
+    db.session.query(Cameragroup).filter(Cameragroup.id.in_(ids)).update(
+        {Cameragroup.scale_factor: None},
+        synchronize_session=False,
+    )
+
 def null_detection_distances_for_cameragroups(cameragroup_ids):
     for cg_id in cameragroup_ids:
         image_ids = (
@@ -5344,12 +5358,15 @@ def clean_cal_upload_staging(survey_id):
 def apply_edit_survey_cal_edits(survey_id, cal_bboxes=None, cal_distances=None, cal_heights=None, cal_deletions=None):
     '''
     Apply bbox / distance / height / deletion calibration edits for a survey.
-    Returns set of affected cameragroup IDs. Heights do not affect depth estimation, so
-    height-only edits leave their cameragroups unaffected.
+    Returns set of affected cameragroup IDs. Heights do not clear detection distances,
+    so height-only edits leave their cameragroups out of that set. Any change to a
+    calibration distance, height, bounding box, or image still clears
+    Cameragroup.scale_factor.
     '''
     from app.functions.delete import delete_calibration_images
 
     affected_cameragroups = set()
+    scale_clear = set()
     if not (cal_bboxes or cal_distances or cal_heights or cal_deletions):
         return affected_cameragroups
 
@@ -5362,6 +5379,7 @@ def apply_edit_survey_cal_edits(survey_id, cal_bboxes=None, cal_distances=None, 
             cal_image = get_calibration_image_for_survey(int(cal_id_str), survey_id)
             if cal_image:
                 affected_cameragroups.add(cal_image.cameragroup_id)
+                scale_clear.add(cal_image.cameragroup_id)
                 cal_image.top = bbox.get('top')
                 cal_image.left = bbox.get('left')
                 cal_image.bottom = bbox.get('bottom')
@@ -5391,6 +5409,7 @@ def apply_edit_survey_cal_edits(survey_id, cal_bboxes=None, cal_distances=None, 
                 continue
             cal_image.distance = new_distance
             affected_cameragroups.add(cal_image.cameragroup_id)
+            scale_clear.add(cal_image.cameragroup_id)
 
     if cal_heights:
         for cal_id_str, new_height in cal_heights.items():
@@ -5402,6 +5421,7 @@ def apply_edit_survey_cal_edits(survey_id, cal_bboxes=None, cal_distances=None, 
             # An empty height clears the value.
             if new_height in (None, '', 'none'):
                 cal_image.height = None
+                scale_clear.add(cal_image.cameragroup_id)
                 continue
             try:
                 new_height = float(new_height)
@@ -5410,6 +5430,7 @@ def apply_edit_survey_cal_edits(survey_id, cal_bboxes=None, cal_distances=None, 
             if new_height <= 0:
                 continue
             cal_image.height = new_height
+            scale_clear.add(cal_image.cameragroup_id)
 
     if cal_deletions:
         validated_cal_ids = []
@@ -5418,10 +5439,12 @@ def apply_edit_survey_cal_edits(survey_id, cal_bboxes=None, cal_distances=None, 
             if not cal_image:
                 continue
             affected_cameragroups.add(cal_image.cameragroup_id)
+            scale_clear.add(cal_image.cameragroup_id)
             validated_cal_ids.append(cal_image.id)
         if validated_cal_ids:
             delete_calibration_images(survey_id=survey_id, ids=validated_cal_ids)
 
+    clear_cameragroup_scale_factors(scale_clear)
     db.session.commit()
     return affected_cameragroups
 
@@ -5432,9 +5455,11 @@ def apply_edit_survey_cal_uploads(survey_id, manifest, request_files=None):
     {org}/{survey}/_cal_upload_staging_/{cg_id}/...
 
     A file whose distance is already stored for that cameragroup is not a new image.
-    When its filename includes a different height, only CalibrationImage.height is updated.
-    A filename with no height leaves the saved height unchanged. The uploaded file is
-    discarded either way, and the cameragroup is not marked affected.
+    When its filename includes a different height, only CalibrationImage.height is updated
+    and the camera's scale factor is cleared. A filename with no height leaves the saved
+    height unchanged. The uploaded file is discarded either way, and the cameragroup is
+    not marked affected for detection distances. A new calibration image also clears the
+    scale factor.
 
     request_files is unused (kept for call-site compatibility).
 
@@ -5443,6 +5468,7 @@ def apply_edit_survey_cal_uploads(survey_id, manifest, request_files=None):
     '''
     cal_images_to_detect = []
     affected_cameragroups = set()
+    scale_clear = set()
     survey = db.session.query(Survey).get(survey_id)
     if not survey or not manifest:
         return cal_images_to_detect, affected_cameragroups
@@ -5497,6 +5523,7 @@ def apply_edit_survey_cal_uploads(survey_id, manifest, request_files=None):
                     existing.height is None or float(existing.height) != float(height)
                 ):
                     existing.height = height
+                    scale_clear.add(cg_id)
                 staging_key = fi.get('staging_key')
                 expected_prefix = staging_prefix + str(cg_id) + '/'
                 if staging_key and staging_key.startswith(expected_prefix):
@@ -5550,6 +5577,8 @@ def apply_edit_survey_cal_uploads(survey_id, manifest, request_files=None):
             db.session.flush()
             cal_images_to_detect.append((dest_key, cal_image.id))
             affected_cameragroups.add(cg_id)
+            scale_clear.add(cg_id)
+    clear_cameragroup_scale_factors(scale_clear)
     db.session.commit()
     return cal_images_to_detect, affected_cameragroups
 

@@ -7442,7 +7442,7 @@ def launch_depth_estimation(survey_id, task_ids, species_list):
     errors = []
 
     cameragroups = (
-        db.session.query(Cameragroup.id, Cameragroup.name)
+        db.session.query(Cameragroup.id, Cameragroup.name, Cameragroup.scale_factor)
         .join(CalibrationImage, CalibrationImage.cameragroup_id == Cameragroup.id)
         .join(Camera, Camera.cameragroup_id == Cameragroup.id)
         .join(Trapgroup, Trapgroup.id == Camera.trapgroup_id)
@@ -7451,7 +7451,7 @@ def launch_depth_estimation(survey_id, task_ids, species_list):
         .all()
     )
 
-    for cg_id, cg_name in cameragroups:
+    for cg_id, cg_name, scale_factor in cameragroups:
         cal_rows = (
             db.session.query(CalibrationImage)
             .filter(CalibrationImage.cameragroup_id == cg_id)
@@ -7462,6 +7462,7 @@ def launch_depth_estimation(survey_id, task_ids, species_list):
         calibration_items = [{
             'image_path': cal.filename,
             'known_distance': cal.distance,
+            'height': cal.height,
             'bbox': {
                 'top': cal.top,
                 'left': cal.left,
@@ -7483,6 +7484,7 @@ def launch_depth_estimation(survey_id, task_ids, species_list):
                 Detection.bottom,
                 Image.filename,
                 Camera.path,
+                Detection.flank,
             )
             .distinct()
             .all()
@@ -7519,6 +7521,7 @@ def launch_depth_estimation(survey_id, task_ids, species_list):
                         'top': d[3],
                         'bottom': d[4],
                     },
+                    'flank': d[7] if d[7] in ('L', 'R', 'A') else None,
                 })
 
         if not trap_items:
@@ -7545,6 +7548,7 @@ def launch_depth_estimation(survey_id, task_ids, species_list):
                     'survey_id': survey_id,
                     'batch_index': batch_index,
                     'batch_count': batch_count,
+                    'scale_factor': None if scale_factor is None else float(scale_factor),
                 }
                 async_result = depth_estimate.apply_async(kwargs=kwargs, queue='depth')
                 jobs.append({
@@ -7576,22 +7580,45 @@ def launch_depth_estimation(survey_id, task_ids, species_list):
 
 def apply_depth_estimation_results(results):
     '''
-    Persist depth worker output to Detection.distance on the server
+    Persist depth worker output.
 
-     Worker returns:
-        {str(detection_id): {'distance': float|None, 'error': str|None}, ...}
+    Worker returns detection payloads plus an optional '_job' entry:
+        {
+          '_job': {'cameragroup_id', 'scale_factor', 'scale_factor_computed'},
+          str(detection_id): {
+            'distance', 'error', 'flank', 'shoulder_height', 'back_length',
+            'keypoints': [{'name', 'x', 'y', 'score'}],
+          },
+        }
+    Distances are metres. Shoulder height and back length are centimetres.
+    Keypoints with source user or user_edited are left unchanged, and a
+    measurement that depends on one of those points is not overwritten.
+    pose_checked is left false.
     '''
     if not results:
         return 0
 
+    from depthworker.height import VITPOSE_SOURCE
+
+    job = results.get('_job') if isinstance(results, dict) else None
+    if (
+        isinstance(job, dict)
+        and job.get('scale_factor_computed')
+        and job.get('scale_factor') is not None
+        and job.get('cameragroup_id') is not None
+    ):
+        cameragroup = db.session.query(Cameragroup).get(int(job['cameragroup_id']))
+        if cameragroup is not None and cameragroup.scale_factor is None:
+            cameragroup.scale_factor = float(job['scale_factor'])
+
     updates = {}
     for det_id_str, payload in results.items():
-        if not isinstance(payload, dict) or payload.get('error'):
+        if det_id_str == '_job' or not isinstance(payload, dict) or payload.get('error'):
             continue
         distance = payload.get('distance')
         if distance is None:
             continue
-        updates[int(det_id_str)] = float(distance)
+        updates[int(det_id_str)] = payload
 
     if not updates:
         return 0
@@ -7600,9 +7627,45 @@ def apply_depth_estimation_results(results):
 
     updated = 0
     for detection in detections:
-        if detection.id in updates:
-            detection.distance = updates[detection.id]
-            updated += 1
+        payload = updates.get(detection.id)
+        if payload is None:
+            continue
+        detection.distance = float(payload['distance'])
+        if payload.get('flank') in ('L', 'R', 'A') and detection.flank is None:
+            detection.flank = payload['flank']
+
+        existing = {kp.name: kp for kp in detection.pose_keypoints}
+        protected = set(
+            name for name, kp in existing.items()
+            if kp.source in ('user', 'user_edited')
+        )
+        for point in payload.get('keypoints') or []:
+            name = point.get('name')
+            if not name or name in protected:
+                continue
+            try:
+                x = float(point['x'])
+                y = float(point['y'])
+            except (TypeError, ValueError, KeyError):
+                continue
+            score = point.get('score')
+            row = existing.get(name)
+            if row is None:
+                row = PoseKeypoint(detection_id=detection.id, name=name)
+                db.session.add(row)
+                existing[name] = row
+            row.x = x
+            row.y = y
+            row.score = None if score is None else float(score)
+            row.source = VITPOSE_SOURCE
+
+        shoulder_names = set(payload.get('shoulder_keypoints') or [])
+        if payload.get('shoulder_height') is not None and not (protected & shoulder_names):
+            detection.shoulder_height = float(payload['shoulder_height'])
+        back_names = set(payload.get('back_keypoints') or [])
+        if payload.get('back_length') is not None and not (protected & back_names):
+            detection.back_length = float(payload['back_length'])
+        updated += 1
 
     return updated
 
