@@ -1852,6 +1852,11 @@ function clusterIDMapPrep(mapID = 'map1') {
             if (targetUpdated && !updatingFlank) {
                 updatingFlank = true
                 detection_id = dbDetIds[wrapMapID][targetRect.toString()]
+                if (detection_id == null || detection_id == undefined || detection_id.startsWith('n')) {
+                    updatingFlank = false
+                    targetUpdated = false
+                    return
+                }
                 editDetectionFlank(detection_id,e.el.textContent)
                 targetUpdated = false
             } else {
@@ -2087,10 +2092,14 @@ function editDetectionFlank(detID,flank) {
                     }
                 }
                 updatingFlank = false
+            } else {
+                updatingFlank = false
             }
         }
         xhttp.open("GET", '/editDetectionFlank/'+detID+'/'+flank);
         xhttp.send();
+    } else{
+        updatingFlank = false
     }
 }
 

@@ -875,6 +875,9 @@ function buildDetection(image,detection,mapID = 'map1',colour=null) {
 function addDetections(mapID = 'map1') {
     /** Adds the bounding boxes to the active image. */
     if (!addedDetections[mapID]) {
+        if (isIDing) {
+            closeContextMenuAndPopup()
+        }
         if (isBounding||isReviewing||isIDing) {
             dbDetIds[mapID] = {}
             addDetCnt = 1

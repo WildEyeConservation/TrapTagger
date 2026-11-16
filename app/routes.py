@@ -16069,12 +16069,13 @@ def editDetectionFlank(detection_id,flank):
     tasks.append(task)
 
     detection = db.session.query(Detection).get(detection_id)
+    new_flank = None
     if task and detection and (all(checkSurveyPermission(current_user.id,task.survey_id,'write') for task in tasks) or all(checkAnnotationPermission(current_user.parent_id,task.id) for task in tasks)):
         if flank.lower() in Config.FLANK_DB.keys():
             detection.flank = Config.FLANK_DB[flank.lower()]
             db.session.commit()
 
-    new_flank = Config.FLANK_TEXT[detection.flank].capitalize()
+    if detection and detection.flank: new_flank = Config.FLANK_TEXT[detection.flank].capitalize()
 
     return json.dumps({'id': detection_id, 'flank': new_flank})
 
