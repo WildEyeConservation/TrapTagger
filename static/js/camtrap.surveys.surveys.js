@@ -11585,9 +11585,9 @@ function formatDepthHeightColumn(cam) {
 function formatDepthStatusColumn(cam) {
     if (!cam.launchable) return 'Skipped (' + cam.exclusion_reason + ')'
     var heights = cam.heights || []
-    var work = 'Distance estimation'
+    var work = 'Distance estimation only'
     if (cam.needs_distance && cam.needs_height) work = 'Distance and height estimation'
-    else if (cam.needs_height) work = 'Height estimation'
+    else if (cam.needs_height) work = 'Height estimation only'
     else if (!heights.length) return 'Ready. Distance only (no calibration height).'
     var note = ''
     if (cam.needs_height && heights.length > 1) {
