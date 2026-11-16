@@ -12,6 +12,7 @@ in the original full-image pixel grid.
 
 import os
 import sys
+import types
 
 import cv2
 import numpy as np
@@ -19,9 +20,29 @@ from PIL import Image
 
 from depthworker.height import AP10K_KEYPOINT_NAMES
 
-_EASY_ROOT = os.path.join(os.path.dirname(__file__), 'third_party', 'easy_ViTPose')
-if _EASY_ROOT not in sys.path:
-    sys.path.insert(0, _EASY_ROOT)
+# Inner package of the easy_ViTPose submodule. The repository root wraps this directory.
+_EASY_ROOT = os.path.join(
+    os.path.dirname(__file__), 'third_party', 'easy_ViTPose', 'easy_ViTPose'
+)
+
+
+def _install_easy_vitpose_path():
+    '''Put the pinned easy_ViTPose checkout on sys.path without its package init.
+
+    vit_utils/__init__.py imports visualization, which needs matplotlib and ffmpeg.
+    Those are not in the depth image. Registering the package first lets later
+    imports load inference, the model, and the heatmap decoder directly.
+    '''
+    if _EASY_ROOT not in sys.path:
+        sys.path.insert(0, _EASY_ROOT)
+    if 'vit_utils' not in sys.modules:
+        package = types.ModuleType('vit_utils')
+        package.__path__ = [os.path.join(_EASY_ROOT, 'vit_utils')]
+        package.__package__ = 'vit_utils'
+        sys.modules['vit_utils'] = package
+
+
+_install_easy_vitpose_path()
 
 DEFAULT_WEIGHTS = '/opt/models/vitpose/vitpose-b-ap10k.pth'
 # easy_ViTPose data_cfg image_size is [width, height].

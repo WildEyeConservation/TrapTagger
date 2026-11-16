@@ -16,3 +16,6 @@
 [submodule "depth-estimation-repo"]
 	path = depth-estimation-repo
 	url = https://github.com/Morphocam/depth-estimation-traptagger.git
+[submodule "depthworker/third_party/easy_ViTPose"]
+	path = depthworker/third_party/easy_ViTPose
+	url = https://github.com/JunkyByte/easy_ViTPose.git
