@@ -7527,6 +7527,9 @@ def launch_depth_estimation(survey_id, task_ids, species_list):
                 Image.filename,
                 Camera.path,
                 Detection.flank,
+                Detection.distance,
+                Detection.shoulder_height,
+                Detection.back_length,
             )
             .distinct()
             .all()
@@ -7564,6 +7567,9 @@ def launch_depth_estimation(survey_id, task_ids, species_list):
                         'bottom': d[4],
                     },
                     'flank': d[7] if d[7] in ('L', 'R', 'A') else None,
+                    'known_distance': d[8],
+                    'known_shoulder_height': d[9],
+                    'known_back_length': d[10],
                 })
 
         if not trap_items:
@@ -7672,7 +7678,8 @@ def apply_depth_estimation_results(results):
         payload = updates.get(detection.id)
         if payload is None:
             continue
-        detection.distance = float(payload['distance'])
+        if payload.get('distance_computed', True) and payload.get('distance') is not None:
+            detection.distance = float(payload['distance'])
         if payload.get('flank') in ('L', 'R', 'A') and detection.flank is None:
             detection.flank = payload['flank']
 
@@ -7702,14 +7709,14 @@ def apply_depth_estimation_results(results):
             row.source = VITPOSE_SOURCE
 
         shoulder_names = set(payload.get('shoulder_keypoints') or [])
-        if payload.get('shoulder_height') is not None and not (protected & shoulder_names):
+        if 'shoulder_height' in payload and payload.get('shoulder_height') is not None and not (protected & shoulder_names):
             new_shoulder = float(payload['shoulder_height'])
-            if new_shoulder > 0 or detection.shoulder_height is None:
+            if detection.shoulder_height is None:
                 detection.shoulder_height = new_shoulder
         back_names = set(payload.get('back_keypoints') or [])
-        if payload.get('back_length') is not None and not (protected & back_names):
+        if 'back_length' in payload and payload.get('back_length') is not None and not (protected & back_names):
             new_back = float(payload['back_length'])
-            if new_back > 0 or detection.back_length is None:
+            if detection.back_length is None:
                 detection.back_length = new_back
         updated += 1
 

@@ -210,7 +210,7 @@ def shoulder_top_pixel(mask, shoulder):
     return {'x': float(x), 'y': float(min(hits)), 'score': None, 'name': SHOULDER_TOP_NAME}
 
 
-def measure_animal(keypoints, mask, distance_m, scale_factor, flank):
+def measure_animal(keypoints, mask, distance_m, scale_factor, flank, compute_shoulder=True, compute_back=True):
     '''Return centimetre measurements and the keypoint rows to store.
 
     Either measurement may be missing. pixel length * distance / scale_factor
@@ -230,7 +230,7 @@ def measure_animal(keypoints, mask, distance_m, scale_factor, flank):
 
     shoulder_height = None
     shoulder_names = []
-    side = choose_leg_side(flank, keypoints)
+    side = choose_leg_side(flank, keypoints) if compute_shoulder else None
     if side is not None and scale_factor and distance_m and distance_m > 0 and scale_factor > 0:
         names = LEFT_LEG if side == 'left' else RIGHT_LEG
         shoulder = keypoints.get(names[0])
@@ -252,7 +252,8 @@ def measure_animal(keypoints, mask, distance_m, scale_factor, flank):
     neck = keypoints.get('neck')
     tail = keypoints.get('tail')
     if (
-        _usable(neck) and _usable(tail)
+        compute_back
+        and _usable(neck) and _usable(tail)
         and scale_factor and distance_m and distance_m > 0 and scale_factor > 0
     ):
         pixel_length = _pixel_distance(neck, tail)

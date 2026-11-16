@@ -196,12 +196,20 @@ def infer(
     for chunk_start in range(0, len(trap_items), chunk_size):
       chunk = trap_items[chunk_start:chunk_start + chunk_size]
       trap_entries = _download_traps(det_dir, chunk, sourceBucket, external)
+      depth_entries = [
+        entry for entry in trap_entries
+        if _known_number(entry.get('known_distance')) is None
+      ]
+      known_entries = [
+        entry for entry in trap_entries
+        if _known_number(entry.get('known_distance')) is not None
+      ]
       _write_manifest(
         transect_dir,
         cameragroup_id,
         cam_name,
         calibration_entries,
-        trap_entries,
+        depth_entries,
       )
       print(
         'Depth infer chunk {}-{} of {} traps for cameragroup {} (batch {}/{})'.format(
@@ -213,7 +221,36 @@ def infer(
           batch_count,
         )
       )
-      chunk_results = estimate_transect_traps(session)
+      chunk_results = estimate_transect_traps(session) if depth_entries else {}
+      for payload in chunk_results.values():
+        if isinstance(payload, dict):
+          payload['distance_computed'] = True
+      for entry in known_entries:
+        det_id = str(entry['detection_id'])
+        if not entry.get('download_ok', True):
+          chunk_results[det_id] = {
+            'distance': None,
+            'error': 's3_download_failed',
+            'distance_computed': False,
+          }
+          continue
+        chunk_results[det_id] = {
+          'distance': _known_number(entry.get('known_distance')),
+          'error': None,
+          'distance_computed': False,
+        }
+      if scale_factor is not None:
+        need_masks = [
+          entry for entry in known_entries
+          if entry.get('download_ok', True)
+          and entry.get('bbox_pixels')
+          and _known_number(entry.get('known_shoulder_height')) is None
+        ]
+        if need_masks:
+          from traptagger_api import masks_for_entries
+          for det_id, mask in masks_for_entries(session, need_masks).items():
+            if mask is not None and det_id in chunk_results:
+              chunk_results[det_id]['_mask'] = mask
       try:
         if scale_factor is not None:
           _add_height_estimates(
@@ -387,12 +424,19 @@ def _download_traps(det_dir, trap_items, sourceBucket, external):
   '''
   traps = []
   for item in trap_items:
+    known = {
+      'known_distance': item.get('known_distance'),
+      'known_shoulder_height': item.get('known_shoulder_height'),
+      'known_back_length': item.get('known_back_length'),
+      'flank': item.get('flank') if item.get('flank') in ('L', 'R', 'A') else None,
+    }
     bbox = item.get('bbox') or {}
     if not _bbox_has_coords(bbox):
       traps.append({
         'detection_id': item['detection_id'],
         'download_ok': True,
       })
+      traps[-1].update(known)
       continue
 
     dest_path = os.path.join(det_dir, '{}.jpg'.format(item['detection_id']))
@@ -402,6 +446,7 @@ def _download_traps(det_dir, trap_items, sourceBucket, external):
         'detection_id': item['detection_id'],
         'download_ok': False,
       })
+      traps[-1].update(known)
     else:
       with Image.open(dest_path) as img:
         width, height = img.size
@@ -412,10 +457,20 @@ def _download_traps(det_dir, trap_items, sourceBucket, external):
           '{}.jpg'.format(item['detection_id']),
         ),
         'bbox_pixels': _bbox_to_pixels(item['bbox'], width, height),
-        'flank': item.get('flank') if item.get('flank') in ('L', 'R', 'A') else None,
         'download_ok': True,
       })
+      traps[-1].update(known)
   return traps
+
+
+def _known_number(value):
+  '''A stored measurement, including 0. None means it has not been filled.'''
+  if value is None or value == '':
+    return None
+  try:
+    return float(value)
+  except (TypeError, ValueError):
+    return None
 
 
 def _drop_masks(results):
@@ -454,13 +509,19 @@ def _add_height_estimates(results, trap_entries, transect_dir, scale_factor, pos
     image_path = os.path.join(transect_dir, entry['relative_path'])
     if not os.path.isfile(image_path):
       continue
+    need_shoulder = _known_number(entry.get('known_shoulder_height')) is None
+    need_back = _known_number(entry.get('known_back_length')) is None
+    if not need_shoulder and not need_back:
+      continue
     try:
       points = pose_model.predict(image_path, entry['bbox_pixels'])
     except Exception as exc:
       print('ViTPose failed for detection {}: {}'.format(det_id, exc))
       # 0 marks the measurement filled but unusable, so a later launch skips it.
-      payload['shoulder_height'] = 0
-      payload['back_length'] = 0
+      if need_shoulder:
+        payload['shoulder_height'] = 0
+      if need_back:
+        payload['back_length'] = 0
       continue
     keypoints = {point['name']: point for point in points}
     given_flank = entry.get('flank')
@@ -475,6 +536,8 @@ def _add_height_estimates(results, trap_entries, transect_dir, scale_factor, pos
       payload.get('distance'),
       scale_factor,
       flank,
+      compute_shoulder=need_shoulder,
+      compute_back=need_back,
     )
     mask = payload.get('_mask')
     if mask is not None:
@@ -483,10 +546,12 @@ def _add_height_estimates(results, trap_entries, transect_dir, scale_factor, pos
       with Image.open(image_path) as img:
         width, height = img.size
     payload['keypoints'] = _normalize_keypoints(measured['keypoints'], width, height)
-    payload['shoulder_height'] = 0 if measured['shoulder_height'] is None else measured['shoulder_height']
-    payload['shoulder_keypoints'] = measured['shoulder_keypoints']
-    payload['back_length'] = 0 if measured['back_length'] is None else measured['back_length']
-    payload['back_keypoints'] = measured['back_keypoints']
+    if need_shoulder:
+      payload['shoulder_height'] = 0 if measured['shoulder_height'] is None else measured['shoulder_height']
+      payload['shoulder_keypoints'] = measured['shoulder_keypoints']
+    if need_back:
+      payload['back_length'] = 0 if measured['back_length'] is None else measured['back_length']
+      payload['back_keypoints'] = measured['back_keypoints']
     if estimated_flank is not None:
       payload['flank'] = estimated_flank
 
