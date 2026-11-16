@@ -26,7 +26,7 @@ class Config(object):
     INITIAL_SETUP = False
     DISABLE_RESTORE = False
     KILL_FILEHANDLER = False
-    VERSION = 72
+    VERSION = 73
 
     HOST_IP = os.environ.get('HOST_IP')
     REDIS_IP = os.environ.get('REDIS_IP')

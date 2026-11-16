@@ -598,7 +598,9 @@ function loadNewCluster(mapID = 'map1') {
                                         
                                         if (knockedTG==null && maskedTG==null) {
                                             if (true) { //(!clusterIdList.includes(newcluster.id))||(newcluster.id=='-101')
-                                                clusterIdList.push(...new_cluster_ids[newcluster.id])
+                                                if (newcluster.id != '-101') {
+                                                    clusterIdList.push(...new_cluster_ids[newcluster.id])
+                                                }
 
                                                 // Sort image detections by area (so that larger detections are drawn first - avoid having to use send to back)
                                                 newcluster.images.forEach(img => {
