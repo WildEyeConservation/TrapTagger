@@ -7163,20 +7163,22 @@ def depth_task_eligibility(unlabelled_animal_cluster_count):
     return True, None
 
 
-def _depth_exclusion_reason(sightings_without_depth, sightings_with_depth, cal_count, cal_with_bbox, launchable):
+def _depth_exclusion_reason(sightings_total, cal_count, cal_with_bbox, height_ready, launchable):
     '''Human-readable exclusion reason for a cameragroup preview row.'''
     if launchable:
         return None
     reasons = []
-    if sightings_without_depth == 0:
-        if sightings_with_depth > 0:
-            reasons.append('All matching detections already have distances')
-        else:
-            reasons.append('No matching detections')
+    if sightings_total == 0:
+        reasons.append('No matching detections')
     if cal_count == 0:
         reasons.append('No calibration images')
     elif cal_with_bbox == 0:
         reasons.append('No calibration images with bounding boxes')
+    elif sightings_total > 0:
+        if height_ready:
+            reasons.append('All matching detections already have distances, shoulder height, and back length')
+        else:
+            reasons.append('All matching detections already have distances')
     if not reasons:
         reasons.append('Not eligible')
     return '; '.join(reasons)
@@ -7318,6 +7320,14 @@ def depth_estimation_preview(survey_id, task_ids, species_list):
             .with_entities(func.count(distinct(Detection.id)))
             .scalar()
         ) or 0
+        sightings_missing_measurements = (
+            matching.filter(or_(
+                Detection.shoulder_height == None,
+                Detection.back_length == None,
+            ))
+            .with_entities(func.count(distinct(Detection.id)))
+            .scalar()
+        ) or 0
 
         cal_rows = (
             db.session.query(CalibrationImage)
@@ -7341,8 +7351,19 @@ def depth_estimation_preview(survey_id, task_ids, species_list):
                 if not any(abs(value - existing) < 1e-6 for existing in heights):
                     heights.append(value)
         heights.sort()
-
-        launchable = sightings_without_depth > 0 and cal_with_bbox > 0
+        height_ready = any(
+            cal.distance is not None
+            and cal.height is not None
+            and float(cal.height) > 0
+            and cal.top is not None
+            and cal.left is not None
+            and cal.bottom is not None
+            and cal.right is not None
+            for cal in cal_rows
+        )
+        needs_distance = sightings_without_depth > 0 and cal_with_bbox > 0
+        needs_height = height_ready and sightings_missing_measurements > 0 and cal_with_bbox > 0
+        launchable = needs_distance or needs_height
         if launchable:
             cameras_launchable += 1
             cal_images_missing_bbox += cal_missing_bbox
@@ -7359,9 +7380,15 @@ def depth_estimation_preview(survey_id, task_ids, species_list):
             'cal_missing_bbox': cal_missing_bbox,
             'cal_with_height': cal_with_height,
             'heights': heights,
+            'needs_distance': needs_distance,
+            'needs_height': needs_height,
             'launchable': launchable,
             'exclusion_reason': _depth_exclusion_reason(
-                sightings_without_depth, sightings_with_depth, cal_count, cal_with_bbox, launchable
+                sightings_with_depth + sightings_without_depth,
+                cal_count,
+                cal_with_bbox,
+                height_ready,
+                launchable,
             ),
         })
 
@@ -7395,6 +7422,8 @@ def depth_estimation_preview(survey_id, task_ids, species_list):
             'cal_missing_bbox': row['cal_missing_bbox'],
             'cal_with_height': row['cal_with_height'],
             'heights': row['heights'],
+            'needs_distance': row['needs_distance'],
+            'needs_height': row['needs_height'],
             'cal_below_mode': row['cal_below_mode'],
             'launchable': row['launchable'],
             'exclusion_reason': row['exclusion_reason'],
@@ -7426,7 +7455,9 @@ def launch_depth_estimation(survey_id, task_ids, species_list):
     and trap detections for the given task(s) and species.
 
     Only relevant detections (rDets: non-static, not ignored, above detector
-    confidence) with Detection.distance IS NULL are sent for depth estimation.
+    confidence) are sent. A detection is included when it has no distance, or
+    when the camera has a usable calibration height and the detection is
+    missing shoulder height or back length. A stored 0 counts as filled.
     Trap detections are split into batches of at most Config.DEPTH_TRAP_BATCH_SIZE (default 2000)
     per Celery task; calibration items are included on every batch for the same cameragroup.
     The depth worker downloads/infers trap images in chunks of
@@ -7473,9 +7504,20 @@ def launch_depth_estimation(survey_id, task_ids, species_list):
           if cal.distance is not None
           and _calibration_image_has_bbox(cal)]
 
+        height_ready = any(
+            item.get('height') is not None and float(item['height']) > 0
+            for item in calibration_items
+        )
+        work_filter = Detection.distance == None
+        if height_ready:
+            work_filter = or_(
+                Detection.distance == None,
+                Detection.shoulder_height == None,
+                Detection.back_length == None,
+            )
         det_rows = (
             _depth_matching_detection_query(survey_id, cg_id, task_ids, species_list)
-            .filter(Detection.distance == None)
+            .filter(work_filter)
             .with_entities(
                 Detection.id,
                 Detection.left,
@@ -7494,7 +7536,7 @@ def launch_depth_estimation(survey_id, task_ids, species_list):
             skipped.append({
                 'cameragroup_id': cg_id,
                 'name': cg_name,
-                'reason': 'no_trap_detections_without_depth',
+                'reason': 'nothing_to_estimate',
             })
             continue
 
@@ -7661,10 +7703,14 @@ def apply_depth_estimation_results(results):
 
         shoulder_names = set(payload.get('shoulder_keypoints') or [])
         if payload.get('shoulder_height') is not None and not (protected & shoulder_names):
-            detection.shoulder_height = float(payload['shoulder_height'])
+            new_shoulder = float(payload['shoulder_height'])
+            if new_shoulder > 0 or detection.shoulder_height is None:
+                detection.shoulder_height = new_shoulder
         back_names = set(payload.get('back_keypoints') or [])
         if payload.get('back_length') is not None and not (protected & back_names):
-            detection.back_length = float(payload['back_length'])
+            new_back = float(payload['back_length'])
+            if new_back > 0 or detection.back_length is None:
+                detection.back_length = new_back
         updated += 1
 
     return updated

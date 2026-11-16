@@ -11585,11 +11585,15 @@ function formatDepthHeightColumn(cam) {
 function formatDepthStatusColumn(cam) {
     if (!cam.launchable) return 'Skipped (' + cam.exclusion_reason + ')'
     var heights = cam.heights || []
-    if (!heights.length) return 'Ready. Distance only (no calibration height).'
-    if (heights.length > 1) {
-        return 'Ready. Height estimation included. Calibration images use different heights.'
+    var work = 'Distance estimation'
+    if (cam.needs_distance && cam.needs_height) work = 'Distance and height estimation'
+    else if (cam.needs_height) work = 'Height estimation'
+    else if (!heights.length) return 'Ready. Distance only (no calibration height).'
+    var note = ''
+    if (cam.needs_height && heights.length > 1) {
+        note = ' Calibration images use different heights.'
     }
-    return 'Ready. Height estimation included.'
+    return 'Ready. ' + work + '.' + note
 }
 
 function renderDepthEstimationPrimer(preview, speciesList) {

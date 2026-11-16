@@ -458,6 +458,9 @@ def _add_height_estimates(results, trap_entries, transect_dir, scale_factor, pos
       points = pose_model.predict(image_path, entry['bbox_pixels'])
     except Exception as exc:
       print('ViTPose failed for detection {}: {}'.format(det_id, exc))
+      # 0 marks the measurement filled but unusable, so a later launch skips it.
+      payload['shoulder_height'] = 0
+      payload['back_length'] = 0
       continue
     keypoints = {point['name']: point for point in points}
     given_flank = entry.get('flank')
@@ -480,9 +483,9 @@ def _add_height_estimates(results, trap_entries, transect_dir, scale_factor, pos
       with Image.open(image_path) as img:
         width, height = img.size
     payload['keypoints'] = _normalize_keypoints(measured['keypoints'], width, height)
-    payload['shoulder_height'] = measured['shoulder_height']
+    payload['shoulder_height'] = 0 if measured['shoulder_height'] is None else measured['shoulder_height']
     payload['shoulder_keypoints'] = measured['shoulder_keypoints']
-    payload['back_length'] = measured['back_length']
+    payload['back_length'] = 0 if measured['back_length'] is None else measured['back_length']
     payload['back_keypoints'] = measured['back_keypoints']
     if estimated_flank is not None:
       payload['flank'] = estimated_flank
