@@ -19526,7 +19526,7 @@ def savePoseReview():
                 if name not in kept:
                     db.session.delete(row)
 
-        if detection.distance is not None and ('keypoints' in edit or edit.get('flank')):
+        if 'keypoints' in edit or edit.get('flank'):
             db.session.flush()
             points = [{
                 'name': point.name,
@@ -19534,15 +19534,22 @@ def savePoseReview():
                 'y': point.y,
                 'score': point.score,
             } for point in live_rows if point not in db.session.deleted]
-            shoulder, back = measurements_from_stored_points(
-                points, detection.flank, detection.distance,
-                detection.image.camera.cameragroup.scale_factor if detection.image.camera.cameragroup else None,
-                image_width, image_height,
-            )
-            if shoulder is not None:
+            scale_factor = detection.image.camera.cameragroup.scale_factor if detection.image.camera.cameragroup else None
+            image_ok = image_width > 0 and image_height > 0
+            distance_ok = detection.distance is not None and detection.distance > 0
+            scale_ok = scale_factor is not None and scale_factor > 0
+            # A bad image size is a broken request, so leave the stored measurements alone.
+            # Missing distance, scale, or keypoints clears that measurement so a later job can retry it.
+            if image_ok and distance_ok and scale_ok:
+                shoulder, back = measurements_from_stored_points(
+                    points, detection.flank, detection.distance,
+                    scale_factor, image_width, image_height,
+                )
                 detection.shoulder_height = shoulder
-            if back is not None:
                 detection.back_length = back
+            elif image_ok:
+                detection.shoulder_height = None
+                detection.back_length = None
         updated[int(det_id)] = {
             'shoulder_height': detection.shoulder_height,
             'back_length': detection.back_length,

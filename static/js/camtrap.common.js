@@ -4186,7 +4186,9 @@ document.onkeyup = function(event){
                     break;
 
                 case 'control': 
-                    if (!isReviewing){
+                    if (typeof isPoseReview === 'function' && isPoseReview() && poseReviewMode === 'pose') {
+                        poseSave(true)
+                    } else if (!isReviewing){
                         if (!ctrlHeld){
                             activateMultiple()
                         }

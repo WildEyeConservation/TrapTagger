@@ -227,13 +227,9 @@ limitations under the License. -->
             <div class="modal-body">
                 <p align="justify">This will delete all pose keypoints for this sighting, and its shoulder height and back length. They cannot be restored after this is saved.</p>
             </div>
-            <div class='modal-footer'>
-                <div class='col-lg-3'>
-                    <button type='button' class='btn btn-info btn-block' data-dismiss='modal'>Cancel</button>
-                </div>
-                <div class='col-lg-3'>
-                    <button id='btnPoseUnusableConfirm' type='button' class='btn btn-danger btn-block' data-dismiss='modal' onclick='poseConfirmUnusable()'>Mark Unusable</button>
-                </div>
+            <div class='modal-footer' style='flex-wrap: nowrap;'>
+                <button type='button' class='btn btn-info' style='white-space: nowrap; flex: 0 0 auto;' data-dismiss='modal'>Cancel</button>
+                <button id='btnPoseUnusableConfirm' type='button' class='btn btn-danger' style='white-space: nowrap; width: auto; min-width: max-content; flex: 0 0 auto; padding-left: 16px; padding-right: 16px;' data-dismiss='modal' onclick='poseConfirmUnusable()'>Mark Unusable</button>
             </div>
         </div>
     </div>

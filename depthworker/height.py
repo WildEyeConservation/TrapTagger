@@ -215,8 +215,9 @@ def measurements_from_stored_points(points, flank, distance_m, scale_factor, wid
 
     points are fractions of the image. width and height are the image pixels
     those fractions belong to. A missing score is treated as usable, because
-    a person placed the point. A missing required point, distance, or scale
-    factor makes that measurement 0.
+    a person placed the point. A missing required point returns None for that
+    measurement. Invalid distance, scale factor, or image size returns None
+    for both, and the caller decides whether that clears the stored values.
     '''
     keypoints = {}
     for point in points or []:
@@ -233,8 +234,8 @@ def measurements_from_stored_points(points, flank, distance_m, scale_factor, wid
             score = 1.0
         keypoints[name] = {'name': name, 'x': x, 'y': y, 'score': score}
 
-    shoulder_height = 0
-    back_length = 0
+    shoulder_height = None
+    back_length = None
     try:
         distance_m = float(distance_m)
         scale_factor = float(scale_factor)
@@ -261,14 +262,16 @@ def measurements_from_stored_points(points, flank, distance_m, scale_factor, wid
                 + _pixel_distance(elbow, paw)
             )
             value = 100.0 * pixel_length * distance_m / scale_factor
-            shoulder_height = value if value > 0 else 0
+            if value > 0:
+                shoulder_height = value
 
     neck = keypoints.get('neck')
     tail = keypoints.get('tail')
     if _usable(neck) and _usable(tail):
         pixel_length = _pixel_distance(neck, tail)
         value = 100.0 * pixel_length * distance_m / scale_factor
-        back_length = value if value > 0 else 0
+        if value > 0:
+            back_length = value
 
     return shoulder_height, back_length
 
